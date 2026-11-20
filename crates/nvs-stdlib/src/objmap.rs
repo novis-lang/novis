@@ -43,8 +43,10 @@
 //! persistent structure would give up the O(log n) that is their reason to
 //! exist. A `foreach` over a map yields its *keys*, because a key gives `get`
 //! its value while a value gives nothing back; over a set, its members; over a
-//! heap, its elements in `pop` order. Each walk reads a snapshot taken when it
-//! began, so it is re-iterable and a mutation in the body does not disturb it.
+//! heap, its elements in `pop` order. Each walk sees the collection as it was
+//! when the walk began, so it is re-iterable and a mutation in the body does
+//! not disturb it. A map's or set's walk shares its store, and a write in the
+//! body separates the collection once ([`crate::cursor`]).
 //! `Heap` is `Iterable` for that reason alone: without it, a heap's contents are
 //! reachable only by emptying it.
 
@@ -103,7 +105,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// hands `get` back its value, while a value hands nothing back the key it was
 /// stored under — and `rule:iteration/two-interfaces` gives a cursor no key binding to carry the
 /// other half in. `values()` is the spelling for the other direction.
-/// [`crate::cursor`] owns the mechanism and what the snapshot spends.
+/// [`crate::cursor`] owns the mechanism and what a loop spends.
 // rank: 290
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -317,7 +319,7 @@ const CLEAR_DOC: MethodDoc = MethodDoc {
 /// A map keyed by `string` or `int` keeps the empty array in [`KEYS`].
 const KEYS: usize = 0;
 /// See [`KEYS`].
-const VALUES: usize = 1;
+pub(crate) const VALUES: usize = 1;
 /// The map's [`store::Keying`], written once by its constructor.
 const KEYING: usize = 2;
 
@@ -730,15 +732,26 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Iterable<K>::iterate(): Iterator<K>` — a cursor over a snapshot of the
-    /// map's keys.
+    /// `Iterable<K>::iterate(): Iterator<K>` — a cursor over the map's own
+    /// store, which yields each key: the key store's values for a chain or
+    /// identity-keyed map, and the value store's keys, as a `string` or an
+    /// `int`, for a direct one. It takes one reference on the store and copies
+    /// nothing; a write in the loop separates the map ([`crate::cursor`]).
     ///
     /// Not a registered member: it is reached by name through this class's
     /// method table, so its receiver is **transferred** rather than borrowed —
     /// [`crate::cursor`]'s module docs own both halves of that.
     fn nvs_core_object_map_iterate(_ctx, args: [1]) {
         let cursor = map_of(args[0], nvs_runtime::sequence::ITERATE).and_then(|receiver| {
-            Ok(crate::cursor::over(keys_of(receiver, nvs_runtime::sequence::ITERATE)?))
+            let (slot, yields) = match keying_of(receiver) {
+                store::Keying::Chain | store::Keying::Object => {
+                    (KEYS, crate::cursor::Yield::Value)
+                }
+                store::Keying::Str => (VALUES, crate::cursor::Yield::StrKey),
+                store::Keying::Int => (VALUES, crate::cursor::Yield::IntKey),
+            };
+            let walked = store::borrow(receiver, slot, &CLASS, nvs_runtime::sequence::ITERATE)?;
+            Ok(crate::cursor::yielding(NvsArray::clone(&walked), yields))
         });
         crate::cursor::consume(args[0]);
         cursor

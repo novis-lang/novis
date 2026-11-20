@@ -548,8 +548,9 @@ pub(crate) fn remove(store: &mut NvsArray, place: &Place) {
 }
 
 /// The key at `slot` of a direct store, as a value the caller owns: a
-/// `string` for [`Keying::Str`] and an `int` for [`Keying::Int`].
-fn key_value(store: &NvsArray, slot: usize, keying: Keying) -> Option<Value> {
+/// `string` for [`Keying::Str`] and an `int` for [`Keying::Int`]. A
+/// [`crate::cursor`] over a direct map reads its keys through it too.
+pub(crate) fn key_value(store: &NvsArray, slot: usize, keying: Keying) -> Option<Value> {
     match keying {
         Keying::Chain | Keying::Object => None,
         #[expect(

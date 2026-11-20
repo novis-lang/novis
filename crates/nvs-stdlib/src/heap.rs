@@ -245,7 +245,7 @@ const IS_EMPTY_DOC: MethodDoc = MethodDoc {
 };
 
 /// [`CLASS`]'s slots, by index.
-const ENTRIES: usize = 0;
+pub(crate) const ENTRIES: usize = 0;
 /// The `callable` given at construction, or `null`.
 const COMPARATOR: usize = 1;
 
@@ -502,7 +502,8 @@ fn root(receiver: *mut ObjHeader, member: &str) -> Result<Value, Fault> {
 }
 
 /// Every element in `pop` order, as a fresh list, without disturbing the heap
-/// — the snapshot [`nvs_core_heap_iterate`] hands its cursor.
+/// — the list [`nvs_core_heap_iterate`] hands its cursor, which nothing else
+/// holds.
 ///
 /// A *copy* of the entries is drained rather than the heap itself, because
 /// `foreach` is a read: the copy starts as a valid binary heap (it is the

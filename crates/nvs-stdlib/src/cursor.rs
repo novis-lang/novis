@@ -1,5 +1,7 @@
 //! The cursor `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap` hand a
-//! `foreach` —`rule:iteration/two-interfaces`'s `Iterator<T>` half, over a snapshot list.
+//! `foreach` —`rule:iteration/two-interfaces`'s `Iterator<T>` half, over an
+//! array it holds one reference on: a map's or set's own store, or a heap's
+//! sorted copy.
 //!
 //! # Decision: a `Core` collection answers a `foreach` through its method table
 //!
@@ -19,22 +21,37 @@
 //! method table is written, and it is what closes [`crate::heap`]'s standing
 //! gap about a `Core` receiver carrying no members.
 //!
-//! # Decision: the cursor walks a snapshot, not the live collection
+//! # Decision: the cursor shares the collection's store, and a write separates it
 //!
-//! `iterate()` copies the elements it will yield into a fresh list and the
-//! cursor walks that. Those three classes are *mutable* `Core`
-//! types, so the live alternative has to answer what a `remove` mid-loop does
-//! — PHP's own answer for a rehashed `SplObjectStorage` is undefined — and for
-//! [`crate::heap`] it cannot be answered at all: pop order is not the order the
-//! entries array is in, so a live cursor would have to consume the heap it is
-//! iterating.
+//! A loop sees the collection as it was when the loop began, whatever the body
+//! does to it. Those three classes are *mutable* `Core` types, so a cursor over
+//! the live collection would have to answer what a `remove` mid-loop does, and
+//! PHP's own answer for a rehashed `SplObjectStorage` is undefined.
 //!
-//! **What it spends:** one list allocation plus one reference per element, per
-//! `foreach`, held for the length of the loop and released with the cursor.
-//! That is O(in-flight) and charged to the request that wrote the loop, which
-//! is the trade [AGENTS.md](/AGENTS.md)'s ordering asks for: the
-//! loop sees the collection as it was when the loop began, whatever the body
-//! does to it.
+//! A map's or set's `iterate()` takes one reference on the store it walks and
+//! copies nothing: the key store of a chain or identity-keyed map, and the one
+//! store of every other map and set. The cursor walks that array by slot
+//! ([`NvsArray::next_slot`]). Its `yields` slot ([`Yield`]) says what each
+//! slot gives: the value, the key as a `string`, or the key as an `int`, which
+//! is how a `string` or `int` map, whose keys are the store's own keys, yields
+//! them. An `int` key is read through [`NvsArray::slot_key`], with no
+//! allocation while the store is a list.
+//!
+//! A write in the body separates the collection once. Every store write goes
+//! through an [`NvsArray`] mutator, which copies a shared array before it
+//! writes ([`crate::identity_store::edit`]), and `clear` and a re-key put a
+//! fresh array in the slot. Either way the cursor keeps the array it began
+//! with, unchanged.
+//!
+//! `Core\Heap` keeps its copy. Its storage order is not its pop order, so its
+//! cursor walks the sorted list [`crate::heap`]'s `sorted` builds, which
+//! nothing else holds.
+//!
+//! **What it spends:** a map's or set's loop costs one reference on its store,
+//! held for the length of the loop and released with the cursor. A body that
+//! writes copies the store once, which is what every loop start cost before.
+//! A heap's loop costs one sorted list and one reference per element. All of it
+//! is O(in-flight) and charged to the request that wrote the loop.
 //!
 //! # Why this class has no registry row
 //!
@@ -64,11 +81,46 @@ use crate::registry::CoreClass;
 /// program can write it.
 pub(crate) const NAME: &str = r"Core\Cursor";
 
-/// [`CLASS`]'s slots, by index: the snapshot being walked …
+/// [`CLASS`]'s slots, by index: the array being walked, which the cursor holds
+/// one reference on …
 const ITEMS: usize = 0;
-/// … and the slot of it the cursor is on, `-1` before the first
-/// [`ADVANCE`].
+/// … the slot of it the cursor is on, `-1` before the first [`ADVANCE`] …
 const INDEX: usize = 1;
+/// … and what each slot yields, a [`Yield`].
+const YIELDS: usize = 2;
+
+/// What a cursor yields at each slot of the array it walks. The `yields` slot
+/// holds it as an `int`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Yield {
+    /// The value at the slot: a list's element, a set's member, or a chain or
+    /// identity-keyed map's key from its key store.
+    Value,
+    /// The key at the slot, as a `string`: a `string` map's key.
+    StrKey,
+    /// The key at the slot, as an `int`: an `int` map's key.
+    IntKey,
+}
+
+impl Yield {
+    /// The value the `yields` slot holds for this mode.
+    const fn value(self) -> Value {
+        Value::int(match self {
+            Self::Value => 0,
+            Self::StrKey => 1,
+            Self::IntKey => 2,
+        })
+    }
+
+    /// The mode a `yields` slot's value names. Only this module writes it.
+    fn of(value: Value) -> Self {
+        match value.as_int() {
+            Some(1) => Self::StrKey,
+            Some(2) => Self::IntKey,
+            _ => Self::Value,
+        }
+    }
+}
 
 /// The cursor's own layout — a [`CoreClass`] like any other, and deliberately
 /// not one of [`crate::registry::CLASSES`].
@@ -77,7 +129,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     doc: None,
     methods: &[],
     instance: &[],
-    slots: &["items", "index"],
+    slots: &["items", "index", "yields"],
     constants: &[],
 };
 
@@ -97,10 +149,20 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     }))
 }
 
-/// A fresh cursor over `items`, taking over its reference — what every
-/// `iterate()` in this crate returns.
+/// A fresh cursor over the values of `items`, taking over its reference: what
+/// every `iterate()` in this crate returns but a `string` or `int` map's.
 pub(crate) fn over(items: NvsArray) -> Value {
-    crate::instance::build(&CLASS, [Value::array(items), Value::int(-1)])
+    yielding(items, Yield::Value)
+}
+
+/// A fresh cursor over `items` that yields what `yields` names at each slot,
+/// taking over its reference. A map or set passes a clone of its own store,
+/// which is one reference and no copy.
+pub(crate) fn yielding(items: NvsArray, yields: Yield) -> Value {
+    crate::instance::build(
+        &CLASS,
+        [Value::array(items), Value::int(-1), yields.value()],
+    )
 }
 
 /// Releases the receiver reference a virtual call transferred — see this
@@ -116,7 +178,7 @@ pub(crate) fn consume(receiver: Value) {
     }
 }
 
-/// The cursor's own state: its snapshot and the slot it is on.
+/// The cursor's own state: the array it walks and the slot it is on.
 ///
 /// # Errors
 ///
@@ -153,30 +215,39 @@ fn stepped(value: Value) -> Result<Value, Fault> {
     Ok(Value::bool(true))
 }
 
-/// [`CURRENT`]'s body: the element [`ADVANCE`] last moved to, retained,
-/// because the snapshot outlives this call.
+/// [`CURRENT`]'s body: what the slot [`ADVANCE`] last moved to yields, as a
+/// value the caller owns. A value is retained, because the array outlives this
+/// call. A key is read as the [`Yield`] says, with no allocation for an `int`
+/// key while the array is a list.
 fn read(value: Value) -> Result<Value, Fault> {
-    let (_, items, index) = state(value, CURRENT)?;
+    let (receiver, items, index) = state(value, CURRENT)?;
     let slot = usize::try_from(index).map_err(|_| {
         Fault::fatal(format!(
             "{NAME}::{CURRENT} was asked for an element before the first `{ADVANCE}`"
         ))
     })?;
-    let held = items.value_at(slot).ok_or_else(|| {
+    let yields = Yield::of(crate::instance::slot(receiver, YIELDS));
+    let found = match yields {
+        Yield::Value => items.value_at(slot).inspect(|held| {
+            #[expect(
+                unsafe_code,
+                reason = "the element belongs to the walked array, which outlives \
+                          this call, so the value handed back needs a reference of \
+                          its own"
+            )]
+            unsafe {
+                held.retain();
+            }
+        }),
+        Yield::StrKey => store::key_value(&items, slot, store::Keying::Str),
+        Yield::IntKey => store::key_value(&items, slot, store::Keying::Int),
+    };
+    found.ok_or_else(|| {
         Fault::fatal(format!(
-            "{NAME}::{CURRENT} found no element at slot {slot} of a snapshot holding {}",
+            "{NAME}::{CURRENT} found no element at slot {slot} of an array holding {}",
             items.count()
         ))
-    })?;
-    #[expect(
-        unsafe_code,
-        reason = "the element belongs to the snapshot, which outlives this \
-                  call, so the value handed back needs a reference of its own"
-    )]
-    unsafe {
-        held.retain();
-    }
-    Ok(held)
+    })
 }
 
 nvs_runtime::nvs_helper! {
@@ -242,6 +313,155 @@ mod tests {
         )]
         unsafe {
             cursor.release();
+        }
+    }
+
+    /// The array a slot of `object` holds, by its address.
+    fn array_in(object: Value, index: usize) -> *mut u8 {
+        let receiver = object.obj_ptr().expect("an instance");
+        crate::instance::slot(receiver, index)
+            .array_ptr()
+            .expect("an array slot")
+            .cast()
+    }
+
+    /// Runs `member` over `receiver`, which it borrows, and `rest`.
+    fn on(receiver: Value, member: nvs_runtime::NvsFn, rest: &[Value]) -> Value {
+        let mut ctx = Ctx::buffered();
+        let mut args = vec![receiver];
+        args.extend_from_slice(rest);
+        call(member, &mut ctx, &args).expect("the member does not throw")
+    }
+
+    /// Calls an `iterate()` the way a `foreach` does: it consumes the
+    /// receiver, so the caller's own reference is retained first.
+    fn iterate(receiver: Value, member: nvs_runtime::NvsFn) -> Value {
+        #[expect(
+            unsafe_code,
+            reason = "`iterate()` consumes one reference, and this frame keeps its own"
+        )]
+        unsafe {
+            receiver.retain();
+        }
+        on(receiver, member, &[])
+    }
+
+    /// Every element `cursor` yields, rendered, and the cursor released.
+    fn drained(cursor: Value) -> Vec<String> {
+        let mut ctx = Ctx::buffered();
+        let mut seen = Vec::new();
+        loop {
+            #[expect(unsafe_code, reason = "each call consumes a reference")]
+            unsafe {
+                cursor.retain();
+            }
+            let more = call(nvs_core_cursor_advance, &mut ctx, &[cursor]).expect("advance");
+            if more.as_bool() != Some(true) {
+                break;
+            }
+            #[expect(unsafe_code, reason = "each call consumes a reference")]
+            unsafe {
+                cursor.retain();
+            }
+            let value = call(nvs_core_cursor_current, &mut ctx, &[cursor]).expect("current");
+            seen.push(
+                value
+                    .as_text()
+                    .map_or_else(|| format!("{:?}", value.as_int()), ToOwned::to_owned),
+            );
+            #[expect(
+                unsafe_code,
+                reason = "`current` handed back a reference this frame owns"
+            )]
+            unsafe {
+                value.release();
+            }
+        }
+        #[expect(unsafe_code, reason = "the loop's own reference")]
+        unsafe {
+            cursor.release();
+        }
+        seen
+    }
+
+    /// A `string` map's cursor holds the map's own value store, so a loop
+    /// starts with no copy. A `set` during the loop gives the map another
+    /// store, and the cursor still walks the first one, unchanged.
+    #[test]
+    fn a_cursor_shares_its_collections_store_until_a_write_separates_it() {
+        let mut ctx = Ctx::buffered();
+        let map = call(crate::objmap::nvs_core_object_map_new_string, &mut ctx, &[])
+            .expect("a fresh map does not throw");
+        let keys = [Value::text("a"), Value::text("b"), Value::text("c")];
+        on(
+            map,
+            crate::objmap::nvs_core_object_map_set,
+            &[keys[0], Value::int(1)],
+        );
+        on(
+            map,
+            crate::objmap::nvs_core_object_map_set,
+            &[keys[1], Value::int(2)],
+        );
+        let cursor = iterate(map, crate::objmap::nvs_core_object_map_iterate);
+        let store = array_in(map, crate::objmap::VALUES);
+        assert_eq!(
+            array_in(cursor, ITEMS),
+            store,
+            "the cursor and the map hold the same array"
+        );
+
+        on(
+            map,
+            crate::objmap::nvs_core_object_map_set,
+            &[keys[2], Value::int(3)],
+        );
+        assert_ne!(
+            array_in(map, crate::objmap::VALUES),
+            store,
+            "the write gave the map an array of its own"
+        );
+        assert_eq!(array_in(cursor, ITEMS), store, "the cursor keeps the first");
+        assert_eq!(drained(cursor), vec!["a", "b"]);
+        assert_eq!(
+            drained(iterate(map, crate::objmap::nvs_core_object_map_iterate)),
+            vec!["a", "b", "c"],
+            "the next loop sees the write"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the constructor's reference and each key's"
+        )]
+        unsafe {
+            map.release();
+            for key in keys {
+                key.release();
+            }
+        }
+    }
+
+    /// A heap's cursor walks a sorted list that is not the heap's store and
+    /// that nothing else holds.
+    #[test]
+    fn a_heap_cursor_walks_a_sorted_copy_of_its_own() {
+        let mut ctx = Ctx::buffered();
+        let heap = call(crate::heap::nvs_core_heap_new, &mut ctx, &[Value::null()])
+            .expect("a fresh heap does not throw");
+        for n in [3, 1, 2] {
+            on(heap, crate::heap::nvs_core_heap_push, &[Value::int(n)]);
+        }
+        let cursor = iterate(heap, crate::heap::nvs_core_heap_iterate);
+        let walked = array_in(cursor, ITEMS);
+        assert_ne!(walked, array_in(heap, crate::heap::ENTRIES));
+        let receiver = cursor.obj_ptr().expect("an instance");
+        let items = store::borrow(receiver, ITEMS, &CLASS, "test").expect("an array");
+        assert_eq!(items.refcount(), 1, "nothing else holds the sorted list");
+        assert_eq!(drained(cursor), vec!["Some(1)", "Some(2)", "Some(3)"]);
+
+        #[expect(unsafe_code, reason = "this frame owns the constructor's reference")]
+        unsafe {
+            heap.release();
         }
     }
 }

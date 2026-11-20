@@ -8,7 +8,7 @@
 //! identity key for a set of a type whose every value is an object; the
 //! `keying` slot says which.
 
-use nvs_runtime::{Fault, ObjHeader, Value};
+use nvs_runtime::{Fault, NvsArray, ObjHeader, Value};
 
 use crate::identity_store as store;
 use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
@@ -56,8 +56,8 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
 /// all ([`crate::registry::CONSTRUCTORS`]).
 ///
 /// **A `foreach` over a set yields its members**, in insertion order — the one
-/// thing a set holds. [`crate::cursor`] owns the mechanism and what the
-/// snapshot spends.
+/// thing a set holds. [`crate::cursor`] owns the mechanism and what a loop
+/// spends.
 // rank: 300
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
@@ -607,8 +607,10 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Iterable<T>::iterate(): Iterator<T>` — a cursor over a snapshot of the
-    /// set's members.
+    /// `Iterable<T>::iterate(): Iterator<T>` — a cursor over the set's own
+    /// store, which yields each member. It takes one reference on the store
+    /// and copies nothing; a write in the loop separates the set
+    /// ([`crate::cursor`]).
     ///
     /// Not a registered member: it is reached by name through this class's
     /// method table, so its receiver is **transferred** rather than borrowed —
@@ -617,7 +619,7 @@ nvs_runtime::nvs_helper! {
         let cursor = set_of(args[0], nvs_runtime::sequence::ITERATE).and_then(|receiver| {
             let entries =
                 store::borrow(receiver, ENTRIES, &CLASS, nvs_runtime::sequence::ITERATE)?;
-            Ok(crate::cursor::over(store::listed(&entries)))
+            Ok(crate::cursor::over(NvsArray::clone(&entries)))
         });
         crate::cursor::consume(args[0]);
         cursor
