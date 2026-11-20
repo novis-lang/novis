@@ -6,7 +6,7 @@ context: [docs/rules/attributes/attach-sites-and-forms.md, crates/nvs-types/src/
 stages:
   - id: 1
     title: the rules are written, and the cases that pin them are written ahead
-    status: open
+    status: done
     context: [docs/rules/attributes/inert-metadata.md, docs/rules/attributes/structural-retrieval.md, docs/rules/attributes/repeatable.md, docs/rules/types/shape-type.md, docs/rules/types/class-scoped-alias.md]
   - id: 2
     title: the parser reads an attribute declaration and a doc comment on a shape field, and the formatter writes both
@@ -256,18 +256,18 @@ checks name. The cases cannot pass yet, and their `--EXPECT--` is frozen once wr
 **Split:** one writing subagent writes the eleven `.nvst` cases from the finished rule fragments while
 the session renders and checks the rules. Their files are disjoint.
 
-- [ ] `docs/rules/attributes/an-attribute-is-declared-with-its-sites.md:1`: the new rule and its
+- [x] `docs/rules/attributes/an-attribute-is-declared-with-its-sites.md:1`: the new rule and its
   `data/rules/attributes/` JSON, from § *Standing decisions*: the declaration, the site words, the
   sites a user's declaration may list, the owner rule, `repeatable`, resolution and the Declined list.
-- [ ] `docs/rules/attributes/inert-metadata.md:1`, `attach-sites-and-forms.md:1`,
+- [x] `docs/rules/attributes/inert-metadata.md:1`, `attach-sites-and-forms.md:1`,
   `structural-retrieval.md:1` (renamed to a declaration match, with its JSON id),
   `repeatable.md:1`, `retrieval-folds-while-checking.md:1`, `access-payload.md:1`: rewritten so each
   states the present rule. The bare form and the alias form leave every fragment.
-- [ ] `docs/rules/routing/a-match-reads-an-attribute-as-data.md:1`, `docs/rules/programs/implementing-with.md:1`:
+- [x] `docs/rules/routing/a-match-reads-an-attribute-as-data.md:1`, `docs/rules/programs/implementing-with.md:1`:
   `T` names a declaration.
-- [ ] `docs/rules/types/shape-type.md:1`: a field may carry a doc comment, and the editor shows it.
-- [ ] `bun nv rules --render`, then `bun nv rules --check` is green.
-- [ ] The nine cases of the `cases` check and the two of the `retrieval` check, under
+- [x] `docs/rules/types/shape-type.md:1`: a field may carry a doc comment, and the editor shows it.
+- [x] `bun nv rules --render`, then `bun nv rules --check` is green.
+- [x] The nine cases of the `cases` check and the two of the `retrieval` check, under
   `tests/conformance/lang/`, `tests/conformance/reject/` and `tests/conformance/core/`, each named in
   the front matter. Neutral names only (`Shop`, `Blog`, `Framework`). Each reject case is one
   diagnostic per mistake, and the `lang` cases print what a retrieval returns.
@@ -286,6 +286,9 @@ the session renders and checks the rules. Their files are disjoint.
   that field's doc, and the attribute body reuses this field list.
 - [ ] `crates/nvs-syntax/src/parser/mod.rs:168` `parse_attribute`: the bare `#[{…}]` is one error that
   says to declare an attribute, and the group's recovery (`:132`) keeps the declaration after it.
+  `E0140`, `E0141` and `E0142` go in `crates/nvs-diagnostics/src/code/parser.rs`, and a parser test in
+  `crates/nvs-syntax/src/parser/tests/decl.rs` pins each, since a parse error stops a reject case
+  before its checker errors.
 - [ ] `crates/nvs-fmt/src/`: the declaration is formatted as a class body is, one field per line with
   its doc above, and the site list on the header line. `bun nv nvs-fmt` stays green on the corpus.
 - [ ] `crates/nvs-hir/src/autoload.rs:1538`: an attribute declaration is a symbol of its own kind, so an
@@ -303,10 +306,11 @@ stage 6. That is expected, and no stage before the gate runs the whole suite.
 - [ ] `crates/nvs-types/src/attributes.rs:655` `resolve_shape_alias` and `:709`
   `resolve_member_shape_alias`: replaced by one resolution to a declaration, with the owner chain's
   short names through `nvs_hir::ClassGraph` and the two-scopes error. A class or alias is the
-  "only an attribute declaration" error with its fix (`E0726` at `:744` is reused or retired).
+  "only an attribute declaration" error `E1005` with its fix, and `E0726` at `:744` is retired.
 - [ ] `crates/nvs-types/src/attributes.rs:242` `check_attribute`: the four checks of § *Standing
-  decisions* in their order, each with a code in `crates/nvs-diagnostics/src/code/types_e08.rs`. Every
-  message is end-user text (`docs/agent/prose.md`).
+  decisions* in their order, with the codes § *The diagnostic codes* names: the new ones in
+  `crates/nvs-diagnostics/src/code/types_e10.rs`, and each retired one marked retired in its file. Every
+  message is end-user text (`docs/agent/prose.md`), and the frozen cases already state each one.
 - [ ] `crates/nvs-types/src/attributes.rs:115` `reject_unread`: retired. Its check is at the
   declaration, for a user's site list.
 - [ ] `crates/nvs-types/src/attributes.rs:50` `check_declaration`: the declaration itself is checked,
@@ -413,25 +417,42 @@ reference, `about.md` and the pages. Their files are disjoint.
 
 - [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [ ] The ten rule records `designed` under this goal are set `shipped`, and their `goal` key removed,
+  then `bun nv rules --render` and `--check`.
 
 ## Handoff
 
 ### State
 
-Written on 2026-11-20 from the person's question about how a developer finds the right attribute.
-Nothing is built yet. The person chose owner-scoped attributes that are used only on the owner's
-descendants, top-level attributes usable everywhere, and a required site list. Every other choice in
-§ *Standing decisions* is the authoring session's call under the priority ordering, and stands until
-the person picks another.
+Stage 1 is done (`0dfe75fc6a`, `1fe40843c9`). The new rule
+`docs/rules/attributes/an-attribute-is-declared-with-its-sites.md` and the renamed
+`docs/rules/attributes/a-retrieval-matches-the-declaration-it-names.md` (was `structural-retrieval`;
+every citation in the tree moved with it, including Rust comments that still describe the structural
+match until stage 5) are written. Eight rules are rewritten, and all ten records are `designed` under
+this goal. `bun nv rules --check` is green. The codes are in § *Standing decisions* § *The diagnostic
+codes*. Two clarifications were written into the rules from the case writer's questions: a use on the
+owner or its own members is `E1006` in either form, and a retrieval reads only the declaration its
+target resolves to, never a parent class's payloads.
 
-The editor already completes a userland attribute's fields since `ed44125957`, from the shape the
-checker records under the attribute (`crates/nvs-types/src/attributes.rs:289`). Stage 7 keeps that
-path and feeds it the declaration.
+`docs/rules/enums/no-class-machinery.md:11` now says no program attribute is used on an enum. It stays
+`shipped`, and stage 3 makes it true by retiring `E0871`.
+
+The eleven cases are written and frozen. Their expected lines and columns were computed by script, and
+none has run: each is red until its stage. Expected red: all nine `cases` files and both `retrieval`
+files. `a-reflected-attribute-names-its-declaration.nvst` reaches `AttributeInfo` through
+`Core\Reflect::forObject($o)->attributes()`. The `E1007` case relies on `Core\Deprecated` being an
+attribute declaration that `use Core\Deprecated;` brings into scope (stage 4).
+
+The nightly CI failures the sweep reported were for `5d053fc6e6` and are already fixed on `main`:
+`e5a100b18f` (the XML memory-limit unit test) and `438e9c44af` (the ObjectMap keyed-iterable case).
+Both pass locally.
 
 ### Next
 
-Stage 1 from its first item: the new rule fragment, then the rewrites, then the eleven cases. The
-`cases`, `retrieval`, `editor` and `proofs` checks name files that do not exist yet, and are expected to
-fail until their stages write them.
+Stage 2 from its first item: `crates/nvs-syntax/src/ast.rs:2189` `AttributeDecl` and the `doc` on
+`ShapeField` (`:276`), then the parser at `crates/nvs-syntax/src/parser/decl.rs:874` and
+`crates/nvs-syntax/src/parser/ty.rs:866`, the bare-form error at `crates/nvs-syntax/src/parser/mod.rs:168`
+with the parser codes `E0140` to `E0142`, the formatter and the autoload symbol. A build and clippy
+check it. The `cases`, `retrieval`, `editor` and `proofs` checks stay red until their stages.
 
 ### Backlog
