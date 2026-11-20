@@ -3,8 +3,6 @@
 
 # Attributes
 
-*1 of 13 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="attributes-inert-metadata"></a>
 
 ## An attribute is an anonymous object on a declaration, checked against its attribute declaration, and nothing is ever instantiated for it
@@ -154,7 +152,7 @@ them reports a use, the checks after it are skipped for that use. One mistake is
 
 <a id="attributes-a-declaration-names-its-class-with-static"></a>
 
-## `static` in an attribute declaration's fields names the class the attribute is used on, and a retrieval binds it to its target's class  *(designed — not yet in the compiler)*
+## `static` in an attribute declaration's fields names the class the attribute is used on, and a retrieval binds it to its target's class
 
 `rule:attributes/a-declaration-names-its-class-with-static`
 
@@ -192,8 +190,13 @@ properties. `property<static>` takes one name, and `array<property<static>>` a l
   and `::all` read the declaration's fields with `static` bound to the class the first argument names,
   never to the class the call is written in. A retrieval folds while compiling
   ([`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking)), so the target is always known.
-  `Core\Program::implementingWith<I, T>` binds it once per class it joins. A retrieval whose target is
-  not a class makes `static` in its type argument `E0303`.
+  `Core\Program::implementingWith<I, T>` binds it once per class it joins, and a row's `attribute` has
+  each field's types joined over those classes: `array<property<Post>>|array<property<User>>`. Every
+  class's payload fits that shape. A target that names no declaration is `E0730`, and `static` in the
+  type argument reports nothing more there ([`types/one-mistake-reports-once`](types.md#types-one-mistake-reports-once)).
+  `Core\Router\Match::attribute<T>` does not bind it yet: `static` in `T`'s fields is the error type
+  with no diagnostic. The fix is `implementingWith`'s join over the routed classes
+  (`crate::program::joined_shape`), taken when a route attribute first names `static`.
 - **A string literal in a payload at a `property<C>` field is read as a written name**, as an array
   element too, exactly as a literal at a key parameter is ([`types/property-key`](types.md#types-property-key)). A public declared
   property of `C`, its ancestors' included, makes it a `property<C>`. Any other name, a `private` one
