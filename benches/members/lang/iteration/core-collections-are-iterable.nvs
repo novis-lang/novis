@@ -3,6 +3,7 @@
 // A program does this when it reports the values a request collected.
 // bench: iterations 256
 // bench: complexity constant
+// bench: allocations 7
 
 final class Item
 {
