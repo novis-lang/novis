@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-stdlib/src/objmap.rs, crates/nvs-stdlib/src/objset.rs, crates/nvs-stdlib/src/heap.rs, crates/nvs-stdlib/src/identity_store.rs, crates/nvs-runtime/src/revoke.rs, crates/nvs-runtime/src/array.rs, docs/rules/core-api/collections-drop-revoked-objects.md]
   - id: 5
     title: the editor shows the cards of Revocable and its two methods
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/hover.rs, tests/lsp/hover/a-core-class-name-answers-its-card.lspt, crates/nvs-types/src/iter_lib.rs, docs/reference/tools/40-editor.md]
   - id: 6
     title: the feature's proofs
@@ -607,12 +607,12 @@ lang:classes/revocable-objects`. The session runs the check once.
 check, copying the shape of `tests/lsp/hover/a-core-class-name-answers-its-card.lspt` and
 `docs/agent/conventions.md` § *An `.lspt` case*. The session runs the check once.
 
-- [ ] `crates/nvs-types/src/iter_lib.rs:81`: the three cards sit beside the seeded interface, as
+- [x] `crates/nvs-types/src/iter_lib.rs:81`: the three cards sit beside the seeded interface, as
   `rule:core-api/reference-card` keeps a card beside its declaration.
-- [ ] `crates/nvs-lsp/src/hover.rs:891` `core`: a hover on `Revocable`, `revoke()` or
+- [x] `crates/nvs-lsp/src/hover.rs:891` `core`: a hover on `Revocable`, `revoke()` or
   `isRevoked()` returns its card.
-- [ ] `docs/reference/tools/40-editor.md:1`: no change unless a section lists the cards a hover shows.
-- [ ] The four `.lspt` cases, and the `editor` check run once.
+- [x] `docs/reference/tools/40-editor.md:1`: no change unless a section lists the cards a hover shows.
+- [x] The four `.lspt` cases, and the `editor` check run once.
 
 ### 6. the feature's proofs
 
@@ -689,29 +689,24 @@ user reads*.
 
 ### State
 
-Stages 1 to 4 are built and checked. The `collections` and `collections-memory` checks are green,
-each run once.
-- The cycle test was wrong, not the code: the collector runs only near the request's ceiling
-  (`object.rs` `collect`'s docs), so a run with no ceiling grows the same for a plain class. The test
-  now holds 20,000 node-and-map cycles to a 512 KiB ceiling and passes.
-- Both rules state the real memory (16-byte slot, 24-byte list per object in a collection, 32-byte
-  membership) and decisions 23 to 25. `bun nv rules --render` wrote the chapters. Its one finding is
-  `docs/goals/attribute-property-names.md:112` citing a rule that goal writes, not this goal's.
-- The eight `tests/conformance/core/revocable-*.nvst` cases pass.
-- The nightly CI failures of run 44510687786 (commit `adc7487822`) were all fixed after that commit:
-  wasmtime 50.0.2 (`eb5c02e983`), the Miri `bytes_of` retag (`4c82a2409a`), the debug viewer's shot
-  (`656f5b2f2d`), and the registry browser test (`1c75c4ef0e`). Nothing to do unless the next nightly
-  is red again.
+Stages 1 to 5 are built and checked. The `editor` check is green, run once.
+- The cards are `nvs_types::iter_lib::revocable_card`. `hover.rs` `revocable` answers them for
+  `Target::Type(Revocable)` and for a call whose declaring class is `Revocable`, from `core`.
+- The four `.lspt` cases were written by the session, not a subagent: four files of ten lines.
+- `tests/lsp/completion/an-expected-error-argument-offers-only-error-classes.lspt` now lists
+  `RevokedObjectError`, which stage 1 added to the error classes. It was the one red `lsp-test` case.
+- Inside a namespace, a case needs `use Revocable;`, as for every global name.
+- The nightly CI failures of run 44510687786 (commit `adc7487822`) were all fixed by later commits
+  (`eb5c02e983`, `4c82a2409a`, `656f5b2f2d`, `1c75c4ef0e`, each a descendant of it). Nothing to do
+  unless the next nightly is red again.
 
 ### Next
 
-Stage 5, the editor: one group in `crates/nvs-types/src/iter_lib.rs` and `crates/nvs-lsp/src/hover.rs`.
-1. `iter_lib.rs:81`: the three cards of § *The text an end user reads* beside the seeded
-   `Revocable`. Re-find the anchor with `bun nv peek --locate`.
-2. `hover.rs` `core` (about `:891`): a hover on `Revocable`, a `revoke()` call and an `isRevoked()`
-   call returns its card.
-3. The four `.lspt` cases by one writing subagent (the stage's split), then the `editor` check once.
-4. Carried: `Core\Debug::dump` of a heap shows a third property, `$revoked => int(0)`. No case pins a
+Stage 6, the proofs. Follow its `**Split:**` line.
+1. `bun nv proofs --id lang:classes/revocable-objects` and `--id RevokedObjectError` first.
+2. The reference section at `docs/reference/lang/50-classes.md` (re-find *Objects are handles* with
+   `bun nv peek --locate`), then `about.md` and `details.md`, then the three writing subagents.
+3. Carried: `Core\Debug::dump` of a heap shows a third property, `$revoked => int(0)`. No case pins a
    heap dump. Stage 6's pages should not show one.
 
 Expected red: none known.
