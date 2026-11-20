@@ -243,6 +243,34 @@ pub unsafe fn revoked_message(ptr: *mut ObjHeader) -> String {
     }
 }
 
+/// `Err` with `RevokedObjectError` when `value` is a revoked object, and `Ok`
+/// for anything else. A use through `mixed`, `Core\Json`, `Core\Reflect`, a
+/// graph copy and `clone` asks this before it reads the object.
+///
+/// # Errors
+///
+/// The `RevokedObjectError` fault, naming the class and the first revoke site.
+pub fn revoked_use(value: &Value) -> Result<(), crate::abi::Fault> {
+    revoked_text(value).map_or(Ok(()), |message| {
+        Err(crate::abi::Fault::thrown_as(ThrownClass::Revoked, message))
+    })
+}
+
+/// `RevokedObjectError`'s message when `value` is a revoked object, and `None`
+/// for anything else. A graph copy refuses a revoked object with this message.
+#[must_use]
+pub fn revoked_text(value: &Value) -> Option<String> {
+    let ptr = value.obj_ptr().filter(|ptr| !ptr.is_null())?;
+    #[expect(
+        unsafe_code,
+        reason = "a Value that holds an object holds a reference to it, so the \
+                  object is live, and its hidden slot holds a baked blob or null"
+    )]
+    unsafe {
+        is_revoked(ptr).then(|| revoked_message(ptr))
+    }
+}
+
 /// `revoke()`, as compiled code calls it. `site` is the call's own site blob.
 ///
 /// # Safety

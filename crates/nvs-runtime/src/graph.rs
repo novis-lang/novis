@@ -429,6 +429,15 @@ fn walk<C: Carrier>(
                 release(value);
                 return Err(why);
             }
+            // `rule:classes/revocable-objects`: a revoked object is refused
+            // before its properties are read, with `RevokedObjectError`'s
+            // message. The door that called the copy picks the error's class.
+            if class.is_revocable()
+                && let Some(message) = crate::revoke::revoked_text(&value)
+            {
+                release(value);
+                return Err(GraphError(message));
+            }
             let adopt = carrier.adopt(value);
             let holder = carrier.open_object(class, adopt.then_some(value));
             seen.insert(ptr, holder.clone());

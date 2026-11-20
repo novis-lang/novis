@@ -1013,6 +1013,19 @@ pub enum InstKind {
         /// The revocable object.
         object: ValueId,
     },
+    /// `rule:classes/revocable-objects`'s check before a use of an object
+    /// whose static type may be revocable: a property read or write, a method
+    /// call and a `clone`. It reads the object's count word and throws
+    /// `RevokedObjectError` through `nvs_runtime::revoke::nvs_throw_revoked`
+    /// when the revoked flag is set. Defines no value, borrows `object`, which
+    /// is never `null`, and always carries an error edge.
+    CheckRevoked {
+        /// The object about to be used.
+        object: ValueId,
+        /// The use's [`InstKind::SourceConst`], which names the frame the
+        /// throw starts in.
+        site: ValueId,
+    },
     /// A `bool` constant.
     ConstBool(bool),
     /// An `int` constant.
@@ -4209,6 +4222,10 @@ impl InstKind {
                 f(*site);
             }
             InstKind::IsRevoked { object } => f(*object),
+            InstKind::CheckRevoked { object, site } => {
+                f(*object);
+                f(*site);
+            }
             InstKind::ArrayNew { entries } => {
                 for &(_, value) in entries {
                     f(value);
@@ -4477,6 +4494,9 @@ impl InstKind {
             // header's flag and no slot of the program's.
             InstKind::Revoke { .. } => Effects::USER_CODE,
             InstKind::IsRevoked { .. } => Effects::NONE,
+            // The check reads the header's flag, and a throw leaves through the
+            // error edge, so it touches no slot of the program's.
+            InstKind::CheckRevoked { .. } => Effects::NONE,
             InstKind::StaticGet { class, name } => Effects::reading(Slot::Static { class, name }),
             InstKind::StaticSet { class, name, .. } => {
                 Effects::writing(Slot::Static { class, name })

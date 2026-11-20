@@ -5141,6 +5141,15 @@ impl<'a> Lowering<'a> {
             );
             object_v
         };
+        // `rule:classes/revocable-objects`: a call of a revoked object throws
+        // before its arguments run. `revoke()` and `isRevoked()` compile no
+        // check, and the receiver is staged above, so a throw releases it.
+        let intrinsic = call.class.to_string() == "Revocable"
+            && matches!(call.method.as_str(), "revoke" | "isRevoked");
+        if !is_static && !intrinsic {
+            let class = call.class.to_string();
+            self.emit_revoked_check(*cur, object_v, receiver_ty, &class, env);
+        }
         // Every `inout $x` this call stages is written back below, in the block the
         // call returns into — inside the `?->` guard when there is one, since
         // a receiver that was `null` ran no callee and wrote nothing back. See
@@ -5160,10 +5169,7 @@ impl<'a> Lowering<'a> {
         // by the runtime, not by a compiled body, and a call of either compiles
         // no revoked check. The receiver was transferred as a callee's would
         // be, so it is released here, where a callee would release it.
-        if !is_static
-            && call.class.to_string() == "Revocable"
-            && matches!(call.method.as_str(), "revoke" | "isRevoked")
-        {
+        if !is_static && intrinsic {
             self.forget_transferred_since(mark);
             let (v, ty) = if call.method == "revoke" {
                 let site = self.call_site(*cur, expr.span);
@@ -6552,6 +6558,7 @@ impl<'a> Lowering<'a> {
         if base_is_temporary {
             self.own_temporary(object_v);
         }
+        self.emit_revoked_check(*cur, object_v, receiver_ty, &class_label, env);
         let (v, ty) = match get {
             Some(label) => {
                 // The receiver is parameter 0, so it is an ordinary

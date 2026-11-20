@@ -115,3 +115,104 @@ fn compiled_code_frees_a_revoked_object() {
         "a revoked object is not freed: 200 objects held {short} bytes, 2000 held {long}"
     );
 }
+
+/// A program with one revocable class, one class that is not, and one
+/// interface the revocable class implements. Each method of `Uses` makes one
+/// kind of access, so each test counts the checks of one method.
+const ACCESSES: &str = r#"<?nvs
+interface Named
+{
+    public function name(): string;
+}
+
+class Post implements Revocable, Named
+{
+    public function constructor(public string $title)
+    {}
+
+    public function name(): string
+    {
+        return 'post';
+    }
+}
+
+class Plain
+{
+    public function constructor(public string $title)
+    {}
+
+    public function name(): string
+    {
+        return 'plain';
+    }
+}
+
+class Uses
+{
+    public static function plain(Plain $plain): string
+    {
+        $plain->title = 'b';
+        return $plain->title . $plain->name();
+    }
+
+    public static function post(Post $post): string
+    {
+        return $post->title;
+    }
+
+    public static function named(Named $named): string
+    {
+        return $named->name();
+    }
+
+    public static function end(Post $post): bool
+    {
+        $post->revoke();
+        return $post->isRevoked();
+    }
+}
+
+echo Uses::plain(new Plain('a')), Uses::post(new Post('a')), Uses::named(new Post('a'));
+echo Uses::end(new Post('a')) ? 'yes' : 'no';
+"#;
+
+/// How many revoked checks the function `name` of `ACCESSES` compiles.
+fn checks_in(name: &str) -> usize {
+    let program = lower(ACCESSES);
+    let function = program
+        .functions
+        .iter()
+        .find(|f| f.name == name)
+        .unwrap_or_else(|| panic!("the program defines no `{name}`"));
+    function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.insts)
+        .filter(|inst| matches!(inst.kind, nvs_ir::ir::InstKind::CheckRevoked { .. }))
+        .count()
+}
+
+#[test]
+fn a_class_that_is_not_revocable_compiles_no_check() {
+    // A write, a read and a call through `Plain`, which no revocable class
+    // reaches, so none of them is checked.
+    assert_eq!(checks_in("Uses::plain"), 0);
+}
+
+#[test]
+fn a_revocable_class_access_compiles_one_check() {
+    assert_eq!(checks_in("Uses::post"), 1);
+}
+
+#[test]
+fn an_interface_call_compiles_one_check() {
+    // `Named` is implemented by the revocable `Post`, so a call through it is
+    // checked.
+    assert_eq!(checks_in("Uses::named"), 1);
+}
+
+#[test]
+fn revoke_and_isrevoked_compile_no_check() {
+    assert_eq!(checks_in("Uses::end"), 0);
+    assert_eq!(output_of(ACCESSES), "bplainapostyes");
+}

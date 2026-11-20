@@ -52,6 +52,26 @@ impl RevocableTypes {
         Self { reached }
     }
 
+    /// Whether `name`, a class or an interface, is reached by a revocable
+    /// class. An access whose member resolved to `name` then needs the check.
+    /// A class outside the set has no revocable subclass, so its accesses
+    /// need none.
+    #[must_use]
+    pub fn contains(&self, name: &QName) -> bool {
+        self.reached.contains(name)
+    }
+
+    /// Whether the program has no revocable class.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.reached.is_empty()
+    }
+
+    /// Every name in the set, in no order.
+    pub fn names(&self) -> impl Iterator<Item = &QName> {
+        self.reached.iter()
+    }
+
     /// Whether a value of static type `ty` may be a revocable object, so a
     /// property access, a method call or a `clone` through it needs the check.
     ///

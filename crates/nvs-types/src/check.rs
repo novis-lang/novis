@@ -656,6 +656,9 @@ fn after_walk(
     // The command table crosses the same way and at the same point: `Core\Command`'s
     // dispatch, its usage text and its completions are all generated from it.
     exprs.record_commands(commands);
+    // `rule:classes/revocable-objects`'s set crosses the same way: the IR asks
+    // it where a use needs the revoked check.
+    exprs.record_revocable(crate::revocable::RevocableTypes::of(&module.graph));
     // Declaration-side property types, for the one consumer that asks at a
     // declaration rather than at an access — see
     // `ExprTypeTable::property_default_ty`.

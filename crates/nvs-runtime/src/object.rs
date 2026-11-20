@@ -5378,6 +5378,9 @@ crate::nvs_helper! {
             let message = format!("clone(): {GENERATOR_REFUSAL}");
             return Err(Fault::thrown_as(crate::ThrownClass::Logic, message));
         }
+        // `rule:classes/revocable-objects`: `clone` of a revoked object throws,
+        // through every static type, so the test is here and not compiled.
+        crate::revoke::revoked_use(&args[0])?;
         Ok(Value::null())
     }
 }
@@ -6513,6 +6516,11 @@ fn read_erased_property_hinted(
                   is too"
     )]
     let desc = unsafe { &*NvsObj::class_of(ptr) };
+    // `rule:classes/revocable-objects`: a read of a revoked object throws,
+    // before any other question about the name.
+    if desc.is_revocable() {
+        crate::revoke::revoked_use(&receiver)?;
+    }
     let slot = desc.field_slot(name, hint);
     // Before the hook, since a hooked property has a visibility of its own.
     if hidden(desc, slot, reach) {
@@ -6833,6 +6841,10 @@ fn write_property(
                   is live and its descriptor is too"
     )]
     let desc = unsafe { &*NvsObj::class_of(ptr) };
+    // `rule:classes/revocable-objects`: a write to a revoked object throws.
+    if desc.is_revocable() {
+        crate::revoke::revoked_use(&receiver)?;
+    }
     let found = desc.field_slot(name, hint);
     if hidden(desc, found, reach) {
         return Err(hidden_property(desc, found, name, "written"));

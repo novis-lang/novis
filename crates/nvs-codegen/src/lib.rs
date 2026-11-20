@@ -2445,6 +2445,9 @@ struct Signatures {
     /// `nvs_object_is_revoked(object) -> u8`, `isRevoked()`
     /// (`nvs_ir::ir::InstKind::IsRevoked`).
     is_revoked: Signature,
+    /// `nvs_throw_revoked(ctx, object, site) -> i32`, the cold call of
+    /// `nvs_ir::ir::InstKind::CheckRevoked`. Its status is checked.
+    throw_revoked: Signature,
     /// `nvs_str_concat(lhs, rhs) -> *mut StrHeader`,
     /// `nvs_str_append(target, suffix) -> *mut StrHeader`,
     /// `nvs_str_concat_n(pieces, count) -> *mut StrHeader` and
@@ -3218,6 +3221,11 @@ impl Signatures {
         let mut is_revoked = module.make_signature();
         is_revoked.params.push(AbiParam::new(ptr)); // object
         is_revoked.returns.push(AbiParam::new(types::I8));
+        let mut throw_revoked = module.make_signature();
+        throw_revoked.params.push(AbiParam::new(ptr)); // ctx
+        throw_revoked.params.push(AbiParam::new(ptr)); // object
+        throw_revoked.params.push(AbiParam::new(ptr)); // site
+        throw_revoked.returns.push(AbiParam::new(types::I32));
 
         let mut str_concat = module.make_signature();
         str_concat.params.push(AbiParam::new(ptr));
@@ -3387,6 +3395,7 @@ impl Signatures {
             copy_count,
             revoke,
             is_revoked,
+            throw_revoked,
             str_concat,
             str_append_parts,
             ptr_eq,

@@ -1740,6 +1740,9 @@ pub struct ExprTypeTable {
     promoted_pipelines: FxHashMap<Span, PromotedPipeline>,
     literal_types: FxHashMap<Span, TypeId>,
     bare_arguments: FxHashMap<(Span, usize), TypeId>,
+    /// `rule:classes/revocable-objects`'s set of names that may hold a
+    /// revocable object, written once at the end of the check.
+    revocable: crate::revocable::RevocableTypes,
     /// Set only by [`Self::record_provenance`], which `nvs-lsp` alone calls
     /// (`rule:ide/a-hover-shows-where-a-tainted-or-secret-value-came-from`).
     /// `None` for every compile that runs or checks a program.
@@ -1932,6 +1935,7 @@ impl ExprTypeTable {
             promoted_pipelines,
             literal_types,
             bare_arguments,
+            revocable: _,
             provenance,
         } = part;
         let offset = u32::try_from(self.entries.len())
@@ -2091,6 +2095,7 @@ impl ExprTypeTable {
         section("promoted_pipelines", sorted(&self.promoted_pipelines));
         section("literal_types", sorted(&self.literal_types));
         section("bare_arguments", sorted(&self.bare_arguments));
+        section("revocable", sorted(self.revocable.names()));
         section(
             "provenance",
             vec![format!("{:?}", self.provenance.is_some())],
@@ -2793,6 +2798,28 @@ impl ExprTypeTable {
     /// consumer see a program state no program is ever in.
     pub(crate) fn record_routes(&mut self, routes: crate::routes::RouteTable) {
         self.routes = routes;
+    }
+
+    /// Records `rule:classes/revocable-objects`'s set, once, at the end of
+    /// [`crate::check::check_program`], as [`Self::record_routes`] does.
+    pub(crate) fn record_revocable(&mut self, revocable: crate::revocable::RevocableTypes) {
+        self.revocable = revocable;
+    }
+
+    /// Whether an access whose member resolved to the class or interface
+    /// labelled `name` may reach a revocable object, so its use needs the
+    /// revoked check (`rule:classes/revocable-objects`). See
+    /// [`crate::revocable::RevocableTypes::contains`].
+    #[must_use]
+    pub fn may_be_revocable_class(&self, name: &str) -> bool {
+        !self.revocable.is_empty() && self.revocable.contains(&QName::parse(name))
+    }
+
+    /// Whether any class of the program is revocable, so an access through
+    /// `mixed`, `object` or a type variable needs the check.
+    #[must_use]
+    pub fn has_revocable(&self) -> bool {
+        !self.revocable.is_empty()
     }
 
     /// `rule:routing/table-is-opt-in`'s route table, empty for a program declaring no `#[Route]`.

@@ -488,6 +488,11 @@ fn call_erased_unchecked(
             }
         });
     }
+    // Every other call of a revoked object throws, a `Stringable` or a
+    // `Comparable` call a helper makes included.
+    if desc.is_revocable() {
+        crate::revoke::revoked_use(&receiver)?;
+    }
     let Some(row) = desc.method_row(name) else {
         // A `Core`-owned class has no *compiled* method table at all — only
         // the engine-protocol rows `nvs_stdlib::instance` puts there — so

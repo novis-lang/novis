@@ -393,6 +393,15 @@ fn object_body(
                   outlives every instance of the class it describes"
     )]
     let desc: &ClassDesc = unsafe { &*object.class() };
+    // `rule:classes/revocable-objects`: a revoked object shows its class and
+    // that it is revoked, and none of its properties. A dump does not throw.
+    if desc.is_revocable() && crate::revoke::revoked_text(&value).is_some() {
+        return Node::Object {
+            class: format!("{class} (revoked)"),
+            id,
+            properties: Vec::new(),
+        };
+    }
     Node::Object {
         class,
         id,

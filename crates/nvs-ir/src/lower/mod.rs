@@ -3773,6 +3773,50 @@ impl<'a> Lowering<'a> {
             raise_site: None,
         });
     }
+    /// Appends `rule:classes/revocable-objects`'s [`InstKind::CheckRevoked`]
+    /// on `object` to `b`, before a property read or write, a method call or a
+    /// `clone`, when the member the access resolved to belongs to `class` and
+    /// `class` may hold a revocable object. A class outside
+    /// `nvs_types::revocable::RevocableTypes` has no revocable subclass, so an
+    /// access through it compiles nothing, and a program with no revocable
+    /// class compiles no check at all. Only an object operand is checked: an
+    /// access through `mixed` is checked inside the runtime's erased entry.
+    ///
+    /// `object` must already be staged where the frame owes its release, so
+    /// the landing block drops it if the check throws.
+    pub(crate) fn emit_revoked_check(
+        &mut self,
+        b: BlockId,
+        object: ValueId,
+        object_ty: Ty,
+        class: &str,
+        env: &Env,
+    ) {
+        if object_ty != Ty::Object
+            || !self.exprs.has_revocable()
+            || !self.exprs.may_be_revocable_class(class)
+        {
+            return;
+        }
+        let source = Some(self.source());
+        let (site, _) = self.emit(
+            b,
+            Ty::ClassDesc,
+            InstKind::SourceConst {
+                source,
+                restricted: None,
+            },
+        );
+        let landing = self.landing_block(env);
+        let raise_site = self.source();
+        self.block_insts[b.index() as usize].push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::CheckRevoked { object, site },
+            on_error: Some(landing),
+            raise_site: Some(raise_site),
+        });
+    }
     /// Appends one [`InstKind::DeprecationCheck`] to `b` for each check in
     /// `checks`, each with the error edge `env` gives every fallible
     /// instruction.

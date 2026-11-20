@@ -1030,6 +1030,14 @@ impl Reentry {
         refuse(format!("`{class}::{ENCODE}()` did not answer a document"))
     }
 
+    /// Records the `RevokedObjectError` of a revoked object the walk reached,
+    /// and answers the [`Refused`] that stops the walk
+    /// (`rule:classes/revocable-objects`).
+    fn stopped_by_revoked(&self, fault: Fault) -> Refused {
+        *self.raised.borrow_mut() = Some(fault);
+        refuse("a revoked object cannot be encoded")
+    }
+
     /// The fault a member raised, taken, and `None` where the walk stopped on
     /// something this encoder itself refused.
     fn raised(&self) -> Option<Fault> {
@@ -1886,6 +1894,11 @@ impl Stack {
         let id = ptr as usize;
         if let Some(cycle) = self.cycle(id) {
             return Err(cycle);
+        }
+        // `rule:classes/revocable-objects`: a revoked object throws before any
+        // of its properties is read.
+        if let Err(fault) = nvs_runtime::revoke::revoked_use(&value) {
+            return Err(walk.stopped_by_revoked(fault));
         }
         let (_, desc) =
             described(value).ok_or_else(|| refuse("a `Tag::Object` value is always an object"))?;

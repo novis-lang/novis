@@ -99,6 +99,15 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         let _ = writeln!(out, "    revoke v{}, v{}", object.index(), site.index());
         return;
     }
+    if let InstKind::CheckRevoked { object, site } = inst.kind {
+        let _ = writeln!(
+            out,
+            "    check.revoked v{}, v{}",
+            object.index(),
+            site.index()
+        );
+        return;
+    }
     if let InstKind::LendPoison {
         object,
         ref class,
@@ -470,6 +479,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         | InstKind::RefStore { .. }
         | InstKind::CopyCount { .. }
         | InstKind::Revoke { .. }
+        | InstKind::CheckRevoked { .. }
         | InstKind::FieldSet { .. }
         | InstKind::StaticSet { .. } => {
             unreachable!("returned above")

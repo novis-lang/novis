@@ -17,11 +17,13 @@ Both are intrinsics the runtime runs, not compiled bodies, and a call of either 
 **Using a revoked object throws `RevokedObjectError`**, a global subclass of `LogicError`, as
 `RecursionError` is global, because the runtime throws it on a language operation. These throw: a
 property read or write, a method call (a `Stringable` or `Comparable` call is one), `clone`,
-`Core\Json::encode`, `serialize()`, a graph copy into a task or a cache, and a `Core\Reflect` read, call
-or write. These do not: `isRevoked()`, a second `revoke()`, passing the object, storing it, `==`
-(identity, `rule:expressions/equality-semantics`), the type test `is` (`rule:types/type-test`) and
-`::class`. `Core\Debug` prints the class name and that the object is revoked, without its properties,
-and does not throw, so a program can inspect one. The message names the class and the place of the
+`Core\Json::encode`, and a `Core\Reflect` read, call or write. `serialize()` and a graph copy into a
+task or a cache refuse a revoked object too, with `RevokedObjectError`'s message under the error that
+door already throws, because every caller of the copy picks its own error
+(`rule:classes/graph-copy`). These do not throw: `isRevoked()`, a second `revoke()`, passing the
+object, storing it, `==` (identity, `rule:expressions/equality-semantics`), the type test `is`
+(`rule:types/type-test`) and `::class`. `Core\Debug` prints the class name followed by `(revoked)`,
+without its properties, and does not throw, so a program can inspect one. The message names the class and the place of the
 first `revoke()`: "This `Blog\Post` object was revoked in `src/Blog/Post.nvs` on line 42. A revoked
 object cannot be used."
 
@@ -45,11 +47,17 @@ instructions it ran before, and a revoked one pays one helper call per release.
 
 The check is compiled only where the static type could be revocable: a revocable class, an interface,
 `mixed`, `object`, a type parameter whose bound does not rule it out, and a union or nullable type
-containing one of these. It is `CheckRevoked { object, site }` before a `FieldGet`, a `FieldSet`, a
-`CallVirtual`, a direct call with a receiver and a `Clone`, and erased access through `mixed` is checked
-inside the runtime's erased entries. It is one load and one predicted branch on the header line a
-method call already reads, with a cold call to the thrower. `$this` is checked too, because a method
-may call `revoke()` and then read a property.
+containing one of these. The compiler asks it of the class or interface the access's member resolved
+to, which the checker records: that class is an ancestor of the receiver's, and a class tree is
+revocable as a whole, so the answer is the receiver type's for a class, and a type parameter or a union
+reaches it through its bound or each of its members. It is `CheckRevoked { object, site }` before a
+property read or write and a method call with a receiver, written or direct. A property write is checked
+once the receiver is held, before the value is computed. Erased access through `mixed` is checked
+inside the runtime's erased entries, and `clone` inside the clone guard every `clone` already calls. It
+is one load and one predicted branch on the header line a method call already reads: a count with the
+flag is negative as a signed word, and the immortal count is `-1`, so a count below `-1` is revoked. The
+call to the thrower is cold. `$this` is checked too, because a method may call `revoke()` and then read
+a property.
 
 **Memory.** Each revocable object carries one hidden 8-byte slot, the first of its root class, so it has
 one offset in the whole tree. Each object in a collection costs one membership of about 16 to 24 bytes

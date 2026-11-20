@@ -796,6 +796,9 @@ impl Emitter<'_, '_> {
             InstKind::DeprecationCheck { message, at } => {
                 return self.emit_deprecation_check(message, at, inst.on_error);
             }
+            InstKind::CheckRevoked { object, site } => {
+                return self.emit_check_revoked(*object, *site, inst.on_error);
+            }
             InstKind::ConstBool(v) => {
                 let v = self.b.ins().iconst(types::I8, i64::from(*v));
                 self.define(inst, v)?;
@@ -1660,6 +1663,46 @@ impl Emitter<'_, '_> {
             .b
             .ins()
             .call(callee, &[self.ctx_p, text, text_len, site, site_len]);
+        let status = self.b.inst_results(call)[0];
+        self.emit_status_check(status, on_error)?;
+        self.b.ins().jump(cont, &[]);
+
+        self.b.switch_to_block(cont);
+        Ok(cont)
+    }
+
+    /// `rule:classes/revocable-objects`'s check before a use of an object that
+    /// may be revocable (`nvs_ir::ir::InstKind::CheckRevoked`). It loads the
+    /// count word, the header line the use reads anyway, and makes one signed
+    /// compare: a count with the revoked flag is negative, and the immortal
+    /// count, `-1`, is not revoked, so a count below `-1` is revoked. The call
+    /// of `nvs_throw_revoked` is cold, and its status is checked.
+    ///
+    /// **What it spends:** one load and one predicted branch per checked use.
+    fn emit_check_revoked(
+        &mut self,
+        object: ValueId,
+        site: ValueId,
+        on_error: Option<BlockId>,
+    ) -> Result<Block, CodegenError> {
+        let (object, _) = self.value(object)?;
+        let (site, _) = self.value(site)?;
+        let offset = i32::try_from(nvs_runtime::OBJ_REFCOUNT_OFFSET)
+            .map_err(|_| internal("a reference count past a 2 GiB offset"))?;
+        let count = self.b.ins().load(types::I64, trusted(), object, offset);
+        let revoked = self
+            .b
+            .ins()
+            .icmp_imm_s(IntCC::SignedLessThan, count, IMMORTAL_REFCOUNT_I64);
+
+        let slow = self.b.create_block();
+        let cont = self.b.create_block();
+        self.b.set_cold_block(slow);
+        self.b.ins().brif(revoked, slow, &[], cont, &[]);
+
+        self.b.switch_to_block(slow);
+        let callee = self.runtime_ref("nvs_throw_revoked", RuntimeSig::ThrowRevoked)?;
+        let call = self.b.ins().call(callee, &[self.ctx_p, object, site]);
         let status = self.b.inst_results(call)[0];
         self.emit_status_check(status, on_error)?;
         self.b.ins().jump(cont, &[]);
@@ -5553,6 +5596,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::CopyCount => &self.sigs.copy_count,
             RuntimeSig::Revoke => &self.sigs.revoke,
             RuntimeSig::IsRevoked => &self.sigs.is_revoked,
+            RuntimeSig::ThrowRevoked => &self.sigs.throw_revoked,
             RuntimeSig::StrConcat => &self.sigs.str_concat,
             RuntimeSig::StrAppendParts => &self.sigs.str_append_parts,
             RuntimeSig::PtrEq => &self.sigs.ptr_eq,
@@ -5623,6 +5667,7 @@ enum RuntimeSig {
     CopyCount,
     Revoke,
     IsRevoked,
+    ThrowRevoked,
     StrConcat,
     StrAppendParts,
     PtrEq,

@@ -1852,6 +1852,9 @@ impl<'a> Lowering<'a> {
                         self.emit_retain(*cur, object_v);
                         self.own_temporary(object_v);
                     }
+                    // `rule:classes/revocable-objects`: checked once the
+                    // receiver is held, before the value is computed.
+                    self.emit_revoked_check(*cur, object_v, receiver_ty, &class_label, env);
                     let (v, vty, aliasing) = self.lower_stored(stored, Some(field_ty), env, cur);
                     // Coerce first, retain second: the retain has to land on
                     // the value that is stored, and a scalar variable written
@@ -1992,6 +1995,9 @@ impl<'a> Lowering<'a> {
                     if fresh_receiver {
                         self.own_temporary(object_v);
                     }
+                    // `rule:classes/revocable-objects`: checked once the
+                    // receiver is held, before the value is computed.
+                    self.emit_revoked_check(*cur, object_v, receiver_ty, &class_label, env);
                     let (v, vty, aliasing) = self.lower_stored(stored, Some(field_ty), env, cur);
                     // Coerce first, retain second — the arm above says why.
                     let v = self.coerce(*cur, v, vty, field_ty, env);
