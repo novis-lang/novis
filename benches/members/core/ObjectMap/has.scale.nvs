@@ -26,7 +26,7 @@ class Bench
         while ($k < $n) {
             string $key = "key{$k}";
             $keys[] = $key;
-            // Only every second key is in the map.
+            // Only every second key is in the map, so half of the checks find their key.
             if ($k % 2 == 0) {
                 $map->set($key, new Item($k));
             }

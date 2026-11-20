@@ -1,5 +1,6 @@
 <?nvs
-// Measures the same check as the `has` bench, on an array that uses each object's `id` as its key.
+// Measures the same check as the `has` bench, on an array.
+// The array uses the `id` property of each `Item` object as its key.
 // bench: iterations 2048
 
 final class Item

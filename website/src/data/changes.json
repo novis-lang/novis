@@ -374,7 +374,7 @@
         "Core\\ObjectSet::has",
         "lang:iteration/core-collections-are-iterable"
       ],
-      "text": "`Core\\ObjectMap` and `Core\\ObjectSet` are faster. A lookup with a `string`, `int` or object key is one hash lookup, as in an array. A `foreach` over either does not copy it."
+      "text": "`Core\\ObjectMap` and `Core\\ObjectSet` are faster. A lookup with a `string`, `int` or object key costs about the same as a lookup in an array. A `foreach` over either does not copy it."
     }
   ],
   "unseen": {

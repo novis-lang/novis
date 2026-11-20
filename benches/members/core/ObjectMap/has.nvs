@@ -1,5 +1,5 @@
 <?nvs
-// Checks if a string is a key in a map, as a program does before it loads a record only once.
+// Checks if a string is a key in a map. A program does this so that it loads each record once.
 // bench: iterations 2048
 // bench: allocations 0
 // bench: complexity constant
@@ -25,8 +25,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // The total from the last round picks the key for this round.
-            // Both steps add 1 to the remainder, so the rounds check every key in turn.
+            // `$total` from the last round picks the key for this round.
+            // A found key adds 4 and a missing key adds 1, so the rounds check the three keys in turn.
             $total = $total + ($map->has($keys[($total % 3) as int]) ? (4 as uint) : (1 as uint));
             $i = $i + 1;
         }

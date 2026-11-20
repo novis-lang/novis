@@ -1,5 +1,5 @@
 <?nvs
-// Measures `has` on a set of objects, at growing numbers of objects.
+// Measures `has` on a `Core\ObjectSet`, which contains each object at most once, at growing numbers of objects.
 // It shows that a larger set does not make one check slower.
 // bench: start 12500
 // bench: max 100000

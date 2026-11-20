@@ -32,7 +32,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Every id is 1, so the rounds read the keys one after another.
+            // Every stored `id` is 1, so `$total` grows by 1 and the rounds read the keys in order.
             $total = $total + (($map->get($keys[($total % $size) as int])?->id ?? 0) as uint);
             $i = $i + 1;
         }

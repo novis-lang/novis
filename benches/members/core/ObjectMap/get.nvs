@@ -26,8 +26,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // The total from the last round picks the key for this round.
-            // Each id adds 1 to the remainder, so the rounds read every key in turn.
+            // `$total` from the last round picks the key for this round.
+            // Each stored `id` is 1 more than a multiple of 3, so the rounds read the three keys in turn.
             $total = $total + (($map->get($keys[($total % 3) as int])?->id ?? 0) as uint);
             $i = $i + 1;
         }

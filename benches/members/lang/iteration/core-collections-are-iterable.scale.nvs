@@ -1,6 +1,6 @@
 <?nvs
 // Measures the bench's loops while the `Core\ObjectMap` and the `Core\ObjectSet` grow.
-// The heap keeps eight numbers.
+// The `Core\Heap` stays at eight numbers, because a loop over a heap copies it.
 // bench: start 12500
 // bench: max 100000
 // bench: rounds 64
