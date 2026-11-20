@@ -6030,7 +6030,7 @@
   },
   "/reference/core/http-tlsinfo/expiry/": {
     "feature": "Core\\Http\\TlsInfo::expiry",
-    "hash": "8a78383a1a6711d0",
+    "hash": "885e04da8415840c",
     "questions": [
       "When does a server certificate expire?",
       "How many days until an SSL certificate runs out?",
@@ -7693,7 +7693,7 @@
   },
   "/reference/core/ldap-entry/duration/": {
     "feature": "Core\\Ldap\\Entry::duration",
-    "hash": "c023c2ec1215ba68",
+    "hash": "7ee00723c79f5a0c",
     "questions": [
       "Read maxPwdAge as a duration",
       "Convert lockoutDuration to minutes",
@@ -9450,7 +9450,7 @@
   },
   "/reference/core/novis-intl-dateformat/dates/": {
     "feature": "Novis\\Intl\\DateFormat::dates",
-    "hash": "d41a680e8afbf3d0",
+    "hash": "977fe80da5e8e7d5",
     "questions": [
       "How do I write a date as 24.12.2026 for German users?",
       "Show a date with the month name in the user's language",
@@ -9461,13 +9461,13 @@
   },
   "/reference/core/novis-intl-dateformat/datetimes/": {
     "feature": "Novis\\Intl\\DateFormat::dateTimes",
-    "hash": "189d7a34d78fbba0",
+    "hash": "9f37a6b925d1e9fd",
     "questions": [
       "How do I show a date and time with the time zone?",
       "Show when an order was placed, with date and hour",
-      "Add GMT+2 to a formatted timestamp",
+      "Add the GMT offset to a formatted timestamp",
       "Format a date with time and seconds for a locale",
-      "Show an event start time in the reader's time zone"
+      "Convert a time to the reader's zone before formatting it"
     ]
   },
   "/reference/core/novis-intl-dateformat/times/": {
@@ -9692,7 +9692,7 @@
   },
   "/reference/core/novis-pdf-document/created/": {
     "feature": "Novis\\Pdf\\Document::created",
-    "hash": "78203bed4d290479",
+    "hash": "b7e2a030b9f778b2",
     "questions": [
       "Set the creation date of a PDF",
       "Why does PDF/A need a creation time?",
@@ -9736,7 +9736,7 @@
   },
   "/reference/core/novis-pdf-document/invoicexml/": {
     "feature": "Novis\\Pdf\\Document::invoiceXml",
-    "hash": "7d8baefa698f12eb",
+    "hash": "baa284e64b66694a",
     "questions": [
       "Create a ZUGFeRD or Factur-X invoice PDF",
       "Attach invoice XML to a PDF",
@@ -9748,7 +9748,7 @@
   },
   "/reference/core/novis-pdf-document/password/": {
     "feature": "Novis\\Pdf\\Document::password",
-    "hash": "100acb46c4541563",
+    "hash": "cc06188bcb2cefb2",
     "questions": [
       "Protect a PDF with a password",
       "Encrypt a bank statement before sending it by email",
@@ -9782,7 +9782,7 @@
   },
   "/reference/core/novis-pdf-document/standard/": {
     "feature": "Novis\\Pdf\\Document::standard",
-    "hash": "95dcbe28816ff7f2",
+    "hash": "b3455cc9b416d101",
     "questions": [
       "Make a PDF/A file for long-term archiving",
       "Create an accessible PDF for screen readers",
@@ -9911,7 +9911,7 @@
   },
   "/reference/core/novis-pdf-reader/attachments/": {
     "feature": "Novis\\Pdf\\Reader::attachments",
-    "hash": "c0809f4572e852a9",
+    "hash": "92969a541ad06a3c",
     "questions": [
       "List the files attached to a PDF",
       "Get embedded files from a PDF",
@@ -9921,7 +9921,7 @@
   },
   "/reference/core/novis-pdf-reader/invoicexml/": {
     "feature": "Novis\\Pdf\\Reader::invoiceXml",
-    "hash": "e6f244789ef59929",
+    "hash": "43bb11b7cd0358e1",
     "questions": [
       "Read the XML from a ZUGFeRD or XRechnung invoice",
       "Check if an uploaded PDF is an electronic invoice",
@@ -10331,13 +10331,13 @@
   },
   "/reference/core/novis-spreadsheet-reader/properties/": {
     "feature": "Novis\\Spreadsheet\\Reader::properties",
-    "hash": "c9d4c4640a28d6a9",
+    "hash": "ecdf56cc4e9c209f",
     "questions": [
       "Read the title and author of an Excel file",
       "When was this spreadsheet created?",
       "Read the company and keywords of a workbook",
       "Document properties of a CSV file",
-      "Read the properties of an old xls file or an ods file"
+      "Read the author of an ods spreadsheet file"
     ]
   },
   "/reference/core/novis-spreadsheet-reader/rows/": {
@@ -10634,7 +10634,7 @@
   },
   "/reference/core/novis-spreadsheet-template/open/": {
     "feature": "Novis\\Spreadsheet\\Template::open",
-    "hash": "733476d1605cf559",
+    "hash": "1be44d9d76cae735",
     "questions": [
       "Open an xlsx template",
       "Fill the same template for each customer",
@@ -15155,13 +15155,13 @@
   },
   "/reference/core/time/": {
     "feature": "Core\\Time",
-    "hash": "01ce9d7bdc169bc4",
+    "hash": "d256d2ad7db3b50c",
     "questions": [
       "How do I work with dates and times?",
       "Get the current time and build dates",
       "Which functions read the clock and create times?",
       "Work with time zones, timestamps and waiting",
-      "How do I handle time in a web request?"
+      "Which methods read the clock, measure time and wait?"
     ]
   },
   "/reference/core/time/monotonic/": {
@@ -15177,7 +15177,7 @@
   },
   "/reference/core/time/now/": {
     "feature": "Core\\Time::now",
-    "hash": "f7d7dcf64ea00515",
+    "hash": "7fefe2ee81977260",
     "questions": [
       "How do I get the current time?",
       "Get today's date in a time zone",
@@ -15199,7 +15199,7 @@
   },
   "/reference/core/time-date/": {
     "feature": "Core\\Time\\Date",
-    "hash": "260a928949bcf18e",
+    "hash": "d69e27ad6665651f",
     "questions": [
       "How do I store a date without a time?",
       "Work with birthdays and due dates",
@@ -15347,7 +15347,7 @@
   },
   "/reference/core/time-datetime/": {
     "feature": "Core\\Time\\DateTime",
-    "hash": "2dcb20bf94800e7e",
+    "hash": "cf67044535f90424",
     "questions": [
       "How do I work with a date and time in a time zone?",
       "Store a local time such as a meeting in Berlin",
@@ -15358,9 +15358,9 @@
   },
   "/reference/core/time-datetime/at/": {
     "feature": "Core\\Time\\DateTime::at",
-    "hash": "e0b6e9c0aa7609f8",
+    "hash": "b3e0ae94dc8cb8bf",
     "questions": [
-      "How do I create a date and time from a date, a time of day and a zone?",
+      "How do I build a date and time from a date, time and zone?",
       "Build a specific date and time in a time zone",
       "Combine a date and a time from separate form fields",
       "What happens when the time does not exist because of summer time?",
@@ -15369,7 +15369,7 @@
   },
   "/reference/core/time-datetime/date/": {
     "feature": "Core\\Time\\DateTime::date",
-    "hash": "c701bfd9c2b8db52",
+    "hash": "8cd63cdb37f5aad1",
     "questions": [
       "How do I get only the date part of a date and time?",
       "Remove the time from a date and time",
@@ -15380,7 +15380,7 @@
   },
   "/reference/core/time-datetime/day/": {
     "feature": "Core\\Time\\DateTime::day",
-    "hash": "d0a3ee2eab9af267",
+    "hash": "8114292668d6ff8c",
     "questions": [
       "How do I get the day of the month from a date and time?",
       "Read the day of a timestamp in a time zone",
@@ -15390,7 +15390,7 @@
   },
   "/reference/core/time-datetime/dayofyear/": {
     "feature": "Core\\Time\\DateTime::dayOfYear",
-    "hash": "519078403fdb2b0d",
+    "hash": "ae8e1accd3bb765b",
     "questions": [
       "How do I get the day number within the year?",
       "Which day of the year is it?",
@@ -15401,7 +15401,7 @@
   },
   "/reference/core/time-datetime/difference/": {
     "feature": "Core\\Time\\DateTime::difference",
-    "hash": "af723e97a8438e1c",
+    "hash": "5c7102f3e01e6814",
     "questions": [
       "How do I calculate the difference between two dates and times?",
       "Calculate a person's age in years from a birthday",
@@ -15412,7 +15412,7 @@
   },
   "/reference/core/time-datetime/endof/": {
     "feature": "Core\\Time\\DateTime::endOf",
-    "hash": "b4ad566a7dbc81d8",
+    "hash": "dc52bbca6bc36655",
     "questions": [
       "How do I get the last moment of the day?",
       "Find the end of the month for a date and time",
@@ -15423,7 +15423,7 @@
   },
   "/reference/core/time-datetime/format/": {
     "feature": "Core\\Time\\DateTime::format",
-    "hash": "e35a801f2cc1f6b6",
+    "hash": "4fdca90d3846f294",
     "questions": [
       "How do I format a date and time as text?",
       "Print a date and time as yyyy-MM-dd HH:mm:ss",
@@ -15445,7 +15445,7 @@
   },
   "/reference/core/time-datetime/hour/": {
     "feature": "Core\\Time\\DateTime::hour",
-    "hash": "4055df79c8e78aa6",
+    "hash": "8cc6beff58dc4f0e",
     "questions": [
       "How do I get the hour from a date and time?",
       "Read the hour from 0 to 23 in a time zone",
@@ -15455,7 +15455,7 @@
   },
   "/reference/core/time-datetime/isleapyear/": {
     "feature": "Core\\Time\\DateTime::isLeapYear",
-    "hash": "9ed24400784285b6",
+    "hash": "b9a9b05ae9d31163",
     "questions": [
       "How do I check if a year is a leap year?",
       "Does this year have 29 February?",
@@ -15466,7 +15466,7 @@
   },
   "/reference/core/time-datetime/minus/": {
     "feature": "Core\\Time\\DateTime::minus",
-    "hash": "ebee34f1fd3991de",
+    "hash": "2c6b959a04b874c3",
     "questions": [
       "How do I subtract hours or days from a date and time?",
       "Send a reminder one day before an appointment",
@@ -15477,7 +15477,7 @@
   },
   "/reference/core/time-datetime/minute/": {
     "feature": "Core\\Time\\DateTime::minute",
-    "hash": "196d45d5424a3b31",
+    "hash": "a80f0558d75b5950",
     "questions": [
       "How do I get the minutes from a date and time?",
       "Read the minute from 0 to 59 of a timestamp",
@@ -15487,7 +15487,7 @@
   },
   "/reference/core/time-datetime/month/": {
     "feature": "Core\\Time\\DateTime::month",
-    "hash": "5a6c4a4758055454",
+    "hash": "821448ad6ab28380",
     "questions": [
       "How do I get the month from a date and time?",
       "Read the month number of a timestamp in a time zone",
@@ -15497,7 +15497,7 @@
   },
   "/reference/core/time-datetime/nanos/": {
     "feature": "Core\\Time\\DateTime::nanos",
-    "hash": "f1e1408b9125ac60",
+    "hash": "b69d682a2aa57fa9",
     "questions": [
       "How do I get the fraction of a second from a date and time?",
       "Read the nanoseconds of a timestamp",
@@ -15507,7 +15507,7 @@
   },
   "/reference/core/time-datetime/next/": {
     "feature": "Core\\Time\\DateTime::next",
-    "hash": "5f1bccc600cf5686",
+    "hash": "1846ad3020735d39",
     "questions": [
       "How do I find the next Monday?",
       "Get the date of the coming Friday",
@@ -15529,7 +15529,7 @@
   },
   "/reference/core/time-datetime/plus/": {
     "feature": "Core\\Time\\DateTime::plus",
-    "hash": "8ce020c739350c04",
+    "hash": "f4146edbbccc0add",
     "questions": [
       "How do I add hours or days to a date and time?",
       "Add 30 minutes to a time",
@@ -15540,7 +15540,7 @@
   },
   "/reference/core/time-datetime/previous/": {
     "feature": "Core\\Time\\DateTime::previous",
-    "hash": "b20330ea27223742",
+    "hash": "143e2d1968d1f6f0",
     "questions": [
       "How do I find last Friday?",
       "Get the most recent Monday before a date",
@@ -15551,7 +15551,7 @@
   },
   "/reference/core/time-datetime/second/": {
     "feature": "Core\\Time\\DateTime::second",
-    "hash": "bbdf11d2a59671de",
+    "hash": "433251c5cab920c6",
     "questions": [
       "How do I get the seconds from a date and time?",
       "Read the second from 0 to 59 of a timestamp",
@@ -15561,7 +15561,7 @@
   },
   "/reference/core/time-datetime/startof/": {
     "feature": "Core\\Time\\DateTime::startOf",
-    "hash": "4ff7b7befd34ecea",
+    "hash": "4c0d97b0e7ea35ad",
     "questions": [
       "How do I get midnight at the start of the day?",
       "Find the first day of the month for a date and time",
@@ -15572,18 +15572,18 @@
   },
   "/reference/core/time-datetime/timeofday/": {
     "feature": "Core\\Time\\DateTime::timeOfDay",
-    "hash": "eb017fdd3b249300",
+    "hash": "0541602c2ab66ba1",
     "questions": [
       "How do I get only the time part of a date and time?",
       "Get the hour and minute without the date",
       "Check whether a message arrived during opening hours",
       "Copy the time of day to another day",
-      "Read the clock time in a given city"
+      "How do I get the clock time of a date and time in its zone?"
     ]
   },
   "/reference/core/time-datetime/toinstant/": {
     "feature": "Core\\Time\\DateTime::toInstant",
-    "hash": "ec5fb95faafeb5da",
+    "hash": "53d58fbbbbd39adb",
     "questions": [
       "How do I convert a local time to UTC?",
       "Compare times from two different time zones",
@@ -15594,7 +15594,7 @@
   },
   "/reference/core/time-datetime/weekday/": {
     "feature": "Core\\Time\\DateTime::weekday",
-    "hash": "796d83b860caef59",
+    "hash": "3e21ba43d48008f3",
     "questions": [
       "How do I get the day of the week?",
       "Check whether a date falls on a weekend",
@@ -15605,7 +15605,7 @@
   },
   "/reference/core/time-datetime/with/": {
     "feature": "Core\\Time\\DateTime::with",
-    "hash": "27031a494028ee0d",
+    "hash": "6bcea97e1f276340",
     "questions": [
       "How do I change only the hour of a date and time?",
       "Set the year, month or day of a date and time",
@@ -15616,7 +15616,7 @@
   },
   "/reference/core/time-datetime/withtime/": {
     "feature": "Core\\Time\\DateTime::withTime",
-    "hash": "a6b9178b17cc9eb3",
+    "hash": "cd07f40d29caa4e3",
     "questions": [
       "How do I set a fixed time on a given day?",
       "Set a reminder for 08:00 on the same day",
@@ -15627,17 +15627,17 @@
   },
   "/reference/core/time-datetime/year/": {
     "feature": "Core\\Time\\DateTime::year",
-    "hash": "dcdcb18c6c5fa33e",
+    "hash": "bb04c385bc7a1d3a",
     "questions": [
       "How do I get the year from a date and time?",
       "Read the year of a timestamp in a time zone",
-      "Group timestamps by year",
+      "How do I get the year of a timestamp as a number?",
       "Which year is it in a given city now?"
     ]
   },
   "/reference/core/time-datetime/zone/": {
     "feature": "Core\\Time\\DateTime::zone",
-    "hash": "a4663dd6f677ecf3",
+    "hash": "faeae0a09942e18e",
     "questions": [
       "How do I get the time zone of a date and time?",
       "Which time zone is this value in?",
@@ -15670,7 +15670,7 @@
   },
   "/reference/core/time-duration/days/": {
     "feature": "Core\\Time\\Duration::days",
-    "hash": "15e660b3274c75ae",
+    "hash": "9ebe7b7bb7ef8560",
     "questions": [
       "How do I make a duration from a number of days?",
       "Create a length of time of N days from a setting",
@@ -15680,7 +15680,7 @@
   },
   "/reference/core/time-duration/hours/": {
     "feature": "Core\\Time\\Duration::hours",
-    "hash": "fa10b9eb34408d02",
+    "hash": "c61ff11ab7280775",
     "questions": [
       "How do I make a duration from a number of hours?",
       "Create a length of time of N hours at run time",
@@ -15720,7 +15720,7 @@
   },
   "/reference/core/time-duration/minutes/": {
     "feature": "Core\\Time\\Duration::minutes",
-    "hash": "25dc65a99b67c0d0",
+    "hash": "357d1b2b7bd3553a",
     "questions": [
       "How do I make a duration from a number of minutes?",
       "Create a session timeout from minutes in a config",
@@ -15750,7 +15750,7 @@
   },
   "/reference/core/time-duration/negated/": {
     "feature": "Core\\Time\\Duration::negated",
-    "hash": "bbc0a1a68311ca10",
+    "hash": "6b1e232ab43e9598",
     "questions": [
       "How do I make a duration negative?",
       "Flip the sign of a length of time",
@@ -15831,7 +15831,7 @@
   },
   "/reference/core/time-duration/tostring/": {
     "feature": "Core\\Time\\Duration::toString",
-    "hash": "1d31a67064ca0de6",
+    "hash": "d70209e0048d0f86",
     "questions": [
       "How do I print a duration like 1h30m?",
       "Convert a length of time to readable text",
@@ -15841,7 +15841,7 @@
   },
   "/reference/core/time-duration/weeks/": {
     "feature": "Core\\Time\\Duration::weeks",
-    "hash": "1ea04791a73a6084",
+    "hash": "b6028e70080f776f",
     "questions": [
       "How do I make a duration from a number of weeks?",
       "Create a length of time of N weeks from a setting",
@@ -15851,7 +15851,7 @@
   },
   "/reference/core/time-instant/": {
     "feature": "Core\\Time\\Instant",
-    "hash": "b7aa9bc3ed53f6ab",
+    "hash": "14f945e09049826e",
     "questions": [
       "How do I represent an exact moment in time?",
       "Work with timestamps that have no time zone",
@@ -15862,7 +15862,7 @@
   },
   "/reference/core/time-instant/compareto/": {
     "feature": "Core\\Time\\Instant::compareTo",
-    "hash": "67f65a8f276f3856",
+    "hash": "0d59d595fab1b4e3",
     "questions": [
       "How do I check which of two moments comes first?",
       "Compare two timestamps",
@@ -15894,7 +15894,7 @@
   },
   "/reference/core/time-instant/in/": {
     "feature": "Core\\Time\\Instant::in",
-    "hash": "99fb22f35fc2ecac",
+    "hash": "cf60329ec4cf1b87",
     "questions": [
       "How do I convert a timestamp to a local date and time?",
       "Show a moment in a specific time zone",
@@ -15904,7 +15904,7 @@
   },
   "/reference/core/time-instant/minus/": {
     "feature": "Core\\Time\\Instant::minus",
-    "hash": "bd83598da16ac64b",
+    "hash": "08de3c77397017d4",
     "questions": [
       "How do I go back an exact amount of time from a moment?",
       "Get the timestamp one hour earlier",
@@ -15914,7 +15914,7 @@
   },
   "/reference/core/time-instant/plus/": {
     "feature": "Core\\Time\\Instant::plus",
-    "hash": "5131ad706d5bb666",
+    "hash": "60d8628b2abf7f68",
     "questions": [
       "How do I add an exact amount of time to a moment?",
       "Get the timestamp one hour later",
@@ -15924,7 +15924,7 @@
   },
   "/reference/core/time-instant/since/": {
     "feature": "Core\\Time\\Instant::since",
-    "hash": "9758aacbdf89e8e8",
+    "hash": "ca5a46bec2df532e",
     "questions": [
       "How do I measure how long something took?",
       "Time elapsed between two timestamps",
@@ -15934,7 +15934,7 @@
   },
   "/reference/core/time-instant/toepochmicros/": {
     "feature": "Core\\Time\\Instant::toEpochMicros",
-    "hash": "d235d46b43f0d3c0",
+    "hash": "3854344750f02a6e",
     "questions": [
       "How do I get a timestamp in microseconds since 1970?",
       "Convert a moment to Unix time in microseconds",
@@ -15944,7 +15944,7 @@
   },
   "/reference/core/time-instant/toepochmillis/": {
     "feature": "Core\\Time\\Instant::toEpochMillis",
-    "hash": "71a9a51b04b6477d",
+    "hash": "be43f877ab4011e0",
     "questions": [
       "How do I get a timestamp in milliseconds since 1970?",
       "Convert a moment to a JavaScript timestamp",
@@ -15954,7 +15954,7 @@
   },
   "/reference/core/time-instant/toepochseconds/": {
     "feature": "Core\\Time\\Instant::toEpochSeconds",
-    "hash": "87829e407feb8472",
+    "hash": "20031eebbe6b0e07",
     "questions": [
       "How do I get the Unix timestamp of a moment?",
       "Convert a moment to seconds since 1970",
@@ -15964,7 +15964,7 @@
   },
   "/reference/core/time-instant/toiso/": {
     "feature": "Core\\Time\\Instant::toIso",
-    "hash": "d32d6b3f33e41a37",
+    "hash": "a5cce873411b799e",
     "questions": [
       "How do I format a timestamp as an ISO 8601 string?",
       "Convert a moment to RFC 3339 text in UTC",
@@ -15974,7 +15974,7 @@
   },
   "/reference/core/time-timeofday/": {
     "feature": "Core\\Time\\TimeOfDay",
-    "hash": "d6ac00549991d120",
+    "hash": "649478db0c48f850",
     "questions": [
       "How do I store a clock time without a date?",
       "Work with times of day like opening hours",
@@ -15984,7 +15984,7 @@
   },
   "/reference/core/time-timeofday/at/": {
     "feature": "Core\\Time\\TimeOfDay::at",
-    "hash": "e8922dec82130474",
+    "hash": "a64cd8550528673d",
     "questions": [
       "How do I create a time of day from hours and minutes?",
       "Make a clock time such as 09:00",
@@ -16054,7 +16054,7 @@
   },
   "/reference/core/time-timeofday/nanos/": {
     "feature": "Core\\Time\\TimeOfDay::nanos",
-    "hash": "23fb85e24226db84",
+    "hash": "28cb8ab66fe17c9e",
     "questions": [
       "How do I get the fraction of a second from a clock time?",
       "Read the nanoseconds of a time of day",
@@ -16104,7 +16104,7 @@
   },
   "/reference/core/time-zone/fixed/": {
     "feature": "Core\\Time\\Zone::fixed",
-    "hash": "771c0f746d76dd66",
+    "hash": "79e70687d5f1a013",
     "questions": [
       "How do I make a time zone from a UTC offset?",
       "Create a zone of +05:30 with no summer time",
@@ -16114,7 +16114,7 @@
   },
   "/reference/core/time-zone/of/": {
     "feature": "Core\\Time\\Zone::of",
-    "hash": "12eda4cd21e9fab6",
+    "hash": "63433c753e96f2bb",
     "questions": [
       "How do I get a time zone by its name?",
       "Use Europe/Berlin or America/New_York as a time zone",
@@ -16124,17 +16124,17 @@
   },
   "/reference/core/time-zone/offsetat/": {
     "feature": "Core\\Time\\Zone::offsetAt",
-    "hash": "126d019085b9fd87",
+    "hash": "3978f56ff6a48c22",
     "questions": [
       "How do I get the UTC offset of a time zone?",
       "Find how many hours a zone is ahead of UTC",
-      "Check if a zone is on summer time at a moment",
+      "How do I see a zone's UTC offset in summer and in winter?",
       "Hour difference between two offices"
     ]
   },
   "/reference/core/time-zone/system/": {
     "feature": "Core\\Time\\Zone::system",
-    "hash": "81eb50a8eb22d9a9",
+    "hash": "04666fd477d972b3",
     "questions": [
       "How do I get the time zone of the server?",
       "Use the computer's local time zone",
@@ -17677,7 +17677,7 @@
   },
   "/reference/types/novis-intl-dateformat-zonestyle/": {
     "feature": "Novis\\Intl\\DateFormat::ZoneStyle",
-    "hash": "93adc79224e9a22b",
+    "hash": "77a3dec9ba3c0f32",
     "questions": [
       "How do I show the time zone in a formatted date and time?",
       "Show the UTC offset like GMT+2 next to a time",
@@ -17758,7 +17758,7 @@
   },
   "/reference/types/novis-pdf-document-standard/": {
     "feature": "Novis\\Pdf\\Document::Standard",
-    "hash": "0451e567fa6adce3",
+    "hash": "5fca13d6f33e3f90",
     "questions": [
       "How do I make a PDF/A file for archiving?",
       "Create a PDF for an electronic invoice with XML",
@@ -18081,7 +18081,7 @@
   },
   "/reference/types/time-weekday/": {
     "feature": "Core\\Time\\Weekday",
-    "hash": "bd97360eee4b9038",
+    "hash": "1b9713e515090be6",
     "questions": [
       "How do I get the day of the week for a date?",
       "Find the next Friday after a date",
@@ -18103,7 +18103,7 @@
   },
   "/reference/types/unit/": {
     "feature": "Core\\Unit",
-    "hash": "86256ecc710f9c4e",
+    "hash": "4bf1f85f6104b078",
     "questions": [
       "How do I add one month to a date?",
       "Get the start of the week or the quarter for a date",
