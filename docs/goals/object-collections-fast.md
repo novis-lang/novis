@@ -26,7 +26,7 @@ stages:
     context: [docs/reference/core/ObjectMap.md, docs/reference/core/ObjectSet.md, website/src/data/changes.json, docs/agent/prose.md, docs/rules/core-api/reference-card.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: keying
@@ -513,17 +513,26 @@ docs, and brings the pages up to date under the website rules of `website-follow
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
+  - [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` green
+  - [x] the eight acceptance checks green by name
+  - [x] `bun nv owners --closes object-collections-fast` names no gap
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done, one session each. Every acceptance check is green, `pages` included. The
-module docs (`identity_store.rs:1`, `objmap.rs:4`, `cursor.rs`) hold every standing decision and
-the trade-offs. The sweep's nightly failures (run 44510687786) were fixed before stage 4
-(`4c82a2409a`, `9478fd2f66`), and no nightly has run since.
+Every stage is done, one session each, and the goal is closed. Stage 6 was a close, not the full
+gate: `cargo build` and clippy are green, and so are all eight acceptance checks by name.
+`bun nv owners --closes` names no gap. Every standing decision is in a module doc:
+`identity_store.rs:1` (the keyings, the one symbol per keying, the tag mismatch), `objmap.rs:4`,
+`objset.rs:362` (two collections, each by its own keying) and `cursor.rs:24` (the shared store).
+
+The sweep's nightly failures (run 44510687786, head `adc7487822`) all have fixes after that run:
+the supply chain by wasmtime 50.0.2 (`eb5c02e983`), Miri by `4c82a2409a` and `9478fd2f66`, the
+browser job by `8d945cbeb2` and `b43ff60980`, and the proofs job's site shots by `656f5b2f2d`. No
+nightly has run since.
 
 Figures as ns/op, statements, allocations, twin. Counts decide; the clock was noisy.
 
@@ -540,19 +549,10 @@ benches outside this goal.
 
 ### Next
 
-Stage 6, one session: the goal's close. The pack names whether it is the chain's full gate.
-
-- At a close: `cargo build`, `cargo clippy --all-targets -- -D warnings`, and this goal's own
-  checks by name (`looper check --name` for each acceptance id). At a full gate: `looper verify`
-  in the background, then `bun nv verify --doc` and `bun nv ci --check`.
-- `bun nv owners --closes object-collections-fast`, then move each decision only this file holds
-  into a module doc (the Standing decisions are already in `identity_store.rs` and `cursor.rs`)
-  before the file is deleted.
-- No newcomer review is owed: `site review` is green.
-
-Expect no red from this goal. `bun nv verify --doc` may flag the new intra-doc links in
-`identity_store.rs:1` (`crate::registry::constructor_symbol`, `Keying::admits`) if a private item
-is linked from a public doc.
+Nothing: the goal is reached, and the driver retires this file. The next full gate, after two
+more goals, runs `bun nv verify --doc`. It may flag the intra-doc links in `identity_store.rs:1`
+(`crate::registry::constructor_symbol`, `Keying::admits`) if a private item is linked from a
+public doc. No other red is expected from this goal.
 
 ### Backlog
 
