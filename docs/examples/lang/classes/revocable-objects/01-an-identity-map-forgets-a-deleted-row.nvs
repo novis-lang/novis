@@ -1,5 +1,5 @@
 <?nvs
-// Shows an identity map that forgets a row as soon as the program deletes it.
+// Shows a map of loaded posts that removes a post as soon as the program deletes it.
 
 abstract class Storable implements Revocable
 {
@@ -23,7 +23,8 @@ final class Post extends Storable
 
 final class IdentityMap
 {
-    // A static property cannot start with a `new` object, so the map is created on first use.
+    // A static property cannot have a `new` object as its default value.
+    // So `all()` creates the map the first time it is called.
     private static ?Core\ObjectMap<string, Storable> $objectsByKey = null;
 
     public static function all(): Core\ObjectMap<string, Storable>
@@ -52,7 +53,7 @@ $news->delete();
 var $map = IdentityMap::all();
 echo $map->count(), "\n";
 
-// The loop shows only the posts that were not deleted.
+// The loop prints only the posts that were not deleted.
 foreach ($map as string $key => Storable $object) {
     echo $key, "\n";
 }

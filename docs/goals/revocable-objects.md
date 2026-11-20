@@ -685,9 +685,9 @@ user reads*.
 
 ### 8. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review `website-follows-changes` requires, for every user page this goal changed,
+- [x] The newcomer review `website-follows-changes` requires, for every user page this goal changed,
   with its stamp. The `site-review` check run once.
-- [ ] Once the review's edits are in, the perf record of `lang:classes/revocable-objects`, from the
+- [x] Once the review's edits are in, the perf record of `lang:classes/revocable-objects`, from the
   release binary (`bun nv relink --build`, then `bun nv proofs --record-perf --nvs
   target/release/nvs.exe --only lang:classes/revocable-objects`). Then `feature-proofs` and
   `error-proofs` run once and owe nothing (decision 26).
@@ -698,44 +698,58 @@ user reads*.
 
 ### State
 
-Stages 1 to 7 are built and checked.
-- Stage 7: the page `syntax/classes/revocable-objects.mdx`, the `error-types.mdx` row, the three
-  `docs/reference/core/` introductions, the cookbook recipe *Forget a deleted row* with its snippet,
-  and the `changes.json` entry. `site --check changes`, `stale`, `structure` and `snippets` are ok.
-- The checks `feature-proofs` and `error-proofs` moved to stage 8 in the front matter, as decision
-  26 says, so stage 6 is `done`.
-- The chapter heading `# Revocable objects` is in `docs/examples/lang/classes/chapter.md`, after
-  `Parses`. Its `about.md` and `details.md` render into `docs/reference/lang/50-classes.md`.
-- Three examples, one `RevokedObjectError` example, two attacks and the bench with its `.scale` and
-  `.twin` siblings are written. `bun nv proofs --run --id` is green for both ids: 4 examples and 2
-  attacks, all ok. `bun nv scaling --growth` reports the bench constant (debug binary).
-- The bench pays 3 allocations per round and its twin 2. The extra one is the membership a fresh
-  revocable `Post` gets when it enters the map, as decision 12 says.
-- Both rules are `shipped`, and their `guardedBy` lists name the conformance cases, the codegen
-  test and the attacks.
-- Both proof ids owe only `reviewed`, and the lang id also `perf: stale`. Decision 26 moves both
-  to stage 8.
-- Nightly run 44510687786 ran on `adc7487822`, and later commits fix each of its failures.
-- `bun nv rules --check` names one finding in `docs/goals/attribute-property-names.md:112`, a rule that
-  goal will create. It was there before this goal's stage 6.
+Stages 1 to 7 are done. Stage 8 has its review and its perf record, and its full gate is running.
+- The newcomer review read all 22 texts, and every finding was fixed. The texts now say in plain
+  words what revoking means, and `site --check review` is ok.
+- The interface id `Revocable` owed its own proofs. It now has `docs/examples/types/Revocable/`
+  (an `about.md` and one example), and three conformance cases cover it. `bun nv proofs --id` says
+  `complete.` for `Revocable`, `RevokedObjectError` and `lang:classes/revocable-objects`.
+- The perf record was taken from the release binary: flat growth, twin 1.04x.
+- `owners --closes` names no gap. Decision 18 (a `revoke()` called by name keeps no site) moved into
+  `docs/rules/classes/revocable-objects.md`. Every other decision is already in the two rules or a
+  module doc.
+- The first `looper verify` was red on `records`, because both shipped rules still named this goal.
+  The `goal` field is removed from both. Its `fmt` step reformatted 13 Rust files.
+- The second run named four units, each fixed: the three revoke primitives in
+  `crates/nvs-runtime/src/revoke.rs` carry the `deny` set, the stdlib symbol count adds
+  `KEYED_CONSTRUCTORS`, the IR roster test lists `KeyedIterable` and `KeyedIterator`, and the
+  `ObjectSet` stub case expects line 64. The third run named the LSP coverage gate: a keyed-loop
+  completion case resolved to `Block`, and it now ends its statement with `;`.
+- `docs/goals/attribute-property-names.md:112` no longer cites a rule that does not exist yet.
+- Nightly run 44510687786's failures are each fixed by a later commit: wasmtime 50.0.2
+  (`eb5c02e983`), the Miri string-pointer fix (`4c82a2409a`), the debug viewer shots (`656f5b2f2d`)
+  and the registry browser test (`1c75c4ef0e`).
+
+- The fourth `looper verify` is green, and `bun nv verify --doc` is green. The gate fixes are
+  commit `f440381309`.
+- `bun nv ci --check` was red. Fixed this session: the `changes.json` entry is three sentences, the
+  roadmap has `declared-attributes`, `compare-seven-peers` and `reload-now` in themes, the website
+  render is current, and the revocable pages are stamped. Three `about.md` files that
+  `keyed-iteration` grew past 200 words are trimmed: `lang:iteration/what-foreach-walks`,
+  `lang:statements/foreach` and `lang:types/every-binding-has-a-type`.
 
 ### Next
 
-Stage 8, the gate stage. Whether it is a full gate or a close is what the pack names.
-1. The newcomer review (`docs/agent/prose.md` § *A newcomer reads it*): `bun nv site --review` lists
-   the texts, `reader` subagents read the batches, every finding is fixed, then `--review --stamp`.
-   The `site-review` check runs once.
-2. Then the perf record from the release binary (`bun nv relink --build`, then `bun nv proofs
-   --record-perf --nvs target/release/nvs.exe --only lang:classes/revocable-objects`), and
-   `feature-proofs` and `error-proofs` run once.
-3. The stage's check, then `bun nv owners --closes revocable-objects`, and the goal file's decisions
-   that only its prose holds move to the rules before the file is deleted.
-4. Carried: `Core\Debug::dump` of a heap shows a third property, `$revoked => int(0)`. No case pins a
-   heap dump, and no page shows one.
+`bun nv ci --check` is the last check before `DONE`. What it still names:
+1. The newcomer review of the three trimmed `about.md` files (`bun nv site --review` lists them), then
+   `--review --stamp`. Then `bun nv site --stamp syntax/basics/variables.mdx
+   syntax/control-flow/foreach.mdx` once each page still says what its feature does.
+2. `site questions`: seven stale pages and two owed ones, `/syntax/classes/revocable-objects/` and
+   `/guides/cookbook/forget-deleted-row/`. `bun nv site --questions --status` lists them, and
+   `--questions --owed pages` prints what to write from. Prefix a URL with `MSYS_NO_PATHCONV=1`.
+3. The perf records last. `bun nv relink --build`, then list the stale ones with `bun nv proofs
+   --gate --limit 0 --nvs target/debug/nvs.exe`, grepped for `perf: stale` (120 when this was
+   written), and record them in one run with `xargs -d '\n' -a <list> bun nv proofs --record-perf
+   --nvs target/release/nvs.exe --only`.
+4. `bun nv ci --check` once more, then `DONE`.
 
-Expected red: none known. A full build of the website (`site --check` with every part) was not run
-this session.
+Expected red: `site review`, `site stale`, `site questions` and `feature proofs` in `ci --check`,
+until 1 to 3 are done.
 
 ### Backlog
 
-- None.
+- `nvs meta --json` gives a compiler-owned interface or a global exception only its name and parent,
+  so `help:Revocable` and `help:RevokedObjectError` have no prose. The same is true of `Stringable`,
+  `KeyedIterable` and `RecursionError`. A later goal adds a description to those cards.
+- `Core\Debug::dump` of a `Core` collection prints its internal slots, such as `$keying` and
+  `$revoked`. A later goal gives the collections a dump of their entries.

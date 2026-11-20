@@ -20,7 +20,7 @@ try {
 } catch (RevokedObjectError $e) {
     echo $e->message, "\n";
 }
-// covers: lang:classes/revocable-objects, RevokedObjectError
+// covers: lang:classes/revocable-objects, RevokedObjectError, Revocable
 --EXPECT--
 revocable
 not revoked

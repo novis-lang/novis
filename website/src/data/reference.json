@@ -2534,6 +2534,19 @@
     },
     {
       "area": "types",
+      "slug": "revokedobjecterror",
+      "url": "/reference/types/revokedobjecterror/",
+      "title": "RevokedObjectError",
+      "group": "Exceptions",
+      "intro": {
+        "id": "RevokedObjectError",
+        "title": "RevokedObjectError",
+        "examples": "types/RevokedObjectError"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
       "slug": "runtimeerror",
       "url": "/reference/types/runtimeerror/",
       "title": "RuntimeError",
@@ -2638,6 +2651,32 @@
     },
     {
       "area": "types",
+      "slug": "keyediterable",
+      "url": "/reference/types/keyediterable/",
+      "title": "KeyedIterable",
+      "group": "Interfaces",
+      "intro": {
+        "id": "KeyedIterable",
+        "title": "KeyedIterable",
+        "examples": "types/KeyedIterable"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "keyediterator",
+      "url": "/reference/types/keyediterator/",
+      "title": "KeyedIterator",
+      "group": "Interfaces",
+      "intro": {
+        "id": "KeyedIterator",
+        "title": "KeyedIterator",
+        "examples": "types/KeyedIterator"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
       "slug": "lateinit",
       "url": "/reference/types/lateinit/",
       "title": "LateInit",
@@ -2685,6 +2724,19 @@
         "id": "PropertyObserver",
         "title": "PropertyObserver",
         "examples": "types/PropertyObserver"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
+      "slug": "revocable",
+      "url": "/reference/types/revocable/",
+      "title": "Revocable",
+      "group": "Interfaces",
+      "intro": {
+        "id": "Revocable",
+        "title": "Revocable",
+        "examples": "types/Revocable"
       },
       "keys": []
     },

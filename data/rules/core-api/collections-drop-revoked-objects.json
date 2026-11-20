@@ -16,6 +16,5 @@
     "tests/conformance/core/revocable-an-object-set-drops-a-revoked-member.nvst",
     "tests/conformance/core/revocable-one-object-leaves-every-collection-that-holds-it.nvst",
     "crates/nvs-codegen/tests/revocable.rs"
-  ],
-  "goal": "revocable-objects"
+  ]
 }

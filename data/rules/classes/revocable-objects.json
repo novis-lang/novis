@@ -34,6 +34,5 @@
     "crates/nvs-codegen/tests/revocable.rs",
     "tests/hostile/lang/classes/revocable-objects/01-keep-a-revoked-object-and-use-it.nvs",
     "tests/hostile/types/RevokedObjectError/01-revoke-inside-a-catch-and-a-finally.nvs"
-  ],
-  "goal": "revocable-objects"
+  ]
 }

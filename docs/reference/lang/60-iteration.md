@@ -22,9 +22,8 @@ keys, so a loop over one gets the value alone. A class that implements `KeyedIte
 **Good to know:** a method that takes `Iterable<T>` as a parameter type works with every class that
 can be walked. One function can then read a list, a cart or a database result the same way.
 
-**The examples below** show an array with and without its keys, then an object and a generator. The
-last one is a checkout that adds up a shopping cart. Each one uses `var` first and a written type after it.
-Example 04 shows a second loop over the same iterator.
+**The examples below** show an array with and without its keys, an object and a generator, a
+checkout that adds up a shopping cart, and a second loop over one iterator.
 
 The key of an array is always a `string`, also when the array was written as a list. `var $k` is a
 `string`, and `int $k` is the error `E0723`. Convert the key in the loop body if you need a number.

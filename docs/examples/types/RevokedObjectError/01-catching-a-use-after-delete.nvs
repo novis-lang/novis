@@ -16,10 +16,10 @@ var $hello = new Post('Hello');
 var $news = new Post('News');
 array<Post> $posts = [$hello, $news];
 
-// A plain array still contains the post after `delete`.
+// `delete` revokes the post. The plain array `$posts` still contains it.
 $news->delete();
 
-// The loop prints `Hello`. Reading the title of the deleted post throws `RevokedObjectError`.
+// The loop prints `Hello`. Then reading the title of the deleted post throws `RevokedObjectError`.
 // The message names the class `Post` and line 11, where `revoke()` was called.
 try {
     foreach ($posts as Post $post) {

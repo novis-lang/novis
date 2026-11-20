@@ -34,6 +34,6 @@ foreach ($online as User $user) {
     echo $user->name, "\n";
 }
 
-// `add` does nothing with a revoked user. This prints 2 again.
+// `bob` is revoked, so `$online->add($bob)` does nothing. This prints 2 again.
 $online->add($bob);
 echo $online->count(), "\n";

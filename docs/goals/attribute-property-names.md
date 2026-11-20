@@ -109,7 +109,8 @@ class's property roster once per class for the editor.
 
 **Where it is written down.** A new fragment
 `docs/rules/attributes/a-declaration-names-its-class-with-static.md`, with its `data/rules/attributes/`
-JSON, cited from `rule:types/property-key` and `rule:attributes/an-attribute-is-declared-with-its-sites`. The feature is part
+JSON, cited from `rule:types/property-key` and from the fragment
+`docs/rules/attributes/an-attribute-is-declared-with-its-sites.md` that `declared-attributes` writes. The feature is part
 of `lang:types/property-keys`, so its proofs are added there.
 
 **Lanes.** Stages 1 and 2 run in order: both change `crates/nvs-types/`. Stage 3 changes

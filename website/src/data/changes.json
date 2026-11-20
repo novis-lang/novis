@@ -393,7 +393,7 @@
         "Revocable",
         "RevokedObjectError"
       ],
-      "text": "A class with no parent class can implement `Revocable`. After `$object->revoke()`, every `Core\\ObjectMap`, `Core\\ObjectSet` and `Core\\Heap` removes the object at once. Any other use of it throws `RevokedObjectError`, and the message names the line of the `revoke()` call."
+      "text": "A class with no parent class can implement `Revocable`, so that the program can say an object is no longer valid. After `$object->revoke()`, every `Core\\ObjectMap`, `Core\\ObjectSet` and `Core\\Heap` removes the object immediately. Any other use of it throws `RevokedObjectError`, and its message names the line of the `revoke()` call."
     }
   ],
   "unseen": {

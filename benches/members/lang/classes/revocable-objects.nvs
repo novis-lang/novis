@@ -1,5 +1,5 @@
 <?nvs
-// Revokes a post kept in an identity map and stores a new one, as a blog does when it deletes and reloads a row.
+// Revokes a post in a `Core\ObjectMap` and stores a new one, as a blog does when it deletes and reloads a row.
 // bench: iterations 2048
 // bench: allocations 3
 // bench: calls 4
@@ -27,8 +27,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // `$total` from the last round picks the key for this round.
-            // Each new `id` is 1, so the rounds use the three keys in turn.
+            // The key for this round comes from `$total`. Each round adds the new post's `id` to `$total`.
+            // Every `id` is 1, so the rounds use the three keys in order.
             string $key = $keys[($total % 3) as int];
             $posts->get($key)?->revoke();
             $posts->set($key, new Post(1));

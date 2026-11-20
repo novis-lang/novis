@@ -15,7 +15,7 @@ echo "second revoke\n";
 $post->revoke();
 echo "third revoke\n";
 echo $post->isRevoked() ? "revoked" : "not revoked", "\n";
-// covers: lang:classes/revocable-objects
+// covers: lang:classes/revocable-objects, Revocable
 --EXPECT--
 first revoke
 second revoke

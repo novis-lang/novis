@@ -1,12 +1,13 @@
 <?nvs
 // Attack: a program revokes a post but keeps it in an array, a static property and a function.
-// Then it tries every way to use the post. Each use should throw `RevokedObjectError`.
+// Then it tries every way to use the post. Each use should throw `RevokedObjectError`, and the post should stay where it is.
 // covers: lang:classes/revocable-objects, RevokedObjectError
 
 #[Core\Json\Derive]
 class Post implements Revocable
 {
-    public function constructor(public string $title) {}
+    public function constructor(public string $title)
+    {}
 
     public function headline(): string
     {
@@ -51,7 +52,7 @@ try {
     echo "3 call: caught\n";
 }
 
-// 4. Reads a property inside the function that captured the post.
+// 4. Reads a property inside a closure that uses the post.
 try {
     echo $read(), "\n";
 } catch (RevokedObjectError $e) {

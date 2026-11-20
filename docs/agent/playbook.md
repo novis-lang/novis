@@ -430,6 +430,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **An `.lspt` cursor in an unfinished statement inside a `{ }` body resolves to `Block`, and the
+  coverage gate then owes a case for every other request at `Block`.** A completion case wrote
+  `echo $tag-><|>` inside a `foreach` body, and `cargo test --test coverage` named nine empty cells.
+  End the statement with `;`, so the cursor resolves to the member access. See
+  `tests/lsp/completion/a-key-from-a-map-completes-its-class-methods.lspt`.
 - **The cycle collector runs only near the request's memory ceiling, so a test of cycles under no
   ceiling grows with every cycle.** A test compared the peak of 200 and 2,000 map-and-node cycles and
   failed with code that was fine; a plain class grows the same way. Hold the run to a ceiling far

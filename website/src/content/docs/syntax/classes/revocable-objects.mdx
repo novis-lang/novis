@@ -1,13 +1,14 @@
 ---
 title: Revocable objects
 covers: ['Revocable', 'lang:classes/revocable-objects']
-description: How an object that is no longer valid, such as a deleted row, leaves every Core collection, and why any other use of it throws.
+description: How an object that is no longer valid, such as a deleted row, leaves every Core collection.
 ---
 import FeatureSection from '@components/FeatureSection.astro'
 
 Some objects stop being valid while the program runs. A row that was deleted from the database is
-one example. A class that implements `Revocable` can mark such an object as revoked. After that,
-the program cannot use the object by mistake.
+one example. A class that implements `Revocable` gets the method `revoke()`. To revoke an object
+means to tell the program that the object is no longer valid. After that, a property read or a
+method call on the object throws an error.
 
 <FeatureSection examples="lang/classes/revocable-objects" heading="Revocable objects" id="revocable-objects" />
 
@@ -20,18 +21,20 @@ the program cannot use the object by mistake.
 | `$post->title`, `$post->title = 'x'` | throws `RevokedObjectError` |
 | `$post->publish()` | throws `RevokedObjectError` |
 | `clone $post`, `Core\Json::encode($post)` | throws `RevokedObjectError` |
-| `$post == $other`, `$post is Post`, `$post::class` | works as before, no error |
+| a `Core\Reflect` read, call or write | throws `RevokedObjectError` |
+| `$post == $other`, `$post is Post`, `$post::class` | no error |
 | `$post->revoke()` again | nothing happens |
 
-A plain array, a property or a variable still contains the object. Only the three `Core`
-collections remove it. `RevokedObjectError` is a `LogicError`. The page
+A plain array, a property or a variable still contains the object. Only `Core\ObjectMap`,
+`Core\ObjectSet` and `Core\Heap` remove it. `RevokedObjectError` is a `LogicError`. The page
 [Error types](/syntax/errors/error-types/) lists it with the other error classes.
 
 ## Do and don't
 
-- Do write `implements Revocable` on the class with no parent class. Its subclasses get it too.
-- Do keep objects that can be deleted in a `Core\ObjectMap` or a `Core\ObjectSet`, so a deleted one
-  leaves at once.
+- Do write `implements Revocable` on the class with no parent class. All its subclasses are then
+  revocable too.
+- Do keep objects that can be deleted in a `Core\ObjectMap` or a `Core\ObjectSet`. Then a deleted
+  one is removed immediately.
 - Do call `isRevoked()` when an object may already be revoked. It never throws.
 - Don't declare `revoke()` or `isRevoked()` in your class. `Revocable` provides both.
 - Don't expect a plain array to remove a revoked object. Remove it yourself, or use a `Core` collection.

@@ -17,9 +17,10 @@
       ]
     },
     {
-      "title": "Property names the compiler checks",
-      "text": "A property path can step into an array with `@key` and `@value`. An attribute can name a property of the class it is on. The compiler checks each name, and a wrong name does not compile. The editor completes these names.",
+      "title": "Attributes and property names the compiler checks",
+      "text": "An attribute is declared with the places where it may be used, and the editor offers only the attributes that fit. A property path can step into an array with `@key` and `@value`. An attribute can name a property of the class it is on. The compiler checks each name, and a wrong name does not compile.",
       "goals": [
+        "declared-attributes",
         "attribute-property-names"
       ]
     },
@@ -28,6 +29,20 @@
       "text": "A function passed to `Core\\Html::later` can read the request's path, headers, cookies, query and route parameters. Reading the request body there throws a `LogicError`. Read the body in the main script and pass the value to the function.",
       "goals": [
         "later-reads-the-request"
+      ]
+    },
+    {
+      "title": "A comparison with seven servers",
+      "text": "The comparison page measures Novis beside seven other servers, among them Node.js, .NET and Python. Recording a new comparison takes less work.",
+      "goals": [
+        "compare-seven-peers"
+      ]
+    },
+    {
+      "title": "Reload a running server",
+      "text": "`nvs reload` makes a running server use the files that are on the disk now. It tells you when the server runs the new files.",
+      "goals": [
+        "reload-now"
       ]
     }
   ]

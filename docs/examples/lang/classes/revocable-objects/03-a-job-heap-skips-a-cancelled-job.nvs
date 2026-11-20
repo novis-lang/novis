@@ -6,7 +6,7 @@ final class Job implements Revocable, Comparable
     public function constructor(public string $name, public int $priority)
     {}
 
-    // A job with a smaller number runs first.
+    // The heap returns the job with the smallest `priority` first.
     public function compareTo(Job $other): int
     {
         return $this->priority - $other->priority;
@@ -32,7 +32,8 @@ $queue->push($email);
 $email->cancel();
 echo $queue->count(), "\n";
 
-// `pop` returns the next job that was not cancelled. This prints `build report`, then `backup`.
+// The cancelled job is no longer in the heap. `pop` returns the two other jobs.
+// This prints `build report`, then `backup`.
 while (!$queue->isEmpty()) {
     var $job = $queue->pop();
     echo $job->name, "\n";

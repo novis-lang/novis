@@ -1,5 +1,5 @@
 <?nvs
-// Measures the revoke of a post in an identity map, at growing numbers of posts.
+// Measures the revoke of a post in a `Core\ObjectMap`, at growing numbers of posts.
 // It shows that a larger map does not make one revoke slower.
 // bench: start 3125
 // bench: max 100000
@@ -32,7 +32,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Every new `id` is 1, so `$total` grows by 1 and the rounds use the keys in order.
+            // Each round adds the new post's `id` to `$total`, and every `id` is 1.
+            // So `$total` grows by 1, and the rounds use the keys in order.
             string $pick = $keys[($total % $size) as int];
             $posts->get($pick)?->revoke();
             $posts->set($pick, new Post(1));

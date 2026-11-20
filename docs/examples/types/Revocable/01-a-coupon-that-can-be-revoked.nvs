@@ -1,0 +1,25 @@
+<?nvs
+// Shows the two methods every `Revocable` class gets: `revoke()` and `isRevoked()`.
+
+final class Coupon implements Revocable
+{
+    public function constructor(public string $code)
+    {}
+}
+
+var $coupon = new Coupon('WINTER');
+
+// Before `revoke()`, `isRevoked()` returns `false`. This prints `valid`.
+echo $coupon->isRevoked() ? 'revoked' : 'valid', "\n";
+
+// The second `revoke()` does nothing. This prints `revoked`.
+$coupon->revoke();
+$coupon->revoke();
+echo $coupon->isRevoked() ? 'revoked' : 'valid', "\n";
+
+// Reading `code` now throws `RevokedObjectError`. The message names line 16, the first `revoke()`.
+try {
+    echo $coupon->code, "\n";
+} catch (RevokedObjectError $e) {
+    echo $e->message, "\n";
+}

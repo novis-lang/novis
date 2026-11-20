@@ -7,12 +7,13 @@ description: Keep each loaded row in memory once, and remove it from memory when
 import Snippet from '@components/Snippet.astro'
 
 A request often reads the same row more than once. This program loads each post once and keeps it
-in a `Core\ObjectMap`. When the program deletes a post, the map removes it at once.
+in a `Core\ObjectMap`. When the program deletes a post, the map removes it immediately.
 
 <Snippet src="guides/cookbook/forget-deleted-row/forget-deleted-row.nvs" />
 
-`Post` implements `Revocable`, so it has the method `revoke()`. `delete` calls it. After that call,
-every `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap` that contains the post removes it. So the
+`Post` implements `Revocable`, so it has the method `revoke()`. To revoke an object means to tell
+the program that the object is no longer valid. `delete` calls `revoke()`. After that call, the post
+is removed from every `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap` that contains it. So the
 next `find(7)` does not return the deleted post. It loads the row again.
 
 The variable `$first` still contains the deleted post. Reading `$first->title` now throws

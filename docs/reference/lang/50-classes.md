@@ -3903,26 +3903,27 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 `Revocable` is the interface for an object that can stop being valid, such as a deleted database row.
 
-A class that implements it gets two methods. `revoke()` revokes the object, and a second call does
+To revoke an object means to tell the program that the object is no longer valid. A class that
+implements `Revocable` gets two methods. `revoke()` revokes the object, and a second call does
 nothing. `isRevoked()` returns `true` after `revoke()` was called.
 
-After `revoke()`, every `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap` removes the object at once.
-Their `count()` is correct, and a running `foreach` skips it.
+After `revoke()`, every `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap` removes the object
+immediately. Their `count()` is correct, and a running `foreach` skips it.
 
-A plain array, a property or a variable still contains the object. Reading a property, calling a
-method, `clone` and `Core\Json::encode` then throw `RevokedObjectError`. The message names the class
-and the line of the first `revoke()`. `==`, `is` and `::class` do not throw.
+A plain array, a property or a variable still contains the object. On a revoked object, reading a
+property, calling a method, `clone` and `Core\Json::encode` throw `RevokedObjectError`. The message
+names the class and the line of the first `revoke()`. `==`, `is` and `::class` do not throw.
 
-**Good to know:** only a class with no parent class can write `implements Revocable`. Its subclasses
-get it too.
+**Good to know:** only a class with no parent class can write `implements Revocable`. All its
+subclasses are then revocable too.
 
 **The examples below** show an identity map that forgets a deleted row, a set of online users, and a
 job heap.
 
-A class with a parent class that writes `implements Revocable` is the error `E1001`. The help names
-the class with no parent, where you write it instead. An interface that extends `Revocable` is the
-error `E1002`. A class that declares its own `revoke()` or `isRevoked()` is the error `E1003`. An
-abstract class with no parent may implement `Revocable`.
+If a class has a parent class and writes `implements Revocable`, the compiler reports the error
+`E1001`. Its help names the class with no parent. Write `implements Revocable` on that class instead.
+An interface that extends `Revocable` is the error `E1002`. A class that declares its own `revoke()`
+or `isRevoked()` is the error `E1003`. An abstract class with no parent may implement `Revocable`.
 
 These uses of a revoked object throw `RevokedObjectError`: a property read or write, a method call,
 `clone`, `Core\Json::encode`, and a `Core\Reflect` read, call or write. These do not throw:
@@ -3930,11 +3931,13 @@ These uses of a revoked object throw `RevokedObjectError`: a property read or wr
 `::class`. `RevokedObjectError` is a `LogicError`.
 
 The error message has this form: "This `Blog\Post` object was revoked in `src/Blog/Post.nvs` on line
-42. A revoked object cannot be used." A second `revoke()` does not change the line. When `revoke()`
-is called through `mixed` or `Core\Reflect`, the message names only the class.
+42. A revoked object cannot be used." A second `revoke()` does not change the line. A call of
+`revoke()` through `mixed` or `Core\Reflect` has no line in the source code. Then the message names
+only the class.
 
 `serialize()` of a revoked object throws too. So does sending it to a task or storing it in a cache.
-Each of them throws its usual error, with the same message.
+Each of them throws the error class it throws for any value it cannot copy. The message is the
+message of `RevokedObjectError`.
 
 `Core\Debug::dump` does not throw. It prints the class name and `(revoked)`, and no properties.
 
@@ -3944,7 +3947,7 @@ collection contains it.
 A revoked object is never added to a collection. `set`, `add` and `push` of one do nothing.
 
 `Core\ObjectMap<string, Post>` is not a `Core\ObjectMap<string, Storable>`, even when `Post` extends
-`Storable`. Both variables would contain the same map, and the first one may contain only posts.
+`Storable`. If it were, a program could add a `Storable` that is not a `Post` to a map of posts.
 
 A static property cannot have a `new` object as its default value (`E0472`). Give the property a
 nullable type, and create the map the first time you need it:
@@ -3953,15 +3956,14 @@ nullable type, and create the map the first time you need it:
 **Speed and memory.** A property read or a method call through a revocable class, an interface or
 `mixed` runs one extra check. Through any other class type there is no check. Each revocable object
 uses 16 more bytes. Its first collection adds 24 bytes, and each collection that contains it adds 32
-bytes. `revoke()` takes time
-in proportion to the number of collections that contain the object. The memory belongs to the request
-and is freed when the request ends.
+bytes. `revoke()` takes longer when more collections contain the object. The size of each collection
+does not change its speed. The memory belongs to the request and is freed when the request ends.
 
 ## Example 01: an identity map forgets a deleted row
 
 ```nvs
 <?nvs
-// Shows an identity map that forgets a row as soon as the program deletes it.
+// Shows a map of loaded posts that removes a post as soon as the program deletes it.
 
 abstract class Storable implements Revocable
 {
@@ -3985,7 +3987,8 @@ final class Post extends Storable
 
 final class IdentityMap
 {
-    // A static property cannot start with a `new` object, so the map is created on first use.
+    // A static property cannot have a `new` object as its default value.
+    // So `all()` creates the map the first time it is called.
     private static ?Core\ObjectMap<string, Storable> $objectsByKey = null;
 
     public static function all(): Core\ObjectMap<string, Storable>
@@ -4014,7 +4017,7 @@ $news->delete();
 var $map = IdentityMap::all();
 echo $map->count(), "\n";
 
-// The loop shows only the posts that were not deleted.
+// The loop prints only the posts that were not deleted.
 foreach ($map as string $key => Storable $object) {
     echo $key, "\n";
 }
@@ -4066,7 +4069,7 @@ foreach ($online as User $user) {
     echo $user->name, "\n";
 }
 
-// `add` does nothing with a revoked user. This prints 2 again.
+// `bob` is revoked, so `$online->add($bob)` does nothing. This prints 2 again.
 $online->add($bob);
 echo $online->count(), "\n";
 ```
@@ -4090,7 +4093,7 @@ final class Job implements Revocable, Comparable
     public function constructor(public string $name, public int $priority)
     {}
 
-    // A job with a smaller number runs first.
+    // The heap returns the job with the smallest `priority` first.
     public function compareTo(Job $other): int
     {
         return $this->priority - $other->priority;
@@ -4116,7 +4119,8 @@ $queue->push($email);
 $email->cancel();
 echo $queue->count(), "\n";
 
-// `pop` returns the next job that was not cancelled. This prints `build report`, then `backup`.
+// The cancelled job is no longer in the heap. `pop` returns the two other jobs.
+// This prints `build report`, then `backup`.
 while (!$queue->isEmpty()) {
     var $job = $queue->pop();
     echo $job->name, "\n";

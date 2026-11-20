@@ -23,9 +23,8 @@ A value of another type does not compile, and neither does reading a variable be
 **Good to know:** a variable belongs to the whole function, not only to its block. So you can read a
 loop counter after the loop.
 
-**The examples below** show `var` and then a written type. Then a loop counter is read after its loop,
-and every value of an order has a type. The last two do not compile: one assigns a string to an `int`,
-and one gives `var` an array with two element types.
+**The examples below** show `var`, a written type, a loop counter read after its loop, and an order
+whose values all have a type. The last two do not compile.
 
 A variable is declared once. Every later `$count = …` is an assignment and has no type. A value
 of another type does not compile: `$count = "two";` after `var $count = 1;` is the error `E0401`.

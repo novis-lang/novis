@@ -12,7 +12,7 @@ echo $post->isRevoked() ? "revoked" : "not revoked", "\n";
 $post->revoke();
 echo $post->isRevoked() ? "revoked" : "not revoked", "\n";
 echo $post->isRevoked() ? "revoked" : "not revoked", "\n";
-// covers: lang:classes/revocable-objects
+// covers: lang:classes/revocable-objects, Revocable
 --EXPECT--
 not revoked
 revoked

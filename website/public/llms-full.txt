@@ -39,9 +39,9 @@ Conventions the whole file uses:
 - A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, property<T>, property key, property name, propertyPath<T>, property path, field path, dynamic property, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret)*
 - A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the operators and forms that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, reference, |>, pipeline, pipe, $_, hole, substitution)*
 - A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `catch` as an expression, `echo`, `unset`, and the statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, catch, echo, print, unset, exit, yield, goto, label, declare, global, static variable)*
-- A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, `LateInit`, guards, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
+- A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, `LateInit`, guards, observers, `Stringable`, `Comparable`, `Revocable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, Revocable, revoke, isRevoked, RevokedObjectError, use after delete, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
 - A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what an enum does not have *(enum, case, backed enum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order)*
-- A.7 [Iteration and generators](#lang-iteration) — what `foreach` accepts — arrays, `Iterable<T>`, `Iterator<T>` — how a class becomes iterable, and how a method with `yield` is a lazy `Iterator<T>` *(foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel)*
+- A.7 [Iteration and generators](#lang-iteration) — what `foreach` accepts — arrays, `Iterable<T>`, `Iterator<T>`, `KeyedIterable<K, V>` — how a class becomes iterable, and how a method with `yield` is a lazy `Iterator<T>` *(foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel, KeyedIterable, KeyedIterator, iterateKeyed, key, key and value)*
 - A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, multi-catch, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, uncaught exception, error handler, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, dump a value, assertion, Core\Test\Failure)*
 - A.9 [Tasks, channels and isolates](#lang-concurrency) — structured concurrency with `Core\Task`, bounded channels, and `spawn script` isolates that share nothing *(Core\Task, all, map, limit, deadline, TimeoutError, sleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, fibers, fork, parallel, concurrent requests, threads, workers, shared state)*
 - A.10 [Attributes, routes, commands and derived codecs](#lang-attributes) — `#[...]` metadata as anonymous objects, how it is read back, and the names the compiler acts on — JSON codecs, the route table, the command table, and program enumeration *(attribute, #[...], Attribute, reflection, read attributes, Core\Attributes, get, all, #[Route], route attribute, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Router\Target, Router\Params, Target, Params, Command, Option, console command, Json\Derive, Json\Field, JSON encoding, decodeAs, Program::implementing, autoload)*
@@ -2119,8 +2119,8 @@ Keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, cl
 Every variable in a program has a type, and the type never changes.
 
 The short way to declare a local variable is `var`. `var $count = 3;` gives `$count` the type of its
-first value, `int`. In a `foreach` loop, `var` gives the value the type of the array's values, and
-the key is a `string`.
+first value, `int`. In a `foreach` loop over an array, `var` gives the value the type of the array's
+values, and the key is a `string`. Over a `Core\ObjectMap`, the key gets the map's key type.
 
 You can also write the type yourself, as in `float $weight = 1;`. Write it when the value comes
 later, when the variable needs a wider type, or when the type helps the reader. Parameters, return
@@ -2131,9 +2131,8 @@ A value of another type does not compile, and neither does reading a variable be
 **Good to know:** a variable belongs to the whole function, not only to its block. So you can read a
 loop counter after the loop.
 
-**The examples below** show `var` and then a written type, a loop counter read after its loop, and an
-order where every value has a type. The last two do not compile: one assigns a string to an `int`,
-and one gives `var` an array with two element types.
+**The examples below** show `var`, a written type, a loop counter read after its loop, and an order
+whose values all have a type. The last two do not compile.
 
 A variable is declared once. Every later `$count = …` is an assignment and has no type. A value
 of another type does not compile: `$count = "two";` after `var $count = 1;` is the error `E0401`.
@@ -2646,7 +2645,7 @@ An `array<T>` is an ordered table with `string` keys and values of the type `T`.
 arrays to any depth, such as `array<array<int>>`. `array<mixed>` can contain values of any type.
 
 An `int` key is the same key as its digits written as a string, so `$a[1]` and `$a["1"]` read one
-entry. The key variable of a `foreach` loop is always a `string`.
+entry. The key variable of a `foreach` loop over an array is always a `string`.
 
 `$a[] = 60;` adds a value at the end. Its key is one more than the largest whole-number key, so after
 `$a[5] = 50;` the next key is `6`.
@@ -12048,18 +12047,18 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 `foreach` visits every element of an array, a generator or any object you can iterate. Write
 `foreach ($subject as var $value)`, and the body runs once for each element.
 
-`var` gives the variable the type of the subject's values. Over an array you may get the key too,
-with `var $key => var $value`. The key is always a `string`. You can write the type in place of
-`var`, as in `string $key => int $value`. A variable with neither does not compile.
+`var` gives the variable the type of the subject's values. You may get the key too, with
+`var $key => var $value`. An array's key is a `string`, and a `Core\ObjectMap`'s key has the map's
+key type. You can write the type in place of `var`, as in `string $key => int $value`. A loop variable without `var` and without a type does not
+compile.
 
 The value variable is a copy. With `inout`, as in `foreach ($rows as inout var $row)`, each write to
 the variable goes back into the array. The syntax `&$value` does not compile. A loop visits the
 elements the array had when it began, so adding or removing elements does not change what it visits.
 If the body removes an element and then writes its `inout` variable, the write throws a `LogicError`.
 
-**The examples below** show values, then keys with values, then `inout`, each with `var` first and
-a written type after. Then come a loop over what a function returns, a generator, a wider type, and
-two loops that do not compile.
+**The examples below** show values, keys with values and `inout`. Then come a loop over what a
+function returns, a generator, a wider type, and two loops that do not compile.
 
 One header can use `var` for one variable and a written type for the other. A variable without
 either is the error `E0101`.
@@ -12071,7 +12070,8 @@ A written type can be wider than the element type. Write `int|float $v` over an 
 body stores a `float` in `$v`. The compiler checks that each element fits the written type.
 
 A generator, an `Iterator<T>` and an `Iterable<T>` give values of type `T` and have no key. A key
-variable over one of them is the error `E0444`.
+variable over one of them is the error `E0444`. A `KeyedIterable<K, V>`, such as a `Core\ObjectMap`,
+gives keys of type `K` and values of type `V`.
 
 The word `as` in the header belongs to `foreach`. To convert the subject, put the conversion in
 parentheses: `foreach (($m as array<int>) as var $v)`. A `mixed` subject without a conversion is the
@@ -12081,7 +12081,8 @@ An array literal can be the subject when the value variable uses `var`. All its 
 same type. Elements of different types are the error `E0414`, and so is an empty array `[]`. With a
 written type, an array literal does not compile. Put it in a typed variable first.
 
-An `inout` loop walks the array itself. An element that the body adds at the end is visited too.
+An `inout` loop also visits only the elements the array had when it began. An element that the body
+adds is not visited.
 
 A later `foreach` in the same function can declare the same variable again with the same type. With
 another type, the second declaration is the error `E0406`.
@@ -13485,7 +13486,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 <a id="lang-classes"></a>
 ## A.5 Classes, interfaces and objects
 
-Keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding
+Keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, Revocable, revoke, isRevoked, RevokedObjectError, use after delete, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding
 
 ### Declaring a class
 
@@ -15808,8 +15809,11 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 | `PropertyObserver` | — |
 | `PropertyGuard` | — |
 | `LateInit` | — |
+| `Revocable` | — |
 | `Iterable` | T |
 | `Iterator` | T |
+| `KeyedIterable` | K, V |
+| `KeyedIterator` | K, V |
 | `Core\Router\Gate` | — |
 | `Core\Router\Responder` | — |
 
@@ -17389,6 +17393,240 @@ error[E0752]: `Tag` is not a type `{tag}` can arrive at
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+### Revocable objects
+
+`Revocable` is the interface for an object that can stop being valid, such as a deleted database row.
+
+To revoke an object means to tell the program that the object is no longer valid. A class that
+implements `Revocable` gets two methods. `revoke()` revokes the object, and a second call does
+nothing. `isRevoked()` returns `true` after `revoke()` was called.
+
+After `revoke()`, every `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap` removes the object
+immediately. Their `count()` is correct, and a running `foreach` skips it.
+
+A plain array, a property or a variable still contains the object. On a revoked object, reading a
+property, calling a method, `clone` and `Core\Json::encode` throw `RevokedObjectError`. The message
+names the class and the line of the first `revoke()`. `==`, `is` and `::class` do not throw.
+
+**Good to know:** only a class with no parent class can write `implements Revocable`. All its
+subclasses are then revocable too.
+
+**The examples below** show an identity map that forgets a deleted row, a set of online users, and a
+job heap.
+
+If a class has a parent class and writes `implements Revocable`, the compiler reports the error
+`E1001`. Its help names the class with no parent. Write `implements Revocable` on that class instead.
+An interface that extends `Revocable` is the error `E1002`. A class that declares its own `revoke()`
+or `isRevoked()` is the error `E1003`. An abstract class with no parent may implement `Revocable`.
+
+These uses of a revoked object throw `RevokedObjectError`: a property read or write, a method call,
+`clone`, `Core\Json::encode`, and a `Core\Reflect` read, call or write. These do not throw:
+`isRevoked()`, a second `revoke()`, passing or storing the object, `==`, the type test `is` and
+`::class`. `RevokedObjectError` is a `LogicError`.
+
+The error message has this form: "This `Blog\Post` object was revoked in `src/Blog/Post.nvs` on line
+42. A revoked object cannot be used." A second `revoke()` does not change the line. A call of
+`revoke()` through `mixed` or `Core\Reflect` has no line in the source code. Then the message names
+only the class.
+
+`serialize()` of a revoked object throws too. So does sending it to a task or storing it in a cache.
+Each of them throws the error class it throws for any value it cannot copy. The message is the
+message of `RevokedObjectError`.
+
+`Core\Debug::dump` does not throw. It prints the class name and `(revoked)`, and no properties.
+
+`clone` of an object that is not revoked gives a new object. The new object is not revoked, and no
+collection contains it.
+
+A revoked object is never added to a collection. `set`, `add` and `push` of one do nothing.
+
+`Core\ObjectMap<string, Post>` is not a `Core\ObjectMap<string, Storable>`, even when `Post` extends
+`Storable`. If it were, a program could add a `Storable` that is not a `Post` to a map of posts.
+
+A static property cannot have a `new` object as its default value (`E0472`). Give the property a
+nullable type, and create the map the first time you need it:
+`self::$objectsByKey ??= new Core\ObjectMap<string, Storable>();`
+
+**Speed and memory.** A property read or a method call through a revocable class, an interface or
+`mixed` runs one extra check. Through any other class type there is no check. Each revocable object
+uses 16 more bytes. Its first collection adds 24 bytes, and each collection that contains it adds 32
+bytes. `revoke()` takes longer when more collections contain the object. The size of each collection
+does not change its speed. The memory belongs to the request and is freed when the request ends.
+
+#### Example 01: an identity map forgets a deleted row
+
+```nvs
+<?nvs
+// Shows a map of loaded posts that removes a post as soon as the program deletes it.
+
+abstract class Storable implements Revocable
+{
+    public function constructor(public int $id)
+    {}
+
+    // `delete` revokes the object. Every `Core\ObjectMap` that contains it removes it.
+    public function delete(): void
+    {
+        $this->revoke();
+    }
+}
+
+final class Post extends Storable
+{
+    public function constructor(int $id, public string $title)
+    {
+        parent::constructor($id);
+    }
+}
+
+final class IdentityMap
+{
+    // A static property cannot have a `new` object as its default value.
+    // So `all()` creates the map the first time it is called.
+    private static ?Core\ObjectMap<string, Storable> $objectsByKey = null;
+
+    public static function all(): Core\ObjectMap<string, Storable>
+    {
+        return self::$objectsByKey ??= new Core\ObjectMap<string, Storable>();
+    }
+
+    public static function remember(Storable $object): void
+    {
+        self::all()->set("{$object::class}#{$object->id}", $object);
+    }
+}
+
+var $hello = new Post(1, 'Hello');
+var $news = new Post(2, 'News');
+var $later = new Post(3, 'Later');
+IdentityMap::remember($hello);
+IdentityMap::remember($news);
+IdentityMap::remember($later);
+
+// The map has three posts. This prints 3.
+echo IdentityMap::all()->count(), "\n";
+
+// After `delete`, the map no longer contains post 2. This prints 2.
+$news->delete();
+var $map = IdentityMap::all();
+echo $map->count(), "\n";
+
+// The loop prints only the posts that were not deleted.
+foreach ($map as string $key => Storable $object) {
+    echo $key, "\n";
+}
+```
+
+```output
+3
+2
+Post#1
+Post#3
+```
+
+#### Example 02: a set of online users
+
+```nvs
+<?nvs
+// Shows a set of online users that loses a user as soon as the user logs out.
+
+final class User implements Revocable
+{
+    public function constructor(public string $name)
+    {}
+
+    // `logOut` revokes the user. Every `Core\ObjectSet` that contains the user removes it.
+    public function logOut(): void
+    {
+        $this->revoke();
+    }
+}
+
+var $ada = new User('ada');
+var $bob = new User('bob');
+var $eve = new User('eve');
+
+var $online = new Core\ObjectSet<User>();
+$online->add($ada);
+$online->add($bob);
+$online->add($eve);
+
+// Three users are online. This prints 3.
+echo $online->count(), "\n";
+
+// `bob` logs out and leaves the set. This prints 2.
+$bob->logOut();
+echo $online->count(), "\n";
+
+// The loop prints `ada` and `eve`.
+foreach ($online as User $user) {
+    echo $user->name, "\n";
+}
+
+// `bob` is revoked, so `$online->add($bob)` does nothing. This prints 2 again.
+$online->add($bob);
+echo $online->count(), "\n";
+```
+
+```output
+3
+2
+ada
+eve
+2
+```
+
+#### Example 03: a job heap skips a cancelled job
+
+```nvs
+<?nvs
+// Shows a job queue where a cancelled job is never run.
+
+final class Job implements Revocable, Comparable
+{
+    public function constructor(public string $name, public int $priority)
+    {}
+
+    // The heap returns the job with the smallest `priority` first.
+    public function compareTo(Job $other): int
+    {
+        return $this->priority - $other->priority;
+    }
+
+    // `cancel` revokes the job. Every `Core\Heap` that contains it removes it.
+    public function cancel(): void
+    {
+        $this->revoke();
+    }
+}
+
+var $email = new Job('send email', 1);
+var $report = new Job('build report', 2);
+var $backup = new Job('backup', 3);
+
+var $queue = new Core\Heap<Job>();
+$queue->push($backup);
+$queue->push($report);
+$queue->push($email);
+
+// The email job is cancelled. The queue now has two jobs, so this prints 2.
+$email->cancel();
+echo $queue->count(), "\n";
+
+// The cancelled job is no longer in the heap. `pop` returns the two other jobs.
+// This prints `build report`, then `backup`.
+while (!$queue->isEmpty()) {
+    var $job = $queue->pop();
+    echo $job->name, "\n";
+}
+```
+
+```output
+2
+build report
+backup
 ```
 
 ### Objects are handles
@@ -20159,24 +20397,26 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 <a id="lang-iteration"></a>
 ## A.7 Iteration and generators
 
-Keywords: foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel
+Keywords: foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel, KeyedIterable, KeyedIterator, iterateKeyed, key, key and value
 
 ### What `foreach` walks
 
 `foreach` is the loop that walks a collection of values and gives you one value at a time.
 
-It accepts three kinds of subject: an array, an object whose class implements `Iterable`, and an
-object whose class implements `Iterator`. A method that contains `yield` returns an `Iterator`, so it
-is a subject too. Write `var` for the loop variable, and it gets the type of the subject's values. Or
-write the type, and the compiler checks it. Over an array the loop may get the key as well as the
-value. The other two subjects have no keys, so a loop over one gets the value alone.
+It can loop over an array, an object whose class implements `Iterable`, and an object whose class
+implements `Iterator`. A method that contains `yield` is a generator. It returns an `Iterator`, so
+`foreach` can loop over its result too. Write `var` for the loop variable, and it gets the type of
+the values. You can also write the type, and the compiler checks it.
+
+Over an array the loop may get the key as well as the value. An `Iterable` or an `Iterator` has no
+keys, so a loop over one gets the value alone. A class that implements `KeyedIterable` or
+`KeyedIterator` gives a key with each value, as `Core\ObjectMap` does.
 
 **Good to know:** a method that takes `Iterable<T>` as a parameter type works with every class that
 can be walked. One function can then read a list, a cart or a database result the same way.
 
-**The examples below** show an array with and without its keys, then an object and a generator, then
-a checkout that adds up a shopping cart. Each one uses `var` first and a written type after it.
-Example 04 shows a second loop over the same iterator.
+**The examples below** show an array with and without its keys, an object and a generator, a
+checkout that adds up a shopping cart, and a second loop over one iterator.
 
 The key of an array is always a `string`, also when the array was written as a list. `var $k` is a
 `string`, and `int $k` is the error `E0723`. Convert the key in the loop body if you need a number.
@@ -20382,21 +20622,22 @@ first
 
 ### The two interfaces
 
-Two interfaces make a class walkable by a `foreach` loop: `Iterator<T>` and `Iterable<T>`. There are
-no others.
+A class implements `Iterator<T>` or `Iterable<T>` so that a `foreach` loop can get values from its
+objects. A loop that gets a key with each value uses `KeyedIterator<K, V>` and `KeyedIterable<K, V>`.
 
-`Iterator<T>` is the cursor. `advance()` moves it to the next element and returns `false` once there
-are none left. `current()` returns the element the last `advance()` moved to. `Iterable<T>` has one
-method, `iterate()`, which returns a fresh `Iterator<T>`. A class declares one of the two at a
-concrete type, such as `Iterator<int>`. Both names also work as a parameter type or a variable type.
+`Iterator<T>` is a cursor: an object that remembers its position in a sequence. `advance()` moves it
+to the next element and returns `false` once there are none left. `current()` returns the element the
+last `advance()` moved to. `Iterable<T>` has one method, `iterate()`, which returns a new `Iterator<T>`.
+A class implements one of the two with a concrete type, such as `implements Iterator<int>`. You can
+also use `Iterator<T>` and `Iterable<T>` as a parameter type or a variable type.
 
 **Good to know:** `foreach` calls `iterate()` once per loop, so one `Iterable<T>` object can be
-walked twice, or nested inside a loop over itself. A cursor has no keys, so a loop over one cannot
-bind a key.
+walked twice, or nested inside a loop over itself. An `Iterator<T>` has no keys, so a loop over one
+cannot get a key. To give keys, implement `KeyedIterable<K, V>`.
 
-**The examples below** show a cursor written by hand, then a class that gives out a fresh cursor per
-loop, then a search result read page by page. Example 04 shows that a loop over a cursor cannot get
-a key.
+**The examples below** show a cursor written by hand. Then a class gives out a new cursor for each
+loop, and a search result is read page by page. Example 04 shows that a key variable over a cursor
+does not compile.
 
 `implements Iterator` with no type argument is the error `E0442`. Write the element type, such as
 `Iterator<int>`. A class of your own cannot declare a type argument. `class Box<T>` and
@@ -20597,7 +20838,7 @@ error[E0444]: an `Iterable`/`Iterator` subject has no key to bind
    |
 18 | foreach (Steps::upTo(3) as string $k => int $v) {
    |                            ^^^^^^^^^ no key exists here
-   = help: an iterator has values but no keys. Remove the `$k =>`, or loop over an `array<T>`
+   = help: an iterator has values but no keys. Remove the `$k =>`, or loop over an `array<T>` or a `KeyedIterable<K, V>`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -21011,32 +21252,34 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 
 A `foreach` loop walks a `Core` collection the same way it walks an array.
 
-Four classes work this way. `Core\ObjectSet` gives you its members and `Core\ObjectMap` gives you its
-keys, both in the order you added them. `Core\Heap` gives you its elements smallest first, and leaves
-the heap full. `Core\Task\Channel` gives you each value another task sent, and the loop ends when that
-task calls `close`.
+Four classes work this way. `Core\ObjectSet` gives you its elements in the order you added them.
+`Core\ObjectMap` gives you its keys in the same order. Write `foreach ($map as var $key => var $value)`
+to get each key with its value. `Core\Heap` is a collection that sorts its elements. It gives you its
+elements smallest first, and they stay in the heap. `Core\Task\Channel` is a queue between two tasks.
+It gives you each value the other task sent, and the loop ends when that task calls `close`.
 
 A set, a map and a heap take a copy of their contents when the loop starts. The loop walks that copy,
-so your code may add or remove inside the loop body. The loop still visits what was there at the
-start, and your changes are in the collection when it ends.
+so your code may add or remove elements inside the loop body. The loop still visits what was there at
+the start, and your changes are in the collection when it ends.
 
 **The examples below** show a set and a map first, then a heap, then a channel between two tasks.
 
 `Core\ObjectSet<T>`, `Core\Heap<T>` and `Core\Task\Channel<T>` are each an `Iterable<T>`.
-`Core\ObjectMap<K, V>` is an `Iterable<K>`. You can pass each one to a parameter of that type.
+`Core\ObjectMap<K, V>` is an `Iterable<K>` and a `KeyedIterable<K, V>`. You can pass each collection to
+a parameter with one of its types.
 
-A loop over a map gives the keys, never the values. `int $v` over an `ObjectMap<string, int>` is the
-error `E0401`. A key variable is not allowed: `foreach ($map as string $k => int $v)` is the error
-`E0444`. The written type of the loop variable must be the element type, or the error is `E0401`.
-`var $v` takes the element type.
+A loop with only a value variable over a map gives the keys. A loop with a key variable gives each key
+with its value. Over an `ObjectMap<Tag, int>`, `foreach ($map as var $tag => var $n)` gives `$tag` the
+type `Tag` and `$n` the type `int`. If you write a type for a variable and it does not fit, the error
+is `E0401`. A set, a heap and a channel have no keys, so a key variable over one is the error `E0444`.
 
 A heap made with a compare function gives its elements in the order that function sets. A heap of
 `Comparable` objects gives them in the order of `compareTo`.
 
 A set, a map and a heap can be walked many times, and each loop gives every element again.
 
-A loop over a channel takes each value out of it. A second loop over the same closed channel gets no
-values. Values sent before `close` are still given to the loop.
+A loop over a channel takes each value out of it, so a second loop over the same closed channel gets no
+values. The first loop also gets the values that were sent before `close`.
 
 #### Example 01: walking a set and a map
 
@@ -21144,6 +21387,188 @@ echo Report::$done, "\n";
 
 ```output
 resize-logo resize-banner resize-icon
+```
+
+### Keys and values from a map
+
+A `foreach` loop over a `Core\ObjectMap` can give you each key with its value. Write
+`foreach ($map as var $key => var $value)`. `$key` gets the map's key type, and `$value` gets its
+value type.
+
+The loop gives the entries in the order you added them. It walks the map as it was when the loop
+started. If the loop body adds an entry, the loop does not visit it. If the body removes an entry, the
+loop still visits it, with its old value. When the loop ends, the map has every change the body made.
+
+A class of your own can give keys and values too. It implements `KeyedIterable<K, V>`, and its
+`iterateKeyed` method returns a `KeyedIterator<K, V>`. A loop with one variable over a map gives only
+the keys.
+
+**The examples below** show a loop with written types, then a loop with `var`, then a class of your
+own.
+
+A written key type must accept the map's key type. A wider type, such as `object`, is allowed. Any
+other type is the error `E0401`. The same is true for the value.
+
+A key can be `tainted` (it may come from outside the program). Then `var $key` is `tainted` too. A
+plain `string $key` over a `tainted string` key is the error `E0851`. A `tainted` value comes from
+outside, so it cannot go into a plain `string`.
+
+A key variable over an `Iterable` or an `Iterator` is the error `E0444`. These interfaces give values
+and no keys.
+
+`inout` on the value is the error `E0490`. To change a value, call `$map->set($key, $newValue)`.
+
+`[]` does not work on a `Core\ObjectMap`. Read a value with `get` and write one with `set`.
+
+#### Example 01: each key with its value
+
+```nvs
+<?nvs
+// Shows a `foreach` loop that gives each key of a `Core\ObjectMap` with its value.
+
+final class Tag
+{
+    public string $name;
+
+    public function constructor(string $name)
+    {
+        $this->name = $name;
+    }
+}
+
+Core\ObjectMap<Tag, int> $stock = new Core\ObjectMap<Tag, int>();
+$stock->set(new Tag('shirts'), 14);
+$stock->set(new Tag('hats'), 3);
+$stock->set(new Tag('scarves'), 8);
+
+// Each step gives one tag and its stock count. This prints `shirts: 14`,
+// then `hats: 3`, then `scarves: 8`.
+int $total = 0;
+foreach ($stock as Tag $tag => int $count) {
+    echo $tag->name, ': ', $count, "\n";
+    $total = $total + $count;
+}
+
+// This prints `total: 25`.
+echo 'total: ', $total, "\n";
+```
+
+```output
+shirts: 14
+hats: 3
+scarves: 8
+total: 25
+```
+
+#### Example 02: var takes the types from the map
+
+```nvs
+<?nvs
+// Shows `var` in a keyed `foreach` loop, where each variable gets its type from the map.
+
+final class Product
+{
+    public string $name;
+    public int $priceInCents;
+
+    public function constructor(string $name, int $priceInCents)
+    {
+        $this->name = $name;
+        $this->priceInCents = $priceInCents;
+    }
+
+    public function label(): string
+    {
+        return Core\Str::upper($this->name);
+    }
+}
+
+var $cart = new Core\ObjectMap<Product, int>();
+$cart->set(new Product('coffee', 450), 2);
+$cart->set(new Product('bagel', 300), 3);
+
+// `$product` is a `Product`, so it has the `label` method and the price property.
+// `$quantity` is an `int`. This prints `COFFEE 2 x 450 = 900`, then `BAGEL 3 x 300 = 900`.
+foreach ($cart as var $product => var $quantity) {
+    int $line = $product->priceInCents * $quantity;
+    echo $product->label(), ' ', $quantity, ' x ', $product->priceInCents, ' = ', $line, "\n";
+}
+```
+
+```output
+COFFEE 2 x 450 = 900
+BAGEL 3 x 300 = 900
+```
+
+#### Example 03: a class of your own with keys and values
+
+```nvs
+<?nvs
+// Shows a class of your own that gives keys and values to a `foreach` loop.
+
+final class ScoreCursor implements KeyedIterator<string, int>
+{
+    private array<string> $players;
+    private array<int> $scores;
+    private int $at = -1;
+
+    public function constructor(array<string> $players, array<int> $scores)
+    {
+        $this->players = $players;
+        $this->scores = $scores;
+    }
+
+    // `advance` moves to the next entry. It returns `false` when there are no more entries.
+    public function advance(): bool
+    {
+        $this->at = $this->at + 1;
+        return $this->at < Core\Arr::count($this->players);
+    }
+
+    public function key(): string
+    {
+        return $this->players[$this->at];
+    }
+
+    public function current(): int
+    {
+        return $this->scores[$this->at];
+    }
+}
+
+final class Scoreboard implements KeyedIterable<string, int>
+{
+    private array<string> $players = [];
+    private array<int> $scores = [];
+
+    public function add(string $player, int $score): void
+    {
+        $this->players[] = $player;
+        $this->scores[] = $score;
+    }
+
+    // Each loop calls `iterateKeyed` and gets a new cursor that starts at the first entry.
+    public function iterateKeyed(): KeyedIterator<string, int>
+    {
+        return new ScoreCursor($this->players, $this->scores);
+    }
+}
+
+var $board = new Scoreboard();
+$board->add('Ana', 120);
+$board->add('Ben', 95);
+$board->add('Chloe', 140);
+
+// The loop gives each player with a score. This prints `Ana: 120`, `Ben: 95` and `Chloe: 140`.
+foreach ($board as var $player => var $score) {
+    echo $player, ': ', $score, "\n";
+}
+```
+
+```output
+Ana: 120
+Ben: 95
+Chloe: 140
 ```
 
 ### Materialising a sequence: `Core\Arr::from`
@@ -21750,6 +22175,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 | `Core\Db\RolledBack` | `RuntimeError` | `$reason` |
 | `Core\Ldap\LdapError` | `RuntimeError` | `$kind`, `$code` |
 | `Core\DeprecatedError` | `LogicError` | — |
+| `RevokedObjectError` | `LogicError` | — |
 | `Core\Script\Finished` | — (the root) | — |
 
 ### Properties, not accessors
@@ -39159,9 +39585,16 @@ Keywords: identity, object identity, object key, per-object data, side table, ma
 key however many variables hold it, and two objects that agree on every property are two keys. `array<T>`
 cannot key on an object, so this is where a per-object side table lives. It is built with
 `new Core\ObjectMap<K, V>()`, `get` answers `?V` rather than throwing — there is no `$m[$k]` subscript on it —
-and `has` is the one member that tells an absent key from a stored `null`. The map is `Iterable`: a
-`foreach` yields its **keys** in insertion order, walking a snapshot taken when the loop began, so the body
-may `remove` what it is walking.
+and `has` is the one member that tells an absent key from a stored `null`.
+
+A `foreach` loop walks the map in the order the keys were added. With a key variable,
+`foreach ($map as var $key => var $value)` gives each key with its value. With only a value variable,
+the loop gives the keys. A `foreach` does not copy the map. If the body changes the map, the loop still
+walks the entries the map had when it began. So the body may `remove` the entry it is on.
+
+An object whose class implements `Revocable` leaves the map when the program calls `revoke()` on it.
+The map removes every entry that has the object as its key or as its value. `count()` is then
+correct, and a running `foreach` skips the removed entries.
 
 ```nvs
 <?nvs
@@ -39183,8 +39616,8 @@ echo 'red=', $weights->get($red) ?? 0, "\n";
 echo 'other red=', $weights->get(new Tag('red')) ?? -1, "\n";
 echo 'count=', $weights->count(), "\n";
 
-foreach ($weights as Tag $tag) {
-    echo $tag->name, ' ';
+foreach ($weights as Tag $tag => int $weight) {
+    echo $tag->name, '=', $weight, ' ';
 }
 echo "\n";
 
@@ -39196,7 +39629,7 @@ echo 'keys=', Core\Arr::count($weights->keys()), ' values=', Core\Arr::count($we
 red=4
 other red=-1
 count=2
-red blue
+red=4 blue=7
 blue gone
 keys=1 values=1
 ```
@@ -39348,9 +39781,13 @@ Keywords: identity, object identity, set, membership, union, intersect, diff, de
 leaves one member, and a second object equal in every property is a second member. It is built with
 `new Core\ObjectSet<T>()`; `add`, `has` and `remove` are the membership members, and the set is `Iterable`
 — a `foreach` yields its members in insertion order, over a snapshot, so the body may `remove` what it is
-walking. `union`, `intersect` and `diff` answer a new set and leave both operands untouched; the binary
+walking. A `foreach` does not copy the set. If the loop changes the set, the loop still walks the members
+the set had when it began. `union`, `intersect` and `diff` answer a new set and leave both operands untouched; the binary
 types that new set as a bare `Core\ObjectSet`, so it can be counted, asked `has` and walked as `mixed`
 (`foreach ($both as mixed $m)` and then `$m as Tag`), but a `foreach … as Tag $t` over it is refused.
+
+An object whose class implements `Revocable` leaves the set when the program calls `revoke()` on it.
+`count()` is then correct, and a running `foreach` skips the object.
 
 ```nvs
 <?nvs
@@ -39553,6 +39990,9 @@ order is decided once, at `new`: a comparator passed as the constructor's argume
 order. A max-heap is therefore the min-heap with its comparator reversed, not another class. `peek` and
 `pop` throw on an empty heap — ask `isEmpty` first — and a `foreach` over a heap yields its elements in
 `pop` order without removing any of them.
+
+An object whose class implements `Revocable` leaves the heap when the program calls `revoke()` on it.
+`count()` drops by one at once, and `pop` and `peek` never return the object.
 
 ```nvs
 <?nvs

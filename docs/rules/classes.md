@@ -1172,9 +1172,12 @@ door already throws, because every caller of the copy picks its own error
 ([`classes/graph-copy`](classes.md#classes-graph-copy)). These do not throw: `isRevoked()`, a second `revoke()`, passing the
 object, storing it, `==` (identity, [`expressions/equality-semantics`](expressions.md#expressions-equality-semantics)), the type test `is`
 ([`types/type-test`](types.md#types-type-test)) and `::class`. `Core\Debug` prints the class name followed by `(revoked)`,
-without its properties, and does not throw, so a program can inspect one. The message names the class and the place of the
-first `revoke()`: "This `Blog\Post` object was revoked in `src/Blog/Post.nvs` on line 42. A revoked
-object cannot be used."
+without its properties, and does not throw, so a program can inspect one. The message names the
+class and the place of the first `revoke()`: "This `Blog\Post` object was revoked in
+`src/Blog/Post.nvs` on line 42. A revoked object cannot be used." A `revoke()` called by name,
+through `mixed` or `Core\Reflect`, runs in the erased call entry, which has no call site, so it keeps
+no site and the message names the class alone. Passing a site through the erased entry would add a
+parameter to every erased call for one rare form.
 
 **Plain arrays, properties and variables keep the reference**, and a use of it throws as above. Only
 `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap` drop a revoked object

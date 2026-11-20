@@ -1,11 +1,12 @@
 <?nvs
 // Attack: a program revokes objects inside `catch` and `finally` blocks, and uses them while an error is handled.
-// Every use should throw `RevokedObjectError`, each one is caught, and the program runs to the end.
+// Every use should throw `RevokedObjectError`. The program catches each error and runs to the end.
 // covers: RevokedObjectError, lang:classes/revocable-objects
 
 class Order implements Revocable
 {
-    public function constructor(public int $id) {}
+    public function constructor(public int $id)
+    {}
 
     public function total(): int
     {
@@ -51,7 +52,7 @@ try {
     echo "2 revoked in finally: caught\n";
 }
 
-// 3. Revokes another order while a `RevokedObjectError` is handled, then uses it inside the same `catch`.
+// 3. Inside a `catch` block for `RevokedObjectError`, revokes another order and then uses it.
 var $third = new Order(3);
 try {
     echo $first->id, "\n";
@@ -65,7 +66,7 @@ try {
     }
 }
 
-// 4. Uses a revoked order in a `finally` block while the `try` block throws the same error.
+// 4. Uses a revoked order in a `finally` block, after its `try` block threw `RevokedObjectError`.
 try {
     try {
         echo $third->id, "\n";
@@ -76,7 +77,7 @@ try {
     echo "4 use in finally: caught\n";
 }
 
-// 5. Uses a revoked order inside a `catch` block, so the `catch` block throws again.
+// 5. Uses a revoked order inside a `catch` block. That `catch` block then throws a new error.
 try {
     try {
         Shop::fail();
@@ -89,4 +90,4 @@ try {
 
 // 6. Checks that a new order still works after all of this.
 var $fresh = new Order(4);
-echo "6 new order total: ", $fresh->total(), "\n";
+echo '6 new order total: ', $fresh->total(), "\n";
