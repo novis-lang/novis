@@ -5522,6 +5522,9 @@ mod tests {
         let limit: usize = 128 << 10;
         // Escaped, the attribute is one and a half times `limit`.
         let quotes = limit / 4;
+        // A compile builds the process's class descriptors before any request
+        // runs. Built here, inside the request, they would count in its peak.
+        let _ = crate::instance::class_descriptors();
         let mut ctx = Ctx::buffered();
         ctx.set_memory_limit(limit);
         let source = word(&format!("<t v='{}'/>", "\"".repeat(quotes)));
