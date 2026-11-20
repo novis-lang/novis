@@ -1,0 +1,24 @@
+--TEST--
+A `Core\ObjectSet<int>` gives each member back from a `foreach` as an `int`, in insertion order, and a duplicate `add` keeps the count
+--FILE--
+<?nvs
+Core\ObjectSet<int> $ids = new Core\ObjectSet<int>();
+$ids->add(3);
+$ids->add(0);
+$ids->add(-7);
+$ids->add(42);
+$ids->add(3);
+echo $ids->count(), "\n";
+
+foreach ($ids as int $id) {
+    echo $id, " ", $id + 1, " ", $id is int ? "int" : "other", " ", $ids->has($id) ? "yes" : "no", "\n";
+}
+
+echo $ids->has(7) ? "yes" : "no", " ", $ids->has(-3) ? "yes" : "no", "\n";
+--EXPECT--
+4
+3 4 int yes
+0 1 int yes
+-7 -6 int yes
+42 43 int yes
+no no

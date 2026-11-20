@@ -1,0 +1,41 @@
+--TEST--
+A `Core\ObjectMap<int, V>` gives each key back as an `int`, from `keys()` and from a `foreach`, in insertion order
+--FILE--
+<?nvs
+final class Keys {
+    // A typed `int` parameter only takes an `int`, so a key that came back as
+    // a string would not compile or run here.
+    public static function next(int $k): int {
+        return $k + 1;
+    }
+}
+
+Core\ObjectMap<int, string> $names = new Core\ObjectMap<int, string>();
+$names->set(3, "three");
+$names->set(0, "zero");
+$names->set(-7, "minus seven");
+$names->set(42, "forty-two");
+echo $names->count(), "\n";
+
+foreach ($names->keys() as int $k) {
+    echo $k, " ", Keys::next($k), " ", $k is int ? "int" : "other", "\n";
+}
+
+foreach ($names as int $k) {
+    echo $k + 1, "=", $names->get($k) ?? "missing", " ", $names->has($k) ? "yes" : "no", "\n";
+}
+
+echo $names->get(7) ?? "missing", " ", $names->has(7) ? "yes" : "no", "\n";
+echo $names->get(1) ?? "missing", " ", $names->has(-3) ? "yes" : "no", "\n";
+--EXPECT--
+4
+3 4 int
+0 1 int
+-7 -6 int
+42 43 int
+4=three yes
+1=zero yes
+-6=minus seven yes
+43=forty-two yes
+missing no
+missing no

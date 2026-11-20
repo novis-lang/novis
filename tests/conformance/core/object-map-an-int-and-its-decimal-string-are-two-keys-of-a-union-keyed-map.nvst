@@ -1,0 +1,23 @@
+--TEST--
+In a `Core\ObjectMap<int|string, V>`, `5` and `"5"` are two keys, each with its own value, and `keys()` gives back one `int` and one `string`
+--FILE--
+<?nvs
+Core\ObjectMap<int|string, string> $labels = new Core\ObjectMap<int|string, string>();
+$labels->set(5, "number");
+$labels->set("5", "text");
+echo $labels->count(), "\n";
+
+echo $labels->get(5) ?? "missing", " ", $labels->get("5") ?? "missing", "\n";
+
+foreach ($labels->keys() as int|string $k) {
+    echo $k is int ? "int " : "string ", $k, "\n";
+}
+
+$labels->remove(5);
+echo $labels->count(), " ", $labels->has(5) ? "yes" : "no", " ", $labels->get("5") ?? "missing", "\n";
+--EXPECT--
+2
+number text
+int 5
+string 5
+1 no text

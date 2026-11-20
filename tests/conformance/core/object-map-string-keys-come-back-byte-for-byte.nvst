@@ -1,0 +1,29 @@
+--TEST--
+A `Core\ObjectMap<string, V>` keeps every string key exactly as it was set: `"8"` and `"08"` are two keys, and `""`, `"-0"` and a multi-byte key are keys of their own
+--FILE--
+<?nvs
+Core\ObjectMap<string, int> $seen = new Core\ObjectMap<string, int>();
+$seen->set("8", 1);
+$seen->set("08", 2);
+$seen->set("", 3);
+$seen->set("a b", 4);
+$seen->set("日本", 5);
+$seen->set("-0", 6);
+echo $seen->count(), "\n";
+
+foreach ($seen->keys() as string $k) {
+    echo "[", $k, "] ", Core\Str::length($k), " ", $seen->get($k) ?? 0, "\n";
+}
+
+echo $seen->get("8") ?? 0, " ", $seen->get("08") ?? 0, "\n";
+echo $seen->has("0") ? "yes" : "no", " ", $seen->has("ab") ? "yes" : "no", "\n";
+--EXPECT--
+6
+[8] 1 1
+[08] 2 2
+[] 0 3
+[a b] 3 4
+[日本] 2 5
+[-0] 2 6
+1 2
+no no
