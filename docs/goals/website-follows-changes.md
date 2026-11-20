@@ -22,7 +22,7 @@ stages:
     context: [tools/nv/proofs/collect.ts, tools/nv/schema/proofs.ts, data/proofs/policy.json, tools/nv/cmd/proofs.ts, docs/agent/prose.md, .claude/agents/reader.md]
   - id: 5
     title: every goal names what it owes the website, and its gate stage runs the review
-    status: open
+    status: done
     context: [AGENTS.md, docs/agent/conventions.md, docs/agent/loop-authoring.md, docs/agent/prose.md, docs/agent/commands.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -486,27 +486,27 @@ commands and `--check review`, and makes Reviewed a feature proof.
 
 **Does:** writes the procedure where every session reads it, and flips the rule to `shipped`.
 
-- [ ] `docs/agent/prose.md:18`: a section *A newcomer reads it*: the commands in order, the batches,
+- [x] `docs/agent/prose.md:18`: a section *A newcomer reads it*: the commands in order, the batches,
   the reader's prompt (read no file; the three questions), comparing (3), fixing every finding, and
   the stamp. `rule:testing/feature-proofs`
-- [ ] `docs/agent/conventions.md:648`: two bullets in § *A goal*. Every goal's last content stage
+- [x] `docs/agent/conventions.md:648`: two bullets in § *A goal*. Every goal's last content stage
   names the website pages it rereads and stamps and the `changes.json` entries it writes, by kind and
   feature. Every gate stage starts with the review of `docs/agent/prose.md` § *A newcomer reads it*,
   before its first `looper verify`. `testing/every-change-reaches-the-website` (new)
-- [ ] `docs/agent/loop-authoring.md:194`: one line under § 6 that the last content stage owes the
+- [x] `docs/agent/loop-authoring.md:194`: one line under § 6 that the last content stage owes the
   website and the gate stage runs the review, pointing to `conventions.md` § *A goal*.
   `testing/every-change-reaches-the-website` (new)
-- [ ] `AGENTS.md:91`: one bullet under § *The rules only this project has*, after the feature proofs
+- [x] `AGENTS.md:91`: one bullet under § *The rules only this project has*, after the feature proofs
   one: a change reaches the website, so `bun nv site --check stale`, `changes` and `review` are green
   before a goal ends, and the gate stage runs the newcomer review.
   `testing/every-change-reaches-the-website` (new)
-- [ ] `docs/agent/commands.md:470`: the stamp, changes and review commands in the website block.
+- [x] `docs/agent/commands.md:470`: the stamp, changes and review commands in the website block.
   `testing/every-change-reaches-the-website` (new)
-- [ ] `data/rules/testing/every-change-reaches-the-website.json:1`: `shipped`, its `goal` removed, and
+- [x] `data/rules/testing/every-change-reaches-the-website.json:1`: `shipped`, its `goal` removed, and
   its `guardedBy` lists `tools/nv/lib/texts.ts`, `tools/nv/test/site.test.ts` and
   `tools/nv/test/site-changes.test.ts`. `bun nv rules --render`.
   `testing/every-change-reaches-the-website` (new)
-- [ ] The `ci-check` check, run once, and each red fixed.
+- [x] The `ci-check` check, run once, and each red fixed.
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -532,17 +532,22 @@ every kind by `data/proofs/policy.json`. `data/proofs/review-baseline.json` hold
 `review` runs in the stale guard of `ci.ts`, `deep.ts` and `ci.yml`. The rule's **Reviewed**
 paragraph is in `docs/rules/testing/feature-proofs.md`.
 
+Stage 5 is done. `docs/agent/prose.md` § *A newcomer reads it* is the review procedure, and
+`conventions.md` § *A goal*, `loop-authoring.md` § 6, `AGENTS.md` and `commands.md` point to it.
+`testing/every-change-reaches-the-website` is `shipped`, and `ci-check` is green. Its first run was
+red on rustfmt, the rendered website data and 68 stale search-question entries, all left by
+time-constructors and fixed in `ce5e2b430c` and the questions commit.
+
 The nightly the last sweep named (run 44510687786, 2026-11-19) is the one fixed on `main` by
 `eb5c02e983`, `4c82a2409a`, `9478fd2f66`, `656f5b2f2d` and `1c75c4ef0e`/`8d945cbeb2`. Each is on
 `HEAD` and after that run's commit. They are not pushed yet, and the next full gate pushes them.
 
 ### Next
 
-Stage 5, its items in order, starting at `docs/agent/prose.md:18` (*A newcomer reads it*). The
-commands it names are in the module doc of `tools/nv/cmd/site.ts:1`. Then stage 6, whose review runs
-over what `bun nv site --review` lists: the texts this goal changed, among them
-`website/src/data/changes.json`. A change to a user text from here on owes a review stamp, and a
-change to a feature's tests a `changes.json` entry or an `unseen` record, or the pre-push guard is
-red. No test is expected to go red.
+Stage 6, the gate stage, closes the goal. `bun nv site --review` lists 0 texts now, so its review
+item has nothing to send unless a later change adds one. Then the check the pack names: a close
+runs a build, clippy and this goal's own tests (`bun test tools/nv/test/site.test.ts
+tools/nv/test/site-changes.test.ts tools/nv/test/site-review.test.ts`). Before `DONE`,
+`bun nv owners --closes website-follows-changes`. No test is expected to go red.
 
 ### Backlog
