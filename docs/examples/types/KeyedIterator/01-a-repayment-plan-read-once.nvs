@@ -1,0 +1,69 @@
+<?nvs
+// A loan repayment plan written as a cursor that a `foreach` loop drives directly.
+// The key is the month number, and the value is what is still owed after that month.
+
+class RepaymentPlan implements KeyedIterator<int, int>
+{
+    private int $owed;
+    private int $payment;
+    private int $month = 0;
+    private bool $done = false;
+
+    public function constructor(int $loan, int $payment)
+    {
+        $this->owed = $loan;
+        $this->payment = $payment;
+    }
+
+    // Each call moves to the next month and takes off one payment. It returns `false` once nothing is owed.
+    public function advance(): bool
+    {
+        if ($this->owed <= 0) {
+            $this->done = true;
+            return false;
+        }
+        $this->month = $this->month + 1;
+        $this->owed = $this->owed - $this->payment;
+        if ($this->owed < 0) {
+            $this->owed = 0;
+        }
+        return true;
+    }
+
+    public function key(): int
+    {
+        $this->check();
+        return $this->month;
+    }
+
+    public function current(): int
+    {
+        $this->check();
+        return $this->owed;
+    }
+
+    // `key` and `current` throw a `LogicError` before the first month and after the last one.
+    private function check(): void
+    {
+        if ($this->month == 0 || $this->done) {
+            throw new LogicError('no current month');
+        }
+    }
+}
+
+var $plan = new RepaymentPlan(1000, 300);
+foreach ($plan as int $month => int $owed) {
+    echo 'month ', $month, ': ', $owed, " still owed\n";
+}
+
+// The cursor is at its end now, so this loop prints nothing.
+foreach ($plan as int $month => int $owed) {
+    echo 'again: month ', $month, "\n";
+}
+
+// Reading the key after the end throws a `LogicError`.
+try {
+    echo $plan->key(), "\n";
+} catch (LogicError $e) {
+    echo 'LogicError: ', $e->message, "\n";
+}

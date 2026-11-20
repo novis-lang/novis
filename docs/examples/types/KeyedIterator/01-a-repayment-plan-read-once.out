@@ -1,0 +1,5 @@
+month 1: 700 still owed
+month 2: 400 still owed
+month 3: 100 still owed
+month 4: 0 still owed
+LogicError: no current month

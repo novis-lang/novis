@@ -1,0 +1,82 @@
+<?nvs
+// A weekly timesheet that a `foreach` loop walks with a key and a value, as often as you like.
+// The class says `implements KeyedIterable<string, int>`. The key is the day, and the value is the hours.
+
+class TimesheetCursor implements KeyedIterator<string, int>
+{
+    private array<string> $days;
+    private array<int> $hours;
+    private int $at = -1;
+
+    public function constructor(array<string> $days, array<int> $hours)
+    {
+        $this->days = $days;
+        $this->hours = $hours;
+    }
+
+    // The cursor's `advance` moves to the next day. It returns `false` after the last day, and the loop stops.
+    public function advance(): bool
+    {
+        $this->at = $this->at + 1;
+        return $this->at < Core\Arr::count($this->days);
+    }
+
+    public function key(): string
+    {
+        return $this->days[$this->at];
+    }
+
+    public function current(): int
+    {
+        return $this->hours[$this->at];
+    }
+}
+
+class Timesheet implements KeyedIterable<string, int>
+{
+    private array<string> $days;
+    private array<int> $hours;
+
+    public function constructor()
+    {
+        $this->days = [];
+        $this->hours = [];
+    }
+
+    public function log(string $day, int $hours): void
+    {
+        $this->days[] = $day;
+        $this->hours[] = $hours;
+    }
+
+    // `iterateKeyed` is the one method `KeyedIterable` needs. Each call returns a new cursor at Monday.
+    public function iterateKeyed(): KeyedIterator<string, int>
+    {
+        return new TimesheetCursor($this->days, $this->hours);
+    }
+}
+
+var $week = new Timesheet();
+$week->log('Monday', 8);
+$week->log('Tuesday', 7);
+$week->log('Wednesday', 9);
+$week->log('Thursday', 6);
+
+// First walk: one line for each day.
+foreach ($week as string $day => int $hours) {
+    echo $day, ': ', $hours, " h\n";
+}
+
+// Second walk over the same object. The loop calls `iterateKeyed` again, so it starts at Monday.
+int $total = 0;
+string $longest = '';
+int $most = 0;
+foreach ($week as string $day => int $hours) {
+    $total = $total + $hours;
+    if ($hours > $most) {
+        $most = $hours;
+        $longest = $day;
+    }
+}
+echo 'total: ', $total, " h\n";
+echo 'longest day: ', $longest, "\n";
