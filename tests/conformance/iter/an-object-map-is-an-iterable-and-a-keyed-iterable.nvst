@@ -1,0 +1,28 @@
+--TEST--
+`is Iterable<T>` and `is KeyedIterable<K, V>` are true for a `Core\ObjectMap`, as the checker reads it, and false for a value that is neither — `rule:iteration/keyed-interfaces`
+--FILE--
+<?nvs
+// covers: lang:iteration/keys-and-values-from-a-map
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
+$weights->set(new Tag("red"), 3);
+
+mixed $value = $weights;
+echo $value is KeyedIterable<Tag, int> ? "keyed" : "not keyed", "\n";
+echo $value is Iterable<Tag> ? "iterable" : "not iterable", "\n";
+
+mixed $other = new Tag("blue");
+echo $other is KeyedIterable<Tag, int> ? "keyed" : "not keyed", "\n";
+echo $other is Iterable<Tag> ? "iterable" : "not iterable", "\n";
+--EXPECT--
+keyed
+iterable
+not keyed
+not iterable

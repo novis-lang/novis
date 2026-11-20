@@ -8739,7 +8739,7 @@ pub(super) fn test_shape(
         if qname.is_core() && !nvs_types::expr::testable_core_class(qname) {
             return Some(TestShape::Never);
         }
-        return Some(TestShape::Class(qname.to_string()));
+        return Some(class_or_core_implementor(qname.to_string()));
     }
     // A union and an intersection are their members' own rows and add no test
     // of their own; `crate::lower` chains them, answering at the first member
@@ -8775,7 +8775,7 @@ pub(super) fn test_shape(
         CheckedTy::Iterable => {
             return Some(TestShape::Any(vec![
                 TestShape::Tag(Ty::Array),
-                TestShape::Class("Iterable".to_owned()),
+                class_or_core_implementor("Iterable".to_owned()),
                 TestShape::Class("Iterator".to_owned()),
             ]));
         }
@@ -8965,6 +8965,42 @@ pub(super) fn test_shape(
         // there being no run-time bit to read.
         _ => return None,
     }))
+}
+
+/// The test for `label`, and for each `Core` class the checker reads as
+/// implementing it.
+///
+/// `rule:iteration/keyed-interfaces`: a `Core` class has no `implements`
+/// clause. `nvs_types::core_lib` seeds its edge to `Iterable` and
+/// `KeyedIterable` from `nvs_stdlib::registry::ITERABLES` and
+/// `KEYED_ITERABLES`. A `Core` class's descriptor is the process's, and the
+/// interface's descriptor is this unit's, so the descriptor cannot list the
+/// interface. Each such class is therefore one more class test in the chain,
+/// and `is Iterable<T>` holds for a `Core\ObjectMap` as the checker says it
+/// does. The rosters are read directly, so no class is recorded as used. A
+/// label off both rosters is its own class test, and costs nothing more.
+fn class_or_core_implementor(label: String) -> TestShape {
+    let core: Vec<&'static str> = match label.as_str() {
+        "Iterable" => nvs_stdlib::registry::ITERABLES
+            .iter()
+            .map(|(name, _)| *name)
+            .collect(),
+        "KeyedIterable" => nvs_stdlib::registry::KEYED_ITERABLES
+            .iter()
+            .map(|(name, _, _)| *name)
+            .collect(),
+        _ => Vec::new(),
+    };
+    let core: Vec<&str> = core
+        .into_iter()
+        .filter(|name| nvs_stdlib::class_has_instances(name))
+        .collect();
+    if core.is_empty() {
+        return TestShape::Class(label);
+    }
+    let mut rows = vec![TestShape::Class(label)];
+    rows.extend(core.into_iter().map(|name| TestShape::Class(name.to_owned())));
+    TestShape::Any(rows)
 }
 
 /// The representation a value of an enum with this backing type carries.
