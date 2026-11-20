@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-types/src/lower.rs, crates/nvs-types/src/expr/members.rs, docs/rules/statements/static-is-a-member-modifier.md]
   - id: 2
     title: a payload names a property with property<static>, and a retrieval binds static to its target
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/members.rs, crates/nvs-types/src/expr/args.rs]
   - id: 3
     title: the editor completes the names and jumps to the property
@@ -119,6 +119,16 @@ lowers a declaration's shape at every use, and the interner makes a repeat free,
 nothing, so `static` there is the error type with no diagnostic, and each use reports for its own
 class. A use with no class, such as one on a function, makes `static` `E0303` at that use.
 
+**Where a retrieval binds `static`, and what `implementingWith` returns (my call, stage 2).** The type
+argument of `get` and `all` is lowered in `check_written_type_args`, before `fold_retrieval` runs, so
+`crate::retrieval::static_binding` sets the binding around that call in `crate::expr::calls`. A target
+that names no declaration keeps the default binding: it is `E0730` already, and `static` adds nothing.
+`implementingWith` lowers `T` once per joined class (`crate::program::joined_shape`) and joins the
+shapes field by field, because a union of shapes is `E0495` to read. A shape nested in a field stays a
+union of shapes; no case needs more yet. A wrong name is reported by
+`crate::retrieval::report_payload_keys` once, at the attach check, because `with_requested_literals`
+withdraws its own diagnostics; `literal_type` then types the literal as the key, so no `E0401` follows.
+
 **Lanes.** Stages 1 and 2 run in order: both change `crates/nvs-types/`. Stage 3 changes
 `crates/nvs-lsp/` alone, and stage 4 changes `docs/` and `tests/hostile/` alone. Both need stage 2's
 checker and may run side by side after it.
@@ -155,28 +165,28 @@ attribute is on. Nothing about payloads changes yet. Starts only when the gate i
 **Does:** the keystone. A written name at a `property<C>` field is a key, and a retrieval lowers its
 type argument with `static` bound to its target.
 
-- [ ] `crates/nvs-types/src/retrieval.rs:663` `literal_type`: a string literal at a `property<C>` or
+- [x] `crates/nvs-types/src/retrieval.rs:663` `literal_type`: a string literal at a `property<C>` or
   `propertyPath<C>` type, alone or as an array element, is checked as `crates/nvs-types/src/expr/args.rs:158`
   checks a literal at a key parameter, through `key_parameter_class`
   (`crates/nvs-types/src/expr/members.rs:862`). A right name gives the key type. A wrong one reports the
   unknown-member diagnostic at the literal once, at attach time, and is `E0401`-free: the payload's own
   mismatch is not reported a second time (`rule:types/one-mistake-reports-once`). The checker records
   the class's roster with `record_property_keys` (`crates/nvs-types/src/expr/members.rs:790`).
-- [ ] `crates/nvs-types/src/retrieval.rs:306` `fold_retrieval`: the type argument is lowered inside
+- [x] `crates/nvs-types/src/retrieval.rs:306` `fold_retrieval`: the type argument is lowered inside
   `crate::lower::with_attribute_static` with `AttributeStatic::Class` of the target class from
   `target_declaration` (`:440`), or `AttributeStatic::NoClass` for a function target. The `Ctx` is
   left alone. `matching` (`:561`) then reads each payload at that type. `Core\Program::implementingWith`
   binds it per joined class (`crates/nvs-types/src/program.rs:150`).
-- [ ] `tests/conformance/class/an-attribute-payload-names-a-property-of-its-class.nvst:1`: one name, a
+- [x] `tests/conformance/class/an-attribute-payload-names-a-property-of-its-class.nvst:1`: one name, a
   list, a nullable field and an inherited property, on a class, a property and a method attribute, each
   read back with `Core\Attributes::get` and printed.
-- [ ] `tests/conformance/class/a-retrieval-binds-static-to-its-target-class.nvst:1`: one alias on two
+- [x] `tests/conformance/class/a-retrieval-binds-static-to-its-target-class.nvst:1`: one alias on two
   classes with different properties. Each retrieval finds its own payload, and a retrieval written inside
   a third class still binds `static` to its target.
-- [ ] `tests/conformance/reject/an-attribute-payload-naming-no-property-of-its-class-does-not-compile.nvst:1`:
+- [x] `tests/conformance/reject/an-attribute-payload-naming-no-property-of-its-class-does-not-compile.nvst:1`:
   a misspelled name, a `private` property, a `static` property, a name in an array, and the
   comma-separated `'author, title'` form, each one diagnostic at its literal.
-- [ ] The `cases` check runs once.
+- [x] The `cases` check runs once.
 
 ### 3. the editor completes the names and jumps to the property
 
@@ -225,40 +235,43 @@ reference and `about.md`. Their files are disjoint, and no one builds until both
 
 ### State
 
-Written on 2026-11-18 from a user report. Nothing is built yet. The person chose `property<static>`
-over a marker attribute and placed the goal on the chain. Every other choice in § *Standing decisions*
-is the authoring session's call under the priority ordering, and stands until the person picks
-another. Two parts of the same report already landed: a single-value literal in a payload keeps its
-type (`4708c2935a`), and the editor completes a userland attribute's fields and allowed values
-(`ed44125957`), which stage 3 builds on.
+The person chose `property<static>`; every other choice in § *Standing decisions* is a session's call.
+Stage 1 is done: the rule is written with status `designed` (stage 5 sets it `shipped`), and inside an
+attribute declaration's body `static` reads `Env::attribute_static`. The editor's completion of a
+userland attribute's fields (`ed44125957`) is what stage 3 builds on.
 
-Rewritten on 2026-11-20 to build on `declared-attributes`, which runs first: `static` binds inside an
-attribute declaration's fields, and no `type` alias changes meaning. The person's syntax at the use is
-unchanged.
+Stage 2 is done (`31614a776a`). A string literal at a `property<C>` or `propertyPath<C>` field of a
+payload, alone or in an array, is a key: `crate::retrieval::literal_type` types it as the key, and
+`crate::retrieval::report_payload_keys`, called from `check_attribute` after `with_requested_literals`,
+reports a wrong name once as `E0405` at the literal and records `C`'s roster with
+`record_property_keys`. `get` and `all` lower their type argument with `static` bound to the target's
+class (`crate::retrieval::static_binding`, set around `check_written_type_args` in
+`crate::expr::calls`). `implementingWith` joins per-class shapes field by field
+(`crate::program::joined_shape`). The rule's retrieval bullet says so. The four conformance cases
+are green, as is the extra `tests/conformance/core/program-implementing-with-binds-static-to-each-class.nvst`.
+The `cases` check is green, and build and clippy are green.
 
-Stage 1 is done. The rule `rule:attributes/a-declaration-names-its-class-with-static` is written with
-status `designed`, and stage 5 sets it `shipped`. `nvs_hir::AliasSite::attribute` marks an attribute
-declaration's body, `crate::lower::in_alias_site` sets `Env::in_attribute_body` from it, and inside the
-body `static` reads `Env::attribute_static` (`crate::lower::AttributeStatic`), while `self` and
-`parent` are `E0303`. `check_attribute`'s step 4 lowers the shape inside `with_attribute_static` with
-the class of the use. The new reject case is green, and build and clippy are green.
-
-The nightly CI failures the sweep named were already fixed on `main` before this session:
-`e5a100b18f` (the XML memory test) and `438e9c44af` (`is KeyedIterable` for a `Core\ObjectMap`). Both
-were confirmed locally.
+The nightly CI run the sweep named (`44722386375`) ran on `5d053fc6e6`, before `e5a100b18f` (the XML
+memory test) and `438e9c44af` (`is KeyedIterable` for a `Core\ObjectMap`). Its failures are exactly
+those two tests, so nothing is left to fix there.
 
 ### Next
 
-Stage 2 from its first item: `crate::retrieval::literal_type` (`crates/nvs-types/src/retrieval.rs:663`)
-reads a string literal at a `property<C>` field as a key. Until it does, a payload that writes a name
-at a `property<static>` field is `E0401`, because the literal stays a `string`. Then
-`fold_retrieval` binds `static` with `with_attribute_static`. Today a retrieval lowers the shape with
-`AttributeStatic::Declaration`, so `static` there is the error type, with no diagnostic. The `cases`
-and `editor` checks name cases and tests that do not exist yet, and are expected to fail until stages
-2 and 3 write them. No existing test is expected to go red: no corpus file writes `static`, `self` or
-`parent` in an attribute declaration.
+Stage 3 from its first item, in `crates/nvs-lsp/` alone: `attribute_values`
+(`crates/nvs-lsp/src/completion.rs:1453`) offers `property_keys` of `C` where the recorded payload shape
+(`ExprTypeTable::record_attribute_shape`, already bound to the use's class) has a `property<C>`, also as
+an array element. `report_payload_keys` records the roster, so `property_keys` has it for every class a
+payload names. Then `written_property_key` (`crates/nvs-lsp/src/definition.rs:1182`), then the two
+tests, then the `editor` check. Stage 4 may run beside it; its files are disjoint. No existing test is
+expected to go red: the change reaches only payloads at a `property<C>` field and declarations that
+name `static`, and no corpus file had either before this goal.
 
 ### Backlog
+
+- **`Core\Router\Match::attribute<T>` does not bind `static` yet.** Its `T` is lowered with the
+  default binding, so `static` in `T`'s fields is the error type with no diagnostic. The fix is
+  `implementingWith`'s: join over the routed classes with `crate::program::joined_shape`. It waits for
+  stage 5 or a user, since no route attribute names `static` yet.
 
 Taken over from `declared-attributes`, whose file is deleted once it is retired. None of them blocks
 a stage here, and each stays here until a stage that touches its file takes it.
