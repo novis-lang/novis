@@ -21,12 +21,14 @@ x
 hover
 --EXPECT--
 ```nvs
-#[Core\Route(path: string, method: Core\Http\Method, name?: string, slotted?: bool)]
+repeatable attribute Core\Route on method {
+    path: string,
+    method: Core\Http\Method,
+    slotted?: bool,
+}
 ```
 
 Declares the HTTP path and method this method handles. Write it twice to handle two methods.
-
-Written above a method.
 
 ---
 

@@ -58,6 +58,7 @@
         { "include": "#contextual-keywords" },
         { "include": "#legacy-cast" },
         { "include": "#type-alias" },
+        { "include": "#attribute-declaration" },
         { "include": "#signature" },
         { "include": "#names" },
         { "include": "#keywords" },
@@ -66,7 +67,7 @@
       ]
     },
     "attribute": {
-      "comment": "`#[` opens an attribute and the lexer's `#` comment branch breaks out on exactly that pair: crates/nvs-syntax/src/lexer.rs:466. A grammar that misses the distinction colours every attribute in the file, and often the rest of its line, as a comment. Its own body is names: the attribute class, which the server's layer colours as a type too, so the two layers agree before the server has started. The argument list is `#code`, so a `]` inside a string or an array does not end the attribute.",
+      "comment": "`#[` opens an attribute and the lexer's `#` comment branch breaks out on exactly that pair: crates/nvs-syntax/src/lexer.rs:466. A grammar that misses the distinction colours every attribute in the file, and often the rest of its line, as a comment. Its own body is names: the attribute's name, coloured as a type here and as a decorator by the server's layer, so it has a colour before the server has started. The argument list is `#code`, so a `]` inside a string or an array does not end the attribute.",
       "name": "meta.attribute.nvs",
       "begin": "(#\\[)",
       "beginCaptures": {
@@ -299,6 +300,16 @@
       },
       "end": "(?=;)|(?=\\?>)",
       "patterns": [{ "include": "#type" }]
+    },
+    "attribute-declaration": {
+      "comment": "`[repeatable] attribute Name on <site>, …` (rule:attributes/an-attribute-is-declared-with-its-sites), at file scope or in a class or interface body. `attribute`, `repeatable` and `on` are contextual words, so the pattern reads only the header's whole shape from the start of a line: a `$attribute` variable or a method called `on` is never offered it. The name is coloured as a `type` alias's is, and the server's layer colours it as a decorator. The site words and the `{ field: T }` body after the header are left to `#code`.",
+      "match": "^\\s*(?:(repeatable)\\s+)?(attribute)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(on)\\b",
+      "captures": {
+        "1": { "name": "storage.modifier.nvs" },
+        "2": { "name": "storage.type.nvs" },
+        "3": { "name": "entity.name.type.nvs" },
+        "4": { "name": "keyword.other.nvs" }
+      }
     },
     "signature": {
       "comment": "A `function` or `fn`, the name it introduces where there is one, and the parameter list that has to follow it — held open until the body starts. The region exists for the return type: `):` introduces one inside a signature and closes a ternary's condition everywhere else (`$n is uint ? $sum as float : parent::total($n)`), and no lookbehind reaches back far enough to tell the two colons apart from the colon itself. It carries the declaration's own name for the reason the declarations in `#names` do — the pattern consumes the keyword that introduces it, so `fn` and an anonymous `function (` colour the keyword alone. Its body is `#code`, so a default value is ordinary code, and both ends are lookaheads: the `{` it stops at is still the body's to open, and it steps over one that opens a shape type instead.",

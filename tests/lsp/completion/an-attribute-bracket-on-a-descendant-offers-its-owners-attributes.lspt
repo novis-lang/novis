@@ -1,0 +1,31 @@
+--TEST--
+`#[` above a class that extends the owner of an attribute declaration offers that attribute by its short name, beside the `Core` attributes a class may carry, `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+abstract class Storable
+{
+    /// Adds a database index over one or more columns of this table.
+    repeatable attribute Index on class { columns: string }
+}
+
+class Note {}
+
+#[<|>]
+class Order extends Storable {}
+--REQUEST--
+completion
+--EXPECT--
+Core\Api\Scheme struct    repeatable, on class
+  doc: ```nvs\nrepeatable attribute Core\Api\Scheme on class {\n    name: string,\n    type: Core\Api\SchemeType,\n    description?: string,\n    in?: Core\Api\KeyIn,\n    parameter?: string,\n    scheme?: string,\n    format?: string,\n    url?: string,\n    flows?: mixed,\n}\n```\n\nDeclares a security scheme for the generated OpenAPI file. An `#[Api(security: [...])]` can use its `name`. Each `type` needs its own fields.
+Core\Db\Derive struct    on class
+  doc: ```nvs\nattribute Core\Db\Derive on class {}\n```\n\nGenerates the row decoder for this class, so a query can return instances of it.
+Core\Deprecated struct    on class, interface, enum, method, property, constant, case, parameter
+  doc: ```nvs\nattribute Core\Deprecated on class, interface, enum, method, property, constant, case, parameter {\n    since?: string,\n    note?: string,\n    replace?: string,\n    construct?: string,\n}\n```\n\nSays that this code is deprecated. It still works, but every use of it gives a warning. `replace` is the code to write instead, and the editor can write it for you.
+Core\Json\Derive struct    on class
+  doc: ```nvs\nattribute Core\Json\Derive on class {}\n```\n\nGenerates the JSON encoder and decoder for this class. Every public property becomes a key.
+Core\Json\KeepKeyOrder struct    on class
+  doc: ```nvs\nattribute Core\Json\KeepKeyOrder on class {\n    reason: string,\n}\n```\n\nKeeps the JSON keys of this class in the order its properties are written. `nvs code order` then does not move these properties. `reason` says who needs this order.
+Core\Test\NoMutate struct    on class, method
+  doc: ```nvs\nattribute Core\Test\NoMutate on class, method {\n    because: string,\n}\n```\n\nSays that `nvs test --mutate` does not change the code of this class or method. `because:` gives the reason, and it cannot be empty.
+Index   struct    repeatable, on class
+  doc: ```nvs\nrepeatable attribute Storable::Index on class {\n    columns: string,\n}\n```\n\nAdds a database index over one or more columns of this table.\n\nDeclared in `Storable`. You can use it only on classes that extend or implement `Storable`, and on their members.

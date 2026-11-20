@@ -560,6 +560,9 @@ fn refused(message: &str) -> String {
 /// item's description where it carries label details, its detail otherwise.
 /// What a client shows only in a panel, the detail behind a description and
 /// the documentation `crate::card` resolves, is not a row and is not here.
+/// Documentation the item carries itself is shown under the row, one
+/// `  doc:` line with its line breaks written `\n`, because the server chose
+/// to send it with the list.
 fn completion(item: &CompletionItem) -> ((bool, String), String) {
     let kind = or_absent(item.kind.as_ref(), spelled);
     let (after, right) = match &item.label_details {
@@ -575,6 +578,14 @@ fn completion(item: &CompletionItem) -> ((bool, String), String) {
         column(&kind, KIND_WIDTH)
     );
     let mut text = text.trim_end().to_owned();
+    let doc = match &item.documentation {
+        Some(lsp_types::Documentation::String(value)) => Some(value),
+        Some(lsp_types::Documentation::MarkupContent(content)) => Some(&content.value),
+        None => None,
+    };
+    if let Some(doc) = doc {
+        text.push_str(&format!("\n  doc: {}", doc.trim_end().replace('\n', "\\n")));
+    }
     // An item that sorts after every other is written after them, with its
     // `detail` under it, which says why it sorts last.
     let last = item

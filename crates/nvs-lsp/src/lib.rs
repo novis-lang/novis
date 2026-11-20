@@ -97,6 +97,7 @@
 
 pub mod actions;
 mod arguments;
+mod attribute_decls;
 pub mod calls;
 mod capabilities;
 pub mod card;

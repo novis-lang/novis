@@ -7,8 +7,8 @@ writes the same tree from the same generator for any other reader. The tree is w
 render and again when a file is missing; nothing repairs a file in place.
 
 A stub is a declaration with its real signature and an empty body: a class with each method, constant,
-constructor and owned enum, an enum with its cases, an attribute as the shape-typed `type` alias a userland
-attribute already is, each under its reference card (`rule:core-api/reference-card`), and a header
+constructor and owned enum, an enum with its cases, an attribute as the `attribute` declaration a program
+writes, with its sites and each field's doc, each under its reference card (`rule:core-api/reference-card`), and a header
 saying the file is generated and edits are lost. Registry prose is rendered as it is written. A
 member's card is the doc comment a program writes for its own method, in the layout `nvs fmt` writes
 (`rule:tooling/fmt-orders-the-doc-tags`): the prose, an empty line, `@param` in signature order,

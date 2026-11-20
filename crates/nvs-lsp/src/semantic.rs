@@ -23,8 +23,12 @@
 //! answer:
 //!
 //! - a declaration names what it declares — `class`, `interface`, `enum`, a
-//!   case, a `type` alias, a namespace, a property, a method, a parameter, and
-//!   the `$name` after an `@param` in a method's `///` run;
+//!   case, a `type` alias, an `attribute` (a `decorator`, at file scope or in
+//!   a body), a namespace, a property, a method, a parameter, and the `$name`
+//!   after an `@param` in a method's `///` run;
+//! - an attribute use names an attribute — the name in `#[Name(...)]` is a
+//!   `decorator` whatever declares it, and in the member form `Owner::Name`
+//!   it is `Name`, with `Owner` a `type`;
 //! - a *position* names what may stand in it — `extends` on a class is a class,
 //!   `implements` is an interface, `new C()` is a class, and the receiver of
 //!   `C::m()` or `C::$p` is a class, because
@@ -153,7 +157,7 @@ use crate::position::range_at;
 use crate::walk::{self, Walk};
 use crate::{TOKEN_MODIFIERS, TOKEN_TYPES};
 
-/// The token types this walk can answer, out of the legend's eleven.
+/// The token types this walk can answer, out of the legend's twelve.
 ///
 /// A variant carries no index of its own: [`Kind::index`] finds its spelling in
 /// [`crate::TOKEN_TYPES`], so the wire order is written once, where the legend
@@ -180,6 +184,9 @@ enum Kind {
     Parameter,
     /// Any other `$name` — a local, a `foreach` binding, a caught exception.
     Variable,
+    /// An `attribute` declaration's own name, and the name in each
+    /// `#[Name(...)]` that uses one.
+    Decorator,
 }
 
 impl Kind {
@@ -196,6 +203,7 @@ impl Kind {
             Self::Property => SemanticTokenType::PROPERTY,
             Self::Parameter => SemanticTokenType::PARAMETER,
             Self::Variable => SemanticTokenType::VARIABLE,
+            Self::Decorator => SemanticTokenType::DECORATOR,
         }
     }
 
@@ -569,21 +577,28 @@ impl Named<'_> {
         }
     }
 
-    /// Walks every attribute in `groups`: the name as the type it names,
-    /// carrying `defaultLibrary` where the checker resolved it to one of
-    /// `Core`'s, each field's name as a property and each value as the
+    /// Walks every attribute in `groups`: the attribute's name as a
+    /// decorator, carrying `defaultLibrary` where the checker resolved it to
+    /// one of `Core`'s, each field's name as a property and each value as the
     /// expression it is — so `Core\Http\Method::Get` inside a payload is
     /// coloured as it is in a body.
+    ///
+    /// In the member form `Owner::Name` the decorator is `Name`, and `Owner`
+    /// is the type whose body declares it.
     fn attributes(&mut self, groups: &[AttributeGroup]) {
         for group in groups {
             for attribute in &group.attributes {
                 if let Some(name) = &attribute.name {
                     let library = self.library_of_attribute(name.span);
-                    self.name_with(name, Kind::Type, library);
+                    let kind = if attribute.member.is_some() {
+                        Kind::Type
+                    } else {
+                        Kind::Decorator
+                    };
+                    self.name_with(name, kind, library);
                 }
-                // The alias name in the member form `Owner::Name`.
                 if let Some(member) = attribute.member {
-                    self.push(member, Kind::Type);
+                    self.push(member, Kind::Decorator);
                 }
                 for field in &attribute.fields {
                     self.push(field.name, Kind::Property);
@@ -721,6 +736,7 @@ impl Walk for Named<'_> {
                 }
             }
             StmtKind::TypeAliasDecl(decl) => self.name(&decl.name, Kind::Type),
+            StmtKind::AttributeDecl(decl) => self.name(&decl.name, Kind::Decorator),
             StmtKind::NamespaceDecl(decl) => {
                 self.opt_name(decl.name.as_ref(), Kind::Namespace);
             }
@@ -771,6 +787,8 @@ impl Walk for Named<'_> {
             // `Owner::Meta` from `Owner::META` at a glance is what the
             // colour is for.
             ClassMemberKind::TypeAlias(alias) => self.name(&alias.name, Kind::Type),
+            // An attribute a body owns is coloured as the file-scope form is.
+            ClassMemberKind::Attribute(decl) => self.name(&decl.name, Kind::Decorator),
             ClassMemberKind::Method(method) => {
                 self.attributes(&method.attributes);
                 // The `$name` after `@param` is a parameter position, as
@@ -891,7 +909,7 @@ mod tests {
 
     /// Every kind in the walk's vocabulary, so the guard below reads the
     /// whole of it rather than the ones a test happened to reach.
-    const EVERY_KIND: [Kind; 10] = [
+    const EVERY_KIND: [Kind; 11] = [
         Kind::Namespace,
         Kind::Class,
         Kind::Interface,
@@ -902,6 +920,7 @@ mod tests {
         Kind::Property,
         Kind::Parameter,
         Kind::Variable,
+        Kind::Decorator,
     ];
 
     /// Every modifier in it, read the same way and for the same reason.

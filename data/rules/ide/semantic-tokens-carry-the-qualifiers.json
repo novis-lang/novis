@@ -12,7 +12,7 @@
     "crates/nvs-lsp/src/semantic.rs",
     "tests/lsp/semantic/a-tainted-and-a-secret-binding-carry-their-qualifier-at-every-use.lspt",
     "tests/lsp/semantic/a-core-enum-carries-the-default-library-modifier.lspt",
-    "tests/lsp/semantic/an-attribute-name-is-a-type-token.lspt",
+    "tests/lsp/semantic/an-attribute-name-is-a-decorator-token.lspt",
     "editors/vscode/test/host/colour.test.ts"
   ]
 }

@@ -1,5 +1,5 @@
 --TEST--
-an attribute's name at a use is coloured as a type — carrying `defaultLibrary` for a `Core` attribute and nothing for a program's own declaration — the declaration's own name gets no token, and the payload is coloured as the expressions it holds, `rule:attributes/attach-sites-and-forms`
+an attribute's name is coloured as a decorator, at its declaration and at each use — a use carries `defaultLibrary` for a `Core` attribute and nothing for a program's own declaration — and the payload is coloured as the expressions it holds, `rule:attributes/attach-sites-and-forms`
 --FILE--
 <?nvs
 attribute Tagged on method { tag: string }
@@ -12,14 +12,18 @@ class Blog
     {
         return "hello";
     }
+
+    repeatable attribute Cached on method { seconds: int }
 }
 --REQUEST--
-semanticTokens types=type,enum,enumMember,property
+semanticTokens types=decorator,type,enum,enumMember,property
 --EXPECT--
-6:7+10 type defaultLibrary
+2:11+6 decorator
+6:7+10 decorator defaultLibrary
 6:18+4 property
 6:29+6 property
 6:37+16 enum defaultLibrary
 6:55+3 enumMember
-7:7+6 type
+7:7+6 decorator
 7:14+3 property
+13:26+6 decorator

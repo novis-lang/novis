@@ -1,0 +1,55 @@
+--TEST--
+`#[` above a method offers the attribute declarations whose `on` list names a method, `Core`'s included, and no class, no `type` alias and no attribute declared for another site, `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+/// Caches what this method returns.
+attribute Cached on method { seconds: int }
+
+/// Names the database table of this class.
+attribute Table on class { name: string }
+
+type Settings = { mode: string };
+
+class Helper {}
+
+class Shop
+{
+    #[<|>]
+    public function list(): string
+    {
+        return "";
+    }
+}
+--REQUEST--
+completion
+--EXPECT--
+Cached  struct    on method
+  doc: ```nvs\nattribute Cached on method {\n    seconds: int,\n}\n```\n\nCaches what this method returns.
+Core\Access struct    on method
+  doc: ```nvs\nattribute Core\Access on method {\n    allow: mixed,\n    csrf?: bool,\n}\n```\n\nSays who may call this route. Every route needs one, and `csrf: false` turns the CSRF check off for this route.
+Core\Api struct    on method
+  doc: ```nvs\nattribute Core\Api on method {\n    tags?: array<string>,\n    errors?: array<{status: int, type: string}>,\n    security?: array<string>,\n    example?: object,\n    operationId?: string,\n}\n```\n\nAdds documentation to a route for the generated OpenAPI file. It changes nothing about what the route does.
+Core\Command struct    repeatable, on method
+  doc: ```nvs\nrepeatable attribute Core\Command on method {\n    name: string,\n    about?: string,\n}\n```\n\nSays that this static method is a command line command. `name` is what a user types, and `about` is the sentence `--help` prints.
+Core\Deprecated struct    on class, interface, enum, method, property, constant, case, parameter
+  doc: ```nvs\nattribute Core\Deprecated on class, interface, enum, method, property, constant, case, parameter {\n    since?: string,\n    note?: string,\n    replace?: string,\n    construct?: string,\n}\n```\n\nSays that this code is deprecated. It still works, but every use of it gives a warning. `replace` is the code to write instead, and the editor can write it for you.
+Core\Route struct    repeatable, on method
+  doc: ```nvs\nrepeatable attribute Core\Route on method {\n    path: string,\n    method: Core\Http\Method,\n    slotted?: bool,\n}\n```\n\nDeclares the HTTP path and method this method handles. Write it twice to handle two methods.
+Core\Test struct    on method
+  doc: ```nvs\nattribute Core\Test on method {\n    skip?: string,\n    at?: string,\n    seed?: int,\n    db?: string,\n    server?: bool,\n    retries?: int,\n    because?: string,\n    timeout?: string,\n    tags?: array<string>,\n}\n```\n\nSays that this method is a test. `nvs test` runs it and reports the result.
+Core\Test\AfterClass struct    on method
+  doc: ```nvs\nattribute Core\Test\AfterClass on method {}\n```\n\nSays that this static method runs once, after the last test of its class. It also runs when a test fails. Use it to delete what `#[BeforeClass]` created.
+Core\Test\AfterEachTest struct    on method
+  doc: ```nvs\nattribute Core\Test\AfterEachTest on method {}\n```\n\nSays that this method runs after each test of its class, on the same object, whether the test passed or failed. Use it to delete files or rows the test created.
+Core\Test\BeforeClass struct    on method
+  doc: ```nvs\nattribute Core\Test\BeforeClass on method {}\n```\n\nSays that this static method runs once, before the first test of its class. Use it to create something the tests use, such as a database.
+Core\Test\Bench struct    on method
+  doc: ```nvs\nattribute Core\Test\Bench on method {\n    skip?: string,\n    because?: string,\n}\n```\n\nSays that this method is a benchmark. `nvs test --bench` runs it once and prints how many statements, calls, allocations, bytes and garbage collections it used.
+Core\Test\Fixture struct    on method
+  doc: ```nvs\nattribute Core\Test\Fixture on method {}\n```\n\nSays that this static method builds a value. A test receives that value by declaring a parameter of the method's return type.
+Core\Test\NoMutate struct    on class, method
+  doc: ```nvs\nattribute Core\Test\NoMutate on class, method {\n    because: string,\n}\n```\n\nSays that `nvs test --mutate` does not change the code of this class or method. `because:` gives the reason, and it cannot be empty.
+Core\Test\Property struct    on method
+  doc: ```nvs\nattribute Core\Test\Property on method {\n    skip?: string,\n    at?: string,\n    seed?: int,\n    db?: string,\n    server?: bool,\n    timeout?: string,\n    tags?: array<string>,\n    runs?: int,\n    gen?: mixed,\n}\n```\n\nSays that this method is a property test. `nvs test` calls it many times, and each call gets new random values for its parameters.
+Core\Test\TestWith struct    repeatable, on method
+  doc: ```nvs\nrepeatable attribute Core\Test\TestWith on method {}\n```\n\nGives one row of arguments to the test method below it. The fields are the method's own parameters, and the method runs once per row.

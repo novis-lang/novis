@@ -1,0 +1,21 @@
+--TEST--
+hovering a key in an attribute's payload shows the key's field and the `///` doc above it in the declaration, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:types/shape-type`
+--FILE--
+<?nvs
+attribute Index on class {
+    /// The column names, separated by commas.
+    columns: string,
+    /// `true` means no two rows may have the same values in these columns.
+    unique?: bool,
+}
+
+#[Index(columns: "email", uni<|>que: true)]
+class Order {}
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+unique?: bool
+```
+
+`true` means no two rows may have the same values in these columns.

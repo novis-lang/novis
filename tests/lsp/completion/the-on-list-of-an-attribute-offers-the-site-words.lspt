@@ -1,0 +1,11 @@
+--TEST--
+after `on` and a `,` in an attribute declaration, the list offers the site words a program's declaration may write and has not written yet: `class`, `method`, `property` and `parameter`, `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+attribute Column on property, <|> { type: string }
+--REQUEST--
+completion
+--EXPECT--
+class   keyword
+method  keyword
+parameter keyword

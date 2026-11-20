@@ -1,0 +1,18 @@
+--TEST--
+an attribute an interface declares is written by its short name on a class that implements it, and a jump from that name opens the `attribute` declaration inside the interface, `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+interface Page {
+    attribute Path on method { path: string }
+
+    public function render(): string;
+}
+
+class Home implements Page {
+    #[Pa<|>th(path: "/")]
+    public function render(): string { return "home"; }
+}
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:3:15

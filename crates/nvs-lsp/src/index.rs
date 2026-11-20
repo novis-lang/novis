@@ -111,8 +111,8 @@ use nvs_types::ExprInfo;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::definition::{
-    FileScope, Target, body_of, covers, named_at, paired, supertype_names, target_of, text_of,
-    written_types_in,
+    FileScope, Target, attribute_uses, body_of, covers, named_at, paired, supertype_names,
+    target_of, text_of, written_types_in,
 };
 use crate::disk_index::{self, Stamp};
 use crate::document::{Analysed, Documents, Entry, Reads, Work, analyse_through};
@@ -2201,6 +2201,11 @@ fn member_names(body: &Body<'_>) -> Vec<(Span, DeclKind, Visibility)> {
             ClassMemberKind::TypeAlias(alias) => {
                 Some((alias.name.span, DeclKind::TypeAlias, Visibility::Public))
             }
+            // So is an attribute a body declares, and its symbol is the
+            // `Owner::Index` key `nvs_hir::AliasTable::attribute` has.
+            ClassMemberKind::Attribute(decl) => {
+                Some((decl.name.span, DeclKind::Attribute, Visibility::Public))
+            }
             _ => None,
         })
         .collect();
@@ -2426,6 +2431,18 @@ fn occurrences<'a>(
                 caller: caller(member),
             });
         }
+    }
+
+    // Every `#[Name]` and every retrieval's `<Name>` is a use of the attribute
+    // declaration the checker resolved it to. A namespace-level one written
+    // in a type argument is also found by the walk above, and the dedup below
+    // keeps one.
+    for (span, name) in attribute_uses(analysed, loaded.id) {
+        found.push(Occurrence {
+            symbol: name.to_string(),
+            site: site(path, span),
+            caller: caller(span),
+        });
     }
 
     // Two nodes can cover the same bytes — a statement that is one expression —

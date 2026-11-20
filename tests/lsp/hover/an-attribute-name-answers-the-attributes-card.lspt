@@ -1,5 +1,5 @@
 --TEST--
-a compiler attribute's name is no expression and no declaration, so hovering it answers the card the checker's roster carries for it — the attribute as it is written, what it does and what it is written above, then a `#[Route]`'s grants with no `nvs.toml` beside it, `rule:core-classes/derive-attribute`, `rule:ide/a-route-hover-shows-the-programs-grants`
+a compiler attribute's name answers the card of its declaration, the same card a program's declaration has: the declaration with its sites and keys and what it does, then a `#[Route]`'s grants with no `nvs.toml` beside it, `rule:core-classes/derive-attribute`, `rule:ide/a-route-hover-shows-the-programs-grants`
 --FILE--
 <?nvs
 class Blog
@@ -15,12 +15,14 @@ class Blog
 hover
 --EXPECT--
 ```nvs
-#[Core\Route(path: string, method: Core\Http\Method, name?: string, slotted?: bool)]
+repeatable attribute Core\Route on method {
+    path: string,
+    method: Core\Http\Method,
+    slotted?: bool,
+}
 ```
 
 Declares the HTTP path and method this method handles. Write it twice to handle two methods.
-
-Written above a method.
 
 ---
 

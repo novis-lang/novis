@@ -1,5 +1,5 @@
 --TEST--
-a compiler attribute's name is no declaration and no read of one, so asking for its references answers nothing, `rule:ide/five-features-are-one-reference-index`
+a compiler attribute is a declaration like a program's, so asking for its references lists each use of it, `rule:ide/five-features-are-one-reference-index`, `rule:attributes/an-attribute-is-declared-with-its-sites`
 --FILE--
 <?nvs
 class Blog
@@ -13,4 +13,4 @@ class Blog
 --REQUEST--
 references
 --EXPECT--
-none
+case.nvs:4:7

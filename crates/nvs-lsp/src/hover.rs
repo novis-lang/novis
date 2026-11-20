@@ -184,6 +184,8 @@ pub fn answer(
         .or_else(|| path_argument(analysed, offset))
         .or_else(|| written_zone(analysed, offset))
         .or_else(|| file_value(analysed, files, offset))
+        .or_else(|| attribute_card(analysed, offset))
+        .or_else(|| attribute_key(analysed, offset))
         .or_else(|| name(analysed, type_member_at(analysed, offset)?, offset))
         .or_else(|| name(analysed, type_name_at(analysed, offset)?, offset))
         .or_else(|| answer_in(analysed, &nodes, offset))
@@ -262,7 +264,9 @@ fn route(
         && matches!(&target, Target::Type(name) if name.to_string() == nvs_types::derive::ROUTE)
     {
         let grants = crate::grants::of_program(program, path, data);
-        let value = match name(analysed, (target, span), offset) {
+        let card =
+            attribute_card(analysed, offset).or_else(|| name(analysed, (target, span), offset));
+        let value = match card {
             Some((card, _)) => format!("{}\n\n---\n\n{grants}", card.trim_end()),
             None => grants,
         };
@@ -810,6 +814,59 @@ fn autoload_prefix(analysed: &Analysed, offset: BytePos) -> Option<(String, Span
         }
     }
     Some((value, literal))
+}
+
+/// The card of the attribute declaration the attribute name or retrieval
+/// argument under the cursor names: the declaration with its sites and keys,
+/// its doc, and its owner (`crate::attribute_decls::Declared::card`). A
+/// program's declaration and a `Core` one answer the same way.
+fn attribute_card(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    let (target, span) = attribute_at(analysed, offset)?;
+    let Target::Type(name) = target else {
+        return None;
+    };
+    let declared = crate::attribute_decls::named(analysed, &name)?;
+    Some((declared.card(), span))
+}
+
+/// The doc of the key under the cursor in an attribute's payload: the key's
+/// declaration as a code block, then its `///` run.
+///
+/// A key is no node, so it is read off the text: a name directly in the
+/// attribute's parentheses, followed by its `:`.
+fn attribute_key(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    let path = analysed.index.at(offset);
+    let attribute = path
+        .nodes()
+        .first()
+        .filter(|node| node.kind == "Attribute")?;
+    let text = analysed.map.file(analysed.entry).text();
+    let is_name = |ch: char| ch.is_ascii_alphanumeric() || ch == '_';
+    let at = offset as usize;
+    let start = text[..at].trim_end_matches(is_name).len();
+    let end = at + text[at..].len() - text[at..].trim_start_matches(is_name).len();
+    let word = text.get(start..end).filter(|word| !word.is_empty())?;
+    if !text[end..].trim_start().starts_with(':') || text[end..].trim_start().starts_with("::") {
+        return None;
+    }
+    let before = text.get(attribute.span.start as usize..start)?.trim_end();
+    if !(before.ends_with('(') || before.ends_with(',')) {
+        return None;
+    }
+    let declared = crate::attribute_decls::of_attribute(analysed, attribute.span)?;
+    let key = declared.keys().into_iter().find(|key| key.name == word)?;
+    let optional = if key.required { "" } else { "?" };
+    let mut card = format!("```nvs\n{}{optional}: {}\n```", key.name, key.ty);
+    if let Some(doc) = key.doc {
+        card.push_str("\n\n");
+        card.push_str(doc.trim_end());
+    }
+    let span = Span::new(
+        attribute.span.file,
+        BytePos::try_from(start).ok()?,
+        BytePos::try_from(end).ok()?,
+    );
+    Some((card, span))
 }
 
 /// The card of the class, interface, enum or attribute a name written outside

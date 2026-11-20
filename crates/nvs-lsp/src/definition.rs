@@ -86,6 +86,15 @@
 //! compares it, so `'App\User' as class<Model>` jumps to `class User`. No
 //! other string is read as a name.
 //!
+//! **An attribute's name answers its `attribute` declaration.** `#[Index]`
+//! and a retrieval's type argument, `Core\Attributes::get<Index>(…)`, are both
+//! read off the name the checker recorded for them ([`attribute_at`]), so an
+//! owned declaration used by its short name on a descendant is found. A
+//! program's declaration answers its name: a namespace-level one as a symbol,
+//! and one a class or interface body owns through the alias table, where it
+//! is keyed `Owner::Index` ([`site_of`]). A compiler attribute answers its
+//! stub.
+//!
 //! **A `use` line names a type too.** An import is a statement and no
 //! expression, so nothing above reaches it, and what it resolved to is already
 //! `nvs_hir::Import`'s: [`import_at`] answers the target of the import whose
@@ -507,7 +516,12 @@ pub(crate) fn site_of<'a>(
     class: &QName,
     member: Option<(&str, MemberKind)>,
 ) -> Option<Site<'a>> {
-    let symbol = analysed.module.symbols.get(class)?;
+    let Some(symbol) = analysed.module.symbols.get(class) else {
+        // An `attribute` a class or interface body declares is no symbol:
+        // its key is `QName::member` of its owner, and the alias table is
+        // where it is kept.
+        return member.map_or_else(|| attribute_site(analysed, class), |_| None);
+    };
     let file = analysed.map.file(symbol.decl_span.file);
     let stmt = declared_type(analysed, class).map(|(stmt, _)| stmt);
     let owned = match stmt {
@@ -542,6 +556,33 @@ pub(crate) fn site_of<'a>(
     Some(Site {
         span: member_name(member)?,
         doc: member.doc.as_ref(),
+    })
+}
+
+/// The `attribute` declaration a class or interface body owns under the key
+/// `name` (`rule:attributes/an-attribute-is-declared-with-its-sites`): its
+/// declared name, and the `///` run on the member that writes it.
+///
+/// A namespace-level declaration is a symbol and [`site_of`] finds it as one;
+/// an owned one is found here, in `nvs_hir::AliasTable::attribute`, which keys
+/// it by [`QName::member`] of its owner.
+fn attribute_site<'a>(analysed: &'a Analysed, name: &QName) -> Option<Site<'a>> {
+    let def = analysed.module.aliases.attribute(name)?;
+    let doc = def
+        .owner
+        .as_ref()
+        .and_then(|owner| declared_type(analysed, owner))
+        .and_then(|(stmt, _)| body_of(stmt))
+        .and_then(|(_, members)| {
+            members.iter().find(|member| {
+                matches!(&member.kind, ClassMemberKind::Attribute(decl)
+                    if decl.name.span == def.name_span)
+            })
+        })
+        .and_then(|member| member.doc.as_ref());
+    Some(Site {
+        span: def.name_span,
+        doc,
     })
 }
 
@@ -619,6 +660,7 @@ fn declared_span(stmt: &Stmt) -> Option<Span> {
         StmtKind::InterfaceDecl(decl) => Some(decl.name.span),
         StmtKind::EnumDecl(decl) => Some(decl.name.span),
         StmtKind::TypeAliasDecl(decl) => Some(decl.name.span),
+        StmtKind::AttributeDecl(decl) => Some(decl.name.span),
         _ => None,
     }
 }
@@ -640,9 +682,9 @@ fn declarations_into<'a>(stmts: &'a [Stmt], found: &mut FxHashMap<Span, &'a Stmt
 
 /// The `///` run above a declaration.
 ///
-/// The four shapes are exactly the four `nvs_hir::SymbolKind` names, which is
+/// The five shapes are exactly the five `nvs_hir::SymbolKind` names, which is
 /// why nothing checks which kind the symbol was: a span that reached the symbol
-/// table came from one of these, and a fifth declaration shape has to be added
+/// table came from one of these, and a sixth declaration shape has to be added
 /// to both places at once.
 fn doc_of(stmt: &Stmt) -> Option<&DocComment> {
     match &stmt.kind {
@@ -650,6 +692,7 @@ fn doc_of(stmt: &Stmt) -> Option<&DocComment> {
         StmtKind::InterfaceDecl(decl) => decl.doc.as_ref(),
         StmtKind::EnumDecl(decl) => decl.doc.as_ref(),
         StmtKind::TypeAliasDecl(decl) => decl.doc.as_ref(),
+        StmtKind::AttributeDecl(decl) => decl.doc.as_ref(),
         _ => None,
     }
 }
@@ -755,10 +798,15 @@ pub(crate) fn text_of(file: &SourceFile, span: Span) -> &str {
 /// records no name, so the walk over the nodes would step out to whatever
 /// holds it. [`written_class_name_at`] answers the class the literal's text names.
 ///
+/// **An attribute's name is asked before everything else.** The checker
+/// recorded what each `#[Name]` and each retrieval's `<Name>` resolved to
+/// ([`attribute_at`]). A written type is walked too, but the walk would read a
+/// retrieval's `<Index>` as a class name, and an owned declaration is no class.
+///
 /// A name no recorded expression covers is answered last, by the places a
 /// name is written outside an expression and outside a type: an `extends` or
-/// `implements` clause off the hierarchy graph ([`clause_at`]), an attribute's
-/// name ([`attribute_at`]) and a `use` line ([`import_at`]).
+/// `implements` clause off the hierarchy graph ([`clause_at`]) and a `use`
+/// line ([`import_at`]).
 pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
     let nodes: Vec<Span> = analysed
         .index
@@ -767,7 +815,8 @@ pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'
         .iter()
         .map(|node| node.span)
         .collect();
-    type_member_at(analysed, offset)
+    attribute_at(analysed, offset)
+        .or_else(|| type_member_at(analysed, offset))
         .or_else(|| type_name_at(analysed, offset))
         .or_else(|| written_class_name_at(analysed, offset))
         .or_else(|| {
@@ -777,7 +826,6 @@ pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'
         })
         .or_else(|| resolved_in(analysed, &nodes))
         .or_else(|| clause_at(analysed, offset))
-        .or_else(|| attribute_at(analysed, offset))
         .or_else(|| import_at(analysed, offset))
 }
 
@@ -810,22 +858,85 @@ fn resolved_in<'a>(analysed: &'a Analysed, nodes: &[Span]) -> Option<(Target<'a>
     })
 }
 
-/// The type the name of an attribute at `offset` in the entry document
+/// The attribute declaration a name at `offset` in the entry document
 /// resolved to, and the span the source wrote that name at.
 ///
-/// Read off the checker's own record: an attribute's name is no expression, so
-/// the index's `Attribute` node knows where it is written and not what it
-/// names, and `nvs_types::attributes` recorded what it resolved to at the one
-/// place it resolved it. A compiler attribute is a
-/// `Core` name with no declaration, which is what the stub tree answers for; a
-/// userland one is the `type` alias it names.
+/// Two places write such a name: `#[Name(...)]`, and the type argument of a
+/// retrieval, `Core\Attributes::get<Name>(…)`. Both are read off the checker's
+/// own record ([`attribute_uses`]), because neither is an expression and
+/// `nvs_types::attributes` recorded what each resolved to at the one place it
+/// resolved it — a short owned name on a descendant included.
+///
+/// The target is the declaration's [`QName`]. A program's declaration is
+/// found by [`site_of`]: a namespace-level one as a symbol, and one a class or
+/// interface body owns through `nvs_hir::AliasTable::attribute`. A compiler
+/// attribute is a `Core` name with no declaration, which is what the stub
+/// tree answers for.
 pub(crate) fn attribute_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
+    attribute_uses(analysed, analysed.entry)
+        .find(|(span, _)| covers(*span, offset))
+        .map(|(span, name)| (Target::Type(Cow::Borrowed(name)), span))
+}
+
+/// Every attribute name `file` writes that the checker resolved, with the
+/// declaration it names, in the order the checker reached them.
+///
+/// The span is the declaration's own name as written. The checker records
+/// `Owner::Index` at the owner half, and that half is a use of the owner, so
+/// the span is moved to the `Index` after the `::` ([`written_attribute`]).
+pub(crate) fn attribute_uses(
+    analysed: &Analysed,
+    file: SourceId,
+) -> impl Iterator<Item = (Span, &QName)> {
+    let source = analysed.map.file(file);
     analysed
         .exprs
         .attribute_names()
-        .filter(|(span, _)| span.file == analysed.entry)
-        .find(|(span, _)| covers(*span, offset))
-        .map(|(span, name)| (Target::Type(Cow::Borrowed(name)), span))
+        .filter(move |(span, _)| span.file == file)
+        .map(move |(span, name)| (written_attribute(source, span, name), name))
+}
+
+/// The span of `name`'s own short name, for a record the checker made at
+/// `span`: `span` itself, or the member half when `span` is the owner of an
+/// `Owner::Index` that names an owned declaration.
+fn written_attribute(source: &SourceFile, span: Span, name: &QName) -> Span {
+    let Some((_, short)) = name.as_member() else {
+        return span;
+    };
+    if text_of(source, span) == short {
+        return span;
+    }
+    let end = span.range().end;
+    let rest = source.text().get(end..).unwrap_or_default();
+    let Some(member) = rest
+        .trim_start()
+        .strip_prefix("::")
+        .map(str::trim_start)
+        .filter(|member| member.starts_with(short))
+    else {
+        return span;
+    };
+    if member
+        .get(short.len()..)
+        .unwrap_or_default()
+        .chars()
+        .next()
+        .is_some_and(|next| next.is_alphanumeric() || next == '_')
+    {
+        return span;
+    }
+    let start = end + (rest.len() - member.len());
+    let (Ok(start), Ok(end)) = (
+        BytePos::try_from(start),
+        BytePos::try_from(start + short.len()),
+    ) else {
+        return span;
+    };
+    Span {
+        file: span.file,
+        start,
+        end,
+    }
 }
 
 /// The type a `use` line of the entry document imports at `offset`, and the

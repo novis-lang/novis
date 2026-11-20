@@ -1,5 +1,5 @@
 --TEST--
-a compiler attribute's name is no declaration and no read of one, so it highlights nothing, `rule:ide/five-features-are-one-reference-index`
+a compiler attribute is a declaration like a program's, so its name highlights each use of it in the document, `rule:ide/five-features-are-one-reference-index`, `rule:attributes/an-attribute-is-declared-with-its-sites`
 --FILE--
 <?nvs
 class Blog
@@ -13,4 +13,4 @@ class Blog
 --REQUEST--
 documentHighlight
 --EXPECT--
-none
+case.nvs:4:7

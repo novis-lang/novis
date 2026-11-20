@@ -57,6 +57,7 @@ pub const TOKEN_TYPES: &[SemanticTokenType] = &[
     SemanticTokenType::PARAMETER,
     SemanticTokenType::VARIABLE,
     SemanticTokenType::TYPE_PARAMETER,
+    SemanticTokenType::DECORATOR,
 ];
 
 /// The semantic token modifiers this server emits, in their wire order.

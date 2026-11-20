@@ -18,7 +18,12 @@ class Orders
 completion
 --EXPECT--
 errors  field     array<{status: int, type: string}> (optional)
+  doc: The error responses of this route. Each entry has a `status` from 400 to 599 and a `type` that is an exception class.
 example field     object (optional)
+  doc: An example of the response, written as an object. Its fields must fit the return type of the method.
 operationId field     string (optional)
+  doc: The id of this route in the OpenAPI file. It must be unique in the file.
 security field     array<string> (optional)
+  doc: The names of the security schemes this route needs. Each name is declared with `#[Core\Api\Scheme]`.
 tags    field     array<string> (optional)
+  doc: The names that group this route in the OpenAPI file, such as `["Orders"]`.

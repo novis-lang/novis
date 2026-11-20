@@ -1,0 +1,21 @@
+--TEST--
+a key in the payload of a program's attribute is offered with its type and the `///` doc above its field in the declaration, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:types/shape-type`
+--FILE--
+<?nvs
+/// Adds a database index over this table.
+attribute Index on class {
+    /// The column names, separated by commas.
+    columns: string,
+    /// `true` means no two rows may have the same values in these columns.
+    unique?: bool,
+}
+
+#[Index(<|>)]
+class Order {}
+--REQUEST--
+completion
+--EXPECT--
+columns field     string
+  doc: The column names, separated by commas.
+unique  field     bool (optional)
+  doc: `true` means no two rows may have the same values in these columns.

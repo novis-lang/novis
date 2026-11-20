@@ -14,4 +14,4 @@ class Blog
 --REQUEST--
 definition
 --EXPECT--
-stubs/Core/Route.nvs:10:6
+stubs/Core/Route.nvs:10:22

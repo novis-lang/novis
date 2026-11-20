@@ -23,10 +23,12 @@
 //! that carry a `#[Route]` first ([`routed_methods`]). Outside a string, a
 //! field name in the `{…}` options bag a `Core` member takes last is offered
 //! that member's options ([`option_key_at`]), and a field name in an
-//! attribute's payload the fields a compiler attribute's card lists, or the
-//! fields of the shape a named attribute's alias resolved to
-//! ([`attribute_key_at`]). Inside a string in such a payload, the strings in
-//! the set of allowed values its field's type lists ([`attribute_values`]).
+//! attribute's payload the keys of the declaration its name resolved to, each
+//! with its doc ([`attribute_key_at`]). Inside a string in such a payload, the
+//! strings in the set of allowed values its field's type lists
+//! ([`attribute_values`]). After `#[`, the attribute declarations whose sites
+//! and owner fit the declaration below ([`attributes_that_fit`]), and after
+//! `on` in an attribute declaration, the site words ([`on_list_at`]).
 //!
 //! **`->` and `::` are one walk and two lookups.** Both are an access whose
 //! first child is its receiver, so which of the two the cursor is in decides
@@ -360,8 +362,8 @@ use nvs_stdlib::registry::{
     self, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, ParamText,
 };
 use nvs_syntax::ast::{
-    AutoloadKind, ClassMember, ClassMemberKind, DocComment, DocTagKind, EnumCase, MethodMember,
-    Modifier, PropertyMember, StmtKind, Visibility,
+    AttributeSite, AutoloadKind, ClassMember, ClassMemberKind, DocComment, DocTagKind, EnumCase,
+    MethodMember, Modifier, PropertyMember, StmtKind, Visibility,
 };
 use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, tokenize};
 use nvs_types::deprecated::Member;
@@ -456,8 +458,11 @@ pub fn at(
         }
         Asked::Literal(Literal::Scheme(text_start)) => scheme_names(&cursor, text_start),
         Asked::OptionKey(written, options) => option_keys(&cursor, written, options),
-        Asked::AttributeKey(written, Fields::Card(doc)) => attribute_keys(&cursor, written, doc),
+        Asked::AttributeKey(written, Fields::Declared(keys)) => {
+            attribute_keys(&cursor, written, &keys)
+        }
         Asked::AttributeKey(written, Fields::Shape(shape)) => shape_keys(&cursor, written, shape),
+        Asked::SiteWord(written) => site_words(&written),
         Asked::DocTag(DocTag::Name(written)) => doc_tag_names(&cursor, written),
         Asked::DocTag(DocTag::See(start)) => see_targets(&cursor, start),
         Asked::DocTag(DocTag::Param(start)) => param_targets(&cursor, start),
@@ -618,6 +623,9 @@ enum Asked {
     /// The name half of a field in an attribute's payload, this many bytes of
     /// it written, and where its fields are listed.
     AttributeKey(usize, Fields),
+    /// A site word in the `on` list of an attribute declaration, with the
+    /// words the list already has.
+    SiteWord(Vec<String>),
     /// The tag of a `///` line, or the target after one.
     DocTag(DocTag),
     /// No access at all — what may be written where a statement or an
@@ -1417,10 +1425,10 @@ fn option_keys(cursor: &Cursor<'_>, written: usize, options: &[CoreOption]) -> V
 
 /// Where the fields of an attribute's payload are listed.
 enum Fields {
-    /// A compiler attribute's card.
-    Card(&'static AttributeDoc),
-    /// The shape type the checker resolved a named attribute's alias to, or
-    /// the shape a field of it gives a nested `{…}`.
+    /// The keys of the declaration the attribute names, a program's or
+    /// `Core`'s, each with its doc.
+    Declared(Vec<crate::attribute_decls::Key>),
+    /// The shape a field of the declaration gives a nested `{…}`.
     Shape(TypeId),
 }
 
@@ -1430,11 +1438,12 @@ enum Fields {
 /// The payload is the innermost node: the attribute itself, or a `{…}`
 /// written as a value inside it. A cursor inside a field's value is therefore
 /// not here, and the text between the payload's `(` or `{` or the last `,` and
-/// the cursor is a name or nothing. The name the attribute wrote is resolved
-/// the way the checker resolves it (`rule:core-classes/derive-attribute`), so a
-/// `use`d short name reaches the same card. A name that reaches no card lists
-/// the fields of the shape the checker resolved its alias to
-/// ([`nvs_types::ExprTypeTable::attribute_shape`]).
+/// the cursor is a name or nothing. The attribute's keys are those of the
+/// declaration the checker resolved its name to, a program's or `Core`'s
+/// ([`crate::attribute_decls::of_attribute`]). Where the checker recorded no
+/// name, such as in a payload that does not parse yet, a `Core` name is
+/// resolved the way the checker resolves it, so a `use`d short name reaches
+/// the same keys.
 fn attribute_key_at(
     analysed: &Analysed,
     path: &NodePath,
@@ -1463,11 +1472,11 @@ fn attribute_key_at(
         let shape = payload_type(analysed, payload.span, outer)?;
         return Some((written, Fields::Shape(shape)));
     }
-    if let Some(doc) = attribute_named(analysed, payload.span, upto) {
-        return (!doc.fields.is_empty()).then_some((written, Fields::Card(doc)));
-    }
-    let shape = analysed.exprs.attribute_shape(payload.span)?;
-    Some((written, Fields::Shape(shape)))
+    let declared = crate::attribute_decls::of_attribute(analysed, payload.span).or_else(|| {
+        attribute_named(analysed, payload.span, upto).map(crate::attribute_decls::Declared::Core)
+    })?;
+    let keys = declared.keys();
+    (!keys.is_empty()).then_some((written, Fields::Declared(keys)))
 }
 
 /// The fields of a shape, each replacing the `written` bytes of the name
@@ -1602,24 +1611,268 @@ fn attribute_named(analysed: &Analysed, span: Span, upto: &str) -> Option<&'stat
     derive::attribute_doc(&resolved.to_string())
 }
 
-/// The fields of a compiler attribute's payload, each replacing the `written`
-/// bytes of the name before the cursor with the name and its `: `. The detail
-/// is the field's type, and `optional` where a payload may leave it out.
-fn attribute_keys(cursor: &Cursor<'_>, written: usize, doc: &AttributeDoc) -> Vec<CompletionItem> {
-    doc.fields
-        .iter()
-        .map(|field| {
-            let detail = if field.required {
-                field.ty.to_owned()
+/// The keys of an attribute's payload, each replacing the `written` bytes of
+/// the name before the cursor with the name and its `: `. The detail is the
+/// key's type, and `optional` where a payload may leave it out. The key's doc
+/// goes with the item, because the list is short and the doc is what tells
+/// two keys apart.
+fn attribute_keys(
+    cursor: &Cursor<'_>,
+    written: usize,
+    keys: &[crate::attribute_decls::Key],
+) -> Vec<CompletionItem> {
+    keys.iter()
+        .map(|key| {
+            let detail = if key.required {
+                key.ty.clone()
             } else {
-                format!("{} (optional)", field.ty)
+                format!("{} (optional)", key.ty)
             };
             CompletionItem {
-                text_edit: Some(cursor.replacing(written, format!("{}: ", field.name))),
-                ..item(field.name.to_owned(), CompletionItemKind::FIELD, detail)
+                text_edit: Some(cursor.replacing(written, format!("{}: ", key.name))),
+                documentation: key.doc.clone().map(markdown),
+                ..item(key.name.clone(), CompletionItemKind::FIELD, detail)
             }
         })
         .collect()
+}
+
+/// `value` as a Markdown documentation of an item.
+fn markdown(value: String) -> Documentation {
+    Documentation::MarkupContent(MarkupContent {
+        kind: MarkupKind::Markdown,
+        value,
+    })
+}
+
+/// The sites a program's `attribute` declaration may list after `on`, which
+/// are the sites a retrieval reads (`rule:attributes/an-attribute-is-declared-with-its-sites`).
+const PROGRAM_SITES: &[AttributeSite] = &[
+    AttributeSite::Class,
+    AttributeSite::Method,
+    AttributeSite::Property,
+    AttributeSite::Parameter,
+];
+
+/// The site words the `on` list being written at `offset` may still take, as
+/// the words it already has. `None` where the cursor is not in such a list.
+///
+/// Read off the lexer's tokens, because a header being written does not
+/// parse: `attribute`, the name, `on`, and then site words and commas, up to
+/// the name being written.
+fn on_list_at(analysed: &Analysed, offset: BytePos) -> Option<Vec<String>> {
+    let file = analysed.map.file(analysed.entry);
+    let text = file.text();
+    let upto = text.get(..offset as usize)?;
+    let stem = upto.len() - name_run(upto).len();
+    let tokens = tokenize(file, &mut Diagnostics::new());
+    let before: Vec<&Token> = tokens
+        .iter()
+        .take_while(|token| token.span.end as usize <= stem)
+        .filter(|token| token.kind != TokenKind::Eof)
+        .collect();
+    let word = |token: &Token| text.get(token.span.range()).unwrap_or_default();
+    let mut written = Vec::new();
+    let mut at = before.len();
+    // The list itself, read backwards: a word after each `,`, and the `on`.
+    loop {
+        let token = before.get(at.checked_sub(1)?)?;
+        match token.kind {
+            TokenKind::Comma => at -= 1,
+            TokenKind::Ident if word(token) == "on" => break,
+            TokenKind::Ident | TokenKind::Keyword(_) => {
+                written.push(word(token).to_owned());
+                at -= 1;
+            }
+            _ => return None,
+        }
+    }
+    let name = before.get(at.checked_sub(2)?)?;
+    let opener = before.get(at.checked_sub(3)?)?;
+    (name.kind == TokenKind::Ident && word(opener) == "attribute").then_some(written)
+}
+
+/// The site words a program's declaration may list and has not listed yet.
+fn site_words(written: &[String]) -> Vec<CompletionItem> {
+    PROGRAM_SITES
+        .iter()
+        .map(|site| site.word())
+        .filter(|word| !written.iter().any(|done| done == word))
+        .map(|word| item(word.to_owned(), CompletionItemKind::KEYWORD, String::new()))
+        .collect()
+}
+
+/// The attribute declarations that may be written at the `#[` before the
+/// cursor: those whose `on` list names the site of the declaration below
+/// it, and, for one declared in a class or interface body, only where that
+/// declaration is in a descendant of its owner. `Core`'s are among them. No
+/// class and no `type` alias is offered, because only an attribute
+/// declaration may follow `#[`.
+///
+/// Each item carries the declaration's card, because the list is short.
+fn attributes_that_fit(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
+    let analysed = cursor.analysed;
+    let file = analysed.map.file(analysed.entry);
+    let upto = cursor.upto();
+    let stem = upto.len() - name_run(upto).len();
+    let tokens = tokenize(file, &mut Diagnostics::new());
+    let Some(open) = tokens.iter().rposition(|token| {
+        token.span.end as usize <= stem && token.kind == TokenKind::AttributeOpen
+    }) else {
+        return Vec::new();
+    };
+    let (sites, starts) = attributed(&tokens, open);
+    let class =
+        if sites.contains(&AttributeSite::Class) || sites.contains(&AttributeSite::Interface) {
+            starts.and_then(|start| class_after(analysed, start))
+        } else {
+            cursor
+                .path
+                .nodes()
+                .iter()
+                .find(|node| matches!(node.kind, "ClassDecl" | "InterfaceDecl"))
+                .and_then(|node| class_after(analysed, node.span.start))
+        };
+    let imports = imports_of(analysed);
+    let short: FxHashMap<String, String> = imports
+        .iter()
+        .map(|(name, target)| (target.to_string(), name.clone()))
+        .collect();
+    let here = namespace_at(analysed, cursor.offset);
+    let mut found: BTreeMap<String, CompletionItem> = BTreeMap::new();
+    for declared in crate::attribute_decls::every(analysed) {
+        if !sites.is_empty() && !sites.iter().any(|site| declared.fits(*site)) {
+            continue;
+        }
+        let label = match declared.owner() {
+            Some(owner) => {
+                let descends = class.as_ref().is_some_and(|class| {
+                    class != owner
+                        && nvs_hir::implements_interface(class, owner, &analysed.module.graph)
+                });
+                if !descends {
+                    continue;
+                }
+                declared.short_name().to_owned()
+            }
+            None => written_as(&declared.name(), &here, &short),
+        };
+        let row = CompletionItem {
+            documentation: Some(markdown(declared.card())),
+            ..item(label.clone(), CompletionItemKind::STRUCT, declared.header())
+        };
+        found.entry(label).or_insert(row);
+    }
+    found.into_values().collect()
+}
+
+/// The sites the declaration below the `#[` at `open` in `tokens` may be,
+/// and where its first word starts. Empty where the tokens do not say, and
+/// then every declaration's sites fit.
+///
+/// A parameter is what follows a `(` or a `,` of a parameter list, and a
+/// promoted one, which has a visibility word, is a property too. Anywhere
+/// else, the first word after the attribute groups and the modifiers says:
+/// `class`, `interface`, `enum`, `function`, `const`, `case`, or a property's
+/// `$` variable.
+fn attributed(tokens: &[Token], open: usize) -> (Vec<AttributeSite>, Option<BytePos>) {
+    use TokenKind as T;
+    // The attribute groups written before this one belong to the same
+    // declaration, so the token before the first of them decides.
+    let mut first = open;
+    while let Some(prev) = first.checked_sub(1).and_then(|at| tokens.get(at)) {
+        if prev.kind != T::RBracket {
+            break;
+        }
+        let mut depth = 0_usize;
+        let mut at = first - 1;
+        loop {
+            match tokens[at].kind {
+                T::RBracket => depth += 1,
+                T::LBracket | T::AttributeOpen => depth -= 1,
+                _ => {}
+            }
+            if depth == 0 || at == 0 {
+                break;
+            }
+            at -= 1;
+        }
+        if tokens[at].kind != T::AttributeOpen {
+            break;
+        }
+        first = at;
+    }
+    let kinds: Vec<TokenKind> = tokens[..first].iter().map(|token| token.kind).collect();
+    let in_parameters = match kinds.split_last() {
+        Some((T::LParen, earlier)) => declares(earlier),
+        Some((T::Comma, earlier)) => lists_types(earlier),
+        _ => false,
+    };
+    let mut depth = 1_usize;
+    let mut promoted = false;
+    for token in tokens.iter().skip(open + 1).take(256) {
+        match token.kind {
+            T::LBracket | T::AttributeOpen | T::LParen => depth += 1,
+            T::RBracket | T::RParen => depth = depth.saturating_sub(1),
+            T::Keyword(Keyword::Public | Keyword::Private | Keyword::Protected) => promoted = true,
+            T::Keyword(
+                Keyword::Static
+                | Keyword::Readonly
+                | Keyword::Abstract
+                | Keyword::Final
+                | Keyword::Lateinit,
+            ) => {}
+            T::Keyword(word) if depth <= 1 || !in_parameters => {
+                let site = match word {
+                    Keyword::Class => AttributeSite::Class,
+                    Keyword::Interface => AttributeSite::Interface,
+                    Keyword::Enum => AttributeSite::Enum,
+                    Keyword::Function => AttributeSite::Method,
+                    Keyword::Const => AttributeSite::Constant,
+                    Keyword::Case => AttributeSite::Case,
+                    _ => continue,
+                };
+                if !in_parameters {
+                    return (vec![site], Some(token.span.start));
+                }
+            }
+            T::Variable if depth == 0 || in_parameters => {
+                return if in_parameters && promoted {
+                    (
+                        vec![AttributeSite::Property, AttributeSite::Parameter],
+                        None,
+                    )
+                } else if in_parameters {
+                    (vec![AttributeSite::Parameter], None)
+                } else {
+                    (vec![AttributeSite::Property], None)
+                };
+            }
+            T::RBrace | T::Eof => break,
+            _ => {}
+        }
+    }
+    if in_parameters {
+        return (vec![AttributeSite::Parameter], None);
+    }
+    (Vec::new(), None)
+}
+
+/// The first class or interface of the entry document declared at or after
+/// `offset`: the one whose declaration starts there, since a symbol records
+/// where its name is written.
+fn class_after(analysed: &Analysed, offset: BytePos) -> Option<QName> {
+    analysed
+        .module
+        .symbols
+        .iter()
+        .filter(|symbol| {
+            matches!(symbol.kind, SymbolKind::Class | SymbolKind::Interface)
+                && symbol.decl_span.file == analysed.entry
+                && symbol.decl_span.start >= offset
+        })
+        .min_by_key(|symbol| symbol.decl_span.start)
+        .map(|symbol| symbol.qname.clone())
 }
 
 /// The first byte after the opening quote of the string the cursor at
@@ -1803,6 +2056,9 @@ fn asked(analysed: &Analysed, files: &CompletionFiles, path: &NodePath, offset: 
     }
     if let Some((written, fields)) = attribute_key_at(analysed, path, offset) {
         return Asked::AttributeKey(written, fields);
+    }
+    if let Some(written) = on_list_at(analysed, offset) {
+        return Asked::SiteWord(written);
     }
     if let Some(prefix) = namespace_written(analysed, offset) {
         return Asked::Namespace(prefix);
@@ -2690,6 +2946,7 @@ fn position(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
             Written::Variable => in_scope(cursor),
             Written::Import => in_reach(cursor, Spelled::Qualified),
             Written::TypeName => in_reach(cursor, Spelled::Shortest),
+            Written::Attribute => attributes_that_fit(cursor),
             Written::Constructed => {
                 let mut items = Vec::new();
                 if Within::Class.holds(path) {
@@ -2727,8 +2984,10 @@ fn position(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
 /// or inside `<` and `>`.
 fn member(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
     use TokenKind as T;
-    if written(cursor) == Written::TypeName {
-        return in_reach(cursor, Spelled::Shortest);
+    match written(cursor) {
+        Written::TypeName => return in_reach(cursor, Spelled::Shortest),
+        Written::Attribute => return attributes_that_fit(cursor),
+        _ => {}
     }
     let before = tokens_before(cursor);
     match before.last() {
@@ -2801,8 +3060,10 @@ enum Written {
     Import,
     /// After `new`: a class `new` compiles on.
     Constructed,
-    /// Where a type is written: after `extends`, `implements`, `is`, `as` or
-    /// `#[`, in a parameter list, in a `catch`, after the `:` of a return
+    /// After `#[`: an attribute declaration that fits the declaration below.
+    Attribute,
+    /// Where a type is written: after `extends`, `implements`, `is` or `as`,
+    /// in a parameter list, in a `catch`, after the `:` of a return
     /// type, and between the `<` and `>` of a type's arguments.
     TypeName,
     /// Where a statement starts, which is also where a typed local does.
@@ -2858,8 +3119,10 @@ fn placed(before: &[TokenKind]) -> Written {
     match last {
         T::Keyword(Keyword::Use) => Written::Import,
         T::Keyword(Keyword::New) => Written::Constructed,
-        T::Keyword(Keyword::Extends | Keyword::Implements | Keyword::Is | Keyword::As)
-        | T::AttributeOpen => Written::TypeName,
+        T::Keyword(Keyword::Extends | Keyword::Implements | Keyword::Is | Keyword::As) => {
+            Written::TypeName
+        }
+        T::AttributeOpen => Written::Attribute,
         T::LParen if declares(earlier) => Written::TypeName,
         T::Comma if lists_types(earlier) => Written::TypeName,
         T::Lt if opens_type_arguments(earlier) => Written::TypeName,

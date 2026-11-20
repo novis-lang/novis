@@ -10,4 +10,7 @@ class Orders
     public function list(): void
     {}
 }
+
+repeatable attribute Tagged on parameter, property { label: string }
+$attribute = $hooks->on($attribute);
 ?>

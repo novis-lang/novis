@@ -1,0 +1,29 @@
+--TEST--
+hovering an attribute's name shows its declaration with its sites and keys, the `///` doc above it, and the owner whose descendants may use it, `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+abstract class Storable
+{
+    /// Adds a database index over one or more columns of this table.
+    repeatable attribute Index on class {
+        /// The column names, separated by commas.
+        columns: string,
+        unique?: bool,
+    }
+}
+
+#[In<|>dex(columns: "email")]
+class Order extends Storable {}
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+repeatable attribute Storable::Index on class {
+    columns: string,
+    unique?: bool,
+}
+```
+
+Adds a database index over one or more columns of this table.
+
+Declared in `Storable`. You can use it only on classes that extend or implement `Storable`, and on their members.

@@ -146,4 +146,25 @@ describe("the names inside an attribute", () => {
     assert.ok(span(spans, "Cached").scopes.includes(ATTRIBUTE), "the attribute ended at []");
     assert.equal(span(spans, "public").scopes.includes(ATTRIBUTE), false);
   });
+
+  it("colours a declaration's header words as keywords and its name as a type", () => {
+    // `repeatable attribute Tagged on parameter, property { … }` declares the attribute the
+    // `#[…]` above would use.
+    assert.ok(span(spans, "repeatable").scopes.includes("storage.modifier.nvs"));
+    assert.ok(span(spans, "attribute").scopes.includes("storage.type.nvs"));
+    assert.ok(span(spans, "Tagged").scopes.includes(TYPE_NAME));
+    const on = spans.filter((s) => s.text === "on");
+    assert.equal(on.length, 2);
+    assert.ok(on[0].scopes.includes("keyword.other.nvs"), "the header's `on` is not a keyword");
+  });
+
+  it("leaves the same words alone outside a declaration's header", () => {
+    // `$attribute = $hooks->on($attribute);` is a variable and a method called `on`.
+    for (const found of spans.filter((s) => s.text === "$attribute")) {
+      assert.ok(found.scopes.includes("variable.other.nvs"), "`$attribute` is not a variable");
+    }
+    const on = spans.filter((s) => s.text === "on");
+    assert.ok(on[1].scopes.includes("entity.name.function.member.nvs"), "`->on` is not a method");
+    assert.equal(on[1].scopes.includes("keyword.other.nvs"), false, "`->on` is a keyword");
+  });
 });
