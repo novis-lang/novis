@@ -22,6 +22,6 @@ foreach ($visits as User $user) {
 }
 
 // This prints "Ana 3" and "Li 2".
-foreach ($count as User $user) {
-    echo $user->name, ' ', $count->get($user) ?? 0, "\n";
+foreach ($count as User $user => int $visitCount) {
+    echo $user->name, ' ', $visitCount, "\n";
 }

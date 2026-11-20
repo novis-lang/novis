@@ -23,6 +23,6 @@ $status->set($first, 'shipped');
 
 // The map still has two entries, and the first order keeps its place.
 // This prints "A-1 shipped" and "A-2 new".
-foreach ($status as Order $order) {
-    echo $order->number, ' ', $status->get($order) ?? '-', "\n";
+foreach ($status as Order $order => string $state) {
+    echo $order->number, ' ', $state, "\n";
 }

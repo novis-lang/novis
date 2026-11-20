@@ -38,8 +38,9 @@ final class Changes
             echo "nothing to save\n";
             return;
         }
-        foreach ($this->old as Product $product) {
-            echo 'save ', $product->name, ': ', $this->old->get($product) ?? 0, ' -> ', $product->price, "\n";
+        // The loop gives each changed product with its old price.
+        foreach ($this->old as Product $product => int $oldPrice) {
+            echo 'save ', $product->name, ': ', $oldPrice, ' -> ', $product->price, "\n";
         }
         $this->old->clear();
     }

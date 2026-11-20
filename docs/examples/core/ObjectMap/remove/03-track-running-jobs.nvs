@@ -29,6 +29,6 @@ foreach ($finished as Job $job) {
 }
 
 // Only the email job is still running. This prints "email since 09:07".
-foreach ($running as Job $job) {
-    echo $job->name, ' since ', $running->get($job) ?? '-', "\n";
+foreach ($running as Job $job => string $started) {
+    echo $job->name, ' since ', $started, "\n";
 }

@@ -25,8 +25,8 @@ $stock->remove($cup);
 
 // This prints 2, then "pen 12" and "lamp 1".
 echo $stock->count(), "\n";
-foreach ($stock as Product $product) {
-    echo $product->name, ' ', $stock->get($product) ?? 0, "\n";
+foreach ($stock as Product $product => int $amount) {
+    echo $product->name, ' ', $amount, "\n";
 }
 
 // The cup is not in the map any more. This prints "no".
