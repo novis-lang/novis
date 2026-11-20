@@ -69,7 +69,7 @@ pub mod requires;
 pub mod resolve;
 pub mod symbol;
 
-pub use aliases::{AliasResolver, AliasSite, AliasTable};
+pub use aliases::{AliasResolver, AliasSite, AliasTable, AttributeDef};
 pub use autoload::{AutoloadMap, Probe};
 pub use hierarchy::{
     ClassGraph, ClassLinks, CoreRoster, HierarchyResolver, Undeclared, find_in_ancestors,

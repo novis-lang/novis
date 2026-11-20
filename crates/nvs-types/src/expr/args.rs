@@ -2134,9 +2134,18 @@ pub(crate) fn check_written_type_args(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> (Option<MethodSig>, Vec<TypeId>) {
+    // A retrieval's type argument names an attribute declaration, which is
+    // not a type, so it is resolved as one and lowered to its fields.
+    let retrieval = label.is_some_and(|(owner, name)| crate::retrieval::is_retrieval(owner, name));
     let written: Vec<TypeId> = type_args
         .iter()
-        .map(|ty| lower_type(ty, ctx, env))
+        .map(|ty| {
+            if retrieval {
+                crate::attributes::lower_retrieval_arg(ty, ctx, env)
+            } else {
+                lower_type(ty, ctx, env)
+            }
+        })
         .collect();
     let Some(sig) = sig else {
         return (None, written);

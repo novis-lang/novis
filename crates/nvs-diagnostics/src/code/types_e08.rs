@@ -972,15 +972,11 @@ codes! {
         "An enum has no constructor, so `new` cannot create a value of an enum. A value of an \
          enum is one of its cases. Write a case as `Suit::Hearts`.",
     );
-    /// A user attribute written on an enum, an enum case or a class constant
-    /// (`rule:attributes/attach-sites-and-forms`). `Core\Attributes` reads
-    /// the attributes of a class, a method, a property and a parameter, and
-    /// nothing reads one written on these three.
-    pub const E_ATTRIBUTE_NO_RETRIEVAL_REACHES: Code = Code::new("E0871").card(
-        "An attribute cannot be written on an enum, an enum case or a class constant. \
-         `Core\\Attributes` cannot read an attribute there. Write it on a class, a method, a \
-         property or a parameter.",
-    );
+    // `E0871` is retired and is never reused: it refused a user attribute on an
+    // enum, an enum case or a class constant at each use. A declaration now
+    // lists its sites, a program's declaration cannot list those (`E1004`), and
+    // a use on a site its declaration does not list is `E0874`.
+
     /// A `get` or `set` hook on a `static` property
     /// (`rule:classes/property-hooks`). A hook runs at a read or a write
     /// through an object, and a static property is never reached through one.
@@ -997,13 +993,13 @@ codes! {
          Each property needs its own key. Change one key with `#[Json\\Field(name: \"...\")]` or \
          `#[Db\\Field(name: \"...\")]`, or leave one property out with `skip: true`.",
     );
-    /// A compiler-recognized attribute on a declaration where the compiler
-    /// builds nothing from it (`rule:attributes/attach-sites-and-forms`), such
-    /// as `#[Core\Route]` on a property.
+    /// An attribute used on a site its declaration's `on` list does not name
+    /// (`rule:attributes/attach-sites-and-forms`), such as `#[Core\Route]` on
+    /// a property, or a program's `attribute Job on method` on a class.
     pub const E_ATTRIBUTE_WRONG_SITE: Code = Code::new("E0874").card(
-        "This attribute cannot be written on this declaration. The compiler uses it only on \
-         some declarations, such as `#[Core\\Route]` on a method. Move the attribute, or \
-         remove it.",
+        "This attribute cannot be used on this declaration. The declaration of the attribute \
+         lists the places where it can be used, after `on`. For example, `#[Core\\Route]` is \
+         used only on a method. Move the attribute, or remove it.",
     );
     /// An assignment to `$this`, plain or compound
     /// (`rule:classes/this-is-not-assignable`). `$this` is the object the

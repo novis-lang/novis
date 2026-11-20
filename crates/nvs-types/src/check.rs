@@ -900,6 +900,20 @@ pub(crate) fn check_stmts(
             // proof it was nested. `nvs_hir` is what reads both: a `type`
             // alias into the type table, an `autoload` into `rule:programs/no-runtime-autoload`'s map.
             StmtKind::TypeAliasDecl(_) | StmtKind::AutoloadDecl(_) => {}
+            // An `attribute` declaration: its site list and its fields.
+            StmtKind::AttributeDecl(decl) => {
+                let ctx = Ctx {
+                    namespace: &current_ns,
+                    imports: &current_imports,
+                    current_class: None,
+                    current_hook: None,
+                    generator_elem: None,
+                    in_constructor: false,
+                    in_anon_fn: false,
+                    in_test_code: false,
+                };
+                crate::attributes::check_attribute_decl(decl, &ctx, env);
+            }
             // Everything else is a *statement* of the script body, not a
             // declaration: one synthesized frame for the whole file, whose
             // variables are ordinary locals (`rule:statements/storage-that-outlives-a-call`). Reuses

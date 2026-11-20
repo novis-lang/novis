@@ -324,19 +324,10 @@ pub(crate) fn fold_retrieval(
     if env.interner.is_error(want) {
         return;
     }
+    // `T` names an attribute declaration, lowered to its fields, and anything
+    // else has been reported as `E1008` already
+    // ([`crate::attributes::lower_retrieval_arg`]).
     if !matches!(env.interner.get(want), Ty::Shape(_)) {
-        let found = env.interner.describe(want);
-        env.diags.report(
-            Diagnostic::error(
-                code::E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE,
-                format!("`Core\\Attributes::{member}` retrieves a shape, and `{found}` is not one"),
-            )
-            .with_primary(call.span, format!("`{found}` written here"))
-            .with_help(
-                "an attribute matches when its value has every field of the shape `T`. Write `T` \
-                 as a shape `{...}`, or as a `type` alias of a shape",
-            ),
-        );
         return;
     }
     let Some(target) = list.first().map(|arg| &arg.value) else {

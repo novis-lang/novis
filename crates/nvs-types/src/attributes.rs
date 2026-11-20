@@ -1,6 +1,31 @@
-//! `rule:attributes/attach-sites-and-forms` and `rule:attributes/payload-is-a-compile-time-constant`'s two rules about a `#[...]` payload: every field value is
-//! a compile-time constant, and the named form's `Name` is a shape-typed
-//! `type` alias the literal is then checked against.
+//! `rule:attributes/an-attribute-is-declared-with-its-sites`,
+//! `rule:attributes/attach-sites-and-forms` and
+//! `rule:attributes/payload-is-a-compile-time-constant`: every `#[Name(...)]`
+//! names an `attribute` declaration, is used on a site that declaration lists,
+//! and carries a payload of compile-time constants that fits its fields.
+//!
+//! # A use, checked in order
+//!
+//! [`lookup`] resolves `Name` to its declaration. A short name is looked up in
+//! two scopes: the owner chain of the class the attribute is written in,
+//! walked through [`nvs_hir::find_in_ancestors`], and the namespace and `use`
+//! scope. A name both scopes give is `E1007`, never a silent choice. `Owner::Name`
+//! is the owned declaration from anywhere. A class, an interface, an enum or a
+//! `type` alias after `#[` is `E1005`. A name that resolves to nothing is the
+//! ordinary undeclared-name error. A name on `Core`'s compiler roster
+//! ([`crate::derive::ATTRIBUTES`]) is still checked by the pass that owns it.
+//!
+//! [`check_attribute`] then makes four checks, each its own diagnostic, and
+//! stops at the first that fails, so one mistake is reported once: the site is
+//! one the declaration lists (`E0874`), an owned declaration is used on its
+//! owner's descendants (`E1006`), a second use on one declaration needs
+//! `repeatable` (`E0763`), and the payload fits the declared fields (`E0401`).
+//! [`check_attribute_decl`] checks the declaration itself: a site no retrieval
+//! reads is `E1004` there, so no use of it has to be refused one by one.
+//!
+//! A use costs one table lookup while compiling, at most one walk up its
+//! class's parents for a short name, and one comparison per earlier attribute
+//! on the same declaration. Nothing of it reaches run time.
 //!
 //! `rule:attributes/payload-is-a-compile-time-constant` is one sentence, and the
 //! reason it is *this* sentence rather than a taste is in that rule: the whole
@@ -12,17 +37,11 @@
 //! deliberately do not, so the refusal here is what keeps the two
 //! halves of that decision from disagreeing.
 //!
-//! `rule:attributes/attach-sites-and-forms` is what makes the named form sugar rather than a second
-//! namespace: `Name` is never a class, never a new kind of attribute and
-//! never anything to instantiate — it is a pre-existing `type` alias whose
-//! right-hand side is a shape, and the payload is then checked against it by
-//! `rule:types/shape-type`'s width subtyping, the rule an ordinary shape-typed binding is
-//! checked by. A payload is folded into a new value wherever it is read, so its
-//! field types are compared covariantly ([`crate::expr::built_fits`]). So an
-//! attribute's name resolves in the ordinary namespace/`use` scope, and an
-//! unresolvable one is the ordinary `E0303` rather than a refusal of its own.
-//! The member form `Owner::Name` names an alias declared in `Owner`'s body and
-//! is resolved as that type atom is ([`resolve_member_shape_alias`]).
+//! The payload is checked against the declaration's fields by
+//! `rule:types/shape-type`'s width subtyping, the rule an ordinary shape-typed
+//! binding is checked by. A payload is folded into a new value wherever it is
+//! read, so its field types are compared covariantly
+//! ([`crate::expr::built_fits`]).
 //!
 //! One consequence of the constant payload is checked from here but owned
 //! elsewhere: `rule:security/secret-sinks-refuse`'s sink for a `secret` class
@@ -33,8 +52,9 @@
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_syntax::ast::{
-    AnonObjectField, ArrayItem, Attribute, AttributeGroup, ClassMember, ClassMemberKind, EnumCase,
-    Expr, ExprKind, Name, Param, Type, TypeAtom, TypeKind, UnaryOp,
+    AnonObjectField, ArrayItem, Attribute, AttributeDecl, AttributeGroup, AttributeSite,
+    AttributeSiteWord, ClassMember, ClassMemberKind, EnumCase, Expr, ExprKind, Name, Param, Type,
+    TypeAtom, TypeKind, UnaryOp,
 };
 
 use crate::expr::{built_fits, check_anon_object, check_expr, report_mismatch};
@@ -55,10 +75,12 @@ pub(crate) fn check_declaration(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
-    check_groups(groups, ctx, env);
-    if decl == crate::deprecated::Decl::Enum {
-        reject_unread(groups, "an enum", ctx, env);
-    }
+    let own_site = match decl {
+        crate::deprecated::Decl::Class => AttributeSite::Class,
+        crate::deprecated::Decl::Interface => AttributeSite::Interface,
+        crate::deprecated::Decl::Enum => AttributeSite::Enum,
+    };
+    check_groups(groups, UseSite::One(own_site), ctx, env);
     // `#[Core\Path]`'s and `#[Core\Deprecated]`'s attach rules ask the same
     // question of every site this walk visits, so each walks the same lists
     // once, beside it.
@@ -69,17 +91,24 @@ pub(crate) fn check_declaration(
     for member in members {
         match &member.kind {
             ClassMemberKind::Property(p) => {
-                check_groups(&p.attributes, ctx, env);
+                check_groups(&p.attributes, UseSite::One(AttributeSite::Property), ctx, env);
                 for hook in p.hooks.iter().flatten() {
-                    check_groups(&hook.attributes, ctx, env);
+                    check_groups(&hook.attributes, UseSite::One(AttributeSite::Hook), ctx, env);
+                    // No retrieval reads a hook's parameter, so only a
+                    // declaration that lists `hook` fits there.
+                    if let Some(param) = &hook.param {
+                        check_groups(&param.attributes, UseSite::One(AttributeSite::Hook), ctx, env);
+                    }
                 }
             }
             ClassMemberKind::Const(c) => {
-                check_groups(&c.attributes, ctx, env);
-                reject_unread(&c.attributes, "a class constant", ctx, env);
+                check_groups(&c.attributes, UseSite::One(AttributeSite::Constant), ctx, env);
+            }
+            ClassMemberKind::Attribute(declared) => {
+                check_attribute_decl(declared, ctx, env);
             }
             ClassMemberKind::Method(m) => {
-                check_groups(&m.attributes, ctx, env);
+                check_groups(&m.attributes, UseSite::One(AttributeSite::Method), ctx, env);
                 // `rule:attributes/access-payload`'s repeat rule is a question about the list
                 // rather than about one payload, and this is the walk that
                 // holds a method's whole list.
@@ -102,40 +131,136 @@ pub(crate) fn check_declaration(
         }
     }
     for case in cases {
-        check_groups(&case.attributes, ctx, env);
-        reject_unread(&case.attributes, "an enum case", ctx, env);
+        check_groups(&case.attributes, UseSite::One(AttributeSite::Case), ctx, env);
     }
 }
 
-/// `E0871` for each attribute in `groups` that is not one the compiler
-/// recognizes. `groups` are written on `site`, an enum, an enum case or a
-/// class constant, and `Core\Attributes` reads none of those
-/// (`rule:attributes/attach-sites-and-forms`). A recognized attribute is
-/// left to the pass that owns it.
-fn reject_unread(groups: &[AttributeGroup], site: &str, ctx: &Ctx<'_>, env: &mut Env<'_>) {
-    for attr in groups.iter().flat_map(|g| &g.attributes) {
-        let recognized = attr.member.is_none()
-            && attr.name.as_ref().is_some_and(|name| {
-                let qname =
-                    nvs_hir::resolve_ref(span_text(env.src, name.span), ctx.namespace, ctx.imports);
-                crate::derive::ATTRIBUTES
-                    .iter()
-                    .any(|want| qname == nvs_hir::QName::parse(want))
-            });
-        if recognized {
+/// The sites a declaration in a program may list: the four a retrieval reads.
+/// Only `Core`'s declarations list the other five.
+const READ_SITES: [AttributeSite; 4] = [
+    AttributeSite::Class,
+    AttributeSite::Method,
+    AttributeSite::Property,
+    AttributeSite::Parameter,
+];
+
+/// One `attribute` declaration, at namespace level or in the body of
+/// `ctx.current_class`: a site word written twice and a field declared twice
+/// are each an error, a site no retrieval reads is `E1004`, and the body is
+/// lowered as a shape type is, which reports what a shape's fields report.
+pub(crate) fn check_attribute_decl(decl: &AttributeDecl, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    for (index, word) in decl.sites.iter().enumerate() {
+        if decl.sites[..index].iter().any(|seen| seen.site == word.site) {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_DUPLICATE_DECLARATION,
+                    format!("`{}` is listed twice after `on`", word.site.word()),
+                )
+                .with_primary(word.span, "listed again here")
+                .with_help("Delete one of the two."),
+            );
+            continue;
+        }
+        if READ_SITES.contains(&word.site) {
             continue;
         }
         env.diags.report(
             Diagnostic::error(
-                code::E_ATTRIBUTE_NO_RETRIEVAL_REACHES,
-                format!("an attribute cannot be written on {site}"),
+                code::E_ATTRIBUTE_SITE_NOT_READ,
+                format!(
+                    "an attribute declared in a program may list only `class`, `method`, \
+                     `property` and `parameter`, and `{}` is not read by any retrieval",
+                    word.site.word()
+                ),
             )
-            .with_primary(attr.span, "`Core\\Attributes` cannot read this attribute")
+            .with_primary(word.span, "no retrieval reads an attribute here")
             .with_help(
-                "write the attribute on a class, a method, a property or a parameter. \
-                 `Core\\Attributes` reads it there",
+                "`Core\\Attributes` reads an attribute on a class, a method, a property or a \
+                 parameter. Delete this word from the `on` list.",
             ),
         );
+    }
+    for (index, field) in decl.fields.iter().enumerate() {
+        let name = span_text(env.src, field.name);
+        if decl.fields[..index]
+            .iter()
+            .any(|seen| span_text(env.src, seen.name) == name)
+        {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_DUPLICATE_DECLARATION,
+                    format!("the field `{name}` is declared twice in this attribute"),
+                )
+                .with_primary(field.name, "declared again here")
+                .with_help("Delete one of the two, or give the second field another name."),
+            );
+        }
+    }
+    let written = span_text(env.src, decl.name.span);
+    let qname = match ctx.current_class {
+        Some(owner) => nvs_hir::QName::member(owner, written),
+        None => nvs_hir::QName::join(ctx.namespace, written),
+    };
+    if let Some(def) = env.aliases.attribute(&qname) {
+        let shape = def.shape.clone();
+        crate::lower::lower_type(&shape, ctx, env);
+    }
+}
+
+/// Where one attribute is written. A promoted constructor parameter is a
+/// property and a parameter, and a declaration that lists either fits there.
+#[derive(Clone, Copy)]
+enum UseSite {
+    One(AttributeSite),
+    Promoted,
+}
+
+impl UseSite {
+    fn fits(self, sites: &[AttributeSiteWord]) -> bool {
+        sites.iter().any(|word| match self {
+            Self::One(site) => word.site == site,
+            Self::Promoted => {
+                matches!(word.site, AttributeSite::Property | AttributeSite::Parameter)
+            }
+        })
+    }
+
+    /// The word an `on` list writes for this site.
+    const fn word(self) -> &'static str {
+        match self {
+            Self::One(site) => site.word(),
+            Self::Promoted => "property",
+        }
+    }
+
+    /// The site as a message names it: "a class", "a parameter".
+    const fn noun(self) -> &'static str {
+        match self {
+            Self::One(AttributeSite::Class) => "a class",
+            Self::One(AttributeSite::Interface) => "an interface",
+            Self::One(AttributeSite::Enum) => "an enum",
+            Self::One(AttributeSite::Method) => "a method",
+            Self::One(AttributeSite::Property) => "a property",
+            Self::One(AttributeSite::Hook) => "a property hook",
+            Self::One(AttributeSite::Constant) => "a class constant",
+            Self::One(AttributeSite::Case) => "an enum case",
+            Self::One(AttributeSite::Parameter) => "a parameter",
+            Self::Promoted => "a promoted constructor parameter",
+        }
+    }
+}
+
+/// Site words in backticks, joined for a message: "`class`, `method` and
+/// `property`".
+fn site_list(sites: &[AttributeSiteWord]) -> String {
+    let words: Vec<String> = sites
+        .iter()
+        .map(|word| format!("`{}`", word.site.word()))
+        .collect();
+    match words.split_last() {
+        None => String::new(),
+        Some((last, [])) => last.clone(),
+        Some((last, rest)) => format!("{} and {last}", rest.join(", ")),
     }
 }
 
@@ -225,21 +350,242 @@ fn report_wrong_site(
 }
 
 /// Every attribute on one parameter list — `rule:attributes/attach-sites-and-forms`'s parameter attach site.
-pub(crate) fn check_params(params: &[Param], ctx: &Ctx<'_>, env: &mut Env<'_>) {
+fn check_params(params: &[Param], ctx: &Ctx<'_>, env: &mut Env<'_>) {
     for param in params {
-        check_groups(&param.attributes, ctx, env);
+        let site = if param.is_promoted() {
+            UseSite::Promoted
+        } else {
+            UseSite::One(AttributeSite::Parameter)
+        };
+        check_groups(&param.attributes, site, ctx, env);
     }
 }
 
-fn check_groups(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut Env<'_>) {
+/// Every attribute on one declaration. Each declaration this list has
+/// accepted so far is kept, so a second use of one that is not `repeatable`
+/// is reported where it is written.
+fn check_groups(groups: &[AttributeGroup], site: UseSite, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let mut used: Vec<(nvs_hir::QName, Span)> = Vec::new();
     for group in groups {
         for attr in &group.attributes {
-            check_attribute(attr, ctx, env);
+            check_attribute(attr, site, &mut used, ctx, env);
         }
     }
 }
 
-fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+/// What an attribute's name resolves to ([`lookup`]).
+pub(crate) enum Lookup<'e> {
+    /// An `attribute` declaration.
+    Declared(&'e nvs_hir::AttributeDef),
+    /// A name on `Core`'s compiler roster, [`crate::derive::ATTRIBUTES`].
+    Recognized(nvs_hir::QName),
+    /// Something that is not an attribute. The text is what it is, for a
+    /// message: "a class", "a `type` alias".
+    NotAnAttribute(&'static str),
+    /// A diagnostic has been reported already.
+    Reported,
+}
+
+/// Resolves the name `name`, or `name::member` when `member` is written, to the
+/// declaration it names. See this module's docs for the two scopes. An
+/// undeclared name and a name two scopes give are reported here. What is
+/// reported for something that is not an attribute depends on where it is
+/// written, so the caller reports it.
+pub(crate) fn lookup<'e>(
+    name: &Name,
+    member: Option<Span>,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'e>,
+) -> Lookup<'e> {
+    let aliases: &'e nvs_hir::AliasTable = env.aliases;
+    let text = span_text(env.src, name.span).to_owned();
+    if let Some(member) = member {
+        let owner = nvs_hir::resolve_ref(&text, ctx.namespace, ctx.imports);
+        let short = span_text(env.src, member);
+        if let Some(def) = aliases.attribute(&nvs_hir::QName::member(&owner, short)) {
+            return Lookup::Declared(def);
+        }
+        if aliases.get_member(&owner, short).is_some() {
+            return Lookup::NotAnAttribute("a `type` alias");
+        }
+        // The type position's lowering reports an owner or a member that
+        // resolves to nothing. Anything else is a class constant or an enum
+        // case.
+        let ty = Type {
+            kind: TypeKind::Atom(TypeAtom::Member(*name, member)),
+            span: name.span.to(member),
+        };
+        let id = crate::lower::lower_type(&ty, ctx, env);
+        if env.interner.is_error(id) {
+            return Lookup::Reported;
+        }
+        return Lookup::NotAnAttribute("a class constant or an enum case");
+    }
+    let qname = nvs_hir::resolve_ref(&text, ctx.namespace, ctx.imports);
+    let recognized = crate::derive::ATTRIBUTES
+        .iter()
+        .any(|want| qname == nvs_hir::QName::parse(want));
+    let scoped = aliases.attribute(&qname);
+    // Only a short name is looked up on the owner chain.
+    let owned = ctx
+        .current_class
+        .filter(|_| !text.contains('\\'))
+        .and_then(|class| {
+            nvs_hir::find_in_ancestors(class, env.graph, |ancestor| {
+                aliases.attribute(&nvs_hir::QName::member(ancestor, &text))
+            })
+        });
+    match (owned, scoped.is_some() || recognized) {
+        (Some(owned), true) => {
+            report_two_scopes(name.span, owned, &qname, env);
+            return Lookup::Reported;
+        }
+        (Some(owned), false) => return Lookup::Declared(owned),
+        (None, true) => {
+            return scoped.map_or(Lookup::Recognized(qname), Lookup::Declared);
+        }
+        (None, false) => {}
+    }
+    if let Some(symbol) = env.symbols.get(&qname) {
+        return Lookup::NotAnAttribute(match symbol.kind {
+            nvs_hir::SymbolKind::Class => "a class",
+            nvs_hir::SymbolKind::Interface => "an interface",
+            nvs_hir::SymbolKind::Enum => "an enum",
+            nvs_hir::SymbolKind::TypeAlias => "a `type` alias",
+            // An attribute declaration is in the table above, so this is one
+            // whose declaration did not parse.
+            nvs_hir::SymbolKind::Attribute => return Lookup::Reported,
+        });
+    }
+    if aliases.get(&qname).is_some() {
+        return Lookup::NotAnAttribute("a `type` alias");
+    }
+    if qname.is_reserved_global_interface() {
+        return Lookup::NotAnAttribute("an interface");
+    }
+    if qname.is_reserved_global_class() {
+        return Lookup::NotAnAttribute("a class");
+    }
+    let core_types = nvs_stdlib::registry::type_names();
+    if core_types.contains(&qname.to_string().as_str()) {
+        return Lookup::NotAnAttribute("a `Core` type");
+    }
+    if let Some(diagnostic) = nvs_hir::undeclared_name(
+        nvs_hir::Undeclared {
+            qname: &qname,
+            text: &text,
+            span: name.span,
+            namespace: ctx.namespace,
+            imports: ctx.imports,
+            stmts: env.stmts,
+            src: env.src,
+        },
+        env.symbols,
+        &core_types,
+    ) {
+        env.diags.report(diagnostic);
+    }
+    Lookup::Reported
+}
+
+/// One type argument of a `Core\Attributes` retrieval, which names an
+/// attribute declaration. The answer is the declaration's fields as a shape
+/// type. Anything else is `E1008`, and the answer is the error type.
+pub(crate) fn lower_retrieval_arg(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
+    let found = match &ty.kind {
+        TypeKind::Atom(TypeAtom::Name(name, args)) if args.is_empty() => {
+            Some(lookup(name, None, ctx, env))
+        }
+        TypeKind::Atom(TypeAtom::Member(owner, member)) => Some(lookup(owner, Some(*member), ctx, env)),
+        _ => None,
+    };
+    let written = |env: &Env<'_>| {
+        let span = match &ty.kind {
+            TypeKind::Atom(TypeAtom::Member(owner, member)) => owner.span.to(*member),
+            _ => ty.span,
+        };
+        span_text(env.src, span).to_owned()
+    };
+    let (written, what) = match found {
+        Some(Lookup::Declared(def)) => {
+            let shape = def.shape.clone();
+            return crate::lower::lower_type(&shape, ctx, env);
+        }
+        Some(Lookup::Reported) => return env.interner.error(),
+        Some(Lookup::Recognized(_)) => (written(env), "is a name the compiler reads".to_owned()),
+        Some(Lookup::NotAnAttribute(what)) => (written(env), format!("is {what}")),
+        None => {
+            let id = crate::lower::lower_type(ty, ctx, env);
+            if env.interner.is_error(id) {
+                return id;
+            }
+            let what = if matches!(env.interner.get(id), Ty::Shape(_)) {
+                "is a shape type"
+            } else {
+                "is not an attribute declaration"
+            };
+            (env.interner.describe(id), what.to_owned())
+        }
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ATTRIBUTE_TYPE_ARG_NOT_DECLARED,
+            format!("a retrieval's type argument must name an attribute declaration, and `{written}` {what}"),
+        )
+        .with_primary(ty.span, "not an attribute declaration")
+        .with_help(
+            "Declare the attribute with `attribute Name on … { … }`, and write its name here. \
+             The retrieval finds the payloads written under that declaration.",
+        ),
+    );
+    env.interner.error()
+}
+
+/// `E1007`: a short name that the owner chain and the namespace scope both
+/// give. `scoped` is the namespace scope's declaration.
+fn report_two_scopes(
+    span: Span,
+    owned: &nvs_hir::AttributeDef,
+    scoped: &nvs_hir::QName,
+    env: &mut Env<'_>,
+) {
+    let short = owned.short_name();
+    let owner = owned.owner.as_ref().map(ToString::to_string).unwrap_or_default();
+    let owner_short = owned
+        .owner
+        .as_ref()
+        .map(|owner| owner.short_name().to_owned())
+        .unwrap_or_default();
+    let segments = scoped.segments();
+    let namespace = segments[..segments.len() - 1].join("\\");
+    let place = if namespace.is_empty() {
+        "the global namespace".to_owned()
+    } else {
+        format!("`{namespace}`")
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ATTRIBUTE_NAME_IN_TWO_SCOPES,
+            format!(
+                "`{short}` is declared in `{owner}` and in {place}, so write \
+                 `{owner_short}::{short}` or `\\{scoped}`"
+            ),
+        )
+        .with_primary(span, "two declarations have this name")
+        .with_help(format!(
+            "`{owner_short}::{short}` names the attribute declared in `{owner}`. `\\{scoped}` \
+             names the other one."
+        )),
+    );
+}
+
+fn check_attribute(
+    attr: &Attribute,
+    site: UseSite,
+    used: &mut Vec<(nvs_hir::QName, Span)>,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
     let mut payload = Payload {
         constant: true,
         clean: true,
@@ -259,33 +605,102 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         return;
     };
     // `rule:core-classes/derive-attribute`'s compiler-recognized attributes are
-    // the one exemption to `rule:attributes/attach-sites-and-forms`'s "the name
-    // is a shape-typed alias", and it is a closed, `Core`-owned roster rather
-    // than an escape hatch: such a name is matched *nominally*, so what its
-    // payload may hold is the recognizing pass's own option check rather than a
-    // shape. The alias rule is about the userland
-    // names, which are the only ones that could ever be aliases. The name is
-    // resolved once, here, so that the roster test and the alias lookup below
-    // cannot place one `Name` two different ways.
-    let text = span_text(env.src, name.span).to_owned();
-    let qname = nvs_hir::resolve_ref(&text, ctx.namespace, ctx.imports);
-    env.exprs.record_attribute_name(name.span, qname.clone());
-    // `Owner::Name` is never one of the recognized names, which are all
-    // plain names, so a member form goes straight to the alias it names.
-    let shape = match attr.member {
-        Some(member) => resolve_member_shape_alias(name, member, ctx, env),
-        None if crate::derive::ATTRIBUTES
-            .iter()
-            .any(|want| qname == nvs_hir::QName::parse(want)) =>
-        {
+    // still a closed, `Core`-owned roster, each payload checked by the pass
+    // that owns its name, and each site by [`check_recognized_sites`].
+    let def = match lookup(name, attr.member, ctx, env) {
+        Lookup::Declared(def) => def,
+        Lookup::Recognized(qname) => {
+            env.exprs.record_attribute_name(name.span, qname.clone());
             check_recognized(attr, &qname, payload, ctx, env);
             return;
         }
-        None => resolve_shape_alias(&qname, name, ctx, env),
+        Lookup::NotAnAttribute(what) => {
+            let written = span_text(env.src, attr.member.map_or(name.span, |m| name.span.to(m)));
+            let written = written.to_owned();
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_NOT_AN_ATTRIBUTE_DECLARATION,
+                    format!("only an attribute declaration may follow `#[`, and `{written}` is {what}"),
+                )
+                .with_primary(attr.span, "this is not an attribute declaration")
+                .with_help(format!(
+                    "Declare the attribute with `attribute Name on {} {{ … }}`, and write its \
+                     name after `#[`.",
+                    site.word()
+                )),
+            );
+            return;
+        }
+        Lookup::Reported => return,
     };
-    let Some(shape) = shape else {
+    env.exprs.record_attribute_name(name.span, def.name.clone());
+    let short = def.short_name();
+    // 1. The site is one the declaration lists.
+    if !site.fits(&def.sites) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ATTRIBUTE_WRONG_SITE,
+                format!(
+                    "`{short}` is used on {}, and its declaration allows only {}",
+                    site.noun(),
+                    site_list(&def.sites)
+                ),
+            )
+            .with_primary(attr.span, "not allowed here")
+            .with_help(format!(
+                "Use `#[{short}]` only on {}, or delete it here.",
+                site_list(&def.sites)
+            )),
+        );
         return;
-    };
+    }
+    // 2. An owned declaration is used on its owner's descendants only.
+    if let Some(owner) = &def.owner {
+        let descends = ctx.current_class.is_some_and(|class| {
+            class != owner && nvs_hir::implements_interface(class, owner, env.graph)
+        });
+        if !descends {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_ATTRIBUTE_OUTSIDE_ITS_OWNER,
+                    format!(
+                        "`{short}` is declared in `{owner}`, so it is used only on classes that \
+                         extend or implement `{owner}` and their members"
+                    ),
+                )
+                .with_primary(attr.span, "this class does not extend or implement it")
+                .with_help(format!(
+                    "Use `#[{short}]` in a class that extends or implements `{owner}`, or \
+                     declare the attribute outside `{owner}`."
+                )),
+            );
+            return;
+        }
+    }
+    // 3. A second use needs `repeatable`.
+    if !def.repeatable
+        && let Some((_, first)) = used.iter().find(|(seen, _)| *seen == def.name)
+    {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_ACCESS_REPEATED,
+                format!("`{short}` is used twice here, and its declaration is not `repeatable`"),
+            )
+            .with_primary(attr.span, "second use")
+            .with_secondary(*first, "first use")
+            .with_help(format!(
+                "Delete one of the two, or write `repeatable` before `attribute {short}`."
+            )),
+        );
+        return;
+    }
+    used.push((def.name.clone(), attr.span));
+    // 4. The payload fits the declared fields.
+    let shape = def.shape.clone();
+    let shape = crate::lower::lower_type(&shape, ctx, env);
+    if !matches!(env.interner.get(shape), Ty::Shape(_)) {
+        return;
+    }
     env.exprs.record_attribute_shape(attr.span, shape);
     // A payload with a computed value has already been reported once, and
     // inferring that value would report it a second time — as an undeclared
@@ -636,126 +1051,6 @@ fn roster_names(options: &[(&str, crate::testing::OptionTy)]) -> String {
         .map(|(option, ty)| format!("{option}: {}", ty.describe()))
         .collect::<Vec<_>>()
         .join(", ")
-}
-
-/// `rule:attributes/attach-sites-and-forms`'s named form: `Name` resolves, in the namespace/`use` scope
-/// the attribute is written in, to a `type` alias whose expansion is a shape
-/// type.
-///
-/// The answers are deliberately these. A name nothing declared is
-/// the **ordinary** `E0303` any unresolvable name is — an attribute name is
-/// not a new namespace, so it does not get a "no such attribute" of its own.
-/// A name that resolves to something that is not a shape-typed alias is
-/// `E0726`: a class is the spelling this exists to refuse,
-/// `rule:attributes/attach-sites-and-forms` giving an attribute no kind to
-/// instantiate, and a `type Id = int;` is the same
-/// mistake one step along. Only a shape is handed back, and then the payload
-/// is checked against it.
-///
-/// `qname` is [`check_attribute`]'s own resolution of `name`, which has
-/// already taken `rule:core-classes/derive-attribute`'s recognized roster out of this function's way.
-fn resolve_shape_alias(
-    qname: &nvs_hir::QName,
-    name: &Name,
-    ctx: &Ctx<'_>,
-    env: &mut Env<'_>,
-) -> Option<TypeId> {
-    let Some(alias) = env.aliases.get(qname).cloned() else {
-        // The same roster [`crate::lower`]'s own name atom uses for "this
-        // name denotes something," so one name is undeclared in one place.
-        let declared = env.symbols.get(qname).is_some()
-            || qname.is_core()
-            || qname.is_reserved_global_class()
-            || qname.is_reserved_global_interface();
-        if declared {
-            report_not_a_shape(name.span, &format!("`{qname}` is not a `type` alias"), env);
-        } else {
-            if let Some(diagnostic) = nvs_hir::undeclared_name(
-                nvs_hir::Undeclared {
-                    qname,
-                    text: span_text(env.src, name.span),
-                    span: name.span,
-                    namespace: ctx.namespace,
-                    imports: ctx.imports,
-                    stmts: env.stmts,
-                    src: env.src,
-                },
-                env.symbols,
-                &nvs_stdlib::registry::type_names(),
-            ) {
-                env.diags.report(diagnostic);
-            }
-        }
-        return None;
-    };
-    let id = crate::lower::lower_type(&alias, ctx, env);
-    if matches!(env.interner.get(id), Ty::Shape(_)) {
-        return Some(id);
-    }
-    let described = env.interner.describe(id);
-    report_not_a_shape(
-        name.span,
-        &format!("`{qname}` is a `type` alias for `{described}`, which is not a shape"),
-        env,
-    );
-    None
-}
-
-/// `rule:attributes/attach-sites-and-forms`'s member form: `Owner::Name`
-/// resolves exactly as the type `Owner::Name` does
-/// (`rule:types/class-scoped-alias`), so the attribute is lowered as that type
-/// atom and nothing here repeats the lookup. An owner or member that resolves
-/// to nothing is the type position's own diagnostic. A member that is an enum
-/// case or a class constant lowers to a type that is not a shape, which is
-/// `E0726` as it is for a plain name.
-fn resolve_member_shape_alias(
-    owner: &Name,
-    member: Span,
-    ctx: &Ctx<'_>,
-    env: &mut Env<'_>,
-) -> Option<TypeId> {
-    let span = owner.span.to(member);
-    let ty = Type {
-        kind: TypeKind::Atom(TypeAtom::Member(*owner, member)),
-        span,
-    };
-    let id = crate::lower::lower_type(&ty, ctx, env);
-    match env.interner.get(id) {
-        Ty::Shape(_) => Some(id),
-        // A name that resolved to nothing has been reported by the lowering
-        // and recovered as the error type, and one report is enough. A
-        // written `mixed` is not a shape either, and is also left quiet.
-        Ty::Mixed | Ty::Error => None,
-        _ => {
-            let written = span_text(env.src, span).to_owned();
-            let described = env.interner.describe(id);
-            // An enum case describes itself by the name that was written.
-            let what = if described == written {
-                format!("`{written}` is not a `type` alias")
-            } else {
-                format!("`{written}` is `{described}`, which is not a shape")
-            };
-            report_not_a_shape(span, &what, env);
-            None
-        }
-    }
-}
-
-/// The `E0726` half of [`resolve_shape_alias`] and
-/// [`resolve_member_shape_alias`], which own why.
-fn report_not_a_shape(span: Span, what: &str, env: &mut Env<'_>) {
-    env.diags.report(
-        Diagnostic::error(
-            code::E_ATTRIBUTE_NAME_NOT_A_SHAPE,
-            format!("an attribute's name must be a shape-typed `type` alias, and {what}"),
-        )
-        .with_primary(span, "this names no shape to check the payload against")
-        .with_help(
-            "an attribute's name is a `type` alias of a shape, such as \
-             `type Route = { path: string, method: string };`. The payload is checked against \
-             that shape. An attribute with no shape is written without a name: `#[{ field: value }]`",
-        ),
-    );
 }
 
 /// One payload value, reported where it is written rather than at the

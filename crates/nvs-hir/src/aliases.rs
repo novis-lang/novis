@@ -43,11 +43,22 @@
 //! itself with the alias-substitution question `rule:types/type-alias` asks,
 //! the same narrowing [`crate::members`] already applies to `Class::member`
 //! references.
+//!
+//! **An `attribute` declaration is collected here too**
+//! (`rule:attributes/an-attribute-is-declared-with-its-sites`). Its body is a
+//! shape's field list, so it is filed beside the aliases under a key of its own
+//! and substituted by the same pass: an alias named in a field expands there,
+//! and the body's names are read in the scope it was written in
+//! ([`AliasTable::site`]). The key is the declaration's [`QName`], and an owned
+//! one's is [`QName::member`] of its owner. No alias lookup ever reaches an
+//! attribute's key, so an attribute's name is never a type.
+//! [`AliasTable::attribute`] returns the declaration with its sites,
+//! `repeatable` and its substituted body.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{
-    ClassMember, ClassMemberKind, EnumCase, NamespaceDecl, Stmt, StmtKind, Type, TypeAliasDecl,
-    TypeAtom, TypeKind,
+    AttributeDecl, AttributeSiteWord, ClassMember, ClassMemberKind, EnumCase, NamespaceDecl, Stmt,
+    StmtKind, Type, TypeAliasDecl, TypeAtom, TypeKind,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -68,12 +79,15 @@ enum AliasKey {
     Name(QName),
     /// A class, interface or enum member, under its owner and the member name.
     Member(QName, String),
+    /// An `attribute` declaration's body, under the declaration's name: its
+    /// own [`QName`], or [`QName::member`] of its owner.
+    Attribute(QName),
 }
 
 impl std::fmt::Display for AliasKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Name(qname) => write!(f, "{qname}"),
+            Self::Name(qname) | Self::Attribute(qname) => write!(f, "{qname}"),
             Self::Member(owner, name) => write!(f, "{owner}::{name}"),
         }
     }
@@ -91,6 +105,38 @@ pub struct AliasTable {
     by_name: FxHashMap<QName, Type>,
     by_owner: FxHashMap<QName, FxHashMap<String, Type>>,
     sites: FxHashMap<Span, AliasSite>,
+    attributes: FxHashMap<QName, AttributeDef>,
+}
+
+/// One `attribute` declaration
+/// (`rule:attributes/an-attribute-is-declared-with-its-sites`), with its body
+/// substituted as an alias's right-hand side is.
+#[derive(Clone, Debug)]
+pub struct AttributeDef {
+    /// The declaration's full name: its own [`QName`] at namespace level, or
+    /// [`QName::member`] of its owner, `Shop\Storable::Index`.
+    pub name: QName,
+    /// The class or interface whose body declares it, if one does.
+    pub owner: Option<QName>,
+    /// The declared name as written.
+    pub name_span: Span,
+    /// Whether `repeatable` is written.
+    pub repeatable: bool,
+    /// The site words after `on`, as written.
+    pub sites: Vec<AttributeSiteWord>,
+    /// The body as a shape type, aliases substituted. Its span is the body's,
+    /// which [`AliasTable::site`] knows, so it is lowered in its own scope.
+    pub shape: Type,
+}
+
+impl AttributeDef {
+    /// The declared name alone, `Index` for `Shop\Storable::Index`.
+    #[must_use]
+    pub fn short_name(&self) -> &str {
+        self.name
+            .as_member()
+            .map_or_else(|| self.name.short_name(), |(_, name)| name)
+    }
 }
 
 /// Where one alias's right-hand side is written: the namespace and `use`
@@ -140,6 +186,18 @@ impl AliasTable {
         self.sites.get(&span)
     }
 
+    /// The `attribute` declaration named `qname`: a namespace-level one by its
+    /// own name, an owned one by [`QName::member`] of its owner.
+    #[must_use]
+    pub fn attribute(&self, qname: &QName) -> Option<&AttributeDef> {
+        self.attributes.get(qname)
+    }
+
+    /// Every `attribute` declaration, in no fixed order.
+    pub fn attributes(&self) -> impl Iterator<Item = &AttributeDef> {
+        self.attributes.values()
+    }
+
     /// How many aliases were resolved, both sites together.
     #[must_use]
     pub fn len(&self) -> usize {
@@ -186,6 +244,9 @@ pub struct AliasResolver {
     /// name with a constant or an enum case. Collection is handed no
     /// [`Diagnostics`], so they wait here for [`AliasResolver::resolve`].
     collisions: Vec<Diagnostic>,
+    /// Every `attribute` declaration, its body still to substitute, filed in
+    /// [`Self::pending`] under [`AliasKey::Attribute`] of its name.
+    attributes: Vec<AttributeDef>,
 }
 
 impl AliasResolver {
@@ -239,6 +300,10 @@ impl AliasResolver {
                     // A second declaration of the same name is already
                     // diagnosed as `E_DUPLICATE_DECLARATION` by the symbol
                     // table; the first one wins here too, for consistency.
+                }
+                StmtKind::AttributeDecl(decl) => {
+                    let qname = QName::join(&current_ns, name_text(src, &decl.name));
+                    self.record_attribute(qname, None, decl, src, &current_ns, &imports);
                 }
                 // A body's own aliases, keyed by the body that owns them. Every
                 // body that has a class-shaped name takes them, and takes them
@@ -300,6 +365,17 @@ impl AliasResolver {
                     let key =
                         AliasKey::Member(owner.clone(), name_text(src, &alias.name).to_owned());
                     self.record(key, alias, src, namespace, imports, Some(owner.clone()));
+                }
+                ClassMemberKind::Attribute(decl) => {
+                    let qname = QName::member(owner, name_text(src, &decl.name));
+                    self.record_attribute(
+                        qname,
+                        Some(owner.clone()),
+                        decl,
+                        src,
+                        namespace,
+                        imports,
+                    );
                 }
                 ClassMemberKind::Enum(decl) => {
                     let enum_key = QName::member(owner, name_text(src, &decl.name));
@@ -420,6 +496,46 @@ impl AliasResolver {
         }
     }
 
+    /// One `attribute` declaration, its body filed as an alias's right-hand
+    /// side is so the same pass substitutes it. The first declaration of a name
+    /// wins, and a second is the symbol table's duplicate to report.
+    fn record_attribute(
+        &mut self,
+        qname: QName,
+        owner: Option<QName>,
+        decl: &AttributeDecl,
+        src: &SourceFile,
+        namespace: &[String],
+        imports: &FxHashMap<String, QName>,
+    ) {
+        let shape = Type {
+            kind: TypeKind::Atom(TypeAtom::Shape(decl.fields.clone())),
+            span: decl.body,
+        };
+        record_names(&shape, src, &mut self.names);
+        let key = AliasKey::Attribute(qname.clone());
+        let std::collections::hash_map::Entry::Vacant(entry) = self.pending.entry(key.clone())
+        else {
+            return;
+        };
+        entry.insert(PendingAlias {
+            ty: shape.clone(),
+            decl_span: decl.name.span,
+            namespace: namespace.to_vec(),
+            imports: imports.clone(),
+            owner: owner.clone(),
+        });
+        self.order.push(key);
+        self.attributes.push(AttributeDef {
+            name: qname,
+            owner,
+            name_span: decl.name.span,
+            repeatable: decl.repeatable.is_some(),
+            sites: decl.sites.clone(),
+            shape,
+        });
+    }
+
     /// Substitutes every collected alias's expansion, reporting
     /// `E_TYPE_ALIAS_CYCLE` for a name that, directly or through some chain,
     /// expands back to itself, together with every name collision collection
@@ -454,6 +570,7 @@ impl AliasResolver {
                 },
             );
         }
+        let mut bodies: FxHashMap<QName, Type> = FxHashMap::default();
         for (key, ty) in resolved {
             match key {
                 AliasKey::Name(qname) => {
@@ -462,7 +579,16 @@ impl AliasResolver {
                 AliasKey::Member(owner, name) => {
                     table.by_owner.entry(owner).or_default().insert(name, ty);
                 }
+                AliasKey::Attribute(qname) => {
+                    bodies.insert(qname, ty);
+                }
             }
+        }
+        for mut def in self.attributes {
+            if let Some(body) = bodies.remove(&def.name) {
+                def.shape = body;
+            }
+            table.attributes.insert(def.name.clone(), def);
         }
         table
     }

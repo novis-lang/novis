@@ -537,24 +537,10 @@ codes! {
         "An attribute value must be known when the program compiles. Write a number, a string \
          in quotes, a class constant or an enum case. A variable, a function call or `new` is not allowed.",
     );
-    /// The named form of an attribute names something that is not a
-    /// shape-typed `type` alias —
-    /// `rule:attributes/attach-sites-and-forms`. `Name` there is never a class and never a new namespace of
-    /// attribute kinds: it is a pre-existing alias whose right-hand side is a
-    /// shape, and its whole job is to be the type the attribute's payload
-    /// object is checked against.
-    ///
-    /// A name nothing declared at all takes [`E_UNDEFINED_CLASS`] instead,
-    /// exactly as any other unresolvable name does — an attribute name is not
-    /// a second namespace, so it gets no "no such attribute" of its own. This
-    /// code is for a name that *does* denote something and denotes the wrong
-    /// thing: a class (the spelling PHP's attributes would have instantiated),
-    /// an interface, an enum, or a `type` alias for something that is not a
-    /// shape.
-    pub const E_ATTRIBUTE_NAME_NOT_A_SHAPE: Code = Code::new("E0726").card(
-        "The name of an attribute must be a `type` alias for a shape. This name is a class, an \
-         interface, an enum or another kind of type. Declare a shape `type` and use its name.",
-    );
+    // `E0726` is retired and is never reused: it refused an attribute name
+    // that was not a shape-typed `type` alias. An attribute name now names an
+    // `attribute` declaration, and anything else after `#[` is `E1005`.
+
     /// A `secret`-qualified class constant reaches an attribute payload —
     /// `rule:security/secret-sinks-refuse`
     /// 's attribute-payload sink, the one that exists *because* of
@@ -1156,17 +1142,17 @@ codes! {
          anybody may call, write `#[Core\\Access(allow: Core\\Audience::Public)]`.",
     );
 
-    /// One method carries two `#[Access]` attributes.
-    ///
-    /// `rule:attributes/access-payload`'s last rule. `rule:attributes/repeatable` makes every attribute repeatable and leaves the ambiguity to
-    /// retrieval, which is exactly what cannot happen here: two decisions are
-    /// two readings — every one of them, or any one of them — and choosing
-    /// between them silently is the failure `rule:security/access-is-checked-for-presence-not-meaning` exists to prevent.
-    /// Reported at the second, naming the first, because the first is the one
-    /// an author reading the error is deciding whether to keep.
+    /// A second use of an attribute whose declaration is not `repeatable`, on
+    /// one declaration (`rule:attributes/repeatable`). `#[Access]` is one such
+    /// attribute: two decisions are two readings, and choosing between them
+    /// silently is the failure
+    /// `rule:security/access-is-checked-for-presence-not-meaning` exists to
+    /// prevent. Reported at the second, naming the first, because the first
+    /// is the one an author reading the error is deciding whether to keep.
     pub const E_ACCESS_REPEATED: Code = Code::new("E0763").card(
-        "A method can have only one `#[Access]` attribute. Delete one of them, and keep the one \
-         that says who may call the method.",
+        "This attribute is used twice on one declaration, and its declaration is not \
+         `repeatable`. For example, a method can have only one `#[Access]`. Delete one of the \
+         two, or write `repeatable` before `attribute` in the declaration.",
     );
 
     /// A `csrf: false` beside a method whose every `#[Route]` names a verb with

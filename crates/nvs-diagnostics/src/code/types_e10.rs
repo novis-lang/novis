@@ -47,4 +47,50 @@ codes! {
          both methods, and a class cannot replace them. Rename your method, or delete it and \
          use the one `Revocable` provides.",
     );
+    /// An `attribute` declaration in a program whose `on` list names a site no
+    /// retrieval reads: `interface`, `enum`, `hook`, `constant` or `case`
+    /// (`rule:attributes/an-attribute-is-declared-with-its-sites`). Reported
+    /// once at the declaration, so no use of it is refused one by one. It
+    /// replaces `E0871`.
+    pub const E_ATTRIBUTE_SITE_NOT_READ: Code = Code::new("E1004").card(
+        "An attribute declared in a program can list only `class`, `method`, `property` and \
+         `parameter` after `on`. `Core\\Attributes` reads an attribute only on those four. \
+         Delete the other word from the `on` list.",
+    );
+    /// A name after `#[` that is a class, an interface, an enum or a `type`
+    /// alias, not an `attribute` declaration
+    /// (`rule:attributes/an-attribute-is-declared-with-its-sites`). It
+    /// replaces `E0726`.
+    pub const E_NOT_AN_ATTRIBUTE_DECLARATION: Code = Code::new("E1005").card(
+        "Only the name of an attribute declaration can follow `#[`. This name is a class, an \
+         interface, an enum or a `type` alias. Declare the attribute with \
+         `attribute Name on method { field: string }`, and use that name.",
+    );
+    /// An attribute declared in a class or interface body, used outside that
+    /// type's descendants
+    /// (`rule:attributes/an-attribute-is-declared-with-its-sites`). The owner
+    /// itself is not one of its descendants.
+    pub const E_ATTRIBUTE_OUTSIDE_ITS_OWNER: Code = Code::new("E1006").card(
+        "This attribute is declared inside a class or an interface. It can be used only on a \
+         class that extends or implements that type, and on the methods, properties and \
+         parameters of such a class. Move the attribute, or declare it outside the type.",
+    );
+    /// A short attribute name that the owner chain and the namespace or a
+    /// `use` import both give
+    /// (`rule:attributes/an-attribute-is-declared-with-its-sites`). Neither is
+    /// chosen silently, and the message names both qualified forms.
+    pub const E_ATTRIBUTE_NAME_IN_TWO_SCOPES: Code = Code::new("E1007").card(
+        "Two attribute declarations have this short name. One is declared in a parent class or \
+         interface, and one in the namespace or in a `use` import. Write the full name of the \
+         one you mean, such as `Storable::Index` or `\\Shop\\Index`.",
+    );
+    /// A `Core\Attributes::get<T>` or `::all<T>` whose `T` is not an
+    /// `attribute` declaration
+    /// (`rule:attributes/a-retrieval-matches-the-declaration-it-names`). It
+    /// replaces `E0729` for a retrieval.
+    pub const E_ATTRIBUTE_TYPE_ARG_NOT_DECLARED: Code = Code::new("E1008").card(
+        "The type argument of `Core\\Attributes::get` or `all` must be the name of an attribute \
+         declaration. A shape, a class or a `type` alias is not allowed there. Write the name \
+         of the attribute you want to find.",
+    );
 }
