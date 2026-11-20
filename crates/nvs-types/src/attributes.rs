@@ -487,14 +487,10 @@ pub(crate) fn declaration_arg(owner: &nvs_hir::QName, member: &str) -> Option<us
     (crate::program::is_enumeration(owner, member) && crate::program::is_joined(member)).then_some(1)
 }
 
-/// The attribute declaration a type argument names, or `None` where it names
-/// none. It reports nothing: [`lower_retrieval_arg`] has reported every
+/// The full name of the attribute declaration a type argument names, a
+/// program's or a `Core` row, or `None` where it names none. It reports nothing: [`lower_retrieval_arg`] has reported every
 /// mistake in the same argument already.
-pub(crate) fn declaration_of<'e>(
-    ty: &Type,
-    ctx: &Ctx<'_>,
-    env: &mut Env<'e>,
-) -> Option<&'e nvs_hir::AttributeDef> {
+pub(crate) fn declaration_of(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<nvs_hir::QName> {
     let (name, member) = match &ty.kind {
         TypeKind::Atom(TypeAtom::Name(name, args)) if args.is_empty() => (name, None),
         TypeKind::Atom(TypeAtom::Member(owner, member)) => (owner, Some(*member)),
@@ -504,8 +500,9 @@ pub(crate) fn declaration_of<'e>(
     let found = lookup(name, member, ctx, env);
     env.diags.truncate(before);
     match found {
-        Lookup::Declared(def) => Some(def),
-        _ => None,
+        Lookup::Declared(def) => Some(def.name.clone()),
+        Lookup::Recognized(_, qname) => Some(qname),
+        Lookup::NotAnAttribute(_) | Lookup::Reported => None,
     }
 }
 
@@ -551,7 +548,12 @@ pub(crate) fn lower_retrieval_arg(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -
             return crate::lower::lower_type(&shape, ctx, env);
         }
         Some(Lookup::Reported) => return env.interner.error(),
-        Some(Lookup::Recognized(..)) => (written(env), "is a name the compiler reads".to_owned()),
+        Some(Lookup::Recognized(doc, qname)) => {
+            if let TypeKind::Atom(TypeAtom::Name(name, _) | TypeAtom::Member(name, _)) = &ty.kind {
+                env.exprs.record_attribute_name(name.span, qname);
+            }
+            return core_payload_type(doc, env);
+        }
         Some(Lookup::NotAnAttribute(what)) => (written(env), format!("is {what}")),
         None => {
             let id = crate::lower::lower_type(ty, ctx, env);
@@ -578,6 +580,90 @@ pub(crate) fn lower_retrieval_arg(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -
         ),
     );
     env.interner.error()
+}
+
+/// The payload type a retrieval of a `Core` declaration returns: its row's
+/// fields as a shape. A `Core` row is the same declaration value a program's
+/// `attribute` builds (`rule:attributes/a-retrieval-matches-the-declaration-it-names`),
+/// so `get<Core\Command>` reads `#[Core\Command]`'s payloads as `get<Job>`
+/// reads `#[Job]`'s.
+fn core_payload_type(doc: &crate::derive::AttributeDoc, env: &mut Env<'_>) -> TypeId {
+    let fields = doc
+        .fields
+        .iter()
+        .map(|field| crate::ty::ShapeField {
+            name: field.name.to_owned(),
+            ty: spelled_type(field.ty, env),
+            required: field.required,
+        })
+        .collect();
+    env.interner.shape(fields)
+}
+
+/// One of the type spellings [`crate::derive::ATTRIBUTE_DOCS`] writes:
+/// `string`, `bool`, `int`, `mixed`, `object`, `array<T>`, a shape
+/// `{a: T, b?: T}` and a qualified `Core` enum name. A spelling outside that list is a bug in the table, and
+/// its type is `mixed`, so no program fails to compile for it.
+fn spelled_type(text: &str, env: &mut Env<'_>) -> TypeId {
+    let text = text.trim();
+    if let Some(elem) = text.strip_prefix("array<").and_then(|rest| rest.strip_suffix('>')) {
+        let elem = spelled_type(elem, env);
+        return env.interner.array(elem);
+    }
+    if let Some(body) = text.strip_prefix('{').and_then(|rest| rest.strip_suffix('}')) {
+        let mut fields = Vec::new();
+        for part in split_top_level(body) {
+            let Some((name, ty)) = part.split_once(':') else { continue };
+            let (name, required) = match name.trim().strip_suffix('?') {
+                Some(name) => (name, false),
+                None => (name.trim(), true),
+            };
+            let ty = spelled_type(ty, env);
+            fields.push(crate::ty::ShapeField { name: name.trim().to_owned(), ty, required });
+        }
+        return env.interner.shape(fields);
+    }
+    match text {
+        "string" => env.interner.string(),
+        "bool" => env.interner.bool_ty(),
+        "int" => env.interner.int(),
+        "object" => env.interner.object(),
+        // A `Core` enum, such as `Core\Http\Method`.
+        name if name.contains('\\') => {
+            let qname = nvs_hir::QName::parse(name);
+            if env.enums.get(&qname).is_some() {
+                let backing = env.enums.backing_of(&qname);
+                env.interner.enum_(qname, backing)
+            } else {
+                env.interner.class(qname)
+            }
+        }
+        _ => {
+            debug_assert!(text == "mixed", "`{text}` is not a spelling `Core`'s attribute table uses");
+            env.interner.mixed()
+        }
+    }
+}
+
+/// `body` split at each `,` outside `<…>` and `{…}`.
+fn split_top_level(body: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let (mut depth, mut start) = (0usize, 0usize);
+    for (at, ch) in body.char_indices() {
+        match ch {
+            '<' | '{' => depth += 1,
+            '>' | '}' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                parts.push(&body[start..at]);
+                start = at + 1;
+            }
+            _ => {}
+        }
+    }
+    if !body[start..].trim().is_empty() {
+        parts.push(&body[start..]);
+    }
+    parts
 }
 
 /// `E1007`: a short name that the owner chain and the namespace scope both

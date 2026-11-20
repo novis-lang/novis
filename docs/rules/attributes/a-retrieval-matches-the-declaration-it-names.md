@@ -7,7 +7,8 @@ function Core\Attributes::all<T>(callable $target, string $member = ""): array<T
 short name or as `Owner::Name`, resolved as `#[` resolves it. A retrieval finds exactly the payloads
 written under that declaration. It never matches by shape: two declarations with the same fields find
 only their own payloads, and a payload written under one is never an answer for the other. The answer's
-type is the declaration's shape.
+type is the declaration's shape. `Core`'s compiler attributes are declarations too, so
+`get<Core\Command>` returns the `#[Core\Command]` payloads, typed by that declaration's fields.
 
 A `T` that is not an attribute declaration is `E1008` at the type argument. That covers an inline
 shape such as `get<{name: string}>`, a `type` alias, a class and an enum.

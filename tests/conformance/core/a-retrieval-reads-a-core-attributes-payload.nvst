@@ -1,0 +1,59 @@
+--TEST--
+a retrieval may name one of `Core`'s compiler attributes, and it returns that attribute's payload typed by its declared fields, an optional field optional (`rule:attributes/a-retrieval-matches-the-declaration-it-names`)
+--FILE--
+<?nvs
+// covers: lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used
+// `Core\Command` and `Core\Option` are read by the command table and by a
+// retrieval alike. `all` returns both names of one method in the order they are
+// written. `get` on a parameter returns its `Core\Option` payload, and a field
+// the payload omits is read with `??`.
+class Seed {
+    #[Core\Command(name: "seed", about: "Load the fixtures")]
+    #[Core\Command(name: "fixtures")]
+    public static function seed(
+        #[Core\Option(short: "f", about: "Do not ask first")] bool $force,
+        #[Core\Option] uint $count = 1,
+        string $target = "",
+    ): void {
+    }
+}
+
+foreach (Core\Attributes::all<Core\Command>(Seed::seed) as var $command) {
+    echo $command->name, ": ", $command->about ?? "(no about)", "\n";
+}
+
+var $force = Core\Attributes::get<Core\Option>(Seed::seed, "force");
+echo "force: -", $force?->short ?? "?", " --", $force?->long ?? "force", " ", $force?->about ?? "-", "\n";
+
+// A payload-less `#[Core\Option]` is still a `Core\Option`, so `get` returns it.
+var $count = Core\Attributes::get<Core\Option>(Seed::seed, "count");
+echo "count: ", $count == null ? "none" : "some", ", short ", $count?->short ?? "none", "\n";
+
+// A positional parameter carries no `Core\Option`.
+var $target = Core\Attributes::get<Core\Option>(Seed::seed, "target");
+echo "target: ", $target == null ? "none" : "some", "\n";
+
+// A command is not an option: the method itself carries no `Core\Option`.
+echo "method option: ", Core\Attributes::get<Core\Option>(Seed::seed) == null ? "none" : "some", "\n";
+
+// `Core\Route` is read the same way. Its `method` field is a `Core\Http\Method` case.
+interface Page {}
+class Home implements Page {
+    #[Core\Route(path: "/home", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(): string { return "home"; }
+}
+var $route = Core\Attributes::get<Core\Route>(Home::show);
+echo "route: ", $route?->path ?? "none", ", get ", $route?->method == Core\Http\Method::Get ? "yes" : "no", "\n";
+foreach (Core\Program::implementingWith<Page, Core\Route>("show") as var $row) {
+    echo "page route: ", $row->attribute?->path ?? "none", "\n";
+}
+--EXPECT--
+seed: Load the fixtures
+fixtures: (no about)
+force: -f --force Do not ask first
+count: some, short none
+target: none
+method option: none
+route: /home, get yes
+page route: /home

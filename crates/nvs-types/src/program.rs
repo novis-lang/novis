@@ -212,7 +212,7 @@ pub(crate) fn expand_with(
         } else {
             sites_for(env, class, &method, property)
         };
-        let matched = matching(&sites, &declared.name, env);
+        let matched = matching(&sites, &declared, env);
         let value = match matched.len() {
             0 => ConstArg::Null,
             1 => match fold_payload(matched[0], env) {
@@ -223,7 +223,7 @@ pub(crate) fn expand_with(
                 env.diags.report(
                     Diagnostic::error(
                         code::E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS,
-                        format!("`{class}::{method}` has {count} `{}` attributes", declared.name),
+                        format!("`{class}::{method}` has {count} `{}` attributes", declared),
                     )
                     .with_primary(call.span, "each row's `attribute` holds at most one")
                     .with_help(format!(

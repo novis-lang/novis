@@ -65,7 +65,7 @@ pub(crate) fn fold(
     let mut entries = Vec::new();
     let mut refused = false;
     for (class, method, sites) in routed_methods(env) {
-        let matched = matching(&sites, &declared.name, env);
+        let matched = matching(&sites, &declared, env);
         match matched.len() {
             0 => {}
             1 => match fold_payload(matched[0], env) {
@@ -77,7 +77,7 @@ pub(crate) fn fold(
                 env.diags.report(
                     Diagnostic::error(
                         code::E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS,
-                        format!("`{class}::{method}` has {count} `{}` attributes", declared.name),
+                        format!("`{class}::{method}` has {count} `{}` attributes", declared),
                     )
                     .with_primary(call, "`attribute` returns at most one")
                     .with_help(format!(

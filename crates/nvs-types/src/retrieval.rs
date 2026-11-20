@@ -395,7 +395,7 @@ pub(crate) fn fold_retrieval(
             member_name.as_ref().map(|(_, name)| name.as_str()),
         )
     };
-    let matched = matching(&sites, &declared.name, env);
+    let matched = matching(&sites, &declared, env);
     let value = match (member, matched.len()) {
         ("get", 0) => ConstArg::Null,
         ("get", 1) => match fold_payload(matched[0], env) {
@@ -409,10 +409,10 @@ pub(crate) fn fold_retrieval(
                     format!(
                         "`{class}::{method}` has {} `{}` attributes",
                         matched.len(),
-                        declared.name
+                        declared
                     ),
                 )
-                .with_primary(call.span, "`get` answers at most one")
+                .with_primary(call.span, "`get` returns at most one")
                 .with_help("write `Core\\Attributes::all<T>(…)`, which returns every match"),
             );
             return;
