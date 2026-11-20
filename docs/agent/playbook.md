@@ -64,8 +64,8 @@ session the bullets it ranks highest for the live goal, and names how many more 
   light. List every one with `bun nv proofs --gate --limit 0 --nvs target/debug/nvs.exe`, grepped
   for `perf: stale`. Then build the release binary with `bun nv relink --build`, and record them in
   one run with `xargs -d '\n' -a <list> bun nv proofs --record-perf --nvs target/release/nvs.exe
-  --only`. A doc comment edit in that file makes it stale again, so edit first and measure last.
-  See `tools/nv/proofs/collect.ts` `perfAny`.
+  --only`. Any edit of a source, even `bun nv render` of a chapter, makes it stale again, so edit
+  and render first and measure last. See `tools/nv/proofs/collect.ts` `perfAny`.
 - **A `.scale.nvs` ramp whose last three sizes start below where buffers settle reads a linear
   cost as faster than linear.** Three `Session` scale benches failed at `max 4096` with increments
   2.0, 7.9 and 5.0 bytes per unit. The increments were 5.0 at every size from 2048 up. A hand run

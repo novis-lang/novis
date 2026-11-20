@@ -34,7 +34,7 @@ stages:
     context: [website/src/content/docs/syntax/classes/standard-interfaces.mdx, website/src/content/docs/syntax/errors/error-types.mdx, website/src/content/docs/guides/cookbook/cache-value.mdx, website/src/data/changes.json, docs/agent/prose.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: checker
@@ -691,14 +691,22 @@ user reads*.
   release binary (`bun nv relink --build`, then `bun nv proofs --record-perf --nvs
   target/release/nvs.exe --only lang:classes/revocable-objects`). Then `feature-proofs` and
   `error-proofs` run once and owe nothing (decision 26).
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done. Stage 8's full gate is green, and only `bun nv ci --check` stays red.
+Every stage is done. `looper verify`, `bun nv verify --doc` and `bun nv ci --check` are green, and
+`owners --closes` names no gap. The goal is reached.
+- The last session reviewed and stamped the three trimmed `about.md` files and restamped their two
+  pages. It wrote the search questions of six owed pages and restamped seven stale ones. It recorded
+  146 stale perf records, and added a roadmap theme for `code-warm-index`.
+- `lang:iteration/core-collections-are-iterable` had grown from 7 to 10 allocations a round. Each
+  cursor allocated an empty `pairs` array. Commit `5fd64fc181` keeps `null` there, and it is 7 again.
+- Nightly run 44510687786's failures are each fixed by a later commit. The Miri timeouts of push run
+  44623108825 are fixed by `9478fd2f66`.
 - The newcomer review of all 22 texts is fixed and stamped. `Revocable` has its own `about.md`, one
   example and three covering cases. `bun nv proofs --id` says `complete.` for all three ids.
 - The perf record of `lang:classes/revocable-objects` is taken: flat growth, twin 1.04x.
@@ -713,21 +721,8 @@ Stages 1 to 7 are done. Stage 8's full gate is green, and only `bun nv ci --chec
 
 ### Next
 
-`bun nv ci --check` is the last check before `DONE`. What it still names:
-1. The newcomer review of the three trimmed `about.md` files (`bun nv site --review` lists them), then
-   `--review --stamp`. Then `bun nv site --stamp syntax/basics/variables.mdx
-   syntax/control-flow/foreach.mdx` once each page still says what its feature does.
-2. `site questions`: seven stale pages and two owed ones, `/syntax/classes/revocable-objects/` and
-   `/guides/cookbook/forget-deleted-row/`. `bun nv site --questions --status` lists them, and
-   `--questions --owed pages` prints what to write from. Prefix a URL with `MSYS_NO_PATHCONV=1`.
-3. The perf records last. `bun nv relink --build`, then list the stale ones with `bun nv proofs
-   --gate --limit 0 --nvs target/debug/nvs.exe`, grepped for `perf: stale` (120 when this was
-   written), and record them in one run with `xargs -d '\n' -a <list> bun nv proofs --record-perf
-   --nvs target/release/nvs.exe --only`.
-4. `bun nv ci --check` once more, then `DONE`.
-
-Expected red: `site review`, `site stale`, `site questions` and `feature proofs` in `ci --check`,
-until 1 to 3 are done.
+Nothing. The driver runs the acceptance checks and the floor, then the `after_gate` hooks. The next
+goal on the chain is `aimed-mutation`. No test is expected to go red.
 
 ### Backlog
 
