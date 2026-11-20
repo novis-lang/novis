@@ -30,7 +30,7 @@ stages:
     context: [docs/agent/prose.md]
   - id: 7
     title: the editor offers only the attributes that fit, and shows each key's doc
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/card.rs, crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/src/semantic.rs, editors/vscode/syntaxes/nvs.tmLanguage.json]
   - id: 8
     title: the feature's proofs, the reference and the website say what attributes are now
@@ -427,13 +427,13 @@ changes `crates/nvs-lsp/`. Their files are disjoint.
 - [x] `crates/nvs-lsp/src/completion.rs:2856`: after `#[`, the items are the attribute declarations
   whose sites include this declaration's kind and whose owner fits this class, `Core`'s included, each
   with its doc. No class and no alias is offered.
-- [ ] `crates/nvs-lsp/src/completion.rs:1438` `attribute_key_at` and `:1477` `shape_keys`: one path for
+- [x] `crates/nvs-lsp/src/completion.rs:1438` `attribute_key_at` and `:1477` `shape_keys`: one path for
   every declaration, and each key item carries its field's doc. A key in any object literal at a shape
   type shows its doc too.
   - [x] an attribute payload's keys come from one path, `attribute_decls::Declared::keys`, with docs
   - [x] hovering a payload key shows its doc
-  - [ ] a key in any object literal at a shape type, and a nested `{…}` in a payload, shows its doc
-  - [ ] a case pins the object-literal key's doc
+  - [x] a key in any object literal at a shape type, and a nested `{…}` in a payload, shows its doc
+  - [x] a case pins the object-literal key's doc
 - [x] After `on` in a declaration, the nine site words, or the four a user's declaration may list.
 - [x] `crates/nvs-lsp/src/hover.rs` and `crates/nvs-lsp/src/card.rs:113`: an attribute name shows its
   declaration's doc, its sites and its owner. A key shows its doc.
@@ -444,7 +444,7 @@ changes `crates/nvs-lsp/`. Their files are disjoint.
   header are keywords.
 - [x] Every existing `.lspt` case under `tests/lsp/` that writes a shape alias as an attribute was
   migrated in stage 6. Its expected list changes only where this stage changed the answer.
-- [ ] `E1005`'s fix: a code action rewrites a shape alias the program declares, used after `#[`, to
+- [x] `E1005`'s fix: a code action rewrites a shape alias the program declares, used after `#[`, to
   `attribute Name on <the site of this use> { … }`
   (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`), with an `.lspt` case under
   `tests/lsp/actions/`.
@@ -488,35 +488,38 @@ reference, `about.md` and the pages. Their files are disjoint.
 
 ### State
 
-Stages 1 to 6 are done, and stage 7's editor work is in (`9b154d39c4`). The `editor` check is
-green, and all 634 `.lspt` cases pass on the debug binary. Clippy is green. `10ea0decab` lays out
-stages 3 to 6's Rust as rustfmt writes it, so `cargo fmt --check` is clean.
+Stages 1 to 7 are done. The `editor` check is green, and clippy and `cargo fmt --check` are clean.
 
-The nightly's two failures were already fixed (`e5a100b18f`, `438e9c44af`).
-`crates/nvs-lsp/src/attribute_decls.rs` `Declared` is one value for a program's and a `Core`
-declaration, read by `completion.rs` `attributes_that_fit` and `on_list_at`, the payload keys, and
-`hover.rs` `attribute_card` and `attribute_key`. An attribute name is a `decorator` token. A `Core`
-attribute's name now lists its uses under references and highlight. `on` offers the four program
-sites. `#[` items carry their card inline, because the list is short.
+The sweep's nightly tested `5d053fc6e6`, older than its two fixes. Both of its failing tests pass
+on this tree.
 
-**Possibly red, not run:** `nvs-lsp`'s Rust unit tests, since `render.rs`, `completion.rs` and
-`semantic.rs` changed (the legend gained `decorator`). On the debug binary, three attacks pass the
-10 s bound (`tests/hostile/core/Attributes/all/01`,
+Stage 7's last two items (`24fdde95fb`, `3b5db0c4c4`):
+
+- A shape field's `///` run is not part of the interned type, because two shapes with the same
+  fields are one type. `crates/nvs-types/src/lower.rs` `lower_atom` records it in
+  `ExprTypeTable::record_shape_field_doc`, keyed by the shape and the field name. The first
+  documented shape of a type gives the doc. `check_anon_object` records the shape a literal's
+  position declares (`ExprTypeTable::object_shape`). `completion.rs` `object_shape` and
+  `shape_field_doc` read both, and `hover.rs` `attribute_key` answers a key in any `{…}` the same
+  way as a payload key.
+- `E1005` carries a fix when the name is a shape alias declared in the same file with no type
+  parameters, and the site is one a program may list (`attributes.rs` `alias_as_attribute`).
+
+**Possibly red, not run:** `nvs-lsp`'s Rust unit tests, since `render.rs`, `completion.rs`,
+`hover.rs` and `semantic.rs` changed (the legend gained `decorator`). An `.lspt` case whose cursor
+is in a `{…}` at a shape type now gets that shape's keys, where it got the position's list before.
+A test that snapshots `ExprTypeTable::canonical_text` gains two sections. On the debug binary, three
+attacks pass the 10 s bound (`tests/hostile/core/Attributes/all/01`,
 `lang/attributes/an-attribute-is-an-anonymous-object-…/01`,
 `lang/attributes/reading-attributes-back-…/01`). They take 1.4 to 2.4 s on a release proof binary.
 
 ### Next
 
-Stage 7's two open items, then stage 8.
-
-- A key in an object literal at a shape type shows its field's doc. `nvs_types::ty::ShapeField`
-  (`crates/nvs-types/src/ty.rs:426`) has no doc. Carry the `///` text, or the source span of the
-  field's doc, from lowering into the type, then read it in `completion.rs` `shape_keys` and add a
-  hover arm. A nested `{…}` in a payload goes through `shape_keys` too. Add one `.lspt` case.
-- `E1005`'s code action: find how an existing fix is attached (`crates/nvs-lsp/src/actions.rs`),
-  and rewrite `type Name = { … };` to `attribute Name on <site> { … }`. The site is the site of the
-  use that raised `E1005`.
-- Then stage 8, following its `**Split:**` line.
+Stage 8, following its `**Split:**` line. Run
+`bun nv proofs --id 'lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used'`
+first, and write the reference section at `docs/reference/lang/90-attributes.md:10` before the
+subagents start, since the examples, the attack and the bench build on it. The Backlog's diagnostic
+wordings and the review baseline's renamed paths belong to this stage too.
 
 ### Backlog
 
