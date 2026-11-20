@@ -363,9 +363,33 @@
         "Core\\IO\\File::read"
       ],
       "text": "On a file that cannot seek, a method called after `Core\\IO\\File::readLine` throws an error. No bytes of the file are lost."
+    },
+    {
+      "kind": "faster",
+      "highlight": true,
+      "features": [
+        "Core\\ObjectMap::get",
+        "Core\\ObjectMap::has",
+        "Core\\ObjectMap::set",
+        "Core\\ObjectSet::has",
+        "lang:iteration/core-collections-are-iterable"
+      ],
+      "text": "`Core\\ObjectMap` and `Core\\ObjectSet` are faster. A lookup with a `string`, `int` or object key is one hash lookup, as in an array. A `foreach` over either does not copy it."
     }
   ],
   "unseen": {
+    "Core\\ObjectMap::get": {
+      "hash": "169ed18a8c52ca59",
+      "why": "new tests check keys of each type, and the results are the same"
+    },
+    "Core\\ObjectMap::has": {
+      "hash": "40469a5e6dd8d76b",
+      "why": "new tests check keys of each type, and the results are the same"
+    },
+    "Core\\ObjectSet::has": {
+      "hash": "067a7d855652a5d3",
+      "why": "new tests check members of each type, and the results are the same"
+    },
     "Core\\Arr::countBy": {
       "hash": "8aac8de28827887e",
       "why": "a test counts the memory a group uses, and the results are the same"

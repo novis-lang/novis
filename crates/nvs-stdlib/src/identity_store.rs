@@ -1,77 +1,87 @@
-//! The identity-keyed store behind `Core\ObjectMap` and `Core\ObjectSet`: an
-//! ordinary Novis array, used as the hash table it already is.
+//! The keyed store behind `Core\ObjectMap` and `Core\ObjectSet`: an ordinary
+//! Novis array, used as the hash table it already is, and the one module that
+//! decides what a collection's key is.
 //!
-//! # Decision: the store is an `NvsArray` keyed by the identity hash
+//! A collection is built with one of four [`Keying`]s, chosen from its first
+//! type argument, and keeps it in its `keying` slot:
+//!
+//! | Keying | First type argument | Store key | `get` and `has` |
+//! |---|---|---|---|
+//! | [`Keying::Str`] | exactly `string` | the string's bytes | one lookup |
+//! | [`Keying::Int`] | exactly `int` | the `int`, as an array subscript | one lookup |
+//! | [`Keying::Object`] | a type whose every value is an object | [`IdentityKey`] | one lookup |
+//! | [`Keying::Chain`] | every other type | the chain key | a chain walk |
+//!
+//! # Decision: the store is an `NvsArray`
 //!
 //! A `Core` instance's slots hold values Novis can already hold
 //! ([`crate::instance`]), so a collection's state cannot be a native
-//! `HashMap` — an instance has no destructor to free one with, and a side
-//! table keyed by the object's address would grow with every collection ever
-//! constructed, which is the leak [AGENTS.md](/AGENTS.md)'s memory
-//! rule names outright. So the slot holds an [`NvsArray`], whose keys are
-//! byte strings, and this module chooses those keys.
+//! `HashMap`: an instance has no destructor to free one with, and a side table
+//! keyed by the object's address would grow with every collection ever
+//! constructed, which is the leak [AGENTS.md](/AGENTS.md)'s memory rule names
+//! outright. So each slot holds an [`NvsArray`], whose keys are byte strings or
+//! `int`s, and this module chooses those keys. `count` is free in every
+//! keying: the store's own entry count is the collection's.
+//!
+//! # Decision: the chain key, for every key type the others do not cover
 //!
 //! **A member is stored under `"<16 hex digits of its identity hash>#<n>"`,**
 //! where `n` is the smallest ordinal at which the chain of equal-hash keys
 //! holds nothing identical to it. [`nvs_runtime::value_hash`] is the hash and
 //! [`nvs_runtime::value_identical`] the comparison, so a collection agrees
-//! with `==` and with `Core\Arr::contains` by construction rather than by a
-//! second set of divergence decisions (`nvs_runtime::identity` owns both).
-//! The ordinal is what makes a collision *correct* rather than merely
-//! unlikely: two distinct values may hash alike, and the chain gives each its
-//! own key.
+//! with `==` and with `Core\Arr::contains` by construction
+//! (`nvs_runtime::identity` owns both). The ordinal makes a collision correct,
+//! not merely unlikely: two distinct values may hash alike, and the chain gives
+//! each its own key. The chain is correct for every key type, so it is the
+//! default wherever the checker proves nothing narrower: `mixed`, a union, a
+//! nullable, an enum, an array, a type parameter, a `tainted string`, a
+//! `secret string`, and a `new` through a class reference.
 //!
-//! **The chain is dense** — an ordinal is never skipped — which is what lets
-//! [`locate`] stop at the first absent key. A removal therefore has to restore
-//! that by renaming the chain's last entry to the removed key rather than
-//! leaving a tombstone; [`vacate`] is the one place that happens. The rename
-//! keeps the entry where it is in the store's order
-//! ([`NvsArray::rename`]), so a removal never moves another member.
-//!
-//! Flat rather than a bucket array per hash because a nested array would have
-//! to be taken out of its parent, mutated and put back on every write; the
-//! ordinal buys the same O(1) average lookup with one level of allocation and
-//! no refcount dance. It also makes `count` free: the store's own entry count
-//! *is* the collection's, so there is no second slot to keep in step.
-//!
-//! **What it spends:** one array allocation per store, plus one entry — a
-//! 16-byte [`Value`] and a 17- to 20-byte key — per distinct member, charged
-//! to the request that built the collection and released with it. A map holds
-//! two stores under one set of keys, so a pair costs two entries.
+//! **The chain is dense** (an ordinal is never skipped), which lets [`locate`]
+//! stop at the first absent key. A removal restores that by renaming the
+//! chain's last entry to the removed key, never by leaving a tombstone, and
+//! [`vacate`] is the one place that happens. The rename keeps the entry where
+//! it is in the store's order ([`NvsArray::rename`]), so a removal never moves
+//! another member. Flat, not a bucket array per hash, because a nested array
+//! would be taken out of its parent, mutated and put back on every write.
 //!
 //! The hash is seeded per core from [`RandomState`], so the key an
-//! attacker-chosen member lands on is not predictable across processes — the
-//! collision-flooding concern `nvs_runtime::identity`'s `hash_numeric` already
-//! reasons about, at the one place a program chooses what goes into the table.
+//! attacker-chosen member lands on is not predictable across processes: the
+//! collision-flooding concern `nvs_runtime::identity`'s `hash_numeric` reasons
+//! about, at the one place a program chooses what goes into the table.
+//!
+//! **What it spends:** one array allocation per store, plus one entry (a
+//! 16-byte [`Value`] and a 17- to 20-byte key) per distinct member, charged to
+//! the request that built the collection and released with it. A chain map
+//! holds two stores, keys and values, under one set of keys, so a pair costs
+//! two entries.
 //!
 //! # Decision: a `string` or `int` key is stored as it is
 //!
-//! A collection is built with one [`Keying`], which the checker picks from its
-//! first type argument and `new` writes into the instance's `keying` slot. A
-//! key type of exactly `string` or exactly `int` needs no chain: every value of
-//! it is a key the array already compares the way `==` does. So the store is
+//! A key type of exactly `string` or exactly `int` needs no chain: every value
+//! of it is a key the array already compares the way `==` does. So the store is
 //! keyed by the string's own bytes, or by the `int` as an array subscript is
 //! (`rule:types/arrays`), and `get`, `has`, `set` and `remove` are one lookup
-//! with no identity hash. Every other key type keeps the chain, which is
-//! correct for all of them. A `tainted string` or `secret string` key stays on
-//! the chain too.
+//! with no identity hash. A direct map has one store, the values under the key
+//! itself, and `keys()` and a `foreach` read each key back from it, as an `int`
+//! for an `int` map. A direct set has one store, each member under its own
+//! key. The array's own SipHash, seeded per process, meets the flooding
+//! concern above.
 //!
-//! A direct map has one store: the values, under the key itself. `keys()` and a
-//! `foreach` read each key back from it, as an `int` for an `int` map. A
-//! direct set has one store, each member under its own key.
+//! A `tainted string`, `secret string` or `uint` key stays on the chain.
+//! Neither qualifier has run-time state, so either could take the `string`
+//! keying if a program shows the need, and a `uint` that fits an `i64` the
+//! `int` one.
 //!
-//! The hash of a direct key is the array's own SipHash, seeded per process,
-//! so the flooding concern above is met the same way.
-//!
-//! **What it spends:** one more slot per collection, an `int`. A direct map
-//! drops its key store, so a pair costs one entry, not two, and a `string`
-//! key shares the caller's string instead of a 17- to 20-byte chain key.
+//! **What it spends:** one `int` slot per collection. A direct map drops its
+//! key store, so a pair costs one entry, not two, and a `string` key shares the
+//! caller's string instead of a 17- to 20-byte chain key.
 //!
 //! # Decision: an object key is its identity
 //!
 //! A key type whose every value is an object (the checker's
 //! `is_always_an_object`: a class, an interface, `object`, a shape, a
-//! callable) is [`Keying::Object`]. An object is identical only to itself
+//! callable, and an intersection of these) is [`Keying::Object`]. An object is identical only to itself
 //! (`rule:expressions/equality-semantics`), never moves, and its identity is
 //! its address, so the store key is [`IdentityKey`]: `@` and the pointer's
 //! sixteen hex digits, written on the stack. The `@` keeps it from reading as
@@ -102,17 +112,53 @@
 //! identity-keyed collection rebuilds its stores once: one array and one
 //! entry per member more, for the length of the copy.
 //!
+//! # Decision: the keying reaches the constructor as one symbol per keying
+//!
+//! The checker records the keying on the `new` expression where it binds the
+//! written type arguments (`nvs_types::expr::calls`), and
+//! [`crate::registry::constructor_symbol`] maps a class and a keying to one of
+//! four constructor symbols: `nvs_core_object_map_new` is the chain one, and
+//! `_string`, `_int` and `_object` join it, the same for
+//! `nvs_core_object_set_new`. `nvs-ir` emits the one `CoreCall` it always did,
+//! and each symbol writes its keying into the `keying` slot. Nothing is added
+//! at run time but the slot read, the constructor's checked arity stays empty,
+//! and this module stays the one place a key is chosen. [`Keying`] is public
+//! through `crate::registry` because `nvs-types` depends on this crate.
+//!
+//! **Declined:** a constructor argument the IR adds. It changes the checked
+//! signature of a constructor that takes nothing, and costs a value per `new`.
+//!
 //! # Decision: a key whose tag is not the keying's
 //!
 //! An `as` or `is` checks a collection's class and never its type arguments,
-//! so a map built `<string, int>` can be passed a `5` through an erased view.
-//! Each keyed operation compares the key's tag with its keying first, one byte
-//! compare ([`Keying::admits`]). A read of such a key answers absent, because
-//! no stored key has that tag. A write rebuilds the store under chain keys
-//! ([`rechain_members`], [`rechain_pairs`]), writes the chain into the
-//! `keying` slot, and goes on as a chain collection. So every result is the one
-//! the chain gives. Declined: throwing on the mismatch, which changes what a
-//! working program does.
+//! so a map built `<string, int>` can be passed a `5` through an erased view,
+//! and the keying is a fact about the instance, never a promise of its static
+//! type. Each keyed operation compares the key's tag with its keying first, one
+//! byte compare ([`Keying::admits`]). A read of such a key answers absent,
+//! because no stored key has that tag. A write rebuilds the store under chain
+//! keys ([`rechain_members`], [`rechain_pairs`]), writes the chain into the
+//! `keying` slot, and goes on as a chain collection, so every result is the
+//! one the chain gives.
+//!
+//! **Declined:** throwing on the mismatch, which changes what a working
+//! program does; and checking type arguments in `as` and `is`, which is a
+//! language change.
+//!
+//! # The trade-offs
+//!
+//! - **Performance only improves.** `get`, `has`, `set` and `remove` on a
+//!   `string`, `int` or object collection are one array lookup, with no
+//!   identity hash and no chain walk. A loop start is one reference count, not
+//!   a copy ([`crate::cursor`]). A write inside a loop copies the store once,
+//!   which is the cost every loop start paid before.
+//! - **Memory goes down.** A `string` or `int` map drops its key store: one
+//!   array, and one entry per pair. A loop drops its list: one allocation and
+//!   one reference per element. All of it stays charged to the request that
+//!   built the collection.
+//! - **No user-visible change.** The same syntax, results, order and errors.
+//! - **The implementation gains three keyings in one module.** This module
+//!   stays the one place a key is chosen, and each class reads its keying from
+//!   one slot.
 
 use std::cell::OnceCell;
 use std::collections::hash_map::RandomState;

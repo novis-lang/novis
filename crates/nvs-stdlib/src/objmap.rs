@@ -1,13 +1,20 @@
 //! `Core\ObjectMap<K, V>`, the identity-keyed map, which replaces `SplObjectStorage` used as a
 //! map and every `spl_object_id` side table.
 //!
-//! # Decision: two stores under one set of chain keys
+//! # Decision: two stores when the key bytes give no key back, one otherwise
 //!
-//! [`crate::identity_store`] keys an entry by the identity hash of the value
-//! it holds, which answers a *set*'s question directly. A map has two values
-//! per entry, and only the key is hashed — so this class holds two stores,
-//! `keys` and `values`, and writes both under the key [`identity_store::locate`]
-//! derives from the `keys` store alone.
+//! A map keyed by the chain or by an object's identity holds two stores,
+//! `keys` and `values`, because neither store key gives the key back. A map
+//! keyed by exactly `string` or `int` holds one store, the values under the
+//! key itself. [`crate::identity_store`] chooses the keying, and
+//! [`identity_store::Keying::keeps_keys`] says which of the two layouts a map
+//! has.
+//!
+//! [`crate::identity_store`] keys a chain entry by the identity hash of the
+//! value it holds, which answers a *set*'s question directly. A map has two
+//! values per entry, and only the key is hashed, so a chain map writes both
+//! stores under the key [`identity_store::locate`] derives from the `keys`
+//! store alone.
 //!
 //! The two stay aligned because every mutation touches them the same way: an
 //! insert appends to both at the same position, a re-`set` overwrites in

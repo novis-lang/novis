@@ -1899,10 +1899,10 @@
     "Core\\ObjectMap::count": "aa7f3b98e5ca32e6"
   },
   "docs/examples/core/ObjectMap/get/about.md": {
-    "Core\\ObjectMap::get": "13e1e244b3695521"
+    "Core\\ObjectMap::get": "621d3aa8234c9943"
   },
   "docs/examples/core/ObjectMap/has/about.md": {
-    "Core\\ObjectMap::has": "365879fd4f933585"
+    "Core\\ObjectMap::has": "67ae65b73f211520"
   },
   "docs/examples/core/ObjectMap/isEmpty/about.md": {
     "Core\\ObjectMap::isEmpty": "36ae9c314ff18985"
@@ -1932,7 +1932,7 @@
     "Core\\ObjectSet::diff": "6e6fb44c9e8615ba"
   },
   "docs/examples/core/ObjectSet/has/about.md": {
-    "Core\\ObjectSet::has": "26814e238641a4dd"
+    "Core\\ObjectSet::has": "3a42c9ae657060ea"
   },
   "docs/examples/core/ObjectSet/intersect/about.md": {
     "Core\\ObjectSet::intersect": "6e5bd5e1094f8ce3"
@@ -6690,10 +6690,10 @@
     "Core\\ObjectMap::count": "19deb8f3d54e96ba"
   },
   "help:Core\\ObjectMap::get": {
-    "Core\\ObjectMap::get": "61e8e7a01d2ecc19"
+    "Core\\ObjectMap::get": "d565ea9585bbe1de"
   },
   "help:Core\\ObjectMap::has": {
-    "Core\\ObjectMap::has": "4f3524984113c31d"
+    "Core\\ObjectMap::has": "db66c99a6007e2c0"
   },
   "help:Core\\ObjectMap::isEmpty": {
     "Core\\ObjectMap::isEmpty": "b188ea0b0d1c1fd8"
@@ -6723,7 +6723,7 @@
     "Core\\ObjectSet::diff": "bf9cdbc360efc840"
   },
   "help:Core\\ObjectSet::has": {
-    "Core\\ObjectSet::has": "add8807c839ec8db"
+    "Core\\ObjectSet::has": "d9009265dc1d8943"
   },
   "help:Core\\ObjectSet::intersect": {
     "Core\\ObjectSet::intersect": "d9841ac89548bbe9"

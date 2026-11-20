@@ -9,7 +9,8 @@ cannot key on an object, so this is where a per-object side table lives. It is b
 `new Core\ObjectMap<K, V>()`, `get` answers `?V` rather than throwing — there is no `$m[$k]` subscript on it —
 and `has` is the one member that tells an absent key from a stored `null`. The map is `Iterable`: a
 `foreach` yields its **keys** in insertion order, walking a snapshot taken when the loop began, so the body
-may `remove` what it is walking.
+may `remove` what it is walking. A `foreach` does not copy the map. If the loop changes the map, the loop
+still walks the entries the map had when it began.
 
 ```nvs
 <?nvs

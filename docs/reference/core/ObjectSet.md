@@ -7,7 +7,8 @@ keywords: identity, object identity, set, membership, union, intersect, diff, de
 leaves one member, and a second object equal in every property is a second member. It is built with
 `new Core\ObjectSet<T>()`; `add`, `has` and `remove` are the membership members, and the set is `Iterable`
 — a `foreach` yields its members in insertion order, over a snapshot, so the body may `remove` what it is
-walking. `union`, `intersect` and `diff` answer a new set and leave both operands untouched; the binary
+walking. A `foreach` does not copy the set. If the loop changes the set, the loop still walks the members
+the set had when it began. `union`, `intersect` and `diff` answer a new set and leave both operands untouched; the binary
 types that new set as a bare `Core\ObjectSet`, so it can be counted, asked `has` and walked as `mixed`
 (`foreach ($both as mixed $m)` and then `$m as Tag`), but a `foreach … as Tag $t` over it is refused.
 
