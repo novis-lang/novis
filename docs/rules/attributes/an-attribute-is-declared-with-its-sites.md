@@ -27,7 +27,9 @@ read as `type` is, so no identifier is taken from programs.
 
 - **The body is a shape's field list**, `name: T` and `name?: T`, with `rule:types/shape-type`'s grammar
   and check. A field has no default. A doc comment above the declaration documents the attribute, and a
-  doc comment above a field documents that key (`rule:types/shape-type`).
+  doc comment above a field documents that key (`rule:types/shape-type`). `static` in a field names the
+  class the attribute is used on, and `self` and `parent` are `E0303`
+  (`rule:attributes/a-declaration-names-its-class-with-static`).
 - **The declaration is a name of its own kind, not a type.** `#[`, a retrieval's type argument
   (`rule:attributes/a-retrieval-matches-the-declaration-it-names`), `Core\Router\Match::attribute<T>` and
   `Core\Program::implementingWith`'s `T` are the only places that name it. Written in a type position, it

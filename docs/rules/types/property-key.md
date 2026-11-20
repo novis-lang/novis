@@ -56,6 +56,10 @@ compiler cannot tell whether one arm of the `match` was mistyped. A key is not a
 `array<string, mixed>`: a program that wants arbitrary keys still wants an array, and a key is for
 fields that are the class's own when the choice among them is made late.
 
+An attribute declaration's field typed `property<static>` names a property of the class the attribute is
+used on, and a string literal in a payload there is read as a literal at a key parameter is
+(`rule:attributes/a-declaration-names-its-class-with-static`).
+
 The run-time conversion is one field lookup and one visibility test, the pair reflection already
 performs, once where the string arrives. A written-out operand skips it. The value is a name and not a
 slot index: an index would bind the key to one class's field layout, while a key is applied to

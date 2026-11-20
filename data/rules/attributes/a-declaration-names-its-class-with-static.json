@@ -1,0 +1,14 @@
+{
+  "title": "`static` in an attribute declaration's fields names the class the attribute is used on, and a retrieval binds it to its target's class",
+  "status": "designed",
+  "seeAlso": [
+    "attributes/an-attribute-is-declared-with-its-sites",
+    "types/property-key",
+    "types/property-path",
+    "statements/static-is-a-member-modifier",
+    "attributes/retrieval-folds-while-checking"
+  ],
+  "guardedBy": [
+    "tests/conformance/reject/static-in-a-top-level-type-alias-does-not-compile.nvst"
+  ]
+}

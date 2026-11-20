@@ -4,6 +4,7 @@
   "rules": [
     "attributes/inert-metadata",
     "attributes/an-attribute-is-declared-with-its-sites",
+    "attributes/a-declaration-names-its-class-with-static",
     "attributes/attach-sites-and-forms",
     "attributes/payload-is-a-compile-time-constant",
     "attributes/repeatable",
