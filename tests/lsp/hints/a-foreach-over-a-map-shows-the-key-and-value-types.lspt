@@ -1,0 +1,17 @@
+--TEST--
+A keyed `foreach` over a `Core\ObjectMap<Tag, int>` written with `var` on both sides hides two types, and each gets its hint after its name: the map's key type and its value type, `rule:types/var-inference` and `rule:iteration/keyed-interfaces`
+--FILE--
+<?nvs
+final class Tag {
+    public string $name = "red";
+}
+var $weights = new Core\ObjectMap<Tag, int>();
+foreach ($weights as var $tag => var $n) {
+    echo $n;
+}
+--REQUEST--
+inlayHint
+--EXPECT--
+5:13 type : Core\ObjectMap<Tag, int>
+6:30 type : Tag
+6:40 type : int

@@ -1,0 +1,17 @@
+--TEST--
+A `var` key bound by a keyed `foreach` over a `Core\ObjectMap<Tag, int>` has the map's key type, so `$tag->` offers `Tag`'s method and property, `rule:iteration/keyed-interfaces` and `rule:ide/completion-offers-only-what-the-compiler-derived`
+--FILE--
+<?nvs
+final class Tag {
+    public string $name = "red";
+    public function label(): string { return $this->name; }
+}
+var $weights = new Core\ObjectMap<Tag, int>();
+foreach ($weights as var $tag => var $n) {
+    echo $tag-><|>
+}
+--REQUEST--
+completion
+--EXPECT--
+label() method    string
+name    property  string
