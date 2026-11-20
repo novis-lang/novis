@@ -23,9 +23,17 @@ value's entry keeps its key.
   order of freeing never matters.
 - At the request's end nothing is walked (`rule:classes/no-destructors`). The sweep frees the heap
   whole, and the memberships go with it.
+- **A revoked object is never added.** `set`, `add` and `push` of one do nothing, as if it were added
+  and revoked at once, so no collection ever holds one.
+- **A heap's sifts never order a revoked entry.** The heap counts its revoked entries, and one sorts
+  before every other, so it rises to the root, where `pop` and `peek` drop it. A sift up compares with
+  the nearest ancestor that is not revoked, so a comparator never sees a revoked object.
+- **A program with no revocable class pays one load per write.** Defining a revocable class sets a
+  process flag, and every membership step is behind it. A loop reads the thread's revoke count at its
+  start, and checks an entry for a revoked object only once that count moves.
 
-**Memory.** 8 bytes per revocable object, and about 16 to 24 bytes per (object, collection)
-membership. All of it is on the request heap, so the accounting allocator charges it to the request,
+**Memory.** A 16-byte hidden slot per revocable object. An object in any collection has one 24-byte
+list, and each (collection, kind, key) that holds it costs a 32-byte membership. All of it is on the request heap, so the accounting allocator charges it to the request,
 and it is freed with the request: O(in-flight), never O(requests served).
 
 **Trade-offs.** A read from a collection costs what a plain array's read costs. Adding a revocable

@@ -59,9 +59,9 @@ flag is negative as a signed word, and the immortal count is `-1`, so a count be
 call to the thrower is cold. `$this` is checked too, because a method may call `revoke()` and then read
 a property.
 
-**Memory.** Each revocable object carries one hidden 8-byte slot, the first of its root class, so it has
-one offset in the whole tree. Each object in a collection costs one membership of about 16 to 24 bytes
-per collection (`rule:core-api/collections-drop-revoked-objects`). All of it is on the request heap,
+**Memory.** Each revocable object carries one hidden 16-byte slot, the first of its root class, so it has
+one offset in the whole tree. An object in any collection has one 24-byte list, and each place it is
+held costs a 32-byte membership (`rule:core-api/collections-drop-revoked-objects`). All of it is on the request heap,
 charged to the request and freed with it: O(in-flight), never O(requests served).
 
 **Trade-offs.** Security: a use after delete goes from silent to a loud error. Latency: an access
