@@ -7,6 +7,7 @@
   6 of 6 lines run (100.0%)
 
   3 mutants: each one runs the tests that reach its line
+  compiles: 1, for the 3 mutants that ran tests
 
   mutants: 3 killed, 0 survived, 0 timed out, 0 not reached
   mutation score: 100.0% (3 of 3 reached mutants made a test fail or time out)

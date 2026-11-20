@@ -2,7 +2,7 @@
 id: cli
 title: The nvs command
 summary: every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast, fmt — with its flags, its exit status and what it prints
-keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, nvs fmt, formatter, --check, --diff, --stdin, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, nvs cache gc, nvs cache clear, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor
+keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, nvs fmt, formatter, --check, --diff, --stdin, --config, --dump-ir, --dump-asm, --filter, --format, --mutate, --since, NoMutate, mutants.toml, mutation testing, --tag, --shard, --rerun-failed, --shuffle, --watch, --jobs, exit status, exit code, .nvs, shebang, cache, nvs cache gc, nvs cache clear, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor
 ---
 
 # One binary
@@ -218,27 +218,40 @@ E0401
 
 # nvs test
 
-    nvs test <paths>... [--filter <text>] [--format human|json|junit] [--update]
+    nvs test <paths>... [--filter <text>] [--tag <tag>]... [--skip-tag <tag>]...
+                        [--shard <n>/<m>] [--since <ref>] [--rerun-failed] [--list]
+                        [--fail-fast] [--shuffle[=<seed>]] [--jobs <n>] [--show-output]
+                        [--watch] [--format human|json|junit] [--update]
                         [--coverage-lcov <file>] [--coverage-clover <file>]
-                        [--coverage-cobertura <file>] [--mutate]
+                        [--coverage-cobertura <file>]
+                        [--profile callgrind|speedscope] [--profile-out <file>]
+                        [--mutate[=<target>,...]] [--bench]
+                        [--opt-level none|speed] [--probes]
+                        [--cases <file>] [--record <dir>] [--shared-worker]
 
-One subcommand runs two kinds of test, and which one is meant is read off the path:
+A path can end with a line number, such as `tests/CartTest.nvs:42`. Then only the test that
+contains line 42 runs. A line inside a test class but outside its test methods runs every test of
+the class. A line outside every test class stops the run with exit status `2`. The error names the
+nearest test class in the file. A Windows path such as `C:\app\CartTest.nvs:42` keeps its drive
+letter.
 
-- **A `.nvs` path is a program**, and its `#[Test]` methods are run. Every `public`
-  `void` instance method carrying `#[Test]` is one test; classes are reported in name order and
-  methods in declaration order; a test that asserts nothing fails; `#[Test(skip: "why")]` skips
-  with its reason. The `Core\Test` section has the assertions and the attribute's options.
-- **A directory holding `.nvs` files is one program** that requires every one of them, subdirectories
-  included, in name order, and its `#[Test]` methods are run. One file in the directory requires the
-  application's bootstrap file, which gives the whole directory its `autoload` declarations. A
-  directory holding both `.nvs` and `.nvst` files is refused.
-- **Anything else is a `.nvst` case file, or a directory walked for `*.nvst`.** A case is one
-  program with its expected output, and the report is a conformance summary
-  (`3 passed, 0 failed, 0 skipped`). This is the one place an extension decides anything, so a
-  program in a file not named `.nvs` is read as a case tree here and fails to parse as one.
+The command runs two kinds of test, and the path decides which kind:
 
-The two are not mixed in one invocation. The exit status is non-zero if any test or case failed;
-a skipped one is not a failure. *Which kind of test to write*, in [testing](#lang-testing), says
+- **A `.nvs` path is a program**, and its `#[Test]` methods run. Each `public` `void` instance
+  method with `#[Test]` is one test. Classes are reported in name order, and methods in the order
+  they are written. A test that asserts nothing fails. `#[Test(skip: "why")]` skips the test and
+  prints the reason. The `Core\Test` section has the assertions and the attribute's options.
+- **A directory with `.nvs` files is one program.** It requires every `.nvs` file in the directory
+  and its subdirectories, in name order, and runs their `#[Test]` methods. One file in the directory
+  requires the application's bootstrap file. That file gives the whole directory its `autoload`
+  declarations. A directory with both `.nvs` and `.nvst` files is an error.
+- **Any other path is a `.nvst` case file, or a directory of `.nvst` files.** A case is one program
+  with its expected output. The report is a summary, such as `3 passed, 0 failed, 0 skipped`. Only
+  here does the file extension matter. A program in a file not named `.nvs` is read as a case, and
+  it fails to parse.
+
+One run does not mix the two kinds. The exit status is not zero when a test or a case failed. A
+skipped one is not a failure. *Which kind of test to write*, in [testing](#lang-testing), says
 when to use each.
 
 ```nvs test
@@ -269,21 +282,45 @@ skipped: not written yet
 ```
 
 - `--filter <text>` runs only the tests whose name contains the text: a `.nvst` case's path, or a
-  program's `Class::method` — so `--filter Class::` selects one class's `#[Test]` methods.
-- `--format` chooses how a *program's* run is reported: `human` (the default — one line per test as
-  it runs, then `N failed, N passed, N skipped, N flaky in N ms`), `json` (one versioned document
-  on standard output at the end: `schemaVersion` is `2`, then `summary`, and one `tests[]` entry per
-  test with `class`, `method`, `file`, `line`, `column`, `verdict`, `durationMs`, and
-  `reason`/`failures`/`attempts` where they apply; with a coverage flag `schemaVersion` is `3` and
-  each test also has `coverage`, each file name mapped to the sorted lines that test reached),
-  or `junit` (JUnit XML). In the machine formats, what the tests themselves `echo` goes to standard
-  error so that standard output is the document alone. Naming a machine format beside a `.nvst`
-  tree is refused.
-- `--list` writes what the program declares without running any of it: under `human`, one
-  `Class::method  file:line` per test; under `json`, a `schemaVersion: 2` document whose `listed`
-  array holds one `{class, method, file, line, column}` per test and no summary, because nothing
-  ran. `--filter` selects the same tests it would select in a run, and `--format junit`, `--update`
-  and a `.nvst` tree are each refused beside it.
+  program's `Class::method`. `--filter Class::` selects one class's `#[Test]` methods.
+- `--tag <tag>` runs only the tests that have this tag. A test gets tags with
+  `#[Test(tags: ['slow', 'db'])]`. You can give `--tag` more than once. A test then runs when it has
+  at least one of the tags.
+- `--skip-tag <tag>` does not run the tests that have this tag. You can give it more than once. It
+  wins over `--tag`.
+- `--shard <n>/<m>` runs one of `m` parts of the tests. `--shard 2/4` runs the second of four parts.
+  Each test is in exactly one part, and it stays in that part when other tests are added.
+- `--since <ref>` runs only the tests that a change since a git branch, tag or commit can reach. See
+  *Running only what a change reaches* below.
+- `--rerun-failed` runs only the tests that failed in the last run of this program. When the last
+  run had no failed test, every selected test runs. It is an error beside `--since`.
+- `--format human|json|junit` chooses how a program's run is reported.
+  - `human` is the default. It prints one line per test as it runs, then
+    `N failed, N passed, N skipped, N flaky in N ms`.
+  - `json` prints one JSON document on standard output at the end. `schemaVersion` is `2`. The
+    document has a `summary` and one `tests[]` entry per test. An entry has `class`, `method`,
+    `file`, `line`, `column`, `verdict` and `durationMs`. It also has `reason`, `failures` or
+    `attempts` when they apply. With a coverage flag, `schemaVersion` is `3`. Each test then also
+    has `coverage`: each file name with the sorted lines that test reached.
+  - `junit` prints JUnit XML.
+
+  In `json` and `junit`, what the tests `echo` goes to standard error. So standard output has only
+  the document. `json` and `junit` are an error beside a `.nvst` tree.
+- `--list` prints the tests without running any of them. Under `human`, it prints one
+  `Class::method  file:line` line per test. Under `json`, it prints a `schemaVersion: 2` document.
+  Its `listed` array has one `{class, method, file, line, column}` per test, and it has no summary.
+  `--filter` selects the same tests as in a run. `--format junit`, `--update` and a `.nvst` tree
+  are each an error beside it.
+- `--fail-fast` starts no new test after the first test fails. Tests that are already running
+  finish. The summary counts the tests that did not start as not run.
+- `--shuffle` starts the tests in a random order and prints the seed in the summary.
+  `--shuffle=<seed>` starts them in the same order as the run that printed that seed.
+- `--jobs <n>` sets how many tests or `.nvst` cases run at once. The default is the number of
+  hardware threads. `--jobs 1` runs one test at a time.
+- `--show-output` prints each test's output as it runs. Without it, only a failed test's output is
+  printed, under its failure.
+- `--watch` runs the tests, then runs them again each time a source file of the program changes.
+  Press Ctrl+C to stop. It needs the `human` format.
 - `--coverage-lcov <file>` writes the run's coverage to the file in the lcov format.
   `--coverage-clover <file>` writes the same coverage as Clover XML, a format many CI
   services read. `--coverage-cobertura <file>` writes the same coverage as Cobertura
@@ -292,29 +329,48 @@ skipped: not written yet
   count `0`. Each branch is listed too. A branch is a condition, such as the one in an `if`, a
   `while` or an `&&`. The file says how many times its true side ran and how many times its false
   side ran. The lcov and Clover files also list each function with the number of times it was
-  called. A file is named relative to the directory you run `nvs test` in, so run it from your
-  repository's root for your CI service to find the files. Under the `human` format, the run
+  called. A file is named relative to the directory you run `nvs test` in. Run it from your
+  repository's root, so that your CI service finds the files. Under the `human` format, the run
   prints one more line, `N of N lines run (N%)`. The top-level statements of a file do not run
   under `nvs test`, so they have the count `0`. Naming any of these flags beside a `.nvst` tree
   or `--list` is an error.
-- `--mutate` checks whether your tests notice a wrong line. See
-  *nvs test --mutate* below.
-- `--update` rewrites each failed `Core\Test::assertMatchesInline` snapshot in the source that
-  wrote it, and is **the only spelling under which `nvs test` writes to a source file**. It
-  replaces the `$expected` string and nothing else: a passing snapshot is untouched, and so is
-  every other line of the file. The verdicts do not change — the tests that produced a new
-  snapshot are still reported as failed, and the re-run is what says the new text is the one you
-  meant. Write the snapshot as `''` and let the first run fill it in. Where one method holds two
-  snapshots with the same text, neither is written and the run says so: there is no way to tell
-  which rendering belongs in which string. Naming it beside a `.nvst` tree is refused — a case's
-  expectation is its `--EXPECT--` section, which nothing rewrites.
+- `--profile callgrind|speedscope` times every call and writes a profile file when the tests end.
+  The file is `callgrind.out.<pid>` or `profile.<pid>.speedscope.json` in the current folder.
+  `--profile-out <file>` writes it to another file.
+- `--mutate` checks whether your tests notice a wrong line. `--mutate=<target>` changes only the
+  code you name. See *nvs test --mutate* below.
+- `--bench` runs the methods with `#[Bench]` and no test. It is an error beside `--mutate` or
+  `--jobs`.
+- `--opt-level none|speed` compiles the tests at this optimisation level. The default is `speed`,
+  the level `nvs run` uses. A test that passes at one level and fails at the other shows a bug in
+  Novis.
+- `--probes` runs the tests with the coverage probes compiled in, and records nothing. A test that
+  passes without it and fails with it shows a bug in Novis.
+- `--cases <file>` runs only the `.nvst` case files this file lists, one path per line.
+- `--record <dir>` writes, for each `.nvst` case, the classes and files it used into this folder.
+- `--shared-worker` also runs each `.nvst` case in one shared process, after its own run passed.
+  A case fails when its output there is different. Then the case read something an earlier case
+  left behind.
+- `--update` rewrites each failed `Core\Test::assertMatchesInline` snapshot in the source file. It
+  is **the only flag with which `nvs test` writes to a source file**. It replaces the `$expected`
+  string and nothing else. A passing snapshot does not change, and neither does any other line of
+  the file. The tests that got a new snapshot are still reported as failed. Run the tests again to
+  check that the new text is the one you meant. You can write the snapshot as `''`, and the first
+  run fills it in. When one method has two snapshots with the same text, neither is written, and
+  the run says so. `--update` is an error beside a `.nvst` tree, because a case's expected output
+  is its `--EXPECT--` section.
 
-A `.nvst` case is a sequence of `--SECTION--` headers: `--TEST--` (one line saying what the case
-pins), `--FILE--` (the program, run as `nvs run`), `--EXPECT--` (its exact standard output) or
-`--EXPECTF--` (with `%s`/`%d`/`%f` placeholders), `--EXPECTF-ERROR--` (standard error), an
-optional `--FILE name--` for each extra file written beside it (`nvs.toml` included), and an
-optional `--RUN--` naming another subcommand to run in that directory instead — `test`,
-`config dump --origin`.
+A `.nvst` case is a list of sections, each starting with a `--SECTION--` header:
+
+| Section | What it has |
+|---|---|
+| `--TEST--` | one line saying what the case checks |
+| `--FILE--` | the program, run as `nvs run` runs it |
+| `--EXPECT--` | its exact standard output |
+| `--EXPECTF--` | its standard output, with `%s`, `%d` and `%f` placeholders |
+| `--EXPECTF-ERROR--` | its standard error |
+| `--FILE name--` | an extra file written beside it, such as `nvs.toml`; optional |
+| `--RUN--` | another subcommand to run in that directory instead, such as `test` or `config dump --origin`; optional |
 
 ```text
 --TEST--
@@ -331,9 +387,39 @@ echo Core\IO::read("data/note.txt");
 note
 ```
 
+## Running only what a change reaches
+
+    nvs test <paths>... --since <ref> [--filter <text>] [--tag <tag>]... [--shard <n>/<m>]
+
+`--since main` runs only the tests that a change since the git branch `main` can reach. `<ref>` can
+be a branch, a tag or a commit. Novis runs `git diff` against it in the program's folder. A line you
+added or edited is a change. So is every line of a new file that git does not track yet.
+
+Each run with `--since`, a coverage flag or `--mutate` records which methods each test ran. Novis
+keeps this record in its data folder, one for each program. A test runs when one of these is true:
+
+- in the recorded run, it ran a method you changed;
+- you added or changed the test itself;
+- the record does not have the test.
+
+Every test runs when Novis cannot tell which tests a change reaches. The first line of the report
+then says why:
+
+- no run of this program was recorded yet;
+- a line outside a method body changed, such as a property, a method's parameters, an attribute or
+  a `use` line;
+- a file that is not a `.nvs` file changed, such as `nvs.toml` or a file a test reads.
+
+The tests run with coverage on, so that the run can record what they reach. Use `--since` while you
+edit, and run every test in CI. `--since` works with `--filter`, `--tag`, `--skip-tag` and
+`--shard`: a test must match all of them. It is an error beside `--rerun-failed` or a `.nvst` tree.
+The program's folder must be in a git checkout, and `git` must be on your `PATH`. Otherwise, and for
+a ref git does not know, the run stops with exit status `2`.
+
 # nvs test --mutate
 
-    nvs test <paths>... --mutate [--filter <text>] [--format human|json] [--jobs <n>]
+    nvs test <paths>... --mutate[=<target>,...] [--since <ref>] [--filter <text>]
+                        [--format human|json] [--jobs <n>]
 
 `--mutate` checks whether your tests notice a wrong line. A line can run in a test while no
 assertion checks its result. Coverage counts that line as tested. A mutation run finds it.
@@ -363,12 +449,49 @@ Some conditions tell Novis the type of a value inside the `if`. These conditions
 
 - an `is` test, such as `$x is int`
 - an `==` or `!=` that compares a value with `null`, a literal or a constant, when the value can
-  have more than one type, such as `?int`, `int|string` or `mixed`
+  have more than one type. `?int`, `int|string` and `mixed` are such types.
 
 `if ($n == 10)` is changed when `$n` is an `int`. `if ($n == null)` is not changed when `$n` is a
 `?int`.
 
-Each mutant has one of four results:
+Some code changes only a message, never a result. A value inside the arguments of a `Core\Log`
+method makes no mutant. A value inside the arguments of the `new` in a `throw new` makes none
+either. Output written with `echo` or `Core\Html` is changed, because the page is the result of a
+web program.
+
+**Choosing what changes.** `--mutate` alone changes the whole program. `--mutate=<target>` changes
+only the code you name. The `=` is required. Separate two targets with a comma:
+
+| Target | Changes |
+|---|---|
+| `--mutate=src/Shop` | every file in that folder; a file path works the same way |
+| `--mutate=Shop\Cart` | the methods of that class |
+| `--mutate=Shop\Cart::total` | that one method |
+
+A path is relative to the current folder. A target that matches nothing stops the run with exit
+status `2`, and the error names it. `--since <ref>` changes only the lines you added or edited since
+a git branch, tag or commit. It also changes every line of a new file that git does not track yet.
+Under `--mutate`, every test runs. With a target as well, a line must match both.
+
+`#[NoMutate(because: '...')]` on a class or a method keeps its code out of every mutation run. The
+attribute is `Core\Test\NoMutate`. `because:` says why, and it must not be empty. The attribute
+does nothing outside `--mutate`.
+
+```nvs
+<?nvs
+use Core\Test\NoMutate;
+
+#[NoMutate(because: 'only the text of a label')]
+final class PriceLabel
+{
+    public static function show(int $cents): string
+    {
+        return $cents >= 10000 ? 'big order' : 'order';
+    }
+}
+```
+
+Each mutant has one of these results:
 
 | Result | Meaning |
 |---|---|
@@ -376,28 +499,66 @@ Each mutant has one of four results:
 | `survived` | every test passed, so no test checks this line's result |
 | `timed out` | a test ran past its time limit, which also counts as noticed |
 | `not reached` | no test ran the line, so no test ran again |
+| `equivalent` | the changed method compiles to the same machine code as the original, so no test can notice it |
+| `duplicate` | the changed method compiles to the same machine code as an earlier mutant of that method |
+
+An `equivalent` or `duplicate` mutant runs no test. Novis compiles the changed method on its own
+and compares the code before any test runs. It finds only the changes the compiler removes, so some
+equivalent mutants still survive.
 
 The **mutation score** is the `killed` and `timed out` mutants as a percentage of the reached
-ones. A changed loop condition can make a loop run forever. A test can have no time limit from
+ones. `not reached`, `equivalent` and `duplicate` mutants do not count in it. A changed loop condition can make a loop run forever. A test can have no time limit from
 `#[Test(timeout: ...)]` or `[limits] wall_time`. Under `--mutate`, such a test gets a limit of ten
 times the slowest test's time, plus one second.
 
-Under `human`, the run prints the normal test report, then the four counts, the score and each
-survived mutant with its file, line and change:
+**Every mutant has a key**, such as ``Shop\Cart::total#2: `<` to `<=` ``. The key is the method,
+then a number, then the change. The number counts that method's mutants with the same change, from
+1, in the order they are written. A key stays the same when you edit code outside the method. It
+changes when you rename the method.
+
+Under `human`, the run prints the normal test report, then the counts and the score. Then it lists
+the survived mutants by method, the method with the most first. Each source line is one line: its
+first change, how many more changes on that line survived, and the key:
 
 ```text
-  mutants: 3 killed, 1 survived, 1 timed out, 1 not reached
-  mutation score: 80.0% (4 of 5 reached mutants made a test fail or time out)
-  survived  counter.nvs:10  `>=` to `>`
+  compiles: 1, for the 5 mutants that ran tests
+
+  mutants: 3 killed, 2 survived, 0 timed out, 1 not reached
+  skipped: 1 equivalent, 0 duplicate (compiled to the same code, so no test ran)
+  mutation score: 60.0% (3 of 5 reached mutants made a test fail or time out)
+  survived in Shop\Cart::total (2):
+    src/Shop/Cart.nvs:14  `<` to `<=` (+1 more on this line)  mutant = "Shop\\Cart::total#1: `<` to `<=`"
 ```
 
-Under `json`, `schemaVersion` is `4`. The document has a `mutants` array with one `{file, line,
-change, outcome, tests}` record for each mutant. `tests` is the number of tests that ran the
-mutant's line. A survived mutant does not make the run fail, so the exit
-status is the one of the first step.
+**Survivors you have checked go in `mutants.toml`.** Some survivors are fine, for example a change
+that gives the same result. Write each one in a file named `mutants.toml` in the program's folder.
+That is the folder of `nvs.toml`, or the entry file's folder when there is no `nvs.toml`. The
+`mutant = ...` part of a report line is ready to paste:
 
-Each mutant compiles the program again, so a run costs one compile and a few tests per mutant. The
-mutants run one at a time, and each mutant's tests run across `--jobs` cores. `--mutate` runs a
+```toml
+[[judged]]
+mutant = "Shop\\Cart::total#2: `<` to `<=`"
+reason = "the loop ends on the same item either way"
+equivalent = true
+```
+
+`reason` is required, and it must not be empty. `equivalent` is `false` when you leave it out. A
+survivor with an entry is not listed. The report counts it on a `judged:` line. A judged survivor
+with `equivalent = true` does not count in the score. Every other judged survivor still counts as
+survived. An entry that matches no mutant prints a warning with its key, and the exit status does
+not change. A file that cannot be read, an unknown key or one key judged twice stops the run with
+exit status `2`. No command writes this file: a person checks each survivor.
+
+Under `json`, `schemaVersion` is `5`. The document has a `mutants` array with one `{file, line,
+change, outcome, tests, function, key}` record for each mutant. `tests` is the number of tests that
+ran the mutant's line. A `duplicate` record also has `sameAs`, the key of the earlier mutant. A
+judged survivor's record has `judged: true`, its `reason` and `equivalent`. A survived mutant does
+not make the run fail, so the exit status is the one of the first step.
+
+**A run compiles the program once.** Novis compiles every mutant into one copy of the program. Each
+changed place has its original code and its changed code, and a number chooses which one runs. Before
+each mutant's tests, the run sets the number to that mutant. So a run costs one compile, plus a few
+tests per mutant. The mutants run one at a time, and each mutant's tests run across `--jobs` cores. `--mutate` runs a
 program's `#[Test]` methods only. `--format junit`, `--list`, `--update`, `--watch` and a `.nvst`
 tree are each an error beside it.
 

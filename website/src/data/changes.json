@@ -394,9 +394,28 @@
         "RevokedObjectError"
       ],
       "text": "A class with no parent class can implement `Revocable`, so that the program can say an object is no longer valid. After `$object->revoke()`, every `Core\\ObjectMap`, `Core\\ObjectSet` and `Core\\Heap` removes the object immediately. Any other use of it throws `RevokedObjectError`, and its message names the line of the `revoke()` call."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:cli/nvs-test"
+      ],
+      "text": "`nvs test CartTest.nvs:42` runs the test that contains line 42. `nvs test --since main` runs only the tests that reach code you changed since the git branch `main`."
+    },
+    {
+      "kind": "changed",
+      "highlight": true,
+      "features": [
+        "tools:cli/nvs-test-mutate"
+      ],
+      "text": "`nvs test --mutate=Shop\\Cart` changes only the code you name, `--since main` only the lines you edited, and `#[NoMutate]` keeps a class or a method out. A mutant that compiles to the same code runs no test, and a run compiles the program once. Survivors you checked go in `mutants.toml`, and the report lists the others by method."
     }
   ],
   "unseen": {
+    "tools:cli/profiling": {
+      "hash": "51432f528ce29319",
+      "why": "its test is in a file that changed for the test runner, and the profiler works the same"
+    },
     "Core\\ObjectMap::get": {
       "hash": "169ed18a8c52ca59",
       "why": "new tests check keys of each type, and the results are the same"

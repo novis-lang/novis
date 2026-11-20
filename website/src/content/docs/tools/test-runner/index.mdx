@@ -59,6 +59,12 @@ This file has three tests for a cart. The last one has the tag `slow`:
 
 The summary counts the tests that did not run as `left out`.
 
+You can also choose tests by where they are, or by what you changed:
+
+- `nvs test tests/CartTest.nvs:42` runs the test that contains line 42.
+- `nvs test . --since main` runs only the tests that reach code you changed since the git branch
+  `main`. Use it while you edit, and run every test in CI.
+
 A build server often needs a report file. `--format junit` prints the result as JUnit XML, and
 `--format json` prints one JSON document:
 
@@ -98,6 +104,20 @@ The tests use the orders `2000` and `8000`, and they still pass when `>=` on lin
 So the mutant survived. A test with an order of exactly `5000` fails on that mutant. The mutation
 score is the share of mutants that made a test fail. A survived mutant does not make the run fail, so
 the exit status is `0`.
+
+The report lists survived mutants by method. Each line ends with the mutant's key, such as
+``Shipping::total#1: `>=` to `>` ``. If you checked a survivor and it is fine, copy that line into a
+file named `mutants.toml` and add a `reason`. The report then counts it and does not list it.
+
+A large program has many mutants, so you can choose which code changes:
+
+- `--mutate=Shipping` changes only that class. A folder, a file or a method such as
+  `Shipping::total` works too.
+- `--mutate --since main` changes only the lines you edited since the git branch `main`.
+- `#[NoMutate(because: '...')]` on a class or a method keeps it out of every mutation run.
+
+A run compiles your program once for all its mutants. A mutant that compiles to the same code as
+your program runs no test, and the report counts it as `equivalent`.
 
 ## Count the work of a bench
 

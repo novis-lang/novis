@@ -1,0 +1,52 @@
+<?nvs
+// Shows `#[NoMutate]`, which keeps a class out of a mutation run.
+// `PriceLabel` makes no mutant, so the report counts only the mutants in `Discount`.
+// proof: test --mutate
+use Core\Test;
+use Core\Test\NoMutate;
+
+class Discount
+{
+    // Prices are in cents. An order of 100.00 or more gets 10.00 off.
+    public static function apply(int $order): int
+    {
+        if ($order >= 10000) {
+            return $order - 1000;
+        }
+        return $order;
+    }
+}
+
+// `because:` says why no mutant is needed here. It must not be empty.
+#[NoMutate(because: 'only the text of a label, which a person checks on the page')]
+class PriceLabel
+{
+    public static function show(int $cents): string
+    {
+        if ($cents >= 10000) {
+            return 'big order';
+        }
+        return 'order';
+    }
+}
+
+final class DiscountTest
+{
+    #[Test]
+    public function aSmallOrderPaysTheFullPrice(): void
+    {
+        Test::assertSame(Discount::apply(9999), 9999);
+    }
+
+    #[Test]
+    public function anOrderOfExactlyOneHundredGetsTheDiscount(): void
+    {
+        Test::assertSame(Discount::apply(10000), 9000);
+    }
+
+    #[Test]
+    public function theLabelNamesTheOrder(): void
+    {
+        Test::assertSame(PriceLabel::show(500), 'order');
+    }
+}

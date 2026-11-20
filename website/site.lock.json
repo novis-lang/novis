@@ -4386,10 +4386,10 @@
     "tools:cli/nvs-telemetry": "9abbb9d86e296fc3"
   },
   "docs/examples/tools/cli/nvs-test/about.md": {
-    "tools:cli/nvs-test": "e096e4c2c8575666"
+    "tools:cli/nvs-test": "c1af83ee4f062e2c"
   },
   "docs/examples/tools/cli/nvs-test-mutate/about.md": {
-    "tools:cli/nvs-test-mutate": "d0e9d66ca00914de"
+    "tools:cli/nvs-test-mutate": "c6e1c42f68e0ce7e"
   },
   "docs/examples/tools/cli/nvs-update-check/about.md": {
     "tools:cli/nvs-update-check": "4b7510f61af71723"
@@ -4398,7 +4398,7 @@
     "tools:cli/one-binary": "727094866935045c"
   },
   "docs/examples/tools/cli/profiling/about.md": {
-    "tools:cli/profiling": "f0ec90e43b26154d"
+    "tools:cli/profiling": "496de0410e1cf432"
   },
   "docs/examples/tools/cli/the-compile-cache/about.md": {
     "tools:cli/the-compile-cache": "376e91459698612a"
@@ -9180,10 +9180,10 @@
     "tools:cli/nvs-telemetry": "496af1ec2f7fe8bb"
   },
   "help:tools:cli/nvs-test": {
-    "tools:cli/nvs-test": "37638ce5a6d11a1b"
+    "tools:cli/nvs-test": "135b393814876ba0"
   },
   "help:tools:cli/nvs-test-mutate": {
-    "tools:cli/nvs-test-mutate": "14ebbb7d8dc37b33"
+    "tools:cli/nvs-test-mutate": "ed89e116d2fe6ab7"
   },
   "help:tools:cli/nvs-update-check": {
     "tools:cli/nvs-update-check": "64113ac656f538fc"
@@ -9192,7 +9192,7 @@
     "tools:cli/one-binary": "a51db0c1755df2b2"
   },
   "help:tools:cli/profiling": {
-    "tools:cli/profiling": "9b33abb2c981f270"
+    "tools:cli/profiling": "9a5cff4648b9f595"
   },
   "help:tools:cli/the-compile-cache": {
     "tools:cli/the-compile-cache": "fd0b685bee69a613"
@@ -9760,10 +9760,10 @@
     "tools:cli/nvs-fmt": "f7b8d5fff9019377"
   },
   "tools/profiler/index.mdx": {
-    "tools:cli/profiling": "a57363441448e7ce"
+    "tools:cli/profiling": "f9416f0b950726ae"
   },
   "tools/test-runner/coverage.mdx": {
-    "tools:cli/nvs-test": "3dd9fbe4c7b2a4b5"
+    "tools:cli/nvs-test": "d7693bf5b58e0240"
   },
   "tools/test-runner/index.mdx": {
     "lang:testing/a-test-is-a-method-marked-test": "368f1a80f39ee11b",
@@ -9771,7 +9771,7 @@
     "lang:testing/core-test-property-generated-inputs": "ac1715e807062536",
     "lang:testing/running-tests-nvs-test": "35ed159cdab1d562",
     "lang:testing/test-options": "a9cf559722e174fc",
-    "tools:cli/nvs-test": "3dd9fbe4c7b2a4b5",
-    "tools:cli/nvs-test-mutate": "f378eb4cb1ec46a6"
+    "tools:cli/nvs-test": "d7693bf5b58e0240",
+    "tools:cli/nvs-test-mutate": "f7e9c5cb69708ed2"
   }
 }
