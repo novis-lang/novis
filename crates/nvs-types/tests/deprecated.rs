@@ -64,7 +64,7 @@ fn a_deprecated_attribute_on_an_attach_site_it_does_not_take_is_refused() {
          }\n}\n",
     );
     assert_eq!(
-        count(&diags, code::E_DEPRECATED_ON_A_PROPERTY_HOOK),
+        count(&diags, code::E_ATTRIBUTE_WRONG_SITE),
         2,
         "{diags:?}"
     );

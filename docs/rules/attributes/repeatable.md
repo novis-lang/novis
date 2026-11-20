@@ -15,8 +15,9 @@ and `all<T>` returns both, in attach order: `count(all<T>(...))` counts uses, ne
 A retrieval of a `repeatable` attribute with `get<T>` is ambiguous where two uses exist, and that is
 retrieval's error (`rule:attributes/retrieval-folds-while-checking`).
 
-`Core`'s attributes follow the same rule: `#[Access]` and `#[Api]` are not `repeatable`, and `#[Route]`
-and `#[TestWith]` are.
+`Core`'s attributes follow the same rule. `#[Route]`, `#[Command]`, `#[TestWith]` and `#[Api\Scheme]` are
+`repeatable`: two routes or two command names on one method, one data row each, one security scheme
+each. Every other `Core` attribute, `#[Access]` and `#[Api]` included, is not.
 
 **Declined:**
 - **Every attribute repeatable, with each rule that needs one counting on its own.** A second use that

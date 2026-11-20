@@ -14,8 +14,9 @@ entry whose `type` is not a concrete class of the `Throwable` tree, an `errors` 
 naming a field the return type does not declare, an `example` value that does not fit its field's
 type (a nested object and each object in a nested array held to their field's class or shape the
 same way), a `tags` or `security` entry that is not a string, an `#[Api]` on a method carrying no
-`#[Route]`, and a second `#[Api]` on one method. One `#[Api]` describes the operation however many
-`#[Route]` attributes the method carries.
+`#[Route]`. One `#[Api]` describes the operation however many `#[Route]` attributes the method
+carries, so `Core\Api` is not `repeatable`, and a second on one method is `E0763`
+(`rule:attributes/repeatable`).
 
 **`operationId` is optional and replaces the derived `Class.method`**
 (`rule:routing/a-method-is-one-endpoint-everywhere`), for a public API whose clients must keep their

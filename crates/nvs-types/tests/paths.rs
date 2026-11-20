@@ -236,8 +236,9 @@ fn a_path_built_from_anything_else_compiles() {
     assert_eq!(resolved(&exprs).len(), 2, "{:?}", resolved(&exprs));
 }
 
-/// `#[Core\Path]` on a parameter that is not a `string` is refused, and so is
-/// one on a declaration that takes no argument at all.
+/// `#[Core\Path]` on a parameter that is not a `string` is `E0836`. One on a
+/// declaration that takes no argument is `E0874`, since `Core\Path` is
+/// declared `on parameter`.
 #[test]
 fn the_marker_is_refused_away_from_a_string_parameter() {
     let diags = check_src(
@@ -248,9 +249,10 @@ fn the_marker_is_refused_away_from_a_string_parameter() {
     );
     assert_eq!(
         count(&diags, code::E_PATH_MARKER_NOT_ON_A_STRING),
-        2,
+        1,
         "{diags:?}"
     );
+    assert_eq!(count(&diags, code::E_ATTRIBUTE_WRONG_SITE), 1, "{diags:?}");
 }
 
 /// `Core\Path::thisFile()` is replaced by the absolute path of the file that

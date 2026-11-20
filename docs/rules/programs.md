@@ -708,8 +708,9 @@ when it is a path and not a static method, and `Core\Queue::push`'s script, whic
 stores absolute. `Core\Path`'s own members work on path
 text and are not marked, and neither is `Core\IO::within`'s `$path`, which names a file under its
 `$base`. A method marks its own parameter with `#[Core\Path]`, which takes no payload
-and is allowed only on a parameter whose type is a `string`, alone or with `null` (`E0836`
-elsewhere). A default value of such a parameter resolves against the file that declares it.
+and is allowed only on a parameter whose type is a `string`, alone or with `null`. Its declaration
+lists `parameter` alone, so it is `E0874` on any other declaration, and `E0836` on a parameter of
+another type. A default value of such a parameter resolves against the file that declares it.
 
 **A string literal** here is one written as the argument itself. A class constant, a
 concatenation of string literals and a variable are values built while the program runs: a constant

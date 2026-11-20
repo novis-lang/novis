@@ -280,8 +280,9 @@ and `all<T>` returns both, in attach order: `count(all<T>(...))` counts uses, ne
 A retrieval of a `repeatable` attribute with `get<T>` is ambiguous where two uses exist, and that is
 retrieval's error ([`attributes/retrieval-folds-while-checking`](attributes.md#attributes-retrieval-folds-while-checking)).
 
-`Core`'s attributes follow the same rule: `#[Access]` and `#[Api]` are not `repeatable`, and `#[Route]`
-and `#[TestWith]` are.
+`Core`'s attributes follow the same rule. `#[Route]`, `#[Command]`, `#[TestWith]` and `#[Api\Scheme]` are
+`repeatable`: two routes or two command names on one method, one data row each, one security scheme
+each. Every other `Core` attribute, `#[Access]` and `#[Api]` included, is not.
 
 **Declined:**
 - **Every attribute repeatable, with each rule that needs one counting on its own.** A second use that
@@ -414,8 +415,9 @@ entry whose `type` is not a concrete class of the `Throwable` tree, an `errors` 
 naming a field the return type does not declare, an `example` value that does not fit its field's
 type (a nested object and each object in a nested array held to their field's class or shape the
 same way), a `tags` or `security` entry that is not a string, an `#[Api]` on a method carrying no
-`#[Route]`, and a second `#[Api]` on one method. One `#[Api]` describes the operation however many
-`#[Route]` attributes the method carries.
+`#[Route]`. One `#[Api]` describes the operation however many `#[Route]` attributes the method
+carries, so `Core\Api` is not `repeatable`, and a second on one method is `E0763`
+([`attributes/repeatable`](attributes.md#attributes-repeatable)).
 
 **`operationId` is optional and replaces the derived `Class.method`**
 ([`routing/a-method-is-one-endpoint-everywhere`](routing.md#routing-a-method-is-one-endpoint-everywhere)), for a public API whose clients must keep their

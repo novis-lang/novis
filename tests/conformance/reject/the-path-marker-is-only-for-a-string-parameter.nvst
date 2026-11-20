@@ -29,7 +29,7 @@ echo "unreachable\n";
 error[E0836]: `#[Core\Path] $by` is on a parameter of type `int`
   --> case.nvs:6:35
 %A
-error[E0836]: `#[Core\Path]` is on a property
+error[E0874]: `Core\Path` is used on a property, and its declaration allows only `parameter`
    --> case.nvs:11:7
 %A
 error: aborting due to 2 errors

@@ -19,19 +19,19 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0874]: `#[Core\Command]` cannot be written on a class
+error[E0874]: `Core\Command` is used on a class, and its declaration allows only `method`
   --> case.nvs:2:3
 %A
-error[E0874]: `#[Core\Api]` cannot be written on a class
+error[E0874]: `Core\Api` is used on a class, and its declaration allows only `method`
   --> case.nvs:3:3
 %A
-error[E0874]: `#[Core\Command]` cannot be written on a property
+error[E0874]: `Core\Command` is used on a property, and its declaration allows only `method`
   --> case.nvs:5:7
 %A
-error[E0874]: `#[Core\Route]` cannot be written on a property
+error[E0874]: `Core\Route` is used on a property, and its declaration allows only `method`
   --> case.nvs:6:7
 %A
-error[E0874]: `#[Core\Json\Derive]` cannot be written on a method
+error[E0874]: `Core\Json\Derive` is used on a method, and its declaration allows only `class`
   --> case.nvs:9:7
 %A
 error: aborting due to 5 errors

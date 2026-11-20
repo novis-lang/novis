@@ -12,14 +12,19 @@
 //! scope. A name both scopes give is `E1007`, never a silent choice. `Owner::Name`
 //! is the owned declaration from anywhere. A class, an interface, an enum or a
 //! `type` alias after `#[` is `E1005`. A name that resolves to nothing is the
-//! ordinary undeclared-name error. A name on `Core`'s compiler roster
-//! ([`crate::derive::ATTRIBUTES`]) is still checked by the pass that owns it.
+//! ordinary undeclared-name error. A name on `Core`'s compiler roster resolves
+//! to its row of [`crate::derive::ATTRIBUTE_DOCS`], the same declaration value
+//! with its sites and `repeatable`.
 //!
 //! [`check_attribute`] then makes four checks, each its own diagnostic, and
 //! stops at the first that fails, so one mistake is reported once: the site is
 //! one the declaration lists (`E0874`), an owned declaration is used on its
 //! owner's descendants (`E1006`), a second use on one declaration needs
 //! `repeatable` (`E0763`), and the payload fits the declared fields (`E0401`).
+//! A `Core` declaration makes the first and the third the same way. Its
+//! payload is checked by the pass that owns the name, against that pass's
+//! option roster, and so is what that pass asks beyond the site, such as
+//! `#[Route]` needing `#[Access]`.
 //! [`check_attribute_decl`] checks the declaration itself: a site no retrieval
 //! reads is `E1004` there, so no use of it has to be refused one by one.
 //!
@@ -84,10 +89,9 @@ pub(crate) fn check_declaration(
     // `#[Core\Path]`'s and `#[Core\Deprecated]`'s attach rules ask the same
     // question of every site this walk visits, so each walks the same lists
     // once, beside it.
-    crate::paths::check_marker_sites(groups, members, cases, ctx, env);
+    crate::paths::check_marker_sites(members, ctx, env);
     crate::route_params::check_marker_sites(members, ctx, env);
     crate::deprecated::check_sites(decl, groups, members, cases, ctx, env);
-    check_recognized_sites(decl, groups, members, cases, ctx, env);
     for member in members {
         match &member.kind {
             ClassMemberKind::Property(p) => {
@@ -109,11 +113,6 @@ pub(crate) fn check_declaration(
             }
             ClassMemberKind::Method(m) => {
                 check_groups(&m.attributes, UseSite::One(AttributeSite::Method), ctx, env);
-                // `rule:attributes/access-payload`'s repeat rule is a question about the list
-                // rather than about one payload, and this is the walk that
-                // holds a method's whole list.
-                crate::routes::check_one_access(&m.attributes, ctx, env);
-                crate::routes::check_one_api(&m.attributes, ctx, env);
                 // The markers that mean nothing away from the attribute that
                 // reads them — `rule:routing/a-query-parameter-is-declared-like-a-capture`'s `#[Query]`, `rule:attributes/api-adds-and-cannot-contradict`'s
                 // `#[Api]`, `rule:attributes/access-is-a-required-sibling`'s `#[Access]` and `rule:tooling/commands-are-compiled`'s
@@ -216,11 +215,11 @@ enum UseSite {
 }
 
 impl UseSite {
-    fn fits(self, sites: &[AttributeSiteWord]) -> bool {
-        sites.iter().any(|word| match self {
-            Self::One(site) => word.site == site,
+    fn fits(self, sites: &[AttributeSite]) -> bool {
+        sites.iter().any(|&listed| match self {
+            Self::One(site) => listed == site,
             Self::Promoted => {
-                matches!(word.site, AttributeSite::Property | AttributeSite::Parameter)
+                matches!(listed, AttributeSite::Property | AttributeSite::Parameter)
             }
         })
     }
@@ -252,11 +251,8 @@ impl UseSite {
 
 /// Site words in backticks, joined for a message: "`class`, `method` and
 /// `property`".
-fn site_list(sites: &[AttributeSiteWord]) -> String {
-    let words: Vec<String> = sites
-        .iter()
-        .map(|word| format!("`{}`", word.site.word()))
-        .collect();
+fn site_list(sites: &[AttributeSite]) -> String {
+    let words: Vec<String> = sites.iter().map(|site| format!("`{}`", site.word())).collect();
     match words.split_last() {
         None => String::new(),
         Some((last, [])) => last.clone(),
@@ -264,89 +260,74 @@ fn site_list(sites: &[AttributeSiteWord]) -> String {
     }
 }
 
-/// Every attach site under one declaration, each attribute on it held to
-/// [`crate::derive::sites`].
-fn check_recognized_sites(
-    decl: crate::deprecated::Decl,
-    groups: &[AttributeGroup],
-    members: &[ClassMember],
-    cases: &[EnumCase],
-    ctx: &Ctx<'_>,
-    env: &mut Env<'_>,
-) {
-    use crate::derive::Site;
-    let site = match decl {
-        crate::deprecated::Decl::Class => Site::Class,
-        crate::deprecated::Decl::Interface => Site::Interface,
-        crate::deprecated::Decl::Enum => Site::Enum,
-    };
-    report_wrong_site(groups, site, ctx, env);
-    for member in members {
-        match &member.kind {
-            ClassMemberKind::Property(p) => {
-                report_wrong_site(&p.attributes, Site::Property, ctx, env);
-                for hook in p.hooks.iter().flatten() {
-                    report_wrong_site(&hook.attributes, Site::Hook, ctx, env);
-                    if let Some(param) = &hook.param {
-                        report_wrong_site(&param.attributes, Site::HookParam, ctx, env);
-                    }
-                }
-            }
-            ClassMemberKind::Const(c) => report_wrong_site(&c.attributes, Site::Const, ctx, env),
-            ClassMemberKind::Method(m) => {
-                report_wrong_site(&m.attributes, Site::Method, ctx, env);
-                for param in &m.params {
-                    let site = if param.is_promoted() {
-                        Site::PromotedParam
-                    } else {
-                        Site::Param
-                    };
-                    report_wrong_site(&param.attributes, site, ctx, env);
-                }
-            }
-            _ => {}
-        }
-    }
-    for case in cases {
-        report_wrong_site(&case.attributes, Site::EnumCase, ctx, env);
-    }
+/// The sites a program's declaration lists, without their spans.
+fn listed(words: &[AttributeSiteWord]) -> Vec<AttributeSite> {
+    words.iter().map(|word| word.site).collect()
 }
 
-/// `E0874` for each recognized attribute in `groups` whose
-/// [`crate::derive::sites`] leaves out `site`.
-fn report_wrong_site(
-    groups: &[AttributeGroup],
-    site: crate::derive::Site,
-    ctx: &Ctx<'_>,
+/// Check 1, the same for a program's declaration and a `Core` one: `E0874`
+/// when `site` is not one of `sites`. `shown` is the name as the message
+/// writes it. Whether the use may go on.
+fn site_fits(
+    attr: &Attribute,
+    site: UseSite,
+    shown: &str,
+    sites: &[AttributeSite],
     env: &mut Env<'_>,
-) {
-    for attr in groups.iter().flat_map(|g| &g.attributes) {
-        let Some(name) = attr.name.as_ref().filter(|_| attr.member.is_none()) else {
-            continue;
-        };
-        let written = span_text(env.src, name.span);
-        let qname = nvs_hir::resolve_ref(written, ctx.namespace, ctx.imports);
-        let Some(doc) = crate::derive::ATTRIBUTE_DOCS
-            .iter()
-            .find(|doc| qname == nvs_hir::QName::parse(doc.name))
-        else {
-            continue;
-        };
-        let Some(sites) = crate::derive::sites(doc.name) else {
-            continue;
-        };
-        if sites.contains(&site) {
-            continue;
-        }
+) -> bool {
+    if site.fits(sites) {
+        return true;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_ATTRIBUTE_WRONG_SITE,
+            format!(
+                "`{shown}` is used on {}, and its declaration allows only {}",
+                site.noun(),
+                site_list(sites)
+            ),
+        )
+        .with_primary(attr.span, "not allowed here")
+        .with_help(format!(
+            "Use `#[{shown}]` only on {}, or delete it here.",
+            site_list(sites)
+        )),
+    );
+    false
+}
+
+/// Check 3, the same for a program's declaration and a `Core` one: `E0763`
+/// for a second use of `name` on one declaration when it is not
+/// `repeatable`. Each later use is reported against the first. `program` is
+/// whether a program declares it, so the help may say to add `repeatable`.
+/// Whether the use may go on.
+fn count_fits(
+    attr: &Attribute,
+    shown: &str,
+    name: &nvs_hir::QName,
+    repeatable: bool,
+    program: bool,
+    used: &mut Vec<(nvs_hir::QName, Span)>,
+    env: &mut Env<'_>,
+) -> bool {
+    if !repeatable && let Some((_, first)) = used.iter().find(|(seen, _)| seen == name) {
         env.diags.report(
             Diagnostic::error(
-                code::E_ATTRIBUTE_WRONG_SITE,
-                format!("`#[{written}]` cannot be written on {}", site.written()),
+                code::E_ACCESS_REPEATED,
+                format!("`{shown}` is used twice here, and its declaration is not `repeatable`"),
             )
-            .with_primary(attr.span, "this attribute does nothing here")
-            .with_help(format!("Write `#[{written}]` on {}.", doc.site)),
+            .with_primary(attr.span, "second use")
+            .with_secondary(*first, "first use")
+            .with_help(if program {
+                format!("Delete one of the two, or write `repeatable` before `attribute {shown}`.")
+            } else {
+                format!("Delete one of the two, or write all of it in one `#[{shown}]`.")
+            }),
         );
+        return false;
     }
+    used.push((name.clone(), attr.span));
+    true
 }
 
 /// Every attribute on one parameter list — `rule:attributes/attach-sites-and-forms`'s parameter attach site.
@@ -377,8 +358,9 @@ fn check_groups(groups: &[AttributeGroup], site: UseSite, ctx: &Ctx<'_>, env: &m
 pub(crate) enum Lookup<'e> {
     /// An `attribute` declaration.
     Declared(&'e nvs_hir::AttributeDef),
-    /// A name on `Core`'s compiler roster, [`crate::derive::ATTRIBUTES`].
-    Recognized(nvs_hir::QName),
+    /// A name on `Core`'s compiler roster: its row of
+    /// [`crate::derive::ATTRIBUTE_DOCS`], and the name it resolved to.
+    Recognized(&'static crate::derive::AttributeDoc, nvs_hir::QName),
     /// Something that is not an attribute. The text is what it is, for a
     /// message: "a class", "a `type` alias".
     NotAnAttribute(&'static str),
@@ -422,9 +404,9 @@ pub(crate) fn lookup<'e>(
         return Lookup::NotAnAttribute("a class constant or an enum case");
     }
     let qname = nvs_hir::resolve_ref(&text, ctx.namespace, ctx.imports);
-    let recognized = crate::derive::ATTRIBUTES
+    let recognized = crate::derive::ATTRIBUTE_DOCS
         .iter()
-        .any(|want| qname == nvs_hir::QName::parse(want));
+        .find(|doc| qname == nvs_hir::QName::parse(doc.name));
     let scoped = aliases.attribute(&qname);
     // Only a short name is looked up on the owner chain.
     let owned = ctx
@@ -435,14 +417,18 @@ pub(crate) fn lookup<'e>(
                 aliases.attribute(&nvs_hir::QName::member(ancestor, &text))
             })
         });
-    match (owned, scoped.is_some() || recognized) {
+    match (owned, scoped.is_some() || recognized.is_some()) {
         (Some(owned), true) => {
             report_two_scopes(name.span, owned, &qname, env);
             return Lookup::Reported;
         }
         (Some(owned), false) => return Lookup::Declared(owned),
         (None, true) => {
-            return scoped.map_or(Lookup::Recognized(qname), Lookup::Declared);
+            return match (scoped, recognized) {
+                (Some(def), _) => Lookup::Declared(def),
+                (None, Some(doc)) => Lookup::Recognized(doc, qname),
+                (None, None) => Lookup::Reported,
+            };
         }
         (None, false) => {}
     }
@@ -512,7 +498,7 @@ pub(crate) fn lower_retrieval_arg(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -
             return crate::lower::lower_type(&shape, ctx, env);
         }
         Some(Lookup::Reported) => return env.interner.error(),
-        Some(Lookup::Recognized(_)) => (written(env), "is a name the compiler reads".to_owned()),
+        Some(Lookup::Recognized(..)) => (written(env), "is a name the compiler reads".to_owned()),
         Some(Lookup::NotAnAttribute(what)) => (written(env), format!("is {what}")),
         None => {
             let id = crate::lower::lower_type(ty, ctx, env);
@@ -611,14 +597,19 @@ fn check_attribute(
         }
         return;
     };
-    // `rule:core-classes/derive-attribute`'s compiler-recognized attributes are
-    // still a closed, `Core`-owned roster, each payload checked by the pass
-    // that owns its name, and each site by [`check_recognized_sites`].
     let def = match lookup(name, attr.member, ctx, env) {
         Lookup::Declared(def) => def,
-        Lookup::Recognized(qname) => {
+        // `rule:core-classes/derive-attribute`'s compiler-recognized
+        // attributes: checks 1 and 3 as for a program's declaration, and the
+        // payload by the pass that owns the name.
+        Lookup::Recognized(doc, qname) => {
             env.exprs.record_attribute_name(name.span, qname.clone());
-            check_recognized(attr, &qname, payload, ctx, env);
+            let shown = span_text(env.src, name.span).to_owned();
+            if site_fits(attr, site, &shown, doc.sites, env)
+                && count_fits(attr, &shown, &qname, doc.repeatable, false, used, env)
+            {
+                check_recognized(attr, &qname, payload, ctx, env);
+            }
             return;
         }
         Lookup::NotAnAttribute(what) => {
@@ -643,22 +634,7 @@ fn check_attribute(
     env.exprs.record_attribute_name(name.span, def.name.clone());
     let short = def.short_name();
     // 1. The site is one the declaration lists.
-    if !site.fits(&def.sites) {
-        env.diags.report(
-            Diagnostic::error(
-                code::E_ATTRIBUTE_WRONG_SITE,
-                format!(
-                    "`{short}` is used on {}, and its declaration allows only {}",
-                    site.noun(),
-                    site_list(&def.sites)
-                ),
-            )
-            .with_primary(attr.span, "not allowed here")
-            .with_help(format!(
-                "Use `#[{short}]` only on {}, or delete it here.",
-                site_list(&def.sites)
-            )),
-        );
+    if !site_fits(attr, site, short, &listed(&def.sites), env) {
         return;
     }
     // 2. An owned declaration is used on its owner's descendants only.
@@ -685,23 +661,9 @@ fn check_attribute(
         }
     }
     // 3. A second use needs `repeatable`.
-    if !def.repeatable
-        && let Some((_, first)) = used.iter().find(|(seen, _)| *seen == def.name)
-    {
-        env.diags.report(
-            Diagnostic::error(
-                code::E_ACCESS_REPEATED,
-                format!("`{short}` is used twice here, and its declaration is not `repeatable`"),
-            )
-            .with_primary(attr.span, "second use")
-            .with_secondary(*first, "first use")
-            .with_help(format!(
-                "Delete one of the two, or write `repeatable` before `attribute {short}`."
-            )),
-        );
+    if !count_fits(attr, short, &def.name, def.repeatable, true, used, env) {
         return;
     }
-    used.push((def.name.clone(), attr.span));
     // 4. The payload fits the declared fields.
     let shape = def.shape.clone();
     let shape = crate::lower::lower_type(&shape, ctx, env);

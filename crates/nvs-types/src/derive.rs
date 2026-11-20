@@ -44,8 +44,8 @@
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    AnonObjectField, Attribute, AttributeGroup, ClassDecl, ClassMember, ClassMemberKind, ExprKind,
-    Modifier, Param, PropertyMember,
+    AnonObjectField, Attribute, AttributeGroup, AttributeSite, ClassDecl, ClassMember,
+    ClassMemberKind, ExprKind, Modifier, Param, PropertyMember,
 };
 
 use nvs_stdlib::{AllowedValues, CodecElement, CodecTy, EnumCases};
@@ -62,8 +62,9 @@ use crate::{Ctx, Env, span_text, strip_sigil};
 /// spelling of a userland name is any of them. Extended, never widened, and
 /// each entry owes its own argued rule.
 ///
-/// A name on this roster names no shape, so [`crate::attributes`]'s `rule:attributes/attach-sites-and-forms` rule does not apply to it and what its payload may hold is the
-/// recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]`/`#[Json\KeepKeyOrder]` are this
+/// Each name is one row of [`ATTRIBUTE_DOCS`], whose sites and `repeatable`
+/// [`crate::attributes`] checks as it checks a program's declaration. What its
+/// payload may hold is the recognizing pass's own question: `#[Json\Derive]`/`#[Json\Field]`/`#[Json\KeepKeyOrder]` are this
 /// module's, `#[Test]` and `#[Bench]` are [`crate::testing`]'s, `#[Property]` is
 /// [`crate::property`]'s, `#[BeforeClass]`,
 /// `#[AfterClass]` and `#[AfterEachTest]` are [`crate::test_hooks`]',
@@ -101,87 +102,40 @@ pub const ATTRIBUTES: &[&str] = [
 ]
 .as_slice();
 
-/// A declaration an attribute is written on (`rule:attributes/attach-sites-and-forms`).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum Site {
-    Class,
-    Interface,
-    Enum,
-    EnumCase,
-    Method,
-    Property,
-    Hook,
-    Const,
-    /// A method's parameter that does not declare a property.
-    Param,
-    /// A constructor parameter written with a visibility, which declares a
-    /// property too.
-    PromotedParam,
-    /// A `set` hook's parameter.
-    HookParam,
-}
-
-impl Site {
-    /// The site as a diagnostic names it, after "on".
-    pub(crate) const fn written(self) -> &'static str {
-        match self {
-            Self::Class => "a class",
-            Self::Interface => "an interface",
-            Self::Enum => "an enum",
-            Self::EnumCase => "an enum case",
-            Self::Method => "a method",
-            Self::Property => "a property",
-            Self::Hook => "a property hook",
-            Self::Const => "a class constant",
-            Self::Param | Self::PromotedParam => "a parameter",
-            Self::HookParam => "a hook's parameter",
-        }
-    }
-}
-
-/// The sites where the compiler builds something from `name`, one of
-/// [`ATTRIBUTES`], or `None` for a name whose own pass holds it to its sites
-/// (`#[Core\Path]` in [`crate::paths`], `#[Core\Deprecated]` in
-/// [`crate::deprecated`]). Anywhere else the attribute would compile and do
-/// nothing, so [`crate::attributes`] reports it there.
+/// One `Core` compiler attribute as a declaration: the value a program's
+/// `attribute` declaration gives the checker, with its card
+/// (`rule:attributes/an-attribute-is-declared-with-its-sites`).
 ///
-/// A site here is the kind of declaration only. What a pass asks of the one
-/// declaration beyond its kind — a `static` method for `#[Command]`, a
-/// `#[Route]` beside `#[Api]` — stays with that pass.
-pub(crate) fn sites(name: &str) -> Option<&'static [Site]> {
-    Some(match name {
-        DERIVE | KEEP_KEY_ORDER | DB_DERIVE | API_SCHEME => &[Site::Class],
-        NO_MUTATE => &[Site::Class, Site::Method],
-        FIELD | DB_FIELD => &[Site::Property, Site::PromotedParam],
-        TEST | BENCH | FIXTURE | TEST_WITH | PROPERTY | BEFORE_CLASS | AFTER_CLASS
-        | AFTER_EACH_TEST | COMMAND | ROUTE | ACCESS | API => &[Site::Method],
-        OPTION | QUERY => &[Site::Param, Site::PromotedParam],
-        ROUTE_TARGET | ROUTE_PARAMS => &[Site::Param],
-        _ => return None,
-    })
-}
-
-/// One compiler attribute's reference card: what the attribute is for, in one
-/// sentence, the declaration it is written above, and the shape its payload
-/// satisfies, spelled the way a userland attribute declares one
-/// (`rule:attributes/attach-sites-and-forms`).
+/// The checker, the stub tree and the editor read this one value.
+/// [`crate::attributes::lookup`] resolves a name on [`ATTRIBUTES`] to its row,
+/// and `crate::attributes::check_attribute` holds a use to [`Self::sites`] and
+/// [`Self::repeatable`] exactly as it holds a program's declaration (`E0874`,
+/// `E0763`). The payload is still checked by the pass that owns the name,
+/// against that pass's option roster, because a field such as `#[Access]`'s
+/// `allow` asks more than its declared type says.
+/// `every_core_attribute_is_one_declaration` in `tests/derive.rs` holds this
+/// table against [`ATTRIBUTES`], row for row, and holds each row to at least
+/// one site and a doc on every field.
 ///
-/// The registry side of [`ATTRIBUTES`]. A recognized name is matched nominally
-/// and its payload is checked by the pass that owns it, so nothing in this
-/// crate holds that payload as a shape a reader could look at — this table is
-/// where an editor's hover, a stub file and `nvs stubs` read one.
-/// `every_attribute_carries_a_card` holds it against [`ATTRIBUTES`] and, for
-/// every attribute whose pass declares an option roster, against that roster,
-/// so a field cannot be documented here that no pass admits or admitted and
-/// left out.
+/// The data stays Rust data, so start-up parses nothing. A row costs nothing
+/// at run time, and a use costs one site comparison and one count while
+/// compiling.
 ///
-/// `short` and `site` are read by somebody who looked the attribute up in an
-/// editor and has never seen this repository, so each is written to
-/// `AGENTS.md` § *Text an end user reads*.
+/// `short`, `site` and each field's `doc` are read by somebody who looked the
+/// attribute up in an editor and has never seen this repository, so each is
+/// written to `AGENTS.md` § *Text an end user reads*.
 #[derive(Clone, Copy, Debug)]
 pub struct AttributeDoc {
     /// The fully-qualified name, spelled as [`ATTRIBUTES`] spells it.
     pub name: &'static str,
+    /// The sites its `on` list names. A use anywhere else is `E0874`. A site
+    /// here is the kind of declaration only: what a pass asks of the one
+    /// declaration beyond its kind, such as a `static` method for
+    /// `#[Command]`, stays with that pass.
+    pub sites: &'static [AttributeSite],
+    /// Whether one declaration may carry it more than once. A second use of
+    /// one that is not is `E0763`.
+    pub repeatable: bool,
     /// The payload's fields, in the order the owning rule writes them.
     pub fields: &'static [AttributeField],
     /// What the attribute does, in one or two sentences.
@@ -201,7 +155,16 @@ pub struct AttributeField {
     pub ty: &'static str,
     /// Whether a payload must write it.
     pub required: bool,
+    /// What the field does, in one or two sentences: the key's doc a stub
+    /// writes above it and an editor shows.
+    pub doc: &'static str,
 }
+
+/// The `on` lists [`ATTRIBUTE_DOCS`] writes.
+const ON_CLASS: &[AttributeSite] = &[AttributeSite::Class];
+const ON_METHOD: &[AttributeSite] = &[AttributeSite::Method];
+const ON_PROPERTY: &[AttributeSite] = &[AttributeSite::Property];
+const ON_PARAMETER: &[AttributeSite] = &[AttributeSite::Parameter];
 
 impl AttributeDoc {
     /// The last segment of [`Self::name`] — `Route`, `Derive`.
@@ -260,6 +223,8 @@ pub fn attribute_doc(name: &str) -> Option<&'static AttributeDoc> {
 pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     AttributeDoc {
         name: DERIVE,
+        sites: ON_CLASS,
+        repeatable: false,
         fields: &[],
         short: "Generates the JSON encoder and decoder for this class. Every public property \
                 becomes a key.",
@@ -267,16 +232,20 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: FIELD,
+        sites: ON_PROPERTY,
+        repeatable: false,
         fields: &[
             AttributeField {
                 name: "name",
                 ty: "string",
                 required: false,
+                doc: "The key this property is written under in JSON. The default is the property name.",
             },
             AttributeField {
                 name: "skip",
                 ty: "bool",
                 required: false,
+                doc: "When `true`, this property is left out of the JSON. The default is `false`.",
             },
         ],
         short: "Changes how one property is written in JSON: the key it is written under, or \
@@ -285,10 +254,13 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: KEEP_KEY_ORDER,
+        sites: ON_CLASS,
+        repeatable: false,
         fields: &[AttributeField {
             name: "reason",
             ty: "string",
             required: true,
+            doc: "Says who needs this key order. The text is required.",
         }],
         short: "Keeps the JSON keys of this class in the order its properties are written. \
                 `nvs code order` then does not move these properties. `reason` says who needs \
@@ -297,22 +269,28 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: DB_DERIVE,
+        sites: ON_CLASS,
+        repeatable: false,
         fields: &[],
         short: "Generates the row decoder for this class, so a query can return instances of it.",
         site: "a class",
     },
     AttributeDoc {
         name: DB_FIELD,
+        sites: ON_PROPERTY,
+        repeatable: false,
         fields: &[
             AttributeField {
                 name: "name",
                 ty: "string",
                 required: false,
+                doc: "The column this property is read from. The default is the property name.",
             },
             AttributeField {
                 name: "skip",
                 ty: "bool",
                 required: false,
+                doc: "When `true`, this property is not read from the row. The default is `false`.",
             },
         ],
         short: "Changes how one property is read from a row: the column it is read from, or \
@@ -321,41 +299,62 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: TEST,
+        sites: ON_METHOD,
+        repeatable: false,
         fields: &[
             AttributeField {
                 name: "skip",
                 ty: "string",
                 required: false,
+                doc: "A reason for not running this test. The test is reported as skipped with this text.",
             },
             AttributeField {
                 name: "at",
                 ty: "string",
                 required: false,
+                doc: "Fixes the clock of this test to one time in RFC 3339 format, such as `\"2026-01-01T00:00:00Z\"`.",
             },
             AttributeField {
                 name: "seed",
                 ty: "int",
                 required: false,
+                doc: "Fixes the numbers `Core\\Random` returns, so the test gets the same numbers on every run.",
             },
             AttributeField {
                 name: "db",
                 ty: "string",
                 required: false,
+                doc: "The name of a database connection. A transaction starts on it before the test and is rolled back after the test.",
             },
             AttributeField {
                 name: "server",
                 ty: "bool",
                 required: false,
+                doc: "When `true`, the test starts a real server and can send requests to it. The default is `false`.",
             },
             AttributeField {
                 name: "retries",
                 ty: "int",
                 required: false,
+                doc: "The number of extra attempts after a failure, at least 1. It needs `because`. A test that fails and then passes is reported as flaky.",
             },
             AttributeField {
                 name: "because",
                 ty: "string",
                 required: false,
+                doc: "The reason for `retries`. It is required with `retries` and cannot be empty.",
+            },
+            AttributeField {
+                name: "timeout",
+                ty: "string",
+                required: false,
+                doc: "The time limit for this test, such as `\"5s\"`.",
+            },
+            AttributeField {
+                name: "tags",
+                ty: "array<string>",
+                required: false,
+                doc: "Labels for this test. `nvs test --tag` runs only the tests with a given label.",
             },
         ],
         short: "Says that this method is a test. `nvs test` runs it and reports the result.",
@@ -363,16 +362,20 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: BENCH,
+        sites: ON_METHOD,
+        repeatable: false,
         fields: &[
             AttributeField {
                 name: "skip",
                 ty: "string",
                 required: false,
+                doc: "A reason for not running this benchmark. The reason cannot be empty.",
             },
             AttributeField {
                 name: "because",
                 ty: "string",
                 required: false,
+                doc: "The reason for the skip. It cannot be empty.",
             },
         ],
         short: "Says that this method is a benchmark. `nvs test --bench` runs it once and prints \
@@ -381,10 +384,13 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: NO_MUTATE,
+        sites: &[AttributeSite::Class, AttributeSite::Method],
+        repeatable: false,
         fields: &[AttributeField {
             name: "because",
             ty: "string",
             required: true,
+            doc: "The reason this code is not changed by `nvs test --mutate`. It is required and cannot be empty.",
         }],
         short: "Says that `nvs test --mutate` does not change the code of this class or method. \
                 `because:` gives the reason, and it cannot be empty.",
@@ -392,6 +398,8 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: FIXTURE,
+        sites: ON_METHOD,
+        repeatable: false,
         fields: &[],
         short: "Says that this static method builds a value. A test receives that value by \
                 declaring a parameter of the method's return type.",
@@ -399,6 +407,8 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: TEST_WITH,
+        sites: ON_METHOD,
+        repeatable: true,
         fields: &[],
         short: "Gives one row of arguments to the test method below it. The fields are the \
                 method's own parameters, and the method runs once per row.",
@@ -406,58 +416,72 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: PROPERTY,
+        sites: ON_METHOD,
+        repeatable: false,
         fields: &[
             AttributeField {
                 name: "skip",
                 ty: "string",
                 required: false,
+                doc: "A reason for not running this property test. The reason cannot be empty.",
             },
             AttributeField {
                 name: "at",
                 ty: "string",
                 required: false,
+                doc: "Fixes the clock of this test to one time in RFC 3339 format, such as `\"2026-01-01T00:00:00Z\"`.",
             },
             AttributeField {
                 name: "seed",
                 ty: "int",
                 required: false,
+                doc: "The seed for the random values. The same seed gives the same values. The default is a random seed.",
             },
             AttributeField {
                 name: "db",
                 ty: "string",
                 required: false,
+                doc: "The name of a database connection. A transaction starts on it before each call and is rolled back after it.",
             },
             AttributeField {
                 name: "server",
                 ty: "bool",
                 required: false,
+                doc: "When `true`, the test starts a real server and can send requests to it. The default is `false`.",
             },
             AttributeField {
                 name: "timeout",
                 ty: "string",
                 required: false,
+                doc: "The time limit for this test, such as `\"5s\"`.",
             },
             AttributeField {
                 name: "tags",
                 ty: "array<string>",
                 required: false,
+                doc: "Labels for this test. `nvs test --tag` runs only the tests with a given label.",
             },
             AttributeField {
                 name: "runs",
                 ty: "int",
                 required: false,
+                doc: "How many times the method is called, from 1 to 100000. The default is 100.",
             },
             AttributeField {
                 name: "gen",
                 ty: "mixed",
                 required: false,
+                doc: "Limits the values given to each parameter, such as `{count: \"1..10\"}`. A range limits a number, or the length of a string or an array.",
             },
         ],
-        short: "Says that this method is a property test. `nvs test` calls it many times, and                 each call gets new random values for its parameters.",
+        short: "Says that this method is a property test. `nvs test` calls it many times, and \
+                each call gets new random values for its parameters.",
         site: "a method",
     },
     AttributeDoc {
         name: BEFORE_CLASS,
+        sites: ON_METHOD,
+        repeatable: false,
         fields: &[],
         short: "Says that this static method runs once, before the first test of its class. Use \
                 it to create something the tests use, such as a database.",
@@ -465,6 +489,8 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: AFTER_CLASS,
+        sites: ON_METHOD,
+        repeatable: false,
         fields: &[],
         short: "Says that this static method runs once, after the last test of its class. It \
                 also runs when a test fails. Use it to delete what `#[BeforeClass]` created.",
@@ -472,6 +498,8 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: AFTER_EACH_TEST,
+        sites: ON_METHOD,
+        repeatable: false,
         fields: &[],
         short: "Says that this method runs after each test of its class, on the same object, \
                 whether the test passed or failed. Use it to delete files or rows the test \
@@ -480,16 +508,20 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: COMMAND,
+        sites: ON_METHOD,
+        repeatable: true,
         fields: &[
             AttributeField {
                 name: "name",
                 ty: "string",
                 required: true,
+                doc: "The word a user types to run this command. It is required, and it cannot be empty or contain spaces.",
             },
             AttributeField {
                 name: "about",
                 ty: "string",
                 required: false,
+                doc: "The sentence that `--help` prints for this command.",
             },
         ],
         short: "Says that this static method is a command line command. `name` is what a user \
@@ -498,21 +530,26 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: OPTION,
+        sites: ON_PARAMETER,
+        repeatable: false,
         fields: &[
             AttributeField {
                 name: "short",
                 ty: "string",
                 required: false,
+                doc: "The one-letter name of this option, written as `-n`. It must be one letter or digit.",
             },
             AttributeField {
                 name: "long",
                 ty: "string",
                 required: false,
+                doc: "The name of this option, written as `--name`. The default is the parameter name.",
             },
             AttributeField {
                 name: "about",
                 ty: "string",
                 required: false,
+                doc: "The sentence that `--help` prints for this option.",
             },
         ],
         short: "Says that this parameter is a command line option, written as `--name value`. \
@@ -521,26 +558,26 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: ROUTE,
+        sites: ON_METHOD,
+        repeatable: true,
         fields: &[
             AttributeField {
                 name: "path",
                 ty: "string",
                 required: true,
+                doc: "The URL path this method handles. It is required.",
             },
             AttributeField {
                 name: "method",
                 ty: r"Core\Http\Method",
                 required: true,
-            },
-            AttributeField {
-                name: "name",
-                ty: "string",
-                required: false,
+                doc: "The HTTP method this route handles, as a case of `Core\\Http\\Method`. It is required.",
             },
             AttributeField {
                 name: "slotted",
                 ty: "bool",
                 required: false,
+                doc: "When `true`, the page is sent first with placeholders, and each `later` part fills its placeholder when it is ready. The default is `false`.",
             },
         ],
         short: "Declares the HTTP path and method this method handles. Write it twice to \
@@ -549,6 +586,8 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: QUERY,
+        sites: ON_PARAMETER,
+        repeatable: false,
         fields: &[],
         short: "Says that this parameter is read from the query string, under the parameter's \
                 own name and converted to its type.",
@@ -556,6 +595,8 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: ROUTE_TARGET,
+        sites: ON_PARAMETER,
+        repeatable: false,
         fields: &[],
         short: "Says that this parameter takes a route method, such as `Shop::show`. A call that \
                 writes the method here is checked like a call of `Core\\Router::url`.",
@@ -563,6 +604,8 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: ROUTE_PARAMS,
+        sites: ON_PARAMETER,
+        repeatable: false,
         fields: &[],
         short: "Says that this parameter takes the values for the route of the \
                 `#[Core\\Router\\Target]` parameter. An array written here must give every value \
@@ -572,16 +615,20 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: ACCESS,
+        sites: ON_METHOD,
+        repeatable: false,
         fields: &[
             AttributeField {
                 name: "allow",
                 ty: "mixed",
                 required: true,
+                doc: "Who may call this route, as an enum case or a class constant, such as `Role::Admin`. Use `Core\\Audience::Public` for an open route.",
             },
             AttributeField {
                 name: "csrf",
                 ty: "bool",
                 required: false,
+                doc: "When `false`, the CSRF check is off for this route. The default is `true` for the methods that change data.",
             },
         ],
         short: "Says who may call this route. Every route needs one, and `csrf: false` turns \
@@ -590,31 +637,38 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: API,
+        sites: ON_METHOD,
+        repeatable: false,
         fields: &[
             AttributeField {
                 name: "tags",
                 ty: "array<string>",
                 required: false,
+                doc: "The names that group this route in the OpenAPI file, such as `[\"Orders\"]`.",
             },
             AttributeField {
                 name: "errors",
                 ty: "array<{status: int, type: string}>",
                 required: false,
+                doc: "The error responses of this route. Each entry has a `status` from 400 to 599 and a `type` that is an exception class.",
             },
             AttributeField {
                 name: "security",
                 ty: "array<string>",
                 required: false,
+                doc: "The names of the security schemes this route needs. Each name is declared with `#[Core\\Api\\Scheme]`.",
             },
             AttributeField {
                 name: "example",
                 ty: "object",
                 required: false,
+                doc: "An example of the response, written as an object. Its fields must fit the return type of the method.",
             },
             AttributeField {
                 name: "operationId",
                 ty: "string",
                 required: false,
+                doc: "The id of this route in the OpenAPI file. It must be unique in the file.",
             },
         ],
         short: "Adds documentation to a route for the generated OpenAPI file. It changes nothing \
@@ -623,51 +677,62 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: API_SCHEME,
+        sites: ON_CLASS,
+        repeatable: true,
         fields: &[
             AttributeField {
                 name: "name",
                 ty: "string",
                 required: true,
+                doc: "The name of this security scheme. `#[Api(security: [...])]` uses it. It is required.",
             },
             AttributeField {
                 name: "type",
                 ty: r"Core\Api\SchemeType",
                 required: true,
+                doc: "The kind of scheme, as a case of `Core\\Api\\SchemeType`. It is required.",
             },
             AttributeField {
                 name: "description",
                 ty: "string",
                 required: false,
+                doc: "A text that describes this scheme in the OpenAPI file.",
             },
             AttributeField {
                 name: "in",
                 ty: r"Core\Api\KeyIn",
                 required: false,
+                doc: "Where an API key is sent: `KeyIn::Query`, `KeyIn::Header` or `KeyIn::Cookie`. It is required for `ApiKey`.",
             },
             AttributeField {
                 name: "parameter",
                 ty: "string",
                 required: false,
+                doc: "The name of the header, query parameter or cookie that contains the API key. It is required for `ApiKey`.",
             },
             AttributeField {
                 name: "scheme",
                 ty: "string",
                 required: false,
+                doc: "The HTTP authentication scheme, such as `\"bearer\"` or `\"basic\"`. It is required for `Http`.",
             },
             AttributeField {
                 name: "format",
                 ty: "string",
                 required: false,
+                doc: "A hint about the token format, such as `\"JWT\"`. It is used only for `Http`.",
             },
             AttributeField {
                 name: "url",
                 ty: "string",
                 required: false,
+                doc: "The OpenID Connect URL. It is required for `OpenIdConnect`.",
             },
             AttributeField {
                 name: "flows",
                 ty: "mixed",
                 required: false,
+                doc: "The OAuth2 flows, written as an object. It is required for `OAuth2`.",
             },
         ],
         short: "Declares a security scheme for the generated OpenAPI file. An `#[Api(security: \
@@ -676,6 +741,8 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: PATH,
+        sites: ON_PARAMETER,
+        repeatable: false,
         fields: &[],
         short: "Says that this parameter is a file path. A relative path written in quotes \
                 in a call is joined to the folder of the file that contains the call.",
@@ -683,26 +750,32 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: DEPRECATED,
+        sites: &[AttributeSite::Class, AttributeSite::Interface, AttributeSite::Enum, AttributeSite::Method, AttributeSite::Property, AttributeSite::Constant, AttributeSite::Case, AttributeSite::Parameter],
+        repeatable: false,
         fields: &[
             AttributeField {
                 name: "since",
                 ty: "string",
                 required: false,
+                doc: "The version in which this code became deprecated. The warning shows this text.",
             },
             AttributeField {
                 name: "note",
                 ty: "string",
                 required: false,
+                doc: "A short text the warning shows, such as why the code is deprecated.",
             },
             AttributeField {
                 name: "replace",
                 ty: "string",
                 required: false,
+                doc: "The code to write instead, as one expression or one type name. The editor can write it for you.",
             },
             AttributeField {
                 name: "construct",
                 ty: "string",
                 required: false,
+                doc: "For a class only. The code that replaces a `new` of this class, written with the constructor parameters.",
             },
         ],
         short: "Says that this code is deprecated. It still works, but every use of it gives a \

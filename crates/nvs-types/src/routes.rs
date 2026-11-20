@@ -60,8 +60,8 @@
 //! the per-attribute walk; the presence rule is a question about the method's
 //! attribute list and so is asked by the same walk that finds the `#[Route]`
 //! ([`check_access_declared`]); `rule:attributes/access-payload`'s one-per-method
-//! rule is a question about that list as a whole and so is [`check_one_access`],
-//! from the walk that visits every method's list. The decision itself rides on the
+//! rule is `Core\Access` not being `repeatable`, which [`crate::attributes`]
+//! checks as it checks every declaration's count. The decision itself rides on the
 //! row as [`Route::access`], because
 //! `rule:security/access-is-checked-for-presence-not-meaning` leaves enforcement to
 //! whoever dispatches. `rule:security/csrf-is-on-by-default`'s `csrf` opt-out is a
@@ -85,9 +85,9 @@
 //! questions are [`API_OPTIONS`]. Its contradictions are [`check_api`]'s,
 //! each a comparison against the declaration, plus [`check_stray_api`], which
 //! is [`check_stray_query`]'s question about a marker away from the thing that
-//! reads it, and [`check_one_api`] for a second `#[Api]`. One `#[Api]`
-//! describes the operation however many `#[Route]`s the method carries, so it
-//! is asked once per method beside `#[Access]` rather than once per row.
+//! reads it. One `#[Api]` describes the operation however many `#[Route]`s the
+//! method carries, so `Core\Api` is not `repeatable`, and a second is `E0763`
+//! from [`crate::attributes`].
 //!
 //! The same walk reads one thing that is not an attribute at all: the API document's last
 //! row gives the summary and description to **the declaration's own doc
@@ -113,7 +113,7 @@ use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::DOC_MARKER;
 use nvs_syntax::ast::{
-    Attribute, AttributeGroup, ClassDecl, ClassMemberKind, DocComment, ExprKind, MethodMember,
+    Attribute, ClassDecl, ClassMemberKind, DocComment, ExprKind, MethodMember,
 };
 use rustc_hash::FxHashMap;
 
@@ -231,8 +231,8 @@ pub(crate) fn option_home(attribute: &str, option: &str) -> Option<&'static str>
 /// name resolves.
 ///
 /// That rule's other two requirements are not here, because neither is about
-/// one payload: "exactly one `#[Access]` per method" is a question about an
-/// attribute list and is [`check_one_access`], and `csrf: false` on a route
+/// one payload: "exactly one `#[Access]` per method" is `Core\Access` not being
+/// `repeatable`, checked by [`crate::attributes`], and `csrf: false` on a route
 /// whose every verb is safe is a question about that method's verbs and is
 /// [`check_csrf_opt_out`].
 pub(crate) fn check_access(attr: &Attribute, env: &mut Env<'_>) {
@@ -266,72 +266,6 @@ pub(crate) fn check_access(attr: &Attribute, env: &mut Env<'_>) {
     }
 }
 
-/// `rule:attributes/access-payload`'s last rule: exactly one `#[Access]` per method, and a second
-/// one is a compile error naming both.
-///
-/// Asked over a method's whole attribute list, which is why it is not in
-/// [`check_access`] with the other two payload rules: a repeat is a fact about
-/// the *list*, and the walk that checks one payload holds one attribute with no
-/// list around it. Asked of every method rather than only of a `#[Route]`'s,
-/// because the rule says one per method and an `#[Access]` on a method with no
-/// route is already an attribute that will be read by whoever dispatches — two of
-/// them there are the same two readings.
-///
-/// `rule:attributes/repeatable` makes every attribute repeatable in general, and
-/// this is the narrowing `rule:attributes/access-payload` writes over it: a
-/// *third* is reported too, each against the first, so an author deleting the
-/// extras is told about all of them at once rather than one per rebuild.
-pub(crate) fn check_one_access(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut Env<'_>) {
-    let mut first: Option<Span> = None;
-    for attr in groups.iter().flat_map(|group| &group.attributes) {
-        if !crate::derive::attribute_is(attr, crate::derive::ACCESS, ctx, env) {
-            continue;
-        }
-        let Some(declared) = first else {
-            first = Some(attr.span);
-            continue;
-        };
-        env.diags.report(
-            Diagnostic::error(
-                code::E_ACCESS_REPEATED,
-                "this method declares more than one access decision",
-            )
-            .with_primary(attr.span, "a second `#[Access]`")
-            .with_secondary(declared, "the decision this method already declares")
-            .with_help(
-                "two decisions can mean that all of them apply, or that any one of them applies. \
-                 Write one `#[Access]` with the one decision this method makes",
-            ),
-        );
-    }
-}
-
-/// A second `#[Api]` on one method (`rule:attributes/api-adds-and-cannot-contradict`).
-/// One `#[Api]` describes the operation, and the route reads only the first,
-/// so each later one is `E0771` naming the first.
-pub(crate) fn check_one_api(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut Env<'_>) {
-    let mut first: Option<Span> = None;
-    for attr in groups.iter().flat_map(|group| &group.attributes) {
-        if !crate::derive::attribute_is(attr, crate::derive::API, ctx, env) {
-            continue;
-        }
-        let Some(declared) = first else {
-            first = Some(attr.span);
-            continue;
-        };
-        env.diags.report(
-            Diagnostic::error(
-                code::E_API_CONTRADICTS_THE_CODE,
-                "this method has more than one `#[Api]`",
-            )
-            .with_primary(attr.span, "a second `#[Api]`")
-            .with_secondary(declared, "the first `#[Api]`")
-            .with_help(
-                "One `#[Api]` describes the operation. Write all its fields in one `#[Api]`.",
-            ),
-        );
-    }
-}
 
 /// `rule:routing/a-query-parameter-is-declared-like-a-capture`'s marker held to the declaration that reads it: a `#[Query]` on
 /// a parameter of a method carrying no `#[Route]`.
@@ -347,8 +281,9 @@ pub(crate) fn check_one_api(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut 
 /// closed roster: a name the compiler knows, written where the compiler never
 /// looks, reads to its author as a declaration that binds something.
 ///
-/// Reported once per parameter, as [`check_one_access`] reports once per extra
-/// attribute: each marker is its own mistake with its own span, so an author who
+/// Reported once per parameter, as a second use of an attribute that is not
+/// `repeatable` is reported once per extra use: each marker is its own mistake
+/// with its own span, so an author who
 /// wrote three is told about all three rather than one per rebuild.
 pub(crate) fn check_stray_query(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     if m.attributes
@@ -1380,8 +1315,7 @@ pub(crate) fn check_stray_api(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>
 ///
 /// Reported for the first `#[Access]` alone, where [`check_stray_query`] reports
 /// per parameter: `rule:attributes/access-payload` admits one per method and a
-/// second is
-/// [`check_one_access`]'s own error, so naming every one of them here would
+/// second is `E0763` from [`crate::attributes`], so naming every one of them here would
 /// report the author's single mistake once per attribute they are about to
 /// delete together.
 pub(crate) fn check_stray_access(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {

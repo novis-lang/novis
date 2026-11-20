@@ -1,5 +1,5 @@
 --TEST--
-An `#[Api]` that contradicts its route is `E0771`: an error type that is not `Throwable`, an error status outside 400-599 or listed twice, an example for a route that returns no object, an example value of the wrong type, an unknown key in a nested example object, and a second `#[Api]` on one method
+An `#[Api]` that contradicts its route is `E0771`: an error type that is not `Throwable`, an error status outside 400-599 or listed twice, an example for a route that returns no object, an example value of the wrong type, and an unknown key in a nested example object. A second `#[Api]` on one method is `E0763`, since `#[Api]` is not `repeatable`
 --FILE--
 <?nvs
 class Report {}
@@ -56,7 +56,7 @@ error[E0771]: the field `id` is `uint`, and this value is `string`
 %A
 error[E0771]: `Address` declares no `street`
 %A
-error[E0771]: this method has more than one `#[Api]`
+error[E0763]: `Core\Api` is used twice here, and its declaration is not `repeatable`
 %A
 error: aborting due to 7 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -292,9 +292,9 @@ class Qualified {
     let diags = check_src("<?nvs\n#[Core\\Db\\Derive]\nclass Marker {}\n");
     assert!(reported(&diags, code::E_DERIVE_NO_FIELDS), "{diags:?}");
 
-    // A userland alias that happens to be spelled `Derive` resolves to a
-    // different `QName` and is not this attribute — the same class is silent.
-    let diags = check_src("<?nvs\ntype Derive = {};\n#[Derive]\nclass Marker {}\n");
+    // A program's own attribute named `Derive` resolves to a different
+    // `QName` and is not this attribute, so the same class is silent.
+    let diags = check_src("<?nvs\nattribute Derive on class {}\n#[Derive]\nclass Marker {}\n");
     assert!(!diags.has_errors(), "{diags:?}");
 
     // `rule:core-classes/derive-generates-what-is-missing` one-directionally: `Core\\Db\\Codec` declares `fromRow` alone, so a
@@ -984,4 +984,19 @@ class Order {
     // A shape declares no constructor, so what a decode fills is every slot it
     // has — which is what makes the field's index its parameter and its slot.
     assert_eq!(nested.ctor_arity, nested.fields.len());
+}
+
+/// Every name on `Core`'s compiler roster is one declaration value, in the
+/// roster's order: it lists at least one site, and each of its fields has a
+/// doc an editor can show (`rule:attributes/an-attribute-is-declared-with-its-sites`).
+#[test]
+fn every_core_attribute_is_one_declaration() {
+    let names: Vec<&str> = derive::ATTRIBUTE_DOCS.iter().map(|doc| doc.name).collect();
+    assert_eq!(names, derive::ATTRIBUTES);
+    for doc in derive::ATTRIBUTE_DOCS {
+        assert!(!doc.sites.is_empty(), "{} lists no site", doc.name);
+        for field in doc.fields {
+            assert!(!field.doc.trim().is_empty(), "{}.{} has no doc", doc.name, field.name);
+        }
+    }
 }

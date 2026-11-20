@@ -19,10 +19,10 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0874]: `#[Core\Router\Target]` cannot be written on a method
+error[E0874]: `Core\Router\Target` is used on a method, and its declaration allows only `parameter`
   --> case.nvs:3:7
 %A
-error[E0874]: `#[Core\Router\Params]` cannot be written on a method
+error[E0874]: `Core\Router\Params` is used on a method, and its declaration allows only `parameter`
   --> case.nvs:8:7
 %A
 error: aborting due to 2 errors

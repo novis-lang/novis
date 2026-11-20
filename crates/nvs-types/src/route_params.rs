@@ -10,10 +10,10 @@
 //!
 //! # Where a mark may be written
 //!
-//! [`crate::derive::sites`] gives both [`crate::derive::Site::Param`] alone, so
-//! [`crate::attributes`] already reports a mark on a method, a class, a
-//! property or a promoted constructor parameter (`E0874`). What is left here
-//! is the one parameter's type and the method's whole list:
+//! Both are declared `on parameter` in [`crate::derive::ATTRIBUTE_DOCS`], so
+//! [`crate::attributes`] already reports a mark on a method, a class or a
+//! property (`E0874`). What is left here is the one parameter's type and the
+//! method's whole list:
 //!
 //! - **`E0899`**: a `Target` on a parameter whose type is not `callable`, a
 //!   `callable(...)` type, or either one nullable; a `Params` on one whose type

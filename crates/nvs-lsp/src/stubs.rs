@@ -748,28 +748,45 @@ fn interface_stub(name: &str) -> (String, Vec<(Option<String>, Line)>) {
     (writer.text, vec![(None, line)])
 }
 
-/// One compiler attribute that is not also a class: the shape its payload
-/// satisfies, declared the way a userland attribute is
-/// (`rule:attributes/attach-sites-and-forms`), under its card.
+/// One compiler attribute that is not also a class, declared the way a
+/// program declares one (`rule:attributes/an-attribute-is-declared-with-its-sites`):
+/// its card, then `attribute Name on <sites> { … }`, each field under its
+/// own doc.
 fn attribute_stub(doc: &AttributeDoc) -> (String, Vec<(Option<String>, Line)>) {
     let mut writer = Writer::open(doc.name);
     writer.doc(
         "",
         &format!(
-            "{}\n\nWritten above {} as `{}`.",
+            "{}
+
+Written above {} as `{}`.",
             doc.short,
             doc.site,
             doc.spelled()
         ),
     );
-    writer.push("type ");
+    if doc.repeatable {
+        writer.push("repeatable ");
+    }
+    writer.push("attribute ");
     let line = writer.name(doc.short_name());
-    let shape = if doc.fields.is_empty() {
-        "object".to_owned()
-    } else {
-        doc.shape()
-    };
-    writer.push(&format!(" = {shape};\n"));
+    let sites: Vec<&str> = doc.sites.iter().map(|site| site.word()).collect();
+    writer.push(&format!(" on {}", sites.join(", ")));
+    if doc.fields.is_empty() {
+        writer.push(" {}
+");
+        return (writer.text, vec![(None, line)]);
+    }
+    writer.push(" {
+");
+    for field in doc.fields {
+        writer.doc("    ", field.doc);
+        let optional = if field.required { "" } else { "?" };
+        writer.push(&format!("    {}{optional}: {},
+", field.name, field.ty));
+    }
+    writer.push("}
+");
     (writer.text, vec![(None, line)])
 }
 

@@ -88,7 +88,7 @@ use nvs_diagnostics::{Diagnostic, SourceFile, code, lexical_normalize as normali
 use nvs_hir::QName;
 use nvs_stdlib::registry::ParamText;
 use nvs_syntax::ast::{
-    Arg, AttributeGroup, BinaryOp, CallArgs, ClassMember, ClassMemberKind, EnumCase, Expr,
+    Arg, BinaryOp, CallArgs, ClassMember, ClassMemberKind, Expr,
     ExprKind, MethodMember, Param, StringPart, Type, TypeAtom, TypeKind,
 };
 
@@ -425,40 +425,21 @@ fn without_verbatim(path: PathBuf) -> PathBuf {
     out
 }
 
-/// `#[Core\Path]` held to the one place it means something: a method
-/// parameter whose declared type is a `string`. Asked from
-/// [`crate::attributes::check_declaration`]'s walk, which visits every attach
-/// site of one declaration, for [`crate::routes::check_stray_query`]'s reason.
-pub(crate) fn check_marker_sites(
-    groups: &[AttributeGroup],
-    members: &[ClassMember],
-    cases: &[EnumCase],
-    ctx: &Ctx<'_>,
-    env: &mut Env<'_>,
-) {
-    report_stray(groups, "a declaration", ctx, env);
+/// `#[Core\Path]` held to the one parameter it means something on: one whose
+/// declared type is a `string`. `Core\Path` is declared `on parameter`, so
+/// [`crate::attributes`] reports it on any other site (`E0874`). Asked from
+/// [`crate::attributes::check_declaration`]'s walk, for
+/// [`crate::routes::check_stray_query`]'s reason.
+pub(crate) fn check_marker_sites(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
     for member in members {
-        match &member.kind {
-            ClassMemberKind::Property(p) => {
-                report_stray(&p.attributes, "a property", ctx, env);
-                for hook in p.hooks.iter().flatten() {
-                    report_stray(&hook.attributes, "a property hook", ctx, env);
-                }
-            }
-            ClassMemberKind::Const(c) => report_stray(&c.attributes, "a constant", ctx, env),
-            ClassMemberKind::Method(m) => check_method(m, ctx, env),
-            _ => {}
+        if let ClassMemberKind::Method(m) = &member.kind {
+            check_method(m, ctx, env);
         }
-    }
-    for case in cases {
-        report_stray(&case.attributes, "an enum case", ctx, env);
     }
 }
 
-/// One method: the marker on the method itself, and on each parameter whose
-/// type is not a `string`.
+/// One method: the marker on each parameter whose type is not a `string`.
 fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
-    report_stray(&m.attributes, "a method", ctx, env);
     for param in &m.params {
         let Some(attr) =
             crate::testing::attribute_named(&param.attributes, crate::derive::PATH, ctx, env)
@@ -488,26 +469,6 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     }
 }
 
-/// Each `#[Core\Path]` among `groups`, which sit on `site` — somewhere no
-/// argument is ever passed.
-fn report_stray(groups: &[AttributeGroup], site: &str, ctx: &Ctx<'_>, env: &mut Env<'_>) {
-    for attr in groups.iter().flat_map(|group| &group.attributes) {
-        if !crate::derive::attribute_is(attr, crate::derive::PATH, ctx, env) {
-            continue;
-        }
-        env.diags.report(
-            Diagnostic::error(
-                code::E_PATH_MARKER_NOT_ON_A_STRING,
-                format!("`#[Core\\Path]` is on {site}"),
-            )
-            .with_primary(attr.span, "nothing is passed here")
-            .with_help(
-                "`#[Core\\Path]` goes on a method parameter that takes a file path. Move it to \
-                 that parameter, or delete it",
-            ),
-        );
-    }
-}
 
 /// Whether a written type is `string` — plain or qualified — alone or with
 /// `null`: `string`, `?string`, `string|null`, `tainted string`.

@@ -339,11 +339,11 @@ fn a_command_table_is_built_from_the_program_enumeration() {
         "Deploy::deploy"
     );
 
-    // Nominal, like every other name on the closed roster: a userland alias
-    // spelled `Command` contributes nothing, which is the whole reason the
-    // two names sit on `nvs_types::derive::ATTRIBUTES`.
+    // Nominal, like every other name on the closed roster: a program's own
+    // attribute named `Command` contributes nothing, which is the whole
+    // reason the two names sit on `nvs_types::derive::ATTRIBUTES`.
     let (diags, exprs) = check_src_table(
-        "<?nvs\ntype Command = {name: string};\nclass Deploy {\n  \
+        "<?nvs\nattribute Command on method { name: string }\nclass Deploy {\n  \
          #[Command(name: \"deploy\")]\n  public static function deploy(): void {}\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");

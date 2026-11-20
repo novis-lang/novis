@@ -670,12 +670,7 @@ pub(crate) fn check_sites(
                 for attr in deprecations(&p.attributes, ctx, env) {
                     template::check(template::Target::Property(p), attr, ctx, env);
                 }
-                for hook in p.hooks.iter().flatten() {
-                    report_on_hook(&hook.attributes, ctx, env);
-                    if let Some(param) = &hook.param {
-                        report_on_hook(&param.attributes, ctx, env);
-                    }
-                }
+
             }
             ClassMemberKind::Const(c) => {
                 report_construct(&c.attributes, "a constant", ctx, env);
@@ -748,17 +743,4 @@ fn report_construct(groups: &[AttributeGroup], site: &str, ctx: &Ctx<'_>, env: &
     }
 }
 
-/// Each `#[Core\Deprecated]` among `groups`, which sit on a property hook or
-/// on its parameter.
-fn report_on_hook(groups: &[AttributeGroup], ctx: &Ctx<'_>, env: &mut Env<'_>) {
-    for attr in deprecations(groups, ctx, env) {
-        env.diags.report(
-            Diagnostic::error(
-                code::E_DEPRECATED_ON_A_PROPERTY_HOOK,
-                "`#[Core\\Deprecated]` is on a property hook",
-            )
-            .with_primary(attr.span, "a use names the property, not its hook")
-            .with_help("write `#[Core\\Deprecated]` above the property instead"),
-        );
-    }
-}
+
