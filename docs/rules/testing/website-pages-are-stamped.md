@@ -1,6 +1,9 @@
 Every handwritten website page lists in `covers:` the proofs roster's ids of the features it explains,
 and `website/site.lock.json` records the hash each feature had when the page was last reread against
-it. The hash covers the feature's help card or reference section, its `about.md` and its examples.
+it. The hash covers the feature's help card or reference section, its `about.md`, its examples and
+the tests whose `covers:` marker names it, so a change of behaviour makes the page stale. The
+feature's own `about.md` and help card are stamped in the same lock
+(`rule:testing/every-change-reaches-the-website`).
 
 A covered id the roster no longer has is **broken**. A covered feature whose hash moved since the
 page's stamp is **stale**. `bun nv site --check` refuses every broken id and every stale page, and
@@ -18,7 +21,7 @@ guard, the stamp, the build and every `--check` part, in place of a script per c
 run in the CI job that has already built `nvs`, because the snippets and the roster both need it.
 
 **A page's search questions are stamped as the page is.** Each entry of `website/src/data/questions.json`
-records the feature its questions were written from and that feature's hash, and an entry whose hash
+records the feature its questions were written from and that feature's hash without its tests, and an entry whose hash
 moved is stale. `bun nv site --check questions` fails on every stale or broken entry and on every
 built page with no entry, so a new page fails CI until it has questions. It also holds each entry to
 four to six questions of at most 15 words, in the words of § *Text an end user reads*, with no question

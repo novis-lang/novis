@@ -39,6 +39,7 @@
     "testing/examples-live-in-the-repository",
     "testing/an-example-carries-its-own-configuration",
     "testing/website-pages-are-stamped",
+    "testing/every-change-reaches-the-website",
     "testing/the-tools-area-has-a-page-for-each-tool",
     "testing/a-terminal-block-shows-what-nvs-printed",
     "testing/a-replay-plays-what-the-language-server-returned",
