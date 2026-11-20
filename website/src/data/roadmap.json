@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Attributes and property names the compiler checks",
-      "text": "An attribute is declared with the places where it may be used, and the editor offers only the attributes that fit. A property path can step into an array with `@key` and `@value`. An attribute can name a property of the class it is on. The compiler checks each name, and a wrong name does not compile.",
-      "goals": [
-        "attribute-property-names"
-      ]
-    },
-    {
       "title": "A part of the page filled later reads the request",
       "text": "A function passed to `Core\\Html::later` can read the request's path, headers, cookies, query and route parameters. Reading the request body there throws a `LogicError`. Read the body in the main script and pass the value to the function.",
       "goals": [
