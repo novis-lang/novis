@@ -345,6 +345,23 @@ every anchor in those files is re-found with `bun nv peek --locate <symbol>` bef
     with `RevokedObjectError`'s message under the error that door throws. The rule says so. A
     property write is checked once its receiver is held, before the value is computed, so a
     `revoke()` inside the assigned expression itself is not caught.
+22. **The runtime asks the collection through hooks on its descriptor (stage 4's call).**
+    `nvs_runtime::revoke::CollectionHooks` (`drop_entry`, `unlink_all`, `link_all`) is set for the
+    three classes in `nvs_stdlib::instance` by `ClassTable::set_collection_hooks`. A revoked map key
+    or value and a set member are taken out with the class's own `remove` code, so a chain key's
+    rename never leaves a membership with a stale store key. A membership keeps the program's key,
+    retained unless it is an object. `revoke` retains every collection on the list for the walk.
+    `clone` and a graph copy call `link_all`, and `dismantle` and `reclaim` call `unlink_all`.
+23. **Adding a revoked object to a collection does nothing (stage 4's call).** `set`, `add` and
+    `push` drop it at once, as if it were added and revoked, so no collection ever holds one.
+24. **A program with no revocable class pays one load per write (stage 4's call).**
+    `ClassTable::set_revocable` sets a process flag (`revoke::in_use`). Every membership step is
+    behind it. A loop keeps the thread's revoke count (`revoke::revokes`) from its start, and checks
+    an entry for a revoked object only once that count moves.
+25. **A heap keeps a revoked entry in place, and its sifts never call the ordering on one (stage
+    4's call).** The `revoked` slot counts such entries. A revoked entry sorts first, so it rises to
+    the root, and `pop` and `peek` drop it there (`settle`). `sift_up` compares with the nearest
+    ancestor that is not revoked. `count` is the store's count less the slot.
 
 ### More choices the authoring session made (settled)
 
@@ -561,18 +578,18 @@ runs both checks once.
 `collections` check under `tests/conformance/core/`, each with `// covers:
 lang:classes/revocable-objects`. The session runs the check once.
 
-- [ ] `crates/nvs-runtime/src/revoke.rs`: `link(object, collection, kind, key)` and `unlink`, and
+- [x] `crates/nvs-runtime/src/revoke.rs`: `link(object, collection, kind, key)` and `unlink`, and
   `revoke`'s walk, which removes a map entry or a set member with `NvsArray::unset`
   (`crates/nvs-runtime/src/array.rs:1879`) and drops a heap's count by one.
-- [ ] `Core\ObjectMap` (`crates/nvs-stdlib/src/objmap.rs`): `set` (`:365`) links the key and the
+- [x] `Core\ObjectMap` (`crates/nvs-stdlib/src/objmap.rs`): `set` (`:365`) links the key and the
   value and unlinks a replaced value, `remove` (`:457`) and `clear` (`:535`) unlink, and `count`
   (`:474`) stays the store's count. A loop over the shared store (`iterate`, `:523`) skips a hole.
-- [ ] `Core\ObjectSet` (`crates/nvs-stdlib/src/objset.rs`): `add` (`:375`) links, `remove` (`:413`) and
+- [x] `Core\ObjectSet` (`crates/nvs-stdlib/src/objset.rs`): `add` (`:375`) links, `remove` (`:413`) and
   `clear` (`:515`) unlink. `union`, `intersect` and `diff` link each member of the set they make.
-- [ ] `Core\Heap` (`crates/nvs-stdlib/src/heap.rs`): `push` (`:655`) links. `pop` (`:693`) and `peek`
+- [x] `Core\Heap` (`crates/nvs-stdlib/src/heap.rs`): `push` (`:655`) links. `pop` (`:693`) and `peek`
   (`:679`) skip a revoked entry and unlink it. `count` (`:733`) is the heap's own count, which
   `revoke` lowers. `iterate` (`:759`) skips a revoked entry.
-- [ ] Release: `dismantle` (`crates/nvs-runtime/src/object.rs:4895`) unlinks each member of one of
+- [x] Release: `dismantle` (`crates/nvs-runtime/src/object.rs:4895`) unlinks each member of one of
   the three collections as it releases its entries. `reclaim` (`object.rs:3827`) unlinks within a
   cycle before it frees. The sweep (`object.rs:3718`) walks no membership.
 - [ ] `crates/nvs-codegen/tests/revocable.rs`: the four tests of the `collections-memory` check. The
@@ -672,30 +689,43 @@ user reads*.
 
 ### State
 
-Stages 1 to 3 are built. Stage 3's checks are green, each run once: `checks-placed`, `uses-throw`
-and `uses-pass`.
-- `8170280181`: `InstKind::CheckRevoked` and its code (`emit_check_revoked` in `emit.rs`: one load,
-  one signed compare below `-1`, a cold `nvs_throw_revoked` with a status check), placed by
-  `emit_revoked_check` before a property read (`lower_class_property_read`), both property-write
-  branches in `stmt.rs`, and a method call in `lower_method_call` (not `revoke`/`isRevoked`, not a
-  static call). `revoke::revoked_use` and `revoked_text` are what the erased read, write and call,
-  the clone guard, `Core\Json`'s object walk and the graph copy ask. `Core\Debug` shows
-  `Post (revoked)` with no properties (`record.rs` `object_body`). Decisions 19 to 21.
-- The seventeen cases are committed beside it.
-
-The acceptance sweep's nightly failures were all from run 44510687786 at `adc7487`, before its fixes
-(`eb5c02e983`, `4c82a2409a`, `656f5b2f2d`, `1c75c4ef0e`); no nightly has run since.
+Stages 1 to 3 are built and checked. Stage 4's code is built (one commit, `feat(stdlib)`), with
+decisions 22 to 25. Build and clippy are green.
+- `revoke.rs`: `link`, `unlink`, `CollectionHooks`, `in_use`, `revokes`, `is_revoked_value`, and the
+  walk in `revoke`. `budget::membership_walks` is the test counter.
+- `object.rs`: `ClassDesc::collection_hooks`, the calls in `dismantle`, `reclaim` (before the field
+  sweep) and `nvs_object_clone`. `graph.rs` `close_object` calls `link_all`.
+- `objmap.rs` (`held_under`, `each_pair`, `remove_entry`, `write_pair`, `remove_pair`, `HOOKS`),
+  `objset.rs` (`each_member`, `remove_member`, `HOOKS`; the algebra links in `built_from`),
+  `heap.rs` (`REVOKED` slot, `revoked_first`, `settle`, `take_root`, `HOOKS`), and `cursor.rs`
+  (`EPOCH`, `PAIRS`, `paired`, `holds_revoked`; keyed `KEYED_EPOCH`).
+- A scratch program showed every behaviour of decision 4: counts after a revoke, a loop skipping an
+  entry revoked mid-loop, a replaced value left alone, a cloned set, and 2,000 node-and-set cycles.
+- Three of the four `collections-memory` tests pass, run once: `a_freed_collection_clears_its_back_links`,
+  `the_request_end_walks_no_back_link`, `a_membership_is_charged_to_the_request_and_returned`.
+- **Red:** `a_cycle_of_a_map_and_its_member_is_reclaimed_cleanly` (peak 192,459 bytes for 200
+  cycles, 1,924,060 for 2,000). Not yet known whether the collector runs at all during a script run
+  in this harness (`reclaim` is called at `object.rs:3905` and `:3937`; read what triggers them) or
+  whether the hooks keep the cycle alive. Compare a plain class first: if a plain node-and-map cycle
+  grows the same way, the test must make the collector run (or read it at the request's end), and
+  the code is fine.
 
 ### Next
 
-Stage 4, from its first item: `link(object, collection, kind, key)` and `unlink` in
-`crates/nvs-runtime/src/revoke.rs` beside `revoke`, which already frees the `Memberships` box and must
-now remove each entry first. Re-find every anchor in `objmap.rs`, `objset.rs`, `heap.rs` and
-`identity_store.rs` with `bun nv peek --locate <symbol>` (the gate decision). `dismantle` and
-`reclaim` are in `crates/nvs-runtime/src/object.rs`.
+1. The red cycle test above, as described. One attempt is left for this item.
+2. `docs/rules/core-api/collections-drop-revoked-objects.md` and `docs/rules/classes/revocable-objects.md`:
+   the memory figures are wrong. The hidden slot is 16 bytes (a `Value`), not 8. A membership is
+   32 bytes, plus a 24-byte box per object in any collection. Add decisions 23 and 25 (a revoked
+   object is not added; the heap's sifts never call the ordering on a revoked entry), and
+   `bun nv rules --render`.
+3. The eight cases under `tests/conformance/core/` by one writing subagent (the stage's split), then
+   the `collections` check once. Remember `count()` returns `uint`, and `<=>` does not work on strings
+   (`Core\Str::compare`).
+4. `Core\Debug::dump` of a heap now shows a third property, `$revoked => int(0)`. No case pins a heap
+   dump. Stage 6's pages should not show one.
 
-No existing test is expected to go red. A case that dumps an object with `Core\Debug` is unchanged
-unless its class is revocable.
+Expected red outside stage 4: none known. The cursor and heap classes gained slots, so a Rust test
+that builds a cursor or heap with a slot array of the old length would fail; none was found.
 
 ### Backlog
 
