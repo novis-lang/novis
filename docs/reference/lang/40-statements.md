@@ -668,7 +668,8 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 `var` gives the variable the type of the subject's values. Over an array you may get the key too,
 with `var $key => var $value`. The key of an array is always a `string`. A `Core\ObjectMap` gives
 keys too, and each key has the map's key type. You can write the type in place of
-`var`, as in `string $key => int $value`. A variable with neither does not compile.
+`var`, as in `string $key => int $value`. A loop variable without `var` and without a type does not
+compile.
 
 The value variable is a copy. With `inout`, as in `foreach ($rows as inout var $row)`, each write to
 the variable goes back into the array. The syntax `&$value` does not compile. A loop visits the
@@ -700,7 +701,8 @@ An array literal can be the subject when the value variable uses `var`. All its 
 same type. Elements of different types are the error `E0414`, and so is an empty array `[]`. With a
 written type, an array literal does not compile. Put it in a typed variable first.
 
-An `inout` loop walks the array itself. An element that the body adds at the end is visited too.
+An `inout` loop also visits only the elements the array had when it began. An element that the body
+adds is not visited.
 
 A later `foreach` in the same function can declare the same variable again with the same type. With
 another type, the second declaration is the error `E0406`.
