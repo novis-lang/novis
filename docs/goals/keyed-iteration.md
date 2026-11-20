@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-hir/src/interfaces.rs, crates/nvs-types/src/iter_lib.rs, crates/nvs-types/src/expr/iteration.rs, crates/nvs-types/tests/foreach.rs, docs/rules/iteration/no-magic-collection-interfaces.md, docs/rules/iteration/concrete-generic-implements.md, docs/rules/types/no-user-generics.md, data/rules/iteration.json]
   - id: 2
     title: a keyed loop runs over a map and over a user class that implements the keyed pair
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/control.rs, crates/nvs-stdlib/src/cursor.rs, crates/nvs-stdlib/src/objmap.rs, crates/nvs-runtime/src/sequence.rs, tests/conformance/core/object-map-iterates-its-keys.nvst, tests/conformance/iter/foreach-over-an-iterable-object.nvst]
   - id: 3
     title: the editor shows the key's type, and the feature has its proofs
@@ -343,7 +343,7 @@ check names, copying the shape of `tests/conformance/iter/foreach-over-an-iterab
 a `// covers:` line: `lang:iteration/keys-and-values-from-a-map` for the map cases, `KeyedIterable` and
 `KeyedIterator` for the two user-class cases. The session runs the check once.
 
-- [ ] `crates/nvs-ir/src/lower/control.rs:903`: the non-array branch keeps the `inout` assert, drops the
+- [x] `crates/nvs-ir/src/lower/control.rs:903`: the non-array branch keeps the `inout` assert, drops the
   key assert for a keyed drive, and passes the key binding on. `lower_foreach_cursor` (`:1297`) takes
   the key binding and whether the drive is keyed: it calls `iterateKeyed` in place of `iterate`, and
   after each `advance` calls `key` (when a key is bound) and then `current`, each through
@@ -353,21 +353,21 @@ a `// covers:` line: `lang:iteration/keys-and-values-from-a-map` for the map cas
   `(r"Core\ObjectMap", Var("K"), Var("V"))`, and its lookup beside `iterable_element` (`:4299`).
   `crates/nvs-types/src/core_lib.rs:156` lowers both types and `:304` seeds the `KeyedIterable` edge.
   The test at `:2780` asserts the map reaches both edges.
-- [ ] `crates/nvs-stdlib/src/cursor.rs:65`: a keyed cursor class beside `Core\Cursor`, internal as that
+- [x] `crates/nvs-stdlib/src/cursor.rs:65`: a keyed cursor class beside `Core\Cursor`, internal as that
   one is, which walks the map's store with no copy and answers `advance`, `key` and `current`. Its module
   doc says what it spends. `crates/nvs-stdlib/src/objmap.rs:523`: `nvs_core_object_map_iterate_keyed`
   beside `nvs_core_object_map_iterate`, its symbol beside `ITERATE_SYMBOL` (`:52`) and its row in
   `address` (`:300`). The module doc's *A `foreach` over a map yields its keys* paragraph says which loop
   gives what.
-- [ ] `crates/nvs-stdlib/src/instance.rs:143` and `:790`: the keyed cursor joins `INTERNAL_CLASSES`, the
+- [x] `crates/nvs-stdlib/src/instance.rs:143` and `:790`: the keyed cursor joins `INTERNAL_CLASSES`, the
   map's row gains `iterateKeyed`, and the cursor's row (`:1006`) has a keyed twin.
   `every_keyed_iterable_class_answers_the_keyed_protocol` beside
   `every_iterable_class_answers_the_iteration_protocol` (`:2159`).
   `a_keyed_cursor_pairs_each_key_with_its_value` and `a_keyed_cursor_shares_the_maps_store` in
   `crates/nvs-stdlib/src/cursor.rs`'s tests. The `keyed-runtime` check run once.
-- [ ] Tried by hand before the cases: a keyed loop over a map, a value-only loop over a map, a user
+- [x] Tried by hand before the cases: a keyed loop over a map, a value-only loop over a map, a user
   `KeyedIterable` and a user `KeyedIterator`, each printing what it walked.
-- [ ] The thirteen `.nvst` cases of the `keyed-loop` check, and the check run once. The existing
+- [x] The thirteen `.nvst` cases of the `keyed-loop` check, and the check run once. The existing
   `tests/conformance/core/object-map-iterates-its-keys.nvst:1` stays green unchanged.
 
 ### 3. the editor shows the key's type, and the feature has its proofs
@@ -470,40 +470,46 @@ their `.out` files, which must print what they print today. The session writes t
 
 ### State
 
-Stage 1 is done. The rule `rule:iteration/keyed-interfaces` is written, and the other rule texts say
-what a keyed loop binds. `KeyedIterable<K, V>` and `KeyedIterator<K, V>` are on `RESERVED` and seeded
-in `iter_lib`. The checker classifies a keyed subject (`ForeachSource::Keyed`) and records
-`ForeachDrive::KeyedIterable`/`KeyedCursor`. The binding form picks the pair. The `E0443`/`E0444`
-cards and helps use the new wording. The `keyed-checker` check is green, with all ten tests.
+Stages 1 and 2 are done. A keyed `foreach` runs over a `Core\ObjectMap` and over a user
+`KeyedIterable`/`KeyedIterator`, and the `keyed-checker`, `keyed-loop` and `keyed-runtime` checks are
+green.
 
-Stage 2's roster item landed early, because the checker needs it to see the map as keyed:
-`KEYED_ITERABLES` and `keyed_iterable_entry` in `crates/nvs-stdlib/src/registry.rs`, the edge in
-`crates/nvs-types/src/core_lib.rs` `seed`, and the assertion in
-`a_collection_implements_iterable_at_its_own_element`.
+- `lower_foreach_cursor` (`crates/nvs-ir/src/lower/control.rs`) takes a `CursorDrive` (the key binding,
+  `via_iterable`, `keyed`). A keyed drive calls `iterateKeyed`, then per entry `advance`, `key` (only when
+  a key is bound) and `current`.
+- `Core\KeyedCursor` (`crates/nvs-stdlib/src/cursor.rs` `KEYED_CLASS`) holds one reference on the
+  map's key store and one on its value store. It steps the two by order, with a slot index per store,
+  so it never relies on the two stores having the same slot layout. A `string` or `int` map reads the
+  key from the value store's own key. `nvs_core_object_map_iterate_keyed` builds it, and the dispatch
+  rows and `INTERNAL_CLASSES` in `crates/nvs-stdlib/src/instance.rs` name it.
+- `E0851` over the keyed pair has its own help (`OUTSIDE_KEYED_KEY_HELP` in
+  `crates/nvs-types/src/expr/iteration.rs`), and `E0442` over an interface with two type arguments asks
+  for every argument (`crates/nvs-types/src/lower.rs` `lower_generic_interface`).
+- The thirteen cases are under `tests/conformance/iter/` and `tests/conformance/reject/`, with
+  `// covers:` lines. `object-map-iterates-its-keys.nvst` stays green unchanged.
 
-`nvs-ir` asserts on a keyed drive (`crates/nvs-ir/src/lower/control.rs`, the assert before the
-non-array branch), so a keyed loop type-checks and the compiler panics at lowering. Stage 2 removes the
-assert. `walk_element` (`crates/nvs-types/src/expr/args.rs`) treats only the value pair as a walk, so a
-`KeyedIterable` is not admitted where a `Core` member reads an `Iterable`.
-
-The acceptance sweep's nightly findings (Miri, supply chain, proofs shots, browser) were all fixed
-after that nightly's commit, by `4c82a2409a`, `eb5c02e983`, `656f5b2f2d` and `1c75c4ef0e`. The next
-nightly should show them green.
+The acceptance sweep's nightly findings ran on `adc7487`, before their fixes `4c82a2409a`, `eb5c02e983`,
+`656f5b2f2d` and `1c75c4ef0e`, so nothing was left to fix this session.
 
 ### Next
 
-Stage 2, from `crates/nvs-ir/src/lower/control.rs` `lower_foreach_cursor` (find it with
-`bun nv peek --locate lower_foreach_cursor`). Then the keyed cursor beside `Core\Cursor` in
-`crates/nvs-stdlib/src/cursor.rs`, `nvs_core_object_map_iterate_keyed` in
-`crates/nvs-stdlib/src/objmap.rs`, and the dispatch rows in `crates/nvs-stdlib/src/instance.rs`.
-`sequence::ITERATE_KEYED` and `sequence::KEY` already exist. Remember the address `match` row in
-`crates/nvs-stdlib/src/lib.rs` `entry_of` for the new symbol.
+Stage 3, following its `**Split:**` line. First the session's own part: the two `.lspt` cases under
+`tests/lsp/hints/` and `tests/lsp/completion/` (shape:
+`tests/lsp/hints/an-inferred-var-declaration-carries-the-type-it-hid.lspt`), then the chapter heading
+`# Keys and values from a map` in `docs/examples/lang/iteration/chapter.md` and the section's
+`about.md`/`details.md`. Then the four writing subagents (examples, attack, bench, the two interfaces'
+`about.md`). The bench records the keyed loop beside an array loop, and its measured figures go into
+`rule:iteration/keyed-interfaces`'s *What it spends* line.
 
-`check_keyed_key`'s `E0851` reuses `report_untainted_outside_key`, whose help talks about `mixed`
-values and arrays. Stage 2's reject case `a-map-key-that-is-tainted-binds-tainted-whether-written-or-var`
-reads that help. If it reads wrong for a map, give the keyed case its own help line there.
-
-No test is expected to go red. `tests/conformance/iter/a-generator-has-no-key-to-bind.nvst` matches
-its help with `%A`, so it did not change.
+No test is expected to go red. A frozen case that prints E0442's help for a multi-argument interface
+in full would change, and none was found: every reject case matches that help with `%A`.
 
 ### Backlog
+
+- A wrong type-argument count on `implements KeyedIterable` (`E0442`) also prints a follow-on `E0404`
+  about `iterateKeyed`, because the recovery interns the bare name. `a-keyed-interface-needs-concrete-type-arguments.nvst`
+  pins both. One mistake should give one diagnostic. The fix is in `lower_generic_interface`'s recovery
+  or in the override check, and it would change that case's expected output.
+- `walk_element` (`crates/nvs-types/src/expr/args.rs`) treats only the value pair as a walk, so a
+  `KeyedIterable` that is not also an `Iterable` is not admitted where a `Core` member reads an
+  `Iterable`. That is the settled decision for `Core\Arr::from`, and it stays.
