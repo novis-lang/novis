@@ -829,17 +829,24 @@ fn attribute_card(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)
     Some((declared.card(), span))
 }
 
-/// The doc of the key under the cursor in an attribute's payload: the key's
-/// declaration as a code block, then its `///` run.
+/// The doc of the key under the cursor in an attribute's payload or in a
+/// `{…}` at a shape type: the key's declaration as a code block, then its
+/// `///` run.
 ///
 /// A key is no node, so it is read off the text: a name directly in the
-/// attribute's parentheses, followed by its `:`.
+/// attribute's parentheses or the object's braces, followed by its `:`. An
+/// object's keys are those of the shape its position declares
+/// ([`crate::completion::object_shape`]).
 fn attribute_key(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
     let path = analysed.index.at(offset);
-    let attribute = path
-        .nodes()
-        .first()
-        .filter(|node| node.kind == "Attribute")?;
+    let [attribute, outer @ ..] = path.nodes() else {
+        return None;
+    };
+    let opener = match attribute.kind {
+        "Attribute" => '(',
+        "AnonObject" => '{',
+        _ => return None,
+    };
     let text = analysed.map.file(analysed.entry).text();
     let is_name = |ch: char| ch.is_ascii_alphanumeric() || ch == '_';
     let at = offset as usize;
@@ -850,11 +857,15 @@ fn attribute_key(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)>
         return None;
     }
     let before = text.get(attribute.span.start as usize..start)?.trim_end();
-    if !(before.ends_with('(') || before.ends_with(',')) {
+    if !(before.ends_with(opener) || before.ends_with(',')) {
         return None;
     }
-    let declared = crate::attribute_decls::of_attribute(analysed, attribute.span)?;
-    let key = declared.keys().into_iter().find(|key| key.name == word)?;
+    let key = if opener == '{' {
+        object_key(analysed, *attribute, outer, word)?
+    } else {
+        let declared = crate::attribute_decls::of_attribute(analysed, attribute.span)?;
+        declared.keys().into_iter().find(|key| key.name == word)?
+    };
     let optional = if key.required { "" } else { "?" };
     let mut card = format!("```nvs\n{}{optional}: {}\n```", key.name, key.ty);
     if let Some(doc) = key.doc {
@@ -867,6 +878,29 @@ fn attribute_key(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)>
         BytePos::try_from(end).ok()?,
     );
     Some((card, span))
+}
+
+/// The field `word` of the shape the `{…}` `object` declares, as the key a
+/// card shows: its name, its type, whether it is required, and its doc.
+fn object_key(
+    analysed: &Analysed,
+    object: IndexNode,
+    outer: &[IndexNode],
+    word: &str,
+) -> Option<crate::attribute_decls::Key> {
+    let interner = &analysed.interner;
+    let shape = crate::completion::object_shape(analysed, object, outer)?;
+    let shape = crate::completion::without_null(interner, shape)?;
+    let nvs_types::Ty::Shape(fields) = interner.get(shape) else {
+        return None;
+    };
+    let field = fields.iter().find(|field| field.name == word)?;
+    Some(crate::attribute_decls::Key {
+        name: field.name.clone(),
+        ty: interner.describe(field.ty),
+        required: field.required,
+        doc: crate::completion::shape_field_doc(analysed, shape, word),
+    })
 }
 
 /// The card of the class, interface, enum or attribute a name written outside

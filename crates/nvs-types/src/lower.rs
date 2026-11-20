@@ -201,7 +201,18 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
                     required: field.required,
                 });
             }
-            env.interner.shape(out)
+            let docs: Vec<_> = fields
+                .iter()
+                .zip(&out)
+                .filter_map(|(field, lowered)| Some((lowered.name.clone(), field.doc.clone()?)))
+                .collect();
+            let id = env.interner.shape(out);
+            // A field's `///` run is no part of the type, so an editor reads it
+            // from this side table (`rule:attributes/an-attribute-is-declared-with-its-sites`).
+            for (name, doc) in docs {
+                env.exprs.record_shape_field_doc(id, name, doc);
+            }
+            id
         }
         TypeAtom::Mixed => env.interner.mixed(),
         TypeAtom::SecretMixed => env.interner.secret_mixed(),

@@ -1735,6 +1735,8 @@ pub struct ExprTypeTable {
     callable_conformance: FxHashMap<Span, Vec<String>>,
     attribute_names: Vec<(Span, QName)>,
     attribute_shapes: FxHashMap<Span, TypeId>,
+    object_shapes: FxHashMap<Span, TypeId>,
+    shape_field_docs: FxHashMap<(TypeId, String), nvs_syntax::ast::DocComment>,
     deprecation_checks: FxHashMap<Span, Vec<DeprecationCheck>>,
     deprecated_entries: FxHashMap<Span, DeprecationCheck>,
     capability_guards: FxHashMap<Span, CapabilityGuard>,
@@ -1931,6 +1933,8 @@ impl ExprTypeTable {
             callable_conformance,
             attribute_names,
             attribute_shapes,
+            object_shapes,
+            shape_field_docs,
             deprecation_checks,
             deprecated_entries,
             capability_guards,
@@ -1998,6 +2002,10 @@ impl ExprTypeTable {
         self.callable_conformance.extend(callable_conformance);
         self.attribute_names.extend(attribute_names);
         self.attribute_shapes.extend(attribute_shapes);
+        self.object_shapes.extend(object_shapes);
+        for (key, doc) in shape_field_docs {
+            self.shape_field_docs.entry(key).or_insert(doc);
+        }
         self.deprecation_checks.extend(deprecation_checks);
         self.deprecated_entries.extend(deprecated_entries);
         self.capability_guards.extend(capability_guards);
@@ -2093,6 +2101,8 @@ impl ExprTypeTable {
         section("callable_conformance", sorted(&self.callable_conformance));
         section("attribute_names", sorted(&self.attribute_names));
         section("attribute_shapes", sorted(&self.attribute_shapes));
+        section("object_shapes", sorted(&self.object_shapes));
+        section("shape_field_docs", sorted(&self.shape_field_docs));
         section("deprecation_checks", sorted(&self.deprecation_checks));
         section("deprecated_entries", sorted(&self.deprecated_entries));
         section("capability_guards", sorted(&self.capability_guards));
@@ -2259,6 +2269,48 @@ impl ExprTypeTable {
     #[must_use]
     pub fn attribute_shape(&self, span: Span) -> Option<TypeId> {
         self.attribute_shapes.get(&span).copied()
+    }
+
+    /// Records the shape the position of the anonymous object written at
+    /// `span` declares (`rule:types/shape-type`). An editor reads the keys
+    /// and their docs off it. One entry per object literal at a shape
+    /// position, while compiling only.
+    pub(crate) fn record_object_shape(&mut self, span: Span, shape: TypeId) {
+        self.object_shapes.insert(span, shape);
+    }
+
+    /// The shape the position of the anonymous object written at `span`
+    /// declares, or `None` where it declares none.
+    #[must_use]
+    pub fn object_shape(&self, span: Span) -> Option<TypeId> {
+        self.object_shapes.get(&span).copied()
+    }
+
+    /// Records the `///` run above the field `name` of a written shape type.
+    ///
+    /// The doc is not part of the interned type, because two shapes with the
+    /// same fields are one type whatever their docs say. So the first written
+    /// shape of that type with a doc on the field gives it. One entry per
+    /// documented field, while compiling only.
+    pub(crate) fn record_shape_field_doc(
+        &mut self,
+        shape: TypeId,
+        name: String,
+        doc: nvs_syntax::ast::DocComment,
+    ) {
+        self.shape_field_docs.entry((shape, name)).or_insert(doc);
+    }
+
+    /// The `///` run above the field `name` of the shape `shape`, when a
+    /// written shape of that type documents it. Its spans name the file it
+    /// was written in.
+    #[must_use]
+    pub fn shape_field_doc(
+        &self,
+        shape: TypeId,
+        name: &str,
+    ) -> Option<&nvs_syntax::ast::DocComment> {
+        self.shape_field_docs.get(&(shape, name.to_owned()))
     }
 
     /// The declaration the attribute name written at `span` resolved to.

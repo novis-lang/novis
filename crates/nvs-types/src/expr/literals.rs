@@ -1023,6 +1023,7 @@ pub(crate) fn check_heredoc_run_issues(
 /// run, and only the repeat is dropped from the interned shape — which keeps
 /// what flows onward a genuine set rather than a shape no reader agrees on.
 pub(crate) fn check_anon_object(
+    span: Span,
     fields: &[AnonObjectField],
     expected: Option<TypeId>,
     live: &mut Live,
@@ -1038,6 +1039,10 @@ pub(crate) fn check_anon_object(
         .map(|field| span_text(env.src, field.name))
         .collect();
     let expected = expected.and_then(|id| declared_shape(id, &written, env));
+    if let Some(shape) = expected {
+        // Read by an editor, for the keys and their docs.
+        env.exprs.record_object_shape(span, shape);
+    }
     let mut out: Vec<ShapeField> = Vec::with_capacity(fields.len());
     for field in fields {
         let name = span_text(env.src, field.name).to_owned();

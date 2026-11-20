@@ -1,0 +1,25 @@
+--TEST--
+hovering a key in an object literal written where a shape type is declared shows the key's field and the `///` doc above it in that shape, `rule:types/shape-type`
+--FILE--
+<?nvs
+class Mailer
+{
+    public static function send(
+        {
+            /// The address the message goes to.
+            to: string,
+            /// The line shown before the message is opened.
+            subject?: string,
+        } $message,
+    ): void {}
+}
+
+Mailer::send({to: "a@example.com", sub<|>ject: "Hello"});
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+subject?: string
+```
+
+The line shown before the message is opened.

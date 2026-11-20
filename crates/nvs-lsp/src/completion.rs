@@ -24,7 +24,9 @@
 //! field name in the `{…}` options bag a `Core` member takes last is offered
 //! that member's options ([`option_key_at`]), and a field name in an
 //! attribute's payload the keys of the declaration its name resolved to, each
-//! with its doc ([`attribute_key_at`]). Inside a string in such a payload, the
+//! with its doc ([`attribute_key_at`]). A field name in any `{…}` written at a
+//! shape type is offered that shape's keys, each with the `///` doc the shape
+//! gives it ([`object_shape`]). Inside a string in such a payload, the
 //! strings in the set of allowed values its field's type lists
 //! ([`attribute_values`]). After `#[`, the attribute declarations whose sites
 //! and owner fit the declaration below ([`attributes_that_fit`]), and after
@@ -1469,7 +1471,7 @@ fn attribute_key_at(
     }
     let written = inside.len() - name;
     if payload.kind == "AnonObject" {
-        let shape = payload_type(analysed, payload.span, outer)?;
+        let shape = object_shape(analysed, *payload, outer)?;
         return Some((written, Fields::Shape(shape)));
     }
     let declared = crate::attribute_decls::of_attribute(analysed, payload.span).or_else(|| {
@@ -1499,10 +1501,37 @@ fn shape_keys(cursor: &Cursor<'_>, written: usize, shape: TypeId) -> Vec<Complet
             };
             CompletionItem {
                 text_edit: Some(cursor.replacing(written, format!("{}: ", field.name))),
+                documentation: shape_field_doc(cursor.analysed, shape, &field.name).map(markdown),
                 ..item(field.name.clone(), CompletionItemKind::FIELD, detail)
             }
         })
         .collect()
+}
+
+/// The shape the `{…}` `object` declares, where `outer` is the chain of nodes
+/// that holds it, innermost first. The checker records the shape of a literal
+/// at a shape position. A `{…}` inside an attribute's payload is read through
+/// the payload's declaration instead ([`payload_type`]).
+pub(crate) fn object_shape(
+    analysed: &Analysed,
+    object: IndexNode,
+    outer: &[IndexNode],
+) -> Option<TypeId> {
+    analysed
+        .exprs
+        .object_shape(object.span)
+        .or_else(|| payload_type(analysed, object.span, outer))
+}
+
+/// The `///` run above the field `name` of the shape `shape`, as Markdown,
+/// when a written shape of that type documents it
+/// (`nvs_types::ExprTypeTable::shape_field_doc`). A `?` on the shape is looked
+/// through.
+pub(crate) fn shape_field_doc(analysed: &Analysed, shape: TypeId, name: &str) -> Option<String> {
+    let shape = without_null(&analysed.interner, shape)?;
+    let doc = analysed.exprs.shape_field_doc(shape, name)?;
+    let text = crate::hover::markdown(analysed.map.file(doc.span.file).text(), doc);
+    (!text.trim().is_empty()).then_some(text)
 }
 
 /// The string the cursor at `offset` is writing in a named attribute's
@@ -1590,7 +1619,7 @@ fn key_before(analysed: &Analysed, holder: IndexNode, value: Span) -> Option<&st
 }
 
 /// `ty` with `null` taken out of it, where one type is left.
-fn without_null(interner: &nvs_types::TypeInterner, ty: TypeId) -> Option<TypeId> {
+pub(crate) fn without_null(interner: &nvs_types::TypeInterner, ty: TypeId) -> Option<TypeId> {
     let Ty::Union(members) = interner.get(ty) else {
         return Some(ty);
     };

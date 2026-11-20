@@ -891,7 +891,7 @@ fn check_attribute(
     // `Core\Attributes::get<Name>` finds.
     let mut live = Live::default();
     let scope = LocalScope::new();
-    let actual = check_anon_object(&attr.fields, None, &mut live, &scope, ctx, env);
+    let actual = check_anon_object(attr.span, &attr.fields, None, &mut live, &scope, ctx, env);
     let actual = crate::retrieval::with_requested_literals(
         &attr.fields,
         actual,

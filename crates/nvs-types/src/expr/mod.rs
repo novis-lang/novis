@@ -383,7 +383,9 @@ fn infer_kind(
         ExprKind::ArrayLiteral(items) => {
             check_array_literal(items, expected, live, scope, ctx, env)
         }
-        ExprKind::AnonObject(fields) => check_anon_object(fields, expected, live, scope, ctx, env),
+        ExprKind::AnonObject(fields) => {
+            check_anon_object(expr.span, fields, expected, live, scope, ctx, env)
+        }
         ExprKind::Unary { op, expr: inner } => {
             // `infer`, not `check_expr`: the operand inherits an *expectation*
             // rather than a position it has to satisfy, so a `-$n` under a

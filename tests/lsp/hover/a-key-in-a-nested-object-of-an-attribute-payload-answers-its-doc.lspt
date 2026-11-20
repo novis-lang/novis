@@ -1,0 +1,25 @@
+--TEST--
+hovering a key in a `{…}` written inside an attribute's payload shows the key's field and the `///` doc above it in the field's shape, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:types/shape-type`
+--FILE--
+<?nvs
+attribute Cache on method {
+    ttlSeconds: int,
+    vary?: {
+        /// `true` means each language gets its own copy.
+        language: bool,
+    },
+}
+
+class Pages
+{
+    #[Cache(ttlSeconds: 60, vary: {lang<|>uage: true})]
+    public function home(): void {}
+}
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+language: bool
+```
+
+`true` means each language gets its own copy.
