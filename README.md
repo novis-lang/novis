@@ -130,10 +130,9 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **A part of the page filled later reads the request.** *Working on it now.* A function passed to `Core\Html::later` can read the request's path, headers, cookies, query and route parameters. Reading the request body there throws a `LogicError`. Read the body in the main script and pass the value to the function.
-2. **A comparison with seven servers.** The comparison page measures Novis beside seven other servers, among them Node.js, .NET and Python. Recording a new comparison takes less work.
-3. **Reload a running server.** `nvs reload` makes a running server use the files that are on the disk now. It tells you when the server runs the new files.
-4. **Faster answers from nvs code.** `nvs code` uses the same index as the editor. It does not analyse an unchanged project again. The first index of a project uses every processor core. One `calls` or `reach` command can take several methods.
+1. **A comparison with seven servers.** *Working on it now.* The comparison page measures Novis beside seven other servers, among them Node.js, .NET and Python. Recording a new comparison takes less work.
+2. **Reload a running server.** `nvs reload` makes a running server use the files that are on the disk now. It tells you when the server runs the new files.
+3. **Faster answers from nvs code.** `nvs code` uses the same index as the editor. It does not analyse an unchanged project again. The first index of a project uses every processor core. One `calls` or `reach` command can take several methods.
 <!-- roadmap:end -->
 
 ## Contributing
