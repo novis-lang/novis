@@ -797,13 +797,10 @@
   "benches/members/core/ObjectMap/clear.nvs": "6a2206eb8d0aa043",
   "benches/members/core/ObjectMap/clear.scale.nvs": "57359d785732272a",
   "benches/members/core/ObjectMap/count.nvs": "66e21fd2f2b1a1d4",
-  "benches/members/core/ObjectMap/get.nvs": "941cd5be1fbe868b",
-  "benches/members/core/ObjectMap/has.nvs": "3b0d282fcb603934",
   "benches/members/core/ObjectMap/isEmpty.nvs": "e817caf2878d69d9",
   "benches/members/core/ObjectMap/keys.nvs": "421384220e3a9872",
   "benches/members/core/ObjectMap/keys.scale.nvs": "347615c9e72c2f9f",
   "benches/members/core/ObjectMap/remove.nvs": "d6ef3240ee12a84d",
-  "benches/members/core/ObjectMap/set.nvs": "a891b45c0d58c32a",
   "benches/members/core/ObjectMap/values.nvs": "87d5e85f43040237",
   "benches/members/core/ObjectMap/values.scale.nvs": "7d7d7b8cd691f1a7",
   "benches/members/core/ObjectSet/add.nvs": "c6bf7b5aa7a02cf7",
@@ -1569,8 +1566,6 @@
   "benches/members/lang/expressions/the-pipeline-operator.nvs": "8af50c9e10ee205b",
   "benches/members/lang/expressions/the-pipeline-operator.scale.nvs": "bc3234e7000c128a",
   "benches/members/lang/expressions/the-pipeline-operator.twin.nvs": "4025518f25e206b1",
-  "benches/members/lang/iteration/core-collections-are-iterable.nvs": "3ecdf396d52f88b1",
-  "benches/members/lang/iteration/core-collections-are-iterable.scale.nvs": "060d4ef18c70f5e2",
   "benches/members/lang/iteration/generators.nvs": "eb1055cad4e2d23f",
   "benches/members/lang/iteration/generators.scale.nvs": "1868b0c4e6e7c205",
   "benches/members/lang/iteration/materialising-a-sequence-core-arr-from.nvs": "d7e0363e525308b1",
@@ -11867,6 +11862,5 @@
   "website/src/content/docs/tools/index.mdx": "61b1adffe5764dce",
   "website/src/content/docs/tools/profiler/index.mdx": "a007e278e8494f94",
   "website/src/content/docs/tools/test-runner/coverage.mdx": "07b19a4c4f0376d7",
-  "website/src/content/docs/tools/test-runner/index.mdx": "8370eff52e66ca97",
-  "website/src/data/changes.json": "b4ba2d90b7a173d5"
+  "website/src/content/docs/tools/test-runner/index.mdx": "8370eff52e66ca97"
 }
