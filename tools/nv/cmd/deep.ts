@@ -119,7 +119,7 @@ export interface Step {
 const ASAN_ENV = { RUSTFLAGS: "-Zsanitizer=address", CARGO_TARGET_DIR: `${WSL_TARGET}-asan` };
 const DEBUG_NVS = join(ROOT, "target", "debug", "nvs.exe");
 const PROOF_NVS = "target/proof/nvs.exe";
-const SITE_CHECKS = ["structure", "snippets", "stale", "questions", "syntax", "guides", "tools", "in-depth", "roadmap", "prose", "apps", "code"];
+const SITE_CHECKS = ["structure", "snippets", "stale", "changes", "questions", "syntax", "guides", "tools", "in-depth", "roadmap", "prose", "apps", "code"];
 /** The Linux debug binary in WSL's copy. */
 const WSL_NVS = `${WSL_TARGET}/debug/nvs`;
 const BUN_INSTALL = "bun install --frozen-lockfile";

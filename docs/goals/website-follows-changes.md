@@ -14,7 +14,7 @@ stages:
     context: [tools/nv/cmd/release.ts, website/src/lib/feature.ts, website/src/components/MethodChangelog.astro, tools/nv/schema/proofs.ts, .github/workflows/release.yml, tools/nv/cmd/ci.ts]
   - id: 3
     title: every feature changed since the last release has its entry
-    status: open
+    status: done
     context: [website/src/data/changes.json, docs/agent/prose.md, tools/nv/lib/changes.ts, tools/nv/cmd/ci.ts]
   - id: 4
     title: "a changed user text needs a review stamp, and Reviewed is a feature proof"
@@ -339,6 +339,15 @@ tool and no roster feature, so the goal owes no feature proof and no entry of it
   so turning the part on before the entries exist would make every push and `ci-check` red for a
   stage. The item moved to stage 3. `changes` is in `PARTS`, so a bare `bun nv site --check` runs it.
 
+**What stage 3 settled (my calls, 2026-11-20).**
+
+- A speed-up whose change added or moved a test gets a `faster` entry and an `unseen` record for the
+  moved hash, whose `why` says the results are the same. A `faster` entry does not clear a move, so the
+  check stays strict about results. A speed-up that also changes a result is a `changed` entry
+  (`Core\Json::isValid`).
+- A configuration key is not on the roster, so a renamed key goes into the text of the entry for the
+  feature it serves (`[session] ttl` in the `Core\Session::set` entry).
+
 **Lanes.** Stages 1, 2 and 4 share `tools/nv/cmd/site.ts` and `tools/nv/lib/texts.ts`, so they run in
 that order. Stage 3 writes `website/src/data/changes.json` and the three stale-guard lines, and may run
 as a side goal beside stage 4 once stage 2 is done. Stage 5 touches `AGENTS.md` and `docs/agent/` only, and may run as a side goal
@@ -426,14 +435,14 @@ each (`core`, `lang`, `tools`, `config`, the rest) into `.agent-tmp/changes-<are
 check prints and the features' `about.md` and tests. The session reads each draft against the tests,
 merges them into the data file, and deletes the drafts.
 
-- [ ] `bun nv site --check changes` once, and its list written into `### State`.
-- [ ] `website/src/data/changes.json:1`: one entry per change a user can see, which may name several
+- [x] `bun nv site --check changes` once, and its list written into `### State`.
+- [x] `website/src/data/changes.json:1`: one entry per change a user can see, which may name several
   features. An `unseen` record only for a moved hash with nothing a user sees, with its `why`.
   `testing/every-change-reaches-the-website` (new)
-- [ ] `tools/nv/cmd/ci.ts:350`, `tools/nv/cmd/deep.ts:122` and `.github/workflows/ci.yml:608`: the
+- [x] `tools/nv/cmd/ci.ts:350`, `tools/nv/cmd/deep.ts:122` and `.github/workflows/ci.yml:608`: the
   website stale guard runs `changes` too, once the entries above make it green. The comment above the
   CI step says what it checks. `testing/every-change-reaches-the-website` (new)
-- [ ] The `changes-green` check, run once.
+- [x] The `changes-green` check, run once.
 
 ### 4. a changed user text needs a review stamp, and Reviewed is a feature proof
 
@@ -506,17 +515,24 @@ holds the data shapes, `changesProblems`, `notesSections`, `changelogKey` and `r
 changelog (`MethodChangelog.astro` takes `level` and `slug`), and the site builds.
 
 The first snapshot, `data/proofs/released.json`, is `since: "v0.0.4"`: 1597 features, read with the
-v0.0.4 Windows release binary in a worktree at the tag with the current `tools/nv`. On the tree now,
-`--check changes` names 163 features: 36 new, 117 changed and 10 removed.
+v0.0.4 Windows release binary in a worktree at the tag with the current `tools/nv`.
 
-The stale-guard item moved to stage 3 (§ *What stage 2 settled*).
+Stage 3 is done, and `changes-green` is green. `--check changes` named 163 features: 36 new, 10
+removed (the old `Core\Time` constructors, `DateTime::Weekday` and five `Core\Session` methods) and
+117 changed. `website/src/data/changes.json` has 44 entries and 90 `unseen` records, each a test that
+moved with the same expected output (the `Core\Time` and `Core\Session` caller rewrites, the package
+tests, and the tests a speed-up added). The stale guard runs `changes` in `ci.ts`, `deep.ts`, `ci.yml`.
+
+The nightly of 2026-11-19 (`supply chain`, every Miri shard, `proofs` shots, `browser`) is fixed on
+`main` by `eb5c02e983`, `4c82a2409a`, `9478fd2f66`, `656f5b2f2d` and `1c75c4ef0e`/`8d945cbeb2`.
+Those commits are not pushed yet, and the next full gate pushes them.
 
 ### Next
 
-Stage 3, as its **Split:** line says: `bun nv site --check changes --nvs target/debug/nvs.exe` lists
-the 163, subagents draft one area each, the session merges them into
-`website/src/data/changes.json:1`, then adds `changes` to the guard in `tools/nv/cmd/ci.ts:350`,
-`tools/nv/cmd/deep.ts:122` (`SITE_CHECKS`) and `.github/workflows/ci.yml:608`. No test is expected to
-go red; `bun nv site --check` with no part is red until stage 3 is done.
+Stage 4, its items in order, starting at `tools/nv/lib/texts.ts:1` (`userTexts`). The stale-guard
+line its item names is `tools/nv/cmd/ci.ts:350` and `.github/workflows/ci.yml:610` now, and `review`
+goes after `changes` in both and in `deep.ts:122`. Stage 5 may run beside it as a side goal. A change
+to a feature's tests from here on owes a `changes.json` entry or an `unseen` record in the same
+commit, or the pre-push guard is red. No test is expected to go red.
 
 ### Backlog
