@@ -81,8 +81,15 @@ import {
   FOUR_PEER_BASELINE,
   folderDigest,
   type Measured,
+  REPS_BOUNDS,
+  REPS_TRIED,
+  type RepsSample,
+  repsHold,
+  repsReport,
+  repsSamplesOf,
   reusedOf,
   type RowKey,
+  subsetsOf,
   rowPeer,
   sameKey,
   PROFILE_SCRIPT,
@@ -1248,5 +1255,95 @@ describe("the record shape", () => {
   test("the rows go into no record that has no cases", () => {
     const rows = buildScenarios("2026-10-10T08:00:00", "def5678", new Map());
     expect(() => withScenarios({ date: "x" }, rows)).toThrow("record them first");
+  });
+
+  test("a timed row keeps every peer's passes per budget, and a probed row keeps none", () => {
+    const passes = new Map([["cores", new Map([["nvs", { "1": [result(1), result(2)], "4": [result(3)] }]])]]);
+    const rows = buildScenarios("2026-10-10T08:00:00", "def5678", new Map([["cores", new Map([["nvs", built]])], ["crash", new Map([["nvs", built]])]]), null, null, passes);
+    expect(rows.rows.cores!.passes).toEqual({ nvs: { "1": [result(1), result(2)], "4": [result(3)] } });
+    expect(rows.rows.crash!.passes).toBeUndefined();
+  });
+});
+
+describe("repsHold", () => {
+  const pass = (rps: number, peak: number | null = 1000, p99: number | null = 10): PeerResult => ({
+    requests_per_sec: rps,
+    median_requests_per_sec: rps,
+    p50_ms: 1,
+    p99_ms: p99,
+    errors: 0,
+    error_kinds: {},
+    status_codes: { "200": 300 },
+    memory_idle_bytes: 500,
+    memory_peak_bytes: peak,
+    settings: {},
+  });
+  const steady = (rps: number) => [rps, rps * 1.01, rps * 0.99, rps * 1.005, rps * 0.995].map((r) => pass(r));
+  const sample = (peers: Record<string, PeerResult[]>, ordered = true): RepsSample => ({ where: "hello", ordered, peers });
+
+  test("chooses three of five in ten ways, each in rep order", () => {
+    expect(subsetsOf(5, REPS_TRIED)).toHaveLength(10);
+    expect(subsetsOf(5, 3)[0]).toEqual([0, 1, 2]);
+    expect(subsetsOf(5, 3).at(-1)).toEqual([2, 3, 4]);
+    expect(subsetsOf(3, 3)).toEqual([[0, 1, 2]]);
+  });
+
+  test("steady passes hold, and the worst move of each figure is named", () => {
+    const v = repsHold([sample({ nvs: steady(10_000), go: steady(5000) })]);
+    expect(v.holds).toBe(true);
+    expect(v.passes).toBe(5);
+    expect(v.worst.requests_per_sec!.deviation).toBeLessThan(REPS_BOUNDS.requests_per_sec);
+    expect(v.worst.requests_per_sec!.deviation).toBeGreaterThan(0);
+    expect(v.worst.memory_peak_bytes!.deviation).toBe(0);
+    expect(v.reordered).toEqual([]);
+    expect(repsReport(v).at(-1)).toContain("3 reps hold");
+  });
+
+  test("one wide pass moves a three-pass median past its bound, and five reps stay", () => {
+    const wide = [pass(1000), pass(1000), pass(1100), pass(1100), pass(1100)];
+    const v = repsHold([sample({ nvs: wide })]);
+    expect(v.worst.requests_per_sec!.deviation).toBeCloseTo(100 / 1100, 5);
+    expect(v.worst.requests_per_sec!.peer).toBe("nvs");
+    expect(v.holds).toBe(false);
+    expect(repsReport(v).at(-1)).toContain("the default stays 5");
+  });
+
+  test("peak memory and p99 have their own bounds, and a null figure is skipped", () => {
+    const peaks = [1000, 1000, 1100, 1100, 1100].map((m) => pass(1000, m));
+    expect(repsHold([sample({ nvs: peaks })]).holds).toBe(false);
+    const p99s = [10, 10, 10.5, 10.5, 10.5].map((p) => pass(1000, 1000, p));
+    expect(repsHold([sample({ nvs: p99s })]).holds).toBe(true);
+    const none = repsHold([sample({ nvs: [1, 2, 3, 4, 5].map(() => pass(1000, null, null)) })]);
+    expect(none.worst.memory_peak_bytes).toBeNull();
+    expect(none.holds).toBe(true);
+  });
+
+  test("two peers whose order a subset swaps fail a case, and not a timed row", () => {
+    const close = { nvs: [1000, 1001, 1002, 1003, 1004].map((r) => pass(r)), go: [1004, 1003, 1002, 1001, 1000].map((r) => pass(r)) };
+    expect(repsHold([sample(close)]).reordered.length).toBeGreaterThan(0);
+    expect(repsHold([sample(close)]).holds).toBe(false);
+    expect(repsHold([sample(close, false)]).reordered).toEqual([]);
+  });
+
+  test("a sample with too few passes, or peers with different counts, gives no verdict", () => {
+    expect(repsHold([sample({ nvs: steady(1000).slice(0, 2) })]).holds).toBe(false);
+    expect(repsHold([sample({ nvs: steady(1000), go: steady(1000).slice(0, 4) })]).missing).toHaveLength(1);
+    expect(repsHold([]).holds).toBe(false);
+  });
+
+  test("a record gives one sample per case and one per timed row and budget", () => {
+    const record = {
+      cases: { hello: { passes: { nvs: steady(1000) } }, wait: {} },
+      scenarios: { rows: { cores: { folder: "x", peers: {}, passes: { nvs: { "1": steady(10), "4": steady(40) }, go: { "1": steady(20) } } } } },
+    };
+    const samples = repsSamplesOf(record);
+    expect(samples.map((s) => s.where)).toEqual(["hello", "cores at 1 cpu(s)", "cores at 4 cpu(s)"]);
+    expect(Object.keys(samples[1]!.peers)).toEqual(["nvs", "go"]);
+    expect(samples.map((s) => s.ordered)).toEqual([true, false, false]);
+  });
+
+  test("--reps-check takes no other option", async () => {
+    expect(await run(["--reps-check", "x.json", "--smoke"])).toBe(2);
+    expect(await run(["--reps-check", "x.json", "--reps", "3"])).toBe(2);
   });
 });

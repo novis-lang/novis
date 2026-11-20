@@ -17,6 +17,7 @@
 //     bun nv bench-compare --direct --smoke                      # the same, a few hundred requests
 //     bun nv bench-compare --plan                                # what a case recording would do, and no docker
 //     bun nv bench-compare --scenarios --plan                    # the same for the rows
+//     bun nv bench-compare --reps-check benches/compare.json     # whether 3 reps give the 5-rep medians
 //
 // `benches/compare/README.md` is why the comparison is built the way it is, and this file owns only how a
 // run is carried out. The Docker half is `tools/nv/cmd/bench-docker.ts`'s, shared with `bench-proxied`.
@@ -41,7 +42,9 @@
 // builds, seconds of steady load and requests of each, and the run takes exactly those passes in that
 // order. `--plan` prints the plan's totals per phase and starts nothing. Each pass adds the wall-clock
 // seconds of its steps to its case's or row's `seconds` in the record, and a case keeps every peer's
-// `passes` beside the median. The seconds show where a recording's time went, and gate nothing.
+// `passes` beside the median, as a timed row does per budget. The seconds show where a recording's time
+// went, and gate nothing. `--reps-check` runs `repsHold` over those passes: whether every choice of
+// `REPS_TRIED` of them gives medians within `REPS_BOUNDS` of every pass's, with no peer reordered.
 //
 // `--profile CASE` measures no peer. It builds the Novis image, copies `oha` out of its pinned image, and
 // runs `benches/compare/profile.sh` in a privileged container of the Novis image, with no nginx: `nvs
@@ -1837,6 +1840,128 @@ export function medianOf(passes: PeerResult[]): PeerResult {
   };
 }
 
+/** The reps `repsHold` tries in place of every pass the record kept. */
+export const REPS_TRIED = 3;
+
+/**
+ * How far the median of `REPS_TRIED` passes may move from the median of every pass, as a share of the
+ * latter, for `REPS_TRIED` to become the default. The peers' order by requests per second in each case
+ * must also stay the same.
+ */
+export const REPS_BOUNDS = { requests_per_sec: 0.03, memory_peak_bytes: 0.05, p99_ms: 0.1 } as const;
+
+type RepsFigure = keyof typeof REPS_BOUNDS;
+
+/** One set of interleaved passes: a case, or a timed row at one budget, with every peer's passes in rep order. */
+export interface RepsSample {
+  where: string;
+  /** Whether the peers' order by requests per second is what the page shows here. It is, in a case. */
+  ordered: boolean;
+  peers: Record<string, PeerResult[]>;
+}
+
+/** The largest move of one figure over every sample, peer and subset, and where it was. */
+export interface RepsWorst {
+  deviation: number;
+  where: string;
+  peer: string;
+  /** The rep numbers of the subset, from 1. */
+  reps: number[];
+}
+
+export interface RepsVerdict {
+  passes: number;
+  worst: Record<RepsFigure, RepsWorst | null>;
+  /** One line for each subset that orders a case's peers otherwise. */
+  reordered: string[];
+  /** Why no verdict is possible, such as a peer with fewer passes than `REPS_TRIED`. */
+  missing: string[];
+  holds: boolean;
+}
+
+/** Every way to choose `k` of the indices `0..n-1`, in lexical order. */
+export function subsetsOf(n: number, k: number): number[][] {
+  if (k === 0) return [[]];
+  const out: number[][] = [];
+  for (let first = 0; first <= n - k; first++) for (const rest of subsetsOf(n - first - 1, k - 1)) out.push([first, ...rest.map((i) => i + first + 1)]);
+  return out;
+}
+
+/** The peers in order of requests per second, the fastest first. */
+const orderOf = (byPeer: [string, PeerResult][]): string => byPeer.toSorted((a, b) => b[1].requests_per_sec - a[1].requests_per_sec).map(([id]) => id).join(" > ");
+
+/**
+ * The three-of-five test: for every sample, every peer and every choice of `REPS_TRIED` of its passes,
+ * how far `medianOf` those passes moves each figure in `REPS_BOUNDS` from `medianOf` every pass, and
+ * whether a case's peers keep their order. A figure that is `null` in either median is skipped. Every
+ * peer in a sample must have the same number of passes, since one subset is one choice of reps.
+ */
+export function repsHold(samples: RepsSample[]): RepsVerdict {
+  const worst: Record<RepsFigure, RepsWorst | null> = { requests_per_sec: null, memory_peak_bytes: null, p99_ms: null };
+  const reordered: string[] = [];
+  const missing: string[] = [];
+  const counts = new Set<number>();
+  for (const sample of samples) {
+    const peers = Object.entries(sample.peers);
+    const n = peers[0]?.[1].length ?? 0;
+    if (peers.some(([, ps]) => ps.length !== n) || n < REPS_TRIED) {
+      missing.push(`${sample.where}: ${peers.map(([id, ps]) => `${id} ${ps.length}`).join(", ")} passes`);
+      continue;
+    }
+    counts.add(n);
+    const all = peers.map(([id, ps]) => [id, medianOf(ps)] as [string, PeerResult]);
+    for (const subset of subsetsOf(n, REPS_TRIED)) {
+      const some = peers.map(([id, ps]) => [id, medianOf(subset.map((i) => ps[i]!))] as [string, PeerResult]);
+      const reps = subset.map((i) => i + 1);
+      for (const [k, [id, m]] of some.entries()) {
+        const full = all[k]![1];
+        for (const figure of Object.keys(REPS_BOUNDS) as RepsFigure[]) {
+          const a = m[figure];
+          const b = full[figure];
+          if (a === null || b === null || b === 0) continue;
+          const deviation = Math.abs(a - b) / b;
+          if (worst[figure] === null || deviation > worst[figure].deviation) worst[figure] = { deviation, where: sample.where, peer: id, reps };
+        }
+      }
+      if (sample.ordered && orderOf(some) !== orderOf(all)) reordered.push(`${sample.where}, reps ${reps.join(" ")}: ${orderOf(some)}, all passes ${orderOf(all)}`);
+    }
+  }
+  const within = (Object.keys(REPS_BOUNDS) as RepsFigure[]).every((f) => (worst[f]?.deviation ?? 0) <= REPS_BOUNDS[f]);
+  return { passes: Math.max(0, ...counts), worst, reordered, missing, holds: samples.length > 0 && missing.length === 0 && reordered.length === 0 && within };
+}
+
+/** Every case's passes, and every timed row's passes at each budget, from a record. */
+export function repsSamplesOf(record: Record<string, unknown>): RepsSample[] {
+  const samples: RepsSample[] = [];
+  const cases = (record.cases ?? {}) as Record<string, { passes?: Record<string, PeerResult[]> }>;
+  for (const [id, c] of Object.entries(cases)) if (c.passes !== undefined) samples.push({ where: id, ordered: true, peers: c.passes });
+  const rows = (record.scenarios as RecordedScenarios | null | undefined)?.rows ?? {};
+  for (const [id, row] of Object.entries(rows)) {
+    const budgets = new Map<string, Record<string, PeerResult[]>>();
+    for (const [peer, byBudget] of Object.entries(row.passes ?? {})) {
+      for (const [cpus, ps] of Object.entries(byBudget)) budgets.set(cpus, { ...budgets.get(cpus), [peer]: ps });
+    }
+    for (const [cpus, peers] of budgets) samples.push({ where: `${id} at ${cpus} cpu(s)`, ordered: false, peers });
+  }
+  return samples;
+}
+
+/** `--reps-check`'s report: the worst move of each figure against its bound, every reordering, and the verdict. */
+export function repsReport(v: RepsVerdict): string[] {
+  const pct = (x: number) => `${fixed(x * 100, 2)}%`;
+  const lines = [`${REPS_TRIED} of ${v.passes} passes, every subset:`];
+  for (const figure of Object.keys(REPS_BOUNDS) as RepsFigure[]) {
+    const w = v.worst[figure];
+    const bound = `bound ${pct(REPS_BOUNDS[figure])}`;
+    lines.push(w === null ? `  ${figure.padEnd(18)} no figure (${bound})` : `  ${figure.padEnd(18)} worst ${pct(w.deviation)} (${bound}): ${w.where}, ${w.peer}, reps ${w.reps.join(" ")}`);
+  }
+  for (const line of v.missing) lines.push(`  too few passes: ${line}`);
+  lines.push(v.reordered.length === 0 ? "  the order of the peers is the same in every case and subset" : `  the order changed in ${v.reordered.length} subset(s):`);
+  for (const line of v.reordered) lines.push(`    ${line}`);
+  lines.push(v.holds ? `${REPS_TRIED} reps hold: they can be the default` : `${REPS_TRIED} reps do not hold: the default stays ${v.passes || "as it is"}`);
+  return lines;
+}
+
 /**
  * The whole record `--record` writes: the machine under `host`, as `bench-proxied`'s record names it,
  * every peer's image, and per case every peer's figures, the median of `reps` interleaved passes,
@@ -1894,6 +2019,8 @@ export interface RecordedRow {
   /** When each measured result was taken, and under which key. A fixed result has none. */
   measured?: Record<string, Measured>;
   seconds?: Seconds;
+  /** A timed row's passes: per peer, per budget in cpus, in rep order, for `repsHold`. A reused result keeps its earlier passes. */
+  passes?: Record<string, Record<string, PeerResult[]>>;
 }
 
 /**
@@ -1956,6 +2083,7 @@ export function buildScenarios(
   results: Map<string, Map<string, RowResult>>,
   seconds: Map<string, Seconds> | null = null,
   measured: Map<string, Map<string, Measured>> | null = null,
+  passes: Map<string, Map<string, Record<string, PeerResult[]>>> | null = null,
 ): RecordedScenarios {
   const rows: Record<string, RecordedRow> = {};
   for (const s of SCENARIOS) {
@@ -1963,11 +2091,14 @@ export function buildScenarios(
     if (byPeer === undefined) continue;
     const peers: Record<string, RowResult> = {};
     const when: Record<string, Measured> = {};
+    const timed: Record<string, Record<string, PeerResult[]>> = {};
     for (const p of PEERS) {
       const r = byPeer.get(p.id);
       if (r !== undefined) peers[p.id] = r;
       const m = measured?.get(s.id)?.get(p.id);
       if (m !== undefined) when[p.id] = m;
+      const ps = passes?.get(s.id)?.get(p.id);
+      if (ps !== undefined) timed[p.id] = ps;
     }
     const clock = seconds?.get(s.id);
     rows[s.id] = {
@@ -1975,6 +2106,7 @@ export function buildScenarios(
       peers,
       ...(measured === null ? {} : { measured: when }),
       ...(clock === undefined ? {} : { seconds: secondsOf(clock) }),
+      ...(Object.keys(timed).length === 0 ? {} : { passes: timed }),
     };
   }
   return { date, commit, rows };
@@ -2597,7 +2729,8 @@ async function direct(smoke: boolean, commit: string): Promise<number> {
 const USAGE =
   "usage: nv bench-compare [-h] [--smoke] [--scenarios] [--arm {fair,deployed}] [--backend-cpus N]\n" +
   "                        [--row ID] [--expect PEER=RESULT,...] [--requests REQUESTS] [--reps REPS]\n" +
-  "                        [--record PATH] [--fresh] [--peer ID,...] [--down] [--profile CASE] [--direct] [--plan]";
+  "                        [--record PATH] [--fresh] [--peer ID,...] [--down] [--profile CASE] [--direct] [--plan]\n" +
+  "                        [--reps-check PATH]";
 
 interface Options {
   /** Run every row again, and reuse no recorded result. */
@@ -2617,6 +2750,8 @@ interface Options {
   profile: Case | null;
   direct: boolean;
   plan: boolean;
+  /** The record `--reps-check` reads. */
+  repsCheck: string | null;
 }
 
 /** `--expect nvs=on-by-default,php=no`: the result each named peer must get in every row run. */
@@ -2648,9 +2783,11 @@ export function unmetExpectations(expect: Map<string, Verdict>, results: Map<str
 function options(args: string[]): Options | null {
   const p = parseArgs(args, {
     flags: ["--smoke", "--scenarios", "--down", "--direct", "--plan", "--fresh"],
-    valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row", "--expect", "--profile", "--peer"],
+    valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row", "--expect", "--profile", "--peer", "--reps-check"],
   });
   if (p.flags.has("--help")) return null;
+  const repsCheck = p.values.get("--reps-check") ?? null;
+  if (repsCheck !== null && (p.flags.size > 0 || p.values.size > 1)) throw new ArgError("argument --reps-check: takes no other option");
   const int = (o: string): number | null => {
     const word = p.values.get(o);
     if (word === undefined) return null;
@@ -2695,6 +2832,7 @@ function options(args: string[]): Options | null {
     profile: profiled,
     direct,
     plan,
+    repsCheck,
   };
 }
 
@@ -2702,7 +2840,8 @@ function help(): string {
   return [
     USAGE,
     "",
-    "Novis, PHP-FPM, Bun and Go, each behind the same nginx terminating TLS 1.3, in containers.",
+    "Novis, PHP-FPM, Bun, Go, Node.js, .NET and Python, each behind the same nginx terminating TLS 1.3,",
+    "in containers.",
     "",
     "options:",
     "  -h, --help            show this help message and exit",
@@ -2739,6 +2878,10 @@ function help(): string {
     "  --plan                print the work the run the other flags describe would do: stacks brought",
     "                        up, images built, seconds of steady load and requests, per phase. Starts",
     "                        no container",
+    "  --reps-check PATH     whether 3 of the record's 5 passes give the same medians: for every case",
+    "                        and timed row, every peer and every choice of 3 passes, the worst move of",
+    "                        requests/sec, peak memory and p99, and any change in the peers' order.",
+    "                        Starts no container",
     "",
     "benches/compare/README.md is the design; this tool is only how it is run. It needs bun and Docker.",
   ].join("\n");
@@ -2827,6 +2970,7 @@ async function scenarios(o: Options, cpus: number, commit: string, load: PlanLoa
   const results = new Map<string, Map<string, RowResult>>();
   const measured = new Map<string, Map<string, Measured>>();
   const clocks = new Map<string, Seconds>();
+  const rowPasses = new Map<string, Map<string, Record<string, PeerResult[]>>>();
   for (const s of rows) {
     const runs = load.smoke ? 1 : (s.runs ?? 1);
     if (s.timed === undefined && runs > 1 && s.merge === undefined) throw new Fail(`row ${s.id} runs ${runs} times and has no merge`);
@@ -2852,6 +2996,7 @@ async function scenarios(o: Options, cpus: number, commit: string, load: PlanLoa
     const byPeer = new Map<string, RowResult>();
     const when = new Map<string, Measured>();
     measured.set(s.id, when);
+    rowPasses.set(s.id, new Map());
     for (const peer of peers) {
       const fixed = s.fixed?.[peer.id];
       const kept = recorded[s.id];
@@ -2864,11 +3009,14 @@ async function scenarios(o: Options, cpus: number, commit: string, load: PlanLoa
         console.log(`  ${s.id}: ${peer.label} is unchanged since ${m.date} (${m.commit}), and keeps its result`);
         byPeer.set(peer.id, kept.peers[peer.id]!);
         when.set(peer.id, m);
+        const ps = kept.passes?.[peer.id];
+        if (ps !== undefined) rowPasses.get(s.id)!.set(peer.id, ps);
         continue;
       }
       when.set(peer.id, { date: stamp(), commit, key: keyOf(s, peer) });
       if (s.timed !== undefined) {
         const at = (s.budgets ?? []).map((b) => medianOf(timed.get(peer.id)!.get(b)!));
+        rowPasses.get(s.id)!.set(peer.id, Object.fromEntries((s.budgets ?? []).map((b) => [String(b), timed.get(peer.id)!.get(b)!])));
         byPeer.set(peer.id, s.timed({ peer: peer.id, requests: load.requests, concurrency: rowCase(s).concurrency, at }));
       } else {
         const rs = probed.get(peer.id)!;
@@ -2883,7 +3031,7 @@ async function scenarios(o: Options, cpus: number, commit: string, load: PlanLoa
     }
   }
   if (o.record !== null && prior !== null) {
-    writeRecord(resolve(o.record), withScenarios(prior, buildScenarios(stamp(), commit, results, clocks, measured)));
+    writeRecord(resolve(o.record), withScenarios(prior, buildScenarios(stamp(), commit, results, clocks, measured, rowPasses)));
     console.log(`  recorded the rows to ${o.record}`);
   }
   if (o.expect === null) return 0;
@@ -2982,7 +3130,18 @@ export function plannedReuse(prior: Record<string, unknown>, rows: Scenario[], p
   });
 }
 
+/** `--reps-check PATH`: `repsHold` over the record's kept passes, printed. Starts no process. */
+function repsChecked(path: string): number {
+  const record = readRecord(resolve(path));
+  if (record === null) throw new Fail(`${path}: no record`);
+  const samples = repsSamplesOf(record);
+  if (samples.length === 0) throw new Fail(`${path} keeps no passes; record it again with bun nv bench-compare --record ${path}`);
+  for (const line of repsReport(repsHold(samples))) console.log(line);
+  return 0;
+}
+
 async function main(o: Options): Promise<number> {
+  if (o.repsCheck !== null) return repsChecked(o.repsCheck);
   if (o.plan) return planned(o);
   requireDocker();
   const commit = version("git", ["rev-parse", "--short", "HEAD"]);
