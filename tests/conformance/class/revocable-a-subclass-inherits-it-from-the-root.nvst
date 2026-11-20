@@ -1,0 +1,28 @@
+--TEST--
+A subclass of a revocable root class is revocable too
+--FILE--
+<?nvs
+// Only `Content` writes `implements Revocable`. A `Post` object can still be revoked.
+abstract class Content implements Revocable {
+    public function constructor(public string $title) {}
+}
+
+class Post extends Content {}
+
+var $post = new Post("Hello");
+echo $post is Revocable ? "revocable" : "not revocable", "\n";
+echo $post->isRevoked() ? "revoked" : "not revoked", "\n";
+$post->revoke();
+echo $post->isRevoked() ? "revoked" : "not revoked", "\n";
+try {
+    echo $post->title, "\n";
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo $e->message, "\n";
+}
+// covers: lang:classes/revocable-objects, RevokedObjectError
+--EXPECT--
+revocable
+not revoked
+revoked
+This `Post` object was revoked in `case.nvs` on line 12. A revoked object cannot be used.

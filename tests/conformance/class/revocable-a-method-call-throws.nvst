@@ -1,0 +1,28 @@
+--TEST--
+Calling a method on a revoked object throws an error
+--FILE--
+<?nvs
+// After `revoke()`, calling `$post->headline()` throws a `RevokedObjectError`.
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+
+    public function headline(): string {
+        return "# " . $this->title;
+    }
+}
+
+var $post = new Post("Hello");
+echo $post->headline(), "\n";
+$post->revoke();
+try {
+    echo $post->headline(), "\n";
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo $e->message, "\n";
+}
+echo "done\n";
+// covers: lang:classes/revocable-objects, RevokedObjectError
+--EXPECT--
+# Hello
+This `Post` object was revoked in `case.nvs` on line 13. A revoked object cannot be used.
+done

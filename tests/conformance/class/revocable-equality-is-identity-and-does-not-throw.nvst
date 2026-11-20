@@ -1,0 +1,23 @@
+--TEST--
+Comparing a revoked object with `==` does not throw and compares identity
+--FILE--
+<?nvs
+// `==` on two objects checks if they are the same object. It works on a revoked object.
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+}
+
+var $post = new Post("Hello");
+var $same = $post;
+var $twin = new Post("Hello");
+$post->revoke();
+echo $post == $same ? "same" : "different", "\n";
+echo $post == $twin ? "same" : "different", "\n";
+echo $twin == $post ? "same" : "different", "\n";
+echo $twin->title, "\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+same
+different
+different
+Hello

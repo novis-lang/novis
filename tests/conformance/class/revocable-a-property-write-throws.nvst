@@ -1,0 +1,25 @@
+--TEST--
+Writing a property of a revoked object throws an error
+--FILE--
+<?nvs
+// After `revoke()`, writing `$post->title` throws a `RevokedObjectError`.
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+}
+
+var $post = new Post("Hello");
+$post->title = "Changed";
+echo $post->title, "\n";
+$post->revoke();
+try {
+    $post->title = "Again";
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo $e->message, "\n";
+}
+echo "done\n";
+// covers: lang:classes/revocable-objects, RevokedObjectError
+--EXPECT--
+Changed
+This `Post` object was revoked in `case.nvs` on line 10. A revoked object cannot be used.
+done

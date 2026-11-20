@@ -1,0 +1,35 @@
+--TEST--
+An array, a property and a variable still have the revoked object
+--FILE--
+<?nvs
+// `revoke()` does not remove the object from an array, a property or a variable.
+// Each one still has the same object, and each one is revoked.
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+}
+
+class Holder {
+    public function constructor(public Post $post) {}
+}
+
+var $post = new Post("Hello");
+array<Post> $list = [$post];
+var $holder = new Holder($post);
+var $alias = $post;
+$post->revoke();
+echo Core\Arr::count($list), "\n";
+echo $list[0] == $post ? "array: same object" : "array: other", "\n";
+echo $holder->post == $post ? "property: same object" : "property: other", "\n";
+echo $alias == $post ? "variable: same object" : "variable: other", "\n";
+echo $list[0]->isRevoked() ? "array: revoked" : "array: not revoked", "\n";
+echo $holder->post->isRevoked() ? "property: revoked" : "property: not revoked", "\n";
+echo $alias->isRevoked() ? "variable: revoked" : "variable: not revoked", "\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+1
+array: same object
+property: same object
+variable: same object
+array: revoked
+property: revoked
+variable: revoked

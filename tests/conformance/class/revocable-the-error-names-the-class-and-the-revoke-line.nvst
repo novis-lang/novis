@@ -1,0 +1,35 @@
+--TEST--
+The error message gives the full class name and the line of the first `revoke()` call
+--FILE--
+<?nvs
+// The message names `Blog\Post` and line 15. The later `revoke()` calls on lines 16 and 22 do not change it.
+namespace Blog;
+
+use Revocable;
+use RevokedObjectError;
+
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+}
+
+class Editor {
+    public static function retire(Post $post): void {
+        echo "retiring ", $post->title, "\n";
+        $post->revoke();
+        $post->revoke();
+    }
+}
+
+var $post = new Post("Hello");
+Editor::retire($post);
+$post->revoke();
+try {
+    echo $post->title, "\n";
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo $e->message, "\n";
+}
+// covers: lang:classes/revocable-objects, RevokedObjectError
+--EXPECT--
+retiring Hello
+This `Blog\Post` object was revoked in `case.nvs` on line 15. A revoked object cannot be used.

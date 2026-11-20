@@ -1,0 +1,22 @@
+--TEST--
+Testing the type of a revoked object with `is` does not throw
+--FILE--
+<?nvs
+// `$post is Post` checks the class of the object. It works on a revoked object.
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+}
+
+class Page {}
+
+var $post = new Post("Hello");
+$post->revoke();
+mixed $value = $post;
+echo $value is Post ? "a Post" : "not a Post", "\n";
+echo $value is Page ? "a Page" : "not a Page", "\n";
+echo $value is Revocable ? "revocable" : "not revocable", "\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+a Post
+not a Page
+revocable

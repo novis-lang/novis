@@ -1,0 +1,33 @@
+--TEST--
+Calling a method on a revoked object through an interface type throws an error
+--FILE--
+<?nvs
+// `$named` has the interface type `Named`. After `revoke()`, calling `name()` on it throws.
+interface Named {
+    public function name(): string;
+}
+
+class Post implements Revocable, Named {
+    public function constructor(public string $title) {}
+
+    public function name(): string {
+        return $this->title;
+    }
+}
+
+var $post = new Post("Hello");
+Named $named = $post;
+echo $named->name(), "\n";
+$post->revoke();
+try {
+    echo $named->name(), "\n";
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo $e->message, "\n";
+}
+echo "done\n";
+// covers: lang:classes/revocable-objects, RevokedObjectError
+--EXPECT--
+Hello
+This `Post` object was revoked in `case.nvs` on line 18. A revoked object cannot be used.
+done

@@ -1,0 +1,23 @@
+--TEST--
+A second `revoke()` call does not throw and changes nothing
+--FILE--
+<?nvs
+// The object is revoked once. Calling `revoke()` again does not throw.
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+}
+
+var $post = new Post("Hello");
+$post->revoke();
+echo "first revoke\n";
+$post->revoke();
+echo "second revoke\n";
+$post->revoke();
+echo "third revoke\n";
+echo $post->isRevoked() ? "revoked" : "not revoked", "\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+first revoke
+second revoke
+third revoke
+revoked

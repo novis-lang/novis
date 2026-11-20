@@ -1,0 +1,26 @@
+--TEST--
+Reading a property of a revoked object through `Core\Reflect` throws an error
+--FILE--
+<?nvs
+// `$info->get($post, "title")` reads a property by its name.
+// After `revoke()`, it throws a `RevokedObjectError`.
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+}
+
+var $post = new Post("Hello");
+var $info = Core\Reflect::forObject($post);
+echo $info->get($post, "title"), "\n";
+$post->revoke();
+try {
+    echo $info->get($post, "title"), "\n";
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo $e->message, "\n";
+}
+echo "done\n";
+// covers: lang:classes/revocable-objects, RevokedObjectError
+--EXPECT--
+Hello
+This `Post` object was revoked in `case.nvs` on line 11. A revoked object cannot be used.
+done

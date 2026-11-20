@@ -1,0 +1,36 @@
+--TEST--
+Reading or calling a revoked object through a `mixed` variable throws an error
+--FILE--
+<?nvs
+// `$value` has the type `mixed`. After `revoke()`, a property read and a method call on it both throw.
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+
+    public function headline(): string {
+        return "# " . $this->title;
+    }
+}
+
+var $post = new Post("Hello");
+mixed $value = $post;
+echo $value->title, "\n";
+echo $value->headline(), "\n";
+$post->revoke();
+try {
+    echo $value->title, "\n";
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo "read: ", $e->message, "\n";
+}
+try {
+    echo $value->headline(), "\n";
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo "call: ", $e->message, "\n";
+}
+// covers: lang:classes/revocable-objects, RevokedObjectError
+--EXPECT--
+Hello
+# Hello
+read: This `Post` object was revoked in `case.nvs` on line 15. A revoked object cannot be used.
+call: This `Post` object was revoked in `case.nvs` on line 15. A revoked object cannot be used.

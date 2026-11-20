@@ -1,0 +1,19 @@
+--TEST--
+`isRevoked()` on a revoked object returns `true` and does not throw
+--FILE--
+<?nvs
+// `isRevoked()` returns `false` before `revoke()` and `true` after it.
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+}
+
+var $post = new Post("Hello");
+echo $post->isRevoked() ? "revoked" : "not revoked", "\n";
+$post->revoke();
+echo $post->isRevoked() ? "revoked" : "not revoked", "\n";
+echo $post->isRevoked() ? "revoked" : "not revoked", "\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+not revoked
+revoked
+revoked

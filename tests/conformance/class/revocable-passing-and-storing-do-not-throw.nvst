@@ -1,0 +1,42 @@
+--TEST--
+Passing a revoked object to a function and storing it do not throw
+--FILE--
+<?nvs
+// A revoked object can be passed to a function and stored. Only using it throws.
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+}
+
+class Shelf {
+    public ?Post $kept = null;
+
+    public static function check(Post $post): string {
+        return $post->isRevoked() ? "revoked" : "not revoked";
+    }
+
+    public static function pass(Post $post): Post {
+        return $post;
+    }
+}
+
+var $post = new Post("Hello");
+$post->revoke();
+echo Shelf::check($post), "\n";
+var $same = Shelf::pass($post);
+echo "passed\n";
+var $other = $same;
+echo "stored in a variable\n";
+array<Post> $list = [$post];
+echo "stored in an array\n";
+var $shelf = new Shelf();
+$shelf->kept = $post;
+echo "stored in a property\n";
+echo $other->isRevoked() ? "revoked" : "not revoked", "\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+revoked
+passed
+stored in a variable
+stored in an array
+stored in a property
+revoked

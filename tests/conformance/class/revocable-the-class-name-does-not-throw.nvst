@@ -1,0 +1,19 @@
+--TEST--
+Reading `$post::class` on a revoked object does not throw
+--FILE--
+<?nvs
+// `$post::class` gives the name of the object's class. It works on a revoked object.
+namespace Blog;
+
+use Revocable;
+
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+}
+
+var $post = new Post("Hello");
+$post->revoke();
+echo $post::class, "\n";
+// covers: lang:classes/revocable-objects
+--EXPECT--
+Blog\Post
