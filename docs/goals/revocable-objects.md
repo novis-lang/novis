@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/object.rs, crates/nvs-runtime/src/throwable.rs, crates/nvs-types/src/layout.rs, crates/nvs-codegen/src/emit.rs, crates/nvs-codegen/tests/refcount_calls.rs, docs/rules/classes/revocable-objects.md]
   - id: 3
     title: every use of a revoked object throws, and the check is compiled only where the type could be revocable
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/ir.rs, crates/nvs-codegen/src/emit.rs, crates/nvs-runtime/src/dispatch.rs, crates/nvs-runtime/src/graph.rs, crates/nvs-stdlib/src/json.rs, crates/nvs-stdlib/src/reflect.rs, docs/rules/classes/revocable-objects.md]
   - id: 4
     title: ObjectMap, ObjectSet and Heap drop a revoked object at once, and keep their count exact
@@ -331,6 +331,20 @@ every anchor in those files is re-found with `bun nv peek --locate <symbol>` bef
     and the error names the class alone: "This `Blog\Post` object was revoked. A revoked object
     cannot be used." A written call keeps its line. Passing a site through the erased entry would
     add a parameter to every erased call for one rare form.
+19. **The compiled check asks the member's resolved class (stage 3's call).** Lowering has no
+    static type per expression, so `emit_revoked_check` (`crates/nvs-ir/src/lower/mod.rs`) asks
+    `ExprTypeTable::may_be_revocable_class` of the class or interface the access's member resolved
+    to. The checker writes `RevocableTypes` into the table at the end of the check. A class tree is
+    revocable as a whole, so the answer equals the receiver type's for a class. It is a superset only
+    for an interface default reached through a class that is not revocable, which costs one branch.
+20. **`clone` is checked in the clone guard, not by a compiled instruction (stage 3's call).**
+    `nvs_clone_guard` already runs before every `clone`, through every static type, so one flag test
+    there covers `mixed` too, and no `CheckRevoked` is placed before `Clone`.
+21. **A graph copy keeps its door's error class (stage 3's call).** `GraphError` has no class axis,
+    by its own decision, so `serialize()` and a copy into a task or a cache refuse a revoked object
+    with `RevokedObjectError`'s message under the error that door throws. The rule says so. A
+    property write is checked once its receiver is held, before the value is computed, so a
+    `revoke()` inside the assigned expression itself is not caught.
 
 ### More choices the authoring session made (settled)
 
@@ -520,24 +534,24 @@ that read an object.
 lang:classes/revocable-objects`, and the throwing ones with `RevokedObjectError` too. The session
 runs both checks once.
 
-- [ ] `crates/nvs-ir/src/ir.rs:1291`: `InstKind::CheckRevoked { object, site }`.
+- [x] `crates/nvs-ir/src/ir.rs:1291`: `InstKind::CheckRevoked { object, site }`.
   `crates/nvs-codegen/src/emit.rs:1029`: its code, a load of the count word, a test of the flag and a
   cold call to `nvs_throw_revoked`.
-- [ ] `crates/nvs-ir/src/lower/expr.rs`: the instruction before each site whose object
+- [x] `crates/nvs-ir/src/lower/expr.rs`: the instruction before each site whose object
   `may_be_revocable` accepts: the property read (`lower_property_access`, `:5963`, `FieldGet` at
   `:6125`), the property write (near `:6435`), the method call (`lower_method_call`, `:4782`,
   `CallVirtual` at `:5074`, and a direct call with a receiver) and `clone` (`lower_clone_expr`,
   `:7891`).
-- [ ] The erased entries test the flag: `call_erased_method_from` (`crates/nvs-runtime/src/dispatch.rs:408`),
+- [x] The erased entries test the flag: `call_erased_method_from` (`crates/nvs-runtime/src/dispatch.rs:408`),
   `read_erased_property_owned` (`crates/nvs-runtime/src/object.rs:6117`) and
   `write_erased_property` (`object.rs:6526`). A call of `revoke` or `isRevoked` passes.
-- [ ] The library reads: `Core\Json::encode`'s object walk (`crates/nvs-stdlib/src/json.rs:1859`),
+- [x] The library reads: `Core\Json::encode`'s object walk (`crates/nvs-stdlib/src/json.rs:1859`),
   `Core\Reflect`'s `get`, `set` and `call` (`crates/nvs-stdlib/src/reflect.rs:2967`, `:3040`,
   `:3122`, through the erased entries above), the graph copy (`crates/nvs-runtime/src/graph.rs:311`)
   and `nvs_object_clone` (`object.rs:5105`, for a clone through `mixed`). `Core\Debug` prints the class
   and "revoked" without throwing.
-- [ ] `crates/nvs-codegen/tests/revocable.rs`: the four tests of the `checks-placed` check, run once.
-- [ ] The seventeen cases, and the `uses-throw` and `uses-pass` checks run once.
+- [x] `crates/nvs-codegen/tests/revocable.rs`: the four tests of the `checks-placed` check, run once.
+- [x] The seventeen cases, and the `uses-throw` and `uses-pass` checks run once.
 
 ### 4. ObjectMap, ObjectSet and Heap drop a revoked object at once, and keep their count exact
 
@@ -658,37 +672,32 @@ user reads*.
 
 ### State
 
-Stages 1 and 2 are built, and both stage 2 checks are green (`runtime-flag`, `compiled-release`, run
-once each).
-- `67319e03c0`: `flatten_fields` gives a revocable root, and each subclass, the hidden slot first,
-  named `nvs_runtime::revoke::HIDDEN_SLOT_NAME`. Codegen calls `set_revocable` for a class whose first
-  slot has that name (decision 17). `ClassDesc::field_slot` and `field_name` never return it,
-  `first_property_slot` and `is_hidden_slot` are new, `clone` leaves it null, the graph copy writes it
-  as null, and `Core\Json`'s shape cursor and the test library's object diff skip it.
-- The lowering slice: `InstKind::Revoke` and `InstKind::IsRevoked` (`crates/nvs-ir/src/ir.rs`), lowered
-  in `lower_method_call` for a call resolved to `Revocable`; their code in `emit.rs` with the
-  `revoke` and `is_revoked` signatures; the three externs in `helpers.rs`'s symbol table; and
-  `call_erased_unchecked` runs both by name with a null site (decision 18).
-  `compiled_code_frees_a_revoked_object` is a live-bytes slope test.
+Stages 1 to 3 are built. Stage 3's checks are green, each run once: `checks-placed`, `uses-throw`
+and `uses-pass`.
+- `8170280181`: `InstKind::CheckRevoked` and its code (`emit_check_revoked` in `emit.rs`: one load,
+  one signed compare below `-1`, a cold `nvs_throw_revoked` with a status check), placed by
+  `emit_revoked_check` before a property read (`lower_class_property_read`), both property-write
+  branches in `stmt.rs`, and a method call in `lower_method_call` (not `revoke`/`isRevoked`, not a
+  static call). `revoke::revoked_use` and `revoked_text` are what the erased read, write and call,
+  the clone guard, `Core\Json`'s object walk and the graph copy ask. `Core\Debug` shows
+  `Post (revoked)` with no properties (`record.rs` `object_body`). Decisions 19 to 21.
+- The seventeen cases are committed beside it.
 
-Nightly run 44510687786 ran at `adc7487`, before its fixes (`eb5c02e983`, `4c82a2409a`, `656f5b2f2d`,
-`1c75c4ef0e`), which cover every job it named; no nightly has run since.
+The acceptance sweep's nightly failures were all from run 44510687786 at `adc7487`, before its fixes
+(`eb5c02e983`, `4c82a2409a`, `656f5b2f2d`, `1c75c4ef0e`); no nightly has run since.
 
 ### Next
 
-Stage 3, from its first item: `InstKind::CheckRevoked { object, site }` beside `Revoke` in
-`crates/nvs-ir/src/ir.rs` (its rows in `for_each_operand`, `effects` and `print.rs` beside `Revoke`'s),
-and its code in `emit.rs` beside the `Revoke` arm: a load of the count word at
-`nvs_runtime::OBJ_REFCOUNT_OFFSET`, a test of `REVOKED` that is not the immortal count, and a cold call
-of `nvs_throw_revoked` (already in the symbol table) with a status check. The anchors stage 3's items
-give in `expr.rs` moved; find each with `bun nv peek --locate lower_property_access lower_method_call
-lower_clone_expr`. The method call's check goes after the `Revocable` intrinsic return in
-`lower_method_call`, so `revoke()` and `isRevoked()` compile none. The erased entries' flag test must
-come after the intrinsic block in `call_erased_unchecked` (`crates/nvs-runtime/src/dispatch.rs`), so a
-call of either by name passes. Then the stage's split: one writing subagent for the seventeen `.nvst`
-cases.
+Stage 4, from its first item: `link(object, collection, kind, key)` and `unlink` in
+`crates/nvs-runtime/src/revoke.rs` beside `revoke`, which already frees the `Memberships` box and must
+now remove each entry first. Re-find every anchor in `objmap.rs`, `objset.rs`, `heap.rs` and
+`identity_store.rs` with `bun nv peek --locate <symbol>` (the gate decision). `dismantle` and
+`reclaim` are in `crates/nvs-runtime/src/object.rs`.
 
-No existing test is expected to go red. A test that lists every `InstKind`, or every symbol in
-`helpers.rs`'s table, would be the one to look at first if one does.
+No existing test is expected to go red. A case that dumps an object with `Core\Debug` is unchanged
+unless its class is revocable.
 
 ### Backlog
+
+- A reflective call and a reflective write after `revoke()` have no case; both go through the erased
+  entries the read case covers. Stage 6's proofs may add one.
