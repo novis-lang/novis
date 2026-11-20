@@ -313,6 +313,11 @@ every anchor in those files is re-found with `bun nv peek --locate <symbol>` bef
 15. **Decision 7's answer: the default does not compile (`E0472`).** A static property's default is a
     compile-time constant. The examples create the map on first use with `??=`, in a static property
     typed `?Core\ObjectMap<…>`, and the rule says so.
+16. **The flag tells the revoke site from the memberships pointer (stage 2's call).** Decision 10's
+    low bit cannot work: a site blob is a byte array in the unit's data section, at any address. The
+    hidden slot is a `null` `Value` whose payload is zero, the `Memberships` box while the object is
+    not revoked, or the site blob once it is. `crate::revoke`'s module doc and
+    `rule:core-api/collections-drop-revoked-objects` say so.
 
 ### More choices the authoring session made (settled)
 
@@ -455,22 +460,30 @@ once.
 **Does:** the runtime half of decisions 8 and 10, without collections: the flag, the masked reads,
 the hidden slot, `revoke()`, `isRevoked()` and the thrower. Nothing calls the thrower yet.
 
-- [ ] `crates/nvs-runtime/src/revoke.rs:1`: the flag constant, `Memberships`, `revoke(object, site)`,
+- [x] `crates/nvs-runtime/src/revoke.rs:1`: the flag constant, `Memberships`, `revoke(object, site)`,
   `is_revoked(object)` and `nvs_throw_revoked(object, site)`, which throws `RevokedObjectError` with
   § *The text an end user reads*'s message. `ThrownClass` gains `Revoked`
   (`crates/nvs-runtime/src/throwable.rs:341`, its name at `:438`).
-- [ ] The masked count reads. The three readers mask: `fn refcount` (`object.rs:4029`),
+- [x] The masked count reads. The three readers mask: `fn refcount` (`object.rs:4029`),
   `NvsObj::refcount` (`:4510`) and `NvsObj::refcount_of` (`:4603`). The raw readers mask too:
   `bump` (`:4738`), `drop_one` (`:4782`) and the `Debug` field (`:4659`). The sweep's tally
   (`:3881`, `:3890`), `unwind_abandoned` (`:4961`), `value.rs:707`, `graph.rs:584`,
   `crates/nvs-stdlib/src/instance.rs:1796` and `crates/nvs-stdlib/src/identity_store.rs:201` read
   through those readers, and each is confirmed to.
-- [ ] `crates/nvs-codegen/src/emit.rs:4766`: the inline release's "above one" bound becomes the flag
+- [x] `crates/nvs-codegen/src/emit.rs:4766`: the inline release's "above one" bound becomes the flag
   bit, as decision 8 says. The asserts at `emit.rs:112` gain the flag's. `emit.rs:4795`'s retain needs
   no change.
 - [ ] `crates/nvs-types/src/layout.rs:1002` `flatten_fields`: a revocable root class gets the hidden
   slot first, and the runtime's class descriptor carries it. A class that is not revocable is
   unchanged.
+  - [ ] List every walker of a descriptor's field names or slots (reflection, `Core\Json`, `Core\Debug`,
+    `serialize`, the graph copy, `clone`, the codecs, the constructor's defaults) with an `Explore`
+    subagent.
+  - [ ] `flatten_fields` puts the hidden slot first for a class whose root implements `Revocable`,
+    and `ClassLayout` carries `revocable`; `nvs_ir::ir::Class` carries it down and codegen calls
+    `ClassTable::set_revocable`.
+  - [ ] Every walker skips slot 0 of a revocable descriptor; `clone` and the graph copy start it null.
+  - [ ] `a_class_that_is_not_revocable_has_no_hidden_slot` in `layout.rs`'s tests.
 - [ ] `revoke()` and `isRevoked()` lower to calls of `revoke` and `is_revoked` with the call site's
   constant. A reflective or erased call of either reaches the same functions.
 - [ ] The four tests of the `runtime-flag` check in `revoke.rs`'s test module, and
@@ -626,39 +639,39 @@ user reads*.
 
 ### State
 
-Written on 2026-11-17 from a conversation with the person. Their calls: the problem, and the wish
-that a delete cleans up every holder; reads on large collections must be fast; no `ObjectArray`,
-because the name promised array features; `[]` stays array-only; keyed `foreach` with `var`; and the
-plan of three goals, `object-collections-fast`, then `keyed-iteration`, then this one, which they
-approved.
+Stage 1 is built: the checker knows `Revocable`, its methods, `RevokedObjectError` and E1001 to
+E1003, and both rules are `designed`. Stage 2's first three items are built (session 1 of 2).
+- `a03baee8d4`: `crates/nvs-runtime/src/revoke.rs` has `REVOKED`, `count_of`, `Memberships`
+  (`Membership`, `MembershipKind`; nothing writes one before stage 4), `revoke`, `is_revoked`,
+  `revoke_site`, `revoked_message` and the externs `nvs_object_revoke`, `nvs_object_is_revoked` and
+  `nvs_throw_revoked(ctx, object, site)`. None is in the runtime's symbol table yet
+  (`crates/nvs-runtime/src/helpers.rs`, beside `nvs_deprecated_use`). `ClassDesc` has `revocable`,
+  `is_revocable()` and `ClassTable::set_revocable(id)`, which asserts the class has a slot. Every count
+  reader masks, `NvsObj::count_word` is the flag's one door, and each listed caller was confirmed to
+  read through a masked reader. Three of the `runtime-flag` tests pass, run once by name.
+- The codegen slice: an object's inline release compares against `REVOKED - 2`, with the same
+  instruction count. `the_inline_release_of_an_object_that_is_not_revoked_is_unchanged` passes.
 
-The authoring session's calls: the names `revoke`, `Revocable` and `RevokedObjectError`; the
-root-only opt-in; a public `revoke()`; eager removal through memberships; the flag in the count
-word; an `ObjectMap` that drops an entry on its key or its value; the list of forms that throw and
-that do not; the two fallbacks; and every choice under § *More choices* and decisions 8 to 10's
-"my call" lines.
-
-Stage 1 is built. `static` in a collection's type arguments is now bound at the call (decision 6's
-fallback, commit `281e8dd4d4`). A static property's default of `new Core\ObjectMap<…>()` does not
-compile, so the examples use `??=` (decision 15). The checker knows `Revocable`, its two methods,
-`RevokedObjectError` and E1001 to E1003 (`5cad994ab8`). `RevocableTypes` is decision 13's set. Both
-rules are written, as `designed`, with their records. `$t->revoke()` and `$t->isRevoked()` type-check
-today, and nothing compiles a body for them yet.
-
-The acceptance sweep's nightly failures (run 44510687786) were each fixed on disk after that run
-started: the wasmtime bump `eb5c02e983`, the Miri payload pointer `4c82a2409a`, the debug-viewer shots
-`656f5b2f2d` and the registry page wait `1c75c4ef0e`. No nightly has run since to confirm them.
+Nightly run 44510687786 ran at `adc7487`, before its fixes (`eb5c02e983`, `4c82a2409a`, `656f5b2f2d`,
+`1c75c4ef0e`); no nightly has run since.
 
 ### Next
 
-Stage 2, in its item order: `crates/nvs-runtime/src/revoke.rs:1` with `ThrownClass::Revoked`
-(`crates/nvs-runtime/src/throwable.rs:341`), then the masked count reads (`object.rs` `fn refcount`,
-re-found with `bun nv peek --locate refcount`), then the inline release bound
-(`crates/nvs-codegen/src/emit.rs:4766`), the hidden slot (`crates/nvs-types/src/layout.rs:1002`), and
-the lowering of the two intrinsics.
+Stage 2's item 4, the hidden slot, with the checkpoints under it. Today a revocable class's slot 0 is
+whatever property comes first, so nothing may call `set_revocable` until `flatten_fields`
+(`crates/nvs-types/src/layout.rs`, `bun nv peek --locate flatten_fields`) puts a hidden slot there. Give
+it a name no property can have, and have every walker of field names skip slot 0 when
+`ClassDesc::is_revocable()`. Find the walkers first with an `Explore` subagent: `ClassDesc::field_name`,
+`field_slot`, `fields.len()`, `nvs_object_clone` and `crates/nvs-runtime/src/graph.rs`. `clone` and the
+graph copy must start the slot null: a copied memberships pointer is freed twice.
 
-A test may go red once `ThrownClass` gains `Revoked`: `ThrownClass::ALL` is iterated by
-`every_thrown_class_is_in_the_compiler_s_exception_tree` in `nvs-codegen`, which stays green because
-the tree already has the class.
+Then item 5: lower `revoke()` and `isRevoked()` to `nvs_object_revoke(object, SourceConst)` and
+`nvs_object_is_revoked(object)`. Register the three externs in `helpers.rs` and give each a
+`RuntimeSig`. Then the last two tests: `a_class_that_is_not_revocable_has_no_hidden_slot` and
+`compiled_code_frees_a_revoked_object` in `crates/nvs-codegen/tests/revocable.rs`, and run both checks
+once (`looper check --name runtime-flag`, `--name compiled-release`).
+
+No existing test is expected to go red. `every_thrown_class_is_in_the_compiler_s_exception_tree` now
+iterates `Revoked`, and the tree has the class.
 
 ### Backlog
