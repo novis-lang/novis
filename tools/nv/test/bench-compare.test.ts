@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { describe, expect, spyOn, test } from "bun:test";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
@@ -75,7 +75,14 @@ import {
   PARALLEL_PARTS,
   parallelResult,
   parseExpect,
+  type Peer,
+  planOf,
+  planText,
   PROFILE_SCRIPT,
+  RUNAWAY_PROBE_SECONDS,
+  type Scenario,
+  totalsOf,
+  warmRequests,
   profileArgs,
   rowLine,
   type RowResult,
@@ -96,6 +103,75 @@ import {
 } from "../cmd/bench-compare.ts";
 
 const ctx = { cpus: 4, concurrency: 64, tree: "cases", case: "hello", commit: "abc1234" };
+
+describe("the plan", () => {
+  const built = { ...PEERS.find((p) => p.id === "nvs")!, id: "a" } as Peer;
+  const pulled = { ...PEERS.find((p) => p.id === "bun")!, id: "b" } as Peer;
+  const twoInputs = { ...CASES[0]!, id: "k", inputs: [CASES[0]!.inputs[0]!, CASES[0]!.inputs[0]!] };
+  const fixedB = { result: "no", evidence: {} } as RowResult;
+  const probed: Scenario = { id: "p", tree: "scenarios", case: "k", runs: 3, loadSeconds: 35, probe: async () => fixedB };
+  const halfFixed: Scenario = { id: "f", tree: "scenarios", case: "k", fixed: { b: fixedB }, probe: async () => fixedB };
+  const checked: Scenario = { id: "c", tree: "scenarios", case: "k", serves: false, fixed: { b: fixedB }, probe: async () => fixedB };
+  const timedRow: Scenario = { id: "t", tree: "scenarios", case: "k", timedCase: twoInputs, budgets: [1, 4], timed: () => fixedB };
+  const load = { reps: 2, requests: 1000, smoke: false };
+
+  test("counts every stack, image build and fixed-load second a run takes", () => {
+    const cases = planOf([built, pulled], [twoInputs], [], load, null);
+    // The answers first, one stack per peer, then rep 1 of both peers and rep 2.
+    expect(cases.map((p) => `${p.phase} ${p.peer} ${p.rep}`)).toEqual(["answers a 1", "answers b 1", "cases a 1", "cases b 1", "cases a 2", "cases b 2"]);
+    // A built peer's case stack is two `up --build` calls, and a pulled one builds nothing.
+    expect(cases.map((p) => p.builds)).toEqual([2, 0, 2, 0, 2, 0]);
+    expect(cases[0]!.requests).toBe(2);
+    expect(cases[2]!.requests).toBe(2 + warmRequests(1000) + 1000);
+    // `--smoke` checks the answers on the timed pass.
+    expect(planOf([built, pulled], [twoInputs], [], { ...load, smoke: true, reps: 1 }, null).every((p) => p.phase === "cases")).toBe(true);
+
+    const rows = planOf([built, pulled], [], [probed, halfFixed, checked, timedRow], load, null);
+    expect(rows.filter((p) => p.id === "p").map((p) => `${p.peer} ${p.rep}`)).toEqual(["a 1", "b 1", "a 2", "b 2", "a 3", "b 3"]);
+    expect(rows.filter((p) => p.id === "p").every((p) => p.stacks === 1 && p.seconds === 35)).toBe(true);
+    // A peer with a fixed result runs nothing, and a row that only checks builds the image and brings no stack up.
+    expect(rows.filter((p) => p.id === "f").map((p) => p.peer)).toEqual(["a"]);
+    expect(rows.filter((p) => p.id === "c").map((p) => [p.peer, p.stacks, p.builds])).toEqual([["a", 0, 1]]);
+    // A timed row times every budget `reps` times inside one peer's turn.
+    expect(rows.filter((p) => p.id === "t").map((p) => `${p.peer} ${p.cpus} ${p.rep}`)).toEqual(["a 1 1", "a 1 2", "a 4 1", "a 4 2", "b 1 1", "b 1 2", "b 4 1", "b 4 2"]);
+    expect(totalsOf(rows).rows).toEqual({ stacks: 6 + 1 + 0 + 8, builds: 3 + 1 + 1 + 8, seconds: 6 * 35, requests: 8 * (2 + warmRequests(1000) + 1000) });
+    expect(totalsOf(rows).total).toEqual(totalsOf(rows).rows);
+    expect(planText(rows).at(-1)).toContain("15 stacks");
+  });
+
+  test("starts no docker", async () => {
+    const spawnSync = spyOn(Bun, "spawnSync").mockImplementation(() => {
+      throw new Error("--plan started a process");
+    });
+    const spawn = spyOn(Bun, "spawn").mockImplementation(() => {
+      throw new Error("--plan started a process");
+    });
+    const lines: string[] = [];
+    const log = spyOn(console, "log").mockImplementation((line: string) => void lines.push(line));
+    try {
+      expect(await run(["--plan"])).toBe(0);
+      expect(await run(["--scenarios", "--plan", "--row", "flood"])).toBe(0);
+    } finally {
+      spawnSync.mockRestore();
+      spawn.mockRestore();
+      log.mockRestore();
+    }
+    expect(lines.some((l) => l.includes("total") && l.includes("stacks"))).toBe(true);
+    expect(await run(["--plan", "--direct"])).toBe(2);
+  });
+
+  test("of the four-peer recording is the baseline", () => {
+    // A recording is a case run and then a rows run, at five reps of 20,000 requests. These are the
+    // counts of the four-peer comparison before the cuts, which a later plan is measured against.
+    const four = PEERS.filter((p) => ["nvs", "php", "bun", "go"].includes(p.id));
+    const recording = { reps: 5, requests: 20_000, smoke: false };
+    const cases = totalsOf(planOf(four, CASES, [], recording, null));
+    expect(cases.answers).toEqual({ stacks: 16, builds: 16, seconds: 0, requests: 44 });
+    expect(cases.cases).toEqual({ stacks: 80, builds: 80, seconds: 0, requests: 1_640_220 });
+    const rows = totalsOf(planOf(four, [], SCENARIOS, recording, null));
+    expect(rows.rows).toEqual({ stacks: 151, builds: 107, seconds: 2 * 12 * RUNAWAY_PROBE_SECONDS + 4 * 10, requests: 1_230_060 });
+  });
+});
 
 describe("the peer table", () => {
   test("names Novis, PHP, Bun and Go, in that order", () => {

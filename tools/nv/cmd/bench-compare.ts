@@ -12,6 +12,8 @@
 //     bun nv bench-compare --profile json-api                    # perf and strace on Novis serving one case
 //     bun nv bench-compare --direct                              # every HTTP peer with no proxy, CPU per request
 //     bun nv bench-compare --direct --smoke                      # the same, a few hundred requests
+//     bun nv bench-compare --plan                                # what a case recording would do, and no docker
+//     bun nv bench-compare --scenarios --plan                    # the same for the rows
 //
 // `benches/compare/README.md` is why the comparison is built the way it is, and this file owns only how a
 // run is carried out. The Docker half is `tools/nv/cmd/bench-docker.ts`'s, shared with `bench-proxied`.
@@ -28,6 +30,12 @@
 // `--scenarios` runs the feature rows in `SCENARIOS` instead of the cases. A row brings each peer's stack
 // up fresh over the row's own programs, runs its probe, and maps what the peer did to one of the four
 // results in `Verdict`, with the evidence beside it.
+//
+// Both walk a plan. `planOf` lists every pass a run takes before it starts, with the stacks, image
+// builds, seconds of steady load and requests of each, and the run takes exactly those passes in that
+// order. `--plan` prints the plan's totals per phase and starts nothing. Each pass adds the wall-clock
+// seconds of its steps to its case's or row's `seconds` in the record, and a case keeps every peer's
+// `passes` beside the median. The seconds show where a recording's time went, and gate nothing.
 //
 // `--profile CASE` measures no peer. It builds the Novis image, copies `oha` out of its pinned image, and
 // runs `benches/compare/profile.sh` in a privileged container of the Novis image, with no nginx: `nvs
@@ -118,6 +126,8 @@ export interface Peer {
   prepare?(ctx: PeerCtx): void;
   /** The program is compiled into the image from the committed tree, so a row's copy is never served. */
   compiled?: boolean;
+  /** The compose file builds the backend's image from this checkout, so every `up --build` of its stack is a build. */
+  built?: boolean;
 }
 
 /** The FPM pool, sized by concurrency as `benches/proxied/php/pool.conf.in` explains. */
@@ -133,6 +143,7 @@ export const PEERS: Peer[] = [
     image: "nvs-bench-serve:local (built from this checkout)",
     env: (ctx) => ({ NVS_BUILD_COMMIT: ctx.commit }),
     settings: () => ({ server: "nvs serve", workers: "one per visible cpu", config: "defaults" }),
+    built: true,
   },
   {
     id: "php",
@@ -165,6 +176,7 @@ export const PEERS: Peer[] = [
     env: () => ({}),
     settings: (ctx) => ({ server: "net/http", GOMAXPROCS: ctx.cpus }),
     compiled: true,
+    built: true,
   },
 ];
 
@@ -412,15 +424,15 @@ export interface Steady {
   p99_ms: number | null;
 }
 
-/** What a row that times a case can do against one peer. */
+/** What a row that times a case is given for one peer, once the run has timed it at every budget. */
 export interface Timer {
   /** The peer's `id` in `PEERS`. */
   peer: string;
-  /** Requests each pass sends, and connections the case holds open. */
+  /** Requests each pass sent, and connections the case held open. */
   requests: number;
   concurrency: number;
-  /** The row's case at a backend budget of `cpus`: `--reps` passes, each on a fresh stack, as `medianOf` merges them. */
-  pass(cpus: number): Promise<PeerResult>;
+  /** One result per entry of the row's `budgets`, in its order: `--reps` passes, each on a fresh stack, as `medianOf` merges them. */
+  at: PeerResult[];
 }
 
 export interface Scenario {
@@ -460,7 +472,11 @@ export interface Scenario {
   /** A row about requests: sent to one stack the driver brings up. */
   probe?(p: Probe): Promise<RowResult>;
   /** A row about a figure: times `timedCase`, or else the case in `cases/` named by `case`, each pass on a fresh stack. */
-  timed?(t: Timer): Promise<RowResult>;
+  timed?(t: Timer): RowResult;
+  /** A timed row's backend budgets, in cpus. The run times the case at each, and `timed` reads them from `Timer.at`. */
+  budgets?: number[];
+  /** Seconds of steady load each probe sends, which `planOf` counts. */
+  loadSeconds?: number;
 }
 
 /** The factor from one cpu to four below which a peer is not using the extra cores. */
@@ -530,6 +546,8 @@ export const RUNAWAY_LOAD_SECONDS = 15;
 export const RUNAWAY_WARMUP_SECONDS = 5;
 /** Fresh stacks each runaway row runs against each peer, each with its own baseline and runaway load. */
 export const RUNAWAY_RUNS = 3;
+/** The steady load one runaway probe sends, one load after another: the warm-up, the baseline and the load with the runaway request. */
+export const RUNAWAY_PROBE_SECONDS = RUNAWAY_WARMUP_SECONDS + 2 * RUNAWAY_LOAD_SECONDS;
 export const RUNAWAY_START_MS = 3_000;
 
 /** How long a runaway request may take to be stopped: under nginx's 60-second read timeout, so a reply is the backend's. */
@@ -1396,7 +1414,8 @@ export const SCENARIOS: Scenario[] = [
     tree: "scenarios",
     case: "parallel",
     timedCase: CORES_CASE,
-    timed: async (t) => coresResult(await t.pass(1), await t.pass(4), CORES_IN_CODE[t.peer]),
+    budgets: [1, 4],
+    timed: (t) => coresResult(t.at[0]!, t.at[1]!, CORES_IN_CODE[t.peer]),
   },
   {
     id: "crash",
@@ -1415,6 +1434,7 @@ export const SCENARIOS: Scenario[] = [
     memory: RUNAWAY_MEMORY,
     runs: RUNAWAY_RUNS,
     merge: mergeRunaways,
+    loadSeconds: RUNAWAY_PROBE_SECONDS,
     probe: (p) => runawayProbe(p, "/loop", LOOP_DEFAULT, LOOP_IN_CODE),
   },
   {
@@ -1424,6 +1444,7 @@ export const SCENARIOS: Scenario[] = [
     memory: RUNAWAY_MEMORY,
     runs: RUNAWAY_RUNS,
     merge: mergeRunaways,
+    loadSeconds: RUNAWAY_PROBE_SECONDS,
     probe: (p) => runawayProbe(p, "/alloc", MEMORY_DEFAULT),
   },
   {
@@ -1431,6 +1452,7 @@ export const SCENARIOS: Scenario[] = [
     tree: "scenarios",
     case: "flood",
     memory: RUNAWAY_MEMORY,
+    loadSeconds: FLOOD_SECONDS,
     probe: floodProbe,
   },
   {
@@ -1459,7 +1481,8 @@ export const SCENARIOS: Scenario[] = [
     id: "waiting",
     tree: "cases",
     case: "wait",
-    timed: async (t) => waitingResult(await t.pass(1), Math.min(t.requests, t.concurrency), WAITING_SETTING[t.peer]),
+    budgets: [1],
+    timed: (t) => waitingResult(t.at[0]!, Math.min(t.requests, t.concurrency), WAITING_SETTING[t.peer]),
   },
   {
     id: "parallel",
@@ -1493,6 +1516,152 @@ export function rowLine(id: string, byPeer: Map<string, RowResult>): string {
  * median rep, memory the median of the reps', errors and statuses summed. Memory is the backend
  * container's cgroup, in bytes.
  */
+// ---------------------------------------------------------------------------------------------------
+// The plan: every pass a run takes, counted before it starts.
+// ---------------------------------------------------------------------------------------------------
+
+/** The phases of a run, in the order it takes them: the cases' answers, the timed cases, then the rows. */
+export type Phase = "answers" | "cases" | "rows";
+export const PHASES: readonly Phase[] = ["answers", "cases", "rows"];
+
+/** What a pass costs: stacks brought up, images built, seconds of steady load, and requests `oha` sends by count. */
+export interface Work {
+  stacks: number;
+  builds: number;
+  seconds: number;
+  requests: number;
+}
+
+/** One peer's turn at a case or a row. */
+export interface PlannedPass extends Work {
+  phase: Phase;
+  /** The case's id, or the row's. */
+  id: string;
+  peer: string;
+  /** The rep of a case or a timed row, or the run of a probed row, from 1. */
+  rep: number;
+  /** A timed row's backend budget for this pass. */
+  cpus?: number;
+}
+
+/** How a run loads each pass. `smoke` takes no separate answers and runs each row once. */
+export interface PlanLoad {
+  reps: number;
+  requests: number;
+  smoke: boolean;
+}
+
+/** `up --build` calls one stack of a case makes: the backend, then nginx in front of it. */
+const CASE_UPS = 2;
+
+/** The warm-up `ohaArm` sends before its timed pass. */
+export const warmRequests = (requests: number) => Math.max(50, Math.min(requests, 500));
+
+/** One fresh stack of `c` for `peer`: its answers, and with `load` its warm-up and its timed pass. */
+function casePass(peer: Peer, c: Case, requests: number | null): Work {
+  return {
+    stacks: 1,
+    builds: peer.built === true ? CASE_UPS : 0,
+    seconds: 0,
+    requests: c.inputs.length + (requests === null ? 0 : warmRequests(requests) + requests),
+  };
+}
+
+/** The case a timed row times. */
+export const rowCase = (s: Scenario): Case => s.timedCase ?? CASES.find((k) => k.id === s.case)!;
+
+/**
+ * Every pass a run takes, in the order it takes them. It is a pure function of its arguments, and the run
+ * walks the passes it returns, so a count and the run cannot differ. The cases run their answers first,
+ * one stack per (case, peer), unless `smoke` checks them on the timed pass. Then the reps interleave
+ * the peers. A probed row runs `runs` times, the peers interleaved, and a timed row times every budget
+ * `reps` times inside one peer's turn. A peer a row gives a fixed result runs nothing. A row that does
+ * not serve runs one `check`, which builds the image and brings up no stack. `prior` is the record a
+ * recording would reuse rows from.
+ */
+export function planOf(peers: Peer[], cases: Case[], scenarios: Scenario[], load: PlanLoad, _prior: Record<string, unknown> | null): PlannedPass[] {
+  const plan: PlannedPass[] = [];
+  if (!load.smoke) {
+    for (const c of cases) for (const p of peers) plan.push({ phase: "answers", id: c.id, peer: p.id, rep: 1, ...casePass(p, c, null) });
+  }
+  for (const c of cases) {
+    for (let rep = 1; rep <= load.reps; rep++) {
+      for (const p of peers) plan.push({ phase: "cases", id: c.id, peer: p.id, rep, ...casePass(p, c, load.requests) });
+    }
+  }
+  for (const s of scenarios) {
+    const runs = peers.filter((p) => s.fixed?.[p.id] === undefined);
+    if (s.timed !== undefined) {
+      const c = rowCase(s);
+      for (const p of runs) {
+        for (const cpus of s.budgets ?? []) {
+          for (let rep = 1; rep <= load.reps; rep++) plan.push({ phase: "rows", id: s.id, peer: p.id, rep, cpus, ...casePass(p, c, load.requests) });
+        }
+      }
+      continue;
+    }
+    const times = load.smoke ? 1 : (s.runs ?? 1);
+    for (let rep = 1; rep <= times; rep++) {
+      for (const p of runs) {
+        const serves = s.serves !== false;
+        const work = { stacks: serves ? 1 : 0, builds: p.built === true ? 1 : 0, seconds: serves ? (s.loadSeconds ?? 0) : 0, requests: 0 };
+        plan.push({ phase: "rows", id: s.id, peer: p.id, rep, ...work });
+      }
+    }
+  }
+  return plan;
+}
+
+const NO_WORK = (): Work => ({ stacks: 0, builds: 0, seconds: 0, requests: 0 });
+
+/** The work of `plan` per phase, in `PHASES` order, and the whole of it under `total`. */
+export function totalsOf(plan: PlannedPass[]): Record<Phase | "total", Work> {
+  const totals = { answers: NO_WORK(), cases: NO_WORK(), rows: NO_WORK(), total: NO_WORK() };
+  for (const pass of plan) {
+    for (const into of [totals[pass.phase], totals.total]) {
+      into.stacks += pass.stacks;
+      into.builds += pass.builds;
+      into.seconds += pass.seconds;
+      into.requests += pass.requests;
+    }
+  }
+  return totals;
+}
+
+/** `--plan`'s table: one line per phase with work in it, and the total. */
+export function planText(plan: PlannedPass[]): string[] {
+  const totals = totalsOf(plan);
+  const line = (name: string, w: Work) =>
+    `  ${name.padEnd(8)} ${String(w.stacks).padStart(6)} stacks  ${String(w.builds).padStart(6)} builds  ` +
+    `${String(w.seconds).padStart(6)} s of steady load  ${grouped(w.requests, 0).padStart(12)} requests`;
+  return [...PHASES.filter((p) => totals[p].stacks + totals[p].builds > 0).map((p) => line(p, totals[p])), line("total", totals.total)];
+}
+
+/** Wall-clock seconds of each step of a run, summed over the passes of one case or row. */
+export type Seconds = Record<string, number>;
+
+/** Runs `f`, and adds the seconds it took to `step` in `clock`, whether or not it throws. */
+function clocked<T>(clock: Seconds, step: string, f: () => T): T {
+  const start = performance.now();
+  try {
+    return f();
+  } finally {
+    clock[step] = (clock[step] ?? 0) + (performance.now() - start) / 1000;
+  }
+}
+
+async function clockedAsync<T>(clock: Seconds, step: string, f: () => Promise<T>): Promise<T> {
+  const start = performance.now();
+  try {
+    return await f();
+  } finally {
+    clock[step] = (clock[step] ?? 0) + (performance.now() - start) / 1000;
+  }
+}
+
+/** `clock` as the record keeps it, each step to a tenth of a second. */
+export const secondsOf = (clock: Seconds): Seconds => Object.fromEntries(Object.entries(clock).map(([step, s]) => [step, round(s, 1)]));
+
 export interface PeerResult {
   requests_per_sec: number;
   /** The same figure as `requests_per_sec`, kept for the readers of older records. */
@@ -1571,19 +1740,24 @@ export function medianOf(passes: PeerResult[]): PeerResult {
  * The whole record `--record` writes: the machine under `host`, as `bench-proxied`'s record names it,
  * every peer's image, and per case every peer's figures, the median of `reps` interleaved passes,
  * in `PEERS` order. The scenario rows sit under `scenarios`, from their own run; nothing joins the
- * record to `benches/serve-proxied.json`.
+ * record to `benches/serve-proxied.json`. With `detail`, a case also keeps every peer's passes in rep
+ * order under `passes`, and the wall-clock seconds of each step of its answers and passes under `seconds`.
  */
-export function buildRecord(run: RunInfo, results: Map<string, Map<string, PeerResult>>, scenarios: RecordedScenarios | null = null) {
-  const cases: Record<string, { concurrency: number; peers: Record<string, PeerResult> }> = {};
+export function buildRecord(run: RunInfo, results: Map<string, Map<string, PeerResult>>, scenarios: RecordedScenarios | null = null, detail: Map<string, CaseDetail> | null = null) {
+  const cases: Record<string, { concurrency: number; peers: Record<string, PeerResult>; passes?: Record<string, PeerResult[]>; seconds?: Seconds }> = {};
   for (const c of CASES) {
     const byPeer = results.get(c.id);
     if (byPeer === undefined) continue;
     const peers: Record<string, PeerResult> = {};
+    const passes: Record<string, PeerResult[]> = {};
+    const more = detail?.get(c.id);
     for (const p of PEERS) {
       const r = byPeer.get(p.id);
       if (r !== undefined) peers[p.id] = r;
+      const ps = more?.passes.get(p.id);
+      if (ps !== undefined) passes[p.id] = ps;
     }
-    cases[c.id] = { concurrency: c.concurrency, peers };
+    cases[c.id] = { concurrency: c.concurrency, peers, ...(more === undefined ? {} : { passes, seconds: secondsOf(more.seconds) }) };
   }
   return {
     date: run.date,
@@ -1603,10 +1777,20 @@ export function buildRecord(run: RunInfo, results: Map<string, Map<string, PeerR
   };
 }
 
-/** One row as the record keeps it: the repo-relative folder its four programs are in, and each peer's result in `PEERS` order. */
+/** What a case run keeps beside each case's medians: every peer's passes in rep order, and the seconds of each step. */
+export interface CaseDetail {
+  passes: Map<string, PeerResult[]>;
+  seconds: Seconds;
+}
+
+/**
+ * One row as the record keeps it: the repo-relative folder its programs are in, each peer's result in
+ * `PEERS` order, and the wall-clock seconds of each step of its passes.
+ */
 export interface RecordedRow {
   folder: string;
   peers: Record<string, RowResult>;
+  seconds?: Seconds;
 }
 
 /** One `--scenarios` run: when, at which commit, and every row in `SCENARIOS` order. */
@@ -1619,7 +1803,7 @@ export interface RecordedScenarios {
 /** The folder a row's programs are in, which the page links each cell to. */
 export const scenarioFolder = (s: Scenario) => `benches/compare/${s.tree}/${s.case}`;
 
-export function buildScenarios(date: string, commit: string, results: Map<string, Map<string, RowResult>>): RecordedScenarios {
+export function buildScenarios(date: string, commit: string, results: Map<string, Map<string, RowResult>>, seconds: Map<string, Seconds> | null = null): RecordedScenarios {
   const rows: Record<string, RecordedRow> = {};
   for (const s of SCENARIOS) {
     const byPeer = results.get(s.id);
@@ -1629,7 +1813,8 @@ export function buildScenarios(date: string, commit: string, results: Map<string
       const r = byPeer.get(p.id);
       if (r !== undefined) peers[p.id] = r;
     }
-    rows[s.id] = { folder: scenarioFolder(s), peers };
+    const clock = seconds?.get(s.id);
+    rows[s.id] = { folder: scenarioFolder(s), peers, ...(clock === undefined ? {} : { seconds: secondsOf(clock) }) };
   }
   return { date, commit, rows };
 }
@@ -1736,28 +1921,31 @@ interface Pass {
 /**
  * Brings the peer's stack up fresh for one case, takes its answers, and when `load` is given times it,
  * reading `memory.current` before the first request and `memory.peak` after the last. Always torn down.
+ * The seconds of each step are added to `clock`.
  */
-async function onePass(peer: Peer, c: Case, ctx: PeerCtx, load: Load | null): Promise<Pass> {
+async function onePass(peer: Peer, c: Case, ctx: PeerCtx, load: Load | null, clock: Seconds): Promise<Pass> {
   const env = stackEnv(peer, ctx);
   const stack = stackPath(peer);
   peer.prepare?.(ctx);
   try {
-    up(stack, env, "app");
+    clocked(clock, "up_app", () => up(stack, env, "app"));
     const idle = cgroupBytes(peer, env, "memory.current");
-    up(stack, env, "nginx");
+    clocked(clock, "up_nginx", () => up(stack, env, "nginx"));
     const answers: Answer[] = [];
-    for (const input of c.inputs) answers.push(await answerOf(peer, input));
+    await clockedAsync(clock, "answers", async () => {
+      for (const input of c.inputs) answers.push(await answerOf(peer, input));
+    });
     if (load === null) return { answers, result: null };
     const flags = ["--insecure", "-m", c.timed.method];
     if (c.timed.body !== undefined) flags.push("-d", c.timed.body);
     if (c.timed.contentType !== undefined) flags.push("-T", c.timed.contentType);
-    const arm = ohaArm(stack, `https://nginx${c.timed.path}`, load, env, `${c.id}-${peer.id}`, peer.label, c.id, flags);
+    const arm = clocked(clock, "load", () => ohaArm(stack, `https://nginx${c.timed.path}`, load, env, `${c.id}-${peer.id}`, peer.label, c.id, flags));
     const peak = cgroupBytes(peer, env, "memory.peak");
     return { answers, result: resultOf(arm, { idle, peak }, peer.settings(ctx)) };
   } catch (e) {
     throw new Fail(`${peer.label}, case ${c.id}: ${messageOf(e)}\n${peer.id} said:\n${logsOf(stack, "app", env)}`);
   } finally {
-    down(stack, env);
+    clocked(clock, "down", () => down(stack, env));
   }
 }
 
@@ -1824,29 +2012,10 @@ export function steadyResult(json: { statusCodeDistribution?: Record<string, num
 }
 
 /**
- * Brings the peer's stack up fresh for one row, runs the row's probe against it, and always tears it down.
- * A peer the row gives a fixed result runs nothing, and a row that does not serve brings nothing up.
+ * Brings the peer's stack up fresh for one probed row, runs the row's probe against it, and always tears
+ * it down. A row that does not serve brings nothing up. The seconds of each step are added to `clock`.
  */
-async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): Promise<RowResult> {
-  const fixed = s.fixed?.[peer.id];
-  if (fixed !== undefined) return fixed;
-  if (s.timed !== undefined) {
-    const c = s.timedCase ?? CASES.find((k) => k.id === s.case)!;
-    const loadOf = { ...load, concurrency: c.concurrency, reps: 1 };
-    // A timed row asks for its passes one budget at a time, inside one peer's turn, so its reps run one
-    // peer after another and do not interleave as the cases' do. Each is still a fresh stack, and the
-    // median of them is what the row judges.
-    return await s.timed({
-      peer: peer.id,
-      requests: load.requests,
-      concurrency: c.concurrency,
-      pass: async (cpus) => {
-        const passes: PeerResult[] = [];
-        for (let i = 0; i < load.reps; i++) passes.push((await onePass(peer, c, { ...ctx, cpus, concurrency: c.concurrency }, loadOf)).result!);
-        return medianOf(passes);
-      },
-    });
-  }
+async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, clock: Seconds): Promise<RowResult> {
   if (s.copy === true && peer.compiled !== true) {
     rmSync(join(GENERATED, s.case), { recursive: true, force: true });
     cpSync(join(COMPARE_DIR, s.tree, s.case), join(GENERATED, s.case), { recursive: true });
@@ -1861,8 +2030,8 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): 
       const done = compose(stack, init, env, true);
       if (done.code !== 0) throw new Error(`deploy.sh init: ${done.stdout}${done.stderr}`);
     }
-    if (s.serves !== false) up(stack, env, "app", "nginx");
-    return await s.probe!({
+    if (s.serves !== false) clocked(clock, "up", () => up(stack, env, "app", "nginx"));
+    return await clockedAsync(clock, "probe", () => s.probe!({
       peer: peer.id,
       compiled: peer.compiled === true,
       dir: join(COMPARE_DIR, ctx.tree, ctx.case),
@@ -1884,12 +2053,12 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, load: Load): 
         const done = compose(stack, ["run", "--rm", "--no-deps", "--build", "app", "check", `/app/${file}`], env, true);
         return { code: done.code, output: done.stdout + done.stderr };
       },
-    });
+    }));
   } catch (e) {
     throw new Fail(`${peer.label}, row ${s.id}: ${messageOf(e)}\n${peer.id} said:\n${logsOf(stack, "app", env)}`);
   } finally {
     // `down` removes the `site` volume a deploy row wrote, too.
-    down(stack, env);
+    clocked(clock, "down", () => down(stack, env));
   }
 }
 
@@ -2195,7 +2364,7 @@ async function direct(smoke: boolean, commit: string): Promise<number> {
 const USAGE =
   "usage: nv bench-compare [-h] [--smoke] [--scenarios] [--arm {fair,deployed}] [--backend-cpus N]\n" +
   "                        [--row ID] [--expect PEER=RESULT,...] [--requests REQUESTS] [--reps REPS]\n" +
-  "                        [--record PATH] [--down] [--profile CASE] [--direct]";
+  "                        [--record PATH] [--down] [--profile CASE] [--direct] [--plan]";
 
 interface Options {
   smoke: boolean;
@@ -2210,6 +2379,7 @@ interface Options {
   expect: Map<string, Verdict> | null;
   profile: Case | null;
   direct: boolean;
+  plan: boolean;
 }
 
 /** `--expect nvs=on-by-default,php=no`: the result each named peer must get in every row run. */
@@ -2239,7 +2409,7 @@ export function unmetExpectations(expect: Map<string, Verdict>, results: Map<str
 }
 
 function options(args: string[]): Options | null {
-  const p = parseArgs(args, { flags: ["--smoke", "--scenarios", "--down", "--direct"], valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row", "--expect", "--profile"] });
+  const p = parseArgs(args, { flags: ["--smoke", "--scenarios", "--down", "--direct", "--plan"], valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row", "--expect", "--profile"] });
   if (p.flags.has("--help")) return null;
   const int = (o: string): number | null => {
     const word = p.values.get(o);
@@ -2264,6 +2434,8 @@ function options(args: string[]): Options | null {
     ...["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row", "--profile"].filter((v) => p.values.has(v)),
   ];
   if (direct && others.length > 0) throw new ArgError(`argument --direct: not with ${others.join(", ")}; only --smoke goes with it`);
+  const plan = p.flags.has("--plan");
+  if (plan && (direct || profiled !== null || p.flags.has("--down"))) throw new ArgError("argument --plan: not with --direct, --profile or --down");
   return {
     smoke: p.flags.has("--smoke"),
     scenarios: p.flags.has("--scenarios"),
@@ -2277,6 +2449,7 @@ function options(args: string[]): Options | null {
     expect: expect === undefined ? null : parseExpect(expect),
     profile: profiled,
     direct,
+    plan,
   };
 }
 
@@ -2313,6 +2486,9 @@ function help(): string {
     "                        runs on other cores. Prints requests/sec, CPU microseconds per request",
     "                        (user and system) and throttled periods. With --smoke, a few hundred",
     "                        requests per peer. Records nothing",
+    "  --plan                print the work the run the other flags describe would do: stacks brought",
+    "                        up, images built, seconds of steady load and requests, per phase. Starts",
+    "                        no container",
     "",
     "benches/compare/README.md is the design; this tool is only how it is run. It needs bun and Docker.",
   ].join("\n");
@@ -2337,28 +2513,62 @@ export function scenarioCtx(s: Scenario, peer: Peer, cpus: number, commit: strin
   };
 }
 
-/** `--scenarios`: every row against every peer, one fresh stack per pair, one line per row, then the record. */
-async function scenarios(o: Options, cpus: number, commit: string, load: Load): Promise<number> {
+/** The rows `--row` names, or every row. */
+function rowsOf(o: Options): Scenario[] {
+  const rows = SCENARIOS.filter((s) => o.row === null || s.id === o.row);
+  if (rows.length === 0) throw new Fail(`--row ${o.row}: no such row; the rows are ${SCENARIOS.map((s) => s.id).join(", ")}`);
+  return rows;
+}
+
+/**
+ * `--scenarios`: every row against every peer, one fresh stack per pass of `planOf`, one line per row,
+ * then the record. A probed row's runs interleave the peers. A timed row times every budget `reps`
+ * times inside one peer's turn, so its reps do not interleave as the cases' do, and `timed` judges the
+ * median of each budget's passes.
+ */
+async function scenarios(o: Options, cpus: number, commit: string, load: PlanLoad): Promise<number> {
   if (o.record !== null && o.row !== null) throw new Fail("--record keeps every row of one run; drop --row or --record");
   const prior = o.record === null ? null : readRecord(resolve(o.record));
   if (o.record !== null && prior === null) throw new Fail(`${o.record}: no record yet; record the cases first with bun nv bench-compare --record ${o.record}`);
-  const rows = SCENARIOS.filter((s) => o.row === null || s.id === o.row);
-  if (rows.length === 0) throw new Fail(`--row ${o.row}: no such row; the rows are ${SCENARIOS.map((s) => s.id).join(", ")}`);
+  const rows = rowsOf(o);
+  const plan = planOf(PEERS, [], rows, load, prior);
   const results = new Map<string, Map<string, RowResult>>();
+  const clocks = new Map<string, Seconds>();
   for (const s of rows) {
-    const runs = o.smoke ? 1 : (s.runs ?? 1);
-    if (runs > 1 && s.merge === undefined) throw new Fail(`row ${s.id} runs ${runs} times and has no merge`);
-    const passes = new Map<string, RowResult[]>(PEERS.map((p) => [p.id, []]));
-    // Run 1 of every peer, then run 2, so a slow stretch of the shared host lands on every peer.
-    for (let run = 1; run <= runs; run++) {
-      for (const peer of PEERS) {
-        if (run > 1 && s.fixed?.[peer.id] !== undefined) continue;
-        console.log(`  ${s.id}: ${peer.label}${runs > 1 ? `, run ${run} of ${runs}` : ""} ...`);
-        passes.get(peer.id)!.push(await scenarioPass(peer, s, scenarioCtx(s, peer, cpus, commit), load));
+    const runs = load.smoke ? 1 : (s.runs ?? 1);
+    if (s.timed === undefined && runs > 1 && s.merge === undefined) throw new Fail(`row ${s.id} runs ${runs} times and has no merge`);
+    const clock: Seconds = {};
+    clocks.set(s.id, clock);
+    const probed = new Map<string, RowResult[]>();
+    const timed = new Map<string, Map<number, PeerResult[]>>();
+    for (const pass of plan.filter((x) => x.id === s.id)) {
+      const peer = PEERS.find((p) => p.id === pass.peer)!;
+      const ctx = scenarioCtx(s, peer, cpus, commit);
+      if (s.timed !== undefined) {
+        const c = rowCase(s);
+        console.log(`  ${s.id}: ${peer.label}, ${pass.cpus} cpu(s), rep ${pass.rep} of ${load.reps} ...`);
+        const done = await onePass(peer, c, { ...ctx, cpus: pass.cpus!, concurrency: c.concurrency }, { requests: load.requests, concurrency: c.concurrency, reps: 1 }, clock);
+        const byBudget = timed.get(peer.id) ?? new Map<number, PeerResult[]>();
+        byBudget.set(pass.cpus!, [...(byBudget.get(pass.cpus!) ?? []), done.result!]);
+        timed.set(peer.id, byBudget);
+      } else {
+        console.log(`  ${s.id}: ${peer.label}${runs > 1 ? `, run ${pass.rep} of ${runs}` : ""} ...`);
+        probed.set(peer.id, [...(probed.get(peer.id) ?? []), await scenarioPass(peer, s, ctx, clock)]);
       }
     }
     const byPeer = new Map<string, RowResult>();
-    for (const [peer, rs] of passes) byPeer.set(peer, rs.length === 1 ? rs[0]! : s.merge!(peer, rs));
+    for (const peer of PEERS) {
+      const fixed = s.fixed?.[peer.id];
+      if (fixed !== undefined) {
+        byPeer.set(peer.id, fixed);
+      } else if (s.timed !== undefined) {
+        const at = (s.budgets ?? []).map((b) => medianOf(timed.get(peer.id)!.get(b)!));
+        byPeer.set(peer.id, s.timed({ peer: peer.id, requests: load.requests, concurrency: rowCase(s).concurrency, at }));
+      } else {
+        const rs = probed.get(peer.id)!;
+        byPeer.set(peer.id, rs.length === 1 ? rs[0]! : s.merge!(peer.id, rs));
+      }
+    }
     console.log(rowLine(s.id, byPeer));
     results.set(s.id, byPeer);
     for (const peer of PEERS) {
@@ -2367,7 +2577,7 @@ async function scenarios(o: Options, cpus: number, commit: string, load: Load): 
     }
   }
   if (o.record !== null && prior !== null) {
-    writeRecord(resolve(o.record), withScenarios(prior, buildScenarios(stamp(), commit, results)));
+    writeRecord(resolve(o.record), withScenarios(prior, buildScenarios(stamp(), commit, results, clocks)));
     console.log(`  recorded the rows to ${o.record}`);
   }
   if (o.expect === null) return 0;
@@ -2420,7 +2630,36 @@ function profile(c: Case, commit: string): number {
   return done.exitCode === 0 ? 0 : 1;
 }
 
+/** The backend budget a run gives each backend, from `--arm` and `--backend-cpus`. */
+function cpusOf(o: Options): number {
+  const cpus = o.backendCpus ?? (o.arm === "fair" ? 1 : 4);
+  if (o.arm === "fair" && cpus !== 1) throw new Fail(`--arm fair is one cpu to each backend; --backend-cpus ${cpus} is the deployed arm and must say so`);
+  return cpus;
+}
+
+/** How hard a run loads each pass, from `--requests`, `--reps` and `--smoke`. */
+function loadOf(o: Options): PlanLoad {
+  const requests = o.requests ?? (o.smoke ? 300 : 20_000);
+  const reps = o.reps ?? (o.smoke ? 1 : 5);
+  if (requests < 1 || reps < 1) throw new Fail("--requests and --reps must each be at least 1");
+  if (o.smoke && o.record !== null) throw new Fail("--smoke records nothing; drop --record or --smoke");
+  return { requests, reps, smoke: o.smoke };
+}
+
+/** `--plan`: the work of the run the other flags describe, per phase. Starts no process. */
+function planned(o: Options): number {
+  cpusOf(o);
+  const load = loadOf(o);
+  const prior = o.record === null ? null : readRecord(resolve(o.record));
+  const plan = o.scenarios ? planOf(PEERS, [], rowsOf(o), load, prior) : planOf(PEERS, CASES, [], load, prior);
+  const what = o.scenarios ? `${o.row === null ? `${SCENARIOS.length} rows` : `row ${o.row}`}` : `${CASES.length} cases`;
+  console.log(`the plan: ${PEERS.length} peers, ${what}, ${load.reps} rep(s) of ${load.requests} requests${load.smoke ? ", smoke" : ""}`);
+  for (const line of planText(plan)) console.log(line);
+  return 0;
+}
+
 async function main(o: Options): Promise<number> {
+  if (o.plan) return planned(o);
   requireDocker();
   const commit = version("git", ["rev-parse", "--short", "HEAD"]);
   if (o.profile !== null) return profile(o.profile, commit);
@@ -2432,49 +2671,44 @@ async function main(o: Options): Promise<number> {
     return 0;
   }
 
-  const cpus = o.backendCpus ?? (o.arm === "fair" ? 1 : 4);
-  if (o.arm === "fair" && cpus !== 1) throw new Fail(`--arm fair is one cpu to each backend; --backend-cpus ${cpus} is the deployed arm and must say so`);
-  const requests = o.requests ?? (o.smoke ? 300 : 20_000);
-  const reps = o.reps ?? (o.smoke ? 1 : 5);
-  if (requests < 1 || reps < 1) throw new Fail("--requests and --reps must each be at least 1");
-  if (o.smoke && o.record !== null) throw new Fail("--smoke records nothing; drop --record or --smoke");
+  const cpus = cpusOf(o);
+  const load = loadOf(o);
+  const { requests, reps } = load;
 
   ensureCert();
-  if (o.scenarios) return await scenarios(o, cpus, commit, { requests, concurrency: SCENARIO_CONCURRENCY, reps });
+  if (o.scenarios) return await scenarios(o, cpus, commit, load);
   const ctxOf = (c: Case): PeerCtx => ({ cpus, concurrency: c.concurrency, tree: "cases", case: c.id, commit });
 
-  // Agreement before any timing. `--smoke` checks it on the timed pass itself, since it records nothing.
-  if (!o.smoke) {
-    for (const c of CASES) {
-      const answers = new Map<string, Answer[]>();
-      for (const peer of PEERS) {
-        console.log(`  ${c.id}: checking ${peer.label}'s answers ...`);
-        answers.set(peer.id, (await onePass(peer, c, ctxOf(c), null)).answers);
-      }
-      const bad = agreement(c, answers);
-      if (bad !== null) throw new Fail(`DIFF in ${c.id}: ${bad.peer} disagrees on input ${bad.input + 1}: ${bad.why}. No number is taken.`);
-      console.log(`${c.id}: ${PEERS.length} peers agree`);
-    }
-  }
-
+  // The plan takes the answers before any timing, one stack per (case, peer), and then rep 1 of every
+  // peer, then rep 2, each on a fresh stack, so a slow stretch of the shared host lands on every peer
+  // and not on one peer's block of reps. `--smoke` checks the answers on the timed pass itself.
+  const plan = planOf(PEERS, CASES, [], load, null);
+  const detail = new Map<string, CaseDetail>(CASES.map((c) => [c.id, { passes: new Map(PEERS.map((p) => [p.id, []])), seconds: {} }]));
+  const groups = new Map<string, Map<string, Answer[]>>();
   const results = new Map<string, Map<string, PeerResult>>();
-  for (const c of CASES) {
-    const passes = new Map<string, PeerResult[]>(PEERS.map((p) => [p.id, []]));
-    // Rep 1 of every peer, then rep 2, each on a fresh stack, so a slow stretch of the shared host lands
-    // on every peer and not on one peer's block of reps.
-    for (let rep = 1; rep <= reps; rep++) {
-      const answers = new Map<string, Answer[]>();
-      for (const peer of PEERS) {
-        console.log(`  ${c.id}: ${peer.label}, rep ${rep} of ${reps}, ${requests} requests over ${c.concurrency} connection(s) ...`);
-        const pass = await onePass(peer, c, ctxOf(c), { requests, concurrency: c.concurrency, reps: 1 });
-        answers.set(peer.id, pass.answers);
-        passes.get(peer.id)!.push(pass.result!);
-      }
-      const bad = agreement(c, answers);
-      if (bad !== null) throw new Fail(`DIFF in ${c.id}: ${bad.peer} disagrees on input ${bad.input + 1}: ${bad.why}. No number stands.`);
+  for (const pass of plan) {
+    const c = CASES.find((k) => k.id === pass.id)!;
+    const peer = PEERS.find((p) => p.id === pass.peer)!;
+    const timed = pass.phase === "cases";
+    console.log(timed ? `  ${c.id}: ${peer.label}, rep ${pass.rep} of ${reps}, ${requests} requests over ${c.concurrency} connection(s) ...` : `  ${c.id}: checking ${peer.label}'s answers ...`);
+    const kept = detail.get(c.id)!;
+    const done = await onePass(peer, c, ctxOf(c), timed ? { requests, concurrency: c.concurrency, reps: 1 } : null, kept.seconds);
+    if (timed) kept.passes.get(peer.id)!.push(done.result!);
+    const key = `${pass.phase} ${c.id} ${pass.rep}`;
+    const answers = groups.get(key) ?? new Map<string, Answer[]>();
+    answers.set(peer.id, done.answers);
+    groups.set(key, answers);
+    if (answers.size < PEERS.length) continue;
+    groups.delete(key);
+    const bad = agreement(c, answers);
+    if (bad !== null) throw new Fail(`DIFF in ${c.id}: ${bad.peer} disagrees on input ${bad.input + 1}: ${bad.why}. ${timed ? "No number stands." : "No number is taken."}`);
+    if (!timed) {
+      console.log(`${c.id}: ${PEERS.length} peers agree`);
+      continue;
     }
+    if (pass.rep < reps) continue;
     const byPeer = new Map<string, PeerResult>();
-    for (const [peer, rs] of passes) byPeer.set(peer, medianOf(rs));
+    for (const [id, rs] of kept.passes) byPeer.set(id, medianOf(rs));
     results.set(c.id, byPeer);
     if (o.smoke) {
       console.log(`${c.id}: ${PEERS.length} peers agree`);
@@ -2500,7 +2734,7 @@ async function main(o: Options): Promise<number> {
   }
   const full = resolve(o.record);
   const kept = (readRecord(full)?.scenarios ?? null) as RecordedScenarios | null;
-  writeRecord(full, buildRecord({ date: stamp(), commit, arm: o.arm, backendCpus: cpus, requests, reps, host: machine, digests: digests() }, results, kept));
+  writeRecord(full, buildRecord({ date: stamp(), commit, arm: o.arm, backendCpus: cpus, requests, reps, host: machine, digests: digests() }, results, kept, detail));
   console.log(`  recorded to ${o.record}`);
   return 0;
 }

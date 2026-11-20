@@ -6,7 +6,7 @@ context: [benches/compare/README.md, tools/nv/cmd/bench-compare.ts, tools/nv/tes
 stages:
   - id: 1
     title: a run plans its work before it starts, and says where its time went
-    status: open
+    status: done
     context: [tools/nv/cmd/bench-docker.ts, tools/nv/cmd/bench.ts]
   - id: 2
     title: a recording builds once, checks answers on its first rep, and reuses an unchanged peer's rows
@@ -191,19 +191,19 @@ Stage 7 touches only the website and `docs/alternative-pages.md`, and needs stag
 
 **Split:** none, one session.
 
-- [ ] `tools/nv/cmd/bench-compare.ts:2423` `main`: a pure `planOf(peers, cases, scenarios, reps, prior)`
+- [x] `tools/nv/cmd/bench-compare.ts:2423` `main`: a pure `planOf(peers, cases, scenarios, reps, prior)`
   returns the ordered passes, and each has its stack, its image builds and its fixed-load seconds.
   The case loop at `tools/nv/cmd/bench-compare.ts:2461` and `scenarios` at
   `tools/nv/cmd/bench-compare.ts:2341` walk it.
-- [ ] `tools/nv/cmd/bench-compare.ts:2242` parse: `--plan` prints the totals per phase and exits
+- [x] `tools/nv/cmd/bench-compare.ts:2242` parse: `--plan` prints the totals per phase and exits
   before `requireDocker`.
-- [ ] `tools/nv/cmd/bench-compare.ts:1740` `onePass` and `tools/nv/cmd/bench-compare.ts:1830`
+- [x] `tools/nv/cmd/bench-compare.ts:1740` `onePass` and `tools/nv/cmd/bench-compare.ts:1830`
   `scenarioPass`: time each phase (up app, up nginx, answers, load, down). `buildRecord` at
   `tools/nv/cmd/bench-compare.ts:1576` keeps the seconds per case and row under `seconds`, and the
   `passes` of every rep beside the median.
-- [ ] `tools/nv/test/bench-compare.test.ts:100`: the three `plan` tests. The baseline test pins
+- [x] `tools/nv/test/bench-compare.test.ts:100`: the three `plan` tests. The baseline test pins
   today's four-peer counts as literals.
-- [ ] `benches/compare/README.md:257` § *One record*: a paragraph on the plan and the `seconds`.
+- [x] `benches/compare/README.md:257` § *One record*: a paragraph on the plan and the `seconds`.
 
 ### 2. a recording builds once, checks answers on its first rep, and reuses an unchanged peer's rows
 
@@ -308,12 +308,36 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
 ### State
 
-Written by an interactive session from the user's request. Nothing is built yet. The figures in
-§ *Why* come from the `benches/compare.json` recorded on 2026-11-18.
+Stage 1 is done. `planOf` at `tools/nv/cmd/bench-compare.ts:1582` lists every pass, and the case
+loop in `main` at `:2685` and `scenarios` at `:2529` both walk it. `--plan` prints the totals per
+phase and starts no process (`planned`, `:2650`). `onePass` (`:1926`) and `scenarioPass` (`:2018`)
+add the seconds of each step to a clock. The record keeps `cases.<id>.seconds`, `cases.<id>.passes`
+and `scenarios.rows.<id>.seconds`. Timed rows now declare `budgets` and get `Timer.at`, and the
+driver runs their passes from the plan. The three `the plan` tests pass, and tsc is clean. The
+four-peer baseline is 96 stacks for the case run (16 answers + 80 timed) and 151 for the rows, so a
+recording is 247 stacks and 203 builds.
+
+The nightly failures the sweep named (`xml::tests::source_stops_at_the_memory_limit_before_it_escapes`
+and `iter/an-object-map-passes-where-a-keyed-iterable-is-declared.nvst`) ran on `5d053fc6e6`, which
+is 74 commits behind main. Both pass on main, fixed by `e5a100b18f` and `438e9c44af`.
 
 ### Next
 
-Stage 1 from its first item. Every check names tests that do not exist yet, and each is red until its
-stage writes them.
+Stage 2 from its first item. Anchors: `up` at `tools/nv/cmd/bench-docker.ts:63`, and the answers
+phase in `planOf` at `tools/nv/cmd/bench-compare.ts:1582` and in `main`'s walk at `:2685`. The reuse
+key goes in `scenarios` at `:2529` and `buildScenarios` at `:1806`, and the folder digest in
+`digests` at `:1854`. `options` is at `:2411`. The tests go after `describe("the plan")` at
+`tools/nv/test/bench-compare.test.ts:100`. The README sections are `benches/compare/README.md:239`
+and `:257`.
+
+- `planOf` already takes `prior` (unused, `_prior`) for the reuse. A reused row's passes should stay
+  in the plan with zero work, or be dropped, so the totals show the cut.
+- The test `the plan of the four-peer recording is the baseline` calls `planOf` and pins today's
+  counts. Once stage 2 changes `planOf`, keep the literals as the baseline constant. Point that test
+  at a plan with the cuts switched off, for example `--fresh` plus the old answers phase, or make it
+  assert only the literals the `less-work` test compares against. Expect it to go red the moment
+  the answers phase leaves `planOf`.
+- `CASE_UPS = 2` counts the two `up --build` calls of a case stack. With the build moved to the
+  start of a run, `builds` becomes one per built image.
 
 ### Backlog

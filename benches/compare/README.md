@@ -264,6 +264,15 @@ needs the other's minutes. `--row` records nothing, because a recorded table is 
 inputs — TLS, four peers, other cases and concurrencies — so no figure in it is ever divided by one in
 `benches/serve-proxied.json`.
 
+**A run is planned before it starts, and the record says where its time went.** `planOf` lists every
+pass a run takes, and the run takes those passes and no others, so what `--plan` prints is the work
+the run does: stacks brought up, images built, seconds of steady load and requests, per phase. The
+count is the measure of a recording's cost, and a change to the harness that brings up more stacks says so before it runs. Wall clock is only a note: each case and
+each row keeps the seconds of its steps under `seconds` (bringing the stack up, the answers or the
+probe, the load, tearing it down), and a case keeps every peer's `passes` beside the median, so the
+next recording can see where its time went and how far the passes spread. Seconds never gate anything,
+since they move with the host.
+
 **Every figure is the median of interleaved runs.** A case runs `--reps` passes, five by default, and
 the peers take turns: pass 1 of every peer, then pass 2, each on a fresh stack. The record keeps the
 median pass's throughput and p99, the median of the passes' peaks, and the errors of all of them. The
