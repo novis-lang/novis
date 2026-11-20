@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a class uses an attribute that belongs to a class it does not extend.
+// Then an attribute is written in a place its declaration does not list.
+// Neither should compile.
+// hostile: expect-refusal
+
+abstract class Storable
+{
+    attribute Table on class { name: string }
+}
+
+attribute Cache on method { seconds: int }
+
+// 1. A class that does not extend `Storable` uses `Storable::Table` by its full name.
+#[Storable::Table(name: 'secrets')]
+class Outsider
+{}
+
+// 2. The class that declares `Log` uses it on itself. Only a class that extends it may.
+#[Audited::Log(level: 1)]
+abstract class Audited
+{
+    attribute Log on class { level: int }
+}
+
+// 3. `Cache` is declared for methods, and this writes it on a class.
+#[Cache(seconds: 60)]
+class Report
+{}
+
+// 4. `Cache` on a parameter, inside a method that may use it.
+class Prices
+{
+    #[Cache(seconds: 5)]
+    public function list(#[Cache(seconds: 1)] int $page): int
+    {
+        return $page;
+    }
+}
+
+echo "every step compiled\n";

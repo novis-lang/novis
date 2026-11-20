@@ -1041,7 +1041,7 @@
     "benches/members/core/Zip/entries.nvs": 396,
     "benches/members/core/Zip/extract.nvs": 1031,
     "benches/members/core/Zip/read.nvs": 775,
-    "benches/members/lang/attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration.nvs": 2565,
+    "benches/members/lang/attributes/an-attribute-is-declared-with-the-places-it-may-be-used.nvs": 2565,
     "benches/members/lang/attributes/core-command-and-core-option-the-command-table.nvs": 2565,
     "benches/members/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec.nvs": 1542,
     "benches/members/lang/attributes/core-program-implementing-i-every-class-that-is-an-i.nvs": 1285,

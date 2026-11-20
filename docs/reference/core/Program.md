@@ -12,13 +12,14 @@ Abstract classes and the interface itself are not entries; a class reaching `T` 
 through an interface that extends `T` is.
 
 `Core\Program::implementingWith<I, T>($member)` is the same list with one attribute read off each class.
-Every row is `{ instance: I, attribute: ?T }`: the instance, and the one attribute on that class's own
-`$member` whose fields satisfy the shape `T`, or `null` when there is none. `$member` is a method name, a
-property name, or the empty string for the attributes on the class itself. This is how a framework finds
-its pages and their routes in one call: `implementingWith<View, { path: string }>("render")` gives each
-page beside the `path` its `#[Core\Route]` carries, so the path is written once. Everything is resolved
-while compiling, and a member some implementor does not declare, or two matching attributes on one
-class, do not compile.
+Every row is `{ instance: I, attribute: ?T }`: the instance, and the one attribute declared as `T` on
+that class's own `$member`, or `null` when there is none. `T` is the name of an `attribute` declaration,
+and an attribute with the same fields but another declaration is not found. `$member` is a method name,
+a property name, or the empty string for the attributes on the class itself. This is how a framework
+finds its pages and their routes in one call: `implementingWith<View, Core\Route>("render")` gives each
+page beside the `#[Core\Route]` on its `render` method, so the path is written once. Everything is
+resolved while compiling, and a member some implementor does not declare, or two attributes declared as
+`T` on one member, do not compile.
 
 `Core\Program::id()` is the other member, and the only one here that runs. It answers this program's
 identity: `BLAKE3` over every compiled unit's content hash, in program order, folded with the digest of the

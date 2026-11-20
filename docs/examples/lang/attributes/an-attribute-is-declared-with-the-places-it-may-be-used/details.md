@@ -2,6 +2,9 @@ A declaration is written `attribute Name on <places> { fields }`. The places are
 `property` and `parameter`, and the list needs at least one of them. Any other word in the list is
 `E1004`. A field is written `name: T`, or `name?: T` when a use may leave it out.
 
+A `///` comment above the declaration describes the attribute. A `///` comment above a field
+describes that field. The editor shows the text when you type the name or point at it.
+
 The name after `#[` is checked first. A name that nothing declares is `E0303`. A class, an interface,
 an enum or a `type` alias is `E1005`, because only an attribute declaration may follow `#[`. An
 attribute with no name, such as `#[{ inject: "repo" }]`, is `E0140`.
@@ -18,8 +21,9 @@ it more than once. A second use without it is `E0763`. Novis keeps every copy of
 attribute, in the order you wrote them.
 
 Your values are then checked against the fields. A missing field or a value of the wrong type is
-`E0401`, and the help line names the missing field. Fields the declaration does not have are allowed.
-`#[Name]` with no brackets gives no fields, so it is `E0401` when the declaration has a required field.
+`E0401`, and the help line names the missing field. A use may also give fields that the
+declaration does not list, and they are not checked. `#[Name]` with no parentheses gives no fields,
+so it is `E0401` when the declaration has a required field.
 
 Each value needs its field name. `#[Tag(5)]` is a syntax error, and the same field written twice is
 `E0494`.

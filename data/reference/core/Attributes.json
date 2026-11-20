@@ -1,13 +1,14 @@
 {
-  "summary": "reads the attributes attached to a class, a method, a property or a parameter — each one an anonymous object, read by the shape it satisfies, at compile time",
+  "summary": "reads the attributes written on a class, a method, a property or a parameter. Each call names an attribute declaration, and the compiler replaces it with the values written with that name",
   "keywords": [
     "ReflectionAttribute",
     "getAttributes",
     "newInstance",
     "attribute",
+    "attribute declaration",
     "metadata",
     "annotation",
     "#[...]",
-    "anonymous object"
+    "repeatable"
   ]
 }

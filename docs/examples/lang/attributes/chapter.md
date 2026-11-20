@@ -5,7 +5,7 @@ summary: Declared attributes written as `#[...]`, how they are read back, and th
 keywords: attribute, #[...], Attribute, attribute declaration, repeatable, reflection, read attributes, Core\Attributes, get, all, #[Route], route attribute, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Router\Target, Router\Params, Target, Params, Command, Option, console command, Json\Derive, Json\Field, JSON encoding, decodeAs, Program::implementing, autoload
 ---
 
-# An attribute is an anonymous object attached to a declaration
+# An attribute is declared with the places it may be used
 # Reading attributes back: `Core\Attributes::get` and `all`
 # The names the compiler acts on
 <!-- generated: attributes -->

@@ -28,7 +28,7 @@ class Contact implements Page
     }
 }
 
-// Every page beside the `PagePath` attribute of its `render` method.
+// This call returns every page with the `PagePath` attribute of its `render` method.
 // The rows are sorted by class name.
 array<Page> $pages = [];
 foreach (Core\Program::implementingWith<Page, Page::PagePath>('render') as var $row) {

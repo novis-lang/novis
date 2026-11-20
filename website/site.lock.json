@@ -390,10 +390,10 @@
     "Core\\Ast\\Node::offset": "ec1359cd6840640f"
   },
   "docs/examples/core/Attributes/all/about.md": {
-    "Core\\Attributes::all": "7c9011d93fa8bb3a"
+    "Core\\Attributes::all": "e7dd9e949692f4c3"
   },
   "docs/examples/core/Attributes/get/about.md": {
-    "Core\\Attributes::get": "2226c356a6e7fd21"
+    "Core\\Attributes::get": "909202e99a12a2e7"
   },
   "docs/examples/core/BigInt/abs/about.md": {
     "Core\\BigInt::abs": "ad2d2ca71064ba4e"
@@ -2076,10 +2076,10 @@
     "Core\\Program::id": "c3961f331c3b8d0f"
   },
   "docs/examples/core/Program/implementing/about.md": {
-    "Core\\Program::implementing": "b9f1c01d1b9a5e64"
+    "Core\\Program::implementing": "29357fb1da1b6c5b"
   },
   "docs/examples/core/Program/implementingWith/about.md": {
-    "Core\\Program::implementingWith": "408f0016aedced94"
+    "Core\\Program::implementingWith": "4a93db638b621f5d"
   },
   "docs/examples/core/Queue/cancel/about.md": {
     "Core\\Queue::cancel": "0a46d1869a8af544"
@@ -2199,22 +2199,22 @@
     "Core\\Reflect::typeOf": "86546b29fcc1e5b3"
   },
   "docs/examples/core/Reflect-AttributeInfo/field/about.md": {
-    "Core\\Reflect\\AttributeInfo::field": "13d195033e7f9dc7"
+    "Core\\Reflect\\AttributeInfo::field": "2f72aaaab474d7f3"
   },
   "docs/examples/core/Reflect-AttributeInfo/fields/about.md": {
-    "Core\\Reflect\\AttributeInfo::fields": "c891daa523b73a15"
+    "Core\\Reflect\\AttributeInfo::fields": "02f8e3d3ad215c00"
   },
   "docs/examples/core/Reflect-AttributeInfo/name/about.md": {
-    "Core\\Reflect\\AttributeInfo::name": "6207ed532c95952e"
+    "Core\\Reflect\\AttributeInfo::name": "4e1badaca66c8a5d"
   },
   "docs/examples/core/Reflect-AttributeInfo/parameter/about.md": {
-    "Core\\Reflect\\AttributeInfo::parameter": "d2620add2aa8e8fe"
+    "Core\\Reflect\\AttributeInfo::parameter": "a1013cd4a38ec556"
   },
   "docs/examples/core/Reflect-AttributeInfo/target/about.md": {
-    "Core\\Reflect\\AttributeInfo::target": "52efb159bd4fefff"
+    "Core\\Reflect\\AttributeInfo::target": "82313c744a1e5bd4"
   },
   "docs/examples/core/Reflect-ClassInfo/attributes/about.md": {
-    "Core\\Reflect\\ClassInfo::attributes": "1541609a92a3c421"
+    "Core\\Reflect\\ClassInfo::attributes": "808b806cda2a8f7f"
   },
   "docs/examples/core/Reflect-ClassInfo/call/about.md": {
     "Core\\Reflect\\ClassInfo::call": "14702a61e288b6d1"
@@ -2244,7 +2244,7 @@
     "Core\\Reflect\\ClassInfo::name": "edc3dff6f0963b53"
   },
   "docs/examples/core/Reflect-ClassInfo/parent/about.md": {
-    "Core\\Reflect\\ClassInfo::parent": "e58ade075d44b28d"
+    "Core\\Reflect\\ClassInfo::parent": "ac63c6cd8fc6b029"
   },
   "docs/examples/core/Reflect-ClassInfo/properties/about.md": {
     "Core\\Reflect\\ClassInfo::properties": "125eacc0a5b82336"
@@ -2514,7 +2514,7 @@
     "Core\\Router\\Match::accessAs": "9cb2d7e324a6ae32"
   },
   "docs/examples/core/Router-Match/attribute/about.md": {
-    "Core\\Router\\Match::attribute": "e9c56dfa41689ab5"
+    "Core\\Router\\Match::attribute": "24a7d83958877251"
   },
   "docs/examples/core/Router-Match/is/about.md": {
     "Core\\Router\\Match::is": "1c1d5170df0bb10e"
@@ -3449,32 +3449,35 @@
   "docs/examples/lang/attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration/about.md": {
     "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "6c3d2ddd665398ad"
   },
+  "docs/examples/lang/attributes/an-attribute-is-declared-with-the-places-it-may-be-used/about.md": {
+    "lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used": "77fe6f58cd82493d"
+  },
   "docs/examples/lang/attributes/core-api-and-the-openapi-document/about.md": {
     "lang:attributes/core-api-and-the-openapi-document": "26b39c1a94db62c2"
   },
   "docs/examples/lang/attributes/core-command-and-core-option-the-command-table/about.md": {
-    "lang:attributes/core-command-and-core-option-the-command-table": "b998cffc322c4af8"
+    "lang:attributes/core-command-and-core-option-the-command-table": "fe86346311a3d747"
   },
   "docs/examples/lang/attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec/about.md": {
-    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "b93d91505b9fc29f"
+    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "d69c06a9a4a7cd7d"
   },
   "docs/examples/lang/attributes/core-program-implementing-i-every-class-that-is-an-i/about.md": {
     "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "aad574ac7b5b80ac"
   },
   "docs/examples/lang/attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute/about.md": {
-    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "7985de306d3d838e"
+    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "8b8d176a4d6317e9"
   },
   "docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md": {
     "lang:attributes/core-route-and-core-access-the-route-table": "0633649a5ce7e1c5"
   },
   "docs/examples/lang/attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route/about.md": {
-    "lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route": "6299fe7c51538331"
+    "lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route": "b99a40e719ee7dd2"
   },
   "docs/examples/lang/attributes/reading-attributes-back-core-attributes-get-and-all/about.md": {
-    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "5594fb1b4d6843d6"
+    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "fdabe61be7585005"
   },
   "docs/examples/lang/attributes/the-names-the-compiler-acts-on/about.md": {
-    "lang:attributes/the-names-the-compiler-acts-on": "d5f0e7b190497a31"
+    "lang:attributes/the-names-the-compiler-acts-on": "d182ff9202674c63"
   },
   "docs/examples/lang/classes/comparable/about.md": {
     "lang:classes/comparable": "d93734e6115406ec"
@@ -3720,7 +3723,7 @@
     "lang:programs/ending-a-program": "da557f190da41531"
   },
   "docs/examples/lang/programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file/about.md": {
-    "lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file": "05a45e020cad07d9"
+    "lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file": "409b08447fb2fa72"
   },
   "docs/examples/lang/programs/names-and-casing/about.md": {
     "lang:programs/names-and-casing": "0e506338e1230466"
@@ -3801,7 +3804,7 @@
     "lang:types/array-t": "5fccdbced28d049b"
   },
   "docs/examples/lang/types/callable-classes-object-shapes/about.md": {
-    "lang:types/callable-classes-object-shapes": "658bef078a46aa8e"
+    "lang:types/callable-classes-object-shapes": "6afce4a0bfdcac73"
   },
   "docs/examples/lang/types/every-binding-has-a-type/about.md": {
     "lang:types/every-binding-has-a-type": "2a429907708204e7"
@@ -5100,10 +5103,10 @@
     "Core\\Ast\\Node::offset": "54e8d11c94b7c52e"
   },
   "help:Core\\Attributes::all": {
-    "Core\\Attributes::all": "09382841e8495ae2"
+    "Core\\Attributes::all": "132c714ffd26191a"
   },
   "help:Core\\Attributes::get": {
-    "Core\\Attributes::get": "2565c14946452935"
+    "Core\\Attributes::get": "c5fa52fa196a4776"
   },
   "help:Core\\Audience": {
     "Core\\Audience": "02f6ea3425b3af6b"
@@ -6888,10 +6891,10 @@
     "Core\\Program::id": "854b985983a9e0d8"
   },
   "help:Core\\Program::implementing": {
-    "Core\\Program::implementing": "c094f1d71847a434"
+    "Core\\Program::implementing": "fe9ea7234806766f"
   },
   "help:Core\\Program::implementingWith": {
-    "Core\\Program::implementingWith": "3c5317f9df392173"
+    "Core\\Program::implementingWith": "e18398cf84029588"
   },
   "help:Core\\Queue::cancel": {
     "Core\\Queue::cancel": "bfb9aaaa18586ef8"
@@ -7017,22 +7020,22 @@
     "Core\\Reflect::typeOf": "c698b615a9591254"
   },
   "help:Core\\Reflect\\AttributeInfo::field": {
-    "Core\\Reflect\\AttributeInfo::field": "b9f0b38b651c6317"
+    "Core\\Reflect\\AttributeInfo::field": "59df1334c449efbb"
   },
   "help:Core\\Reflect\\AttributeInfo::fields": {
-    "Core\\Reflect\\AttributeInfo::fields": "357ce8edeaf6775b"
+    "Core\\Reflect\\AttributeInfo::fields": "7679f63a45918c05"
   },
   "help:Core\\Reflect\\AttributeInfo::name": {
-    "Core\\Reflect\\AttributeInfo::name": "252147150af955fb"
+    "Core\\Reflect\\AttributeInfo::name": "1c8b3ad90b87cea9"
   },
   "help:Core\\Reflect\\AttributeInfo::parameter": {
-    "Core\\Reflect\\AttributeInfo::parameter": "fa35ba7e42d65a55"
+    "Core\\Reflect\\AttributeInfo::parameter": "3f9105117a5a0e78"
   },
   "help:Core\\Reflect\\AttributeInfo::target": {
-    "Core\\Reflect\\AttributeInfo::target": "28ce8751090cc8ac"
+    "Core\\Reflect\\AttributeInfo::target": "ae1c231d6df0bb61"
   },
   "help:Core\\Reflect\\ClassInfo::attributes": {
-    "Core\\Reflect\\ClassInfo::attributes": "73acf60a7026de2f"
+    "Core\\Reflect\\ClassInfo::attributes": "743f61701bd3af41"
   },
   "help:Core\\Reflect\\ClassInfo::call": {
     "Core\\Reflect\\ClassInfo::call": "ce1292734fd88a98"
@@ -7062,7 +7065,7 @@
     "Core\\Reflect\\ClassInfo::name": "54bbbd7c43e07e50"
   },
   "help:Core\\Reflect\\ClassInfo::parent": {
-    "Core\\Reflect\\ClassInfo::parent": "e2113009f1be4c2d"
+    "Core\\Reflect\\ClassInfo::parent": "9e98061ddbfb80d1"
   },
   "help:Core\\Reflect\\ClassInfo::properties": {
     "Core\\Reflect\\ClassInfo::properties": "1b0ddd7b8744ae21"
@@ -7344,7 +7347,7 @@
     "Core\\Router\\Match::accessAs": "2fbf33568009df3f"
   },
   "help:Core\\Router\\Match::attribute": {
-    "Core\\Router\\Match::attribute": "84bf07169af4c74d"
+    "Core\\Router\\Match::attribute": "5a7ab3ab0f8c0726"
   },
   "help:Core\\Router\\Match::is": {
     "Core\\Router\\Match::is": "1633f8aa5e93c2ed"
@@ -9363,12 +9366,12 @@
     "tools:server/when-the-client-goes-away": "80eceee392cd0a60"
   },
   "syntax/attributes/commands-and-discovery.mdx": {
-    "lang:attributes/core-command-and-core-option-the-command-table": "542d4c0498ea64af",
+    "lang:attributes/core-command-and-core-option-the-command-table": "9c0c741387eed921",
     "lang:attributes/core-program-implementing-i-every-class-that-is-an-i": "fdd6e4a068b16d61",
-    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "a1c1f0920f99f3cc"
+    "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": "e4c9ab67937b5dbe"
   },
   "syntax/attributes/json.mdx": {
-    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "256557676de6d6e8"
+    "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": "5cc405a1fef36a0c"
   },
   "syntax/attributes/routes.mdx": {
     "Core\\Router::dispatch": "361733f6502dfc0c",
@@ -9377,12 +9380,12 @@
     "Core\\Router\\Responder": "7c50d2b78a2865eb",
     "lang:attributes/core-api-and-the-openapi-document": "2072c503f4125d1b",
     "lang:attributes/core-route-and-core-access-the-route-table": "547cd96abb3d5782",
-    "lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route": "3a35cf1215ea85c9"
+    "lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route": "aefc12e9ea3146c5"
   },
   "syntax/attributes/writing-and-reading.mdx": {
-    "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": "41393d56a4b06a5e",
-    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "91757e1b2c053565",
-    "lang:attributes/the-names-the-compiler-acts-on": "f6e6bd38170edc7f"
+    "lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used": "fb92683a1a3158a9",
+    "lang:attributes/reading-attributes-back-core-attributes-get-and-all": "1b93e3c7d6a4d5b4",
+    "lang:attributes/the-names-the-compiler-acts-on": "5b704cd29bf2a79d"
   },
   "syntax/basics/comments.mdx": {
     "lang:programs/comments": "09bf404ca5c6d9e7",
@@ -9421,7 +9424,7 @@
     "lang:classes/objects-are-handles": "5e50d70650452f53",
     "lang:classes/what-a-class-cannot-declare": "01e5f31f2f8f17b1",
     "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "209291ff1bfecdea",
-    "lang:types/callable-classes-object-shapes": "40c0de3ab56acce4"
+    "lang:types/callable-classes-object-shapes": "976abda4d756a387"
   },
   "syntax/classes/properties.mdx": {
     "lang:classes/lateinit": "3c1c1a10645e9cd8",
@@ -9587,7 +9590,7 @@
   },
   "syntax/programs/file-paths-and-exit.mdx": {
     "lang:programs/ending-a-program": "287cd024bde24732",
-    "lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file": "4b55ae36729653c5"
+    "lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file": "28abf19d5a8eb9cf"
   },
   "syntax/programs/namespaces.mdx": {
     "lang:programs/autoload-find-a-class-by-its-namespace": "56405a4e34a39878",

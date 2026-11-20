@@ -30,8 +30,8 @@ class Bench
             var $onMethod = Core\Attributes::get<Route>(Orders::index);
             if ($onClass != null) {
                 if ($onMethod != null) {
-                    // Chained: the length counted this round is picked with the
-                    // total from the round before.
+                    // Each round adds to the total of the round before, so no
+                    // round can be skipped.
                     $total = $total + Core\Str::length($onClass->path) + $total % 2;
                     $total = $total + Core\Str::length($onMethod->name);
                 }

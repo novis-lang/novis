@@ -1,0 +1,39 @@
+<?nvs
+// Shows a base class that declares its own attributes, with a comment on each field.
+
+abstract class Storable
+{
+    /// Adds a database index over one or more columns of this table.
+    repeatable attribute Index on class {
+        /// The column names, separated by commas.
+        columns: string,
+        /// `true` means no two rows may have the same values in these columns.
+        unique?: bool,
+    }
+
+    /// Sets how a property is stored.
+    attribute Column on property {
+        /// The longest text this column can store.
+        length: int,
+    }
+}
+
+// `Customer` extends `Storable`, so it may use `Index` and `Column`.
+// A class that does not extend `Storable` cannot use them.
+#[Index(columns: 'email', unique: true)]
+#[Index(columns: 'country, city')]
+class Customer extends Storable
+{
+    #[Column(length: 200)]
+    public string $email = '';
+}
+
+// Outside `Storable`, the full name is `Storable::Index`. This prints both indexes.
+foreach (Core\Attributes::all<Storable::Index>(Customer::constructor) as var $index) {
+    string $kind = ($index->unique ?? false) ? 'unique' : 'plain';
+    echo $index->columns, ' (', $kind, ")\n";
+}
+
+// This prints `200`.
+var $column = Core\Attributes::get<Storable::Column>(Customer::constructor, 'email');
+echo $column?->length ?? 0, "\n";

@@ -62,8 +62,8 @@ class Bulky
     {}
 }
 
-// 3. Twenty-four more commands, so the table holds many rows rather than one
-//    large one. Every name is compared with every other name.
+// 3. Twenty-four more commands, so the table has many rows. Every name is
+//    compared with every other name.
 class Many
 {
     #[Core\Command(name: 'c01', about: 'one')]

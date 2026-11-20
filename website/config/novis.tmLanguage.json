@@ -106,6 +106,9 @@
           "include": "#type-alias"
         },
         {
+          "include": "#attribute-declaration"
+        },
+        {
           "include": "#signature"
         },
         {
@@ -471,6 +474,23 @@
           "include": "#type"
         }
       ]
+    },
+    "attribute-declaration": {
+      "match": "^\\s*(?:(repeatable)\\s+)?(attribute)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(on)\\b",
+      "captures": {
+        "1": {
+          "name": "storage.modifier.nvs"
+        },
+        "2": {
+          "name": "storage.type.nvs"
+        },
+        "3": {
+          "name": "entity.name.type.nvs"
+        },
+        "4": {
+          "name": "keyword.other.nvs"
+        }
+      }
     },
     "signature": {
       "begin": "(?<![$\\w])(function|fn)\\s*([A-Za-z_][A-Za-z0-9_]*)?\\s*(?=\\()",

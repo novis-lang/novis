@@ -5,7 +5,7 @@
   "rustTests": 9300,
   "examples": 4700,
   "benchmarks": 1800,
-  "editorTests": 620,
+  "editorTests": 630,
   "crates": 22,
   "cratesWithoutUnsafe": 15,
   "fuzzTargets": 21

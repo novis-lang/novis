@@ -31,8 +31,8 @@ class Bench
             var $option = Core\Attributes::get<Core\Option>(Migrate::migrate, 'pretend');
             if ($command != null) {
                 if ($option != null) {
-                    // Chained: this round's length is added to the total from
-                    // the round before. `??` gives '' when `short` is not set.
+                    // Each round adds to the total of the round before, so no
+                    // round can be skipped. `??` gives '' when `short` is not set.
                     $total = $total + Core\Str::length($command->name) + $total % 2;
                     $total = $total + Core\Str::length($option->short ?? '');
                 }

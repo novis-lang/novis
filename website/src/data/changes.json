@@ -409,6 +409,60 @@
         "tools:cli/nvs-test-mutate"
       ],
       "text": "`nvs test --mutate=Shop\\Cart` makes mutants only in the code you name, and `#[NoMutate]` keeps a class or a method out. `--since main` makes mutants only on the lines you edited, and a run compiles the program once. Survivors you checked go in `mutants.toml`, and the report lists the others by method."
+    },
+    {
+      "kind": "new",
+      "highlight": true,
+      "features": [
+        "lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used"
+      ],
+      "text": "An attribute is declared with `attribute Table on class { name: string }`, and the words after `on` list where it may be written. An attribute declared inside a class may be used only by the classes that extend it. `repeatable` allows more than one use on the same declaration."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used"
+      ],
+      "text": "A `///` comment above a field of a shape or an attribute describes that field. The editor shows the comment when you type the field's name or point at it."
+    },
+    {
+      "kind": "removed",
+      "features": [
+        "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration"
+      ],
+      "text": "An attribute without a name, `#[{ path: '/users' }]`, is removed. A `type` alias after `#[` does not compile any more.",
+      "instead": "Declare the attribute with `attribute Route on method { path: string }` and write `#[Route(path: '/users')]`. The error on a `type` alias offers a fix that writes the declaration."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Attributes::get",
+        "Core\\Attributes::all",
+        "Core\\Program::implementing",
+        "Core\\Program::implementingWith",
+        "Core\\Reflect\\AttributeInfo::name",
+        "Core\\Reflect\\AttributeInfo::field",
+        "Core\\Reflect\\AttributeInfo::fields",
+        "Core\\Reflect\\AttributeInfo::parameter",
+        "Core\\Reflect\\AttributeInfo::target",
+        "Core\\Reflect\\ClassInfo::attributes",
+        "Core\\Router\\Match::attribute",
+        "lang:attributes/reading-attributes-back-core-attributes-get-and-all",
+        "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute"
+      ],
+      "text": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`. Two attributes with the same fields are not mixed up any more. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration.",
+      "breaking": true,
+      "instead": "Name an attribute declaration between `<` and `>`, as in `Core\\Attributes::get<Table>(User::constructor)`. A shape such as `get<{name: string}>` does not compile."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "lang:attributes/the-names-the-compiler-acts-on",
+        "lang:attributes/core-command-and-core-option-the-command-table",
+        "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec",
+        "lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file"
+      ],
+      "text": "The attributes of `Core`, such as `#[Core\\Route]`, are checked like your own attributes. One written in a place it does not allow is the error `E0874`. A second `#[Core\\Access]` or `#[Core\\Api]` on one declaration is the error `E0763`."
     }
   ],
   "unseen": {

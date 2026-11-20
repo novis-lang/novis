@@ -745,6 +745,9 @@ field of an anonymous object. Adding a field it does not have throws a `RuntimeE
 `as Point` checks the type of each field too. `{ x: 5, y: "six" } as Point` throws a `RuntimeError`,
 and `as ?Point` gives `null` for it.
 
+A `///` comment above a field of a shape describes that field. The editor shows the text when you
+type the field's name in an object for that shape, or point at it.
+
 ## Example 01: pass a pricing rule around
 
 ```nvs

@@ -1,15 +1,17 @@
 ---
 title: Writing and reading attributes
-covers: ['lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration', 'lang:attributes/reading-attributes-back-core-attributes-get-and-all', 'lang:attributes/the-names-the-compiler-acts-on']
+covers: ['lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used', 'lang:attributes/reading-attributes-back-core-attributes-get-and-all', 'lang:attributes/the-names-the-compiler-acts-on']
 description: How to attach data to a class, method, property or parameter with #[...], and how to read it back with Core\Attributes.
 ---
 import FeatureSection from '@components/FeatureSection.astro'
 
-An attribute is a small piece of data that you write in front of a declaration. It starts with
-`#[`. The data is a list of fields with values, like `{ path: "/users" }`. An attribute does nothing
-by itself. Your program reads it back with `Core\Attributes`.
+An attribute is a small piece of data that you write in front of a declaration. You declare it
+first, with its name, the places it may be written and its fields:
+`attribute Route on method { path: string }`. Then you write it with `#[`, as in
+`#[Route(path: '/users')]`. An attribute does nothing by itself. Your program reads it back with
+`Core\Attributes`.
 
-<FeatureSection examples="lang/attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration" heading="Writing an attribute" id="writing-an-attribute" />
+<FeatureSection examples="lang/attributes/an-attribute-is-declared-with-the-places-it-may-be-used" heading="Writing an attribute" id="writing-an-attribute" />
 
 <FeatureSection examples="lang/attributes/reading-attributes-back-core-attributes-get-and-all" heading="Reading attributes back" id="reading-attributes-back" />
 
@@ -21,8 +23,11 @@ The next pages show what each one does.
 
 ## Do and don't
 
-- Do declare a `type` for each attribute you use often. The compiler then checks every place you
-  write it.
-- Do give every attribute at least one field, so `get<T>` finds only that attribute.
+- Do list only the places where your program reads the attribute after `on`. Any other place does
+  not compile.
+- Do declare an attribute inside a base class when only its subclasses use it. Other classes then
+  cannot use it.
+- Do write a `///` comment above each field. The editor shows it when you type the field's name.
 - Don't put a variable or a function call in an attribute. Use a class constant.
-- Don't name your own `type` after a Novis attribute. It only makes the code harder to read.
+- Don't name your own attribute after a Novis attribute. The program compiles, but the code is harder
+  to read.
