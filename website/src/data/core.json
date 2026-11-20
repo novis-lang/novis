@@ -49548,7 +49548,7 @@
           "options": [],
           "returnType": "Core\\Time\\DateTime",
           "doc": {
-            "shortHtml": "Builds a date and time in <code>$zone</code> from a <code>Date</code> and a <code>TimeOfDay</code>. It is the reverse of <code>date()</code>, <code>timeOfDay()</code> and <code>zone()</code>. If the zone skips the time, such as 02:30 on the morning the clocks go forward, the result moves forward past the gap. Each call builds one <code>DateTime</code>. Building the <code>Date</code> and the <code>TimeOfDay</code> first adds two small objects.",
+            "shortHtml": "Builds a date and time in <code>$zone</code> from a <code>Date</code> and a <code>TimeOfDay</code>. It is the reverse of <code>date()</code>, <code>timeOfDay()</code> and <code>zone()</code>. If the zone skips the time, such as 02:30 on the morning the clocks go forward, the result moves forward past the gap. Each call builds one <code>DateTime</code>. Building the <code>Date</code> and the <code>TimeOfDay</code> in the same call adds two small objects, about 180 bytes together.",
             "params": [
               {
                 "name": "date",

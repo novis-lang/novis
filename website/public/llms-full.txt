@@ -37802,7 +37802,7 @@ midweek
 Core\Time\DateTime::at(Core\Time\Date $date, Core\Time\TimeOfDay $time, Core\Time\Zone $zone): Core\Time\DateTime
 ```
 
-Builds a date and time in `$zone` from a `Date` and a `TimeOfDay`. It is the reverse of `date()`, `timeOfDay()` and `zone()`. If the zone skips the time, such as 02:30 on the morning the clocks go forward, the result moves forward past the gap. Each call builds one `DateTime`. Building the `Date` and the `TimeOfDay` first adds two small objects.
+Builds a date and time in `$zone` from a `Date` and a `TimeOfDay`. It is the reverse of `date()`, `timeOfDay()` and `zone()`. If the zone skips the time, such as 02:30 on the morning the clocks go forward, the result moves forward past the gap. Each call builds one `DateTime`. Building the `Date` and the `TimeOfDay` in the same call adds two small objects, about 180 bytes together.
 
 | Parameter | Type | Meaning |
 |---|---|---|

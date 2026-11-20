@@ -116,7 +116,11 @@ mod tests {
                     row.old
                 );
                 if let Some(call) = row.call {
-                    assert!(call.starts_with(row.new), "`{call}` does not call `{}`", row.new);
+                    assert!(
+                        call.starts_with(row.new),
+                        "`{call}` does not call `{}`",
+                        row.new
+                    );
                 }
                 continue;
             }

@@ -52,7 +52,10 @@ fn unknown_member_subject(diagnostic: &Diagnostic) -> Option<(&str, &str)> {
     if diagnostic.code != Some(code::E_UNKNOWN_MEMBER) {
         return None;
     }
-    let (class, rest) = diagnostic.message.strip_prefix('`')?.split_once("` has no ")?;
+    let (class, rest) = diagnostic
+        .message
+        .strip_prefix('`')?
+        .split_once("` has no ")?;
     let (_, member) = rest.split_once(" named `")?;
     let member = member.strip_suffix('`')?;
     let plain = |text: &str| !text.is_empty() && !text.contains('`');
