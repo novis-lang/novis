@@ -430,6 +430,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **The cycle collector runs only near the request's memory ceiling, so a test of cycles under no
+  ceiling grows with every cycle.** A test compared the peak of 200 and 2,000 map-and-node cycles and
+  failed with code that was fine; a plain class grows the same way. Hold the run to a ceiling far
+  below its cycles' total with `ctx.set_memory_limit` and assert it finishes. See
+  `crates/nvs-codegen/tests/revocable.rs` `a_cycle_of_a_map_and_its_member_is_reclaimed_cleanly`.
 - **A `--GET--` case fills `Core\Html::later` slots with no host, on the request's own context.** A
   slot there sees everything the main script sees, and under a real host it sees none of the request.
   `session-a-read-inside-later-or-after-response-compiles.nvst` passed while every session read in a
