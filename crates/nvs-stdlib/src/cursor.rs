@@ -98,7 +98,7 @@ const YIELDS: usize = 2;
 const EPOCH: usize = 3;
 /// … and, for a loop over a map's key store, the map's value store, so an
 /// entry whose value was revoked during the loop is skipped. Every other
-/// cursor has the empty array here.
+/// cursor has `null` here, so its loop start allocates no array.
 const PAIRS: usize = 4;
 
 /// What a cursor yields at each slot of the array it walks. The `yields` slot
@@ -171,12 +171,13 @@ pub(crate) fn over(items: NvsArray) -> Value {
 /// taking over its reference. A map or set passes a clone of its own store,
 /// which is one reference and no copy.
 pub(crate) fn yielding(items: NvsArray, yields: Yield) -> Value {
-    paired(items, yields, NvsArray::new())
+    paired(items, yields, None)
 }
 
-/// [`yielding`], for a loop over a map's key store: `pairs` is the map's value
-/// store, which the cursor holds one reference on.
-pub(crate) fn paired(items: NvsArray, yields: Yield, pairs: NvsArray) -> Value {
+/// [`yielding`], with `pairs` for a loop over a map's key store: the map's
+/// value store, which the cursor holds one reference on. With `None` the
+/// `pairs` slot is `null`, so a loop start allocates the cursor alone.
+pub(crate) fn paired(items: NvsArray, yields: Yield, pairs: Option<NvsArray>) -> Value {
     crate::instance::build(
         &CLASS,
         [
@@ -184,7 +185,7 @@ pub(crate) fn paired(items: NvsArray, yields: Yield, pairs: NvsArray) -> Value {
             Value::int(-1),
             yields.value(),
             epoch(),
-            Value::array(pairs),
+            pairs.map_or_else(Value::null, Value::array),
         ],
     )
 }
@@ -266,9 +267,10 @@ fn holds_revoked(receiver: *mut ObjHeader, items: &NvsArray, slot: usize) -> boo
     if items.value_at(slot).is_some_and(is_revoked_value) {
         return true;
     }
-    let Ok(pairs) = store::borrow(receiver, PAIRS, &CLASS, ADVANCE) else {
+    let Some(pairs) = crate::instance::slot(receiver, PAIRS).array_ptr() else {
         return false;
     };
+    let pairs = crate::arr::borrowed(pairs);
     !pairs.is_empty()
         && items
             .key_at(slot)

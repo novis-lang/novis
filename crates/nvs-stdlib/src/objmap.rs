@@ -929,9 +929,9 @@ nvs_runtime::nvs_helper! {
             let pairs = if slot == KEYS {
                 let values =
                     store::borrow(receiver, VALUES, &CLASS, nvs_runtime::sequence::ITERATE)?;
-                NvsArray::clone(&values)
+                Some(NvsArray::clone(&values))
             } else {
-                NvsArray::new()
+                None
             };
             Ok(crate::cursor::paired(NvsArray::clone(&walked), yields, pairs))
         });
