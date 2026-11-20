@@ -337,13 +337,21 @@ impl<'a> Lowering<'a> {
                 }
             }
             ExprKind::Fn(fn_expr) => self.lower_anon_fn_expr(fn_expr, expr, env, cur),
-            ExprKind::New { target, args, .. } => self.lower_new(target, args, expr, env, cur),
+            ExprKind::New { target, args, .. } => mutate::in_call(
+                self,
+                |_| mutate::is_thrown(expr.span),
+                |this| this.lower_new(target, args, expr, env, cur),
+            ),
             ExprKind::MethodCall {
                 object,
                 nullsafe,
                 args,
                 ..
-            } => self.lower_method_call(object, *nullsafe, args, expr, env, cur),
+            } => mutate::in_call(
+                self,
+                |_| false,
+                |this| this.lower_method_call(object, *nullsafe, args, expr, env, cur),
+            ),
             // `rule:attributes/retrieval-folds-while-checking`'s retrieval is resolved in `nvs check` and recorded
             // here as an ordinary compile-time constant, so what is lowered is
             // the answer rather than the call — `nvs_stdlib::attributes`
@@ -438,7 +446,11 @@ impl<'a> Lowering<'a> {
                     };
                     return self.lower_route_link(&prepared, link, args, env, cur);
                 }
-                self.lower_static_call(class, args, expr, env, cur)
+                mutate::in_call(
+                    self,
+                    |this| this.is_glue_call(expr.span),
+                    |this| this.lower_static_call(class, args, expr, env, cur),
+                )
             }
             ExprKind::PropertyAccess {
                 object,
@@ -703,9 +715,11 @@ impl<'a> Lowering<'a> {
             // it is — and so whether the runtime still checks a tag per
             // argument — is the checker's record on this expression's own span,
             // read in `Self::lower_callable_call`.
-            ExprKind::Call { callee, args } => {
-                self.lower_callable_call(expr, callee, args, env, cur)
-            }
+            ExprKind::Call { callee, args } => mutate::in_call(
+                self,
+                |_| false,
+                |this| this.lower_callable_call(expr, callee, args, env, cur),
+            ),
             // `rule:types/anonymous-function-self-name`'s self-name — `fact` inside
             // `fn fact(int $n): int => … fact($n - 1)`. The callable it names is
             // the frame's own receiver, which `anon_fn::lower_anon_fn` bound

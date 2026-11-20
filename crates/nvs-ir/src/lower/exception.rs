@@ -34,6 +34,9 @@ impl<'a> Lowering<'a> {
     /// `reject_unthrowable`'s `can_hold_an_object` predicate lets past, so a
     /// third is a bug in this crate and not a shape a program can write.
     pub(crate) fn lower_throw(&mut self, inner: &Expr, env: &mut Env, cur: &mut BlockId) {
+        // The thrown `new`'s arguments are its message, so they make no
+        // mutant (`rule:testing/mutation-testing`'s glue).
+        super::mutate::throwing(inner);
         let (v, ty) = self.lower_expr(inner, None, env, cur);
         assert!(
             matches!(ty, Ty::Object | Ty::Tagged),

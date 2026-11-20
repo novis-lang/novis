@@ -43,6 +43,16 @@
 //! generator lowered inside it. A method or a class with `#[NoMutate]` is
 //! lowered the same way.
 //!
+//! # Glue makes no mutant
+//!
+//! A site whose nearest enclosing call is a `Core\Log` method, or that is in
+//! the arguments of the `new` a `throw` throws, changes a message and never a
+//! result: no test is meant to read it. [`in_call`] wraps every call the
+//! lowering makes and says whether that call is glue; the enumeration of glue
+//! calls is [`Lowering::is_glue_call`] and [`Lowering::lower_throw`]'s
+//! [`throwing`]. Output written with `echo` or `Core\Html` is not glue: in a
+//! web program the page is the result.
+//!
 //! # Every mutant names its function
 //!
 //! [`within`] sets the label of the method being lowered, and every site in
@@ -212,6 +222,12 @@ struct Plan {
     /// Set while a test-code or `#[NoMutate]` method is lowered: no site there
     /// is listed or changed.
     in_test_code: bool,
+    /// Set while the arguments of a glue call are lowered ([`in_call`]): no
+    /// site there is listed or changed.
+    in_glue: bool,
+    /// The `new` expression a `throw` is about to lower, whose arguments are
+    /// glue ([`throwing`]).
+    thrown: Option<Span>,
     /// The label of the function being lowered, which each listed mutant names.
     function: String,
     /// The `true` and `false` literals [`Lowering::shield_literal`] named.
@@ -231,6 +247,8 @@ impl Armed {
             *plan.borrow_mut() = Some(Plan {
                 mode,
                 in_test_code: false,
+                in_glue: false,
+                thrown: None,
                 function: String::new(),
                 shielded: Vec::new(),
             });
@@ -260,20 +278,74 @@ pub(crate) fn within<T>(function: &str, unmutated: bool, lower: impl FnOnce() ->
         plan.borrow_mut().as_mut().map(|plan| {
             (
                 std::mem::replace(&mut plan.in_test_code, unmutated),
+                std::mem::replace(&mut plan.in_glue, false),
                 std::mem::replace(&mut plan.function, function.to_owned()),
             )
         })
     });
     let out = lower();
-    if let Some((test_code, function)) = before {
+    if let Some((test_code, glue, function)) = before {
         PLAN.with(|plan| {
             if let Some(plan) = plan.borrow_mut().as_mut() {
                 plan.in_test_code = test_code;
+                plan.in_glue = glue;
                 plan.function = function;
             }
         });
     }
     out
+}
+
+/// Runs `lower`, the lowering of one call, as glue when `glue` says the call
+/// is glue: a `Core\Log` method, or the `new` a `throw` throws. A call that is
+/// not glue turns glue off for its own arguments, so the nearest enclosing
+/// call decides. With no plan, `glue` is never called.
+pub(crate) fn in_call<'a, T>(
+    lowering: &mut Lowering<'a>,
+    glue: impl FnOnce(&Lowering<'a>) -> bool,
+    lower: impl FnOnce(&mut Lowering<'a>) -> T,
+) -> T {
+    if PLAN.with(|plan| plan.borrow().is_none()) {
+        return lower(lowering);
+    }
+    let glue = glue(lowering);
+    let before = PLAN.with(|plan| {
+        plan.borrow_mut()
+            .as_mut()
+            .map(|plan| std::mem::replace(&mut plan.in_glue, glue))
+    });
+    let out = lower(lowering);
+    if let Some(before) = before {
+        PLAN.with(|plan| {
+            if let Some(plan) = plan.borrow_mut().as_mut() {
+                plan.in_glue = before;
+            }
+        });
+    }
+    out
+}
+
+/// Records that `thrown`, the operand of a `throw`, is about to be lowered.
+/// When it is a `new`, [`is_thrown`] then names it as glue.
+pub(crate) fn throwing(thrown: &Expr) {
+    let thrown = thrown.unparenthesized();
+    if !matches!(thrown.kind, ExprKind::New { .. }) {
+        return;
+    }
+    PLAN.with(|plan| {
+        if let Some(plan) = plan.borrow_mut().as_mut() {
+            plan.thrown = Some(thrown.span);
+        }
+    });
+}
+
+/// Whether `span` is the `new` a `throw` throws ([`throwing`]).
+pub(crate) fn is_thrown(span: Span) -> bool {
+    PLAN.with(|plan| {
+        plan.borrow()
+            .as_ref()
+            .is_some_and(|plan| plan.thrown == Some(span))
+    })
 }
 
 impl Lowering<'_> {
@@ -361,9 +433,20 @@ fn is_narrowing_operand(e: &Expr) -> bool {
 }
 
 impl Lowering<'_> {
+    /// Whether the call at `call` is glue by what it calls: a method of
+    /// `Core\Log`. The `new` a `throw` throws is the other glue call
+    /// ([`is_thrown`]).
+    pub(crate) fn is_glue_call(&self, call: Span) -> bool {
+        matches!(
+            self.exprs.lookup(call),
+            Some(ExprInfo::Call(resolved)) if resolved.class.to_string() == r"Core\Log"
+        )
+    }
+
     /// Offers the site at `span` to the plan. In a survey it records the
     /// mutant and returns `false`; armed, it returns whether this is the
-    /// site to change. With no plan, or inside test code, it returns `false`.
+    /// site to change. With no plan, inside test code, or in a glue call's
+    /// arguments, it returns `false`.
     pub(crate) fn mutation_site(
         &self,
         span: Span,
@@ -376,7 +459,7 @@ impl Lowering<'_> {
             let Some(plan) = plan.as_mut() else {
                 return false;
             };
-            if plan.in_test_code {
+            if plan.in_test_code || plan.in_glue {
                 return false;
             }
             match &mut plan.mode {
@@ -716,6 +799,42 @@ final class Codec {
                 ("Cart::items".to_owned(), 13, "-"),
                 ("Cart::total".to_owned(), 6, "+"),
                 ("Cart::total".to_owned(), 7, "-"),
+            ],
+        );
+    }
+
+    /// A site in a `Core\Log` call's arguments or a thrown exception's makes no
+    /// mutant. A call nested inside one decides for its own arguments.
+    #[test]
+    fn a_log_call_and_an_exception_message_make_no_mutant() {
+        let (found, _, _) = lowered(
+            "<?nvs
+use Core\\Log;
+
+final class Order {
+    public function place(int $n): int {
+        Log::write(Log::Level::Info, 'placing', ['n' => $n + 1]);
+        if ($n < 0) {
+            throw new LogicError('bad count ' . ($n - 1));
+        }
+        Log::write(Log::Level::Info, 'size', ['n' => $this->size($n + 3)]);
+        return $n - 2;
+    }
+
+    public function size(int $n): int {
+        return $n;
+    }
+}
+",
+        );
+        use Operator::*;
+        assert_eq!(
+            rows(&found),
+            vec![
+                (7, BranchNegated, "condition", "!condition"),
+                (7, RelationalBoundary, "<", "<="),
+                (10, ArithmeticSwap, "+", "-"),
+                (11, ArithmeticSwap, "-", "+"),
             ],
         );
     }
