@@ -531,10 +531,11 @@ fn keyed_value(value: Value) -> Result<Value, Fault> {
     let receiver = crate::instance::receiver(value, &KEYED_CLASS, CURRENT)?;
     let slot = keyed_slot(receiver, KEYED_INDEX, CURRENT)?;
     let values = store::borrow(receiver, KEYED_VALUES, &KEYED_CLASS, CURRENT)?;
-    values
-        .value_at(slot)
-        .map(owned)
-        .ok_or_else(|| Fault::fatal(format!("{KEYED_NAME}::{CURRENT} found no value at slot {slot}")))
+    values.value_at(slot).map(owned).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{KEYED_NAME}::{CURRENT} found no value at slot {slot}"
+        ))
+    })
 }
 
 nvs_runtime::nvs_helper! {
@@ -765,7 +766,10 @@ mod tests {
                 }
                 let value = call(member, &mut ctx, &[cursor]).expect("key or current");
                 pair.push(render(value));
-                #[expect(unsafe_code, reason = "the member gave back a reference this frame owns")]
+                #[expect(
+                    unsafe_code,
+                    reason = "the member gave back a reference this frame owns"
+                )]
                 unsafe {
                     value.release();
                 }
@@ -815,7 +819,10 @@ mod tests {
                 &[keys[0], Value::int(4)],
             );
             let cursor = iterate(map, crate::objmap::nvs_core_object_map_iterate_keyed);
-            assert_eq!(drained_pairs(cursor), vec!["b=Some(2)", "c=Some(3)", "a=Some(4)"]);
+            assert_eq!(
+                drained_pairs(cursor),
+                vec!["b=Some(2)", "c=Some(3)", "a=Some(4)"]
+            );
             release_all(&[map]);
         }
 
@@ -865,10 +872,17 @@ mod tests {
             &[keys[1], Value::int(2)],
         );
         assert_ne!(array_in(map, crate::objmap::VALUES), store);
-        assert_eq!(array_in(cursor, KEYED_VALUES), store, "the cursor keeps the first");
+        assert_eq!(
+            array_in(cursor, KEYED_VALUES),
+            store,
+            "the cursor keeps the first"
+        );
         assert_eq!(drained_pairs(cursor), vec!["a=Some(1)"]);
         assert_eq!(
-            drained_pairs(iterate(map, crate::objmap::nvs_core_object_map_iterate_keyed)),
+            drained_pairs(iterate(
+                map,
+                crate::objmap::nvs_core_object_map_iterate_keyed
+            )),
             vec!["a=Some(9)", "b=Some(2)"],
             "the next loop sees both writes"
         );

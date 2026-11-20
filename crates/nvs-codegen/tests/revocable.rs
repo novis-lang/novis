@@ -53,7 +53,9 @@ fn the_inline_release_of_an_object_that_is_not_revoked_is_unchanged() {
         .filter(|line| line.contains("icmp ult"))
         .collect();
     assert!(
-        compares.iter().any(|line| line.replace('_', "").contains(&bound)),
+        compares
+            .iter()
+            .any(|line| line.replace('_', "").contains(&bound)),
         "`K::drop`'s release compares against {bound}:\n{clif}"
     );
     // The flag costs no instruction: nothing masks the count inline.
@@ -313,10 +315,7 @@ fn a_cycle_of_a_map_and_its_member_is_reclaimed_cleanly() {
         "the cycles were not reclaimed under a {CEILING}-byte ceiling: {:?}",
         ctx.take_pending()
     );
-    assert_eq!(
-        ctx.take_buffered_output().as_deref(),
-        Some(&b"20000"[..])
-    );
+    assert_eq!(ctx.take_buffered_output().as_deref(), Some(&b"20000"[..]));
 }
 
 /// Revocable objects left in a map, a set and a heap when the script ends.
@@ -360,7 +359,11 @@ fn the_request_end_walks_no_back_link() {
 /// `count` objects of a class that is or is not revocable, each added to one
 /// set. With `remove`, each is taken out of the set again.
 fn members(revocable: bool, remove: bool) -> String {
-    let implements = if revocable { " implements Revocable" } else { "" };
+    let implements = if revocable {
+        " implements Revocable"
+    } else {
+        ""
+    };
     let removal = if remove { "$set->remove($post);" } else { "" };
     format!(
         r#"<?nvs
@@ -404,7 +407,10 @@ fn a_membership_is_charged_to_the_request_and_returned() {
     );
     // Once the script ends, everything it charged is returned.
     let left = live_bytes_of_run(&members(true, false)) - live_bytes_of_run(&members(false, false));
-    assert!(left < 4096, "the script's end left {left} bytes of memberships");
+    assert!(
+        left < 4096,
+        "the script's end left {left} bytes of memberships"
+    );
 }
 
 /// The highest the request heap reached during one run of `source`, measured

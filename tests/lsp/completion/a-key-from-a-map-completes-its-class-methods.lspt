@@ -8,7 +8,7 @@ final class Tag {
 }
 var $weights = new Core\ObjectMap<Tag, int>();
 foreach ($weights as var $tag => var $n) {
-    echo $tag-><|>
+    echo $tag-><|>;
 }
 --REQUEST--
 completion

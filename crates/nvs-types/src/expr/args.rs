@@ -885,8 +885,7 @@ pub(crate) fn walk_element(ty: TypeId, env: &mut Env<'_>) -> Option<TypeId> {
     // (`rule:iteration/keyed-interfaces`).
     if qname.is_reserved_global_interface() {
         let short = qname.short_name();
-        return (short == nvs_hir::interfaces::ITERABLE
-            || short == nvs_hir::interfaces::ITERATOR)
+        return (short == nvs_hir::interfaces::ITERABLE || short == nvs_hir::interfaces::ITERATOR)
             .then(|| args.first().copied())
             .flatten();
     }

@@ -5064,7 +5064,11 @@ impl Emitter<'_, '_> {
                 nvs_runtime::OBJ_REFCOUNT_OFFSET,
                 Some(REVOKED_I64),
             ),
-            Ty::Array => ("nvs_array_release", nvs_runtime::ARRAY_REFCOUNT_OFFSET, None),
+            Ty::Array => (
+                "nvs_array_release",
+                nvs_runtime::ARRAY_REFCOUNT_OFFSET,
+                None,
+            ),
             // An internal-consistency check on `nvs-ir`, not on the language,
             // which is why it is an `Internal` rather than an `Unsupported`:
             // the rows above are exactly `nvs_ir::ty::Ty::is_refcounted`'s,
@@ -5108,11 +5112,9 @@ impl Emitter<'_, '_> {
             // unchanged and is the only place a value is freed.
             let above_one = if let Some(ceiling) = ceiling {
                 let shifted = self.b.ins().iadd_imm_s(count, -2);
-                self.b.ins().icmp_imm_s(
-                    IntCC::UnsignedLessThan,
-                    shifted,
-                    ceiling.wrapping_sub(2),
-                )
+                self.b
+                    .ins()
+                    .icmp_imm_s(IntCC::UnsignedLessThan, shifted, ceiling.wrapping_sub(2))
             } else {
                 self.b
                     .ins()

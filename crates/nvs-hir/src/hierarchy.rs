@@ -791,7 +791,12 @@ fn report_revocable_interface(span: Span, diags: &mut Diagnostics) {
 /// parent declared in a later file. The walk stops at a class it has seen,
 /// because [`detect_cycles`] reports a cycle after this. A parent that did not
 /// resolve already has its own error, and gets no second one here.
-fn report_revocable_below_root(class: &QName, span: Span, graph: &ClassGraph, diags: &mut Diagnostics) {
+fn report_revocable_below_root(
+    class: &QName,
+    span: Span,
+    graph: &ClassGraph,
+    diags: &mut Diagnostics,
+) {
     let parent_of = |q: &QName| graph.links.get(q).and_then(|l| l.extends.first().cloned());
     let Some(parent) = parent_of(class) else {
         return;

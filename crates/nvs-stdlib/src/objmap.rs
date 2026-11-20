@@ -596,10 +596,7 @@ fn each_pair(receiver: *mut ObjHeader, member: &str, mut visit: impl FnMut(Value
             visit(key, value);
         } else if let Some(key) = store::key_value(&values, slot, keying) {
             visit(key, value);
-            #[expect(
-                unsafe_code,
-                reason = "`key_value` returned a key this frame owns"
-            )]
+            #[expect(unsafe_code, reason = "`key_value` returned a key this frame owns")]
             unsafe {
                 key.release();
             }
@@ -630,7 +627,11 @@ pub(crate) const HOOKS: revoke::CollectionHooks = revoke::CollectionHooks {
         let Some(receiver) = map.obj_ptr() else {
             return;
         };
-        let key = if kind == MembershipKind::MapKey { object } else { key };
+        let key = if kind == MembershipKind::MapKey {
+            object
+        } else {
+            key
+        };
         let _ = remove_entry(receiver, key, "revoke");
     },
     unlink_all: |map| {
@@ -832,7 +833,11 @@ fn remove_pair(receiver: *mut ObjHeader, key: Value, member: &str) -> Result<(),
                 return Ok(());
             }
             // An identity-keyed map removes the key from its key store too.
-            let slots: &[usize] = if keying.keeps_keys() { &[KEYS, VALUES] } else { &[VALUES] };
+            let slots: &[usize] = if keying.keeps_keys() {
+                &[KEYS, VALUES]
+            } else {
+                &[VALUES]
+            };
             for slot in slots {
                 store::edit(receiver, *slot, &CLASS, member, |stored| {
                     let (place, present) = store::place(stored, keying, key);

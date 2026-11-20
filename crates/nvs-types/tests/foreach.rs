@@ -218,7 +218,10 @@ fn a_var_key_over_a_tainted_key_type_is_tainted_string() {
         check_over_maps("foreach ($taint as var $key => var $value) { tainted string $s = $key; }");
     assert!(!diags.has_errors(), "{diags:?}");
     let diags = check_over_maps("foreach ($taint as var $key => var $value) { string $s = $key; }");
-    assert!(diags.has_errors(), "a `var` key over a tainted key is tainted: {diags:?}");
+    assert!(
+        diags.has_errors(),
+        "a `var` key over a tainted key is tainted: {diags:?}"
+    );
 }
 
 #[test]
@@ -238,7 +241,10 @@ fn a_written_key_type_that_is_not_the_key_type_is_refused() {
     assert!(has(&diags, code::E_TYPE_MISMATCH), "{diags:?}");
     assert!(!has(&diags, code::E_FOREACH_KEY_TY), "{diags:?}");
     let diags = check_over_maps("foreach ($map as object $key => int $value) { echo $value; }");
-    assert!(!diags.has_errors(), "a wider key type is accepted: {diags:?}");
+    assert!(
+        !diags.has_errors(),
+        "a wider key type is accepted: {diags:?}"
+    );
 }
 
 /// The value-only form keeps its meaning: a map still gives its keys.
@@ -320,7 +326,8 @@ fn a_class_implementing_both_pairs_binds_by_the_loops_form() {
     };
     let diags = program("foreach ($index as var $value) { Tag $t = $value; }");
     assert!(!diags.has_errors(), "{diags:?}");
-    let diags =
-        program("foreach ($index as var $key => var $value) { string $s = $key; int $n = $value; }");
+    let diags = program(
+        "foreach ($index as var $key => var $value) { string $s = $key; int $n = $value; }",
+    );
     assert!(!diags.has_errors(), "{diags:?}");
 }

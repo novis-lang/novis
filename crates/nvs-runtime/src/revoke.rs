@@ -162,16 +162,19 @@ pub fn revokes() -> u64 {
 /// Whether `value` is a revoked object.
 #[must_use]
 pub fn is_revoked_value(value: Value) -> bool {
-    value.obj_ptr().filter(|ptr| !ptr.is_null()).is_some_and(|ptr| {
-        #[expect(
-            unsafe_code,
-            reason = "a Value that holds an object holds a reference to it, so \
+    value
+        .obj_ptr()
+        .filter(|ptr| !ptr.is_null())
+        .is_some_and(|ptr| {
+            #[expect(
+                unsafe_code,
+                reason = "a Value that holds an object holds a reference to it, so \
                       the object is live"
-        )]
-        unsafe {
-            is_revoked(ptr)
-        }
-    })
+            )]
+            unsafe {
+                is_revoked(ptr)
+            }
+        })
 }
 
 /// The object `value` holds when it is a live object of a revocable class
@@ -305,7 +308,10 @@ unsafe fn hidden_slot(ptr: *mut ObjHeader) -> *mut Value {
 /// # Safety
 ///
 /// `ptr` must refer to a live object.
-#[expect(unsafe_code, reason = "the pointee's liveness is the caller's obligation")]
+#[expect(
+    unsafe_code,
+    reason = "the pointee's liveness is the caller's obligation"
+)]
 unsafe fn is_revocable(ptr: *mut ObjHeader) -> bool {
     #[expect(
         unsafe_code,
@@ -322,7 +328,10 @@ unsafe fn is_revocable(ptr: *mut ObjHeader) -> bool {
 ///
 /// `ptr` must refer to a live object.
 #[must_use]
-#[expect(unsafe_code, reason = "the pointee's liveness is the caller's obligation")]
+#[expect(
+    unsafe_code,
+    reason = "the pointee's liveness is the caller's obligation"
+)]
 pub unsafe fn is_revoked(ptr: *mut ObjHeader) -> bool {
     #[expect(unsafe_code, reason = "the caller guarantees the object is live")]
     let word = unsafe { NvsObj::count_word(ptr) }.get();
@@ -418,7 +427,10 @@ pub unsafe fn revoke(ptr: *mut ObjHeader, site: *const u8) {
 ///
 /// `ptr` must refer to a live object.
 #[must_use]
-#[expect(unsafe_code, reason = "the pointee's liveness is the caller's obligation")]
+#[expect(
+    unsafe_code,
+    reason = "the pointee's liveness is the caller's obligation"
+)]
 pub unsafe fn revoke_site(ptr: *mut ObjHeader) -> *const u8 {
     #[expect(unsafe_code, reason = "the caller guarantees the object is live")]
     let revoked = unsafe { is_revoked(ptr) } && unsafe { is_revocable(ptr) };
@@ -495,6 +507,14 @@ pub fn revoked_text(value: &Value) -> Option<String> {
 ///
 /// As [`revoke`].
 #[expect(unsafe_code, reason = "compiled code passes an object and a blob")]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_revoke(object: *mut ObjHeader, site: *const u8) {
     #[expect(unsafe_code, reason = "forwarding this function's own contract")]
@@ -510,6 +530,14 @@ pub unsafe extern "C" fn nvs_object_revoke(object: *mut ObjHeader, site: *const 
 ///
 /// `object` must refer to a live object.
 #[expect(unsafe_code, reason = "compiled code passes an object")]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
+)]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_object_is_revoked(object: *mut ObjHeader) -> u8 {
     #[expect(unsafe_code, reason = "forwarding this function's own contract")]
@@ -527,6 +555,14 @@ pub unsafe extern "C" fn nvs_object_is_revoked(object: *mut ObjHeader) -> u8 {
 #[expect(
     unsafe_code,
     reason = "compiled code passes its context, an object and a blob"
+)]
+#[deny(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::indexing_slicing,
+    clippy::arithmetic_side_effects
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_throw_revoked(

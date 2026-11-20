@@ -1649,7 +1649,11 @@ impl<'a> Lowering<'a> {
         }
 
         let cursor_v = if drive.via_iterable {
-            let iterate = if drive.keyed { "iterateKeyed" } else { "iterate" };
+            let iterate = if drive.keyed {
+                "iterateKeyed"
+            } else {
+                "iterate"
+            };
             self.emit_iface_call(*cur, subject_v, false, iterate, Ty::Object, env)
         } else {
             subject_v
@@ -1714,8 +1718,7 @@ impl<'a> Lowering<'a> {
         let mut body_cur = body_block;
         if let Some((k, key_ty, key_name)) = key {
             let k_v = self.emit_iface_call(body_cur, cursor_v, true, "key", key_ty, &body_env);
-            let (k_v, _) =
-                self.widen_marked_binding(k.span, k_v, key_ty, &mut body_env, body_cur);
+            let (k_v, _) = self.widen_marked_binding(k.span, k_v, key_ty, &mut body_env, body_cur);
             body_env.insert(key_name, (k_v, key_ty));
         }
         let v_v = self.emit_iface_call(body_cur, cursor_v, true, "current", value_ty, &body_env);

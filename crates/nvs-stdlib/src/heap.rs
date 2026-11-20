@@ -358,7 +358,10 @@ fn revoked_first(left: Value, right: Value) -> Option<bool> {
     if !revoke::in_use() {
         return None;
     }
-    match (revoke::is_revoked_value(left), revoke::is_revoked_value(right)) {
+    match (
+        revoke::is_revoked_value(left),
+        revoke::is_revoked_value(right),
+    ) {
         (false, false) => None,
         (left, right) => Some(left && !right),
     }
@@ -410,7 +413,11 @@ fn precedes(
         (a, b)
     };
     let verdict = match revoked_first(a, b) {
-        Some(first) => Ok(if first { Ordering::Less } else { Ordering::Greater }),
+        Some(first) => Ok(if first {
+            Ordering::Less
+        } else {
+            Ordering::Greater
+        }),
         None => compare(ctx, receiver, a, b, member),
     };
     #[expect(

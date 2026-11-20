@@ -34,8 +34,8 @@
 use nvs_diagnostics::{BytePos, Diagnostic, Diagnostics, Span, code};
 use nvs_hir::{Module, QName};
 use nvs_syntax::ast::{
-    Block, CallArgs, ClassMember, ClassMemberKind, Expr, ExprKind, MemberName, MethodMember, Modifier,
-    NamespaceDecl, NewTarget, Stmt, StmtKind,
+    Block, CallArgs, ClassMember, ClassMemberKind, Expr, ExprKind, MemberName, MethodMember,
+    Modifier, NamespaceDecl, NewTarget, Stmt, StmtKind,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 

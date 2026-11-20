@@ -666,6 +666,9 @@ mod tests {
                 .map(|class| class.members().count())
                 .sum::<usize>()
                 + registry::CONSTRUCTORS.len()
+                // The collections' keyed constructors, which have no member
+                // row of their own.
+                + registry::KEYED_CONSTRUCTORS.len()
                 // `rule:routing/link-target-and-params-are-checked`'s two prepared link entry points, which belong
                 // to `Core\Router::url`/`::urlAbsolute` and to no row of their
                 // own — see `router::link`.

@@ -237,16 +237,14 @@ pub(crate) fn classify_foreach_source(
                         value: with_subject_args(&qname, &args, value, env),
                         via_iterable: interface.short_name() == nvs_hir::interfaces::ITERABLE,
                     });
-            let keyed = crate::signatures::resolve_keyed_iteration(
-                &qname,
-                env.signatures,
-                env.graph,
-            )
-            .map(|(interface, key, value)| ForeachSource::Keyed {
-                key: with_subject_args(&qname, &args, key, env),
-                value: with_subject_args(&qname, &args, value, env),
-                via_iterable: interface.short_name() == nvs_hir::interfaces::KEYED_ITERABLE,
-            });
+            let keyed =
+                crate::signatures::resolve_keyed_iteration(&qname, env.signatures, env.graph).map(
+                    |(interface, key, value)| ForeachSource::Keyed {
+                        key: with_subject_args(&qname, &args, key, env),
+                        value: with_subject_args(&qname, &args, value, env),
+                        via_iterable: interface.short_name() == nvs_hir::interfaces::KEYED_ITERABLE,
+                    },
+                );
             let chosen = if binds_key {
                 keyed.or(values)
             } else {
