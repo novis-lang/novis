@@ -1,81 +1,100 @@
 ---
 looper: 1
 title: "a program writes zip archives as a stream, and reads one entry as a stream"
-summary: "Reached when Core\\Zip::createForFile and ::createForDownload return a Core\\Zip\\Writer whose add writes each entry as it is read at a deflate level from 0 to 9 and whose finish writes the directory, every name the reader would refuse throws before a byte is written, an archive past 4 GiB or 65535 entries is written with zip64, Core\\Zip::stream gives one entry as chunks under the decompression bound, extract holds one block and never a whole entry, the spreadsheet writer frames its zip with the same code, and every new member has its proofs, help and pages."
+summary: "Reached when Core\\Zip::createForFile and ::createForDownload return a Core\\Zip\\Writer whose add writes each entry as it is read at a deflate level from 0 to 9 and whose finish writes the directory, every name the reader would refuse throws before a byte is written, an archive past 4 GiB or 65535 entries is written with zip64, Core\\Zip::stream gives one entry as chunks under the decompression bound, extract holds one block and never a whole entry, Core\\Compress::compress and ::compressor take a level in each codec's own range, the spreadsheet writer frames its zip with the same code, and every new or changed member has its proofs, help and pages."
 context: [crates/nvs-stdlib/src/zip.rs, docs/rules/core-classes/decompression-bound.md, docs/rules/core-api/tier-roster.md]
 stages:
   - id: 1
-    title: the rule says how a zip is written and read as a stream
+    title: the rules say how a zip is written and read as a stream, and what a compression level is
     status: open
-    context: [docs/rules/core-classes/spreadsheet-writes-as-a-stream.md, docs/rules/core-api/a-member-takes-the-source-the-program-holds.md, docs/agent/doc-style.md]
+    context: [docs/rules/core-classes/spreadsheet-writes-as-a-stream.md, docs/rules/core-api/a-member-takes-the-source-the-program-holds.md, docs/agent/doc-style.md, crates/nvs-stdlib/src/compress.rs]
   - id: 2
+    title: "Core\\Compress::compress and ::compressor take a level"
+    status: open
+    context: [crates/nvs-stdlib/src/compress.rs, Cargo.toml]
+  - id: 3
     title: one crate frames a zip, and the spreadsheet writer uses it
     status: open
     context: [extensions/spreadsheet/src/zip.rs, extensions/spreadsheet/Cargo.toml, extensions/spreadsheet/src/lib.rs, Cargo.toml]
-  - id: 3
+  - id: 4
     title: "Core\\Zip::createForFile, Writer::add and Writer::finish write an archive to a file"
     status: open
     context: [crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/byte_source.rs, crates/nvs-stdlib/src/io.rs, extensions/spreadsheet/nvs/Workbook.nvs]
-  - id: 4
+  - id: 5
     title: "Core\\Zip::createForDownload streams an archive to the browser"
     status: open
     context: [crates/nvs-stdlib/src/response.rs, extensions/spreadsheet/nvs/Workbook.nvs]
-  - id: 5
+  - id: 6
     title: "extract holds one block, and Core\\Zip::stream gives one entry as chunks"
     status: open
     context: [crates/nvs-stdlib/src/byte_source.rs, crates/nvs-stdlib/src/http.rs]
-  - id: 6
-    title: the feature proofs of every new member
+  - id: 7
+    title: the feature proofs of every new or changed member
     status: open
     context: [docs/agent/testing.md, docs/agent/prose.md]
-  - id: 7
-    title: "the help, the reference and the website say what Core\\Zip writes"
+  - id: 8
+    title: "the help, the reference and the website say what Core\\Zip writes and what a level does"
     status: open
     context: [docs/agent/prose.md, website/src/data/changes.json]
-  - id: 8
+  - id: 9
     title: "the goal is verified once, and every failure is fixed"
     status: open
     gate: true
 checks:
+  - id: compress-level
+    stage: 2
+    name: "Core\\Compress::compress and ::compressor write at a level in each codec's range, and a level outside it throws naming the range"
+    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/compress-a-level-is-the-codec-s-own-number.nvst]
+    timeout: 1800
   - id: writer-round-trip
-    stage: 3
+    stage: 4
     name: "an archive Core\\Zip\\Writer writes to a file lists and reads back through Core\\Zip, at level 0, 1 and 9"
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/zip-writer-an-archive-written-to-a-file-reads-back.nvst]
     timeout: 1800
   - id: writer-names
-    stage: 3
+    stage: 4
     name: "every name the reader refuses throws when it is added, before a byte of the entry is written"
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/zip-writer-a-name-the-reader-refuses-throws-when-it-is-added.nvst]
     timeout: 1800
   - id: download
-    stage: 4
+    stage: 5
     name: "a download that is never finished is cut off, and the log names it"
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/zip-writer-a-download-never-finished-is-cut-off.nvst]
     timeout: 1800
   - id: proofs-create-for-file
-    stage: 6
+    stage: 7
     name: "Core\\Zip::createForFile has its feature proofs"
     run: [bun, nv, proofs, --id, "Core\\Zip::createForFile", --gate]
     timeout: 600
   - id: proofs-create-for-download
-    stage: 6
+    stage: 7
     name: "Core\\Zip::createForDownload has its feature proofs"
     run: [bun, nv, proofs, --id, "Core\\Zip::createForDownload", --gate]
     timeout: 600
   - id: proofs-stream
-    stage: 6
+    stage: 7
     name: "Core\\Zip::stream has its feature proofs"
     run: [bun, nv, proofs, --id, "Core\\Zip::stream", --gate]
     timeout: 600
   - id: proofs-add
-    stage: 6
+    stage: 7
     name: "Core\\Zip\\Writer::add has its feature proofs"
     run: [bun, nv, proofs, --id, "Core\\Zip\\Writer::add", --gate]
     timeout: 600
   - id: proofs-finish
-    stage: 6
+    stage: 7
     name: "Core\\Zip\\Writer::finish has its feature proofs"
     run: [bun, nv, proofs, --id, "Core\\Zip\\Writer::finish", --gate]
+    timeout: 600
+  - id: proofs-compress
+    stage: 7
+    name: "Core\\Compress::compress keeps its feature proofs with the level"
+    run: [bun, nv, proofs, --id, "Core\\Compress::compress", --gate]
+    timeout: 600
+  - id: proofs-compressor
+    stage: 7
+    name: "Core\\Compress::compressor keeps its feature proofs with the level"
+    run: [bun, nv, proofs, --id, "Core\\Compress::compressor", --gate]
     timeout: 600
 ---
 
@@ -96,6 +115,12 @@ by hand, so the gap is already paid for three times:
 A program today has two ways to make a zip: the same `Core\Bytes::pack` assembly, or the host's `zip`
 binary through `Core\Process::run`. Neither is acceptable for a web server's "download these files"
 or a CLI's backup.
+
+`Core\Compress` has the same hole one level down: `compress` and `compressor` take a codec and no
+level (`crates/nvs-stdlib/src/compress.rs:253`, `:279`). Each codec is fixed in `encode`
+(`compress.rs:889`): deflate's default 6 for gzip, zlib and deflate, brotli quality 5, and zstd
+`Fastest`. A program that compresses once and serves many times cannot ask for the smaller result,
+and one on a hot path cannot ask for the faster one.
 
 ## Standing decisions
 
@@ -128,9 +153,36 @@ archive's size, which is the user's ask.
   archive's size in bytes. A second `finish()`, or an `add` after it, throws `LogicError`.
 - There is no folder entry. A folder exists in the archive because a file's name contains it.
 
-**A level is `0` to `9`, as `zip -0` to `zip -9` are.** The default is `6`, zlib's and the spreadsheet
-writer's. A level above `9` throws `RuntimeError` naming the range. Levels `1` to `9` write deflate
-(method 8) through `miniz_oxide`'s compressor at that level. Level `0` writes:
+**A compression level is the codec's own number, and one rule says so for both classes (the user's
+call: a level for zip, and the same follow-up for `Core\Compress`).** A programmer already knows
+these numbers from `gzip -9`, `brotli -q 11` and `zstd -1`, so the level is that number and not a
+Novis scale mapped onto each codec. The rule is
+`docs/rules/core-classes/a-compression-level-is-the-codec-s-own-number.md`, and `Core\Zip`'s level is
+deflate's range from it.
+
+| Codec | Range | Default (`null`) | Today's behaviour |
+|---|---|---|---|
+| `Gzip`, `Zlib`, `Deflate` | `0` to `9` | `6` | `flate2::Compression::default()`, which is 6 |
+| `Brotli` | `0` to `11` | `5` | quality 5 with a 22-bit window, and the window stays 22 at every level |
+| `Zstd` | `1` | `1` | `ruzstd`'s `Fastest` |
+
+- `Core\Compress::compress(..., Codec $codec, ?uint $level = null)` and
+  `Core\Compress::compressor(Codec $codec, ?uint $level = null)` take it last, so every existing
+  call compiles and writes the same bytes. The compressor keeps it in one more slot.
+- A level outside its codec's range throws `RuntimeError` naming the codec and the range. Clamping
+  would give a program a level it did not ask for.
+- **Zstd takes only `1`.** `ruzstd` 0.9.1 is the newest release, and its encoder implements
+  `Uncompressed` and `Fastest` only. `Default`, `Better` and `Best` are marked unimplemented. The C
+  `zstd` library stays declined for the security reason `Cargo.toml:1082` gives. When `ruzstd`
+  implements more levels, the range grows, and no call changes. `0` is not `Uncompressed`: in the
+  reference tool `0` means the default level, and the same number must not mean the opposite here.
+- **What it costs.** A higher level is slower: brotli 11 is about ten times slower to encode than 5,
+  for a few percent of size. That is the program's choice per call. Compression already polls the
+  request's deadline (`compress_polled`), so a slow level ends at the deadline like any other.
+  Memory: brotli's window stays 22 bits at every level. Stage 2 measures the encoder's peak at
+  levels 5 and 11, and at deflate 1 and 9, and writes the figures into the rule.
+
+**A zip's level `0` writes:**
 
 - **method 0 (stored), sizes in the local header**, when `$content` is `bytes`. The size and CRC-32
   are known before the entry is written, and an EPUB's or ODF's `mimetype` entry needs exactly this.
@@ -138,7 +190,8 @@ writer's. A level above `9` throws `RuntimeError` naming the range. Levels `1` t
   with a data descriptor is legal, but a forward-only reader such as Java's `ZipInputStream` cannot
   find its end. Stored deflate blocks cost 5 bytes per 64 KiB and every reader takes them.
 
-Only methods 0 and 8 are written. Declined: zstd (93), bzip2 (12) and LZMA (14). Windows Explorer and
+Levels `1` to `9` write deflate (method 8) through `miniz_oxide`'s compressor at that level. Only
+methods 0 and 8 are written. Declined: zstd (93), bzip2 (12) and LZMA (14). Windows Explorer and
 macOS Archive Utility do not all open them, and `Core\Zip` itself does not read them.
 
 **A name is judged by the reader's own predicate, before a byte of the entry is written.** The writer
@@ -202,38 +255,59 @@ RFC 6266 the same way: an ASCII `filename` with `_` for anything else, and a `fi
 Rust function gets a test that compares its output with the Novis one for the same names. Declined: a
 new `Core\Response` member for it. That is a change to the `Core` API this goal does not need.
 
-**What it costs** (`rule:programs/memory-priority`), per open writer, attributable to its request: one
-deflate compressor, reused across entries; one output block; and per entry its name plus about 40
-bytes for the central directory row, until `finish()`. Stage 3 measures the compressor's size and
-writes the figure into the writer's doc comment. `Core\Zip::stream` holds one input window and one
-output block. Nothing grows with the archive's total size.
+**What the writer costs** (`rule:programs/memory-priority`), per open writer, attributable to its
+request: one deflate compressor, reused across entries; one output block; and per entry its name plus
+about 40 bytes for the central directory row, until `finish()`. Stage 4 measures the compressor's size
+and writes the figure into the writer's doc comment. `Core\Zip::stream` holds one input window and
+one output block. Nothing grows with the archive's total size.
 
 **Capabilities.** `createForFile` needs `fs.write` for the path, as `Core\IO::open` in `Write` mode
 does. `createForDownload` needs nothing beyond a request. The registry's door table
 (`registry.rs:2548`) names both.
 
-**Lanes.** The stages run in order. Stages 2 and 3 share the framing crate, and stages 3 to 5 share
-`zip.rs`. Stage 6's proof files are disjoint from each other and go to writing subagents.
+**Lanes.** The stages run in order. Stage 2 touches only `compress.rs` and could run beside stage 3,
+but both are small, so one session runs them in turn. Stages 3 and 4 share the framing crate, and
+stages 4 to 6 share `zip.rs`. Stage 7's proof files are disjoint from each other and go to writing
+subagents.
 
 **What stops it.** One attempt per item and two sessions per stage. A stage that does not close in two
 sessions writes what holds it in the handoff and the next session splits it.
 
 ## Stages
 
-### 1. the rule says how a zip is written and read as a stream
+### 1. the rules say how a zip is written and read as a stream, and what a compression level is
 
 - [ ] `docs/rules/core-classes/zip-is-written-and-read-as-a-stream.md:1`: the rule, added the way
   `docs/agent/doc-style.md` says, from this file's standing decisions: the two targets, the three
-  writer members, the levels and methods, the name checks, zip64, time and mode, random-access reading
-  and `Core\Zip::stream`, the shared framing crate, and what it costs. Its Declined list: an in-memory
-  target, `createForStream`, forward-only reading, methods 12, 14 and 93, folder entries, a per-entry
-  time, a mode, symlinks, encryption (ZipCrypto is broken, and WinZip AES is a vendor extension), and
-  a `Core\Response` member for `Content-Disposition`.
-- [ ] `crates/nvs-stdlib/src/zip.rs:1`: the module doc says the class writes too, and points to the
-  rule for the writer's design. It is rewritten as a whole (conventions.md § *A comment*).
+  writer members, level `0` and the methods, the name checks, zip64, time and mode, random-access
+  reading and `Core\Zip::stream`, the shared framing crate, and what it costs. Its Declined list: an
+  in-memory target, `createForStream`, forward-only reading, methods 12, 14 and 93, folder entries, a
+  per-entry time, a mode, symlinks, encryption (ZipCrypto is broken, and WinZip AES is a vendor
+  extension), and a `Core\Response` member for `Content-Disposition`.
+- [ ] `docs/rules/core-classes/a-compression-level-is-the-codec-s-own-number.md:1`: the level table,
+  the `null` default per codec, the `RuntimeError` outside a range, zstd's single level and why, and
+  what a higher level costs. Its Declined list: a Novis scale such as `Fastest`/`Smallest` mapped onto
+  each codec, clamping an out-of-range level, zstd `0` as uncompressed, and the C `zstd` library.
+- [ ] `crates/nvs-stdlib/src/zip.rs:1` and `crates/nvs-stdlib/src/compress.rs:1`: each module doc
+  points to its new rule. Each is rewritten as a whole (conventions.md § *A comment*).
 - [ ] `bun nv rules --render`, then `bun nv rules --check` is green.
 
-### 2. one crate frames a zip, and the spreadsheet writer uses it
+### 2. Core\Compress::compress and ::compressor take a level
+
+**Split:** none, one session.
+
+- [ ] `crates/nvs-stdlib/src/compress.rs:253` and `:279`: `?uint $level = null` last on `compress`
+  and `compressor`, with its `ParamDoc` on both cards. The compressor keeps it in a new slot.
+- [ ] `crates/nvs-stdlib/src/compress.rs:889` `encode`: takes the level, checks it against the
+  codec's range, and throws `RuntimeError` naming the codec and the range. `null` gives today's
+  encoder settings exactly.
+- [ ] Rust tests: each codec at its lowest, default and highest level round-trips through
+  `decompress`, `null` writes the same bytes as before this stage, and each out-of-range level throws.
+  The encoder peaks at brotli 5 and 11 and at deflate 1 and 9 are measured and written into the rule.
+- [ ] `tests/conformance/core/compress-a-level-is-the-codec-s-own-number.nvst:1`: the check
+  `compress-level` runs it.
+
+### 3. one crate frames a zip, and the spreadsheet writer uses it
 
 **Split:** none, one session.
 
@@ -250,7 +324,7 @@ sessions writes what holds it in the handoff and the next session splits it.
 - [ ] The spreadsheet's own tests, by name: `cargo test --manifest-path extensions/spreadsheet/Cargo.toml`,
   `tests/excel.rs` included, are green, and the bytes of a written workbook are unchanged.
 
-### 3. Core\Zip::createForFile, Writer::add and Writer::finish write an archive to a file
+### 4. Core\Zip::createForFile, Writer::add and Writer::finish write an archive to a file
 
 **Split:** none, one session.
 
@@ -258,8 +332,9 @@ sessions writes what holds it in the handoff and the next session splits it.
   three checks (a repeated name, `\`, a trailing `/`) sit beside it.
 - [ ] `crates/nvs-stdlib/src/zip.rs`: the `Core\Zip\Writer` class, its registry rows and reference
   cards (`rule:core-api/reference-card`), `createForFile` with the `.part` file and rename, `add` over
-  every `Core\Bytes::Source` and `Core\Bytes::Chunks`, the level rules, and `finish`. If the writer
-  makes `zip.rs` pass about 2500 lines, it goes into `crates/nvs-stdlib/src/zip/write.rs`.
+  every `Core\Bytes::Source` and `Core\Bytes::Chunks`, the level checked against deflate's range from
+  stage 2, and `finish`. If the writer makes `zip.rs` pass about 2500 lines, it goes into
+  `crates/nvs-stdlib/src/zip/write.rs`.
 - [ ] `crates/nvs-stdlib/src/registry.rs:2548`: the door row of `createForFile` names `FsWrite`.
 - [ ] Rust tests in the writer: every source kind round-trips through `directory` and `read_from`, a
   failed write leaves no `.part` file, and the compressor's size is measured and written into the
@@ -268,7 +343,7 @@ sessions writes what holds it in the handoff and the next session splits it.
   `tests/conformance/core/zip-writer-a-name-the-reader-refuses-throws-when-it-is-added.nvst:1`: the
   checks `writer-round-trip` and `writer-names` run them.
 
-### 4. Core\Zip::createForDownload streams an archive to the browser
+### 5. Core\Zip::createForDownload streams an archive to the browser
 
 **Split:** none, one session.
 
@@ -281,7 +356,7 @@ sessions writes what holds it in the handoff and the next session splits it.
 - [ ] `tests/conformance/core/zip-writer-a-download-never-finished-is-cut-off.nvst:1`: the check
   `download` runs it.
 
-### 5. extract holds one block, and Core\Zip::stream gives one entry as chunks
+### 6. extract holds one block, and Core\Zip::stream gives one entry as chunks
 
 **Split:** none, one session.
 
@@ -296,12 +371,12 @@ sessions writes what holds it in the handoff and the next session splits it.
 - [ ] `tests/conformance/core/zip-stream-gives-one-entry-as-chunks.nvst:1`: an entry piped into
   `Core\IO::writeStream` and into `Core\Hash::of`.
 
-### 6. the feature proofs of every new member
+### 7. the feature proofs of every new or changed member
 
 **Split:** one writing subagent per member, side by side, none of them builds. Each gets the member's
-signature and card from stages 3 to 5, § *Text an end user reads* in AGENTS.md, and one existing
+signature and card from stages 2 to 6, § *Text an end user reads* in AGENTS.md, and one existing
 member's proofs as the model (`bun nv proofs --id 'Core\Zip::read'`). The session builds and runs
-`bun nv proofs --comments` over every new `.nvs` once they all end.
+`bun nv proofs --comments` over every new or changed `.nvs` once they all end.
 
 - [ ] `Core\Zip::createForFile`: `docs/examples/core/Zip/createForFile/` (about.md, three examples:
   zip a folder of files, one entry at level 0, a name that throws),
@@ -322,12 +397,16 @@ member's proofs as the model (`bun nv proofs --id 'Core\Zip::read'`). The sessio
 - [ ] `Core\Zip\Writer::finish`: `docs/examples/core/Zip-Writer/finish/` (about.md, three examples:
   the size it returns, `add` after `finish`, a second `finish`), its bench, and
   `tests/hostile/core/Zip-Writer/finish/01-a-writer-never-finished.nvs`.
+- [ ] `Core\Compress::compress` and `Core\Compress::compressor`: each `about.md` under
+  `docs/examples/core/Compress/` says what `$level` does and gives the table's ranges. One existing
+  example of each is rewritten to pass a level, so each member keeps three examples. Each bench gains
+  a level-9 row beside its default row.
 - [ ] The benches that build archives by hand (`benches/members/core/Zip/entries.scale.nvs:10`,
   `extract.scale.nvs`, `read.scale.nvs`) build them with `Core\Zip::createForFile`, and their
   figures are measured again.
-- [ ] The five checks `proofs-*` are green.
+- [ ] The seven checks `proofs-*` are green.
 
-### 7. the help, the reference and the website say what Core\Zip writes
+### 8. the help, the reference and the website say what Core\Zip writes and what a level does
 
 - [ ] `crates/nvs-stdlib/src/zip.rs:170`: the class card says the class reads and writes zip
   archives.
@@ -337,13 +416,14 @@ member's proofs as the model (`bun nv proofs --id 'Core\Zip::read'`). The sessio
   `extract/01-unpack-an-archive-into-a-folder.nvs`, `read/01-read-one-file-from-an-archive.nvs`)
   build their archive with `Core\Zip::createForFile`.
 - [ ] `website/src/data/changes.json`: `new` `Core\Zip::createForFile`, `new`
-  `Core\Zip::createForDownload`, `new` `Core\Zip\Writer`, `new` `Core\Zip::stream`, and `changed`
-  `Core\Zip::extract` (one block in memory).
-- [ ] Every handwritten website page that mentions `Core\Zip` is reread and stamped
+  `Core\Zip::createForDownload`, `new` `Core\Zip\Writer`, `new` `Core\Zip::stream`, `changed`
+  `Core\Zip::extract` (one block in memory), `changed` `Core\Compress::compress` and `changed`
+  `Core\Compress::compressor` (a level).
+- [ ] Every handwritten website page that mentions `Core\Zip` or `Core\Compress` is reread and stamped
   (`bun nv site --stamp`). An `Explore` subagent lists them first.
 - [ ] `bun nv site --check stale` and `changes` are green.
 
-### 8. the goal is verified once, and every failure is fixed
+### 9. the goal is verified once, and every failure is fixed
 
 - [ ] The newcomer review, [prose.md](../agent/prose.md) § *A newcomer reads it*, over every page,
   `about.md` and card this goal wrote, and `bun nv site --check review` is green.
@@ -360,6 +440,6 @@ Written by the session that found the gap. Nothing is built yet. Every design ch
 ### Next
 
 Stage 1 from its first item. The checks name cases and proofs that do not exist yet, and they fail
-until stages 3, 4 and 6 write them.
+until stages 2, 4, 5 and 7 write them.
 
 ### Backlog
