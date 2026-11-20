@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-lsp/src/hints.rs, tests/lsp/hints/an-inferred-var-declaration-carries-the-type-it-hid.lspt, docs/examples/lang/iteration/chapter.md, docs/examples/lang/iteration/core-collections-are-iterable/about.md, docs/examples/types/Iterable/about.md, tests/hostile/lang/iteration/core-collections-are-iterable/01-collections-changed-while-they-are-walked.nvs, benches/members/lang/iteration/core-collections-are-iterable.nvs, docs/agent/prose.md]
   - id: 4
     title: every page that says a map loop gives only keys says what it gives now
-    status: open
+    status: done
     context: [website/src/content/docs/syntax/control-flow/foreach.mdx, website/src/content/docs/syntax/control-flow/iterators.mdx, website/src/content/docs/syntax/basics/variables.mdx, docs/reference/core/ObjectMap.md, website/src/data/changes.json, docs/agent/prose.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -434,28 +434,28 @@ line here is text an end user reads.
 **Split:** a writing subagent rewrites the five `docs/examples/core/ObjectMap/` examples below and blesses
 their `.out` files, which must print what they print today. The session writes the rest.
 
-- [ ] The feature pages that state the old answer:
+- [x] The feature pages that state the old answer:
   `docs/examples/lang/iteration/what-foreach-walks/about.md:6`,
   `docs/examples/lang/iteration/the-two-interfaces/about.md:1` and `:10`,
   `docs/examples/lang/iteration/core-collections-are-iterable/about.md:3` and `details.md:5`,
   `docs/examples/lang/statements/foreach/details.md:10`,
   `docs/examples/lang/types/every-binding-has-a-type/about.md:3`,
   `docs/examples/lang/types/array-t/details.md:5` (the key of a loop over an array).
-- [ ] `docs/reference/core/ObjectMap.md:11`: the introduction says a loop with a key gives each key with
+- [x] `docs/reference/core/ObjectMap.md:11`: the introduction says a loop with a key gives each key with
   its value and a loop without one gives the keys, and its example's loop at `:34` walks the pairs, with
   its output unchanged.
-- [ ] The `docs/examples/core/ObjectMap/` examples whose loop reads `get` for the key it is on use the
+- [x] The `docs/examples/core/ObjectMap/` examples whose loop reads `get` for the key it is on use the
   keyed form: `isEmpty/03-save-only-when-something-changed.nvs:41`, `remove/01-remove-an-entry.nvs:28`,
   `remove/03-track-running-jobs.nvs:32`, `set/01-add-and-replace-a-value.nvs:26`,
   `set/03-count-visits-per-user.nvs:25`.
-- [ ] `website/src/content/docs/syntax/control-flow/foreach.mdx:1`: `covers` gains
+- [x] `website/src/content/docs/syntax/control-flow/foreach.mdx:1`: `covers` gains
   `lang:iteration/keys-and-values-from-a-map`, a `FeatureSection` for it after *Core collections*, and
   the bullet at `:32` says that a key works over an array and a `KeyedIterable`.
   `website/src/content/docs/syntax/control-flow/iterators.mdx:1`: `covers` gains `KeyedIterable` and
   `KeyedIterator`, the opening at `:9` names them, and a table of the keyed methods follows the one at
   `:17`. `website/src/content/docs/syntax/basics/variables.mdx:1` takes the new key sentence through its
   feature's `about.md`.
-- [ ] `website/src/data/changes.json:1`: the `new` entry in the wording of
+- [x] `website/src/data/changes.json:1`: the `new` entry in the wording of
   § *Standing decisions*, in the form the `website-follows-changes` rule gives. Every page covering a
   changed feature is restamped as that rule says. The `site-changes` check run once.
 
@@ -470,32 +470,33 @@ their `.out` files, which must print what they print today. The session writes t
 
 ### State
 
-Stages 1, 2 and 3 are done. A keyed `foreach` runs over a `Core\ObjectMap` and a user
+Stages 1 to 4 are done. A keyed `foreach` runs over a `Core\ObjectMap` and a user
 `KeyedIterable`/`KeyedIterator`, and the feature and both interfaces owe no proof: the `editor`,
-`feature-proofs`, `keyed-iterable-proofs` and `keyed-iterator-proofs` checks are green.
+`feature-proofs`, `keyed-iterable-proofs`, `keyed-iterator-proofs` and `site-changes` checks are green,
+and `bun nv site --check stale` is green.
 
-- The editor needed no code. `tests/lsp/hints/a-foreach-over-a-map-shows-the-key-and-value-types.lspt`
-  and `tests/lsp/completion/a-key-from-a-map-completes-its-class-methods.lspt` pin it.
-- `# Keys and values from a map` is in `docs/examples/lang/iteration/chapter.md`, rendered into
-  `docs/reference/lang/60-iteration.md`, with three examples, the attack under
-  `tests/hostile/lang/iteration/keys-and-values-from-a-map/` and the bench with its `.scale.nvs`
-  sibling. `docs/examples/types/KeyedIterable/` and `KeyedIterator/` each have an about and one example.
-- The bench is recorded on the release binary: 2 allocations and 224 bytes per round, flat to 100,000
-  entries. `rule:iteration/keyed-interfaces`'s *What it spends* line states it.
-- `tools/nv/renderers/core-classes.ts` `UNRANKED` names `crate::cursor::KEYED_CLASS`; `bun nv render`
-  failed without it.
-- The fourteen new texts had their newcomer review, each finding fixed, and are stamped.
+- Stage 4 rewrote every page it listed, plus `docs/examples/lang/statements/foreach/about.md:5`
+  ("the key is always a `string`"). The five `docs/examples/core/ObjectMap/` examples use the keyed
+  form and print what they printed (`bun nv proofs --run --id` green for `set`, `remove`, `isEmpty`).
+- `docs/reference/core/ObjectMap.md`'s example loop now prints each pair, so its output line is
+  `red=4 blue=7`, not `red blue`. A loop that binds a value and never prints it shows nothing, so the
+  card's output changed by design. It was run from a scratch copy and matches.
+- `prose` flagged three pre-existing *The examples below* sentences over 25 words in touched files;
+  each is split. `changes.json` has the `new` entry in the decided wording.
+- Every stale page, `about.md` and help card was reread and stamped (`site --stamp`). The
+  stage 4 texts have no *newcomer review* stamp yet: that is stage 5's item.
 
-The acceptance sweep's nightly findings ran on `adc7487`, before their fixes `4c82a2409a`, `eb5c02e983`,
-`656f5b2f2d` and `1c75c4ef0e`, so nothing was left to fix this session.
+
+The acceptance sweep's nightly findings (run 44510687786) ran on `adc7487`, before their fixes
+`4c82a2409a`, `eb5c02e983`, `656f5b2f2d` and `1c75c4ef0e`, so nothing was left to fix.
 
 ### Next
 
-Stage 4, following its `**Split:**` line. First the writing subagent over the five
-`docs/examples/core/ObjectMap/` examples (their `.out` must not change). The session rewrites the
-pages stage 4 lists, starting with `docs/examples/lang/iteration/core-collections-are-iterable/details.md:5`,
-which still says a key over a map is `E0444`, then `docs/reference/core/ObjectMap.md:11`, the three
-`website/` pages and the `changes.json` entry, and runs `site-changes` once. Then stage 5.
+Stage 5, the close (the full gate runs at a later goal). First the newcomer review
+(`docs/agent/prose.md` § *A newcomer reads it*): `bun nv site --review` lists the unreviewed texts,
+which are this session's stage 4 pages, the `ObjectMap` card and the website pages
+`syntax/control-flow/foreach.mdx`, `iterators.mdx` and `basics/variables.mdx`. Then `cargo build`,
+`cargo clippy --all-targets -- -D warnings` and this goal's own checks by name, then `site-review`.
 
 No test is expected to go red.
 
