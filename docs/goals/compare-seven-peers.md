@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/cmd/bench-docker.ts, tools/nv/cmd/bench.ts]
   - id: 2
     title: a recording builds once, checks answers on its first rep, and reuses an unchanged peer's rows
-    status: open
+    status: done
     context: [tools/nv/cmd/bench-docker.ts, website/src/lib/compare.ts]
   - id: 3
     title: Node.js is a peer
@@ -143,7 +143,9 @@ row stays, and the peers still interleave. A fresh stack per pass stays, because
    record is written.
 3. **A feature row reuses a peer's recorded result when its key is unchanged.** The key is the peer's
    image id, the digest of the row's program folder, the digest of `bench-compare.ts` and
-   `bench-docker.ts`, and the host the record names. Novis's image changes with every commit, so its
+   `bench-docker.ts`, and the host the record names. The tool's digest also covers every tuning
+   file in `TUNABLES` (stage 2's call): a changed nginx config or pool can move a result as much as a
+   changed program, and the cost is only a row run again after a tuning change. Novis's image changes with every commit, so its
    rows always run. `--fresh` runs every row again. The record keeps a date and a commit for each
    result, and the page shows the oldest and the newest. The cases are never reused. A case's
    figures are relations between peers, measured in one interleaved run.
@@ -209,16 +211,16 @@ Stage 7 touches only the website and `docs/alternative-pages.md`, and needs stag
 
 **Split:** none, one session.
 
-- [ ] `tools/nv/cmd/bench-docker.ts:63` `up`: no `--build`. A `build` step runs once per image at the
+- [x] `tools/nv/cmd/bench-docker.ts:63` `up`: no `--build`. A `build` step runs once per image at the
   start of a run, and `bench-proxied` keeps its own behaviour.
-- [ ] `tools/nv/cmd/bench-compare.ts:2446`: remove the separate agreement pass, and check agreement on
+- [x] `tools/nv/cmd/bench-compare.ts:2446`: remove the separate agreement pass, and check agreement on
   rep 1's answers before rep 2 starts.
-- [ ] `tools/nv/cmd/bench-compare.ts:2341` `scenarios` and `tools/nv/cmd/bench-compare.ts:1622`
+- [x] `tools/nv/cmd/bench-compare.ts:2341` `scenarios` and `tools/nv/cmd/bench-compare.ts:1622`
   `buildScenarios`: the reuse key, `--fresh`, a date and commit per result. `tools/nv/cmd/bench-compare.ts:1669`
   `digests` gives the program-folder digest.
-- [ ] `tools/nv/cmd/bench-compare.ts:2242` parse: `--peer <id>`, refused with `--record`.
-- [ ] `tools/nv/test/bench-compare.test.ts:249`: the five `the work a recording does` tests.
-- [ ] `benches/compare/README.md:239` § *Agreement before timing* and `benches/compare/README.md:257`
+- [x] `tools/nv/cmd/bench-compare.ts:2242` parse: `--peer <id>`, refused with `--record`.
+- [x] `tools/nv/test/bench-compare.test.ts:249`: the five `the work a recording does` tests.
+- [x] `benches/compare/README.md:239` § *Agreement before timing* and `benches/compare/README.md:257`
   § *One record*: the first-rep check and the reuse key.
 
 ### 3. Node.js is a peer
@@ -308,36 +310,42 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
 ### State
 
-Stage 1 is done. `planOf` at `tools/nv/cmd/bench-compare.ts:1582` lists every pass, and the case
-loop in `main` at `:2685` and `scenarios` at `:2529` both walk it. `--plan` prints the totals per
-phase and starts no process (`planned`, `:2650`). `onePass` (`:1926`) and `scenarioPass` (`:2018`)
-add the seconds of each step to a clock. The record keeps `cases.<id>.seconds`, `cases.<id>.passes`
-and `scenarios.rows.<id>.seconds`. Timed rows now declare `budgets` and get `Timer.at`, and the
-driver runs their passes from the plan. The three `the plan` tests pass, and tsc is clean. The
-four-peer baseline is 96 stacks for the case run (16 answers + 80 timed) and 151 for the rows, so a
-recording is 247 stacks and 203 builds.
+Stages 1 and 2 are done. `planOf` (`tools/nv/cmd/bench-compare.ts`, `bun nv peek --locate planOf`)
+now has a `build` phase in place of `answers`. Each image a peer builds from this checkout is one
+pass with `builds: 1`, and `buildImages` takes those passes before any stack. `up` in
+`tools/nv/cmd/bench-docker.ts` no longer builds. `bench-proxied` calls the new `upBuilt`, so it
+builds as before. Rep 1 of a case carries `answers`, and the last peer's rep 1 carries `agrees`.
+`main` checks agreement there, before rep 2. The reuse is `RowKey`, `sameKey`, `reusedOf`,
+`rowKeyOf`, `folderDigest`, `toolDigest` and `hostDigest`. `scenarios` builds, reads the image ids,
+and plans without the reused pairs. `buildScenarios` writes each row's `measured` (date, commit and
+key per peer). `--fresh` (only with `--scenarios`) and `--peer ID` (refused with `--record`,
+`--direct` and `--profile`) are parsed in `options`. `plannedReuse` gives `--plan` its estimate with
+no docker. `FOUR_PEER_BASELINE` holds 247 stacks and 203 builds. A fresh four-peer recording now
+plans 231 stacks and 4 builds.
 
-The nightly failures the sweep named (`xml::tests::source_stops_at_the_memory_limit_before_it_escapes`
-and `iter/an-object-map-passes-where-a-keyed-iterable-is-declared.nvst`) ran on `5d053fc6e6`, which
-is 74 commits behind main. Both pass on main, fixed by `e5a100b18f` and `438e9c44af`.
+The eight `the plan` and `the work a recording does` tests pass, and tsc is clean. No run with
+docker has taken the new paths yet. `benches/compare.json` has no `measured` keys, so the first
+recording runs every row, and later ones keep results.
+
+The nightly failures the sweep named ran on `5d053fc6e6`, which is origin/main, 75 commits behind
+local main. Both failures were fixed locally by `e5a100b18f` and `438e9c44af`. They clear when the next
+full gate pushes.
 
 ### Next
 
-Stage 2 from its first item. Anchors: `up` at `tools/nv/cmd/bench-docker.ts:63`, and the answers
-phase in `planOf` at `tools/nv/cmd/bench-compare.ts:1582` and in `main`'s walk at `:2685`. The reuse
-key goes in `scenarios` at `:2529` and `buildScenarios` at `:1806`, and the folder digest in
-`digests` at `:1854`. `options` is at `:2411`. The tests go after `describe("the plan")` at
-`tools/nv/test/bench-compare.test.ts:100`. The README sections are `benches/compare/README.md:239`
-and `:257`.
+Stage 3 from its first item: Node.js. Anchors in `tools/nv/cmd/bench-compare.ts`: `PEERS` `:146`,
+`DIRECT_RUNS` `:2238`, and the per-peer tables `CORES_IN_CODE` `:513`, `WAITING_SETTING` `:533`,
+`LOOP_DEFAULT` `:665`, `MEMORY_DEFAULT` `:669`, `LOOP_IN_CODE` `:680`, `FLOOD_SETTING` `:731`,
+`SESSION_IN_CODE` `:894`, `LIVE_EDIT_SETTING` `:958`, `DEPLOY_WAYS` `:1031`, `DEPLOY_EXT` `:1037`,
+`CONFIG_CHANGES` `:1268`, `PARALLEL_WAY` `:1293` and `PARALLEL_GRANT` `:1296`. The peer-table test is
+`tools/nv/test/bench-compare.test.ts:292`. Bun's programs are the model: `benches/compare/bun/serve.ts`
+and each `benches/compare/{cases,scenarios}/*/server.ts`.
 
-- `planOf` already takes `prior` (unused, `_prior`) for the reuse. A reused row's passes should stay
-  in the plan with zero work, or be dropped, so the totals show the cut.
-- The test `the plan of the four-peer recording is the baseline` calls `planOf` and pins today's
-  counts. Once stage 2 changes `planOf`, keep the literals as the baseline constant. Point that test
-  at a plan with the cuts switched off, for example `--fresh` plus the old answers phase, or make it
-  assert only the literals the `less-work` test compares against. Expect it to go red the moment
-  the answers phase leaves `planOf`.
-- `CASE_UPS = 2` counts the two `up --build` calls of a case stack. With the build moved to the
-  start of a run, `builds` becomes one per built image.
+- A new peer whose image is pulled sets neither `built` nor `perCommit`. A peer built from the tree,
+  as .NET will be, sets `built: true`, and `appImage` reads its `image:` from the compose file's
+  app service at four-space indent.
+- The smoke requirement runs `--smoke --peer node`. That path is the first docker run of stage 2's
+  code, so a failure there may be stage 2's, in `buildImages` or the `agrees` check with one peer.
+- Expect `the peer table names ...` to go red once `node` is in `PEERS`. Stage 3 updates it.
 
 ### Backlog

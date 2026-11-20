@@ -78,6 +78,13 @@ import {
   type Peer,
   planOf,
   planText,
+  FOUR_PEER_BASELINE,
+  folderDigest,
+  type Measured,
+  reusedOf,
+  type RowKey,
+  rowPeer,
+  sameKey,
   PROFILE_SCRIPT,
   RUNAWAY_PROBE_SECONDS,
   type Scenario,
@@ -117,25 +124,23 @@ describe("the plan", () => {
 
   test("counts every stack, image build and fixed-load second a run takes", () => {
     const cases = planOf([built, pulled], [twoInputs], [], load, null);
-    // The answers first, one stack per peer, then rep 1 of both peers and rep 2.
-    expect(cases.map((p) => `${p.phase} ${p.peer} ${p.rep}`)).toEqual(["answers a 1", "answers b 1", "cases a 1", "cases b 1", "cases a 2", "cases b 2"]);
-    // A built peer's case stack is two `up --build` calls, and a pulled one builds nothing.
-    expect(cases.map((p) => p.builds)).toEqual([2, 0, 2, 0, 2, 0]);
-    expect(cases[0]!.requests).toBe(2);
-    expect(cases[2]!.requests).toBe(2 + warmRequests(1000) + 1000);
-    // `--smoke` checks the answers on the timed pass.
-    expect(planOf([built, pulled], [twoInputs], [], { ...load, smoke: true, reps: 1 }, null).every((p) => p.phase === "cases")).toBe(true);
+    // The built peer's image first, then rep 1 of both peers and rep 2.
+    expect(cases.map((p) => `${p.phase} ${p.peer} ${p.rep}`)).toEqual(["build a 1", "cases a 1", "cases b 1", "cases a 2", "cases b 2"]);
+    expect(cases.map((p) => [p.stacks, p.builds])).toEqual([[0, 1], [1, 0], [1, 0], [1, 0], [1, 0]]);
+    // Rep 1 also sends the case's two inputs for the answers.
+    expect(cases[1]!.requests).toBe(2 + warmRequests(1000) + 1000);
+    expect(cases[3]!.requests).toBe(warmRequests(1000) + 1000);
 
     const rows = planOf([built, pulled], [], [probed, halfFixed, checked, timedRow], load, null);
     expect(rows.filter((p) => p.id === "p").map((p) => `${p.peer} ${p.rep}`)).toEqual(["a 1", "b 1", "a 2", "b 2", "a 3", "b 3"]);
     expect(rows.filter((p) => p.id === "p").every((p) => p.stacks === 1 && p.seconds === 35)).toBe(true);
-    // A peer with a fixed result runs nothing, and a row that only checks builds the image and brings no stack up.
+    // A peer with a fixed result runs nothing, and a row that only checks brings no stack up.
     expect(rows.filter((p) => p.id === "f").map((p) => p.peer)).toEqual(["a"]);
-    expect(rows.filter((p) => p.id === "c").map((p) => [p.peer, p.stacks, p.builds])).toEqual([["a", 0, 1]]);
-    // A timed row times every budget `reps` times inside one peer's turn.
+    expect(rows.filter((p) => p.id === "c").map((p) => [p.peer, p.stacks, p.builds])).toEqual([["a", 0, 0]]);
+    // A timed row times every budget `reps` times inside one peer's turn, and takes no answers.
     expect(rows.filter((p) => p.id === "t").map((p) => `${p.peer} ${p.cpus} ${p.rep}`)).toEqual(["a 1 1", "a 1 2", "a 4 1", "a 4 2", "b 1 1", "b 1 2", "b 4 1", "b 4 2"]);
-    expect(totalsOf(rows).rows).toEqual({ stacks: 6 + 1 + 0 + 8, builds: 3 + 1 + 1 + 8, seconds: 6 * 35, requests: 8 * (2 + warmRequests(1000) + 1000) });
-    expect(totalsOf(rows).total).toEqual(totalsOf(rows).rows);
+    expect(totalsOf(rows).rows).toEqual({ stacks: 6 + 1 + 0 + 8, builds: 0, seconds: 6 * 35, requests: 8 * (warmRequests(1000) + 1000) });
+    expect(totalsOf(rows).total).toEqual({ ...totalsOf(rows).rows, builds: 1 });
     expect(planText(rows).at(-1)).toContain("15 stacks");
   });
 
@@ -161,15 +166,126 @@ describe("the plan", () => {
   });
 
   test("of the four-peer recording is the baseline", () => {
-    // A recording is a case run and then a rows run, at five reps of 20,000 requests. These are the
-    // counts of the four-peer comparison before the cuts, which a later plan is measured against.
+    // A recording is a case run and then a rows run, at five reps of 20,000 requests. The baseline is the
+    // four-peer comparison before the cuts. Its timed case passes and its row stacks are today's, and
+    // its answers were one more stack per (case, peer), with every `up --build` a build.
     const four = PEERS.filter((p) => ["nvs", "php", "bun", "go"].includes(p.id));
     const recording = { reps: 5, requests: 20_000, smoke: false };
     const cases = totalsOf(planOf(four, CASES, [], recording, null));
-    expect(cases.answers).toEqual({ stacks: 16, builds: 16, seconds: 0, requests: 44 });
-    expect(cases.cases).toEqual({ stacks: 80, builds: 80, seconds: 0, requests: 1_640_220 });
     const rows = totalsOf(planOf(four, [], SCENARIOS, recording, null));
-    expect(rows.rows).toEqual({ stacks: 151, builds: 107, seconds: 2 * 12 * RUNAWAY_PROBE_SECONDS + 4 * 10, requests: 1_230_060 });
+    const b = FOUR_PEER_BASELINE;
+    expect(b.answers.stacks).toBe(CASES.length * four.length);
+    expect(cases.cases.stacks).toBe(b.cases.stacks);
+    expect(rows.rows.stacks).toBe(b.rows.stacks);
+    expect(b.total).toEqual({ stacks: b.answers.stacks + b.cases.stacks + b.rows.stacks, builds: b.answers.builds + b.cases.builds + b.rows.builds });
+    expect(b.total).toEqual({ stacks: 247, builds: 203 });
+    expect(rows.rows.seconds).toBe(2 * 12 * RUNAWAY_PROBE_SECONDS + 4 * 10);
+  });
+});
+
+describe("the work a recording does", () => {
+  const four = PEERS.filter((p) => ["nvs", "php", "bun", "go"].includes(p.id));
+  const recording = { reps: 5, requests: 20_000, smoke: false };
+  const r = { result: "no", evidence: {} } as RowResult;
+  const row: Scenario = { id: "p", tree: "scenarios", case: "k", fixed: { php: r }, probe: async () => r };
+  const key: RowKey = { image: "sha256:aa", programs: "p1", tool: "t1", host: "h1" };
+  const measured: Measured = { date: "2026-11-01", commit: "abc1234", key };
+  const prior = {
+    scenarios: {
+      date: "2026-11-01",
+      commit: "abc1234",
+      rows: { p: { folder: "benches/compare/scenarios/k", peers: { nvs: r, php: r, bun: r, go: r }, measured: { nvs: { ...measured, key: { ...key, image: "sha256:old" } }, bun: measured, go: measured } } },
+    },
+  };
+
+  test("each image is built once and no stack is brought up with --build", async () => {
+    const plan = planOf(four, CASES, SCENARIOS, recording, null);
+    const builds = plan.filter((p) => p.builds > 0);
+    expect(builds.map((p) => `${p.phase} ${p.peer} ${p.builds}`)).toEqual(four.filter((p) => p.built === true).map((p) => `build ${p.id} 1`));
+    expect(plan.slice(0, builds.length)).toEqual(builds);
+
+    const { build, up } = await import("../cmd/bench-docker.ts");
+    const calls: string[][] = [];
+    const spawnSync = spyOn(Bun, "spawnSync").mockImplementation(((argv: string[]) => {
+      calls.push(argv);
+      return { exitCode: 0, stdout: Buffer.from(""), stderr: Buffer.from("") };
+    }) as never);
+    try {
+      up("stack.yaml", {}, "app");
+      build("stack.yaml", {}, "app");
+    } finally {
+      spawnSync.mockRestore();
+    }
+    expect(calls).toEqual([
+      ["docker", "compose", "-f", "stack.yaml", "up", "-d", "--wait", "app"],
+      ["docker", "compose", "-f", "stack.yaml", "build", "app"],
+    ]);
+    // No step of a run builds outside its build passes.
+    expect(readFileSync(join(COMPARE_DIR, "..", "..", "tools", "nv", "cmd", "bench-compare.ts"), "utf8")).not.toContain('"--build"');
+  });
+
+  test("answers are checked on the first rep's stacks", () => {
+    const plan = planOf(four, CASES, [], recording, null);
+    expect(plan.every((p) => p.phase === "build" || p.phase === "cases")).toBe(true);
+    // No stack comes up only for the answers: one stack per (case, rep, peer).
+    expect(totalsOf(plan).cases.stacks).toBe(CASES.length * recording.reps * four.length);
+    for (const c of CASES) {
+      const passes = plan.filter((p) => p.id === c.id);
+      expect(passes.filter((p) => p.answers === true)).toEqual(passes.filter((p) => p.rep === 1));
+      expect(passes.filter((p) => p.rep === 1).every((p) => p.requests === c.inputs.length + warmRequests(recording.requests) + recording.requests)).toBe(true);
+      // The agreement is checked after the last peer's rep 1, before any pass of rep 2.
+      const agrees = passes.findIndex((p) => p.agrees === true);
+      expect(passes.filter((p) => p.agrees === true)).toHaveLength(1);
+      expect(passes[agrees]).toMatchObject({ rep: 1, peer: four.at(-1)!.id });
+      expect(agrees).toBeLessThan(passes.findIndex((p) => p.rep === 2));
+    }
+  });
+
+  test("a row with an unchanged key reuses its recorded result", () => {
+    const reused = reusedOf(prior, [row], four, () => key);
+    // Bun and Go are unchanged. Novis's image is new, and PHP's result is fixed.
+    expect([...reused]).toEqual([rowPeer("p", "bun"), rowPeer("p", "go")]);
+    const plan = planOf(four, [], [row], recording, reused);
+    expect(plan.filter((p) => p.phase === "rows").map((p) => p.peer)).toEqual(["nvs"]);
+    // A row nobody recorded runs, and so does a peer with no key.
+    expect(reusedOf(prior, [{ ...row, id: "q" }], four, () => key).size).toBe(0);
+    expect(reusedOf({ scenarios: { ...prior.scenarios, rows: { p: { ...prior.scenarios.rows.p, measured: {} } } } }, [row], four, () => key).size).toBe(0);
+  });
+
+  test("a changed image, program, tool or host runs the row again", () => {
+    expect(sameKey(key, key)).toBe(true);
+    for (const changed of [{ image: "sha256:bb" }, { image: null }, { programs: "p2" }, { tool: "t2" }, { host: "h2" }]) {
+      expect(sameKey({ ...key, ...changed }, key)).toBe(false);
+      expect(reusedOf(prior, [row], four, () => ({ ...key, ...changed })).size).toBe(0);
+    }
+    // The programs' digest changes with a file's bytes and with its name.
+    const root = join(COMPARE_DIR, "..", "..", ".agent-tmp");
+    mkdirSync(root, { recursive: true });
+    const dir = mkdtempSync(join(root, "row-digest-"));
+    try {
+      mkdirSync(join(dir, "nested"));
+      writeFileSync(join(dir, "nested", "main.go"), "package main\n");
+      const before = folderDigest(dir);
+      expect(folderDigest(dir)).toBe(before);
+      writeFileSync(join(dir, "nested", "main.go"), "package main // changed\n");
+      const edited = folderDigest(dir);
+      expect(edited).not.toBe(before);
+      rmSync(join(dir, "nested", "main.go"));
+      writeFileSync(join(dir, "nested", "other.go"), "package main // changed\n");
+      expect(folderDigest(dir)).not.toBe(edited);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("the four-peer plan brings up fewer stacks than the baseline", () => {
+    const fresh = totalsOf([...planOf(four, CASES, [], recording, null), ...planOf(four, [], SCENARIOS, recording, null)]);
+    expect(fresh.total.stacks).toBeLessThan(FOUR_PEER_BASELINE.total.stacks);
+    expect(fresh.total.builds).toBeLessThan(FOUR_PEER_BASELINE.total.builds);
+    // A routine recording also keeps every row result whose peer did not change. Novis's image changes with every commit.
+    const routine = new Set(SCENARIOS.flatMap((s) => four.filter((p) => p.perCommit !== true).map((p) => rowPeer(s.id, p.id))));
+    const kept = totalsOf([...planOf(four, CASES, [], recording, null), ...planOf(four, [], SCENARIOS, recording, routine)]);
+    expect(kept.total.stacks).toBeLessThan(fresh.total.stacks);
   });
 });
 

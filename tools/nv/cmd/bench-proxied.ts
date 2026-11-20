@@ -30,7 +30,7 @@ import { join } from "node:path";
 import { rel, ROOT } from "../lib/paths.ts";
 import { ArgError, fixed, parseArgs, pyInt, pyRepr, splitlines } from "../lib/py.ts";
 import { bytesRepr, Fail, FcgiConn, grouped, hammer, host, median, round, stamp, version, writeServeRecord } from "./bench.ts";
-import { type Arm, down, logsOf, ohaArm, requireDocker, up } from "./bench-docker.ts";
+import { type Arm, down, logsOf, ohaArm, requireDocker, upBuilt } from "./bench-docker.ts";
 import { messageOf } from "../lib/proc.ts";
 
 export const summary = "nginx in front of nvs serve and of PHP-FPM, in containers: nv bench-proxied [--arm fair|deployed] [--record PATH] [--down]";
@@ -354,12 +354,12 @@ async function main(o: Options): Promise<number> {
   // taken under the same conditions, and "the proxy was running for one of them" is a difference.
   try {
     console.log("  bringing up php-fpm alone, for the origin arm ...");
-    up(PHP_STACK, phpEnv, "php");
+    upBuilt(PHP_STACK, phpEnv, "php");
     bodies.set("php-fpm (fcgi, no proxy)", await fcgiBody());
     arms["php-fpm-fcgi-direct"] = await fcgiArm(o);
 
     console.log("  bringing up nginx in front of it ...");
-    up(PHP_STACK, phpEnv, "nginx");
+    upBuilt(PHP_STACK, phpEnv, "nginx");
     bodies.set("nginx -> php-fpm", await httpBody(PHP_NGINX_PORT));
     arms["nginx-php-fpm"] = ohaArm(PHP_STACK, "http://nginx/", o, phpEnv, "nginx-php-fpm", "nginx -> php-fpm", "PHP 8.5.11 FPM with opcache and tracing JIT");
   } catch (e) {
@@ -375,12 +375,12 @@ async function main(o: Options): Promise<number> {
   // ---- the Novis stack, alone on the box -----------------------------------------------------------
   try {
     console.log("  bringing up nvs serve alone (the first run builds the image) ...");
-    up(NVS_STACK, nvsEnv, "nvs");
+    upBuilt(NVS_STACK, nvsEnv, "nvs");
     bodies.set("nvs serve (no proxy)", await httpBody(NVS_DIRECT_PORT));
     arms["nvs-serve-direct"] = ohaArm(NVS_STACK, "http://nvs:8080/", o, nvsEnv, "nvs-serve-direct", "nvs serve (no proxy)", "the same origin with nginx removed");
 
     console.log("  bringing up nginx in front of it ...");
-    up(NVS_STACK, nvsEnv, "nginx");
+    upBuilt(NVS_STACK, nvsEnv, "nginx");
     bodies.set("nginx -> nvs serve", await httpBody(NVS_NGINX_PORT));
     arms["nginx-nvs-serve"] = ohaArm(
       NVS_STACK,

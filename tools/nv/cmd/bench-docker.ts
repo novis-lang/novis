@@ -55,14 +55,29 @@ export function compose(stack: string, args: string[], env: Record<string, strin
  * with the proxy not yet started; § *Why the origin is measured before its proxy exists* in
  * `bench-proxied`'s `main` is the reason, and it is a correctness one rather than a tidiness one.
  *
- * **`--build` on every call**, because a locally built image is a tag compose reuses whenever it exists:
- * without the flag a run measures whatever binary the image was first built from and records this
- * checkout's commit beside it. Docker's layer cache makes the rebuild of an unchanged tree cheap, and the
- * services that only name an image have nothing to build.
+ * **It builds nothing.** A locally built image is a tag compose reuses whenever it exists, so a leg
+ * whose images are built from this checkout calls `build` once before it brings any stack up, or brings
+ * each stack up with `upBuilt`. Without one of them a run measures whatever binary the image was first
+ * built from, and records this checkout's commit beside it.
  */
 export function up(stack: string, env: Record<string, string>, ...services: string[]): void {
-  const done = compose(stack, ["up", "-d", "--wait", "--build", ...services], env, false);
+  const done = compose(stack, ["up", "-d", "--wait", ...services], env, false);
   if (done.code !== 0) throw new Error(`\`docker compose -f ${basename(stack)} up ${services.join(" ")}\` failed with ${done.code}`);
+}
+
+/**
+ * `up` with `--build`, for a leg that brings each stack up once per run. Docker's layer cache makes the
+ * rebuild of an unchanged tree cheap, and a service that only names an image has nothing to build.
+ */
+export function upBuilt(stack: string, env: Record<string, string>, ...services: string[]): void {
+  const done = compose(stack, ["up", "-d", "--wait", "--build", ...services], env, false);
+  if (done.code !== 0) throw new Error(`\`docker compose -f ${basename(stack)} up --build ${services.join(" ")}\` failed with ${done.code}`);
+}
+
+/** Builds the named services' images from this checkout, once, before a leg brings any stack up. */
+export function build(stack: string, env: Record<string, string>, ...services: string[]): void {
+  const done = compose(stack, ["build", ...services], env, false);
+  if (done.code !== 0) throw new Error(`\`docker compose -f ${basename(stack)} build ${services.join(" ")}\` failed with ${done.code}`);
 }
 
 /**

@@ -7,6 +7,8 @@
 //     bun nv bench-compare --scenarios --smoke --row flood       # what every CI run runs
 //     bun nv bench-compare --record benches/compare.json         # the fair arm, recorded
 //     bun nv bench-compare --scenarios --record benches/compare.json   # the feature rows, into that record
+//     bun nv bench-compare --scenarios --fresh --record benches/compare.json   # every row again, none kept
+//     bun nv bench-compare --smoke --peer go                     # one peer's cases, a few hundred requests
 //     bun nv bench-compare --arm deployed --record PATH          # four cpus to each backend
 //     bun nv bench-compare --down                                # tear every stack down
 //     bun nv bench-compare --profile json-api                    # perf and strace on Novis serving one case
@@ -23,13 +25,16 @@
 // The peers are data: `PEERS` names each one's compose file, nginx config, published port, image and the
 // settings written into its rows, and a fifth peer is a new entry and a compose file. One stack is up at a
 // time, and every (case, rep, peer) gets a fresh one, so `memory.peak` is that pass's alone. The reps
-// interleave the peers, and a peer's figures are the median rep's (`medianOf`). A full run first brings
-// every pair up only to check that the peers answer alike, and times nothing until they do.
+// interleave the peers, and a peer's figures are the median rep's (`medianOf`). A run first builds each
+// image a peer builds from this checkout, once (`buildImages`), and no stack comes up with `--build`.
+// Rep 1 of a case also takes each peer's answers, and the run checks that they agree before rep 2.
 // `--smoke` is one pass at a few hundred requests that checks the answers and records nothing.
+// `--peer ID` runs one peer only, and `--record` refuses it.
 //
 // `--scenarios` runs the feature rows in `SCENARIOS` instead of the cases. A row brings each peer's stack
 // up fresh over the row's own programs, runs its probe, and maps what the peer did to one of the four
-// results in `Verdict`, with the evidence beside it.
+// results in `Verdict`, with the evidence beside it. A recording keeps a peer's recorded result for a row
+// whose `RowKey` is unchanged (`reusedOf`), and `--fresh` runs every row again.
 //
 // Both walk a plan. `planOf` lists every pass a run takes before it starts, with the stacks, image
 // builds, seconds of steady load and requests of each, and the run takes exactly those passes in that
@@ -58,7 +63,7 @@ import { dirname, join, resolve } from "node:path";
 import { rel, ROOT } from "../lib/paths.ts";
 import { ArgError, fixed, parseArgs, pyInt, pyRepr } from "../lib/py.ts";
 import { Fail, grouped, host, median, round, stamp, version } from "./bench.ts";
-import { type Arm, compose, down, type Load, logsOf, ohaArm, requireDocker, up } from "./bench-docker.ts";
+import { type Arm, build, compose, down, type Load, logsOf, ohaArm, requireDocker, up } from "./bench-docker.ts";
 import { effectivePhp, PHP_INI } from "./bench-proxied.ts";
 import { messageOf } from "../lib/proc.ts";
 
@@ -126,8 +131,13 @@ export interface Peer {
   prepare?(ctx: PeerCtx): void;
   /** The program is compiled into the image from the committed tree, so a row's copy is never served. */
   compiled?: boolean;
-  /** The compose file builds the backend's image from this checkout, so every `up --build` of its stack is a build. */
+  /** The compose file builds the backend's image from this checkout, so a run builds it once before any stack comes up. */
   built?: boolean;
+  /**
+   * The image has this checkout's commit in it, so its id changes with every commit and its rows always
+   * run again. `--plan` reads it, since it cannot read an image's id without docker.
+   */
+  perCommit?: boolean;
 }
 
 /** The FPM pool, sized by concurrency as `benches/proxied/php/pool.conf.in` explains. */
@@ -144,6 +154,7 @@ export const PEERS: Peer[] = [
     env: (ctx) => ({ NVS_BUILD_COMMIT: ctx.commit }),
     settings: () => ({ server: "nvs serve", workers: "one per visible cpu", config: "defaults" }),
     built: true,
+    perCommit: true,
   },
   {
     id: "php",
@@ -1520,9 +1531,9 @@ export function rowLine(id: string, byPeer: Map<string, RowResult>): string {
 // The plan: every pass a run takes, counted before it starts.
 // ---------------------------------------------------------------------------------------------------
 
-/** The phases of a run, in the order it takes them: the cases' answers, the timed cases, then the rows. */
-export type Phase = "answers" | "cases" | "rows";
-export const PHASES: readonly Phase[] = ["answers", "cases", "rows"];
+/** The phases of a run, in the order it takes them: the images built from this checkout, the cases, then the rows. */
+export type Phase = "build" | "cases" | "rows";
+export const PHASES: readonly Phase[] = ["build", "cases", "rows"];
 
 /** What a pass costs: stacks brought up, images built, seconds of steady load, and requests `oha` sends by count. */
 export interface Work {
@@ -1542,60 +1553,65 @@ export interface PlannedPass extends Work {
   rep: number;
   /** A timed row's backend budget for this pass. */
   cpus?: number;
+  /** A case's pass that takes the case's answers: every pass of rep 1. */
+  answers?: true;
+  /** The last pass of a case's rep 1. The run checks that every peer's answers agree after it, before rep 2. */
+  agrees?: true;
 }
 
-/** How a run loads each pass. `smoke` takes no separate answers and runs each row once. */
+/** How a run loads each pass. `smoke` runs each row once. */
 export interface PlanLoad {
   reps: number;
   requests: number;
   smoke: boolean;
 }
 
-/** `up --build` calls one stack of a case makes: the backend, then nginx in front of it. */
-const CASE_UPS = 2;
-
 /** The warm-up `ohaArm` sends before its timed pass. */
 export const warmRequests = (requests: number) => Math.max(50, Math.min(requests, 500));
 
-/** One fresh stack of `c` for `peer`: its answers, and with `load` its warm-up and its timed pass. */
-function casePass(peer: Peer, c: Case, requests: number | null): Work {
-  return {
-    stacks: 1,
-    builds: peer.built === true ? CASE_UPS : 0,
-    seconds: 0,
-    requests: c.inputs.length + (requests === null ? 0 : warmRequests(requests) + requests),
-  };
+/** One fresh stack of `c`: with `answers` its answers, then its warm-up and its timed pass. */
+function casePass(c: Case, requests: number, answers: boolean): Work {
+  return { stacks: 1, builds: 0, seconds: 0, requests: (answers ? c.inputs.length : 0) + warmRequests(requests) + requests };
 }
+
+/** How `planOf` names a peer's turn at a row in the set of reused ones. */
+export const rowPeer = (row: string, peer: string) => `${row} ${peer}`;
 
 /** The case a timed row times. */
 export const rowCase = (s: Scenario): Case => s.timedCase ?? CASES.find((k) => k.id === s.case)!;
 
 /**
  * Every pass a run takes, in the order it takes them. It is a pure function of its arguments, and the run
- * walks the passes it returns, so a count and the run cannot differ. The cases run their answers first,
- * one stack per (case, peer), unless `smoke` checks them on the timed pass. Then the reps interleave
- * the peers. A probed row runs `runs` times, the peers interleaved, and a timed row times every budget
- * `reps` times inside one peer's turn. A peer a row gives a fixed result runs nothing. A row that does
- * not serve runs one `check`, which builds the image and brings up no stack. `prior` is the record a
- * recording would reuse rows from.
+ * walks the passes it returns, so a count and the run cannot differ. A run first builds each image a
+ * peer builds from this checkout, once, and no stack comes up with `--build` after that. Then the cases'
+ * reps interleave the peers. Rep 1 also takes each peer's answers, and the run checks that they agree
+ * after the last peer's rep 1 (`agrees`), so no stack comes up only to check them. A probed row runs
+ * `runs` times, the peers interleaved, and a timed row times every budget `reps` times inside one peer's
+ * turn. A peer a row gives a fixed result runs nothing, and nor does a pair in `reused`, named by
+ * `rowPeer`, whose recorded result the run keeps. A row that does not serve runs one `check` in a
+ * container, and brings up no stack.
  */
-export function planOf(peers: Peer[], cases: Case[], scenarios: Scenario[], load: PlanLoad, _prior: Record<string, unknown> | null): PlannedPass[] {
+export function planOf(peers: Peer[], cases: Case[], scenarios: Scenario[], load: PlanLoad, reused: ReadonlySet<string> | null): PlannedPass[] {
   const plan: PlannedPass[] = [];
-  if (!load.smoke) {
-    for (const c of cases) for (const p of peers) plan.push({ phase: "answers", id: c.id, peer: p.id, rep: 1, ...casePass(p, c, null) });
+  for (const p of peers) {
+    if (p.built === true) plan.push({ phase: "build", id: "image", peer: p.id, rep: 1, stacks: 0, builds: 1, seconds: 0, requests: 0 });
   }
   for (const c of cases) {
     for (let rep = 1; rep <= load.reps; rep++) {
-      for (const p of peers) plan.push({ phase: "cases", id: c.id, peer: p.id, rep, ...casePass(p, c, load.requests) });
+      for (const p of peers) {
+        const first = rep === 1;
+        const last = first && p === peers.at(-1);
+        plan.push({ phase: "cases", id: c.id, peer: p.id, rep, ...casePass(c, load.requests, first), ...(first ? { answers: true } : {}), ...(last ? { agrees: true } : {}) });
+      }
     }
   }
   for (const s of scenarios) {
-    const runs = peers.filter((p) => s.fixed?.[p.id] === undefined);
+    const runs = peers.filter((p) => s.fixed?.[p.id] === undefined && reused?.has(rowPeer(s.id, p.id)) !== true);
     if (s.timed !== undefined) {
       const c = rowCase(s);
       for (const p of runs) {
         for (const cpus of s.budgets ?? []) {
-          for (let rep = 1; rep <= load.reps; rep++) plan.push({ phase: "rows", id: s.id, peer: p.id, rep, cpus, ...casePass(p, c, load.requests) });
+          for (let rep = 1; rep <= load.reps; rep++) plan.push({ phase: "rows", id: s.id, peer: p.id, rep, cpus, ...casePass(c, load.requests, false) });
         }
       }
       continue;
@@ -1604,19 +1620,31 @@ export function planOf(peers: Peer[], cases: Case[], scenarios: Scenario[], load
     for (let rep = 1; rep <= times; rep++) {
       for (const p of runs) {
         const serves = s.serves !== false;
-        const work = { stacks: serves ? 1 : 0, builds: p.built === true ? 1 : 0, seconds: serves ? (s.loadSeconds ?? 0) : 0, requests: 0 };
-        plan.push({ phase: "rows", id: s.id, peer: p.id, rep, ...work });
+        plan.push({ phase: "rows", id: s.id, peer: p.id, rep, stacks: serves ? 1 : 0, builds: 0, seconds: serves ? (s.loadSeconds ?? 0) : 0, requests: 0 });
       }
     }
   }
   return plan;
 }
 
+/**
+ * The four-peer recording before its work was cut: a case run and then a rows run, at five reps of
+ * 20,000 requests. A separate answers stack per (case, peer) was 16 stacks, the 80 timed case passes
+ * and the 151 row stacks followed, and every `up --build` of a built peer counted as a build. A later
+ * plan is measured against these counts.
+ */
+export const FOUR_PEER_BASELINE: Readonly<Record<"answers" | "cases" | "rows" | "total", Readonly<Pick<Work, "stacks" | "builds">>>> = {
+  answers: { stacks: 16, builds: 16 },
+  cases: { stacks: 80, builds: 80 },
+  rows: { stacks: 151, builds: 107 },
+  total: { stacks: 247, builds: 203 },
+};
+
 const NO_WORK = (): Work => ({ stacks: 0, builds: 0, seconds: 0, requests: 0 });
 
 /** The work of `plan` per phase, in `PHASES` order, and the whole of it under `total`. */
 export function totalsOf(plan: PlannedPass[]): Record<Phase | "total", Work> {
-  const totals = { answers: NO_WORK(), cases: NO_WORK(), rows: NO_WORK(), total: NO_WORK() };
+  const totals = { build: NO_WORK(), cases: NO_WORK(), rows: NO_WORK(), total: NO_WORK() };
   for (const pass of plan) {
     for (const into of [totals[pass.phase], totals.total]) {
       into.stacks += pass.stacks;
@@ -1790,7 +1818,49 @@ export interface CaseDetail {
 export interface RecordedRow {
   folder: string;
   peers: Record<string, RowResult>;
+  /** When each measured result was taken, and under which key. A fixed result has none. */
+  measured?: Record<string, Measured>;
   seconds?: Seconds;
+}
+
+/**
+ * What a peer's row result depends on: the peer's image id, the digest of the row's program folder, the
+ * digest of the tool with every tuning file, and the host. `image` is `null` when the image is not on
+ * this machine, and a `null` image never matches.
+ */
+export interface RowKey {
+  image: string | null;
+  programs: string;
+  tool: string;
+  host: string;
+}
+
+/** When a row result was measured, at which commit, and under which key. */
+export interface Measured {
+  date: string;
+  commit: string;
+  key: RowKey;
+}
+
+/** Whether a result recorded under `was` is still the result under `now`. */
+export const sameKey = (now: RowKey, was: RowKey | undefined): boolean =>
+  was !== undefined && now.image !== null && now.image === was.image && now.programs === was.programs && now.tool === was.tool && now.host === was.host;
+
+/**
+ * The (row, peer) pairs, named by `rowPeer`, whose result in `prior` a recording keeps: the pair was
+ * measured, and its key is unchanged. A peer a row gives a fixed result is never in it.
+ */
+export function reusedOf(prior: Record<string, unknown> | null, rows: Scenario[], peers: Peer[], keyOf: (s: Scenario, p: Peer) => RowKey): Set<string> {
+  const reused = new Set<string>();
+  const recorded = (prior?.scenarios as RecordedScenarios | null | undefined)?.rows ?? {};
+  for (const s of rows) {
+    const row = recorded[s.id];
+    for (const p of peers) {
+      if (s.fixed?.[p.id] !== undefined || row?.peers[p.id] === undefined) continue;
+      if (sameKey(keyOf(s, p), row.measured?.[p.id]?.key)) reused.add(rowPeer(s.id, p.id));
+    }
+  }
+  return reused;
 }
 
 /** One `--scenarios` run: when, at which commit, and every row in `SCENARIOS` order. */
@@ -1803,18 +1873,36 @@ export interface RecordedScenarios {
 /** The folder a row's programs are in, which the page links each cell to. */
 export const scenarioFolder = (s: Scenario) => `benches/compare/${s.tree}/${s.case}`;
 
-export function buildScenarios(date: string, commit: string, results: Map<string, Map<string, RowResult>>, seconds: Map<string, Seconds> | null = null): RecordedScenarios {
+/**
+ * The rows a `--scenarios` run records, in `SCENARIOS` order. `measured` is each measured result's date,
+ * commit and key: this run's for a result it measured, and the earlier run's for one it reused.
+ */
+export function buildScenarios(
+  date: string,
+  commit: string,
+  results: Map<string, Map<string, RowResult>>,
+  seconds: Map<string, Seconds> | null = null,
+  measured: Map<string, Map<string, Measured>> | null = null,
+): RecordedScenarios {
   const rows: Record<string, RecordedRow> = {};
   for (const s of SCENARIOS) {
     const byPeer = results.get(s.id);
     if (byPeer === undefined) continue;
     const peers: Record<string, RowResult> = {};
+    const when: Record<string, Measured> = {};
     for (const p of PEERS) {
       const r = byPeer.get(p.id);
       if (r !== undefined) peers[p.id] = r;
+      const m = measured?.get(s.id)?.get(p.id);
+      if (m !== undefined) when[p.id] = m;
     }
     const clock = seconds?.get(s.id);
-    rows[s.id] = { folder: scenarioFolder(s), peers, ...(clock === undefined ? {} : { seconds: secondsOf(clock) }) };
+    rows[s.id] = {
+      folder: scenarioFolder(s),
+      peers,
+      ...(measured === null ? {} : { measured: when }),
+      ...(clock === undefined ? {} : { seconds: secondsOf(clock) }),
+    };
   }
   return { date, commit, rows };
 }
@@ -1860,6 +1948,53 @@ function digests(): Record<string, string> {
   }
   return out;
 }
+
+/** Every file of `dir` and below, by its path under `dir` and its bytes, digested in path order. */
+export function folderDigest(dir: string): string {
+  const hash = createHash("sha256");
+  const files = (readdirSync(dir, { recursive: true }) as string[])
+    .map((f) => f.replaceAll("\\", "/"))
+    .filter((f) => statSync(join(dir, f)).isFile())
+    .sort();
+  for (const f of files) hash.update(`${f}\0`).update(readFileSync(join(dir, f))).update("\0");
+  return hash.digest("hex").slice(0, 16);
+}
+
+/** The run's own code: this file and `bench-docker.ts`, and every tuning file `TUNABLES` names. */
+export function toolDigest(): string {
+  const hash = createHash("sha256");
+  for (const path of [join(ROOT, "tools", "nv", "cmd", "bench-compare.ts"), join(ROOT, "tools", "nv", "cmd", "bench-docker.ts"), ...TUNABLES]) {
+    if (existsSync(path) && statSync(path).isFile()) hash.update(`${rel(path).replaceAll("\\", "/")}\0`).update(readFileSync(path)).update("\0");
+  }
+  return hash.digest("hex").slice(0, 16);
+}
+
+/** The machine a record names, as one digest: its platform, processor, cores and Docker version. */
+export const hostDigest = (machine: Record<string, unknown>): string => createHash("sha256").update(JSON.stringify(machine)).digest("hex").slice(0, 16);
+
+/** The machine a run records: the host and its Docker version. */
+const machineOf = () => ({ ...host(), docker: version("docker", ["version", "--format", "{{.Server.Version}}"]) });
+
+/** The image the peer's `app` service runs, as its compose file names it. */
+export function appImage(peer: Peer): string {
+  const named = /^ {4}image:\s*(\S+)\s*$/m.exec(readFileSync(stackPath(peer), "utf8"));
+  if (named === null) throw new Fail(`${peer.stack} names no image for its app service`);
+  return named[1]!;
+}
+
+/** The id of the peer's image on this machine, or `null` when it is not here yet. */
+function imageIdOf(peer: Peer): string | null {
+  const out = Bun.spawnSync(["docker", "image", "inspect", "-f", "{{.Id}}", appImage(peer)], { stdout: "pipe", stderr: "pipe" });
+  return out.exitCode === 0 ? out.stdout.toString().trim() : null;
+}
+
+/** The key of row `s` for a peer whose image is `image`, under the tool and the host given. */
+export const rowKeyOf = (s: Scenario, image: string | null, tool: string, machine: string): RowKey => ({
+  image,
+  programs: folderDigest(join(ROOT, scenarioFolder(s))),
+  tool,
+  host: machine,
+});
 
 // ---------------------------------------------------------------------------------------------------
 // Rendering, the certificate, and reading a stack.
@@ -1914,16 +2049,17 @@ async function answerOf(peer: Peer, input: Input): Promise<Answer> {
 // ---------------------------------------------------------------------------------------------------
 
 interface Pass {
+  /** The case's answers, in its inputs' order, or none when the pass was not asked for them. */
   answers: Answer[];
-  result: PeerResult | null;
+  result: PeerResult;
 }
 
 /**
- * Brings the peer's stack up fresh for one case, takes its answers, and when `load` is given times it,
+ * Brings the peer's stack up fresh for one case, with `answers` takes its answers, and times it,
  * reading `memory.current` before the first request and `memory.peak` after the last. Always torn down.
  * The seconds of each step are added to `clock`.
  */
-async function onePass(peer: Peer, c: Case, ctx: PeerCtx, load: Load | null, clock: Seconds): Promise<Pass> {
+async function onePass(peer: Peer, c: Case, ctx: PeerCtx, load: Load, clock: Seconds, answers: boolean): Promise<Pass> {
   const env = stackEnv(peer, ctx);
   const stack = stackPath(peer);
   peer.prepare?.(ctx);
@@ -1931,17 +2067,18 @@ async function onePass(peer: Peer, c: Case, ctx: PeerCtx, load: Load | null, clo
     clocked(clock, "up_app", () => up(stack, env, "app"));
     const idle = cgroupBytes(peer, env, "memory.current");
     clocked(clock, "up_nginx", () => up(stack, env, "nginx"));
-    const answers: Answer[] = [];
-    await clockedAsync(clock, "answers", async () => {
-      for (const input of c.inputs) answers.push(await answerOf(peer, input));
-    });
-    if (load === null) return { answers, result: null };
+    const taken: Answer[] = [];
+    if (answers) {
+      await clockedAsync(clock, "answers", async () => {
+        for (const input of c.inputs) taken.push(await answerOf(peer, input));
+      });
+    }
     const flags = ["--insecure", "-m", c.timed.method];
     if (c.timed.body !== undefined) flags.push("-d", c.timed.body);
     if (c.timed.contentType !== undefined) flags.push("-T", c.timed.contentType);
     const arm = clocked(clock, "load", () => ohaArm(stack, `https://nginx${c.timed.path}`, load, env, `${c.id}-${peer.id}`, peer.label, c.id, flags));
     const peak = cgroupBytes(peer, env, "memory.peak");
-    return { answers, result: resultOf(arm, { idle, peak }, peer.settings(ctx)) };
+    return { answers: taken, result: resultOf(arm, { idle, peak }, peer.settings(ctx)) };
   } catch (e) {
     throw new Fail(`${peer.label}, case ${c.id}: ${messageOf(e)}\n${peer.id} said:\n${logsOf(stack, "app", env)}`);
   } finally {
@@ -2050,7 +2187,7 @@ async function scenarioPass(peer: Peer, s: Scenario, ctx: PeerCtx, clock: Second
       send: (method, path, headers) => replyOf(peer, path, method, headers),
       backend: () => backendOf(stack, env),
       check: (file) => {
-        const done = compose(stack, ["run", "--rm", "--no-deps", "--build", "app", "check", `/app/${file}`], env, true);
+        const done = compose(stack, ["run", "--rm", "--no-deps", "app", "check", `/app/${file}`], env, true);
         return { code: done.code, output: done.stdout + done.stderr };
       },
     }));
@@ -2364,9 +2501,13 @@ async function direct(smoke: boolean, commit: string): Promise<number> {
 const USAGE =
   "usage: nv bench-compare [-h] [--smoke] [--scenarios] [--arm {fair,deployed}] [--backend-cpus N]\n" +
   "                        [--row ID] [--expect PEER=RESULT,...] [--requests REQUESTS] [--reps REPS]\n" +
-  "                        [--record PATH] [--down] [--profile CASE] [--direct] [--plan]";
+  "                        [--record PATH] [--fresh] [--peer ID] [--down] [--profile CASE] [--direct] [--plan]";
 
 interface Options {
+  /** Run every row again, and reuse no recorded result. */
+  fresh: boolean;
+  /** The one peer a smoke run or a row runs against, or `null` for every peer. */
+  peer: Peer | null;
   smoke: boolean;
   scenarios: boolean;
   arm: "fair" | "deployed";
@@ -2409,7 +2550,10 @@ export function unmetExpectations(expect: Map<string, Verdict>, results: Map<str
 }
 
 function options(args: string[]): Options | null {
-  const p = parseArgs(args, { flags: ["--smoke", "--scenarios", "--down", "--direct", "--plan"], valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row", "--expect", "--profile"] });
+  const p = parseArgs(args, {
+    flags: ["--smoke", "--scenarios", "--down", "--direct", "--plan", "--fresh"],
+    valued: ["--arm", "--backend-cpus", "--requests", "--reps", "--record", "--row", "--expect", "--profile", "--peer"],
+  });
   if (p.flags.has("--help")) return null;
   const int = (o: string): number | null => {
     const word = p.values.get(o);
@@ -2436,7 +2580,14 @@ function options(args: string[]): Options | null {
   if (direct && others.length > 0) throw new ArgError(`argument --direct: not with ${others.join(", ")}; only --smoke goes with it`);
   const plan = p.flags.has("--plan");
   if (plan && (direct || profiled !== null || p.flags.has("--down"))) throw new ArgError("argument --plan: not with --direct, --profile or --down");
+  const peerId = p.values.get("--peer");
+  const peer = peerId === undefined ? null : PEERS.find((x) => x.id === peerId);
+  if (peer === undefined) throw new ArgError(`argument --peer: invalid choice: ${pyRepr(peerId!)} (choose from ${PEERS.map((x) => `'${x.id}'`).join(", ")})`);
+  if (peer !== null && (p.values.has("--record") || direct || profiled !== null)) throw new ArgError("argument --peer: not with --record, --direct or --profile; a record is one run of every peer");
+  if (p.flags.has("--fresh") && !p.flags.has("--scenarios")) throw new ArgError("argument --fresh: only with --scenarios; the cases are never reused");
   return {
+    fresh: p.flags.has("--fresh"),
+    peer,
     smoke: p.flags.has("--smoke"),
     scenarios: p.flags.has("--scenarios"),
     arm,
@@ -2473,7 +2624,11 @@ function help(): string {
     "  --reps REPS           timed passes per arm, each on a fresh stack, the peers taking turns; the",
     "                        median pass is recorded (default 5, 1 with --smoke)",
     "  --record PATH         write this run to PATH as one JSON object. A case run keeps the scenarios",
-    "                        already recorded there",
+    "                        already recorded there. A --scenarios run keeps a peer's recorded result",
+    "                        for a row when the peer's image, the row's programs, this tool and the",
+    "                        host are all unchanged",
+    "  --fresh               with --scenarios, run every row again and keep no recorded result",
+    "  --peer ID             run one peer only, to check it quickly. Not with --record",
     "  --row ID              with --scenarios, run only the row ID",
     "  --expect PEER=RESULT,...",
     "                        with --scenarios, exit 1 when a row's result for PEER is not RESULT",
@@ -2520,6 +2675,26 @@ function rowsOf(o: Options): Scenario[] {
   return rows;
 }
 
+/** The peer `--peer` names, or every peer. */
+const peersOf = (o: Options): Peer[] => (o.peer === null ? PEERS : [o.peer]);
+
+/**
+ * Takes the build passes of `plan`: each image a peer builds from this checkout, once, before any stack
+ * comes up. No later step builds, so every stack of the run serves the image built here.
+ */
+function buildImages(plan: PlannedPass[], commit: string): void {
+  for (const pass of plan.filter((x) => x.phase === "build")) {
+    const peer = PEERS.find((p) => p.id === pass.peer)!;
+    console.log(`  building ${peer.label}'s image ...`);
+    const env = stackEnv(peer, { cpus: 1, concurrency: 1, tree: "cases", case: CASES[0]!.id, commit });
+    try {
+      build(stackPath(peer), env, "app");
+    } catch (e) {
+      throw new Fail(`${peer.label}: ${messageOf(e)}`);
+    }
+  }
+}
+
 /**
  * `--scenarios`: every row against every peer, one fresh stack per pass of `planOf`, one line per row,
  * then the record. A probed row's runs interleave the peers. A timed row times every budget `reps`
@@ -2531,8 +2706,18 @@ async function scenarios(o: Options, cpus: number, commit: string, load: PlanLoa
   const prior = o.record === null ? null : readRecord(resolve(o.record));
   if (o.record !== null && prior === null) throw new Fail(`${o.record}: no record yet; record the cases first with bun nv bench-compare --record ${o.record}`);
   const rows = rowsOf(o);
-  const plan = planOf(PEERS, [], rows, load, prior);
+  const peers = peersOf(o);
+  buildImages(planOf(peers, [], [], load, null), commit);
+  // The images are this run's now, so their ids are part of each row's key.
+  const tool = toolDigest();
+  const machine = hostDigest(machineOf());
+  const images = new Map(peers.map((p) => [p.id, imageIdOf(p)]));
+  const keyOf = (s: Scenario, p: Peer) => rowKeyOf(s, images.get(p.id) ?? null, tool, machine);
+  const reused = prior === null || o.fresh ? new Set<string>() : reusedOf(prior, rows, peers, keyOf);
+  const recorded = (prior?.scenarios as RecordedScenarios | null | undefined)?.rows ?? {};
+  const plan = planOf(peers, [], rows, load, reused).filter((x) => x.phase === "rows");
   const results = new Map<string, Map<string, RowResult>>();
+  const measured = new Map<string, Map<string, Measured>>();
   const clocks = new Map<string, Seconds>();
   for (const s of rows) {
     const runs = load.smoke ? 1 : (s.runs ?? 1);
@@ -2547,9 +2732,9 @@ async function scenarios(o: Options, cpus: number, commit: string, load: PlanLoa
       if (s.timed !== undefined) {
         const c = rowCase(s);
         console.log(`  ${s.id}: ${peer.label}, ${pass.cpus} cpu(s), rep ${pass.rep} of ${load.reps} ...`);
-        const done = await onePass(peer, c, { ...ctx, cpus: pass.cpus!, concurrency: c.concurrency }, { requests: load.requests, concurrency: c.concurrency, reps: 1 }, clock);
+        const done = await onePass(peer, c, { ...ctx, cpus: pass.cpus!, concurrency: c.concurrency }, { requests: load.requests, concurrency: c.concurrency, reps: 1 }, clock, false);
         const byBudget = timed.get(peer.id) ?? new Map<number, PeerResult[]>();
-        byBudget.set(pass.cpus!, [...(byBudget.get(pass.cpus!) ?? []), done.result!]);
+        byBudget.set(pass.cpus!, [...(byBudget.get(pass.cpus!) ?? []), done.result]);
         timed.set(peer.id, byBudget);
       } else {
         console.log(`  ${s.id}: ${peer.label}${runs > 1 ? `, run ${pass.rep} of ${runs}` : ""} ...`);
@@ -2557,11 +2742,24 @@ async function scenarios(o: Options, cpus: number, commit: string, load: PlanLoa
       }
     }
     const byPeer = new Map<string, RowResult>();
-    for (const peer of PEERS) {
+    const when = new Map<string, Measured>();
+    measured.set(s.id, when);
+    for (const peer of peers) {
       const fixed = s.fixed?.[peer.id];
+      const kept = recorded[s.id];
       if (fixed !== undefined) {
         byPeer.set(peer.id, fixed);
-      } else if (s.timed !== undefined) {
+        continue;
+      }
+      if (reused.has(rowPeer(s.id, peer.id)) && kept?.measured?.[peer.id] !== undefined) {
+        const m = kept.measured[peer.id]!;
+        console.log(`  ${s.id}: ${peer.label} is unchanged since ${m.date} (${m.commit}), and keeps its result`);
+        byPeer.set(peer.id, kept.peers[peer.id]!);
+        when.set(peer.id, m);
+        continue;
+      }
+      when.set(peer.id, { date: stamp(), commit, key: keyOf(s, peer) });
+      if (s.timed !== undefined) {
         const at = (s.budgets ?? []).map((b) => medianOf(timed.get(peer.id)!.get(b)!));
         byPeer.set(peer.id, s.timed({ peer: peer.id, requests: load.requests, concurrency: rowCase(s).concurrency, at }));
       } else {
@@ -2571,13 +2769,13 @@ async function scenarios(o: Options, cpus: number, commit: string, load: PlanLoa
     }
     console.log(rowLine(s.id, byPeer));
     results.set(s.id, byPeer);
-    for (const peer of PEERS) {
+    for (const peer of peers) {
       const evidence = Object.entries(byPeer.get(peer.id)!.evidence).map(([k, v]) => `${k} ${v}`);
       console.log(`    ${peer.label.padEnd(6)} ${evidence.join(", ")}`);
     }
   }
   if (o.record !== null && prior !== null) {
-    writeRecord(resolve(o.record), withScenarios(prior, buildScenarios(stamp(), commit, results, clocks)));
+    writeRecord(resolve(o.record), withScenarios(prior, buildScenarios(stamp(), commit, results, clocks, measured)));
     console.log(`  recorded the rows to ${o.record}`);
   }
   if (o.expect === null) return 0;
@@ -2650,12 +2848,30 @@ function loadOf(o: Options): PlanLoad {
 function planned(o: Options): number {
   cpusOf(o);
   const load = loadOf(o);
+  const peers = peersOf(o);
   const prior = o.record === null ? null : readRecord(resolve(o.record));
-  const plan = o.scenarios ? planOf(PEERS, [], rowsOf(o), load, prior) : planOf(PEERS, CASES, [], load, prior);
+  const rows = o.scenarios ? rowsOf(o) : [];
+  const reused = prior === null || o.fresh || !o.scenarios ? new Set<string>() : plannedReuse(prior, rows, peers);
+  const plan = o.scenarios ? planOf(peers, [], rows, load, reused) : planOf(peers, CASES, [], load, null);
   const what = o.scenarios ? `${o.row === null ? `${SCENARIOS.length} rows` : `row ${o.row}`}` : `${CASES.length} cases`;
-  console.log(`the plan: ${PEERS.length} peers, ${what}, ${load.reps} rep(s) of ${load.requests} requests${load.smoke ? ", smoke" : ""}`);
+  const kept = reused.size === 0 ? "" : `, ${reused.size} row result(s) kept from the record`;
+  console.log(`the plan: ${peers.length} peers, ${what}, ${load.reps} rep(s) of ${load.requests} requests${load.smoke ? ", smoke" : ""}${kept}`);
   for (const line of planText(plan)) console.log(line);
   return 0;
+}
+
+/**
+ * The results `--plan` expects a recording to keep, without docker. It cannot read an image's id, so it
+ * takes every image as unchanged except a `perCommit` one, and the host as the one the record names.
+ * The programs and the tool are digested as the run digests them.
+ */
+export function plannedReuse(prior: Record<string, unknown>, rows: Scenario[], peers: Peer[]): Set<string> {
+  const recorded = (prior.scenarios as RecordedScenarios | null | undefined)?.rows ?? {};
+  const tool = toolDigest();
+  return reusedOf(prior, rows, peers, (s, p) => {
+    const was = recorded[s.id]?.measured?.[p.id]?.key;
+    return rowKeyOf(s, p.perCommit === true ? null : (was?.image ?? null), tool, was?.host ?? "");
+  });
 }
 
 async function main(o: Options): Promise<number> {
@@ -2679,44 +2895,41 @@ async function main(o: Options): Promise<number> {
   if (o.scenarios) return await scenarios(o, cpus, commit, load);
   const ctxOf = (c: Case): PeerCtx => ({ cpus, concurrency: c.concurrency, tree: "cases", case: c.id, commit });
 
-  // The plan takes the answers before any timing, one stack per (case, peer), and then rep 1 of every
-  // peer, then rep 2, each on a fresh stack, so a slow stretch of the shared host lands on every peer
-  // and not on one peer's block of reps. `--smoke` checks the answers on the timed pass itself.
-  const plan = planOf(PEERS, CASES, [], load, null);
-  const detail = new Map<string, CaseDetail>(CASES.map((c) => [c.id, { passes: new Map(PEERS.map((p) => [p.id, []])), seconds: {} }]));
-  const groups = new Map<string, Map<string, Answer[]>>();
+  // The plan builds each image once, then takes rep 1 of every peer, then rep 2, each on a fresh stack,
+  // so a slow stretch of the shared host lands on every peer and not on one peer's block of reps. Rep 1
+  // also takes the answers, and they are checked before rep 2 starts. No record is written unless every
+  // case's peers agree.
+  const peers = peersOf(o);
+  const plan = planOf(peers, CASES, [], load, null);
+  buildImages(plan, commit);
+  const detail = new Map<string, CaseDetail>(CASES.map((c) => [c.id, { passes: new Map(peers.map((p) => [p.id, []])), seconds: {} }]));
+  const answers = new Map<string, Map<string, Answer[]>>();
   const results = new Map<string, Map<string, PeerResult>>();
-  for (const pass of plan) {
+  for (const pass of plan.filter((x) => x.phase === "cases")) {
     const c = CASES.find((k) => k.id === pass.id)!;
     const peer = PEERS.find((p) => p.id === pass.peer)!;
-    const timed = pass.phase === "cases";
-    console.log(timed ? `  ${c.id}: ${peer.label}, rep ${pass.rep} of ${reps}, ${requests} requests over ${c.concurrency} connection(s) ...` : `  ${c.id}: checking ${peer.label}'s answers ...`);
+    console.log(`  ${c.id}: ${peer.label}, rep ${pass.rep} of ${reps}, ${requests} requests over ${c.concurrency} connection(s) ...`);
     const kept = detail.get(c.id)!;
-    const done = await onePass(peer, c, ctxOf(c), timed ? { requests, concurrency: c.concurrency, reps: 1 } : null, kept.seconds);
-    if (timed) kept.passes.get(peer.id)!.push(done.result!);
-    const key = `${pass.phase} ${c.id} ${pass.rep}`;
-    const answers = groups.get(key) ?? new Map<string, Answer[]>();
-    answers.set(peer.id, done.answers);
-    groups.set(key, answers);
-    if (answers.size < PEERS.length) continue;
-    groups.delete(key);
-    const bad = agreement(c, answers);
-    if (bad !== null) throw new Fail(`DIFF in ${c.id}: ${bad.peer} disagrees on input ${bad.input + 1}: ${bad.why}. ${timed ? "No number stands." : "No number is taken."}`);
-    if (!timed) {
-      console.log(`${c.id}: ${PEERS.length} peers agree`);
-      continue;
+    const done = await onePass(peer, c, ctxOf(c), { requests, concurrency: c.concurrency, reps: 1 }, kept.seconds, pass.answers === true);
+    kept.passes.get(peer.id)!.push(done.result);
+    if (pass.answers === true) {
+      const taken = answers.get(c.id) ?? new Map<string, Answer[]>();
+      taken.set(peer.id, done.answers);
+      answers.set(c.id, taken);
     }
-    if (pass.rep < reps) continue;
+    if (pass.agrees === true) {
+      const bad = agreement(c, answers.get(c.id)!);
+      if (bad !== null) throw new Fail(`DIFF in ${c.id}: ${bad.peer} disagrees on input ${bad.input + 1}: ${bad.why}. No number stands.`);
+      console.log(`${c.id}: ${peers.length} peers agree`);
+    }
+    if (pass.rep < reps || pass.peer !== peers.at(-1)!.id) continue;
     const byPeer = new Map<string, PeerResult>();
     for (const [id, rs] of kept.passes) byPeer.set(id, medianOf(rs));
     results.set(c.id, byPeer);
-    if (o.smoke) {
-      console.log(`${c.id}: ${PEERS.length} peers agree`);
-      continue;
-    }
+    if (o.smoke) continue;
     const best = Math.max(...[...byPeer.values()].map((r) => r.requests_per_sec));
     console.log(`${c.id}, ${cpus} cpu per backend:`);
-    for (const peer of PEERS) {
+    for (const peer of peers) {
       const r = byPeer.get(peer.id)!;
       const p99 = r.p99_ms === null ? "      -" : fixed(r.p99_ms, 3).padStart(7);
       console.log(
@@ -2727,7 +2940,7 @@ async function main(o: Options): Promise<number> {
   }
 
   if (o.smoke) return 0;
-  const machine = { ...host(), docker: version("docker", ["version", "--format", "{{.Server.Version}}"]) };
+  const machine = machineOf();
   if (o.record === null) {
     console.log("  not recorded: pass --record PATH to write this run");
     return 0;

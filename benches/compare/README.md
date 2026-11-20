@@ -238,10 +238,12 @@ not `no`.
 
 ## Agreement before timing
 
-A peer that answers wrongly and fast is the easiest way for a benchmark to report a win. A full run
-brings every (case, peer) pair up once only to take its answers to a fixed set of requests, and times
-nothing until the four agree on status, `Content-Type` and body. A disagreement stops the run and names
-the peer.
+A peer that answers wrongly and fast is the easiest way for a benchmark to report a win. Each peer's
+first rep of a case also takes its answers to a fixed set of requests, on the same stack, before the
+timed load. After the last peer's first rep, the run checks that every peer agrees on status,
+`Content-Type` and body, and only then starts rep 2. A disagreement stops the run, names the peer, and
+writes no record, so a figure is never kept from a peer that answered wrongly. No stack is brought up
+only to take answers: the answers cost a few requests on a stack the run needs anyway.
 
 Two answers are compared after exactly two mappings and nothing else. The `Content-Type` loses its case
 and spaces, since `charset=UTF-8` and `charset=utf-8` are one type. In a case that escapes text into
@@ -272,6 +274,28 @@ each row keeps the seconds of its steps under `seconds` (bringing the stack up, 
 probe, the load, tearing it down), and a case keeps every peer's `passes` beside the median, so the
 next recording can see where its time went and how far the passes spread. Seconds never gate anything,
 since they move with the host.
+
+**Each image is built once per run.** A run's first passes build every image a peer builds from this
+checkout, and no stack after that comes up with `--build`. Every stack of the run then serves the same
+image, and the record's commit names the tree it was built from. The baseline the cuts are measured
+against is `FOUR_PEER_BASELINE`: 247 stacks and 203 builds for the four-peer recording, before the
+answers moved onto rep 1 and the builds onto the start of the run.
+
+**A row result is kept while nothing it depends on has changed.** A `--scenarios --record` run keeps a
+peer's recorded result for a row when the row's key is unchanged, and runs every other pair. The key
+is four parts: the id of the peer's image on this machine, a digest of the row's program folder, a
+digest of `bench-compare.ts`, `bench-docker.ts` and every tuning file the record digests, and a digest
+of the host with its Docker version. The tuning files are in the key because a changed nginx config or
+pool can change a result as much as a changed program. An image that is not on the machine has no id,
+and its rows run. Novis's image has the commit in it, so its rows run in every recording. Each result
+keeps the date, commit and key it was measured under in its row's `measured`, so the page can say how
+old the oldest result is. `--fresh` runs every row again. The cases are never kept: a case's figures
+are relations between peers, measured in one interleaved run, and a figure from another run would
+compare two hosts' moods. `--plan` counts the kept results without docker: it takes every image as
+unchanged except Novis's, and the host as the record's.
+
+**`--peer ID` runs one peer**, for checking a new peer's programs or a row cheaply. `--record` refuses
+it, because a record is one run of every peer.
 
 **Every figure is the median of interleaved runs.** A case runs `--reps` passes, five by default, and
 the peers take turns: pass 1 of every peer, then pass 2, each on a fresh stack. The record keeps the
