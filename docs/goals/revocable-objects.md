@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-hir/src/interfaces.rs, crates/nvs-types/src/iter_lib.rs, crates/nvs-hir/src/hierarchy.rs, crates/nvs-types/src/conformance.rs, crates/nvs-hir/src/errors.rs, docs/rules/statements/static-is-a-member-modifier.md, docs/rules/core-api/no-methods-on-scalars-or-arrays.md]
   - id: 2
     title: an object carries its revoked flag in its count word and its revoke site in one hidden slot
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/object.rs, crates/nvs-runtime/src/throwable.rs, crates/nvs-types/src/layout.rs, crates/nvs-codegen/src/emit.rs, crates/nvs-codegen/tests/refcount_calls.rs, docs/rules/classes/revocable-objects.md]
   - id: 3
     title: every use of a revoked object throws, and the check is compiled only where the type could be revocable
@@ -326,6 +326,11 @@ every anchor in those files is re-found with `bun nv peek --locate <symbol>` bef
     `ClassDesc::field_slot` and `field_name` never return the hidden slot, so reflection by a name
     a program passes cannot reach it. `clone` leaves it null, the graph copy writes it as null, and
     `ClassDesc::first_property_slot` and `is_hidden_slot` are what every other walker asks.
+18. **A call by name has no revoke site (stage 2's call).** `revoke()` through `mixed` or
+    `Core\Reflect` runs in `call_erased_unchecked`, which has no site blob, so it keeps a null site,
+    and the error names the class alone: "This `Blog\Post` object was revoked. A revoked object
+    cannot be used." A written call keeps its line. Passing a site through the erased entry would
+    add a parameter to every erased call for one rare form.
 
 ### More choices the authoring session made (settled)
 
@@ -492,9 +497,15 @@ the hidden slot, `revoke()`, `isRevoked()` and the thrower. Nothing calls the th
     (decision 17: no `revocable` field on `ClassLayout` or `nvs_ir::ir::Class`).
   - [x] Every walker skips slot 0 of a revocable descriptor; `clone` and the graph copy start it null.
   - [x] `a_class_that_is_not_revocable_has_no_hidden_slot` in `layout.rs`'s tests.
-- [ ] `revoke()` and `isRevoked()` lower to calls of `revoke` and `is_revoked` with the call site's
+- [x] `revoke()` and `isRevoked()` lower to calls of `revoke` and `is_revoked` with the call site's
   constant. A reflective or erased call of either reaches the same functions.
-- [ ] The four tests of the `runtime-flag` check in `revoke.rs`'s test module, and
+  - [x] `InstKind::Revoke` and `InstKind::IsRevoked` in `crates/nvs-ir/src/ir.rs`, lowered in
+    `lower_method_call` for a call resolved to `Revocable`, which releases the transferred receiver.
+  - [x] Codegen calls `nvs_object_revoke` and `nvs_object_is_revoked` with their own signatures,
+    and the three externs are in the runtime's symbol table.
+  - [x] `call_erased_unchecked` (`crates/nvs-runtime/src/dispatch.rs`) runs both by name, so a call
+    through `mixed` and a `Core\Reflect` call reach them (decision 18).
+- [x] The four tests of the `runtime-flag` check in `revoke.rs`'s test module, and
   `crates/nvs-codegen/tests/revocable.rs:1` with the two tests of the `compiled-release` check, which
   read the Cranelift text as `crates/nvs-codegen/tests/refcount_calls.rs` does. Each Rust test file
   carries `// covers: lang:classes/revocable-objects`. Both checks run once.
@@ -647,39 +658,37 @@ user reads*.
 
 ### State
 
-Stage 1 is built: the checker knows `Revocable`, its methods, `RevokedObjectError` and E1001 to
-E1003, and both rules are `designed`. Stage 2's first three items are built (session 1 of 2).
-- `a03baee8d4`: `crates/nvs-runtime/src/revoke.rs` has `REVOKED`, `count_of`, `Memberships`
-  (`Membership`, `MembershipKind`; nothing writes one before stage 4), `revoke`, `is_revoked`,
-  `revoke_site`, `revoked_message` and the externs `nvs_object_revoke`, `nvs_object_is_revoked` and
-  `nvs_throw_revoked(ctx, object, site)`. None is in the runtime's symbol table yet
-  (`crates/nvs-runtime/src/helpers.rs`, beside `nvs_deprecated_use`). `ClassDesc` has `revocable`,
-  `is_revocable()` and `ClassTable::set_revocable(id)`, which asserts the class has a slot. Every count
-  reader masks, `NvsObj::count_word` is the flag's one door, and each listed caller was confirmed to
-  read through a masked reader. Three of the `runtime-flag` tests pass, run once by name.
-- The codegen slice: an object's inline release compares against `REVOKED - 2`, with the same
-  instruction count. `the_inline_release_of_an_object_that_is_not_revoked_is_unchanged` passes.
+Stages 1 and 2 are built, and both stage 2 checks are green (`runtime-flag`, `compiled-release`, run
+once each).
+- `67319e03c0`: `flatten_fields` gives a revocable root, and each subclass, the hidden slot first,
+  named `nvs_runtime::revoke::HIDDEN_SLOT_NAME`. Codegen calls `set_revocable` for a class whose first
+  slot has that name (decision 17). `ClassDesc::field_slot` and `field_name` never return it,
+  `first_property_slot` and `is_hidden_slot` are new, `clone` leaves it null, the graph copy writes it
+  as null, and `Core\Json`'s shape cursor and the test library's object diff skip it.
+- The lowering slice: `InstKind::Revoke` and `InstKind::IsRevoked` (`crates/nvs-ir/src/ir.rs`), lowered
+  in `lower_method_call` for a call resolved to `Revocable`; their code in `emit.rs` with the
+  `revoke` and `is_revoked` signatures; the three externs in `helpers.rs`'s symbol table; and
+  `call_erased_unchecked` runs both by name with a null site (decision 18).
+  `compiled_code_frees_a_revoked_object` is a live-bytes slope test.
 
 Nightly run 44510687786 ran at `adc7487`, before its fixes (`eb5c02e983`, `4c82a2409a`, `656f5b2f2d`,
-`1c75c4ef0e`); no nightly has run since.
+`1c75c4ef0e`), which cover every job it named; no nightly has run since.
 
 ### Next
 
-Stage 2's item 4, the hidden slot, with the checkpoints under it. Today a revocable class's slot 0 is
-whatever property comes first, so nothing may call `set_revocable` until `flatten_fields`
-(`crates/nvs-types/src/layout.rs`, `bun nv peek --locate flatten_fields`) puts a hidden slot there. Give
-it a name no property can have, and have every walker of field names skip slot 0 when
-`ClassDesc::is_revocable()`. Find the walkers first with an `Explore` subagent: `ClassDesc::field_name`,
-`field_slot`, `fields.len()`, `nvs_object_clone` and `crates/nvs-runtime/src/graph.rs`. `clone` and the
-graph copy must start the slot null: a copied memberships pointer is freed twice.
+Stage 3, from its first item: `InstKind::CheckRevoked { object, site }` beside `Revoke` in
+`crates/nvs-ir/src/ir.rs` (its rows in `for_each_operand`, `effects` and `print.rs` beside `Revoke`'s),
+and its code in `emit.rs` beside the `Revoke` arm: a load of the count word at
+`nvs_runtime::OBJ_REFCOUNT_OFFSET`, a test of `REVOKED` that is not the immortal count, and a cold call
+of `nvs_throw_revoked` (already in the symbol table) with a status check. The anchors stage 3's items
+give in `expr.rs` moved; find each with `bun nv peek --locate lower_property_access lower_method_call
+lower_clone_expr`. The method call's check goes after the `Revocable` intrinsic return in
+`lower_method_call`, so `revoke()` and `isRevoked()` compile none. The erased entries' flag test must
+come after the intrinsic block in `call_erased_unchecked` (`crates/nvs-runtime/src/dispatch.rs`), so a
+call of either by name passes. Then the stage's split: one writing subagent for the seventeen `.nvst`
+cases.
 
-Then item 5: lower `revoke()` and `isRevoked()` to `nvs_object_revoke(object, SourceConst)` and
-`nvs_object_is_revoked(object)`. Register the three externs in `helpers.rs` and give each a
-`RuntimeSig`. Then the last two tests: `a_class_that_is_not_revocable_has_no_hidden_slot` and
-`compiled_code_frees_a_revoked_object` in `crates/nvs-codegen/tests/revocable.rs`, and run both checks
-once (`looper check --name runtime-flag`, `--name compiled-release`).
-
-No existing test is expected to go red. `every_thrown_class_is_in_the_compiler_s_exception_tree` now
-iterates `Revoked`, and the tree has the class.
+No existing test is expected to go red. A test that lists every `InstKind`, or every symbol in
+`helpers.rs`'s table, would be the one to look at first if one does.
 
 ### Backlog
