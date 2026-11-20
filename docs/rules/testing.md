@@ -2091,7 +2091,7 @@ until it passes.
 
 <a id="testing-feature-proofs"></a>
 
-## A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure and its growth, an attack and its help in the binary
+## A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure and its growth, an attack, its help in the binary and a newcomer's review of its texts
 
 `rule:testing/feature-proofs`
 
@@ -2119,6 +2119,23 @@ features that landed before Help was a proof are listed in `data/proofs/help-bac
 skips with one shared reason, so a finished goal's floor does not fail over a proof that was not owed
 when it finished; a feature leaves the list when it gains its help, and nothing is ever added to it,
 because a feature that lands owes its help at once.
+**Reviewed** — a reader new to Novis has read every text of the feature an end user reads, and
+understood it: its `about.md`, its `details.md`, its help card, and the comments of its examples,
+attacks and bench. Each gate stage sends the texts its goal changed to `reader` subagents, from
+`bun nv site --review --brief`, and each reader answers from the brief alone: which sentences it read
+twice, which words it did not know, and what the feature does or the page teaches, in its own words.
+A finding is a pointer the session checks against the feature, not a verdict. A wrong answer to the
+third question is fixed by rewriting the text that misled the reader. Once every finding is fixed,
+`bun nv site --review --stamp` records each text's hash, and `bun nv site --check review` fails on
+every text whose hash is not its stamp's. The same holds for each handwritten page, each published
+program's comments and `website/src/data/changes.json`, which belong to no one feature.
+`tools/nv/lib/texts.ts` lists every such text with its key and hash. The texts that existed when the
+review began are on `data/proofs/review-baseline.json` at their hash then. A text is excused while its
+hash is that one, a review stamp takes it off, and nothing is ever added to it. No skip file excuses
+Reviewed, as none excuses Description. It costs nothing at run time, about 1 MB of stamps in the
+repository, and the reader tokens of each goal's changed texts. Declined: a periodic review pass,
+which finds drift late and never says which change caused it, and a check of the wording by word
+lists, since nothing checks the wording (AGENTS.md § *Text an end user reads*).
 
 **A member is named in its class's introduction**, when the class has one under `docs/reference/`: in
 a backtick span or a fence, so the page that describes the class describes every member it has. It is

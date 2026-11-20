@@ -18,7 +18,7 @@ stages:
     context: [website/src/data/changes.json, docs/agent/prose.md, tools/nv/lib/changes.ts, tools/nv/cmd/ci.ts]
   - id: 4
     title: "a changed user text needs a review stamp, and Reviewed is a feature proof"
-    status: open
+    status: done
     context: [tools/nv/proofs/collect.ts, tools/nv/schema/proofs.ts, data/proofs/policy.json, tools/nv/cmd/proofs.ts, docs/agent/prose.md, .claude/agents/reader.md]
   - id: 5
     title: every goal names what it owes the website, and its gate stage runs the review
@@ -348,6 +348,18 @@ tool and no roster feature, so the goal owes no feature proof and no entry of it
 - A configuration key is not on the roster, so a renamed key goes into the text of the entry for the
   feature it serves (`[session] ttl` in the `Core\Session::set` entry).
 
+**What stage 4 settled (my calls, 2026-11-20).**
+
+- A roster entry carries its card as `card`, the JSON `nvs meta --json` gives, and `texts.card` returns
+  it when present. The proofs audit hashes a help card without a second read of the metadata, and the
+  page hashes do not move.
+- A package type has no help text to review: its help is a comment in its source file, which no
+  reader of the site sees.
+- The two stamp files are records of the store (`reviewed`, `review_baseline`) and are written
+  through it, so `bun nv check` holds them to the writer's layout.
+- `DOCS`, `SNIPPETS`, `GENERATED` and `LEGAL` moved to `texts.ts`, which `site.ts` imports, so the
+  list of user texts and the `prose` part leave out the same pages.
+
 **Lanes.** Stages 1, 2 and 4 share `tools/nv/cmd/site.ts` and `tools/nv/lib/texts.ts`, so they run in
 that order. Stage 3 writes `website/src/data/changes.json` and the three stale-guard lines, and may run
 as a side goal beside stage 4 once stage 2 is done. Stage 5 touches `AGENTS.md` and `docs/agent/` only, and may run as a side goal
@@ -449,26 +461,26 @@ merges them into the data file, and deletes the drafts.
 **Does:** lists every user text with its key and hash, adds the review stamps, the baseline, the
 commands and `--check review`, and makes Reviewed a feature proof.
 
-- [ ] `tools/nv/lib/texts.ts:1`: `userTexts(root, world)`, each text's key and hash as § *The user
+- [x] `tools/nv/lib/texts.ts:1`: `userTexts(root, world)`, each text's key and hash as § *The user
   texts* says, and the stamp and baseline reads. `rule:testing/feature-proofs`
-- [ ] `tools/nv/schema/proofs.ts:86`: the `reviewed` and `review_baseline` records for
+- [x] `tools/nv/schema/proofs.ts:86`: the `reviewed` and `review_baseline` records for
   `data/proofs/reviewed.json` and `data/proofs/review-baseline.json`. `rule:testing/feature-proofs`
-- [ ] `tools/nv/cmd/site.ts:2608`: `--review`, `--review --brief`, `--review --stamp` and
+- [x] `tools/nv/cmd/site.ts:2608`: `--review`, `--review --brief`, `--review --stamp` and
   `--review --baseline`, and the `review` part in `PARTS` (`:339`) and `check` (`:2453`), as § *The
   commands* says. The module doc (`:1`) lists them. `rule:testing/feature-proofs`
-- [ ] `tools/nv/proofs/collect.ts:26`: `reviewed` in `PROOFS`, `Owes` (`:30`) and `POLICY` (`:49`),
+- [x] `tools/nv/proofs/collect.ts:26`: `reviewed` in `PROOFS`, `Owes` (`:30`) and `POLICY` (`:49`),
   and `owed` (`:573`) names the first unreviewed text. `tools/nv/cmd/proofs.ts:111`: its column
   heading. `data/proofs/policy.json:9`: `"reviewed": true` under `all`. The `proofPolicy` schema
   (`tools/nv/schema/proofs.ts:13`) gains the field. `rule:testing/feature-proofs`
-- [ ] `docs/rules/testing/feature-proofs.md:15`: **Reviewed** after **Help**: what it proves, the
+- [x] `docs/rules/testing/feature-proofs.md:15`: **Reviewed** after **Help**: what it proves, the
   three questions, that a reader's finding is checked, the baseline that never grows, and that no skip
   excuses it. Its record's `guardedBy` (`data/rules/testing/feature-proofs.json:1`) gains
   `tools/nv/lib/texts.ts` and `data/proofs/review-baseline.json`. `rule:testing/feature-proofs`
-- [ ] `tools/nv/cmd/ci.ts:350` and `.github/workflows/ci.yml:608`: the website stale guard runs
+- [x] `tools/nv/cmd/ci.ts:350` and `.github/workflows/ci.yml:608`: the website stale guard runs
   `review` too. `rule:testing/feature-proofs`
-- [ ] `tools/nv/test/site-review.test.ts:1`: the seven tests the `review-tool` check names, then the
+- [x] `tools/nv/test/site-review.test.ts:1`: the seven tests the `review-tool` check names, then the
   check run once by name.
-- [ ] `bun nv site --review --baseline` once, then the `review-green` check.
+- [x] `bun nv site --review --baseline` once, then the `review-green` check.
 
 ### 5. every goal names what it owes the website, and its gate stage runs the review
 
@@ -507,32 +519,30 @@ commands and `--check review`, and makes Reviewed a feature proof.
 
 ### State
 
-Stages 1 and 2 are done, and the `changes-tool` check is green (11 tests). `tools/nv/lib/changes.ts`
-holds the data shapes, `changesProblems`, `notesSections`, `changelogKey` and `releaseChanges`.
-`bun nv site --check changes`, `--changes --snapshot SINCE` and `--changes --release VERSION` are in
-`tools/nv/cmd/site.ts`. `renderNotes` (`tools/nv/cmd/release.ts`) starts with the entries, and
-`release.yml` moves them after *Bump the manifests*. The generic reference page shows each feature's
-changelog (`MethodChangelog.astro` takes `level` and `slug`), and the site builds.
+Stages 1 to 3 are done: `changes-tool` (11 tests) and `changes-green` are green.
+`tools/nv/lib/changes.ts` holds the entries' shapes and checks, the release notes start with them, and
+the snapshot `data/proofs/released.json` is `since: "v0.0.4"`. `website/src/data/changes.json` has 44
+entries and 90 `unseen` records, and the stale guard runs `changes`.
 
-The first snapshot, `data/proofs/released.json`, is `since: "v0.0.4"`: 1597 features, read with the
-v0.0.4 Windows release binary in a worktree at the tag with the current `tools/nv`.
+Stage 4 is done, and `review-tool` (7 tests) and `review-green` are green. `tools/nv/lib/texts.ts`
+holds `userTexts`, `featureTexts`, `commentText`, the stamp and baseline reads and writes, and
+`reviewBrief`. `bun nv site --review [--brief | --stamp | --baseline]` and the `review` part are in
+`tools/nv/cmd/site.ts` (`reviewMode`, `reviewCheck`). `reviewed` is a proof in `collect.ts`, on for
+every kind by `data/proofs/policy.json`. `data/proofs/review-baseline.json` holds 11870 texts (1 MB).
+`review` runs in the stale guard of `ci.ts`, `deep.ts` and `ci.yml`. The rule's **Reviewed**
+paragraph is in `docs/rules/testing/feature-proofs.md`.
 
-Stage 3 is done, and `changes-green` is green. `--check changes` named 163 features: 36 new, 10
-removed (the old `Core\Time` constructors, `DateTime::Weekday` and five `Core\Session` methods) and
-117 changed. `website/src/data/changes.json` has 44 entries and 90 `unseen` records, each a test that
-moved with the same expected output (the `Core\Time` and `Core\Session` caller rewrites, the package
-tests, and the tests a speed-up added). The stale guard runs `changes` in `ci.ts`, `deep.ts`, `ci.yml`.
-
-The nightly of 2026-11-19 (`supply chain`, every Miri shard, `proofs` shots, `browser`) is fixed on
-`main` by `eb5c02e983`, `4c82a2409a`, `9478fd2f66`, `656f5b2f2d` and `1c75c4ef0e`/`8d945cbeb2`.
-Those commits are not pushed yet, and the next full gate pushes them.
+The nightly the last sweep named (run 44510687786, 2026-11-19) is the one fixed on `main` by
+`eb5c02e983`, `4c82a2409a`, `9478fd2f66`, `656f5b2f2d` and `1c75c4ef0e`/`8d945cbeb2`. Each is on
+`HEAD` and after that run's commit. They are not pushed yet, and the next full gate pushes them.
 
 ### Next
 
-Stage 4, its items in order, starting at `tools/nv/lib/texts.ts:1` (`userTexts`). The stale-guard
-line its item names is `tools/nv/cmd/ci.ts:350` and `.github/workflows/ci.yml:610` now, and `review`
-goes after `changes` in both and in `deep.ts:122`. Stage 5 may run beside it as a side goal. A change
-to a feature's tests from here on owes a `changes.json` entry or an `unseen` record in the same
-commit, or the pre-push guard is red. No test is expected to go red.
+Stage 5, its items in order, starting at `docs/agent/prose.md:18` (*A newcomer reads it*). The
+commands it names are in the module doc of `tools/nv/cmd/site.ts:1`. Then stage 6, whose review runs
+over what `bun nv site --review` lists: the texts this goal changed, among them
+`website/src/data/changes.json`. A change to a user text from here on owes a review stamp, and a
+change to a feature's tests a `changes.json` entry or an `unseen` record, or the pre-push guard is
+red. No test is expected to go red.
 
 ### Backlog
