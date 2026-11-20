@@ -698,35 +698,18 @@ user reads*.
 
 ### State
 
-Stages 1 to 7 are done. Stage 8 has its review and its perf record, and its full gate is running.
-- The newcomer review read all 22 texts, and every finding was fixed. The texts now say in plain
-  words what revoking means, and `site --check review` is ok.
-- The interface id `Revocable` owed its own proofs. It now has `docs/examples/types/Revocable/`
-  (an `about.md` and one example), and three conformance cases cover it. `bun nv proofs --id` says
-  `complete.` for `Revocable`, `RevokedObjectError` and `lang:classes/revocable-objects`.
-- The perf record was taken from the release binary: flat growth, twin 1.04x.
-- `owners --closes` names no gap. Decision 18 (a `revoke()` called by name keeps no site) moved into
-  `docs/rules/classes/revocable-objects.md`. Every other decision is already in the two rules or a
-  module doc.
-- The first `looper verify` was red on `records`, because both shipped rules still named this goal.
-  The `goal` field is removed from both. Its `fmt` step reformatted 13 Rust files.
-- The second run named four units, each fixed: the three revoke primitives in
-  `crates/nvs-runtime/src/revoke.rs` carry the `deny` set, the stdlib symbol count adds
-  `KEYED_CONSTRUCTORS`, the IR roster test lists `KeyedIterable` and `KeyedIterator`, and the
-  `ObjectSet` stub case expects line 64. The third run named the LSP coverage gate: a keyed-loop
-  completion case resolved to `Block`, and it now ends its statement with `;`.
-- `docs/goals/attribute-property-names.md:112` no longer cites a rule that does not exist yet.
-- Nightly run 44510687786's failures are each fixed by a later commit: wasmtime 50.0.2
-  (`eb5c02e983`), the Miri string-pointer fix (`4c82a2409a`), the debug viewer shots (`656f5b2f2d`)
-  and the registry browser test (`1c75c4ef0e`).
-
-- The fourth `looper verify` is green, and `bun nv verify --doc` is green. The gate fixes are
-  commit `f440381309`.
-- `bun nv ci --check` was red. Fixed this session: the `changes.json` entry is three sentences, the
-  roadmap has `declared-attributes`, `compare-seven-peers` and `reload-now` in themes, the website
-  render is current, and the revocable pages are stamped. Three `about.md` files that
-  `keyed-iteration` grew past 200 words are trimmed: `lang:iteration/what-foreach-walks`,
-  `lang:statements/foreach` and `lang:types/every-binding-has-a-type`.
+Stages 1 to 7 are done. Stage 8's full gate is green, and only `bun nv ci --check` stays red.
+- The newcomer review of all 22 texts is fixed and stamped. `Revocable` has its own `about.md`, one
+  example and three covering cases. `bun nv proofs --id` says `complete.` for all three ids.
+- The perf record of `lang:classes/revocable-objects` is taken: flat growth, twin 1.04x.
+- `owners --closes` names no gap. Decision 18 is in `docs/rules/classes/revocable-objects.md`, and
+  every other decision is in the two rules or a module doc.
+- `looper verify` is green after three fix passes (commit `f440381309`), and `verify --doc` is green.
+- In `ci --check`, the changes entry, the roadmap themes, the website render and the revocable page
+  stamps are fixed. Three `about.md` files `keyed-iteration` grew past 200 words are trimmed:
+  `what-foreach-walks`, `statements/foreach` and `every-binding-has-a-type`.
+- Nightly run 44510687786's failures are each fixed by a later commit (`eb5c02e983`, `4c82a2409a`,
+  `656f5b2f2d`, `1c75c4ef0e`).
 
 ### Next
 
