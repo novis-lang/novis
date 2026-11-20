@@ -130,12 +130,11 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Each time class builds its own values.** *Working on it now.* Each class in `Core\Time` has its own static methods that build its values. `Core\Time` is the clock. A date and time can be written in the ISO 8601 format, which is short and has one meaning.
-2. **The website shows every change.** When a feature changes, its pages on the website change with it. Every new, removed or changed feature has an entry on the What changed page.
-3. **Objects as keys.** `Core\ObjectMap` and `Core\ObjectSet` use objects as keys and find each key with one lookup. A `foreach` loop over an `ObjectMap` gives each key and its value. An object can be revoked. A revoked object is removed from every `Core` collection, and any other use of it throws an error.
-4. **Faster mutation tests.** `nvs test --mutate` can test one file, one class or one function. `nvs test --since` runs only the tests that a change can reach. A mutant that compiles to the same code as the program runs no test. The report groups the mutants that survived by function.
-5. **Property names the compiler checks.** A property path can step into an array with `@key` and `@value`. An attribute can name a property of the class it is on. The compiler checks each name, and a wrong name does not compile. The editor completes these names.
-6. **A part of the page filled later reads the request.** A function passed to `Core\Html::later` can read the request's path, headers, cookies, query and route parameters. Reading the request body there throws a `LogicError`. Read the body in the main script and pass the value to the function.
+1. **The website shows every change.** *Working on it now.* When a feature changes, its pages on the website change with it. Every new, removed or changed feature has an entry on the What changed page.
+2. **Objects as keys.** `Core\ObjectMap` and `Core\ObjectSet` use objects as keys and find each key with one lookup. A `foreach` loop over an `ObjectMap` gives each key and its value. An object can be revoked. A revoked object is removed from every `Core` collection, and any other use of it throws an error.
+3. **Faster mutation tests.** `nvs test --mutate` can test one file, one class or one function. `nvs test --since` runs only the tests that a change can reach. A mutant that compiles to the same code as the program runs no test. The report groups the mutants that survived by function.
+4. **Property names the compiler checks.** A property path can step into an array with `@key` and `@value`. An attribute can name a property of the class it is on. The compiler checks each name, and a wrong name does not compile. The editor completes these names.
+5. **A part of the page filled later reads the request.** A function passed to `Core\Html::later` can read the request's path, headers, cookies, query and route parameters. Reading the request body there throws a `LogicError`. Read the body in the main script and pass the value to the function.
 <!-- roadmap:end -->
 
 ## Contributing
