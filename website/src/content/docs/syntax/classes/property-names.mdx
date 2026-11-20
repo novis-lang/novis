@@ -17,9 +17,14 @@ check that the name is right. A name written in the code is checked when the pro
 ## Use this when a name comes from outside
 
 Use `property<T>` for one property of one class. Use `propertyPath<T>` when the name goes through
-related objects, such as `customer.address.city`. After an array property, a path can name an
-element's key with `@key` and the element with `@value`, such as `authors.@value.name`. Use `string<K>` for a longer text that contains
-names, such as a query condition.
+objects that are properties of other objects, such as `customer.address.city`. After an array
+property, `@key` names the key of an element and `@value` names the element. An example is
+`authors.@value.name`. Use `string<K>` for a longer text that contains names, such as a filter for a
+database query.
+
+An attribute is data written above a class, such as `#[Search(fields: ['title'])]`. When you declare
+an attribute, the type `property<static>` takes the name of a property of the class below it. The
+compiler checks each name.
 
 ## Do and don't
 

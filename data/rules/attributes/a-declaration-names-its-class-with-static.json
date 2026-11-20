@@ -1,6 +1,6 @@
 {
   "title": "`static` in an attribute declaration's fields names the class the attribute is used on, and a retrieval binds it to its target's class",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "attributes/an-attribute-is-declared-with-its-sites",
     "types/property-key",

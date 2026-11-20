@@ -22,7 +22,7 @@ stages:
     context: [docs/examples/lang/types/property-keys/about.md, docs/reference/lang/20-types.md, docs/agent/prose.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: cases
@@ -232,18 +232,15 @@ reference and `about.md`. Their files are disjoint, and no one builds until both
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-The person chose `property<static>`; every other choice in § *Standing decisions* is a session's call.
-Stage 1 is done: the rule has status `designed` (stage 5 sets it `shipped`), and in an attribute
-declaration's body `static` reads `Env::attribute_static`.
-
-Stage 2 is done (`31614a776a`). A string at a `property<C>` or `propertyPath<C>` field of a payload,
+Stage 1 is done: in an attribute declaration's body `static` reads `Env::attribute_static`. Stage 2
+is done (`31614a776a`). A string at a `property<C>` or `propertyPath<C>` field of a payload,
 alone or in an array, is a key (`crate::retrieval::literal_type`). A wrong name is `E0405` at the
 literal (`crate::retrieval::report_payload_keys`), which also records `C`'s roster. `get` and `all`
 bind `static` to the target's class (`crate::retrieval::static_binding`), and `implementingWith` joins
@@ -256,28 +253,25 @@ The rule `rule:ide/completion-offers-only-what-the-compiler-derived` says so. Th
 build and clippy are green. The nightly CI failures the sweep named (run `44722386375`) were fixed
 before this goal by `e5a100b18f` and `438e9c44af`.
 
-Stage 4's pages are written. `about.md` and `details.md` say what `property<static>` takes, and the
-rendered `docs/reference/lang/20-types.md` follows. The example `08-…` reads a `Search` attribute
-back with `Core\Attributes::get`, and the attack `04-…` names a private property and another class's
-property. Only the review and the bench are left.
+Stage 4 is done. `about.md`, `details.md`, the example `08-…`, the attack `04-…` and the page
+`syntax/classes/property-names.mdx` passed their newcomer reviews, each finding fixed, and are
+stamped. The bench was measured again: 4 statements and no allocations per operation, as before.
+`bun nv proofs --id lang:types/property-keys` reports the feature complete.
+
+Stage 5 closed the goal (it is not this chain's full gate). The build, `cases` and `editor` are
+green. `bun nv owners --closes attribute-property-names` names no gap, and `bun nv site --check stale
+changes review` is green. The rule `rule:attributes/a-declaration-names-its-class-with-static` is
+`shipped`, and it now records the `Match::attribute<T>` gap below. The goal is reached.
 
 ### Next
 
-Stage 4's last item. `bun nv proofs --id lang:types/property-keys` owes two proofs. First, the
-newcomer review of `docs/examples/lang/types/property-keys/about.md` (and its `details.md` paragraph
-at line 30), then `bun nv site --review --stamp` on it. Second, the bench measured again, because
-`docs/reference/lang/20-types.md` changed: see `bun nv proofs`' perf line for the command. Then stage 5
-closes the goal with a build and this goal's own checks (`cases`, `editor`), runs `bun nv owners
---closes attribute-property-names` and `bun nv site --check stale`, and sets the rule's status to
-`shipped`. No existing test is expected to go red. The example `08-…` runs on the debug binary and
-prints its `.out`, and the attack `04-…` gives two `E0405`s, at lines 15 and 23.
+Nothing in this goal. It joins the chain's `ungated:` list, so the next full gate runs its tests. The
+tests that might go red there are the ones the Backlog's first `declared-attributes` bullet names.
 
 ### Backlog
 
-- **`Core\Router\Match::attribute<T>` does not bind `static` yet.** Its `T` is lowered with the
-  default binding, so `static` in `T`'s fields is the error type with no diagnostic. The fix is
-  `implementingWith`'s: join over the routed classes with `crate::program::joined_shape`. It waits for
-  stage 5 or a user, since no route attribute names `static` yet.
+- **`Core\Router\Match::attribute<T>` does not bind `static` yet.** The rule records it, so it
+  outlives this file. The fix is `implementingWith`'s join (`crate::program::joined_shape`).
 
 Taken over from `declared-attributes`, whose file is deleted once it is retired. None of them blocks
 a stage here, and each stays here until a stage that touches its file takes it.

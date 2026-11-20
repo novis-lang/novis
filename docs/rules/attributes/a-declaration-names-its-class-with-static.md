@@ -36,6 +36,9 @@ properties. `property<static>` takes one name, and `array<property<static>>` a l
   each field's types joined over those classes: `array<property<Post>>|array<property<User>>`. Every
   class's payload fits that shape. A target that names no declaration is `E0730`, and `static` in the
   type argument reports nothing more there (`rule:types/one-mistake-reports-once`).
+  `Core\Router\Match::attribute<T>` does not bind it yet: `static` in `T`'s fields is the error type
+  with no diagnostic. The fix is `implementingWith`'s join over the routed classes
+  (`crate::program::joined_shape`), taken when a route attribute first names `static`.
 - **A string literal in a payload at a `property<C>` field is read as a written name**, as an array
   element too, exactly as a literal at a key parameter is (`rule:types/property-key`). A public declared
   property of `C`, its ancestors' included, makes it a `property<C>`. Any other name, a `private` one

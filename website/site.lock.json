@@ -3828,7 +3828,7 @@
     "lang:types/properties-and-constants": "66c3dc66e69ecb46"
   },
   "docs/examples/lang/types/property-keys/about.md": {
-    "lang:types/property-keys": "3e5966b35f3993c8"
+    "lang:types/property-keys": "b2809e678c02cf16"
   },
   "docs/examples/lang/types/property-paths/about.md": {
     "lang:types/property-paths": "b01f87d7db8d44ee"
@@ -9440,7 +9440,7 @@
     "PropertyObserver": "8a1a5f9738d8f0d9"
   },
   "syntax/classes/property-names.mdx": {
-    "lang:types/property-keys": "2dcb4154d50e2972",
+    "lang:types/property-keys": "597745b281c38965",
     "lang:types/property-paths": "58d9e9a84454d344",
     "lang:types/strings-with-holes": "643089d2047c6f64"
   },
