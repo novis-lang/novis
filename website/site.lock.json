@@ -9397,7 +9397,7 @@
     "lang:programs/names-and-casing": "30ac80157b285ab7"
   },
   "syntax/basics/variables.mdx": {
-    "lang:types/every-binding-has-a-type": "074e79b078a85f5b"
+    "lang:types/every-binding-has-a-type": "386f53fe8856bd33"
   },
   "syntax/classes/anonymous-objects.mdx": {
     "lang:expressions/anonymous-objects": "7ab9db232dfd4312"
@@ -9479,8 +9479,8 @@
     "lang:iteration/core-collections-are-iterable": "608dfd60e23024ce",
     "lang:iteration/keys-and-values-from-a-map": "7605a745ea6bd811",
     "lang:iteration/materialising-a-sequence-core-arr-from": "209b18cd9c6aec12",
-    "lang:iteration/what-foreach-walks": "4e90e37187a25baf",
-    "lang:statements/foreach": "7323a56f7c639151"
+    "lang:iteration/what-foreach-walks": "8807d6e372d99adb",
+    "lang:statements/foreach": "c411470cd727e2ab"
   },
   "syntax/control-flow/if.mdx": {
     "lang:statements/expression-statements-blocks-and-declarations": "a370ecf5e8283a8e",

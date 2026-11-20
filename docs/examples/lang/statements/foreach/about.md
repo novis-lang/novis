@@ -1,10 +1,10 @@
 `foreach` visits every element of an array, a generator or any object you can iterate. Write
 `foreach ($subject as var $value)`, and the body runs once for each element.
 
-`var` gives the variable the type of the subject's values. You may get the key too, with
+`var` gives the variable the type of the values in `$subject`. You may get the key too, with
 `var $key => var $value`. An array's key is a `string`, and a `Core\ObjectMap`'s key has the map's
-key type. You can write the type in place of `var`, as in `string $key => int $value`. A loop variable without `var` and without a type does not
-compile.
+key type. You can write the type in place of `var`, as in `string $key => int $value`. A loop
+variable without `var` and without a type does not compile.
 
 The value variable is a copy. With `inout`, as in `foreach ($rows as inout var $row)`, each write to
 the variable goes back into the array. The syntax `&$value` does not compile. A loop visits the
