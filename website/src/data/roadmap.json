@@ -44,6 +44,13 @@
       "goals": [
         "reload-now"
       ]
+    },
+    {
+      "title": "Faster answers from nvs code",
+      "text": "`nvs code` uses the same index as the editor. It does not analyse an unchanged project again. The first index of a project uses every processor core. One `calls` or `reach` command can take several methods.",
+      "goals": [
+        "code-warm-index"
+      ]
     }
   ]
 }
