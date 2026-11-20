@@ -396,7 +396,7 @@ fn object_body(
     Node::Object {
         class,
         id,
-        properties: properties_of(&object, desc, caps, depth, seen, 0),
+        properties: properties_of(value, &object, desc, caps, depth, seen, 0),
     }
 }
 
@@ -409,6 +409,7 @@ fn object_body(
 /// then discarded — a `secret` object's own properties are not read, and a
 /// `secret` string contributes no elision node saying how long it was.
 fn properties_of(
+    value: Value,
     object: &NvsObj,
     desc: &ClassDesc,
     caps: &Caps,
@@ -417,13 +418,14 @@ fn properties_of(
     first: usize,
 ) -> Vec<(String, Node)> {
     let mut properties = Vec::new();
+    let keys_private = desc.store_keys_private(value);
     for slot in first..object.field_count() {
         let name = desc
             .field_name(slot)
             .map_or_else(|| slot.to_string(), ToOwned::to_owned);
         let node = if desc.field_is_secret(slot) {
             Node::Redacted
-        } else if desc.keyed_stores().is_some() {
+        } else if keys_private {
             store_node(object.field(slot), caps, depth + 1, seen)
         } else {
             node_of(object.field(slot), caps, depth + 1, seen)
@@ -433,10 +435,9 @@ fn properties_of(
     properties
 }
 
-/// A slot of a class whose array slots are identity-keyed stores
-/// ([`ClassDesc::keyed_stores`]): an array is shown as the list of its values,
-/// because its keys are the store's own and never leave it. Any other value is
-/// shown as it is.
+/// A slot of an instance whose store keys are the store's own
+/// ([`ClassDesc::store_keys_private`]): an array is shown as the list of its
+/// values, because its keys never leave it. Any other value is shown as it is.
 fn store_node(value: Value, caps: &Caps, depth: usize, seen: &mut Seen) -> Node {
     let Some(ptr) = value.array_ptr() else {
         return node_of(value, caps, depth, seen);
@@ -496,6 +497,7 @@ pub fn properties_past(value: Value, first: usize) -> Vec<(String, Node)> {
     )]
     let desc: &ClassDesc = unsafe { &*object.class() };
     properties_of(
+        value,
         &object,
         desc,
         &Caps::default(),

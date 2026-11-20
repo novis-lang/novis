@@ -456,6 +456,14 @@ pub(crate) fn rekey(set: Value) {
     crate::instance::set_slot(receiver, ENTRIES, Value::array(rebuilt));
 }
 
+/// The set's [`nvs_runtime::KeysPrivate`] hook: a chain or identity key is
+/// the store's own and is never shown, and a `string` or `int` member is its
+/// own key and is shown.
+pub(crate) fn keys_private(set: Value) -> bool {
+    set.obj_ptr()
+        .is_none_or(|receiver| keying_of(receiver).keeps_keys())
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\ObjectSet<T>::add(T $value): void` — adds `$value` if the set
     /// does not already hold something identical to it.

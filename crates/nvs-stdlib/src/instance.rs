@@ -1226,16 +1226,24 @@ fn descriptors() -> &'static Descriptors {
             }
         }
         // The two collections whose stores may be keyed by object identity:
-        // a graph copy re-keys them, and a record shows their stores' values
-        // only (`nvs_runtime::ClassDesc::keyed_stores`).
-        let keyed: [(&str, nvs_runtime::Rekey); 2] = [
-            (crate::objmap::NAME, crate::objmap::rekey),
-            (crate::objset::NAME, crate::objset::rekey),
+        // a graph copy re-keys them, and a record shows a chain or identity
+        // store's values only (`nvs_runtime::ClassDesc::keyed_stores`).
+        let keyed: [(&str, nvs_runtime::Rekey, nvs_runtime::KeysPrivate); 2] = [
+            (
+                crate::objmap::NAME,
+                crate::objmap::rekey,
+                crate::objmap::keys_private,
+            ),
+            (
+                crate::objset::NAME,
+                crate::objset::rekey,
+                crate::objset::keys_private,
+            ),
         ];
-        for (name, rekey) in keyed {
+        for (name, rekey, keys_private) in keyed {
             let ids: Vec<_> = found.ids_named(name).collect();
             for id in ids {
-                found.table.set_keyed_stores(id, rekey);
+                found.table.set_keyed_stores(id, rekey, keys_private);
             }
         }
         // `rule:classes/serialize-is-a-closed-format`: what each slot holds,

@@ -489,6 +489,14 @@ pub(crate) fn rekey(map: Value) {
     crate::instance::set_slot(receiver, VALUES, Value::array(values));
 }
 
+/// The map's [`nvs_runtime::KeysPrivate`] hook: a chain or identity key is
+/// the store's own and is never shown, and a `string` or `int` key is the
+/// program's own key and is shown.
+pub(crate) fn keys_private(map: Value) -> bool {
+    map.obj_ptr()
+        .is_none_or(|receiver| keying_of(receiver).keeps_keys())
+}
+
 nvs_runtime::nvs_helper! {
     /// `Core\ObjectMap<K, V>::set(K $key, V $value): void` — associates
     /// `$value` with `$key`, replacing whatever `$key` held.

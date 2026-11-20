@@ -797,12 +797,18 @@ pub struct ClassDesc {
     ///
     /// A copy that makes new objects leaves the stores keyed by the old
     /// objects, so [`crate::graph`]'s live carrier calls it once the copy of
-    /// the instance is complete. A key never leaves its store, so the record
-    /// walk ([`crate::record`]) shows each array slot of such a class by its
-    /// values alone. `nvs_stdlib::instance` writes it through
+    /// the instance is complete. An identity or chain key never leaves its
+    /// store, so the record walk ([`crate::record`]) shows each array slot of
+    /// such an instance by its values alone, where `keys_private` says so.
+    /// `nvs_stdlib::instance` writes it through
     /// [`ClassTable::set_keyed_stores`]. **Cost:** one word per class, once per
     /// process, and one load and branch per object a live copy makes.
     keyed_stores: Option<Rekey>,
+    /// Whether an instance's store keys are the store's own, so the record
+    /// walk shows each array slot by its values alone. A store keyed by the
+    /// program's own `string` or `int` keys shows them. Set with
+    /// [`ClassDesc::keyed_stores`], and `None` for every other class.
+    keys_private: Option<KeysPrivate>,
 }
 
 /// A [`ClassDesc::free`] hook. It is handed the dying object, borrowed at
@@ -816,6 +822,12 @@ pub type FreeState = fn(&mut Ctx, Value);
 /// hold. It must not retain or release the object, and must not reach
 /// compiled code.
 pub type Rekey = fn(Value);
+
+/// A [`ClassDesc::keyed_stores`] class's second hook. It is handed the
+/// instance, borrowed, and says whether its store keys are the store's own
+/// and must not be shown. It must not retain or release the object, and must
+/// not reach compiled code.
+pub type KeysPrivate = fn(Value) -> bool;
 
 /// One row of a [`ClassDesc`]'s method table: a name, the compiled address it
 /// answers with, and the **declared shape** a caller holding only tagged
@@ -1731,6 +1743,13 @@ impl ClassDesc {
     #[must_use]
     pub fn keyed_stores(&self) -> Option<Rekey> {
         self.keyed_stores
+    }
+
+    /// Whether `object`, an instance of this class, keeps keys in its array
+    /// slots that the record walk must not show — see the field.
+    #[must_use]
+    pub fn store_keys_private(&self, object: Value) -> bool {
+        self.keys_private.is_some_and(|private| private(object))
     }
 
     /// Whether an instance of this class holds a host handle — the bit
@@ -2682,6 +2701,7 @@ impl ClassTable {
             bytes_refusal: None,
             free: None,
             keyed_stores: None,
+            keys_private: None,
         }));
         id
     }
@@ -2843,19 +2863,21 @@ impl ClassTable {
     }
 
     /// Marks `id` as a class whose array slots are identity-keyed stores, and
-    /// gives the hook that re-keys a copy of one — see
+    /// gives the hook that re-keys a copy of one and the hook that says whether
+    /// an instance's store keys may be shown — see
     /// [`ClassDesc::keyed_stores`]. A setter on [`ClassTable::set_free`]'s
     /// terms.
     ///
     /// # Panics
     ///
     /// If `id` does not belong to this table.
-    pub fn set_keyed_stores(&mut self, id: ClassId, rekey: Rekey) {
+    pub fn set_keyed_stores(&mut self, id: ClassId, rekey: Rekey, keys_private: KeysPrivate) {
         let desc = self
             .classes
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.keyed_stores = Some(rekey);
+        desc.keys_private = Some(keys_private);
     }
 
     /// Fills in `id`'s per-slot declared tags — see [`ClassDesc::field_tags`].

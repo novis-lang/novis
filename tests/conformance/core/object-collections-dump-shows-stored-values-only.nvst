@@ -1,5 +1,5 @@
 --TEST--
-A rendering of a `Core\ObjectMap` or `Core\ObjectSet` shows the values it stores and never the key the store files them under — `rule:errors/record-transformations`
+A rendering of a `Core\ObjectMap` or `Core\ObjectSet` shows the values it stores and never a key the store makes for itself, and a collection keyed by exactly `string` or `int` shows those keys, which are the program's own —`rule:errors/record-transformations`
 --FILE--
 <?nvs
 final class Tag {
@@ -27,6 +27,16 @@ Core\ObjectMap<?Tag, int> $maybe = new Core\ObjectMap<?Tag, int>();
 $maybe->set(null, 0);
 $maybe->set($red, 1);
 echo Core\Debug::render($maybe), "\n";
+
+Core\ObjectMap<string, int> $byName = new Core\ObjectMap<string, int>();
+$byName->set("red", 3);
+$byName->set("blue", 7);
+echo Core\Debug::render($byName), "\n";
+
+Core\ObjectSet<int> $ids = new Core\ObjectSet<int>();
+$ids->add(5);
+$ids->add(9);
+echo Core\Debug::render($ids), "\n";
 --EXPECT--
 Core\ObjectMap#1 (3) {
   $keys => array(2) [
@@ -74,4 +84,20 @@ Core\ObjectMap#1 (3) {
     1 => int(1)
   ]
   $keying => int(0)
+}
+Core\ObjectMap#1 (3) {
+  $keys => array(0) [
+  ]
+  $values => array(2) [
+    "red" => int(3)
+    "blue" => int(7)
+  ]
+  $keying => int(1)
+}
+Core\ObjectSet#1 (2) {
+  $entries => array(2) [
+    "5" => int(5)
+    "9" => int(9)
+  ]
+  $keying => int(2)
 }
