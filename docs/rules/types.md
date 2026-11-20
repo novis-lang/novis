@@ -3,8 +3,6 @@
 
 # Types
 
-*1 of 58 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="types-declaration"></a>
 
 ## Every binding declares its type, and no binding's type ever changes
@@ -2770,7 +2768,7 @@ without declaring a class, and the carrier two anonymous functions use to share 
 
 <a id="types-shape-type"></a>
 
-## `{name: T}` in type position is a structural shape checked by width subtyping, and `{name?: T}` marks a key that may be absent  *(designed — owned by goal declared-attributes)*
+## `{name: T}` in type position is a structural shape checked by width subtyping, and `{name?: T}` marks a key that may be absent
 
 `rule:types/shape-type`
 

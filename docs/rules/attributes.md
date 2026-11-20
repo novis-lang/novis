@@ -3,11 +3,9 @@
 
 # Attributes
 
-*7 of 12 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="attributes-inert-metadata"></a>
 
-## An attribute is an anonymous object on a declaration, checked against its attribute declaration, and nothing is ever instantiated for it  *(designed — owned by goal declared-attributes)*
+## An attribute is an anonymous object on a declaration, checked against its attribute declaration, and nothing is ever instantiated for it
 
 `rule:attributes/inert-metadata`
 
@@ -46,7 +44,7 @@ nothing more is declared.
 
 <a id="attributes-an-attribute-is-declared-with-its-sites"></a>
 
-## Only an attribute declaration follows `#[`, it lists the sites it is used on, and one declared in a class or interface is used on that type's descendants  *(designed — owned by goal declared-attributes)*
+## Only an attribute declaration follows `#[`, it lists the sites it is used on, and one declared in a class or interface is used on that type's descendants
 
 `rule:attributes/an-attribute-is-declared-with-its-sites`
 
@@ -152,7 +150,7 @@ them reports a use, the checks after it are skipped for that use. One mistake is
 
 <a id="attributes-attach-sites-and-forms"></a>
 
-## An attribute attaches to a declaration or a parameter its declaration lists, and its payload is checked against the declaration's fields  *(designed — owned by goal declared-attributes)*
+## An attribute attaches to a declaration or a parameter its declaration lists, and its payload is checked against the declaration's fields
 
 `rule:attributes/attach-sites-and-forms`
 
@@ -259,7 +257,7 @@ process is the durable exposure the `secret` sinks exist to close.
 
 <a id="attributes-repeatable"></a>
 
-## Only an attribute declared `repeatable` may be used twice on one declaration  *(designed — owned by goal declared-attributes)*
+## Only an attribute declared `repeatable` may be used twice on one declaration
 
 `rule:attributes/repeatable`
 
@@ -314,7 +312,7 @@ other thing.
 
 <a id="attributes-a-retrieval-matches-the-declaration-it-names"></a>
 
-## A retrieval names an attribute declaration and finds only the payloads written under it, never a payload of the same shape  *(designed — owned by goal declared-attributes)*
+## A retrieval names an attribute declaration and finds only the payloads written under it, never a payload of the same shape
 
 `rule:attributes/a-retrieval-matches-the-declaration-it-names`
 
@@ -327,7 +325,8 @@ function Core\Attributes::all<T>(callable $target, string $member = ""): array<T
 short name or as `Owner::Name`, resolved as `#[` resolves it. A retrieval finds exactly the payloads
 written under that declaration. It never matches by shape: two declarations with the same fields find
 only their own payloads, and a payload written under one is never an answer for the other. The answer's
-type is the declaration's shape.
+type is the declaration's shape. `Core`'s compiler attributes are declarations too, so
+`get<Core\Command>` returns the `#[Core\Command]` payloads, typed by that declaration's fields.
 
 A `T` that is not an attribute declaration is `E1008` at the type argument. That covers an inline
 shape such as `get<{name: string}>`, a `type` alias, a class and an enum.
@@ -367,7 +366,7 @@ under, such as `Shop\Storable::Index` for an owned one and `Shop\Job` for one at
 
 <a id="attributes-retrieval-folds-while-checking"></a>
 
-## A retrieval is answered while checking and replaced by its answer, so ambiguity is a compile error  *(designed — owned by goal declared-attributes)*
+## A retrieval is answered while checking and replaced by its answer, so ambiguity is a compile error
 
 `rule:attributes/retrieval-folds-while-checking`
 
@@ -491,7 +490,7 @@ compiler never asks what the name means.
 
 <a id="attributes-access-payload"></a>
 
-## `#[Access]` names one resolvable decision in `allow`, and one of them covers a method  *(designed — owned by goal declared-attributes)*
+## `#[Access]` names one resolvable decision in `allow`, and one of them covers a method
 
 `rule:attributes/access-payload`
 

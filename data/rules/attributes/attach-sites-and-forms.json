@@ -1,6 +1,6 @@
 {
   "title": "An attribute attaches to a declaration or a parameter its declaration lists, and its payload is checked against the declaration's fields",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "attributes/inert-metadata",
     "attributes/payload-is-a-compile-time-constant",
@@ -13,6 +13,5 @@
     "tests/conformance/lang/an-attribute-declared-in-an-interface-is-named-through-its-owner.nvst",
     "crates/nvs-syntax/src/parser/tests/decl.rs",
     "crates/nvs-types/src/attributes.rs"
-  ],
-  "goal": "declared-attributes"
+  ]
 }

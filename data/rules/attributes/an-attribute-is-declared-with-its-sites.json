@@ -1,6 +1,6 @@
 {
   "title": "Only an attribute declaration follows `#[`, it lists the sites it is used on, and one declared in a class or interface is used on that type's descendants",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "attributes/attach-sites-and-forms",
     "attributes/repeatable",
@@ -16,6 +16,5 @@
     "tests/conformance/reject/only-an-attribute-declaration-follows-the-attribute-bracket.nvst",
     "tests/conformance/reject/an-attribute-declaration-lists-only-sites-a-retrieval-reads.nvst",
     "tests/conformance/reject/an-attribute-name-two-scopes-give-does-not-compile.nvst"
-  ],
-  "goal": "declared-attributes"
+  ]
 }

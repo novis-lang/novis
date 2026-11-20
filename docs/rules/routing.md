@@ -3,8 +3,6 @@
 
 # Routing
 
-*1 of 33 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="routing-routes-are-compiled-not-registered"></a>
 
 ## A route is a `#[Route]` compiled into the unit's table, its three runtime bugs are compile errors, and one method's routes share one path
@@ -535,7 +533,7 @@ compiler-recognised attributes this table draws on has one home
 
 <a id="routing-a-match-reads-an-attribute-as-data"></a>
 
-## `CoreRouterMatch::attribute<T>()` returns the one payload of the attribute declaration `T` on the matched route's method, folded while compiling  *(designed — owned by goal declared-attributes)*
+## `CoreRouterMatch::attribute<T>()` returns the one payload of the attribute declaration `T` on the matched route's method, folded while compiling
 
 `rule:routing/a-match-reads-an-attribute-as-data`
 

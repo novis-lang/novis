@@ -1,6 +1,6 @@
 {
   "title": "Only an attribute declared `repeatable` may be used twice on one declaration",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "attributes/a-retrieval-matches-the-declaration-it-names",
     "attributes/retrieval-folds-while-checking",
@@ -9,6 +9,5 @@
   "guardedBy": [
     "tests/conformance/core/an-attribute-is-retrieved-by-the-declaration-it-was-written-under.nvst",
     "crates/nvs-types/tests/attributes.rs"
-  ],
-  "goal": "declared-attributes"
+  ]
 }

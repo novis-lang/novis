@@ -486,8 +486,8 @@ writes the same tree from the same generator for any other reader. The tree is w
 render and again when a file is missing; nothing repairs a file in place.
 
 A stub is a declaration with its real signature and an empty body: a class with each method, constant,
-constructor and owned enum, an enum with its cases, an attribute as the shape-typed `type` alias a userland
-attribute already is, each under its reference card ([`core-api/reference-card`](core-api.md#core-api-reference-card)), and a header
+constructor and owned enum, an enum with its cases, an attribute as the `attribute` declaration a program
+writes, with its sites and each field's doc, each under its reference card ([`core-api/reference-card`](core-api.md#core-api-reference-card)), and a header
 saying the file is generated and edits are lost. Registry prose is rendered as it is written. A
 member's card is the doc comment a program writes for its own method, in the layout `nvs fmt` writes
 ([`tooling/fmt-orders-the-doc-tags`](tooling.md#tooling-fmt-orders-the-doc-tags)): the prose, an empty line, `@param` in signature order,
@@ -1524,8 +1524,9 @@ verified as "the token carries the modifier", never as a colour.
 
 The name in front of a `::` is coloured as what it resolved to — `enum` before a case, `class` before
 a constant, a static call or a static property — carrying `defaultLibrary` for a `Core` enum exactly as
-for a `Core` class. An attribute's name is a `type` token, since it names the shape its payload
-satisfies, with `defaultLibrary` for a compiler attribute; its payload is coloured as the expressions
+for a `Core` class. An attribute's name is a `decorator` token, at each `#[Name]` and at its
+`attribute` declaration, since it names an attribute declaration and no type, with `defaultLibrary`
+for a compiler attribute; its payload is coloured as the expressions
 it holds, so `Core\Http\Method::Get` inside `#[...]` reads as it does in a body.
 
 The legend the client registers must equal the legend the server declares. A mismatch silently colours
@@ -2048,13 +2049,15 @@ whose declared type is a set of allowed string values ([`types/single-value-type
 those values, read off the parameter types the checker records on the call it resolved; the string
 converted with `as property<T>`, and a string argument at a parameter whose type takes a `property<T>`
 beside a `string`, which complete as `T`'s public declared properties with their types, read off the set
-the checker tests that conversion against ([`types/property-key`](types.md#types-property-key)); the field names of a compiler
-attribute's payload, such as `#[Api]`'s, from the attribute's card, which is held to the roster the
-checker reads the payload against; the security schemes the program declares with `#[Api\Scheme]`, at
+the checker tests that conversion against ([`types/property-key`](types.md#types-property-key)); at `#[`, the attribute
+declarations whose `on` list names the site below and whose owner the class descends from, `Core`'s
+included, and no class or `type` alias; after `on` in a declaration, the site words a program's
+declaration may list; the keys of an attribute's payload, each with its field's doc, from the
+declaration the checker resolved the name to, a `Core` one's held to the roster the checker reads the
+payload against; the security schemes the program declares with `#[Api\Scheme]`, at
 an entry of an `#[Api]` `security` list, from the route table the checker holds each such name against
-([`routing/a-security-scheme-is-declared-in-code`](routing.md#routing-a-security-scheme-is-declared-in-code)); every attribute's anonymous object, whose shape
-is a declared type, which completes as the fields of the shape the checker resolved the attribute's
-alias to, and a string in it, which completes as the set of allowed values its field's type lists, in an
+([`routing/a-security-scheme-is-declared-in-code`](routing.md#routing-a-security-scheme-is-declared-in-code)); a nested `{…}` in an attribute's payload,
+which completes as the fields of the shape its field declares, and a string in it, which completes as the set of allowed values its field's type lists, in an
 array and a nested shape too; and enum cases, members off a resolved receiver
 and in-scope variables, which are the same rule and not an exception to it.
 

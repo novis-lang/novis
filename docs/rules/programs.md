@@ -3,8 +3,6 @@
 
 # Programs
 
-*1 of 18 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="programs-audience"></a>
 
 ## Novis is built for web applications of every kind, with command-line tooling second
@@ -311,7 +309,7 @@ never checked past its declaration and never reaches codegen.
 
 <a id="programs-implementing-with"></a>
 
-## `Core\Program::implementingWith<I, T>($member)` joins the enumeration with one attribute per class, and it expands while compiling  *(designed — owned by goal declared-attributes)*
+## `Core\Program::implementingWith<I, T>($member)` joins the enumeration with one attribute per class, and it expands while compiling
 
 `rule:programs/implementing-with`
 

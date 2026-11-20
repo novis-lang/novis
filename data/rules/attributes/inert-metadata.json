@@ -1,6 +1,6 @@
 {
   "title": "An attribute is an anonymous object on a declaration, checked against its attribute declaration, and nothing is ever instantiated for it",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "attributes/attach-sites-and-forms",
     "attributes/payload-is-a-compile-time-constant",
@@ -10,6 +10,5 @@
   "guardedBy": [
     "tests/conformance/core/an-attribute-is-retrieved-by-the-declaration-it-was-written-under.nvst",
     "crates/nvs-types/src/attributes.rs"
-  ],
-  "goal": "declared-attributes"
+  ]
 }
