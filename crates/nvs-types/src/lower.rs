@@ -1,7 +1,9 @@
 //! Resolves a parsed [`Type`] into an interned [`TypeId`] (`rule:types/grammar`'s
 //! grammar, made concrete).
 //!
-//! A `self`/`static` atom resolves against [`Ctx::current_class`]; `parent`
+//! Inside an attribute declaration's body, `static` is the class the use
+//! binds ([`AttributeStatic`]), and `self` and `parent` are `E0303`.
+//! Everywhere else a `self`/`static` atom resolves against [`Ctx::current_class`]; `parent`
 //! resolves the same way `crate::expr::members::resolve_class_expr`'s `ParentExpr` arm
 //! and `check_new_target`'s `NewTarget::ParentTy` arm do — [`Ctx::current_class`]'s
 //! first `extends` link via [`Env::graph`] — except a `parent` that can't
@@ -111,15 +113,97 @@ pub(crate) fn in_alias_site<'e, R>(
         in_test_code: false,
     };
     let files = env.files;
+    let in_body = std::mem::replace(&mut env.in_attribute_body, site.attribute);
     let Some(file) = files.iter().find(|file| file.src.id() == span.file) else {
-        return f(&inner, env);
+        let out = f(&inner, env);
+        env.in_attribute_body = in_body;
+        return out;
     };
     let saved = (env.src, env.stmts);
     env.src = file.src;
     env.stmts = file.stmts;
     let out = f(&inner, env);
     (env.src, env.stmts) = saved;
+    env.in_attribute_body = in_body;
     out
+}
+
+/// What `static` names in an attribute declaration's fields
+/// (`rule:attributes/a-declaration-names-its-class-with-static`).
+#[derive(Clone, Default)]
+pub(crate) enum AttributeStatic {
+    /// The declaration itself is lowered, where no class is known yet.
+    /// `static` is the error type, and nothing is reported: each use reports
+    /// what is wrong for its own class.
+    #[default]
+    Declaration,
+    /// A use on this class, or a retrieval whose target is in it.
+    Class(nvs_hir::QName),
+    /// A use or a retrieval with no class, where `static` is `E0303`.
+    NoClass,
+}
+
+/// Runs `f` with `static` in an attribute declaration's fields bound to
+/// `binding`, and restores the binding before it returns. A declaration's
+/// shape is lowered once per use already, so this costs nothing beyond that
+/// lowering, and the interner makes a second use on the same class free.
+pub(crate) fn with_attribute_static<'e, R>(
+    binding: AttributeStatic,
+    env: &mut Env<'e>,
+    f: impl FnOnce(&mut Env<'e>) -> R,
+) -> R {
+    let saved = std::mem::replace(&mut env.attribute_static, binding);
+    let out = f(env);
+    env.attribute_static = saved;
+    out
+}
+
+/// `static` inside an attribute declaration's body: the class the use binds
+/// it to.
+fn resolve_attribute_static(span: Span, env: &mut Env<'_>) -> TypeId {
+    match env.attribute_static.clone() {
+        AttributeStatic::Class(qname) => class_or_enum(qname, env),
+        AttributeStatic::Declaration => env.interner.error(),
+        AttributeStatic::NoClass => {
+            env.diags.report(
+                Diagnostic::error(
+                    code::E_UNDEFINED_CLASS,
+                    "`static` in an attribute declaration names the class the attribute is \
+                     used on, and this use is not on a class",
+                )
+                .with_primary(span, "no class to name"),
+            );
+            env.interner.error()
+        }
+    }
+}
+
+/// `self` or `parent` inside an attribute declaration's body, which is
+/// `E0303`: `static` is the one way to name the class the attribute is on.
+fn report_keyword_in_attribute(span: Span, keyword: &str, env: &mut Env<'_>) -> TypeId {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNDEFINED_CLASS,
+            format!("`{keyword}` cannot be used in an attribute declaration"),
+        )
+        .with_primary(span, "not allowed here")
+        .with_help(
+            "write `static`. In an attribute declaration, `static` is the class the attribute \
+             is used on",
+        ),
+    );
+    env.interner.error()
+}
+
+/// The type of the class or enum `qname` names, as a `self` atom gives it.
+fn class_or_enum(qname: nvs_hir::QName, env: &mut Env<'_>) -> TypeId {
+    match env.symbols.get(&qname) {
+        Some(sym) if sym.kind == SymbolKind::Enum => {
+            let backing = env.enums.backing_of(&qname);
+            env.interner.enum_(qname, backing)
+        }
+        _ => env.interner.class(qname),
+    }
 }
 
 fn lower_node(ty: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
@@ -235,6 +319,11 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
             let ret = lower_type_at_depth(ret, depth + 1, ctx, env);
             env.interner.callable_sig(lowered, ret)
         }
+        TypeAtom::SelfTy if env.in_attribute_body => report_keyword_in_attribute(span, "self", env),
+        TypeAtom::Parent if env.in_attribute_body => {
+            report_keyword_in_attribute(span, "parent", env)
+        }
+        TypeAtom::StaticTy if env.in_attribute_body => resolve_attribute_static(span, env),
         TypeAtom::SelfTy => resolve_special(span, "self", ctx, env),
         TypeAtom::StaticTy => resolve_special(span, "static", ctx, env),
         TypeAtom::Parent => resolve_parent(span, ctx, env),
@@ -877,13 +966,7 @@ fn resolve_special(span: Span, keyword: &str, ctx: &Ctx<'_>, env: &mut Env<'_>) 
         // it to this checker anyway — resolve the same way `resolve_name_type`
         // below already does for an explicit enum name, rather than always
         // interning `Ty::Class`.
-        Some(qname) => match env.symbols.get(qname) {
-            Some(sym) if sym.kind == SymbolKind::Enum => {
-                let backing = env.enums.backing_of(qname);
-                env.interner.enum_(qname.clone(), backing)
-            }
-            _ => env.interner.class(qname.clone()),
-        },
+        Some(qname) => class_or_enum(qname.clone(), env),
         None => {
             env.diags.report(
                 Diagnostic::error(
@@ -1271,6 +1354,8 @@ mod tests {
             key_options: Vec::new(),
             secret_options: rustc_hash::FxHashSet::default(),
             deprecated_uses: None,
+            attribute_static: crate::lower::AttributeStatic::Declaration,
+            in_attribute_body: false,
         };
         let id = lower_type(&probe_ty, &ctx, &mut env);
         (id, interner, diags)

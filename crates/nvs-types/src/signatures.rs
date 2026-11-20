@@ -1155,6 +1155,8 @@ pub fn build_signatures(
             key_options: Vec::new(),
             secret_options: FxHashSet::default(),
             deprecated_uses: None,
+            attribute_static: crate::lower::AttributeStatic::Declaration,
+            in_attribute_body: false,
         };
         collect_stmts(file.stmts, &[], &FxHashMap::default(), &mut table, &mut env);
     }

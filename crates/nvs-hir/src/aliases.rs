@@ -152,6 +152,10 @@ pub struct AliasSite {
     /// The class, interface or enum that declares the alias as a member, which
     /// is what `self` and a bare member alias name mean inside it.
     pub owner: Option<QName>,
+    /// Whether this is an `attribute` declaration's body, where `static` names
+    /// the class the attribute is used on and `self` and `parent` name nothing
+    /// (`rule:attributes/a-declaration-names-its-class-with-static`).
+    pub attribute: bool,
 }
 
 impl AliasTable {
@@ -560,13 +564,14 @@ impl AliasResolver {
         }
         let resolved = ctx.resolved;
         let mut table = AliasTable::new();
-        for pending in self.pending.into_values() {
+        for (key, pending) in self.pending {
             table.sites.insert(
                 pending.ty.span,
                 AliasSite {
                     namespace: pending.namespace,
                     imports: pending.imports,
                     owner: pending.owner,
+                    attribute: matches!(key, AliasKey::Attribute(_)),
                 },
             );
         }

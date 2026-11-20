@@ -942,9 +942,18 @@ fn check_attribute(
     if !count_fits(attr, short, &def.name, def.repeatable, true, used, env) {
         return;
     }
-    // 4. The payload fits the declared fields.
+    // 4. The payload fits the declared fields, lowered with `static` bound to
+    // the class the attribute is on: the class itself, or the class that
+    // declares the member or parameter it is on.
     let shape = def.shape.clone();
-    let shape = crate::lower::lower_type(&shape, ctx, env);
+    let binding = ctx
+        .current_class
+        .map_or(crate::lower::AttributeStatic::NoClass, |class| {
+            crate::lower::AttributeStatic::Class(class.clone())
+        });
+    let shape = crate::lower::with_attribute_static(binding, env, |env| {
+        crate::lower::lower_type(&shape, ctx, env)
+    });
     if !matches!(env.interner.get(shape), Ty::Shape(_)) {
         return;
     }

@@ -1,0 +1,25 @@
+--TEST--
+`static` in an attribute declaration's fields names the class the attribute is used on, so it compiles there, and the same field in a top-level `type` alias is `E0303` where the alias is declared
+--FILE--
+<?nvs
+attribute Search on class, property { fields?: array<property<static>> }
+
+type Fields = array<property<static>>;
+
+#[Search]
+class Post {
+    #[Search]
+    public string $title = "a";
+}
+
+Fields $fields = [];
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0303]: `static` used outside any class
+  --> case.nvs:4:30
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

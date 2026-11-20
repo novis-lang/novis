@@ -575,6 +575,8 @@ fn file_env<'a>(
         key_options: Vec::new(),
         secret_options: FxHashSet::default(),
         deprecated_uses: None,
+        attribute_static: crate::lower::AttributeStatic::Declaration,
+        in_attribute_body: false,
     }
 }
 

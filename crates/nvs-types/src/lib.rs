@@ -737,6 +737,17 @@ pub(crate) struct Env<'a> {
     /// deprecated declaration or a member of a deprecated class. Opened by
     /// [`crate::deprecated::window`].
     pub deprecated_uses: Option<crate::deprecated::Uses>,
+    /// What `static` names while an attribute declaration's fields are
+    /// lowered (`rule:attributes/a-declaration-names-its-class-with-static`).
+    /// A use sets it to the class the attribute is on for the length of one
+    /// lowering, with [`crate::lower::with_attribute_static`]. Read only inside
+    /// an attribute declaration's body, which [`Self::in_attribute_body`] says.
+    pub attribute_static: crate::lower::AttributeStatic,
+    /// Whether the type being lowered is inside an attribute declaration's
+    /// body. [`crate::lower::in_alias_site`] sets it at each alias site it
+    /// enters, so a `type` alias named inside the body is read with its own
+    /// rule for `static`.
+    pub in_attribute_body: bool,
     /// The span of every argument a registry row's
     /// `nvs_stdlib::registry::CoreTy::MethodRef` parameter gives a meaning to —
     /// `rule:testing/interaction-after-the-fact`'s method reference, which
