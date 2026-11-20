@@ -18,6 +18,13 @@
 //     bun nv site --shoot [SHOT...]        take each named `.shot`'s screenshot, or every one, and write
 //                                          its picture and its `.shot.out`
 //     bun nv site --build                  the Astro build, and `site: built` when it succeeds
+//     bun nv site --changes --snapshot SINCE
+//                                          write `data/proofs/released.json`: each feature's behaviour hash
+//                                          now, named SINCE, the release or commit it was taken at
+//     bun nv site --changes --release VERSION
+//                                          what a release does with `changes.json`: each entry joins the
+//                                          changelog of every feature it names, the entries and `unseen`
+//                                          are emptied, and the snapshot is taken again as `vVERSION`
 //     bun nv site --roadmap                write README.md's roadmap list from website/src/data/roadmap.json
 //     bun nv site --roadmap --retired      drop the retired goals from roadmap.json, then write and commit
 //     bun nv site --questions --status     `questions <area>: <n> owed, <n> stale` per area, exit 0
@@ -278,7 +285,8 @@
 // is used, keeps the comment bounds of `bun nv proofs --comments`, and has the files § *A snippet*
 // names, each matching), `stale` (no page lacks `covers:`, no id is broken and no page is stale), `questions` (see `questionProblems`),`reference` (see
 // `referenceProblems`), `syntax` (see `syntaxProblems`), `guides` (see `guidesProblems`), `tools` (see
-// `toolsProblems`), `in-depth`
+// `toolsProblems`), `changes` (every feature added, removed or changed since the snapshot has its entry
+// in `changes.json`, and each entry has its shape: `lib/changes.ts`), `in-depth`
 // (see `inDepthProblems`), `apps` (see `appsProblems`), `shots` (§ *A screenshot*), `roadmap` (the
 // roadmap is in step with the goal chain and the README: `lib/site-roadmap.ts`), `code` (§ *A code
 // block*) and `prose` (the
@@ -323,6 +331,7 @@ import { canShoot, recordShot, SHOT, SHOT_OUT, SHOT_PNG, shotFixture, shotPng } 
 import { run as runProc } from "../lib/proc.ts";
 import { comparePaths } from "../lib/py.ts";
 import { card, filesUnder, Hashes, isTextKey, readAt } from "../lib/texts.ts";
+import { changesProblems, readChanges, readReleased, releaseChanges, snapshot, writeReleased } from "../lib/changes.ts";
 import { styleProblems } from "../lib/site-css.ts";
 import { diagramProblems } from "../lib/site-diagrams.ts";
 import { pruneRetired, roadmapProblems, writeRoadmap } from "../lib/site-roadmap.ts";
@@ -333,7 +342,7 @@ import { ABOUT, EXAMPLES, examplesDir, introFile, memberPath, metaJson, roster, 
 import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
 import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
 
-export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp KEY... | --stamp --baseline | --check [PART...] | --bless SNIPPET... | --bless-apps [APP/FILE...] | --shoot [SHOT...] | --build | --roadmap | --questions --status | --owed [AREA] | --stamp URL...";
+export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp KEY... | --stamp --baseline | --check [PART...] | --bless SNIPPET... | --bless-apps [APP/FILE...] | --shoot [SHOT...] | --build | --changes --snapshot SINCE | --release VERSION | --roadmap | --questions --status | --owed [AREA] | --stamp URL...";
 
 export const DOCS = "website/src/content/docs";
 export const SNIPPETS = "website/snippets";
@@ -343,7 +352,7 @@ const GENERATED = ["reference/core/"];
 /** Pages whose wording is fixed by law, and which `prose` does not judge. */
 const LEGAL = ["impressum.mdx", "datenschutz.mdx"];
 
-export const PARTS = ["structure", "snippets", "stale", "questions", "reference", "syntax", "guides", "tools", "in-depth", "apps", "shots", "roadmap", "prose", "code"] as const;
+export const PARTS = ["structure", "snippets", "stale", "questions", "reference", "syntax", "guides", "tools", "in-depth", "apps", "shots", "roadmap", "prose", "code", "changes"] as const;
 type Part = (typeof PARTS)[number];
 /** Where `--build` writes the site, which `reference` reads. */
 const DIST = "website/dist";
@@ -2472,6 +2481,9 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
     } else if (part === "questions") {
       w ??= await world(nvs);
       problems = questionProblems(w);
+    } else if (part === "changes") {
+      w ??= await world(nvs);
+      problems = changesCheck(w);
     } else {
       w ??= await world(nvs);
       const s = staleness(w);
@@ -2484,6 +2496,31 @@ async function check(parts: Part[], nvs: string | null): Promise<number> {
     }
   }
   return failed ? 1 : 0;
+}
+
+/** The `changes` part: the roster now against the snapshot and `changes.json`. */
+export function changesCheck(w: World, root: string = ROOT): string[] {
+  const hashes = new Hashes(root, w.meta);
+  return changesProblems(w.entries, (e) => hashes.behaviour(e), readReleased(root), readChanges(root), proseProblems);
+}
+
+/** `--changes --snapshot SINCE | --release VERSION`. */
+function changesMode(w: World, operands: string[], root: string = ROOT): number {
+  const [sub, name, ...more] = operands;
+  if ((sub !== "--snapshot" && sub !== "--release") || !name || more.length) {
+    console.error("nv site: --changes needs --snapshot SINCE or --release VERSION");
+    return 2;
+  }
+  const hashes = new Hashes(root, w.meta);
+  const behaviour = (e: Entry) => hashes.behaviour(e);
+  if (sub === "--snapshot") {
+    writeReleased(root, snapshot(w.entries, behaviour, name));
+    console.log(`nv site: wrote the behaviour hash of ${w.entries.length} feature(s) as ${name} to data/proofs/released.json`);
+    return 0;
+  }
+  const moved = releaseChanges(root, name, w.entries, behaviour);
+  console.log(`nv site: moved ${moved} entry(ies) into the feature changelogs, and took the snapshot of v${name.replace(/^v/, "")}`);
+  return 0;
 }
 
 /** `--questions --status | --owed [AREA] [--limit N] | --stamp URL...`. */
@@ -2594,6 +2631,13 @@ export async function run(args: string[]): Promise<number> {
         return 1;
       }
       return questionsMode(await world(nvs), operands);
+    }
+    if (mode === "--changes") {
+      if (nvs === null) {
+        console.error("nv site: no `nvs` binary: build one, or pass --nvs");
+        return 1;
+      }
+      return changesMode(await world(nvs), operands);
     }
     if (mode !== "--stale" && mode !== "--stamp") {
       console.error(`nv site: no mode ${mode}\n${summary}`);

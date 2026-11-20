@@ -2,7 +2,8 @@
 // is what a feature owes; `data/proofs/policy.json` is each kind's override of that and the perf
 // report's bounds, each file under `data/proofs/skip/` is one feature's excuses with their reasons,
 // `data/proofs/help-backlog.json` is the features the help proof is not yet asked of, and
-// `data/proofs/intro-backlog.json` is the members their class introduction does not yet have to name.
+// `data/proofs/intro-backlog.json` is the members their class introduction does not yet have to name,
+// and `data/proofs/released.json` is each feature's behaviour hash at the last release.
 
 import { defineRecord, s } from "../lib/schema.ts";
 
@@ -83,4 +84,16 @@ export const introBacklog = defineRecord({
   dir: "proofs/intro-backlog",
   single: true,
   schema: s.object({ features: s.array(s.string()) }),
+});
+
+/**
+ * Each feature's behaviour hash at the last release (`rule:testing/every-change-reaches-the-website`):
+ * `bun nv site --check changes` compares the roster now with it, and `bun nv site --changes --release`
+ * writes it again. `since` names the release, `v0.0.4`, or the commit the first snapshot was taken at.
+ */
+export const released = defineRecord({
+  name: "released",
+  dir: "proofs/released",
+  single: true,
+  schema: s.object({ since: s.string(), features: s.map(s.string()) }),
 });
