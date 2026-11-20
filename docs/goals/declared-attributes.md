@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-types/src/retrieval.rs, crates/nvs-types/src/match_attribute.rs, crates/nvs-types/src/program.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-stdlib/src/reflect.rs]
   - id: 6
     title: the corpus declares its attributes
-    status: open
+    status: done
     context: [docs/agent/prose.md]
   - id: 7
     title: the editor offers only the attributes that fit, and shows each key's doc
@@ -172,6 +172,13 @@ the structural match is replaced by `rule:attributes/a-retrieval-matches-the-dec
 does not compile. `Core\Router\Match::attribute<T>()` and `Core\Program::implementingWith<I, T>`
 take a declaration the same way. `Core\Reflect\AttributeInfo::name()` returns the declaration's full
 name. A retrieval still folds while compiling (`rule:attributes/retrieval-folds-while-checking`).
+
+**A retrieval may name a `Core` declaration (stage 6's call).** Stage 5 made `get<Core\Command>` an
+`E1008`, and that broke the command table read back from its own declarations and every page that
+read a route's `path` with `implementingWith<Page, Core\Route>`. A `Core` row is the same declaration
+value a program's `attribute` is, so a retrieval names it the same way, and its payload's type is the
+row's fields (`crates/nvs-types/src/attributes.rs` `core_payload_type`). One rule with no exception
+is the simpler surface, and it costs nothing at run time: the fold is the same.
 
 **The bare form `#[{…}]` is removed (my call).** Nobody can discover it, and no retrieval can name it.
 Its parse error says to declare an attribute.
@@ -405,12 +412,12 @@ session builds once they all end and runs `bun nv nvs-fmt`. A case whose expecte
 removed rule, such as a structural match across two names, is rewritten to pin the new rule, and its
 commit says why.
 
-- [ ] Each alias used as an attribute becomes an `attribute` declaration with the sites its uses need,
+- [x] Each alias used as an attribute becomes an `attribute` declaration with the sites its uses need,
   moved into the class it is meant for where the example has one. Each bare form becomes a declared
   attribute. Each inline-shape retrieval names a declaration.
-- [ ] Every comment the change touches in a published `.nvs` file follows `AGENTS.md` § *Text an end
+- [x] Every comment the change touches in a published `.nvs` file follows `AGENTS.md` § *Text an end
   user reads*, and `bun nv proofs --comments` passes on each touched directory.
-- [ ] `bun nv suite tests/conformance/` runs once over the touched cases, by name, and each is green.
+- [x] `bun nv suite tests/conformance/` runs once over the touched cases, by name, and each is green.
 
 ### 7. the editor offers only the attributes that fit, and shows each key's doc
 
@@ -473,43 +480,39 @@ reference, `about.md` and the pages. Their files are disjoint.
 
 ### State
 
-Stages 1 to 5 are done. The checker resolves and checks every program attribute, and `Core`'s
-compiler attributes are declarations checked by the same site (`E0874`) and count (`E0763`) rules.
-Every retrieval now matches by declaration: `crates/nvs-types/src/attributes.rs` `declaration_arg`
-names which type argument is a declaration (`get`/`all` and `Match::attribute` the first,
-`implementingWith` the second), `lower_retrieval_arg` lowers it or reports `E1008`, and
-`retrieval::matching` keeps a site when `attributes::declaration_at` resolves its name, in the
-site's own scope, to the same `QName`. `E0729` is retired. `AttributeInfo::name()` returns the
-declaration's full name: `layout::ClassAttribute::name_span` is looked up in
-`ExprTypeTable::attribute_name_at` by `crates/nvs-ir/src/lower/mod.rs` when it builds a class
-descriptor. The two `retrieval` cases and the six named unit tests pass by name.
+Stages 1 to 6 are done. Every `.nvs`, `.nvst` and `.lspt` file in the corpus declares its
+attributes (commit `c8b3922075`), and no file writes `#[{` or names `E0726`, `E0729` or `E0871`.
+The 43 touched conformance cases pass by name, the changed Rust tests pass by name, and
+`bun nv proofs --comments` passed on every touched directory. `bun nv rules --check` is green.
 
-**Red until stage 6:** every corpus file with `#[{…}]` (`E0140`), a shape alias after `#[`
-(`E1005`), or a shape or a type as a retrieval's `T` (`E1008`). About 55 files are under
-`tests/conformance/`, `tests/hostile/`, `docs/examples/`, `benches/members/` and `tests/lsp/`.
-Also the `E0726` and `E0871` reject cases, and the two cases that still expect `E0729`:
-`tests/conformance/core/router-match-attribute-of-a-type-that-is-not-a-shape-is-e0729.nvst` and
-`tests/conformance/reject/an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst`.
-Stage 6 renames the first for `E1008`. The four `E0728` cases expect the old message, "match this
-shape". It now reads "has N `Name` attributes". Rust tests that write `#[{`: `Grep` for `#\[\{` under `crates/`, such as
-`crates/nvs-fmt/tests/`, `crates/nvs-lsp/tests/` and `crates/nvs-cli/tests/agent.rs`. Stage 6
-migrates them with the corpus.
+This session also landed three fixes the migration found:
+
+- **A retrieval may name a `Core` declaration** (`48aa41503e`, recorded under *Standing
+  decisions*). `attributes::core_payload_type` builds the payload type from the row's fields, and
+  `attributes::declaration_of` returns a `QName` for both kinds. A `Core` enum field such as
+  `Core\Route`'s `method` is that enum. `tests/conformance/core/a-retrieval-reads-a-core-attributes-payload.nvst`
+  pins `Core\Command`, `Core\Option` and `Core\Route`.
+- **`Core\Ast` has `AttributeDecl`** (`fa0e6ea768`) and **a second `#[Json\Field]` is `E0763`
+  alone** (`f632eefe61`). The nightly's other reds were fixed before this session.
+
+**Red, expected:** four `.lspt` cases from stage 4's `Core` declarations, which stage 7 owns:
+`tests/lsp/definition/a-compiler-attribute-answers-its-stub.lspt` (answers `Route.nvs:10:22`, not
+`10:6`), and `tests/lsp/hover/a-changed-grant-changes-the-route-hover.lspt`,
+`a-route-hover-lists-the-programs-grants.lspt` and `an-attribute-name-answers-the-attributes-card.lspt`
+(the `#[Core\Route(...)]` card changed). On the debug binary, three attacks pass the 10 s bound
+(`tests/hostile/core/Attributes/all/01`, `lang/attributes/an-attribute-is-an-anonymous-object-…/01`,
+`lang/attributes/reading-attributes-back-…/01`). They take 1.4 to 2.4 s on a release proof binary.
 
 ### Next
 
-Stage 6: the corpus declares its attributes. Follow the stage's `**Split:**` line.
+Stage 7: the editor offers only the attributes that fit. Follow the stage's `**Split:**` line.
 
-- An `Explore` subagent lists every file that writes `#[{`, a `type` alias used after `#[`,
-  `Owner::Name` after `#[`, or a retrieval (`Attributes::get<`, `Attributes::all<`,
-  `->attribute<`, `implementingWith<`), grouped by top directory.
-- One writing subagent per directory, side by side: `docs/examples/`, `tests/conformance/`,
-  `tests/hostile/` with `benches/`, and `tests/lsp/` with `website/snippets/` and `extensions/`.
-  Each declares `attribute Name on <the sites its uses need> { … }`, moves it into the class it is
-  meant for where the example has one, and makes each retrieval name the declaration.
-- `docs/examples/lang/attributes/*/details.md` and `docs/reference/lang/90-attributes.md:276`,
-  `:2811` still name `E0729`. The reference is stage 8's, and the example `details.md` files go with
-  their directory in stage 6.
-- Then the session builds, runs `bun nv nvs-fmt`, and runs the touched cases once, by name.
+- Fix the four red `.lspt` cases above first: each is the stub or card that stage 4's declaration
+  rows changed. Read the new answer, and decide whether the case or the server is wrong.
+- `tests/lsp/semantic/an-attribute-name-is-a-type-token.lspt` pins an attribute name as a `type`
+  token, and a declaration's own name gets no token. The stage's `semantic.rs` item changes both,
+  and the case is renamed with it.
+- `crates/nvs-lsp/src/completion.rs:2856` and `:1438` are the anchors the stage names.
 
 ### Backlog
 
@@ -521,3 +524,26 @@ Stage 6: the corpus declares its attributes. Follow the stage's `**Split:**` lin
 - `ExprTypeTable::attribute_name_at` searches a `Vec` once per attribute of a described class. It
   costs one comparison per resolved name, while compiling only. A map is the fix if a program with
   many attributes shows it in a compile profile.
+- **The rule and the binary disagree on an inherited method.**
+  `rule:attributes/a-retrieval-matches-the-declaration-it-names` says a method `Sub` inherits without
+  overriding reads its parent's declaration. `get<Tag>(B::show)`, where only `A` declares `show`,
+  returns `null`. Stage 9 fixes the code or the rule, with a case.
+- **An optional field a payload omits reads without `??`, then throws.** `string $l = $o->long;` on a
+  `Core\Option` payload with no `long` compiles and fails at run time. Check whether an ordinary
+  shape's optional field does the same. If so, it is a `rule:types/shape-type` gap, not this goal's.
+- `var $y = Core\Attributes::get<Tag>(A::other); echo $y?->name ?? 'none';` throws "read property
+  `name` on null" at run time. With `?{name: string} $y` it prints `none`. Look at the type `var`
+  infers for a retrieval.
+- Diagnostics that still describe the old rules: `E0101`'s "expected the name of a `type` alias
+  after `::`" after `#[Page::`, `E0731`'s "satisfies the retrieved shape", and `E1008`'s and
+  `E1005`'s help starting with a capital. Reword them in stage 8 with the reference.
+- One mistake, two errors: `implementingWith<Page, X>` with a bad `X` gives `E1008` and `E0443`
+  ("foreach cannot iterate a `mixed`"), and a secret in an `array<mixed>` payload field gives
+  `E0824` beside `E0727`.
+- `data/proofs/review-baseline.json` names three renamed paths:
+  `Reflect-AttributeInfo/name/01-the-written-name.nvs` (now `01-the-full-name.nvs`) and the
+  `implementingWith` example `05-each-page-beside-its-route.nvs` (now
+  `05-each-call-reads-only-the-attribute-it-names.nvs`). Stage 8's review stamps them again.
+- `docs/examples/lang/attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration/` is
+  named for the old idea. Its texts are rewritten, and stage 8 renames the directory and its
+  `chapter.md` heading with the feature id.

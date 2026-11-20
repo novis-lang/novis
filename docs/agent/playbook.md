@@ -52,6 +52,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `bun nv suite` then reports thousands of red cases. The panic reads `registers ... with no
   implementation address`. Add the `"nvs_core_..." => (fn as *const ()).cast()` row beside the
   member's neighbour. See `crates/nvs-stdlib/src/lib.rs` `entry_of`.
+- **A new syntax node kind needs its `Core\Ast` class, at the same index.** `AttributeDecl` went
+  into `nvs_syntax::walk::KINDS` alone, and every `Core\Ast` class after it named the next
+  production: `File` came back as `Float`. The build and the parser tests were green, and two
+  conformance cases went red a stage later. Add the name to `productions!` in
+  `crates/nvs-stdlib/src/ast.rs`, in `KINDS`'s order.
 - **A bigger string header can push a hostile proof's early step past the memory ceiling, and only
   `floor-debt` runs every proof.** The start word made each one-letter string 49 bytes, and the
   `chunk` and `graphemes` attacks hit the FATAL at step 1, not their last step. The gate and `ci
