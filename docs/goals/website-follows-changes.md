@@ -10,12 +10,12 @@ stages:
     context: [tools/nv/proofs/markers.ts, tools/nv/test/site.test.ts, data/rules/testing/website-pages-are-stamped.json, data/rules/testing.json]
   - id: 2
     title: "an added, removed or changed feature needs an entry in changes.json, and a release moves the entries into its release notes"
-    status: open
+    status: done
     context: [tools/nv/cmd/release.ts, website/src/lib/feature.ts, website/src/components/MethodChangelog.astro, tools/nv/schema/proofs.ts, .github/workflows/release.yml, tools/nv/cmd/ci.ts]
   - id: 3
     title: every feature changed since the last release has its entry
     status: open
-    context: [website/src/data/changes.json, docs/agent/prose.md]
+    context: [website/src/data/changes.json, docs/agent/prose.md, tools/nv/lib/changes.ts, tools/nv/cmd/ci.ts]
   - id: 4
     title: "a changed user text needs a review stamp, and Reviewed is a feature proof"
     status: open
@@ -324,9 +324,24 @@ generated from commit messages (a commit subject is written for contributors, no
 **This goal owes the website** the changelog section of the generic reference page. `bun nv` is a contributor's
 tool and no roster feature, so the goal owes no feature proof and no entry of its own.
 
+**What stage 2 settled (my calls, 2026-11-20).**
+
+- The code is `tools/nv/lib/changes.ts`, not `site.ts`: `release.ts` renders the entries too, and
+  importing `site.ts` there would load the whole website tool. `site.ts` passes its `proseProblems` in.
+- A moved hash is cleared by a `changed` or a `fixed` entry. An entry that is not `faster`,
+  `highlight` or `security` and names a feature whose hash did not move is a problem, so an entry
+  cannot claim a change the tests do not show.
+- `core-changelog.json` keys a `Core` member by its page id (`Str.length`, the group without `Core\`
+  and with `.` for `\`), and every other feature by its roster id, which `reference.json` carries.
+- The notes are: the entries' sections, then `### Internal changes` (the count line), then `### Details`
+  with the commit-log sections one level down (`####`), so no heading appears twice.
+- **The stale guard runs `changes` from stage 3, not stage 2.** The first snapshot names 163 features,
+  so turning the part on before the entries exist would make every push and `ci-check` red for a
+  stage. The item moved to stage 3. `changes` is in `PARTS`, so a bare `bun nv site --check` runs it.
+
 **Lanes.** Stages 1, 2 and 4 share `tools/nv/cmd/site.ts` and `tools/nv/lib/texts.ts`, so they run in
-that order. Stage 3 writes `website/src/data/changes.json` only, and may run as a side goal beside stage
-4 once stage 2 is done. Stage 5 touches `AGENTS.md` and `docs/agent/` only, and may run as a side goal
+that order. Stage 3 writes `website/src/data/changes.json` and the three stale-guard lines, and may run
+as a side goal beside stage 4 once stage 2 is done. Stage 5 touches `AGENTS.md` and `docs/agent/` only, and may run as a side goal
 at any time after stage 1: every command it names is settled above.
 
 **Limits: what stops this goal.** One attempt per item, and at most two sessions per stage. An item
@@ -376,30 +391,27 @@ entries at the top of the release notes, and adds the release step.
 **Split:** the session writes the code. One writing subagent writes the changelog section of the
 generic reference page from § *The reference pages*, once the data file's shape is on disk.
 
-- [ ] `tools/nv/schema/proofs.ts:86`: the `released` record for `data/proofs/released.json`, beside
+- [x] `tools/nv/schema/proofs.ts:86`: the `released` record for `data/proofs/released.json`, beside
   `helpBacklog`. `testing/every-change-reaches-the-website` (new)
-- [ ] `tools/nv/cmd/site.ts:2453`: the `changes` part in `PARTS` (`:339`) and `check`, as § *The
+- [x] `tools/nv/cmd/site.ts:2453`: the `changes` part in `PARTS` (`:339`) and `check`, as § *The
   snapshot* says, reading `website/src/data/changes.json:1` (created with empty `entries` and `unseen`).
   `testing/every-change-reaches-the-website` (new)
-- [ ] `tools/nv/cmd/site.ts:2608`: `--changes --snapshot` and `--changes --release <version>`, as
+- [x] `tools/nv/cmd/site.ts:2608`: `--changes --snapshot` and `--changes --release <version>`, as
   § *The snapshot* and § *The release step* say. The module doc (`:1`) lists both.
   `testing/every-change-reaches-the-website` (new)
-- [ ] `.github/workflows/release.yml:353`: a step after *Bump the manifests* that unpacks the Linux
+- [x] `.github/workflows/release.yml:353`: a step after *Bump the manifests* that unpacks the Linux
   x86_64 archive from `dist/` and runs `bun nv site --changes --release "$VERSION" --nvs <it>`. The
   commit step's `git add` (`:368`) adds `changes.json`, `core-changelog.json` and
   `data/proofs/released.json`. `testing/every-change-reaches-the-website` (new)
-- [ ] `tools/nv/cmd/release.ts:439`: `renderNotes` starts with the parts of § *The release notes*,
+- [x] `tools/nv/cmd/release.ts:439`: `renderNotes` starts with the parts of § *The release notes*,
   read from `website/src/data/changes.json`, and the commit-log sections follow under `### Details`.
   `testing/every-change-reaches-the-website` (new)
-- [ ] `tools/nv/cmd/ci.ts:350` and `.github/workflows/ci.yml:608`: the website stale guard runs
-  `changes` too. The comment above the CI step says what it checks.
-  `testing/every-change-reaches-the-website` (new)
-- [ ] `website/src/pages/reference/[area]/[...slug].astro:90`: the changelog section of § *The
+- [x] `website/src/pages/reference/[area]/[...slug].astro:90`: the changelog section of § *The
   reference pages*, from the subagent.
   `testing/every-change-reaches-the-website` (new)
-- [ ] `tools/nv/test/site-changes.test.ts:1`: the ten tests the `changes-tool` check names, then the
+- [x] `tools/nv/test/site-changes.test.ts:1`: the ten tests the `changes-tool` check names, then the
   check run once by name.
-- [ ] The first snapshot, `data/proofs/released.json:1`, as § *The first snapshot* says. `gh release
+- [x] The first snapshot, `data/proofs/released.json:1`, as § *The first snapshot* says. `gh release
   download v0.0.4` of this host's archive into `.agent-tmp/v0.0.4/`, the worktree under
   `.agent-tmp/worktrees/v0.0.4`, removed afterwards without a forced form. `since` is written into
   `### State`.
@@ -418,6 +430,9 @@ merges them into the data file, and deletes the drafts.
 - [ ] `website/src/data/changes.json:1`: one entry per change a user can see, which may name several
   features. An `unseen` record only for a moved hash with nothing a user sees, with its `why`.
   `testing/every-change-reaches-the-website` (new)
+- [ ] `tools/nv/cmd/ci.ts:350`, `tools/nv/cmd/deep.ts:122` and `.github/workflows/ci.yml:608`: the
+  website stale guard runs `changes` too, once the entries above make it green. The comment above the
+  CI step says what it checks. `testing/every-change-reaches-the-website` (new)
 - [ ] The `changes-green` check, run once.
 
 ### 4. a changed user text needs a review stamp, and Reviewed is a feature proof
@@ -483,29 +498,25 @@ commands and `--check review`, and makes Reviewed a feature proof.
 
 ### State
 
-Stage 1 is done, and its `feature-hash` and `stale-green` checks are green. The rule
-`docs/rules/testing/every-change-reaches-the-website.md` is written and `designed`.
-`tools/nv/lib/texts.ts` holds `readAt`, `filesUnder`, `section`, `card`, `testIndex` and the
-`Hashes` class: `page`, `text`, `about`, `help`, `behaviour` and `textsOf` (an entry's lock
-keys with their hashes). Two shapes differ from the stage's wording, both my call: `testIndex(root)`
-scans every marker once and `Hashes` memoizes per feature, where the item named a per-entry
-`testsOf`, because `staleness` hashes thousands of features in one run; and `markersAt` in
-`tools/nv/proofs/markers.ts` now returns each marker's position, and `markersIn` is built on it, so
-both read the same markers. `staleness` reports the `about.md` and help verdicts in a new `texts`
-field beside `stale`, and `--check stale` and `--stale` print both. `bun nv site --stamp --baseline`
-ran once: 3109 `about.md` and help stamps, 260 page stamps restamped. `syntax/values/enums.mdx` was
-already stale for `Core\Unit`, `Core\Time\Weekday`, `Novis\Intl\DateFormat::ZoneStyle` and
-`Novis\Pdf\Document::Standard` (their cards and examples moved); it was reread and stamped.
+Stages 1 and 2 are done, and the `changes-tool` check is green (11 tests). `tools/nv/lib/changes.ts`
+holds the data shapes, `changesProblems`, `notesSections`, `changelogKey` and `releaseChanges`.
+`bun nv site --check changes`, `--changes --snapshot SINCE` and `--changes --release VERSION` are in
+`tools/nv/cmd/site.ts`. `renderNotes` (`tools/nv/cmd/release.ts`) starts with the entries, and
+`release.yml` moves them after *Bump the manifests*. The generic reference page shows each feature's
+changelog (`MethodChangelog.astro` takes `level` and `slug`), and the site builds.
 
-The acceptance sweep's nightly failures (run 44510687786, head `adc7487822`) were all fixed by
-commits after that head: Miri by `4c82a2409a` (the named tests pass under Miri in WSL), supply chain
-by `eb5c02e983` (`cargo deny check advisories` is ok), the debug-viewer shots by `656f5b2f2d`
-(`site shots: ok`), and the browser race by `1c75c4ef0e`. No change was needed.
+The first snapshot, `data/proofs/released.json`, is `since: "v0.0.4"`: 1597 features, read with the
+v0.0.4 Windows release binary in a worktree at the tag with the current `tools/nv`. On the tree now,
+`--check changes` names 163 features: 36 new, 117 changed and 10 removed.
+
+The stale-guard item moved to stage 3 (§ *What stage 2 settled*).
 
 ### Next
 
-Stage 2, from its first item: the `released` record in `tools/nv/schema/proofs.ts:86`, then the
-`changes` part in `tools/nv/cmd/site.ts` (`check`, near `staleness`), using
-`Hashes.behaviour` from `tools/nv/lib/texts.ts`. No test is expected to go red.
+Stage 3, as its **Split:** line says: `bun nv site --check changes --nvs target/debug/nvs.exe` lists
+the 163, subagents draft one area each, the session merges them into
+`website/src/data/changes.json:1`, then adds `changes` to the guard in `tools/nv/cmd/ci.ts:350`,
+`tools/nv/cmd/deep.ts:122` (`SITE_CHECKS`) and `.github/workflows/ci.yml:608`. No test is expected to
+go red; `bun nv site --check` with no part is red until stage 3 is done.
 
 ### Backlog
