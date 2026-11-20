@@ -1,5 +1,5 @@
 {
-  "title": "A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure and its growth, an attack and its help in the binary",
+  "title": "A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure and its growth, an attack, its help in the binary and a newcomer's review of its texts",
   "status": "shipped",
   "seeAlso": [
     "testing/roster-is-derived",
@@ -13,6 +13,9 @@
     "data/proofs/policy.json",
     "data/proofs/skip",
     "data/proofs/help-backlog.json",
-    "tools/nv/test/proof-growth.test.ts"
+    "tools/nv/test/proof-growth.test.ts",
+    "tools/nv/lib/texts.ts",
+    "data/proofs/review-baseline.json",
+    "tools/nv/test/site-review.test.ts"
   ]
 }

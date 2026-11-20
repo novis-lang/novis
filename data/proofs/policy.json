@@ -8,6 +8,7 @@
   "owes": {
     "all": {
       "about": true,
+      "reviewed": true,
       "comments": true
     },
     "member": {
