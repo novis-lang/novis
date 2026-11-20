@@ -29,6 +29,9 @@
 //! an error. `#[NoMutate]` code makes no mutant at all: the lowering's survey
 //! leaves it out.
 //!
+//! `--since <ref>` keeps a mutant when any line of its span changed since the
+//! ref ([`super::since`]). With a target as well, both must hold.
+//!
 //! # One mutant at a time
 //!
 //! Each mutant is lowered and compiled whole, with no artifact cache: the
@@ -163,13 +166,15 @@ fn keys(mutants: &[Mutant]) -> Vec<String> {
     keys
 }
 
-/// What `--mutate=<target>` keeps. With no target, every mutant.
+/// What `--mutate=<target>` and `--since` keep. With neither, every mutant.
 #[derive(Default)]
 pub(super) struct Aim {
     /// Folders and files, canonical.
     paths: Vec<std::path::PathBuf>,
     /// Class and method labels, with no leading `\`.
     names: Vec<String>,
+    /// `--since`'s changed lines.
+    since: Option<super::since::Changed>,
 }
 
 impl Aim {
@@ -213,9 +218,32 @@ impl Aim {
         Ok(aim)
     }
 
-    /// Whether `mutant` is kept: no target was given, its file is under a
-    /// path target, or its function is a named method or in a named class.
+    /// Keeps only the mutants on a line in `changed`, besides any target.
+    pub(super) fn since(&mut self, changed: super::since::Changed) {
+        self.since = Some(changed);
+    }
+
+    /// Whether `mutant` is kept: its targets keep it, and under `--since` a
+    /// line of its span changed.
     fn keeps(&self, checked: &crate::Checked, mutant: &Mutant) -> bool {
+        self.targets_keep(checked, mutant)
+            && self.since.as_ref().is_none_or(|changed| {
+                let Some(source) = checked.map.get(mutant.span.file) else {
+                    return false;
+                };
+                let first = source.line_col(mutant.span.start).0 + 1;
+                let last = source.line_col(mutant.span.end).0 + 1;
+                source
+                    .path()
+                    .and_then(|path| std::fs::canonicalize(path).ok())
+                    .is_some_and(|path| changed.touches(&path, first, last))
+            })
+    }
+
+    /// Whether the targets keep `mutant`: no target was given, its file is
+    /// under a path target, or its function is a named method or in a named
+    /// class.
+    fn targets_keep(&self, checked: &crate::Checked, mutant: &Mutant) -> bool {
         if self.paths.is_empty() && self.names.is_empty() {
             return true;
         }

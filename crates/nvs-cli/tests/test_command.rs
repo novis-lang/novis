@@ -577,6 +577,212 @@ fn nvs_test_mutate_aimed_at_nothing_that_exists_exits_with_an_error() {
     }
 }
 
+/// Runs `git` with `args` in `dir`, with no global or system configuration,
+/// and never in a checkout above `dir`. Fails the test when git does.
+fn git_in(dir: &Path, args: &[&str]) {
+    let out = git_command(dir)
+        .args([
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "-c",
+            "commit.gpgsign=false",
+        ])
+        .args(args)
+        .output()
+        .expect("`git` is on `PATH`");
+    assert!(
+        out.status.success(),
+        "git {args:?}: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
+/// A `git` command in `dir` that reads no global or system configuration
+/// and finds no checkout above `dir`.
+fn git_command(dir: &Path) -> Command {
+    let mut command = Command::new("git");
+    command.current_dir(dir);
+    for (key, value) in git_env(dir) {
+        command.env(key, value);
+    }
+    command
+}
+
+/// The environment every `git` of a `--since` test runs under, `nvs`'s own
+/// included: an empty global configuration, no system one, and the parent of
+/// `dir` as a ceiling, so the repository's own checkout is never found.
+fn git_env(dir: &Path) -> Vec<(&'static str, std::ffi::OsString)> {
+    let global = dir
+        .parent()
+        .expect("a scratch folder has a parent")
+        .join(format!(
+            "{}.gitconfig",
+            dir.file_name().unwrap().to_string_lossy()
+        ));
+    fs::write(&global, "").unwrap();
+    vec![
+        ("GIT_CONFIG_GLOBAL", global.into_os_string()),
+        ("GIT_CONFIG_NOSYSTEM", "1".into()),
+        (
+            "GIT_CEILING_DIRECTORIES",
+            dir.parent().unwrap().as_os_str().to_owned(),
+        ),
+    ]
+}
+
+/// Runs `nvs test` with `args` from `dir`, under [`git_env`].
+fn test_in_checkout(dir: &Path, args: &[&str]) -> Output {
+    let data = nvs_repo::scratch_private("nvsdata");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+    command
+        .arg("--data")
+        .arg(&*data)
+        .arg("test")
+        .args(args)
+        .current_dir(dir);
+    for (key, value) in git_env(dir) {
+        command.env(key, value);
+    }
+    command
+        .output()
+        .expect("the `nvs` binary this test was built beside runs")
+}
+
+/// The aimed program in a new checkout, with `aim_test.nvs` and
+/// `shop/cart.nvs` committed and `blog/post.nvs` never added.
+fn aimed_checkout(case: &str) -> PathBuf {
+    let dir = aimed(case, AIMED_CART, AIMED_POST);
+    git_in(&dir, &["init", "--quiet"]);
+    git_in(&dir, &["add", "aim_test.nvs", "shop/cart.nvs"]);
+    git_in(&dir, &["commit", "--quiet", "-m", "start"]);
+    dir
+}
+
+/// `--since HEAD` changes only the lines edited since the commit, and every
+/// line of a file git does not track.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_since_mutates_only_changed_and_untracked_lines() {
+    let dir = aimed_checkout("mutate-since-lines");
+    fs::write(
+        dir.join("shop").join("cart.nvs"),
+        AIMED_CART.replace("return $a + $b;", "return $b + $a;"),
+    )
+    .unwrap();
+    let out = test_in_checkout(
+        &dir,
+        &[
+            "aim_test.nvs",
+            "--mutate",
+            "--since",
+            "HEAD",
+            "--format",
+            "json",
+        ],
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&out.stdout)
+        .unwrap_or_else(|e| panic!("`--format json` writes one document: {e}"));
+    let mut functions: Vec<&str> = document["mutants"]
+        .as_array()
+        .expect("a `mutants` array")
+        .iter()
+        .map(|m| m["function"].as_str().unwrap_or_default())
+        .collect();
+    functions.sort_unstable();
+    functions.dedup();
+    assert_eq!(
+        functions,
+        ["Cart::total", "Post::words"],
+        "the edited line and the untracked file, and not `Cart::big`: {document}"
+    );
+
+    let out = test_in_checkout(
+        &dir,
+        &[
+            "aim_test.nvs",
+            "--mutate=Post",
+            "--since=HEAD",
+            "--format",
+            "json",
+        ],
+    );
+    let document: serde_json::Value = serde_json::from_slice(&out.stdout)
+        .unwrap_or_else(|e| panic!("`--format json` writes one document: {e}"));
+    let mutants = document["mutants"].as_array().expect("a `mutants` array");
+    assert!(
+        !mutants.is_empty() && mutants.iter().all(|m| m["function"] == "Post::words"),
+        "a target and `--since` must both hold: {document}"
+    );
+}
+
+/// A ref git does not know stops the run with exit code 2, before any test
+/// runs.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_since_a_ref_git_does_not_know_exits_with_an_error() {
+    let dir = aimed_checkout("mutate-since-unknown");
+    let out = test_in_checkout(
+        &dir,
+        &["aim_test.nvs", "--mutate", "--since=no-such-branch"],
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(2), "{stdout}{stderr}");
+    assert!(
+        stderr.contains("`--since=no-such-branch` names no branch, tag or commit"),
+        "{stderr}"
+    );
+    assert!(!stdout.contains("AimTest"), "no test runs: {stdout}");
+}
+
+/// A ref that starts with `-` is refused before git runs, so git never reads
+/// it as an option and writes no file.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_since_a_ref_that_starts_with_a_dash_is_not_a_git_option() {
+    let dir = aimed_checkout("mutate-since-dash");
+    let written = dir.join("written.txt");
+    for since in [
+        format!("--since=-o{}", written.display()),
+        format!("--since=--output={}", written.display()),
+    ] {
+        let out = test_in_checkout(&dir, &["aim_test.nvs", "--mutate", &since]);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        assert_eq!(out.status.code(), Some(2), "{since}: {stdout}{stderr}");
+        assert!(
+            stderr.contains("never starts with `-`"),
+            "{since}: {stderr}"
+        );
+        assert!(!written.exists(), "{since}: git wrote a file");
+        assert!(
+            !stdout.contains("AimTest"),
+            "{since}: no test runs: {stdout}"
+        );
+    }
+}
+
+/// A program outside a git checkout stops a `--since` run with exit code 2.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_since_outside_a_checkout_exits_with_an_error() {
+    let dir = aimed("mutate-since-no-checkout", AIMED_CART, AIMED_POST);
+    let out = test_in_checkout(&dir, &["aim_test.nvs", "--mutate", "--since=HEAD"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(out.status.code(), Some(2), "{stdout}{stderr}");
+    assert!(stderr.contains("needs a git checkout"), "{stderr}");
+    assert!(!stdout.contains("AimTest"), "no test runs: {stdout}");
+}
+
 /// `nvs test --mutate` runs the tests, then each mutant: the human report
 /// names the survivor and its change, a survivor does not fail the run, and
 /// the JSON document's `mutants` records say how many tests ran each one. A

@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-cli/src/runner.rs, crates/nvs-types/src/testing.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-ir/src/lower/mod.rs, docs/rules/testing/report-formats.md, docs/rules/testing/tests-never-reach-a-build.md]
   - id: 2
     title: "--since <ref> reads the changed lines from git, and a mutation run mutates only those"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner.rs, crates/nvs-cli/tests/test_command.rs]
   - id: 3
     title: "--since selects the tests a change can reach, and <file>:<line> runs the test at that line"
@@ -206,6 +206,18 @@ runs only on a developer's machine or CI, never on the request path.
 **`--since` with `--mutate` (my call).** A mutant is kept when any line of its span is a changed
 line. It combines with `--mutate=<target>`: both must hold.
 
+**What `--since` runs, as built (my call).** Four git commands, not two: `rev-parse
+--show-toplevel` for the root every path is relative to and the "not a checkout" error,
+`rev-parse --verify --quiet --end-of-options <ref>^{commit}` for the "unknown ref" error, then the
+diff and `ls-files -z --others --exclude-standard --full-name`. The diff also passes
+`--no-textconv --no-relative --src-prefix=a/ --dst-prefix=b/`, so a user's `diff.*` settings cannot
+move a path. The dash is refused by clap's value parser (`runner::since_ref`) and again in
+`since::changed`. A line that was only deleted adds no range; stage 3 decides how a deletion inside
+a function marks it changed. `--since` has `requires = "mutate"` until stage 3 gives it a meaning
+alone, and stage 3 removes that. An attack on `nvs test`'s arguments is a `// proof: test-refused
+<args>` line (`tools/nv/proofs/run.ts` `TEST_REFUSED_RE`): it passes on status 2 with an `error:`
+line, and `tests/hostile/README.md` lists it.
+
 **`--since` without `--mutate`: test selection (my call).** A run that measures per-test coverage
 writes a *reached map* to the data folder, beside the failed-tests file
 (`crates/nvs-cli/src/runner.rs:1126` `failed_tests_file`), keyed the same way by the entry path.
@@ -377,22 +389,22 @@ keeps code out. The JSON report becomes version 5 with `function` and `key`.
 **Does:** one module that turns a ref into changed lines, and the mutation filter that reads it.
 Test selection waits for stage 3.
 
-- [ ] `crates/nvs-cli/src/runner/since.rs:1`: the module. It runs the two git commands, parses
+- [x] `crates/nvs-cli/src/runner/since.rs:1`: the module. It runs the two git commands, parses
   `--unified=0` hunks into a map from canonical path to changed line ranges, adds untracked files
   whole, refuses a ref that starts with `-`, and gives the three errors. Its module doc states what
   it spends: one range list per changed file for the run.
-- [ ] `crates/nvs-cli/src/runner.rs:156`: the `--since <ref>` flag beside the selectors, refused
+- [x] `crates/nvs-cli/src/runner.rs:156`: the `--since <ref>` flag beside the selectors, refused
   beside a `.nvst` tree. Help text in end-user prose.
-- [ ] `crates/nvs-cli/src/runner/mutation.rs:95`: under `--since`, keep a mutant whose span has a
+- [x] `crates/nvs-cli/src/runner/mutation.rs:95`: under `--since`, keep a mutant whose span has a
   changed line, together with any targets.
-- [ ] `docs/rules/testing/mutation-testing.md`: `--since`, the commands it runs, `--end-of-options`,
+- [x] `docs/rules/testing/mutation-testing.md`: `--since`, the commands it runs, `--end-of-options`,
   and the three errors.
-- [ ] The four `since-mutate` tests in `crates/nvs-cli/tests/test_command.rs`. Each makes its own
+- [x] The four `since-mutate` tests in `crates/nvs-cli/tests/test_command.rs`. Each makes its own
   git repository under its scratch folder, sets `user.name`, `user.email` and
   `commit.gpgsign=false` with `-c`, and never reads the global git configuration
   (`GIT_CONFIG_GLOBAL` set to an empty file). The dash case passes `--since=-o/tmp/x` and shows that
   no file is written and the run exits with status 2. The `since-mutate` check runs once.
-- [ ] `tests/hostile/tools/cli/nvs-test/02-a-ref-that-is-a-git-option.nvs:1`: an attack whose
+- [x] `tests/hostile/tools/cli/nvs-test/02-a-ref-that-is-a-git-option.nvs:1`: an attack whose
   `// proof:` line runs `test --since=--output=x`. If `tests/hostile/README.md` gives a `proof:`
   line no checkout, it shows the refusal of the dash before git runs, which needs none.
 
@@ -515,28 +527,35 @@ declares, with its help text's first line, and the session writes the pages from
 
 ### State
 
-Stage 1 is done, and `aim` and `aim-ir` are green. `Mutant.function` is set by `mutate::within`,
-which now takes the label, and wraps methods, generators, property hooks and file scripts.
-`#[NoMutate]` is `crates/nvs-types/src/derive.rs` `NO_MUTATE` (sites: class, method), its card is
-the `AttributeDoc` there, and a missing or empty `because:` is `E0880`. `ExprTypeTable::is_no_mutate`
-matches the label or any `::` prefix of it. `--mutate` is `Option<Vec<String>>` in `Flags`.
-`mutation::Aim::resolve` (`crates/nvs-cli/src/runner/mutation.rs:168`) judges the targets before the
-suite runs (`crates/nvs-cli/src/runner.rs:960`), exit 2. Keys are numbered over the whole survey in
-`mutation::keys` before the aim filters, so an aimed run keeps every key. JSON is version 5.
+Stages 1 and 2 are done; `aim`, `aim-ir` and `since-mutate` are green. Stage 1: `Mutant.function`,
+`#[NoMutate]` (`crates/nvs-types/src/derive.rs` `NO_MUTATE`, `E0880`), `mutation::Aim::resolve`,
+keys numbered before the aim filters, JSON version 5.
 
-Nightly run 44510687786's failures (supply chain, every Miri shard, the debug-viewer shots, the
-registry browser test) were all on adc7487822. Later commits fix each one: eb5c02e983,
-4c82a2409a, 656f5b2f2d and 1c75c4ef0e. Nothing was left to fix.
+Stage 2: `crates/nvs-cli/src/runner/since.rs` gives `since::changed(folder, ref) -> Changed`, a map
+from canonical path to added line ranges (untracked files whole), with `Changed::touches(path,
+first, last)`. The flag is `Args::since` with `value_parser = since_ref` and `requires = "mutate"`;
+`Flags::since` carries it. `runner::run` reads the changes after `Aim::resolve`, in
+`snapshot.folder()` or the entry file's folder, and calls `Aim::since`. `Aim::keeps` is now
+`targets_keep && since`. `main.rs` refuses `--since` beside a `.nvst` tree. The standing decision
+*What `--since` runs, as built* lists what differs from the plan: four git commands, and the new
+`// proof: test-refused <args>` directive the attack uses. The tests' git runs under
+`GIT_CONFIG_GLOBAL` (an empty file), `GIT_CONFIG_NOSYSTEM` and `GIT_CEILING_DIRECTORIES`, because
+the scratch folder is inside this repository's own checkout (`test_command.rs` `git_env`).
+
+The nightly failures of run 44510687786 were all on adc7487822, and later commits fixed each one
+(eb5c02e983, 4c82a2409a, 656f5b2f2d, 1c75c4ef0e).
 
 ### Next
 
-Stage 2: `crates/nvs-cli/src/runner/since.rs` (new), the `--since` flag beside the selectors at
-`crates/nvs-cli/src/runner.rs:156`, and the changed-line filter in `Aim::keeps`
-(`crates/nvs-cli/src/runner/mutation.rs:218`), which `list` (`:125`) already calls per mutant.
-`Mutant.span` and `checked.map` give each site's lines. The `since-mutate` tests are unwritten and
-red until the stage writes them.
+Stage 3: remove `requires = "mutate"` from `Args::since` (`crates/nvs-cli/src/runner.rs`, the
+`since:` field), and conflict it with `rerun_failed` (done already). The reached map goes beside
+`failed_tests_file` (`crates/nvs-cli/src/runner.rs:1214`), and `--since` turns on `measured`
+(`:908`). The selection goes into `Selection` (`:1669`), built from `since::Changed`. A pure
+deletion adds no range today: `since::added` returns `None` for a `+N,0` hunk. Stage 3 should
+record the deletion point, so a function that only lost lines counts as changed. `<file>:<line>`
+is parsed where `paths` is read.
 
-Tests expected red until the gate: none known. The existing `--mutate` tests that read
-`schemaVersion` were updated to 5.
+Tests expected red until the gate: the CLI reference's flag check, if one exists, may now name
+`--since`; stage 7 writes it. No `changes.json` entry yet: it comes with the goal's last stages.
 
 ### Backlog

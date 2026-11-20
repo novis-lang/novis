@@ -113,7 +113,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeSet, VecDeque};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -124,6 +124,7 @@ use nvs_types::defaults::ConstArg;
 use rand::RngExt;
 
 mod mutation;
+mod since;
 
 /// Run a program's `#[Test]` methods, or a tree of `.nvst` conformance
 /// cases.
@@ -335,6 +336,24 @@ pub(crate) struct Args {
         conflicts_with_all = ["list", "update", "watch"]
     )]
     mutate: Option<Vec<String>>,
+    /// Change only the lines that changed since a git branch, tag or commit.
+    ///
+    /// `--since main` reads the changes with `git diff main`. A line you
+    /// added or edited counts, and so does every line of a new file that
+    /// git does not track yet. No change is made on any other line. This
+    /// flag needs `--mutate`. With a `--mutate` target as well, a change is
+    /// made only where both apply.
+    /// The program's folder must be in a git checkout, and `git` must be on
+    /// your `PATH`. Otherwise the run stops with exit code 2.
+    // `rule:testing/mutation-testing`.
+    #[arg(
+        long,
+        value_name = "REF",
+        value_parser = since_ref,
+        requires = "mutate",
+        conflicts_with_all = ["list", "update", "watch", "rerun_failed"]
+    )]
+    since: Option<String>,
     /// Run the benchmarks instead of the tests.
     ///
     /// A benchmark is a method with `#[Bench]`. Each one runs once, and the
@@ -396,6 +415,17 @@ pub(crate) struct Args {
     // `rule:testing/probes-on-is-a-tested-configuration`.
     #[arg(long, conflicts_with = "list")]
     probes: bool,
+}
+
+/// `--since`'s value. A ref that starts with `-` is refused here, before
+/// anything runs, so git never reads it as an option ([`since`]).
+fn since_ref(value: &str) -> Result<String, String> {
+    match value.starts_with('-') || value.is_empty() {
+        true => {
+            Err("a branch, tag or commit name never starts with `-` and is never empty".to_owned())
+        }
+        false => Ok(value.to_owned()),
+    }
 }
 
 /// The levels `--opt-level` takes, one for each [`nvs_codegen::OptLevel`].
@@ -460,6 +490,7 @@ impl Args {
                     .map(|seed| seed.unwrap_or_else(|| rand::rng().random::<u64>())),
                 record_failed: None,
                 mutate: self.mutate.clone(),
+                since: self.since,
                 profile: self.profile.map(|format| (format, self.profile_out)),
                 debug: None,
             },
@@ -823,6 +854,7 @@ pub(crate) fn run(
         shuffle,
         record_failed,
         mutate,
+        since,
         profile,
         debug,
     } = flags;
@@ -957,7 +989,7 @@ pub(crate) fn run(
     };
     // `rule:testing/mutation-testing`'s aim, judged before any test runs, so a
     // target that names nothing costs no suite.
-    let aim = match mutate_targets.as_deref() {
+    let mut aim = match mutate_targets.as_deref() {
         Some(targets) => match mutation::Aim::resolve(&checked, targets) {
             Ok(aim) => aim,
             Err(error) => {
@@ -967,6 +999,30 @@ pub(crate) fn run(
         },
         None => mutation::Aim::default(),
     };
+    // `--since`'s changed lines, read from git in the program's folder before any test runs.
+    if let Some(reference) = since.as_deref() {
+        let folder = snapshot.folder().or_else(|| {
+            checked
+                .map
+                .files()
+                .next()
+                .and_then(|file| file.path())
+                .and_then(Path::parent)
+                .map(Path::to_path_buf)
+        });
+        let folder = folder.unwrap_or_else(|| PathBuf::from("."));
+        let folder = match folder.as_os_str().is_empty() {
+            true => PathBuf::from("."),
+            false => folder,
+        };
+        match since::changed(&folder, reference) {
+            Ok(changed) => aim.since(changed),
+            Err(error) => {
+                eprintln!("error: {error}");
+                return ExitCode::from(2);
+            }
+        }
+    }
     let checked = Rc::new(checked);
     let started = Instant::now();
     let (suite, mut ctx) = match run_suite_in_a_task(
@@ -1692,6 +1748,9 @@ pub(crate) struct Flags {
     /// that reach it ([`mutation`]). `Some` under the flag, with the targets `--mutate=<target>`
     /// named, and none for the whole program.
     pub(crate) mutate: Option<Vec<String>>,
+    /// `--since <ref>` ([`since`]): a mutation run keeps only the mutants on a line changed since
+    /// the ref.
+    pub(crate) since: Option<String>,
     /// `--profile` and `--profile-out` ([`crate::profile`]).
     pub(crate) profile: Option<(crate::profile::Format, Option<PathBuf>)>,
     /// The session of `nvs dap`'s `test` launch: the suite compiles under the debug switch, and
@@ -6523,6 +6582,7 @@ mod tests {
                     shuffle: None,
                     record_failed: None,
                     mutate: None,
+                    since: None,
                     profile: Some((format, Some(out.clone()))),
                     debug: None,
                 },
@@ -6737,6 +6797,7 @@ mod tests {
                 shuffle: None,
                 record_failed: None,
                 mutate: None,
+                since: None,
                 profile: None,
                 debug: None,
             },
@@ -6767,6 +6828,7 @@ mod tests {
                 shuffle: None,
                 record_failed: None,
                 mutate: None,
+                since: None,
                 profile: None,
                 debug: None,
             },

@@ -132,6 +132,9 @@ weakened to go green is worse than no case: it reports that a thing was tried an
     // proof: test --bench          the same, under `nvs test --bench`: the attack is in the
                                     `#[Bench]` methods, and the case passes when the report
                                     reaches its summary line
+    // proof: test-refused <args>   it runs under `nvs test <file> <args>`: the attack is in the
+                                    arguments, and the case passes when `nvs` refuses them with
+                                    status 2 and an `error:` line, before any test runs
     // requires: unimplemented      skip: the feature does not run yet
     // requires: unix               skip on Windows: it opens a Unix-domain socket
     // requires: <service>          it talks to that service of tests/db/compose.yaml, such as

@@ -282,6 +282,7 @@ fn test(dir: &Path, config: &[PathBuf]) -> Result<ExitCode, String> {
             shuffle: None,
             record_failed: None,
             mutate: None,
+            since: None,
             profile: None,
             debug: None,
         },

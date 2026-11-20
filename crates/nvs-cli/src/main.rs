@@ -2997,10 +2997,12 @@ fn run_test(
         rerun_failed,
         shuffle,
         ref mutate,
+        ref since,
         ref profile,
         ..
     } = flags;
     let mutate = mutate.is_some();
+    let since = since.is_some();
     // `rule:testing/nvst-is-separate`'s "`nvs test` runs both", decided by the path rather than
     // by a flag: a program is a `.nvs` file or a directory holding `.nvs` files
     // (`rule:testing/a-directory-of-programs-is-one-test-program`), a
@@ -3125,6 +3127,11 @@ fn run_test(
         eprintln!(
             "error: `--mutate` changes a program and runs its `#[Test]` methods, not a `.nvst` tree"
         );
+        return ExitCode::FAILURE;
+    }
+    if since {
+        // `rule:testing/mutation-testing`: the changed lines aim a program's mutants.
+        eprintln!("error: `--since` reads a program's changed lines, not a `.nvst` tree");
         return ExitCode::FAILURE;
     }
     if profile.is_some() {

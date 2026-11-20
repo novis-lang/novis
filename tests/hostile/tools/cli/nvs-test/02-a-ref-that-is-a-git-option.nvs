@@ -1,0 +1,15 @@
+<?nvs
+// Attack: the value of `--since` is `--output=x`, which `git diff` reads as an option that writes a file.
+// `nvs test` should stop with an error before it runs `git` or any test.
+// proof: test-refused --mutate --since=--output=x
+use Core\Test;
+
+final class SinceTest
+{
+    // This test should never run, because the arguments are refused first.
+    #[Test]
+    public function neverRuns(): void
+    {
+        Test::assertSame(1 + 1, 2);
+    }
+}

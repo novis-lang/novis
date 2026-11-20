@@ -5,7 +5,7 @@ import { binary } from "../cmd/proofs.ts";
 import { ROOT } from "../lib/paths.ts";
 import { detailsProblems, introCodeOf, namesInCode, owed, skippedOf, type Policy, type Proofs } from "../proofs/collect.ts";
 import type { Entry } from "../proofs/roster.ts";
-import { commandArgs, commandLine, exampleOutput, firstDifference, matchesOut, proofArgv, spawnProof, testReport } from "../proofs/run.ts";
+import { commandArgs, commandLine, exampleOutput, firstDifference, judgeHostile, matchesOut, proofArgv, type Ran, spawnProof, testReport } from "../proofs/run.ts";
 import { scratch } from "./scratch.ts";
 
 describe("a `.cmd` example", () => {
@@ -131,6 +131,14 @@ describe("a `proof: test` example", () => {
     expect(proofArgv("nvs", "a.nvs", "<?nvs\n// proof: test --mutate\n")).toEqual(["nvs", "test", "a.nvs", "--mutate"]);
     expect(proofArgv("nvs", "a.nvs", "<?nvs\n// proof: test --bench\n")).toEqual(["nvs", "test", "a.nvs", "--bench"]);
     expect(proofArgv("nvs", "a.nvs", "<?nvs\n")).toEqual(["nvs", "run", "a.nvs"]);
+  });
+
+  test("an attack on `nvs test`'s arguments runs with them, and passes only when they are refused", () => {
+    const source = "<?nvs\n// Attack: a bad argument.\n// proof: test-refused --mutate --since=--output=x\n";
+    expect(proofArgv("nvs", "a.nvs", source)).toEqual(["nvs", "test", "a.nvs", "--mutate", "--since=--output=x"]);
+    const ran = (code: number, stderr: string, stdout = ""): Ran => ({ code, stdout, stderr, timedOut: false, ms: 1 });
+    expect(judgeHostile("a.nvs", source, ran(2, "error: invalid value '--output=x' for '--since <REF>'\n"), 10_000, false)).toEqual(["ok", ""]);
+    expect(judgeHostile("a.nvs", source, ran(0, "", "  0 failed, 1 passed, 0 skipped, 0 flaky\n"), 10_000, false)[0]).toBe("fail");
   });
 });
 

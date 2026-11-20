@@ -238,7 +238,13 @@ const EXAMPLE_WITH_STDERR_RE = /(?:\/\/|#)\s*proof:\s*with-stderr\b/;
 /** `// proof: test` in an example: it shows the report `nvs test` prints for it, so it runs under
  * `nvs test`, and its `.out` is that report with every duration removed (`testReport`). An attack
  * that declares it runs under `nvs test` as well, because `nvs run` calls no test (`judgeHostile`). */
-const EXAMPLE_TEST_RE = /(?:\/\/|#)\s*proof:\s*test\b/;
+const EXAMPLE_TEST_RE = /(?:\/\/|#)\s*proof:\s*test(?![\w-])/;
+/** `// proof: test-refused <arguments>`: an attack on `nvs test`'s own arguments. It runs under
+ * `nvs test <path> <arguments>`, and passes when the command stops with status 2 and an `error:` line,
+ * which is how `nvs` refuses an argument before anything runs. */
+const TEST_REFUSED_RE = /(?:\/\/|#)\s*proof:\s*test-refused[ \t]+(\S[^\r\n]*)/;
+/** The status `nvs` ends with when it refuses an argument. */
+const ARGUMENT_REFUSED_EXIT = 2;
 /** `// proof: test --mutate`: a `proof: test` program run under `nvs test --mutate`, whose report ends
  * with the mutation counts (`MUTATION_SUMMARY_RE`). */
 const EXAMPLE_MUTATE_RE = /(?:\/\/|#)\s*proof:\s*test\s+--mutate\b/;
@@ -807,6 +813,8 @@ export function testReport(stdout: string): string {
  * `--mutate` or `--bench` for a `proof: test --mutate` or `proof: test --bench` one, and `nvs run`
  * otherwise. */
 export function proofArgv(nvs: string, path: string, source: string): string[] {
+  const refused = TEST_REFUSED_RE.exec(source);
+  if (refused) return [nvs, "test", path, ...refused[1]!.trim().split(/\s+/)];
   if (EXAMPLE_MUTATE_RE.test(source)) return [nvs, "test", path, "--mutate"];
   if (EXAMPLE_BENCH_RE.test(source)) return [nvs, "test", path, "--bench"];
   return [nvs, EXAMPLE_TEST_RE.test(source) ? "test" : "run", path];
@@ -1043,6 +1051,11 @@ export function judgeHostile(path: string, source: string, out: Ran, limit: numb
   }
   // A negative status is a signal; anything past 255 on Windows is a structured exception.
   if (out.code < 0 || out.code > 255) return ["fail", `crash-shaped exit status ${out.code}`];
+  // An attack on `nvs test`'s arguments was delivered when `nvs` refused them before anything ran.
+  if (TEST_REFUSED_RE.test(source) && !declared) {
+    if (out.code === ARGUMENT_REFUSED_EXIT && /^error\b/m.test(out.stderr) && !TEST_SUMMARY_RE.test(out.stdout)) return ["ok", ""];
+    return ["fail", `\`nvs test\` did not refuse the arguments (exit ${out.code}): ${[...stoppedBy(out.stderr)].slice(0, 120).join("")}`];
+  }
   // Under `nvs test` every test runs in its own isolate, so a test that fails stops nothing after it.
   // The attack was delivered when the report reached its summary line.
   if (EXAMPLE_MUTATE_RE.test(source) && !declared) {

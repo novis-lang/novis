@@ -1145,6 +1145,28 @@ mutant, the way test code makes none. It has no effect outside `--mutate`, and a
 nothing for it. There is no opposite attribute: `--mutate=<target>` aims a run without editing the
 code, and one attribute is simpler than two.
 
+**`--since <ref>` mutates only what changed.** With `--mutate`, it keeps a mutant when any line of its
+span was added or edited in the working tree since the git ref, or is in a file git does not track.
+With a target as well, both must hold. A line that was only deleted leaves no line to mutate. `nvs`
+runs the `git` program in the program's folder (the folder `nvs.toml` is in, or the entry file's),
+as a child process with no shell, and gains no git library:
+
+| Command | Gives |
+|---|---|
+| `git rev-parse --show-toplevel` | the checkout's root, which every path git prints is relative to |
+| `git rev-parse --verify --quiet --end-of-options <ref>^{commit}` | whether git knows the ref |
+| `git diff --no-ext-diff --no-color --no-textconv --no-relative --unified=0 --src-prefix=a/ --dst-prefix=b/ --end-of-options <ref> --` | the changed lines of each tracked file |
+| `git ls-files -z --others --exclude-standard --full-name` | the untracked files, every line changed |
+
+The prefixes and `--no-relative` are spelled out so a user's `diff.noprefix` or `diff.relative`
+setting cannot move a path. A ref that starts with `-` is refused when the arguments are read, before
+git runs: no branch, tag or commit is named that way, and `--since=--output=x` would reach git as an
+option that writes a file. `--end-of-options` keeps every other ref a ref as well. Three errors exit
+with status 2 before any test runs, and each says which it is: no `git` on `PATH`, a folder outside a
+checkout, and a ref git does not know. `--since` never falls back to mutating everything. Beside a
+`.nvst` tree it exits with an error, as `--mutate` does. It runs only on a developer's machine or in
+CI, and it spends one list of line ranges per changed file for the run.
+
 The first operator set is six swaps, each keeping its operands' and its result's types, so every
 mutant lowers and compiles with no second check:
 

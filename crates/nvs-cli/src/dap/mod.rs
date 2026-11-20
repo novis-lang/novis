@@ -774,6 +774,7 @@ fn test(
             shuffle: None,
             record_failed: None,
             mutate: None,
+            since: None,
             profile: None,
             debug: Some(debugger.clone()),
         },
