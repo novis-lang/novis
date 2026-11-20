@@ -772,6 +772,78 @@ fn report_two_scopes(
     );
 }
 
+/// `E1005`'s fix: the shape alias the attribute's name resolves to, rewritten
+/// from `type Name = { … };` to `attribute Name on <site> { … }`, as the span
+/// of the alias's declaration and its replacement
+/// (`rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`).
+///
+/// `None` unless the alias is declared in this file, has no type parameters,
+/// and its right-hand side is a shape, and unless `site` is one a program's
+/// declaration may list. The alias's doc comment stays above it, so it
+/// documents the attribute. Costs one alias lookup and a scan of the
+/// declaration's text, and only where `E1005` is reported.
+fn alias_as_attribute(
+    name: &Name,
+    attr: &Attribute,
+    site: UseSite,
+    ctx: &Ctx<'_>,
+    env: &Env<'_>,
+) -> Option<(Span, String)> {
+    let readable = match site {
+        UseSite::Promoted => true,
+        UseSite::One(site) => matches!(
+            site,
+            AttributeSite::Class
+                | AttributeSite::Method
+                | AttributeSite::Property
+                | AttributeSite::Parameter
+        ),
+    };
+    if !readable {
+        return None;
+    }
+    let text = span_text(env.src, name.span);
+    let qname = nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+    let (rhs, short) = match attr.member {
+        Some(member) => {
+            let short = span_text(env.src, member);
+            (env.aliases.get_member(&qname, short)?, short)
+        }
+        None => (env.aliases.get(&qname)?, qname.short_name()),
+    };
+    if rhs.span.file != attr.span.file || !matches!(rhs.kind, TypeKind::Atom(TypeAtom::Shape(_))) {
+        return None;
+    }
+    let src = env.src.text();
+    let start = rhs.span.start as usize;
+    let end = rhs.span.end as usize;
+    // `type Name =` in front of the shape, and `;` after it.
+    let head = src.get(..start)?.trim_end().strip_suffix('=')?.trim_end();
+    let head = head.strip_suffix(short)?;
+    let keyword = head.trim_end();
+    if keyword.len() == head.len() {
+        return None;
+    }
+    let keyword = keyword.strip_suffix("type")?;
+    if keyword
+        .chars()
+        .next_back()
+        .is_some_and(|ch| ch.is_ascii_alphanumeric() || ch == '_')
+    {
+        return None;
+    }
+    let tail = src.get(end..)?;
+    let semicolon = tail.len() - tail.trim_start().len();
+    if !tail[semicolon..].starts_with(';') {
+        return None;
+    }
+    let from = u32::try_from(keyword.len()).ok()?;
+    let to = u32::try_from(end + semicolon + 1).ok()?;
+    let body = src.get(start..end)?;
+    let replacement = format!("attribute {short} on {} {body}", site.word());
+    Some((Span::new(attr.span.file, from, to), replacement))
+}
+
 fn check_attribute(
     attr: &Attribute,
     site: UseSite,
@@ -815,20 +887,24 @@ fn check_attribute(
         Lookup::NotAnAttribute(what) => {
             let written = span_text(env.src, attr.member.map_or(name.span, |m| name.span.to(m)));
             let written = written.to_owned();
-            env.diags.report(
-                Diagnostic::error(
-                    code::E_NOT_AN_ATTRIBUTE_DECLARATION,
-                    format!(
-                        "only an attribute declaration may follow `#[`, and `{written}` is {what}"
-                    ),
-                )
-                .with_primary(attr.span, "this is not an attribute declaration")
-                .with_help(format!(
-                    "Declare the attribute with `attribute Name on {} {{ … }}`, and write its \
-                     name after `#[`.",
-                    site.word()
-                )),
-            );
+            let mut diagnostic = Diagnostic::error(
+                code::E_NOT_AN_ATTRIBUTE_DECLARATION,
+                format!("only an attribute declaration may follow `#[`, and `{written}` is {what}"),
+            )
+            .with_primary(attr.span, "this is not an attribute declaration")
+            .with_help(format!(
+                "Declare the attribute with `attribute Name on {} {{ … }}`, and write its \
+                 name after `#[`.",
+                site.word()
+            ));
+            if let Some((span, replacement)) = alias_as_attribute(name, attr, site, ctx, env) {
+                let head = replacement
+                    .split_once(" {")
+                    .map_or(replacement.as_str(), |(head, _)| head);
+                let title = format!("rewrite the `type` alias as `{head}`");
+                diagnostic = diagnostic.with_fix(span, replacement, title);
+            }
+            env.diags.report(diagnostic);
             return;
         }
         Lookup::Reported => return,

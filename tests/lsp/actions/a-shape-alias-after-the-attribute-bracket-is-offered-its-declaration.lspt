@@ -1,0 +1,16 @@
+--TEST--
+a shape alias written after `#[` is `E1005`, and its fix rewrites the alias to an attribute declaration on the site of this use, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+/// Caches the result of a method.
+type Cache = { ttlSeconds: int };
+
+class Pages
+{
+    #[Ca<|>che(ttlSeconds: 60)]
+    public function home(): void {}
+}
+--REQUEST--
+codeAction
+--EXPECT--
+3:1-3:34 quickfix rewrite the `type` alias as `attribute Cache on method` -> "attribute Cache on method { ttlSeconds: int }"
