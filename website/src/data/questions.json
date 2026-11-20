@@ -35,7 +35,7 @@
   },
   "/guides/cookbook/": {
     "feature": "guides/cookbook/index.mdx",
-    "hash": "67c69e379a1ac887",
+    "hash": "5bf3c3dde4767cc3",
     "questions": [
       "Short recipes for common web tasks in Novis",
       "Copy and paste examples for everyday server tasks",
@@ -61,6 +61,16 @@
       "Example of calling another server and reading its reply",
       "Why should I set a time limit on an outgoing request?",
       "Read one field from the JSON reply of another server"
+    ]
+  },
+  "/guides/cookbook/forget-deleted-row/": {
+    "feature": "guides/cookbook/forget-deleted-row.mdx",
+    "hash": "96ad55f984979aae",
+    "questions": [
+      "Keep loaded database rows in memory for one request",
+      "Load each row only once per request",
+      "Drop a deleted row from my in-memory map",
+      "Why does find() load a row again after I deleted it?"
     ]
   },
   "/guides/cookbook/hash-password/": {
@@ -10827,7 +10837,7 @@
   },
   "/reference/core/objectmap/isempty/": {
     "feature": "Core\\ObjectMap::isEmpty",
-    "hash": "b1615e9d0e93dbfd",
+    "hash": "29845c30522e341f",
     "questions": [
       "How do I check if an object map has no entries?",
       "Save changed records only when there is something to save",
@@ -10847,7 +10857,7 @@
   },
   "/reference/core/objectmap/remove/": {
     "feature": "Core\\ObjectMap::remove",
-    "hash": "a9ca961a47d8c965",
+    "hash": "2aacc48b1512324b",
     "questions": [
       "How do I delete one object from an object map?",
       "Stop tracking a job after it finishes",
@@ -10857,7 +10867,7 @@
   },
   "/reference/core/objectmap/set/": {
     "feature": "Core\\ObjectMap::set",
-    "hash": "513e94ef6748253c",
+    "hash": "80c230cc0c8a0930",
     "questions": [
       "How do I store a value for an object key?",
       "Replace the value for an object that is already in the map",
@@ -17427,6 +17437,26 @@
       "What happens if I read the element before the first step?"
     ]
   },
+  "/reference/types/keyediterable/": {
+    "feature": "KeyedIterable",
+    "hash": "373f8fb89f78fdfa",
+    "questions": [
+      "How do I loop over my class with a key and a value?",
+      "Use foreach with $key => $value on my own collection",
+      "Can one class give values alone and keys with values?",
+      "Why does my class without iterateKeyed not compile?"
+    ]
+  },
+  "/reference/types/keyediterator/": {
+    "feature": "KeyedIterator",
+    "hash": "4cdd110d290db327",
+    "questions": [
+      "How do I write a cursor that returns a key and a value?",
+      "What do advance, key and current do?",
+      "Why does key() throw before the first advance?",
+      "Why does a second loop over my keyed cursor visit nothing?"
+    ]
+  },
   "/reference/types/lateinit/": {
     "feature": "LateInit",
     "hash": "3c98d47e42cde80c",
@@ -17957,6 +17987,26 @@
       "Why does a visitor from a link arrive logged out?"
     ]
   },
+  "/reference/types/revocable/": {
+    "feature": "Revocable",
+    "hash": "c2a4225aa617fb8e",
+    "questions": [
+      "Which interface lets me revoke an object?",
+      "Why can my subclass not implement Revocable?",
+      "Can I write my own revoke() method in a class?",
+      "How do I check if an object was revoked?"
+    ]
+  },
+  "/reference/types/revokedobjecterror/": {
+    "feature": "RevokedObjectError",
+    "hash": "c766914f7171f4df",
+    "questions": [
+      "What does the error 'A revoked object cannot be used' mean?",
+      "Which uses of a revoked object throw an error?",
+      "How do I find the line where my object was revoked?",
+      "Can I catch the error from a revoked object?"
+    ]
+  },
   "/reference/types/roundmode/": {
     "feature": "Core\\RoundMode",
     "hash": "8fe3b58546e0dcc1",
@@ -18353,6 +18403,17 @@
       "Check the field names inside a query condition string"
     ]
   },
+  "/syntax/classes/revocable-objects/": {
+    "feature": "syntax/classes/revocable-objects.mdx",
+    "hash": "fb191dfe5505f591",
+    "questions": [
+      "How do I tell the program that an object is no longer valid?",
+      "Remove a deleted object from every map and set at once",
+      "What can I still do with an object after revoke()?",
+      "Why does reading a property of my object throw an error?",
+      "Stop code from using a database row after it was deleted"
+    ]
+  },
   "/syntax/classes/standard-interfaces/": {
     "feature": "syntax/classes/standard-interfaces.mdx",
     "hash": "e2dcbfd38c13764a",
@@ -18422,7 +18483,7 @@
   },
   "/syntax/control-flow/foreach/": {
     "feature": "syntax/control-flow/foreach.mdx",
-    "hash": "a992355c283eee47",
+    "hash": "6aeb7001b87c79b6",
     "questions": [
       "How do I loop over every element of an array?",
       "How do I change array elements while I loop over them?",
@@ -18445,13 +18506,14 @@
   },
   "/syntax/control-flow/iterators/": {
     "feature": "syntax/control-flow/iterators.mdx",
-    "hash": "226dc8e220f347cd",
+    "hash": "b494732497388d7c",
     "questions": [
       "How do I make values one at a time with yield?",
       "How do I write a generator that yields values?",
       "Why does my second loop over a generator get no values?",
       "Read a very large or endless list without loading it all",
-      "How do I write an iterator class without yield?"
+      "How do I write an iterator class without yield?",
+      "Give a key with each value from my own class in foreach"
     ]
   },
   "/syntax/control-flow/loops/": {
@@ -18522,7 +18584,7 @@
   },
   "/syntax/errors/error-types/": {
     "feature": "syntax/errors/error-types.mdx",
-    "hash": "d4576dfcaee8c358",
+    "hash": "e747bfeda6d5bdb3",
     "questions": [
       "Which error classes exist and when is each one thrown?",
       "How do I write my own error class?",
