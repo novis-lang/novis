@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/identity_store.rs, crates/nvs-stdlib/src/objmap.
 stages:
   - id: 1
     title: the facts the keys rest on are confirmed, and the benches measure today's cost
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/identity.rs, crates/nvs-runtime/src/value.rs, benches/members/README.md, benches/members/lang/iteration/core-collections-are-iterable.nvs, docs/rules/testing/member-perf-ledger.md, docs/rules/enums/representation.md]
   - id: 2
     title: a map or set keyed by exactly string or int stores the key as it is
@@ -347,20 +347,27 @@ facts, then runs the before measurement once the subagent ends.
   - [x] dump, JSON and Serialize probed on a map and a set
   - [x] the record's object walk read
   - [x] the finding written into § State
-- [ ] The benches of § *The bench*, written by the subagent: rewrite
+- [x] The benches of § *The bench*, written by the subagent: rewrite
   `benches/members/lang/iteration/core-collections-are-iterable.nvs:1` and its `.scale.nvs`, and
   `benches/members/core/ObjectMap/get.nvs:1`, `has.nvs:1`, `set.nvs:1`; write the twins and scale
   siblings beside them and beside `benches/members/core/ObjectSet/has.nvs:1`. Each top comment
   follows `AGENTS.md` § *Text an end user reads*, and `bun nv proofs --comments <paths>` passes.
   `bun nv scaling --budget` is green, or each over-share sibling's `max` is lowered as § *The bench*
   says (`rule:testing/member-perf-ledger`).
-- [ ] The before figures: `bun nv scaling --iterations lang/iteration/core-collections-are-iterable
+  - [x] fourteen files written, and each runs
+  - [x] `bun nv proofs --comments` passes on all of them
+  - [x] no bench of this goal is over its share; `bun nv scaling --budget` is red on 48 other benches
+- [x] The before figures: `bun nv scaling --iterations lang/iteration/core-collections-are-iterable
   core/ObjectMap/get core/ObjectMap/has core/ObjectMap/set core/ObjectSet/has` once. It fails on the
   iteration bench, and that failure is the figure: write each bench's allocations and bytes per
   operation and its clock at 100,000 entries into § State. Then `bun nv proofs --record-perf --id
   'Core\ObjectMap::get'`, and the same for `Core\ObjectMap::has`, `Core\ObjectMap::set` and
   `Core\ObjectSet::has`, and write each `ns/op` and `twin_ratio` into § State
   (`rule:testing/member-perf-ledger`). If a guard refuses a run, name the call in the handoff and go on.
+  - [x] the `--iterations` run: 8 flat and 2 unclear, with every `.scale.nvs` skipped
+  - [x] the four members recorded with `--force` and the release binary
+  - [x] the iteration bench measured: it fails `constant` on bytes, which is the figure
+  - [x] the figures written into § State
 
 ### 2. a map or set keyed by exactly string or int stores the key as it is
 
@@ -502,27 +509,35 @@ docs, and brings the pages up to date under the website rules of `website-follow
 
 ### State
 
-Written on 2026-11-17 from a conversation with the person. Nothing is built yet.
+Stage 1 is done; no crate has changed. Sessions per stage: stage 1, one. Its facts are under
+§ *Standing decisions* § *What stage 1 found*: `object` keying is built, and stage 3's printer item
+holds. The fourteen bench files are in.
 
-The person's calls: revocable objects must be fast for large collections, so `Core\ObjectMap` and
-`Core\ObjectSet` must be; a read should cost what a plain array read costs; the plan of three goals
-(this one, then `keyed-iteration`, then `revocable-objects`) is approved; and the decisions marked as
-theirs in § *Standing decisions*.
+The before figures (release binary, `--record-perf --force`), as ns/op, statements, allocations and
+twin ratio: `ObjectMap::get` 1620, 3, 0, 0.85x; `ObjectMap::has` 1867, 3, 0, 1.27x;
+`ObjectMap::set` 17536, 4, 0, 0.90x (growth unclear); `ObjectSet::has` 1680, 6, 0, 1.46x. Each is
+flat in size. `lang:iteration/core-collections-are-iterable` fails `constant`: bytes grow with
+slope 1.00, which is the loop's copy. It stays red, and unrecorded, until stage 4.
 
-The authoring session's calls: the keying reaches the constructor as one symbol per keying, recorded
-on `ExprInfo::New`; objects keep the chain if they can move; `Core\Heap` keeps its copy; a qualified
-`tainted string` or `secret string` key keeps the chain; and the bench sizes (a small collection in
-each bench, 12,500 to 100,000 entries in each scale sibling).
+`bun nv scaling --iterations` measures a fixed size, so it reported the iteration bench flat and
+skipped every `.scale.nvs`. The `loop-start-constant` check runs that command, so it cannot tell
+the copy from the share. Stage 4 judges its loop item by `bun nv proofs --record-perf --force --id
+'lang:iteration/core-collections-are-iterable'` too, which fails today.
 
-Sessions per stage: stage 1, one.
-
-Stage 1's four facts are confirmed and written under § *Standing decisions* § *What stage 1
-found*: `object` keying is built, and stage 3's printer item holds.
+`bun nv scaling --budget` is red on 48 benches outside this goal, the `novis/Spreadsheet-*` ones and
+`core/Arr/hasKey`, `core/Cap/has`, `core/Metrics/*`, `lang/expressions/the-pipeline-operator`. None is
+this goal's, and this goal does not change their shares.
 
 ### Next
 
-Stage 1, once its gate holds: `docs/goals/website-follows-changes.md` does not exist. Its benches go
-to a writing subagent while the session confirms the facts.
+Stage 2: the `string` and `int` keyings, from `crates/nvs-stdlib/src/identity_store.rs:1` (the
+keying enum), `crates/nvs-stdlib/src/registry.rs:3156` `constructor_symbol`,
+`crates/nvs-types/src/expr/calls.rs:1741` `check_new_type_args` and
+`crates/nvs-ir/src/lower/expr.rs:3784`. Each keyed operation compares the key's tag first, as
+§ *A key whose tag is not the keying's* says, with a case for the erased view
+(`$any as Core\ObjectMap<int, int>` on a `<string, int>` map gives a count of `2`). A new symbol
+needs its row in `crates/nvs-stdlib/src/lib.rs` `entry_of` (playbook). Expect red until stage 4:
+the perf proof of `lang:iteration/core-collections-are-iterable`.
 
 ### Backlog
 
