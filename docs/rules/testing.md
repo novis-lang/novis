@@ -1169,9 +1169,14 @@ mutant runs are **coverage-directed**: the probe data says which tests touch the
 mutant runs against those rather than against the whole suite. On two thousand tests and five
 hundred mutants that is the difference between minutes and most of a day.
 
-**A mutant is one changed site in the lowered program.** Parse and check run once; lowering takes the
-checked tree and one mutant, makes exactly one change at its site, and codegen compiles the whole
-program from that. No mutant is made from test code ([`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build)'s
+**A mutant is one changed site in the lowered program, and a run compiles the program once.** Parse
+and check run once. Lowering then arms every mutant whose tests run: each armed site lowers its
+original and its changed form behind one test of the run's *active mutant number*, and codegen
+compiles that program once. The number is one word the compiled unit owns, read with one load, and the
+run sets it before each mutant's tests, so only that mutant's site takes its changed form. It is one
+compiler with a switch, like [`testing/a-debugged-program-is-compiled-with-a-debug-switch`](testing.md#testing-a-debugged-program-is-compiled-with-a-debug-switch): only a
+`--mutate` run lowers it, a unit with it is never written to the artifact cache, and a normal build and
+a server pay nothing. No mutant is made from test code ([`testing/tests-never-reach-a-build`](testing.md#testing-tests-never-reach-a-build)'s
 marker methods, and every body written inside one), so a mutant changes the program under test and
 never the test that judges it.
 
@@ -1341,11 +1346,12 @@ covering-test filter decides and what the bench of a mutation run counts. A JUni
 fail the run.
 
 **What it costs:** nothing for a run without `--mutate`, and nothing on the request path. A mutation
-run pays one coverage run, then for each reached mutant one lowering, one compile of its changed
-function, and, unless that compile matched earlier code, one codegen of the whole program and the
-tests that reach the mutant's line. It also lowers the unchanged program once and keeps it for the
-run, to hash each original function. A mutant compiles with no artifact cache, since its cache key
-would be the unchanged program's. Memory is O(`--jobs`): one mutant runs at a time, with its tests in
+run pays one coverage run, then for each reached mutant one lowering and one compile of its changed
+function. It then lowers and compiles the program once with every mutant whose compile matched no
+earlier code, and runs each one's tests that reach its line. That unit is bigger than the program's by
+one changed form and one load and branch per armed site, and a test under it runs that much slower. It
+also lowers the unchanged program once and keeps it for the run, to hash each original function.
+Memory is O(`--jobs`): one mutant runs at a time, with its tests in
 flight, and the run keeps one record per mutant for the report, its function label and key included.
 A compile records one label per `#[NoMutate]` class or method. `mutants.toml` is held as one key and
 one reason per entry for the run, and the run keeps every mutant's key to check the entries against.

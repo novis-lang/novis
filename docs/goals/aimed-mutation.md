@@ -321,6 +321,20 @@ by one changed copy of each armed expression plus one load and branch per site, 
 runs that much slower; the unit lives for the run. The rule's Declined entry *Recompiling only the
 mutated function* stays: this is one compile, not a second recompile path.
 
+**The mutant switch, as built (my call).** The active number is not in the task's context. It is
+one `AtomicU32` the schema unit owns (`nvs_codegen::Unit::set_active_mutant`), published as the
+data symbol `nvs_mutant_switch` the way a debug unit's stop-site table is, and read with one load
+and one compare (`emit.rs` `emit_mutant_on`). A task's context is made in many places (a child, an
+isolate, each `--jobs` worker), and one that missed the number would run the original code and
+report a false survivor; a word in the unit cannot be missed. Only one mutant's suite runs at a
+time, so one word per unit is enough, and only a `--mutate` run has such a unit. The IR test is
+`InstKind::MutantOn(k)`. A `bool` site (literal, condition, a connector's first operand) is the
+value compared unequal to the test; a changed operator lowers each operator on its own edge
+(`Lowering::lower_switched`), so a form that can throw runs only when chosen. `lower_mutant` stays,
+with no switch, for the judge's one-function hash; `Program::mutant_switch` keeps a schema out of
+the artifact cache and `compile_object`. The human report prints
+`compiles: 1, for the N mutants that ran tests` after scoring.
+
 **Report format (my call).** `--format json` under `--mutate` becomes `schemaVersion: 5` in stage 1,
 and the version stays 5 for the rest of the goal, which lands as one release. Version 5 is version
 4 plus, on each mutant record, `function` and `key`; the outcomes `equivalent`, `duplicate` (with
@@ -504,17 +518,17 @@ Test selection waits for stage 3.
 **Does:** mutant schemata. One lowering arms every kept, reached mutant; the run sets the active
 mutant number before each suite.
 
-- [ ] `crates/nvs-ir/src/lower/mutate.rs:179` `Mode` gains `Schema(Vec<(Span, Operator, u32)>)`.
+- [x] `crates/nvs-ir/src/lower/mutate.rs:179` `Mode` gains `Schema(Vec<(Span, Operator, u32)>)`.
   An armed site lowers both forms behind a read of the active mutant number, and `lower_mutant`
   (`:140`) is replaced by `lower_schema`. The module doc's *Two passes* and *What it spends*
   sections are rewritten.
-- [ ] `crates/nvs-codegen/src/lib.rs`: the active mutant number lives in the task's context, read
+- [x] `crates/nvs-codegen/src/lib.rs`: the active mutant number lives in the task's context, read
   with one load, and the unit is marked so `crates/nvs-cli/src/cache.rs:1698` `unit_for` never
   caches it, as a debug unit is not.
-- [ ] `crates/nvs-cli/src/runner/mutation.rs:112` `score`: one compile, then set the number and run
+- [x] `crates/nvs-cli/src/runner/mutation.rs:112` `score`: one compile, then set the number and run
   each mutant's tests. Stage 4's function hash takes its changed function from a lowering with that
   one mutant fixed on.
-- [ ] `nvs_test_mutate_compiles_the_program_once_for_every_mutant` reads the count of compiles. If
+- [x] `nvs_test_mutate_compiles_the_program_once_for_every_mutant` reads the count of compiles. If
   the run has no count to read, the human report's mutant note at
   `crates/nvs-cli/src/runner.rs:1057` says `1 compile`, and the test reads that.
   `nvs_test_mutate_two_mutants_in_one_function_each_change_only_their_own_site` checks that two
@@ -560,35 +574,40 @@ declares, with its help text's first line, and the session writes the pages from
 Stages 1 to 5 are done, and the checks `aim`, `aim-ir`, `since-mutate`, `since-select`,
 `at-line`, `equivalent`, `equivalent-codegen`, `judged` and `judged-unit` are green, each run once.
 
-Stage 5 (04e37561f7, 7669378afe): glue in `crates/nvs-ir/src/lower/mutate.rs` (`in_call`,
-`throwing`, `is_thrown`, `Lowering::is_glue_call`; the `Plan` gained `in_glue` and `thrown`), wired
-into `lower_expr`'s four call arms and `lower_throw`. `mutation::Judgments` (`mutation.rs:150`)
-reads and applies `mutants.toml`; `list` now returns `(kept, every key)`; `Scored` gained
-`judged`; `report` calls `survivors` for the grouping. `runner.rs` reads the file once under
-`--mutate`, before the suite, through the shared `program_folder` closure that `--since` also uses.
-The example `01-a-test-that-misses-the-boundary.out` was re-blessed for the grouped lines.
+Stage 6 (c394b68d6b): items 1 to 4 are done and the `once` check is green, run once. See the
+decision *The mutant switch, as built*. `lower_schema` and `Site` in
+`crates/nvs-ir/src/lower/mutate.rs`; `InstKind::MutantOn`; `Program::mutant_switch`;
+`Unit::set_active_mutant` and `publish_mutant_switch` in `crates/nvs-codegen/src/lib.rs`;
+`score` in `crates/nvs-cli/src/runner/mutation.rs` returns `Scoring { scored, compiles, ran }`.
+The two new tests are at the end of `crates/nvs-cli/tests/test_command.rs` (fixture
+`ONE_FUNCTION`). The rule's first paragraph and *What it costs* say one compile, with no measured
+growth yet.
 
-Stage 4: `nvs_codegen::function_code_hash(program, name)` hashes one function compiled alone.
-`lower_mutant` returns `Mutated { program, changed }`; `mutation::Code::judge` holds the
-unchanged program and the hashes.
+Earlier stages: glue and `mutation::Judgments` (stage 5), `function_code_hash` and `Code::judge`
+(stage 4), `runner/since.rs` and `runner/reach.rs` (stages 2 and 3).
 
-Earlier stages: `Mutant.function`, `#[NoMutate]` (`E0880`), `Aim::resolve`, JSON version 5;
-`since::changed` in `runner/since.rs`; the reached map and `<file>:<line>` in `runner/reach.rs`
-(decision *The reached map, as built*). The tests' git runs under `test_command.rs` `git_env`.
-
-Nightly run 44510687786 (adc7487822): each failure has a later fix, checked this session:
-eb5c02e983 (wasmtime 50.0.2), 4c82a2409a (Miri, immortal string pointer), 656f5b2f2d
-(debug-viewer shots), 1c75c4ef0e (browser wait). The next nightly confirms Miri and browser.
+Nightly run 44510687786 (adc7487822): each failure has a later fix (eb5c02e983, 4c82a2409a,
+656f5b2f2d, 1c75c4ef0e). The next nightly confirms Miri and browser.
 
 ### Next
 
-Stage 6: mutant schemata, one compile per run. Start at `crates/nvs-ir/src/lower/mutate.rs:175`
-`lower_mutant` and the `Mode` enum below it, then `mutation_site`'s `Mode::Apply` arm, where a
-`Schema` arm lowers both forms behind the active-number test. Then
-`crates/nvs-cli/src/runner/mutation.rs:409` `score`, whose per-mutant `lower_mutant` and
-`cache::unit_for` become one compile; `Code::judge` still needs the changed function's IR per
-mutant (decision *Equivalent and duplicate mutants*). The glue flag must hold under a schema
-lowering too: `in_call` and `within` work for any plan, so nothing there should change.
+Stage 6's last two items: the bench member and its measured growth in the rule.
+
+`benches/scaling/testing/mutate-program.nvs` (`kind mutate`, `expect linear`), modelled on
+`mutate.nvs` beside it. To show the square the old path had, the *mutants* must grow with n: n
+classes `Price{i}`, each with a mutable `cap` and its own one-assert test class, so each mutant
+runs one O(1) test. Run it with `bun nv scaling testing/mutate-program`. Expect it to still grow
+faster than linear, from two per-mutant O(program) costs this session did not remove:
+
+- `Code::judge` (`mutation.rs`, called from `score`) lowers the whole program per reached mutant
+  through `lower_mutant`, to hash one function. A fix: hash the changed function from the schema
+  with the switch fixed, or lower one function alone. Measure first.
+- `run_one` builds a context and a suite per mutant (`run_suite_in_a_task`); if its set-up walks
+  every class, that is O(n) per mutant. Measure which of the two grows before changing either.
+
+Fix what grows, record the growth figure in *What it costs* of
+`docs/rules/testing/mutation-testing.md`, keep its Declined entry *Recompiling only the mutated
+function*, then `bun nv rules --render` and `--check`. Then set stage 6 to done.
 
 Stage 7 also owes: `docs/reference/tools/10-cli.md:389` still shows the old `survived  file:line`
 line and says `schemaVersion` is `4`; it now reads `survived in <function> (<n>):` then the grouped
@@ -596,7 +615,10 @@ lines, and version 5 with `mutants.toml`.
 
 Tests expected red until the gate: the CLI reference's flag check, if one exists, may now name
 `--since`; stage 7 writes it. `bun nv site --check stale` may name the `nvs-test-mutate` example
-page, whose `.out` changed; stage 7 rereads and stamps it. No `changes.json` entry yet: it comes
+page, whose `.out` changed; stage 7 rereads and stamps it. A human `--mutate` run now prints a
+`compiles: 1, …` line, so an example `.out` under `docs/examples/` for `nvs test --mutate`
+(`01-a-test-that-misses-the-boundary.out`) is expected red until it is re-blessed; stage 7 or the
+gate re-blesses it. The checks `equivalent` and `judged` ran before this change and were not rerun. No `changes.json` entry yet: it comes
 with the goal's last stages.
 
 ### Backlog
