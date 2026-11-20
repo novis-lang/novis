@@ -26,7 +26,7 @@ stages:
     context: [AGENTS.md, docs/agent/conventions.md, docs/agent/loop-authoring.md, docs/agent/prose.md, docs/agent/commands.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
     context: [docs/agent/prose.md]
 checks:
@@ -510,44 +510,32 @@ commands and `--check review`, and makes Reviewed a feature proof.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] The review of `docs/agent/prose.md` § *A newcomer reads it* over every text `bun nv site
+- [x] The review of `docs/agent/prose.md` § *A newcomer reads it* over every text `bun nv site
   --review` lists. This goal's own `changes.json` is among them.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and this goal's own tests at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 3 are done: `changes-tool` (11 tests) and `changes-green` are green.
-`tools/nv/lib/changes.ts` holds the entries' shapes and checks, the release notes start with them, and
-the snapshot `data/proofs/released.json` is `since: "v0.0.4"`. `website/src/data/changes.json` has 44
-entries and 90 `unseen` records, and the stale guard runs `changes`.
+Every stage is done. `tools/nv/lib/changes.ts` and `tools/nv/lib/texts.ts` hold the changes and
+review code, `rule:testing/every-change-reaches-the-website` is `shipped`, and every check is green.
 
-Stage 4 is done, and `review-tool` (7 tests) and `review-green` are green. `tools/nv/lib/texts.ts`
-holds `userTexts`, `featureTexts`, `commentText`, the stamp and baseline reads and writes, and
-`reviewBrief`. `bun nv site --review [--brief | --stamp | --baseline]` and the `review` part are in
-`tools/nv/cmd/site.ts` (`reviewMode`, `reviewCheck`). `reviewed` is a proof in `collect.ts`, on for
-every kind by `data/proofs/policy.json`. `data/proofs/review-baseline.json` holds 11870 texts (1 MB).
-`review` runs in the stale guard of `ci.ts`, `deep.ts` and `ci.yml`. The rule's **Reviewed**
-paragraph is in `docs/rules/testing/feature-proofs.md`.
+The nightly the last sweep named (run 44510687786) is fixed on `main` by `eb5c02e983`, `4c82a2409a`,
+`9478fd2f66`, `656f5b2f2d` and `8d945cbeb2`, each after that run's commit. The next full gate pushes
+them.
 
-Stage 5 is done. `docs/agent/prose.md` § *A newcomer reads it* is the review procedure, and
-`conventions.md` § *A goal*, `loop-authoring.md` § 6, `AGENTS.md` and `commands.md` point to it.
-`testing/every-change-reaches-the-website` is `shipped`, and `ci-check` is green. Its first run was
-red on rustfmt, the rendered website data and 68 stale search-question entries, all left by
-time-constructors and fixed in `ce5e2b430c` and the questions commit.
-
-The nightly the last sweep named (run 44510687786, 2026-11-19) is the one fixed on `main` by
-`eb5c02e983`, `4c82a2409a`, `9478fd2f66`, `656f5b2f2d` and `1c75c4ef0e`/`8d945cbeb2`. Each is on
-`HEAD` and after that run's commit. They are not pushed yet, and the next full gate pushes them.
+Stage 6 closed the goal. `bun nv site --review` listed 0 texts, so the review had
+nothing to send. The build, `cargo clippy --all-targets -- -D warnings` and the goal's own tests (75
+in `site.test.ts`, `site-changes.test.ts` and `site-review.test.ts`) are green.
+`bun nv owners --closes website-follows-changes` names no gap. The stage 3 calls on a speed-up that
+moves a test and on a renamed configuration key, and the `fixed` entry clearing a move, are now in
+`rule:testing/every-change-reaches-the-website`, so this file holds no decision the rule does not.
 
 ### Next
 
-Stage 6, the gate stage, closes the goal. `bun nv site --review` lists 0 texts now, so its review
-item has nothing to send unless a later change adds one. Then the check the pack names: a close
-runs a build, clippy and this goal's own tests (`bun test tools/nv/test/site.test.ts
-tools/nv/test/site-changes.test.ts tools/nv/test/site-review.test.ts`). Before `DONE`,
-`bun nv owners --closes website-follows-changes`. No test is expected to go red.
+Nothing. The goal is reached, and the driver retires it. It joins the chain's `ungated:` list, and
+the next full gate pushes the nightly fixes above. No test is expected to go red.
 
 ### Backlog
