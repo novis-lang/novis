@@ -89,3 +89,7 @@ A member that moved here from `Core\Time` is a compile error naming its new plac
   error path, and tainted text would reach a zone without passing `Zone::of`.
 - **One shared instance per zone name across written zones.** It makes `==` true for two written zones
   and false for one `Zone::of` returns, for no saving a request sees.
+- **A cache from a zone's id to its `TimeZone`.** Every conversion looks the id up again, and it was
+  measured before anything changed: one lookup of a name already loaded is about 21 ns and allocates
+  nothing, so the two an `->in($zone)` makes are about 2% of its recorded 1,823 ns. A cache would be
+  state on the request path for no saving a request sees.

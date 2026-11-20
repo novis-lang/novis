@@ -3,8 +3,6 @@
 
 # The Core classes
 
-*1 of 125 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="core-classes-cli-arguments"></a>
 
 ## `Core\Cli::arguments` is how a program reads the words it was started with, at every depth
@@ -4726,7 +4724,7 @@ fields and the guest converts them.
 
 <a id="core-classes-a-time-class-builds-its-own-values"></a>
 
-## Each `Core\Time` value class builds its own values, each has a checked `fromIso`, and `Core\Time` is the clock  *(designed — owned by goal time-constructors)*
+## Each `Core\Time` value class builds its own values, each has a checked `fromIso`, and `Core\Time` is the clock
 
 `rule:core-classes/a-time-class-builds-its-own-values`
 
@@ -4795,7 +4793,11 @@ compiled unit and freed with it, and nothing per use; `Zone::of` costs an object
 than a CLDR pattern. `DateTime::fromIso('…', 'UTC')` spends one `DateTime` and nothing else.
 `DateTime::at` from computed parts spends a `Date` and a `TimeOfDay` before the `DateTime`: two small
 objects per call more than the single eight-argument constructor it replaces, spent to buy one
-constructor per class with no positional seven-field signature.
+constructor per class with no positional seven-field signature. Measured (`data/perf/members.md`),
+`DateTime::at` over a built `Date` and `TimeOfDay` is 5 allocations and 267 bytes per call, beside
+the old `Core\Time::at` row's 4 and 210. `Date::at` adds one allocation and 80 bytes, and
+`TimeOfDay::at` one and 96. A call built from computed parts is then about 7 allocations and 443
+bytes. `DateTime::fromIso` is 4 allocations and 218 bytes.
 
 A member that moved here from `Core\Time` is a compile error naming its new place
 ([`core-api/a-moved-name-says-where-it-went`](core-api.md#core-api-a-moved-name-says-where-it-went)), with no alias keeping the old name
@@ -4817,6 +4819,10 @@ A member that moved here from `Core\Time` is a compile error naming its new plac
   error path, and tainted text would reach a zone without passing `Zone::of`.
 - **One shared instance per zone name across written zones.** It makes `==` true for two written zones
   and false for one `Zone::of` returns, for no saving a request sees.
+- **A cache from a zone's id to its `TimeZone`.** Every conversion looks the id up again, and it was
+  measured before anything changed: one lookup of a name already loaded is about 21 ns and allocates
+  nothing, so the two an `->in($zone)` makes are about 2% of its recorded 1,823 ns. A cache would be
+  state on the request path for no saving a request sees.
 
 <sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`types/duration`](types.md#types-duration), [`types/property-key`](types.md#types-property-key), [`core-api/a-moved-name-says-where-it-went`](core-api.md#core-api-a-moved-name-says-where-it-went).</sub>
 
