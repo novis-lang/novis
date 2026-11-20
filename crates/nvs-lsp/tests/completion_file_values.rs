@@ -5,7 +5,10 @@
 //! (`rule:ide/completion-files-offer-values-at-named-parameters`). A parameter typed as a union of
 //! string literals offers its members with no file, and merged with a file's values
 //! (`rule:types/single-value-types`). A string at a `Core\Time\Zone` parameter, or in `Zone::of`,
-//! offers every zone name split on `/`, and a written zone hovers as its offset from UTC.
+//! offers every zone name split on `/`, and a written zone hovers as its offset from UTC. A string
+//! at a `property<static>` field of an attribute's payload offers the public properties of the
+//! class the attribute is on, and jumps to the one it names
+//! (`rule:attributes/a-declaration-names-its-class-with-static`).
 //!
 //! Each test writes a workspace of its own under cargo's scratch folder in `target/` and deletes it
 //! when it ends, as `tests/completion_files.rs` does.
@@ -1068,6 +1071,71 @@ fn a_field_name_in_an_attribute_payload_offers_the_fields_of_its_shape() {
     assert_eq!(
         named(&items, "size").detail.as_deref(),
         Some("\"small\"|\"large\"")
+    );
+}
+
+/// An attribute whose fields name the properties of the class it is used on, and that class, with
+/// two public properties and a private one.
+const SEARCH: &str =
+    "attribute Search on class { fields: array<property<static>>, sort?: property<static> }\n\n";
+
+/// The class [`SEARCH`] is written on, after `attribute`.
+fn searched(attribute: &str) -> String {
+    format!(
+        "{SEARCH}{attribute}\nclass Post {{\n    public string $title = '';\n    \
+         public int $views = 0;\n    private string $secret = '';\n}}\n"
+    )
+}
+
+#[test]
+fn a_string_at_a_property_key_field_of_an_attribute_offers_the_properties_of_its_class() {
+    for (name, attribute) in [
+        ("key-field", "#[Search(fields: [], sort: '<|>')]"),
+        ("key-element", "#[Search(fields: ['title', '<|>'])]"),
+    ] {
+        let workspace = Workspace::new(name);
+        let (items, _) = offered(
+            &workspace,
+            &CompletionFiles::default(),
+            &searched(attribute),
+        );
+        let mut names = labels(&items);
+        names.sort_unstable();
+        assert_eq!(names, ["title", "views"], "{attribute}: {items:?}");
+        for item in &items {
+            assert_eq!(
+                item.kind,
+                Some(CompletionItemKind::PROPERTY),
+                "{}",
+                item.label
+            );
+        }
+    }
+}
+
+#[test]
+fn a_name_at_a_property_key_field_of_an_attribute_jumps_to_the_property() {
+    let workspace = Workspace::new("key-definition");
+    let (_, analysis, at) = opened(
+        &workspace,
+        &searched("#[Search(fields: ['title', 'vi<|>ews'])]"),
+    );
+    let declared = nvs_lsp::definition::at(
+        &analysis,
+        &CompletionFiles::default(),
+        at,
+        PositionEncoding::Utf8,
+    )
+    .expect("`views` names a property of `Post`");
+    let source = searched("#[Search(fields: ['title', 'views'])]");
+    let line = CLASSES.lines().count()
+        + source
+            .lines()
+            .position(|line| line.contains("$views"))
+            .expect("a views line");
+    assert_eq!(
+        declared.range.start.line,
+        u32::try_from(line).expect("a short document")
     );
 }
 

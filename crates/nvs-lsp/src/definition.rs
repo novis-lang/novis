@@ -1346,16 +1346,22 @@ pub(crate) fn property_segment_at(analysed: &Analysed, offset: BytePos) -> Optio
     None
 }
 
-/// The operand of an `as` conversion to `property<T>` or `propertyPath<T>`,
-/// either nullable, the cursor at `offset` is inside, quotes included, and the
-/// class `T` names.
+/// The string the cursor at `offset` is inside, quotes included, and the
+/// class `T` names, where the string is a `property<T>` or `propertyPath<T>`,
+/// either nullable. That is the operand of an `as` conversion to one, or a
+/// value at such a field of an attribute's payload, also as an array element
+/// (`rule:attributes/a-declaration-names-its-class-with-static`).
 ///
-/// `rule:types/property-key`'s conversion, found the way
+/// `rule:types/property-key`'s conversion is found the way
 /// [`written_class_name`] finds `as class<T>`'s: the type the conversion wrote
 /// ends where the conversion ends, and its `T` is read off the type the
-/// checker recorded for it. The cursor has to be between the quotes.
+/// checker recorded for it. A payload's field type is read off the shape the
+/// checker recorded for the attribute, with `static` already bound to the
+/// class the attribute is used on ([`crate::completion::payload_value_type`]).
+/// The cursor has to be between the quotes.
 pub(crate) fn written_property_key(analysed: &Analysed, offset: BytePos) -> Option<WrittenKey> {
-    let (span, declared) = conversion_operand(analysed, offset)?;
+    let (span, declared) = conversion_operand(analysed, offset)
+        .or_else(|| crate::completion::payload_value_type(analysed, offset))?;
     let interner = &analysed.interner;
     let mut keys = match interner.get(declared) {
         Ty::Union(members) => members.clone(),

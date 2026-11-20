@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/expr/members.rs, crates/nvs-types/src/expr/args.rs]
   - id: 3
     title: the editor completes the names and jumps to the property
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/tests/completion_file_values.rs]
   - id: 4
     title: the reference, the examples and the attack say what the feature does
@@ -194,17 +194,17 @@ type argument with `static` bound to its target.
 at a key parameter. It reads the shape the checker recorded under the attribute, with `static` already
 bound to the class.
 
-- [ ] `crates/nvs-lsp/src/completion.rs:1453` `attribute_values`: where `payload_type` gives a
+- [x] `crates/nvs-lsp/src/completion.rs:1453` `attribute_values`: where `payload_type` gives a
   `property<C>` or `propertyPath<C>` (also as an array element), the values are `property_keys`
   (`:974`) of `C`, or `path_steps` (`:935`). Items are of kind `property` with their types, as at a key
   parameter.
-- [ ] `crates/nvs-lsp/src/definition.rs:1182` `written_property_key`: a string at such a field is a
+- [x] `crates/nvs-lsp/src/definition.rs:1182` `written_property_key`: a string at such a field is a
   written key, so go-to-definition (`:1091`) jumps to the property and hover shows it.
-- [ ] `crates/nvs-lsp/tests/completion_file_values.rs:1`: the test
+- [x] `crates/nvs-lsp/tests/completion_file_values.rs:1`: the test
   `a_string_at_a_property_key_field_of_an_attribute_offers_the_properties_of_its_class`, beside the
   attribute tests that end the file, and `a_name_at_a_property_key_field_of_an_attribute_jumps_to_the_property`
   beside it. The `editor` check runs once.
-- [ ] `docs/rules/ide/completion-offers-only-what-the-compiler-derived.md:30`: the attribute sentence names
+- [x] `docs/rules/ide/completion-offers-only-what-the-compiler-derived.md:30`: the attribute sentence names
   the property names at a `property<T>` field, read off the same roster.
 
 ### 4. the reference, the examples and the attack say what the feature does
@@ -236,35 +236,31 @@ reference and `about.md`. Their files are disjoint, and no one builds until both
 ### State
 
 The person chose `property<static>`; every other choice in § *Standing decisions* is a session's call.
-Stage 1 is done: the rule is written with status `designed` (stage 5 sets it `shipped`), and inside an
-attribute declaration's body `static` reads `Env::attribute_static`. The editor's completion of a
-userland attribute's fields (`ed44125957`) is what stage 3 builds on.
+Stage 1 is done: the rule has status `designed` (stage 5 sets it `shipped`), and in an attribute
+declaration's body `static` reads `Env::attribute_static`.
 
-Stage 2 is done (`31614a776a`). A string literal at a `property<C>` or `propertyPath<C>` field of a
-payload, alone or in an array, is a key: `crate::retrieval::literal_type` types it as the key, and
-`crate::retrieval::report_payload_keys`, called from `check_attribute` after `with_requested_literals`,
-reports a wrong name once as `E0405` at the literal and records `C`'s roster with
-`record_property_keys`. `get` and `all` lower their type argument with `static` bound to the target's
-class (`crate::retrieval::static_binding`, set around `check_written_type_args` in
-`crate::expr::calls`). `implementingWith` joins per-class shapes field by field
-(`crate::program::joined_shape`). The rule's retrieval bullet says so. The four conformance cases
-are green, as is the extra `tests/conformance/core/program-implementing-with-binds-static-to-each-class.nvst`.
-The `cases` check is green, and build and clippy are green.
+Stage 2 is done (`31614a776a`). A string at a `property<C>` or `propertyPath<C>` field of a payload,
+alone or in an array, is a key (`crate::retrieval::literal_type`). A wrong name is `E0405` at the
+literal (`crate::retrieval::report_payload_keys`), which also records `C`'s roster. `get` and `all`
+bind `static` to the target's class (`crate::retrieval::static_binding`), and `implementingWith` joins
+per-class shapes (`crate::program::joined_shape`). The `cases` check is green.
 
-The nightly CI run the sweep named (`44722386375`) ran on `5d053fc6e6`, before `e5a100b18f` (the XML
-memory test) and `438e9c44af` (`is KeyedIterable` for a `Core\ObjectMap`). Its failures are exactly
-those two tests, so nothing is left to fix there.
+Stage 3 is done. `crate::definition::written_property_key` also reads a string at such a field,
+through `crate::completion::payload_value_type`, off the shape the checker recorded with `static`
+bound. Completion offers `C`'s public properties, and go-to-definition and hover reach the property.
+The rule `rule:ide/completion-offers-only-what-the-compiler-derived` says so. The `editor` check, the
+build and clippy are green. The nightly CI failures the sweep named (run `44722386375`) were fixed
+before this goal by `e5a100b18f` and `438e9c44af`.
 
 ### Next
 
-Stage 3 from its first item, in `crates/nvs-lsp/` alone: `attribute_values`
-(`crates/nvs-lsp/src/completion.rs:1453`) offers `property_keys` of `C` where the recorded payload shape
-(`ExprTypeTable::record_attribute_shape`, already bound to the use's class) has a `property<C>`, also as
-an array element. `report_payload_keys` records the roster, so `property_keys` has it for every class a
-payload names. Then `written_property_key` (`crates/nvs-lsp/src/definition.rs:1182`), then the two
-tests, then the `editor` check. Stage 4 may run beside it; its files are disjoint. No existing test is
-expected to go red: the change reaches only payloads at a `property<C>` field and declarations that
-name `static`, and no corpus file had either before this goal.
+Stage 4 from its first item, as its `**Split:**` line says: `bun nv proofs --id
+lang:types/property-keys` first, then `docs/examples/lang/types/property-keys/about.md:1` and
+`docs/reference/lang/20-types.md:2887` by the session, and the example `08-…` and the attack `04-…`
+by one writing subagent. Every line is held to `AGENTS.md` § *Text an end user reads*. Then stage 5
+closes the goal with a build and this goal's own checks (`cases`, `editor`), and sets the rule's status
+to `shipped`. No existing test is expected to go red: stage 3 reaches only strings at a `property<C>`
+field of a payload, and no corpus file had one before this goal.
 
 ### Backlog
 

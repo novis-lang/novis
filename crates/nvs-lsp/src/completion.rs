@@ -28,7 +28,9 @@
 //! shape type is offered that shape's keys, each with the `///` doc the shape
 //! gives it ([`object_shape`]). Inside a string in such a payload, the
 //! strings in the set of allowed values its field's type lists
-//! ([`attribute_values`]). After `#[`, the attribute declarations whose sites
+//! ([`attribute_values`]), or, at a `property<T>` field, `T`'s public
+//! properties, with `static` bound to the class the attribute is used on
+//! ([`payload_value_type`]). After `#[`, the attribute declarations whose sites
 //! and owner fit the declaration below ([`attributes_that_fit`]), and after
 //! `on` in an attribute declaration, the site words ([`on_list_at`]).
 //!
@@ -1557,6 +1559,20 @@ fn attribute_values(
         .map(|member| Arc::new(completion_files::Value::member(member)))
         .collect();
     (!values.is_empty()).then_some((string.span, values))
+}
+
+/// The string literal in a named attribute's payload the cursor at `offset`
+/// is inside, quotes included, and the type the attribute's shape gives it
+/// ([`payload_type`]). The cursor has to be between the quotes.
+pub(crate) fn payload_value_type(analysed: &Analysed, offset: BytePos) -> Option<(Span, TypeId)> {
+    let path = analysed.index.at(offset);
+    let [string, outer @ ..] = path.nodes() else {
+        return None;
+    };
+    if string.kind != "Str" || !(string.span.start < offset && offset < string.span.end) {
+        return None;
+    }
+    Some((string.span, payload_type(analysed, string.span, outer)?))
 }
 
 /// The type a named attribute's shape gives the value at `value`, where
