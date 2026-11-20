@@ -95,18 +95,38 @@ pub(crate) fn check_declaration(
     for member in members {
         match &member.kind {
             ClassMemberKind::Property(p) => {
-                check_groups(&p.attributes, UseSite::One(AttributeSite::Property), ctx, env);
+                check_groups(
+                    &p.attributes,
+                    UseSite::One(AttributeSite::Property),
+                    ctx,
+                    env,
+                );
                 for hook in p.hooks.iter().flatten() {
-                    check_groups(&hook.attributes, UseSite::One(AttributeSite::Hook), ctx, env);
+                    check_groups(
+                        &hook.attributes,
+                        UseSite::One(AttributeSite::Hook),
+                        ctx,
+                        env,
+                    );
                     // No retrieval reads a hook's parameter, so only a
                     // declaration that lists `hook` fits there.
                     if let Some(param) = &hook.param {
-                        check_groups(&param.attributes, UseSite::One(AttributeSite::Hook), ctx, env);
+                        check_groups(
+                            &param.attributes,
+                            UseSite::One(AttributeSite::Hook),
+                            ctx,
+                            env,
+                        );
                     }
                 }
             }
             ClassMemberKind::Const(c) => {
-                check_groups(&c.attributes, UseSite::One(AttributeSite::Constant), ctx, env);
+                check_groups(
+                    &c.attributes,
+                    UseSite::One(AttributeSite::Constant),
+                    ctx,
+                    env,
+                );
             }
             ClassMemberKind::Attribute(declared) => {
                 check_attribute_decl(declared, ctx, env);
@@ -130,7 +150,12 @@ pub(crate) fn check_declaration(
         }
     }
     for case in cases {
-        check_groups(&case.attributes, UseSite::One(AttributeSite::Case), ctx, env);
+        check_groups(
+            &case.attributes,
+            UseSite::One(AttributeSite::Case),
+            ctx,
+            env,
+        );
     }
 }
 
@@ -149,7 +174,10 @@ const READ_SITES: [AttributeSite; 4] = [
 /// lowered as a shape type is, which reports what a shape's fields report.
 pub(crate) fn check_attribute_decl(decl: &AttributeDecl, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     for (index, word) in decl.sites.iter().enumerate() {
-        if decl.sites[..index].iter().any(|seen| seen.site == word.site) {
+        if decl.sites[..index]
+            .iter()
+            .any(|seen| seen.site == word.site)
+        {
             env.diags.report(
                 Diagnostic::error(
                     code::E_DUPLICATE_DECLARATION,
@@ -252,7 +280,10 @@ impl UseSite {
 /// Site words in backticks, joined for a message: "`class`, `method` and
 /// `property`".
 fn site_list(sites: &[AttributeSite]) -> String {
-    let words: Vec<String> = sites.iter().map(|site| format!("`{}`", site.word())).collect();
+    let words: Vec<String> = sites
+        .iter()
+        .map(|site| format!("`{}`", site.word()))
+        .collect();
     match words.split_last() {
         None => String::new(),
         Some((last, [])) => last.clone(),
@@ -484,13 +515,18 @@ pub(crate) fn declaration_arg(owner: &nvs_hir::QName, member: &str) -> Option<us
     {
         return Some(0);
     }
-    (crate::program::is_enumeration(owner, member) && crate::program::is_joined(member)).then_some(1)
+    (crate::program::is_enumeration(owner, member) && crate::program::is_joined(member))
+        .then_some(1)
 }
 
 /// The full name of the attribute declaration a type argument names, a
 /// program's or a `Core` row, or `None` where it names none. It reports nothing: [`lower_retrieval_arg`] has reported every
 /// mistake in the same argument already.
-pub(crate) fn declaration_of(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<nvs_hir::QName> {
+pub(crate) fn declaration_of(
+    ty: &Type,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<nvs_hir::QName> {
     let (name, member) = match &ty.kind {
         TypeKind::Atom(TypeAtom::Name(name, args)) if args.is_empty() => (name, None),
         TypeKind::Atom(TypeAtom::Member(owner, member)) => (owner, Some(*member)),
@@ -509,7 +545,11 @@ pub(crate) fn declaration_of(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Opt
 /// The declaration an attribute written at a site resolves to, read in the
 /// file and scope it was written in. It reports nothing: the site's own check
 /// has reported every mistake in the name already.
-pub(crate) fn declaration_at(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) -> Option<nvs_hir::QName> {
+pub(crate) fn declaration_at(
+    attr: &Attribute,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> Option<nvs_hir::QName> {
     let name = attr.name.as_ref()?;
     let before = env.diags.len();
     let found = match lookup(name, attr.member, ctx, env) {
@@ -529,7 +569,9 @@ pub(crate) fn lower_retrieval_arg(ty: &Type, ctx: &Ctx<'_>, env: &mut Env<'_>) -
         TypeKind::Atom(TypeAtom::Name(name, args)) if args.is_empty() => {
             Some(lookup(name, None, ctx, env))
         }
-        TypeKind::Atom(TypeAtom::Member(owner, member)) => Some(lookup(owner, Some(*member), ctx, env)),
+        TypeKind::Atom(TypeAtom::Member(owner, member)) => {
+            Some(lookup(owner, Some(*member), ctx, env))
+        }
         _ => None,
     };
     let written = |env: &Env<'_>| {
@@ -606,20 +648,32 @@ fn core_payload_type(doc: &crate::derive::AttributeDoc, env: &mut Env<'_>) -> Ty
 /// its type is `mixed`, so no program fails to compile for it.
 fn spelled_type(text: &str, env: &mut Env<'_>) -> TypeId {
     let text = text.trim();
-    if let Some(elem) = text.strip_prefix("array<").and_then(|rest| rest.strip_suffix('>')) {
+    if let Some(elem) = text
+        .strip_prefix("array<")
+        .and_then(|rest| rest.strip_suffix('>'))
+    {
         let elem = spelled_type(elem, env);
         return env.interner.array(elem);
     }
-    if let Some(body) = text.strip_prefix('{').and_then(|rest| rest.strip_suffix('}')) {
+    if let Some(body) = text
+        .strip_prefix('{')
+        .and_then(|rest| rest.strip_suffix('}'))
+    {
         let mut fields = Vec::new();
         for part in split_top_level(body) {
-            let Some((name, ty)) = part.split_once(':') else { continue };
+            let Some((name, ty)) = part.split_once(':') else {
+                continue;
+            };
             let (name, required) = match name.trim().strip_suffix('?') {
                 Some(name) => (name, false),
                 None => (name.trim(), true),
             };
             let ty = spelled_type(ty, env);
-            fields.push(crate::ty::ShapeField { name: name.trim().to_owned(), ty, required });
+            fields.push(crate::ty::ShapeField {
+                name: name.trim().to_owned(),
+                ty,
+                required,
+            });
         }
         return env.interner.shape(fields);
     }
@@ -639,7 +693,10 @@ fn spelled_type(text: &str, env: &mut Env<'_>) -> TypeId {
             }
         }
         _ => {
-            debug_assert!(text == "mixed", "`{text}` is not a spelling `Core`'s attribute table uses");
+            debug_assert!(
+                text == "mixed",
+                "`{text}` is not a spelling `Core`'s attribute table uses"
+            );
             env.interner.mixed()
         }
     }
@@ -675,7 +732,11 @@ fn report_two_scopes(
     env: &mut Env<'_>,
 ) {
     let short = owned.short_name();
-    let owner = owned.owner.as_ref().map(ToString::to_string).unwrap_or_default();
+    let owner = owned
+        .owner
+        .as_ref()
+        .map(ToString::to_string)
+        .unwrap_or_default();
     let owner_short = owned
         .owner
         .as_ref()
@@ -757,7 +818,9 @@ fn check_attribute(
             env.diags.report(
                 Diagnostic::error(
                     code::E_NOT_AN_ATTRIBUTE_DECLARATION,
-                    format!("only an attribute declaration may follow `#[`, and `{written}` is {what}"),
+                    format!(
+                        "only an attribute declaration may follow `#[`, and `{written}` is {what}"
+                    ),
                 )
                 .with_primary(attr.span, "this is not an attribute declaration")
                 .with_help(format!(

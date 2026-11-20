@@ -670,7 +670,6 @@ pub(crate) fn check_sites(
                 for attr in deprecations(&p.attributes, ctx, env) {
                     template::check(template::Target::Property(p), attr, ctx, env);
                 }
-
             }
             ClassMemberKind::Const(c) => {
                 report_construct(&c.attributes, "a constant", ctx, env);
@@ -742,5 +741,3 @@ fn report_construct(groups: &[AttributeGroup], site: &str, ctx: &Ctx<'_>, env: &
         }
     }
 }
-
-

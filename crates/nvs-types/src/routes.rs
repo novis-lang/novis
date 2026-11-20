@@ -112,9 +112,7 @@
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::DOC_MARKER;
-use nvs_syntax::ast::{
-    Attribute, ClassDecl, ClassMemberKind, DocComment, ExprKind, MethodMember,
-};
+use nvs_syntax::ast::{Attribute, ClassDecl, ClassMemberKind, DocComment, ExprKind, MethodMember};
 use rustc_hash::FxHashMap;
 
 use crate::expr_table::UrlPiece;
@@ -265,7 +263,6 @@ pub(crate) fn check_access(attr: &Attribute, env: &mut Env<'_>) {
         );
     }
 }
-
 
 /// `rule:routing/a-query-parameter-is-declared-like-a-capture`'s marker held to the declaration that reads it: a `#[Query]` on
 /// a parameter of a method carrying no `#[Route]`.

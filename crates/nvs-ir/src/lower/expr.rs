@@ -9003,7 +9003,10 @@ fn class_or_core_implementor(label: String) -> TestShape {
         return TestShape::Class(label);
     }
     let mut rows = vec![TestShape::Class(label)];
-    rows.extend(core.into_iter().map(|name| TestShape::Class(name.to_owned())));
+    rows.extend(
+        core.into_iter()
+            .map(|name| TestShape::Class(name.to_owned())),
+    );
     TestShape::Any(rows)
 }
 

@@ -148,8 +148,7 @@ pub(crate) fn expand_with(
     };
     // `E1008` or the name's own error has been reported where `T` was lowered
     // ([`crate::attributes::lower_retrieval_arg`]).
-    if env.interner.is_error(want_shape) || !matches!(env.interner.get(want_shape), Ty::Shape(_))
-    {
+    if env.interner.is_error(want_shape) || !matches!(env.interner.get(want_shape), Ty::Shape(_)) {
         return env.interner.mixed();
     }
     let Some(declared) = type_args

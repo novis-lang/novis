@@ -1336,8 +1336,9 @@ fn lower_program_as(
                     .iter()
                     .map(|attribute| {
                         let mut attribute = attribute.clone();
-                        if let Some(name) =
-                            attribute.name_span.and_then(|span| exprs.attribute_name_at(span))
+                        if let Some(name) = attribute
+                            .name_span
+                            .and_then(|span| exprs.attribute_name_at(span))
                         {
                             attribute.name = name.to_string();
                         }

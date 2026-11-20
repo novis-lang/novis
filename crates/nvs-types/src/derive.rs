@@ -748,7 +748,16 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
     },
     AttributeDoc {
         name: DEPRECATED,
-        sites: &[AttributeSite::Class, AttributeSite::Interface, AttributeSite::Enum, AttributeSite::Method, AttributeSite::Property, AttributeSite::Constant, AttributeSite::Case, AttributeSite::Parameter],
+        sites: &[
+            AttributeSite::Class,
+            AttributeSite::Interface,
+            AttributeSite::Enum,
+            AttributeSite::Method,
+            AttributeSite::Property,
+            AttributeSite::Constant,
+            AttributeSite::Case,
+            AttributeSite::Parameter,
+        ],
         repeatable: false,
         fields: &[
             AttributeField {

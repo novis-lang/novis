@@ -773,20 +773,29 @@ Written above {} as `{}`.",
     let sites: Vec<&str> = doc.sites.iter().map(|site| site.word()).collect();
     writer.push(&format!(" on {}", sites.join(", ")));
     if doc.fields.is_empty() {
-        writer.push(" {}
-");
+        writer.push(
+            " {}
+",
+        );
         return (writer.text, vec![(None, line)]);
     }
-    writer.push(" {
-");
+    writer.push(
+        " {
+",
+    );
     for field in doc.fields {
         writer.doc("    ", field.doc);
         let optional = if field.required { "" } else { "?" };
-        writer.push(&format!("    {}{optional}: {},
-", field.name, field.ty));
+        writer.push(&format!(
+            "    {}{optional}: {},
+",
+            field.name, field.ty
+        ));
     }
-    writer.push("}
-");
+    writer.push(
+        "}
+",
+    );
     (writer.text, vec![(None, line)])
 }
 

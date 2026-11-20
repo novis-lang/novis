@@ -996,7 +996,12 @@ fn every_core_attribute_is_one_declaration() {
     for doc in derive::ATTRIBUTE_DOCS {
         assert!(!doc.sites.is_empty(), "{} lists no site", doc.name);
         for field in doc.fields {
-            assert!(!field.doc.trim().is_empty(), "{}.{} has no doc", doc.name, field.name);
+            assert!(
+                !field.doc.trim().is_empty(),
+                "{}.{} has no doc",
+                doc.name,
+                field.name
+            );
         }
     }
 }

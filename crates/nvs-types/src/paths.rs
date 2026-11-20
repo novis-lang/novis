@@ -88,8 +88,8 @@ use nvs_diagnostics::{Diagnostic, SourceFile, code, lexical_normalize as normali
 use nvs_hir::QName;
 use nvs_stdlib::registry::ParamText;
 use nvs_syntax::ast::{
-    Arg, BinaryOp, CallArgs, ClassMember, ClassMemberKind, Expr,
-    ExprKind, MethodMember, Param, StringPart, Type, TypeAtom, TypeKind,
+    Arg, BinaryOp, CallArgs, ClassMember, ClassMemberKind, Expr, ExprKind, MethodMember, Param,
+    StringPart, Type, TypeAtom, TypeKind,
 };
 
 use crate::defaults::ConstArg;
@@ -468,7 +468,6 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         );
     }
 }
-
 
 /// Whether a written type is `string` — plain or qualified — alone or with
 /// `null`: `string`, `?string`, `string|null`, `tainted string`.

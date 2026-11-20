@@ -63,11 +63,7 @@ fn a_deprecated_attribute_on_an_attach_site_it_does_not_take_is_refused() {
            set(#[Core\\Deprecated] int $v) { $this->n = $v; }\n  \
          }\n}\n",
     );
-    assert_eq!(
-        count(&diags, code::E_ATTRIBUTE_WRONG_SITE),
-        2,
-        "{diags:?}"
-    );
+    assert_eq!(count(&diags, code::E_ATTRIBUTE_WRONG_SITE), 2, "{diags:?}");
 
     let diags = check_src(
         "<?nvs\n\

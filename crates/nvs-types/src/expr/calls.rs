@@ -322,14 +322,8 @@ pub(crate) fn infer_method_call(
         // `Core\Router\Match::attribute<T>` returns the payload the checker
         // folded for the matched route's method — see
         // `nvs_stdlib::registry::ROUTE_ATTRIBUTE_MEMBERS`.
-        call.route_attributes = crate::match_attribute::fold(
-            qname,
-            name,
-            (&written, type_args),
-            expr.span,
-            ctx,
-            env,
-        );
+        call.route_attributes =
+            crate::match_attribute::fold(qname, name, (&written, type_args), expr.span, ctx, env);
         env.exprs.record(expr.span, ExprInfo::Call(call));
     }
     // The return type already has `static` bound to the receiver's class, above.
@@ -475,14 +469,8 @@ fn infer_union_method_call(
             target.record_on(&mut resolved, list);
         }
         resolved.written_enum = written_enum_of(&owner, name, &written, type_args, expr.span, env);
-        resolved.route_attributes = crate::match_attribute::fold(
-            &owner,
-            name,
-            (&written, type_args),
-            expr.span,
-            ctx,
-            env,
-        );
+        resolved.route_attributes =
+            crate::match_attribute::fold(&owner, name, (&written, type_args), expr.span, ctx, env);
         let info = match method_ref {
             true => ExprInfo::CallableRef(resolved),
             false => ExprInfo::Call(resolved),
