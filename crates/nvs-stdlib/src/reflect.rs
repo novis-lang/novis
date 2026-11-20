@@ -248,8 +248,8 @@ const CONSTANTS_SLOT: usize = 3;
 /// class's own declaration carries.
 const ATTRIBUTES_SLOT: usize = 4;
 
-/// [`ATTRIBUTE_INFO`]'s slot holding the name the named form gave the
-/// attribute, or the empty string for the bare form.
+/// [`ATTRIBUTE_INFO`]'s slot holding the full name of the declaration the
+/// attribute is written under.
 const ATTRIBUTE_NAME_SLOT: usize = 0;
 
 /// [`ATTRIBUTE_INFO`]'s slot holding the member the attribute is written on, or
@@ -1769,11 +1769,10 @@ const ATTRIBUTE_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Reflect\AttributeInfo::name`'s reference card — `rule:core-api/reference-card`.
 const ATTRIBUTE_NAME_DOC: MethodDoc = MethodDoc {
-    short: "Returns the name of the `type` alias written in the attribute, as it is written.",
+    short: "Returns the full name of the attribute declaration, such as `Shop\\Storable::Index`.",
     params: &[],
-    ret: "The written name. For the form `#[{...}]`, which has no name, it is the **empty \
-          string**. The name is not resolved. The compiler uses it to check the payload object \
-          where the attribute is written. Your code never uses it to find an attribute.",
+    ret: "The full name of the declaration, with its namespace. The name is the same for \
+          `#[Index]` and `#[Storable::Index]`, because both are the same attribute.",
     errors: &[],
 };
 
@@ -2708,8 +2707,8 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Reflect\AttributeInfo::name(): string` — the name the named form
-    /// gave the attribute, unresolved.
+    /// `Core\Reflect\AttributeInfo::name(): string` — the full name of the
+    /// declaration the attribute is written under.
     fn nvs_core_reflect_attribute_info_name(_ctx, args: [1]) {
         slot_of(args, &ATTRIBUTE_INFO, ATTRIBUTE_NAME_SLOT, "name")
     }

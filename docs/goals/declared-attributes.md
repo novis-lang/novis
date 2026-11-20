@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-lsp/src/stubs.rs, docs/rules/attributes/access-payload.md]
   - id: 5
     title: every retrieval matches the declaration, never the shape
-    status: open
+    status: done
     context: [crates/nvs-types/src/retrieval.rs, crates/nvs-types/src/match_attribute.rs, crates/nvs-types/src/program.rs, crates/nvs-codegen/src/lib.rs, crates/nvs-stdlib/src/reflect.rs]
   - id: 6
     title: the corpus declares its attributes
@@ -383,14 +383,14 @@ stage 6. That is expected, and no stage before the gate runs the whole suite.
 
 ### 5. every retrieval matches the declaration, never the shape
 
-- [ ] `crates/nvs-types/src/retrieval.rs:306` `fold_retrieval`, `:485` `sites_for` and `:561`
+- [x] `crates/nvs-types/src/retrieval.rs:306` `fold_retrieval`, `:485` `sites_for` and `:561`
   `matching`: the type argument resolves to a declaration, and the answer is the payloads written
   under it. An inline shape or a type is an error.
-- [ ] `crates/nvs-types/src/match_attribute.rs:1` and `crates/nvs-types/src/program.rs:58`: the same for
+- [x] `crates/nvs-types/src/match_attribute.rs:1` and `crates/nvs-types/src/program.rs:58`: the same for
   `Core\Router\Match::attribute<T>` and `Core\Program::implementingWith<I, T>`.
-- [ ] `crates/nvs-codegen/src/lib.rs:2375` `attribute_desc`: the row carries the declaration's full
+- [x] `crates/nvs-codegen/src/lib.rs:2375` `attribute_desc`: the row carries the declaration's full
   name, so `crates/nvs-stdlib/src/reflect.rs:2711` `AttributeInfo::name()` returns it.
-- [ ] The `retrieval` check runs once.
+- [x] The `retrieval` check runs once.
 
 ### 6. the corpus declares its attributes
 
@@ -473,41 +473,43 @@ reference, `about.md` and the pages. Their files are disjoint.
 
 ### State
 
-Stages 1 to 4 are done. The checker resolves and checks every program attribute, and IR skips an
-`attribute` declaration. `Core`'s compiler attributes are rows of `derive::ATTRIBUTE_DOCS` with
-sites, `repeatable` and field docs, and one site check (`E0874`) and one count check (`E0763`)
-cover both kinds. The stub tree writes each `Core` attribute as an `attribute` declaration. The
-nine `cases` files are green by name. `looper check --name cases` exits 1 only because
-`bun nv suite --case` reruns the corpus cases stage 6 migrates. The nightly run `44722386375`
-predates both fixes for its failures (`e5a100b18f`, `438e9c44af`).
-
-**Red until stage 5:** the two `retrieval` cases and four unit tests that name a declaration where
-`Match::attribute` and `implementingWith` still give `E0729`:
-`match_attribute::tests::attribute_folds_one_payload_per_routed_method_that_has_one`,
-`match_attribute::tests::two_matching_payloads_on_one_routed_method_are_e0728`,
-`program::tests::program_implementing_with_records_one_payload_per_class` and
-`program::tests::program_implementing_with_takes_a_class`.
+Stages 1 to 5 are done. The checker resolves and checks every program attribute, and `Core`'s
+compiler attributes are declarations checked by the same site (`E0874`) and count (`E0763`) rules.
+Every retrieval now matches by declaration: `crates/nvs-types/src/attributes.rs` `declaration_arg`
+names which type argument is a declaration (`get`/`all` and `Match::attribute` the first,
+`implementingWith` the second), `lower_retrieval_arg` lowers it or reports `E1008`, and
+`retrieval::matching` keeps a site when `attributes::declaration_at` resolves its name, in the
+site's own scope, to the same `QName`. `E0729` is retired. `AttributeInfo::name()` returns the
+declaration's full name: `layout::ClassAttribute::name_span` is looked up in
+`ExprTypeTable::attribute_name_at` by `crates/nvs-ir/src/lower/mod.rs` when it builds a class
+descriptor. The two `retrieval` cases and the six named unit tests pass by name.
 
 **Red until stage 6:** every corpus file with `#[{…}]` (`E0140`), a shape alias after `#[`
-(`E1005`) or `get<{…}>` (`E1008`). About 55 files are under `tests/conformance/`, `tests/hostile/`,
-`docs/examples/`, `benches/members/` and `tests/lsp/`. Also the `E0726` and `E0871` reject cases,
-and Rust tests that write `#[{`: `Grep` for `#\[\{` under `crates/`, such as `crates/nvs-fmt/tests/`,
-`crates/nvs-lsp/tests/` and `crates/nvs-cli/tests/agent.rs`. Stage 6 migrates them with the corpus.
+(`E1005`), or a shape or a type as a retrieval's `T` (`E1008`). About 55 files are under
+`tests/conformance/`, `tests/hostile/`, `docs/examples/`, `benches/members/` and `tests/lsp/`.
+Also the `E0726` and `E0871` reject cases, and the two cases that still expect `E0729`:
+`tests/conformance/core/router-match-attribute-of-a-type-that-is-not-a-shape-is-e0729.nvst` and
+`tests/conformance/reject/an-attribute-retrieval-is-refused-where-it-cannot-be-folded.nvst`.
+Stage 6 renames the first for `E1008`. The four `E0728` cases expect the old message, "match this
+shape". It now reads "has N `Name` attributes". Rust tests that write `#[{`: `Grep` for `#\[\{` under `crates/`, such as
+`crates/nvs-fmt/tests/`, `crates/nvs-lsp/tests/` and `crates/nvs-cli/tests/agent.rs`. Stage 6
+migrates them with the corpus.
 
 ### Next
 
-Stage 5: every retrieval matches the declaration, never the shape.
+Stage 6: the corpus declares its attributes. Follow the stage's `**Split:**` line.
 
-- `crates/nvs-types/src/retrieval.rs:306` `fold_retrieval`, `:476` `sites_for` and `:552`
-  `matching`: the type argument already resolves through
-  `crates/nvs-types/src/attributes.rs` `lower_retrieval_arg`. Match each use by the declaration
-  name `env.exprs.record_attribute_name` recorded, never by the shape `TypeId`.
-- `crates/nvs-types/src/match_attribute.rs:64` and `crates/nvs-types/src/program.rs:153`: move from
-  `E_ATTRIBUTE_TYPE_ARG_NOT_A_SHAPE` (`E0729`) to `lower_retrieval_arg` and `E1008`, then retire
-  `E0729`.
-- `crates/nvs-codegen/src/lib.rs:2473` `attribute_desc`: the row carries the declaration's full name
-  for `crates/nvs-stdlib/src/reflect.rs` `AttributeInfo::name()`.
-- Then `looper check --name retrieval` once.
+- An `Explore` subagent lists every file that writes `#[{`, a `type` alias used after `#[`,
+  `Owner::Name` after `#[`, or a retrieval (`Attributes::get<`, `Attributes::all<`,
+  `->attribute<`, `implementingWith<`), grouped by top directory.
+- One writing subagent per directory, side by side: `docs/examples/`, `tests/conformance/`,
+  `tests/hostile/` with `benches/`, and `tests/lsp/` with `website/snippets/` and `extensions/`.
+  Each declares `attribute Name on <the sites its uses need> { … }`, moves it into the class it is
+  meant for where the example has one, and makes each retrieval name the declaration.
+- `docs/examples/lang/attributes/*/details.md` and `docs/reference/lang/90-attributes.md:276`,
+  `:2811` still name `E0729`. The reference is stage 8's, and the example `details.md` files go with
+  their directory in stage 6.
+- Then the session builds, runs `bun nv nvs-fmt`, and runs the touched cases once, by name.
 
 ### Backlog
 
@@ -516,4 +518,6 @@ Stage 5: every retrieval matches the declaration, never the shape.
 - An attribute name in a type position should be `E0303`. That is not checked yet, because
   `SymbolKind::Attribute` is in the symbol table. Check what `crates/nvs-types/src/lower.rs` does
   with it.
-- `E0729` retires in stage 5, when `Match::attribute` and `implementingWith` move to `E1008`.
+- `ExprTypeTable::attribute_name_at` searches a `Vec` once per attribute of a described class. It
+  costs one comparison per resolved name, while compiling only. A map is the fix if a program with
+  many attributes shows it in a compile profile.
