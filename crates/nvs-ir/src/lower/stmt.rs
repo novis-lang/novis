@@ -44,6 +44,7 @@ impl<'a> Lowering<'a> {
                 | StmtKind::InterfaceDecl(_)
                 | StmtKind::EnumDecl(_)
                 | StmtKind::TypeAliasDecl(_)
+                | StmtKind::AttributeDecl(_)
                 // `rule:programs/no-runtime-autoload`'s `autoload` map is read by `nvs_hir` while the
                 // `require`/autoload graph is being built, long before any of
                 // this — so at file scope it is a declaration like the rest of
@@ -303,7 +304,8 @@ impl<'a> Lowering<'a> {
             | StmtKind::NamespaceDecl(_)
             | StmtKind::UseDecl(_)
             | StmtKind::AutoloadDecl(_)
-            | StmtKind::TypeAliasDecl(_) => guarded_by!(
+            | StmtKind::TypeAliasDecl(_)
+            | StmtKind::AttributeDecl(_) => guarded_by!(
                 code::E_NESTED_TYPE_DECLARATION_UNSUPPORTED,
                 "a declaration inside a body is refused there — only file scope carries one"
             ),

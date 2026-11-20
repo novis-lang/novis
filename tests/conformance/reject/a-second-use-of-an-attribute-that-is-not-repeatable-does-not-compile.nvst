@@ -36,10 +36,10 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0763]: `Column` is used twice here, and its declaration is not `repeatable`
-   --> case.nvs:22:7
+   --> case.nvs:21:7
 %A
 error[E0763]: `Table` is used twice here, and its declaration is not `repeatable`
-   --> case.nvs:28:3
+   --> case.nvs:27:3
 %A
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

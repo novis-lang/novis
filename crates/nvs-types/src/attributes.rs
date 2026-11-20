@@ -558,6 +558,13 @@ fn report_two_scopes(
         .unwrap_or_default();
     let segments = scoped.segments();
     let namespace = segments[..segments.len() - 1].join("\\");
+    // A qualified name is already absolute, so only a global declaration
+    // needs the leading `\` to differ from the short name.
+    let written = if namespace.is_empty() {
+        format!("\\{scoped}")
+    } else {
+        scoped.to_string()
+    };
     let place = if namespace.is_empty() {
         "the global namespace".to_owned()
     } else {
@@ -568,12 +575,12 @@ fn report_two_scopes(
             code::E_ATTRIBUTE_NAME_IN_TWO_SCOPES,
             format!(
                 "`{short}` is declared in `{owner}` and in {place}, so write \
-                 `{owner_short}::{short}` or `\\{scoped}`"
+                 `{owner_short}::{short}` or `{written}`"
             ),
         )
         .with_primary(span, "two declarations have this name")
         .with_help(format!(
-            "`{owner_short}::{short}` names the attribute declared in `{owner}`. `\\{scoped}` \
+            "`{owner_short}::{short}` names the attribute declared in `{owner}`. `{written}` \
              names the other one."
         )),
     );

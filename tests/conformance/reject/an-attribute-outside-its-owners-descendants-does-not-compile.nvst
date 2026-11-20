@@ -34,7 +34,7 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E1006]: `Index` is declared in `Shop\Storable`, so it is used only on classes that extend or implement `Shop\Storable` and their members
-   --> case.nvs:6:3
+  --> case.nvs:6:3
 %A
 error[E1006]: `Index` is declared in `Shop\Storable`, so it is used only on classes that extend or implement `Shop\Storable` and their members
    --> case.nvs:10:7

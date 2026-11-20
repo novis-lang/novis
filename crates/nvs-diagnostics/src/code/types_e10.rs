@@ -82,7 +82,7 @@ codes! {
     pub const E_ATTRIBUTE_NAME_IN_TWO_SCOPES: Code = Code::new("E1007").card(
         "Two attribute declarations have this short name. One is declared in a parent class or \
          interface, and one in the namespace or in a `use` import. Write the full name of the \
-         one you mean, such as `Storable::Index` or `\\Shop\\Index`.",
+         one you mean, such as `Storable::Index` or `Shop\\Index`.",
     );
     /// A `Core\Attributes::get<T>` or `::all<T>` whose `T` is not an
     /// `attribute` declaration

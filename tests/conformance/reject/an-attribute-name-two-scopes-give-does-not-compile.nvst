@@ -17,7 +17,7 @@ attribute Index on class { columns: string }
 
 // Each qualified name names one declaration, so this class compiles.
 #[Storable::Index(columns: "email")]
-#[\Shop\Index(columns: "id")]
+#[Shop\Index(columns: "id")]
 class Accepted extends Storable {
     #[Storable::Deprecated(reason: "use find")]
     public function load(): int {
@@ -38,10 +38,10 @@ echo "unreachable\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E1007]: `Index` is declared in `Shop\Storable` and in `Shop`, so write `Storable::Index` or `\Shop\Index`
+error[E1007]: `Index` is declared in `Shop\Storable` and in `Shop`, so write `Storable::Index` or `Shop\Index`
    --> case.nvs:26:3
 %A
-error[E1007]: `Deprecated` is declared in `Shop\Storable` and in `Core`, so write `Storable::Deprecated` or `\Core\Deprecated`
+error[E1007]: `Deprecated` is declared in `Shop\Storable` and in `Core`, so write `Storable::Deprecated` or `Core\Deprecated`
    --> case.nvs:28:7
 %A
 error: aborting due to 2 errors

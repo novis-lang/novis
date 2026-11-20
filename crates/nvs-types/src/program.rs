@@ -827,15 +827,16 @@ mod tests {
     fn program_implementing_with_records_one_payload_per_class() {
         let (exprs, span, diags) = check(
             "<?nvs\n\
+             attribute Order on class, method { order: int }\n\
              interface Module { public function tag(): string; }\n\
              class Beta implements Module {\n\
-                 #[{order: 2}]\n\
+                 #[Order(order: 2)]\n\
                  public function tag(): string { return \"b\"; }\n\
              }\n\
              class Alpha implements Module {\n\
                  public function tag(): string { return \"a\"; }\n\
              }\n\
-             Core\\Program::implementingWith<Module, {order: int}>(\"tag\");\n",
+             Core\\Program::implementingWith<Module, Order>(\"tag\");\n",
         );
         assert!(!diags.has_errors(), "the join was refused: {diags:?}");
         let Some(ExprInfo::ProgramInstancesWith {
@@ -876,11 +877,12 @@ mod tests {
     fn program_implementing_with_takes_a_class() {
         let (exprs, span, diags) = check(
             "<?nvs\n\
+             attribute Order on class, method { order: int }\n\
              class Page {}\n\
              abstract class Section extends Page {}\n\
-             #[{order: 1}]\n\
+             #[Order(order: 1)]\n\
              class About extends Section {}\n\
-             Core\\Program::implementingWith<Page, {order: int}>();\n",
+             Core\\Program::implementingWith<Page, Order>();\n",
         );
         assert!(!diags.has_errors(), "the join was refused: {diags:?}");
         let Some(ExprInfo::ProgramInstancesWith {

@@ -714,6 +714,7 @@ fn stmt_parts<'a>(stmt: &'a Stmt, out: &mut Vec<Part<'a>>) -> bool {
         | StmtKind::UseDecl(_)
         | StmtKind::AutoloadDecl(_)
         | StmtKind::TypeAliasDecl(_)
+        | StmtKind::AttributeDecl(_)
         | StmtKind::TopLevelFunction(_)
         | StmtKind::TopLevelConst(_) => {}
         _ => return false,

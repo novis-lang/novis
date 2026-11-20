@@ -1283,6 +1283,11 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
             walk_class_members(&decl.members, src, out);
         }
         StmtKind::TypeAliasDecl(decl) => walk_type(&decl.ty, src, out),
+        StmtKind::AttributeDecl(decl) => {
+            for field in &decl.fields {
+                walk_type(&field.ty, src, out);
+            }
+        }
         StmtKind::NamespaceDecl(NamespaceDecl { name, body, .. }) => {
             let outer_ns = std::mem::take(&mut out.namespace);
             let outer_imports = std::mem::take(&mut out.imports);

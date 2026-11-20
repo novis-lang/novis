@@ -1932,6 +1932,9 @@ pub(crate) fn check_stmt(
         }
         StmtKind::EnumDecl(decl) => nested_declaration("enum", decl.name.span, true, env),
         StmtKind::TypeAliasDecl(decl) => nested_declaration("type", decl.name.span, true, env),
+        StmtKind::AttributeDecl(decl) => {
+            nested_declaration("attribute", decl.name.span, true, env);
+        }
         // The three that introduce no name of their own: they change what the
         // names around them *mean*, for the whole file, which is the same
         // thing control flow has no reading to give.

@@ -148,10 +148,11 @@ mod tests {
         (folded, diags)
     }
 
-    /// Two routed methods, one plain method and the call reading a shape.
+    /// Two routed methods, one plain method and the call reading an attribute.
     fn program(shape: &str, show_attributes: &str) -> String {
         format!(
             "<?nvs\n\
+             repeatable attribute Timeout on method {{ seconds: int, label?: string }}\n\
              class Shop {{\n\
                  #[Core\\Route(path: \"/shop\", method: Core\\Http\\Method::Get)]\n\
                  #[Core\\Access(allow: Core\\Audience::Public)]\n\
@@ -160,7 +161,7 @@ mod tests {
                  #[Core\\Route(path: \"/list\", method: Core\\Http\\Method::Get)]\n\
                  #[Core\\Access(allow: Core\\Audience::Public)]\n\
                  public function index(): void {{}}\n\
-                 #[{{seconds: 5}}]\n\
+                 #[Timeout(seconds: 5)]\n\
                  public function helper(): void {{}}\n\
              }}\n\
              ?Core\\Router\\Match $route = Core\\Router::match(Core\\Http\\Method::Get, \"/shop\");\n\
@@ -174,7 +175,7 @@ mod tests {
     // covers: Core\Router\Match::attribute
     #[test]
     fn attribute_folds_one_payload_per_routed_method_that_has_one() {
-        let (folded, diags) = check(&program("{seconds: int}", "#[{seconds: 60, label: \"a\"}]"));
+        let (folded, diags) = check(&program("Timeout", "#[Timeout(seconds: 60, label: \"a\")]"));
         assert!(!diags.has_errors(), "fixture failed to check: {diags:?}");
         let folded = folded.expect("the call recorded its payloads");
         let labels: Vec<&str> = folded.iter().map(|(label, _)| label.as_str()).collect();
@@ -194,7 +195,7 @@ mod tests {
     /// nothing.
     #[test]
     fn attribute_of_a_type_that_is_not_a_shape_is_e0729() {
-        let (folded, diags) = check(&program("int", "#[{seconds: 60}]"));
+        let (folded, diags) = check(&program("int", "#[Timeout(seconds: 60)]"));
         assert!(
             diags
                 .iter()
@@ -209,8 +210,8 @@ mod tests {
     #[test]
     fn two_matching_payloads_on_one_routed_method_are_e0728() {
         let (folded, diags) = check(&program(
-            "{seconds: int}",
-            "#[{seconds: 60}]\n#[{seconds: 30}]",
+            "Timeout",
+            "#[Timeout(seconds: 60)]\n#[Timeout(seconds: 30)]",
         ));
         let ambiguous: Vec<_> = diags
             .iter()

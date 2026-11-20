@@ -217,7 +217,7 @@ fn every_function_counts_into_its_own_part_of_the_table() {
 /// A retrieval the checker answers whole — `rule:attributes/retrieval-folds-while-checking`'s
 /// fold — written as one statement's entire expression, with an ordinary statement on either side
 /// of it.
-const A_FOLDED_CALL: &str = "<?nvs\nclass Row {\n    #[{column: \"name\"}]\n    public string $name = \"\";\n}\necho \"a\";\n?{column: string} $found = Core\\Attributes::get<{column: string}>(Row::constructor, \"name\");\necho \"b\";\n";
+const A_FOLDED_CALL: &str = "<?nvs\nattribute Column on property { column: string }\nclass Row {\n    #[Column(column: \"name\")]\n    public string $name = \"\";\n}\necho \"a\";\n?{column: string} $found = Core\\Attributes::get<Column>(Row::constructor, \"name\");\necho \"b\";\n";
 
 #[test]
 fn a_statement_holding_a_folded_intrinsic_call_is_still_reported_covered() {
@@ -232,7 +232,7 @@ fn a_statement_holding_a_folded_intrinsic_call_is_still_reported_covered() {
     // name a body that aborts the process on entry (`nvs_stdlib::attributes`'s
     // `folded_at_compile_time`), so a script that returns at all is one whose retrieval never
     // became a call.
-    assert_eq!(covered(A_FOLDED_CALL), [(6, 1), (7, 1), (8, 1)]);
+    assert_eq!(covered(A_FOLDED_CALL), [(7, 1), (8, 1), (9, 1)]);
 }
 
 /// A statement path and a call path in one script, so `rule:testing/debug-probes`'s probe units

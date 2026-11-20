@@ -20,7 +20,7 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E1004]: an attribute declared in a program may list only `class`, `method`, `property` and `parameter`, and `interface` is not read by any retrieval
-   --> case.nvs:9:26
+  --> case.nvs:9:26
 %A
 error[E1004]: an attribute declared in a program may list only `class`, `method`, `property` and `parameter`, and `enum` is not read by any retrieval
    --> case.nvs:10:21

@@ -34,21 +34,23 @@ fn reported(diags: &Diagnostics, want: Code) -> bool {
 
 #[test]
 fn get_with_no_matching_attribute_folds_to_a_constant_null() {
-    // Something *is* attached to `$id` and it does not satisfy the retrieved
-    // shape — the case a table keyed by "does this declaration carry
+    // Something *is* attached to `$id` and it is not the retrieved
+    // declaration — the case a table keyed by "does this declaration carry
     // attributes" would get wrong, since `rule:attributes/a-retrieval-matches-the-declaration-it-names`
-    // matches on shape and never on presence.
+    // matches on the declaration and never on presence.
     let (diags, run) = check_src_declared(
         "<?nvs
+attribute Table on property { table: string }
+attribute Column on property { column: string }
 class Row {
-    #[{table: \"rows\"}]
+    #[Table(table: \"rows\")]
     public string $id = \"\";
 }
-?{column: string} $absent = Core\\Attributes::get<{column: string}>(Row::constructor, \"id\");
+?{column: string} $absent = Core\\Attributes::get<Column>(Row::constructor, \"id\");
 ",
     );
     assert!(!diags.has_errors(), "{diags:?}");
-    let folded = run.folded_at("Core\\Attributes::get<{column: string}>(Row::constructor, \"id\")");
+    let folded = run.folded_at("Core\\Attributes::get<Column>(Row::constructor, \"id\")");
     assert!(
         matches!(
             folded,
@@ -65,25 +67,24 @@ class Row {
 fn get_with_one_match_folds_to_that_constant_with_no_runtime_lookup() {
     let (diags, run) = check_src_declared(
         "<?nvs
+attribute Column on property { column: string, unique?: bool }
 class Row {
-    #[{column: \"name\", unique: true}]
+    #[Column(column: \"name\", unique: true)]
     public string $name = \"\";
 }
-?{column: string} $found = Core\\Attributes::get<{column: string}>(Row::constructor, \"name\");
+?{column: string} $found = Core\\Attributes::get<Column>(Row::constructor, \"name\");
 ",
     );
     assert!(!diags.has_errors(), "{diags:?}");
-    let folded =
-        run.folded_at("Core\\Attributes::get<{column: string}>(Row::constructor, \"name\")");
+    let folded = run.folded_at("Core\\Attributes::get<Column>(Row::constructor, \"name\")");
     let Some(ExprInfo::CoreConst {
         value: ConstArg::Shape(fields),
     }) = folded
     else {
         panic!("the fold replaces the call with the payload itself, and this recorded {folded:?}");
     };
-    // The payload *whole*, not the fields the shape asked for: the fold compiles
-    // in the attribute's payload object, and `rule:types/shape-type`'s width
-    // subtyping is what let it match while carrying `unique` as well.
+    // The payload as it was written: the fold compiles in the attribute's
+    // payload object, `unique` included.
     let names: Vec<&str> = fields.iter().map(|(name, _)| name.as_str()).collect();
     assert_eq!(names, ["column", "unique"], "{fields:?}");
     assert!(
@@ -97,15 +98,16 @@ class Row {
 #[test]
 fn get_with_two_matches_is_a_diagnostic_naming_all() {
     let two_columns = "<?nvs
+repeatable attribute Column on property { column: string }
 class Row {
-    #[{column: \"name\"}]
-    #[{column: \"title\"}]
+    #[Column(column: \"name\")]
+    #[Column(column: \"title\")]
     public string $name = \"\";
 }
 ";
     let (diags, _) = check_src_declared(&format!(
         "{two_columns}?{{column: string}} $both = \
-         Core\\Attributes::get<{{column: string}}>(Row::constructor, \"name\");\n"
+         Core\\Attributes::get<Column>(Row::constructor, \"name\");\n"
     ));
     assert!(
         reported(&diags, code::E_ATTRIBUTE_RETRIEVAL_AMBIGUOUS),
@@ -123,11 +125,10 @@ class Row {
     // — or neither — would still satisfy the half above.
     let (diags, run) = check_src_declared(&format!(
         "{two_columns}array<{{column: string}}> $both = \
-         Core\\Attributes::all<{{column: string}}>(Row::constructor, \"name\");\n"
+         Core\\Attributes::all<Column>(Row::constructor, \"name\");\n"
     ));
     assert!(!diags.has_errors(), "{diags:?}");
-    let folded =
-        run.folded_at("Core\\Attributes::all<{column: string}>(Row::constructor, \"name\")");
+    let folded = run.folded_at("Core\\Attributes::all<Column>(Row::constructor, \"name\")");
     let Some(ExprInfo::CoreConst {
         value: ConstArg::Array(entries),
     }) = folded
@@ -140,8 +141,9 @@ class Row {
 #[test]
 fn a_written_member_name_that_names_no_real_member_is_a_diagnostic() {
     let row = "<?nvs
+attribute Column on property { column: string }
 class Row {
-    #[{column: \"name\"}]
+    #[Column(column: \"name\")]
     public string $name = \"\";
 }
 ";
@@ -151,7 +153,7 @@ class Row {
     // test run.
     let (diags, _) = check_src_declared(&format!(
         "{row}?{{column: string}} $typo = \
-         Core\\Attributes::get<{{column: string}}>(Row::constructor, \"nmae\");\n"
+         Core\\Attributes::get<Column>(Row::constructor, \"nmae\");\n"
     ));
     assert!(
         reported(&diags, code::E_ATTRIBUTE_MEMBER_NOT_DECLARED),
@@ -165,11 +167,10 @@ class Row {
     let (diags, run) = check_src_declared(&format!(
         "{row}string $computed = \"nm\" . \"ae\";
 ?{{column: string}} $dynamic = \
-         Core\\Attributes::get<{{column: string}}>(Row::constructor, $computed);\n"
+         Core\\Attributes::get<Column>(Row::constructor, $computed);\n"
     ));
     assert!(!diags.has_errors(), "{diags:?}");
-    let folded =
-        run.folded_at("Core\\Attributes::get<{column: string}>(Row::constructor, $computed)");
+    let folded = run.folded_at("Core\\Attributes::get<Column>(Row::constructor, $computed)");
     assert!(
         matches!(
             folded,
