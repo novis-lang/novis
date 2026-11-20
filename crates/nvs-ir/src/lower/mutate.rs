@@ -142,6 +142,19 @@ pub fn mutants(
     }
 }
 
+/// A program lowered with one mutant's change made, and the function the
+/// change is in.
+#[derive(Debug)]
+pub struct Mutated {
+    /// The whole program, test code included.
+    pub program: crate::ir::Program,
+    /// The name of the [`crate::ir::Function`] the change is in. For a site in
+    /// an anonymous function or a generator body it is that function's own
+    /// name, not [`Mutant::function`]'s method label, so a caller can find the
+    /// one compiled function the change touches.
+    pub changed: String,
+}
+
 /// The program, with its test code, lowered with `mutant`'s one change made.
 ///
 /// # Panics
@@ -157,11 +170,11 @@ pub fn lower_mutant(
     enums: &EnumTable,
     layouts: &ClassLayoutTable,
     mutant: &Mutant,
-) -> crate::ir::Program {
+) -> Mutated {
     let guard = Armed::set(Mode::Apply {
         span: mutant.span,
         operator: mutant.operator,
-        applied: false,
+        applied: None,
     });
     let program = lower_program_as(
         script,
@@ -175,12 +188,13 @@ pub fn lower_mutant(
     let Mode::Apply { applied, .. } = guard.take() else {
         unreachable!("an armed mutant is armed as one")
     };
-    assert!(
-        applied,
-        "nvs-ir: no site matches the mutant at {:?} ({:?}); it was not listed for this program",
-        mutant.span, mutant.operator
-    );
-    program
+    let Some(changed) = applied else {
+        panic!(
+            "nvs-ir: no site matches the mutant at {:?} ({:?}); it was not listed for this program",
+            mutant.span, mutant.operator
+        );
+    };
+    Mutated { program, changed }
 }
 
 enum Mode {
@@ -188,7 +202,8 @@ enum Mode {
     Apply {
         span: Span,
         operator: Operator,
-        applied: bool,
+        /// The name of the function the change was made in, once it is.
+        applied: Option<String>,
     },
 }
 
@@ -383,7 +398,9 @@ impl Lowering<'_> {
                     applied,
                 } => {
                     let hit = *at == span && *which == operator;
-                    *applied |= hit;
+                    if hit {
+                        *applied = Some(self.fn_label.clone());
+                    }
                     hit
                 }
             }
@@ -570,7 +587,8 @@ mod tests {
                     &enums,
                     &layouts,
                     mutant,
-                );
+                )
+                .program;
                 print_program(&program, map.file(file))
             })
             .collect();

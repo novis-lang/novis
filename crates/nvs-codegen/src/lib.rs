@@ -1383,6 +1383,39 @@ pub fn clif(program: &Program) -> Result<String, CodegenError> {
     Ok(clif)
 }
 
+/// The hash of the machine code `program`'s function `name` compiles to, or
+/// `None` when the program has no function by that name.
+///
+/// `rule:testing/mutation-testing`'s equivalence test. The function is
+/// compiled alone into a throwaway object module, at [`opt_level`], with
+/// every coverage probe's number counted from zero, so where the function
+/// sits in the program does not change its bytes. The hash covers the
+/// function's bytes, each relocation by its target's name, and the contents
+/// of each data object the function defines. Two functions with the same
+/// hash run the same code.
+///
+/// What it spends: one function's compile and the program's declarations,
+/// dropped before it returns.
+///
+/// # Errors
+///
+/// The same cases [`compile`] reports, for the same reasons.
+pub fn function_code_hash(program: &Program, name: &str) -> Result<Option<[u8; 32]>, CodegenError> {
+    let Some(function) = program.functions.iter().find(|f| f.name == name) else {
+        return Ok(None);
+    };
+    let mut unit = UnitBuilder::for_object()?;
+    unit.declare_all(program)?;
+    unit.hash = Some(blake3::Hasher::new());
+    unit.literals.record = Some(Vec::new());
+    unit.compile_function(function, 0, 0, 0, 0)?;
+    let mut hasher = unit.hash.take().unwrap_or_default();
+    for data in unit.literals.record.take().unwrap_or_default() {
+        hasher.update(data.as_bytes());
+    }
+    Ok(Some(*hasher.finalize().as_bytes()))
+}
+
 /// Every class descriptor a unit declares, built from the lowered IR and from
 /// nothing else — `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`
 /// 's answer to where a warm cache hit's descriptors come from.
@@ -1705,6 +1738,9 @@ struct UnitBuilder<M> {
     /// this crate emitted it. `None` is the ordinary compile, which renders
     /// nothing and so pays nothing for this field.
     clif: Option<String>,
+    /// Set only by [`function_code_hash`]: the hash of each compiled
+    /// function's bytes and relocations. `None` is the ordinary compile.
+    hash: Option<blake3::Hasher>,
 }
 
 /// Every class the compiled unit declares, in the two forms emitted code
@@ -2782,6 +2818,7 @@ impl<M: Backend> UnitBuilder<M> {
             entries: Vec::new(),
             disasm,
             clif: None,
+            hash: None,
         }
     }
 
@@ -2794,6 +2831,37 @@ impl<M: Backend> UnitBuilder<M> {
     /// defined function; `finalize_definitions` is what would object if one
     /// were never defined.
     fn compile_all(&mut self, program: &Program) -> Result<(), CodegenError> {
+        self.declare_all(program)?;
+        let mut stmt_base = 0_u32;
+        let mut edge_base = 0_u32;
+        let mut query_base = 0_u32;
+        for (index, function) in program.functions.iter().enumerate() {
+            let index = u32::try_from(index)
+                .map_err(|_| emit::internal("a unit with more than 2^32 functions"))?;
+            self.compile_function(function, index, stmt_base, edge_base, query_base)?;
+            #[cfg(test)]
+            if index == 0 {
+                failpoint::hit()?;
+            }
+            query_base = u32::try_from(function.query_sites().count())
+                .ok()
+                .and_then(|count| query_base.checked_add(count))
+                .ok_or_else(|| emit::internal("a unit with more than 2^32 query sites"))?;
+            stmt_base = u32::try_from(function.stmt_spans.len())
+                .ok()
+                .and_then(|count| stmt_base.checked_add(count))
+                .ok_or_else(|| emit::internal("a unit with more than 2^32 statements"))?;
+            edge_base = u32::try_from(function.edge_spans.len())
+                .ok()
+                .and_then(|count| edge_base.checked_add(count))
+                .ok_or_else(|| emit::internal("a unit with more than 2^32 conditional edges"))?;
+        }
+        Ok(())
+    }
+
+    /// Everything [`Self::compile_all`] does before the first body: the
+    /// class tables, the statics, and a declaration of every function.
+    fn declare_all(&mut self, program: &Program) -> Result<(), CodegenError> {
         self.extension_classes = extension_classes(program);
         self.copies = program.copies.clone().into_boxed_slice();
         self.classes = Classes::build(&program.classes, &program.shape_codecs, &program.enums);
@@ -2848,30 +2916,6 @@ impl<M: Backend> UnitBuilder<M> {
             }
         }
         self.publish_debug_sites(program);
-        let mut stmt_base = 0_u32;
-        let mut edge_base = 0_u32;
-        let mut query_base = 0_u32;
-        for (index, function) in program.functions.iter().enumerate() {
-            let index = u32::try_from(index)
-                .map_err(|_| emit::internal("a unit with more than 2^32 functions"))?;
-            self.compile_function(function, index, stmt_base, edge_base, query_base)?;
-            #[cfg(test)]
-            if index == 0 {
-                failpoint::hit()?;
-            }
-            query_base = u32::try_from(function.query_sites().count())
-                .ok()
-                .and_then(|count| query_base.checked_add(count))
-                .ok_or_else(|| emit::internal("a unit with more than 2^32 query sites"))?;
-            stmt_base = u32::try_from(function.stmt_spans.len())
-                .ok()
-                .and_then(|count| stmt_base.checked_add(count))
-                .ok_or_else(|| emit::internal("a unit with more than 2^32 statements"))?;
-            edge_base = u32::try_from(function.edge_spans.len())
-                .ok()
-                .and_then(|count| edge_base.checked_add(count))
-                .ok_or_else(|| emit::internal("a unit with more than 2^32 conditional edges"))?;
-        }
         Ok(())
     }
 
@@ -2955,6 +2999,7 @@ impl<M: Backend> UnitBuilder<M> {
                 source: Box::new(source),
             })?;
         self.collect_disasm(&function.name);
+        self.hash_compiled();
         self.module.module().clear_context(&mut self.ctx);
         self.entries.push((function.name.clone(), id));
         Ok(())
@@ -2998,6 +3043,52 @@ impl<M: Backend> UnitBuilder<M> {
             buffer.push_str(" = ");
             buffer.push_str(decl.name.as_deref().unwrap_or("?"));
             buffer.push('\n');
+        }
+    }
+
+    /// Feeds the just-compiled function's machine code and its relocations to
+    /// [`Self::hash`], if a hash was asked for. A relocation is fed by its
+    /// offset, kind, addend and the *name* of its target, so two compiles in
+    /// two modules compare equal when they call the same functions.
+    fn hash_compiled(&mut self) {
+        let Some(hasher) = self.hash.as_mut() else {
+            return;
+        };
+        let Some(code) = self.ctx.compiled_code() else {
+            return;
+        };
+        let bytes = code.buffer.data();
+        hasher.update(&(bytes.len() as u64).to_le_bytes());
+        hasher.update(bytes);
+        let params = &self.ctx.func.params;
+        let module = self.module.module();
+        let declarations = module.declarations();
+        for reloc in code.buffer.relocs() {
+            let target = match &reloc.target {
+                codegen::RelocTarget::ExternalName(codegen::ir::ExternalName::User(user)) => {
+                    let name = &params.user_named_funcs()[*user];
+                    // `cranelift-module` names a function in namespace 0 and a
+                    // data object in namespace 1.
+                    let declared = match name.namespace {
+                        0 => declarations
+                            .get_function_decl(cranelift_module::FuncId::from_u32(name.index))
+                            .name
+                            .clone(),
+                        1 => declarations
+                            .get_data_decl(cranelift_module::DataId::from_u32(name.index))
+                            .name
+                            .clone(),
+                        _ => None,
+                    };
+                    declared.unwrap_or_else(|| format!("{name:?}"))
+                }
+                other => format!("{other:?}"),
+            };
+            let line = format!(
+                "{} {:?} {} {target}\n",
+                reloc.offset, reloc.kind, reloc.addend
+            );
+            hasher.update(line.as_bytes());
         }
     }
 
@@ -3617,6 +3708,61 @@ mod tests {
                 .is_none(),
             "the unit's own table answers for the carrier, so the import is not one"
         );
+    }
+
+    /// `Gate::less` with `op` as its comparison. `before` is written on the
+    /// class's own line, ahead of it, so a test can put other functions before
+    /// the method and keep its line numbers, which its backtrace data holds.
+    fn gate(before: &str, op: &str) -> Program {
+        lower(&format!(
+            "<?nvs
+{before}class Gate {{
+    public static function less(int $a, int $b): bool {{
+        if ($a {op} $b) {{
+            echo \"less\";
+        }}
+        return $a {op} $b;
+    }}
+}}
+echo Gate::less(1, 2);
+"
+        ))
+    }
+
+    fn code_hash(program: &Program) -> [u8; 32] {
+        function_code_hash(program, "Gate::less")
+            .expect("the function compiles")
+            .expect("the program has `Gate::less`")
+    }
+
+    /// `rule:testing/mutation-testing`'s equivalence test: one function
+    /// compiled alone gives one hash, with or without other functions and
+    /// their statements before it in the program.
+    #[test]
+    fn a_function_compiled_alone_gives_the_same_bytes_twice() {
+        let first = gate("", "<");
+        assert_eq!(code_hash(&first), code_hash(&first));
+        let moved = gate(
+            "class Before { public static function run(int $n): int { if ($n > 0) { echo \"x\"; } return $n; } } echo Before::run(3); ",
+            "<",
+        );
+        assert_eq!(
+            code_hash(&first),
+            code_hash(&moved),
+            "functions before this one do not change its code"
+        );
+        assert_eq!(
+            function_code_hash(&first, "Gate::missing").ok().flatten(),
+            None
+        );
+    }
+
+    /// The other half: a changed comparison compiles to other bytes, so the
+    /// hash tells a real mutant from the original.
+    #[test]
+    fn a_function_with_a_changed_comparison_gives_different_bytes() {
+        assert_ne!(code_hash(&gate("", "<")), code_hash(&gate("", "<=")));
+        assert_ne!(code_hash(&gate("", "<")), code_hash(&gate("", ">")));
     }
 
     /// A poll's status goes through the one status check, which needs an

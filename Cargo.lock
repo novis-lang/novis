@@ -4271,6 +4271,7 @@ dependencies = [
 name = "nvs-codegen"
 version = "0.0.4"
 dependencies = [
+ "blake3",
  "cranelift",
  "cranelift-jit",
  "cranelift-module",

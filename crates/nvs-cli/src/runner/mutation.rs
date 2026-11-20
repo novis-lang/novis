@@ -32,6 +32,13 @@
 //! `--since <ref>` keeps a mutant when any line of its span changed since the
 //! ref ([`super::since`]). With a target as well, both must hold.
 //!
+//! # A mutant that compiles to known code runs no test
+//!
+//! Before a reached mutant is compiled whole, [`Code`] compiles the one
+//! function its change is in and hashes it. A hash equal to the program's own
+//! function is `equivalent`, and one equal to an earlier mutant's in that
+//! function is a `duplicate`. Neither runs a test or counts in the score.
+//!
 //! # One mutant at a time
 //!
 //! Each mutant is lowered and compiled whole, with no artifact cache: the
@@ -71,6 +78,12 @@ pub(super) enum Verdict {
     TimedOut,
     /// No selected test reached its statement, so nothing ran.
     NotReached,
+    /// Its changed function compiles to the program's own code, so no test
+    /// can tell it apart. Nothing ran.
+    Equivalent,
+    /// Its changed function compiles to an earlier mutant's code
+    /// ([`Scored::same_as`]). Nothing ran.
+    Duplicate,
 }
 
 impl Verdict {
@@ -81,6 +94,8 @@ impl Verdict {
             Self::Survived => "survived",
             Self::TimedOut => "timed out",
             Self::NotReached => "not reached",
+            Self::Equivalent => "equivalent",
+            Self::Duplicate => "duplicate",
         }
     }
 }
@@ -98,8 +113,10 @@ pub(super) struct Scored {
     pub(super) change: String,
     pub(super) verdict: Verdict,
     /// How many tests reached the mutant's line, and so ran against it. `0`
-    /// for a mutant that is `not reached`.
+    /// for a mutant that is `not reached`, `equivalent` or `duplicate`.
     pub(super) tests: usize,
+    /// For a `duplicate`, the key of the first mutant that compiled alike.
+    pub(super) same_as: Option<String>,
 }
 
 /// What every mutant's run shares.
@@ -282,6 +299,7 @@ pub(super) fn score(
     let files = checked.program_files();
     let digest = crate::cache::test_program_digest(&files);
     let mut scored = Vec::with_capacity(mutants.len());
+    let mut code = Code::default();
     for Listed { mutant, key } in mutants {
         let tests: BTreeSet<String> = innermost(stmts, mutant.span)
             .and_then(|stmt| covering.get(&stmt))
@@ -293,11 +311,19 @@ pub(super) fn score(
             })
             .unwrap_or_default();
         let file = crate::coverage::file_name(&checked.map, mutant.file);
-        let reached = tests.len();
+        let mut reached = tests.len();
+        let mut same_as = None;
         let verdict = if tests.is_empty() {
             Verdict::NotReached
         } else {
-            let program = nvs_ir::lower::lower_mutant(
+            let internal = |error: &dyn std::fmt::Display| {
+                format!(
+                    "internal error: the mutant at {file}:{} ({}) did not compile: {error}",
+                    mutant.line,
+                    mutant.change()
+                )
+            };
+            let mutated = nvs_ir::lower::lower_mutant(
                 nvs_ir::lower::ENTRY_SCRIPT_LABEL,
                 &files,
                 &checked.exprs,
@@ -306,17 +332,27 @@ pub(super) fn score(
                 &checked.layouts,
                 mutant,
             );
-            let unit = crate::cache::unit_for(&program, digest, None)
-                .map(|(unit, _)| Arc::new(unit))
-                .map_err(|error| {
-                    format!(
-                        "internal error: the mutant at {file}:{} ({}) did not compile: {error}",
-                        mutant.line,
-                        mutant.change()
-                    )
-                })?;
-            drop(program);
-            run_one(&unit, checked, tests, wall, runs)
+            match code
+                .judge(checked, &mutated, key)
+                .map_err(|error| internal(&error))?
+            {
+                Judged::Equivalent => {
+                    reached = 0;
+                    Verdict::Equivalent
+                }
+                Judged::Duplicate(first) => {
+                    reached = 0;
+                    same_as = Some(first);
+                    Verdict::Duplicate
+                }
+                Judged::New => {
+                    let unit = crate::cache::unit_for(&mutated.program, digest, None)
+                        .map(|(unit, _)| Arc::new(unit))
+                        .map_err(|error| internal(&error))?;
+                    drop(mutated);
+                    run_one(&unit, checked, tests, wall, runs)
+                }
+            }
         };
         scored.push(Scored {
             file,
@@ -326,9 +362,83 @@ pub(super) fn score(
             change: mutant.change(),
             verdict,
             tests: reached,
+            same_as,
         });
     }
     Ok(scored)
+}
+
+/// What [`Code::judge`] found for one mutant.
+enum Judged {
+    /// Its changed function compiles to the program's own code.
+    Equivalent,
+    /// Its changed function compiles to an earlier mutant's code, whose key
+    /// this is.
+    Duplicate(String),
+    /// Neither: its tests run.
+    New,
+}
+
+/// The code hashes a run has seen: Trivial Compiler Equivalence.
+///
+/// A mutant's changed function is compiled alone
+/// ([`nvs_codegen::function_code_hash`]) and its hash compared with the
+/// program's own function and with every earlier mutant's in that function.
+///
+/// What it spends: the program lowered once more without a change, held for
+/// the run, and one hash per original function and per reached mutant.
+#[derive(Default)]
+struct Code {
+    /// The program with no change, lowered on the first reached mutant.
+    original: Option<nvs_ir::Program>,
+    /// Each function's original hash, by its name. `None` when the
+    /// original program has no function by that name.
+    originals: BTreeMap<String, Option<[u8; 32]>>,
+    /// Each changed function's mutant hashes, with the key of the first
+    /// mutant that compiled to each.
+    seen: BTreeMap<String, BTreeMap<[u8; 32], String>>,
+}
+
+impl Code {
+    fn judge(
+        &mut self,
+        checked: &crate::Checked,
+        mutated: &nvs_ir::lower::Mutated,
+        key: &str,
+    ) -> Result<Judged, nvs_codegen::CodegenError> {
+        let Some(hash) = nvs_codegen::function_code_hash(&mutated.program, &mutated.changed)?
+        else {
+            return Ok(Judged::New);
+        };
+        let original = self.original.get_or_insert_with(|| {
+            let files = checked.program_files();
+            nvs_ir::lower::lower_program_with_tests(
+                nvs_ir::lower::ENTRY_SCRIPT_LABEL,
+                &files,
+                &checked.exprs,
+                &checked.interner,
+                &checked.enums,
+                &checked.layouts,
+            )
+        });
+        let before = match self.originals.get(&mutated.changed) {
+            Some(before) => *before,
+            None => {
+                let before = nvs_codegen::function_code_hash(original, &mutated.changed)?;
+                self.originals.insert(mutated.changed.clone(), before);
+                before
+            }
+        };
+        if before == Some(hash) {
+            return Ok(Judged::Equivalent);
+        }
+        let seen = self.seen.entry(mutated.changed.clone()).or_default();
+        if let Some(first) = seen.get(&hash) {
+            return Ok(Judged::Duplicate(first.clone()));
+        }
+        seen.insert(hash, key.to_owned());
+        Ok(Judged::New)
+    }
 }
 
 /// Runs `tests` over one mutant's `unit`.
@@ -441,10 +551,16 @@ pub(super) fn report(scored: &[Scored]) -> String {
         count(Verdict::TimedOut),
         count(Verdict::NotReached),
     );
+    let (equivalent, duplicate) = (count(Verdict::Equivalent), count(Verdict::Duplicate));
     let mut out = format!(
         "\n  mutants: {killed} killed, {survived} survived, {timed_out} timed out, {unreached} not reached\n"
     );
-    let reached = scored.len() - unreached;
+    if equivalent + duplicate > 0 {
+        out.push_str(&format!(
+            "  skipped: {equivalent} equivalent, {duplicate} duplicate (compiled to the same code, so no test ran)\n"
+        ));
+    }
+    let reached = scored.len() - unreached - equivalent - duplicate;
     if reached > 0 {
         out.push_str(&format!(
             "  mutation score: {:.1}% ({} of {reached} reached mutants made a test fail or time out)\n",
@@ -527,7 +643,8 @@ mod tests {
                 &checked.enums,
                 &checked.layouts,
                 mutant,
-            );
+            )
+            .program;
             if let Err(error) = nvs_codegen::compile(&program) {
                 panic!(
                     "the mutant at line {} ({}) compiles: {error}",
@@ -606,6 +723,7 @@ mod tests {
                 change: "`<` to `<=`".to_owned(),
                 verdict: Verdict::Survived,
                 tests: 2,
+                same_as: None,
             },
             Scored {
                 file: "src/Shop.nvs".to_owned(),
@@ -615,6 +733,17 @@ mod tests {
                 change: "`true` to `false`".to_owned(),
                 verdict: Verdict::TimedOut,
                 tests: 1,
+                same_as: None,
+            },
+            Scored {
+                file: "src/Shop.nvs".to_owned(),
+                line: 21,
+                function: r"Shop\Cart::empty".to_owned(),
+                key: r"Shop\Cart::empty#1: `condition` to `!condition`".to_owned(),
+                change: "`condition` to `!condition`".to_owned(),
+                verdict: Verdict::Duplicate,
+                tests: 0,
+                same_as: Some(r"Shop\Cart::empty#1: `==` to `!=`".to_owned()),
             },
         ];
         let document = json_document(
@@ -657,5 +786,13 @@ mod tests {
             })
             .collect();
         assert_eq!(back, written);
+        let same_as: Vec<Option<&str>> = mutants
+            .iter()
+            .map(|record| record["sameAs"].as_str())
+            .collect();
+        assert_eq!(
+            same_as,
+            [None, None, Some(r"Shop\Cart::empty#1: `==` to `!=`")]
+        );
     }
 }

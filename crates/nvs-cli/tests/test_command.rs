@@ -5,6 +5,7 @@
 //! Through the built binary, because what is asserted is what CI reads off
 //! the command: its report and its status.
 
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -388,6 +389,109 @@ fn nvs_test_mutate_reverses_an_equality_unless_it_narrows_a_nullable() {
         !made.iter().any(|(l, _)| *l == 16),
         "the `null` test that narrows a `?int` was changed: {made:?}"
     );
+}
+
+/// `Gate::flag`'s `true` is stored and never read, so flipping it compiles to
+/// the same code. `Gate::same`'s `==` negated and its `if` negated compile
+/// alike.
+const COMPILED_ALIKE: &str = r#"<?nvs
+use Core\Test;
+
+final class Gate {
+    public static function same(int $a, int $b): string {
+        if ($a == $b) {
+            return 'same';
+        }
+        return 'other';
+    }
+
+    public static function flag(int $n): int {
+        bool $unused = true;
+        return $n;
+    }
+}
+
+final class GateTest {
+    #[Test]
+    public function same(): void {
+        Test::assertSame(Gate::same(1, 1), 'same');
+        Test::assertSame(Gate::same(1, 2), 'other');
+    }
+
+    #[Test]
+    public function flag(): void { Test::assertSame(Gate::flag(3), 3); }
+}
+"#;
+
+/// Each mutant of [`COMPILED_ALIKE`]'s run, by key: its outcome, its
+/// `sameAs` and how many tests ran. Also the human report.
+fn compiled_alike(case: &str) -> (BTreeMap<String, (String, String, u64)>, String) {
+    let dir = scratch(case);
+    fs::write(dir.join("gate_test.nvs"), COMPILED_ALIKE).unwrap();
+    let json = test_in(&dir, &["gate_test.nvs", "--mutate", "--format", "json"]);
+    assert_eq!(
+        json.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&json.stderr)
+    );
+    let document: serde_json::Value = serde_json::from_slice(&json.stdout)
+        .unwrap_or_else(|e| panic!("`--format json` writes one document: {e}"));
+    let rows = document["mutants"]
+        .as_array()
+        .expect("a `mutants` array")
+        .iter()
+        .map(|m| {
+            let text = |key: &str| m[key].as_str().unwrap_or_default().to_owned();
+            (
+                text("key"),
+                (
+                    text("outcome"),
+                    text("sameAs"),
+                    m["tests"].as_u64().unwrap_or(99),
+                ),
+            )
+        })
+        .collect();
+    let human = test_in(&dir, &["gate_test.nvs", "--mutate"]);
+    (rows, String::from_utf8_lossy(&human.stdout).into_owned())
+}
+
+/// A mutant whose function compiles to the program's own code is
+/// `equivalent`: no test runs, and the score leaves it out.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_drops_a_mutant_that_compiles_to_the_programs_code() {
+    let (rows, human) = compiled_alike("mutate-equivalent");
+    assert_eq!(
+        rows.get("Gate::flag#1: `true` to `false`"),
+        Some(&("equivalent".to_owned(), String::new(), 0)),
+        "{rows:?}"
+    );
+    assert!(
+        human.contains("1 equivalent") && human.contains("1 of 1 reached mutants"),
+        "the human report counts it and leaves it out of the score: {human}"
+    );
+}
+
+/// Of two mutants whose function compiles alike, the first runs its tests
+/// and the second is a `duplicate` that names it.
+// covers: tools:cli/nvs-test-mutate
+#[test]
+fn nvs_test_mutate_runs_one_of_two_mutants_that_compile_alike() {
+    let (rows, human) = compiled_alike("mutate-duplicate");
+    let first = "Gate::same#1: `==` to `!=`";
+    assert_eq!(
+        rows.get(first),
+        Some(&("killed".to_owned(), String::new(), 1)),
+        "{rows:?}"
+    );
+    assert_eq!(
+        rows.get("Gate::same#1: `condition` to `!condition`"),
+        Some(&("duplicate".to_owned(), first.to_owned(), 0)),
+        "{rows:?}"
+    );
+    assert!(human.contains("1 duplicate"), "{human}");
 }
 
 /// The entry of a program in three files: `Cart` under `shop/`, `Post` under

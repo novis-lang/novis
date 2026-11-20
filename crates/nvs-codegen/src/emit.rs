@@ -161,6 +161,9 @@ fn ctx_word() -> MemFlagsData {
 pub(crate) struct Literals {
     count: usize,
     strings: FxHashMap<Box<[u8]>, DataId>,
+    /// Set only by [`crate::function_code_hash`]: each data object defined,
+    /// as its name and its description, in the order they are defined.
+    pub(crate) record: Option<Vec<String>>,
 }
 
 /// Everything about the compilation *unit* that emitting one function needs:
@@ -2216,6 +2219,9 @@ impl Emitter<'_, '_> {
     fn define_literal_data(&mut self, desc: &DataDescription) -> Result<DataId, CodegenError> {
         let name = format!("nvs_bytes_{}", self.literals.count);
         self.literals.count += 1;
+        if let Some(record) = self.literals.record.as_mut() {
+            record.push(format!("{name} {desc:?}\n"));
+        }
 
         let data = self
             .module

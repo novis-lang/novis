@@ -21,6 +21,8 @@ nvs-diagnostics.workspace = true
 nvs-ir.workspace = true
 nvs-runtime.workspace = true
 nvs-stdlib.workspace = true
+# `function_code_hash`'s hash.
+blake3.workspace = true
 cranelift.workspace = true
 cranelift-jit.workspace = true
 cranelift-module.workspace = true

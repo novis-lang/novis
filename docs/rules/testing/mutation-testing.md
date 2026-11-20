@@ -103,7 +103,27 @@ has failed. A test with no wall-time limit gets one for a mutant run, ten times 
 the coverage run plus one second, because a mutant can make a loop that never ends; a test with its
 own limit keeps it (`rule:testing/a-test-has-a-wall-time-limit`).
 
-Each mutant has one of four outcomes:
+**A mutant that compiles to code already judged runs no test.** This is Trivial Compiler
+Equivalence. Before a reached mutant's tests run, the function its change is in is compiled alone,
+at the run's optimisation level, and hashed: its machine code, each relocation by its target's name,
+and each data object it defines. The function is the compiled one the change landed in, so a change
+inside an anonymous function hashes that function. Coverage probes are numbered from zero in this
+compile, so the hash does not depend on where the function sits in the program. The program's own
+function is hashed once, the first time a mutant changes it. The run keeps one hash per changed
+function and per mutant.
+
+| Outcome | When |
+|---|---|
+| `equivalent` | the changed function compiles to the program's own code |
+| `duplicate` | it compiles to an earlier mutant's code in the same function; the record's `sameAs` is that mutant's key |
+
+Cranelift folds far less than an optimising C compiler, so the share is small. A `true` stored in a
+variable that is never read is `equivalent`. An `==` negated and the `if` around it negated compile
+alike, so the second is a `duplicate`. `$x + 0` and `$x - 0` do not compile alike, because each
+operation checks for overflow. On `benches/scaling/testing/mutate.nvs`'s program, none of the 12
+mutants was `equivalent` or `duplicate`.
+
+Each mutant has one of six outcomes:
 
 | Outcome | When |
 |---|---|
@@ -111,19 +131,25 @@ Each mutant has one of four outcomes:
 | `timed out` | no test failed, and a test ran past its wall-time limit |
 | `survived` | every test it ran passed, a flaky one included |
 | `not reached` | no selected test reached its statement, so nothing ran |
+| `equivalent` | its function compiles to the program's own code, so nothing ran |
+| `duplicate` | its function compiles to an earlier mutant's code, so nothing ran |
 
-The score is killed plus timed out over every mutant but the unreached ones. The human report prints
-the four counts and the score after the run's summary, then each survived mutant with its file, line
-and change. `--format json` writes `schemaVersion: 5` (`rule:testing/report-formats`): version 3's
-document, plus a `mutants` array with one record per mutant, `{file, line, function, key, change,
-outcome, tests}`, in the order the program lowers its sites. `tests` is how many tests reached the mutant's line, which
-is what the covering-test filter decides and what the bench of a mutation run counts. A JUnit document has no place for a mutant, so `--mutate` with
+The score is killed plus timed out over every mutant that ran a test. The human report prints the
+four counts of mutants that were judged by tests, then the `equivalent` and `duplicate` counts when
+either is not zero, then the score, then each survived mutant with its file, line and change.
+`--format json` writes `schemaVersion: 5` (`rule:testing/report-formats`): version 3's document, plus
+a `mutants` array with one record per mutant, `{file, line, function, key, change, outcome, tests}`,
+and `sameAs` on a `duplicate`, in the order the program lowers its sites. `tests` is how many tests
+reached the mutant's line and ran against it, `0` for a mutant that ran none. It is what the
+covering-test filter decides and what the bench of a mutation run counts. A JUnit document has no place for a mutant, so `--mutate` with
 `--format junit` exits with an error. The exit status is the coverage run's: a survived mutant does not
 fail the run.
 
 **What it costs:** nothing for a run without `--mutate`, and nothing on the request path. A mutation
-run pays one coverage run, then one lowering and codegen of the whole program per mutant, plus the
-tests that reach the mutant's line. A mutant compiles with no artifact cache, since its cache key
+run pays one coverage run, then for each reached mutant one lowering, one compile of its changed
+function, and, unless that compile matched earlier code, one codegen of the whole program and the
+tests that reach the mutant's line. It also lowers the unchanged program once and keeps it for the
+run, to hash each original function. A mutant compiles with no artifact cache, since its cache key
 would be the unchanged program's. Memory is O(`--jobs`): one mutant runs at a time, with its tests in
 flight, and the run keeps one record per mutant for the report, its function label and key included.
 A compile records one label per `#[NoMutate]` class or method.

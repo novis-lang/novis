@@ -4901,6 +4901,10 @@ fn json_document(
             json_string(&mutant.change, &mut out);
             out.push_str(", \"outcome\": ");
             json_string(mutant.verdict.name(), &mut out);
+            if let Some(first) = &mutant.same_as {
+                out.push_str(", \"sameAs\": ");
+                json_string(first, &mut out);
+            }
             out.push_str(&format!(", \"tests\": {}}}", mutant.tests));
         }
         out.push_str(if mutants.is_empty() { "]" } else { "\n  ]" });
