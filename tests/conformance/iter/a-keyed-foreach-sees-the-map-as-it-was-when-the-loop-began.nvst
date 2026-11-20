@@ -1,0 +1,46 @@
+--TEST--
+A keyed `foreach` over a `Core\ObjectMap` walks the map as it was when the loop began: an added entry is not visited, a removed one is still visited, and a `set` on a later entry does not change the value the loop gives — `rule:iteration/keyed-interfaces`
+--FILE--
+<?nvs
+// covers: lang:iteration/keys-and-values-from-a-map
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Tag $red = new Tag("red");
+Tag $blue = new Tag("blue");
+Tag $green = new Tag("green");
+
+Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
+$weights->set($red, 3);
+$weights->set($blue, 7);
+$weights->set($green, 9);
+
+// In the first step, the body adds `gold`, removes `blue` and sets `green` to 100.
+// The loop still prints `red=3`, `blue=7` and `green=9`, and it does not print `gold`.
+foreach ($weights as Tag $tag => int $n) {
+    echo $tag->name, "=", $n, "\n";
+    if ($tag->name == "red") {
+        $weights->set(new Tag("gold"), 1);
+        $weights->remove($blue);
+        $weights->set($green, 100);
+    }
+}
+
+// After the loop, the map has the changes the body made.
+echo $weights->count(), "\n";
+foreach ($weights as Tag $after => int $value) {
+    echo $after->name, "=", $value, "\n";
+}
+--EXPECT--
+red=3
+blue=7
+green=9
+3
+red=3
+green=100
+gold=1

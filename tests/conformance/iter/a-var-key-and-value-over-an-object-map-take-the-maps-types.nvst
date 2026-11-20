@@ -1,0 +1,48 @@
+--TEST--
+`var $k => var $v` over a `Core\ObjectMap<K, V>` binds the key as `K` and the value as `V`, for an object key, a `string` key and an `int` key — `rule:iteration/keyed-interfaces`
+--FILE--
+<?nvs
+// covers: lang:iteration/keys-and-values-from-a-map
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+
+    public function shout(): string {
+        return $this->name . "!";
+    }
+}
+
+Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
+$weights->set(new Tag("red"), 3);
+$weights->set(new Tag("blue"), 7);
+
+// `$tag` is a `Tag`, so it has the `shout` method. `$n` is an `int`, so `$n * 2` is a number.
+foreach ($weights as var $tag => var $n) {
+    echo $tag->shout(), " ", $tag->name, " ", $n * 2, "\n";
+}
+
+// With `string` keys, `$word` is a `string` and `$count` is an `int`.
+Core\ObjectMap<string, int> $counts = new Core\ObjectMap<string, int>();
+$counts->set("apple", 2);
+$counts->set("pear", 5);
+foreach ($counts as var $word => var $count) {
+    echo Core\Str::upper($word), " ", $count + 1, "\n";
+}
+
+// With `int` keys, `$id` is an `int` and `$label` is a `string`.
+Core\ObjectMap<int, string> $labels = new Core\ObjectMap<int, string>();
+$labels->set(10, "ten");
+$labels->set(20, "twenty");
+foreach ($labels as var $id => var $label) {
+    echo $id + 1, " ", $label . "?", "\n";
+}
+--EXPECT--
+red! red 6
+blue! blue 14
+APPLE 3
+PEAR 6
+11 ten?
+21 twenty?

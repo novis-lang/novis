@@ -1,0 +1,39 @@
+--TEST--
+A `foreach` with a key over a subject that has only `Iterable` or `Iterator`, such as a `Core\ObjectSet` or a user `Iterable<int>`, does not compile — `rule:iteration/keyed-interfaces`
+--FILE--
+<?nvs
+// covers: lang:iteration/keys-and-values-from-a-map
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+final class Countdown implements Iterable<int> {
+    public function iterate(): Iterator<int> {
+        yield 2;
+        yield 1;
+    }
+}
+
+// A set has values but no keys, so `$k =>` does not compile.
+Core\ObjectSet<Tag> $tags = new Core\ObjectSet<Tag>();
+foreach ($tags as var $k => Tag $tag) {
+}
+
+// This class implements only `Iterable<int>`, so it has no keys either.
+foreach (new Countdown() as var $i => int $n) {
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0444]: an `Iterable`/`Iterator` subject has no key to bind
+   --> case.nvs:20:19
+%A
+error[E0444]: an `Iterable`/`Iterator` subject has no key to bind
+   --> case.nvs:24:29
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

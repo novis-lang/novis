@@ -1,0 +1,23 @@
+--TEST--
+A class that implements `KeyedIterator<K, V>` must declare `key()`, so a class with only `advance()` and `current()` does not compile — `rule:iteration/keyed-interfaces`
+--FILE--
+<?nvs
+// covers: KeyedIterator
+// This class has `advance` and `current` but no `key`, so it does not compile.
+final class NoKey implements KeyedIterator<string, int> {
+    public function advance(): bool {
+        return false;
+    }
+
+    public function current(): int {
+        return 0;
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0449]: `NoKey` does not declare `key`, which `KeyedIterator` requires
+  --> case.nvs:4:13
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

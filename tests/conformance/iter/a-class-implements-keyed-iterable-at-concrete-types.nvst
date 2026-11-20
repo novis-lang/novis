@@ -1,0 +1,63 @@
+--TEST--
+A class that implements `KeyedIterable<string, int>` is walked by a keyed `foreach` with a new cursor from `iterateKeyed()` each time, and a loop with one variable over it gives the values — `rule:iteration/keyed-interfaces`
+--FILE--
+<?nvs
+// covers: KeyedIterable
+final class SquareCursor implements KeyedIterator<string, int> {
+    private int $at = 0;
+    private int $last;
+
+    public function constructor(int $last) {
+        $this->last = $last;
+    }
+
+    public function advance(): bool {
+        $this->at = $this->at + 1;
+        return $this->at <= $this->last;
+    }
+
+    public function key(): string {
+        return "n" . $this->at;
+    }
+
+    public function current(): int {
+        return $this->at * $this->at;
+    }
+}
+
+final class Squares implements KeyedIterable<string, int> {
+    private int $last;
+
+    public function constructor(int $last) {
+        $this->last = $last;
+    }
+
+    public function iterateKeyed(): KeyedIterator<string, int> {
+        return new SquareCursor($this->last);
+    }
+}
+
+Squares $squares = new Squares(3);
+
+// Each loop calls `iterateKeyed()`, so the second loop starts again from the first entry.
+foreach ($squares as string $name => int $square) {
+    echo $name, "=", $square, "\n";
+}
+foreach ($squares as var $again => var $value) {
+    echo $again, "=", $value + 0, "\n";
+}
+
+// This class has no `Iterable`, so a loop with one variable gives the values: `1`, `4` and `9`.
+foreach ($squares as var $only) {
+    echo $only + 0, "\n";
+}
+--EXPECT--
+n1=1
+n2=4
+n3=9
+n1=1
+n2=4
+n3=9
+1
+4
+9

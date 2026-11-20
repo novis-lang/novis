@@ -1,0 +1,34 @@
+--TEST--
+A `foreach` over a `Core\ObjectMap<K, V>` with one variable gives the map's keys, because a loop without a key uses `Iterable` when the subject has it — `rule:iteration/keyed-interfaces`
+--FILE--
+<?nvs
+// covers: lang:iteration/keys-and-values-from-a-map
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
+$weights->set(new Tag("red"), 3);
+$weights->set(new Tag("blue"), 7);
+
+// With one variable, the loop gives each key. `$tag` is a `Tag`, not an `int`.
+foreach ($weights as var $tag) {
+    echo $tag->name, "\n";
+}
+
+// The same holds for `int` keys. This prints the keys `10` and `20`, not the strings.
+Core\ObjectMap<int, string> $labels = new Core\ObjectMap<int, string>();
+$labels->set(10, "ten");
+$labels->set(20, "twenty");
+foreach ($labels as int $id) {
+    echo $id + 1, "\n";
+}
+--EXPECT--
+red
+blue
+11
+21

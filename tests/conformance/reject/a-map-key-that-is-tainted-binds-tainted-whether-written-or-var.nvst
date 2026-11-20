@@ -1,0 +1,28 @@
+--TEST--
+A keyed `foreach` over a `Core\ObjectMap<tainted string, int>` binds its key as `tainted string`, so a plain `string` key does not compile while `var` and a written `tainted string` do — `rule:iteration/keyed-interfaces`, `rule:security/taint-propagation`
+--FILE--
+<?nvs
+// covers: lang:iteration/keys-and-values-from-a-map
+Core\ObjectMap<tainted string, int> $hits = new Core\ObjectMap<tainted string, int>();
+
+// The keys are tainted, so a plain `string` key does not compile.
+foreach ($hits as string $page => int $n) {
+}
+
+// `var` takes the key type, so `$path` is `tainted string`. This compiles.
+foreach ($hits as var $path => int $m) {
+    echo $path, "\n";
+}
+
+// A key written as `tainted string` also compiles.
+foreach ($hits as tainted string $url => int $k) {
+    echo $url, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0851]: this key can come from outside the program, so it must be `tainted string`
+  --> case.nvs:6:19
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

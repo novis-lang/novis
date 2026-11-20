@@ -1,0 +1,32 @@
+--TEST--
+A `Core\ObjectMap<Tag, int>` is accepted by a parameter declared `KeyedIterable<Tag, int>`, and a keyed `foreach` over that parameter binds each key with its value — `rule:iteration/keyed-interfaces`
+--FILE--
+<?nvs
+// covers: lang:iteration/keys-and-values-from-a-map
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+final class Report {
+    // This method accepts any value that implements `KeyedIterable<Tag, int>`.
+    public static function lines(KeyedIterable<Tag, int> $source): string {
+        string $out = "";
+        foreach ($source as var $tag => var $n) {
+            $out = $out . $tag->name . ":" . $n . " ";
+        }
+        return $out;
+    }
+}
+
+Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
+$weights->set(new Tag("red"), 3);
+$weights->set(new Tag("blue"), 7);
+
+// A map implements `KeyedIterable<Tag, int>`, so it can be passed here.
+echo Report::lines($weights), "\n";
+--EXPECT--
+red:3 blue:7

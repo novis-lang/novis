@@ -1,0 +1,38 @@
+--TEST--
+`foreach ($map as Tag $tag => int $n)` over a `Core\ObjectMap<Tag, int>` binds each key with its value, in the order the keys were set — `rule:iteration/keyed-interfaces`
+--FILE--
+<?nvs
+// covers: lang:iteration/keys-and-values-from-a-map
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
+$weights->set(new Tag("red"), 3);
+$weights->set(new Tag("blue"), 7);
+$weights->set(new Tag("green"), 9);
+
+// Each step gives one key and its value. This prints `red=3`, `blue=7` and `green=9`.
+int $total = 0;
+foreach ($weights as Tag $tag => int $n) {
+    echo $tag->name, "=", $n, "\n";
+    $total = $total + $n;
+}
+echo $total, "\n";
+
+// An empty map runs the body zero times.
+Core\ObjectMap<Tag, int> $empty = new Core\ObjectMap<Tag, int>();
+foreach ($empty as Tag $t => int $m) {
+    echo "never\n";
+}
+echo $empty->count(), "\n";
+--EXPECT--
+red=3
+blue=7
+green=9
+19
+0

@@ -1,0 +1,70 @@
+--TEST--
+A class implements `KeyedIterable` or `KeyedIterator` only with both type arguments written as types, so a bare name, one argument or undeclared names do not compile — `rule:iteration/keyed-interfaces`
+--FILE--
+<?nvs
+// covers: KeyedIterable
+final class Cursor implements KeyedIterator<string, int> {
+    public function advance(): bool {
+        return false;
+    }
+
+    public function key(): string {
+        return "";
+    }
+
+    public function current(): int {
+        return 0;
+    }
+}
+
+// `KeyedIterable` without type arguments does not compile.
+final class Bare implements KeyedIterable {
+    public function iterateKeyed(): KeyedIterator<string, int> {
+        return new Cursor();
+    }
+}
+
+// `K` and `V` are not types, so this does not compile.
+final class Named implements KeyedIterable<K, V> {
+    public function iterateKeyed(): KeyedIterator<string, int> {
+        return new Cursor();
+    }
+}
+
+// `KeyedIterator` needs two type arguments, so one does not compile.
+final class Half implements KeyedIterator<string> {
+    public function advance(): bool {
+        return false;
+    }
+
+    public function key(): string {
+        return "";
+    }
+
+    public function current(): int {
+        return 0;
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0442]: `KeyedIterable` takes 2 type argument(s), not 0
+   --> case.nvs:18:29
+%A
+error[E0404]: `Bare::iterateKeyed` cannot replace `KeyedIterable::iterateKeyed`
+   --> case.nvs:19:37
+%A
+error[E0303]: `K` is not declared
+   --> case.nvs:25:44
+%A
+error[E0303]: `V` is not declared
+   --> case.nvs:25:47
+%A
+error[E0404]: `Named::iterateKeyed` cannot replace `KeyedIterable::iterateKeyed`
+   --> case.nvs:26:37
+%A
+error[E0442]: `KeyedIterator` takes 2 type argument(s), not 1
+   --> case.nvs:32:29
+%A
+error: aborting due to 6 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

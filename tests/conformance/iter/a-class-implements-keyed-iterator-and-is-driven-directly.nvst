@@ -1,0 +1,49 @@
+--TEST--
+A class that implements `KeyedIterator<string, int>` is driven by a keyed `foreach` through `advance`, `key` and `current`, and a second loop over the same cursor visits nothing — `rule:iteration/keyed-interfaces`
+--FILE--
+<?nvs
+// covers: KeyedIterator
+final class Countdown implements KeyedIterator<string, int> {
+    private int $left;
+
+    public function constructor(int $from) {
+        $this->left = $from + 1;
+    }
+
+    public function advance(): bool {
+        $this->left = $this->left - 1;
+        return $this->left > 0;
+    }
+
+    public function key(): string {
+        return "step" . $this->left;
+    }
+
+    public function current(): int {
+        return $this->left * 10;
+    }
+}
+
+// The loop calls `advance` before each step. It stops when `advance` returns `false`.
+Countdown $cursor = new Countdown(3);
+foreach ($cursor as string $label => int $points) {
+    echo $label, "=", $points, "\n";
+}
+
+// The cursor is already at its end, so this loop prints nothing.
+foreach ($cursor as var $label2 => var $points2) {
+    echo "again ", $label2, "\n";
+}
+echo "done\n";
+
+// A loop with one variable over a new cursor gives the values: `20` and `10`.
+foreach (new Countdown(2) as var $value) {
+    echo $value + 0, "\n";
+}
+--EXPECT--
+step3=30
+step2=20
+step1=10
+done
+20
+10

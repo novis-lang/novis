@@ -1,0 +1,37 @@
+--TEST--
+A written key type in a keyed `foreach` over a `Core\ObjectMap<K, V>` must accept `K`, so a key or value type the map does not have does not compile while a wider type such as `object` does — `rule:iteration/keyed-interfaces`
+--FILE--
+<?nvs
+// covers: lang:iteration/keys-and-values-from-a-map
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
+
+// The keys are `Tag` objects, so a `string` key does not compile.
+foreach ($weights as string $name => int $n) {
+}
+
+// The values are `int`, so a `string` value does not compile.
+foreach ($weights as Tag $tag => string $text) {
+}
+
+// Every `Tag` is an `object`, so this key type compiles.
+foreach ($weights as object $any => int $m) {
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `Tag`
+   --> case.nvs:14:22
+%A
+error[E0401]: expected `string`, found `int`
+   --> case.nvs:18:34
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.

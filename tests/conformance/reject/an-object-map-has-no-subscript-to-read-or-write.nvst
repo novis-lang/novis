@@ -1,0 +1,36 @@
+--TEST--
+`[]` works only on an array, so reading `$map[$k]` or writing `$map[$k] = $v` on a `Core\ObjectMap` does not compile, and `get` and `set` do the same work — `rule:iteration/keyed-interfaces`
+--FILE--
+<?nvs
+// covers: lang:iteration/keys-and-values-from-a-map
+final class Tag {
+    public string $name;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+    }
+}
+
+Tag $red = new Tag("red");
+Core\ObjectMap<Tag, int> $weights = new Core\ObjectMap<Tag, int>();
+
+// A map has no `[]`. Reading with it does not compile.
+var $n = $weights[$red];
+
+// Writing with `[]` does not compile either.
+$weights[$red] = 3;
+
+// `set` and `get` are the methods that write and read an entry. These compile.
+$weights->set($red, 3);
+echo $weights->get($red) ?? 0, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0482]: `Core\ObjectMap<Tag, int>` cannot be subscripted
+   --> case.nvs:15:10
+%A
+error[E0482]: `Core\ObjectMap<Tag, int>` cannot be subscripted
+   --> case.nvs:18:1
+%A
+error: aborting due to 2 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
