@@ -1020,9 +1020,9 @@ mod tests {
             "\u{1f1e9}\u{1f1ea}\u{1f1eb}\u{1f1f7}\u{1f1ee}",
             "Gru\u{308}\u{df}e \u{1f44b}\u{1f3fd}\n",
         ];
-        // Under Miri the reach is 4, still past both ends of the short texts:
-        // all 12 took over 300 s there.
-        let reach: i64 = if cfg!(miri) { 4 } else { 12 };
+        // Under Miri the reach is 2, still past both ends of `""` and `"a"`:
+        // 12 and then 4 each took over 300 s there.
+        let reach: i64 = if cfg!(miri) { 2 } else { 12 };
         for subject in texts {
             for offset in -reach..=reach {
                 for length in (-reach..=reach).map(Some).chain([None]) {
