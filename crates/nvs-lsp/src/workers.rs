@@ -43,7 +43,10 @@
 //! part. They start once one plan came back, so the next plans read that
 //! plan's parses and a library many programs share is parsed once. An entry
 //! whose own file a graph that came back reaches is left for its turn, which
-//! most often skips it. At most twice the pool's size of graphs wait for
+//! most often skips it. So is an entry that borrows the `autoload` map of a
+//! waiting program whose graph is not known yet. That program's plan most
+//! often loads the entry's files, and two plans in flight at once would parse
+//! them twice, since neither reads the other's parses. At most twice the pool's size of graphs wait for
 //! their split.
 //!
 //! There are `available_parallelism() - 1` workers, and at least one. They are

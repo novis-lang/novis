@@ -1077,7 +1077,10 @@ impl SymbolIndex {
         // so the order of filing does not change. They start once one plan
         // came back, whose parses the next plans read. An entry whose own
         // file a known graph reaches is left for its turn, which most often
-        // skips it.
+        // skips it. So is one that borrows the `autoload` map of a waiting
+        // program whose graph is not known yet: that program's plan most
+        // often loads it, and a plan of its own beside that one would parse
+        // the same files on a second worker.
         while pool.has_room_to_plan() {
             let after = pool.plan_cursor.as_ref().max(pool.cursor.as_ref());
             let next = match after {
@@ -1098,7 +1101,13 @@ impl SymbolIndex {
                 || pool.graph(&next).is_some()
                 || self.reads.contains_key(&next)
                 || self.files.contains_key(&next)
-                || pool.is_reached(&next);
+                || pool.is_reached(&next)
+                || Reads::lender_for(documents, &next).is_some_and(|lender| {
+                    let program = lender.entry();
+                    self.pending.contains(program)
+                        && pool.graph(program).is_none()
+                        && !self.reads.contains_key(program)
+                });
             if !known && !matches!(self.send(documents, pool, &next), Sent::Plan) {
                 break;
             }
