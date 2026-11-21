@@ -41,7 +41,7 @@ stages:
     status: done
   - id: 10
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: rules
@@ -451,50 +451,45 @@ outcome type exists; the session writes the run path.
 
 ### 10. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of every page this goal changed ([prose.md](../agent/prose.md) § *A
+- [x] The newcomer review of every page this goal changed ([prose.md](../agent/prose.md) § *A
   newcomer reads it*).
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+  - [x] three `reader` briefs over the 18 keys `bun nv site --review` named
+  - [x] every finding fixed in the text, and `bun nv prose` green
+  - [x] the texts restamped, and `site --check stale`, `review` and `changes` green
+  - [x] every page the review moved, and the 22 new reference pages, have current questions
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+  - [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` green
+  - [x] `cargo test --test test_reach`: 36 passed
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+  - [x] nothing was red
 
 ## Handoff
 
 ### State
 
-Stages 1 to 9 are done, and every code check (`peer` to `records`), `site-stale` and
-`site-changes` are green. What is left is the close (stage 10).
+Every stage is done. The close check is green: the build, clippy, and the 36 `test_reach` tests.
+`site --check stale`, `changes`, `review` and `questions` are green, and `bun nv owners --closes
+tests-reach-everything` names no gap.
 
-Stage 9 is `47c0f33d16` and `6c85af66be`: a new `guides/testing/test-a-command.mdx`, the other
-testing guides extended, eight `changes.json` entries, 45 texts stamped and the moved pages' search
-questions rewritten. `#[Test(env:)]` has no roster id, so its entry is `changed`
-`lang:testing/test-options`, which the env tests in `test_reach.rs` now cover. Stage 8's texts have
-their newcomer review; what stage 9 wrote does not yet.
+Stage 10 is `3b92d4edd8`, the newcomer review of what stage 9 wrote, with every finding fixed,
+and the commit after it, which gives the 22 new reference pages their search questions and restamps
+the 19 stale ones. Every standing decision has its home in `docs/rules/testing/` or in
+`crates/nvs-runtime/src/test_clock.rs`'s module doc.
 
-At the gate, these may go red: a test whose `Core\Task::all` child relied on the real clock or
-timed a sleep under `at:`; a test that lists `#[Test]`'s options (`env` is new); a test that lists
-`Core\Test`'s members or the `Core` class roster (`logs`, `sentMail`, `LogRecord`, `SentMail` are
-new; `run`, `logs` and `sentMail` joined `asserting_members`' exclusions in `test.rs`); and any
-existing test that calls `Core\Mail::send` under `nvs test` expecting a connection or its error.
-Nightly 44894790665's Miri timeout predates `156f11a7ca`, which fixed it.
+At the next full gate, these may go red: a test whose `Core\Task::all` child relied on the real
+clock or timed a sleep under `at:`; a test that lists `#[Test]`'s options (`env` is new); a test
+that lists `Core\Test`'s members or the `Core` class roster (`logs`, `sentMail`, `LogRecord`,
+`SentMail`, `RunResult` are new); and any existing test that calls `Core\Mail::send` under
+`nvs test` expecting a connection or its error. Nightly 44894790665's Miri failure ran on
+`7e97fa8`, before `156f11a7ca` fixed it.
 
 ### Next
 
-Stage 10, the close. First the newcomer review of what stage 9 wrote: the four pages under
-`website/src/content/docs/guides/testing/`, `syntax/testing/writing-tests.mdx`, the nine about.md
-files and the two help cards (`crates/nvs-stdlib/src/time.rs` `TIME_SLEEP_DOC`,
-`crates/nvs-stdlib/src/mail.rs` `SEND_DOC`) amended in `47c0f33d16`. Take the keys from
-`bun nv site --review`, `--brief` per batch, one `reader` each, then `--stamp`, until
-`bun nv site --check review` is green. Then the close check the pack names: a build, clippy and
-this goal's `test_reach` tests by name, unless the pack names this goal as a full gate.
-
-`bun nv site --check questions` still names six pages this goal did not touch, stale since
-`8ec87a7122`: `/guides/production/{deploy,docker,run-as-a-service}/`, `/in-depth/compare/`,
-`/in-depth/` and `/`. `ci --check` fails on them at the next full gate; reread each, rewrite its
-questions and `bun nv site --questions --stamp` it (with `MSYS_NO_PATHCONV=1`).
+Nothing. The goal is reached; the driver retires it.
 
 ### Backlog
 
-- **A log level set after the first `Core\Log::write` of a run is ignored.** After one write,
-  `Core\Config::set('log.level', 'Debug')` returns `true` and `Core\Config::get` reads it back, but
-  later `debug` writes in the same run are still dropped, under `nvs run` and `nvs test`. Setting it
-  before the first write works. The cause is not read yet; start at `Core\Log::write` in
-  `crates/nvs-stdlib/src/log.rs`. Not this goal's: it needs an owner goal.
+- The log-level bug this goal found has moved to `release-green`'s backlog.
+- Older `changes.json` entries that this goal did not write still have hard sentences, which the
+  review named: the session, property path, `Revocable` and mutation-testing entries. Each entry's
+  owner rewrites it when its feature next moves.

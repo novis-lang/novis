@@ -288,6 +288,11 @@ test case*). Give it `watchdog_margin = "30s"` as `efade84c36` did.
 
 ### Backlog
 
+- **A log level set after the first `Core\Log::write` of a run is ignored.** After one write,
+  `Core\Config::set('log.level', 'Debug')` returns `true` and `Core\Config::get` reads it back, but
+  later `debug` writes in the same run are still dropped, under `nvs run` and `nvs test`. Setting it
+  before the first write works. The cause is not read yet; start at `Core\Log::write` in
+  `crates/nvs-stdlib/src/log.rs`. A release ships a setting that changes nothing.
 - `tools/nv/cmd/ci.ts:294`: the pre-push attribution check runs `gen-attribution --check` only, and
   CI's job also runs `--check-c-deps`, which caught a stale `ittapi-sys` ledger entry. Adding it to
   `PRE_PUSH` would have caught that failure before the push.
