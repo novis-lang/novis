@@ -1,0 +1,43 @@
+<?nvs
+// Shows how to test that a new account gets a welcome mail.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+use Core\Test\SentMail;
+
+class SignUp
+{
+    // Creates the account and sends one welcome mail through the `site` block.
+    public static function register(string $email, string $name): void
+    {
+        Mail::send('site', [$email], 'Welcome, ' . $name, 'Hello ' . $name . ', your account is ready.');
+    }
+}
+
+class SignUpTest
+{
+    #[Test]
+    public function itSendsAWelcomeMail(): void
+    {
+        SignUp::register('ada@example.com', 'Ada');
+
+        // `sentMail()` returns one item for each message. Here it has one item.
+        array<SentMail> $sent = Test::sentMail();
+        Test::assertCount($sent, 1);
+        Test::assertEquals($sent[0]->to(), ['ada@example.com']);
+        Test::assertEquals($sent[0]->subject(), 'Welcome, Ada');
+        Test::assertEquals($sent[0]->text(), 'Hello Ada, your account is ready.');
+    }
+
+    // Each test starts with an empty list, so the mail of the test above is not here.
+    #[Test]
+    public function eachTestStartsWithNoMail(): void
+    {
+        Test::assertCount(Test::sentMail(), 0);
+    }
+}
+
+// `nvs test` runs the tests above. Outside a test, `sentMail()` returns an
+// empty list, so `nvs run` prints `0`.
+echo Core\Arr::count(Test::sentMail()), "\n";

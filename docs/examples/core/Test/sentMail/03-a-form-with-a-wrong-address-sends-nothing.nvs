@@ -1,0 +1,55 @@
+<?nvs
+// Shows how to test that a contact form sends no mail when the form has an error.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class ContactForm
+{
+    // Sends the message to the support team, or returns what is wrong.
+    public static function submit(string $visitor, string $message): string
+    {
+        if (Core\Str::trim($message) == '') {
+            return 'Please write a message';
+        }
+        // `Core\Mail::send` checks every address, also in a test.
+        // For a wrong address, it throws a `RuntimeError`.
+        try {
+            Mail::send('site', ['team@example.com'], 'Contact form', $message, { replyTo: $visitor });
+        } catch (RuntimeError $error) {
+            return 'Please check your address';
+        }
+        return 'Thank you';
+    }
+}
+
+class ContactFormTest
+{
+    #[Test]
+    public function aCorrectFormSendsOneMail(): void
+    {
+        Test::assertEquals(ContactForm::submit('ada@example.com', 'Hello'), 'Thank you');
+        Test::assertCount(Test::sentMail(), 1);
+        Test::assertEquals(Test::sentMail()[0]->replyTo(), 'ada@example.com');
+    }
+
+    #[Test]
+    public function anEmptyMessageSendsNothing(): void
+    {
+        Test::assertEquals(ContactForm::submit('ada@example.com', '  '), 'Please write a message');
+        Test::assertCount(Test::sentMail(), 0);
+    }
+
+    // `ada.example.com` has no `@`, so the list is empty.
+    #[Test]
+    public function aWrongAddressSendsNothing(): void
+    {
+        Test::assertEquals(ContactForm::submit('ada.example.com', 'Hello'), 'Please check your address');
+        Test::assertCount(Test::sentMail(), 0);
+    }
+}
+
+// `nvs test` runs the tests above. This line runs under `nvs run` and prints
+// `Please write a message`, because the message is empty. No mail is sent.
+echo ContactForm::submit('ada@example.com', ''), "\n";

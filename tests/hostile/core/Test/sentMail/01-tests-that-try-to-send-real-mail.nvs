@@ -1,0 +1,138 @@
+<?nvs
+// Attack: tests try to send real mail with many recipients, odd addresses, injected
+// headers, huge bodies and many messages. No connection should open: each message is only kept.
+// proof: test
+// hostile: timeout-ms 60000
+
+use Core\Http\Method;
+use Core\Mail;
+use Core\Test;
+
+class Sender
+{
+    #[Core\Command(name: 'mail', about: 'Send one message')]
+    public static function mail(): uint
+    {
+        Mail::send('relay', ['run@example.com'], 'From a run', 'Sent by a command.');
+        return 0;
+    }
+}
+
+class RealMailAttack
+{
+    /// 1. One message to ten thousand recipients in `to`, `cc` and `bcc`.
+    #[Test]
+    public function manyRecipients(): void
+    {
+        array<string> $to = [];
+        uint $i = 0;
+        while ($i < 10000) {
+            $to[] = 'user' . $i . '@example.com';
+            $i = $i + 1;
+        }
+        try {
+            Mail::send('relay', $to, 'Hello', 'Hi.', { cc: $to, bcc: $to });
+        } catch (Throwable $error) {
+            echo '1 ', $error::class, "\n";
+        }
+        Test::assertCount(Test::sentMail(), 1);
+    }
+
+    /// 2. Addresses with a line break, a comma, a zero byte, no `@`, or a very long name.
+    #[Test]
+    public function oddAddresses(): void
+    {
+        array<string> $odd = [
+            "a@example.com\r\nRCPT TO:<b@example.com>",
+            'a@example.com, b@example.com',
+            "a\0@example.com",
+            '',
+            'no-at-sign',
+            '@example.com',
+            'a@',
+            Core\Str::repeat('a', 100000) . '@example.com',
+            'ü@exämple.com',
+        ];
+        uint $thrown = 0;
+        foreach ($odd as string $address) {
+            // Each error is caught, so the next address is still tried.
+            try {
+                Mail::send('relay', [$address], 'Hello', 'Hi.');
+            } catch (Throwable $error) {
+                $thrown = $thrown + 1;
+            }
+            try {
+                Mail::send('relay', ['ok@example.com'], 'Hello', 'Hi.', { replyTo: $address });
+            } catch (Throwable $error) {
+                $thrown = $thrown + 1;
+            }
+        }
+        // Every call either threw an error or kept its message.
+        Test::assertEquals($thrown + Core\Arr::count(Test::sentMail()), 18);
+    }
+
+    /// 3. A subject and a body with line breaks that try to add a `Bcc:` header.
+    #[Test]
+    public function injectedHeaders(): void
+    {
+        string $subject = "Hello\r\nBcc: everyone@example.com\r\n\r\nfake body";
+        Mail::send('relay', ['a@example.com'], $subject, "Hi.\r\n.\r\nMAIL FROM:<x@example.com>");
+        Test::assertEquals(Test::sentMail()[0]->subject(), $subject);
+    }
+
+    /// 4. A text body and an HTML body of 16 megabytes each.
+    #[Test]
+    public function hugeBodies(): void
+    {
+        string $big = Core\Str::repeat('x', 16777216);
+        try {
+            Mail::send('relay', ['a@example.com'], 'Big', $big, { html: $big });
+            Test::assertEquals(Core\Str::length(Test::sentMail()[0]->text()), 16777216);
+        } catch (Throwable $error) {
+            echo '4 ', $error::class, "\n";
+        }
+    }
+
+    /// 5. Twenty thousand messages from one test.
+    #[Test]
+    public function manyMessages(): void
+    {
+        uint $i = 0;
+        while ($i < 20000) {
+            Mail::send('relay', ['a@example.com'], 'Message ' . $i, 'Hi.');
+            $i = $i + 1;
+        }
+        Test::assertCount(Test::sentMail(), 20000);
+    }
+
+    /// 6. A request sends a thousand messages, and a run sends one more.
+    #[Test]
+    public function mailFromARequestAndARun(): void
+    {
+        echo '6 ', Test::request(Method::Post, '/many')->status(), "\n";
+        echo '6 ', Test::run(['mail'])->exitCode(), "\n";
+        Test::assertCount(Test::sentMail(), 1001);
+    }
+
+    /// 7. The test changes the list it read, and then reads it again.
+    #[Test]
+    public function aChangedListDoesNotChangeTheKeptMail(): void
+    {
+        Mail::send('relay', ['a@example.com'], 'Hello', 'Hi.');
+        array<Core\Test\SentMail> $sent = Test::sentMail();
+        $sent[] = $sent[0];
+        Test::assertCount(Test::sentMail(), 1);
+    }
+}
+
+// A request to `/many` sends a thousand messages. A run calls the command its words name.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    uint $i = 0;
+    while ($i < 1000) {
+        Mail::send('relay', ['request@example.com'], "Request\r\nBcc: all@example.com", 'Hi.');
+        $i = $i + 1;
+    }
+} else {
+    uint $status = Core\Command::run();
+    exit($status as int);
+}
