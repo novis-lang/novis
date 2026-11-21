@@ -25,6 +25,19 @@ The page has four parts:
   away.
 - **Features**: a table of things a web server needs, and which server has each one.
 
+:::tip[Change the code of a running server]
+With Novis, you can change a source file while the server runs. The next requests use the new code.
+You do not restart the server or reload it, and no request fails.
+
+Novis waits until no file has changed for 1 second. Then it switches to the whole new program at
+once, so a request never runs a mix of old and new files.
+
+Of the seven servers on this page, only Novis and PHP do this in production, with their default
+settings. Bun, Node.js and Python load new code only when they restart. Go and .NET also need a new
+build first. [Deploying a new version](#deploying-a-new-version) shows what happens to requests on
+each server.
+:::
+
 ## How the test works
 
 Each language runs as a web server in its own container. The same nginx server is in front of each
@@ -85,6 +98,9 @@ full bar. The best results are the most requests and the least memory.
 Novis runs every request in its own isolate: a separate memory area with a CPU limit and a memory
 limit. Bun, Go, Node.js, .NET and Python have no CPU limit and no memory limit for one request. The
 rows `loop`, `memory` and `flood` below show what that changes.
+
+This isolation is extra work on every request, and the other servers do not do it. Its cost is part
+of each Novis result above.
 
 `p99` is the time within which 99 of 100 requests were answered. Peak memory is the most memory the
 server's container used during the test. Memory matters as much as speed when you pay for a server,
