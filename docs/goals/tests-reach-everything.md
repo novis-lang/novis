@@ -124,22 +124,22 @@ checks:
   - id: proofs-request
     stage: 8
     name: "Core\\Test::request has every feature proof"
-    run: [bun, nv, proofs, --id, "Core\\Test::request", --gate]
+    run: [bun, nv, proofs, --only, "Core\\Test::request", --gate]
     timeout: 1800
   - id: proofs-run
     stage: 8
     name: "Core\\Test::run has every feature proof"
-    run: [bun, nv, proofs, --id, "Core\\Test::run", --gate]
+    run: [bun, nv, proofs, --only, "Core\\Test::run", --gate]
     timeout: 1800
   - id: proofs-logs
     stage: 8
     name: "Core\\Test::logs has every feature proof"
-    run: [bun, nv, proofs, --id, "Core\\Test::logs", --gate]
+    run: [bun, nv, proofs, --only, "Core\\Test::logs", --gate]
     timeout: 1800
   - id: proofs-mail
     stage: 8
     name: "Core\\Test::sentMail has every feature proof"
-    run: [bun, nv, proofs, --id, "Core\\Test::sentMail", --gate]
+    run: [bun, nv, proofs, --only, "Core\\Test::sentMail", --gate]
     timeout: 1800
   - id: site-stale
     stage: 9
@@ -426,16 +426,16 @@ outcome type exists; the session writes the run path.
 `Core\Test::sentMail` go to three writing subagents, side by side. The session writes the
 `Core\Test::request` ones.
 
-- [ ] `docs/examples/core/Test/request/about.md:1`: the new options, the server's answers and
+- [x] `docs/examples/core/Test/request/about.md:1`: the new options, the server's answers and
   `error()`, and examples `05` onward: a rate limit by client address, a `__Host-` cookie over
   `https`, a JSON post, a file upload, and a forged write answered `403`.
-- [ ] `docs/examples/core/Test/run/about.md:1` and the examples and attack
+- [x] `docs/examples/core/Test/run/about.md:1` and the examples and attack
   `bun nv proofs --id 'Core\Test::run'` names: a command with a flag, a command that reads stdin, a
   usage error with exit code `2`.
-- [ ] `docs/examples/core/Test/logs/about.md:1` and `docs/examples/core/Test/sentMail/about.md:1`,
+- [x] `docs/examples/core/Test/logs/about.md:1` and `docs/examples/core/Test/sentMail/about.md:1`,
   with the examples, benches and attacks their `bun nv proofs --id` names. The `sentMail` attack: a
   test tries to send real mail, and no connection opens.
-- [ ] `docs/examples/core/Test/advance/about.md`: a retry with backoff tested in microseconds.
+- [x] `docs/examples/core/Test/advance/about.md`: a retry with backoff tested in microseconds.
 - [ ] `bun nv proofs --comments` over every new `.nvs`, then the four `proofs` checks.
 
 ### 9. the website shows what a test can reach, and lists the change
@@ -460,18 +460,18 @@ outcome type exists; the session writes the run path.
 
 ### State
 
-Stages 1 to 7 are done, and every code check (`peer` to `records`) is green. What is left is
-documentation: the proofs, the help and the website.
+Stages 1 to 8 are done, and every code check (`peer` to `records`) is green. What is left is the
+website (stage 9) and the close (stage 10).
 
-Stage 7 landed in `41abf24364`. `nvs_runtime::test_records::TestRecords` is one store of log
-records and mail per test, on `Ctx::test_records`, shared by `Ctx::child` and handed to each
-`answer` and `run` child in `crates/nvs-cli/src/runner.rs` beside `test_env`. The suite's context
-gets a store too, so a class hook's mail is never sent. `Core\Log::write` keeps a record after the
-`[log] level` filter and before the repeat bound, as its level name, message and fields' JSON text.
-`Core\Mail::send` checks the grant, the block and every address, then keeps the message and
-returns. `Core\Test\LogRecord` and `Core\Test\SentMail` are in `crates/nvs-stdlib/src/test/records.rs`.
-The fixture moved to `crates/nvs-cli/tests/fixtures/reach/records/`, with an `nvs.toml` naming a
-`[mail.relay]` on port 1 that nothing listens on. `a-test-reads-its-logs-and-mail` is `shipped`.
+Stage 8 landed in `de12e39f33` to `84558d87c4`. Each of `request`, `run`, `logs` and `sentMail` has
+its about.md, examples, attack and stamped help, and `advance` gained `04`, a retry whose wait
+doubles. `logs` and `sentMail` carry a perf skip under `data/proofs/skip/core/Test/`, as `advance`
+does: a bench runs under `nvs run`, where no test keeps records. `tools/nv/proofs/run.ts`
+`spawnProof` now hands a directory's `nvs.toml` to a `proof: test` program (`f331b121b1`), which
+the `sentMail` examples and attack need. `Core\Test\LogRecord::fields` now keeps the written key
+order (`f27de79971`, `nvs_render::json::fields_text`). The newcomer review of all 45 texts this
+goal changed is done and stamped, so stage 10's first item is done for every text so far; the
+website pages stage 9 writes still owe theirs.
 
 At the gate, these may go red: a test whose `Core\Task::all` child relied on the real clock or
 timed a sleep under `at:`; a test that lists `#[Test]`'s options (`env` is new); a test that lists
@@ -482,14 +482,19 @@ Nightly 44894790665's Miri timeout predates `156f11a7ca`, which fixed it.
 
 ### Next
 
-Stage 8, the feature proofs, as its `**Split:**` line says: the session writes the
-`Core\Test::request` ones (`docs/examples/core/Test/request/about.md:1`), and three writing
-subagents write `Core\Test::run`, `Core\Test::logs` and `Core\Test::sentMail` side by side. Start
-with `bun nv proofs --id '<feature>'` for each, which prints what it owes and each path. The
-reference cards are already in the binary: `RUN_DOC` in `crates/nvs-stdlib/src/test/run.rs`, and
-`LOGS_DOC`, `SENT_MAIL_DOC` and both class cards in `crates/nvs-stdlib/src/test/records.rs`. A
-`sentMail` example needs an `nvs.toml` with a `[mail.<name>]` block and `[capabilities.mail] send`,
-as `crates/nvs-cli/tests/fixtures/reach/records/nvs.toml` has. Then `bun nv proofs --comments`
-over every new `.nvs`, and the four `proofs` checks by name.
+Stage 9, the website. Find the testing guide pages with `bun nv brief --where "Core\\Test"` under
+`website/src/content/docs/`, and add what stage 9's first item lists. Each page can link to the
+examples under `docs/examples/core/Test/{request,run,logs,sentMail}/`. Then the
+`website/src/data/changes.json` entries stage 9's second item lists; a `changed` entry needs a test
+with `// covers: <feature>` (playbook: *`site --check changes` counts a feature as moved only
+through tests that carry `// covers:`*). Then `bun nv site --check stale` and stamp what it names.
+The pages written there owe the newcomer review (stage 10's first item), done as this session did:
+`bun nv site --review` for the keys, `--brief` per batch, one `reader` each, then `--stamp`.
 
 ### Backlog
+
+- **A log level set after the first `Core\Log::write` of a run is ignored.** After one write,
+  `Core\Config::set('log.level', 'Debug')` returns `true` and `Core\Config::get` reads it back, but
+  later `debug` writes in the same run are still dropped, under `nvs run` and `nvs test`. Setting it
+  before the first write works. The cause is not read yet; start at `Core\Log::write` in
+  `crates/nvs-stdlib/src/log.rs`. Not this goal's: it needs an owner goal.
