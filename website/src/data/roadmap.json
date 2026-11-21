@@ -1,13 +1,5 @@
 {
   "comment": "The public roadmap. `bun nv site --check roadmap` keeps it in step with the goal chain, and `bun nv site --roadmap` copies it into README.md. `internal` lists the goals that are not public work.",
   "internal": [],
-  "themes": [
-    {
-      "title": "Faster answers from nvs code",
-      "text": "`nvs code` uses the same index as the editor. It does not analyse an unchanged project again. The first index of a project uses every processor core. One `calls` or `reach` command can take several methods.",
-      "goals": [
-        "code-warm-index"
-      ]
-    }
-  ]
+  "themes": []
 }
