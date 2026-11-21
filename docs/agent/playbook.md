@@ -26,6 +26,10 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **A check's `tests:` name for a bun test inside a `describe` is written `describe > test`.** Bun
+  prints `(pass) the plan > counts ...`, and looper looks for the name as a whole substring of that
+  line. `the plan counts ...` never matched, so a green run was refused as "did not run and pass".
+  Try a new check with `looper check --name <id>`. See `tools/looper/src/verify/accept.ts` `testPassed`.
 - **`site --check changes` counts a feature as moved only through tests that carry `// covers:
   <feature>`.** A new `.nvst` case for `Core\Html::later` had no marker, so its `changes.json`
   entry was refused as "has not moved". Add the marker under `<?nvs` in the case, not a

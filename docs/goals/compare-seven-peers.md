@@ -43,20 +43,20 @@ checks:
     run: [bun, test, tools/nv/test/bench-compare.test.ts, -t, "the plan"]
     timeout: 600
     tests:
-      - "the plan counts every stack, image build and fixed-load second a run takes"
-      - "the plan starts no docker"
-      - "the plan of the four-peer recording is the baseline"
+      - "the plan > counts every stack, image build and fixed-load second a run takes"
+      - "the plan > starts no docker"
+      - "the plan > of the four-peer recording is the baseline"
   - id: less-work
     stage: 2
     name: "a recording builds each image once, brings no stack up only to check answers, and reuses a row whose peer image, programs, tool and host are unchanged"
     run: [bun, test, tools/nv/test/bench-compare.test.ts, -t, "the work a recording does"]
     timeout: 600
     tests:
-      - "the work a recording does: each image is built once and no stack is brought up with --build"
-      - "the work a recording does: answers are checked on the first rep's stacks"
-      - "the work a recording does: a row with an unchanged key reuses its recorded result"
-      - "the work a recording does: a changed image, program, tool or host runs the row again"
-      - "the work a recording does: the four-peer plan brings up fewer stacks than the baseline"
+      - "the work a recording does > each image is built once and no stack is brought up with --build"
+      - "the work a recording does > answers are checked on the first rep's stacks"
+      - "the work a recording does > a row with an unchanged key reuses its recorded result"
+      - "the work a recording does > a changed image, program, tool or host runs the row again"
+      - "the work a recording does > the four-peer plan brings up fewer stacks than the baseline"
   - id: peers
     stage: 5
     name: "the peer table names Novis, PHP, Bun, Go, Node.js, .NET and Python, and every case and row has a program for every peer"
@@ -359,6 +359,10 @@ The nightly run `44722386375` tested `5d053fc6e6`, before its two fixes. Both fa
 HEAD: `xml::tests::source_stops_at_the_memory_limit_before_it_escapes` (fixed by `e5a100b18f`) and
 `tests/conformance/iter/an-object-map-passes-where-a-keyed-iterable-is-declared.nvst` (fixed by
 `438e9c44af`). They reach CI with this gate's push.
+
+The refused DONE was the `plan` and `less-work` checks' own test names, not the tests. Bun prints a
+nested test as `(pass) the plan > counts ...`, and looper matches a name as a whole substring of that
+line. Each name now carries its `describe` with ` > `, and both checks are green under `looper check`.
 
 ### Next
 
