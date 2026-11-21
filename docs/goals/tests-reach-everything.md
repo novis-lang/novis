@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/testing/determinism-declared-on-the-test.md, docs/rules/testing/an-outbound-call-is-answered-from-a-table.md, docs/rules/core-classes/process-run.md]
   - id: 2
     title: a test request states its client address, scheme, cookies and host
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/inbound.rs, crates/nvs-server/src/trace.rs]
   - id: 3
     title: a test request sends every body Core\Http\Client can send
@@ -336,13 +336,13 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### 2. a test request states its client address, scheme, cookies and host
 
-- [ ] `crates/nvs-stdlib/src/test.rs:551`: `clientIp`, `scheme` and `cookies` in `REQUEST_OPTIONS`,
+- [x] `crates/nvs-stdlib/src/test.rs:551`: `clientIp`, `scheme` and `cookies` in `REQUEST_OPTIONS`,
   and the card's text (AGENTS.md § *Text an end user reads*).
-- [ ] `crates/nvs-stdlib/src/test.rs:2926`: `described` calls `set_peer`, `push_cookie` and
+- [x] `crates/nvs-stdlib/src/test.rs:2926`: `described` calls `set_peer`, `push_cookie` and
   `set_host`, and throws the two `LogicError`s.
-- [ ] `crates/nvs-stdlib/src/test.rs:2977`: `links_through` takes the host.
-- [ ] `crates/nvs-cli/src/runner.rs:1619`: `UnderTest::answer` calls `nvs_server::trace::take`.
-- [ ] `crates/nvs-cli/tests/test_reach.rs:1` with fixtures under
+- [x] `crates/nvs-stdlib/src/test.rs:2977`: `links_through` takes the host.
+- [x] `crates/nvs-cli/src/runner.rs:1619`: `UnderTest::answer` calls `nvs_server::trace::take`.
+- [x] `crates/nvs-cli/tests/test_reach.rs:1` with fixtures under
   `crates/nvs-cli/tests/fixtures/reach/`: the seven `peer` tests.
 
 ### 3. a test request sends every body Core\Http\Client can send
@@ -443,24 +443,31 @@ outcome type exists; the session writes the run path.
 
 ### State
 
-Stage 1 is done: the rules say what a test can set and read, and `bun nv rules --check` is green.
-`in-process-request.md`, `task-tree-and-virtual-clock.md` and `test-attribute.md` stay `shipped` and
-now state what stages 2 to 5 and 7 build. `a-test-runs-a-command` and
-`a-test-reads-its-logs-and-mail` are new and `designed`, owned by this goal, with empty `guardedBy`.
-Stage 6 flips the first and stage 7 the second to `shipped`, each with its tests in `guardedBy`.
+Stages 1 and 2 are done. `Core\Test::request` takes `cookies`, `clientIp` and `scheme`, appended
+after `captures` (argument slots 6 to 8, so the member is `args: [9]`). A `host` header goes to
+`InboundSpec::set_host` and picks the mount row through `Mounts::links_for`, which now folds the host
+with `nvs_config::mount::folded_host`. `Host`, `folded_host` and `named` moved there from
+`nvs-server`'s `mount.rs`, which re-exports `Host`, so the door and a test pick a row by one
+reading. `UnderTest::answer` calls `nvs_server::trace::take`. The `peer` check's seven tests pass,
+run by name. The rule named `Core\Request::ip()` and `isSecure()`; the readers are `clientIp()` and
+`scheme()`, and the rule now says so.
 
-The nightly CI run 44722386375 tested `5d053fc6e6`. Both of its failures are fixed at this tip:
-`xml::tests::source_stops_at_the_memory_limit_before_it_escapes` by `e5a100b18f`, and the checked-types
-case `tests/conformance/iter/an-object-map-passes-where-a-keyed-iterable-is-declared.nvst` by
-`438e9c44af`. Each passes here, run by name.
+The unit tests in `test.rs` build the member's slots with one helper, `request_args`
+(`crates/nvs-stdlib/src/test.rs:6043`). Stage 3 adds its four options there and in `REQUEST_OPTIONS`.
+
+The nightly run 44894790665 timed out on `granularity::tests::both_walks_agree_on_every_window`
+under Miri, at 300 s with a reach of 4. `156f11a7ca` cuts the Miri reach to 2, which is 240 windows
+and a third of the work. Miri cannot run on this Windows host (cargo-miri refuses cargo's argfile),
+so the next nightly is the check. If it still times out, the next step is a shorter text list
+under `cfg!(miri)`.
 
 ### Next
 
-Stage 2, from its first item. Anchors: `Core\Test::request`'s options in
-`crates/nvs-stdlib/src/test.rs`, `InboundSpec::push_cookie` and `set_host` at
-`crates/nvs-runtime/src/ctx/inbound.rs:1586`, and `UnderTest::answer` at
-`crates/nvs-cli/src/runner.rs:1619`. Every check after `rules` names tests in
-`crates/nvs-cli/tests/test_reach.rs`, which does not exist yet, so each stays red until its stage
-writes them.
+Stage 3, from its first item. Anchors: `Core\Http\Client`'s options (`OPTIONS` at
+`crates/nvs-stdlib/src/http.rs:1069`, `JSON_OPTION` at `:1168`), the body read in `described` at
+`crates/nvs-stdlib/src/test.rs:2996`, `REQUEST_OPTIONS` at `:560`, and the unit-test helper
+`request_args` at `:6043`. Append the new options after `scheme`, so slots 0 to 8 keep their places.
+The `bodies`, `answers`, `clock`, `run` and `records` checks stay red until their stages write
+their tests in `crates/nvs-cli/tests/test_reach.rs`.
 
 ### Backlog
