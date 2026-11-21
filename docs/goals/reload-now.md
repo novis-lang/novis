@@ -25,7 +25,7 @@ stages:
     context: [crates/nvs-server/src/schedule.rs, crates/nvs-cli/src/serve.rs]
   - id: 6
     title: the feature's proofs, its help and the primer
-    status: open
+    status: done
     context: [docs/reference/tools/25-server.md, docs/reference/README.md, crates/nvs-cli/src/agent.rs]
   - id: 7
     title: the website shows the deploy and development workflow, and lists the change
@@ -91,7 +91,7 @@ checks:
   - id: primer
     stage: 6
     name: "the primer tells an agent to run nvs reload after an edit"
-    run: [cargo, test, --lib, --, the_primer_carries_the_reload_workflow]
+    run: [cargo, test, --bin, nvs, --, the_primer_carries_the_reload_workflow]
     timeout: 1800
     tests:
       - the_primer_carries_the_reload_workflow
@@ -363,18 +363,18 @@ the Unix socket and peer check to another; the session wires `serve.rs` and buil
 **Split:** the examples and the attack go to one writing subagent once the reference section is
 written.
 
-- [ ] `docs/reference/tools/25-server.md:318`: the `# nvs reload` section, marked `<!-- primer -->`,
+- [x] `docs/reference/tools/25-server.md:318`: the `# nvs reload` section, marked `<!-- primer -->`,
   and `# What reaches a running server` names it.
-- [ ] `docs/examples/tools/server/nvs-reload/about.md:1`, and the examples
+- [x] `docs/examples/tools/server/nvs-reload/about.md:1`, and the examples
   `bun nv proofs --id tools:server/nvs-reload` names, among them a deploy script and an edit made
   live at once with `revalidate_freq = "1h"`.
-- [ ] `tests/hostile/tools/server/nvs-reload/01-a-request-tries-to-reload-its-own-server.nvs:1`: a
+- [x] `tests/hostile/tools/server/nvs-reload/01-a-request-tries-to-reload-its-own-server.nvs:1`: a
   request tries to reach the endpoint through the file system and the network, and every attempt
   fails.
-- [ ] `docs/examples/tools/server/what-reaches-a-running-server/about.md:1` and
+- [x] `docs/examples/tools/server/what-reaches-a-running-server/about.md:1` and
   `docs/examples/config/schedule/`: name `nvs reload` and the new event keys.
-- [ ] `crates/nvs-cli/src/agent.rs`: `the_primer_carries_the_reload_workflow`.
-- [ ] `bun nv proofs --comments` over every new `.nvs`, then the `proofs` check.
+- [x] `crates/nvs-cli/src/agent.rs`: `the_primer_carries_the_reload_workflow`.
+- [x] `bun nv proofs --comments` over every new `.nvs`, then the `proofs` check.
 
 ### 7. the website shows the deploy and development workflow, and lists the change
 
@@ -399,30 +399,31 @@ written.
 
 ### State
 
-Stages 1 to 5 are done; `rules`, `endpoint`, `check-now`, `command` and `events` are green on
-Windows. The four `events` tests are new in `crates/nvs-cli/tests/reload_command.rs` and have not
-run in WSL or on macOS; CI's runs are their first there. How the events are wired is § *Standing
-decisions* § *The events, as stage 5 built it*. `rule:config/a-reload-command-checks-now-and-waits`
-gained a paragraph on the records and the outcome, and the event rule's `failed` now reads "the
-loaded programs that do not compile now".
+Stages 1 to 6 are done; `rules`, `endpoint`, `check-now`, `command`, `events`, `proofs` and
+`primer` are green on Windows. `# nvs reload` is in `docs/reference/tools/25-server.md` after
+`# What reaches a running server`, marked `<!-- primer -->`; the primer rule and
+`docs/reference/README.md` § *Marking a section for the primer* name it as a part the primer carries.
+The `primer` check ran `cargo test --lib`, which reaches no test of `nvs-cli` (a bin-only crate),
+so it now runs `cargo test --bin nvs`. The proofs are `docs/examples/tools/server/nvs-reload/` (about,
+a deploy script, an edit live at once with `revalidate_freq = "1h"`, and an `nvs.toml`), the attack
+`tests/hostile/tools/server/nvs-reload/01-*.nvs` with its `.nvsr`, and ten tests in
+`crates/nvs-cli/tests/reload_command.rs` marked `// covers: tools:server/nvs-reload`. The deploy
+example names `Core\Process::run('nvs', ['reload'])` in a comment and does not run it: no runner
+puts the binary under test on `PATH`. The schedule example, about and details name `programs` and
+`failed`. Every text changed is review-stamped, and `bun nv proofs --gate` owes nothing.
 
-The nightly CI run the sweep listed (44722386375) ran on `5d053fc6e6`, the same run the last four
-handoffs covered; its failures were fixed after it, so no change was made for them.
+The nightly CI run the sweep listed (44722386375) is the same run the last five handoffs covered;
+its failures were fixed after it, so no change was made for them.
 
-`nvs reload` has its help in the binary but no reference section yet, so `tools:server/nvs-reload`
-does not exist on the roster until stage 6 writes `# nvs reload` in
-`docs/reference/tools/25-server.md`. Expected red until then: `proofs`, `primer` (stage 6),
-`site-stale`, `site-changes` (stage 7) and `site-review` (stage 8).
+Expected red: `site-stale`, `site-changes` (stage 7) and `site-review` (stage 8).
 
 ### Next
 
-Stage 6, the proofs, help and primer. Write `# nvs reload` after `# What reaches a running server`
-in `docs/reference/tools/25-server.md:318`, marked `<!-- primer -->`; then
-`bun nv proofs --id tools:server/nvs-reload` names what is owed. Its records are `program reloaded`
-and `program reload failed` (`crates/nvs-cli/src/reload.rs` `program_record`), and the event map's
-keys are in `run_args` (`crates/nvs-cli/src/serve.rs:2175`). The attack starts a server and
-tries the endpoint from a request (`a_request_cannot_reach_the_endpoint` in the test file is the
-Rust half). The primer test goes in `crates/nvs-cli/src/agent.rs`. Follow the stage's **Split:**
-line, and hold every `.nvs` comment and `about.md` to AGENTS.md § *Text an end user reads*.
+Stage 7, the website. Write `website/src/content/docs/guides/production/deploy.mdx`, *Deploy a new
+version*, as § *Standing decisions* § *The website* says: switch `current`, run `nvs reload`, check
+its exit code (0, 1, 2 as in `docs/reference/tools/25-server.md` § *nvs reload*), migrations with
+`nvs run`, and a section for development and coding agents with `revalidate_freq = "1h"`. Link it
+from `index.mdx`, `run-as-a-service.mdx` and `docker.mdx:69` (`docker exec <c> nvs reload`). Add the
+three `changes.json` entries, then reread and stamp what `bun nv site --check stale` names.
 
 ### Backlog
