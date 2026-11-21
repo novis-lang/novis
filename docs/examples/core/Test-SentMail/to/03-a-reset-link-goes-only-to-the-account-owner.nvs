@@ -1,0 +1,34 @@
+<?nvs
+// Shows how to test that a password reset mail goes to the address saved for the account.
+// proof: test
+
+use Core\Http\Method;
+use Core\Test;
+
+class PasswordResetTest
+{
+    // The form has a second address in it. The mail must still go to the owner alone.
+    #[Test]
+    public function theLinkGoesOnlyToTheOwner(): void
+    {
+        Test::request(Method::Post, '/password/reset', {
+            headers: ['content-type' => 'application/x-www-form-urlencoded'],
+            body: 'user=ada&email=someone-else@example.com',
+        });
+
+        Test::assertCount(Test::sentMail(), 1);
+        Test::assertEquals(Test::sentMail()[0]->to(), ['ada@example.com']);
+    }
+}
+
+// `Core\Test::request` runs this file again for the request. This part finds
+// the saved address of the user. It does not read the `email` field of the form.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    array<string> $saved = ['ada' => 'ada@example.com', 'alan' => 'alan@example.com'];
+    ?string $address = $saved[Core\Request::post('user') ?? ''] ?? null;
+    if ($address != null) {
+        string $link = 'https://example.com/password/new?token=' . Core\Random::token(16);
+        Core\Mail::send('site', [$address], 'Reset your password', 'Open this link: ' . $link);
+    }
+    Core\Response::setStatus(202);
+}

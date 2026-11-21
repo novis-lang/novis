@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to test that an order confirmation goes to the customer who ordered.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Checkout
+{
+    // Saves the order and sends the confirmation to the customer.
+    public static function placeOrder(string $customer, int $orderNumber): void
+    {
+        Mail::send('site', [$customer], 'Order ' . $orderNumber, 'Thank you for your order.');
+    }
+}
+
+class CheckoutTest
+{
+    #[Test]
+    public function theConfirmationGoesToTheCustomer(): void
+    {
+        Checkout::placeOrder('ada@example.com', 1042);
+
+        // `to()` returns a list, so the test compares it with a list of one address.
+        Test::assertEquals(Test::sentMail()[0]->to(), ['ada@example.com']);
+    }
+}

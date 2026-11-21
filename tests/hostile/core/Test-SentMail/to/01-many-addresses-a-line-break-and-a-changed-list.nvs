@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a test sends mail to thousands of addresses, to an address with a line break, and then
+// changes the list it read. The list should keep every valid address, and nothing may crash.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class ToAttackTest
+{
+    #[Test]
+    public function theListOfAddressesHolds(): void
+    {
+        // 1. Sends one message to 5000 addresses and reads them all back.
+        array<string> $many = [];
+        int $i = 0;
+        while ($i < 5000) {
+            $many[] = 'user' . $i . '@example.com';
+            $i = $i + 1;
+        }
+        Mail::send('site', $many, 'Many', 'One message for everyone.');
+        Test::assertCount(Test::sentMail()[0]->to(), 5000);
+
+        // 2. An address with a line break tries to add a second header. `send` throws, and it is
+        // caught so the steps after it still run. No message is kept.
+        try {
+            Mail::send('site', ["ada@example.com\r\nBcc: spy@example.com"], 'Hi', 'Hello');
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+        Test::assertCount(Test::sentMail(), 1);
+
+        // 3. Sends to an empty list. Whether it throws or not, the list stays the same size.
+        try {
+            Mail::send('site', [], 'Nobody', 'Nobody gets this.');
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+
+        // 4. Changes the list that `to()` returned. A second read still has the first address.
+        array<string> $copy = Test::sentMail()[0]->to();
+        $copy[0] = 'spy@example.com';
+        Test::assertEquals(Test::sentMail()[0]->to()[0], 'user0@example.com');
+
+        // 5. Reads `to()` of one message 2000 times.
+        var $first = Test::sentMail()[0];
+        uint $total = 0;
+        $i = 0;
+        while ($i < 2000) {
+            $total = $total + Core\Arr::count($first->to());
+            $i = $i + 1;
+        }
+        Test::assertEquals($total, 10000000);
+    }
+}

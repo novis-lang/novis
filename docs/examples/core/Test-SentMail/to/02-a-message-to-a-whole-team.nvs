@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to test a message that goes to several people at once.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Rota
+{
+    // Tells everyone on the support team who is on call this week.
+    public static function announce(array<string> $team, string $onCall): void
+    {
+        Mail::send('site', $team, 'On call this week', $onCall . ' is on call this week.');
+    }
+}
+
+class RotaTest
+{
+    #[Test]
+    public function everyoneOnTheTeamGetsTheMessage(): void
+    {
+        Rota::announce(['ada@example.com', 'bo@example.com', 'cy@example.com'], 'Bo');
+
+        // There is one message with three addresses, in the order they were given.
+        Test::assertCount(Test::sentMail(), 1);
+        array<string> $to = Test::sentMail()[0]->to();
+        Test::assertEquals($to, ['ada@example.com', 'bo@example.com', 'cy@example.com']);
+        Test::assertContains($to, 'cy@example.com');
+    }
+}
