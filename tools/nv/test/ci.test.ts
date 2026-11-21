@@ -1234,3 +1234,68 @@ describe("bun nv ci: the release", () => {
     }
   });
 });
+
+describe("bun nv ci --times", () => {
+  const fixture = readFileSync(join(ROOT, "tools", "nv", "test", "fixtures", "ci-times-run.json"), "utf8");
+
+  /** Seams whose `gh run view` gives `run`, and whose `gh run list` gives one complete push run, 7. */
+  function timed(run: string) {
+    const said: string[] = [];
+    const asked: string[][] = [];
+    const s: Partial<CiSeams> = {
+      say: (l) => said.push(l),
+      gh: async (args) => {
+        asked.push(args);
+        if (args[0] === "run" && args[1] === "list") return ok([{ databaseId: 7 }]);
+        if (args[0] === "run" && args[1] === "view") return ok(run);
+        return { code: 1, stdout: "", stderr: "unexpected" };
+      },
+    };
+    return { s, said, asked };
+  }
+
+  test("prints each job's wait, run and end, sorted by its end, with its steps over a minute", async () => {
+    const w = timed(fixture);
+    expect(await ci(["--times", "44940832132"], w.s)).toBe(0);
+    expect(w.asked).toEqual([["run", "view", "44940832132", "--json", "createdAt,status,jobs"]]);
+    const jobs = w.said.filter((l) => /^ *\d+\.\d +\d+\.\d +\d+\.\d {2}\S/.test(l));
+    expect(jobs.map((l) => l.slice(22))).toEqual([
+      "supply chain",
+      "test / windows-x86_64 (tests 3/3)",
+      "test / macos-aarch64 (tests)",
+      "proofs / windows-x86_64",
+    ]);
+    expect(w.said).toContain("   0.0    3.1    3.1  supply chain");
+    expect(w.said).toContain("   6.7   37.1   43.8  test / macos-aarch64 (tests)");
+    expect(w.said).toContain("   0.0   45.9   45.9  proofs / windows-x86_64");
+    // The steps of a minute or more, under their job; a short step and a skipped one are left out.
+    const macos = w.said.indexOf("   6.7   37.1   43.8  test / macos-aarch64 (tests)");
+    expect(w.said.slice(macos + 1, macos + 4).map((l) => l.trim())).toEqual([
+      "16.0         Run cargo build --workspace --all-targets",
+      "15.8         Run cargo nextest run --profile ci --workspace --lib --bins --tests --examples",
+      "2.4         Run cargo test --workspace --benches",
+    ]);
+    expect(w.said.some((l) => l.includes("cargo test --workspace --doc"))).toBe(false);
+    expect(w.said.some((l) => l.includes("Website stale guard"))).toBe(false);
+    expect(w.said.some((l) => l.includes("dev image"))).toBe(false);
+    expect(w.said.at(-1)).toBe("ended last: proofs / windows-x86_64, at 45.9 min");
+  });
+
+  test("with no id, reads the newest complete push run of ci.yml on main", async () => {
+    const w = timed(fixture);
+    expect(await ci(["--times"], w.s)).toBe(0);
+    expect(w.asked[0]).toEqual(["run", "list", "--workflow", "ci.yml", "--branch", "main", "--event", "push", "--status", "completed", "--limit", "1", "--json", "databaseId"]);
+    expect(w.asked[1]?.slice(0, 3)).toEqual(["run", "view", "7"]);
+  });
+
+  test("a run still going prints that it is, and exits 1", async () => {
+    const w = timed(JSON.stringify({ ...JSON.parse(fixture), status: "in_progress" }));
+    expect(await ci(["--times", "12"], w.s)).toBe(1);
+    expect(w.said).toEqual(["run 12 is still going"]);
+  });
+
+  test("a second id or one that is not a number is refused", async () => {
+    expect(await ci(["--times", "1", "2"], timed(fixture).s)).toBe(2);
+    expect(await ci(["--times", "abc"], timed(fixture).s)).toBe(2);
+  });
+});

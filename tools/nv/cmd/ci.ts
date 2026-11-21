@@ -17,6 +17,7 @@
 //     bun nv ci --publish-release       # publish the draft a green real run made
 //     bun nv ci --release-published     # the verdict of the newest release, its images and its tag
 //     bun nv ci --green                 # whether main's tip is pushed and its push runs ended green
+//     bun nv ci --times [<run id>]      # each job's wait, run time and end, and its slow steps
 //
 // **`--green`** is the read-only verdict on `main`'s tip, the stop condition of a session that pushes
 // until CI is green. It exits 0 when every one of these holds, and prints one line for each that does
@@ -29,6 +30,13 @@
 // that cannot be read is required when it is `CI`, and otherwise only its newest push run must not be
 // red. It exits 1 when `main` is not green and 2 when `gh` or `git` cannot answer. What it spends: one
 // `git fetch`, a few `git` calls, and one `gh api` call per required workflow and per red run.
+//
+// **`--times [<run id>]`** is the one way a session reads a run's times. With no id it reads the newest
+// complete push run of `ci.yml` on `main`. It prints one line per job that ran, sorted by the minute it
+// ended: its wait (its start minus the run's creation), its run time and its end, in minutes with one
+// decimal, and under each job every step that took a minute or more. The last line names the job that
+// ended last. A run still going prints `run <id> is still going` and exits 1. It only reads: one `gh run
+// list` when no id is given, and one `gh run view <id> --json createdAt,status,jobs`.
 //
 // **`--push`** pushes the local `main` to `origin`, and does nothing when `origin` has it already.
 // When `origin/main` has commits `main` lacks, such as the version commit CI's release job pushes, it
@@ -166,10 +174,10 @@ import { pool, run as proc } from "../lib/proc.ts";
 import { greenFullRun, type WorkflowRun } from "./release.ts";
 
 export const summary =
-  "pushes main, watches GitHub CI and cuts a release: nv ci --push | --check | --watch [--release] [--max-min <n>] [--past <job>] [--next] | --status | --rerun | --dispatch full|dry-run|release | --release-status | --approve-release | --publish-release | --release-published | --green";
+  "pushes main, watches GitHub CI and cuts a release: nv ci --push | --check | --watch [--release] [--max-min <n>] [--past <job>] [--next] | --status | --rerun | --dispatch full|dry-run|release | --release-status | --approve-release | --publish-release | --release-published | --green | --times [<run id>]";
 
 const USAGE =
-  "usage: bun nv ci --push\n       bun nv ci --check\n       bun nv ci --watch [--release] [--max-min <n>] [--past <job>]... [--next]\n       bun nv ci --status\n       bun nv ci --rerun\n       bun nv ci --dispatch full|dry-run|release\n       bun nv ci --release-status\n       bun nv ci --approve-release\n       bun nv ci --publish-release\n       bun nv ci --release-published\n       bun nv ci --green";
+  "usage: bun nv ci --push\n       bun nv ci --check\n       bun nv ci --watch [--release] [--max-min <n>] [--past <job>]... [--next]\n       bun nv ci --status\n       bun nv ci --rerun\n       bun nv ci --dispatch full|dry-run|release\n       bun nv ci --release-status\n       bun nv ci --approve-release\n       bun nv ci --publish-release\n       bun nv ci --release-published\n       bun nv ci --green\n       bun nv ci --times [<run id>]";
 
 /**
  * The workflows, by their `name:`, whose run on `main` a newer run of the same workflow replaces and
@@ -1716,6 +1724,90 @@ async function releasePublished(s: CiSeams): Promise<number> {
   return v.green ? 0 : 1;
 }
 
+// ---- the times of a run ------------------------------------------------------------------------------
+
+/** A step of a job, as `gh run view --json jobs` gives it. */
+export interface TimedStep {
+  name: string;
+  conclusion: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+}
+
+/** A job of a run, with its times, as `gh run view --json jobs` gives it. */
+export interface TimedJob extends TimedStep {
+  status: string;
+  steps: TimedStep[];
+}
+
+/** What `gh run view <id> --json createdAt,status,jobs` gives. */
+export interface TimedRun {
+  createdAt: string;
+  status: string;
+  jobs: TimedJob[];
+}
+
+/** A step that took at least this long is printed under its job. */
+const SLOW_STEP_MS = 60_000;
+
+/** The minutes from `from` to `to`, both ISO 8601, with one decimal and padded to six columns. */
+function minutes(from: string, to: string): string {
+  return ((Date.parse(to) - Date.parse(from)) / 60_000).toFixed(1).padStart(6);
+}
+
+/**
+ * The lines `--times` prints for run `id`: a head, one line per job that ran, sorted by the minute it
+ * ended, with each step of a minute or more under it, and a last line naming the job that ended last.
+ * A job's wait is its start minus the run's creation, and its end is counted from the creation too. A
+ * job GitHub skipped has no times worth reading and is left out.
+ */
+export function timesLines(id: string, r: TimedRun): string[] {
+  const ran = r.jobs
+    .filter((j) => j.conclusion !== "skipped" && j.startedAt !== null && j.completedAt !== null)
+    .sort((a, b) => Date.parse(a.completedAt ?? "") - Date.parse(b.completedAt ?? "") || a.name.localeCompare(b.name));
+  const lines = [`run ${id}, created ${r.createdAt}: wait, run and end in minutes`, "  wait    run    end  job"];
+  for (const j of ran) {
+    const start = j.startedAt ?? "";
+    const end = j.completedAt ?? "";
+    const verdict = j.conclusion === "success" ? "" : `  (${j.conclusion ?? j.status})`;
+    lines.push(`${minutes(r.createdAt, start)} ${minutes(start, end)} ${minutes(r.createdAt, end)}  ${j.name}${verdict}`);
+    for (const st of j.steps) {
+      if (st.conclusion === "skipped" || st.startedAt === null || st.completedAt === null) continue;
+      if (Date.parse(st.completedAt) - Date.parse(st.startedAt) < SLOW_STEP_MS) continue;
+      lines.push(`${" ".repeat(7)}${minutes(st.startedAt, st.completedAt)}${" ".repeat(9)}${st.name}`);
+    }
+  }
+  const last = ran.at(-1);
+  lines.push(last === undefined ? "no job ran" : `ended last: ${last.name}, at ${minutes(r.createdAt, last.completedAt ?? "").trim()} min`);
+  return lines;
+}
+
+/**
+ * `--times [<id>]`: prints run `id`'s times, or those of the newest complete push run of `ci.yml` on
+ * `main`. 0 when printed, 1 when the run is still going, 2 when `gh` cannot answer.
+ */
+async function times(s: CiSeams, given: string | undefined): Promise<number> {
+  let id = given;
+  if (id === undefined) {
+    const runs = await ghJson<{ databaseId: number }[]>(s, [
+      "run", "list", "--workflow", "ci.yml", "--branch", BRANCH, "--event", "push", "--status", "completed", "--limit", "1", "--json", "databaseId",
+    ]);
+    const newest = runs[0];
+    if (newest === undefined) {
+      s.say(`nv ci: no complete push run of ci.yml on ${BRANCH}`);
+      return 2;
+    }
+    id = String(newest.databaseId);
+  }
+  const r = await ghJson<TimedRun>(s, ["run", "view", id, "--json", "createdAt,status,jobs"]);
+  if (r.status !== "completed") {
+    s.say(`run ${id} is still going`);
+    return 1;
+  }
+  for (const l of timesLines(id, r)) s.say(l);
+  return 0;
+}
+
 // ---- the command -------------------------------------------------------------------------------------
 
 /** Parses and runs one mode; returns the exit code. */
@@ -1727,7 +1819,8 @@ export async function ci(args: string[], over: Partial<CiSeams> = {}): Promise<n
   let next = false;
   let release = false;
   let kind: DispatchKind | undefined;
-  const modes = ["--push", "--check", "--watch", "--status", "--rerun", "--dispatch", "--release-status", "--approve-release", "--publish-release", "--release-published", "--green"];
+  let runId: string | undefined;
+  const modes = ["--push", "--check", "--watch", "--status", "--rerun", "--dispatch", "--release-status", "--approve-release", "--publish-release", "--release-published", "--green", "--times"];
   let bad = modes.includes(mode ?? "") ? "" : "name one mode";
   if (bad === "" && mode === "--dispatch") {
     const k = args[1];
@@ -1744,6 +1837,7 @@ export async function ci(args: string[], over: Partial<CiSeams> = {}): Promise<n
       past.push(v);
       i++;
     } else if (mode === "--watch" && args[i] === "--next") next = true;
+    else if (mode === "--times" && runId === undefined && /^\d+$/.test(args[i] ?? "")) runId = args[i];
     else bad = `unexpected argument ${args[i]}`;
   }
   if (bad !== "") {
@@ -1765,6 +1859,7 @@ export async function ci(args: string[], over: Partial<CiSeams> = {}): Promise<n
     if (mode === "--publish-release") return await publishRelease(s);
     if (mode === "--release-published") return await releasePublished(s);
     if (mode === "--green") return await green(s);
+    if (mode === "--times") return await times(s, runId);
     return await rerun(s);
   } catch (e) {
     if (!(e instanceof GhFailed) && !(e instanceof SyntaxError)) throw e;
