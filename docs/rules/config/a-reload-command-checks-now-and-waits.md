@@ -55,6 +55,13 @@ from disk, so they need no reload, and a long `nvs run` worker is not reached.
 `revalidate_freq = "1h"` (`rule:config/opcache-revalidation-is-system-class`). A forgotten reload
 still goes live within that interval.
 
+**Each program a check changes is one log record**, whether a timed pass or `nvs reload` ran the
+check (`rule:config/a-reload-names-what-it-could-not-apply`). A program that was already broken is
+not logged again, though every later reload reports it in its reply. Each check that swapped or broke a program,
+and every `nvs reload`, is one reload outcome for `on = "reload"` entries
+(`rule:config/an-entry-runs-on-a-server-event`), and its `failed` count is every loaded program
+that does not compile now, so a program that stays broken keeps the outcome `refused`.
+
 - **Memory:** per process, one endpoint and one blocked accept, on a thread the server already has
   or one small thread of its own, and one 64-byte read buffer per connection while it is read. A
   reload holds one reply until it is written. Nothing on the request path and nothing per request.

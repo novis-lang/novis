@@ -564,8 +564,10 @@ impl Process {
         if self.draining.is_draining() {
             return;
         }
-        if let Some(outcome) = self.reread() {
-            self.reported(&outcome, changed);
+        if let Some(outcome) = self.reread()
+            && self.reported(&outcome, changed)
+        {
+            self.recorded(&outcome);
         }
     }
 
@@ -630,15 +632,36 @@ impl Process {
 
     /// Logs `outcome`, except a refusal that is the same rendered diagnostic
     /// as the one logged last, which is a file saved again with the same fault.
-    fn reported(&self, outcome: &Result<Report, String>, changed: &[PathBuf]) {
+    fn reported(&self, outcome: &Result<Report, String>, changed: &[PathBuf]) -> bool {
         if let Err(refusal) = outcome {
             let mut last = lock(&self.refused);
             if last.as_deref() == Some(refusal.as_str()) {
-                return;
+                return false;
             }
             *last = Some(refusal.clone());
         }
         self.logged(outcome, changed);
+        true
+    }
+
+    /// Records one `nvs reload` as one reload outcome: what its configuration
+    /// check did, and its programs' counts. `failed` counts every loaded
+    /// program that does not compile now.
+    pub(crate) fn reloaded(&self, configured: &Configured, programs: usize, failed: usize) {
+        let Some(events) = &self.events else {
+            return;
+        };
+        let (applied, restart) = match configured {
+            Configured::Unchanged => (true, Vec::new()),
+            Configured::Applied { restart } => (true, restart.clone()),
+            Configured::Refused { .. } => (false, Vec::new()),
+        };
+        events.reloaded(nvs_server::Reloaded {
+            applied,
+            restart,
+            programs,
+            failed,
+        });
     }
 
     /// Every path the serving tree was read from or probed, and each root as
@@ -680,22 +703,37 @@ impl Process {
     /// full disk under the log target is not a reason to fail the reload that
     /// already happened.
     ///
-    /// The outcome is recorded in [`Process::events`] beside the record, so a
-    /// `reload` entry runs once for each outcome the log shows. It carries the
-    /// names of the restart keys and nothing else: no value, and no refusal
-    /// text, which quotes a line that can hold a secret.
     fn logged(&self, outcome: &Result<Report, String>, changed: &[PathBuf]) {
         let config = nvs_config::Request::new(self.current.load());
         drop(LogWriter::resolve(Some(&config)).write(&record(outcome, changed)));
-        if let Some(events) = &self.events {
-            events.reloaded(match outcome {
-                Ok(report) => nvs_server::Reloaded {
-                    applied: true,
-                    restart: report.ignored.iter().map(|key| (*key).to_owned()).collect(),
-                },
-                Err(_) => nvs_server::Reloaded::default(),
-            });
-        }
+    }
+
+    /// Records the timed check's `outcome` in [`Process::events`], beside its
+    /// log record, so a `reload` entry runs once for each outcome the log
+    /// shows. `nvs reload` records one outcome for its configuration and its
+    /// programs together ([`Process::reloaded`]).
+    ///
+    /// An outcome carries the names of the restart keys and the program
+    /// counts, and nothing else: no value, and no refusal text, which quotes a
+    /// line that can hold a secret. `failed` counts every loaded program that
+    /// does not compile now, so a broken program keeps the outcome `refused`.
+    fn recorded(&self, outcome: &Result<Report, String>) {
+        let Some(events) = &self.events else {
+            return;
+        };
+        let failed = self.compiler.failing();
+        events.reloaded(match outcome {
+            Ok(report) => nvs_server::Reloaded {
+                applied: true,
+                restart: report.ignored.iter().map(|key| (*key).to_owned()).collect(),
+                programs: 0,
+                failed,
+            },
+            Err(_) => nvs_server::Reloaded {
+                failed,
+                ..nvs_server::Reloaded::default()
+            },
+        });
     }
 }
 
@@ -968,6 +1006,96 @@ fn record(outcome: &Result<Report, String>, changed: &[PathBuf]) -> Record {
                 "configuration reload refused; the running configuration is unchanged",
             ));
             record.envelope.fields = vec![("refusal".to_string(), text(refusal))];
+            record
+        }
+    }
+}
+
+/// Where the unit cache's checks report what they found under `nvs serve`
+/// (`rule:config/a-reload-command-checks-now-and-waits`): the log, read from
+/// the tree serving now, and the reload outcomes `on = "reload"` entries run on.
+///
+/// It is apart from [`Process`] because the process holds the compiler, and the
+/// compiler holds this. **What it spends:** two `Arc`s per process, and one
+/// record per edit, never one per request.
+pub(crate) struct Reports {
+    current: Arc<Current>,
+    events: Arc<nvs_server::Events>,
+}
+
+impl std::fmt::Debug for Reports {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Reports").finish_non_exhaustive()
+    }
+}
+
+impl Reports {
+    pub(crate) const fn new(current: Arc<Current>, events: Arc<nvs_server::Events>) -> Self {
+        Self { current, events }
+    }
+
+    /// Writes one record: `program reloaded` for a swapped program, and
+    /// `program reload failed` for one that does not compile. A write that
+    /// fails is swallowed, as [`Process::logged`]'s is.
+    pub(crate) fn program(&self, found: &crate::script::Rechecked) {
+        let config = nvs_config::Request::new(self.current.load());
+        drop(LogWriter::resolve(Some(&config)).write(&program_record(found)));
+    }
+
+    /// Records a timed check pass that swapped or refused a program as one
+    /// reload outcome. The configuration was not part of it, so it is applied.
+    pub(crate) fn pass(&self, programs: usize, failed: usize) {
+        self.events.reloaded(nvs_server::Reloaded {
+            applied: true,
+            restart: Vec::new(),
+            programs,
+            failed,
+        });
+    }
+}
+
+/// The record of one program a check swapped or found broken. A swap names
+/// the entry file and its new program digest. A failure names the entry file
+/// and its first error's file, line and message, where it has a place.
+fn program_record(found: &crate::script::Rechecked) -> Record {
+    use crate::script::Rechecked;
+    match found {
+        Rechecked::Swapped { entry, program } => {
+            let mut record = Record::at(Level::Info);
+            record.envelope.message = Some(Rendered::new("program reloaded"));
+            record.envelope.fields = vec![
+                ("entry".to_string(), text(&entry.display().to_string())),
+                ("program".to_string(), text(&program.to_string())),
+            ];
+            record
+        }
+        Rechecked::Failed {
+            entry,
+            message,
+            first,
+        } => {
+            let mut record = Record::at(Level::Error);
+            record.envelope.message = Some(Rendered::new("program reload failed"));
+            record.envelope.fields =
+                vec![("entry".to_string(), text(&entry.display().to_string()))];
+            match first.as_ref().filter(|at| !at.file.is_empty()) {
+                Some(at) => record.envelope.fields.extend([
+                    ("file".to_string(), text(&at.file)),
+                    (
+                        "line".to_string(),
+                        Node::Scalar(Scalar::Uint(u64::try_from(at.line).unwrap_or(u64::MAX))),
+                    ),
+                    ("error".to_string(), text(&at.message)),
+                ]),
+                None => record.envelope.fields.push((
+                    "error".to_string(),
+                    text(
+                        first
+                            .as_ref()
+                            .map_or(message.as_str(), |at| at.message.as_str()),
+                    ),
+                )),
+            }
             record
         }
     }

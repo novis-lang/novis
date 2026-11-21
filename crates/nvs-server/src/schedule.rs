@@ -259,13 +259,33 @@ impl Fired {
 ///
 /// It carries no value, no file path and no refusal text, because a refusal quotes the line it
 /// refused and that line can hold a secret. The run reads the details from the log.
+///
+/// A configuration reload, a check pass that swapped or refused a program, and an `nvs reload`
+/// are each one of these (`rule:config/a-reload-command-checks-now-and-waits`).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Reloaded {
-    /// Whether the reload published the new tree. `false` is a refusal, and the running tree
-    /// is unchanged.
+    /// Whether the configuration is the one the files hold. `false` is a refusal, and the
+    /// running tree is unchanged. A pass that checked only programs did not refuse it.
     pub applied: bool,
     /// The dotted name of each `Boot` key whose change waits for a restart.
     pub restart: Vec<String>,
+    /// How many programs serve a new unit since this outcome's check began.
+    pub programs: usize,
+    /// How many loaded programs do not compile now. Their requests fail.
+    pub failed: usize,
+}
+
+impl Reloaded {
+    /// The word a run reads under `"outcome"`: `refused` when the configuration or any program
+    /// was refused, and `applied` otherwise.
+    #[must_use]
+    pub const fn outcome(&self) -> &'static str {
+        if self.applied && self.failed == 0 {
+            "applied"
+        } else {
+            "refused"
+        }
+    }
 }
 
 /// The failures an `on = "failed"` run is handed: each scheduled entry whose run failed, once,
@@ -1628,11 +1648,7 @@ mod tests {
         match fired {
             Fired::Reload(reloaded) => format!(
                 "reload {} [{}]",
-                if reloaded.applied {
-                    "applied"
-                } else {
-                    "refused"
-                },
+                reloaded.outcome(),
                 reloaded.restart.join(",")
             ),
             Fired::Failed(failures) => format!(
@@ -2883,6 +2899,7 @@ mod tests {
         Reloaded {
             applied,
             restart: restart.iter().map(|key| (*key).to_owned()).collect(),
+            ..Reloaded::default()
         }
     }
 

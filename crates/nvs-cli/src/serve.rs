@@ -710,6 +710,12 @@ pub(crate) fn run(
         .feeding(Arc::clone(&events))
         .holding_logs(),
     );
+    // A swapped or refused program is one log record and one reload outcome,
+    // whether the timed check or `nvs reload` found it.
+    compiler.reporting(crate::reload::Reports::new(
+        Arc::clone(&current),
+        Arc::clone(&events),
+    ));
     crate::reload::install(Arc::clone(&host));
     // A saved configuration file reaches this process by itself —
     // `rule:config/the-config-is-an-immutable-snapshot`.
@@ -2165,8 +2171,9 @@ struct Scheduled {
 /// and an event run alike (`rule:config/an-entry-runs-on-a-server-event`):
 /// `["name" => <entry name>, "on" => <"cron" or the event's word>]`.
 ///
-/// A `reload` run also reads `"outcome" => "applied" | "refused"` and
-/// `"restart" => [<key names>]`. A `failed` run also reads
+/// A `reload` run also reads `"outcome" => "applied" | "refused"`,
+/// `"restart" => [<key names>]`, `"programs" => <programs swapped>` and
+/// `"failed" => <programs that do not compile>`. A `failed` run also reads
 /// `"schedule" => [<entry names>]` and `"dead_letter" => <int>`.
 ///
 /// One shape for every trigger, so a script run by a minute and one run by an
@@ -2186,13 +2193,11 @@ fn run_args(name: &str, fired: &nvs_server::Fired) -> Value {
     map.set(key(b"on"), Value::text(fired.word()));
     match fired {
         nvs_server::Fired::Reload(reloaded) => {
-            let outcome = if reloaded.applied {
-                "applied"
-            } else {
-                "refused"
-            };
-            map.set(key(b"outcome"), Value::text(outcome));
+            let count = |count: usize| Value::int(i64::try_from(count).unwrap_or(i64::MAX));
+            map.set(key(b"outcome"), Value::text(reloaded.outcome()));
             map.set(key(b"restart"), list(&mut reloaded.restart.iter()));
+            map.set(key(b"programs"), count(reloaded.programs));
+            map.set(key(b"failed"), count(reloaded.failed));
         }
         nvs_server::Fired::Failed(failures) => {
             map.set(key(b"schedule"), list(&mut failures.schedule.iter()));

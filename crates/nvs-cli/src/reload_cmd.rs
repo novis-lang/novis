@@ -53,7 +53,10 @@ impl Args {
         let servers = match reload_all(&run) {
             Ok(servers) => servers,
             Err(error) => {
-                eprintln!("error: could not read the folder `{}`: {error}", run.display());
+                eprintln!(
+                    "error: could not read the folder `{}`: {error}",
+                    run.display()
+                );
                 return print(&[], self.json, &mut std::io::stdout());
             }
         };
@@ -216,7 +219,11 @@ fn exit_code(servers: &[Server]) -> u8 {
 
 /// Prints `servers` as text or, with `json`, as one document on `out`, and returns the exit code.
 fn print(servers: &[Server], json: bool, out: &mut impl Write) -> ExitCode {
-    let text = if json { document(servers) } else { lines(servers) };
+    let text = if json {
+        document(servers)
+    } else {
+        lines(servers)
+    };
     let _ = out.write_all(text.as_bytes());
     ExitCode::from(exit_code(servers))
 }

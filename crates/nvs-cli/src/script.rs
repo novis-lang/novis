@@ -182,7 +182,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{
-    Arc, Condvar, Mutex, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak, mpsc,
+    Arc, Condvar, Mutex, OnceLock, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak,
+    mpsc,
 };
 use std::time::{Duration, SystemTime};
 
@@ -467,10 +468,6 @@ struct Failure {
 pub(crate) enum Rechecked {
     /// The path serves a new unit now, and `program` is its whole-program
     /// digest.
-    #[expect(
-        dead_code,
-        reason = "the `program reloaded` log record reads both, and it is written next"
-    )]
     Swapped { entry: PathBuf, program: Digest },
     /// The program on disk does not compile, and a request of the path fails
     /// with `message`. `first` is its first error, where it has a place in a
@@ -692,6 +689,10 @@ pub(crate) struct Compiler {
     debug: Option<Debugger>,
     /// Whether each unit is compiled with a coverage table beside it ([`Self::counting`]).
     counts: bool,
+    /// Where a check reports each program it swapped or found broken, under
+    /// `nvs serve` ([`Self::reporting`]). Empty for every other host, which
+    /// logs nothing for a check.
+    reports: OnceLock<crate::reload::Reports>,
 }
 
 impl Default for Compiler {
@@ -737,6 +738,62 @@ impl Compiler {
             epoch: AtomicU64::new(0),
             debug: None,
             counts: false,
+            reports: OnceLock::new(),
+        }
+    }
+
+    /// Sends what every later check finds to `reports`: one log record per
+    /// program swapped or newly broken, and one reload outcome per timed pass
+    /// that found any (`rule:config/a-reload-command-checks-now-and-waits`).
+    /// The first call wins.
+    pub(crate) fn reporting(&self, reports: crate::reload::Reports) {
+        drop(self.reports.set(reports));
+    }
+
+    /// How many loaded programs do not compile now: each path whose requests
+    /// are answered with a failure.
+    pub(crate) fn failing(&self) -> usize {
+        shared(&self.paths)
+            .values()
+            .filter(|entry| entry.failed.is_some())
+            .count()
+    }
+
+    /// What one check changed for `written`, whose pointer was `before` and
+    /// is `now`: a program that serves a new unit, or one that broke since.
+    /// `None` where it serves what it served.
+    fn changed_since(
+        &self,
+        written: &Path,
+        before: PathEntry,
+        now: PathEntry,
+    ) -> Option<Rechecked> {
+        match now.failed {
+            Some(failed) if before.failed != Some(failed) => {
+                let (message, first) = self.failure_at(written, failed).unwrap_or_else(|| {
+                    (
+                        format!("`{}` could not be compiled", written.display()),
+                        None,
+                    )
+                });
+                Some(Rechecked::Failed {
+                    entry: written.to_path_buf(),
+                    message,
+                    first,
+                })
+            }
+            Some(_) => None,
+            None => (now.serving() != before.serving()).then(|| Rechecked::Swapped {
+                entry: written.to_path_buf(),
+                program: now.unit.program,
+            }),
+        }
+    }
+
+    /// Writes `found`'s log record, where this compiler reports.
+    fn report(&self, found: &Rechecked) {
+        if let Some(reports) = self.reports.get() {
+            reports.program(found);
         }
     }
 
@@ -972,6 +1029,8 @@ impl Compiler {
             .map(|(path, entry)| (path.clone(), *entry))
             .collect();
         let mut soonest: Option<Duration> = None;
+        let mut swapped = 0_usize;
+        let mut found = false;
         for (written, entry) in held {
             let path = written.to_string_lossy();
             let Ok(observed) = self.look(&path, &written, Some(entry)) else {
@@ -984,6 +1043,17 @@ impl Compiler {
                 continue;
             }
             let _ = self.take(&path, &written, Some(entry), &observed, true);
+            if let Some(moved) = self
+                .pointer(&written)
+                .and_then(|now| self.changed_since(&written, entry, now))
+            {
+                self.report(&moved);
+                swapped += usize::from(matches!(moved, Rechecked::Swapped { .. }));
+                found = true;
+            }
+        }
+        if found && let Some(reports) = self.reports.get() {
+            reports.pass(swapped, self.failing());
         }
         soonest
     }
@@ -1039,18 +1109,25 @@ impl Compiler {
                 }
                 tries += 1;
                 if tries == RECHECKS {
-                    found.push(Rechecked::Failed {
+                    let moving = Rechecked::Failed {
                         entry: written.clone(),
                         message: format!("`{path}` changed while it was compiled"),
                         first: None,
-                    });
+                    };
+                    self.report(&moving);
+                    found.push(moving);
                     break None;
                 }
             };
             let Some(now) = settled else {
                 continue;
             };
-            if let Some(failed) = now.failed {
+            // Only what moved is logged. A program that was already broken is
+            // reported again in the reply, and was logged when it broke.
+            if let Some(moved) = self.changed_since(&written, before, now) {
+                self.report(&moved);
+                found.push(moved);
+            } else if let Some(failed) = now.failed {
                 let (message, first) = self
                     .failure_at(&written, failed)
                     .unwrap_or_else(|| (format!("`{path}` could not be compiled"), None));
@@ -1058,11 +1135,6 @@ impl Compiler {
                     entry: written,
                     message,
                     first,
-                });
-            } else if now.unit != before.serving() {
-                found.push(Rechecked::Swapped {
-                    entry: written,
-                    program: now.unit.program,
                 });
             }
         }

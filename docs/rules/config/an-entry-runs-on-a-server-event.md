@@ -40,7 +40,7 @@ for the other.
   `nvs reload` (`rule:config/a-reload-command-checks-now-and-waits`). Its map adds
   `"outcome" => "applied" | "refused"`, `"restart" => [<Boot key names>]`, the keys whose change
   waits for a restart, `"programs" => <int>`, the programs swapped, and `"failed" => <int>`, the
-  programs that did not compile. `outcome` is `refused` when the configuration or any program was
+  loaded programs that do not compile now. `outcome` is `refused` when the configuration or any program was
   refused, and `applied` otherwise. It never carries a value, a file path or the refusal's text, because a
   refusal quotes the line it refused and that line can hold a secret; the script reads the details
   from the log. Several reloads between two passes run it once, with the newest outcome. The ticker

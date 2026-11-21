@@ -187,6 +187,11 @@ fn read_line(connection: &mut impl Read) -> Option<Vec<u8>> {
 fn check(process: &Process) -> Option<String> {
     let configured = process.reload_now()?;
     let programs = process.compiler().revalidate_now();
+    let swapped = programs
+        .iter()
+        .filter(|program| matches!(program, Rechecked::Swapped { .. }))
+        .count();
+    process.reloaded(&configured, swapped, programs.len() - swapped);
     Some(reply(&configured, &programs))
 }
 

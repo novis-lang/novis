@@ -33,6 +33,17 @@ const HOURLY: &str = "[opcache]\nvalidate = \"hash\"\nrevalidate_freq = \"1h\"\n
 /// The program every case starts with.
 const PLAIN: &str = "<?nvs\necho \"ok\";\n";
 
+/// What an event case adds to its `nvs.toml`: scripts under `jobs/` that may write there, and an
+/// `on = "reload"` entry that runs [`RECORDING`].
+const ON_RELOAD: &str = "\n[capabilities.script]\nspawn = [\"jobs/\"]\n\n\
+                         [capabilities.fs]\nwrite = [\"jobs/\"]\n\n\
+                         [[schedule]]\nname = \"redeploy\"\non = \"reload\"\n\
+                         script = \"jobs/redeploy.nvs\"\nscope = \"host\"\n";
+
+/// The event script: it writes the map its run was given, as JSON, to `jobs/reloaded.json`.
+const RECORDING: &str =
+    "<?nvs\nCore\\IO::write('reloaded.json', Core\\Json::encode(Core\\Script::args()));\n";
+
 /// A running `nvs serve app.nvs`, started as the leader of its own process group so a case can
 /// stop it the way a service manager does. Dropping it kills the process and removes the
 /// directory.
@@ -56,24 +67,44 @@ impl Served {
     fn start_with(case: &str, config: &str, before: impl FnOnce(&Path)) -> Self {
         let data = nvs_repo::scratch_private("nvsdata");
         before(&data);
-        Self::launch(case, config, Arc::new(data))
+        Self::launch(case, config, &[], Arc::new(data))
+    }
+
+    /// Starts the server over [`PLAIN`], `config` with [`ON_RELOAD`] after it, and
+    /// `jobs/redeploy.nvs`, in a fresh directory named for `case`.
+    fn start_recording(case: &str, config: &str) -> Self {
+        let data = nvs_repo::scratch_private("nvsdata");
+        Self::launch(
+            case,
+            &format!("{config}{ON_RELOAD}"),
+            &[("jobs/redeploy.nvs", RECORDING)],
+            Arc::new(data),
+        )
     }
 
     /// Starts a second server over [`PLAIN`] and `config`, in a fresh directory named for `case`,
     /// that shares `self`'s data folder.
     fn beside(&self, case: &str, config: &str) -> Self {
-        Self::launch(case, config, Arc::clone(&self.data))
+        Self::launch(case, config, &[], Arc::clone(&self.data))
     }
 
-    /// Starts the server over [`PLAIN`] and `config` in a fresh directory named for `case`, with
-    /// `data` as its data folder.
-    fn launch(case: &str, config: &str, data: Arc<nvs_repo::Scratch>) -> Self {
+    /// Starts the server over [`PLAIN`], `config` and `files` in a fresh directory named for
+    /// `case`, with `data` as its data folder.
+    fn launch(
+        case: &str,
+        config: &str,
+        files: &[(&str, &str)],
+        data: Arc<nvs_repo::Scratch>,
+    ) -> Self {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("reload-command-{case}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("the case's directory is created");
+        std::fs::create_dir_all(dir.join("jobs")).expect("the case's directory is created");
         write_file(&dir.join("app.nvs"), PLAIN);
         write_file(&dir.join("nvs.toml"), config);
+        for (path, text) in files {
+            write_file(&dir.join(path), text);
+        }
 
         let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
         command
@@ -136,6 +167,71 @@ impl Served {
     /// What the server has written to standard error so far.
     fn said(&self) -> String {
         self.stderr.lock().expect("no reader panicked").clone()
+    }
+
+    /// The lines the server has written so far that contain `message`.
+    fn records(&self, message: &str) -> Vec<String> {
+        self.said()
+            .lines()
+            .filter(|line| line.contains(message))
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// Waits until the server has written one line containing `message`, and returns it.
+    ///
+    /// # Panics
+    ///
+    /// When none is written within [`BOUND`].
+    fn record(&self, message: &str) -> String {
+        wait(
+            &format!("a `{message}` record"),
+            || !self.records(message).is_empty(),
+            || self.said(),
+        );
+        self.records(message).remove(0)
+    }
+
+    /// The map the `on = "reload"` entry's last run was given, once `wanted` accepts it.
+    ///
+    /// # Panics
+    ///
+    /// When no run writes one `wanted` accepts within [`BOUND`]. The message names `what`.
+    fn reloaded(
+        &self,
+        what: &str,
+        wanted: impl Fn(&serde_json::Value) -> bool,
+    ) -> serde_json::Value {
+        let path = self.dir.join("jobs").join("reloaded.json");
+        let mut last = None;
+        wait(
+            what,
+            || {
+                last = std::fs::read_to_string(&path)
+                    .ok()
+                    .and_then(|text| serde_json::from_str(&text).ok());
+                last.as_ref().is_some_and(&wanted)
+            },
+            || self.said(),
+        );
+        last.expect("the wait ended on a map")
+    }
+
+    /// Runs `nvs reload` over this server's data folder and checks it exits with `code`.
+    ///
+    /// # Panics
+    ///
+    /// When it exits with another code. The message carries what it and the server printed.
+    fn reload_exits(&self, code: i32) {
+        let ran = nvs_reload(self.data.path(), false);
+        assert_eq!(
+            ran.code,
+            Some(code),
+            "`nvs reload` printed {}{}\nthe server wrote: {}",
+            ran.stdout,
+            ran.stderr,
+            self.said()
+        );
     }
 
     /// The data folder's `run/`.
@@ -586,8 +682,9 @@ fn nvs_reload_exits_zero_when_everything_is_live() {
     );
     let pid = served.child.id();
     assert!(
-        ran.stdout
-            .contains(&format!("server {pid}: configuration unchanged, 1 program reloaded")),
+        ran.stdout.contains(&format!(
+            "server {pid}: configuration unchanged, 1 program reloaded"
+        )),
         "`nvs reload` printed {}",
         ran.stdout
     );
@@ -648,7 +745,8 @@ fn nvs_reload_exits_two_with_no_server() {
         ran.stderr
     );
     assert!(
-        ran.stderr.contains("no `nvs serve` process uses the data folder"),
+        ran.stderr
+            .contains("no `nvs serve` process uses the data folder"),
         "`nvs reload` wrote {}",
         ran.stderr
     );
@@ -676,8 +774,9 @@ fn nvs_reload_reaches_every_server_of_a_data_folder() {
     for served in [&first, &second] {
         let pid = served.child.id();
         assert!(
-            ran.stdout
-                .contains(&format!("server {pid}: configuration unchanged, 1 program reloaded")),
+            ran.stdout.contains(&format!(
+                "server {pid}: configuration unchanged, 1 program reloaded"
+            )),
             "`nvs reload` printed {}",
             ran.stdout
         );
@@ -712,6 +811,87 @@ fn nvs_reload_json_is_one_document() {
     assert_eq!(server["config"], "unchanged", "the server: {server}");
     assert_eq!(server["failed"], 0, "the server: {server}");
     assert!(server["refusals"].is_array(), "the server: {server}");
+}
+
+/// A program that `nvs reload` swaps is one `program reloaded` record, with its entry file. A
+/// second reload with nothing changed writes none.
+#[test]
+fn a_swapped_program_is_one_log_record() {
+    let served = Served::start_with("log-swap", HOURLY, |_| {});
+    assert_eq!(served.get(), "ok", "the first request: {}", served.said());
+    write_file(&served.dir.join("app.nvs"), "<?nvs\necho \"new\";\n");
+    served.reload_exits(0);
+    let record = served.record("program reloaded");
+    assert!(record.contains("app.nvs"), "the record: {record}");
+    served.reload_exits(0);
+    served.reload_exits(0);
+    assert_eq!(
+        served.records("program reloaded").len(),
+        1,
+        "the server wrote: {}",
+        served.said()
+    );
+}
+
+/// A program that does not compile is one `program reload failed` record, with its entry file and
+/// the line of its first error. Later reloads still report it, but write no second record.
+#[test]
+fn a_failed_compile_is_one_log_record() {
+    let served = Served::start_with("log-failed", HOURLY, |_| {});
+    assert_eq!(served.get(), "ok", "the first request: {}", served.said());
+    write_file(
+        &served.dir.join("app.nvs"),
+        "<?nvs\necho \"ok\";\necho (;\n",
+    );
+    served.reload_exits(1);
+    let record = served.record("program reload failed");
+    assert!(record.contains("app.nvs"), "the record: {record}");
+    assert!(record.contains('3'), "the record has no line 3: {record}");
+    served.reload_exits(1);
+    served.reload_exits(1);
+    assert_eq!(
+        served.records("program reload failed").len(),
+        1,
+        "the server wrote: {}",
+        served.said()
+    );
+}
+
+/// `nvs reload` runs the `on = "reload"` entry once, and its map counts the programs swapped and
+/// the programs that do not compile.
+#[test]
+fn a_code_swap_fires_the_reload_event_with_its_counts() {
+    let served = Served::start_recording("event-swap", HOURLY);
+    assert_eq!(served.get(), "ok", "the first request: {}", served.said());
+    write_file(&served.dir.join("app.nvs"), "<?nvs\necho \"new\";\n");
+    served.reload_exits(0);
+    let map = served.reloaded("the run for the swap", |map| map["programs"] == 1);
+    assert_eq!(map["on"], "reload", "{map}");
+    assert_eq!(map["outcome"], "applied", "{map}");
+    assert_eq!(map["failed"], 0, "{map}");
+    assert_eq!(map["restart"], serde_json::json!([]), "{map}");
+
+    write_file(
+        &served.dir.join("app.nvs"),
+        "<?nvs\necho \"new\";\necho (;\n",
+    );
+    served.reload_exits(1);
+    let map = served.reloaded("the run for the broken edit", |map| map["failed"] == 1);
+    assert_eq!(map["outcome"], "refused", "{map}");
+    assert_eq!(map["programs"], 0, "{map}");
+}
+
+/// A swap the timed check finds, with no `nvs reload`, runs the `on = "reload"` entry too.
+#[test]
+fn a_timer_swap_fires_the_reload_event_too() {
+    let served = Served::start_recording("event-timer", CONFIG);
+    assert_eq!(served.get(), "ok", "the first request: {}", served.said());
+    write_file(&served.dir.join("app.nvs"), "<?nvs\necho \"new\";\n");
+    let map = served.reloaded("the run for the timed swap", |map| map["programs"] == 1);
+    assert_eq!(map["on"], "reload", "{map}");
+    assert_eq!(map["outcome"], "applied", "{map}");
+    assert_eq!(map["failed"], 0, "{map}");
+    served.record("program reloaded");
 }
 
 /// A request longer than the line is closed without a reply, and the endpoint still answers the
