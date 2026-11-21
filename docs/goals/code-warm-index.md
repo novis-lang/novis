@@ -13,11 +13,11 @@ stages:
     context: [crates/nvs-lsp/src/document.rs, crates/nvs-lsp/tests/incremental.rs]
   - id: 3
     title: nvs code loads, checks by content and saves the editor's index file
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/disk_index.rs, crates/nvs-cli/src/code.rs, crates/nvs-lsp/tests/index.rs]
   - id: 4
     title: calls and reach take several methods
-    status: open
+    status: done
     context: [crates/nvs-cli/src/code.rs, crates/nvs-cli/tests/code.rs]
   - id: 5
     title: the help, the reference, about.md and the website
@@ -239,16 +239,16 @@ two sessions writes what holds it in the handoff, and the next session splits it
 - [x] `crates/nvs-lsp/src/server.rs:2533`: `workspace` loads from the data folder's index file,
   settles on the workers, saves, and stops the workers.
 - [x] `crates/nvs-lsp/tests/index.rs`: the four `never-stale` tests.
-- [ ] `crates/nvs-cli/src/code.rs:305`: `Project::open` takes the loaded workspace, and
+- [x] `crates/nvs-cli/src/code.rs:305`: `Project::open` takes the loaded workspace, and
   `crates/nvs-cli/tests/code.rs`: the three `code-index` tests, each with `--data` in its scratch.
 
 ### 4. calls and reach take several methods
 
-- [ ] `crates/nvs-cli/src/code.rs:232` and `crates/nvs-cli/src/code.rs:247`: `Calls` and `Reach`
+- [x] `crates/nvs-cli/src/code.rs:232` and `crates/nvs-cli/src/code.rs:247`: `Calls` and `Reach`
   take one or more names, and their help says so (AGENTS.md § *Text an end user reads*).
-- [ ] `crates/nvs-cli/src/code.rs:843` and `crates/nvs-cli/src/code.rs:922`: one load, then each
+- [x] `crates/nvs-cli/src/code.rs:843` and `crates/nvs-cli/src/code.rs:922`: one load, then each
   name, in the shapes § *Standing decisions* gives, and every unknown name judged first.
-- [ ] `crates/nvs-cli/tests/code.rs`: the five `several` tests.
+- [x] `crates/nvs-cli/tests/code.rs`: the five `several` tests.
 
 ### 5. the help, the reference, about.md and the website
 
@@ -275,31 +275,35 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### State
 
-Stages 1 and 2 are done. Stage 3's first four items are done and committed, and the four
-`never-stale` tests pass.
+Stages 1 to 4 are done and committed. The `never-stale`, `code-index` and `several` tests pass,
+each run once by name.
 
-- `crates/nvs-lsp/src/disk_index.rs`: `FORMAT` is 2 and the file ends with the configuration
-  inputs (`Input`). § *Standing decisions* says what is recorded and why a change discards the file.
-- `crates/nvs-lsp/src/tree_cache.rs` `inputs`: the input set of a list of directories.
-- `crates/nvs-lsp/src/index.rs`: `Check` (`Stamp` for the editor, `Content` for `nvs code`),
-  `load_by_content`, `freshen` (the hash pass on one scoped thread per core), `add_inputs`,
-  `stop_workers`, and `loaded` drops an entry point the walk no longer selects.
-- `crates/nvs-lsp/src/server.rs` `workspace_from(root, file)` and `index_file_of(root)`.
-  `workspace(root)` is `workspace_from(root, None)`: cold, on the workers.
+- `crates/nvs-cli/src/code.rs`: `Project::open` loads and saves `index_file_of(&root)`.
+  `per_method` drives `calls` and `reach` in the shapes § *Standing decisions* gives, and
+  `unknown_methods` fails several names first, with `nearest to <name>:` for each.
+- `crates/nvs-cli/tests/code.rs` `run` passes `--data <cwd>/.nvsdata` on every call.
+- `crates/nvs-lsp`: `load_by_content`, `freshen`, format 2's `Input`s, `workspace_from`.
 
-Only the four new tests, the build and clippy ran. Watch these at the gate, since `loaded` now
-checks the inputs and drops unselected entries, and `workspace` now settles on workers: every
-disk test from `a_cold_start_with_a_valid_index_analyses_only_the_open_documents_entry` to
-`two_servers_writing_one_root_leave_one_whole_index_file` in `tests/incremental.rs`, the three
-`parallel` ones the last handoff named, and `tests/query.rs`, whose `workspace` calls now use workers.
+Only the new tests, the build and clippy ran. Watch at the gate: the disk tests in
+`crates/nvs-lsp/tests/incremental.rs` from `a_cold_start_with_a_valid_index_...` to
+`two_servers_writing_one_root_...`, the three `parallel` ones, `tests/query.rs`, and every test
+in `crates/nvs-cli/tests/code.rs`, which now load the index file and run through `per_method`.
+
+The nightly `miri units (nvs-stdlib 2/12)` failure was a 300 s timeout of
+`granularity::tests::both_walks_agree_on_every_window` on commit `7e97fa8`. `156f11a7ca` lowered
+its Miri reach to 2 after that run, so the fix is already in the tree. The next nightly confirms it.
 
 ### Next
 
-Stage 3's last item: `crates/nvs-cli/src/code.rs:312` calls `nvs_lsp::workspace(&root)`. Make it
-`nvs_lsp::workspace_from(&root, nvs_lsp::index_file_of(&root).as_deref())`, rewrite the module doc
-at `crates/nvs-cli/src/code.rs:18` ("nothing is kept after it"), and write the three `code-index`
-tests in `crates/nvs-cli/tests/code.rs`, each with `--data <scratch>`. Then set stage 3 done and
-take stage 4. Expected red until written: the `code-index` and `several` checks.
+Stage 5, all prose, held to AGENTS.md § *Text an end user reads*:
+`docs/reference/tools/10-cli.md:1083` (`# nvs code`: a call reuses the editor's index file and
+checks every file's content first, and `calls` and `reach` take several methods, with the heading
+and indent shape and `methods` in JSON), `docs/examples/tools/cli/nvs-code/about.md:1`,
+`docs/examples/tools/cli/nvs-code/01-who-calls-a-method.nvs:1` (two methods in one call),
+`website/src/content/docs/tools/editor/index.mdx:210`, the `website/src/data/changes.json` entry,
+then `bun nv site --check stale` and `bun nv proofs --id tools:cli/nvs-code --gate`. A new `##`,
+never a new `#`, in the reference chapter (playbook). Expected red until done: `proofs`,
+`site-stale`, `site-changes`, `site-review`.
 
 ### Backlog
 
