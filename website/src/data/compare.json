@@ -3404,8 +3404,8 @@
     }
   },
   "scenarios": {
-    "date": "2026-11-21T03:13:42",
-    "commit": "d676c2f8fb",
+    "date": "2026-11-21T10:03:23",
+    "commit": "fbb2a7a669",
     "rows": {
       "escape": {
         "folder": "benches/compare/scenarios/escape",
@@ -3462,80 +3462,80 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T01:43:30",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:11:42",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "e9575770c6dfcdfa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-20T22:22:51",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T05:00:32",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "e9575770c6dfcdfa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "bun": {
-            "date": "2026-11-20T22:22:51",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T05:00:32",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
               "programs": "e9575770c6dfcdfa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "go": {
-            "date": "2026-11-21T01:43:30",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:11:42",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:d0820830b98184310942c86f25015dbd1b0e02ac1d8fc969fc792064ad721b51",
+              "image": "sha256:0911f41149e0a7f797a4e70fd432e81c58fe9a91c1f37f1fa0704b1ae717e08f",
               "programs": "e9575770c6dfcdfa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "node": {
-            "date": "2026-11-20T22:22:51",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T05:00:32",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
               "programs": "e9575770c6dfcdfa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "dotnet": {
-            "date": "2026-11-21T01:43:30",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:11:42",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:38739ba27003a7a4a00acce0242c685d0fb272c06fa06822563addabe1076b32",
+              "image": "sha256:50939071e8c1939b36378812ba683ae80e09a65f82c7b5e6631ddeea52d13f92",
               "programs": "e9575770c6dfcdfa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "python": {
-            "date": "2026-11-21T01:43:30",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:11:42",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:653c987fe3b82e6b0355b7e0187695c270a13c5841ccc38d98543b89a1b584c2",
+              "image": "sha256:518602ed3d0d2757c1a2a52f26d11f0b178388b95c73dfbb91d6847b9726408f",
               "programs": "e9575770c6dfcdfa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
         },
         "seconds": {
-          "up": 15.1,
+          "up": 14.7,
           "probe": 0.1,
-          "down": 4.5
+          "down": 5.4
         }
       },
       "taint": {
@@ -3593,18 +3593,18 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T01:43:31",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:11:43",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "8058f01dcc5e2890",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
         },
         "seconds": {
-          "probe": 0.6,
+          "probe": 1,
           "down": 0.3
         }
       },
@@ -3663,12 +3663,12 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T01:43:32",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:11:44",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "85a001fbcb2bbcae",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
@@ -3737,52 +3737,52 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T01:44:03",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:12:16",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "5d896698a5d60556",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-20T22:24:30",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T05:02:09",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "5d896698a5d60556",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "bun": {
-            "date": "2026-11-20T22:24:30",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T05:02:09",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
               "programs": "5d896698a5d60556",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "node": {
-            "date": "2026-11-20T22:24:30",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T05:02:09",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
               "programs": "5d896698a5d60556",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "python": {
-            "date": "2026-11-21T01:44:03",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:12:16",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:653c987fe3b82e6b0355b7e0187695c270a13c5841ccc38d98543b89a1b584c2",
+              "image": "sha256:518602ed3d0d2757c1a2a52f26d11f0b178388b95c73dfbb91d6847b9726408f",
               "programs": "5d896698a5d60556",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
@@ -3790,7 +3790,7 @@
         "seconds": {
           "up": 7.4,
           "probe": 21.4,
-          "down": 2.3
+          "down": 3.3
         }
       },
       "config": {
@@ -3810,7 +3810,7 @@
             "setting": "php-fpm reload",
             "evidence": {
               "seconds_without_command": null,
-              "seconds_after_command": 0.4,
+              "seconds_after_command": 0.5,
               "command": "php-fpm reload",
               "restarts": 0
             }
@@ -3853,22 +3853,22 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T01:44:11",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:12:25",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "d094df3332d47987",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-20T22:25:05",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T05:02:44",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "d094df3332d47987",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
@@ -3885,12 +3885,12 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "requests": 204799,
+              "requests": 195364,
               "failed_requests": 0,
               "failures": null,
               "mixed_replies": 0,
-              "complete_replies": 204799,
-              "seconds_to_copy": 2.5,
+              "complete_replies": 195364,
+              "seconds_to_copy": 2.3,
               "seconds_to_new_answer": 1.2,
               "command": null,
               "restarts": 0,
@@ -3901,206 +3901,12 @@
           "php": {
             "result": "no",
             "evidence": {
-              "requests": 149757,
+              "requests": 127513,
               "failed_requests": 0,
               "failures": null,
-              "mixed_replies": 68493,
-              "complete_replies": 81264,
-              "seconds_to_copy": 4.3,
-              "seconds_to_new_answer": 2.9,
-              "command": null,
-              "restarts": 0,
-              "version_checked": true,
-              "runs": 3
-            }
-          },
-          "bun": {
-            "result": "no",
-            "evidence": {
-              "requests": 312732,
-              "failed_requests": 1744,
-              "failures": "502 x1744",
-              "mixed_replies": 0,
-              "complete_replies": 310988,
-              "seconds_to_copy": 2.3,
-              "seconds_to_new_answer": 0.7,
-              "command": "a restart",
-              "restarts": 3,
-              "version_checked": true,
-              "runs": 3
-            }
-          },
-          "go": {
-            "result": "no",
-            "evidence": {
-              "requests": 107990,
-              "failed_requests": 905,
-              "failures": "502 x905",
-              "mixed_replies": 0,
-              "complete_replies": 107085,
-              "seconds_to_copy": 0,
-              "seconds_to_new_answer": 0.7,
-              "command": "a new image and a restart",
-              "restarts": 3,
-              "version_checked": false,
-              "runs": 3
-            }
-          },
-          "node": {
-            "result": "no",
-            "evidence": {
-              "requests": 300961,
-              "failed_requests": 1615,
-              "failures": "502 x1615",
-              "mixed_replies": 0,
-              "complete_replies": 299346,
-              "seconds_to_copy": 2.3,
-              "seconds_to_new_answer": 0.7,
-              "command": "a restart",
-              "restarts": 3,
-              "version_checked": true,
-              "runs": 3
-            }
-          },
-          "dotnet": {
-            "result": "no",
-            "evidence": {
-              "requests": 83307,
-              "failed_requests": 1669,
-              "failures": "502 x1669",
-              "mixed_replies": 0,
-              "complete_replies": 81638,
-              "seconds_to_copy": 0,
-              "seconds_to_new_answer": 0.8,
-              "command": "a new image and a restart",
-              "restarts": 3,
-              "version_checked": false,
-              "runs": 3
-            }
-          },
-          "python": {
-            "result": "no",
-            "evidence": {
-              "requests": 165458,
-              "failed_requests": 4008,
-              "failures": "502 x4008",
-              "mixed_replies": 0,
-              "complete_replies": 161450,
-              "seconds_to_copy": 2.5,
-              "seconds_to_new_answer": 0.8,
-              "command": "a restart",
-              "restarts": 3,
-              "version_checked": true,
-              "runs": 3
-            }
-          }
-        },
-        "measured": {
-          "nvs": {
-            "date": "2026-11-21T01:46:21",
-            "commit": "d676c2f8fb",
-            "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
-              "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
-              "host": "733474a8d3befeec"
-            }
-          },
-          "php": {
-            "date": "2026-11-20T22:29:49",
-            "commit": "d676c2f8fb",
-            "key": {
-              "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
-              "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
-              "host": "733474a8d3befeec"
-            }
-          },
-          "bun": {
-            "date": "2026-11-20T22:29:49",
-            "commit": "d676c2f8fb",
-            "key": {
-              "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
-              "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
-              "host": "733474a8d3befeec"
-            }
-          },
-          "go": {
-            "date": "2026-11-21T01:46:21",
-            "commit": "d676c2f8fb",
-            "key": {
-              "image": "sha256:d0820830b98184310942c86f25015dbd1b0e02ac1d8fc969fc792064ad721b51",
-              "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
-              "host": "733474a8d3befeec"
-            }
-          },
-          "node": {
-            "date": "2026-11-20T22:29:49",
-            "commit": "d676c2f8fb",
-            "key": {
-              "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
-              "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
-              "host": "733474a8d3befeec"
-            }
-          },
-          "dotnet": {
-            "date": "2026-11-21T01:46:21",
-            "commit": "d676c2f8fb",
-            "key": {
-              "image": "sha256:38739ba27003a7a4a00acce0242c685d0fb272c06fa06822563addabe1076b32",
-              "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
-              "host": "733474a8d3befeec"
-            }
-          },
-          "python": {
-            "date": "2026-11-21T01:46:21",
-            "commit": "d676c2f8fb",
-            "key": {
-              "image": "sha256:653c987fe3b82e6b0355b7e0187695c270a13c5841ccc38d98543b89a1b584c2",
-              "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
-              "host": "733474a8d3befeec"
-            }
-          }
-        },
-        "seconds": {
-          "up": 44.6,
-          "probe": 65.7,
-          "down": 16
-        }
-      },
-      "deploy-big": {
-        "folder": "benches/compare/scenarios/deploy",
-        "peers": {
-          "nvs": {
-            "result": "built-in",
-            "evidence": {
-              "requests": 306580,
-              "failed_requests": 0,
-              "failures": null,
-              "mixed_replies": 0,
-              "complete_replies": 306580,
-              "seconds_to_copy": 21.5,
-              "seconds_to_new_answer": 2.8,
-              "command": null,
-              "restarts": 0,
-              "version_checked": true,
-              "runs": 3
-            }
-          },
-          "php": {
-            "result": "no",
-            "evidence": {
-              "requests": 248159,
-              "failed_requests": 0,
-              "failures": null,
-              "mixed_replies": 226473,
-              "complete_replies": 21686,
-              "seconds_to_copy": 52.5,
+              "mixed_replies": 66288,
+              "complete_replies": 61225,
+              "seconds_to_copy": 4.4,
               "seconds_to_new_answer": 2.4,
               "command": null,
               "restarts": 0,
@@ -4111,12 +3917,12 @@
           "bun": {
             "result": "no",
             "evidence": {
-              "requests": 451107,
-              "failed_requests": 2009,
-              "failures": "502 x2009",
+              "requests": 276872,
+              "failed_requests": 1490,
+              "failures": "502 x1490",
               "mixed_replies": 0,
-              "complete_replies": 449098,
-              "seconds_to_copy": 21.9,
+              "complete_replies": 275382,
+              "seconds_to_copy": 2.3,
               "seconds_to_new_answer": 0.7,
               "command": "a restart",
               "restarts": 3,
@@ -4127,13 +3933,13 @@
           "go": {
             "result": "no",
             "evidence": {
-              "requests": 60065,
-              "failed_requests": 1315,
-              "failures": "502 x1315",
+              "requests": 107119,
+              "failed_requests": 1206,
+              "failures": "502 x1206",
               "mixed_replies": 0,
-              "complete_replies": 58750,
+              "complete_replies": 105913,
               "seconds_to_copy": 0,
-              "seconds_to_new_answer": 0.7,
+              "seconds_to_new_answer": 0.8,
               "command": "a new image and a restart",
               "restarts": 3,
               "version_checked": false,
@@ -4143,13 +3949,13 @@
           "node": {
             "result": "no",
             "evidence": {
-              "requests": 433881,
-              "failed_requests": 1616,
-              "failures": "502 x1616",
+              "requests": 276520,
+              "failed_requests": 1725,
+              "failures": "502 x1725",
               "mixed_replies": 0,
-              "complete_replies": 432265,
-              "seconds_to_copy": 22.1,
-              "seconds_to_new_answer": 0.8,
+              "complete_replies": 274795,
+              "seconds_to_copy": 2.3,
+              "seconds_to_new_answer": 0.7,
               "command": "a restart",
               "restarts": 3,
               "version_checked": true,
@@ -4159,11 +3965,11 @@
           "dotnet": {
             "result": "no",
             "evidence": {
-              "requests": 52353,
-              "failed_requests": 1657,
-              "failures": "502 x1657",
+              "requests": 80242,
+              "failed_requests": 1820,
+              "failures": "502 x1820",
               "mixed_replies": 0,
-              "complete_replies": 50696,
+              "complete_replies": 78422,
               "seconds_to_copy": 0,
               "seconds_to_new_answer": 0.8,
               "command": "a new image and a restart",
@@ -4175,12 +3981,12 @@
           "python": {
             "result": "no",
             "evidence": {
-              "requests": 373603,
-              "failed_requests": 5282,
-              "failures": "502 x5282",
+              "requests": 157716,
+              "failed_requests": 3847,
+              "failures": "502 x3847",
               "mixed_replies": 0,
-              "complete_replies": 368321,
-              "seconds_to_copy": 22.3,
+              "complete_replies": 153869,
+              "seconds_to_copy": 2.4,
               "seconds_to_new_answer": 0.7,
               "command": "a restart",
               "restarts": 3,
@@ -4191,80 +3997,274 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T01:50:32",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:14:35",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-20T22:40:56",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T05:07:26",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "bun": {
-            "date": "2026-11-20T22:40:56",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T05:07:26",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
               "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "go": {
-            "date": "2026-11-21T01:50:32",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:14:35",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:d0820830b98184310942c86f25015dbd1b0e02ac1d8fc969fc792064ad721b51",
+              "image": "sha256:0911f41149e0a7f797a4e70fd432e81c58fe9a91c1f37f1fa0704b1ae717e08f",
               "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "node": {
-            "date": "2026-11-20T22:40:56",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T05:07:26",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
               "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "dotnet": {
-            "date": "2026-11-21T01:50:32",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:14:35",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:38739ba27003a7a4a00acce0242c685d0fb272c06fa06822563addabe1076b32",
+              "image": "sha256:50939071e8c1939b36378812ba683ae80e09a65f82c7b5e6631ddeea52d13f92",
               "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "python": {
-            "date": "2026-11-21T01:50:32",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:14:35",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:653c987fe3b82e6b0355b7e0187695c270a13c5841ccc38d98543b89a1b584c2",
+              "image": "sha256:518602ed3d0d2757c1a2a52f26d11f0b178388b95c73dfbb91d6847b9726408f",
               "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
         },
         "seconds": {
-          "up": 44.1,
-          "probe": 187.3,
-          "down": 15.3
+          "up": 44.2,
+          "probe": 65.2,
+          "down": 16.6
+        }
+      },
+      "deploy-big": {
+        "folder": "benches/compare/scenarios/deploy",
+        "peers": {
+          "nvs": {
+            "result": "built-in",
+            "evidence": {
+              "requests": 278168,
+              "failed_requests": 0,
+              "failures": null,
+              "mixed_replies": 0,
+              "complete_replies": 278168,
+              "seconds_to_copy": 21.4,
+              "seconds_to_new_answer": 2.8,
+              "command": null,
+              "restarts": 0,
+              "version_checked": true,
+              "runs": 3
+            }
+          },
+          "php": {
+            "result": "no",
+            "evidence": {
+              "requests": 242921,
+              "failed_requests": 0,
+              "failures": null,
+              "mixed_replies": 221961,
+              "complete_replies": 20960,
+              "seconds_to_copy": 55.3,
+              "seconds_to_new_answer": 2.7,
+              "command": null,
+              "restarts": 0,
+              "version_checked": true,
+              "runs": 3
+            }
+          },
+          "bun": {
+            "result": "no",
+            "evidence": {
+              "requests": 407030,
+              "failed_requests": 1624,
+              "failures": "502 x1624",
+              "mixed_replies": 0,
+              "complete_replies": 405406,
+              "seconds_to_copy": 21.7,
+              "seconds_to_new_answer": 0.7,
+              "command": "a restart",
+              "restarts": 3,
+              "version_checked": true,
+              "runs": 3
+            }
+          },
+          "go": {
+            "result": "no",
+            "evidence": {
+              "requests": 58494,
+              "failed_requests": 1121,
+              "failures": "502 x1121",
+              "mixed_replies": 0,
+              "complete_replies": 57373,
+              "seconds_to_copy": 0,
+              "seconds_to_new_answer": 0.7,
+              "command": "a new image and a restart",
+              "restarts": 3,
+              "version_checked": false,
+              "runs": 3
+            }
+          },
+          "node": {
+            "result": "no",
+            "evidence": {
+              "requests": 409176,
+              "failed_requests": 1557,
+              "failures": "502 x1557",
+              "mixed_replies": 0,
+              "complete_replies": 407619,
+              "seconds_to_copy": 22,
+              "seconds_to_new_answer": 0.7,
+              "command": "a restart",
+              "restarts": 3,
+              "version_checked": true,
+              "runs": 3
+            }
+          },
+          "dotnet": {
+            "result": "no",
+            "evidence": {
+              "requests": 50795,
+              "failed_requests": 1459,
+              "failures": "502 x1459",
+              "mixed_replies": 0,
+              "complete_replies": 49336,
+              "seconds_to_copy": 0,
+              "seconds_to_new_answer": 0.8,
+              "command": "a new image and a restart",
+              "restarts": 3,
+              "version_checked": false,
+              "runs": 3
+            }
+          },
+          "python": {
+            "result": "no",
+            "evidence": {
+              "requests": 353012,
+              "failed_requests": 5939,
+              "failures": "502 x5939",
+              "mixed_replies": 0,
+              "complete_replies": 347073,
+              "seconds_to_copy": 22.5,
+              "seconds_to_new_answer": 0.8,
+              "command": "a restart",
+              "restarts": 3,
+              "version_checked": true,
+              "runs": 3
+            }
+          }
+        },
+        "measured": {
+          "nvs": {
+            "date": "2026-11-21T08:18:49",
+            "commit": "fbb2a7a669",
+            "key": {
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
+              "programs": "0c272f581231a1aa",
+              "tool": "95ab57913e0c7c52",
+              "host": "733474a8d3befeec"
+            }
+          },
+          "php": {
+            "date": "2026-11-21T05:18:39",
+            "commit": "f60a718e27",
+            "key": {
+              "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
+              "programs": "0c272f581231a1aa",
+              "tool": "95ab57913e0c7c52",
+              "host": "733474a8d3befeec"
+            }
+          },
+          "bun": {
+            "date": "2026-11-21T05:18:39",
+            "commit": "f60a718e27",
+            "key": {
+              "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
+              "programs": "0c272f581231a1aa",
+              "tool": "95ab57913e0c7c52",
+              "host": "733474a8d3befeec"
+            }
+          },
+          "go": {
+            "date": "2026-11-21T08:18:49",
+            "commit": "fbb2a7a669",
+            "key": {
+              "image": "sha256:0911f41149e0a7f797a4e70fd432e81c58fe9a91c1f37f1fa0704b1ae717e08f",
+              "programs": "0c272f581231a1aa",
+              "tool": "95ab57913e0c7c52",
+              "host": "733474a8d3befeec"
+            }
+          },
+          "node": {
+            "date": "2026-11-21T05:18:39",
+            "commit": "f60a718e27",
+            "key": {
+              "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
+              "programs": "0c272f581231a1aa",
+              "tool": "95ab57913e0c7c52",
+              "host": "733474a8d3befeec"
+            }
+          },
+          "dotnet": {
+            "date": "2026-11-21T08:18:49",
+            "commit": "fbb2a7a669",
+            "key": {
+              "image": "sha256:50939071e8c1939b36378812ba683ae80e09a65f82c7b5e6631ddeea52d13f92",
+              "programs": "0c272f581231a1aa",
+              "tool": "95ab57913e0c7c52",
+              "host": "733474a8d3befeec"
+            }
+          },
+          "python": {
+            "date": "2026-11-21T08:18:49",
+            "commit": "fbb2a7a669",
+            "key": {
+              "image": "sha256:518602ed3d0d2757c1a2a52f26d11f0b178388b95c73dfbb91d6847b9726408f",
+              "programs": "0c272f581231a1aa",
+              "tool": "95ab57913e0c7c52",
+              "host": "733474a8d3befeec"
+            }
+          }
+        },
+        "seconds": {
+          "up": 44.2,
+          "probe": 188.8,
+          "down": 17.3
         }
       },
       "deploy-switch": {
@@ -4273,11 +4273,11 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "requests": 248905,
+              "requests": 245006,
               "failed_requests": 0,
               "failures": null,
               "mixed_replies": 0,
-              "complete_replies": 248905,
+              "complete_replies": 245006,
               "seconds_to_copy": 2.5,
               "seconds_to_new_answer": 0.5,
               "command": null,
@@ -4290,12 +4290,12 @@
             "result": "on-by-default",
             "setting": "opcache.validate_timestamps",
             "evidence": {
-              "requests": 150563,
+              "requests": 151729,
               "failed_requests": 0,
               "failures": null,
               "mixed_replies": 0,
-              "complete_replies": 150563,
-              "seconds_to_copy": 3.6,
+              "complete_replies": 151729,
+              "seconds_to_copy": 3.9,
               "seconds_to_new_answer": 0.1,
               "command": null,
               "restarts": 0,
@@ -4306,12 +4306,12 @@
           "bun": {
             "result": "no",
             "evidence": {
-              "requests": 377911,
-              "failed_requests": 1722,
-              "failures": "502 x1722",
+              "requests": 373230,
+              "failed_requests": 1661,
+              "failures": "502 x1661",
               "mixed_replies": 0,
-              "complete_replies": 376189,
-              "seconds_to_copy": 2.6,
+              "complete_replies": 371569,
+              "seconds_to_copy": 2.5,
               "seconds_to_new_answer": 0.7,
               "command": "a restart",
               "restarts": 3,
@@ -4322,11 +4322,11 @@
           "go": {
             "result": "no",
             "evidence": {
-              "requests": 108288,
-              "failed_requests": 1037,
-              "failures": "502 x1037",
+              "requests": 105809,
+              "failed_requests": 1117,
+              "failures": "502 x1117",
               "mixed_replies": 0,
-              "complete_replies": 107251,
+              "complete_replies": 104692,
               "seconds_to_copy": 0,
               "seconds_to_new_answer": 0.7,
               "command": "a new image and a restart",
@@ -4338,11 +4338,11 @@
           "node": {
             "result": "no",
             "evidence": {
-              "requests": 352923,
-              "failed_requests": 1807,
-              "failures": "502 x1807",
+              "requests": 353276,
+              "failed_requests": 1505,
+              "failures": "502 x1505",
               "mixed_replies": 0,
-              "complete_replies": 351116,
+              "complete_replies": 351771,
               "seconds_to_copy": 2.4,
               "seconds_to_new_answer": 0.7,
               "command": "a restart",
@@ -4354,11 +4354,11 @@
           "dotnet": {
             "result": "no",
             "evidence": {
-              "requests": 83380,
-              "failed_requests": 1736,
-              "failures": "502 x1736",
+              "requests": 79849,
+              "failed_requests": 1775,
+              "failures": "502 x1775",
               "mixed_replies": 0,
-              "complete_replies": 81644,
+              "complete_replies": 78074,
               "seconds_to_copy": 0,
               "seconds_to_new_answer": 0.8,
               "command": "a new image and a restart",
@@ -4370,13 +4370,13 @@
           "python": {
             "result": "no",
             "evidence": {
-              "requests": 229476,
-              "failed_requests": 4422,
-              "failures": "502 x4422",
+              "requests": 228474,
+              "failed_requests": 3966,
+              "failures": "502 x3966",
               "mixed_replies": 0,
-              "complete_replies": 225054,
+              "complete_replies": 224508,
               "seconds_to_copy": 2.5,
-              "seconds_to_new_answer": 0.8,
+              "seconds_to_new_answer": 0.7,
               "command": "a restart",
               "restarts": 3,
               "version_checked": true,
@@ -4386,80 +4386,80 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T01:52:53",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:21:10",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-20T22:46:02",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T05:23:46",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "bun": {
-            "date": "2026-11-20T22:46:02",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T05:23:46",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
               "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "go": {
-            "date": "2026-11-21T01:52:53",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:21:10",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:d0820830b98184310942c86f25015dbd1b0e02ac1d8fc969fc792064ad721b51",
+              "image": "sha256:0911f41149e0a7f797a4e70fd432e81c58fe9a91c1f37f1fa0704b1ae717e08f",
               "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "node": {
-            "date": "2026-11-20T22:46:02",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T05:23:46",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
               "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "dotnet": {
-            "date": "2026-11-21T01:52:53",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:21:10",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:38739ba27003a7a4a00acce0242c685d0fb272c06fa06822563addabe1076b32",
+              "image": "sha256:50939071e8c1939b36378812ba683ae80e09a65f82c7b5e6631ddeea52d13f92",
               "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "python": {
-            "date": "2026-11-21T01:52:53",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T08:21:10",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:653c987fe3b82e6b0355b7e0187695c270a13c5841ccc38d98543b89a1b584c2",
+              "image": "sha256:518602ed3d0d2757c1a2a52f26d11f0b178388b95c73dfbb91d6847b9726408f",
               "programs": "0c272f581231a1aa",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
         },
         "seconds": {
-          "up": 44.7,
-          "probe": 76.9,
-          "down": 14.3
+          "up": 44.4,
+          "probe": 77.6,
+          "down": 14.7
         }
       },
       "cores": {
@@ -4468,9 +4468,9 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "requests_per_sec_1_cpu": 939,
-              "requests_per_sec_4_cpus": 3686,
-              "scaling": 3.93,
+              "requests_per_sec_1_cpu": 913,
+              "requests_per_sec_4_cpus": 3658,
+              "scaling": 4.01,
               "errors": 0,
               "code": null
             }
@@ -4478,9 +4478,9 @@
           "php": {
             "result": "built-in",
             "evidence": {
-              "requests_per_sec_1_cpu": 986,
-              "requests_per_sec_4_cpus": 3924,
-              "scaling": 3.98,
+              "requests_per_sec_1_cpu": 991,
+              "requests_per_sec_4_cpus": 3856,
+              "scaling": 3.89,
               "errors": 0,
               "code": null
             }
@@ -4488,9 +4488,9 @@
           "bun": {
             "result": "your-code",
             "evidence": {
-              "requests_per_sec_1_cpu": 893,
-              "requests_per_sec_4_cpus": 3539,
-              "scaling": 3.96,
+              "requests_per_sec_1_cpu": 889,
+              "requests_per_sec_4_cpus": 3531,
+              "scaling": 3.97,
               "errors": 0,
               "code": "a launcher that starts one reusePort process per cpu"
             }
@@ -4498,9 +4498,9 @@
           "go": {
             "result": "built-in",
             "evidence": {
-              "requests_per_sec_1_cpu": 1101,
-              "requests_per_sec_4_cpus": 4305,
-              "scaling": 3.91,
+              "requests_per_sec_1_cpu": 1098,
+              "requests_per_sec_4_cpus": 4279,
+              "scaling": 3.9,
               "errors": 0,
               "code": null
             }
@@ -4508,9 +4508,9 @@
           "node": {
             "result": "your-code",
             "evidence": {
-              "requests_per_sec_1_cpu": 991,
-              "requests_per_sec_4_cpus": 3872,
-              "scaling": 3.91,
+              "requests_per_sec_1_cpu": 982,
+              "requests_per_sec_4_cpus": 3825,
+              "scaling": 3.9,
               "errors": 0,
               "code": "a node:cluster primary that forks one worker per cpu"
             }
@@ -4518,9 +4518,9 @@
           "dotnet": {
             "result": "built-in",
             "evidence": {
-              "requests_per_sec_1_cpu": 1012,
-              "requests_per_sec_4_cpus": 3847,
-              "scaling": 3.8,
+              "requests_per_sec_1_cpu": 1006,
+              "requests_per_sec_4_cpus": 3884,
+              "scaling": 3.86,
               "errors": 0,
               "code": null
             }
@@ -4529,8 +4529,8 @@
             "result": "built-in",
             "evidence": {
               "requests_per_sec_1_cpu": 65,
-              "requests_per_sec_4_cpus": 243,
-              "scaling": 3.74,
+              "requests_per_sec_4_cpus": 239,
+              "scaling": 3.66,
               "errors": 0,
               "code": null
             }
@@ -4538,97 +4538,97 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T02:37:45",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:06:09",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "cb7ca89dfdfe3cad",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-21T00:48:42",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T06:20:40",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "cb7ca89dfdfe3cad",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "bun": {
-            "date": "2026-11-21T00:48:42",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T06:20:40",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
               "programs": "cb7ca89dfdfe3cad",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "go": {
-            "date": "2026-11-21T02:37:45",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:06:09",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:d0820830b98184310942c86f25015dbd1b0e02ac1d8fc969fc792064ad721b51",
+              "image": "sha256:0911f41149e0a7f797a4e70fd432e81c58fe9a91c1f37f1fa0704b1ae717e08f",
               "programs": "cb7ca89dfdfe3cad",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "node": {
-            "date": "2026-11-21T00:48:42",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T06:20:40",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
               "programs": "cb7ca89dfdfe3cad",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "dotnet": {
-            "date": "2026-11-21T02:37:45",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:06:09",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:38739ba27003a7a4a00acce0242c685d0fb272c06fa06822563addabe1076b32",
+              "image": "sha256:50939071e8c1939b36378812ba683ae80e09a65f82c7b5e6631ddeea52d13f92",
               "programs": "cb7ca89dfdfe3cad",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "python": {
-            "date": "2026-11-21T02:37:45",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:06:09",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:653c987fe3b82e6b0355b7e0187695c270a13c5841ccc38d98543b89a1b584c2",
+              "image": "sha256:518602ed3d0d2757c1a2a52f26d11f0b178388b95c73dfbb91d6847b9726408f",
               "programs": "cb7ca89dfdfe3cad",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
         },
         "seconds": {
-          "up_app": 96.4,
-          "up_nginx": 77.7,
-          "load": 2453,
-          "down": 52.5
+          "up_app": 97.7,
+          "up_nginx": 77.2,
+          "load": 2458.2,
+          "down": 52.2
         },
         "passes": {
           "nvs": {
             "1": [
               {
-                "requests_per_sec": 943.6,
-                "median_requests_per_sec": 943.6,
-                "p50_ms": 68.006,
-                "p99_ms": 103.384,
+                "requests_per_sec": 897.6,
+                "median_requests_per_sec": 897.6,
+                "p50_ms": 74.235,
+                "p99_ms": 102.351,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 16625664,
-                "memory_peak_bytes": 22171648,
+                "memory_idle_bytes": 17477632,
+                "memory_peak_bytes": 22618112,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -4636,17 +4636,17 @@
                 }
               },
               {
-                "requests_per_sec": 938.7,
-                "median_requests_per_sec": 938.7,
-                "p50_ms": 66.703,
-                "p99_ms": 99.906,
+                "requests_per_sec": 912.8,
+                "median_requests_per_sec": 912.8,
+                "p50_ms": 71.838,
+                "p99_ms": 101.683,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 17149952,
-                "memory_peak_bytes": 22728704,
+                "memory_idle_bytes": 16396288,
+                "memory_peak_bytes": 22077440,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -4654,17 +4654,17 @@
                 }
               },
               {
-                "requests_per_sec": 916.7,
-                "median_requests_per_sec": 916.7,
-                "p50_ms": 68.219,
-                "p99_ms": 97.466,
+                "requests_per_sec": 917.5,
+                "median_requests_per_sec": 917.5,
+                "p50_ms": 69.733,
+                "p99_ms": 106.037,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 16621568,
-                "memory_peak_bytes": 21975040,
+                "memory_idle_bytes": 17166336,
+                "memory_peak_bytes": 22482944,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -4672,17 +4672,17 @@
                 }
               },
               {
-                "requests_per_sec": 924.4,
-                "median_requests_per_sec": 924.4,
-                "p50_ms": 69.062,
-                "p99_ms": 105.773,
+                "requests_per_sec": 919.7,
+                "median_requests_per_sec": 919.7,
+                "p50_ms": 69.509,
+                "p99_ms": 107.7,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 16924672,
-                "memory_peak_bytes": 22528000,
+                "memory_idle_bytes": 16949248,
+                "memory_peak_bytes": 22548480,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -4690,17 +4690,17 @@
                 }
               },
               {
-                "requests_per_sec": 946.8,
-                "median_requests_per_sec": 946.8,
-                "p50_ms": 67.174,
-                "p99_ms": 88.717,
+                "requests_per_sec": 908.9,
+                "median_requests_per_sec": 908.9,
+                "p50_ms": 71.836,
+                "p99_ms": 101.404,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 16281600,
-                "memory_peak_bytes": 21958656,
+                "memory_idle_bytes": 17047552,
+                "memory_peak_bytes": 21999616,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -4710,17 +4710,17 @@
             ],
             "4": [
               {
-                "requests_per_sec": 3685.8,
-                "median_requests_per_sec": 3685.8,
-                "p50_ms": 16.241,
-                "p99_ms": 24.404,
+                "requests_per_sec": 3685,
+                "median_requests_per_sec": 3685,
+                "p50_ms": 17.041,
+                "p99_ms": 24.455,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 17731584,
-                "memory_peak_bytes": 22261760,
+                "memory_idle_bytes": 17883136,
+                "memory_peak_bytes": 23306240,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -4728,17 +4728,17 @@
                 }
               },
               {
-                "requests_per_sec": 3700.6,
-                "median_requests_per_sec": 3700.6,
-                "p50_ms": 15.417,
-                "p99_ms": 25.895,
+                "requests_per_sec": 3661.6,
+                "median_requests_per_sec": 3661.6,
+                "p50_ms": 19.42,
+                "p99_ms": 25.7,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 18337792,
-                "memory_peak_bytes": 22355968,
+                "memory_idle_bytes": 17256448,
+                "memory_peak_bytes": 22401024,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -4746,17 +4746,17 @@
                 }
               },
               {
-                "requests_per_sec": 3677,
-                "median_requests_per_sec": 3677,
-                "p50_ms": 19.203,
-                "p99_ms": 25.949,
+                "requests_per_sec": 3596,
+                "median_requests_per_sec": 3596,
+                "p50_ms": 18.897,
+                "p99_ms": 25.633,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 17092608,
-                "memory_peak_bytes": 21827584,
+                "memory_idle_bytes": 17301504,
+                "memory_peak_bytes": 22982656,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -4764,17 +4764,17 @@
                 }
               },
               {
-                "requests_per_sec": 3672.3,
-                "median_requests_per_sec": 3672.3,
-                "p50_ms": 17.584,
-                "p99_ms": 23.815,
+                "requests_per_sec": 3658.2,
+                "median_requests_per_sec": 3658.2,
+                "p50_ms": 17.744,
+                "p99_ms": 25.397,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 17489920,
-                "memory_peak_bytes": 23523328,
+                "memory_idle_bytes": 17563648,
+                "memory_peak_bytes": 23506944,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -4782,17 +4782,17 @@
                 }
               },
               {
-                "requests_per_sec": 3699,
-                "median_requests_per_sec": 3699,
-                "p50_ms": 14.922,
-                "p99_ms": 28.635,
+                "requests_per_sec": 3647.7,
+                "median_requests_per_sec": 3647.7,
+                "p50_ms": 17.579,
+                "p99_ms": 22.413,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 16932864,
-                "memory_peak_bytes": 26365952,
+                "memory_idle_bytes": 17698816,
+                "memory_peak_bytes": 22167552,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -4804,17 +4804,17 @@
           "php": {
             "1": [
               {
-                "requests_per_sec": 983.4,
-                "median_requests_per_sec": 983.4,
-                "p50_ms": 93.665,
-                "p99_ms": 204.554,
+                "requests_per_sec": 991.8,
+                "median_requests_per_sec": 991.8,
+                "p50_ms": 92.761,
+                "p99_ms": 294.137,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 84144128,
-                "memory_peak_bytes": 119357440,
+                "memory_idle_bytes": 72994816,
+                "memory_peak_bytes": 109522944,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -4828,17 +4828,17 @@
                 }
               },
               {
-                "requests_per_sec": 986.4,
-                "median_requests_per_sec": 986.4,
-                "p50_ms": 92.852,
-                "p99_ms": 295.844,
+                "requests_per_sec": 990.5,
+                "median_requests_per_sec": 990.5,
+                "p50_ms": 91.924,
+                "p99_ms": 296.171,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 72941568,
-                "memory_peak_bytes": 106672128,
+                "memory_idle_bytes": 73654272,
+                "memory_peak_bytes": 106496000,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -4852,17 +4852,17 @@
                 }
               },
               {
-                "requests_per_sec": 986.5,
-                "median_requests_per_sec": 986.5,
-                "p50_ms": 93.487,
-                "p99_ms": 294.119,
+                "requests_per_sec": 990.9,
+                "median_requests_per_sec": 990.9,
+                "p50_ms": 92.057,
+                "p99_ms": 296.116,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 73895936,
-                "memory_peak_bytes": 107134976,
+                "memory_idle_bytes": 74199040,
+                "memory_peak_bytes": 109412352,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -4876,17 +4876,17 @@
                 }
               },
               {
-                "requests_per_sec": 985,
-                "median_requests_per_sec": 985,
-                "p50_ms": 93.558,
-                "p99_ms": 292.406,
+                "requests_per_sec": 988.6,
+                "median_requests_per_sec": 988.6,
+                "p50_ms": 92.805,
+                "p99_ms": 296.509,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 73441280,
-                "memory_peak_bytes": 108998656,
+                "memory_idle_bytes": 73412608,
+                "memory_peak_bytes": 107769856,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -4900,17 +4900,17 @@
                 }
               },
               {
-                "requests_per_sec": 990.4,
-                "median_requests_per_sec": 990.4,
-                "p50_ms": 93.601,
-                "p99_ms": 252.116,
+                "requests_per_sec": 989.7,
+                "median_requests_per_sec": 989.7,
+                "p50_ms": 92.599,
+                "p99_ms": 296.135,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 74448896,
-                "memory_peak_bytes": 107073536,
+                "memory_idle_bytes": 72716288,
+                "memory_peak_bytes": 106094592,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -4926,17 +4926,17 @@
             ],
             "4": [
               {
-                "requests_per_sec": 3996.2,
-                "median_requests_per_sec": 3996.2,
-                "p50_ms": 4.221,
-                "p99_ms": 86.596,
+                "requests_per_sec": 3852,
+                "median_requests_per_sec": 3852,
+                "p50_ms": 4.552,
+                "p99_ms": 85.946,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 72253440,
-                "memory_peak_bytes": 110993408,
+                "memory_idle_bytes": 74338304,
+                "memory_peak_bytes": 108347392,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -4950,17 +4950,17 @@
                 }
               },
               {
-                "requests_per_sec": 3914.7,
-                "median_requests_per_sec": 3914.7,
-                "p50_ms": 4.352,
-                "p99_ms": 85.91,
+                "requests_per_sec": 3882.4,
+                "median_requests_per_sec": 3882.4,
+                "p50_ms": 4.463,
+                "p99_ms": 86.689,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 74653696,
-                "memory_peak_bytes": 111038464,
+                "memory_idle_bytes": 73969664,
+                "memory_peak_bytes": 108032000,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -4974,17 +4974,17 @@
                 }
               },
               {
-                "requests_per_sec": 4002,
-                "median_requests_per_sec": 4002,
-                "p50_ms": 4.207,
-                "p99_ms": 86.812,
+                "requests_per_sec": 3855.6,
+                "median_requests_per_sec": 3855.6,
+                "p50_ms": 4.357,
+                "p99_ms": 88.986,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 74383360,
-                "memory_peak_bytes": 116101120,
+                "memory_idle_bytes": 74964992,
+                "memory_peak_bytes": 113049600,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -4998,17 +4998,17 @@
                 }
               },
               {
-                "requests_per_sec": 3924.3,
-                "median_requests_per_sec": 3924.3,
-                "p50_ms": 4.311,
-                "p99_ms": 86.693,
+                "requests_per_sec": 3908.6,
+                "median_requests_per_sec": 3908.6,
+                "p50_ms": 4.275,
+                "p99_ms": 88.325,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 73011200,
-                "memory_peak_bytes": 110751744,
+                "memory_idle_bytes": 73089024,
+                "memory_peak_bytes": 107634688,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -5022,17 +5022,17 @@
                 }
               },
               {
-                "requests_per_sec": 3906.9,
-                "median_requests_per_sec": 3906.9,
-                "p50_ms": 4.426,
-                "p99_ms": 85.113,
+                "requests_per_sec": 3801.3,
+                "median_requests_per_sec": 3801.3,
+                "p50_ms": 4.459,
+                "p99_ms": 86.981,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 73838592,
-                "memory_peak_bytes": 109760512,
+                "memory_idle_bytes": 75014144,
+                "memory_peak_bytes": 108589056,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -5050,17 +5050,17 @@
           "bun": {
             "1": [
               {
-                "requests_per_sec": 893.1,
-                "median_requests_per_sec": 893.1,
-                "p50_ms": 68.979,
-                "p99_ms": 137.357,
+                "requests_per_sec": 889.4,
+                "median_requests_per_sec": 889.4,
+                "p50_ms": 69.321,
+                "p99_ms": 138.243,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 11862016,
-                "memory_peak_bytes": 18485248,
+                "memory_idle_bytes": 11427840,
+                "memory_peak_bytes": 17797120,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 1,
@@ -5068,17 +5068,17 @@
                 }
               },
               {
-                "requests_per_sec": 892.8,
-                "median_requests_per_sec": 892.8,
-                "p50_ms": 68.745,
-                "p99_ms": 136.956,
+                "requests_per_sec": 889.4,
+                "median_requests_per_sec": 889.4,
+                "p50_ms": 69.121,
+                "p99_ms": 137.925,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 11481088,
-                "memory_peak_bytes": 17448960,
+                "memory_idle_bytes": 11661312,
+                "memory_peak_bytes": 17629184,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 1,
@@ -5086,17 +5086,17 @@
                 }
               },
               {
-                "requests_per_sec": 891.3,
-                "median_requests_per_sec": 891.3,
-                "p50_ms": 69.052,
-                "p99_ms": 137.447,
+                "requests_per_sec": 890.2,
+                "median_requests_per_sec": 890.2,
+                "p50_ms": 69.204,
+                "p99_ms": 137.804,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 10399744,
-                "memory_peak_bytes": 17788928,
+                "memory_idle_bytes": 10887168,
+                "memory_peak_bytes": 17944576,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 1,
@@ -5104,17 +5104,17 @@
                 }
               },
               {
-                "requests_per_sec": 889.8,
-                "median_requests_per_sec": 889.8,
-                "p50_ms": 69.139,
-                "p99_ms": 137.781,
+                "requests_per_sec": 891.4,
+                "median_requests_per_sec": 891.4,
+                "p50_ms": 69.28,
+                "p99_ms": 137.871,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 11157504,
-                "memory_peak_bytes": 17813504,
+                "memory_idle_bytes": 11722752,
+                "memory_peak_bytes": 17915904,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 1,
@@ -5122,17 +5122,17 @@
                 }
               },
               {
-                "requests_per_sec": 893.1,
-                "median_requests_per_sec": 893.1,
-                "p50_ms": 68.843,
-                "p99_ms": 137.145,
+                "requests_per_sec": 886.9,
+                "median_requests_per_sec": 886.9,
+                "p50_ms": 69.188,
+                "p99_ms": 137.961,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 11325440,
-                "memory_peak_bytes": 17735680,
+                "memory_idle_bytes": 11198464,
+                "memory_peak_bytes": 18337792,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 1,
@@ -5142,17 +5142,17 @@
             ],
             "4": [
               {
-                "requests_per_sec": 3529.9,
-                "median_requests_per_sec": 3529.9,
-                "p50_ms": 19.69,
-                "p99_ms": 40.508,
+                "requests_per_sec": 3528.9,
+                "median_requests_per_sec": 3528.9,
+                "p50_ms": 16.473,
+                "p99_ms": 50.762,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 20492288,
-                "memory_peak_bytes": 37548032,
+                "memory_idle_bytes": 21659648,
+                "memory_peak_bytes": 37756928,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 4,
@@ -5160,17 +5160,17 @@
                 }
               },
               {
-                "requests_per_sec": 3538.8,
-                "median_requests_per_sec": 3538.8,
-                "p50_ms": 19.691,
-                "p99_ms": 44.218,
+                "requests_per_sec": 3521,
+                "median_requests_per_sec": 3521,
+                "p50_ms": 15.388,
+                "p99_ms": 54.961,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 21803008,
-                "memory_peak_bytes": 38178816,
+                "memory_idle_bytes": 21540864,
+                "memory_peak_bytes": 38645760,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 4,
@@ -5178,17 +5178,17 @@
                 }
               },
               {
-                "requests_per_sec": 3550.9,
-                "median_requests_per_sec": 3550.9,
-                "p50_ms": 17.584,
-                "p99_ms": 46.175,
+                "requests_per_sec": 3538.4,
+                "median_requests_per_sec": 3538.4,
+                "p50_ms": 17.583,
+                "p99_ms": 48.665,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 21229568,
-                "memory_peak_bytes": 38367232,
+                "memory_idle_bytes": 21368832,
+                "memory_peak_bytes": 38182912,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 4,
@@ -5196,17 +5196,17 @@
                 }
               },
               {
-                "requests_per_sec": 3527.6,
-                "median_requests_per_sec": 3527.6,
-                "p50_ms": 17.486,
-                "p99_ms": 48.374,
+                "requests_per_sec": 3553.8,
+                "median_requests_per_sec": 3553.8,
+                "p50_ms": 17.767,
+                "p99_ms": 39.724,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 20934656,
-                "memory_peak_bytes": 38477824,
+                "memory_idle_bytes": 21774336,
+                "memory_peak_bytes": 37777408,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 4,
@@ -5214,17 +5214,17 @@
                 }
               },
               {
-                "requests_per_sec": 3555.4,
-                "median_requests_per_sec": 3555.4,
-                "p50_ms": 15.299,
-                "p99_ms": 46.21,
+                "requests_per_sec": 3530.6,
+                "median_requests_per_sec": 3530.6,
+                "p50_ms": 17.541,
+                "p99_ms": 46.403,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 20529152,
-                "memory_peak_bytes": 39911424,
+                "memory_idle_bytes": 21524480,
+                "memory_peak_bytes": 37376000,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 4,
@@ -5236,85 +5236,85 @@
           "go": {
             "1": [
               {
-                "requests_per_sec": 1098.7,
-                "median_requests_per_sec": 1098.7,
-                "p50_ms": 56.502,
-                "p99_ms": 74.824,
+                "requests_per_sec": 1098,
+                "median_requests_per_sec": 1098,
+                "p50_ms": 56.421,
+                "p99_ms": 80.482,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 7827456,
-                "memory_peak_bytes": 14729216,
+                "memory_idle_bytes": 16326656,
+                "memory_peak_bytes": 23166976,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 1
                 }
               },
               {
-                "requests_per_sec": 1103,
-                "median_requests_per_sec": 1103,
-                "p50_ms": 56.439,
-                "p99_ms": 78.35,
+                "requests_per_sec": 1097.4,
+                "median_requests_per_sec": 1097.4,
+                "p50_ms": 56.576,
+                "p99_ms": 83.648,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 7360512,
-                "memory_peak_bytes": 14499840,
+                "memory_idle_bytes": 7671808,
+                "memory_peak_bytes": 14991360,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 1
                 }
               },
               {
-                "requests_per_sec": 1101.7,
-                "median_requests_per_sec": 1101.7,
-                "p50_ms": 56.272,
-                "p99_ms": 80.314,
+                "requests_per_sec": 1096.4,
+                "median_requests_per_sec": 1096.4,
+                "p50_ms": 56.481,
+                "p99_ms": 90.355,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 7335936,
-                "memory_peak_bytes": 14970880,
+                "memory_idle_bytes": 7749632,
+                "memory_peak_bytes": 14651392,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 1
                 }
               },
               {
-                "requests_per_sec": 1098.8,
-                "median_requests_per_sec": 1098.8,
-                "p50_ms": 56.514,
-                "p99_ms": 79.895,
+                "requests_per_sec": 1099.8,
+                "median_requests_per_sec": 1099.8,
+                "p50_ms": 56.605,
+                "p99_ms": 79.199,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 6152192,
-                "memory_peak_bytes": 15237120,
+                "memory_idle_bytes": 7352320,
+                "memory_peak_bytes": 14868480,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 1
                 }
               },
               {
-                "requests_per_sec": 1101.2,
-                "median_requests_per_sec": 1101.2,
-                "p50_ms": 56.354,
-                "p99_ms": 78.288,
+                "requests_per_sec": 1099.6,
+                "median_requests_per_sec": 1099.6,
+                "p50_ms": 56.546,
+                "p99_ms": 77.456,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 8216576,
-                "memory_peak_bytes": 15302656,
+                "memory_idle_bytes": 7446528,
+                "memory_peak_bytes": 14622720,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 1
@@ -5323,85 +5323,85 @@
             ],
             "4": [
               {
-                "requests_per_sec": 4293.4,
-                "median_requests_per_sec": 4293.4,
-                "p50_ms": 12.196,
-                "p99_ms": 99.002,
+                "requests_per_sec": 4309.9,
+                "median_requests_per_sec": 4309.9,
+                "p50_ms": 8.816,
+                "p99_ms": 144.011,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 7876608,
-                "memory_peak_bytes": 14790656,
+                "memory_idle_bytes": 6508544,
+                "memory_peak_bytes": 16097280,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 4
                 }
               },
               {
-                "requests_per_sec": 4321.8,
-                "median_requests_per_sec": 4321.8,
-                "p50_ms": 6.09,
-                "p99_ms": 105.644,
+                "requests_per_sec": 4254.1,
+                "median_requests_per_sec": 4254.1,
+                "p50_ms": 8.051,
+                "p99_ms": 154.156,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 7229440,
-                "memory_peak_bytes": 15785984,
+                "memory_idle_bytes": 7327744,
+                "memory_peak_bytes": 15753216,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 4
                 }
               },
               {
-                "requests_per_sec": 4293.5,
-                "median_requests_per_sec": 4293.5,
-                "p50_ms": 11.293,
-                "p99_ms": 127.048,
+                "requests_per_sec": 4279.1,
+                "median_requests_per_sec": 4279.1,
+                "p50_ms": 7.863,
+                "p99_ms": 111.486,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 6832128,
-                "memory_peak_bytes": 15781888,
+                "memory_idle_bytes": 7163904,
+                "memory_peak_bytes": 15773696,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 4
                 }
               },
               {
-                "requests_per_sec": 4304.8,
-                "median_requests_per_sec": 4304.8,
-                "p50_ms": 10.632,
-                "p99_ms": 145.677,
+                "requests_per_sec": 4287.6,
+                "median_requests_per_sec": 4287.6,
+                "p50_ms": 10.405,
+                "p99_ms": 107.992,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 7192576,
-                "memory_peak_bytes": 14974976,
+                "memory_idle_bytes": 8331264,
+                "memory_peak_bytes": 15712256,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 4
                 }
               },
               {
-                "requests_per_sec": 4307.6,
-                "median_requests_per_sec": 4307.6,
-                "p50_ms": 9.531,
-                "p99_ms": 75.497,
+                "requests_per_sec": 4264.9,
+                "median_requests_per_sec": 4264.9,
+                "p50_ms": 11.826,
+                "p99_ms": 59.649,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 7364608,
-                "memory_peak_bytes": 15691776,
+                "memory_idle_bytes": 7503872,
+                "memory_peak_bytes": 15626240,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 4
@@ -5412,17 +5412,17 @@
           "node": {
             "1": [
               {
-                "requests_per_sec": 989.5,
-                "median_requests_per_sec": 989.5,
-                "p50_ms": 61.021,
-                "p99_ms": 122.003,
+                "requests_per_sec": 982.7,
+                "median_requests_per_sec": 982.7,
+                "p50_ms": 61.194,
+                "p99_ms": 122.549,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 40316928,
-                "memory_peak_bytes": 62996480,
+                "memory_idle_bytes": 39837696,
+                "memory_peak_bytes": 61706240,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 1,
@@ -5430,17 +5430,17 @@
                 }
               },
               {
-                "requests_per_sec": 990.2,
-                "median_requests_per_sec": 990.2,
-                "p50_ms": 60.819,
-                "p99_ms": 121.185,
+                "requests_per_sec": 981.3,
+                "median_requests_per_sec": 981.3,
+                "p50_ms": 61.271,
+                "p99_ms": 122.269,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 40439808,
-                "memory_peak_bytes": 65720320,
+                "memory_idle_bytes": 40263680,
+                "memory_peak_bytes": 63660032,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 1,
@@ -5448,17 +5448,17 @@
                 }
               },
               {
-                "requests_per_sec": 992.4,
-                "median_requests_per_sec": 992.4,
-                "p50_ms": 60.576,
-                "p99_ms": 121.068,
+                "requests_per_sec": 981.2,
+                "median_requests_per_sec": 981.2,
+                "p50_ms": 61.32,
+                "p99_ms": 123.054,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 40009728,
-                "memory_peak_bytes": 63475712,
+                "memory_idle_bytes": 40607744,
+                "memory_peak_bytes": 65429504,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 1,
@@ -5466,17 +5466,17 @@
                 }
               },
               {
-                "requests_per_sec": 991.2,
-                "median_requests_per_sec": 991.2,
-                "p50_ms": 60.825,
-                "p99_ms": 121.526,
+                "requests_per_sec": 982.9,
+                "median_requests_per_sec": 982.9,
+                "p50_ms": 61.577,
+                "p99_ms": 122.489,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 40509440,
-                "memory_peak_bytes": 62574592,
+                "memory_idle_bytes": 40300544,
+                "memory_peak_bytes": 63492096,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 1,
@@ -5484,17 +5484,17 @@
                 }
               },
               {
-                "requests_per_sec": 993.3,
-                "median_requests_per_sec": 993.3,
-                "p50_ms": 60.867,
-                "p99_ms": 121.486,
+                "requests_per_sec": 982.1,
+                "median_requests_per_sec": 982.1,
+                "p50_ms": 61.124,
+                "p99_ms": 122.281,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 40353792,
-                "memory_peak_bytes": 62550016,
+                "memory_idle_bytes": 40534016,
+                "memory_peak_bytes": 62398464,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 1,
@@ -5504,17 +5504,17 @@
             ],
             "4": [
               {
-                "requests_per_sec": 3886.7,
-                "median_requests_per_sec": 3886.7,
-                "p50_ms": 15.016,
-                "p99_ms": 34.004,
+                "requests_per_sec": 3825.3,
+                "median_requests_per_sec": 3825.3,
+                "p50_ms": 15.209,
+                "p99_ms": 33.102,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 90685440,
-                "memory_peak_bytes": 139128832,
+                "memory_idle_bytes": 91500544,
+                "memory_peak_bytes": 140800000,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 4,
@@ -5522,17 +5522,17 @@
                 }
               },
               {
-                "requests_per_sec": 3857.1,
-                "median_requests_per_sec": 3857.1,
-                "p50_ms": 15.085,
-                "p99_ms": 32.443,
+                "requests_per_sec": 3834.6,
+                "median_requests_per_sec": 3834.6,
+                "p50_ms": 16.076,
+                "p99_ms": 33.628,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 91246592,
-                "memory_peak_bytes": 141549568,
+                "memory_idle_bytes": 90652672,
+                "memory_peak_bytes": 144777216,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 4,
@@ -5540,17 +5540,17 @@
                 }
               },
               {
-                "requests_per_sec": 3878,
-                "median_requests_per_sec": 3878,
-                "p50_ms": 15.095,
-                "p99_ms": 32.646,
+                "requests_per_sec": 3837.8,
+                "median_requests_per_sec": 3837.8,
+                "p50_ms": 15.304,
+                "p99_ms": 32.887,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 91877376,
-                "memory_peak_bytes": 142848000,
+                "memory_idle_bytes": 91557888,
+                "memory_peak_bytes": 147644416,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 4,
@@ -5558,17 +5558,17 @@
                 }
               },
               {
-                "requests_per_sec": 3860.3,
-                "median_requests_per_sec": 3860.3,
-                "p50_ms": 15.12,
-                "p99_ms": 33.093,
+                "requests_per_sec": 3822,
+                "median_requests_per_sec": 3822,
+                "p50_ms": 15.845,
+                "p99_ms": 34.157,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 91873280,
-                "memory_peak_bytes": 144908288,
+                "memory_idle_bytes": 91267072,
+                "memory_peak_bytes": 142237696,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 4,
@@ -5576,17 +5576,17 @@
                 }
               },
               {
-                "requests_per_sec": 3872.4,
-                "median_requests_per_sec": 3872.4,
-                "p50_ms": 15.099,
-                "p99_ms": 32.758,
+                "requests_per_sec": 3824.1,
+                "median_requests_per_sec": 3824.1,
+                "p50_ms": 15.086,
+                "p99_ms": 34.728,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 91340800,
-                "memory_peak_bytes": 144220160,
+                "memory_idle_bytes": 90587136,
+                "memory_peak_bytes": 142249984,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 4,
@@ -5598,17 +5598,17 @@
           "dotnet": {
             "1": [
               {
-                "requests_per_sec": 1013.2,
-                "median_requests_per_sec": 1013.2,
-                "p50_ms": 63.968,
-                "p99_ms": 128.93,
+                "requests_per_sec": 1005.4,
+                "median_requests_per_sec": 1005.4,
+                "p50_ms": 65.922,
+                "p99_ms": 130.675,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 18710528,
-                "memory_peak_bytes": 82235392,
+                "memory_idle_bytes": 19857408,
+                "memory_peak_bytes": 78778368,
                 "settings": {
                   "server": "Kestrel, ASP.NET Core minimal API",
                   "build": "framework-dependent Release",
@@ -5617,36 +5617,17 @@
                 }
               },
               {
-                "requests_per_sec": 1005.1,
-                "median_requests_per_sec": 1005.1,
-                "p50_ms": 66.586,
-                "p99_ms": 128.364,
+                "requests_per_sec": 1006,
+                "median_requests_per_sec": 1006,
+                "p50_ms": 63.054,
+                "p99_ms": 132.38,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 20021248,
-                "memory_peak_bytes": 79118336,
-                "settings": {
-                  "server": "Kestrel, ASP.NET Core minimal API",
-                  "build": "framework-dependent Release",
-                  "gc": "server",
-                  "tiered_pgo": true
-                }
-              },
-              {
-                "requests_per_sec": 1000.6,
-                "median_requests_per_sec": 1000.6,
-                "p50_ms": 66.163,
-                "p99_ms": 134.124,
-                "errors": 0,
-                "error_kinds": {},
-                "status_codes": {
-                  "200": 20000
-                },
-                "memory_idle_bytes": 19570688,
-                "memory_peak_bytes": 82014208,
+                "memory_idle_bytes": 19091456,
+                "memory_peak_bytes": 81747968,
                 "settings": {
                   "server": "Kestrel, ASP.NET Core minimal API",
                   "build": "framework-dependent Release",
@@ -5657,15 +5638,15 @@
               {
                 "requests_per_sec": 1011.6,
                 "median_requests_per_sec": 1011.6,
-                "p50_ms": 64.714,
-                "p99_ms": 132.836,
+                "p50_ms": 66.416,
+                "p99_ms": 131.276,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 19181568,
-                "memory_peak_bytes": 81338368,
+                "memory_idle_bytes": 18817024,
+                "memory_peak_bytes": 78532608,
                 "settings": {
                   "server": "Kestrel, ASP.NET Core minimal API",
                   "build": "framework-dependent Release",
@@ -5674,17 +5655,36 @@
                 }
               },
               {
-                "requests_per_sec": 1013.2,
-                "median_requests_per_sec": 1013.2,
-                "p50_ms": 63.777,
-                "p99_ms": 124.24,
+                "requests_per_sec": 1004,
+                "median_requests_per_sec": 1004,
+                "p50_ms": 63.553,
+                "p99_ms": 129.32,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 18726912,
-                "memory_peak_bytes": 81072128,
+                "memory_idle_bytes": 19619840,
+                "memory_peak_bytes": 81911808,
+                "settings": {
+                  "server": "Kestrel, ASP.NET Core minimal API",
+                  "build": "framework-dependent Release",
+                  "gc": "server",
+                  "tiered_pgo": true
+                }
+              },
+              {
+                "requests_per_sec": 1015.5,
+                "median_requests_per_sec": 1015.5,
+                "p50_ms": 64.055,
+                "p99_ms": 130.136,
+                "errors": 0,
+                "error_kinds": {},
+                "status_codes": {
+                  "200": 20000
+                },
+                "memory_idle_bytes": 18923520,
+                "memory_peak_bytes": 79220736,
                 "settings": {
                   "server": "Kestrel, ASP.NET Core minimal API",
                   "build": "framework-dependent Release",
@@ -5695,17 +5695,17 @@
             ],
             "4": [
               {
-                "requests_per_sec": 3883.2,
-                "median_requests_per_sec": 3883.2,
-                "p50_ms": 13.865,
-                "p99_ms": 70.841,
+                "requests_per_sec": 3944.4,
+                "median_requests_per_sec": 3944.4,
+                "p50_ms": 14.35,
+                "p99_ms": 74.146,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 20754432,
-                "memory_peak_bytes": 54874112,
+                "memory_idle_bytes": 21073920,
+                "memory_peak_bytes": 39514112,
                 "settings": {
                   "server": "Kestrel, ASP.NET Core minimal API",
                   "build": "framework-dependent Release",
@@ -5714,17 +5714,17 @@
                 }
               },
               {
-                "requests_per_sec": 3847.4,
-                "median_requests_per_sec": 3847.4,
-                "p50_ms": 12.764,
-                "p99_ms": 76.385,
+                "requests_per_sec": 3931.3,
+                "median_requests_per_sec": 3931.3,
+                "p50_ms": 13.153,
+                "p99_ms": 64.068,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 20946944,
-                "memory_peak_bytes": 54497280,
+                "memory_idle_bytes": 20492288,
+                "memory_peak_bytes": 50536448,
                 "settings": {
                   "server": "Kestrel, ASP.NET Core minimal API",
                   "build": "framework-dependent Release",
@@ -5733,17 +5733,17 @@
                 }
               },
               {
-                "requests_per_sec": 3845.8,
-                "median_requests_per_sec": 3845.8,
-                "p50_ms": 8.724,
-                "p99_ms": 73.234,
+                "requests_per_sec": 3847.1,
+                "median_requests_per_sec": 3847.1,
+                "p50_ms": 12.572,
+                "p99_ms": 77.551,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 20787200,
-                "memory_peak_bytes": 53473280,
+                "memory_idle_bytes": 20897792,
+                "memory_peak_bytes": 52731904,
                 "settings": {
                   "server": "Kestrel, ASP.NET Core minimal API",
                   "build": "framework-dependent Release",
@@ -5752,17 +5752,17 @@
                 }
               },
               {
-                "requests_per_sec": 3838.4,
-                "median_requests_per_sec": 3838.4,
-                "p50_ms": 13.375,
-                "p99_ms": 76.179,
+                "requests_per_sec": 3842.7,
+                "median_requests_per_sec": 3842.7,
+                "p50_ms": 14.639,
+                "p99_ms": 81.412,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 21659648,
-                "memory_peak_bytes": 48267264,
+                "memory_idle_bytes": 20865024,
+                "memory_peak_bytes": 53637120,
                 "settings": {
                   "server": "Kestrel, ASP.NET Core minimal API",
                   "build": "framework-dependent Release",
@@ -5771,17 +5771,17 @@
                 }
               },
               {
-                "requests_per_sec": 3852,
-                "median_requests_per_sec": 3852,
-                "p50_ms": 11.659,
-                "p99_ms": 77.979,
+                "requests_per_sec": 3884.2,
+                "median_requests_per_sec": 3884.2,
+                "p50_ms": 14.769,
+                "p99_ms": 75.585,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 20791296,
-                "memory_peak_bytes": 49709056,
+                "memory_idle_bytes": 21434368,
+                "memory_peak_bytes": 53899264,
                 "settings": {
                   "server": "Kestrel, ASP.NET Core minimal API",
                   "build": "framework-dependent Release",
@@ -5794,17 +5794,38 @@
           "python": {
             "1": [
               {
-                "requests_per_sec": 63.7,
-                "median_requests_per_sec": 63.7,
-                "p50_ms": 984.378,
-                "p99_ms": 1967.239,
+                "requests_per_sec": 65.2,
+                "median_requests_per_sec": 65.2,
+                "p50_ms": 966.102,
+                "p99_ms": 1929.58,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 27422720,
-                "memory_peak_bytes": 34177024,
+                "memory_idle_bytes": 26890240,
+                "memory_peak_bytes": 34344960,
+                "settings": {
+                  "server": "uvicorn",
+                  "workers": 1,
+                  "loop": "uvloop",
+                  "http": "httptools",
+                  "access_log": false,
+                  "timeout_keep_alive": 65
+                }
+              },
+              {
+                "requests_per_sec": 65.2,
+                "median_requests_per_sec": 65.2,
+                "p50_ms": 965.764,
+                "p99_ms": 1930.399,
+                "errors": 0,
+                "error_kinds": {},
+                "status_codes": {
+                  "200": 20000
+                },
+                "memory_idle_bytes": 27684864,
+                "memory_peak_bytes": 34422784,
                 "settings": {
                   "server": "uvicorn",
                   "workers": 1,
@@ -5817,15 +5838,15 @@
               {
                 "requests_per_sec": 65.3,
                 "median_requests_per_sec": 65.3,
-                "p50_ms": 964.522,
-                "p99_ms": 1926.683,
+                "p50_ms": 965.229,
+                "p99_ms": 1928.828,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 27664384,
-                "memory_peak_bytes": 34639872,
+                "memory_idle_bytes": 27570176,
+                "memory_peak_bytes": 34209792,
                 "settings": {
                   "server": "uvicorn",
                   "workers": 1,
@@ -5836,17 +5857,17 @@
                 }
               },
               {
-                "requests_per_sec": 64.9,
-                "median_requests_per_sec": 64.9,
-                "p50_ms": 970.726,
-                "p99_ms": 1939.931,
+                "requests_per_sec": 65,
+                "median_requests_per_sec": 65,
+                "p50_ms": 969.182,
+                "p99_ms": 1935.943,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 27385856,
-                "memory_peak_bytes": 34332672,
+                "memory_idle_bytes": 27471872,
+                "memory_peak_bytes": 34603008,
                 "settings": {
                   "server": "uvicorn",
                   "workers": 1,
@@ -5857,38 +5878,17 @@
                 }
               },
               {
-                "requests_per_sec": 64.9,
-                "median_requests_per_sec": 64.9,
-                "p50_ms": 969.933,
-                "p99_ms": 1937.756,
+                "requests_per_sec": 62.6,
+                "median_requests_per_sec": 62.6,
+                "p50_ms": 1002.202,
+                "p99_ms": 2003.897,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 27672576,
-                "memory_peak_bytes": 34344960,
-                "settings": {
-                  "server": "uvicorn",
-                  "workers": 1,
-                  "loop": "uvloop",
-                  "http": "httptools",
-                  "access_log": false,
-                  "timeout_keep_alive": 65
-                }
-              },
-              {
-                "requests_per_sec": 64.5,
-                "median_requests_per_sec": 64.5,
-                "p50_ms": 976.115,
-                "p99_ms": 1949.393,
-                "errors": 0,
-                "error_kinds": {},
-                "status_codes": {
-                  "200": 20000
-                },
-                "memory_idle_bytes": 27459584,
-                "memory_peak_bytes": 34295808,
+                "memory_idle_bytes": 27213824,
+                "memory_peak_bytes": 34275328,
                 "settings": {
                   "server": "uvicorn",
                   "workers": 1,
@@ -5901,38 +5901,17 @@
             ],
             "4": [
               {
-                "requests_per_sec": 240.4,
-                "median_requests_per_sec": 240.4,
-                "p50_ms": 249.594,
-                "p99_ms": 521.097,
-                "errors": 0,
-                "error_kinds": {},
-                "status_codes": {
-                  "200": 20000
-                },
-                "memory_idle_bytes": 118865920,
-                "memory_peak_bytes": 126197760,
-                "settings": {
-                  "server": "uvicorn",
-                  "workers": 4,
-                  "loop": "uvloop",
-                  "http": "httptools",
-                  "access_log": false,
-                  "timeout_keep_alive": 65
-                }
-              },
-              {
-                "requests_per_sec": 230.6,
-                "median_requests_per_sec": 230.6,
-                "p50_ms": 283.64,
-                "p99_ms": 739.805,
+                "requests_per_sec": 243.1,
+                "median_requests_per_sec": 243.1,
+                "p50_ms": 284.759,
+                "p99_ms": 640.334,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
                 "memory_idle_bytes": 119283712,
-                "memory_peak_bytes": 125935616,
+                "memory_peak_bytes": 127111168,
                 "settings": {
                   "server": "uvicorn",
                   "workers": 4,
@@ -5943,17 +5922,17 @@
                 }
               },
               {
-                "requests_per_sec": 243.2,
-                "median_requests_per_sec": 243.2,
-                "p50_ms": 247.167,
-                "p99_ms": 551.273,
+                "requests_per_sec": 232,
+                "median_requests_per_sec": 232,
+                "p50_ms": 264.042,
+                "p99_ms": 636.975,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 119410688,
-                "memory_peak_bytes": 125919232,
+                "memory_idle_bytes": 119906304,
+                "memory_peak_bytes": 126066688,
                 "settings": {
                   "server": "uvicorn",
                   "workers": 4,
@@ -5964,17 +5943,17 @@
                 }
               },
               {
-                "requests_per_sec": 243.1,
-                "median_requests_per_sec": 243.1,
-                "p50_ms": 235.207,
-                "p99_ms": 590.347,
+                "requests_per_sec": 236.4,
+                "median_requests_per_sec": 236.4,
+                "p50_ms": 287.75,
+                "p99_ms": 633.877,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 120074240,
-                "memory_peak_bytes": 125665280,
+                "memory_idle_bytes": 119222272,
+                "memory_peak_bytes": 125906944,
                 "settings": {
                   "server": "uvicorn",
                   "workers": 4,
@@ -5985,17 +5964,38 @@
                 }
               },
               {
-                "requests_per_sec": 242.9,
-                "median_requests_per_sec": 242.9,
-                "p50_ms": 230.657,
-                "p99_ms": 638.522,
+                "requests_per_sec": 238.7,
+                "median_requests_per_sec": 238.7,
+                "p50_ms": 272.675,
+                "p99_ms": 621.632,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 119271424,
-                "memory_peak_bytes": 125747200,
+                "memory_idle_bytes": 119074816,
+                "memory_peak_bytes": 125874176,
+                "settings": {
+                  "server": "uvicorn",
+                  "workers": 4,
+                  "loop": "uvloop",
+                  "http": "httptools",
+                  "access_log": false,
+                  "timeout_keep_alive": 65
+                }
+              },
+              {
+                "requests_per_sec": 243.6,
+                "median_requests_per_sec": 243.6,
+                "p50_ms": 202.479,
+                "p99_ms": 749.881,
+                "errors": 0,
+                "error_kinds": {},
+                "status_codes": {
+                  "200": 20000
+                },
+                "memory_idle_bytes": 118870016,
+                "memory_peak_bytes": 125784064,
                 "settings": {
                   "server": "uvicorn",
                   "workers": 4,
@@ -6078,80 +6078,80 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T02:38:07",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:06:31",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "b15fbb271369a6d9",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-21T00:49:23",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T06:21:21",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "b15fbb271369a6d9",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "bun": {
-            "date": "2026-11-21T00:49:23",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T06:21:21",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
               "programs": "b15fbb271369a6d9",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "go": {
-            "date": "2026-11-21T02:38:07",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:06:31",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:d0820830b98184310942c86f25015dbd1b0e02ac1d8fc969fc792064ad721b51",
+              "image": "sha256:0911f41149e0a7f797a4e70fd432e81c58fe9a91c1f37f1fa0704b1ae717e08f",
               "programs": "b15fbb271369a6d9",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "node": {
-            "date": "2026-11-21T00:49:23",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T06:21:21",
+            "commit": "f60a718e27",
             "key": {
               "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
               "programs": "b15fbb271369a6d9",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "dotnet": {
-            "date": "2026-11-21T02:38:07",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:06:31",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:38739ba27003a7a4a00acce0242c685d0fb272c06fa06822563addabe1076b32",
+              "image": "sha256:50939071e8c1939b36378812ba683ae80e09a65f82c7b5e6631ddeea52d13f92",
               "programs": "b15fbb271369a6d9",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "python": {
-            "date": "2026-11-21T02:38:07",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:06:31",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:653c987fe3b82e6b0355b7e0187695c270a13c5841ccc38d98543b89a1b584c2",
+              "image": "sha256:518602ed3d0d2757c1a2a52f26d11f0b178388b95c73dfbb91d6847b9726408f",
               "programs": "b15fbb271369a6d9",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
         },
         "seconds": {
-          "up": 14.9,
-          "probe": 1.5,
-          "down": 5.9
+          "up": 15.3,
+          "probe": 1.2,
+          "down": 6.1
         }
       },
       "loop": {
@@ -6161,13 +6161,13 @@
             "result": "on-by-default",
             "setting": "[limits] cpu_time",
             "evidence": {
-              "baseline_requests": 348942,
-              "requests": 48196,
+              "baseline_requests": 348470,
+              "requests": 47359,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 20.4,
+              "p99_ms": 20.5,
               "runaway_status": 500,
-              "runaway_seconds": 31.7,
+              "runaway_seconds": 32.3,
               "backend_running": true,
               "backend_restarts": 0,
               "runs": 3,
@@ -6178,13 +6178,13 @@
             "result": "on-by-default",
             "setting": "max_execution_time",
             "evidence": {
-              "baseline_requests": 126372,
-              "requests": 89562,
+              "baseline_requests": 132918,
+              "requests": 92897,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 61.4,
+              "p99_ms": 61.7,
               "runaway_status": 200,
-              "runaway_seconds": 38.4,
+              "runaway_seconds": 38.2,
               "backend_running": true,
               "backend_restarts": 0,
               "runs": 3,
@@ -6194,11 +6194,11 @@
           "bun": {
             "result": "your-code",
             "evidence": {
-              "baseline_requests": 394407,
-              "requests": 41730,
+              "baseline_requests": 425045,
+              "requests": 43032,
               "failed_requests": 48,
               "failures": "timeout x48",
-              "p99_ms": 0.8,
+              "p99_ms": 0.7,
               "runaway_status": null,
               "runaway_seconds": null,
               "backend_running": true,
@@ -6210,11 +6210,11 @@
           "go": {
             "result": "no",
             "evidence": {
-              "baseline_requests": 361165,
-              "requests": 54849,
+              "baseline_requests": 397415,
+              "requests": 48935,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 20.4,
+              "p99_ms": 20.5,
               "runaway_status": null,
               "runaway_seconds": null,
               "backend_running": true,
@@ -6226,11 +6226,11 @@
           "node": {
             "result": "your-code",
             "evidence": {
-              "baseline_requests": 334712,
-              "requests": 39652,
+              "baseline_requests": 384576,
+              "requests": 42854,
               "failed_requests": 48,
               "failures": "timeout x48",
-              "p99_ms": 0.9,
+              "p99_ms": 0.7,
               "runaway_status": null,
               "runaway_seconds": null,
               "backend_running": true,
@@ -6242,11 +6242,11 @@
           "dotnet": {
             "result": "no",
             "evidence": {
-              "baseline_requests": 234444,
-              "requests": 84220,
+              "baseline_requests": 250416,
+              "requests": 89419,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 1,
+              "p99_ms": 0.8,
               "runaway_status": null,
               "runaway_seconds": null,
               "backend_running": true,
@@ -6258,11 +6258,11 @@
           "python": {
             "result": "no",
             "evidence": {
-              "baseline_requests": 262254,
-              "requests": 37149,
+              "baseline_requests": 275050,
+              "requests": 38195,
               "failed_requests": 48,
               "failures": "timeout x48",
-              "p99_ms": 0.9,
+              "p99_ms": 0.8,
               "runaway_status": null,
               "runaway_seconds": null,
               "backend_running": true,
@@ -6274,80 +6274,80 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T02:54:10",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:34:42",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "6fe41adde7a1bdb4",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-21T01:17:33",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:34:42",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "6fe41adde7a1bdb4",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "bun": {
-            "date": "2026-11-21T01:17:33",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:34:42",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
               "programs": "6fe41adde7a1bdb4",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "go": {
-            "date": "2026-11-21T02:54:10",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:34:42",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:d0820830b98184310942c86f25015dbd1b0e02ac1d8fc969fc792064ad721b51",
+              "image": "sha256:0911f41149e0a7f797a4e70fd432e81c58fe9a91c1f37f1fa0704b1ae717e08f",
               "programs": "6fe41adde7a1bdb4",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "node": {
-            "date": "2026-11-21T01:17:33",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:34:42",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
               "programs": "6fe41adde7a1bdb4",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "dotnet": {
-            "date": "2026-11-21T02:54:10",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:34:42",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:38739ba27003a7a4a00acce0242c685d0fb272c06fa06822563addabe1076b32",
+              "image": "sha256:50939071e8c1939b36378812ba683ae80e09a65f82c7b5e6631ddeea52d13f92",
               "programs": "6fe41adde7a1bdb4",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "python": {
-            "date": "2026-11-21T02:54:10",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:34:42",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:653c987fe3b82e6b0355b7e0187695c270a13c5841ccc38d98543b89a1b584c2",
+              "image": "sha256:518602ed3d0d2757c1a2a52f26d11f0b178388b95c73dfbb91d6847b9726408f",
               "programs": "6fe41adde7a1bdb4",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
         },
         "seconds": {
-          "up": 44,
-          "probe": 885,
-          "down": 33.1
+          "up": 78,
+          "probe": 1553,
+          "down": 59.7
         }
       },
       "memory": {
@@ -6357,8 +6357,8 @@
             "result": "on-by-default",
             "setting": "[limits] memory",
             "evidence": {
-              "baseline_requests": 343071,
-              "requests": 334636,
+              "baseline_requests": 336101,
+              "requests": 309723,
               "failed_requests": 0,
               "failures": null,
               "p99_ms": 0.7,
@@ -6374,13 +6374,13 @@
             "result": "on-by-default",
             "setting": "memory_limit",
             "evidence": {
-              "baseline_requests": 127520,
-              "requests": 128447,
+              "baseline_requests": 119973,
+              "requests": 121648,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 1,
+              "p99_ms": 3.2,
               "runaway_status": 200,
-              "runaway_seconds": 0.1,
+              "runaway_seconds": 0,
               "backend_running": true,
               "backend_restarts": 0,
               "runs": 3,
@@ -6390,11 +6390,11 @@
           "bun": {
             "result": "no",
             "evidence": {
-              "baseline_requests": 412276,
-              "requests": 365349,
-              "failed_requests": 1184,
-              "failures": "502 x1184",
-              "p99_ms": 0.6,
+              "baseline_requests": 396537,
+              "requests": 356545,
+              "failed_requests": 1684,
+              "failures": "502 x1684",
+              "p99_ms": 0.7,
               "runaway_status": 502,
               "runaway_seconds": 0.2,
               "backend_running": true,
@@ -6406,13 +6406,13 @@
           "go": {
             "result": "no",
             "evidence": {
-              "baseline_requests": 383766,
-              "requests": 337067,
-              "failed_requests": 1668,
-              "failures": "502 x1668",
-              "p99_ms": 0.7,
+              "baseline_requests": 360796,
+              "requests": 326287,
+              "failed_requests": 1928,
+              "failures": "502 x1928",
+              "p99_ms": 0.8,
               "runaway_status": 502,
-              "runaway_seconds": 0.3,
+              "runaway_seconds": 0.2,
               "backend_running": true,
               "backend_restarts": 3,
               "runs": 3,
@@ -6422,10 +6422,10 @@
           "node": {
             "result": "your-code",
             "evidence": {
-              "baseline_requests": 326384,
-              "requests": 315811,
-              "failed_requests": 2473,
-              "failures": "502 x2473",
+              "baseline_requests": 376847,
+              "requests": 303356,
+              "failed_requests": 1796,
+              "failures": "502 x1796",
               "p99_ms": 0.7,
               "runaway_status": 502,
               "runaway_seconds": 0.2,
@@ -6438,11 +6438,11 @@
           "dotnet": {
             "result": "built-in",
             "evidence": {
-              "baseline_requests": 262556,
-              "requests": 303078,
+              "baseline_requests": 215458,
+              "requests": 250313,
               "failed_requests": 0,
               "failures": null,
-              "p99_ms": 0.8,
+              "p99_ms": 0.9,
               "runaway_status": 500,
               "runaway_seconds": 0.2,
               "backend_running": true,
@@ -6454,10 +6454,10 @@
           "python": {
             "result": "no",
             "evidence": {
-              "baseline_requests": 249694,
-              "requests": 222712,
-              "failed_requests": 1553,
-              "failures": "502 x1553",
+              "baseline_requests": 236504,
+              "requests": 212640,
+              "failed_requests": 1538,
+              "failures": "502 x1538",
               "p99_ms": 0.9,
               "runaway_status": 502,
               "runaway_seconds": 0.2,
@@ -6470,80 +6470,80 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T03:02:37",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:50:00",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "6fe41adde7a1bdb4",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-21T01:32:39",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:50:00",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "6fe41adde7a1bdb4",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "bun": {
-            "date": "2026-11-21T01:32:39",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:50:00",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
               "programs": "6fe41adde7a1bdb4",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "go": {
-            "date": "2026-11-21T03:02:37",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:50:00",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:d0820830b98184310942c86f25015dbd1b0e02ac1d8fc969fc792064ad721b51",
+              "image": "sha256:0911f41149e0a7f797a4e70fd432e81c58fe9a91c1f37f1fa0704b1ae717e08f",
               "programs": "6fe41adde7a1bdb4",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "node": {
-            "date": "2026-11-21T01:32:39",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:50:00",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
               "programs": "6fe41adde7a1bdb4",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "dotnet": {
-            "date": "2026-11-21T03:02:37",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:50:00",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:38739ba27003a7a4a00acce0242c685d0fb272c06fa06822563addabe1076b32",
+              "image": "sha256:50939071e8c1939b36378812ba683ae80e09a65f82c7b5e6631ddeea52d13f92",
               "programs": "6fe41adde7a1bdb4",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "python": {
-            "date": "2026-11-21T03:02:37",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:50:00",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:653c987fe3b82e6b0355b7e0187695c270a13c5841ccc38d98543b89a1b584c2",
+              "image": "sha256:518602ed3d0d2757c1a2a52f26d11f0b178388b95c73dfbb91d6847b9726408f",
               "programs": "6fe41adde7a1bdb4",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
         },
         "seconds": {
-          "up": 44.8,
-          "probe": 447.7,
-          "down": 14.8
+          "up": 84.8,
+          "probe": 788,
+          "down": 44.6
         }
       },
       "flood": {
@@ -6552,13 +6552,13 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "flood_requests": 3314,
-              "refused": 2896,
-              "flood_failures": "503 x2896",
-              "probes": 27,
+              "flood_requests": 3145,
+              "refused": 2747,
+              "flood_failures": "503 x2747",
+              "probes": 25,
               "probes_failed": 0,
-              "probe_median_ms": 114,
-              "probe_max_ms": 777,
+              "probe_median_ms": 148,
+              "probe_max_ms": 824,
               "recovery_seconds": 0,
               "after_ok": 8,
               "backend_running": true,
@@ -6568,29 +6568,29 @@
           "php": {
             "result": "no",
             "evidence": {
-              "flood_requests": 4226,
+              "flood_requests": 1855,
               "refused": 0,
-              "flood_failures": "502 x4225; timeout x199",
-              "probes": 5,
-              "probes_failed": 3,
+              "flood_failures": "502 x1855; timeout x195",
+              "probes": 4,
+              "probes_failed": 2,
               "probe_median_ms": 1,
-              "probe_max_ms": 1173,
-              "recovery_seconds": 5.7,
+              "probe_max_ms": 7252,
+              "recovery_seconds": 10.2,
               "after_ok": 8,
               "backend_running": true,
-              "backend_restarts": 3
+              "backend_restarts": 2
             }
           },
           "bun": {
             "result": "no",
             "evidence": {
-              "flood_requests": 11369,
+              "flood_requests": 12948,
               "refused": 0,
-              "flood_failures": "502 x11369",
+              "flood_failures": "502 x12948",
               "probes": 9,
               "probes_failed": 6,
-              "probe_median_ms": 1027,
-              "probe_max_ms": 4080,
+              "probe_median_ms": 1041,
+              "probe_max_ms": 4095,
               "recovery_seconds": 0,
               "after_ok": 8,
               "backend_running": true,
@@ -6600,13 +6600,13 @@
           "go": {
             "result": "no",
             "evidence": {
-              "flood_requests": 7135,
+              "flood_requests": 10191,
               "refused": 0,
-              "flood_failures": "502 x7135",
-              "probes": 7,
+              "flood_failures": "502 x10191",
+              "probes": 8,
               "probes_failed": 5,
-              "probe_median_ms": 2035,
-              "probe_max_ms": 2628,
+              "probe_median_ms": 1023,
+              "probe_max_ms": 2267,
               "recovery_seconds": 2.1,
               "after_ok": 8,
               "backend_running": true,
@@ -6616,13 +6616,13 @@
           "node": {
             "result": "no",
             "evidence": {
-              "flood_requests": 11259,
+              "flood_requests": 12175,
               "refused": 0,
-              "flood_failures": "502 x11259",
-              "probes": 10,
+              "flood_failures": "502 x12174",
+              "probes": 9,
               "probes_failed": 6,
-              "probe_median_ms": 1056,
-              "probe_max_ms": 4105,
+              "probe_median_ms": 1126,
+              "probe_max_ms": 4108,
               "recovery_seconds": 0,
               "after_ok": 8,
               "backend_running": true,
@@ -6632,14 +6632,14 @@
           "dotnet": {
             "result": "built-in",
             "evidence": {
-              "flood_requests": 2815,
+              "flood_requests": 2467,
               "refused": 0,
-              "flood_failures": "500 x1937; 502 x6",
+              "flood_failures": "500 x1661; 502 x10",
               "probes": 16,
               "probes_failed": 0,
-              "probe_median_ms": 370,
-              "probe_max_ms": 946,
-              "recovery_seconds": 0.2,
+              "probe_median_ms": 440,
+              "probe_max_ms": 869,
+              "recovery_seconds": 0,
               "after_ok": 8,
               "backend_running": true,
               "backend_restarts": 0
@@ -6648,13 +6648,13 @@
           "python": {
             "result": "no",
             "evidence": {
-              "flood_requests": 10336,
+              "flood_requests": 13017,
               "refused": 0,
-              "flood_failures": "502 x10336",
+              "flood_failures": "502 x13017",
               "probes": 9,
-              "probes_failed": 7,
-              "probe_median_ms": 1028,
-              "probe_max_ms": 3071,
+              "probes_failed": 6,
+              "probe_median_ms": 1039,
+              "probe_max_ms": 4083,
               "recovery_seconds": 0,
               "after_ok": 8,
               "backend_running": true,
@@ -6664,80 +6664,80 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T03:03:47",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:52:29",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "f8a6ea5c6ea1ef5a",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-21T01:34:58",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:52:29",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "f8a6ea5c6ea1ef5a",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "bun": {
-            "date": "2026-11-21T01:34:58",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:52:29",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
               "programs": "f8a6ea5c6ea1ef5a",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "go": {
-            "date": "2026-11-21T03:03:47",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:52:29",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:d0820830b98184310942c86f25015dbd1b0e02ac1d8fc969fc792064ad721b51",
+              "image": "sha256:0911f41149e0a7f797a4e70fd432e81c58fe9a91c1f37f1fa0704b1ae717e08f",
               "programs": "f8a6ea5c6ea1ef5a",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "node": {
-            "date": "2026-11-21T01:34:58",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:52:29",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
               "programs": "f8a6ea5c6ea1ef5a",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "dotnet": {
-            "date": "2026-11-21T03:03:47",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:52:29",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:38739ba27003a7a4a00acce0242c685d0fb272c06fa06822563addabe1076b32",
+              "image": "sha256:50939071e8c1939b36378812ba683ae80e09a65f82c7b5e6631ddeea52d13f92",
               "programs": "f8a6ea5c6ea1ef5a",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "python": {
-            "date": "2026-11-21T03:03:47",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:52:29",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:653c987fe3b82e6b0355b7e0187695c270a13c5841ccc38d98543b89a1b584c2",
+              "image": "sha256:518602ed3d0d2757c1a2a52f26d11f0b178388b95c73dfbb91d6847b9726408f",
               "programs": "f8a6ea5c6ea1ef5a",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
         },
         "seconds": {
-          "up": 14.9,
-          "probe": 50.6,
-          "down": 4.4
+          "up": 26.2,
+          "probe": 109.1,
+          "down": 14.4
         }
       },
       "csrf": {
@@ -6795,80 +6795,80 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T03:04:06",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:53:10",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "bdcbd1ff05313b61",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-21T01:35:38",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:53:10",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "bdcbd1ff05313b61",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "bun": {
-            "date": "2026-11-21T01:35:38",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:53:10",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
               "programs": "bdcbd1ff05313b61",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "go": {
-            "date": "2026-11-21T03:04:06",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:53:10",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:d0820830b98184310942c86f25015dbd1b0e02ac1d8fc969fc792064ad721b51",
+              "image": "sha256:0911f41149e0a7f797a4e70fd432e81c58fe9a91c1f37f1fa0704b1ae717e08f",
               "programs": "bdcbd1ff05313b61",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "node": {
-            "date": "2026-11-21T01:35:38",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:53:10",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
               "programs": "bdcbd1ff05313b61",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "dotnet": {
-            "date": "2026-11-21T03:04:06",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:53:10",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:38739ba27003a7a4a00acce0242c685d0fb272c06fa06822563addabe1076b32",
+              "image": "sha256:50939071e8c1939b36378812ba683ae80e09a65f82c7b5e6631ddeea52d13f92",
               "programs": "bdcbd1ff05313b61",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "python": {
-            "date": "2026-11-21T03:04:06",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:53:10",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:653c987fe3b82e6b0355b7e0187695c270a13c5841ccc38d98543b89a1b584c2",
+              "image": "sha256:518602ed3d0d2757c1a2a52f26d11f0b178388b95c73dfbb91d6847b9726408f",
               "programs": "bdcbd1ff05313b61",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
         },
         "seconds": {
-          "up": 14.9,
+          "up": 25.9,
           "probe": 0.1,
-          "down": 4.5
+          "down": 14.4
         }
       },
       "session": {
@@ -6877,7 +6877,7 @@
           "nvs": {
             "result": "built-in",
             "evidence": {
-              "fast_wait_ms": 2,
+              "fast_wait_ms": 3,
               "head_start_ms": 200,
               "code": null
             }
@@ -6914,7 +6914,7 @@
           "dotnet": {
             "result": "built-in",
             "evidence": {
-              "fast_wait_ms": 4,
+              "fast_wait_ms": 5,
               "head_start_ms": 200,
               "code": null
             }
@@ -6929,40 +6929,40 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T03:04:20",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:53:30",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "4373cffcfd6f4d71",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-21T01:35:59",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:53:30",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "4373cffcfd6f4d71",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "dotnet": {
-            "date": "2026-11-21T03:04:20",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:53:30",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:38739ba27003a7a4a00acce0242c685d0fb272c06fa06822563addabe1076b32",
+              "image": "sha256:50939071e8c1939b36378812ba683ae80e09a65f82c7b5e6631ddeea52d13f92",
               "programs": "4373cffcfd6f4d71",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
         },
         "seconds": {
-          "up": 7.4,
-          "probe": 4.1,
-          "down": 2.4
+          "up": 11.1,
+          "probe": 6.1,
+          "down": 3.5
         }
       },
       "headers": {
@@ -7028,80 +7028,80 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T03:04:40",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:54:11",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "d094df3332d47987",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-21T01:36:39",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:54:11",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "d094df3332d47987",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "bun": {
-            "date": "2026-11-21T01:36:39",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:54:11",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
               "programs": "d094df3332d47987",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "go": {
-            "date": "2026-11-21T03:04:40",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:54:11",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:d0820830b98184310942c86f25015dbd1b0e02ac1d8fc969fc792064ad721b51",
+              "image": "sha256:0911f41149e0a7f797a4e70fd432e81c58fe9a91c1f37f1fa0704b1ae717e08f",
               "programs": "d094df3332d47987",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "node": {
-            "date": "2026-11-21T01:36:39",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:54:11",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
               "programs": "d094df3332d47987",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "dotnet": {
-            "date": "2026-11-21T03:04:40",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:54:11",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:38739ba27003a7a4a00acce0242c685d0fb272c06fa06822563addabe1076b32",
+              "image": "sha256:50939071e8c1939b36378812ba683ae80e09a65f82c7b5e6631ddeea52d13f92",
               "programs": "d094df3332d47987",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "python": {
-            "date": "2026-11-21T03:04:40",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T09:54:11",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:653c987fe3b82e6b0355b7e0187695c270a13c5841ccc38d98543b89a1b584c2",
+              "image": "sha256:518602ed3d0d2757c1a2a52f26d11f0b178388b95c73dfbb91d6847b9726408f",
               "programs": "d094df3332d47987",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
         },
         "seconds": {
-          "up": 14.7,
-          "probe": 0,
-          "down": 4.8
+          "up": 25.9,
+          "probe": 0.1,
+          "down": 14.2
         }
       },
       "waiting": {
@@ -7111,7 +7111,7 @@
             "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 63.2,
+              "kib_per_request": 63.6,
               "failed_requests": 0,
               "failures": null
             }
@@ -7121,7 +7121,7 @@
             "setting": "pm.max_children",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 587.1,
+              "kib_per_request": 582.7,
               "failed_requests": 0,
               "failures": null
             }
@@ -7130,7 +7130,7 @@
             "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 23,
+              "kib_per_request": 22.9,
               "failed_requests": 0,
               "failures": null
             }
@@ -7139,7 +7139,7 @@
             "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 48.9,
+              "kib_per_request": 46.5,
               "failed_requests": 0,
               "failures": null
             }
@@ -7148,7 +7148,7 @@
             "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 78.1,
+              "kib_per_request": 79.9,
               "failed_requests": 0,
               "failures": null
             }
@@ -7157,7 +7157,7 @@
             "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 78.2,
+              "kib_per_request": 75.4,
               "failed_requests": 0,
               "failures": null
             }
@@ -7166,7 +7166,7 @@
             "result": "built-in",
             "evidence": {
               "in_flight": 1000,
-              "kib_per_request": 19.2,
+              "kib_per_request": 19,
               "failed_requests": 0,
               "failures": null
             }
@@ -7174,97 +7174,97 @@
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T03:11:25",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T10:01:09",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "0064a544b97237de",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-21T03:11:25",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T10:01:09",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "0064a544b97237de",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "bun": {
-            "date": "2026-11-21T03:11:25",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T10:01:09",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
               "programs": "0064a544b97237de",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "go": {
-            "date": "2026-11-21T03:11:25",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T10:01:09",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:d0820830b98184310942c86f25015dbd1b0e02ac1d8fc969fc792064ad721b51",
+              "image": "sha256:0911f41149e0a7f797a4e70fd432e81c58fe9a91c1f37f1fa0704b1ae717e08f",
               "programs": "0064a544b97237de",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "node": {
-            "date": "2026-11-21T03:11:25",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T10:01:09",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
               "programs": "0064a544b97237de",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "dotnet": {
-            "date": "2026-11-21T03:11:25",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T10:01:09",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:38739ba27003a7a4a00acce0242c685d0fb272c06fa06822563addabe1076b32",
+              "image": "sha256:50939071e8c1939b36378812ba683ae80e09a65f82c7b5e6631ddeea52d13f92",
               "programs": "0064a544b97237de",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "python": {
-            "date": "2026-11-21T03:11:25",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T10:01:09",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:653c987fe3b82e6b0355b7e0187695c270a13c5841ccc38d98543b89a1b584c2",
+              "image": "sha256:518602ed3d0d2757c1a2a52f26d11f0b178388b95c73dfbb91d6847b9726408f",
               "programs": "0064a544b97237de",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
         },
         "seconds": {
-          "up_app": 92.7,
-          "up_nginx": 68.3,
-          "load": 135.3,
-          "down": 96.6
+          "up_app": 94.5,
+          "up_nginx": 68.8,
+          "load": 138.7,
+          "down": 103.6
         },
         "passes": {
           "nvs": {
             "1": [
               {
-                "requests_per_sec": 13382,
-                "median_requests_per_sec": 13382,
-                "p50_ms": 51.836,
-                "p99_ms": 451.196,
+                "requests_per_sec": 13128.9,
+                "median_requests_per_sec": 13128.9,
+                "p50_ms": 51.835,
+                "p99_ms": 452.789,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 15142912,
-                "memory_peak_bytes": 79175680,
+                "memory_idle_bytes": 14708736,
+                "memory_peak_bytes": 82653184,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -7272,17 +7272,17 @@
                 }
               },
               {
-                "requests_per_sec": 13815.6,
-                "median_requests_per_sec": 13815.6,
-                "p50_ms": 51.567,
-                "p99_ms": 410.809,
+                "requests_per_sec": 13322.7,
+                "median_requests_per_sec": 13322.7,
+                "p50_ms": 51.971,
+                "p99_ms": 460.935,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 14598144,
-                "memory_peak_bytes": 78946304,
+                "memory_idle_bytes": 14360576,
+                "memory_peak_bytes": 78503936,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -7290,17 +7290,17 @@
                 }
               },
               {
-                "requests_per_sec": 13368.9,
-                "median_requests_per_sec": 13368.9,
-                "p50_ms": 52.012,
-                "p99_ms": 455.121,
+                "requests_per_sec": 13673.7,
+                "median_requests_per_sec": 13673.7,
+                "p50_ms": 51.564,
+                "p99_ms": 421.891,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 14589952,
-                "memory_peak_bytes": 81526784,
+                "memory_idle_bytes": 14888960,
+                "memory_peak_bytes": 79609856,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -7308,17 +7308,17 @@
                 }
               },
               {
-                "requests_per_sec": 13531.4,
-                "median_requests_per_sec": 13531.4,
-                "p50_ms": 52.128,
-                "p99_ms": 419.185,
+                "requests_per_sec": 13515.2,
+                "median_requests_per_sec": 13515.2,
+                "p50_ms": 51.627,
+                "p99_ms": 452.413,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 14692352,
-                "memory_peak_bytes": 79282176,
+                "memory_idle_bytes": 14426112,
+                "memory_peak_bytes": 79511552,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -7326,17 +7326,17 @@
                 }
               },
               {
-                "requests_per_sec": 13642.1,
-                "median_requests_per_sec": 13642.1,
-                "p50_ms": 51.998,
-                "p99_ms": 403.898,
+                "requests_per_sec": 13447.1,
+                "median_requests_per_sec": 13447.1,
+                "p50_ms": 51.658,
+                "p99_ms": 418.235,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 14585856,
-                "memory_peak_bytes": 79343616,
+                "memory_idle_bytes": 14508032,
+                "memory_peak_bytes": 81620992,
                 "settings": {
                   "server": "nvs serve",
                   "workers": "one per visible cpu",
@@ -7348,17 +7348,17 @@
           "php": {
             "1": [
               {
-                "requests_per_sec": 3912,
-                "median_requests_per_sec": 3912,
-                "p50_ms": 197.277,
-                "p99_ms": 1241.498,
+                "requests_per_sec": 2905,
+                "median_requests_per_sec": 2905,
+                "p50_ms": 201.391,
+                "p99_ms": 2419.259,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 1683034112,
-                "memory_peak_bytes": 2280062976,
+                "memory_idle_bytes": 1693081600,
+                "memory_peak_bytes": 2292002816,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -7372,17 +7372,17 @@
                 }
               },
               {
-                "requests_per_sec": 3858,
-                "median_requests_per_sec": 3858,
-                "p50_ms": 198.885,
-                "p99_ms": 1292.625,
+                "requests_per_sec": 3958.4,
+                "median_requests_per_sec": 3958.4,
+                "p50_ms": 197.646,
+                "p99_ms": 1357.744,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 1685815296,
-                "memory_peak_bytes": 2293841920,
+                "memory_idle_bytes": 1691631616,
+                "memory_peak_bytes": 2282631168,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -7396,17 +7396,17 @@
                 }
               },
               {
-                "requests_per_sec": 3663,
-                "median_requests_per_sec": 3663,
-                "p50_ms": 198.542,
-                "p99_ms": 1481.89,
+                "requests_per_sec": 4091.2,
+                "median_requests_per_sec": 4091.2,
+                "p50_ms": 197.95,
+                "p99_ms": 1153.424,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 1675087872,
-                "memory_peak_bytes": 2282311680,
+                "memory_idle_bytes": 1687871488,
+                "memory_peak_bytes": 2288308224,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -7420,17 +7420,17 @@
                 }
               },
               {
-                "requests_per_sec": 3986.9,
-                "median_requests_per_sec": 3986.9,
-                "p50_ms": 197.185,
-                "p99_ms": 1342.402,
+                "requests_per_sec": 3914.5,
+                "median_requests_per_sec": 3914.5,
+                "p50_ms": 198.363,
+                "p99_ms": 1296.88,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 1681141760,
-                "memory_peak_bytes": 2270912512,
+                "memory_idle_bytes": 1700327424,
+                "memory_peak_bytes": 2314932224,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -7444,17 +7444,17 @@
                 }
               },
               {
-                "requests_per_sec": 3795.3,
-                "median_requests_per_sec": 3795.3,
-                "p50_ms": 197.164,
-                "p99_ms": 1508.685,
+                "requests_per_sec": 3884.1,
+                "median_requests_per_sec": 3884.1,
+                "p50_ms": 198.522,
+                "p99_ms": 1318.678,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 1676382208,
-                "memory_peak_bytes": 2283327488,
+                "memory_idle_bytes": 1678753792,
+                "memory_peak_bytes": 2276855808,
                 "settings": {
                   "server": "php-fpm",
                   "pm": "static",
@@ -7472,17 +7472,17 @@
           "bun": {
             "1": [
               {
-                "requests_per_sec": 13936.1,
-                "median_requests_per_sec": 13936.1,
-                "p50_ms": 50.469,
-                "p99_ms": 407.473,
+                "requests_per_sec": 14281,
+                "median_requests_per_sec": 14281,
+                "p50_ms": 50.453,
+                "p99_ms": 407.638,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 11743232,
-                "memory_peak_bytes": 35581952,
+                "memory_idle_bytes": 11395072,
+                "memory_peak_bytes": 38817792,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 1,
@@ -7490,17 +7490,17 @@
                 }
               },
               {
-                "requests_per_sec": 14415.6,
-                "median_requests_per_sec": 14415.6,
-                "p50_ms": 50.4,
-                "p99_ms": 393.825,
+                "requests_per_sec": 13574.2,
+                "median_requests_per_sec": 13574.2,
+                "p50_ms": 50.539,
+                "p99_ms": 427.65,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 10842112,
-                "memory_peak_bytes": 36311040,
+                "memory_idle_bytes": 11882496,
+                "memory_peak_bytes": 32272384,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 1,
@@ -7508,17 +7508,17 @@
                 }
               },
               {
-                "requests_per_sec": 14121.2,
-                "median_requests_per_sec": 14121.2,
-                "p50_ms": 50.42,
-                "p99_ms": 410.559,
+                "requests_per_sec": 13695,
+                "median_requests_per_sec": 13695,
+                "p50_ms": 50.495,
+                "p99_ms": 432.85,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 11587584,
-                "memory_peak_bytes": 35115008,
+                "memory_idle_bytes": 10735616,
+                "memory_peak_bytes": 36880384,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 1,
@@ -7526,17 +7526,17 @@
                 }
               },
               {
-                "requests_per_sec": 13378.7,
-                "median_requests_per_sec": 13378.7,
-                "p50_ms": 50.587,
-                "p99_ms": 455.586,
+                "requests_per_sec": 13586.2,
+                "median_requests_per_sec": 13586.2,
+                "p50_ms": 50.517,
+                "p99_ms": 422.653,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 11599872,
-                "memory_peak_bytes": 30605312,
+                "memory_idle_bytes": 11157504,
+                "memory_peak_bytes": 34254848,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 1,
@@ -7544,17 +7544,17 @@
                 }
               },
               {
-                "requests_per_sec": 14119.6,
-                "median_requests_per_sec": 14119.6,
-                "p50_ms": 50.418,
-                "p99_ms": 400.532,
+                "requests_per_sec": 13833.5,
+                "median_requests_per_sec": 13833.5,
+                "p50_ms": 50.497,
+                "p99_ms": 418.063,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 11497472,
-                "memory_peak_bytes": 34873344,
+                "memory_idle_bytes": 11333632,
+                "memory_peak_bytes": 34738176,
                 "settings": {
                   "server": "Bun.serve",
                   "processes": 1,
@@ -7566,85 +7566,85 @@
           "go": {
             "1": [
               {
-                "requests_per_sec": 13303.7,
-                "median_requests_per_sec": 13303.7,
-                "p50_ms": 52.012,
-                "p99_ms": 465.572,
+                "requests_per_sec": 13653.5,
+                "median_requests_per_sec": 13653.5,
+                "p50_ms": 52.708,
+                "p99_ms": 411.354,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 10715136,
-                "memory_peak_bytes": 61517824,
+                "memory_idle_bytes": 16588800,
+                "memory_peak_bytes": 63197184,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 1
                 }
               },
               {
-                "requests_per_sec": 13559.1,
-                "median_requests_per_sec": 13559.1,
-                "p50_ms": 52.448,
-                "p99_ms": 439.411,
+                "requests_per_sec": 13514.1,
+                "median_requests_per_sec": 13514.1,
+                "p50_ms": 52.753,
+                "p99_ms": 416.628,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 6496256,
-                "memory_peak_bytes": 56061952,
+                "memory_idle_bytes": 6930432,
+                "memory_peak_bytes": 54939648,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 1
                 }
               },
               {
-                "requests_per_sec": 13226.6,
-                "median_requests_per_sec": 13226.6,
-                "p50_ms": 52.476,
-                "p99_ms": 443.813,
+                "requests_per_sec": 13241.4,
+                "median_requests_per_sec": 13241.4,
+                "p50_ms": 52.494,
+                "p99_ms": 419.844,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 6901760,
-                "memory_peak_bytes": 56680448,
+                "memory_idle_bytes": 7364608,
+                "memory_peak_bytes": 54841344,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 1
                 }
               },
               {
-                "requests_per_sec": 13844.9,
-                "median_requests_per_sec": 13844.9,
-                "p50_ms": 51.728,
-                "p99_ms": 388.637,
+                "requests_per_sec": 13218.1,
+                "median_requests_per_sec": 13218.1,
+                "p50_ms": 52.928,
+                "p99_ms": 455.898,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 6860800,
-                "memory_peak_bytes": 59174912,
+                "memory_idle_bytes": 6946816,
+                "memory_peak_bytes": 53424128,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 1
                 }
               },
               {
-                "requests_per_sec": 13522.6,
-                "median_requests_per_sec": 13522.6,
-                "p50_ms": 52.032,
-                "p99_ms": 426.813,
+                "requests_per_sec": 13690.8,
+                "median_requests_per_sec": 13690.8,
+                "p50_ms": 52.523,
+                "p99_ms": 391.762,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 7385088,
-                "memory_peak_bytes": 56930304,
+                "memory_idle_bytes": 7725056,
+                "memory_peak_bytes": 55791616,
                 "settings": {
                   "server": "net/http",
                   "GOMAXPROCS": 1
@@ -7655,17 +7655,17 @@
           "node": {
             "1": [
               {
-                "requests_per_sec": 11730.6,
-                "median_requests_per_sec": 11730.6,
-                "p50_ms": 59.013,
-                "p99_ms": 442.719,
+                "requests_per_sec": 10708.1,
+                "median_requests_per_sec": 10708.1,
+                "p50_ms": 60.879,
+                "p99_ms": 488.004,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 41033728,
-                "memory_peak_bytes": 120545280,
+                "memory_idle_bytes": 40558592,
+                "memory_peak_bytes": 125980672,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 1,
@@ -7673,17 +7673,17 @@
                 }
               },
               {
-                "requests_per_sec": 11438.9,
-                "median_requests_per_sec": 11438.9,
-                "p50_ms": 55.393,
-                "p99_ms": 472.33,
+                "requests_per_sec": 11584.9,
+                "median_requests_per_sec": 11584.9,
+                "p50_ms": 55.665,
+                "p99_ms": 451.543,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 40542208,
-                "memory_peak_bytes": 117547008,
+                "memory_idle_bytes": 40583168,
+                "memory_peak_bytes": 122007552,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 1,
@@ -7691,17 +7691,17 @@
                 }
               },
               {
-                "requests_per_sec": 10691.7,
-                "median_requests_per_sec": 10691.7,
-                "p50_ms": 57.7,
-                "p99_ms": 497.069,
+                "requests_per_sec": 11171.8,
+                "median_requests_per_sec": 11171.8,
+                "p50_ms": 59.638,
+                "p99_ms": 428.216,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 40292352,
-                "memory_peak_bytes": 123809792,
+                "memory_idle_bytes": 40943616,
+                "memory_peak_bytes": 123760640,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 1,
@@ -7709,17 +7709,17 @@
                 }
               },
               {
-                "requests_per_sec": 11305.2,
-                "median_requests_per_sec": 11305.2,
-                "p50_ms": 53.667,
-                "p99_ms": 418.491,
+                "requests_per_sec": 11160.6,
+                "median_requests_per_sec": 11160.6,
+                "p50_ms": 57.577,
+                "p99_ms": 392.004,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 40955904,
-                "memory_peak_bytes": 120160256,
+                "memory_idle_bytes": 41111552,
+                "memory_peak_bytes": 122404864,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 1,
@@ -7727,17 +7727,17 @@
                 }
               },
               {
-                "requests_per_sec": 11178.9,
-                "median_requests_per_sec": 11178.9,
-                "p50_ms": 58.809,
-                "p99_ms": 490.029,
+                "requests_per_sec": 11073.6,
+                "median_requests_per_sec": 11073.6,
+                "p50_ms": 55.462,
+                "p99_ms": 470.021,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 40497152,
-                "memory_peak_bytes": 126038016,
+                "memory_idle_bytes": 40071168,
+                "memory_peak_bytes": 120606720,
                 "settings": {
                   "server": "node:http",
                   "cluster_workers": 1,
@@ -7749,17 +7749,17 @@
           "dotnet": {
             "1": [
               {
-                "requests_per_sec": 10483.7,
-                "median_requests_per_sec": 10483.7,
-                "p50_ms": 71.969,
-                "p99_ms": 481.83,
+                "requests_per_sec": 11219,
+                "median_requests_per_sec": 11219,
+                "p50_ms": 69.141,
+                "p99_ms": 384.594,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 19099648,
-                "memory_peak_bytes": 101240832,
+                "memory_idle_bytes": 19898368,
+                "memory_peak_bytes": 96096256,
                 "settings": {
                   "server": "Kestrel, ASP.NET Core minimal API",
                   "build": "framework-dependent Release",
@@ -7768,17 +7768,17 @@
                 }
               },
               {
-                "requests_per_sec": 7783.5,
-                "median_requests_per_sec": 7783.5,
-                "p50_ms": 95.006,
-                "p99_ms": 489.816,
+                "requests_per_sec": 8249,
+                "median_requests_per_sec": 8249,
+                "p50_ms": 94.144,
+                "p99_ms": 438.516,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 19279872,
-                "memory_peak_bytes": 99880960,
+                "memory_idle_bytes": 18591744,
+                "memory_peak_bytes": 99655680,
                 "settings": {
                   "server": "Kestrel, ASP.NET Core minimal API",
                   "build": "framework-dependent Release",
@@ -7787,17 +7787,17 @@
                 }
               },
               {
-                "requests_per_sec": 10186.2,
-                "median_requests_per_sec": 10186.2,
-                "p50_ms": 74.485,
-                "p99_ms": 433.6,
+                "requests_per_sec": 8143.8,
+                "median_requests_per_sec": 8143.8,
+                "p50_ms": 92.62,
+                "p99_ms": 547.123,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 19828736,
-                "memory_peak_bytes": 93618176,
+                "memory_idle_bytes": 19578880,
+                "memory_peak_bytes": 97001472,
                 "settings": {
                   "server": "Kestrel, ASP.NET Core minimal API",
                   "build": "framework-dependent Release",
@@ -7806,17 +7806,17 @@
                 }
               },
               {
-                "requests_per_sec": 8066.7,
-                "median_requests_per_sec": 8066.7,
-                "p50_ms": 88.846,
-                "p99_ms": 546.224,
+                "requests_per_sec": 9262.8,
+                "median_requests_per_sec": 9262.8,
+                "p50_ms": 81.662,
+                "p99_ms": 504.554,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 19644416,
-                "memory_peak_bytes": 97697792,
+                "memory_idle_bytes": 19673088,
+                "memory_peak_bytes": 96763904,
                 "settings": {
                   "server": "Kestrel, ASP.NET Core minimal API",
                   "build": "framework-dependent Release",
@@ -7825,17 +7825,17 @@
                 }
               },
               {
-                "requests_per_sec": 9662.8,
-                "median_requests_per_sec": 9662.8,
-                "p50_ms": 77.171,
-                "p99_ms": 528.502,
+                "requests_per_sec": 9044.3,
+                "median_requests_per_sec": 9044.3,
+                "p50_ms": 85.969,
+                "p99_ms": 455.325,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 19320832,
-                "memory_peak_bytes": 99401728,
+                "memory_idle_bytes": 19005440,
+                "memory_peak_bytes": 96169984,
                 "settings": {
                   "server": "Kestrel, ASP.NET Core minimal API",
                   "build": "framework-dependent Release",
@@ -7848,17 +7848,17 @@
           "python": {
             "1": [
               {
-                "requests_per_sec": 12915.2,
-                "median_requests_per_sec": 12915.2,
-                "p50_ms": 56.078,
-                "p99_ms": 413.392,
+                "requests_per_sec": 12349.2,
+                "median_requests_per_sec": 12349.2,
+                "p50_ms": 56.825,
+                "p99_ms": 450.751,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 27344896,
-                "memory_peak_bytes": 47149056,
+                "memory_idle_bytes": 26734592,
+                "memory_peak_bytes": 46886912,
                 "settings": {
                   "server": "uvicorn",
                   "workers": 1,
@@ -7869,17 +7869,17 @@
                 }
               },
               {
-                "requests_per_sec": 12291,
-                "median_requests_per_sec": 12291,
-                "p50_ms": 57.236,
-                "p99_ms": 387.127,
+                "requests_per_sec": 12714.7,
+                "median_requests_per_sec": 12714.7,
+                "p50_ms": 58.563,
+                "p99_ms": 417.308,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 26791936,
-                "memory_peak_bytes": 46526464,
+                "memory_idle_bytes": 27148288,
+                "memory_peak_bytes": 45744128,
                 "settings": {
                   "server": "uvicorn",
                   "workers": 1,
@@ -7890,17 +7890,17 @@
                 }
               },
               {
-                "requests_per_sec": 12947.6,
-                "median_requests_per_sec": 12947.6,
-                "p50_ms": 56.758,
-                "p99_ms": 413.072,
+                "requests_per_sec": 12336.5,
+                "median_requests_per_sec": 12336.5,
+                "p50_ms": 57.816,
+                "p99_ms": 406.543,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
-                "memory_idle_bytes": 26906624,
-                "memory_peak_bytes": 45936640,
+                "memory_idle_bytes": 27176960,
+                "memory_peak_bytes": 46649344,
                 "settings": {
                   "server": "uvicorn",
                   "workers": 1,
@@ -7911,38 +7911,38 @@
                 }
               },
               {
-                "requests_per_sec": 13192.7,
-                "median_requests_per_sec": 13192.7,
-                "p50_ms": 54.847,
-                "p99_ms": 427.909,
-                "errors": 0,
-                "error_kinds": {},
-                "status_codes": {
-                  "200": 20000
-                },
-                "memory_idle_bytes": 26984448,
-                "memory_peak_bytes": 46178304,
-                "settings": {
-                  "server": "uvicorn",
-                  "workers": 1,
-                  "loop": "uvloop",
-                  "http": "httptools",
-                  "access_log": false,
-                  "timeout_keep_alive": 65
-                }
-              },
-              {
-                "requests_per_sec": 12092.9,
-                "median_requests_per_sec": 12092.9,
-                "p50_ms": 58.945,
-                "p99_ms": 430.374,
+                "requests_per_sec": 12117.6,
+                "median_requests_per_sec": 12117.6,
+                "p50_ms": 59.455,
+                "p99_ms": 413.453,
                 "errors": 0,
                 "error_kinds": {},
                 "status_codes": {
                   "200": 20000
                 },
                 "memory_idle_bytes": 26546176,
-                "memory_peak_bytes": 46604288,
+                "memory_peak_bytes": 46338048,
+                "settings": {
+                  "server": "uvicorn",
+                  "workers": 1,
+                  "loop": "uvloop",
+                  "http": "httptools",
+                  "access_log": false,
+                  "timeout_keep_alive": 65
+                }
+              },
+              {
+                "requests_per_sec": 12181.5,
+                "median_requests_per_sec": 12181.5,
+                "p50_ms": 54.253,
+                "p99_ms": 453.317,
+                "errors": 0,
+                "error_kinds": {},
+                "status_codes": {
+                  "200": 20000
+                },
+                "memory_idle_bytes": 27164672,
+                "memory_peak_bytes": 46989312,
                 "settings": {
                   "server": "uvicorn",
                   "workers": 1,
@@ -7960,20 +7960,19 @@
         "folder": "benches/compare/scenarios/parallel",
         "peers": {
           "nvs": {
-            "result": "one-setting",
-            "setting": "[capabilities.script] spawn",
+            "result": "built-in",
             "evidence": {
-              "seconds_1_part": 0.652,
-              "seconds_4_parts": 0.685,
-              "speedup": 3.81,
+              "seconds_1_part": 0.667,
+              "seconds_4_parts": 0.753,
+              "speedup": 3.54,
               "way": "spawn script … on: \"worker\""
             }
           },
           "php": {
             "result": "no",
             "evidence": {
-              "seconds_1_part": 0.568,
-              "seconds_4_parts": 2.264,
+              "seconds_1_part": 0.572,
+              "seconds_4_parts": 2.286,
               "speedup": 1,
               "way": null
             }
@@ -7981,124 +7980,124 @@
           "bun": {
             "result": "built-in",
             "evidence": {
-              "seconds_1_part": 0.701,
-              "seconds_4_parts": 0.717,
-              "speedup": 3.91,
+              "seconds_1_part": 0.705,
+              "seconds_4_parts": 0.719,
+              "speedup": 3.92,
               "way": "Worker"
             }
           },
           "go": {
             "result": "built-in",
             "evidence": {
-              "seconds_1_part": 0.564,
-              "seconds_4_parts": 0.577,
-              "speedup": 3.91,
+              "seconds_1_part": 0.572,
+              "seconds_4_parts": 0.586,
+              "speedup": 3.9,
               "way": "goroutines"
             }
           },
           "node": {
             "result": "built-in",
             "evidence": {
-              "seconds_1_part": 0.649,
-              "seconds_4_parts": 0.667,
-              "speedup": 3.89,
+              "seconds_1_part": 0.655,
+              "seconds_4_parts": 0.68,
+              "speedup": 3.85,
               "way": "worker_threads"
             }
           },
           "dotnet": {
             "result": "built-in",
             "evidence": {
-              "seconds_1_part": 0.567,
-              "seconds_4_parts": 0.58,
-              "speedup": 3.91,
+              "seconds_1_part": 0.574,
+              "seconds_4_parts": 0.588,
+              "speedup": 3.9,
               "way": "Task.Run"
             }
           },
           "python": {
             "result": "built-in",
             "evidence": {
-              "seconds_1_part": 9.761,
-              "seconds_4_parts": 11.406,
-              "speedup": 3.42,
+              "seconds_1_part": 9.787,
+              "seconds_4_parts": 10.879,
+              "speedup": 3.6,
               "way": "ProcessPoolExecutor"
             }
           }
         },
         "measured": {
           "nvs": {
-            "date": "2026-11-21T03:13:42",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T10:03:23",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:bfae99f79cc3f9bf8aa6dd988649127c3e6ea1eccea8e3fa8d89aa6d6575bd9d",
+              "image": "sha256:17cdf60fa5202f8e56994300b5907ec345a56cf770ed5d271e7beab53781f869",
               "programs": "cb7ca89dfdfe3cad",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "php": {
-            "date": "2026-11-21T03:13:42",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T10:03:23",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:390bf03586f01031d2acce8711d9132023106da8bf07eaedf7edb64513755143",
               "programs": "cb7ca89dfdfe3cad",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "bun": {
-            "date": "2026-11-21T03:13:42",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T10:03:23",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:1846adf22496bd711036aae8be147e57bdebbaea2e5264e3e0b5af1db187d9a4",
               "programs": "cb7ca89dfdfe3cad",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "go": {
-            "date": "2026-11-21T03:13:42",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T10:03:23",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:d0820830b98184310942c86f25015dbd1b0e02ac1d8fc969fc792064ad721b51",
+              "image": "sha256:0911f41149e0a7f797a4e70fd432e81c58fe9a91c1f37f1fa0704b1ae717e08f",
               "programs": "cb7ca89dfdfe3cad",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "node": {
-            "date": "2026-11-21T03:13:42",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T10:03:23",
+            "commit": "fbb2a7a669",
             "key": {
               "image": "sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc",
               "programs": "cb7ca89dfdfe3cad",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "dotnet": {
-            "date": "2026-11-21T03:13:42",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T10:03:23",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:38739ba27003a7a4a00acce0242c685d0fb272c06fa06822563addabe1076b32",
+              "image": "sha256:50939071e8c1939b36378812ba683ae80e09a65f82c7b5e6631ddeea52d13f92",
               "programs": "cb7ca89dfdfe3cad",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           },
           "python": {
-            "date": "2026-11-21T03:13:42",
-            "commit": "d676c2f8fb",
+            "date": "2026-11-21T10:03:23",
+            "commit": "fbb2a7a669",
             "key": {
-              "image": "sha256:653c987fe3b82e6b0355b7e0187695c270a13c5841ccc38d98543b89a1b584c2",
+              "image": "sha256:518602ed3d0d2757c1a2a52f26d11f0b178388b95c73dfbb91d6847b9726408f",
               "programs": "cb7ca89dfdfe3cad",
-              "tool": "5eb313b5ebde9cc1",
+              "tool": "95ab57913e0c7c52",
               "host": "733474a8d3befeec"
             }
           }
         },
         "seconds": {
-          "up": 26.7,
-          "probe": 94.8,
+          "up": 26.1,
+          "probe": 93.2,
           "down": 15.3
         }
       }
