@@ -347,36 +347,24 @@ Stages 1 to 7 are done, and so is stage 8's verify. `benches/compare.json` is th
 `DEFAULT_REPS` stays 5 (README § *Five reps, because three did not give the same figures*), and a
 routine seven-peer recording plans 179 stacks against the four-peer baseline of 247.
 
-`looper verify` is green over everything since the last full gate, after the fix pass `ea956ecb3a`.
-The nightly failures are fixed by `e5a100b18f` and `438e9c44af`, and reach CI with this gate's push.
-`owners --closes` names no gap, and every standing decision is in `benches/compare/README.md`.
-`bun nv verify --doc` is green. `bun nv ci --check` is red in two checks, and the full gate is not
-passed until both are green:
+Every stage is done, and the goal is reached. `looper verify` is green over everything since the last
+full gate. `bun nv verify --doc`, `bun nv ci --check`, `bun nv site --check stale` and the `the record`
+tests are green on HEAD.
 
-- **feature proofs:** 63 features owe a perf proof that is stale, because `request.rs`,
-  `docs/reference/lang/20-types.md` and `docs/reference/lang/90-attributes.md` changed since they were
-  measured (the `Core\Request` members, `lang:types/*`, `lang:attributes/*`).
-- **website stale guard:** 17 pages' questions are stale: `Core\Attributes::get` and `all`,
-  `Core\Html::later`, `Core\Program::implementingWith`, the five `Core\Reflect\AttributeInfo` members,
-  `Core\Reflect\ClassInfo::attributes` and `parent`, `Core\Router\Match::attribute`,
-  `/reference/cli/nvs-test/`, `/reference/cli/nvs-test-mutate/`,
-  `/syntax/attributes/writing-and-reading/`, `/syntax/classes/property-names/` and
-  `/tools/test-runner/`.
+The feature rows were recorded again after `10463e08d1` changed the tool digest. The only result that
+moved is Novis in `parallel`, now built-in, which matches `compare.mdx` § *One request in four parts*.
+`website/src/data/compare.json` is rendered from the new record.
+
+The nightly run `44722386375` tested `5d053fc6e6`, before its two fixes. Both failing units pass on
+HEAD: `xml::tests::source_stops_at_the_memory_limit_before_it_escapes` (fixed by `e5a100b18f`) and
+`tests/conformance/iter/an-object-map-passes-where-a-keyed-iterable-is-declared.nvst` (fixed by
+`438e9c44af`). They reach CI with this gate's push.
 
 ### Next
 
-Close stage 8's last item, then `DONE`:
-
-1. `bun nv proofs --gate --limit 0 --nvs target/debug/nvs.exe` lists the stale perf proofs. Measure
-   them again with `bun nv proofs --record-perf` over those ids (see `bun nv proofs --help`). This is
-   long, so run it in the background.
-2. For each of the 17 pages: reread it, rewrite its questions in `website/src/data/questions.json`,
-   and stamp it with `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <path>`. They are a batch of
-   similar pages, so they go to writing subagents.
-3. `bun nv ci --check` green, then write `DONE`. No test is expected to go red.
+Nothing. The driver retires the goal, and `reload-now` is next on the chain. No test is expected to
+go red.
 
 ### Backlog
 
-- The `parallel` row records Novis as **One setting** (`[capabilities.script] spawn`,
-  `tools/nv/cmd/bench-compare.ts:1366`), while `compare.mdx` § *One request in four parts* says Novis
-  needs no setting for a script in its own app folder. The row's script or the sentence is wrong.
+Empty.
