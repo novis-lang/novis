@@ -8,7 +8,7 @@ if ((Core\Cli::arguments()[0] ?? '') == 'shout') {
     echo Core\Str::upper(Core\IO::stdin());
 } else {
     // `stdin` is the input of the program.
-    var $run = Test::run(['shout'], {stdin: "milk\nbread\n"});
+    var $run = Test::run(['shout'], { stdin: "milk\nbread\n" });
 
     // This prints `MILK` and `BREAD`, each on its own line.
     echo $run->stdout();

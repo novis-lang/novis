@@ -15222,7 +15222,7 @@
   },
   "/reference/core/test-runresult/stdout/": {
     "feature": "Core\\Test\\RunResult::stdout",
-    "hash": "89fe69af045c6af7",
+    "hash": "a9a30cfb7fa8e599",
     "questions": [
       "How do I read what a command printed in a test?",
       "Check the output of my CLI in a test",

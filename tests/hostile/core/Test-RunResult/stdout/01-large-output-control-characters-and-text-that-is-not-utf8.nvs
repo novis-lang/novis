@@ -7,15 +7,15 @@ use Core\Test;
 var $word = Core\Cli::arguments()[0] ?? '';
 if ($word == 'large') {
     echo Core\Str::repeat('a', 4000000);
-} else if ($word == 'control') {
+} elseif ($word == 'control') {
     // The escape character, a screen clear, a NUL character and a carriage return.
     echo Core\Encoding::fromHex('1b5b324a000d') as string, "end\n";
-} else if ($word == 'not-utf8') {
+} elseif ($word == 'not-utf8') {
     echo 'start ';
     echo Core\Encoding::fromHex('ff') as string;
-} else if ($word == 'small') {
+} elseif ($word == 'small') {
     echo "ok\n";
-} else if ($word == '') {
+} elseif ($word == '') {
     // 1. Four million characters of output. The string has all of them.
     echo 'large: ', Core\Str::length(Test::run(['large'])->stdout()), "\n";
 

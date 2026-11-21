@@ -2967,7 +2967,7 @@
     "Core\\Test\\RunResult::stderr": "a2ad6e63af9a14d0"
   },
   "docs/examples/core/Test-RunResult/stdout/about.md": {
-    "Core\\Test\\RunResult::stdout": "85c36b13fa430397"
+    "Core\\Test\\RunResult::stdout": "566e424da80b7948"
   },
   "docs/examples/core/Test-SentMail/bcc/about.md": {
     "Core\\Test\\SentMail::bcc": "30bc01ac102ef27a"
@@ -7878,7 +7878,7 @@
     "Core\\Test\\RunResult::stderr": "af466fcdc68dd72f"
   },
   "help:Core\\Test\\RunResult::stdout": {
-    "Core\\Test\\RunResult::stdout": "23f2cdf41e1b932b"
+    "Core\\Test\\RunResult::stdout": "ee77931752413643"
   },
   "help:Core\\Test\\SentMail::bcc": {
     "Core\\Test\\SentMail::bcc": "c23964b0b9ea107c"

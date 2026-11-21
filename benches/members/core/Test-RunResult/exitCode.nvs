@@ -27,9 +27,9 @@ class Bench
 var $word = Core\Cli::arguments()[0] ?? '';
 if ($word == 'one') {
     exit(1);
-} else if ($word == 'four') {
+} elseif ($word == 'four') {
     exit(4);
-} else if ($word == 'seven') {
+} elseif ($word == 'seven') {
     exit(7);
 } else {
     echo Bench::run(400000), "\n";

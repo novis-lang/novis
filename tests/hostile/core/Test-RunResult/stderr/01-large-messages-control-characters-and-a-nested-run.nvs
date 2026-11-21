@@ -7,17 +7,17 @@ use Core\Test;
 var $word = Core\Cli::arguments()[0] ?? '';
 if ($word == 'large') {
     Core\Cli::write(Core\Str::repeat('e', 1000000), { stream: Core\Cli::Stream::Err });
-} else if ($word == 'long-error') {
+} elseif ($word == 'long-error') {
     throw new RuntimeError(Core\Str::repeat('x', 100000));
-} else if ($word == 'control') {
+} elseif ($word == 'control') {
     // The escape character and a code that turns the text red.
     Core\Cli::write(Core\Encoding::fromHex('1b5b33316d') as string, { stream: Core\Cli::Stream::Err });
     Core\Cli::write('red', { stream: Core\Cli::Stream::Err });
-} else if ($word == 'nested') {
+} elseif ($word == 'nested') {
     Test::run(['large']);
-} else if ($word == 'small') {
+} elseif ($word == 'small') {
     Core\Cli::write('note', { stream: Core\Cli::Stream::Err });
-} else if ($word == '') {
+} elseif ($word == '') {
     // 1. One million characters on standard error. The string has all of them.
     echo 'large: ', Core\Str::length(Test::run(['large'])->stderr()), "\n";
 

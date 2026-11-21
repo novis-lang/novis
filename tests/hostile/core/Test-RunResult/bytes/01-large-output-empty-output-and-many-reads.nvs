@@ -7,15 +7,15 @@ use Core\Test;
 var $word = Core\Cli::arguments()[0] ?? '';
 if ($word == 'large') {
     echo Core\Str::repeat('ä', 2000000);
-} else if ($word == 'control') {
+} elseif ($word == 'control') {
     // A NUL character and the escape character.
     echo Core\Encoding::fromHex('001b') as string;
-} else if ($word == 'not-utf8') {
+} elseif ($word == 'not-utf8') {
     echo 'start ';
     echo Core\Encoding::fromHex('c3') as string;
-} else if ($word == 'small') {
+} elseif ($word == 'small') {
     echo "ok\n";
-} else if ($word == '') {
+} elseif ($word == '') {
     // 1. Two million characters of 2 bytes each. The result has four million bytes.
     echo 'large: ', Core\Bytes::length(Test::run(['large'])->bytes()), "\n";
 
