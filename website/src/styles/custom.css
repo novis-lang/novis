@@ -607,6 +607,47 @@ starlight-tabs [role='tab']:active {
   font-weight: 700;
   letter-spacing: -0.01em;
 }
+/* A tip is the site's highlight box: a rainbow border drawn in the six
+   diagram tones, the card surface as its ground, and a blue title. The
+   border is a masked pseudo-element, as on a hovered card, and the box's own
+   border stays transparent under it, so forced colors draws a plain one. */
+.starlight-aside--tip {
+  --sl-color-asides-text-accent: var(--nv-info);
+  position: relative;
+  border: 2px solid transparent;
+  background-color: var(--nv-surface);
+  background-clip: padding-box;
+}
+.starlight-aside--tip::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  padding: 2px;
+  background: linear-gradient(
+    110deg,
+    var(--nv-tone-crimson),
+    var(--nv-tone-orange),
+    var(--nv-tone-gold),
+    var(--nv-tone-green),
+    var(--nv-tone-blue),
+    var(--nv-tone-violet)
+  );
+  -webkit-mask:
+    linear-gradient(black 0 0) content-box,
+    linear-gradient(black 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(black 0 0) content-box exclude,
+    linear-gradient(black 0 0);
+  pointer-events: none;
+}
+@media (forced-colors: active) {
+  .starlight-aside--tip::before {
+    display: none;
+  }
+}
+
 /* A link in an aside takes the aside's own accent: orange on the aside's
    tint falls under 4.5:1 in the light theme. */
 .sl-markdown-content .starlight-aside__content a,
