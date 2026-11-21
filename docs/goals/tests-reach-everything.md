@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-runtime/src/peer.rs, crates/nvs-host/src/timer.rs, crates/nvs-host/src/scheduler.rs, crates/nvs-stdlib/src/time.rs]
   - id: 6
     title: Core\Test::run runs a command program and returns its exit code and output
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/command.rs, crates/nvs-stdlib/src/cli.rs, crates/nvs-stdlib/src/io.rs, crates/nvs-cli/src/main.rs]
   - id: 7
     title: "#[Test(env:)], Core\\Test::logs and Core\\Test::sentMail"
@@ -399,22 +399,26 @@ outcome type exists; the session writes the run path.
   code.
 - [x] `crates/nvs-stdlib/src/io.rs:1342`: stdin reads the run's input in a child of `Core\Test::run`,
   and end of input everywhere else in a test.
-- [ ] `crates/nvs-cli/tests/test_reach.rs`: the seven `run` tests.
+- [x] `crates/nvs-cli/tests/test_reach.rs`: the seven `run` tests.
   - [x] the fixtures `crates/nvs-cli/tests/fixtures/reach/run.nvs` and `run_folder/checks.nvs`
-  - [ ] `run.nvs` compiles: its last lines pass a `uint` to `exit`
-  - [ ] the seven Rust tests, each run once by name
+  - [x] `run.nvs` compiles: its last lines pass a `uint` to `exit`
+  - [x] the seven Rust tests, each run once by name
 
 ### 7. #[Test(env:)], Core\Test::logs and Core\Test::sentMail
 
-- [ ] `crates/nvs-cli/src/runner.rs:4659`: `env:` read with the other options, checked as
+- [x] `crates/nvs-cli/src/runner.rs:4659`: `env:` read with the other options, checked as
   `array<string>`, and carried to the test's isolate and every child.
-- [ ] `crates/nvs-runtime/src/capability.rs:1826`: `env_var` and `env_vars` read the test's
+- [x] `crates/nvs-runtime/src/capability.rs:1826`: `env_var` and `env_vars` read the test's
   variables first.
 - [ ] `crates/nvs-stdlib/src/log.rs:229`: a record is kept for `Core\Test::logs` in a test and its
   children, and `Core\Test\LogRecord` with its three members.
 - [ ] `crates/nvs-stdlib/src/mail.rs:1173`: under `nvs test`, `send` keeps the message and opens no
   connection, and `Core\Test::sentMail` with `Core\Test\SentMail`.
 - [ ] `crates/nvs-cli/tests/test_reach.rs`: the six `records` tests.
+  - [x] the two `env` tests, in `crates/nvs-cli/tests/fixtures/reach/records.nvs`
+  - [ ] the two `logs` tests
+  - [ ] the two `mail` tests
+  - [ ] `a-test-reads-its-logs-and-mail` set to `shipped`, and the `records` check run by name
 
 ### 8. the feature proofs and the help of every new member and option
 
@@ -456,33 +460,35 @@ outcome type exists; the session writes the run path.
 
 ### State
 
-Stage 6's code is written and builds, with clippy clean. The seam is `nvs_runtime::inproc::run`
-and `Answering::run`, returning `inproc::Ran` (exit code, stdout, stderr), with two new
-`AnswerError`s, `InsideRun` and `NoEntry`. `UnderTest::run` (`crates/nvs-cli/src/runner.rs`, after
-`answer`) builds the child: the command table, the program name (the entry's stem), the command
-line, `Ctx::set_run_input` and a diagnostic buffer for stderr. `ended` turns `exit(n)` into `n & 0xFF`
-and an uncaught throw into `1`, writing its plain record on stderr. `Checked::directory` marks a
-folder's generated entry, which has no `nvs run` entry, so `run` there is a `LogicError`. Stdin reads
-`Ctx::run_input_mut` in `crates/nvs-stdlib/src/io.rs`. `Core\Test\RunResult` and the member's card
-are `crates/nvs-stdlib/src/test/run.rs`, registered in `classes.rs` and `lib.rs`.
+Stage 6 is done: the `run` check is green, and `a-test-runs-a-command` is `shipped`. Its fixture's
+entry gives `exit` its status as `$status as int`.
 
-`run_folder/checks.nvs` passes under `nvs test run_folder`. `run.nvs` does not compile yet: `int
-$status = Core\Command::run();` is `E0401`, since `run` returns `uint` and `exit` takes `int`. No
-test in `test_reach.rs` names it yet.
+Stage 7's `env:` is built and committed. `#[Test(env: ['NAME' => 'value'])]` is a row of
+`nvs_types::testing::OPTIONS`, and `check_option_values` refuses a key that is not a variable name
+with `E0880` (a list without keys included). `Ctx::test_env` is an `Rc<[(String, String)]>`,
+shared by `Ctx::child`, armed in the test's isolate by `env_of` in `crates/nvs-cli/src/runner.rs`,
+and handed to each `answer` and `run` child, which run on the test's thread. `capability::env_var`
+and `env_vars` read it first. The two `env` tests in `test_reach.rs` pass by name, over
+`fixtures/reach/records.nvs`. `derive.rs` documents the field for the `#[Test]` help.
 
 Stages 1 to 5 are done. At the gate, a test whose `Core\Task::all` child relied on the real clock,
-or that timed a sleep under `at:`, may go red. Nightly 44894790665's Miri timeout predates
-`156f11a7ca`. If the next nightly still times out, shorten the list under `cfg!(miri)`.
+or that timed a sleep under `at:`, may go red, and so may a test that lists `#[Test]`'s options or
+fields, since `env` is now one. Nightly 44894790665's Miri timeout predates `156f11a7ca`, which
+fixed it.
 
 ### Next
 
-Stage 6's last item. Make the end of `crates/nvs-cli/tests/fixtures/reach/run.nvs` compile: give
-`exit` an `int` from `Core\Command::run()`'s `uint`, the way the language converts one. Then run
-`target/debug/nvs.exe --no-init test run.nvs` from that folder and fix what fails. Then add the
-seven `run` tests to `crates/nvs-cli/tests/test_reach.rs`, after the clock tests, each with
-`// covers: Core\Test::run`. Six map to `Runs::` methods in `run.nvs`. The seventh,
-`test_run_without_a_command_entry_is_a_logic_error`, runs `nvs test run_folder --filter
-runIsALogicError`. Run the `run` check by name, set `a-test-runs-a-command` to `shipped` with its
-`guardedBy`, and mark stage 6 done. Then stage 7. The `records` check stays red until stage 7.
+Stage 7's logs and mail, in `records.nvs` and `test_reach.rs`. The records ride beside `env` on
+the same shared state: the test, its requests and its runs all run on the test's thread, so one
+`Rc<RefCell<..>>` on `Ctx`, cloned the way `test_env` is (`ctx/isolate.rs` `child`, the two
+children in `runner.rs`), holds both lists. A record's `fields` cannot carry a request's values
+into the test's isolate. Keep each field as the text `[log]` writes for it, and build the
+`array<mixed>` from that text when `Core\Test::logs` is called. `crates/nvs-stdlib/src/log.rs:229`
+is where a record is written. `crates/nvs-stdlib/src/mail.rs:1173` is `send`: under a test context
+(`Ctx::owned_by_test`, or the shared state being present), keep the message and open no
+connection. Add `Core\Test\LogRecord` and `Core\Test\SentMail` beside `test/run.rs`, registered
+as `RunResult` is. Then the four tests the `records` check names, set
+`a-test-reads-its-logs-and-mail` to `shipped` with `bun nv rules --render`, run the check by name,
+and mark stage 7 done.
 
 ### Backlog
