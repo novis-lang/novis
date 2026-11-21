@@ -18,7 +18,9 @@
 //! is told a reload is happening and then that it is over
 //! ([`crate::service::State`]), for the same reason: one function, so one pair
 //! of transitions for every reload. That pair reports a reload and never
-//! starts one; nothing outside this process starts one either. One lock covers
+//! starts one. The one start from outside this process is `nvs reload`,
+//! through [`crate::reload_endpoint`] and [`Process::reload_now`], which
+//! skips the timed check's wait for a stamp to hold. One lock covers
 //! the whole of it, so two reloads never interleave two snapshots.
 //!
 //! **The server checks its own configuration files** —
@@ -184,6 +186,36 @@ pub(crate) struct Process {
     /// entries the ticker runs (`rule:config/an-entry-runs-on-a-server-event`).
     /// `None` where no ticker reads it.
     events: Option<Arc<nvs_server::Events>>,
+}
+
+/// What [`Process::reload_now`] did to the configuration, for the reply of
+/// `nvs reload`.
+#[derive(Debug)]
+pub(crate) enum Configured {
+    /// The files hold the tree that is serving.
+    Unchanged,
+    /// A new tree is serving. `restart` names each key it changed that waits
+    /// for a restart.
+    Applied { restart: Vec<String> },
+    /// The files do not resolve, or the tree was refused, and the running tree
+    /// still serves. `at` is where the refusal points, where it points into a
+    /// file, and `message` its one line.
+    Refused {
+        message: String,
+        at: Option<crate::Located>,
+    },
+}
+
+thread_local! {
+    /// Where the last refusal [`rendered`] on this thread points, for the
+    /// reply of [`Process::reload_now`], which renders on its own thread.
+    static REFUSED_AT: std::cell::RefCell<Option<crate::Located>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// What [`rendered`] last kept on this thread, and nothing after it.
+fn take_refused_at() -> Option<crate::Located> {
+    REFUSED_AT.with(|slot| slot.borrow_mut().take())
 }
 
 /// What a reload does to the on-disk artifact cache, decided before the publish.
@@ -532,29 +564,81 @@ impl Process {
         if self.draining.is_draining() {
             return;
         }
-        let outcome = match self.resolved() {
-            // Every restart key the files hold is the running value again,
-            // so nothing is pending any more.
+        if let Some(outcome) = self.reread() {
+            self.reported(&outcome, changed);
+        }
+    }
+
+    /// `nvs reload`'s configuration check
+    /// (`rule:config/a-reload-command-checks-now-and-waits`): the files are
+    /// read at once, without the timed check's wait for a stamp to hold,
+    /// because the caller says its writes are done. It publishes or refuses
+    /// as [`Process::noticed`] does, and logs the same way.
+    ///
+    /// It waits for a timed check that is running, because both hold the one
+    /// reload lock, and then reads the files again. `None` is a process that
+    /// is draining, which reloads nothing.
+    pub(crate) fn reload_now(&self) -> Option<Configured> {
+        let _one = lock(&self.reloading);
+        if self.draining.is_draining() {
+            return None;
+        }
+        drop(take_refused_at());
+        let Some(outcome) = self.reread() else {
+            return Some(Configured::Unchanged);
+        };
+        let at = take_refused_at();
+        let configured = match &outcome {
+            Ok(report) => Configured::Applied {
+                restart: report.ignored.iter().map(|key| (*key).to_owned()).collect(),
+            },
+            Err(refusal) => Configured::Refused {
+                message: at
+                    .as_ref()
+                    .map_or_else(|| refusal.clone(), |at| at.message.clone()),
+                at,
+            },
+        };
+        self.reported(&outcome, &[]);
+        Some(configured)
+    }
+
+    /// The fleet's unit cache, which a reload checks after the configuration.
+    pub(crate) fn compiler(&self) -> &Arc<Compiler> {
+        &self.compiler
+    }
+
+    /// Resolves the tree from the files and publishes it, under the reload
+    /// lock the caller holds. `None` is a tree equal to the one serving, which
+    /// publishes nothing and clears the pending restart keys: every one of
+    /// them is back at its running value.
+    fn reread(&self) -> Option<Result<Report, String>> {
+        match self.resolved() {
             Ok(tree) if same_tree(&tree.next, &self.current.load()) => {
                 lock(&self.pending).clear();
-                return;
+                None
             }
             Ok(tree) => {
                 self.notify.state(State::Reloading);
                 let outcome = self.published(tree);
                 self.notify.state(State::Ready);
-                outcome
+                Some(outcome)
             }
-            Err(refusal) => Err(refusal),
-        };
-        if let Err(refusal) = &outcome {
+            Err(refusal) => Some(Err(refusal)),
+        }
+    }
+
+    /// Logs `outcome`, except a refusal that is the same rendered diagnostic
+    /// as the one logged last, which is a file saved again with the same fault.
+    fn reported(&self, outcome: &Result<Report, String>, changed: &[PathBuf]) {
+        if let Err(refusal) = outcome {
             let mut last = lock(&self.refused);
             if last.as_deref() == Some(refusal.as_str()) {
                 return;
             }
             *last = Some(refusal.clone());
         }
-        self.logged(&outcome, changed);
+        self.logged(outcome, changed);
     }
 
     /// Every path the serving tree was read from or probed, and each root as
@@ -911,6 +995,7 @@ fn names<'a>(keys: impl Iterator<Item = &'a str>) -> Node {
 /// the one who just edited that line. Colour is off: the text is a field in a
 /// log record, not a write to a terminal.
 fn rendered(refusal: &Diagnostic, sources: &SourceMap) -> String {
+    REFUSED_AT.with(|slot| *slot.borrow_mut() = Some(crate::locate(refusal, sources)));
     let mut out = Vec::new();
     drop(
         Renderer::new()

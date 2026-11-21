@@ -1198,7 +1198,7 @@ fn front_end_looking(
         extensions,
         backtracking,
         false,
-        Sink::Text,
+        Sink::Serve,
         config::Init::Never,
         Some(looked),
         None,
@@ -3763,6 +3763,9 @@ fn directory_entry(dir: &std::path::Path, files: &[PathBuf]) -> String {
 enum Sink {
     /// The terminal rendering, on standard error. Every command's default.
     Text,
+    /// The serving compile's: the terminal rendering on standard error, as [`Sink::Text`], and
+    /// the first error kept for [`take_first_error`], which a reload's reply names.
+    Serve,
     /// `nvs check`'s: the terminal rendering, or with `json` the document on
     /// standard output, and what `--deny` reads kept in [`check::keep`].
     /// `list_todos` prints every todo; `read_todos` reads them for `--deny
@@ -3788,6 +3791,10 @@ enum Sink {
 fn emit_diagnostics(diags: &mut Diagnostics, map: &SourceMap, sink: Sink) {
     match sink {
         Sink::Text => render_diagnostics(diags, map),
+        Sink::Serve => {
+            keep_first_error(diags, map);
+            render_diagnostics(diags, map);
+        }
         Sink::Check {
             json,
             list_todos,
@@ -3823,6 +3830,61 @@ fn emit_diagnostics(diags: &mut Diagnostics, map: &SourceMap, sink: Sink) {
         }
         Sink::Hook => agent::keep_errors(diags, map),
     }
+}
+
+/// One error of a program or a configuration file: the file it is in, its line from 1, and its
+/// one-line message. `file` is empty and `line` is `0` where the error has no place in a file.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct Located {
+    pub(crate) file: String,
+    pub(crate) line: usize,
+    pub(crate) message: String,
+}
+
+/// Where `diagnostic` points in `map`, with its message.
+pub(crate) fn locate(diagnostic: &nvs_diagnostics::Diagnostic, map: &SourceMap) -> Located {
+    let at = diagnostic
+        .primary_span()
+        .and_then(|span| Some((map.get(span.file)?, span)));
+    Located {
+        file: at.map_or_else(String::new, |(file, _)| file.name().to_owned()),
+        line: at.map_or(0, |(file, span)| file.line_col(span.start).0 + 1),
+        message: diagnostic.message.clone(),
+    }
+}
+
+thread_local! {
+    /// The first error [`Sink::Serve`] rendered on this thread since [`take_first_error`] last
+    /// ran. A compile runs its front end on the thread that asked for it, so the caller takes
+    /// it right after.
+    static FIRST_ERROR: std::cell::RefCell<Option<Located>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+/// Keeps the first error in `diags`, by position, unless an earlier render on this thread kept
+/// one already.
+fn keep_first_error(diags: &mut Diagnostics, map: &SourceMap) {
+    diags.sort_by_position();
+    let first = diags
+        .iter()
+        .find(|diagnostic| {
+            matches!(
+                diagnostic.severity,
+                nvs_diagnostics::Severity::Error | nvs_diagnostics::Severity::Bug
+            )
+        })
+        .map(|diagnostic| locate(diagnostic, map));
+    FIRST_ERROR.with(|slot| {
+        let mut slot = slot.borrow_mut();
+        if slot.is_none() {
+            *slot = first;
+        }
+    });
+}
+
+/// The first error [`Sink::Serve`] kept on this thread, and nothing kept after it.
+pub(crate) fn take_first_error() -> Option<Located> {
+    FIRST_ERROR.with(|slot| slot.borrow_mut().take())
 }
 
 /// Hands `map` every `secret` literal of the program, so no diagnostic's

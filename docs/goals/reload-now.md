@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-config/src/data.rs, crates/nvs-config/src/trust.rs, crates/nvs-host/src/net.rs, crates/nvs-cli/src/serve.rs]
   - id: 3
     title: a reload through the endpoint checks now, skips settle, waits for its compiles and replies
-    status: open
+    status: done
   - id: 4
     title: the nvs reload command
     status: open
@@ -235,6 +235,22 @@ No second socket folder exists to keep private and track. The Windows pipe name'
 from `ring::rand::SystemRandom`, already in the binary. The accepted Unix stream has a 5 s read and
 write timeout; the Windows stream has none yet.
 
+**The reply, as stage 3 built it.** One JSON line:
+`{"config":"applied|refused|unchanged","restart":[...],"programs":N,"failed":N,"refusals":[...]}`.
+Each refusal is `{"kind":"configuration|program","entry":<entry file or null>,"file","line","message"}`,
+with the first error's file, line from 1 and one-line message; `line` is `null` and `file` is the
+entry where the error has no place in a file (a backend error, a panic). `failed` counts every
+loaded program that does not compile now, not only those this check compiled: a reload reports
+every program that does not match the disk, so `nvs reload` exits `1` while one stays broken. A
+program whose tree still moves after three compiles is reported failed with "changed while it was
+compiled". A draining server closes the connection without a reply, which the command reports as
+stopped. The first error reaches the table through `Sink::Serve` (`crate::take_first_error`), a
+thread-local the compiling thread reads right after its front end, and the configuration's through
+`reload::rendered`'s `REFUSED_AT`: both keep the shapes every other caller uses (`Answer` and
+`Result<Report, String>`) unchanged. A timer pass runs beside a reload: the configuration half
+shares the one reload lock, and a program both compile is single-flighted, so `Rounds` orders only
+reloads among themselves.
+
 **Lanes.** Stage 1 touches only rules. Stage 2 (`nvs-config`, `nvs-host`, `serve.rs`) and stage 5
 (`schedule.rs`, `run_args`) are disjoint, but stage 5's tests drive `nvs reload`, so the stages run in
 order. One goal, no side lanes.
@@ -280,16 +296,24 @@ the Unix socket and peer check to another; the session wires `serve.rs` and buil
 
 ### 3. a reload through the endpoint checks now, skips settle, waits for its compiles and replies
 
-- [ ] `crates/nvs-cli/src/reload.rs:530`: a check-now path into `noticed` without the extra quiet
+- [x] `crates/nvs-cli/src/reload.rs:530`: a check-now path into `noticed` without the extra quiet
   check, returning the outcome.
-- [ ] `crates/nvs-cli/src/script.rs:934`: a `revalidate_now` that skips `unsettled`'s wait
+  - [x] `reread` and `reported` shared by `noticed` and `reload_now`.
+  - [x] `Configured`, with the refusal's place kept by `rendered` (`REFUSED_AT`).
+- [x] `crates/nvs-cli/src/script.rs:934`: a `revalidate_now` that skips `unsettled`'s wait
   (`crates/nvs-cli/src/script.rs:1123`), compiles through the same single-flight path, and returns
   each swap (`advance`, `crates/nvs-cli/src/script.rs:1382`) and failure (`fail`,
   `crates/nvs-cli/src/script.rs:1353`).
-- [ ] `crates/nvs-cli/src/serve.rs`: the endpoint's accept loop reads the line, runs one shared
+  - [x] `CompileState::Failed` keeps the first error (`Failure`), through `Sink::Serve`.
+  - [x] `revalidate_now` and `Rechecked`, with up to three tries for a tree that moves.
+- [x] `crates/nvs-cli/src/serve.rs`: the endpoint's accept loop reads the line, runs one shared
   check, and writes the reply.
-- [ ] `crates/nvs-cli/tests/reload_command.rs`: the five `check-now` tests, each with
+  - [x] One thread per connection, at most 16, and the strict line read.
+  - [x] `Rounds`: a reload is answered by a check that began after it, and waiters share one.
+  - [x] The JSON reply, and three unit tests.
+- [x] `crates/nvs-cli/tests/reload_command.rs`: the five `check-now` tests, each with
   `revalidate_freq = "1h"` so only the reload can be the cause.
+  - [x] Green on Windows and in WSL; the rule's record is `shipped`.
 
 ### 4. the nvs reload command
 
@@ -349,25 +373,34 @@ written.
 
 ### State
 
-Stages 1 and 2 are done; `rules` and `endpoint` are green. The four `endpoint` tests pass on
-Windows and in WSL (`bun nv linux-test --test reload_command`). macOS code (`getpeereid`, the
-`ENOTSOCK` mapping in `connect`) was reviewed and not compiled; CI's macOS job is its first build.
+Stages 1 to 3 are done; `rules`, `endpoint` and `check-now` are green. All nine
+`reload_command` tests pass on Windows and in WSL (`bun nv linux-test --test reload_command`),
+and the three `reload_endpoint::tests` unit tests pass. macOS is still uncompiled here; CI's macOS
+job is its first build. `rule:config/a-reload-command-checks-now-and-waits` is `shipped`, with
+`reload_endpoint.rs` and the test file in its `guardedBy`.
 
-`rule:config/a-reload-command-checks-now-and-waits` is still `designed` and owned by this goal.
-Stage 3 flips its record's `status` to `shipped` and drops `goal` once the endpoint replies.
+The server answers `reload 1\n` with the reply § *Standing decisions* § *The reply, as stage 3
+built it* describes. `Rechecked::Swapped`'s two fields carry an `#[expect(dead_code)]` until
+stage 5's `program reloaded` record reads them; stage 5 removes it.
 
-The nightly CI run the sweep listed (44722386375) ran on `5d053fc6e6`, the same run the last
-handoff covered; both of its failures were fixed after it, so no change was made for them.
+The nightly CI run the sweep listed (44722386375) ran on `5d053fc6e6`, the same run the last two
+handoffs covered; its failures were fixed after it, so no change was made for them.
 
 ### Next
 
-Stage 3, the reply. The endpoint is `nvs_host::endpoint` (`crates/nvs-host/src/endpoint.rs`), and
-the server side is `crate::reload_endpoint` (`crates/nvs-cli/src/reload_endpoint.rs`), opened at
-`crates/nvs-cli/src/serve.rs:793`. Its `accept` loop reads up to `LINE` bytes and closes the
-connection, on one thread: stage 3 replaces that loop with the line parse, the shared check and the
-JSON reply, and gives each connection its own thread (or a read deadline), because the Windows
-stream has no read timeout and a silent client would hold the one thread. The other stage 3 anchors
-are in its items (`reload.rs:530`, `script.rs:934`). The `check-now`, `command` and `events`
-checks stay red until their stages write those tests.
+Stage 4, the command. The client side is `nvs_host::endpoint::reach_all`
+(`crates/nvs-host/src/endpoint.rs`), which returns each live endpoint's connection and removes the
+stale ones. Send `crate::reload_endpoint::REQUEST` (`crates/nvs-cli/src/reload_endpoint.rs:59`),
+read one line, and parse the JSON `reply` writes (`crates/nvs-cli/src/reload_endpoint.rs:194`). A
+connection that closes with no line is a server that stopped (it was draining). Exit `0` when every
+reply is `failed: 0` and not `config: refused`, `1` otherwise, `2` when no endpoint answered. The
+test helper `reload` in `crates/nvs-cli/tests/reload_command.rs` is the client shape. The data
+folder resolves as `nvs serve`'s does (`nvs_config::data::current`, `Folder::run`). Wire it as
+`Command::Reload` beside `Command::Cache` (`crates/nvs-cli/src/main.rs:596`, `:560`, `:954`).
+The `command` and `events` checks stay red until stages 4 and 5 write their tests.
+
+Stage 5 then logs from `Compiler::revalidate_now`'s and `revalidate`'s results
+(`crates/nvs-cli/src/script.rs:1012`) and feeds `Events` beside `Process::logged`
+(`crates/nvs-cli/src/reload.rs:687`).
 
 ### Backlog

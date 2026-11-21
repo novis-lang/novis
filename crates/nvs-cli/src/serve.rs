@@ -793,7 +793,7 @@ pub(crate) fn run(
     // The way `nvs reload` reaches this process, opened before `READY=1` so a
     // reload sent once the start returns finds it, and removed when this frame
     // ends, after the drain (`crate::reload_endpoint`).
-    let _reachable = crate::reload_endpoint::open();
+    let _reachable = crate::reload_endpoint::open(&host);
     listening(&bound, &answering_with, &told);
 
     // The fan-out itself: one worker per core, each taking its own handle on

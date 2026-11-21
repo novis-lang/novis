@@ -445,11 +445,46 @@ enum CompileState {
     /// The unit, and the route table beside it — one pointer, which is what
     /// every core resolving this content is handed a clone of.
     Ready(Arc<Compiled>),
-    /// The one-line summary this content failed with, kept so that every later
-    /// resolve landing on the same [`UnitKey`] is answered rather than
-    /// recompiled.
-    Failed(String),
+    /// What this content failed with, kept so that every later resolve
+    /// landing on the same [`UnitKey`] is answered rather than recompiled.
+    Failed(Failure),
 }
+
+/// A compile that failed: the one-line summary a request of it is answered
+/// with, and the first error its front end reported, which a reload's reply
+/// names (`crate::reload_endpoint`). `first` is `None` where no error had a
+/// place in a file: an unreadable entry file, a backend error or a panic.
+///
+/// Cost: one message and one file name more per failed content.
+#[derive(Debug)]
+struct Failure {
+    message: String,
+    first: Option<crate::Located>,
+}
+
+/// What [`Compiler::revalidate_now`] found for one loaded program.
+#[derive(Debug)]
+pub(crate) enum Rechecked {
+    /// The path serves a new unit now, and `program` is its whole-program
+    /// digest.
+    #[expect(
+        dead_code,
+        reason = "the `program reloaded` log record reads both, and it is written next"
+    )]
+    Swapped { entry: PathBuf, program: Digest },
+    /// The program on disk does not compile, and a request of the path fails
+    /// with `message`. `first` is its first error, where it has a place in a
+    /// file.
+    Failed {
+        entry: PathBuf,
+        message: String,
+        first: Option<crate::Located>,
+    },
+}
+
+/// How many times [`Compiler::revalidate_now`] compiles a program whose files
+/// moved during the compile, before it reports the program as failed.
+const RECHECKS: usize = 3;
 
 /// One compile in flight, as the two things a caller waiting on it needs: a
 /// flag it can read and a signal it can sleep on.
@@ -953,6 +988,106 @@ impl Compiler {
         soonest
     }
 
+    /// [`Self::revalidate`] for `nvs reload`
+    /// (`rule:config/a-reload-command-checks-now-and-waits`): every loaded
+    /// program is checked at once, without `settle`'s wait, because the caller
+    /// says its writes are done. It returns once every compile it started, or
+    /// waited behind, has ended.
+    ///
+    /// A compile the tree moved under is still thrown away, and the program is
+    /// checked again, up to [`RECHECKS`] times. A program still moving after
+    /// that is reported as failed, and keeps what it served. A program whose
+    /// entry file cannot be read keeps what it served, as in
+    /// [`Self::revalidate`], and is not reported.
+    ///
+    /// Each program that serves a different answer now and compiles is one
+    /// [`Rechecked::Swapped`]. Each that does not compile is one
+    /// [`Rechecked::Failed`], whether this call or an earlier check found the
+    /// failure, because a reload reports every program that does not match the
+    /// disk. A path no request has loaded has no pointer, so it is not
+    /// compiled here: its first request compiles it.
+    ///
+    /// **What it costs:** one [`Self::revalidate`] pass with no wait, on the
+    /// reload's thread, and nothing kept.
+    pub(crate) fn revalidate_now(&self) -> Vec<Rechecked> {
+        let held: Vec<(PathBuf, PathEntry)> = shared(&self.paths)
+            .iter()
+            .map(|(path, entry)| (path.clone(), *entry))
+            .collect();
+        let mut found = Vec::new();
+        for (written, before) in held {
+            let path = written.to_string_lossy().into_owned();
+            let mut tries = 0;
+            let settled = loop {
+                // Read again on every try: a timer pass may have moved the
+                // pointer, and a stale one would lose step 4's compare.
+                let Some(entry) = self.pointer(&written) else {
+                    break None;
+                };
+                let Ok(observed) = self.look(&path, &written, Some(entry)) else {
+                    break None;
+                };
+                let _ = self.take(&path, &written, Some(entry), &observed, true);
+                let Some(now) = self.pointer(&written) else {
+                    break None;
+                };
+                // A compile that published, or an answer the table held, left
+                // the pointer naming what the disk holds. A compile the tree
+                // moved under published nothing.
+                if self.generation(&written, observed.content_hash) == now.serving() {
+                    break Some(now);
+                }
+                tries += 1;
+                if tries == RECHECKS {
+                    found.push(Rechecked::Failed {
+                        entry: written.clone(),
+                        message: format!("`{path}` changed while it was compiled"),
+                        first: None,
+                    });
+                    break None;
+                }
+            };
+            let Some(now) = settled else {
+                continue;
+            };
+            if let Some(failed) = now.failed {
+                let (message, first) = self
+                    .failure_at(&written, failed)
+                    .unwrap_or_else(|| (format!("`{path}` could not be compiled"), None));
+                found.push(Rechecked::Failed {
+                    entry: written,
+                    message,
+                    first,
+                });
+            } else if now.unit != before.serving() {
+                found.push(Rechecked::Swapped {
+                    entry: written,
+                    program: now.unit.program,
+                });
+            }
+        }
+        found
+    }
+
+    /// The pointer of `path` now, or `None` where it has none.
+    fn pointer(&self, path: &Path) -> Option<PathEntry> {
+        shared(&self.paths).get(path).copied()
+    }
+
+    /// The message and the first error of the failure the table holds for
+    /// `path` at `generation`, or `None` where it holds none there.
+    fn failure_at(
+        &self,
+        path: &Path,
+        generation: Generation,
+    ) -> Option<(String, Option<crate::Located>)> {
+        let key = self.key_of(path, generation);
+        match shared(&self.units).get(&key)? {
+            CompileState::Failed(failure) => Some((failure.message.clone(), failure.first.clone())),
+            CompileState::Compiling(_) | CompileState::Ready(_) => None,
+        }
+    }
+
     /// Step 2: what the file behind `written` holds now, with every path its
     /// program's last compile read, missed or probed checked again
     /// ([`Self::revalidate_trace`]). An edit to any of those is one the entry
@@ -1045,7 +1180,10 @@ impl Compiler {
         // A failure is published under its own trace too, which is the key the
         // next check of this content spells while nothing it read has moved,
         // and is how it is answered rather than recompiled.
+        // Cleared first, so a failure names only an error of this compile.
+        drop(crate::take_first_error());
         let (outcome, trace) = self.compile(path, written, observed.content_hash);
+        let first = crate::take_first_error();
         // A tree that moved while the compile ran may have been read half old
         // and half new, which is a program nobody wrote. The background check
         // throws such a compile away and records nothing, so its next pass
@@ -1058,7 +1196,7 @@ impl Compiler {
         }
         let state = match outcome {
             Ok(compiled) => CompileState::Ready(compiled),
-            Err(message) => CompileState::Failed(message),
+            Err(message) => CompileState::Failed(Failure { message, first }),
         };
         // 4 and 5: the pointer moves only on success. What the table keeps for
         // this path is the unit in force and the one it replaced, plus at most
@@ -2041,7 +2179,7 @@ fn reply(state: &CompileState) -> Option<Answer> {
             nvs_diagnostics::shared::wrote(nvs_diagnostics::shared::Line::Unit, 2);
             Some(Ok(Arc::clone(compiled)))
         }
-        CompileState::Failed(message) => Some(Err(message.clone())),
+        CompileState::Failed(failure) => Some(Err(failure.message.clone())),
     }
 }
 

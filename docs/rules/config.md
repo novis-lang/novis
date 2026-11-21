@@ -3,8 +3,6 @@
 
 # Configuration
 
-*1 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
 ## The configuration file is `nvs.toml`, and it is TOML
@@ -1791,7 +1789,7 @@ extension removed while source still references it — those units fail when nex
 
 <a id="config-a-reload-command-checks-now-and-waits"></a>
 
-## `nvs reload` makes every running server of a data folder check its configuration and its loaded programs now, and replies when each compile ends  *(designed — owned by goal reload-now)*
+## `nvs reload` makes every running server of a data folder check its configuration and its loaded programs now, and replies when each compile ends
 
 `rule:config/a-reload-command-checks-now-and-waits`
 

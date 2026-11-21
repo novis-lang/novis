@@ -25,6 +25,11 @@ const BOUND: Duration = Duration::from_secs(30);
 const CONFIG: &str = "[opcache]\nvalidate = \"hash\"\nrevalidate_freq = \"100ms\"\nsettle = \"0s\"\n\n\
                       [server]\ndrain_timeout = \"5s\"\n";
 
+/// The `nvs.toml` of a case where only a reload can be the cause of a change: the program check
+/// runs once an hour and waits a minute for quiet, and a reload skips both.
+const HOURLY: &str = "[opcache]\nvalidate = \"hash\"\nrevalidate_freq = \"1h\"\nsettle = \"1m\"\n\n\
+                      [server]\ndrain_timeout = \"5s\"\n";
+
 /// The program every case starts with.
 const PLAIN: &str = "<?nvs\necho \"ok\";\n";
 
@@ -40,15 +45,21 @@ struct Served {
 }
 
 impl Served {
-    /// Starts the server over [`PLAIN`] in a fresh directory named for `case`. `before` runs on
-    /// the data folder first.
+    /// Starts the server over [`PLAIN`] and [`CONFIG`] in a fresh directory named for `case`.
+    /// `before` runs on the data folder first.
     fn start(case: &str, before: impl FnOnce(&Path)) -> Self {
+        Self::start_with(case, CONFIG, before)
+    }
+
+    /// Starts the server over [`PLAIN`] and `config` in a fresh directory named for `case`.
+    /// `before` runs on the data folder first.
+    fn start_with(case: &str, config: &str, before: impl FnOnce(&Path)) -> Self {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("reload-command-{case}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("the case's directory is created");
         write_file(&dir.join("app.nvs"), PLAIN);
-        write_file(&dir.join("nvs.toml"), CONFIG);
+        write_file(&dir.join("nvs.toml"), config);
         let data = nvs_repo::scratch_private("nvsdata");
         before(&data);
 
@@ -222,6 +233,31 @@ fn wait(what: &str, mut done: impl FnMut() -> bool, said: impl Fn() -> String) {
     }
 }
 
+/// Sends one reload to `endpoint` and returns its JSON reply.
+///
+/// # Panics
+///
+/// When the endpoint cannot be reached or the reply is not one JSON line. The message carries
+/// `said()`.
+fn reload(endpoint: &Path, said: impl Fn() -> String) -> serde_json::Value {
+    let mut connection = nvs_host::endpoint::connect(endpoint).unwrap_or_else(|error| {
+        panic!(
+            "`{}` is not reached: {error}\n{}",
+            endpoint.display(),
+            said()
+        )
+    });
+    connection
+        .write_all(b"reload 1\n")
+        .unwrap_or_else(|error| panic!("the reload is not sent: {error}\n{}", said()));
+    let mut line = String::new();
+    BufReader::new(connection)
+        .read_line(&mut line)
+        .unwrap_or_else(|error| panic!("the reply is not read: {error}\n{}", said()));
+    serde_json::from_str(&line)
+        .unwrap_or_else(|error| panic!("the reply {line:?} is not JSON: {error}\n{}", said()))
+}
+
 /// Writes `text` to `path` in one rename, so the server never reads half a file.
 fn write_file(path: &Path, text: &str) {
     let name = path.file_name().expect("the path names a file");
@@ -377,4 +413,140 @@ fn a_request_cannot_reach_the_endpoint() {
         body.contains("needs the capability `fs.read`"),
         "the read was not refused by the grant: {body}"
     );
+}
+
+/// A reload compiles an edit at once and replies once it is live. The program check runs once an
+/// hour, so nothing else can be the cause.
+#[test]
+fn a_reload_makes_an_edit_live_before_the_timer() {
+    let served = Served::start_with("edit", HOURLY, |_| {});
+    assert_eq!(served.get(), "ok", "the first request: {}", served.said());
+    write_file(&served.dir.join("app.nvs"), "<?nvs\necho \"new\";\n");
+    let reply = reload(&served.endpoint(), || served.said());
+    assert_eq!(reply["config"], "unchanged", "the reply: {reply}");
+    assert_eq!(reply["programs"], 1, "the reply: {reply}");
+    assert_eq!(reply["failed"], 0, "the reply: {reply}");
+    assert_eq!(
+        served.get(),
+        "new",
+        "the request after the reload: {}",
+        served.said()
+    );
+}
+
+/// A reload reads a saved `nvs.toml` at once and replies that it applied it.
+#[test]
+fn a_reload_applies_a_saved_configuration_at_once() {
+    let served = Served::start_with("config", HOURLY, |_| {});
+    write_file(
+        &served.dir.join("nvs.toml"),
+        &HOURLY.replace("drain_timeout = \"5s\"", "drain_timeout = \"6s\""),
+    );
+    let reply = reload(&served.endpoint(), || served.said());
+    assert_eq!(
+        reply["config"],
+        "applied",
+        "the reply: {reply}\n{}",
+        served.said()
+    );
+    assert_eq!(reply["failed"], 0, "the reply: {reply}");
+    let again = reload(&served.endpoint(), || served.said());
+    assert_eq!(again["config"], "unchanged", "the second reply: {again}");
+}
+
+/// A broken edit is one refusal in the reply, with the file and line of its first error.
+#[test]
+fn a_reload_reports_a_broken_edit_with_its_line() {
+    let served = Served::start_with("broken", HOURLY, |_| {});
+    assert_eq!(served.get(), "ok", "the first request: {}", served.said());
+    write_file(
+        &served.dir.join("app.nvs"),
+        "<?nvs\necho \"ok\";\necho (;\n",
+    );
+    let reply = reload(&served.endpoint(), || served.said());
+    assert_eq!(reply["failed"], 1, "the reply: {reply}\n{}", served.said());
+    assert_eq!(reply["programs"], 0, "the reply: {reply}");
+    let refusal = &reply["refusals"][0];
+    assert_eq!(refusal["kind"], "program", "the refusal: {refusal}");
+    let file = refusal["file"]
+        .as_str()
+        .unwrap_or_default()
+        .replace('\\', "/");
+    assert!(
+        file.ends_with("/app.nvs"),
+        "the refusal names {file}: {refusal}"
+    );
+    assert_eq!(refusal["line"], 3, "the refusal: {refusal}");
+    assert!(
+        refusal["message"]
+            .as_str()
+            .is_some_and(|text| !text.is_empty()),
+        "the refusal has no message: {refusal}"
+    );
+}
+
+/// Reloads sent at once are each answered by a check that began after they arrived, so every one
+/// sees the edit, and it is compiled once. That reloads arriving during a check share the next one
+/// is pinned by `reload_endpoint`'s own test, which holds a check open.
+#[test]
+fn two_reloads_at_once_share_one_check() {
+    const RELOADS: usize = 4;
+    let served = Served::start_with("burst", HOURLY, |_| {});
+    assert_eq!(served.get(), "ok", "the first request: {}", served.said());
+    write_file(&served.dir.join("app.nvs"), "<?nvs\necho \"new\";\n");
+    let endpoint = served.endpoint();
+    let gate = Arc::new(std::sync::Barrier::new(RELOADS));
+    let sent: Vec<_> = (0..RELOADS)
+        .map(|_| {
+            let endpoint = endpoint.clone();
+            let gate = Arc::clone(&gate);
+            thread::spawn(move || {
+                gate.wait();
+                reload(&endpoint, String::new)
+            })
+        })
+        .collect();
+    let replies: Vec<serde_json::Value> = sent
+        .into_iter()
+        .map(|reloading| reloading.join().expect("no reload panicked"))
+        .collect();
+    let swapped: u64 = replies
+        .iter()
+        .map(|reply| {
+            assert_eq!(reply["failed"], 0, "a reply: {reply}");
+            let programs = reply["programs"].as_u64().unwrap_or(u64::MAX);
+            assert!(programs <= 1, "a reply: {reply}");
+            programs
+        })
+        .sum();
+    assert!(
+        swapped >= 1,
+        "no reply saw the edit: {replies:?}\n{}",
+        served.said()
+    );
+    assert_eq!(
+        served.get(),
+        "new",
+        "the request after the reloads: {}",
+        served.said()
+    );
+}
+
+/// A request longer than the line is closed without a reply, and the endpoint still answers the
+/// next one.
+#[test]
+fn a_request_longer_than_the_line_is_closed() {
+    let served = Served::start_with("long", HOURLY, |_| {});
+    let endpoint = served.endpoint();
+    let mut connection = nvs_host::endpoint::connect(&endpoint).expect("the endpoint is reached");
+    let _ = connection.write_all(&[b'x'; 100]);
+    let mut answer = Vec::new();
+    let _ = connection.read_to_end(&mut answer);
+    assert!(
+        answer.is_empty(),
+        "the long request was answered: {:?}",
+        String::from_utf8_lossy(&answer)
+    );
+    let reply = reload(&endpoint, || served.said());
+    assert_eq!(reply["config"], "unchanged", "the reply after it: {reply}");
 }
