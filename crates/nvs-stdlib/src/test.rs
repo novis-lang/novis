@@ -3217,6 +3217,9 @@ fn cookies_of(value: &Value) -> Result<Vec<(String, String)>, Fault> {
         .map(|(name, value)| {
             // An array key is `int|string`, and neither is invalid UTF-8.
             let name = String::from_utf8_lossy(name.as_bytes()).into_owned();
+            // Unreachable from source, for the value as for the array: the
+            // option declares `array<string>`, so `E0401` refuses an `int`
+            // value or an `array<mixed>` a phase before this runs.
             let text = value.as_text().ok_or_else(|| {
                 Fault::fatal(format!(
                     "Core\\Test::request expected a `string` cookie value, got tag {}",
@@ -5915,12 +5918,18 @@ mod tests {
     /// Every row's symbol has an address here, which is what
     /// [`crate::symbols`]' own sweep asserts across the whole registry — held
     /// once more locally so a member added above fails here rather than in a
-    /// crate-wide test that names no module.
+    /// crate-wide test that names no module. `run`, `logs` and `sentMail` live
+    /// in the [`run`] and [`records`] submodules, which claim their own
+    /// symbols, so their addresses count as this module's.
     #[test]
     fn every_row_names_a_symbol_this_module_claims() {
         for method in CLASS.methods {
+            let symbol = method.symbol;
             assert!(
-                address(method.symbol).is_some(),
+                address(symbol)
+                    .or_else(|| run::address(symbol))
+                    .or_else(|| records::address(symbol))
+                    .is_some(),
                 "`{}` names `{}`, which this module does not claim",
                 method.name,
                 method.symbol
@@ -6232,11 +6241,14 @@ mod tests {
         // `rule:testing/an-outbound-socket-is-answered-by-a-scripted-peer`'s
         // `answerSocket` and `sentSocket`, and `rule:testing/doubles`'s
         // `double` and `partial`, which build a subject rather than claiming
-        // anything about one — and [`asserting_members`] names each of them by
-        // hand. This count is what makes adding a member to this class have to
-        // answer "is it an assertion?": a new row joins `rule:testing/assertions-are-typed`'s shape sweep
-        // unless it is listed there, and listing it moves this number.
-        assert_eq!(asserting_members().count(), CLASS.methods.len() - 12);
+        // anything about one, and `rule:testing/a-test-runs-a-command`'s `run`
+        // and `rule:testing/a-test-reads-its-logs-and-mail`'s `logs` and
+        // `sentMail`, which read what a test caused — and [`asserting_members`]
+        // names each of them by hand. This count is what makes adding a member
+        // to this class have to answer "is it an assertion?": a new row joins
+        // `rule:testing/assertions-are-typed`'s shape sweep unless it is listed
+        // there, and listing it moves this number.
+        assert_eq!(asserting_members().count(), CLASS.methods.len() - 15);
         assert_eq!(equality_members().count(), 3);
     }
 
@@ -7387,6 +7399,7 @@ mod tests {
                     Value::int(200),
                     Value::bytes(nvs_runtime::NvsStr::new(octets)),
                     Value::array(nvs_runtime::NvsArray::new()),
+                    Value::null(),
                     Value::null(),
                 ],
             )

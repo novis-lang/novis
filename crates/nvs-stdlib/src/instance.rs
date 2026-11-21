@@ -366,6 +366,31 @@ const SLOT_TYPES: &[(&CoreClass, Slots)] = &[
     (&crate::router::MATCH, Slots::NotReadBack(THIS_REQUEST)),
     // `text` is a cache of `body`, and `body()` returns it unchecked.
     (&crate::test::RESPONSE, Slots::NotReadBack(CHECKED_ONCE)),
+    // Exit code, then standard output and standard error as `bytes`; the text
+    // readers check the bytes at each call.
+    (
+        &crate::test::run::RUN_RESULT,
+        Slots::Typed(&[CoreTy::Int, CoreTy::Bytes, CoreTy::Bytes]),
+    ),
+    // `fields` is JSON text `serde_json` wrote, and `fields()` reads it as
+    // that and stops on anything else.
+    (
+        &crate::test::records::LOG_RECORD,
+        Slots::NotReadBack(CHECKED_ONCE),
+    ),
+    (
+        &crate::test::records::SENT_MAIL,
+        Slots::Typed(&[
+            CoreTy::Str,
+            CoreTy::Array(&CoreTy::Str),
+            CoreTy::Str,
+            CoreTy::Str,
+            CoreTy::Array(&CoreTy::Str),
+            CoreTy::Array(&CoreTy::Str),
+            CoreTy::Nullable(&CoreTy::Str),
+            CoreTy::Nullable(&CoreTy::Str),
+        ]),
+    ),
     (
         &crate::test::SENT_REQUEST,
         Slots::Typed(&[
@@ -2291,6 +2316,7 @@ mod tests {
                 Value::int(201),
                 Value::text(""),
                 Value::array(nvs_runtime::NvsArray::new()),
+                Value::null(),
                 Value::null(),
             ],
         );
