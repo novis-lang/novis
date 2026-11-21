@@ -19,6 +19,7 @@ usually one file:
 |---|---|
 | `nvs run <file>` | check, compile and run a program |
 | `nvs serve <file>` | run an application until it is stopped: its HTTP requests, its scheduled jobs and its queue workers. See [the server chapter](#tools-server) |
+| `nvs reload` | make a running `nvs serve` use the code and configuration on disk now. See [the server chapter](#tools-server) |
 | `nvs service <verb>` | install, start, stop and remove a program that runs as a system service. See [the server chapter](#tools-server) |
 | `nvs check <path>` | parse, resolve and type-check a file or a directory, reporting every diagnostic; runs nothing |
 | `nvs test <paths>...` | run a program's `#[Test]` methods, or a tree of `.nvst` cases |

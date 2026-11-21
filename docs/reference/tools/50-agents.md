@@ -111,8 +111,9 @@ The built-in functions are in the `Core` namespace
 
 The one document to read before writing anything: the lookup protocol above, one complete worked
 program with every shape in it annotated, the capability model with the smallest `nvs.toml` that
-grants a file read, and a map of the chapters of this reference. It is printed on standard output,
-and like every other verb here it writes nothing and caches nothing.
+grants a file read, how `nvs reload` makes a running server use your edits, and a map of the
+chapters of this reference. It is printed on standard output, and like every other verb here it
+writes nothing and caches nothing.
 
 Each part has a heading. These are the headings, in the order the primer prints them:
 
@@ -124,6 +125,7 @@ Each part has a heading. These are the headings, in the order the primer prints 
 ### Example 02: show the best scores first
 ### Example 03: answer a form with json
 ## `[capabilities]`
+## nvs reload
 ## The chapters
 ```
 
