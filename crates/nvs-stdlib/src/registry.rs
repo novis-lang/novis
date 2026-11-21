@@ -2770,9 +2770,16 @@ pub const NEEDS_NONE: &[(&str, &str)] = &[
     (r"Core\Out", "redirects the request's own output"),
     (
         r"Core\Test",
-        "runs requests inside the test process, against fakes it holds",
+        "runs requests and the program's own entry inside the test process, against fakes it \
+         holds",
     ),
     (r"Core\Test\Response", "reads a response the test holds"),
+    (
+        r"Core\Test\RunResult",
+        "reads the output of a run the test holds",
+    ),
+    (r"Core\Test\LogRecord", "reads a log line the test recorded"),
+    (r"Core\Test\SentMail", "reads a mail the test kept unsent"),
     (
         r"Core\Test\SentRequest",
         "reads a request the test recorded",

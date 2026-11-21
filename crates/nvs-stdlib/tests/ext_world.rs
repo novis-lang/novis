@@ -64,6 +64,7 @@ const SECRET: &str = "It contains secret key material, and a secret never leaves
 const TERMINAL: &str = "It styles the host's own terminal, which a guest does not write to.";
 const REFLECT: &str = "It describes the running program, which a guest cannot see.";
 const TREE: &str = "It is a recursive tree, and WIT has no recursive types.";
+const TEST_READBACK: &str = "It shows a test what its own program did, and a guest runs no tests.";
 
 /// The `Core` value classes that do not cross, each with why.
 const REFUSED: &[(&str, &str)] = &[
@@ -119,6 +120,9 @@ const REFUSED: &[(&str, &str)] = &[
         "Core\\Test\\Summary",
         "It reports a test class to that class's own hook, and a guest runs no tests.",
     ),
+    ("Core\\Test\\RunResult", TEST_READBACK),
+    ("Core\\Test\\LogRecord", TEST_READBACK),
+    ("Core\\Test\\SentMail", TEST_READBACK),
     (
         "Core\\Task\\Channel",
         "It is shared between the host's tasks, and a guest has no tasks.",
