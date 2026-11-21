@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a test sends mail with a reply address that has a line break, no text, or 100000 characters.
+// Every wrong address should throw, and `replyTo()` should return the valid address unchanged.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class ReplyToAttackTest
+{
+    #[Test]
+    public function theReplyAddressHolds(): void
+    {
+        // 1. A reply address with a line break tries to add a second header. `send` throws, and no message is kept.
+        bool $thrown = false;
+        try {
+            Mail::send('site', ['ada@example.com'], 'Hi', 'Hello', { replyTo: "desk@example.com\r\nBcc: spy@example.com" });
+        } catch (RuntimeError $error) {
+            $thrown = true;
+        }
+        Test::assertTrue($thrown);
+        Test::assertCount(Test::sentMail(), 0);
+
+        // 2. An empty reply address is not an address. `send` throws, and no message is kept.
+        $thrown = false;
+        try {
+            Mail::send('site', ['ada@example.com'], 'Hi', 'Hello', { replyTo: '' });
+        } catch (RuntimeError $error) {
+            $thrown = true;
+        }
+        Test::assertTrue($thrown);
+        Test::assertCount(Test::sentMail(), 0);
+
+        // 3. A reply address with 100000 characters is longer than 254 bytes. `send` throws, and no message is kept.
+        string $long = Core\Str::repeat('a', 100000) . '@example.com';
+        $thrown = false;
+        try {
+            Mail::send('site', ['ada@example.com'], 'Long', 'Hello', { replyTo: $long });
+        } catch (RuntimeError $error) {
+            $thrown = true;
+        }
+        Test::assertTrue($thrown);
+        Test::assertCount(Test::sentMail(), 0);
+
+        // 4. A valid reply address is returned exactly as it was given.
+        Mail::send('site', ['ada@example.com'], 'Hi', 'Hello', { replyTo: 'desk@example.com' });
+        Test::assertCount(Test::sentMail(), 1);
+        Test::assertSame(Test::sentMail()[0]->replyTo(), 'desk@example.com');
+
+        // 5. Reads `replyTo()` of one message 3000 times.
+        var $mail = Test::sentMail()[0];
+        int $same = 0;
+        int $i = 0;
+        while ($i < 3000) {
+            if ($mail->replyTo() == 'desk@example.com') {
+                $same = $same + 1;
+            }
+            $i = $i + 1;
+        }
+        Test::assertEquals($same, 3000);
+    }
+}

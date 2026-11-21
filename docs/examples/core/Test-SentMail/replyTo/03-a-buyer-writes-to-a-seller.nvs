@@ -1,0 +1,38 @@
+<?nvs
+// Shows how to test that a seller's reply goes to the buyer who wrote the message.
+// proof: test
+
+use Core\Http\Method;
+use Core\Test;
+
+class MarketMessageTest
+{
+    // The form has a second address in it. The reply must still go to the buyer's saved address.
+    #[Test]
+    public function theReplyGoesToTheBuyer(): void
+    {
+        Test::request(Method::Post, '/messages', {
+            headers: ['content-type' => 'application/x-www-form-urlencoded'],
+            body: 'buyer=ada&seller=bo&replyTo=someone-else@example.com',
+        });
+
+        Test::assertCount(Test::sentMail(), 1);
+        var $mail = Test::sentMail()[0];
+        Test::assertEquals($mail->to(), ['bo@example.com']);
+        Test::assertSame($mail->replyTo(), 'ada@example.com');
+    }
+}
+
+// `Core\Test::request` runs this file again for the request. This part finds the
+// saved addresses of both users. It does not read the `replyTo` field of the form.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    array<string> $saved = ['ada' => 'ada@example.com', 'bo' => 'bo@example.com'];
+    ?string $buyer = $saved[Core\Request::post('buyer') ?? ''] ?? null;
+    ?string $seller = $saved[Core\Request::post('seller') ?? ''] ?? null;
+    if ($buyer != null && $seller != null) {
+        Core\Mail::send('site', [$seller], 'A question about your item', 'Is it still for sale?', {
+            replyTo: $buyer,
+        });
+    }
+    Core\Response::setStatus(202);
+}

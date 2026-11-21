@@ -1,0 +1,11 @@
+# The mail server for the examples. Nothing listens on port 1, so a real send
+# would fail. Under `nvs test`, no message is sent and no connection is opened.
+[mail.site]
+host = "127.0.0.1"
+port = 1
+from = "hello@example.com"
+timeout = "1s"
+
+# The program may send mail through the `site` block.
+[capabilities.mail]
+send = ["site"]

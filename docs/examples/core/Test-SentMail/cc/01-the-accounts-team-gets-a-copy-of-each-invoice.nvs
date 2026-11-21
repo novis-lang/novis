@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to test that the accounts team gets a copy of each invoice.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Billing
+{
+    // Sends the invoice to the customer, with a copy for the accounts team.
+    public static function sendInvoice(string $customer, int $number): void
+    {
+        Mail::send('site', [$customer], 'Invoice ' . $number, 'Your invoice is attached.', {
+            cc: ['accounts@example.com'],
+        });
+    }
+}
+
+class BillingTest
+{
+    #[Test]
+    public function theAccountsTeamGetsACopy(): void
+    {
+        Billing::sendInvoice('ada@example.com', 2031);
+
+        // The customer is in `to()`, and the accounts team is in `cc()`.
+        var $mail = Test::sentMail()[0];
+        Test::assertEquals($mail->to(), ['ada@example.com']);
+        Test::assertEquals($mail->cc(), ['accounts@example.com']);
+    }
+}

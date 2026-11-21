@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to test that a mail has no copy for anybody else.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Shipping
+{
+    // Tells the customer that the parcel is on its way. Nobody else gets this mail.
+    public static function notify(string $customer, string $tracking): void
+    {
+        Mail::send('site', [$customer], 'Your parcel is on its way', 'Tracking number: ' . $tracking);
+    }
+}
+
+class ShippingTest
+{
+    #[Test]
+    public function nobodyElseGetsACopy(): void
+    {
+        Shipping::notify('bo@example.com', 'TRK-7731');
+
+        // The program gave no `cc` addresses, so `cc()` returns an empty list.
+        Test::assertEquals(Test::sentMail()[0]->cc(), []);
+        Test::assertCount(Test::sentMail()[0]->cc(), 0);
+    }
+}

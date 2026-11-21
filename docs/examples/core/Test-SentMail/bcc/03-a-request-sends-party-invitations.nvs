@@ -1,0 +1,48 @@
+<?nvs
+// Shows how to test the invitations that a request sends to a list of guests.
+// proof: test
+
+use Core\Http\Method;
+use Core\Test;
+
+class InvitationTest
+{
+    // The host invites the guests of a saved list. Each guest is in `bcc`.
+    #[Test]
+    public function theGuestsAreInBcc(): void
+    {
+        Test::request(Method::Post, '/party/invite', {
+            headers: ['content-type' => 'application/x-www-form-urlencoded'],
+            body: 'list=friends',
+        });
+
+        Test::assertCount(Test::sentMail(), 1);
+        var $mail = Test::sentMail()[0];
+        Test::assertEquals($mail->bcc(), ['ada@example.com', 'bo@example.com', 'cy@example.com']);
+        Test::assertEquals($mail->to(), ['host@example.com']);
+    }
+
+    // A list that does not exist sends nothing.
+    #[Test]
+    public function anUnknownListSendsNothing(): void
+    {
+        Test::request(Method::Post, '/party/invite', {
+            headers: ['content-type' => 'application/x-www-form-urlencoded'],
+            body: 'list=strangers',
+        });
+
+        Test::assertCount(Test::sentMail(), 0);
+    }
+}
+
+// `Core\Test::request` runs this file again for the request. This part finds the
+// saved list of guests and sends one message. The host is in `to`, and the guests are in `bcc`.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    array<string> $friends = ['ada@example.com', 'bo@example.com', 'cy@example.com'];
+    if (Core\Request::post('list') == 'friends') {
+        Core\Mail::send('site', ['host@example.com'], 'You are invited', 'Party on Saturday at 8.', {
+            bcc: $friends,
+        });
+    }
+    Core\Response::setStatus(202);
+}

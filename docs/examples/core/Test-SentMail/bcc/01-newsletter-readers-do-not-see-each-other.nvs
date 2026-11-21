@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to test that the readers of a newsletter cannot see each other's addresses.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Newsletter
+{
+    // Sends one message. `to` is the newsletter's own address, and every reader is in `bcc`.
+    public static function send(array<string> $readers, string $text): void
+    {
+        Mail::send('site', ['news@example.com'], 'Our news', $text, { bcc: $readers });
+    }
+}
+
+class NewsletterTest
+{
+    #[Test]
+    public function theReadersAreHidden(): void
+    {
+        Newsletter::send(['ada@example.com', 'bo@example.com'], 'New products this month.');
+
+        // The readers are in `bcc()`. `to()` and `cc()` do not contain any reader.
+        var $mail = Test::sentMail()[0];
+        Test::assertEquals($mail->bcc(), ['ada@example.com', 'bo@example.com']);
+        Test::assertEquals($mail->to(), ['news@example.com']);
+        Test::assertEquals($mail->cc(), []);
+    }
+}

@@ -1,0 +1,34 @@
+<?nvs
+// Shows how to test that an archive address gets a hidden copy of every order mail.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Orders
+{
+    // Sends the order mail to the customer. The archive gets a copy the customer does not see.
+    public static function confirm(string $customer, int $number): void
+    {
+        Mail::send('site', [$customer], 'Order ' . $number, 'We received your order.', {
+            bcc: ['archive@example.com'],
+        });
+    }
+}
+
+class OrdersTest
+{
+    #[Test]
+    public function everyOrderMailIsArchived(): void
+    {
+        Orders::confirm('ada@example.com', 1);
+        Orders::confirm('bo@example.com', 2);
+
+        // Each of the two messages has the archive in `bcc()`, and only the customer in `to()`.
+        Test::assertCount(Test::sentMail(), 2);
+        foreach (Test::sentMail() as var $mail) {
+            Test::assertEquals($mail->bcc(), ['archive@example.com']);
+            Test::assertCount($mail->to(), 1);
+        }
+    }
+}

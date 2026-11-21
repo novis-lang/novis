@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to test that the replies to a notice go to the support desk.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Maintenance
+{
+    // Tells a customer about planned work. A customer with a question replies to the support desk.
+    public static function announce(string $customer, string $day): void
+    {
+        Mail::send('site', [$customer], 'Planned work on ' . $day, 'The site is closed for two hours.', {
+            replyTo: 'support@example.com',
+        });
+    }
+}
+
+class MaintenanceTest
+{
+    #[Test]
+    public function repliesGoToTheSupportDesk(): void
+    {
+        Maintenance::announce('ada@example.com', 'Sunday');
+
+        Test::assertSame(Test::sentMail()[0]->replyTo(), 'support@example.com');
+    }
+}

@@ -1,0 +1,50 @@
+<?nvs
+// Shows how to test that a manager gets a copy when a request asks for a large refund.
+// proof: test
+
+use Core\Http\Method;
+use Core\Test;
+
+class RefundTest
+{
+    // A refund over 500 needs a manager, so the manager gets a copy.
+    #[Test]
+    public function aLargeRefundIsCopiedToTheManager(): void
+    {
+        Test::request(Method::Post, '/refunds', {
+            headers: ['content-type' => 'application/x-www-form-urlencoded'],
+            body: 'order=1042&amount=900',
+        });
+
+        Test::assertCount(Test::sentMail(), 1);
+        Test::assertEquals(Test::sentMail()[0]->cc(), ['manager@example.com']);
+    }
+
+    // A small refund goes to the refunds team alone. The list of copies is empty.
+    #[Test]
+    public function aSmallRefundHasNoCopy(): void
+    {
+        Test::request(Method::Post, '/refunds', {
+            headers: ['content-type' => 'application/x-www-form-urlencoded'],
+            body: 'order=1043&amount=20',
+        });
+
+        Test::assertCount(Test::sentMail(), 1);
+        Test::assertEquals(Test::sentMail()[0]->cc(), []);
+    }
+}
+
+// `Core\Test::request` runs this file again for the request. This part sends
+// the refund request to the refunds team. A large amount also goes to the manager.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    int $order = (Core\Request::post('order') ?? '0') as ?int ?? 0;
+    int $amount = (Core\Request::post('amount') ?? '0') as ?int ?? 0;
+    array<string> $copies = [];
+    if ($amount > 500) {
+        $copies[] = 'manager@example.com';
+    }
+    Core\Mail::send('site', ['refunds@example.com'], 'Refund for order ' . $order, 'Amount: ' . $amount, {
+        cc: $copies,
+    });
+    Core\Response::setStatus(202);
+}

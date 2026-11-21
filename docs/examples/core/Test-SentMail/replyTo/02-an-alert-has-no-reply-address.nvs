@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to test a mail that has no reply address.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class DiskAlert
+{
+    // Tells the operators that a disk is almost full.
+    public static function send(int $percentUsed): void
+    {
+        Mail::send('site', ['ops@example.com'], 'Disk ' . $percentUsed . '% full', 'Please free some space.');
+    }
+}
+
+class DiskAlertTest
+{
+    #[Test]
+    public function theAlertHasNoReplyAddress(): void
+    {
+        DiskAlert::send(93);
+
+        // The program gave no `replyTo` address, so the result is `null`.
+        Test::assertNull(Test::sentMail()[0]->replyTo());
+    }
+}

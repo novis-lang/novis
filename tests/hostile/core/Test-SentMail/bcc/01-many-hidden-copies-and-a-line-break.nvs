@@ -1,0 +1,70 @@
+<?nvs
+// Attack: a test sends hidden copies to thousands of addresses and to addresses with a line break or no text.
+// The hidden addresses should not be in `to()` or `cc()`. Every wrong address should throw, and nothing may crash.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class BccAttackTest
+{
+    #[Test]
+    public function theHiddenCopiesHold(): void
+    {
+        // 1. Sends one message with 5000 `bcc` addresses. They are all in `bcc()`, and none is in `to()` or `cc()`.
+        array<string> $many = [];
+        int $i = 0;
+        while ($i < 5000) {
+            $many[] = 'reader' . $i . '@example.com';
+            $i = $i + 1;
+        }
+        Mail::send('site', ['news@example.com'], 'Many', 'One message.', { bcc: $many });
+        Test::assertCount(Test::sentMail()[0]->bcc(), 5000);
+        Test::assertEquals(Test::sentMail()[0]->to(), ['news@example.com']);
+        Test::assertEquals(Test::sentMail()[0]->cc(), []);
+
+        // 2. A `bcc` address with a line break tries to add a second header. `send` throws, and no message is kept.
+        bool $thrown = false;
+        try {
+            Mail::send('site', ['ada@example.com'], 'Hi', 'Hello', { bcc: ["bo@example.com\nTo: spy@example.com"] });
+        } catch (RuntimeError $error) {
+            $thrown = true;
+        }
+        Test::assertTrue($thrown);
+        Test::assertCount(Test::sentMail(), 1);
+
+        // 3. An empty `bcc` address is not an address. `send` throws, and no message is kept.
+        $thrown = false;
+        try {
+            Mail::send('site', ['ada@example.com'], 'Hi', 'Hello', { bcc: [''] });
+        } catch (RuntimeError $error) {
+            $thrown = true;
+        }
+        Test::assertTrue($thrown);
+        Test::assertCount(Test::sentMail(), 1);
+
+        // 4. The same address is in `to`, `cc` and `bcc`. Each list keeps it as it was given.
+        Mail::send('site', ['bo@example.com'], 'Three times', 'Hello', {
+            cc: ['bo@example.com'],
+            bcc: ['bo@example.com'],
+        });
+        Test::assertEquals(Test::sentMail()[1]->to(), ['bo@example.com']);
+        Test::assertEquals(Test::sentMail()[1]->cc(), ['bo@example.com']);
+        Test::assertEquals(Test::sentMail()[1]->bcc(), ['bo@example.com']);
+
+        // 5. Changes the list that `bcc()` returned. A second read still has the first address.
+        array<string> $copy = Test::sentMail()[0]->bcc();
+        $copy[0] = 'spy@example.com';
+        Test::assertEquals(Test::sentMail()[0]->bcc()[0], 'reader0@example.com');
+
+        // 6. Reads `bcc()` of one message 2000 times.
+        var $first = Test::sentMail()[0];
+        uint $total = 0;
+        $i = 0;
+        while ($i < 2000) {
+            $total = $total + Core\Arr::count($first->bcc());
+            $i = $i + 1;
+        }
+        Test::assertEquals($total, 10000000);
+    }
+}
