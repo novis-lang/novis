@@ -38,9 +38,8 @@ work in production with the default settings.
   feature. One bad request, for example from an attacker, cannot stop the whole server.
 
 Bun, Go, Node.js, .NET and Python load new code only when they restart. Go and .NET also need a new
-build first. These five servers also have no setting that limits the memory or CPU time of one
-request. One request can use all the memory or CPU time of the server, and the other requests can
-fail.
+build first. These five servers also cannot limit the memory and CPU time of one request. One
+request can use all the memory or CPU time of the server, and the other requests can fail.
 [Deploying a new version](#deploying-a-new-version) and [Runaway requests](#runaway-requests) show
 what this changes.
 :::
@@ -257,8 +256,10 @@ Bun, Go, Node.js and Python did not stop the runaway request. The container's me
 the whole server, so the open requests failed. Docker then started the server again.
 
 In the feature table, the memory row for Node.js says **Your code**. A Node.js program can run each
-request in a `Worker` with a memory limit (`resourceLimits`). The program in this test does not do
-that. It is the plain program that the Node.js documentation shows.
+request in a `Worker` with a memory limit (`resourceLimits`). This limit counts only JavaScript
+objects. The memory of a `Buffer` is not counted, so a request can still use all the memory of the
+server. Bun has no such limit, because Bun ignores `resourceLimits`. The program in this test does
+not use a `Worker`. It is the plain program that the Node.js documentation shows.
 
 #### A request that never ends
 
