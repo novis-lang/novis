@@ -186,6 +186,19 @@ the editor already writes, so it grows with projects, never with calls.
 **Lanes.** Stages 2 and 3 share `crates/nvs-lsp/src/index.rs`, and stage 4 builds on stage 3's
 `code.rs`, so the stages run in order. One goal, no side lanes.
 
+**What the index file records outside the `.nvs` files.** Stage 3's first item found that format 1
+recorded nothing: no `nvs.toml`, settings file or `.nvsx`. Format 2 records every configuration input
+of the entries' directories (`crate::tree_cache::inputs`): the `nvs.toml` beside each, the data
+folder's file where that one is absent, each file and directory the tree read or looked for, and each
+`.nvsx` the tree's `[[extension]]` names. Each is kept with its content: absent, the BLAKE3 of a file's
+bytes, the BLAKE3 of a directory's sorted names, or unreadable. A load recomputes the inputs of the
+saved entries' directories, and **any one changed or not recorded discards the whole file**. Per-entry
+invalidation was declined: one `nvs.toml` is read by every entry of its directory, so it would rerun
+the same entries with more code. The inputs are taken when the index is planned or loaded, so an input
+edited while the index settles is recorded as it was and discards the file at the next load. An ignore
+file is not an input: the walk is fresh, and an entry point the walk no longer selects leaves the
+loaded index with the files it indexed, and its readers wait.
+
 **What stops it.** One attempt per item and two sessions per stage. A stage that does not close in
 two sessions writes what holds it in the handoff, and the next session splits it.
 
@@ -219,13 +232,13 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### 3. nvs code loads, checks by content and saves the editor's index file
 
-- [ ] `crates/nvs-lsp/src/disk_index.rs:1`: find which configuration inputs an entry records, and
+- [x] `crates/nvs-lsp/src/disk_index.rs:1`: find which configuration inputs an entry records, and
   add each missing one with its content hash under a new format version (guarantee 5).
-- [ ] `crates/nvs-lsp/src/index.rs:1882`: a content-only `freshness` for `nvs code`, run on the
+- [x] `crates/nvs-lsp/src/index.rs:1882`: a content-only `freshness` for `nvs code`, run on the
   workers.
-- [ ] `crates/nvs-lsp/src/server.rs:2533`: `workspace` loads from the data folder's index file,
+- [x] `crates/nvs-lsp/src/server.rs:2533`: `workspace` loads from the data folder's index file,
   settles on the workers, saves, and stops the workers.
-- [ ] `crates/nvs-lsp/tests/index.rs`: the four `never-stale` tests.
+- [x] `crates/nvs-lsp/tests/index.rs`: the four `never-stale` tests.
 - [ ] `crates/nvs-cli/src/code.rs:305`: `Project::open` takes the loaded workspace, and
   `crates/nvs-cli/tests/code.rs`: the three `code-index` tests, each with `--data` in its scratch.
 
@@ -262,39 +275,37 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### State
 
-Stages 1 and 2 are done, and the `parallel` check is green.
+Stages 1 and 2 are done. Stage 3's first four items are done and committed, and the four
+`never-stale` tests pass.
 
-The cause stage 2 measured, by trace lines on the repository's cold index (removed again): 9147
-files gave 17520 bodies checked, in 8872 plans and 8872 split entries, 8792 of them one part.
+- `crates/nvs-lsp/src/disk_index.rs`: `FORMAT` is 2 and the file ends with the configuration
+  inputs (`Input`). ยง *Standing decisions* says what is recorded and why a change discards the file.
+- `crates/nvs-lsp/src/tree_cache.rs` `inputs`: the input set of a list of directories.
+- `crates/nvs-lsp/src/index.rs`: `Check` (`Stamp` for the editor, `Content` for `nvs code`),
+  `load_by_content`, `freshen` (the hash pass on one scoped thread per core), `add_inputs`,
+  `stop_workers`, and `loaded` drops an entry point the walk no longer selects.
+- `crates/nvs-lsp/src/server.rs` `workspace_from(root, file)` and `index_file_of(root)`.
+  `workspace(root)` is `workspace_from(root, None)`: cold, on the workers.
 
-- **A file an extension carries has no path**, so `absent` was never asked about it. Every plan
-  checked it (4155 bodies in plans, which should check none) and so did every part of the entry.
-  Now `analyse_through` takes `checks_carried`: a plan and every part but the first leave such files
-  out, so each is checked once per graph (`crates/nvs-lsp/src/document.rs` `analyse_through`).
-- **Plans ahead of their turn ran one at a time**: the split cursor stopped at a planning entry. Now
-  `turns` plans the entries past the cursor whose graph nobody knows, in the room the split left,
-  once one plan came back (`Pool::has_room_to_plan`, `plan_cursor`, `reached`). An entry a known
-  graph reaches is left for its turn. `Work::planned` counts the most plans at once and is printed in
-  the server's `index work:` line.
-
-Measured on 16 cores with `bun nv lsp-start . --cold`: 20.1 s and 17520 checked before, 5.3 s wall,
-59 s CPU, 13292 checked and up to 15 plans at once after. Peak paged went from 808 MB to 990 MB.
-`lsp-start` now prints CPU time. The figures are in `crates/nvs-lsp/src/workers.rs` ง *What it costs*.
-
-The two new tests and the build and clippy ran. No other test ran. Watch these at the gate, since
-plans ahead changes the order jobs run in: `a_parallel_index_holds_what_the_serial_index_holds`,
-`a_cold_settle_parses_each_file_once_on_any_number_of_workers`,
-`an_edit_during_a_parallel_index_requeues_the_entries_that_read_it` in `tests/incremental.rs`.
+Only the four new tests, the build and clippy ran. Watch these at the gate, since `loaded` now
+checks the inputs and drops unselected entries, and `workspace` now settles on workers: every
+disk test from `a_cold_start_with_a_valid_index_analyses_only_the_open_documents_entry` to
+`two_servers_writing_one_root_leave_one_whole_index_file` in `tests/incremental.rs`, the three
+`parallel` ones the last handoff named, and `tests/query.rs`, whose `workspace` calls now use workers.
 
 ### Next
 
-Stage 3, from its first item: `crates/nvs-lsp/src/disk_index.rs:1`, which configuration inputs an
-entry records today (guarantee 5), then the content-only freshness at `crates/nvs-lsp/src/index.rs`
-`freshness`. Expected red until written: the `never-stale`, `code-index` and `several` checks,
-whose tests do not exist yet.
+Stage 3's last item: `crates/nvs-cli/src/code.rs:312` calls `nvs_lsp::workspace(&root)`. Make it
+`nvs_lsp::workspace_from(&root, nvs_lsp::index_file_of(&root).as_deref())`, rewrite the module doc
+at `crates/nvs-cli/src/code.rs:18` ("nothing is kept after it"), and write the three `code-index`
+tests in `crates/nvs-cli/tests/code.rs`, each with `--data <scratch>`. Then set stage 3 done and
+take stage 4. Expected red until written: the `code-index` and `several` checks.
 
 ### Backlog
 
 - On `bun nv lsp-start --copies 12 --cold --edits 5`, five surface edits check 5833 bodies, about
   1166 an edit over 972 files. The commit before stage 2 gives the same count, so it is older than
   this goal. Not in this goal's scope; a later goal finds which entry checks a file twice on an edit.
+- `cargo fmt --all` on this machine reformats seven files nobody edited (`crates/nvs-cli/src/runner.rs`,
+  `crates/nvs-stdlib/src/http.rs` and others). They were reverted. `bun nv ci --check` at the next full
+  gate says whether the tree or the local rustfmt is behind.
