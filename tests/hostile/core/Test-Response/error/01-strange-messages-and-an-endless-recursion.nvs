@@ -1,0 +1,54 @@
+<?nvs
+// Attack: the program throws errors with an empty message, a very long message and line breaks,
+// and it calls itself without end. Each request should fail cleanly, and nothing may crash.
+
+use Core\Http\Method;
+use Core\Test;
+
+class Endless
+{
+    public static function deeper(uint $depth): uint
+    {
+        return Endless::deeper($depth + 1) + 1;
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    var $path = Core\Request::path();
+    if ($path == '/empty') {
+        throw new RuntimeError('');
+    }
+    if ($path == '/long') {
+        throw new RuntimeError(Core\Str::repeat('x', 1000000));
+    }
+    if ($path == '/lines') {
+        throw new LogicError("first line\nsecond line\r\nthird line");
+    }
+    if ($path == '/deep') {
+        echo Endless::deeper(0);
+    }
+} else {
+    // 1. An error with an empty message.
+    echo 'empty: [', Test::request(Method::Get, '/empty')->error(), "]\n";
+
+    // 2. A message of one million characters. This prints the length of the result.
+    var $long = Test::request(Method::Get, '/long')->error() ?? '';
+    echo 'long: ', Core\Str::length($long), "\n";
+
+    // 3. A message with line breaks in it.
+    echo 'lines: ', Test::request(Method::Get, '/lines')->error(), "\n";
+
+    // 4. A function that calls itself without end. The request stops, and the test goes on.
+    var $deep = Test::request(Method::Get, '/deep');
+    echo 'deep: ', $deep->status(), ' ', $deep->error(), "\n";
+
+    // 5. Read the error of one response 100000 times.
+    var $response = Test::request(Method::Get, '/lines');
+    uint $total = 0;
+    uint $i = 0;
+    while ($i < 100000) {
+        $total = $total + Core\Str::length($response->error() ?? '');
+        $i = $i + 1;
+    }
+    echo 'total ', $total, "\n";
+}

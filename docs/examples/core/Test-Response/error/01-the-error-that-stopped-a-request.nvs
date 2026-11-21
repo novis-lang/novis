@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to read the error that stopped a request.
+
+use Core\Http\Method;
+use Core\Test;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // This part answers the request. It throws an error and does not catch it.
+    throw new RuntimeError('the cart is empty');
+} else {
+    var $response = Test::request(Method::Get, '/checkout');
+
+    // The request failed, so the status is 500. This prints `500`.
+    echo $response->status(), "\n";
+
+    // `error()` returns the class and the message of the error.
+    // This prints `RuntimeError: the cart is empty`.
+    echo $response->error(), "\n";
+}

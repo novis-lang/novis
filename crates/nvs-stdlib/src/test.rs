@@ -7295,6 +7295,114 @@ mod tests {
         let _ = ctx.take_pending();
     }
 
+    /// `error` names the error that ended a failed request as `Class: message`,
+    /// and is `null` for a request that did not fail and for a failure that
+    /// carried no error.
+    // covers: Core\Test\Response::error
+    #[test]
+    fn response_error_names_what_ended_a_failed_request_and_is_null_otherwise() {
+        /// A unit that ends with `error`, failing exactly when `failed` is set.
+        #[derive(Debug)]
+        struct Ends {
+            failed: bool,
+            error: Option<nvs_runtime::host::Failure>,
+        }
+
+        impl nvs_runtime::inproc::Answering for Ends {
+            fn answer(
+                &self,
+                _ctx: &mut Ctx,
+                _inbound: Box<nvs_runtime::Inbound>,
+                _links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
+            ) -> Result<nvs_runtime::inproc::Answered, String> {
+                Ok(nvs_runtime::host::Completion {
+                    ok: !self.failed,
+                    value: Value::null(),
+                    output: b"a page".to_vec().into(),
+                    content_type: None,
+                    file_body: None,
+                    style_nonce: None,
+                    http: None,
+                    status: None,
+                    headers: Vec::new(),
+                    error: self.error.clone(),
+                    wall: None,
+                    trace: Vec::new(),
+                    coverage: None,
+                    trace_sink: None,
+                    store: None,
+                }
+                .into())
+            }
+        }
+
+        fn error_of(ctx: &mut Ctx, unit: &Ends) -> Option<String> {
+            let args = request_args("GET", "/cart", "", nvs_runtime::NvsArray::new());
+            let answered = nvs_runtime::inproc::scoped(unit, || {
+                nvs_runtime::call(nvs_core_test_request, ctx, &args)
+            })
+            .expect("an installed unit answers");
+            for arg in args {
+                dropped(arg);
+            }
+            let error = nvs_runtime::call(nvs_core_test_response_error, ctx, &[answered])
+                .expect("reading the error cannot fail");
+            let read = (!matches!(error.tag(), Some(Tag::Null)))
+                .then(|| error.as_text().expect("the error is a string").to_owned());
+            dropped(error);
+            dropped(answered);
+            read
+        }
+
+        let mut ctx = Ctx::buffered();
+        let thrown = nvs_runtime::host::Failure {
+            class: "RuntimeError".to_owned(),
+            message: "the cart is empty".to_owned(),
+            limit: None,
+            location: String::new(),
+        };
+        assert_eq!(
+            error_of(
+                &mut ctx,
+                &Ends {
+                    failed: true,
+                    error: Some(thrown)
+                }
+            ),
+            Some("RuntimeError: the cart is empty".to_owned()),
+            "a failed request names its error as `Class: message`"
+        );
+        assert_eq!(
+            error_of(
+                &mut ctx,
+                &Ends {
+                    failed: false,
+                    error: None
+                }
+            ),
+            None,
+            "a request that did not fail has no error"
+        );
+        assert_eq!(
+            error_of(
+                &mut ctx,
+                &Ends {
+                    failed: true,
+                    error: None
+                }
+            ),
+            None,
+            "a failure that carried no error is `null`"
+        );
+
+        let stranger = Value::int(7);
+        assert!(
+            nvs_runtime::call(nvs_core_test_response_error, &mut ctx, &[stranger]).is_err(),
+            "a receiver that is not a response throws"
+        );
+        let _ = ctx.take_pending();
+    }
+
     /// A route that answers with octets that are not UTF-8 — a PDF, an image —
     /// still returns a response: its status and its `bytes` read, and only
     /// `body`, `json` and `jsonAs` throw, each with one `RuntimeError` text.

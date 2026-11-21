@@ -2930,6 +2930,9 @@
   "docs/examples/core/Test-Response/cookies/about.md": {
     "Core\\Test\\Response::cookies": "921147f585b241d1"
   },
+  "docs/examples/core/Test-Response/error/about.md": {
+    "Core\\Test\\Response::error": "df34db11ff817bd8"
+  },
   "docs/examples/core/Test-Response/header/about.md": {
     "Core\\Test\\Response::header": "f2c096e3471a3a36"
   },
@@ -6501,7 +6504,7 @@
     "Core\\Log::write": "a83fcce0db1d1078"
   },
   "help:Core\\Mail::send": {
-    "Core\\Mail::send": "45b9c22ecba161f6"
+    "Core\\Mail::send": "00e089ac74148f2d"
   },
   "help:Core\\Markdown::fromHtml": {
     "Core\\Markdown::fromHtml": "04bd672178f203b7"
@@ -7671,7 +7674,7 @@
     "Core\\Task::afterResponse": "199303149acfe7b8"
   },
   "help:Core\\Task::all": {
-    "Core\\Task::all": "d9c19255f64b24c7"
+    "Core\\Task::all": "25cc007ba8089d61"
   },
   "help:Core\\Task::map": {
     "Core\\Task::map": "8f4d42e8c055fb5c"
@@ -7803,7 +7806,7 @@
     "Core\\Test\\Response::cookies": "4767bb6f5b390983"
   },
   "help:Core\\Test\\Response::error": {
-    "Core\\Test\\Response::error": "84839ef29071d86c"
+    "Core\\Test\\Response::error": "023515e08ab69ac7"
   },
   "help:Core\\Test\\Response::header": {
     "Core\\Test\\Response::header": "fe7027efe78c2bf3"

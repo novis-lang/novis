@@ -1,0 +1,30 @@
+<?nvs
+// Shows a test that checks why a request failed, not only that it failed.
+
+use Core\Http\Method;
+use Core\Test;
+
+class OutOfStock extends RuntimeError
+{
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // This part answers each request. An order for item 7 fails,
+    // because that item is out of stock.
+    if (Core\Request::path() == '/order/7') {
+        throw new OutOfStock('item 7 is out of stock');
+    }
+    echo 'order placed';
+} else {
+    // This part is the test. Every failed request has the status 500,
+    // so the test also checks the error.
+    var $response = Test::request(Method::Post, '/order/7');
+    Test::assertEquals($response->status(), 500);
+    Test::assertEquals($response->error(), 'OutOfStock: item 7 is out of stock');
+
+    var $other = Test::request(Method::Post, '/order/3');
+    Test::assertNull($other->error());
+
+    // All checks passed, so this prints `the order fails for the right reason`.
+    echo "the order fails for the right reason\n";
+}

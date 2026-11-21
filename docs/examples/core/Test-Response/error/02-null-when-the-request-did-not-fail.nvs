@@ -1,0 +1,28 @@
+<?nvs
+// Shows that `error()` returns `null` when the request did not fail.
+
+use Core\Http\Method;
+use Core\Test;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // This part answers each request. `/caught` throws an error and catches it,
+    // so the request still works.
+    if (Core\Request::path() == '/caught') {
+        try {
+            throw new RuntimeError('the price list is missing');
+        } catch (RuntimeError $e) {
+            echo 'default prices';
+        }
+    } else {
+        echo 'Hello';
+    }
+} else {
+    // A normal request. This prints `200 null`.
+    var $plain = Test::request(Method::Get, '/hello');
+    echo $plain->status(), ' ', $plain->error() ?? 'null', "\n";
+
+    // The program caught its error, so the request did not fail.
+    // This prints `200 null default prices`.
+    var $caught = Test::request(Method::Get, '/caught');
+    echo $caught->status(), ' ', $caught->error() ?? 'null', ' ', $caught->body(), "\n";
+}

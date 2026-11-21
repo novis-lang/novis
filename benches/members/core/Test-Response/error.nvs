@@ -1,0 +1,41 @@
+<?nvs
+// Reads the error of one test response, as a test does to check why a request failed.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Core\Test\Response> $responses = [
+            Core\Test::request(Core\Http\Method::Get, '/ok'),
+            Core\Test::request(Core\Http\Method::Get, '/empty-cart'),
+            Core\Test::request(Core\Http\Method::Get, '/no-stock'),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if ($responses[($total % 3) as int]->error() == null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 4;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each request runs this file again. In that run, this part throws the errors.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    var $path = Core\Request::path();
+    if ($path == '/empty-cart') {
+        throw new RuntimeError('the cart is empty');
+    }
+    if ($path == '/no-stock') {
+        throw new LogicError('the item is out of stock');
+    }
+} else {
+    echo Bench::run(400000), "\n";
+}
