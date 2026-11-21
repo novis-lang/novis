@@ -277,7 +277,7 @@ fn kept(level: Level, message: &str, record: &Record) -> nvs_runtime::test_recor
     let fields = if record.envelope.fields.is_empty() {
         String::new()
     } else {
-        serde_json::Value::Object(nvs_render::json::fields(&record.envelope.fields)).to_string()
+        nvs_render::json::fields_text(&record.envelope.fields)
     };
     nvs_runtime::test_records::KeptLog {
         level: level.name(),

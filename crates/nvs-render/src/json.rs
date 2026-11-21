@@ -119,6 +119,15 @@ pub fn fields(fields: &[(String, Node)]) -> serde_json::Map<String, serde_json::
     }
 }
 
+/// A record's `fields` as the JSON object text a log line writes, keys in the order given.
+///
+/// [`fields`] builds a `serde_json::Map`, which sorts its keys. A reader that hands the
+/// fields back to a program (`Core\Test\LogRecord::fields`) needs the order the log line has.
+#[must_use]
+pub fn fields_text(fields: &[(String, Node)]) -> String {
+    serde_json::to_string(&AsFields(fields)).unwrap_or_else(|_| String::from("{}"))
+}
+
 /// A whole [`Record`]: its envelope's keys, then its own nodes.
 struct AsRecord<'a>(&'a Record);
 
@@ -405,8 +414,20 @@ fn non_finite(value: f64) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::{line, render};
+    use super::{fields_text, line, render};
     use crate::{Elision, Level, Node, Record, Rendered, Scalar};
+
+    /// `fields_text` keeps the keys in the order given, as a log line does,
+    /// where a `serde_json::Map` would sort them.
+    #[test]
+    fn fields_text_keeps_the_order_the_fields_were_given() {
+        let fields = vec![
+            ("order".to_owned(), Node::Scalar(Scalar::Int(42))),
+            ("total".to_owned(), Node::Scalar(Scalar::Float(19.5))),
+            ("customer".to_owned(), Node::Scalar(Scalar::Int(7))),
+        ];
+        assert_eq!(fields_text(&fields), r#"{"order":42,"total":19.5,"customer":7}"#);
+    }
 
     /// The envelope's unconditional key is `level` and nothing else, and the
     /// line ends where JSON Lines needs it to.

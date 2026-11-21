@@ -192,7 +192,8 @@ const MESSAGE_DOC: MethodDoc = MethodDoc {
 const FIELDS_DOC: MethodDoc = MethodDoc {
     short: "Returns the extra fields of the record, as the log wrote them.",
     params: &[],
-    ret: "The `$fields` given to `Core\\Log::write`, as they look in a JSON log line. A string, a \
+    ret: "The `$fields` given to `Core\\Log::write`, in the order given, as they look in a JSON \
+          log line. A string, a \
           number, a `bool` and `null` are the same. A value JSON cannot contain, such as `bytes`, \
           is the text the log wrote for it. The array is empty when the record has no fields.",
     errors: &[],
