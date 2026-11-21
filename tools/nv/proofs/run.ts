@@ -596,7 +596,7 @@ export function proofRecording(proof: string, dir: string | undefined = process.
  * a `Core\Sse` member has a stream to wait on. A proof with a `<name>.env` beside it runs with each of
  * that file's `NAME=value` lines added to its environment (`envLines`), so a `Core\Env` member has
  * variables of the proof's own to read. A proof whose directory holds an `nvs.toml` runs
- * under that file alone, handed over as `--config` after `run`, so an example that needs a grant or a
+ * under that file alone, handed over as `--config` after `run` or `test`, so an example that needs a grant or a
  * setting carries it on the page that shows it, and the root's names no example
  * (`rule:testing/an-example-carries-its-own-configuration`). Every other proof runs under the
  * repository root's, which still configures many attacks and benches. When that file turns
@@ -634,9 +634,11 @@ export async function spawnProof(argv: string[], proof: string, timeoutMs: numbe
   if (at >= 0 && existsSync(abs(request))) argv = [...argv.slice(0, at + 1), "--request", request, ...argv.slice(at + 1)];
   if (at >= 0 && existsSync(abs(peer))) argv = [...argv.slice(0, at + 1), "--peer", peer, ...argv.slice(at + 1)];
   if (at >= 0 && existsSync(abs(events))) argv = [...argv.slice(0, at + 1), "--events", events, ...argv.slice(at + 1)];
-  if (at >= 0 && existsSync(abs(config))) argv = [...argv.slice(0, at + 1), "--config", config, ...argv.slice(at + 1)];
+  // A `proof: test` program reads its directory's `nvs.toml` too: `nvs test` takes `--config` as `nvs run` does.
+  const command = scratch ? -1 : at >= 0 ? at : argv.indexOf("test");
+  if (command >= 0 && existsSync(abs(config))) argv = [...argv.slice(0, command + 1), "--config", config, ...argv.slice(command + 1)];
   let data: string | null = null;
-  if (at >= 0 && existsSync(abs(config)) && storesDebug(abs(config))) {
+  if (command >= 0 && existsSync(abs(config)) && storesDebug(abs(config))) {
     mkdirSync(DATA_SCRATCH, { recursive: true });
     data = mkdtempSync(join(DATA_SCRATCH, "run-"));
     argv = [argv[0]!, "--data", data, ...argv.slice(1)];
