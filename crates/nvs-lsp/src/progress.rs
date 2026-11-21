@@ -201,9 +201,10 @@ impl Indexing {
             return Ok(());
         };
         let message = format!(
-            "index work: parsed={} checked={} {}; server work: {}",
+            "index work: parsed={} checked={} planned={} {}; server work: {}",
             work.parsed,
             work.checked,
+            work.planned,
             work.files,
             nvs_diagnostics::work::so_far()
         );

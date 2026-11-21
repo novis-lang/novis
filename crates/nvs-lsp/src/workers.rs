@@ -29,6 +29,23 @@
 //! functions in a later file may differ from a whole check's. The index
 //! records no anonymous function's name, so the records are the same.
 //!
+//! A file a loaded extension carries has no path, so no part can name it. The
+//! entry's first part checks it and every other part leaves it out, as a plan
+//! does. So it is checked once per graph that reads it, and never by a plan.
+//!
+//! # Decision: plans run ahead of the split, in parallel
+//!
+//! A plan claims nothing, so the order plans come back in changes no index.
+//! Once the split cursor has used the room it needs, the index plans the
+//! entries past it whose graph it does not know, in path order, in the room
+//! that is left ([`Pool::has_room_to_plan`]). That keeps every worker busy
+//! where most entries are programs of one file: each is a plan and then one
+//! part. They start once one plan came back, so the next plans read that
+//! plan's parses and a library many programs share is parsed once. An entry
+//! whose own file a graph that came back reaches is left for its turn, which
+//! most often skips it. At most twice the pool's size of graphs wait for
+//! their split.
+//!
 //! There are `available_parallelism() - 1` workers, and at least one. They are
 //! started when the first job is sent and stopped once no entry waits, so a
 //! settled server has no worker thread.
@@ -42,17 +59,29 @@
 //! (`crate::parse_cache`), so the parses are kept once, on the server's
 //! thread. Each job copies the open buffers' text, and each part one set of
 //! the paths it checks. A plan is one extra resolve
-//! of a graph no entry indexed yet. That memory buys the latency of a cold
-//! index, which the priority ordering allows.
+//! of a graph no entry indexed yet. Plans that run ahead keep more workers
+//! busy at once, and each busy worker holds its session's output, so the
+//! peak grows by about a fifth on this repository. Each graph that waits
+//! for its split costs its list of paths. That memory buys the latency of a
+//! cold index, which the priority ordering allows.
 //!
-//! Measured with `bun nv lsp-start --copies 12 --cold --edits 5` on 16 cores,
-//! so 15 workers, over 972 files: a cold index parses and checks each file
-//! once and peaks at 786 MB paged, 463 MB private once it settles. When each
+//! Measured with `bun nv lsp-start . --cold` on this repository, 16 cores, so
+//! 15 workers, over 9147 files: the index settles in 5.3 s of wall time and
+//! 59 s of CPU time, and peaks at 990 MB paged, 785 MB private once it
+//! settles. It parses 13833 files, checks 13292 bodies, and runs up to 15
+//! plans at once. Every body above one per file is a file an extension
+//! carries, checked once per graph that reads it. When plans ran one at a
+//! time and every plan and part checked the extension's files, it settled in
+//! 20 s and checked 17520 bodies, at a peak of 808 MB paged.
+//!
+//! Measured with `bun nv lsp-start --copies 12 --cold --edits 5` over 972
+//! files: a cold index parses and checks each file once, settles in 3.9 s and
+//! peaks at 948 MB paged, 522 MB private once it settles. When each
 //! worker checked every body it read, it peaked at 5752 MB. A surface edit
-//! checks each file once more and peaks at about 1 GB paged. The live bytes
+//! checks each file once more and peaks at about 1.1 GB paged. The live bytes
 //! after each edit stay at the settled 228 MB, summed over every thread. The
 //! platform heap keeps the freed pages of an edit's run, so the private bytes
-//! climb to about 900 MB and stay there after 5, 10 and 20 edits.
+//! climb to about 1 GB after 5 edits.
 //!
 //! A worker hands its allocator's cached blocks back before its thread ends
 //! (`nvs_runtime::budget::release_pooled_blocks`). Without that, the blocks of
@@ -179,6 +208,11 @@ pub(crate) struct Pool {
     /// The last entry split or passed ahead of its turn, so the next look for
     /// one starts after it.
     pub(crate) cursor: Option<PathBuf>,
+    /// The last entry planned or passed ahead of the split cursor, so the next
+    /// look for one to plan starts after it.
+    pub(crate) plan_cursor: Option<PathBuf>,
+    /// Every file a graph that came back reaches, until the pool stops.
+    reached: FxHashSet<PathBuf>,
 }
 
 impl std::fmt::Debug for Pool {
@@ -208,6 +242,8 @@ impl Pool {
             work: Work::default(),
             parses: Vec::new(),
             cursor: None,
+            plan_cursor: None,
+            reached: FxHashSet::default(),
         }
     }
 
@@ -251,6 +287,13 @@ impl Pool {
         self.running_jobs() < self.size && self.unfiled_jobs() < 2 * self.size
     }
 
+    /// Whether an entry past the split cursor can be planned now: there is
+    /// room, one plan came back already, and the graphs that wait for their
+    /// split stay under twice the pool's size.
+    pub(crate) fn has_room_to_plan(&self) -> bool {
+        self.has_room() && !self.reached.is_empty() && self.graphs.len() < 2 * self.size
+    }
+
     /// Sends a plan job for its entry. Returns `false` when no worker runs and
     /// none could be started, and then nothing is in flight.
     pub(crate) fn send_plan(&mut self, job: Job) -> bool {
@@ -258,6 +301,12 @@ impl Pool {
         self.in_flight
             .insert(entry.clone(), Flight::Planning { change: job.change });
         if self.dispatch(job) {
+            let planning = self
+                .in_flight
+                .values()
+                .filter(|flight| matches!(flight, Flight::Planning { .. }))
+                .count();
+            self.work.planned = self.work.planned.max(planning);
             return true;
         }
         self.in_flight.remove(&entry);
@@ -353,6 +402,7 @@ impl Pool {
                         graph
                     },
                 );
+                self.reached.extend(graph.iter().cloned());
                 self.graphs.insert(entry, graph);
             }
             (Some(Flight::Split { change, parts, .. }), Found::Part(analysis))
@@ -396,6 +446,16 @@ impl Pool {
             Some(Flight::Split { parts, .. }) => parts.iter().any(Option::is_none),
             None => false,
         }
+    }
+
+    /// Whether `entry` was sent and is not filed yet.
+    pub(crate) fn is_sent(&self, entry: &Path) -> bool {
+        self.in_flight.contains_key(entry)
+    }
+
+    /// Whether a graph that came back reaches `file`.
+    pub(crate) fn is_reached(&self, file: &Path) -> bool {
+        self.reached.contains(file)
     }
 
     /// Whether `entry`'s plan job runs.
@@ -483,6 +543,8 @@ impl Pool {
         self.graphs.clear();
         self.parses.clear();
         self.cursor = None;
+        self.plan_cursor = None;
+        self.reached.clear();
     }
 
     /// How many worker threads run.
@@ -529,6 +591,7 @@ fn run_jobs(jobs: &Receiver<Job>, done: &Sender<Done>) {
                     job.version,
                     |key| !files.contains(key),
                     files.contains(&job.entry),
+                    job.part == 0,
                 )
                 .map(|(_, analysis)| analysis),
             ),

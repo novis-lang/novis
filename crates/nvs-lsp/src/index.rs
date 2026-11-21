@@ -824,6 +824,7 @@ impl SymbolIndex {
             version,
             |key| files.contains_key(key),
             true,
+            true,
         );
         drop((session, trees));
         if let Some((_, analysis)) = analysed {
@@ -970,6 +971,38 @@ impl SymbolIndex {
                 }
             }
             pool.cursor = Some(next);
+        }
+        // Entries past the cursor whose graph nobody knows are planned now,
+        // in path order, in the room the split left. A plan claims nothing,
+        // so the order of filing does not change. They start once one plan
+        // came back, whose parses the next plans read. An entry whose own
+        // file a known graph reaches is left for its turn, which most often
+        // skips it.
+        while pool.has_room_to_plan() {
+            let after = pool.plan_cursor.as_ref().max(pool.cursor.as_ref());
+            let next = match after {
+                Some(after) => self
+                    .pending
+                    .range::<PathBuf, _>((
+                        std::ops::Bound::Excluded(after),
+                        std::ops::Bound::Unbounded,
+                    ))
+                    .next()
+                    .cloned(),
+                None => self.pending.first().cloned(),
+            };
+            let Some(next) = next else {
+                break;
+            };
+            let known = pool.is_sent(&next)
+                || pool.graph(&next).is_some()
+                || self.reads.contains_key(&next)
+                || self.files.contains_key(&next)
+                || pool.is_reached(&next);
+            if !known && !matches!(self.send(documents, pool, &next), Sent::Plan) {
+                break;
+            }
+            pool.plan_cursor = Some(next);
         }
         true
     }
@@ -1528,6 +1561,7 @@ impl SymbolIndex {
             version,
             |key| files.contains_key(key),
             true,
+            true,
         )?;
         drop((session, trees));
         self.merge(analysis);
@@ -1648,10 +1682,13 @@ pub(crate) struct Analysis {
 /// entry where `checks_entry` says so, and no others: a file `indexed` names
 /// is checked by the analysis that indexes it ([`analyse_through`]). So a
 /// cold settle checks each file once however many entries read it. A worker's
-/// part passes `false` when the entry is another part's.
+/// part passes `false` when the entry is another part's. The files a loaded
+/// extension carries are checked where `checks_carried` says so, which a
+/// worker's part says only when it is the entry's first.
 ///
 /// Each path the graph loaded is a `canonical_key` already, because the walk
 /// resolves every file it loads, so only the entry is resolved, by the caller.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn analyse_entry(
     reads: &impl Reads,
     session: &mut Session,
@@ -1660,6 +1697,7 @@ pub(crate) fn analyse_entry(
     version: i32,
     indexed: impl Fn(&Path) -> bool,
     checks_entry: bool,
+    checks_carried: bool,
 ) -> Option<(Analysed, Analysis)> {
     let before = nvs_diagnostics::work::so_far();
     let started = SystemTime::now();
@@ -1670,7 +1708,16 @@ pub(crate) fn analyse_entry(
             indexed(key)
         }
     };
-    let analysed = analyse_through(reads, session, trees, entry, version, None, &absent)?;
+    let analysed = analyse_through(
+        reads,
+        session,
+        trees,
+        entry,
+        version,
+        None,
+        &absent,
+        checks_carried,
+    )?;
     let open = reads.open_keys();
     // The entry was loaded by the path the caller gave, and every other file
     // by the key the walk resolved.
@@ -1731,7 +1778,16 @@ pub(crate) fn plan_entry(
     version: i32,
 ) -> Option<(Vec<PathBuf>, Work)> {
     let before = nvs_diagnostics::work::so_far();
-    let analysed = analyse_through(reads, session, trees, entry, version, None, &|_| true)?;
+    let analysed = analyse_through(
+        reads,
+        session,
+        trees,
+        entry,
+        version,
+        None,
+        &|_| true,
+        false,
+    )?;
     let graph = analysed
         .loaded
         .iter()

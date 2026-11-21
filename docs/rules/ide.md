@@ -1732,9 +1732,11 @@ in `crates/nvs-lsp/tests/incremental.rs` pins.
 
 **Work is counted, never timed.** An analysis reports `Work { parsed, checked }`, the files it parsed and the
 files whose bodies it checked, and the index sums them over every analysis it ran, queued ones included,
-because queued work is deferred work. The counters live in the analysis and the index, never in a global.
+because queued work is deferred work. Its `planned` is the most plans the workers ran at once, kept as the
+larger of two counts rather than summed. The counters live in the analysis and the index, never in a global.
 The counted tests run on a tree that `tests/incremental.rs` generates (`Blog`, `Shop`, then more programs
-over one library `lib/Framework/`), because a kept fixture's only property is its shape.
+over one library `lib/Framework/`, or many one-file programs beside an extension), because a kept
+fixture's only property is its shape.
 
 **Five caches, each with one key.**
 

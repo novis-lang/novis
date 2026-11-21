@@ -249,6 +249,7 @@ fn a_keystroke_counts_the_files_it_parsed_and_the_bodies_it_checked() {
         Work {
             parsed: 1,
             checked: 1,
+            planned: 0,
             files: work.files,
         },
         "a keystroke in a program nothing else reads is one analysis of its own file"
@@ -449,6 +450,7 @@ fn a_body_only_keystroke_in_a_library_file_parses_one_file_and_checks_one_files_
         Work {
             parsed: 1,
             checked: 1,
+            planned: 0,
             files: work.files,
         }
     );
@@ -813,6 +815,7 @@ fn a_cold_start_with_a_valid_index_analyses_only_the_open_documents_entry() {
         Work {
             parsed: graph,
             checked: 1,
+            planned: 0,
             files: work.files,
         },
         "one parse of the open document's graph, one check of its own bodies, and no other"
@@ -1206,6 +1209,88 @@ fn a_keystroke_in_an_open_library_file_checks_its_own_bodies_alone() {
             work.checked, 1,
             "a body edit on {workers} workers checked {} files' bodies",
             work.checked
+        );
+    }
+}
+
+/// The one-file programs of the tree the two tests below settle.
+const SINGLES: usize = 24;
+
+/// Writes `programs` programs of one file each, beside an `nvs.toml` that
+/// pins the `ledger` extension (`tests/extensions.rs` reads the same
+/// fixture). Each program calls the class the extension carries as source,
+/// and declares a function of its own, so no two graphs have one surface.
+fn singles(programs: usize) -> TempDir {
+    let dir = TempDir::new(nvs_repo::scratch(&format!("lsp-singles-{programs}")));
+    let fixture = nvs_repo::path("tests/conformance/ext/fixtures/ledger");
+    let manifest = fs::read(fixture.join("manifest.json")).expect("the fixture's manifest");
+    let receipt = fs::read_to_string(fixture.join("source/Ledger/Receipt.nvs.src"))
+        .expect("the fixture's source file");
+    let source = format!(
+        "{{\"source\": 1, \"files\": [{{\"path\": \"Ledger/Receipt.nvs\", \"text\": {receipt:?}}}]}}"
+    );
+    let component =
+        wat::parse_str("(component (import \"missing\" (func)))").expect("the component parses");
+    let nvsx = nvs_ext::pack::append_section(component, nvs_ext::section::MANIFEST, &manifest);
+    let nvsx = nvs_ext::pack::append_section(nvsx, nvs_ext::section::SOURCE, source.as_bytes());
+    fs::write(dir.at("shop.nvsx"), &nvsx).expect("a writable scratch file");
+    dir.write(
+        "nvs.toml",
+        &format!(
+            "[[extension]]\npath = 'shop.nvsx'\nsha256 = \"{}\"\n",
+            nvs_ext::load::pin(&nvsx)
+        ),
+    );
+    for p in 0..programs {
+        dir.write(
+            &format!("p{p:02}.nvs"),
+            &format!(
+                "<?nvs\nfunction amount{p}(): int\n{{\n    return {p};\n}}\n\n\
+                 echo Shop\\Ledger\\Receipt::line('tea', amount{p}()), \"\\n\";\n"
+            ),
+        );
+    }
+    dir
+}
+
+/// The work a cold settle of [`singles`] does on `workers` threads, or on
+/// this one when it is zero.
+fn singles_work(workers: usize) -> Work {
+    let dir = singles(SINGLES);
+    let (documents, mut index) = planned(&dir, workers);
+    index.take_work();
+    index.settle(&documents);
+    assert!(index.pending().is_empty(), "the index settled");
+    index.take_work()
+}
+
+/// Many programs that read no shared file plan side by side. The first plan
+/// runs alone. Then one worker checks the first program's bodies while every
+/// other worker plans the next programs.
+#[test]
+fn a_cold_index_of_many_programs_plans_on_every_worker() {
+    let workers = 6;
+    let work = singles_work(workers);
+    assert!(
+        work.planned >= workers - 1,
+        "at most {} plans ran at once on {workers} workers",
+        work.planned
+    );
+}
+
+/// A cold index checks each program's bodies once, and the class the
+/// extension carries once for each program that reads it. A plan checks no
+/// body, and only the first part of an entry checks the extension's class.
+#[test]
+fn a_cold_index_checks_each_body_once() {
+    for workers in [0, 4] {
+        let work = singles_work(workers);
+        assert_eq!(
+            work.checked,
+            2 * SINGLES,
+            "a cold index on {workers} workers checked {} bodies, not {}",
+            work.checked,
+            2 * SINGLES
         );
     }
 }

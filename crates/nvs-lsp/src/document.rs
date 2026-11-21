@@ -780,6 +780,9 @@ pub struct Work {
     pub parsed: usize,
     /// The files whose bodies the type phase checked.
     pub checked: usize,
+    /// The most plans the index's workers ran at once, and `0` where no
+    /// worker planned. Summing two counts keeps the larger.
+    pub planned: usize,
     /// The file-system work: paths resolved, files read, directories listed,
     /// settings files parsed and programs walked
     /// ([`nvs_diagnostics::work`]). An analysis counts its own walk, and the
@@ -791,6 +794,7 @@ impl std::ops::AddAssign for Work {
     fn add_assign(&mut self, other: Self) {
         self.parsed += other.parsed;
         self.checked += other.checked;
+        self.planned = self.planned.max(other.planned);
         self.files += other.files;
     }
 }
@@ -1012,6 +1016,7 @@ pub fn analyse(documents: &Documents, uri: &Uri) -> Option<Analysed> {
         document.version,
         None,
         &|file| file != key.as_path(),
+        true,
     )
 }
 
@@ -1070,6 +1075,7 @@ fn analyse_over(
         version,
         entry_text,
         &|_| false,
+        true,
     )
 }
 
@@ -1093,6 +1099,13 @@ pub(crate) struct Entry<'a> {
 /// out of the result's expressions, diagnostics and rows, and no key is
 /// stored for it, so the next analysis that needs it checks it
 /// (`crate::session`).
+///
+/// A file a loaded extension carries has no path, so `absent` is never asked
+/// about it. `checks_carried` says whether this analysis checks the bodies of
+/// those files, and they are left out like an absent file where it is
+/// `false`. A worker's plan and every part but the first leave them out, so
+/// each is checked once per graph ([`crate::workers`]).
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn analyse_through(
     reads: &impl Reads,
     session: &mut Session,
@@ -1101,6 +1114,7 @@ pub(crate) fn analyse_through(
     version: i32,
     entry_text: Option<String>,
     absent: &dyn Fn(&Path) -> bool,
+    checks_carried: bool,
 ) -> Option<Analysed> {
     let Entry { path, key } = entry_at;
     let before = nvs_diagnostics::work::so_far();
@@ -1269,7 +1283,7 @@ pub(crate) fn analyse_through(
                 if src.id() == entry {
                     absent(key)
                 } else {
-                    src.path().is_some_and(absent)
+                    src.path().map_or(!checks_carried, absent)
                 }
             })
             .map(|src| src.id())
