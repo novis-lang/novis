@@ -1093,8 +1093,17 @@ pub(crate) const RESPONSE: CoreClass = CoreClass {
             symbol: "nvs_core_test_response_json_as",
             doc: Some(&RESPONSE_JSON_AS_DOC),
         },
+        CoreMethod {
+            name: "error",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "nvs_core_test_response_error",
+            doc: Some(&RESPONSE_ERROR_DOC),
+        },
     ],
-    slots: &["status", "body", "headers", "text"],
+    slots: &["status", "body", "headers", "text", "error"],
     constants: &[],
 };
 
@@ -1107,7 +1116,8 @@ const RESPONSE_CARD: ClassDoc = ClassDoc {
     short: "The answer to one request that `Core\\Test::request` sent to your own program. \
             `status()` returns the status code, `header()` and `headers()` return the headers, \
             `cookies()` returns the cookies the program set, and `body()`, `bytes()`, `json()` \
-            and `jsonAs()` return the body. You cannot create one yourself.",
+            and `jsonAs()` return the body. `error()` returns the error that stopped a failed \
+            request. You cannot create one yourself.",
 };
 
 /// [`RESPONSE`]'s first slot: the status the program declared, or `200`.
@@ -1132,6 +1142,13 @@ const HEADERS_SLOT: usize = 2;
 /// with the response's other slots. A body that is not UTF-8 never fills it,
 /// so every `body()` call on one throws the same error.
 const TEXT_SLOT: usize = 3;
+/// [`RESPONSE`]'s fifth slot: the error that ended a failed request, as
+/// `Class: message`, and `null` for a request that did not fail.
+///
+/// A `string` and not the error object: that object belongs to the request's
+/// isolate, and nothing of it crosses into the test's
+/// (`rule:testing/in-process-request`).
+const ERROR_SLOT: usize = 4;
 
 /// `Core\Test\SentRequest`'s fully-qualified name, written once for the same
 /// reason [`NAME`] is.
@@ -1398,7 +1415,18 @@ const RESPONSE_STATUS_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "The code the program set with `Core\\Response::setStatus`. If the program set no code, \
           the result is `200`. If the program threw an error it did not catch, the result is \
-          `500`, the same code the server sends.",
+          `500`, the same code the server sends. If the server stops the request before the \
+          program runs, the result is the code the server sends, such as `403` or `413`.",
+    errors: &[],
+};
+
+/// `Core\Test\Response::error`'s reference card — `rule:core-api/reference-card`.
+const RESPONSE_ERROR_DOC: MethodDoc = MethodDoc {
+    short: "Returns the error that stopped this request, if the program threw one it did not \
+            catch.",
+    params: &[],
+    ret: "The class and the message of the error, as `Class: message`, for example \
+          `RuntimeError: the cart is empty`. If the request did not fail, the result is `null`.",
     errors: &[],
 };
 
@@ -3002,6 +3030,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_test_response_cookies" => (nvs_core_test_response_cookies as *const ()).cast(),
         "nvs_core_test_response_json" => (nvs_core_test_response_json as *const ()).cast(),
         "nvs_core_test_response_json_as" => (nvs_core_test_response_json_as as *const ()).cast(),
+        "nvs_core_test_response_error" => (nvs_core_test_response_error as *const ()).cast(),
         "nvs_core_test_double" => (nvs_core_test_double as *const ()).cast(),
         "nvs_core_test_partial" => (nvs_core_test_partial as *const ()).cast(),
         "nvs_core_test_assert_called" => (nvs_core_test_assert_called as *const ()).cast(),
@@ -3294,25 +3323,59 @@ nvs_runtime::nvs_helper! {
         let mount = args[4].as_text().unwrap_or("");
         let spec = described(ctx, &verb, target, args)?;
         let host = host_of(args)?;
-        let mut completion = match nvs_runtime::inproc::answer(
+        let answered = match nvs_runtime::inproc::answer(
             ctx,
             Box::new(spec.build()),
             |mounts, handlers| links_through(mounts, mount, host.as_deref(), handlers),
         ) {
-            Ok(completion) => completion,
+            Ok(answered) => answered,
             Err(refusal) => return Err(Fault::thrown(format!(
                 "Core\\Test::request could not run the request: {refusal}"
             ))),
+        };
+        let (mut completion, after_response) = match answered {
+            // The server's door refused the request before the program ran: a
+            // forged write or a body over `[limits] upload_total`. Its answer has
+            // no body and no header, as the server's has.
+            nvs_runtime::inproc::Answered::Door(status) => {
+                return Ok(crate::instance::build(
+                    &RESPONSE,
+                    [
+                        Value::int(i64::from(status)),
+                        Value::bytes(nvs_runtime::NvsStr::new(b"")),
+                        Value::array(nvs_runtime::NvsArray::new()),
+                        Value::null(),
+                        Value::null(),
+                    ],
+                ));
+            }
+            nvs_runtime::inproc::Answered::Ran {
+                completion,
+                after_response,
+            } => (completion, after_response),
         };
         // Nobody reads what the program's script frame returned — a response is
         // its status and its bytes — so the reference is discharged rather than
         // leaked (`Completion::discard_value`).
         completion.discard_value();
+        // The call returned after the request's after-response work, and a task
+        // of it that failed fails the test (`rule:testing/in-process-request`).
+        if let Some(message) = after_response {
+            return Err(failed(
+                ctx,
+                "request",
+                &format!("an after-response task of the request failed: {message}"),
+                Value::null(),
+            ));
+        }
         // A request that failed answers what the server answers for one: `500`
         // and no body, whatever it declared or wrote before it failed
         // (`nvs-server`'s `answer`). A test of an error path then sees the
-        // response production sends.
+        // response production sends, and `error()` names what ended it.
         if !completion.ok {
+            let error = completion.error.as_ref().map_or_else(Value::null, |failure| {
+                Value::text(&format!("{}: {}", failure.class, failure.message))
+            });
             return Ok(crate::instance::build(
                 &RESPONSE,
                 [
@@ -3320,6 +3383,7 @@ nvs_runtime::nvs_helper! {
                     Value::bytes(nvs_runtime::NvsStr::new(b"")),
                     Value::array(nvs_runtime::NvsArray::new()),
                     Value::null(),
+                    error,
                 ],
             ));
         }
@@ -3354,16 +3418,23 @@ nvs_runtime::nvs_helper! {
         let headers = answered_headers(&completion);
         // The body is kept as `bytes`, so a route that answered with bytes
         // that are not UTF-8 still returns a response. `body`, `json` and
-        // `jsonAs` throw for them (`body_text`).
-        let body = Value::bytes(nvs_runtime::NvsStr::new(
-            &file.unwrap_or_else(|| completion.output.to_bytes().into_owned()),
-        ));
+        // `jsonAs` throw for them (`body_text`). The answer to a `HEAD` has its
+        // headers and no body: the server's HTTP layer sends none
+        // (RFC 9110 § 9.3.2), so a test reads none either.
+        let body = if verb == "HEAD" {
+            Value::bytes(nvs_runtime::NvsStr::new(b""))
+        } else {
+            Value::bytes(nvs_runtime::NvsStr::new(
+                &file.unwrap_or_else(|| completion.output.to_bytes().into_owned()),
+            ))
+        };
         Ok(crate::instance::build(
             &RESPONSE,
             [
                 Value::int(status),
                 body,
                 headers,
+                Value::null(),
                 Value::null(),
             ],
         ))
@@ -3721,6 +3792,14 @@ nvs_runtime::nvs_helper! {
         unsafe {
             crate::json::decode_checked(ctx, class, shape, text, max, list, "Core\\Test\\Response::jsonAs")
         }
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test\Response::error(): ?string` — the class and message of the
+    /// error that ended a failed request, or `null` ([`ERROR_SLOT`]).
+    fn nvs_core_test_response_error(_ctx, args: [1]) {
+        response_slot(args, ERROR_SLOT, "error")
     }
 }
 
@@ -6794,7 +6873,7 @@ mod tests {
                 _ctx: &mut Ctx,
                 _inbound: Box<nvs_runtime::Inbound>,
                 links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
-            ) -> Result<nvs_runtime::host::Completion, String> {
+            ) -> Result<nvs_runtime::inproc::Answered, String> {
                 let written = match links {
                     None => "no table".to_owned(),
                     Some(links) => links
@@ -6817,7 +6896,8 @@ mod tests {
                     coverage: None,
                     trace_sink: None,
                     store: None,
-                })
+                }
+                .into())
             }
 
             fn mounts(&self) -> Option<&nvs_runtime::inproc::Mounts> {
@@ -6933,7 +7013,7 @@ mod tests {
                 _ctx: &mut Ctx,
                 inbound: Box<nvs_runtime::Inbound>,
                 _links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
-            ) -> Result<nvs_runtime::host::Completion, String> {
+            ) -> Result<nvs_runtime::inproc::Answered, String> {
                 let written = format!(
                     "{} {} query={} mount={} captures={} headers={}",
                     inbound.method(),
@@ -6959,7 +7039,8 @@ mod tests {
                     coverage: None,
                     trace_sink: None,
                     store: None,
-                })
+                }
+                .into())
             }
         }
 
@@ -7087,7 +7168,7 @@ mod tests {
                 _ctx: &mut Ctx,
                 _inbound: Box<nvs_runtime::Inbound>,
                 _links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
-            ) -> Result<nvs_runtime::host::Completion, String> {
+            ) -> Result<nvs_runtime::inproc::Answered, String> {
                 Ok(nvs_runtime::host::Completion {
                     ok: !self.0,
                     value: Value::null(),
@@ -7104,7 +7185,8 @@ mod tests {
                     coverage: None,
                     trace_sink: None,
                     store: None,
-                })
+                }
+                .into())
             }
         }
 
@@ -7177,7 +7259,7 @@ mod tests {
                 _ctx: &mut Ctx,
                 _inbound: Box<nvs_runtime::Inbound>,
                 _links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
-            ) -> Result<nvs_runtime::host::Completion, String> {
+            ) -> Result<nvs_runtime::inproc::Answered, String> {
                 Ok(nvs_runtime::host::Completion {
                     ok: true,
                     value: Value::null(),
@@ -7194,7 +7276,8 @@ mod tests {
                     coverage: None,
                     trace_sink: None,
                     store: None,
-                })
+                }
+                .into())
             }
         }
 
@@ -7324,7 +7407,7 @@ mod tests {
             _ctx: &mut Ctx,
             _inbound: Box<nvs_runtime::Inbound>,
             _links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
-        ) -> Result<nvs_runtime::host::Completion, String> {
+        ) -> Result<nvs_runtime::inproc::Answered, String> {
             Ok(nvs_runtime::host::Completion {
                 ok: !self.fails,
                 value: Value::null(),
@@ -7341,7 +7424,8 @@ mod tests {
                 coverage: None,
                 trace_sink: None,
                 store: None,
-            })
+            }
+            .into())
         }
     }
 
@@ -7369,7 +7453,7 @@ mod tests {
             _ctx: &mut Ctx,
             _inbound: Box<nvs_runtime::Inbound>,
             _links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
-        ) -> Result<nvs_runtime::host::Completion, String> {
+        ) -> Result<nvs_runtime::inproc::Answered, String> {
             Ok(nvs_runtime::host::Completion {
                 ok: true,
                 value: Value::null(),
@@ -7386,7 +7470,8 @@ mod tests {
                 coverage: None,
                 trace_sink: None,
                 store: None,
-            })
+            }
+            .into())
         }
     }
 

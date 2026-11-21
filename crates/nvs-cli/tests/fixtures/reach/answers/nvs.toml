@@ -1,0 +1,8 @@
+# A small body limit, so a test can send a body over it, and the folder the
+# after-response work writes its file into.
+[limits]
+upload_total = 16
+
+[capabilities.fs]
+read = ["."]
+write = ["."]

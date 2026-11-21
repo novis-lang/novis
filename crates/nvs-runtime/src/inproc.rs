@@ -13,11 +13,11 @@
 //!
 //! # What crosses, and what deliberately does not
 //!
-//! The implementor is handed one [`Inbound`] and answers with one
-//! [`crate::host::Completion`] — the same value a `spawn script` is collected
-//! as, because an answered request *is* an isolate that ended, and inventing a
-//! second result type would be inventing a second reading of what a child that
-//! threw said. What does not cross is the unit: a `Core` member may not hold a
+//! The implementor is handed one [`Inbound`] and answers with one [`Answered`]:
+//! the [`crate::host::Completion`] a `spawn script` is collected as, because an
+//! answered request *is* an isolate that ended, or the status a server's door
+//! refuses the request with before any program runs. What does not cross is
+//! the unit: a `Core` member may not hold a
 //! `nvs_codegen::Unit`, that crate being above this one, so the implementor
 //! runs the isolate on its own side and hands back only the answer.
 //!
@@ -43,6 +43,31 @@ use std::sync::Arc;
 use crate::host::Completion;
 use crate::{Ctx, Inbound, ModuleLinks};
 
+/// What a synthetic request was answered with.
+#[derive(Debug)]
+pub enum Answered {
+    /// The door refused the request before the program ran: this status, with
+    /// no body and no header, as `nvs-server`'s `Reply::status` answers.
+    Door(u16),
+    /// The program ran.
+    Ran {
+        /// What crossed back from its isolate.
+        completion: Box<Completion>,
+        /// How the first of its after-response tasks failed, as
+        /// `Class: message`, or `None` where none failed.
+        after_response: Option<String>,
+    },
+}
+
+impl From<Completion> for Answered {
+    fn from(completion: Completion) -> Self {
+        Self::Ran {
+            completion: Box::new(completion),
+            after_response: None,
+        }
+    }
+}
+
 /// Whatever holds the unit a synthetic request is answered by.
 ///
 /// Exactly one implementor is expected per binary that can compile a program —
@@ -55,7 +80,8 @@ use crate::{Ctx, Inbound, ModuleLinks};
 /// [`crate::script::Resolver`]'s is.
 pub trait Answering: std::fmt::Debug {
     /// Runs one request through the unit under test and answers with what
-    /// crossed back.
+    /// crossed back, or with the door's refusal where the server would refuse
+    /// it before the program runs.
     ///
     /// `ctx` is the **caller's**, borrowed for the length of the call: the
     /// child's own context is built on the other side of this seam and is
@@ -92,7 +118,7 @@ pub trait Answering: std::fmt::Debug {
         ctx: &mut Ctx,
         inbound: Box<Inbound>,
         links: Option<Arc<ModuleLinks>>,
-    ) -> Result<Completion, String>;
+    ) -> Result<Answered, String>;
 
     /// The mount table of the configuration this run reads, with the handlers
     /// each row serves. `None` where the configuration writes no
@@ -295,7 +321,7 @@ pub fn answer(
     ctx: &mut Ctx,
     inbound: Box<Inbound>,
     link: impl FnOnce(&Mounts, &[String]) -> Option<Arc<ModuleLinks>>,
-) -> Result<Completion, AnswerError> {
+) -> Result<Answered, AnswerError> {
     if ctx.inbound().is_some() {
         return Err(AnswerError::Reentrant);
     }
@@ -320,7 +346,9 @@ pub fn is_installed() -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{AnswerError, Answering, Completion, Ctx, Inbound, answer, is_installed, scoped};
+    use super::{
+        AnswerError, Answered, Answering, Completion, Ctx, Inbound, answer, is_installed, scoped,
+    };
 
     /// An implementor that answers every request with the same completion, so
     /// the tests below are about the seam and never about a program.
@@ -333,8 +361,8 @@ mod tests {
             _ctx: &mut Ctx,
             inbound: Box<Inbound>,
             _links: Option<std::sync::Arc<crate::ModuleLinks>>,
-        ) -> Result<Completion, String> {
-            Ok(Completion {
+        ) -> Result<Answered, String> {
+            Ok(Answered::from(Completion {
                 ok: true,
                 value: crate::Value::null(),
                 output: inbound.path().as_bytes().to_vec().into(),
@@ -350,7 +378,7 @@ mod tests {
                 coverage: None,
                 trace_sink: None,
                 store: None,
-            })
+            }))
         }
     }
 
@@ -369,7 +397,7 @@ mod tests {
     #[test]
     fn a_request_reaches_the_installed_unit_and_its_answer_comes_back() {
         let mut ctx = Ctx::new(crate::OutputSink::Sink);
-        let completion = scoped(&Fixed(201), || {
+        let answered = scoped(&Fixed(201), || {
             answer(
                 &mut ctx,
                 Box::new(Inbound::new("GET", "/users/1", "")),
@@ -377,6 +405,9 @@ mod tests {
             )
         })
         .expect("the installed unit refused a request");
+        let Answered::Ran { completion, .. } = answered else {
+            panic!("the unit's door answered instead of its program");
+        };
         assert_eq!(
             completion.status,
             Some(201),

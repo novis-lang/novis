@@ -1,0 +1,93 @@
+<?nvs
+// A test request gets the answer the server sends: for a forged write, a body
+// that is too large, a HEAD request and a request that fails. The call returns
+// after the request's after-response work has run.
+use Core\Http\Method;
+
+class Answers
+{
+    #[Core\Test]
+    public function forgedWriteAnswers403(): void
+    {
+        var $answered = Core\Test::request(Method::Post, '/write', {
+            headers: ['host' => 'shop.example.com', 'origin' => 'https://other.example.com'],
+            body: 'name=Ada',
+        });
+        Core\Test::assertEquals($answered->status(), 403);
+        Core\Test::assertEquals($answered->body(), '');
+        Core\Test::assertNull($answered->header('content-type'));
+    }
+
+    #[Core\Test]
+    public function oversizedBodyAnswers413(): void
+    {
+        var $answered = Core\Test::request(Method::Post, '/write', {
+            body: 'this body is longer than sixteen bytes',
+        });
+        Core\Test::assertEquals($answered->status(), 413);
+        Core\Test::assertEquals($answered->body(), '');
+        var $small = Core\Test::request(Method::Post, '/write', { body: 'short' });
+        Core\Test::assertEquals($small->status(), 200);
+        Core\Test::assertEquals($small->body(), 'wrote short');
+    }
+
+    #[Core\Test]
+    public function headAnswersWithNoBody(): void
+    {
+        var $answered = Core\Test::request(Method::Head, '/page');
+        Core\Test::assertEquals($answered->status(), 200);
+        Core\Test::assertEquals($answered->body(), '');
+        Core\Test::assertEquals($answered->header('x-page'), 'yes');
+        var $got = Core\Test::request(Method::Get, '/page');
+        Core\Test::assertEquals($got->body(), 'the page');
+    }
+
+    #[Core\Test]
+    public function failedRequestNamesItsError(): void
+    {
+        var $answered = Core\Test::request(Method::Get, '/fail');
+        Core\Test::assertEquals($answered->status(), 500);
+        Core\Test::assertEquals($answered->body(), '');
+        Core\Test::assertEquals($answered->error(), 'RuntimeError: the cart is empty');
+        var $fine = Core\Test::request(Method::Get, '/page');
+        Core\Test::assertNull($fine->error());
+    }
+
+    #[Core\Test]
+    public function requestReturnsAfterItsAfterResponseWork(): void
+    {
+        var $answered = Core\Test::request(Method::Get, '/after');
+        Core\Test::assertEquals($answered->body(), 'answered');
+        Core\Test::assertEquals(Core\IO::read('after.txt'), 'the work ran');
+    }
+
+    #[Core\Test]
+    public function failedAfterResponseTaskFailsTheTest(): void
+    {
+        Core\Test::request(Method::Get, '/after-fails');
+    }
+}
+
+// The suite's own load answers no request, so it writes nothing.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    var $path = Core\Request::path();
+    if ($path == '/write') {
+        echo 'wrote ', Core\Request::body();
+    } elseif ($path == '/page') {
+        Core\Response::setHeader('x-page', 'yes');
+        echo 'the page';
+    } elseif ($path == '/fail') {
+        echo 'this text is not sent';
+        throw new RuntimeError('the cart is empty');
+    } elseif ($path == '/after') {
+        Core\Task::afterResponse(fn (): void => {
+            Core\IO::write('after.txt', 'the work ran');
+        });
+        echo 'answered';
+    } elseif ($path == '/after-fails') {
+        Core\Task::afterResponse(fn (): void => {
+            throw new RuntimeError('the receipt was not sent');
+        });
+        echo 'answered';
+    }
+}

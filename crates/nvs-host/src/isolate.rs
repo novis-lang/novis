@@ -190,6 +190,10 @@ pub struct Isolate {
     /// than its parent holds — [`Isolate::narrowed_by`], and the default for
     /// every isolate started without `limits:` or `grants:`.
     narrowing: Narrowing,
+    /// Where the first failure of its after-response work is written, for a
+    /// child whose joiner waits for that work — [`Isolate::awaiting_after_response`],
+    /// and `None` for every isolate whose after-response work runs detached.
+    awaited: Option<Rc<RefCell<Option<String>>>>,
 }
 
 /// Which of `rule:security/isolate-shares-nothing`'s two entry forms built the program this isolate holds.
@@ -266,6 +270,7 @@ impl Isolate {
             inbox: None,
             watch: None,
             narrowing: Narrowing::default(),
+            awaited: None,
         }
     }
 
@@ -475,6 +480,22 @@ impl Isolate {
     #[must_use]
     pub fn linking_through(mut self, links: std::sync::Arc<nvs_runtime::ModuleLinks>) -> Self {
         self.module_links = Some(links);
+        self
+    }
+
+    /// Makes the join wait for this child's after-response work as well as for
+    /// its answer, and writes the first failure of that work into `failed`.
+    ///
+    /// `Core\Test::request` is the one caller (`rule:testing/in-process-request`):
+    /// a test reads what that work wrote once the call returns, and a task of
+    /// it that fails fails the test. The answer is the same either way. On the
+    /// server the work stays detached, after the response is written.
+    ///
+    /// **What it spends:** the joiner waits as long as the work runs. Nothing
+    /// is kept but the one message.
+    #[must_use]
+    pub fn awaiting_after_response(mut self, failed: Rc<RefCell<Option<String>>>) -> Self {
+        self.awaited = Some(failed);
         self
     }
 
@@ -691,6 +712,7 @@ impl Isolate {
             inbox,
             watch,
             narrowing,
+            awaited,
         } = self;
         // `rule:errors/on-limit`'s ceiling on the tree, ahead of everything else in this
         // body: `Ctx::script_depth_breach` owns why the question belongs to the
@@ -900,6 +922,7 @@ impl Isolate {
                 watch,
                 connection,
                 open,
+                awaited,
             ),
             // No task beneath the call, which takes a host installed by
             // something other than a running scheduler — `run_group`'s own
@@ -920,6 +943,7 @@ impl Isolate {
                         crossed,
                         receiving,
                         open.is_some(),
+                        awaited.as_ref(),
                     )),
                     output,
                     open,
@@ -1160,6 +1184,7 @@ fn start_as_task(
     watch: Option<Rc<Registration>>,
     connection: bool,
     open: Option<OpenSpawn>,
+    awaited: Option<Rc<RefCell<Option<String>>>>,
 ) -> Box<dyn Running> {
     let slot: Rc<RefCell<Option<Completion>>> = Rc::new(RefCell::new(None));
     let done = Rc::new(Cell::new(false));
@@ -1261,6 +1286,15 @@ fn start_as_task(
             // recorded (`Ctx::ending`) is what does. A finish records none, which is
             // the whole of why the fourth ending comes out on this side of the gate.
             let deferred = completion.ok && child.ending().is_ok() && child.has_deferred();
+            // A joiner that waits for the work ([`Isolate::awaiting_after_response`])
+            // has it run here, before the answer is filed, on a tree nobody has let
+            // go of. Nothing is detached and nothing yields to a connection.
+            if deferred && let Some(awaited) = &awaited {
+                *awaited.borrow_mut() = nvs_runtime::deferred::run_deferred(child);
+                *filed.borrow_mut() = Some(completion);
+                drop(ended);
+                return;
+            }
             *filed.borrow_mut() = Some(completion);
             // The answer is filed and the guard publishes it, so from here whoever
             // was waiting may take it and go. Everything below therefore runs on a
@@ -1324,6 +1358,7 @@ pub(crate) fn run_here(
     args: Value,
     receiving: Option<ErrorClass>,
     timed: bool,
+    awaited: Option<&Rc<RefCell<Option<String>>>>,
 ) -> Completion {
     // The flag the caller asked the question for, and the same reading the task
     // above takes: the clock is read only where an event was opened, and the
@@ -1342,7 +1377,10 @@ pub(crate) fn run_here(
     // one above, for the reason stated there: an `exit` crosses as an ordinary
     // answer and only the recorded status says it was one.
     if completion.ok && isolate_ctx.ending().is_ok() && isolate_ctx.has_deferred() {
-        nvs_runtime::deferred::run_deferred(&mut isolate_ctx);
+        let failed = nvs_runtime::deferred::run_deferred(&mut isolate_ctx);
+        if let Some(awaited) = awaited {
+            *awaited.borrow_mut() = failed;
+        }
     }
     completion
     // `isolate_ctx` is dropped here: `rule:security/isolate-teardown-is-a-drain-then-a-sweep`'s wholesale release.

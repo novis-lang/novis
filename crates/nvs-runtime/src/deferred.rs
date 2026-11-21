@@ -197,17 +197,28 @@ pub struct Deferred {
 /// `nvs_host::isolate`'s completion path for everything that runs as an
 /// isolate, a served request included. The module doc owns why "ordinarily" is
 /// a condition and what a failing request does instead.
-pub fn run_deferred(ctx: &mut Ctx) {
+///
+/// Returns how the first registration that failed ended, as `Class: message`,
+/// or `None` where every one ended ordinarily. Each failure is reported at the
+/// floor either way. `Core\Test::request` is the one reader of the answer: an
+/// after-response task that fails there fails the test
+/// (`rule:testing/in-process-request`).
+pub fn run_deferred(ctx: &mut Ctx) -> Option<String> {
     // `nvs run` reaches here without `crate::later::run_later`, and its main
     // script is over too.
     ctx.main_ended = true;
+    let mut first = None;
     for work in ctx.take_deferred() {
-        run_one(ctx, work);
+        let failed = run_one(ctx, work);
+        if first.is_none() {
+            first = failed;
+        }
     }
     // At the end and not at the take above, because `rule:concurrency/deferred-is-bounded-by-two-directives`'s cap counts a tree for
     // as long as it is *kept alive* for this work — and the arena an operator
     // is sizing for is still held all the way through the loop.
     ctx.release_deferred_slot();
+    first
 }
 
 impl Ctx {
@@ -221,13 +232,14 @@ impl Ctx {
     }
 }
 
-/// One registration, as a group of one.
+/// One registration, as a group of one. Returns how it failed, as
+/// `Class: message`, or `None` where it ended ordinarily.
 #[expect(
     unsafe_code,
     reason = "the queue handed over the one reference it held to this callable, \
               and this is the frame that releases it"
 )]
-fn run_one(ctx: &mut Ctx, work: Deferred) {
+fn run_one(ctx: &mut Ctx, work: Deferred) -> Option<String> {
     let callable = work.callable;
     let bounds = Bounds {
         limit: None,
@@ -242,7 +254,7 @@ fn run_one(ctx: &mut Ctx, work: Deferred) {
         });
         host.run_group(ctx, vec![job], bounds)
     });
-    match outcome {
+    let failed = match outcome {
         // `rule:concurrency/deferred-work-cannot-write-the-response`: an uncaught throw goes through `rule:errors/escalation-ladder`'s ladder, and tier 2's
         // `onUncaughtThrow` does **not** fire, because it was the finished
         // request's. So this lands at tier 4, the floor, as the same record
@@ -256,32 +268,35 @@ fn run_one(ctx: &mut Ctx, work: Deferred) {
                 .fields
                 .push(("origin".to_owned(), crate::floor::text(ORIGIN)));
             crate::floor::report(ctx, &record);
+            Some(format!("{}: {}", thrown.class_name(), thrown.message()))
         }
         // A limit stopped the work. It is the work's ending and not the
         // request's, which has already answered, so it is reported at the
         // floor beside the other two rather than stopping anything else.
         Some(Outcome::Fatal(message)) => {
-            let mut record =
-                crate::floor::note(Level::Error, &format!("deferred work stopped: {message}"));
+            let stopped = format!("deferred work stopped: {message}");
+            let mut record = crate::floor::note(Level::Error, &stopped);
             record
                 .envelope
                 .fields
                 .push(("origin".to_owned(), crate::floor::text(ORIGIN)));
             crate::floor::report(ctx, &record);
+            Some(stopped)
         }
         Some(Outcome::TimedOut) => {
-            let mut record =
-                crate::floor::note(Level::Error, "deferred work stopped: its deadline expired");
+            let stopped = "deferred work stopped: its deadline expired";
+            let mut record = crate::floor::note(Level::Error, stopped);
             record
                 .envelope
                 .fields
                 .push(("origin".to_owned(), crate::floor::text(ORIGIN)));
             crate::floor::report(ctx, &record);
+            Some(stopped.to_owned())
         }
         // The tree itself was cancelled while this ran. Nothing to report and
         // nothing left to run: the remaining registrations are drained into
         // this same loop and each finds the cancellation again.
-        Some(Outcome::Cancelled | Outcome::Completed(_)) => {}
+        Some(Outcome::Cancelled | Outcome::Completed(_)) => None,
         // No host on this thread — an embedder that installed none. The work
         // was registered and is owed, so it runs here rather than being
         // dropped, and the only thing it loses is the deadline.
@@ -291,11 +306,13 @@ fn run_one(ctx: &mut Ctx, work: Deferred) {
             ctx.in_deferred = outer;
             // SAFETY: `call_deferred` answers with a value it owns.
             unsafe { answer.release() };
+            None
         }
-    }
+    };
     // SAFETY: the queue held exactly one reference to this callable and handed
     // it over with the `Deferred` above; nothing else points at it.
     unsafe { callable.release() };
+    failed
 }
 
 /// Calls one deferred callable and leaves any failure where the host reads it.

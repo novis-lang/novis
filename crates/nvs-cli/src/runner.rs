@@ -1621,7 +1621,7 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         ctx: &mut nvs_runtime::Ctx,
         mut inbound: Box<nvs_runtime::Inbound>,
         links: Option<std::sync::Arc<nvs_runtime::ModuleLinks>>,
-    ) -> Result<nvs_runtime::host::Completion, String> {
+    ) -> Result<nvs_runtime::inproc::Answered, String> {
         // `rule:routing/matched-once-before-the-handler`'s one match, here because this is the side holding the
         // table and the last point before application code exists to have run.
         // A program with no `#[Route]` has an empty table and claims nothing,
@@ -1634,12 +1634,13 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         // sample rate is passed, as at the `.nvt` door: nothing here exports a
         // trace, so nothing is recorded.
         nvs_server::trace::take(&mut inbound, None);
-        // `rule:routing/a-gate-answers-around-every-handler`'s refusal mode, for
-        // the one door refusal a synthetic request can meet: its verb is a
-        // `Core\Http\Method` case and its body is no stream, so only the CSRF
-        // check is taken, with [`Door`]'s inputs and as `answer_on_the_wire`
-        // takes it. A unit that does not dispatch is answered as before.
-        refuse_a_forged_write(ctx, &self.routes, &mut inbound);
+        // The door's two refusals a synthetic request can meet: its verb is a
+        // `Core\Http\Method` case, so only a forged write and a body over
+        // `[limits] upload_total` are left. Each is answered as `nvs serve`
+        // answers it ([`answer_at_the_door`]).
+        if let Some(status) = answer_at_the_door(ctx, &self.routes, &mut inbound) {
+            return Ok(nvs_runtime::inproc::Answered::Door(status));
+        }
         let unit = Arc::clone(&self.unit);
         let routes = std::sync::Arc::clone(&self.routes);
         // `rule:testing/determinism-declared-on-the-test`'s fixed clock, read now so the request
@@ -1702,8 +1703,18 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         if let Some(links) = links {
             isolate = isolate.linking_through(links);
         }
+        // The join waits for the request's after-response work too, so a test
+        // reads what that work wrote, and a task of it that fails fails the test
+        // (`rule:testing/in-process-request`).
+        let after_response = Rc::new(RefCell::new(None));
+        isolate = isolate.awaiting_after_response(Rc::clone(&after_response));
         let running = isolate.start(ctx).map_err(|error| error.to_string())?;
-        Ok(running.join(ctx))
+        let completion = running.join(ctx);
+        let after_response = after_response.borrow_mut().take();
+        Ok(nvs_runtime::inproc::Answered::Ran {
+            completion: Box::new(completion),
+            after_response,
+        })
     }
 }
 
@@ -4166,7 +4177,16 @@ pub(crate) fn refuse_a_forged_write(
     if !routes.dispatches() {
         return;
     }
-    let door = Door::of(ctx);
+    if forged(ctx, &Door::of(ctx), inbound) {
+        inbound.set_refusal(nvs_runtime::routes::Refusal::Csrf);
+        inbound.clear_body();
+    }
+}
+
+/// Whether `rule:security/csrf-is-on-by-default` refuses `inbound`, read with
+/// `door`'s inputs as `answer_on_the_wire` reads it. A synthetic body is
+/// already in memory, so a token in an urlencoded body is read here.
+fn forged(ctx: &nvs_runtime::Ctx, door: &Door, inbound: &mut nvs_runtime::Inbound) -> bool {
     let verdict = match nvs_server::route::csrf(inbound, door.key.as_deref(), &door.cookie) {
         nvs_server::route::Csrf::InBody => nvs_server::route::csrf_in_body(
             inbound,
@@ -4176,9 +4196,59 @@ pub(crate) fn refuse_a_forged_write(
         ),
         verdict => verdict,
     };
-    if verdict == nvs_server::route::Csrf::Refused {
+    verdict == nvs_server::route::Csrf::Refused
+}
+
+/// What `nvs serve`'s door answers before a program runs, for a request a test
+/// sent (`rule:testing/in-process-request`): `Some` status where the server
+/// answers without running the program, `None` where the program runs.
+///
+/// The two refusals are a forged write and a declared length over `[limits]
+/// upload_total`, in the server's order. A unit that does not dispatch is
+/// answered `403` or `413`, with the status `nvs_server::Reply::forbidden` and
+/// `too_large` carry. A dispatching unit's request is marked refused with no
+/// body, and its gate answers, which is
+/// `rule:routing/a-gate-answers-around-every-handler`'s refusal mode.
+///
+/// Cost: one read of the tree and one header walk per test request.
+fn answer_at_the_door(
+    ctx: &nvs_runtime::Ctx,
+    routes: &nvs_runtime::routes::Routes,
+    inbound: &mut nvs_runtime::Inbound,
+) -> Option<u16> {
+    let door = Door::of(ctx);
+    let dispatches = routes.dispatches();
+    if forged(ctx, &door, inbound) {
+        if !dispatches {
+            return Some(status_of(&nvs_server::Reply::forbidden()));
+        }
         inbound.set_refusal(nvs_runtime::routes::Refusal::Csrf);
         inbound.clear_body();
+        return None;
+    }
+    // The length the request declares, as `nvs_server::body::of` reads it.
+    // A test request's body is whole, so its `content-length` is its size.
+    let declared = inbound
+        .headers()
+        .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+        .and_then(|(_, value)| std::str::from_utf8(value).ok())
+        .and_then(|value| value.trim().parse::<u64>().ok());
+    if declared.is_some_and(|length| length > door.upload_total) {
+        if !dispatches {
+            return Some(status_of(&nvs_server::Reply::too_large()));
+        }
+        inbound.set_refusal(nvs_runtime::routes::Refusal::BodyTooLarge);
+        inbound.clear_body();
+    }
+    None
+}
+
+/// The status of a reply the door makes without running a program.
+fn status_of(reply: &nvs_server::Reply) -> u16 {
+    match reply {
+        nvs_server::Reply::Done(response) => response.status().as_u16(),
+        // Every door refusal is `Reply::Done`; a status is still owed.
+        _ => 500,
     }
 }
 

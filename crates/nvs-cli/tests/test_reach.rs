@@ -10,6 +10,11 @@
 //! The body tests are its *a body is written with `Core\Http\Client`'s
 //! options*: `json`, `form`, `multipart` and a `body` with its `contentType`
 //! reach the request readers, and two bodies do not compile.
+//!
+//! The answer tests are its *the answer is the server's answer*: a forged
+//! write, a body over `[limits] upload_total`, a `HEAD` and a failed request
+//! answer as `nvs serve` does, and the call returns after the request's
+//! after-response work.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -184,4 +189,83 @@ fn the_host_header_picks_the_mount_row() {
 #[test]
 fn a_traceparent_header_is_continued() {
     passes_in_peer("traceparentIsContinued");
+}
+
+/// Runs the one `#[Test]` method `method` of `answers/answers.nvs`, from a
+/// scratch copy of that folder, so the file the after-response work writes
+/// lands outside the source tree. Returns `(report, success)`.
+fn run_in_answers(method: &str) -> (String, bool) {
+    let dir = nvs_repo::scratch_private("reach-answers");
+    for name in ["answers.nvs", "nvs.toml"] {
+        std::fs::copy(fixture("answers").join(name), dir.join(name))
+            .unwrap_or_else(|err| panic!("copying {name}: {err}"));
+    }
+    run_in(&dir, "answers.nvs", method)
+}
+
+/// Runs `method` of `answers.nvs` and asserts that it alone ran, and passed.
+fn passes_in_answers(method: &str) {
+    let (report, passed) = run_in_answers(method);
+    assert!(passed, "`{method}` failed:\n{report}");
+    assert!(
+        report.contains(method) && report.contains("0 failed, 1 passed"),
+        "`{method}` was the one test that ran, and it passed:\n{report}"
+    );
+}
+
+/// A cross-origin write to a program that does not dispatch is answered `403`
+/// with no body and no header, before the program runs.
+// covers: Core\Test::request
+#[test]
+fn a_forged_write_to_a_program_without_dispatch_answers_403() {
+    passes_in_answers("forgedWriteAnswers403");
+}
+
+/// A body over `[limits] upload_total` is answered `413` with no body, and
+/// one under it reaches the program.
+// covers: Core\Test::request
+#[test]
+fn an_oversized_body_answers_as_the_server_does() {
+    passes_in_answers("oversizedBodyAnswers413");
+}
+
+/// A `HEAD` request is answered with its status and headers and no body.
+// covers: Core\Test::request
+#[test]
+fn a_head_request_answers_with_no_body() {
+    passes_in_answers("headAnswersWithNoBody");
+}
+
+/// A request that throws is answered `500` with no body, and
+/// `Core\Test\Response::error()` names the error; it is `null` otherwise.
+// covers: Core\Test::request
+#[test]
+fn a_failed_request_names_its_error() {
+    passes_in_answers("failedRequestNamesItsError");
+}
+
+/// The file an after-response task writes is there when the call returns.
+// covers: Core\Test::request
+#[test]
+fn a_request_returns_after_its_after_response_work() {
+    passes_in_answers("requestReturnsAfterItsAfterResponseWork");
+}
+
+/// An after-response task that throws fails the test that sent the request,
+/// and the failure names it.
+// covers: Core\Test::request
+#[test]
+fn a_failed_after_response_task_fails_the_test() {
+    let method = "failedAfterResponseTaskFailsTheTest";
+    let (report, passed) = run_in_answers(method);
+    assert!(!passed, "a failed after-response task passed:\n{report}");
+    assert!(
+        report.contains("1 failed, 0 passed"),
+        "the one test ran and failed:\n{report}"
+    );
+    assert!(
+        report.contains("an after-response task of the request failed")
+            && report.contains("RuntimeError: the receipt was not sent"),
+        "the failure names the after-response task and its error:\n{report}"
+    );
 }
