@@ -72,7 +72,6 @@ import {
   PEERS,
   type PeerResult,
   phpChildren,
-  PARALLEL_GRANT,
   PARALLEL_PARTS,
   parallelResult,
   parseExpect,
@@ -113,8 +112,6 @@ import {
   withScenarios,
   stackEnv,
   steadyResult,
-  type TableEdit,
-  tableEditCommand,
   unmetExpectations,
   waitingResult,
 } from "../cmd/bench-compare.ts";
@@ -880,37 +877,14 @@ describe("the feature scenarios", () => {
     });
   });
 
-  // What the `sed` range `/^\[table\]$/,/^\[/` of `tableEditCommand` changes, so the shipped file is
-  // checked without a `sed` on the host: from the table's header to the next header, each `#key = `
-  // line becomes `key = value`.
-  const editedLines = (shipped: string, edit: TableEdit): string[] => {
-    const lines = shipped.split("\n");
-    const start = lines.indexOf(`[${edit.table}]`);
-    if (start < 0) return [];
-    const after = lines.slice(start + 1).findIndex((line) => line.startsWith("["));
-    const end = after < 0 ? lines.length : start + 1 + after;
-    return lines
-      .slice(start, end + 1)
-      .flatMap((line) => Object.entries(edit.set).filter(([key]) => line.startsWith(`#${key} = `)).map(([key, value]) => `${key} = ${value}`));
-  };
-
-  test("a table edit uncomments each key inside its own table and nowhere else", () => {
-    const shipped = readFileSync(join(import.meta.dir, "..", "..", "..", "crates", "nvs-config", "src", "default.toml"), "utf8");
-    expect(editedLines(shipped, PARALLEL_GRANT.nvs!)).toEqual(["spawn = true"]);
-    expect(tableEditCommand(PARALLEL_GRANT.nvs!)[2]).toBe("/^\\[capabilities\\.script\\]$/,/^\\[/{s|^#spawn = .*|spawn = true|}");
-  });
-
-  test("parallel is built in from twice the speed of parts run one after another, and names the setting it needs", () => {
-    expect(parallelResult(1, 1.2, "goroutines", undefined)).toEqual({
+  test("parallel is built in from twice the speed of parts run one after another", () => {
+    expect(parallelResult(1, 1.2, "goroutines")).toEqual({
       result: "built-in",
       evidence: { seconds_1_part: 1, seconds_4_parts: 1.2, speedup: 3.33, way: "goroutines" },
     });
-    expect(parallelResult(1, 1.5, "spawn", { name: "[capabilities.script] spawn", default: false })).toMatchObject({
-      result: "one-setting",
-      setting: "[capabilities.script] spawn",
-    });
-    expect(parallelResult(1, PARALLEL_PARTS, undefined, undefined).result).toBe("no");
-    expect(parallelResult(1, 2.1, "Worker", undefined).result).toBe("no");
+    expect(parallelResult(1, 1.5, "spawn script").result).toBe("built-in");
+    expect(parallelResult(1, PARALLEL_PARTS, undefined).result).toBe("no");
+    expect(parallelResult(1, 2.1, "Worker").result).toBe("no");
   });
 
   test("a crash is survived when the next request is answered and the backend never stopped", () => {

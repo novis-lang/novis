@@ -407,9 +407,6 @@ export function passed(setting: Setting | undefined, evidence: RowResult["eviden
   return { result: setting.default ? "on-by-default" : "one-setting", setting: setting.name, evidence };
 }
 
-/** A setting a row writes before its probe, which the peer does not start with. */
-const written = (edit: TableEdit | undefined): Setting | undefined => (edit === undefined ? undefined : { name: edit.name, default: false });
-
 /** One request's reply, with its header names in lower case. */
 export interface Reply {
   status: number;
@@ -784,33 +781,6 @@ export function floodResult(flood: Steady, probes: FloodProbe[], recovery: numbe
 /** The setting that bounds the flood on a peer whose bound is one. Novis's admission has none. */
 export const FLOOD_SETTING: Record<string, Setting> = { php: { name: "pm.max_children", default: false } };
 
-/**
- * Keys a row sets in one table of the Novis data folder's `nvs.toml`. The shipped file has each key
- * commented out inside its table, and the same key may be commented out in another table too, so the
- * edit uncomments it only between the table's header and the next one.
- */
-export interface TableEdit {
-  table: string;
-  set: Record<string, string>;
-  /** The setting's name in the row. */
-  name: string;
-}
-
-/** The command that makes `edit` inside the Novis container. */
-export function tableEditCommand(edit: TableEdit): string[] {
-  const header = edit.table.replaceAll(".", "\\.");
-  const subs = Object.entries(edit.set).map(([key, value]) => `s|^#${key} = .*|${key} = ${value}|`);
-  return ["sed", "-i", `/^\\[${header}\\]$/,/^\\[/{${subs.join(";")}}`, "/usr/local/bin/.nvsdata/nvs.toml"];
-}
-
-/** Makes `edit` in the running Novis container and waits until `nvs serve` has reloaded it. */
-async function applyTableEdit(p: Probe, edit: TableEdit): Promise<void> {
-  const command = tableEditCommand(edit);
-  const wrote = p.exec(command);
-  if (wrote.code !== 0) throw new Fail(`${command.join(" ")}: ${wrote.output}`);
-  if ((await logUntil(p, "configuration reloaded")) === null) throw new Fail(`${edit.name} was written, and the configuration was not reloaded`);
-}
-
 /** Sends one runaway request and waits up to `RUNAWAY_WAIT_MS` for its reply. */
 async function stoppedAt(p: Probe, path: string): Promise<Stopped> {
   const start = performance.now();
@@ -876,16 +846,6 @@ async function floodProbe(p: Probe): Promise<RowResult> {
     after = replies.filter((r) => r?.status === 200).length;
   }
   return floodResult(flood, probes, recovery, after, p.backend(), FLOOD_SETTING[p.peer]);
-}
-
-/** Polls the backend's log until it carries `line`: the seconds it took, or `null` after `CHANGE_WAIT_MS`. */
-async function logUntil(p: Probe, line: string): Promise<number | null> {
-  const start = performance.now();
-  while (performance.now() - start < CHANGE_WAIT_MS) {
-    if (p.logs().includes(line)) return Number(((performance.now() - start) / 1000).toFixed(1));
-    await Bun.sleep(250);
-  }
-  return null;
 }
 
 /** The request after a crash must be answered by a backend that never stopped, not by one its restart policy started again. */
@@ -1361,21 +1321,16 @@ export const PARALLEL_WAY: Record<string, string> = {
   python: "ProcessPoolExecutor",
 };
 
-/** The setting a peer needs before its program may run a part elsewhere. Novis denies `spawn script` by default. */
-export const PARALLEL_GRANT: Record<string, TableEdit> = {
-  nvs: { table: "capabilities.script", set: { spawn: "true" }, name: "[capabilities.script] spawn" },
-};
-
 /**
  * `four` is the seconds for `PARALLEL_PARTS` parts, `one` for one part. A speedup of `PARALLEL_SPEEDUP` or
- * more over running them one after another passes, naming the setting where the peer needs one. Less than
- * that is `no`.
+ * more over running them one after another is `built-in`, and less is `no`. No peer needs a setting:
+ * Novis's default `[capabilities.script] spawn` is the app folder, which holds the row's script.
  */
-export function parallelResult(one: number, four: number, way: string | undefined, setting: Setting | undefined): RowResult {
+export function parallelResult(one: number, four: number, way: string | undefined): RowResult {
   const speedup = Number(((PARALLEL_PARTS * one) / four).toFixed(2));
   const evidence = { seconds_1_part: one, seconds_4_parts: four, speedup, way: way ?? null };
   if (!(speedup >= PARALLEL_SPEEDUP)) return { result: "no", evidence };
-  return passed(setting, evidence);
+  return passed(undefined, evidence);
 }
 
 /** The fewest seconds `PARALLEL_TRIES` requests for `parts` parts took, each checked to answer `200`. */
@@ -1578,10 +1533,8 @@ export const SCENARIOS: Scenario[] = [
     case: "parallel",
     cpus: PARALLEL_PARTS,
     probe: async (p) => {
-      const grant = PARALLEL_GRANT[p.peer];
-      if (grant !== undefined) await applyTableEdit(p, grant);
       const one = await fastest(p, 1);
-      return parallelResult(one, await fastest(p, PARALLEL_PARTS), PARALLEL_WAY[p.peer], written(grant));
+      return parallelResult(one, await fastest(p, PARALLEL_PARTS), PARALLEL_WAY[p.peer]);
     },
   },
 ];
