@@ -2490,8 +2490,8 @@ deliberate commit.
 
 `rule:tooling/nvs-code-answers-about-the-project`
 
-`nvs code` has eleven verbs over one project. Eight read: `show`, `refs`, `impls`, `calls` and
-`reach` take a name, `outline` and `types` take a file (`types` also `file:line` or `file:first-last`),
+`nvs code` has eleven verbs over one project. Eight read: `show`, `refs` and `impls` take a name,
+`calls` and `reach` take one or more method names, `outline` and `types` take a file (`types` also `file:line` or `file:first-last`),
 and `find` takes part of a name. Three write: `rename`, `move` and `order`.
 Each answers from `nvs_lsp::workspace` through the functions the editor's references, implementation,
 rename, file move, workspace symbol, call hierarchy and used-by requests call, mostly through
@@ -2567,22 +2567,59 @@ that may not compile.
   upper and lower case alike, with its position, its kind as `outline` prints it, and its full name,
   in name order. No match prints nothing and exits 0. `Core` is not searched. `--json` gives `query`
   and `declarations`.
-- **`calls <method>`** is the editor's call hierarchy, `calls::incoming` and then `calls::outgoing`:
+- **`calls <method>...`** is the editor's call hierarchy, `calls::incoming` and then `calls::outgoing`:
   each method on a line of its own with `caller` or `callee`, and under it one indented line per call
   site with its position and source line. A `Core\Test::request` the route table matched is a call
   to the route's handler. `--json` gives `callers` and `callees`, each a `symbol` and its `sites`.
-- **`reach <method>`** is the used-by lens, `reach::reach`
+- **`reach <method>...`** is the used-by lens, `reach::reach`
   ([`ide/used-by-counts-the-routes-and-tests-that-reach-a-method`](ide.md#ide-used-by-counts-the-routes-and-tests-that-reach-a-method)): a `route` line per route, a
   `test` line per test, and an `at least` line last when `Reach::at_least` is set. `--json` gives
   `routes`, `tests` and `atLeast`. For `calls` and `reach`, a name that is not one of the project's
   methods fails as an unknown name does, with the nearest method names from `query::nearest_methods`.
+- **Several methods** in one `calls` or `reach` call answer each name once, in the order given. Each
+  gets a line with its name, then the lines one name prints, indented by two spaces. With one name the
+  output is byte for byte the one-name output. `--json` with several prints `schemaVersion` and
+  `methods`, a list of the one-name documents without their `schemaVersion`. Any unknown name fails the
+  whole call with exit status 1 before anything is printed: the text names each unknown name with its
+  nearest names, and the JSON gives `error` and `unknown`, a list of `symbol` and `nearest`. One unknown
+  name alone keeps the one-name failure. `show`, `refs` and `impls` keep one name, since each answer is
+  long and a second name is a second call.
 
-A call costs one cold analysis of the project, one `analyse_file` per `.nvs` file under its root, and
-nothing outlives the call. No limit and no setting is added. The walk reads each ignore file once and
-keeps its parsed patterns, a few KiB, until it ends.
+**A call answers from the editor's index file, and never from a stale entry.** `nvs code` loads the
+file the editor keeps for the same root (`index_file` in `crates/nvs-lsp/src/server.rs`, under
+`nvs_config::data::Folder::lsp_index()`), settles every stale entry on the workers, answers, and saves
+the file through `SymbolIndex::save_to` when it analysed anything. A loaded entry is trusted only where
+all five guarantees hold:
 
-- **Performance:** nothing on the request path; this is tooling.
-- **Memory:** one index over the project for the length of one call, and nothing per request.
+1. **Content, not time.** Every indexed file's BLAKE3 content hash is compared with the file's bytes. A
+   matching size and modification time is never trusted. The hash pass runs on the workers.
+2. **The file list is walked fresh**, by the project walk above. A new file is analysed. A file that is
+   gone or newly ignored leaves the index, and every entry that read it is analysed again.
+3. **A surface change re-analyses every reader**, as the editor does
+   ([`ide/the-index-is-incremental-and-persistent`](ide.md#ide-the-index-is-incremental-and-persistent)).
+4. **Another build discards the whole file**, through the build stamp in its header.
+5. **Every input outside the `.nvs` files is checked by content:** each `nvs.toml` and settings file an
+   analysis read, each `.nvsx` extension and each ignore file. The format records each with its content
+   hash. An input the call cannot prove unchanged makes it run cold.
+
+The proof is a comparison with a cold build. `a_content_checked_load_answers_as_a_cold_build_after_every_kind_of_edit`
+in `crates/nvs-lsp/tests/index.rs` edits a generated tree in every way (a body, a signature, adding,
+deleting and moving a file, an ignore file, `nvs.toml`, an extension, and new content with the old size
+and time), and after each edit the loaded index equals the one `SymbolIndex::build` gives cold. A slow
+answer is acceptable and a stale one is not.
+
+The workers are `use_workers(0)`, the cores minus one, and they are stopped before the answer prints.
+Two writers, an editor and a call or two calls, each rename a whole file over the index file, and the
+last rename wins. A failed save prints nothing and changes no answer. A call with no data folder or a
+build with no stamp runs cold, on the workers. The tests pass `--data <scratch>`, so no index file
+reaches the binary's own data folder. `nvs check`, compiling and running never read the file. The walk
+reads each ignore file once and keeps its parsed patterns, a few KiB, until it ends.
+
+- **Performance:** nothing on the request path; this is tooling. A call on an unchanged tree hashes
+  its files and analyses nothing.
+- **Memory:** one index over the project for the length of one call, and nothing per request. The peak
+  is a cold index's, and a loaded index holds less while it settles. On disk, one index file per
+  project root, the one the editor already writes, so it grows with projects and never with calls.
 - **Usability:** an agent finds a method's callers, an interface's classes and a variable's type in
   one call, without the wrong answers `grep` gives for a method name two classes share or a class
   reached through `autoload`.
@@ -2602,10 +2639,11 @@ keeps its parsed patterns, a few KiB, until it ends.
 - **`move` renaming the type a moved file declares, or creating a missing directory.** The editor's
   file move does neither. A type is renamed with `rename`, which moves its file too, and after a
   move `nvs check` names any other name that no longer resolves.
-- **A disk cache of the index.** It is a second copy of the project that can be stale, and a stale
-  answer is worse than a slow one. A call measured too slow on a large project is a gap against
-  `nvs-lsp`, not a cache.
-- **A background daemon.** It is the same stale copy, kept in memory, with a process to manage.
+- **Trusting a file's size and modification time, as the editor does.** A stale editor answer lasts
+  until the next keystroke, but a stale `nvs code` answer is acted on by an agent and outlives the
+  call. Hashing every file is a fraction of a second on the workers.
+- **A background daemon.** It is a copy of the project kept in memory between calls, with a process
+  to manage, and the index file already makes a call on a settled tree cheap.
 - **A fifth `nvs agent` verb.** `nvs agent` answers about the installed language with no project, and
   every answer it gives is true of the binary; an answer about a project's code is a different kind
   of answer ([`tooling/an-agent-asks-the-binary`](tooling.md#tooling-an-agent-asks-the-binary)).

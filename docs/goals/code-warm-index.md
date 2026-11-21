@@ -6,7 +6,7 @@ context: [crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/workers.rs, docs/rules
 stages:
   - id: 1
     title: the two rules say that nvs code shares the editor's index, and how it is never stale
-    status: open
+    status: done
   - id: 2
     title: a cold index keeps every worker busy and checks each body once
     status: open
@@ -193,15 +193,15 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### 1. the two rules say that nvs code shares the editor's index, and how it is never stale
 
-- [ ] `docs/rules/tooling/nvs-code-answers-about-the-project.md:88`: "A call costs one cold
+- [x] `docs/rules/tooling/nvs-code-answers-about-the-project.md:88`: "A call costs one cold
   analysis" becomes the load, the five guarantees, the workers and what it costs. `calls` and `reach`
   take several methods. The *disk cache* decline is removed. The *background daemon* decline stays.
   A new decline: trusting size and time in `nvs code`, because a stale answer outlives a keystroke
   there.
-- [ ] `docs/rules/ide/the-index-is-incremental-and-persistent.md:62`: "only an editor answer reads
+- [x] `docs/rules/ide/the-index-is-incremental-and-persistent.md:62`: "only an editor answer reads
   it" names `nvs code` as the second reader, and says `nvs check`, compiling and running never read
   it.
-- [ ] `bun nv rules --render`, then the `rules` check.
+- [x] `bun nv rules --render`, then the `rules` check.
 
 ### 2. a cold index keeps every worker busy and checks each body once
 
@@ -262,11 +262,22 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### State
 
-Written by the authoring session from a user report. Nothing is built.
+Stage 1 is done. `rule:tooling/nvs-code-answers-about-the-project` now states the load from the
+editor's index file, the five guarantees, the cold-build proof, the workers, the writers and what it
+costs, and the several-methods shapes of `calls` and `reach`. Its *disk cache* decline is gone, and
+a decline of trusting size and time stands in its place. `rule:ide/the-index-is-incremental-and-persistent`
+names `nvs code` as the second reader and a second writer, and says `nvs check`, compiling and running
+never read the file. The `rules` check is green. No code changed.
+
+The nightly `miri units (nvs-stdlib 2/12)` failure (run 44894790665) was already fixed on disk by
+`156f11a7ca`: the run tested `7e97fa8`, before that commit cut the Miri reach to 2.
 
 ### Next
 
-Stage 1, the rules, from its first item. Every check after `rules` names tests that do not exist yet
-and fails until its stage writes them.
+Stage 2, from its first item: count on a generated tree of many one-file programs
+(`crates/nvs-lsp/tests/incremental.rs:82`) and with `bun nv lsp-start . --cold` which files are
+checked more than once, and why, and write the cause here. Then `crates/nvs-lsp/src/index.rs:956`
+(plan ahead of turn) and `crates/nvs-lsp/src/workers.rs:17`. Expected red until written: the
+`parallel`, `never-stale`, `code-index` and `several` checks, whose tests do not exist yet.
 
 ### Backlog

@@ -1783,12 +1783,15 @@ turns settle the tree again. An analysis shares it copy-on-write through `Rc::ma
 in `crates/nvs-lsp/tests/latency.rs`, the fix is to drop the kept analysis's `Rc` before the check, never to
 give each analysis its own interner.
 
-**The index file is untrusted input, and only an editor answer reads it.** It is read and written only at
-the `Workspace` scope of [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), and only by a build with a
-stamp (`nvs_config::cache::build_stamp`). The layout is the magic `NVSIDX`, a `u32` format version, the
+**The index file is untrusted input, and only an editor answer and `nvs code` read it.** `nvs check`,
+compiling and running never read it, because they are the authoritative paths. `nvs code` loads and saves
+the same file at the same path, and checks every entry and every input by its content hash rather than by
+the stamp below ([`tooling/nvs-code-answers-about-the-project`](tooling.md#tooling-nvs-code-answers-about-the-project)). The editor reads and writes it only at
+the `Workspace` scope of [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), and either reader only in a build
+with a stamp (`nvs_config::cache::build_stamp`). The layout is the magic `NVSIDX`, a `u32` format version, the
 32-byte build stamp, the canonical root, the entries, and a BLAKE3 checksum of everything before it. A wrong
 magic, version, stamp or checksum discards the whole file, and the decoder checks each length against the
-bytes that remain before it allocates. At load, an entry whose file's size and modification time match is
+bytes that remain before it allocates. At the editor's load, an entry whose file's size and modification time match is
 trusted. Otherwise the file is hashed, and a match is trusted and takes the new time. Otherwise the file is
 parsed for its surface: its entry waits, and so does every entry that read it when the surface differs. A
 file that is gone leaves the index and queues its readers, a file the index does not hold is queued, and
@@ -1800,8 +1803,8 @@ start rather than trusted.
 The server writes the file in its loop's at-rest arm, once the queue is empty and the index's `generation`
 differs from the last write: a temporary `<name>.<pid>.<n>.tmp` beside it, renamed over it, with no `fsync`
 because a torn file fails its checksum. A failed rename deletes the temporary file and keeps the old
-generation, so the next idle period tries again. Two servers on one root each write a whole file, and the
-last rename wins. The compiled-code cache sweeps only `.nvsc` files, so it never deletes an index file.
+generation, so the next idle period tries again. Two servers on one root, or a server and an `nvs code`
+call, each write a whole file, and the last rename wins. The compiled-code cache sweeps only `.nvsc` files, so it never deletes an index file.
 
 **A start shows its progress.** The survey, the index load and the queue's settling are seconds on a large
 tree in which the editor would otherwise show nothing. When the client declared `window.workDoneProgress`, a
