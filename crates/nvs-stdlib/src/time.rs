@@ -4446,6 +4446,12 @@ nvs_runtime::nvs_helper! {
     /// it**: the scheduler bounds the park by the request's wall deadline,
     /// answers [`Woken::Cancelled`], and stops the request with the limit's
     /// `FATAL` (`rule:errors/on-limit`).
+    ///
+    /// **Under `#[Test(at: …)]` the sleep is a deadline on the test clock**
+    /// (`rule:testing/task-tree-and-virtual-clock`): it ends once no task of
+    /// the test's tree can run and the clock has moved to it, so an hour's
+    /// sleep ends at once and `Core\Time::now` reads an hour later.
+    /// [`nvs_runtime::test_clock`] owns the deadlines.
     fn nvs_core_time_sleep(ctx, args: [1]) {
         let nanos = nanos_of(args, 0, "sleep")?;
         if nanos > 0 {

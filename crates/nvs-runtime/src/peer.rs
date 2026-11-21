@@ -599,11 +599,17 @@ pub trait PeerSocket: std::fmt::Debug {
 /// instant its next `send` will throw at, and cut when the drain begins so a
 /// ten-minute sleep does not hide a one-second period. Every wake is a hint:
 /// the loop re-reads the deadline and the clock, and re-parks past a wake that
-/// changed nothing. Off a connection this is [`Host::sleep`] unchanged.
+/// changed nothing. Off a connection this is [`Host::sleep`] unchanged. Under a
+/// test's fixed clock it is [`crate::test_clock::sleep`].
 ///
 /// [`Host::sleep`]: crate::host::Host::sleep
 pub fn sleep(ctx: &mut crate::Ctx, duration: std::time::Duration) -> crate::host::Woken {
     use crate::host::{Woken, with_current};
+    // Under `#[Test(at: …)]` the sleep is a deadline on the test clock
+    // (`rule:testing/task-tree-and-virtual-clock`).
+    if let Some(clock) = ctx.test_clock().cloned() {
+        return crate::test_clock::sleep(&clock, duration);
+    }
     let end = std::time::Instant::now() + duration;
     let Some(cut) = ctx.peer().map(PeerSocket::wake_at_drain) else {
         return with_current(|host| host.sleep(duration)).unwrap_or_else(|| {

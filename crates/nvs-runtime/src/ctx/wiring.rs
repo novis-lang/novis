@@ -876,6 +876,15 @@ impl Ctx {
     #[must_use]
     pub fn fixed_clock(&self) -> Option<i128> {
         self.fixed_clock
+            .as_deref()
+            .map(crate::test_clock::TestClock::now)
+    }
+
+    /// The shared clock behind [`Self::fixed_clock`], for a member that parks
+    /// on one of its deadlines: a sleep or a timeout of the test's task tree.
+    #[must_use]
+    pub fn test_clock(&self) -> Option<&std::rc::Rc<crate::test_clock::TestClock>> {
+        self.fixed_clock.as_ref()
     }
 
     /// Fixes this context's wall clock at `nanos` nanoseconds since the Unix
@@ -888,11 +897,18 @@ impl Ctx {
     /// from a program that is not a test, because the member that reaches it
     /// throws without a clock already fixed.
     ///
+    /// A context that already has a clock moves it, so every task of the tree
+    /// reads the move and every deadline it passes wakes; one with none gets a
+    /// clock of its own.
+    ///
     /// This crate makes no claim about `nanos` being a representable instant:
     /// the range belongs to the calendar library, which is `nvs-stdlib`'s
     /// (`nvs_stdlib::time`), and both callers check it there before calling.
     pub fn set_fixed_clock(&mut self, nanos: i128) {
-        self.fixed_clock = Some(nanos);
+        match &self.fixed_clock {
+            Some(clock) => clock.set(nanos),
+            None => self.fixed_clock = Some(crate::test_clock::TestClock::new(nanos)),
+        }
     }
 
     /// Whether a `#[Test]` method owns this context — see

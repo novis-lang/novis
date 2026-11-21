@@ -3901,7 +3901,10 @@ nvs_runtime::nvs_helper! {
         let foreign = crate::db::open_levels(ctx, handle, PUSH)? == 0
             && crate::db::foreign_level_open(ctx, handle);
         let committed_alone = foreign.then_some(b"1".as_slice());
-        let now = now_millis();
+        // The wall clock the request reads, so under `#[Test(at: …)]` a job's
+        // creation and its default due time are on the test clock
+        // (`rule:testing/task-tree-and-virtual-clock`).
+        let now = crate::time::wall_clock(ctx).map_or_else(now_millis, |at| at.as_millisecond());
         // Encoded once and bound twice, because the two dialects want the same values in two
         // orders: [`INSERT_POSTGRES`] names the dedupe key first, since `$1` is read by all three
         // of the places it appears, and [`INSERT_MYSQL`]'s insert names it in column order like

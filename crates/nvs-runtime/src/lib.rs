@@ -255,6 +255,7 @@ mod string;
 pub mod sweep;
 pub mod syslog;
 pub mod terminal;
+pub mod test_clock;
 pub mod throwable;
 pub mod trace_context;
 pub mod uuid;

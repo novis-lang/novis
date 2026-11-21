@@ -420,6 +420,9 @@ impl Ctx {
         // A task a test starts belongs to that test, so its assertions are
         // kept for the test's ledger.
         child.owned_by_test = self.owned_by_test;
+        // The test clock is the tree's, so a task's sleep moves the clock its
+        // parent and siblings read (`rule:testing/task-tree-and-virtual-clock`).
+        child.fixed_clock = self.fixed_clock.clone();
         child.statics = self.statics;
         child.debug = self.debug;
         child.debug_ceiling = self.debug;

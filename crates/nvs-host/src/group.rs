@@ -569,6 +569,14 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
         .limit
         .map_or(usize::MAX, |limit| (limit as usize).max(1));
     let expires = bounds.deadline.map(|after| Instant::now() + after);
+    // Under `#[Test(at: …)]` the deadline is an instant on the test clock, so
+    // it races the children's sleeps on that clock and not in real time
+    // (`rule:testing/task-tree-and-virtual-clock`).
+    let clock = ctx.test_clock().cloned();
+    let on_clock = clock.as_ref().zip(bounds.deadline).map(|(clock, after)| {
+        let after = i128::try_from(after.as_nanos()).unwrap_or(i128::MAX);
+        clock.now().saturating_add(after)
+    });
     let mut ending: Option<Ending> = None;
 
     loop {
@@ -629,11 +637,21 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
 
         // 3. Park until a child reports, the deadline lands, or this task is
         //    itself cancelled.
-        let armed = arm_deadline(ending, expires);
+        let filed = match (&clock, on_clock) {
+            (Some(clock), Some(at)) if ending.is_none() => {
+                let wake = Rc::clone(&wake);
+                Some(clock.file(at, Box::new(move || wake.wake())))
+            }
+            _ => None,
+        };
+        let armed = on_clock.is_none() && arm_deadline(ending, expires);
         let resumed = suspend_current(Waiting::ParkedPast(PastWallTime::Join));
         let suspended = resumed.suspended();
         if armed {
             disarm_deadline();
+        }
+        if let (Some(clock), Some(key)) = (&clock, filed) {
+            clock.forget(key);
         }
         if resumed.cancelled() && ending.is_none() {
             ending = Some(Ending::Cancelled);
@@ -649,7 +667,11 @@ fn run_as_children(ctx: &mut Ctx, jobs: Vec<Job>, bounds: Bounds, wake: Rc<Wake>
         if ending.is_none() && group.borrow().failed() {
             ending = Some(Ending::Threw);
         }
-        if ending.is_none() && expires.is_some_and(|at| Instant::now() >= at) {
+        let expired = match (&clock, on_clock) {
+            (Some(clock), Some(at)) => clock.now() >= at,
+            _ => expires.is_some_and(|at| Instant::now() >= at),
+        };
+        if ending.is_none() && expired {
             ending = Some(Ending::TimedOut);
         }
         if ending.is_some() && !queue.is_empty() {

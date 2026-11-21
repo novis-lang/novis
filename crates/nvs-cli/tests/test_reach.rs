@@ -15,6 +15,11 @@
 //! write, a body over `[limits] upload_total`, a `HEAD` and a failed request
 //! answer as `nvs serve` does, and the call returns after the request's
 //! after-response work.
+//!
+//! The clock tests are `rule:testing/task-tree-and-virtual-clock`'s *a sleep
+//! is a virtual deadline*: under `#[Test(at:)]` a sleep ends at once, two
+//! sleeping tasks wake in deadline order, a `Core\Task::all` deadline races a
+//! sleep, and a memory cache entry's `ttl` runs on the same clock.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -268,4 +273,53 @@ fn a_failed_after_response_task_fails_the_test() {
             && report.contains("RuntimeError: the receipt was not sent"),
         "the failure names the after-response task and its error:\n{report}"
     );
+}
+
+/// Runs `method` of `clock.nvs` and asserts that it alone ran, and passed.
+fn passes_in_clock(method: &str) {
+    let (report, passed) = run_in(&fixture(""), "clock.nvs", method);
+    assert!(passed, "`{method}` failed:\n{report}");
+    assert!(
+        report.contains(method) && report.contains("0 failed, 1 passed"),
+        "`{method}` was the one test that ran, and it passed:\n{report}"
+    );
+}
+
+/// Under `at:`, an hour's sleep ends at once and `Core\Time::now()` reads an
+/// hour later.
+// covers: Core\Time::sleep
+#[test]
+fn a_sleep_under_at_ends_at_once_and_moves_the_clock() {
+    passes_in_clock("sleepEndsAtOnceAndMovesTheClock");
+}
+
+/// Two tasks of one `Core\Task::all` that sleep under `at:` wake in the order
+/// of their deadlines, each at its own instant.
+// covers: Core\Time::sleep
+#[test]
+fn two_sleeping_tasks_wake_in_deadline_order() {
+    passes_in_clock("twoSleepingTasksWakeInDeadlineOrder");
+}
+
+/// A `Core\Task::all` deadline under `at:` ends a longer sleep with a
+/// `TimeoutError` at the deadline's instant, and lets a shorter one finish.
+// covers: Core\Task::all
+#[test]
+fn a_timeout_races_a_sleep_on_the_test_clock() {
+    passes_in_clock("aTimeoutRacesASleep");
+}
+
+/// Without `at:`, a sleep waits in real time.
+// covers: Core\Time::sleep
+#[test]
+fn a_sleep_without_at_waits_in_real_time() {
+    passes_in_clock("sleepWithoutAtWaits");
+}
+
+/// A memory cache entry's `ttl` runs on the test clock: `Core\Test::advance`
+/// and a sleep under `at:` both end it.
+// covers: Core\Cache::memory
+#[test]
+fn a_cache_entry_expires_with_advance() {
+    passes_in_clock("cacheEntryExpiresWithAdvance");
 }

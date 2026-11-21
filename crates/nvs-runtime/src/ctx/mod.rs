@@ -1161,9 +1161,15 @@ pub struct Ctx {
     /// dependency, not this one's; `nvs_stdlib::time` owns both conversions and
     /// is the only reader.
     ///
-    /// **What it spends:** two words per request, and nothing at all on the
+    /// **Shared by the test's task tree**: [`Ctx::child`] clones the `Rc`, so a
+    /// task's sleep moves the clock its parent reads, and an isolate a test
+    /// starts is armed with a clock of its own
+    /// (`rule:testing/task-tree-and-virtual-clock`). [`crate::test_clock`] owns
+    /// the deadlines parked on it.
+    ///
+    /// **What it spends:** one word per request, and nothing at all on the
     /// `Core\Time::now` path beyond one predictable not-taken branch.
-    fixed_clock: Option<i128>,
+    fixed_clock: Option<std::rc::Rc<crate::test_clock::TestClock>>,
     /// Whether a `#[Test]` method owns this context: `true` on the isolate
     /// `nvs_cli::runner` builds for one test, and on every task context
     /// [`Ctx::child`] opens under it. Only such a context keeps

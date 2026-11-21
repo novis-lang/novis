@@ -1,0 +1,87 @@
+<?nvs
+// The test clock. Under `at:`, a sleep ends at once and moves `Core\Time::now()`
+// by its length. Each test checks what the clock reads afterwards.
+
+class Clock
+{
+    #[Core\Test(at: '2026-01-01T00:00:00Z')]
+    public function sleepEndsAtOnceAndMovesTheClock(): void
+    {
+        var $started = Core\Time::monotonic();
+        Core\Time::sleep(1h);
+        Core\Test::assertEquals(Core\Time::now()->toIso(), '2026-01-01T01:00:00Z');
+        var $waited = Core\Time::monotonic()->minus($started)->toMilliseconds();
+        Core\Test::assertTrue($waited < 5000);
+    }
+
+    #[Core\Test(at: '2026-01-01T00:00:00Z')]
+    public function twoSleepingTasksWakeInDeadlineOrder(): void
+    {
+        var $order = Core\Cache::memory();
+        $order->put('clock-order', '');
+        var $done = Core\Task::all({
+            slow: fn(): string => {
+                Core\Time::sleep(2m);
+                $order->put('clock-order', ($order->get('clock-order') as string) . 'slow ');
+                return Core\Time::now()->toIso();
+            },
+            fast: fn(): string => {
+                Core\Time::sleep(1m);
+                $order->put('clock-order', ($order->get('clock-order') as string) . 'fast ');
+                return Core\Time::now()->toIso();
+            },
+        });
+        Core\Test::assertEquals($order->get('clock-order') as string, 'fast slow ');
+        Core\Test::assertEquals($done->fast, '2026-01-01T00:01:00Z');
+        Core\Test::assertEquals($done->slow, '2026-01-01T00:02:00Z');
+        Core\Test::assertEquals(Core\Time::now()->toIso(), '2026-01-01T00:02:00Z');
+    }
+
+    #[Core\Test(at: '2026-01-01T00:00:00Z')]
+    public function aTimeoutRacesASleep(): void
+    {
+        var $started = Core\Time::monotonic();
+        Core\Test::assertThrows(fn(): void => {
+            Core\Task::all({
+                late: fn(): int => {
+                    Core\Time::sleep(1h);
+                    return 1;
+                },
+            }, { deadline: 5m });
+        }, TimeoutError::class);
+        Core\Test::assertEquals(Core\Time::now()->toIso(), '2026-01-01T00:05:00Z');
+        var $answered = Core\Task::all({
+            early: fn(): int => {
+                Core\Time::sleep(1m);
+                return 2;
+            },
+        }, { deadline: 5m });
+        Core\Test::assertEquals($answered->early, 2);
+        Core\Test::assertEquals(Core\Time::now()->toIso(), '2026-01-01T00:06:00Z');
+        var $waited = Core\Time::monotonic()->minus($started)->toMilliseconds();
+        Core\Test::assertTrue($waited < 5000);
+    }
+
+    #[Core\Test]
+    public function sleepWithoutAtWaits(): void
+    {
+        var $started = Core\Time::monotonic();
+        Core\Time::sleep(50ms);
+        var $waited = Core\Time::monotonic()->minus($started)->toMilliseconds();
+        Core\Test::assertTrue($waited >= 50);
+    }
+
+    #[Core\Test(at: '2026-01-01T00:00:00Z')]
+    public function cacheEntryExpiresWithAdvance(): void
+    {
+        var $cache = Core\Cache::memory();
+        $cache->put('clock-code', '845192', { ttl: 1h });
+        Core\Test::advance(59m);
+        Core\Test::assertEquals($cache->get('clock-code') as ?string, '845192');
+        Core\Test::advance(1m);
+        Core\Test::assertNull($cache->get('clock-code'));
+        $cache->put('clock-slept', 'kept', { ttl: 10s });
+        Core\Time::sleep(10s);
+        Core\Test::assertNull($cache->get('clock-slept'));
+    }
+}

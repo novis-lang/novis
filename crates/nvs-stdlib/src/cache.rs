@@ -849,12 +849,52 @@ impl Lifetime {
     /// The instant an entry written now stops being readable, or `None` for
     /// one that never does — which a lifetime the monotonic clock cannot name
     /// an end for also is, there being no instant left to compare against.
-    fn until(self) -> Option<Instant> {
-        match self {
-            Self::Forever => None,
-            Self::For(ttl) => Instant::now().checked_add(ttl),
+    ///
+    /// `at` is the writer's test clock (`Ctx::fixed_clock`): under one the end
+    /// is an instant on that clock, so `Core\Test::advance` and a sleep under
+    /// `#[Test(at: …)]` expire the entry
+    /// (`rule:testing/task-tree-and-virtual-clock`).
+    fn until(self, at: Option<i128>) -> Option<Until> {
+        match (self, at) {
+            (Self::Forever, _) => None,
+            (Self::For(ttl), Some(at)) => {
+                let ttl = i128::try_from(ttl.as_nanos()).unwrap_or(i128::MAX);
+                Some(Until::Test(at.saturating_add(ttl)))
+            }
+            (Self::For(ttl), None) => Instant::now().checked_add(ttl).map(Until::Real),
         }
     }
+}
+
+/// When a memory tier entry stops being readable: an instant of the monotonic
+/// clock, or one of a test's fixed clock for an entry a test wrote.
+#[derive(Clone, Copy, Debug)]
+enum Until {
+    /// The monotonic instant.
+    Real(Instant),
+    /// Nanoseconds since the Unix epoch on a test's fixed clock.
+    Test(i128),
+}
+
+impl Until {
+    /// Whether this end has passed for a reader whose test clock reads `at`.
+    /// A reader with no test clock reads a test entry against the wall clock,
+    /// and a reader with one reads a real entry against the monotonic clock.
+    fn passed(self, at: Option<i128>) -> bool {
+        match self {
+            Self::Real(until) => Instant::now() >= until,
+            Self::Test(until) => at.unwrap_or_else(wall_nanos) >= until,
+        }
+    }
+}
+
+/// The wall clock in nanoseconds since the Unix epoch.
+fn wall_nanos() -> i128 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |since| {
+            i128::try_from(since.as_nanos()).unwrap_or(i128::MAX)
+        })
 }
 
 /// One entry of the memory tier: the payload and when it stops being
@@ -869,7 +909,7 @@ struct Entry {
     payload: Box<[u8]>,
     /// The instant this stops being readable, or `None` for an entry only the
     /// cap or an overwrite takes out.
-    until: Option<Instant>,
+    until: Option<Until>,
     /// The number of this entry's slot in [`Entries::order`], which is what
     /// tells that slot apart from one an earlier entry under the same key left.
     slot: u64,
@@ -950,7 +990,21 @@ impl Entries {
     /// bytes are copied into an allocation of the store's own rather than taken
     /// from the caller's `Vec`, so that everything this tier holds was
     /// allocated where [`memory_put`]'s bracket will free it again.
+    #[cfg(test)]
     fn put(&mut self, key: &[u8], payload: &[u8], lifetime: Lifetime, cap: Option<usize>) {
+        self.put_at(key, payload, lifetime, cap, None);
+    }
+
+    /// [`Self::put`] by a writer whose test clock reads `at`
+    /// ([`Lifetime::until`]).
+    fn put_at(
+        &mut self,
+        key: &[u8],
+        payload: &[u8],
+        lifetime: Lifetime,
+        cap: Option<usize>,
+        at: Option<i128>,
+    ) {
         let incoming = charged(key.len(), payload.len());
 
         if lifetime.elapsed() || cap.is_some_and(|cap| incoming > cap) {
@@ -993,7 +1047,7 @@ impl Entries {
             handle,
             Entry {
                 payload: Box::from(payload),
-                until: lifetime.until(),
+                until: lifetime.until(at),
                 slot,
             },
         );
@@ -1030,10 +1084,16 @@ impl Entries {
     ///
     /// The clock is read only once an entry with a deadline is in hand, so a
     /// tier nothing wrote a `ttl` to pays nothing for the question.
+    #[cfg(test)]
     fn get(&self, key: &[u8]) -> Option<&[u8]> {
+        self.get_at(key, None)
+    }
+
+    /// [`Self::get`] by a reader whose test clock reads `at` ([`Until::passed`]).
+    fn get_at(&self, key: &[u8], at: Option<i128>) -> Option<&[u8]> {
         let held = self.entries.get(key)?;
         match held.until {
-            Some(until) if Instant::now() >= until => None,
+            Some(until) if until.passed(at) => None,
             _ => Some(&held.payload),
         }
     }
@@ -1076,7 +1136,12 @@ impl Entries {
             ..
         } = self;
         entries.retain(|key, entry| {
-            let live = entry.until.is_none_or(|until| now < until);
+            // A test's entry is left to the cap and to an overwrite: only its
+            // own test reads its clock.
+            let live = entry.until.is_none_or(|until| match until {
+                Until::Real(until) => now < until,
+                Until::Test(_) => true,
+            });
             if !live {
                 *held -= charged(key.len(), entry.payload.len());
                 keys.remove(&entry.slot);
@@ -1214,6 +1279,12 @@ pub(crate) fn memory_cap(ctx: &Ctx) -> Option<usize> {
     }
 }
 
+/// [`memory_put_at`] by a writer with no test clock.
+#[cfg(test)]
+fn memory_put(key: &[u8], payload: Vec<u8>, lifetime: Lifetime, cap: Option<usize>) {
+    memory_put_at(key, payload, lifetime, cap, None);
+}
+
 /// Writes `payload` under `key` for every core of this process, replacing any
 /// entry there and forgetting whatever `cap` does not leave room for.
 ///
@@ -1238,13 +1309,19 @@ pub(crate) fn memory_cap(ctx: &Ctx) -> Option<usize> {
 /// corrupts both — and it is why the entry is copied rather than this `Vec`
 /// being kept. What that spends is one copy of the payload per write, on a path
 /// that has already encoded the value it is storing.
-fn memory_put(key: &[u8], payload: Vec<u8>, lifetime: Lifetime, cap: Option<usize>) {
+fn memory_put_at(
+    key: &[u8],
+    payload: Vec<u8>,
+    lifetime: Lifetime,
+    cap: Option<usize>,
+    at: Option<i128>,
+) {
     {
         let _bracket = budget::Detached::begin();
         let mut shard = shard_of(key)
             .write()
             .expect("a cache shard's lock is never poisoned");
-        shard.put(key, &payload, lifetime, shard_cap(cap));
+        shard.put_at(key, &payload, lifetime, shard_cap(cap), at);
     }
     // Where it was allocated: the caller's `Vec` is the request's, and what the
     // tier holds is the copy made above.
@@ -1270,11 +1347,11 @@ fn memory_put(key: &[u8], payload: Vec<u8>, lifetime: Lifetime, cap: Option<usiz
 ///
 /// The memory `FATAL`, from [`nvs_runtime::affordable`], for an entry the
 /// request cannot afford to hold.
-fn memory_get(key: &[u8], member: &str) -> Result<Option<Vec<u8>>, Fault> {
+fn memory_get(key: &[u8], member: &str, at: Option<i128>) -> Result<Option<Vec<u8>>, Fault> {
     let shard = shard_of(key)
         .read()
         .expect("a cache shard's lock is never poisoned");
-    let Some(entry) = shard.get(key) else {
+    let Some(entry) = shard.get_at(key, at) else {
         return Ok(None);
     };
     nvs_runtime::affordable(Some(entry.len()), member)?;
@@ -1325,9 +1402,9 @@ pub(crate) fn memory_update<T>(
     let mut shard = shard_of(key)
         .write()
         .expect("a cache shard's lock is never poisoned");
-    let (answer, stored) = step(shard.get(key));
+    let (answer, stored) = step(shard.get_at(key, None));
     if let Some(payload) = stored {
-        shard.put(key, &payload, lifetime, shard_cap(cap));
+        shard.put_at(key, &payload, lifetime, shard_cap(cap), None);
     }
     answer
 }
@@ -1794,7 +1871,13 @@ fn seal_and_store(ctx: &mut Ctx, at: &Sealing<'_>, value: &[u8], nanos: i64) -> 
     let lifetime = Lifetime::of(nanos);
     match tier {
         Tier::Memory => {
-            memory_put(&scoped(ctx, &stored), sealed, lifetime, memory_cap(ctx));
+            memory_put_at(
+                &scoped(ctx, &stored),
+                sealed,
+                lifetime,
+                memory_cap(ctx),
+                ctx.fixed_clock(),
+            );
         }
         // [`nvs_core_cache_put`]'s three commands, unchanged: the store keeps
         // its own clock, so it is told a length of time, and a lifetime already
@@ -1842,7 +1925,7 @@ fn opened(ctx: &Ctx, at: &Sealing<'_>) -> Result<Option<Held<Value>>, Fault> {
     } = at;
     let stored = sealed_key(key);
     let held = match tier {
-        Tier::Memory => memory_get(&scoped(ctx, &stored), member)?,
+        Tier::Memory => memory_get(&scoped(ctx, &stored), member, ctx.fixed_clock())?,
         Tier::Shared => on_shared(STORE_NAME, member, |open| open.get(&stored))?,
     };
     let Some(sealed) = held else {
@@ -2719,7 +2802,7 @@ nvs_runtime::nvs_helper! {
 
             match tier {
                 Tier::Memory => {
-                    memory_put(&scoped(ctx, &key), payload, lifetime, cap);
+                    memory_put_at(&scoped(ctx, &key), payload, lifetime, cap, ctx.fixed_clock());
                 }
                 Tier::Shared => on_shared(STORE_NAME, "put", |open| {
                     // The store keeps its own clock, so it is told a length of
@@ -2768,7 +2851,9 @@ nvs_runtime::nvs_helper! {
             let key = key_of(args, 1, "get")?.as_bytes().to_vec();
 
             let held = match tier {
-                Tier::Memory => memory_get(&scoped(ctx, &key), r"Core\Cache\Store::get")?,
+                Tier::Memory => {
+                    memory_get(&scoped(ctx, &key), r"Core\Cache\Store::get", ctx.fixed_clock())?
+                }
                 Tier::Shared => on_shared(STORE_NAME, "get", |open| open.get(&key))?,
             };
             let Some(payload) = held else {
@@ -3029,7 +3114,7 @@ pub(crate) mod tests {
     /// Crate-visible for the cases of the modules that keep state here. It lives in this module
     /// because the source scans of this file stop at its first `#[cfg(test)]`.
     pub(crate) fn memory_held(key: &[u8]) -> Option<Vec<u8>> {
-        super::memory_get(key, "test").expect("a test arms no memory ceiling")
+        super::memory_get(key, "test", None).expect("a test arms no memory ceiling")
     }
 
     use super::{
@@ -3255,7 +3340,7 @@ pub(crate) mod tests {
         let mut ctx = Ctx::buffered();
         ctx.rebase_memory();
         ctx.set_memory_limit(LIMIT);
-        let read = memory_get(KEY, "test");
+        let read = memory_get(KEY, "test", None);
         let peak = ctx.memory_peak();
         ctx.clear_memory_ceiling();
         memory_forget(KEY);

@@ -1266,6 +1266,13 @@ impl Scheduler {
             // reading it — so the sweep below can refill the run queue even
             // when it finds nothing else to do.
             if doomed.is_empty() && self.tree.borrow().wakes.is_empty() {
+                // No task can run, so a test clock with a deadline filed moves
+                // to it and wakes its tasks, and the turn goes on
+                // (`rule:testing/task-tree-and-virtual-clock`). One length
+                // read where no test runs.
+                if nvs_runtime::test_clock::advance_idle() > 0 {
+                    continue;
+                }
                 break;
             }
             for id in doomed {
