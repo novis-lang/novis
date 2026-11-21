@@ -3148,9 +3148,8 @@ fn described(
         if let Some(content_type) = content_type {
             spec.push_header("content-type", content_type.as_bytes());
         }
-        spec.set_body(body).map_err(|refusal| {
-            Fault::thrown(format!("Core\\Test::request(): {refusal}"))
-        })?;
+        spec.set_body(body)
+            .map_err(|refusal| Fault::thrown(format!("Core\\Test::request(): {refusal}")))?;
     }
     // The door the request is to have come through, and the root for a bag
     // naming none. Unreachable as anything but text — the option declares

@@ -426,7 +426,10 @@ mod tests {
             ("total".to_owned(), Node::Scalar(Scalar::Float(19.5))),
             ("customer".to_owned(), Node::Scalar(Scalar::Int(7))),
         ];
-        assert_eq!(fields_text(&fields), r#"{"order":42,"total":19.5,"customer":7}"#);
+        assert_eq!(
+            fields_text(&fields),
+            r#"{"order":42,"total":19.5,"customer":7}"#
+        );
     }
 
     /// The envelope's unconditional key is `level` and nothing else, and the

@@ -3590,7 +3590,10 @@ pub(crate) fn spec_body_of(
         )));
     }
     if let Some(octets) = octets_of(&args[slots.body]) {
-        return Ok(Some((nvs_runtime::SpecBody::Raw(octets.to_vec()), content_type)));
+        return Ok(Some((
+            nvs_runtime::SpecBody::Raw(octets.to_vec()),
+            content_type,
+        )));
     }
     Ok(None)
 }
@@ -3611,7 +3614,9 @@ fn part_octets(ctx: &Ctx, value: Value, member: &str) -> Result<ReadPart, Fault>
         transport::Piece::File { handle, .. } => {
             let mut octets = Vec::new();
             std::io::Read::read_to_end(&mut *handle.borrow_mut(), &mut octets).map_err(|err| {
-                Fault::thrown(format!("{member}: the file of a part could not be read — {err}"))
+                Fault::thrown(format!(
+                    "{member}: the file of a part could not be read — {err}"
+                ))
             })?;
             octets
         }

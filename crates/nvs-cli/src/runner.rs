@@ -1840,7 +1840,8 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         if !completion.ok {
             exit_code = 1;
             if let Some(error) = &completion.error {
-                stderr.extend_from_slice(format!("{}: {}\n", error.class, error.message).as_bytes());
+                stderr
+                    .extend_from_slice(format!("{}: {}\n", error.class, error.message).as_bytes());
             }
         }
         Ok(nvs_runtime::inproc::Ran {

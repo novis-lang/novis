@@ -271,7 +271,14 @@ fn cross(crossing: Crossing) -> Crossed {
         // could not receive it.
         Err(refusal) => return crossed(refused_completion(&refusal.to_string())),
     };
-    crossed(run_here(child, prepared.program, value, receiving, timed, None))
+    crossed(run_here(
+        child,
+        prepared.program,
+        value,
+        receiving,
+        timed,
+        None,
+    ))
 }
 
 /// Turns what the child answered into what crosses back, spending the

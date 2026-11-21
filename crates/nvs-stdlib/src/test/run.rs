@@ -257,7 +257,9 @@ fn text_of(args: &[Value], slot: usize, member: &str) -> Result<Value, Fault> {
     // Unreachable from source: `nvs_core_test_run` fills the slot with `bytes`
     // and nothing else writes it.
     let octets = held.as_bytes().ok_or_else(|| {
-        Fault::fatal(format!("{RUN_RESULT_NAME}::{member} found a non-`bytes` slot"))
+        Fault::fatal(format!(
+            "{RUN_RESULT_NAME}::{member} found a non-`bytes` slot"
+        ))
     })?;
     let text = std::str::from_utf8(octets).map_err(|err| {
         Fault::thrown(format!(

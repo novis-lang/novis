@@ -142,7 +142,12 @@ pub trait Answering: std::fmt::Debug {
     ///
     /// [`AnswerError::NoEntry`] for a unit with no such entry, which is the
     /// default, and [`AnswerError::Refused`] for a child that could not start.
-    fn run(&self, ctx: &mut Ctx, arguments: Vec<String>, stdin: Vec<u8>) -> Result<Ran, AnswerError> {
+    fn run(
+        &self,
+        ctx: &mut Ctx,
+        arguments: Vec<String>,
+        stdin: Vec<u8>,
+    ) -> Result<Ran, AnswerError> {
         let _ = (ctx, arguments, stdin);
         Err(AnswerError::NoEntry)
     }
