@@ -44,6 +44,10 @@ access log, and a keep-alive timeout longer than nginx's, as Node.js's has. The 
 `python/requirements.txt`, and `python/Dockerfile` installs their published wheels and holds every
 flag. CPython runs as its standard build, which runs one thread at a time.
 
+Every peer's image is pinned to an exact tag: Node.js's and .NET's current LTS releases, and Python's
+current stable release. A peer that cannot hold a case at the budget is measured as it is. Its result
+shows the failure, and no setting is changed to hide it.
+
 `nvs serve` runs with its defaults. The one exception is PHP's file
 check, which stays on at PHP's defaults (`php/file-check.ini`). The page groups PHP with Novis as a
 server whose copied files are live, and with the check off a copied file is not live until a reload.
@@ -119,7 +123,8 @@ own answer, as `headers` is about hello's, points at that case and has no folder
 **A result is read off what the peer did, never written down.** Each probe maps its evidence to one of
 five results with a pure function, and the evidence goes beside it: a page that says `no` can show the
 request that proved it. A row whose Novis result is worse than the goal's facts expect is reported,
-never adjusted.
+never adjusted. Only a row where a peer has no mechanism at all gives that peer a fixed result, and
+its evidence links the page in the peer's own documentation that says so.
 
 **A feature that works through a setting names it, and says whether the peer starts with it on.**
 `built-in` has no setting. `on-by-default` names a setting the peer ships turned on, which a reader

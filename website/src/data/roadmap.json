@@ -17,6 +17,13 @@
       ]
     },
     {
+      "title": "Tests that reach every part of a program",
+      "text": "A test can set the client address, cookies and the request body. It can run a command program and read its exit code and output. It can also read the logs and the mail a test caused.",
+      "goals": [
+        "tests-reach-everything"
+      ]
+    },
+    {
       "title": "Faster answers from nvs code",
       "text": "`nvs code` uses the same index as the editor. It does not analyse an unchanged project again. The first index of a project uses every processor core. One `calls` or `reach` command can take several methods.",
       "goals": [

@@ -843,8 +843,8 @@
     "feature": "in-depth/compare.mdx",
     "hash": "d45f828f33d9b1a7",
     "questions": [
-      "How do Novis, PHP, Bun, Go, Node.js, .NET and Python compare in requests per second and memory?",
-      "How do Novis, PHP, Bun, Go, Node.js, .NET and Python use more than one CPU core?",
+      "How does Novis compare with six other servers in requests per second and memory?",
+      "How do Novis and the six other servers use more than one CPU core?",
       "Which web server features are built in and which need extra code?",
       "Does a slow request make other requests of the same session wait?",
       "Does a deploy cause failed requests or pages that mix old and new files?",

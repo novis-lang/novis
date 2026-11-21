@@ -44,7 +44,7 @@ Conventions the whole file uses:
 - A.7 [Iteration and generators](#lang-iteration) — what `foreach` accepts — arrays, `Iterable<T>`, `Iterator<T>`, `KeyedIterable<K, V>` — how a class becomes iterable, and how a method with `yield` is a lazy `Iterator<T>` *(foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel, KeyedIterable, KeyedIterator, iterateKeyed, key, key and value)*
 - A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, multi-catch, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, uncaught exception, error handler, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, dump a value, assertion, Core\Test\Failure)*
 - A.9 [Tasks, channels and isolates](#lang-concurrency) — structured concurrency with `Core\Task`, bounded channels, and `spawn script` isolates that share nothing *(Core\Task, all, map, limit, deadline, TimeoutError, sleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, fibers, fork, parallel, concurrent requests, threads, workers, shared state)*
-- A.10 [Attributes, routes, commands and derived codecs](#lang-attributes) — `#[...]` metadata as anonymous objects, how it is read back, and the names the compiler acts on — JSON codecs, the route table, the command table, and program enumeration *(attribute, #[...], Attribute, reflection, read attributes, Core\Attributes, get, all, #[Route], route attribute, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Router\Target, Router\Params, Target, Params, Command, Option, console command, Json\Derive, Json\Field, JSON encoding, decodeAs, Program::implementing, autoload)*
+- A.10 [Attributes, routes, commands and derived codecs](#lang-attributes) — Declared attributes written as `#[...]`, how they are read back, and the names the compiler acts on. These give JSON codecs, the route table, the command table and the list of a program's classes. *(attribute, #[...], Attribute, attribute declaration, repeatable, reflection, read attributes, Core\Attributes, get, all, #[Route], route attribute, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Router\Target, Router\Params, Target, Params, Command, Option, console command, Json\Derive, Json\Field, JSON encoding, decodeAs, Program::implementing, autoload)*
 - A.11 [Testing](#lang-testing) — `#[Test]` methods, `nvs test`, a directory of test files as one program, fixtures, data rows, generated inputs, the assertion roster, fixed clocks and seeds, the report formats, and benchmarks with counted work *(test, #[Test], nvs test, test directory, test suite, bootstrap, assertEquals, assertSame, assertTrue, assertNull, assertCount, assertThrows, expected exception, data rows, TestWith, Fixture, property, Property, property-based testing, generated inputs, random inputs, shrink, counterexample, setup, skip, retries, flaky, Core\Test, Core\Test\Failure, --format json, junit, fixed clock, seed, .nvst, how to test, unit test, which test, expected output, benchmark, Bench, #[Bench], nvs test --bench, count, allocations)*
 
 ### Part B — The `Core` library
@@ -53,7 +53,7 @@ Conventions the whole file uses:
 |---|---|
 | [`Core\Str`](#core-core-str) | text as graphemes — search, cut, split and join, case, padding and `printf`-style formatting |
 | [`Core\Arr`](#core-core-arr) | every array function as a pure member — filter, map, sort, search, reshape, combine and aggregate, always answering a new array |
-| [`Core\Attributes`](#core-core-attributes) | reads the attributes attached to a class, a method, a property or a parameter — each one an anonymous object, read by the shape it satisfies, at compile time |
+| [`Core\Attributes`](#core-core-attributes) | reads the attributes written on a class, a method, a property or a parameter. Each call names an attribute declaration, and the compiler replaces it with the values written with that name |
 | [`Core\Math`](#core-core-math) | numeric functions over `int`, `float` and `decimal` — magnitude, rounding, integer division, roots, logarithms, trigonometry, base conversion and number formatting, plus the constants |
 | [`Core\Decimal`](#core-core-decimal) | what a `decimal` reaches for where the operators cannot say it — two divisions that name their own rounding, the split whose parts add back exactly, the exact power, and the four cuts to a scale |
 | [`Core\BigInt`](#core-core-bigint) |  |
@@ -276,7 +276,7 @@ Conventions the whole file uses:
 
 ### Part C — The toolchain
 
-- C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast, fmt — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, nvs fmt, formatter, --check, --diff, --stdin, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, nvs cache gc, nvs cache clear, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor)*
+- C.1 [The nvs command](#tools-cli) — every subcommand of the `nvs` binary — run, check, test, build, api, config, info, meta, ast, fmt — with its flags, its exit status and what it prints *(nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, nvs fmt, formatter, --check, --diff, --stdin, --config, --dump-ir, --dump-asm, --filter, --format, --mutate, --since, NoMutate, mutants.toml, mutation testing, --tag, --shard, --rerun-failed, --shuffle, --watch, --jobs, exit status, exit code, .nvs, shebang, cache, nvs cache gc, nvs cache clear, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor)*
 - C.2 [Installing on a host: folders and permissions](#tools-install) — the three steps that set up a server; which commands ask for admin rights; the data folder where Novis keeps its own files; where to put the `nvs` binary, the configuration, the compile cache and the logs on a server; which folder permissions Novis checks and when; the commands that set them on Windows and on Linux; and what each refusal message means *(install, installation, setup, deploy, deployment, server, host, folder, directory, permissions, ACL, DACL, icacls, chmod, chown, owner, ownership, Authenticated Users, Users, Everyone, SID, S-1-5-11, S-1-5-32-545, inheritance, E0607, access denied, os error 5, nvs init, --yes, nvs serve, nvs service install, --config, --data, data folder, .nvsdata, file_cache_dir, opcache, cache, log, logs, log target, Windows, Linux, PATH, service account, elevated prompt, administrator, admin rights, User Account Control, UAC, sudo, root, --no-elevate)*
 - C.3 [Configuration: nvs.toml, limits and capabilities](#tools-config) — the `nvs.toml` file — where it is read from, every block the binary accepts, resource limits and their ceilings, capability grants, per-application blocks, includes, secrets, and reading it from a program with `Core\Config` *(nvs.toml, configuration, config, TOML, limits, memory limit, time limit, limits.hard, ceiling, capabilities, fs.read, fs.write, script.spawn, net.connect, net.listen, net.local, process.exec, cache.shared, capability, permission, sandbox, [[app]], entry, root, include, mode, development, production, read a setting, change a setting, .htaccess, secret, secrets, password_file, /run/secrets, SOPS, sops, age, encrypted secrets, sealed secrets, Vault, LoadCredential, mail, Core\Config)*
 - C.4 [The HTTP server](#tools-server) — `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away and `nvs service` *(nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, development_hosts, Host header, 421, Misdirected Request, loopback, DNS rebinding, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, development server, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot)*
@@ -2853,6 +2853,9 @@ field of an anonymous object. Adding a field it does not have throws a `RuntimeE
 `as Point` checks the type of each field too. `{ x: 5, y: "six" } as Point` throws a `RuntimeError`,
 and `as ?Point` gives `null` for it.
 
+A `///` comment above a field of a shape describes that field. The editor shows the text when you
+type the field's name in an object for that shape, or point at it.
+
 #### Example 01: pass a pricing rule around
 
 ```nvs
@@ -4995,24 +4998,27 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 A property key is a value that names one public property of a class.
 
 You use a key when the name of a property is known only while the program runs, such as a sort
-column in a web address. The type `property<User>` contains the names of the public properties of
-`User`, and inherited ones. `as` converts a string to a key, and throws an error if the string
-does not name a public property. `as ?property<User>` gives `null` instead. `$user->$key` reads or
-writes the named property.
+column from a URL. A value of type `property<User>` is the name of a public property of `User`,
+including inherited ones. `as` converts a string to a key, and throws an error if the string names
+no public property. `as ?property<User>` gives `null` instead. `$user->$key` reads or writes the
+named property.
 
-**Good to know:** a `private` or `protected` property never converts to a key. A write through a key
-does not compile when the class has a public `readonly` property.
+An attribute is data written above a class or a property, as in `#[Search(fields: ['title'])]`.
+When you declare an attribute, a field typed `property<static>` takes the name of a public property.
+`static` is the class the attribute is used in. A wrong name does not compile.
 
-**The examples below** sort a table by a column from the web address and update the properties a list of
-changes names. Then they show a write of the wrong
-type and a key of a parent class used on a child class.
+**Good to know:** a `private` or `protected` property never converts to a key. If a class has a public
+`readonly` property, no write through a key of that class compiles, whatever property the key names.
+
+**The examples below** sort a table and update properties by name. Then they show two wrong
+writes, a key of a parent class on a child object, and an attribute.
 
 In `property<T>`, `T` must be a class with at least one public property. An interface, an enum or a
 type such as `int` is the error `E0799`.
 
 A name written directly in the code is checked while compiling. `"emial" as property<User>` is the
-error `E0405`. A string literal at a parameter typed `property<User>` or `?property<User>` is
-converted to a key while compiling. It needs no `as`, and a wrong name is also `E0405`. In a
+error `E0405`. You can pass a string literal to a parameter of type `property<User>` or
+`?property<User>` without `as`. The compiler converts it to a key, and a wrong name is `E0405`. In a
 variable, a return value or an array, a string literal stays a `string`.
 
 `as` gives the same `RuntimeError` for an unknown name and for a `private` or `protected` property.
@@ -5024,17 +5030,31 @@ type `string` there, the program does not compile (`E0235`).
 A read through a key has the type of every property the key can name, as a union. For a class with
 a `string` property and an `int` property, the type is `string|int`.
 
-A write through a key is checked twice. While compiling, the value must have the type of at least
-one property. `true` written through a key of a class with only `string` properties is `E0401`.
-While the program runs, the value must have the type of the property the key names. If it does not,
-the write throws a `RuntimeError`. A `tainted` or `secret` value must fit every property the key can
-name. If one property is a plain `string`, writing a `tainted string` is `E0401`.
+A write through a key is checked when the program compiles and again when it runs. When it compiles,
+the value must have the type of at least one property. `true` written through a key of a class with
+only `string` properties is `E0401`. When it runs, the value must have the type of the property the
+key names. If it does not, the write throws a `RuntimeError`.
+
+A `tainted` value is input from outside the program, such as a request. A `secret` value, such as a
+password, must not be printed. Such a value can only be written through a key when every property
+the key can name allows it. If one property is a plain `string`, writing a `tainted string` is `E0401`.
 
 If the class has a public `readonly` property, a write through a key does not compile (`E0782`). A
-`private readonly` property does not stop the write.
+`private readonly` property is never named by a key, so a write through a key still compiles.
 
 A `property<Animal>` key works on a `Dog` when `Dog` extends `Animal`. You can also store it in a
 variable of type `property<Dog>`. A `property<Dog>` key on an `Animal` is the error `E0235`.
+
+An attribute declaration lists the fields of an attribute. In such a field, `static` is the class
+that uses the attribute. For `#[Search(...)]` above `class Post`, `static` is `Post`. For an
+attribute above a property, a method or a parameter, `static` is the class that contains it. A field
+typed `property<static>` or `array<property<static>>` takes the names of that class's public
+properties. The name of a `private` property, or of a property of another class, is `E0405` at the
+string.
+
+`Core\Attributes::get<Search>(Post::constructor)` reads the `Search` attribute of `Post`. It gives
+`fields` the type `array<property<Post>>`, so `$post->$field` reads each property that `fields`
+names.
 
 `$key as string` gives the property name. Two keys are equal when they name the same property. A
 key written in the code and a key converted from a variable are equal when the name is the same.
@@ -5343,6 +5363,40 @@ error[E0782]: `Order::$id` is `readonly`, so only `Order`'s constructor writes i
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+#### Example 08: an attribute that names properties of its class
+
+```nvs
+<?nvs
+// Shows an attribute (data written above a class) with a list of the class's property names.
+
+// In the declaration, `static` is the class that uses the attribute. Here that class is `Post`.
+attribute Search on class { fields: array<property<static>> }
+
+#[Search(fields: ['title', 'author'])]
+class Post
+{
+    public string $title = 'Hello';
+    public string $author = 'Ada';
+    public string $body = 'The first post.';
+}
+
+Post $post = new Post();
+
+// `Core\Attributes::get` reads the attribute of `Post`. `fields` has the type `array<property<Post>>`.
+var $search = Core\Attributes::get<Search>(Post::constructor);
+if ($search != null) {
+    array<property<Post>> $fields = $search->fields;
+    foreach ($fields as var $field) {
+        echo $field as string, ': ', $post->$field, "\n";
+    }
+}
+```
+
+```output
+title: Hello
+author: Ada
 ```
 
 ### Property paths
@@ -26404,67 +26458,80 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 <a id="lang-attributes"></a>
 ## A.10 Attributes, routes, commands and derived codecs
 
-Keywords: attribute, #[...], Attribute, reflection, read attributes, Core\Attributes, get, all, #[Route], route attribute, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Router\Target, Router\Params, Target, Params, Command, Option, console command, Json\Derive, Json\Field, JSON encoding, decodeAs, Program::implementing, autoload
+Keywords: attribute, #[...], Attribute, attribute declaration, repeatable, reflection, read attributes, Core\Attributes, get, all, #[Route], route attribute, Route, Access, Query, Api, OpenAPI, Router::url, urlAbsolute, Router\Target, Router\Params, Target, Params, Command, Option, console command, Json\Derive, Json\Field, JSON encoding, decodeAs, Program::implementing, autoload
 
-### An attribute is an anonymous object attached to a declaration
+### An attribute is declared with the places it may be used
 
-An attribute is an anonymous object attached to a declaration. You write it as `#[...]` in front of
-the declaration. A class, an interface, an enum, a method, a property, a class constant and a
-parameter can each carry one.
+An attribute attaches fixed values to a declaration. You declare it first, with
+`attribute Table on class { name: string }`. That line gives the attribute's name, the places it may
+be written and its fields. Then you write it as `#[Table(name: 'users')]` in front of a class.
 
-Inside the brackets you write named values, as in `#[Route(path: "/users")]`. The name in front of the
-brackets must be a `type` alias for a shape, and Novis checks your values against that shape. An
-alias declared inside a class, an interface or an enum is written with its owner, as in
-`#[Job::Meta(...)]`, the same way as in a type. An attribute is not a class. Novis creates nothing
-for it, and none of your code runs for it.
+The words after `on` list the places: `class`, `method`, `property` and `parameter`. An attribute
+written in any other place does not compile. Novis also checks your values against the fields.
 
-Every value must be known while the program is compiled: a number, a string, `true`, `null`, a list, a
-class constant or an enum case. A variable or a function call there does not compile.
+An attribute declared inside a class or an interface may be used only by the classes that extend or
+implement that type. Outside that type, its name is written with the owner, as in `Job::Meta`.
+
+Write `repeatable` before `attribute` to allow more than one use on the same declaration. A `///`
+comment above a field describes it, and the editor shows that text.
+
+An attribute is not a class. Novis creates no object for it, and every value is known while the
+program is compiled.
 
 **Good to know:** `#` on its own starts a comment. Only `#[` starts an attribute.
 
-The name in front of the brackets is checked first. A name that nothing declares is `E0303`. A class,
-or a `type` alias for something that is not a shape, such as `type Id = int;`, is `E0726`.
+A declaration is written `attribute Name on <places> { fields }`. The places are `class`, `method`,
+`property` and `parameter`, and the list needs at least one of them. Any other word in the list is
+`E1004`. A field is written `name: T`, or `name?: T` when a use may leave it out.
 
-Your values are then checked against the shape. A missing field or a value of the wrong type is
-`E0401`, and the help line names the missing field. Fields the shape does not have are allowed.
-`#[Name]` with no brackets has no fields, so it is `E0401` for a shape that has any.
+A `///` comment above the declaration describes the attribute. A `///` comment above a field
+describes that field. The editor shows the text when you type the name or point at it.
+
+The name after `#[` is checked first. A name that nothing declares is `E0303`. A class, an interface,
+an enum or a `type` alias is `E1005`, because only an attribute declaration may follow `#[`. An
+attribute with no name, such as `#[{ inject: "repo" }]`, is `E0140`.
+
+Then the place is checked. An attribute written where its `on` list does not allow it is `E0874`, and
+the message names the places it allows.
+
+An attribute declared inside a class or an interface is used only on the classes that extend or
+implement it, and on their members. A use anywhere else is `E1006`. That includes the class or
+interface that declares it.
+
+An attribute may be written once on each declaration. Write `repeatable` before `attribute` to allow
+it more than once. A second use without it is `E0763`. Novis keeps every copy of a repeatable
+attribute, in the order you wrote them.
+
+Your values are then checked against the fields. A missing field or a value of the wrong type is
+`E0401`, and the help line names the missing field. A use may also give fields that the
+declaration does not list, and they are not checked. `#[Name]` with no parentheses gives no fields,
+so it is `E0401` when the declaration has a required field.
 
 Each value needs its field name. `#[Tag(5)]` is a syntax error, and the same field written twice is
 `E0494`.
 
 A value may be a number (also a negative one), a string, `true`, `false` or `null`. It may also be an
-anonymous object, an array, a class constant, an enum case or `Foo::class`. A variable, a call, `new`, arithmetic such as
-`1 + 2` and a string with `{$name}` in it are each `E0725`. A class constant that is `secret` is
-`E0727`.
+anonymous object, an array, a class constant, an enum case or `Foo::class`. A variable, a call, `new`,
+arithmetic such as `1 + 2` and a string with `{$name}` in it are each `E0725`. A class constant that is
+`secret` is `E0727`.
 
-An array in an attribute has the type `array<mixed>`. A field typed `array<mixed>` takes it. A field
-typed `array<int>` or `array<string>` does not, and the attribute is `E0401`.
+An array is checked like any other value. `[1, 2]` fits a field typed `array<int>`, and `['a']` does
+not.
 
-An attribute may also stand in front of an enum case and a property hook. In front of a statement or
-a local variable, it is `E0101`.
-
-You can write an attribute on an enum, an enum case or a class constant, and the program compiles.
-`Core\Attributes` cannot read it back, because only a class, an interface, a method, a property and a
-parameter have a way to name them.
-
-An attribute may have no name, as in `#[{ inject: "repo" }]`. Nothing checks its fields.
+In front of a statement or a local variable, an attribute is `E0101`.
 
 Several attributes can share one bracket, with commas between them: `#[A(n: 1), B(s: "x")]`. This is
 the same as writing each one in its own bracket.
-
-You can write the same attribute any number of times on one declaration. Novis keeps every copy, in
-the order you wrote them.
 
 #### Example 01: label a class and read it back
 
 ```nvs
 <?nvs
-// Shows how to attach information to a class and read it back. The name in
-// front of the brackets is a `type` alias for a shape, and your values are
-// checked against that shape.
+// Shows how to declare an attribute, attach it to a class and read it back.
 
-type Table = { name: string };
+// `attribute Table on class` declares an attribute that a class may carry.
+// The fields in the braces are the values each use must give.
+attribute Table on class { name: string }
 
 #[Table(name: 'users')]
 class User
@@ -26473,8 +26540,8 @@ class User
 }
 
 // `Core\Attributes::get` returns the values attached to the class, or `null`
-// when the class carries none. `User::constructor` names the class itself.
-?Table $table = Core\Attributes::get<Table>(User::constructor);
+// when the class has none. `User::constructor` names the class itself.
+var $table = Core\Attributes::get<Table>(User::constructor);
 if ($table != null) {
     // This prints `users`.
     echo $table->name, "\n";
@@ -26484,7 +26551,7 @@ if ($table != null) {
 class Session
 {}
 
-?Table $none = Core\Attributes::get<Table>(Session::constructor);
+var $none = Core\Attributes::get<Table>(Session::constructor);
 echo $none == null ? "no table name\n" : "a table name\n";
 ```
 
@@ -26497,11 +26564,15 @@ no table name
 
 ```nvs
 <?nvs
-// Shows several attributes on one declaration, and the two ways to write one.
-// `#[Name(...)]` checks your values against the shape `Name`. `#[{...}]` has no
-// name in front of it, so there is nothing to check it against.
+// Shows several attributes on one declaration, and an attribute on a property
+// and on a parameter.
 
-type Tag = { label: string };
+// `repeatable` allows more than one `Tag` on the same declaration.
+// `on class, property` lists where a `Tag` may be written.
+repeatable attribute Tag on class, property { label: string }
+
+// A second attribute, for parameters only.
+attribute Inject on parameter { from: string }
 
 #[Tag(label: 'billing')]
 #[Tag(label: 'nightly')]
@@ -26510,30 +26581,29 @@ class Invoice
     #[Tag(label: 'money')]
     public int $cents = 0;
 
-    public function send(#[{ from: 'config' }] string $to): string
+    public function send(#[Inject(from: 'config')] string $to): string
     {
         return $to;
     }
 }
 
-// `Core\Attributes::all` returns every attached value that fits the shape, in
-// the order you wrote them. This prints 2, `billing` and `nightly`.
-array<Tag> $tags = Core\Attributes::all<Tag>(Invoice::constructor);
+// `Core\Attributes::all` returns every `Tag` on the class, in the order you
+// wrote them. This prints 2, `billing` and `nightly`.
+var $tags = Core\Attributes::all<Tag>(Invoice::constructor);
 echo Core\Arr::count($tags), "\n";
-foreach ($tags as Tag $tag) {
+foreach ($tags as var $tag) {
     echo $tag->label, "\n";
 }
 
-// A property and a parameter can carry an attribute too. The second argument is
-// the name of the property or the parameter. This prints `money`.
-?Tag $onProperty = Core\Attributes::get<Tag>(Invoice::constructor, 'cents');
+// The second argument is the name of the property or the parameter.
+// This prints `money`.
+var $onProperty = Core\Attributes::get<Tag>(Invoice::constructor, 'cents');
 if ($onProperty != null) {
     echo $onProperty->label, "\n";
 }
 
-// The attribute on the parameter `$to` was written without a name. You read it
-// back by writing the shape you expect. This prints `config`.
-?{ from: string } $onParameter = Core\Attributes::get<{ from: string }>(Invoice::send, 'to');
+// The parameter `$to` of the method `send` has an `Inject`. This prints `config`.
+var $onParameter = Core\Attributes::get<Inject>(Invoice::send, 'to');
 if ($onParameter != null) {
     echo $onParameter->from, "\n";
 }
@@ -26561,8 +26631,8 @@ class Every
     public const int QUARTER_HOUR = 15;
 }
 
-// The enum and the shape are declared inside the interface every job implements.
-// Outside the interface, you write them as `Job::Level` and `Job::Meta`.
+// Only a class that implements `Job` may use the attribute `Meta`. Outside
+// `Job`, you write the names as `Job::Level` and `Job::Meta`.
 interface Job
 {
     enum Level: int
@@ -26571,12 +26641,12 @@ interface Job
         Urgent = 2,
     }
 
-    type Meta = { name: string, everyMinutes: int, level: Level };
+    attribute Meta on class { name: string, everyMinutes: int, level: Level }
 }
 
 // A class constant and an enum case are both allowed in an attribute, because
 // their values are known while the program is compiled.
-#[Job::Meta(name: 'send invoices', everyMinutes: Every::HOUR, level: Job::Level::Normal)]
+#[Meta(name: 'send invoices', everyMinutes: Every::HOUR, level: Job::Level::Normal)]
 class SendInvoices implements Job
 {
     public static function run(): string
@@ -26585,7 +26655,7 @@ class SendInvoices implements Job
     }
 }
 
-#[Job::Meta(name: 'clean sessions', everyMinutes: Every::QUARTER_HOUR, level: Job::Level::Normal)]
+#[Meta(name: 'clean sessions', everyMinutes: Every::QUARTER_HOUR, level: Job::Level::Normal)]
 class CleanSessions implements Job
 {
     public static function run(): string
@@ -26594,7 +26664,7 @@ class CleanSessions implements Job
     }
 }
 
-#[Job::Meta(name: 'charge cards', everyMinutes: Every::HOUR, level: Job::Level::Urgent)]
+#[Meta(name: 'charge cards', everyMinutes: Every::HOUR, level: Job::Level::Urgent)]
 class ChargeCards implements Job
 {
     public static function run(): string
@@ -26603,12 +26673,13 @@ class ChargeCards implements Job
     }
 }
 
-array<Job::Meta> $schedule = [];
-$schedule[] = Core\Attributes::get<Job::Meta>(SendInvoices::constructor) ?? throw new RuntimeError('no job');
-$schedule[] = Core\Attributes::get<Job::Meta>(CleanSessions::constructor) ?? throw new RuntimeError('no job');
-$schedule[] = Core\Attributes::get<Job::Meta>(ChargeCards::constructor) ?? throw new RuntimeError('no job');
+var $schedule = [
+    Core\Attributes::get<Job::Meta>(SendInvoices::constructor) ?? throw new RuntimeError('no job'),
+    Core\Attributes::get<Job::Meta>(CleanSessions::constructor) ?? throw new RuntimeError('no job'),
+    Core\Attributes::get<Job::Meta>(ChargeCards::constructor) ?? throw new RuntimeError('no job'),
+];
 
-foreach ($schedule as Job::Meta $job) {
+foreach ($schedule as var $job) {
     string $mark = $job->level == Job::Level::Urgent ? ' (urgent)' : '';
     echo $job->name, ': every ', $job->everyMinutes as string, ' minutes', $mark, "\n";
 }
@@ -26628,7 +26699,7 @@ charge cards: every 60 minutes (urgent)
 // compiled. `$host` is a variable, so this program does not compile.
 // proof: compile-error
 
-type Cache = { key: string };
+attribute Cache on method { key: string }
 string $host = 'example.test';
 
 class Page
@@ -26653,27 +26724,86 @@ error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
 ```
 
+#### Example 05: a base class declares its attributes
+
+```nvs
+<?nvs
+// Shows a base class that declares its own attributes, with a comment on each field.
+
+abstract class Storable
+{
+    /// Adds a database index over one or more columns of this table.
+    repeatable attribute Index on class {
+        /// The column names, separated by commas.
+        columns: string,
+        /// `true` means no two rows may have the same values in these columns.
+        unique?: bool,
+    }
+
+    /// Sets how a property is stored.
+    attribute Column on property {
+        /// The longest text this column can store.
+        length: int,
+    }
+}
+
+// `Customer` extends `Storable`, so it may use `Index` and `Column`.
+// A class that does not extend `Storable` cannot use them.
+#[Index(columns: 'email', unique: true)]
+#[Index(columns: 'country, city')]
+class Customer extends Storable
+{
+    #[Column(length: 200)]
+    public string $email = '';
+}
+
+// Outside `Storable`, the full name is `Storable::Index`. This prints both indexes.
+foreach (Core\Attributes::all<Storable::Index>(Customer::constructor) as var $index) {
+    string $kind = ($index->unique ?? false) ? 'unique' : 'plain';
+    echo $index->columns, ' (', $kind, ")\n";
+}
+
+// This prints `200`.
+var $column = Core\Attributes::get<Storable::Column>(Customer::constructor, 'email');
+echo $column?->length ?? 0, "\n";
+```
+
+```output
+email (unique)
+country, city (plain)
+200
+```
+
 ### Reading attributes back: `Core\Attributes::get` and `all`
 
-`Core\Attributes::get` and `Core\Attributes::all` read the attributes attached to a declaration. `get`
-returns the one attribute that matches the shape you write, or `null` when nothing matches. `all`
-returns every match, in the order the attributes are written, and an empty list when nothing matches.
+`Core\Attributes::get` and `Core\Attributes::all` read the attributes attached to a declaration. You
+write the name of an attribute declaration between `<` and `>`, as in `get<Tag>`. `get` returns the
+one `Tag` on the declaration, or `null` when it has none. `all` returns every `Tag`, in the order they
+are written, and an empty list when there is none.
 
 You name the declaration with a method reference: `Users::show` for a method, and
 `Users::constructor` for the class itself. A second argument names one property or one parameter of
-that declaration, and you then get the attributes on that one. This name must be written out. If you
-write a variable there, the result is `null` or an empty list.
+that declaration, and you then get the attributes on that one. This second name must be written
+out. If you write a variable there, the result is `null` or an empty list.
 
-Matching is by shape and not by name. An attribute with more fields than the shape you write still
-matches, so `{ name: string }` matches `#[Tag(name: "alpha", weight: 3)]`.
+The result has the fields of the declaration. Write `var` for the variable that receives it, as in
+`var $tag = Core\Attributes::get<Tag>(Users::show);`.
 
 Novis does all of this while it compiles your program. The call is replaced by the value it found, so
 there is no lookup while the program runs.
 
-`get` with two matching attributes is `E0728`. `all` has no such limit.
+`get` on a declaration with two `Tag` attributes is `E0728`. `all` has no such limit.
 
-The type between `<` and `>` must be a shape, written out as `{ label: string }` or as a `type` alias
-for one. `get<int>` is `E0729`, and `get` with no type is `E0442`.
+The name between `<` and `>` must be an attribute declaration. An attribute declared inside a class
+or an interface is written with its owner, as in `get<Job::Meta>`. A shape such as `{ label: string }`,
+a `type` alias, a class and `int` are each `E1008`. `get` with no type is `E0442`.
+
+The retrieval finds only attributes written with the name you give. Two declarations with the same
+fields are still two different attributes, and `get` for one never returns the other.
+
+You can also name an attribute that Novis reads itself, such as `Core\Route` or `Core\Command`. The
+result is the fields written in that attribute. A field the attribute does not need may be missing,
+so read it with `??`, as in `$command->about ?? ''`.
 
 Every class has a constructor, even when you do not write one. So `Users::constructor` always
 names the class.
@@ -26687,12 +26817,11 @@ not have is `E0798`. For the parameters of the constructor, use `Users::construc
 parameter's name. For a promoted constructor parameter, you get the attributes on the parameter and
 on the property together.
 
-A subclass does not get its parent's attributes. `B::constructor` finds nothing when only the
-parent class `A` has the attribute. `B::show` also finds nothing when `show` is declared in `A`,
-even if `B` does not override it. An interface method's attributes are read with `I::m`.
-
-`all<{}>` returns every attribute on the declaration, also the attributes Novis reads itself, such as
-`#[Core\Json\Derive]`.
+A subclass does not get its parent's class attributes. `B::constructor` finds nothing when only the
+parent class `A` has the attribute. A method is read where it is declared. When `B` does not
+override `show`, `B::show` is the method `A` declares, and you get the attributes `A` wrote on it.
+When `B` overrides `show`, you get only the attributes on `B`'s method. An interface method's
+attributes are read with `I::m`.
 
 A class constant, an enum case or `Foo::class` in an attribute is read back as its value. The value
 comes from the place where the attribute is written. In a file with `namespace Shop;`, `K::class` is
@@ -26706,10 +26835,11 @@ returns.
 
 ```nvs
 <?nvs
-// Shows how to read every attribute attached to one declaration.
+// Shows how to read every attribute of one kind attached to one declaration.
 // `Core\Attributes::all` returns them in the order they are written.
 
-type Tag = { name: string };
+// `repeatable` allows more than one `Tag` on the same method.
+repeatable attribute Tag on method { name: string }
 
 class Article
 {
@@ -26728,13 +26858,13 @@ class Article
 }
 
 // This prints `news`, `sport` and `local`, one per line, in that order.
-array<Tag> $tags = Core\Attributes::all<Tag>(Article::publish);
-foreach ($tags as Tag $tag) {
+var $tags = Core\Attributes::all<Tag>(Article::publish);
+foreach ($tags as var $tag) {
     echo $tag->name, "\n";
 }
 
-// `archive` carries no attribute. The result is an empty list, so this prints 0.
-array<Tag> $none = Core\Attributes::all<Tag>(Article::archive);
+// `archive` has no attribute. The result is an empty list, so this prints 0.
+var $none = Core\Attributes::all<Tag>(Article::archive);
 echo Core\Arr::count($none), "\n";
 ```
 
@@ -26752,8 +26882,8 @@ local
 // Shows the second argument of `Core\Attributes::get`. It names one property
 // or one parameter, and you then get the attributes on that one.
 
-type Column = { name: string };
-type Range = { min: int, max: int };
+attribute Column on property { name: string }
+attribute Range on parameter { min: int, max: int }
 
 class Product
 {
@@ -26768,14 +26898,14 @@ class Product
 
 // A property of a class. `Product::constructor` names the class, and
 // `"title"` names the property. This prints `product_title`.
-?Column $column = Core\Attributes::get<Column>(Product::constructor, 'title');
+var $column = Core\Attributes::get<Column>(Product::constructor, 'title');
 if ($column != null) {
     echo $column->name, "\n";
 }
 
 // A parameter of a method. `Product::discount` names the method, and
 // `"percent"` names the parameter. This prints `0 to 90`.
-?Range $range = Core\Attributes::get<Range>(Product::discount, 'percent');
+var $range = Core\Attributes::get<Range>(Product::discount, 'percent');
 if ($range != null) {
     echo $range->min, ' to ', $range->max, "\n";
 }
@@ -26783,7 +26913,7 @@ if ($range != null) {
 // The name must be written out, as it is above. If you write a variable there,
 // the result is `null`.
 string $field = 'title';
-?Column $computed = Core\Attributes::get<Column>(Product::constructor, $field);
+var $computed = Core\Attributes::get<Column>(Product::constructor, $field);
 echo $computed == null ? "null\n" : "a column name\n";
 ```
 
@@ -26801,13 +26931,11 @@ null
 // which permission it needs, so adding a method means writing one attribute.
 // There is no second list to keep up to date.
 
-type Requires = { permission: string };
+attribute Requires on method { permission: string }
 
 class Orders
 {
-    // This attribute has one field more than `Requires`. Matching is by shape,
-    // so it still matches.
-    #[{ permission: 'orders.read', audit: true }]
+    #[Requires(permission: 'orders.read')]
     public static function show(): string
     {
         return 'order 1042';
@@ -26827,7 +26955,9 @@ class Orders
 
 class Access
 {
-    public static function check(string $action, ?Requires $needs, array<string> $granted): string
+    // The parameter type is the fields of `Requires`. A `Requires` attribute
+    // is read back as a value of this type.
+    public static function check(string $action, ?{ permission: string } $needs, array<string> $granted): string
     {
         if ($needs == null) {
             return $action . ': open to everyone';
@@ -26858,26 +26988,26 @@ ping: open to everyone
 
 ```nvs error
 <?nvs
-// Shows that `get` needs at most one matching attribute. `Engine` has two
-// `Tag` attributes, so this program does not compile. Use `all` instead.
+// Shows that `get` needs at most one attribute of the kind you name. `Engine`
+// has two `Tag` attributes, so this program does not compile. Use `all` instead.
 // proof: compile-error
 
-type Tag = { label: string };
+repeatable attribute Tag on class { label: string }
 
 #[Tag(label: 'fast')]
 #[Tag(label: 'safe')]
 class Engine
 {}
 
-?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor);
+var $tag = Core\Attributes::get<Tag>(Engine::constructor);
 ```
 
 ```output
-error[E0728]: `Engine::constructor` has 2 attribute payloads that match this shape
-   --> main.nvs:13:13
+error[E0728]: `Engine::constructor` has 2 `Tag` attributes
+   --> main.nvs:13:12
    |
-13 | ?Tag $tag = Core\Attributes::get<Tag>(Engine::constructor);
-   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` answers at most one
+13 | var $tag = Core\Attributes::get<Tag>(Engine::constructor);
+   |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `get` returns at most one
    = help: write `Core\Attributes::all<T>(…)`, which returns every match
 
 error: aborting due to 1 error
@@ -26892,8 +27022,8 @@ to one of them the compiler acts on it: it writes a JSON codec for the class, ad
 table, adds a row to the command table, or registers a test.
 
 Novis decides by the declaration a name points to, not by the way the name is written. `#[Core\Command]`
-and an imported `#[Command]` are one attribute. A type of your own called `Command` is a different
-declaration, so it stays ordinary metadata however it is spelled. An import binds one whole name, so
+and an imported `#[Command]` are one attribute. An attribute of your own called `Command` is a different
+declaration, so it stays ordinary metadata however you write it. An import binds one whole name, so
 `use Core\Json;` followed by `#[Json\Derive]` points at nothing and does not compile.
 
 Each name Novis owns has a fixed list of options. An option it does not know, an option of the wrong
@@ -26907,15 +27037,16 @@ type. An option of the wrong type is `E0401`, and an option given twice is `E030
 not known while compiling is `E0725`, as in any attribute. A missing option that the attribute needs
 has an error of its own, such as `E0767` for a `#[Core\Command]` with no `name`.
 
-A name under `Core\` that Novis does not read, such as `#[Core\Nope]`, is `E0726`. These names are
+A name under `Core\` that Novis does not declare, such as `#[Core\Nope]`, is `E0303`. These names are
 never written with `::`, so `#[Core\Json::Derive]` is `E0405`. An import cannot be renamed, so
 `use Core\Command as Cmd;` is `E0212`.
 
-Novis does not read an attribute without a name. `#[{ name: "deploy", about: "…" }]` is ordinary
-metadata, even when its fields are the same as a `Core\Command`.
+An attribute of your own with the same fields as `Core\Command` is still your own attribute. Novis
+does not read it.
 
-Your code can still read these attributes with `Core\Attributes`. For example,
-`Core\Attributes::get<{ path: string }>(Home::show)` returns the `path` of a `#[Core\Route]`.
+`Core\Attributes` can read these attributes too. `Core\Attributes::get<Core\Route>(Home::show)`
+returns the fields written in the route attribute, such as its `path`. Some also have a reader of
+their own, such as `Core\Command::help` for the command table.
 
 Each of these attributes belongs on one kind of declaration. A `#[Core\Command]` belongs on a
 `static` method, and on a method that is not `static` it is `E0789`.
@@ -26931,39 +27062,28 @@ Each of these attributes belongs on one kind of declaration. A `#[Core\Command]`
 
 use Core\Command;
 
-type Row = { name: string, about: string };
-
 class Jobs
 {
     #[Core\Command(name: 'import', about: 'Read rows from a file')]
     public static function import(): void
     {}
 
-    // The `use Core\Command;` above makes this short spelling the same attribute.
+    // The `use Core\Command;` above makes this short name the same attribute.
     #[Command(name: 'export', about: 'Write rows to a file')]
     public static function export(): void
     {}
 }
 
-class Help
-{
-    public static function line(?Row $row): string
-    {
-        if ($row == null) {
-            return '(no command here)';
-        }
-        return $row->name . ': ' . $row->about;
-    }
-}
-
-// This prints one line per command.
-echo Help::line(Core\Attributes::get<Row>(Jobs::import)), "\n";
-echo Help::line(Core\Attributes::get<Row>(Jobs::export)), "\n";
+// `Core\Command::help(null)` lists every command. This prints both of them.
+echo Core\Command::help(null);
 ```
 
 ```output
-import: Read rows from a file
-export: Write rows to a file
+usage: <command> [arguments]
+
+commands:
+  import  Read rows from a file
+  export  Write rows to a file
 ```
 
 #### Example 02: an attribute of your own with the same name
@@ -26972,13 +27092,13 @@ export: Write rows to a file
 <?nvs
 // Shows an attribute of your own whose name is also a name Novis owns. Only
 // `#[Core\Command]` declares a command. The `#[Command]` below is your own
-// type, so it is metadata you store and read back yourself.
+// attribute, so it is data you store and read back yourself.
 
-type Command = { name: string, note: string };
+attribute Command on method { name: string, note: string }
 
 class Jobs
 {
-    // Novis reads this one. The command table now has a command called `import`.
+    // Novis reads this one. The command table has a command called `import`.
     #[Core\Command(name: 'import', about: 'Read rows from a file')]
     public static function import(): void
     {}
@@ -26986,14 +27106,14 @@ class Jobs
 
 class Reports
 {
-    // Your own `Command` type. This method is not a command, so the word
+    // Your own `Command` attribute. This method is not a command, so the word
     // `import` is free to use again here.
     #[Command(name: 'import', note: 'runs every night')]
     public static function daily(): void
     {}
 }
 
-?Command $mine = Core\Attributes::get<Command>(Reports::daily);
+var $mine = Core\Attributes::get<Command>(Reports::daily);
 
 // This prints `import runs every night`.
 if ($mine != null) {
@@ -27009,12 +27129,11 @@ import runs every night
 
 ```nvs
 <?nvs
-// A class that carries both kinds of attribute, which is the usual case at
-// work. Novis reads `#[Core\Json\Derive]` and writes the JSON encoder for the
-// class. `#[Audited]` is your own type, so Novis stores it and your own code
-// reads it back.
+// A class with both kinds of attribute, which is the usual case at work.
+// Novis reads `#[Core\Json\Derive]` and writes the JSON encoder for the class.
+// `#[Audited]` is your own attribute, so Novis stores it and your code reads it.
 
-type Audited = { by: string, since: string };
+attribute Audited on class { by: string, since: string }
 
 #[Core\Json\Derive]
 #[Audited(by: 'payments', since: '2026-01-14')]
@@ -27036,7 +27155,7 @@ var $payment = new Payment('PAY-1042', 2599);
 echo Core\Json::encode($payment), "\n";
 
 // Your own attribute is read with `Core\Attributes::get`.
-?Audited $owner = Core\Attributes::get<Audited>(Payment::constructor);
+var $owner = Core\Attributes::get<Audited>(Payment::constructor);
 if ($owner != null) {
     echo 'owned by ', $owner->by, ' since ', $owner->since, "\n";
 }
@@ -27085,6 +27204,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 - `#[Core\Db\Field]`
 - `#[Core\Test]`
 - `#[Core\Test\Bench]`
+- `#[Core\Test\NoMutate]`
 - `#[Core\Test\Fixture]`
 - `#[Core\Test\TestWith]`
 - `#[Core\Test\Property]`
@@ -28644,9 +28764,10 @@ is a flag. Every option or positional parameter needs a type that text converts 
 returns `void` or the exit status as a `uint`.
 
 `Core\Command::run()` reads the program's command line and calls the command that the first word
-names. You can also read the table yourself with `Core\Attributes::get` and
-`Core\Program::implementing`, as the examples below do. The last example shows an option that does
-not compile.
+names. `Core\Command::help` returns the help page for one command, or the list of every command. You
+can also read the table yourself. `Core\Attributes::get<Core\Command>` returns the `name` and `about`
+of one command, and `Core\Attributes::get<Core\Option>` returns the fields of one option. The last
+example shows an option that does not compile.
 
 `#[Core\Command]` has two fields, `name` and `about`. A command with no `name` is `E0767`, and a
 `name` that is not a string is `E0401`. `about` is optional. `#[Core\Option]` has three fields,
@@ -28655,7 +28776,7 @@ not compile.
 
 Two commands with one name are `E0768`. This is true when they are in two classes, and when one method
 has two `#[Core\Command]` lines with the same name. Two lines with different names on one method give
-one command two names, and `Core\Attributes::all` returns both lines.
+one command two names, and `Core\Command::help(null)` lists both.
 
 A method that is not `static` is `E0789`. A return type other than `void` or `uint` is `E0789` too,
 and that includes `int`. `#[Core\Option]` on a parameter of a method with no `#[Core\Command]` is
@@ -28702,10 +28823,9 @@ class Backup
 
 // You can read the table back with `Core\Attributes::get`. This prints
 // `backup: Copy the database to a file`.
-type Command = { name: string, about: string };
-?Command $command = Core\Attributes::get<Command>(Backup::backup);
+var $command = Core\Attributes::get<Core\Command>(Backup::backup);
 if ($command != null) {
-    echo $command->name, ': ', $command->about, "\n";
+    echo $command->name, ': ', $command->about ?? '', "\n";
 }
 
 // The command is a static method. You can call it yourself.
@@ -28723,11 +28843,9 @@ exit status 0
 
 ```nvs
 <?nvs
-// Shows the two spellings an option can have. `short:` is the one letter form
-// and `long:` is the word form. Without `long:` the word form is the parameter's
+// Shows the two ways to write an option. `short:` is the one letter form and
+// `long:` is the word form. Without `long:` the word form is the parameter's
 // own name. A `bool` option is a flag, and every other type takes a value.
-
-type Option = { short: string, long: string, about: string };
 
 class Serve
 {
@@ -28742,25 +28860,22 @@ class Serve
     }
 }
 
-// Build the help lines from the table. This is what a program prints for
-// `serve --help`.
-array<Option> $options = [];
-// Write the parameter name here. A name you compute is not looked up, and the
-// result is `null`.
-$options[] = Core\Attributes::get<Option>(Serve::serve, 'listenPort') ?? throw new RuntimeError('no option');
-$options[] = Core\Attributes::get<Option>(Serve::serve, 'silent') ?? throw new RuntimeError('no option');
-
-foreach ($options as Option $option) {
-    echo '  -', $option->short, ', --', $option->long, '  ', $option->about, "\n";
-}
+// This is what a program prints for `serve --help`. Each option shows both
+// forms, its type and its description.
+echo Core\Command::help('serve');
 
 uint $status = Serve::serve(8080, false);
 echo 'exit status ', $status, "\n";
 ```
 
 ```output
-  -p, --port  The port to listen on
-  -q, --quiet  Print nothing
+usage: serve [--port] [--quiet]
+
+Run the web server
+
+options:
+  -p, --port   uint  The port to listen on
+  -q, --quiet  bool  Print nothing
 listening on 8080
 exit status 0
 ```
@@ -28769,19 +28884,10 @@ exit status 0
 
 ```nvs
 <?nvs
-// Shows a help screen that builds itself from the command classes. Adding a
+// Shows a help screen that Novis builds from the command classes. Adding a
 // command means writing one class. There is no second list to keep up to date.
-// `Core\Program::implementing` finds every class that implements the interface,
-// sorted by name.
 
-interface Tool
-{
-    public function command(): string;
-}
-
-type Command = { name: string, about: string };
-
-class Migrate implements Tool
+class Migrate
 {
     #[Core\Command(name: 'migrate', about: 'Apply pending migrations')]
     public static function migrate(
@@ -28793,14 +28899,9 @@ class Migrate implements Tool
         }
         return 1;
     }
-
-    public function command(): string
-    {
-        return 'migrate';
-    }
 }
 
-class Purge implements Tool
+class Purge
 {
     #[Core\Command(name: 'purge', about: 'Delete the expired rows')]
     public static function purge(
@@ -28812,14 +28913,9 @@ class Purge implements Tool
         }
         return 1;
     }
-
-    public function command(): string
-    {
-        return 'purge';
-    }
 }
 
-class Seed implements Tool
+class Seed
 {
     #[Core\Command(name: 'seed', about: 'Fill the database with test data')]
     public static function seed(
@@ -28831,44 +28927,20 @@ class Seed implements Tool
         }
         return 1;
     }
-
-    public function command(): string
-    {
-        return 'seed';
-    }
 }
 
-echo 'Usage: app <command> [options]', "\n";
-echo "\n";
-echo 'Commands:', "\n";
-
-foreach (Core\Program::implementing<Tool>() as Tool $tool) {
-    string $name = $tool->command();
-    // Each class says which command it describes, and the description comes
-    // from the attribute rather than from a second string.
-    ?Command $command = null;
-    if ($name == 'migrate') {
-        $command = Core\Attributes::get<Command>(Migrate::migrate);
-    }
-    if ($name == 'purge') {
-        $command = Core\Attributes::get<Command>(Purge::purge);
-    }
-    if ($name == 'seed') {
-        $command = Core\Attributes::get<Command>(Seed::seed);
-    }
-    if ($command != null) {
-        echo '  ', Core\Str::padEnd($command->name, 10), $command->about, "\n";
-    }
-}
+// `Core\Command::help(null)` returns the page that lists every command. Each
+// description comes from the `about:` of its attribute.
+echo Core\Command::help(null);
 ```
 
 ```output
-Usage: app <command> [options]
+usage: <command> [arguments]
 
-Commands:
-  migrate   Apply pending migrations
-  purge     Delete the expired rows
-  seed      Fill the database with test data
+commands:
+  migrate  Apply pending migrations
+  purge    Delete the expired rows
+  seed     Fill the database with test data
 ```
 
 #### Example 04: an option needs a type text converts to
@@ -29192,18 +29264,19 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 `Core\Program::implementingWith<I, T>($member)` gives you one row for every class in your program
 that implements the interface `I`, with one of that class's attributes beside it.
 
-Each row has two fields. `instance` is the object, and `attribute` is the one attribute on that
-class's `$member` whose fields match the shape `T`. Without such an attribute, it is `null`. `$member` is the name of a method or a property, or an empty string for the attributes written
-on the class itself. Rows are sorted by full class name.
+`T` is the name of an attribute declaration, such as `Menu` after `attribute Menu on method { … }`.
+Each row has two fields. `instance` is the object, and `attribute` is the `T` attribute on that
+class's `$member`. Without one, it is `null`. `$member` is the name of a method or a property, or an
+empty string for the attributes written on the class itself. Rows are sorted by full class name.
 
 Novis finds the classes and their attributes while it compiles your program. A framework uses this
 to read the settings of the classes it found.
 
-**Good to know:** two attributes on one class that both match `T` are an error. Use a narrower
-shape, or read that class with `Core\Attributes::all<T>`.
+**Good to know:** a class with two `T` attributes on one member is an error. Read that class with
+`Core\Attributes::all<T>`.
 
-The examples show a report label, class attributes, an admin menu, each page's route path, and a
-missing member, which does not compile.
+The examples show a report label, class attributes, an admin menu, two attributes with the same
+field, and a missing member, which does not compile.
 
 `I` follows the same rules as for `Core\Program::implementing`. The list has the same classes in
 the same order, and `E0743`, `E0744` and `E0442` are given for the same mistakes. The call takes two
@@ -29228,16 +29301,18 @@ method that a class inherits counts as one it has. Its attributes are not read, 
 `attribute` is `null`. A class that overrides a method has only the attributes on its own version.
 An attribute on the interface's method is not read either.
 
-The attribute matches `T` when it has every field of `T` with the right type. It may have more
-fields. Two attributes that both match on one class are `E0728`, and the message names the class and
-the member. A shape with a field that only one of them has picks that one. A `T` that is not a shape,
-such as `int` or a class, is `E0729`.
+`T` names an attribute declaration. The row's `attribute` is an attribute written with that name.
+Another attribute with the same fields is not found. Two `T` attributes on one member of one class
+are `E0728`, and the message names the class, the member and the count. A `T` that is not an
+attribute declaration is `E1008`. That includes a shape such as `{ text: string }`, `int` and a
+class.
 
-Each row has the type `{ instance: I, attribute: ?T }`. Storing the result in an
-`array<{ instance: I, attribute: T }>` is `E0401`, because `attribute` may be `null`.
+The type of `attribute` is the declaration's fields, and it may be `null`. Write `var $row` in the
+`foreach` to use this type. Storing the result in an array whose `attribute` cannot be `null` is
+`E0401`.
 
-The attributes Novis reads itself can be read this way too. `{ path: string }` reads the path of each
-class's `#[Core\Route]`.
+`T` can also be an attribute that Novis reads itself, such as `Core\Route`. The row's `attribute` is
+then the fields written in that attribute, such as its `path`.
 
 When no class implements `I`, the result is `[]`, whatever `$member` is.
 
@@ -29246,9 +29321,9 @@ When no class implements `I`, the result is `[]`, whatever `$member` is.
 ```nvs
 <?nvs
 // Shows how to read one attribute from every class that implements an
-// interface. Each row holds the object and the attribute found on it.
+// interface. Each row has the object and the attribute found on it.
 
-type Label = { text: string };
+attribute Label on method { text: string }
 
 interface Report
 {
@@ -29275,7 +29350,7 @@ class StockReport implements Report
 
 // The rows are sorted by class name, so `SalesReport` comes first.
 // This prints `Sales: 12` and then `Stock: 7`.
-foreach (Core\Program::implementingWith<Report, Label>('rows') as { instance: Report, attribute: ?Label } $row) {
+foreach (Core\Program::implementingWith<Report, Label>('rows') as var $row) {
     echo $row->attribute?->text ?? '(none)', ': ', $row->instance->rows(), "\n";
 }
 ```
@@ -29292,7 +29367,7 @@ Stock: 7
 // Shows the two things that are not a method attribute: an empty member name,
 // which reads the attributes on the class itself, and a class carrying none.
 
-type Owner = { team: string };
+attribute Owner on class { team: string }
 
 interface Job
 {
@@ -29318,7 +29393,7 @@ class Cleanup implements Job
 
 // `Cleanup` has no `#[Owner]`, so its attribute is `null` and `??` supplies
 // the text instead. This prints `cleanup: nobody` and then `invoices: billing`.
-foreach (Core\Program::implementingWith<Job, Owner>('') as { instance: Job, attribute: ?Owner } $row) {
+foreach (Core\Program::implementingWith<Job, Owner>('') as var $row) {
     echo $row->instance->run(), ': ', $row->attribute?->team ?? 'nobody', "\n";
 }
 ```
@@ -29335,7 +29410,7 @@ invoices: billing
 // Shows what a framework does with this: every page in the program, beside the
 // menu entry that page declares for itself.
 
-type Menu = { title: string, order: int };
+attribute Menu on method { title: string, order: int }
 
 interface AdminPage
 {
@@ -29372,8 +29447,8 @@ class Health implements AdminPage
 
 // Adding a page to the menu is adding the attribute to the page, and no list
 // of pages can go out of date. This prints `1. Dashboard -> /admin` first.
-foreach (Core\Program::implementingWith<AdminPage, Menu>('path') as { instance: AdminPage, attribute: ?Menu } $row) {
-    ?Menu $entry = $row->attribute;
+foreach (Core\Program::implementingWith<AdminPage, Menu>('path') as var $row) {
+    var $entry = $row->attribute;
     if ($entry != null) {
         echo $entry->order, '. ', $entry->title, ' -> ', $row->instance->path(), "\n";
     }
@@ -29393,7 +29468,7 @@ foreach (Core\Program::implementingWith<AdminPage, Menu>('path') as { instance: 
 // `Archive` has no `rows` method, so this program does not compile.
 // proof: compile-error
 
-type Label = { text: string };
+attribute Label on method { text: string }
 
 interface Report
 {
@@ -29431,57 +29506,56 @@ error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
 ```
 
-#### Example 05: each page beside its route
+#### Example 05: each call reads only the attribute it names
 
 ```nvs
 <?nvs
-// Shows how to read the path of each page's `#[Core\Route]`, so each path is
-// written only once.
+// Shows that `implementingWith` reads only the attribute you name. `Menu` and
+// `Footer` have the same field, and each call finds only its own attribute.
+
+attribute Menu on method { title: string }
+attribute Footer on method { title: string }
 
 interface Page
 {
     public function render(): string;
 }
 
-class Index implements Page
-{
-    #[Core\Route(path: '/', method: Core\Http\Method::Get)]
-    #[Core\Access(allow: Core\Audience::Public)]
-    public function render(): string
-    {
-        return 'home';
-    }
-}
-
 class Contact implements Page
 {
-    #[Core\Route(path: '/contact', method: Core\Http\Method::Get)]
-    #[Core\Access(allow: Core\Audience::Public)]
+    #[Menu(title: 'Contact us')]
     public function render(): string
     {
-        return 'contact us';
+        return '/contact';
     }
 }
 
-class Draft implements Page
+class Imprint implements Page
 {
+    #[Footer(title: 'Imprint')]
     public function render(): string
     {
-        return 'not routed';
+        return '/imprint';
     }
 }
 
-// `Draft` has no route, so its `attribute` is `null`.
-// This prints `/contact -> contact us` first, because `Contact` comes first.
-foreach (Core\Program::implementingWith<Page, { path: string }>('render') as { instance: Page, attribute: ?{ path: string } } $row) {
-    echo $row->attribute?->path ?? '(no route)', ' -> ', $row->instance->render(), "\n";
+// `Imprint` has no `Menu`, so its `attribute` is `null`.
+// This prints `/contact -> Contact us` and then `/imprint -> (not in the menu)`.
+foreach (Core\Program::implementingWith<Page, Menu>('render') as var $row) {
+    echo $row->instance->render(), ' -> ', $row->attribute?->title ?? '(not in the menu)', "\n";
+}
+
+// The same pages, read for `Footer`. This time, only `Imprint` has a title.
+foreach (Core\Program::implementingWith<Page, Footer>('render') as var $row) {
+    echo $row->instance->render(), ' -> ', $row->attribute?->title ?? '(not in the footer)', "\n";
 }
 ```
 
 ```output
-/contact -> contact us
-(no route) -> not routed
-/ -> home
+/contact -> Contact us
+/imprint -> (not in the menu)
+/contact -> (not in the footer)
+/imprint -> Imprint
 ```
 
 <a id="lang-testing"></a>
@@ -33779,45 +33853,50 @@ Reads `$a` as the type `T` written at the call site. `T` is an inline shape such
 <a id="core-core-attributes"></a>
 ### `Core\Attributes`
 
-Keywords: attribute, metadata, annotation, #[...], read attributes, attribute arguments, anonymous object, get, all
+Keywords: attribute, attribute declaration, repeatable, metadata, annotation, #[...], read attributes, attribute arguments, get, all
 
-`Core\Attributes::get<T>` returns the one attribute on a target whose payload object satisfies the
-shape `T` written at the call site, or `null`; `all<T>` returns every one in declaration order, as
-`array<T>`. Retrieval is structural. A payload object attached bare (`#[{ audit: true }]`) or under a
-`type` name (`#[Route(path: "/x")]`) is found by any shape it satisfies, extra fields included. The target
-is a class's `Class::constructor` or a method's `Class::method` reference, and the second
-argument names one of its properties or parameters; the call is resolved in `nvs check`, so a
-computed member name answers nothing, and two matches for `get` is a compile error naming `all`.
+`Core\Attributes::get<T>` returns the one attribute declared as `T` on a target, or `null`. `T` is
+the name of an `attribute` declaration. `all<T>` returns every attribute declared as `T`, in the order
+they are written, as an `array`. An attribute with the same fields but another declaration is not
+found.
+
+The target is `Class::constructor` for a class, or `Class::method` for a method. The second argument
+names one of its properties or parameters. The compiler replaces the call with its result, so a member
+name computed while the program runs finds nothing. When `get` finds two attributes, the program does
+not compile, and the error names `all`.
 
 ```nvs
 <?nvs
-type Route = { path: string };
+repeatable attribute Route on class, method { path: string }
+attribute Column on property { column: string, unique?: bool }
+attribute Inject on parameter { inject: string }
+attribute Audit on class { audit: bool }
 
 #[Route(path: '/users')]
-#[{ audit: true }]
+#[Audit(audit: true)]
 class Controller
 {
-    #[{ column: 'name', unique: true }]
+    #[Column(column: 'name', unique: true)]
     public string $name = '';
 
     #[Route(path: '/show')]
-    public static function show(#[{ inject: 'repo' }] int $id): int
+    public static function show(#[Inject(inject: 'repo')] int $id): int
     {
         return $id;
     }
 }
 
-?Route $route = Core\Attributes::get<Route>(Controller::constructor);
+var $route = Core\Attributes::get<Route>(Controller::constructor);
 echo 'class: ', $route?->path ?? 'none', "\n";
-?{ audit: bool } $audit = Core\Attributes::get<{ audit: bool }>(Controller::constructor);
+var $audit = Core\Attributes::get<Audit>(Controller::constructor);
 echo 'audit: ', ($audit != null ? 'yes' : 'no'), "\n";
-?{ column: string } $column = Core\Attributes::get<{ column: string }>(Controller::constructor, 'name');
+var $column = Core\Attributes::get<Column>(Controller::constructor, 'name');
 echo 'column: ', $column?->column ?? 'none', "\n";
-?Route $method = Core\Attributes::get<Route>(Controller::show);
+var $method = Core\Attributes::get<Route>(Controller::show);
 echo 'method: ', $method?->path ?? 'none', "\n";
-?{ inject: string } $param = Core\Attributes::get<{ inject: string }>(Controller::show, 'id');
+var $param = Core\Attributes::get<Inject>(Controller::show, 'id');
 echo 'param: ', $param?->inject ?? 'none', "\n";
-array<Route> $none = Core\Attributes::all<Route>(Controller::show, 'id');
+var $none = Core\Attributes::all<Route>(Controller::show, 'id');
 echo 'none: ', Core\Arr::count($none), "\n";
 ```
 ```output
@@ -43491,13 +43570,14 @@ Abstract classes and the interface itself are not entries; a class reaching `T` 
 through an interface that extends `T` is.
 
 `Core\Program::implementingWith<I, T>($member)` is the same list with one attribute read off each class.
-Every row is `{ instance: I, attribute: ?T }`: the instance, and the one attribute on that class's own
-`$member` whose fields satisfy the shape `T`, or `null` when there is none. `$member` is a method name, a
-property name, or the empty string for the attributes on the class itself. This is how a framework finds
-its pages and their routes in one call: `implementingWith<View, { path: string }>("render")` gives each
-page beside the `path` its `#[Core\Route]` carries, so the path is written once. Everything is resolved
-while compiling, and a member some implementor does not declare, or two matching attributes on one
-class, do not compile.
+Every row is `{ instance: I, attribute: ?T }`: the instance, and the one attribute declared as `T` on
+that class's own `$member`, or `null` when there is none. `T` is the name of an `attribute` declaration,
+and an attribute with the same fields but another declaration is not found. `$member` is a method name,
+a property name, or the empty string for the attributes on the class itself. This is how a framework
+finds its pages and their routes in one call: `implementingWith<View, Core\Route>("render")` gives each
+page beside the `#[Core\Route]` on its `render` method, so the path is written once. Everything is
+resolved while compiling, and a member some implementor does not declare, or two attributes declared as
+`T` on one member, do not compile.
 
 `Core\Program::id()` is the other member, and the only one here that runs. It answers this program's
 identity: `BLAKE3` over every compiled unit's content hash, in program order, folded with the digest of the
@@ -48168,7 +48248,7 @@ Runs `$fn` as a separate task and returns a placeholder. Write the placeholder w
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$fn` | `callable(): mixed` | The function to run. It takes no arguments. Its output is what it echoes, followed by the `Core\Html\Markup` it returns, if any. |
+| `$fn` | `callable(): mixed` | The function to run. It takes no arguments. Its output is what it echoes, followed by the `Core\Html\Markup` it returns, if any. It can read the request with `Core\Request`, but not the body. A body read throws a `LogicError`. |
 | `{ placeholder: … }` | `Core\Html\Markup` (default `null`) | The markup the page shows until the output is ready. The default is empty. |
 | `{ error: … }` | `Core\Html\Markup` (default `null`) | The markup shown instead of the output when `$fn` throws an error or runs past its `deadline`. The default is empty. |
 | `{ deadline: … }` | `Core\Time\Duration` (default `null`) | The longest time `$fn` may run. Without it, only the request's own limits apply. |
@@ -51678,9 +51758,9 @@ Keywords: name, target, parameter, fields, field
 $attributeInfo->name(): string
 ```
 
-Returns the name of the `type` alias written in the attribute, as it is written.
+Returns the full name of the attribute declaration, such as `Shop\Storable::Index`.
 
-**Returns** `string` — The written name. For the form `#[{...}]`, which has no name, it is the **empty string**. The name is not resolved. The compiler uses it to check the payload object where the attribute is written. Your code never uses it to find an attribute.
+**Returns** `string` — The full name of the declaration, with its namespace. The name is the same for `#[Index]` and `#[Storable::Index]`, because both are the same attribute.
 
 <a id="core-core-reflect-attributeinfo-target"></a>
 #### `Core\Reflect\AttributeInfo->target`
@@ -59685,7 +59765,7 @@ The error a cell shows: `#NULL!`, `#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`, `#NUM
 <a id="tools-cli"></a>
 ## C.1 The nvs command
 
-Keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, nvs fmt, formatter, --check, --diff, --stdin, --config, --dump-ir, --dump-asm, --filter, --format, exit status, exit code, .nvs, shebang, cache, nvs cache gc, nvs cache clear, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor
+Keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nvs api diff, nvs config check, nvs config dump, nvs info, nvs meta --json, nvs ast, nvs fmt, formatter, --check, --diff, --stdin, --config, --dump-ir, --dump-asm, --filter, --format, --mutate, --since, NoMutate, mutants.toml, mutation testing, --tag, --shard, --rerun-failed, --shuffle, --watch, --jobs, exit status, exit code, .nvs, shebang, cache, nvs cache gc, nvs cache clear, single-file executable, bundle, syntax check, version, licenses, nvs debug, --tail, --once, debug index, recorded requests, debug viewer, --listen, replay, compare requests, open in editor
 
 ### One binary
 
@@ -59900,27 +59980,40 @@ E0401
 
 ### nvs test
 
-    nvs test <paths>... [--filter <text>] [--format human|json|junit] [--update]
+    nvs test <paths>... [--filter <text>] [--tag <tag>]... [--skip-tag <tag>]...
+                        [--shard <n>/<m>] [--since <ref>] [--rerun-failed] [--list]
+                        [--fail-fast] [--shuffle[=<seed>]] [--jobs <n>] [--show-output]
+                        [--watch] [--format human|json|junit] [--update]
                         [--coverage-lcov <file>] [--coverage-clover <file>]
-                        [--coverage-cobertura <file>] [--mutate]
+                        [--coverage-cobertura <file>]
+                        [--profile callgrind|speedscope] [--profile-out <file>]
+                        [--mutate[=<target>,...]] [--bench]
+                        [--opt-level none|speed] [--probes]
+                        [--cases <file>] [--record <dir>] [--shared-worker]
 
-One subcommand runs two kinds of test, and which one is meant is read off the path:
+A path can end with a line number, such as `tests/CartTest.nvs:42`. Then only the test that
+contains line 42 runs. A line inside a test class but outside its test methods runs every test of
+the class. A line outside every test class stops the run with exit status `2`. The error names the
+nearest test class in the file. A Windows path such as `C:\app\CartTest.nvs:42` keeps its drive
+letter.
 
-- **A `.nvs` path is a program**, and its `#[Test]` methods are run. Every `public`
-  `void` instance method carrying `#[Test]` is one test; classes are reported in name order and
-  methods in declaration order; a test that asserts nothing fails; `#[Test(skip: "why")]` skips
-  with its reason. The `Core\Test` section has the assertions and the attribute's options.
-- **A directory holding `.nvs` files is one program** that requires every one of them, subdirectories
-  included, in name order, and its `#[Test]` methods are run. One file in the directory requires the
-  application's bootstrap file, which gives the whole directory its `autoload` declarations. A
-  directory holding both `.nvs` and `.nvst` files is refused.
-- **Anything else is a `.nvst` case file, or a directory walked for `*.nvst`.** A case is one
-  program with its expected output, and the report is a conformance summary
-  (`3 passed, 0 failed, 0 skipped`). This is the one place an extension decides anything, so a
-  program in a file not named `.nvs` is read as a case tree here and fails to parse as one.
+The command runs two kinds of test, and the path decides which kind:
 
-The two are not mixed in one invocation. The exit status is non-zero if any test or case failed;
-a skipped one is not a failure. *Which kind of test to write*, in [testing](#lang-testing), says
+- **A `.nvs` path is a program**, and its `#[Test]` methods run. Each `public` `void` instance
+  method with `#[Test]` is one test. Classes are reported in name order, and methods in the order
+  they are written. A test that asserts nothing fails. `#[Test(skip: "why")]` skips the test and
+  prints the reason. The `Core\Test` section has the assertions and the attribute's options.
+- **A directory with `.nvs` files is one program.** It requires every `.nvs` file in the directory
+  and its subdirectories, in name order, and runs their `#[Test]` methods. One file in the directory
+  requires the application's bootstrap file. That file gives the whole directory its `autoload`
+  declarations. A directory with both `.nvs` and `.nvst` files is an error.
+- **Any other path is a `.nvst` case file, or a directory of `.nvst` files.** A case is one program
+  with its expected output. The report is a summary, such as `3 passed, 0 failed, 0 skipped`. Only
+  here does the file extension matter. A program in a file not named `.nvs` is read as a case, and
+  it fails to parse.
+
+One run does not mix the two kinds. The exit status is not zero when a test or a case failed. A
+skipped one is not a failure. *Which kind of test to write*, in [testing](#lang-testing), says
 when to use each.
 
 ```nvs test
@@ -59951,21 +60044,45 @@ skipped: not written yet
 ```
 
 - `--filter <text>` runs only the tests whose name contains the text: a `.nvst` case's path, or a
-  program's `Class::method` — so `--filter Class::` selects one class's `#[Test]` methods.
-- `--format` chooses how a *program's* run is reported: `human` (the default — one line per test as
-  it runs, then `N failed, N passed, N skipped, N flaky in N ms`), `json` (one versioned document
-  on standard output at the end: `schemaVersion` is `2`, then `summary`, and one `tests[]` entry per
-  test with `class`, `method`, `file`, `line`, `column`, `verdict`, `durationMs`, and
-  `reason`/`failures`/`attempts` where they apply; with a coverage flag `schemaVersion` is `3` and
-  each test also has `coverage`, each file name mapped to the sorted lines that test reached),
-  or `junit` (JUnit XML). In the machine formats, what the tests themselves `echo` goes to standard
-  error so that standard output is the document alone. Naming a machine format beside a `.nvst`
-  tree is refused.
-- `--list` writes what the program declares without running any of it: under `human`, one
-  `Class::method  file:line` per test; under `json`, a `schemaVersion: 2` document whose `listed`
-  array holds one `{class, method, file, line, column}` per test and no summary, because nothing
-  ran. `--filter` selects the same tests it would select in a run, and `--format junit`, `--update`
-  and a `.nvst` tree are each refused beside it.
+  program's `Class::method`. `--filter Class::` selects one class's `#[Test]` methods.
+- `--tag <tag>` runs only the tests that have this tag. A test gets tags with
+  `#[Test(tags: ['slow', 'db'])]`. You can give `--tag` more than once. A test then runs when it has
+  at least one of the tags.
+- `--skip-tag <tag>` does not run the tests that have this tag. You can give it more than once. It
+  wins over `--tag`.
+- `--shard <n>/<m>` runs one of `m` parts of the tests. `--shard 2/4` runs the second of four parts.
+  Each test is in exactly one part, and it stays in that part when other tests are added.
+- `--since <ref>` runs only the tests that a change since a git branch, tag or commit can reach. See
+  *Running only what a change reaches* below.
+- `--rerun-failed` runs only the tests that failed in the last run of this program. When the last
+  run had no failed test, every selected test runs. You cannot use it together with `--since`.
+- `--format human|json|junit` chooses how a program's run is reported.
+  - `human` is the default. It prints one line per test as it runs, then
+    `N failed, N passed, N skipped, N flaky in N ms`.
+  - `json` prints one JSON document on standard output at the end. `schemaVersion` is `2`. The
+    document has a `summary` and one `tests[]` entry per test. An entry has `class`, `method`,
+    `file`, `line`, `column`, `verdict` and `durationMs`. It also has `reason`, `failures` or
+    `attempts` when they apply. With a coverage flag, `schemaVersion` is `3`. Each test then also
+    has `coverage`: each file name with the sorted lines that test reached.
+  - `junit` prints JUnit XML.
+
+  In `json` and `junit`, what the tests `echo` goes to standard error. So standard output has only
+  the document. `json` and `junit` are an error beside a `.nvst` tree.
+- `--list` prints the tests without running any of them. Under `human`, it prints one
+  `Class::method  file:line` line per test. Under `json`, it prints a `schemaVersion: 2` document.
+  Its `listed` array has one `{class, method, file, line, column}` per test, and it has no summary.
+  `--filter` selects the same tests as in a run. `--format junit`, `--update` and a `.nvst` tree
+  are each an error beside it.
+- `--fail-fast` starts no new test after the first test fails. Tests that are already running
+  finish. The summary counts the tests that did not start as not run.
+- `--shuffle` starts the tests in a random order and prints the seed in the summary.
+  `--shuffle=<seed>` starts them in the same order as the run that printed that seed.
+- `--jobs <n>` sets how many tests or `.nvst` cases run at once. The default is the number of
+  hardware threads. `--jobs 1` runs one test at a time.
+- `--show-output` prints each test's output as it runs. Without it, only a failed test's output is
+  printed, under its failure.
+- `--watch` runs the tests, then runs them again each time a source file of the program changes.
+  Press Ctrl+C to stop. It needs the `human` format.
 - `--coverage-lcov <file>` writes the run's coverage to the file in the lcov format.
   `--coverage-clover <file>` writes the same coverage as Clover XML, a format many CI
   services read. `--coverage-cobertura <file>` writes the same coverage as Cobertura
@@ -59974,29 +60091,48 @@ skipped: not written yet
   count `0`. Each branch is listed too. A branch is a condition, such as the one in an `if`, a
   `while` or an `&&`. The file says how many times its true side ran and how many times its false
   side ran. The lcov and Clover files also list each function with the number of times it was
-  called. A file is named relative to the directory you run `nvs test` in, so run it from your
-  repository's root for your CI service to find the files. Under the `human` format, the run
+  called. A file is named relative to the directory you run `nvs test` in. Run it from your
+  repository's root, so that your CI service finds the files. Under the `human` format, the run
   prints one more line, `N of N lines run (N%)`. The top-level statements of a file do not run
   under `nvs test`, so they have the count `0`. Naming any of these flags beside a `.nvst` tree
   or `--list` is an error.
-- `--mutate` checks whether your tests notice a wrong line. See
-  *nvs test --mutate* below.
-- `--update` rewrites each failed `Core\Test::assertMatchesInline` snapshot in the source that
-  wrote it, and is **the only spelling under which `nvs test` writes to a source file**. It
-  replaces the `$expected` string and nothing else: a passing snapshot is untouched, and so is
-  every other line of the file. The verdicts do not change — the tests that produced a new
-  snapshot are still reported as failed, and the re-run is what says the new text is the one you
-  meant. Write the snapshot as `''` and let the first run fill it in. Where one method holds two
-  snapshots with the same text, neither is written and the run says so: there is no way to tell
-  which rendering belongs in which string. Naming it beside a `.nvst` tree is refused — a case's
-  expectation is its `--EXPECT--` section, which nothing rewrites.
+- `--profile callgrind|speedscope` times every call and writes a profile file when the tests end.
+  The file is `callgrind.out.<pid>` or `profile.<pid>.speedscope.json` in the current folder.
+  `--profile-out <file>` writes it to another file.
+- `--mutate` checks whether your tests notice a wrong line. `--mutate=<target>` changes only the
+  code you name. See *nvs test --mutate* below.
+- `--bench` runs the methods with `#[Bench]` and no test. It is an error beside `--mutate` or
+  `--jobs`.
+- `--opt-level none|speed` compiles the tests at this optimisation level. The default is `speed`,
+  the level `nvs run` uses. A test that passes at one level and fails at the other shows a bug in
+  Novis.
+- `--probes` runs the tests with the coverage probes compiled in, and records nothing. A test that
+  passes without it and fails with it shows a bug in Novis.
+- `--cases <file>` runs only the `.nvst` case files this file lists, one path per line.
+- `--record <dir>` writes, for each `.nvst` case, the classes and files it used into this folder.
+- `--shared-worker` also runs each `.nvst` case in one shared process, after its own run passed.
+  A case fails when its output there is different. Then the case read something an earlier case
+  left behind.
+- `--update` rewrites each failed `Core\Test::assertMatchesInline` snapshot in the source file. It
+  is **the only flag with which `nvs test` writes to a source file**. It replaces the `$expected`
+  string and nothing else. A passing snapshot does not change, and neither does any other line of
+  the file. The tests that got a new snapshot are still reported as failed. Run the tests again to
+  check that the new text is the one you meant. You can write the snapshot as `''`, and the first
+  run fills it in. When one method has two snapshots with the same text, neither is written, and
+  the run says so. `--update` is an error beside a `.nvst` tree, because a case's expected output
+  is its `--EXPECT--` section.
 
-A `.nvst` case is a sequence of `--SECTION--` headers: `--TEST--` (one line saying what the case
-pins), `--FILE--` (the program, run as `nvs run`), `--EXPECT--` (its exact standard output) or
-`--EXPECTF--` (with `%s`/`%d`/`%f` placeholders), `--EXPECTF-ERROR--` (standard error), an
-optional `--FILE name--` for each extra file written beside it (`nvs.toml` included), and an
-optional `--RUN--` naming another subcommand to run in that directory instead — `test`,
-`config dump --origin`.
+A `.nvst` case is a list of sections, each starting with a `--SECTION--` header:
+
+| Section | What it has |
+|---|---|
+| `--TEST--` | one line saying what the case checks |
+| `--FILE--` | the program, run as `nvs run` runs it |
+| `--EXPECT--` | its exact standard output |
+| `--EXPECTF--` | its standard output, with `%s`, `%d` and `%f` placeholders |
+| `--EXPECTF-ERROR--` | its standard error |
+| `--FILE name--` | an extra file written beside it, such as `nvs.toml`; optional |
+| `--RUN--` | another subcommand to run in that directory instead, such as `test` or `config dump --origin`; optional |
 
 ```text
 --TEST--
@@ -60013,9 +60149,39 @@ echo Core\IO::read("data/note.txt");
 note
 ```
 
+#### Running only what a change reaches
+
+    nvs test <paths>... --since <ref> [--filter <text>] [--tag <tag>]... [--shard <n>/<m>]
+
+`--since main` runs only the tests that a change since the git branch `main` can reach. `<ref>` can
+be a branch, a tag or a commit. Novis runs `git diff` against it in the program's folder. A line you
+added or edited is a change. So is every line of a new file that git does not track yet.
+
+Each run with `--since`, a coverage flag or `--mutate` records which methods each test ran. Novis
+keeps this record in its data folder, one for each program. A test runs when one of these is true:
+
+- in the recorded run, it ran a method you changed;
+- you added or changed the test itself;
+- the record does not have the test.
+
+Sometimes Novis cannot tell which tests a change affects. Then every test runs, and the first line
+of the report says why:
+
+- no run of this program was recorded yet;
+- a line outside a method body changed, such as a property, a method's parameters, an attribute or
+  a `use` line;
+- a file that is not a `.nvs` file changed, such as `nvs.toml` or a file a test reads.
+
+The tests run with coverage on, so that the run can record what they reach. Use `--since` while you
+edit, and run every test in CI. `--since` works with `--filter`, `--tag`, `--skip-tag` and
+`--shard`: a test must match all of them. It is an error beside `--rerun-failed` or a `.nvst` tree.
+The program's folder must be in a git checkout, and `git` must be on your `PATH`. Otherwise, and for
+a ref git does not know, the run stops with exit status `2`.
+
 ### nvs test --mutate
 
-    nvs test <paths>... --mutate [--filter <text>] [--format human|json] [--jobs <n>]
+    nvs test <paths>... --mutate[=<target>,...] [--since <ref>] [--filter <text>]
+                        [--format human|json] [--jobs <n>]
 
 `--mutate` checks whether your tests notice a wrong line. A line can run in a test while no
 assertion checks its result. Coverage counts that line as tested. A mutation run finds it.
@@ -60045,41 +60211,118 @@ Some conditions tell Novis the type of a value inside the `if`. These conditions
 
 - an `is` test, such as `$x is int`
 - an `==` or `!=` that compares a value with `null`, a literal or a constant, when the value can
-  have more than one type, such as `?int`, `int|string` or `mixed`
+  have more than one type. `?int`, `int|string` and `mixed` are such types.
 
 `if ($n == 10)` is changed when `$n` is an `int`. `if ($n == null)` is not changed when `$n` is a
 `?int`.
 
-Each mutant has one of four results:
+Some code changes only a message, never a result. A value inside the arguments of a `Core\Log`
+method makes no mutant. A value inside the arguments of the `new` in a `throw new` makes none
+either. Output written with `echo` or `Core\Html` makes mutants, because the page is the result of
+a web program.
+
+**Choosing what changes.** `--mutate` alone changes the whole program. `--mutate=<target>` changes
+only the code you name. The `=` is required. Separate two targets with a comma:
+
+| Target | Changes |
+|---|---|
+| `--mutate=src/Shop` | every file in that folder; a file path works the same way |
+| `--mutate=Shop\Cart` | the methods of that class |
+| `--mutate=Shop\Cart::total` | that one method |
+
+A path is relative to the current folder. A target that matches nothing stops the run with exit
+status `2`, and the error names it. `--since <ref>` changes only the lines you added or edited since
+a git branch, tag or commit. It also changes every line of a new file that git does not track yet.
+Under `--mutate`, `--since` chooses only the mutants, and every test runs. With a target as well,
+a mutant must be in the target and on a changed line.
+
+`#[NoMutate(because: '...')]` on a class or a method keeps its code out of every mutation run. The
+attribute is `Core\Test\NoMutate`. `because:` says why, and it must not be empty. The attribute
+does nothing outside `--mutate`.
+
+```nvs
+<?nvs
+use Core\Test\NoMutate;
+
+#[NoMutate(because: 'only the text of a label')]
+final class PriceLabel
+{
+    public static function show(int $cents): string
+    {
+        return $cents >= 10000 ? 'big order' : 'order';
+    }
+}
+```
+
+Each mutant has one of these results:
 
 | Result | Meaning |
 |---|---|
 | `killed` | a test failed, so the tests noticed the change |
 | `survived` | every test passed, so no test checks this line's result |
 | `timed out` | a test ran past its time limit, which also counts as noticed |
-| `not reached` | no test ran the line, so no test ran again |
+| `not reached` | no test ran the line, so there was no test to run |
+| `equivalent` | the changed method compiles to the same machine code as the original, so no test can notice it |
+| `duplicate` | the changed method compiles to the same machine code as an earlier mutant of that method |
+
+An `equivalent` or `duplicate` mutant runs no test. Novis compiles the changed method on its own
+and compares the code before any test runs. It finds only the changes the compiler removes, so some
+equivalent mutants still survive.
 
 The **mutation score** is the `killed` and `timed out` mutants as a percentage of the reached
-ones. A changed loop condition can make a loop run forever. A test can have no time limit from
+ones. `not reached`, `equivalent` and `duplicate` mutants do not count in it. A changed loop condition can make a loop run forever. A test can have no time limit from
 `#[Test(timeout: ...)]` or `[limits] wall_time`. Under `--mutate`, such a test gets a limit of ten
 times the slowest test's time, plus one second.
 
-Under `human`, the run prints the normal test report, then the four counts, the score and each
-survived mutant with its file, line and change:
+**Every mutant has a key**, such as ``Shop\Cart::total#2: `<` to `<=` ``. The key is the method,
+then a number, then the change. The number counts that method's mutants with the same change, from
+1, in the order they are written. A key stays the same when you edit code outside the method. It
+changes when you rename the method.
+
+Under `human`, the run prints the normal test report, then the counts and the score. Then it lists
+the survived mutants by method, the method with the most first. Each source line is one line: its
+first change, how many more changes on that line survived, and the key. The `compiles:` line says
+how many times the program was compiled for the mutants:
 
 ```text
-  mutants: 3 killed, 1 survived, 1 timed out, 1 not reached
-  mutation score: 80.0% (4 of 5 reached mutants made a test fail or time out)
-  survived  counter.nvs:10  `>=` to `>`
+  compiles: 1, for the 5 mutants that ran tests
+
+  mutants: 3 killed, 2 survived, 0 timed out, 1 not reached
+  skipped: 1 equivalent, 0 duplicate (compiled to the same code, so no test ran)
+  mutation score: 60.0% (3 of 5 reached mutants made a test fail or time out)
+  survived in Shop\Cart::total (2):
+    src/Shop/Cart.nvs:14  `<` to `<=` (+1 more on this line)  mutant = "Shop\\Cart::total#1: `<` to `<=`"
 ```
 
-Under `json`, `schemaVersion` is `4`. The document has a `mutants` array with one `{file, line,
-change, outcome, tests}` record for each mutant. `tests` is the number of tests that ran the
-mutant's line. A survived mutant does not make the run fail, so the exit
-status is the one of the first step.
+**Survivors you have checked go in `mutants.toml`.** Some survivors are fine, for example a change
+that gives the same result. Write each one in a file named `mutants.toml` in the program's folder.
+That is the folder of `nvs.toml`, or the entry file's folder when there is no `nvs.toml`. The
+`mutant = ...` part of a report line is ready to paste:
 
-Each mutant compiles the program again, so a run costs one compile and a few tests per mutant. The
-mutants run one at a time, and each mutant's tests run across `--jobs` cores. `--mutate` runs a
+```toml
+[[judged]]
+mutant = "Shop\\Cart::total#2: `<` to `<=`"
+reason = "the loop ends on the same item either way"
+equivalent = true
+```
+
+`reason` is required, and it must not be empty. `equivalent` is `false` when you leave it out. A
+survivor with an entry is not listed. The report counts it on a `judged:` line. A judged survivor
+with `equivalent = true` does not count in the score. Every other judged survivor still counts as
+survived. An entry that matches no mutant prints a warning with its key, and the exit status does
+not change. A file that cannot be read, an unknown key or one key judged twice stops the run with
+exit status `2`. No command writes this file: a person checks each survivor.
+
+Under `json`, `schemaVersion` is `5`. The document has a `mutants` array with one `{file, line,
+change, outcome, tests, function, key}` record for each mutant. `tests` is the number of tests that
+ran the mutant's line. A `duplicate` record also has `sameAs`, the key of the earlier mutant. A
+judged survivor's record has `judged: true`, its `reason` and `equivalent`. A survived mutant does
+not make the run fail, so the exit status is the one of the first step.
+
+**A run compiles the program once.** Novis compiles every mutant into one copy of the program. Each
+changed place has its original code and its changed code, and a number chooses which one runs. Before
+each mutant's tests, the run sets the number to that mutant. So a run costs one compile, plus a few
+tests per mutant. The mutants run one at a time, and each mutant's tests run across `--jobs` cores. `--mutate` runs a
 program's `#[Test]` methods only. `--format junit`, `--list`, `--update`, `--watch` and a `.nvst`
 tree are each an error beside it.
 
