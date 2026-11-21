@@ -1453,26 +1453,26 @@
   },
   "/reference/cli/nvs-test/": {
     "feature": "tools:cli/nvs-test",
-    "hash": "7c1e89e0ca017553",
+    "hash": "38263d80abbceb92",
     "questions": [
       "Run only the tests whose name matches some text",
       "Skip the slow tests that have a tag",
       "Produce a JUnit or JSON report for my CI pipeline",
       "Run only the tests that failed last time",
       "Run my tests again every time I save a file",
-      "How do I update an inline snapshot that changed?"
+      "Run only the tests that reach code I changed since a git branch"
     ]
   },
   "/reference/cli/nvs-test-mutate/": {
     "feature": "tools:cli/nvs-test-mutate",
-    "hash": "1705dd0279f352bc",
+    "hash": "2c8a697d72f845e7",
     "questions": [
       "How do I check that my tests would notice a bug?",
       "What is mutation testing and how do I run it?",
       "Which lines are run by my tests but never checked?",
       "What does it mean when a mutant survived?",
       "How is the mutation score calculated?",
-      "Why does a mutation run take longer than a normal test run?"
+      "Mutate only one class or only the lines I changed"
     ]
   },
   "/reference/cli/nvs-update-check/": {
@@ -2630,22 +2630,24 @@
   },
   "/reference/core/attributes/all/": {
     "feature": "Core\\Attributes::all",
-    "hash": "21540f1bbc94e50a",
+    "hash": "166e0752b05cb03c",
     "questions": [
-      "How do I get every attribute on a class?",
-      "Read several attributes of the same type from one method",
+      "How do I get every attribute of one kind on a class?",
+      "Read several attributes of the same declaration from one method",
       "List all permissions declared on a method",
-      "Get all validation rules on a property"
+      "Get all validation rules on a property",
+      "Read repeated attributes in the order they are written"
     ]
   },
   "/reference/core/attributes/get/": {
     "feature": "Core\\Attributes::get",
-    "hash": "44da57e214bceb67",
+    "hash": "d218a429c215eaa2",
     "questions": [
       "How do I read one attribute from a parameter?",
       "Get a single annotation value, or null if it is missing",
       "Read a setting attached to a class with a default",
-      "Check if a method has a certain attribute"
+      "Check if a method has a certain attribute",
+      "Why does my code not compile when a method has two attributes of one kind?"
     ]
   },
   "/reference/core/bigint/": {
@@ -5441,13 +5443,14 @@
   },
   "/reference/core/html/later/": {
     "feature": "Core\\Html::later",
-    "hash": "7fa11e007c23bb83",
+    "hash": "cd895d3eab3eecae",
     "questions": [
       "Load slow parts of a page at the same time",
       "How do I render page sections in parallel?",
       "Show a placeholder until a slow part is ready",
       "Stream parts of an HTML page as they finish",
-      "Set a time limit for one part of a page"
+      "Set a time limit for one part of a page",
+      "Can a deferred part of a page read the request path or a cookie?"
     ]
   },
   "/reference/core/html/parse/": {
@@ -11540,11 +11543,11 @@
   },
   "/reference/core/program/implementingwith/": {
     "feature": "Core\\Program::implementingWith",
-    "hash": "b1d54c23404f85ff",
+    "hash": "45c0a6012020bd4a",
     "questions": [
       "How do I read an attribute from every class of an interface?",
       "Build routes from attributes on page classes",
-      "Find classes together with their annotation values",
+      "Find every class that extends a base class, with one attribute each",
       "Order plugins by an attribute on the class",
       "Find scheduled jobs and read their schedule attribute"
     ]
@@ -12050,38 +12053,39 @@
   },
   "/reference/core/reflect-attributeinfo/field/": {
     "feature": "Core\\Reflect\\AttributeInfo::field",
-    "hash": "2205ac95cd41b38d",
+    "hash": "4579e52ed72109f9",
     "questions": [
       "How do I read one value from an attribute?",
       "Get the value of a named attribute argument",
       "Read seconds from #[Cache(seconds: 600)]",
       "Why does reading an attribute value throw a LogicError?",
-      "Can the attribute argument name come from user input?"
+      "Can I read an attribute field that is a class constant or enum case?"
     ]
   },
   "/reference/core/reflect-attributeinfo/fields/": {
     "feature": "Core\\Reflect\\AttributeInfo::fields",
-    "hash": "d973b9031f392399",
+    "hash": "902e29631df38f37",
     "questions": [
       "List the argument names of an attribute",
       "Which fields does an annotation have?",
       "Check if an optional attribute field is present",
-      "Find a typo in attribute settings"
+      "Find a typo in attribute settings",
+      "Does the list include a field whose value cannot be read?"
     ]
   },
   "/reference/core/reflect-attributeinfo/name/": {
     "feature": "Core\\Reflect\\AttributeInfo::name",
-    "hash": "fe10863086fdd3fe",
+    "hash": "7684bf60bc7c9f1c",
     "questions": [
-      "How do I get the type name of an attribute?",
+      "How do I get the full name of an attribute declaration?",
       "Keep only the Route attributes of a class",
       "Find attributes of one kind and skip the others",
-      "Why is the attribute name an empty string?"
+      "Tell apart two attributes with the same short name in different namespaces"
     ]
   },
   "/reference/core/reflect-attributeinfo/parameter/": {
     "feature": "Core\\Reflect\\AttributeInfo::parameter",
-    "hash": "8d8f38269562b1a7",
+    "hash": "9cb265bbdb10304f",
     "questions": [
       "Which method argument is an attribute written on?",
       "Read attributes on function parameters",
@@ -12091,12 +12095,13 @@
   },
   "/reference/core/reflect-attributeinfo/target/": {
     "feature": "Core\\Reflect\\AttributeInfo::target",
-    "hash": "69ae991827d24836",
+    "hash": "132256166e62e111",
     "questions": [
       "Which property or method has this attribute?",
       "Find the attributes of one property",
       "Map each property to a database column with attributes",
-      "Is the attribute on the class or on a method?"
+      "Is the attribute on the class or on a method?",
+      "Which method has the parameter that an attribute is written on?"
     ]
   },
   "/reference/core/reflect-classinfo/": {
@@ -12111,12 +12116,13 @@
   },
   "/reference/core/reflect-classinfo/attributes/": {
     "feature": "Core\\Reflect\\ClassInfo::attributes",
-    "hash": "dd913365084c1b0e",
+    "hash": "a174f5d97c95447a",
     "questions": [
       "How do I list all attributes of a class?",
       "Get every annotation on a class and its methods",
       "Validate a form with rules written as attributes",
-      "Does a subclass see the attributes of its parent?"
+      "Does a subclass see the attributes of its parent?",
+      "Read the attributes of a class whose name is only known at run time"
     ]
   },
   "/reference/core/reflect-classinfo/call/": {
@@ -12215,13 +12221,13 @@
   },
   "/reference/core/reflect-classinfo/parent/": {
     "feature": "Core\\Reflect\\ClassInfo::parent",
-    "hash": "9258c55e3b9cbb26",
+    "hash": "279b25a04b4defd7",
     "questions": [
       "How do I get the parent class of a class?",
       "Find the class that a class extends",
       "Walk up from a class to its root class",
       "Read the attributes of every base class",
-      "What does parent return for an interface?"
+      "What does parent return for an interface or a class with no parent?"
     ]
   },
   "/reference/core/reflect-classinfo/properties/": {
@@ -13348,12 +13354,13 @@
   },
   "/reference/core/router-match/attribute/": {
     "feature": "Core\\Router\\Match::attribute",
-    "hash": "d7fd19a6967d7d8e",
+    "hash": "0989954d5f5b3faf",
     "questions": [
       "Read a custom setting attached to one route",
       "Give each route its own cache time",
       "Read an attribute of the matched route method",
-      "Put a rate limit and a cache setting on one route"
+      "Put a rate limit and a cache setting on one route",
+      "Read an attribute declaration of the matched route in a gate"
     ]
   },
   "/reference/core/router-match/is/": {
@@ -18245,12 +18252,12 @@
   },
   "/syntax/attributes/writing-and-reading/": {
     "feature": "syntax/attributes/writing-and-reading.mdx",
-    "hash": "9431d2ca6744f1b4",
+    "hash": "f28c4b76958b9d59",
     "questions": [
       "How do I attach extra data to a class or method?",
       "What is the syntax for an attribute in Novis?",
       "Why can I not use a variable inside an attribute?",
-      "Write several attributes on one declaration",
+      "Declare my own attribute and the places it may be written",
       "Which attribute names does Novis itself use?",
       "Check the fields of my own attribute at compile time"
     ]
@@ -18393,11 +18400,11 @@
   },
   "/syntax/classes/property-names/": {
     "feature": "syntax/classes/property-names.mdx",
-    "hash": "1884a1322fe4b562",
+    "hash": "e27483ca674fa016",
     "questions": [
       "Sort a list by a column name from the URL",
       "How do I read a property whose name is in a string?",
-      "Check that a field name from a request exists",
+      "Let an attribute name a property of the class it is written on",
       "Use a path like customer.address.city as a value",
       "Name the key or the element of an array in a property path",
       "Check the field names inside a query condition string"
@@ -19019,12 +19026,12 @@
   },
   "/tools/test-runner/": {
     "feature": "tools/test-runner/index.mdx",
-    "hash": "5fcfc7121bc5ec8d",
+    "hash": "31f726ff1cc9cdc6",
     "questions": [
       "How do I write my first test and run it?",
       "Run only the tests whose name contains some text",
       "Test a function with many random inputs",
-      "What does a survived mutant mean in mutation testing?",
+      "Keep one method out of every mutation run",
       "Count the work of a function in a bench",
       "Run the tests of a package my program uses"
     ]
