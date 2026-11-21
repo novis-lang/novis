@@ -119,8 +119,8 @@ with a pathspec. None of them pushes. A log longer than the tail `--watch` print
 read-only `reader` subagent, from `.agent-tmp/ci/`. The session keeps the push, the watch and the
 handoff.
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 Once verify is green, every session runs this cycle until the run is green or the context reaches
 120k:
@@ -145,20 +145,58 @@ Once verify is green, every session runs this cycle until the run is green or th
 
 ### State
 
-Not started. The goal runs once every goal before it on the chain is reached.
+**`looper verify` is green** (fourth run, after the fixes below). Pushes so far: **0**. Nothing of
+this goal is on `origin/main` yet.
+
+- The nightly's `miri units (nvs-stdlib 2/12)` red (run 44894790665, a timeout in
+  `granularity::tests::both_walks_agree_on_every_window`) ran on `7e97fa8444`. That is before
+  `156f11a7ca` cut the test to reach 2 under Miri. The fix is on local `main`, and the first push run's
+  Miri shard confirms it.
+- Verify's reds, fixed: rustfmt and the testing chapter's render; the cache scans that stopped at a
+  test-only `#[cfg(test)]` (and poisoned every case after them); the unix endpoint tests on
+  `std::env::temp_dir()`; the `Core\Test` completeness tables, conformance cases and `nvs:ext` REFUSED
+  rows; an unbounded `read_to_end` in `http.rs` `part_octets`; the `nvs reload` CLI row and primer
+  heading list; two formatter fixtures; an LSP cold settle that parsed a program's class files twice
+  on 4 workers (`crates/nvs-lsp/src/index.rs`); a stale completion expectation; two conformance cases
+  for `Core\Test::request`'s new HEAD and after-response behaviour.
+- `bun nv ci --check` was then red on the website and the proofs gate. Fixed and committed: the
+  roadmap lists `ci-green` as `internal`; 36 texts restamped, reviews and questions done; full
+  feature proofs (about.md, examples, attack, Rust `covers:` test) for `Core\Test\RunResult`'s four
+  readers, `Core\Test\LogRecord`'s three, `Core\Test\SentMail`'s eight and
+  `Core\Test\Response::error`; `Core\Task::all` and `Core\Mail::send` about.md within 160 words. The
+  last build, clippy, fmt and `bun nv verify --fast -p nvs-stdlib` (2262 passed) are green.
 
 ### Next
 
-**Stage 1, from its first item.** `looper verify` with `run_in_background`, then the cycle from step 1.
+Step 2 of the cycle, still before the first push. `bun nv ci --check` owes these, as last seen:
+
+1. **`reviewed`** for the 15 new about.md under `docs/examples/core/Test-RunResult/`,
+   `Test-LogRecord/` and `Test-SentMail/`: the newcomer review (docs/agent/prose.md), then
+   `bun nv site --review --stamp <path>` for each.
+2. **`perf`**: the stale and never-measured figures. `bun nv proofs --gate --limit 0 --nvs
+   target/debug/nvs.exe` names them: `Core\IO`, `Core\Queue`, `lang:testing/*`, `Core\Test\*`. Record
+   with `bun nv proofs --record-perf --group <g>`, one group at a time, after a commit.
+3. **No bench for `LogRecord`/`SentMail`:** their records exist only under `nvs test`, and a bench runs
+   under `nvs run`, so a bench there would measure an empty list. Decide between a `perf` skip under
+   `data/proofs/skip/core/Test-LogRecord/` and `Test-SentMail/` with that reason, and a bench that runs
+   under `nvs test`. The skip is the simpler one, and it costs nothing on the request path.
+4. `NVS_BIN=target/debug/nvs.exe bun nv render --website`: `docs/reference/core/Test-Response.md` was
+   rewritten in plain voice (check that wider edit), and the new cards feed `llms-full.txt`.
+5. Then `bun nv ci --check` again, `bun nv ci --push`, and `bun nv ci --watch --next` in the
+   background.
+
+No test is expected to go red. The new Rust tests compiled and passed in the stdlib run.
 
 ### Backlog
 
 - `tools/nv/cmd/ci.ts:329`: the pre-push attribution check runs `gen-attribution --check` only, and
   CI's job also runs `--check-c-deps`. Adding it to `PRE_PUSH` would catch a stale C-dependency
   ledger entry before the push.
-- `cargo fmt --all` on one Windows machine reformatted seven files nobody edited
-  (`crates/nvs-cli/src/runner.rs`, `crates/nvs-stdlib/src/http.rs` and others). `bun nv ci --check`
-  at this gate says whether the tree or the local rustfmt is behind.
+- `Core\Log::write`'s `$fields` card says the value is "written as text that describes it". A
+  `bytes` value is kept as `['$bytes' => '<hex>']` and NaN as `['$float' => 'NaN']`, as the corrected
+  `Core\Test\LogRecord::fields` card now says.
+- The `Core\Test::request` card still has sentences an earlier newcomer review let through ("root",
+  "captures is also an error when it is not a list").
 - On `bun nv lsp-start --copies 12 --cold --edits 5`, five surface edits check 5833 bodies, about
   1166 an edit over 972 files, so some entry checks a file twice on an edit. It predates
   code-warm-index. Not CI work: a later goal owns it, and this note moves there when one is written.
