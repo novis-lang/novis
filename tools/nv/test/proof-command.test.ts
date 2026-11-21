@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, realpathSync } from "node:fs";
 import { join, relative } from "node:path";
-import { binary } from "../cmd/proofs.ts";
+import { binary, cutPart, MAX_PARTS, parsePart } from "../cmd/proofs.ts";
 import { ROOT } from "../lib/paths.ts";
 import { detailsProblems, introCodeOf, namesInCode, owed, skippedOf, type Policy, type Proofs } from "../proofs/collect.ts";
 import type { Entry } from "../proofs/roster.ts";
@@ -219,5 +219,37 @@ describe("`nv proofs --gate --no-skip PROOF`", () => {
     expect(failed.exitCode).toBe(1);
     expect(failed.stdout.toString()).toContain("hostile: skipped in data/proofs/skip/");
     expect(run("--no-skip", "nonsense").exitCode).toBe(2);
+  });
+});
+
+describe("bun nv proofs --part", () => {
+  const programs = [
+    ...["a/1.nvs", "b/2.nvs", "a/3.cmd", "c/4.nvs", "a/10.nvs"].map((path) => ({ what: "examples", path })),
+    ...["a/1.nvs", "d/5.nvs", "b/6.nvs"].map((path) => ({ what: "hostile", path })),
+  ];
+  const key = (p: { what: string; path: string }) => `${p.what}:${p.path}`;
+
+  test("the parts together are the list, and no program is in two parts", () => {
+    for (let n = 1; n <= MAX_PARTS; n++) {
+      const parts = Array.from({ length: n }, (_, i) => cutPart(programs, { k: i + 1, n }).map(key));
+      const all = parts.flat();
+      expect(new Set(all).size).toBe(all.length);
+      expect([...all].sort()).toEqual(programs.map(key).sort());
+    }
+  });
+
+  test("the parts do not depend on the order the programs came in", () => {
+    const reversed = [...programs].reverse();
+    expect(cutPart(reversed, { k: 1, n: 2 })).toEqual(cutPart(programs, { k: 1, n: 2 }));
+    expect(cutPart(programs, { k: 1, n: 2 }).map(key)).toEqual(["examples:a/1.nvs", "examples:a/3.cmd", "examples:c/4.nvs", "hostile:b/6.nvs"]);
+  });
+
+  test("a part outside 1 <= K <= N <= 8 is refused, and so is --part without --run or --verify", () => {
+    for (const bad of ["0/2", "3/2", "1/9", "1", "a/b", "1/0"]) expect(() => parsePart(bad)).toThrow("argument --part");
+    expect(parsePart("2/2")).toEqual({ k: 2, n: 2 });
+    const refused = (...args: string[]) => Bun.spawnSync(["bun", "tools/nv/main.ts", "proofs", ...args], { cwd: ROOT });
+    for (const bad of ["0/2", "3/2", "1/9"]) expect(refused("--run", "--part", bad).exitCode).toBe(2);
+    expect(refused("--gate", "--part", "1/2").exitCode).toBe(2);
+    expect(refused("--run", "--show", "--part", "1/2").exitCode).toBe(2);
   });
 });

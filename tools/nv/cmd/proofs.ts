@@ -12,6 +12,7 @@
 //     bun nv proofs --json                 the audit as JSON
 //     bun nv proofs --run                  run every example and attack in scope, and report what failed
 //     bun nv proofs --verify               --gate, then --run, for each scope in one pass
+//     bun nv proofs --verify --part K/N    the same over one part of the programs: every N-th from the K-th
 //     bun nv proofs --run --id ID --show   first each of the feature's programs as it runs: a `== <path>`
 //                                          line, its output, its exit status and time
 //     bun nv proofs --overshoot            run every attack whose `ends-early` names `FATAL`, two at a time,
@@ -57,7 +58,9 @@
 // `--verify` on the proof binary run only the programs the change since the selection store's tree
 // reaches, record each in a second run on the covws debug build, and report the rest green
 // (`tools/nv/proofs/select.ts`); `--no-cache` runs every program in scope, and a binary named with
-// `--nvs` runs every program and records nothing.
+// `--nvs` runs every program and records nothing. `--part K/N`, with `--run` or `--verify` alone, runs
+// every N-th program from the K-th, of the run's programs sorted by kind and then path (`cutPart`), so
+// the parts are the same on every OS; each gate runs whole in every part.
 //
 // CI's `proofs` job is the one suite that runs every proof program: `--verify --nvs` on a fresh proof
 // binary, over the whole roster, on each platform, in every CI run. `nv
@@ -84,14 +87,14 @@ import { featureGroup } from "../select/store.ts";
 import { type Diverged, runSelected } from "../proofs/select.ts";
 
 export const summary =
-  "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--since REV | --goal SLUG] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify] [--overshoot] [--probe] [--bless FILE...] [--comments PATH...] [--record-perf] [--perf-report] [--compact-ledger]";
+  "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--since REV | --goal SLUG] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify] [--part K/N] [--overshoot] [--probe] [--bless FILE...] [--comments PATH...] [--record-perf] [--perf-report] [--compact-ledger]";
 
 const USAGE = [
   "usage: nv proofs [-h] [--group GROUP] [--only ID [ID ...]] [--id FEATURE]",
   "                 [--only-as LABEL ID [ID ...]] [--since REV | --goal SLUG]",
   "                 [--owed] [--gaps] [--limit LIMIT] [--json] [--gate] [--no-skip PROOF]",
   "                 [--run] [--verify] [--overshoot] [--probe] [--valgrind] [--quiet] [--no-cache]",
-  "                 [--strict] [--show] [--no-perf] [--nvs NVS]",
+  "                 [--strict] [--show] [--no-perf] [--nvs NVS] [--part K/N]",
   "                 [--bless FILE [FILE ...]] [--comments PATH [PATH ...]]",
   "                 [--record-perf] [--reps REPS] [--force] [--note NOTE] [--no-callgrind]",
   "                 [--perf-report] [--compact-ledger] [--impl-hash FILE [FILE ...]]",
@@ -377,10 +380,36 @@ function groupReads(entries: Entry[]): string[] {
   return [...new Set(entries.flatMap((e) => [examplesDir(e), hostileDir(e), benchFile(e)]))].sort();
 }
 
+/** One part of a run's programs: `k` of `n`, both counted from 1. */
+export interface Part {
+  k: number;
+  n: number;
+}
+
+/** The most parts `--part` splits a run into. */
+export const MAX_PARTS = 8;
+
+/** `--part`'s value, `K/N` with `1 <= K <= N <= MAX_PARTS`; anything else throws. */
+export function parsePart(raw: string): Part {
+  const m = /^(\d+)\/(\d+)$/.exec(raw);
+  const k = Number(m?.[1]);
+  const n = Number(m?.[2]);
+  if (m === null || k < 1 || n > MAX_PARTS || k > n) throw new ArgError(`argument --part: ${pyRepr(raw)} is not K/N with 1 <= K <= N <= ${MAX_PARTS}`);
+  return { k, n };
+}
+
+/** The programs of `part`: sorted by kind and then path, by code unit so every OS sorts alike, then
+ * every `n`-th from the `k`-th. Each program lands in exactly one part. */
+export function cutPart<P extends { what: string; path: string }>(programs: P[], part: Part): P[] {
+  const key = (p: P) => `${p.what}\u0000${p.path}`;
+  const sorted = [...programs].sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
+  return sorted.filter((_, i) => i % part.n === part.k - 1);
+}
+
 /** `--run`, or `--verify` when `verify`: each scope's gate first when verifying, then both suites over
  * every scope whose gate passed, in one pool. With `parted`, what each scope reads is noted as its part
  * (`inPart`). */
-async function runScopes(out: string[], bin: Binary, scopes: Scope[], verify: boolean, flags: Set<string>, proofs: Map<string, Proofs>, policy: Policy, skips: Skips, parted = false): Promise<number> {
+async function runScopes(out: string[], bin: Binary, scopes: Scope[], verify: boolean, flags: Set<string>, proofs: Map<string, Proofs>, policy: Policy, skips: Skips, parted = false, part?: Part): Promise<number> {
   const opts = { valgrind: flags.has("--valgrind"), strict: flags.has("--strict"), quiet: flags.has("--quiet") };
   const partOf = (scope: Scope): string[] => (parted && scope.part !== undefined ? [scope.part] : []);
   const section = (scope: Scope): string => scope.part ?? scope.label ?? "the whole roster";
@@ -422,14 +451,24 @@ async function runScopes(out: string[], bin: Binary, scopes: Scope[], verify: bo
       }
     }
   }
-  const programs = [...listed.values()];
+  const all = [...listed.values()];
+  const programs = part === undefined ? all : cutPart(all, part);
+  const kept = new Set(programs.map((p) => `${p.what}:${p.path}`));
+  const ran = (scope: Scope, what: What) => programsIn(scope, what).filter((f) => kept.has(`${what}:${f}`));
+  if (part !== undefined) out.push(`part ${part.k}/${part.n}: ${programs.length} of ${all.length} programs`);
   // A binary named by hand is not the one the store records on: every program runs, and nothing is
   // recorded.
   const pass: Pass & { diverged?: Diverged[] } = bin.recorded ? await runSelected(bin, programs, opts, flags.has("--no-cache")) : await runPrograms(bin, programs, opts);
   for (const scope of scopes) {
     const lines = heads.get(scope)!;
     let failed = !running.includes(scope);
-    if (!failed) for (const what of suites) if (suiteLines(lines, what, programsIn(scope, what), pass, opts)) failed = true;
+    for (const what of failed ? [] : suites) {
+      const files = ran(scope, what);
+      const listed = programsIn(scope, what).length;
+      // A suite whose programs all fell in other parts is no suite with nothing on disk.
+      if (part !== undefined && files.length === 0 && listed > 0) lines.push(`proofs ${what}: 0 ok, 0 skipped, 0 known-gap, 0 failed (none of its ${listed} files is in part ${part.k}/${part.n})`);
+      else if (suiteLines(lines, what, files, pass, opts)) failed = true;
+    }
     // Several scopes close each section on its verdict, which is what the acceptance sweep hands each check.
     if (scopes.length > 1) lines.push(`-- ${section(scope)}: ${failed ? "failed" : "passed"}`);
     out.push(...lines);
@@ -455,6 +494,7 @@ export async function run(args: string[]): Promise<number> {
   let hashed: string[] | null;
   let limit = 40;
   let reps = 5;
+  let part: Part | undefined;
   try {
     let rest: string[];
     ({ rest, named: onlyAs } = takeNamed(args));
@@ -464,7 +504,7 @@ export async function run(args: string[]): Promise<number> {
     ({ rest, list: hashed } = takeList(rest, "--impl-hash"));
     ({ flags, values } = parseArgs(rest, {
       flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf", "--run", "--verify", "--overshoot", "--probe", "--valgrind", "--quiet", "--no-cache", "--strict", "--show", "--record-perf", "--force", "--perf-report", "--compact-ledger", "--no-callgrind"],
-      valued: ["--group", "--id", "--limit", "--nvs", "--reps", "--note", "--no-skip", "--since", "--goal"],
+      valued: ["--group", "--id", "--limit", "--nvs", "--reps", "--note", "--no-skip", "--since", "--goal", "--part"],
     }));
     if (values.has("--since") && values.has("--goal")) throw new ArgError("argument --goal: not allowed with argument --since");
     const noSkip = values.get("--no-skip");
@@ -482,6 +522,12 @@ export async function run(args: string[]): Promise<number> {
     limit = int("--limit") ?? limit;
     reps = int("--reps") ?? reps;
     if (reps < 1) throw new ArgError("argument --reps: must be at least 1");
+    const rawPart = values.get("--part");
+    if (rawPart !== undefined) {
+      part = parsePart(rawPart);
+      const alone = !flags.has("--show") && !flags.has("--overshoot") && !flags.has("--probe") && !flags.has("--record-perf") && blessed === null;
+      if (!(flags.has("--run") || flags.has("--verify")) || !alone) throw new ArgError("argument --part: only with --run or --verify, and not with --show, --overshoot, --probe, --record-perf or --bless");
+    }
     if (onlyAs.length > 0 && (!(flags.has("--run") || flags.has("--verify")) || only !== null || values.has("--id") || blessed !== null)) {
       throw new ArgError("argument --only-as: only with --run or --verify, and not with --only, --id or --bless");
     }
@@ -664,7 +710,7 @@ export async function run(args: string[]): Promise<number> {
     } else if (fid === undefined) {
       saveReads(scope.map((e) => [featureGroup(e.id), groupReads([e])]));
     }
-    return flush(await runScopes(out, bin!, scopes, flags.has("--verify"), flags, proofs, policy, skips, parted));
+    return flush(await runScopes(out, bin!, scopes, flags.has("--verify"), flags, proofs, policy, skips, parted, part));
   }
 
   if (flags.has("--gate")) {
