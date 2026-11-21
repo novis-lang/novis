@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-cli/src/serve.rs, crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/host.rs]
   - id: 5
     title: a sleep and a timer under at follow the test clock
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/peer.rs, crates/nvs-host/src/timer.rs, crates/nvs-host/src/scheduler.rs, crates/nvs-stdlib/src/time.rs]
   - id: 6
     title: Core\Test::run runs a command program and returns its exit code and output
@@ -312,6 +312,16 @@ amended rules stay `shipped`, because most of each is built already.
 disjoint files and could run as side goals, but stage 6's `Core\Test::run` shares `test.rs` with
 stage 7. One goal, run in order.
 
+**The deadline queue is `nvs_runtime::test_clock`, and an idle core moves every clock.** The
+clock is one `Rc<TestClock>` on `Ctx`, shared by `Ctx::child`, so a task's sleep moves the clock
+its tree reads. A sleep files its waker under `(deadline, order filed)` and parks with no real bound.
+`Scheduler::run` calls `test_clock::advance_idle` when its run queue is empty, which moves each clock
+with a deadline to its earliest one. That is "no task of the tree can run" read per core: a clock
+moves only when nothing on the core can run, which is the same answer for a tree and costs one
+length read where no test runs. `Core\Task::all`'s deadline is filed on the same clock, and
+`Core\Test::advance` wakes every deadline it passes. A cache entry a test writes ends on its test
+clock, and a queue job's creation time and default due time read the request's wall clock.
+
 **What stops it.** One attempt per item and two sessions per stage. A stage that does not close in
 two sessions writes what holds it in the handoff, and the next session splits it.
 
@@ -367,14 +377,14 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### 5. a sleep and a timer under at follow the test clock
 
-- [ ] `crates/nvs-cli/tests/test_reach.rs`: `a_sleep_under_at_ends_at_once_and_moves_the_clock`
+- [x] `crates/nvs-cli/tests/test_reach.rs`: `a_sleep_under_at_ends_at_once_and_moves_the_clock`
   first, run once by name, red, so the gap is pinned before the fix.
-- [ ] `crates/nvs-host/src/timer.rs:305` and `crates/nvs-host/src/scheduler.rs`: a virtual deadline
+- [x] `crates/nvs-host/src/timer.rs:305` and `crates/nvs-host/src/scheduler.rs`: a virtual deadline
   queue per test tree, and the clock moves to the earliest one when no task of the tree can run.
-- [ ] `crates/nvs-runtime/src/peer.rs:605`: a sleep with a fixed clock parks on a virtual deadline.
-- [ ] `crates/nvs-stdlib/src/cache.rs:855`, `:1036` and `crates/nvs-stdlib/src/queue.rs:3013`: read
+- [x] `crates/nvs-runtime/src/peer.rs:605`: a sleep with a fixed clock parks on a virtual deadline.
+- [x] `crates/nvs-stdlib/src/cache.rs:855`, `:1036` and `crates/nvs-stdlib/src/queue.rs:3013`: read
   the clock seam (`crates/nvs-stdlib/src/time.rs:4358`).
-- [ ] `crates/nvs-cli/tests/test_reach.rs`: the other four `clock` tests.
+- [x] `crates/nvs-cli/tests/test_reach.rs`: the other four `clock` tests.
 
 ### 6. Core\Test::run runs a command program and returns its exit code and output
 
@@ -443,19 +453,20 @@ outcome type exists; the session writes the run path.
 
 ### State
 
-Stages 1 to 4 are done. `Core\Test::request` is `args: [13]`, and its bodies go through
-`crate::http::spec_body_of`. The in-process seam returns `nvs_runtime::inproc::Answered`:
-`Door(status)` where the server answers before the program runs, or `Ran { completion,
-after_response }`. `answer_at_the_door` (`crates/nvs-cli/src/runner.rs`) takes the forged write,
-then a `content-length` over `[limits] upload_total`, in the server's order. The `HEAD` body is
-dropped in `nvs_core_test_request`, as hyper drops it on the wire. `Core\Test\Response::error()` is
-`RESPONSE`'s `ERROR_SLOT`. `nvs_host::Isolate::awaiting_after_response` runs the after-response
-work before the answer is filed, and `run_deferred` returns the first failure, which becomes a
-ledger failure of `Core\Test::request`. The six `answers` tests pass, run by name, over
-`crates/nvs-cli/tests/fixtures/reach/answers/`, copied to a scratch folder.
+Stages 1 to 5 are done. Stage 5's virtual clock is `crates/nvs-runtime/src/test_clock.rs`:
+`Ctx::fixed_clock` is an `Rc<TestClock>` that `Ctx::child` shares, `Ctx::test_clock` gives it to a
+member that parks, and `set_fixed_clock` moves a clock already there. `nvs_runtime::peer::sleep`
+parks on it, `Scheduler::run` (`crates/nvs-host/src/scheduler.rs`, at its loop's `break`) calls
+`advance_idle`, and `run_as_children` (`crates/nvs-host/src/group.rs`) files a `Core\Task::all`
+deadline on it. The memory cache keeps `Until::Test` for an entry a test writes
+(`crates/nvs-stdlib/src/cache.rs`, `Lifetime::until`), and `Core\Queue`'s push reads
+`crate::time::wall_clock`. The five `clock` tests pass, run by name, over
+`crates/nvs-cli/tests/fixtures/reach/clock.nvs`, and so does `test_clock`'s unit test.
 
-A test request to a program that does not dispatch now meets the CSRF door, so an old test that
-sends it a cross-origin write may go red at the gate. None was seen.
+A `Core\Task::all` child of a test now reads the test's fixed clock. Before, `Ctx::child` did not
+copy it, so a child read the real clock. A test that relied on that may go red at the gate. A test
+under `at:` whose sleeps used to wait now ends at once, and one that measured that wait with
+`Core\Time::monotonic` would go red too. None was seen.
 
 Nightly run 44894790665 (a Miri timeout in `both_walks_agree_on_every_window`) ran on `7e97fa8444`,
 before `156f11a7ca` cut the Miri reach to 2, and no nightly has run since. If the next one still
@@ -463,13 +474,12 @@ times out, shorten the text list under `cfg!(miri)`.
 
 ### Next
 
-Stage 5, from its first item: write `a_sleep_under_at_ends_at_once_and_moves_the_clock` in
-`crates/nvs-cli/tests/test_reach.rs`, run it once by name and see it red. Then the virtual deadline
-queue in `crates/nvs-host/src/timer.rs:305` and `crates/nvs-host/src/scheduler.rs`, the sleep in
-`crates/nvs-runtime/src/peer.rs:605`, and the expiries in `crates/nvs-stdlib/src/cache.rs:855`,
-`:1036` and `crates/nvs-stdlib/src/queue.rs:3013` through the clock seam at
-`crates/nvs-stdlib/src/time.rs:4358`. The child's copy of the clock is set in `UnderTest::answer`'s
-program (`ctx.set_fixed_clock`). The `clock`, `run` and `records` checks stay red until their stages
-write their tests.
+Stage 6, from its first item, following its `**Split:**` line: `Core\Test::run` and
+`Core\Test\RunResult` in `crates/nvs-stdlib/src/test.rs:743`, then the run path beside
+`UnderTest::answer` (`crates/nvs-cli/src/runner.rs:1619`) with `ctx.set_command_line` as
+`crates/nvs-cli/src/main.rs:2464` sets it, stdin in `crates/nvs-stdlib/src/io.rs:1342`, and the seven
+`run` tests in `crates/nvs-cli/tests/test_reach.rs`. A run's child gets its own copy of the test
+clock, as `UnderTest::answer`'s program sets one with `ctx.set_fixed_clock`. The `run` and `records`
+checks stay red until their stages write their tests.
 
 ### Backlog
