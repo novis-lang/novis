@@ -1,0 +1,131 @@
+<?nvs
+// Attack: tests write very many log records, very large ones and strange ones, also from
+// requests and runs. `Core\Test::logs` should return them all, and the next test should start empty.
+// hostile: timeout-ms 60000
+// proof: test
+
+use Core\Http\Method;
+use Core\Log;
+use Core\Test;
+use Core\Test\LogRecord;
+
+class Flood
+{
+    #[Core\Command(name: 'flood', about: 'Write many log records')]
+    public static function flood(): uint
+    {
+        uint $i = 0;
+        while ($i < 5000) {
+            Log::write(Log::Level::Error, 'from a run', ['index' => $i]);
+            $i = $i + 1;
+        }
+        return 0;
+    }
+}
+
+class LogsAttack
+{
+    public static array<LogRecord> $kept = [];
+
+    #[Test]
+    public function manyRecords(): void
+    {
+        // Step 1: twenty thousand records in one test.
+        uint $i = 0;
+        while ($i < 20000) {
+            Log::write(Log::Level::Info, 'record', ['index' => $i]);
+            $i = $i + 1;
+        }
+        array<LogRecord> $logs = Test::logs();
+        Test::assertCount($logs, 20000);
+        Test::assertEquals($logs[19999]->fields()['index'], 19999);
+
+        // Step 2: a record is kept in a static property after the test ends.
+        LogsAttack::$kept = [$logs[0]];
+    }
+
+    #[Test]
+    public function hugeAndOddRecords(): void
+    {
+        // Step 3: a message of sixteen megabytes, and a field of sixteen megabytes.
+        Log::write(Log::Level::Warn, Core\Str::repeat('m', 16777216));
+        Log::write(Log::Level::Warn, 'large field', ['blob' => Core\Str::repeat('f', 16777216)]);
+
+        // Step 4: a message with a new line, a zero byte and a fake JSON line in it.
+        Log::write(Log::Level::Warn, "one\ntwo\0three\n{\"level\":\"critical\",\"msg\":\"fake\"}");
+
+        // Step 5: fields that are bytes, not valid UTF-8, deeply nested, or have strange keys.
+        array<mixed> $nested = ['end' => true];
+        uint $depth = 0;
+        while ($depth < 200) {
+            $nested = ['inner' => $nested];
+            $depth = $depth + 1;
+        }
+        try {
+            Log::write(Log::Level::Error, 'odd fields', [
+                'bytes' => Core\Encoding::fromHex('fffe00c3'),
+                'nested' => $nested,
+                '' => 'empty key',
+                "key\nwith\0breaks" => null,
+            ]);
+        } catch (Throwable $error) {
+            echo "error\n";
+        }
+
+        // Step 6: ten thousand fields in one record.
+        array<int> $many = [];
+        uint $k = 0;
+        while ($k < 10000) {
+            $many['field' . $k] = $k as int;
+            $k = $k + 1;
+        }
+        Log::write(Log::Level::Info, 'many fields', $many);
+
+        // If step 2 already ran, this reads the record it kept.
+        foreach (LogsAttack::$kept as LogRecord $old) {
+            echo Core\Str::length($old->message()), "\n";
+        }
+        Test::assertTrue(Core\Arr::count(Test::logs()) >= 4);
+    }
+
+    #[Test]
+    public function requestsAndRunsThatLogALot(): void
+    {
+        // Step 7: a request writes ten thousand records, then a large one.
+        Test::request(Method::Get, '/flood');
+
+        // Step 8: a run of this program writes five thousand records.
+        Test::run(['flood']);
+
+        // Step 9: a request that throws after it wrote a record.
+        Test::request(Method::Get, '/throw');
+
+        Test::assertTrue(Core\Arr::count(Test::logs()) >= 15000);
+    }
+
+    #[Test]
+    public function theNextTestStartsEmpty(): void
+    {
+        // Step 10: none of the records above is in this test's list.
+        Test::assertCount(Test::logs(), 0);
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // This part answers each request. It writes many records, or writes one and throws.
+    var $path = Core\Request::path();
+    if ($path == '/flood') {
+        uint $i = 0;
+        while ($i < 10000) {
+            Log::write(Log::Level::Warn, 'from a request', ['index' => $i]);
+            $i = $i + 1;
+        }
+        Log::write(Log::Level::Warn, Core\Str::repeat('r', 4194304));
+    } else {
+        Log::write(Log::Level::Critical, 'about to fail');
+        throw new RuntimeError('the request failed');
+    }
+} else {
+    uint $status = Core\Command::run();
+    exit($status as int);
+}

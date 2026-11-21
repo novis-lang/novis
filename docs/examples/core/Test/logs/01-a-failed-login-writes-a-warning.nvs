@@ -1,0 +1,44 @@
+<?nvs
+// Shows how to test that a failed login writes a warning to the log.
+// proof: test
+
+use Core\Log;
+use Core\Test;
+use Core\Test\LogRecord;
+
+class Login
+{
+    public static function attempt(string $user, string $password): bool
+    {
+        if ($password == 'correct horse') {
+            return true;
+        }
+        Log::write(Log::Level::Warn, 'login failed', ['user' => $user]);
+        return false;
+    }
+}
+
+class LoginTest
+{
+    #[Test]
+    public function aWrongPasswordWritesAWarning(): void
+    {
+        Login::attempt('ada', 'wrong');
+
+        // The login wrote one record, so the list has one item.
+        array<LogRecord> $logs = Test::logs();
+        Test::assertCount($logs, 1);
+        Test::assertEquals($logs[0]->level(), 'warn');
+        Test::assertEquals($logs[0]->message(), 'login failed');
+        Test::assertEquals($logs[0]->fields()['user'], 'ada');
+    }
+
+    #[Test]
+    public function aGoodPasswordWritesNothing(): void
+    {
+        Login::attempt('ada', 'correct horse');
+
+        // Each test starts with an empty list. The warning of the test above is not here.
+        Test::assertCount(Test::logs(), 0);
+    }
+}

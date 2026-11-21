@@ -1,0 +1,5 @@
+  LoginTest
+    ✓ aWrongPasswordWritesAWarning
+    ✓ aGoodPasswordWritesNothing
+
+  0 failed, 2 passed, 0 skipped, 0 flaky

@@ -1,0 +1,34 @@
+<?nvs
+// Shows how to test the fields of a log record that a request wrote.
+// proof: test
+
+use Core\Http\Method;
+use Core\Log;
+use Core\Test;
+use Core\Test\LogRecord;
+
+class OrderTest
+{
+    #[Test]
+    public function anOrderIsLoggedWithItsNumberAndTotal(): void
+    {
+        Test::request(Method::Post, '/orders');
+
+        // The request wrote the record. The test reads it with `Core\Test::logs`.
+        array<LogRecord> $logs = Test::logs();
+        Test::assertCount($logs, 1);
+        Test::assertEquals($logs[0]->message(), 'order created');
+
+        // `fields()` returns the fields given to `Core\Log::write`.
+        array<mixed> $fields = $logs[0]->fields();
+        Test::assertEquals($fields['order'], 42);
+        Test::assertEquals($fields['total'], 19.5);
+    }
+}
+
+// `Core\Test::request` runs this file again for the request.
+// In that run, this part creates the order and writes the record.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Log::write(Log::Level::Info, 'order created', ['order' => 42, 'total' => 19.5]);
+    echo 'created';
+}

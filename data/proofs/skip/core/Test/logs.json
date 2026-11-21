@@ -1,0 +1,4 @@
+{
+  "feature": "Core\\Test::logs",
+  "perf": "A bench runs under `nvs run`, where no test keeps records, so every iteration would read an empty list rather than copy one."
+}

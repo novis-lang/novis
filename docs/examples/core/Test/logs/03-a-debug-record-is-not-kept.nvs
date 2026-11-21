@@ -1,0 +1,33 @@
+<?nvs
+// Shows that a record below `[log] level` is not in the list. The default level is `info`.
+// proof: test
+
+use Core\Log;
+use Core\Test;
+use Core\Test\LogRecord;
+
+class PriceList
+{
+    public static function price(string $sku): int
+    {
+        Log::write(Log::Level::Debug, 'price not in the cache', ['sku' => $sku]);
+        Log::write(Log::Level::Info, 'price loaded', ['sku' => $sku]);
+        return 1200;
+    }
+}
+
+class PriceListTest
+{
+    #[Test]
+    public function onlyTheInfoRecordIsKept(): void
+    {
+        Test::assertEquals(PriceList::price('mug'), 1200);
+
+        // The code wrote two records. The `debug` record is below `info`,
+        // so the list has only the `info` record.
+        array<LogRecord> $logs = Test::logs();
+        Test::assertCount($logs, 1);
+        Test::assertEquals($logs[0]->level(), 'info');
+        Test::assertEquals($logs[0]->message(), 'price loaded');
+    }
+}
