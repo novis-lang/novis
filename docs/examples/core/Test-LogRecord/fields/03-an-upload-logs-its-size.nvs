@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to test the fields of a record that an upload request wrote.
+// proof: test
+
+use Core\Http\Method;
+use Core\Test;
+
+class UploadTest
+{
+    // The body has 11 bytes, so the `bytes` field of the record is `11`.
+    #[Test]
+    public function anUploadIsLoggedWithItsSize(): void
+    {
+        Test::request(Method::Put, '/files/notes.txt', {
+            headers: ['content-type' => 'text/plain'],
+            body: 'hello world',
+        });
+
+        Test::assertCount(Test::logs(), 1);
+        array<mixed> $fields = Test::logs()[0]->fields();
+        Test::assertSame($fields['file'], 'notes.txt');
+        Test::assertSame($fields['bytes'], 11);
+    }
+}
+
+// `Core\Test::request` runs this file again for the request.
+// This part stores the file and writes its name and size to the log.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    tainted bytes $body = Core\Request::bytes();
+    Core\Log::write(Core\Log::Level::Info, 'file uploaded', [
+        'file' => 'notes.txt',
+        'bytes' => Core\Bytes::length($body),
+    ]);
+    Core\Response::setStatus(201);
+}

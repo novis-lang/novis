@@ -1,0 +1,44 @@
+<?nvs
+// Attack: a test writes a message of many megabytes, a message with a NUL byte and line breaks,
+// and an empty message. `message()` should return each one exactly, and nothing may crash.
+// proof: test
+
+use Core\Log;
+use Core\Str;
+use Core\Test;
+
+class MessageAttackTest
+{
+    #[Test]
+    public function eachMessageComesBackExactly(): void
+    {
+        // 1. Writes a message of 8 megabytes and checks its length.
+        string $huge = Str::repeat('x', 8388608);
+        Log::write(Log::Level::Info, $huge);
+        Test::assertEquals(Str::length(Test::logs()[0]->message()), 8388608);
+
+        // 2. Writes a message with a NUL byte, a carriage return and a line break.
+        // The line break tries to start a second record in the log.
+        string $tricky = "first\u{0}line\r\n{\"level\":\"critical\",\"msg\":\"fake\"}";
+        Log::write(Log::Level::Info, $tricky);
+        Test::assertCount(Test::logs(), 2);
+        Test::assertSame(Test::logs()[1]->message(), $tricky);
+        Test::assertSame(Test::logs()[1]->level(), 'info');
+
+        // 3. Writes an empty message.
+        Log::write(Log::Level::Info, '');
+        Test::assertSame(Test::logs()[2]->message(), '');
+
+        // 4. Reads the message of the second record 3000 times.
+        var $record = Test::logs()[1];
+        int $same = 0;
+        int $i = 0;
+        while ($i < 3000) {
+            if ($record->message() == $tricky) {
+                $same = $same + 1;
+            }
+            $i = $i + 1;
+        }
+        Test::assertSame($same, 3000);
+    }
+}

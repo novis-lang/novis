@@ -1,0 +1,32 @@
+<?nvs
+// Shows the value that `fields()` returns for each type of field.
+// proof: test
+
+use Core\Log;
+use Core\Test;
+
+class FieldTypesTest
+{
+    #[Test]
+    public function eachFieldKeepsItsValue(): void
+    {
+        Log::write(Log::Level::Info, 'file received', [
+            'name' => 'photo.png',
+            'size' => 2048,
+            'public' => false,
+            'album' => null,
+            'start' => 'PNG' as bytes,
+        ]);
+
+        // A string, a number, a `bool` and `null` keep their value.
+        array<mixed> $fields = Test::logs()[0]->fields();
+        Test::assertSame($fields['name'], 'photo.png');
+        Test::assertSame($fields['size'], 2048);
+        Test::assertSame($fields['public'], false);
+        Test::assertNull($fields['album']);
+
+        // JSON has no type for `bytes`. The log line writes the bytes as hex digits under
+        // the key `$bytes`, and `fields()` returns the same thing.
+        Test::assertEquals($fields['start'], ['$bytes' => '504e47']);
+    }
+}

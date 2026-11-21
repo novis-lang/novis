@@ -195,8 +195,10 @@ const FIELDS_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "The `$fields` given to `Core\\Log::write`, in the order given. A string, a number, a \
           `bool` and `null` keep their value. JSON has no type for some values, such as `bytes`. \
-          Such a value is a string: the same text that a JSON log line has for it. The array is \
-          empty when the record has no fields.",
+          Such a value is the same as in a JSON log line. For `bytes`, that is an array with one \
+          key, `$bytes`, and the bytes as hex digits. A very long or deeply nested value is cut \
+          down the same way the log line cuts it. The array is empty when the record has no \
+          fields.",
     errors: &[],
 };
 

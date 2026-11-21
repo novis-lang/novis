@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to test that deleting a user writes an audit record with the right message.
+// proof: test
+
+use Core\Log;
+use Core\Test;
+
+class Accounts
+{
+    // Deletes the account and writes who deleted it to the log.
+    public static function delete(string $user, string $admin): void
+    {
+        Log::write(Log::Level::Info, 'user deleted', ['user' => $user, 'by' => $admin]);
+    }
+}
+
+class AccountsTest
+{
+    #[Test]
+    public function deletingAUserWritesAnAuditRecord(): void
+    {
+        Accounts::delete('alan', 'ada');
+
+        // The message is the same text that `delete` gave to `Core\Log::write`.
+        Test::assertCount(Test::logs(), 1);
+        Test::assertSame(Test::logs()[0]->message(), 'user deleted');
+    }
+}

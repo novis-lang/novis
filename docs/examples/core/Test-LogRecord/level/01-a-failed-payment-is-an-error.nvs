@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to test that a failed payment is logged as an error.
+// proof: test
+
+use Core\Log;
+use Core\Test;
+
+class Payment
+{
+    // Charges the card. A declined card writes an `error` record and returns `false`.
+    public static function charge(string $card, int $cents): bool
+    {
+        if ($card == '4000-0000-0000-0002') {
+            Log::write(Log::Level::Error, 'payment declined', ['cents' => $cents]);
+            return false;
+        }
+        return true;
+    }
+}
+
+class PaymentTest
+{
+    #[Test]
+    public function aDeclinedCardIsLoggedAsAnError(): void
+    {
+        Test::assertSame(Payment::charge('4000-0000-0000-0002', 2500), false);
+
+        // `level()` returns the level in lower case, so the test compares it with `'error'`.
+        Test::assertCount(Test::logs(), 1);
+        Test::assertSame(Test::logs()[0]->level(), 'error');
+    }
+}

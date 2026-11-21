@@ -1,0 +1,78 @@
+<?nvs
+// Attack: a test writes fields nested very deep, thousands of keys, values JSON has no type for,
+// and then changes the array it read. Nothing may crash, and a second read should not change.
+// proof: test
+
+use Core\Log;
+use Core\Test;
+
+class FieldsAttackTest
+{
+    #[Test]
+    public function theFieldsOfEachRecordHold(): void
+    {
+        // 1. Writes a field nested 5000 levels deep. The log cuts it after a few levels.
+        array<mixed> $deep = ['end' => true];
+        int $i = 0;
+        while ($i < 5000) {
+            $deep = ['inner' => $deep];
+            $i = $i + 1;
+        }
+        Log::write(Log::Level::Info, 'deep', ['tree' => $deep]);
+        mixed $level = Test::logs()[0]->fields()['tree'];
+        int $depth = 0;
+        while ($level is array && ($level['inner'] ?? null) != null) {
+            $level = $level['inner'];
+            $depth = $depth + 1;
+        }
+        Test::assertSame($depth < 5000, true);
+        Test::assertEquals($level, ['$elided' => ['cut' => 'depth']]);
+
+        // 2. Writes a record with 5000 keys. The log keeps the first 100 keys and one more key
+        // that says how many were left out. `fields()` returns the same 101 keys.
+        array<mixed> $many = [];
+        $i = 0;
+        while ($i < 5000) {
+            $many['key' . $i] = $i;
+            $i = $i + 1;
+        }
+        Log::write(Log::Level::Info, 'many', $many);
+        array<mixed> $back = Test::logs()[1]->fields();
+        Test::assertCount($back, 101);
+        Test::assertSame($back['key99'], 99);
+        Test::assertEquals($back['…'], ['$elided' => ['cut' => 'entries', 'total' => 5000, 'entries' => 4900]]);
+
+        // 3. Writes a value that is not a number, an endless number and `bytes`.
+        float $endless = 1.0e308 * 10.0;
+        try {
+            Log::write(Log::Level::Info, 'odd values', [
+                'nan' => $endless - $endless,
+                'inf' => $endless,
+                'raw' => "\u{0}\u{1}" as bytes,
+            ]);
+        } catch (Throwable $error) {
+            echo 'failed: ', $error->message, "\n";
+        }
+        Test::assertCount(Test::logs(), 3);
+        array<mixed> $odd = Test::logs()[2]->fields();
+        Test::assertEquals($odd['nan'], ['$float' => 'NaN']);
+        Test::assertEquals($odd['inf'], ['$float' => 'inf']);
+        Test::assertEquals($odd['raw'], ['$bytes' => '0001']);
+
+        // 4. Changes the array that `fields()` returned. A second read still has the first value.
+        array<mixed> $copy = Test::logs()[1]->fields();
+        $copy['key0'] = 'changed';
+        Test::assertSame(Test::logs()[1]->fields()['key0'], 0);
+
+        // 5. Reads the fields of a small record 2000 times.
+        Log::write(Log::Level::Info, 'small', ['order' => 7]);
+        var $small = Test::logs()[3];
+        int $total = 0;
+        $i = 0;
+        while ($i < 2000) {
+            $total = $total + ($small->fields()['order'] as int);
+            $i = $i + 1;
+        }
+        Test::assertSame($total, 14000);
+    }
+}

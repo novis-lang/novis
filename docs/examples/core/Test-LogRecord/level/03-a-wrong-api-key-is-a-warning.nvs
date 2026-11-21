@@ -1,0 +1,33 @@
+<?nvs
+// Shows how to test the level of a record that a request wrote.
+// proof: test
+
+use Core\Http\Method;
+use Core\Test;
+
+class ApiKeyTest
+{
+    // A wrong key is a warning. The test checks the level and the status of the response.
+    #[Test]
+    public function aWrongKeyIsLoggedAsAWarning(): void
+    {
+        var $response = Test::request(Method::Get, '/reports', {
+            headers: ['x-api-key' => 'not-a-real-key'],
+        });
+
+        Test::assertSame($response->status(), 401);
+        Test::assertCount(Test::logs(), 1);
+        Test::assertSame(Test::logs()[0]->level(), 'warn');
+    }
+}
+
+// `Core\Test::request` runs this file again for the request.
+// This part checks the key and writes a `warn` record when the key is wrong.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    if (Core\Request::header('x-api-key') != 'key-for-reports') {
+        Core\Log::write(Core\Log::Level::Warn, 'wrong API key');
+        Core\Response::setStatus(401);
+    } else {
+        echo 'report';
+    }
+}

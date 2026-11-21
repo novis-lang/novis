@@ -1,0 +1,49 @@
+<?nvs
+// Attack: a test writes the same record thousands of times, writes a `debug` record, and
+// changes the list it read. Each kept record should have its own level, and nothing may crash.
+// proof: test
+
+use Core\Log;
+use Core\Test;
+use Core\Test\LogRecord;
+
+class LevelAttackTest
+{
+    #[Test]
+    public function theLevelOfEachRecordHolds(): void
+    {
+        // 1. Writes one `warn` record 3000 times. The test keeps every one of them.
+        int $i = 0;
+        while ($i < 3000) {
+            Log::write(Log::Level::Warn, 'same record');
+            $i = $i + 1;
+        }
+        Test::assertCount(Test::logs(), 3000);
+
+        // 2. Writes a `debug` record. It is below `info`, so the list stays the same size.
+        Log::write(Log::Level::Debug, 'hidden');
+        Test::assertCount(Test::logs(), 3000);
+
+        // 3. Writes one record of each kept level and reads the last four levels.
+        Log::write(Log::Level::Info, 'one');
+        Log::write(Log::Level::Warn, 'two');
+        Log::write(Log::Level::Error, 'three');
+        Log::write(Log::Level::Critical, 'four');
+        array<LogRecord> $logs = Test::logs();
+        Test::assertSame($logs[3000]->level(), 'info');
+        Test::assertSame($logs[3003]->level(), 'critical');
+
+        // 4. Replaces a record in the list it read. A second read still has the first record.
+        $logs[0] = $logs[3003];
+        Test::assertSame(Test::logs()[0]->level(), 'warn');
+
+        // 5. Reads `level()` of every record and counts the `warn` records.
+        int $warnings = 0;
+        foreach (Test::logs() as LogRecord $record) {
+            if ($record->level() == 'warn') {
+                $warnings = $warnings + 1;
+            }
+        }
+        Test::assertSame($warnings, 3001);
+    }
+}

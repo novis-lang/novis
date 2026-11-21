@@ -1,0 +1,42 @@
+<?nvs
+// Shows how to test the messages of a job that writes one record for each step.
+// proof: test
+
+use Core\Log;
+use Core\Test;
+use Core\Test\LogRecord;
+
+class NightlyImport
+{
+    // Reads the rows, skips the empty ones and writes a record at the start and the end.
+    public static function run(array<string> $rows): int
+    {
+        Log::write(Log::Level::Info, 'import started');
+        int $saved = 0;
+        foreach ($rows as string $row) {
+            if ($row == '') {
+                Log::write(Log::Level::Warn, 'empty row skipped');
+            } else {
+                $saved = $saved + 1;
+            }
+        }
+        Log::write(Log::Level::Info, 'import finished', ['saved' => $saved]);
+        return $saved;
+    }
+}
+
+class NightlyImportTest
+{
+    #[Test]
+    public function eachStepWritesItsMessage(): void
+    {
+        Test::assertSame(NightlyImport::run(['mug', '', 'lamp']), 2);
+
+        // The messages are in the order they were written.
+        array<string> $messages = [];
+        foreach (Test::logs() as LogRecord $record) {
+            $messages[] = $record->message();
+        }
+        Test::assertEquals($messages, ['import started', 'empty row skipped', 'import finished']);
+    }
+}

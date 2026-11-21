@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to test the fields of a record about a slow database query.
+// proof: test
+
+use Core\Log;
+use Core\Test;
+
+class QueryTimer
+{
+    // Writes a `warn` record when a query takes longer than 200 milliseconds.
+    public static function finished(string $table, int $milliseconds): void
+    {
+        if ($milliseconds > 200) {
+            Log::write(Log::Level::Warn, 'slow query', ['table' => $table, 'ms' => $milliseconds]);
+        }
+    }
+}
+
+class QueryTimerTest
+{
+    #[Test]
+    public function aSlowQueryIsLoggedWithItsDuration(): void
+    {
+        QueryTimer::finished('orders', 40);
+        QueryTimer::finished('orders', 850);
+
+        // Only the slow query wrote a record. Its fields are in the order they were given.
+        Test::assertCount(Test::logs(), 1);
+        Test::assertEquals(Test::logs()[0]->fields(), ['table' => 'orders', 'ms' => 850]);
+    }
+}

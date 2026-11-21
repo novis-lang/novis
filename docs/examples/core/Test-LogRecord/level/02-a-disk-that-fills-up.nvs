@@ -1,0 +1,40 @@
+<?nvs
+// Shows how to test that the level of a record grows with the size of a problem.
+// proof: test
+
+use Core\Log;
+use Core\Test;
+use Core\Test\LogRecord;
+
+class DiskCheck
+{
+    // Writes a `warn` record above 80 percent and a `critical` record above 95 percent.
+    public static function check(int $percentUsed): void
+    {
+        if ($percentUsed > 95) {
+            Log::write(Log::Level::Critical, 'disk almost full', ['used' => $percentUsed]);
+        } elseif ($percentUsed > 80) {
+            Log::write(Log::Level::Warn, 'disk filling up', ['used' => $percentUsed]);
+        } else {
+            Log::write(Log::Level::Info, 'disk checked', ['used' => $percentUsed]);
+        }
+    }
+}
+
+class DiskCheckTest
+{
+    #[Test]
+    public function eachCheckHasTheRightLevel(): void
+    {
+        DiskCheck::check(50);
+        DiskCheck::check(85);
+        DiskCheck::check(99);
+
+        // The three records are in the order they were written.
+        array<string> $levels = [];
+        foreach (Test::logs() as LogRecord $record) {
+            $levels[] = $record->level();
+        }
+        Test::assertEquals($levels, ['info', 'warn', 'critical']);
+    }
+}
