@@ -32,7 +32,8 @@ session the bullets it ranks highest for the live goal, and names how many more 
 - **A Python edit script under `.agent-tmp/` that writes with `open(p, 'w')` turns every line
   ending into CRLF on Windows.** Git then warns "CRLF will be replaced by LF" for each file, and the
   working copy no longer matches rustfmt's output. Open the file with `newline=''`, or write bytes.
-  See `.gitattributes`.
+  Pass `encoding='utf-8'` too: the default is cp1252, so an `in` test on a string with a `—` fails
+  on a file that holds it. See `.gitattributes`.
 - **A check's `tests:` name for a bun test inside a `describe` is written `describe > test`.** Bun
   prints `(pass) the plan > counts ...`, and looper looks for the name as a whole substring of that
   line. `the plan counts ...` never matched, so a green run was refused as "did not run and pass".
