@@ -1,0 +1,72 @@
+<?nvs
+// The bodies a test request can send: JSON, a form, a multipart form and a raw
+// body with its media type. Each test checks what the program reads back.
+use Core\Http\Method;
+
+class Bodies
+{
+    #[Core\Test]
+    public function jsonReachesRequestJson(): void
+    {
+        var $answered = Core\Test::request(Method::Post, '/json', { json: ['name' => 'Ada', 'age' => 36] });
+        Core\Test::assertEquals($answered->body(), 'application/json Ada 36');
+        var $empty = Core\Test::request(Method::Post, '/json-null', { json: null });
+        Core\Test::assertEquals($empty->body(), 'application/json null');
+    }
+
+    #[Core\Test]
+    public function formReachesRequestPost(): void
+    {
+        var $answered = Core\Test::request(Method::Post, '/form', {
+            form: ['name' => 'Ada Lovelace', 'sum' => '1+1=2'],
+        });
+        Core\Test::assertEquals(
+            $answered->body(),
+            'application/x-www-form-urlencoded Ada Lovelace 1+1=2',
+        );
+    }
+
+    #[Core\Test]
+    public function multipartReachesRequestFiles(): void
+    {
+        var $answered = Core\Test::request(Method::Post, '/upload', {
+            multipart: [
+                'note' => 'hello',
+                'avatar' => Core\Http\Part::bytes('<svg/>', 'avatar.svg', { contentType: 'image/svg+xml' }),
+            ],
+        });
+        Core\Test::assertEquals($answered->body(), "multipart/form-data\navatar avatar.svg image/svg+xml 6\nhello");
+    }
+
+    #[Core\Test]
+    public function bodyWithAContentTypeIsSentAsWritten(): void
+    {
+        var $typed = Core\Test::request(Method::Put, '/raw', { body: 'a,b', contentType: 'text/csv' });
+        Core\Test::assertEquals($typed->body(), 'text/csv a,b');
+        var $plain = Core\Test::request(Method::Put, '/raw', { body: 'a,b' });
+        Core\Test::assertEquals($plain->body(), 'none a,b');
+    }
+}
+
+// The suite's own load answers no request, so it writes nothing.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    var $path = Core\Request::path();
+    var $type = Core\Request::header('content-type') ?? 'none';
+    if ($path == '/json') {
+        var $person = Core\Request::json();
+        echo $type, ' ', $person['name'], ' ', $person['age'];
+    } elseif ($path == '/json-null') {
+        echo $type, ' ', Core\Request::json() ?? 'null';
+    } elseif ($path == '/form') {
+        echo $type, ' ', Core\Request::post('name') ?? 'none', ' ', Core\Request::post('sum') ?? 'none';
+    } elseif ($path == '/upload') {
+        echo Core\Str::before($type, ';'), "\n";
+        foreach (Core\Request::files() as Core\Request\Part $part) {
+            echo $part->name(), ' ', $part->filename() ?? 'none', ' ', $part->contentType(), ' ',
+                Core\Bytes::length($part->readAll({ max: 1000 })), "\n";
+        }
+        echo Core\Request::post('note') ?? 'none';
+    } elseif ($path == '/raw') {
+        echo $type, ' ', Core\Request::body();
+    }
+}

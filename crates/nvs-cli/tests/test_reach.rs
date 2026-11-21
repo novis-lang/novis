@@ -6,6 +6,10 @@
 //! stated*: `Core\Test::request`'s `clientIp`, `scheme` and `cookies`
 //! options, the `host` header that picks the mount row, and a `traceparent`
 //! header the request continues.
+//!
+//! The body tests are its *a body is written with `Core\Http\Client`'s
+//! options*: `json`, `form`, `multipart` and a `body` with its `contentType`
+//! reach the request readers, and two bodies do not compile.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -52,6 +56,67 @@ fn passes_in_peer(method: &str) {
     assert!(
         report.contains(method) && report.contains("0 failed, 1 passed"),
         "`{method}` was the one test that ran, and it passed:\n{report}"
+    );
+}
+
+/// Runs the one `#[Test]` method `method` of `bodies.nvs` and asserts that it
+/// alone ran, and passed.
+fn passes_in_bodies(method: &str) {
+    let (report, passed) = run_in(&fixture(""), "bodies.nvs", method);
+    assert!(passed, "`{method}` failed:\n{report}");
+    assert!(
+        report.contains(method) && report.contains("0 failed, 1 passed"),
+        "`{method}` was the one test that ran, and it passed:\n{report}"
+    );
+}
+
+/// `json` reaches `Core\Request::json()` under `application/json`, and
+/// `json: null` sends the document `null`.
+// covers: Core\Test::request
+#[test]
+fn a_json_option_reaches_request_json() {
+    passes_in_bodies("jsonReachesRequestJson");
+}
+
+/// `form` reaches `Core\Request::post()` under
+/// `application/x-www-form-urlencoded`, with a space, a `+` and a `=` in it.
+// covers: Core\Test::request
+#[test]
+fn a_form_option_reaches_request_post() {
+    passes_in_bodies("formReachesRequestPost");
+}
+
+/// `multipart` sends a `Core\Http\Part` that `Core\Request::files()` reads
+/// with its name, file name, media type and length, and a text field that
+/// `Core\Request::post()` reads.
+// covers: Core\Test::request
+#[test]
+fn a_multipart_option_reaches_request_files() {
+    passes_in_bodies("multipartReachesRequestFiles");
+}
+
+/// A `body` with `contentType` is sent under that type, and one without it
+/// under none.
+// covers: Core\Test::request
+#[test]
+fn a_body_with_a_content_type_is_sent_as_written() {
+    passes_in_bodies("bodyWithAContentTypeIsSentAsWritten");
+}
+
+/// Two body keys, and `contentType` without `body`, are the client's two
+/// compile errors.
+// covers: Core\Test::request
+#[test]
+fn two_body_options_do_not_compile() {
+    let (report, passed) = run_in(&fixture(""), "two_bodies.nvs", "twoBodies");
+    assert!(!passed, "two bodies compiled:\n{report}");
+    assert!(
+        report.contains("E0815") && report.contains("given two bodies, `json` and `form`"),
+        "two bodies are E0815:\n{report}"
+    );
+    assert!(
+        report.contains("E0817") && report.contains("`contentType` is written without `body`"),
+        "a media type with no body is E0817:\n{report}"
     );
 }
 

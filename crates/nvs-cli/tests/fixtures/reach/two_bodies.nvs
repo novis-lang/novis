@@ -1,0 +1,14 @@
+<?nvs
+// Two bodies in one test request do not compile, and neither does a media type
+// with no body.
+use Core\Http\Method;
+
+class TwoBodies
+{
+    #[Core\Test]
+    public function twoBodies(): void
+    {
+        Core\Test::request(Method::Post, '/', { json: [1], form: ['a' => 'b'] });
+        Core\Test::request(Method::Post, '/', { json: [1], contentType: 'text/plain' });
+    }
+}

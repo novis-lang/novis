@@ -12,7 +12,7 @@ runs per request (`rule:testing/a-directory-of-programs-is-one-test-program`). E
 answers with its own entry. The `#[Test(server: true)]` listener still runs the generated entry.
 
 The signature is `Core\Test::request(Core\Http\Method $method, string $path, {headers?:
-array<string>, body?: string|bytes, json?: mixed, form?: array<string>, multipart?:
+array<string>, body?: string|bytes|Core\Http\Part, json?: mixed, form?: array<string>, multipart?:
 array<string|Core\Http\Part>, contentType?: string, cookies?: array<string>, clientIp?: string, scheme?:
 string, mount?: string, captures?: array<string>}): Core\Test\Response`. A `?` in `$path` starts the
 query. A request with none of `body`, `json`, `form` and `multipart` has no body, which is not an

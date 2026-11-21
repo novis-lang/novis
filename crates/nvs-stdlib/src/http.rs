@@ -3484,6 +3484,141 @@ fn body_of(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Option<transpo
     Ok(None)
 }
 
+/// Where a bag that takes the client's body keys keeps each one: the five
+/// argument slots [`spec_body_of`] reads.
+///
+/// `Core\Test::request` takes the same keys as [`OPTIONS`] at other slots, so
+/// the slots are named here and the reading is not written twice.
+pub(crate) struct BodySlots {
+    /// The slot of [`JSON_OPTION`].
+    pub(crate) json: usize,
+    /// The slot of [`FORM_OPTION`].
+    pub(crate) form: usize,
+    /// The slot of [`BODY_OPTION`].
+    pub(crate) body: usize,
+    /// The slot of [`CONTENT_TYPE_OPTION`].
+    pub(crate) content_type: usize,
+    /// The slot of [`MULTIPART_OPTION`].
+    pub(crate) multipart: usize,
+}
+
+/// The body a bag of the client's body keys describes, as an in-process
+/// request's [`nvs_runtime::SpecBody`], with the `Content-Type` a raw body is
+/// sent under. `None` for a bag that wrote no body.
+///
+/// `rule:testing/in-process-request`: a test writes a request body the way a
+/// program writes an outbound one. The keys are taken in [`body_of`]'s order,
+/// and a part is read by [`part_of`], so a `Core\Http\Part` a test sends is
+/// opened under the same `fs.read` grant and named and typed as the client
+/// names and types it. `json`, `form` and `multipart` become the spec's own
+/// encodings, which write their `Content-Type` as the client does. A file part
+/// is read whole: the spec holds its body, and a test's body is the test's own.
+///
+/// # Errors
+///
+/// [`crate::json::written`]'s for a `json` value it cannot encode, [`part_of`]'s
+/// for a part, [`quotable`]'s for a multipart field the framing cannot carry,
+/// and a thrown `RuntimeError` for a file part that cannot be read.
+pub(crate) fn spec_body_of(
+    ctx: &mut Ctx,
+    args: &[Value],
+    slots: &BodySlots,
+    member: &str,
+) -> Result<Option<(nvs_runtime::SpecBody, Option<String>)>, Fault> {
+    if !matches!(args[slots.json].tag(), Some(Tag::Unset)) {
+        let document = crate::json::written(ctx, args[slots.json], member)?;
+        return Ok(Some((
+            nvs_runtime::SpecBody::Json(document.into_bytes()),
+            None,
+        )));
+    }
+    if args[slots.form].array_ptr().is_some() {
+        let mut pairs = Vec::new();
+        for (name, value) in fields_of(args, slots.form, FORM_OPTION, member)? {
+            let text = value.as_text().ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{member} expected a `string` in `form`, got tag {}",
+                    value.tag_byte()
+                ))
+            })?;
+            pairs.push((name, text.to_owned()));
+        }
+        return Ok(Some((nvs_runtime::SpecBody::Form(pairs), None)));
+    }
+    if args[slots.multipart].array_ptr().is_some() {
+        let mut parts = Vec::new();
+        for (name, value) in fields_of(args, slots.multipart, MULTIPART_OPTION, member)? {
+            quotable(&name, "field name", member)?;
+            if matches!(value.tag(), Some(Tag::Object)) {
+                let (bytes, filename, content_type) = part_octets(ctx, value, member)?;
+                let filename = filename.unwrap_or_else(|| name.clone());
+                quotable(&filename, "filename", member)?;
+                let content_type =
+                    content_type.unwrap_or_else(|| "application/octet-stream".to_owned());
+                quotable(&content_type, "media type", member)?;
+                parts.push(nvs_runtime::SpecPart {
+                    name,
+                    filename: Some(filename),
+                    content_type: Some(content_type),
+                    bytes,
+                });
+            } else {
+                let text = value.as_text().ok_or_else(|| {
+                    Fault::fatal(format!(
+                        "{member} expected a `string` or a `Core\\Http\\Part` in `multipart`, got \
+                         tag {}",
+                        value.tag_byte()
+                    ))
+                })?;
+                parts.push(nvs_runtime::SpecPart {
+                    name,
+                    filename: None,
+                    content_type: None,
+                    bytes: text.as_bytes().to_vec(),
+                });
+            }
+        }
+        return Ok(Some((nvs_runtime::SpecBody::Files(parts), None)));
+    }
+    let content_type = args[slots.content_type].as_text().map(str::to_owned);
+    if matches!(args[slots.body].tag(), Some(Tag::Object)) {
+        let (bytes, _, part_type) = part_octets(ctx, args[slots.body], member)?;
+        // The call's own `contentType` wins over the part's, as in [`body_of`].
+        return Ok(Some((
+            nvs_runtime::SpecBody::Raw(bytes),
+            content_type.or(part_type),
+        )));
+    }
+    if let Some(octets) = octets_of(&args[slots.body]) {
+        return Ok(Some((nvs_runtime::SpecBody::Raw(octets.to_vec()), content_type)));
+    }
+    Ok(None)
+}
+
+/// A [`PART`]'s octets, its file name and its media type — see [`part_octets`].
+type ReadPart = (Vec<u8>, Option<String>, Option<String>);
+
+/// The octets of the [`PART`] in `value`, its file read whole, with its file
+/// name and its media type.
+///
+/// # Errors
+///
+/// [`part_of`]'s, and a thrown `RuntimeError` for a file that cannot be read.
+fn part_octets(ctx: &Ctx, value: Value, member: &str) -> Result<ReadPart, Fault> {
+    let part = part_of(ctx, value, member)?;
+    let bytes = match part.piece {
+        transport::Piece::Held(octets) => octets,
+        transport::Piece::File { handle, .. } => {
+            let mut octets = Vec::new();
+            std::io::Read::read_to_end(&mut *handle.borrow_mut(), &mut octets).map_err(|err| {
+                Fault::thrown(format!("{member}: the file of a part could not be read — {err}"))
+            })?;
+            octets
+        }
+    };
+    Ok((bytes, part.filename, part.content_type))
+}
+
 /// A body that is one run of octets the framing is holding.
 fn held(content_type: Option<String>, octets: Vec<u8>) -> transport::Body {
     transport::Body {

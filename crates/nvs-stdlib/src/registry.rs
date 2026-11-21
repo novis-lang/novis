@@ -4679,12 +4679,16 @@ pub struct RequestBody {
 #[must_use]
 pub fn request_body_rule(class: &str, member: &str) -> Option<RequestBody> {
     nvs_footprint::class(class);
-    (class == crate::http::CLIENT_NAME
+    // `Core\Test::request` takes the client's body keys
+    // (`rule:testing/in-process-request`), so the same two mistakes do not
+    // compile there. Its verb is an argument, as `request`'s is.
+    let client = class == crate::http::CLIENT_NAME
         && matches!(
             member,
             "get" | "post" | "put" | "patch" | "delete" | "head" | "request"
-        ))
-    .then_some(RequestBody {
+        );
+    let test = class == crate::test::NAME && member == "request";
+    (client || test).then_some(RequestBody {
         keys: crate::http::BODY_OPTIONS,
         raw: crate::http::BODY_OPTION,
         content_type: crate::http::CONTENT_TYPE_OPTION,

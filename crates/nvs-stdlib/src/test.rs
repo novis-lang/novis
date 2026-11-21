@@ -506,8 +506,9 @@ const DEFAULT_TLS_ISSUER: &str = "CN=Novis Test CA";
 /// certificates are issued for.
 const DEFAULT_TLS_LIFETIME: std::time::Duration = std::time::Duration::from_secs(90 * 86_400);
 
-/// What a synthetic request's `body` may be: text, or the octets of a body that
-/// is not text at all.
+/// What a synthetic request's `body` may be: text, the octets of a body that
+/// is not text at all, or a `Core\Http\Part`, which is every raw body
+/// `Core\Http\Client` can send.
 ///
 /// [`ANSWER_BODY`]'s pair, in the other direction and for the second half of
 /// its reason: the bodies a request test is written for are the ones a
@@ -515,7 +516,11 @@ const DEFAULT_TLS_LIFETIME: std::time::Duration = std::time::Duration::from_secs
 /// `Core\Request::body()` refuses and `Core\Request::bytes()` answers
 /// (`rule:types/string-is-utf8`), so a bag admitting text alone could not
 /// describe the request that pins either of them.
-const SENT_BODY: &[CoreTy] = &[CoreTy::Text(Qual::Neutral), CoreTy::Blob(Qual::Neutral)];
+const REQUEST_BODY: &[CoreTy] = &[
+    CoreTy::Text(Qual::Neutral),
+    CoreTy::Blob(Qual::Neutral),
+    CoreTy::Instance(crate::http::PART_NAME),
+];
 
 /// `Core\Test::request`'s `{headers?: array<string>, body?: string|bytes,
 /// mount?: string}` — the halves of a request a verb and a path do not
@@ -557,6 +562,13 @@ const SENT_BODY: &[CoreTy] = &[CoreTy::Text(Qual::Neutral), CoreTy::Blob(Qual::N
 /// field line by `nvs_runtime::InboundSpec::push_cookie`, as a `.nvt` case's
 /// `--COOKIE--` is. The three are appended after `captures` so every earlier
 /// option keeps its argument slot.
+///
+/// **`json`, `form`, `contentType` and `multipart` are `Core\Http\Client`'s
+/// body keys**, appended after `scheme` and read by that class's own walk
+/// ([`crate::http::spec_body_of`]), so a test writes a request body the way a
+/// program writes one. `body` also takes a `Core\Http\Part`, as the client's
+/// does. Two bodies, or `contentType` without `body`, do not compile, by the
+/// client's rule (`crate::registry::request_body_rule`).
 const REQUEST_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "headers",
@@ -565,7 +577,7 @@ const REQUEST_OPTIONS: &[CoreOption] = &[
     },
     CoreOption {
         name: "body",
-        ty: CoreTy::Union(SENT_BODY),
+        ty: CoreTy::Union(REQUEST_BODY),
         default: Const::Null,
     },
     CoreOption {
@@ -593,7 +605,47 @@ const REQUEST_OPTIONS: &[CoreOption] = &[
         ty: CoreTy::Text(Qual::Neutral),
         default: Const::Null,
     },
+    // `Const::NeverWritten` for the client's reason: the JSON document `null`
+    // is a body a test may mean.
+    CoreOption {
+        name: crate::http::JSON_OPTION,
+        ty: CoreTy::Mixed,
+        default: Const::NeverWritten,
+    },
+    CoreOption {
+        name: crate::http::FORM_OPTION,
+        ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: crate::http::CONTENT_TYPE_OPTION,
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: crate::http::MULTIPART_OPTION,
+        ty: CoreTy::Array(&MULTIPART_FIELD),
+        default: Const::Null,
+    },
 ];
+
+/// What one key of `Core\Test::request`'s `multipart` map is: a value, or a
+/// `Core\Http\Part` sent under its own name and type.
+const MULTIPART_FIELD: CoreTy = CoreTy::Union(&[
+    CoreTy::Text(Qual::Neutral),
+    CoreTy::Instance(crate::http::PART_NAME),
+]);
+
+/// The argument slots of `Core\Test::request`'s body keys, for
+/// [`crate::http::spec_body_of`]: two for the verb and the path, then
+/// [`REQUEST_OPTIONS`] in order.
+const REQUEST_BODY_SLOTS: crate::http::BodySlots = crate::http::BodySlots {
+    json: 9,
+    form: 10,
+    body: 3,
+    content_type: 11,
+    multipart: 12,
+};
 
 /// `Core\Test`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
@@ -1250,8 +1302,11 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "body",
-            desc: "The body of the request, as a `string` or as `bytes`. If you give no body, \
-                   the request has no body. An empty string is a body of length 0.",
+            desc: "The body of the request, as a `string`, as `bytes` or as a \
+                   `Core\\Http\\Part`. It is sent exactly as given, with the media type in \
+                   `contentType`. If you give no body, the request has no body. An empty string \
+                   is a body of length 0. Only one of `body`, `json`, `form` and `multipart` may \
+                   be given. Two of them do not compile.",
             shape: &[],
         },
         ParamDoc {
@@ -1288,6 +1343,31 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
             name: "scheme",
             desc: "`\"http\"` or `\"https\"`. `Core\\Request::scheme()` returns it. Any other \
                    value throws a `LogicError`. The default is `\"http\"`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "json",
+            desc: "The value to send as `application/json`. `Core\\Request::json()` reads it. \
+                   A `null` value sends the JSON document `null`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "form",
+            desc: "The fields to send as `application/x-www-form-urlencoded`, with the field name \
+                   as the key. `Core\\Request::post()` reads them.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "contentType",
+            desc: "The media type of `body`, sent as the `Content-Type` header. Giving it without \
+                   `body` does not compile.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "multipart",
+            desc: "The parts to send as `multipart/form-data`, with the field name as the key. A \
+                   `string` is a form field, and a `Core\\Http\\Part` is a file. \
+                   `Core\\Request::files()` reads the files.",
             shape: &[],
         },
     ],
@@ -2969,7 +3049,12 @@ fn verb_of(ordinal: i64) -> Option<String> {
 /// `LogicError` for `captures` given without a `mount`, [`captures_of`]'s
 /// for `captures` that are not a list, and [`client_ip_of`]'s and
 /// [`scheme_of`]'s for a peer no trusted-proxy walk could settle on.
-fn described(verb: &str, target: &str, args: &[Value]) -> Result<nvs_runtime::InboundSpec, Fault> {
+fn described(
+    ctx: &mut Ctx,
+    verb: &str,
+    target: &str,
+    args: &[Value],
+) -> Result<nvs_runtime::InboundSpec, Fault> {
     // Split exactly as the door does: everything after the first `?` is the
     // query, undecoded, and a target with none has an empty one rather than no
     // query at all.
@@ -2989,16 +3074,19 @@ fn described(verb: &str, target: &str, args: &[Value]) -> Result<nvs_runtime::In
         spec.push_cookie(&name, &value);
     }
     spec.set_peer(client_ip_of(&args[7])?, scheme_of(&args[8])?);
-    // A body is described only where one was written: the omitted default is
-    // `null`, and a request carrying no body is not one carrying an empty body.
-    // `SpecBody::Raw` frames nothing and declares nothing, which is what the
-    // bag's `body` promised.
-    if let Some(octets) = args[3]
-        .as_bytes()
-        .or_else(|| args[3].as_text().map(str::as_bytes))
+    // A body is described only where one was written: a request carrying no
+    // body is not one carrying an empty body. `json`, `form` and `multipart`
+    // write their own `Content-Type`; a raw `body` is sent under `contentType`
+    // alone, and under none without it.
+    if let Some((body, content_type)) =
+        crate::http::spec_body_of(ctx, args, &REQUEST_BODY_SLOTS, "Core\\Test::request")?
     {
-        spec.set_body(nvs_runtime::SpecBody::Raw(octets.to_vec()))
-            .expect("this bag spells a body one way, so there is no second spelling to refuse");
+        if let Some(content_type) = content_type {
+            spec.push_header("content-type", content_type.as_bytes());
+        }
+        spec.set_body(body).map_err(|refusal| {
+            Fault::thrown(format!("Core\\Test::request(): {refusal}"))
+        })?;
     }
     // The door the request is to have come through, and the root for a bag
     // naming none. Unreachable as anything but text — the option declares
@@ -3184,7 +3272,7 @@ nvs_runtime::nvs_helper! {
     /// every request alike. So a handler that forgets to launder a header fails
     /// its test rather than production, and the test that pins it says nothing
     /// about being synthetic.
-    fn nvs_core_test_request(ctx, args: [9]) {
+    fn nvs_core_test_request(ctx, args: [13]) {
         let ordinal = args[0].as_int().unwrap_or(-1);
         let Some(verb) = verb_of(ordinal) else {
             // Unreachable from source — the parameter is `CoreTy::Enum`, so
@@ -3204,7 +3292,7 @@ nvs_runtime::nvs_helper! {
             ));
         };
         let mount = args[4].as_text().unwrap_or("");
-        let spec = described(&verb, target, args)?;
+        let spec = described(ctx, &verb, target, args)?;
         let host = host_of(args)?;
         let mut completion = match nvs_runtime::inproc::answer(
             ctx,
@@ -6056,6 +6144,10 @@ mod tests {
             Value::array(nvs_runtime::NvsArray::new()),
             Value::null(),
             Value::null(),
+            Value::unset(),
+            Value::null(),
+            Value::null(),
+            Value::null(),
         ]
     }
 
@@ -6094,10 +6186,10 @@ mod tests {
         );
         // The slots the ABI hands a member, of which this reading uses the bag's
         // alone: the verb is the caller's `verb_of` and the target is a
-        // parameter rather than a slot. The last five are `mount`, `captures`,
-        // `cookies`, `clientIp` and `scheme`, written as the defaults an
-        // omitting call site passes, which describe a request served at the
-        // root from no address over `http`.
+        // parameter rather than a slot. The rest are `mount`, `captures`,
+        // `cookies`, `clientIp`, `scheme` and the four other body keys, written
+        // as the defaults an omitting call site passes, which describe a
+        // request served at the root from no address over `http`.
         let args = [
             Value::int(0),
             Value::text("/hooks?since=2"),
@@ -6108,10 +6200,14 @@ mod tests {
             Value::array(nvs_runtime::NvsArray::new()),
             Value::null(),
             Value::null(),
+            Value::unset(),
+            Value::null(),
+            Value::null(),
+            Value::null(),
         ];
-        let described =
-            described("POST", "/hooks?since=2", &args).expect("this bag is what the row declares");
         let mut ctx = Ctx::buffered();
+        let described = described(&mut ctx, "POST", "/hooks?since=2", &args)
+            .expect("this bag is what the row declares");
         ctx.set_inbound(described.build());
 
         let read = |ctx: &mut Ctx, member, arguments: &[Value]| -> Vec<u8> {
