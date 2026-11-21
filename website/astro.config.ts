@@ -815,7 +815,7 @@ export default defineConfig({
               ],
             },
             { label: 'Novis is new', link: '/in-depth/new/' },
-            { label: 'Novis, PHP, Bun and Go compared', link: '/in-depth/compare/' },
+            { label: 'Novis compared with the top languages for the web', link: '/in-depth/compare/' },
             { label: 'Coming from PHP', link: '/in-depth/coming-from-php/' },
             { label: 'Personal opinions', link: '/in-depth/personal-opinions/' },
             { label: 'All questions', link: '/in-depth/questions/' },
