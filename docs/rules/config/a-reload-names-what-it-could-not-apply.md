@@ -7,6 +7,13 @@ line, under a message that states the running configuration is unchanged. A `Rel
 resource could not be built is one record of its own, naming the key and the reason, and that key
 keeps its running value (`rule:config/reloadability-is-its-own-field`).
 
+**A code check names each program it swapped or could not compile.** A swapped program is one
+record under `program reloaded`, with its entry file and its new program digest. A program whose
+edit does not compile is one record under `program reload failed`, with its entry file and the
+first diagnostic's file, line and message. The revalidation pass writes both, whether a timed pass
+or `nvs reload` (`rule:config/a-reload-command-checks-now-and-waits`) started it. Cost: one record
+per edit, never one per request.
+
 Naming the ignored `Boot` keys is the difference between a reload an operator can trust and one they
 have to guess about: silently ignoring a changed listen address is how a deployment ends up believing
 it applied a change it did not. The report and the carry are one operation — the published snapshot

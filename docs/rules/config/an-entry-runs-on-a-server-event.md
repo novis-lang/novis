@@ -35,9 +35,13 @@ for the other.
   ends is cancelled as a request is. `stop` never runs on a kill, a crash or a power loss, so a
   "this host is down" alert still needs a monitor outside the process. A `cron` entry due during the
   drain does not run.
-- **`reload`** runs once per new reload outcome, under the snapshot serving when it runs. Its map
-  adds `"outcome" => "applied" | "refused"` and `"restart" => [<Boot key names>]`, the keys whose
-  change waits for a restart. It never carries a value, a file path or the refusal's text, because a
+- **`reload`** runs once per new reload outcome, under the snapshot serving when it runs. A reload
+  outcome is a configuration reload, a code check pass that swapped or refused a program, and every
+  `nvs reload` (`rule:config/a-reload-command-checks-now-and-waits`). Its map adds
+  `"outcome" => "applied" | "refused"`, `"restart" => [<Boot key names>]`, the keys whose change
+  waits for a restart, `"programs" => <int>`, the programs swapped, and `"failed" => <int>`, the
+  programs that did not compile. `outcome` is `refused` when the configuration or any program was
+  refused, and `applied` otherwise. It never carries a value, a file path or the refusal's text, because a
   refusal quotes the line it refused and that line can hold a secret; the script reads the details
   from the log. Several reloads between two passes run it once, with the newest outcome. The ticker
   rearms before it runs events, so an entry the reload itself added runs for that reload.

@@ -37,6 +37,7 @@
     "config/a-request-keeps-the-unit-it-resolved",
     "config/a-broken-edit-fails-the-requests-that-resolve-it",
     "config/a-reload-names-what-it-could-not-apply",
+    "config/a-reload-command-checks-now-and-waits",
     "config/check-and-dump-audit-the-tree-offline",
     "config/two-modes-and-the-default-is-production",
     "config/no-environment-variable-selects-the-mode",

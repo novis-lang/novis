@@ -1,0 +1,17 @@
+{
+  "title": "`nvs reload` makes every running server of a data folder check its configuration and its loaded programs now, and replies when each compile ends",
+  "status": "designed",
+  "seeAlso": [
+    "config/an-edit-reaches-the-next-request-without-a-restart",
+    "config/the-config-is-an-immutable-snapshot",
+    "config/a-reload-names-what-it-could-not-apply",
+    "config/an-entry-runs-on-a-server-event",
+    "config/opcache-revalidation-is-system-class",
+    "packaging/a-service-answers-its-manager"
+  ],
+  "guardedBy": [
+    "crates/nvs-cli/src/reload.rs",
+    "crates/nvs-cli/src/script.rs"
+  ],
+  "goal": "reload-now"
+}

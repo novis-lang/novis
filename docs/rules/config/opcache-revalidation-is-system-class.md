@@ -20,6 +20,11 @@ wins, because the mode supplies a default and nothing more.
 `revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
 from an operator's, so it keeps its own default under either mode.
 
+**A server that relies on `nvs reload` alone sets a long interval**, such as
+`revalidate_freq = "1h"`, in place of `never`. A developer or a coding agent then makes each batch
+of edits live with `nvs reload` (`rule:config/a-reload-command-checks-now-and-waits`), and a
+forgotten reload still goes live within the hour.
+
 **Declined:**
 - **Keeping `never` for operators who want it.** It is the outage a restart-free deploy removes, and
   the cost it saved is one background `stat` per file per window. A value kept for compatibility

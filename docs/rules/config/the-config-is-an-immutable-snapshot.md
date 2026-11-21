@@ -44,8 +44,10 @@ tree read or probed: each root, each include, each included directory and each o
 was absent. A stamp that moved and then holds for one more check is a saved file, and the tree is
 resolved and published under one lock, so two reloads never interleave two snapshots. A tree equal to
 the one serving publishes nothing. A tree that does not validate is logged once for each distinct
-refusal, with its file and line, and the running configuration stays. Nothing else starts a reload:
-no signal and no service manager's control (`rule:packaging/a-service-answers-its-manager`). A server
+refusal, with its file and line, and the running configuration stays. The one other start is
+`nvs reload` (`rule:config/a-reload-command-checks-now-and-waits`), which runs the same check at once
+without the quiet check and replies with its outcome. No signal and no service manager's control
+starts a reload (`rule:packaging/a-service-answers-its-manager`). A server
 whose roots are the shipped defaults read no file, and has nothing to check.
 
 Cost: one `Arc` clone at request start and **no syscall** on the request path, and one `stat` per
@@ -66,13 +68,16 @@ configuration path every two seconds on the checking thread.
   event that happens a few times a day.
 - **`SIGHUP` as the reload trigger.** It has no Windows equivalent and no payload, so it carries
   nothing a reload could report back (`rule:packaging/a-service-answers-its-manager`). It also stops
-  the server, and a signal that stops it in one place and reloads it in another is a trap.
+  the server, and a signal that stops it in one place and reloads it in another is a trap. The
+  private socket `nvs reload` reaches answers all three: it exists on every platform, it replies
+  with the outcome, and it does nothing but reload.
 - **A file-system watcher on the configuration files.** A lost event is a change that never arrives,
   and a timed `stat` of a known list cannot miss one
   (`rule:config/an-edit-reaches-the-next-request-without-a-restart`).
 - **Applying a changed file at once.** A file read while it is being written can be valid and still
   incomplete, a block cut off at a line boundary, and publishing it would drop every key after the
-  cut. One quiet check costs two seconds.
+  cut. One quiet check costs two seconds. `nvs reload` skips it, because the person who runs it
+  says the writes are done.
 - **Restart only.** Defensible behind a load balancer with rolling deploys, and still not enough
   when one process holds the whole concurrency.
 - **One snapshot per entry file, unshared.** Correct, but it spends a snapshot per file where most

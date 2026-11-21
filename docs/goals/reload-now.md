@@ -6,7 +6,7 @@ context: [crates/nvs-cli/src/reload.rs, crates/nvs-cli/src/script.rs, docs/rules
 stages:
   - id: 1
     title: the rules say what nvs reload does, and what it changes in the four rules it touches
-    status: open
+    status: done
     context: [docs/rules/config/opcache-revalidation-is-system-class.md, docs/rules/config/an-entry-runs-on-a-server-event.md, docs/rules/packaging/a-service-answers-its-manager.md, docs/rules/config/a-reload-names-what-it-could-not-apply.md]
   - id: 2
     title: each nvs serve process opens a private reload endpoint in its data folder
@@ -170,9 +170,12 @@ closes any other request without a reply, and answers with one JSON line: the co
 file, line and message. The reply goes only to the serving account or an administrator, who can
 read the log already, so it carries the error text. A constant, not a setting.
 
-**Two reloads at once share one check.** A reload that arrives while another runs waits for the
-running one and gets its reply, or starts one more check if the running one began before it
-arrived. A timer pass that is running is waited for, then the reload's own check runs.
+**Two reloads at once share one check.** A reply only ever comes from a check that began after the
+reload arrived, because an earlier check may have read the files before the caller's writes. So a
+reload that arrives while any check runs (a timer pass or another reload) waits for it, then one
+more check runs, and every reload that arrived during the running one shares that check and its
+reply: a burst costs at most two checks. (Stage 1 pinned this reading; the first wording's "or
+starts one more check if the running one began before it arrived" held for every running check.)
 
 **The command.** `nvs reload [--config <path>]... [--data <dir>] [--json]`. It resolves the data
 folder as `nvs serve` does and reaches every endpoint there. Several servers that share one data
@@ -232,24 +235,24 @@ sessions writes what holds it in the handoff and the next session splits it.
 
 ### 1. the rules say what nvs reload does, and what it changes in the four rules it touches
 
-- [ ] `docs/rules/config/a-reload-command-checks-now-and-waits.md:1` and
+- [x] `docs/rules/config/a-reload-command-checks-now-and-waits.md:1` and
   `data/rules/config/a-reload-command-checks-now-and-waits.json:1`: the new rule, from § *Standing
   decisions*: what a reload does in order, the endpoint and who can reach it, the wire, two at once,
   the command and its exit codes, only `nvs serve`, and its costs. Declined: a cache flush; a TCP or
   HTTP endpoint; `SIGHUP`; a systemd `ExecReload` or SCM control; a `--timeout`; a `never` value.
-- [ ] `docs/rules/config/an-edit-reaches-the-next-request-without-a-restart.md:40`: "a client cannot
+- [x] `docs/rules/config/an-edit-reaches-the-next-request-without-a-restart.md:40`: "a client cannot
   trigger a recompile" names the new rule as the one local exception, and `settle` is skipped only by
   it.
-- [ ] `docs/rules/config/the-config-is-an-immutable-snapshot.md:47`: "Nothing else starts a reload"
+- [x] `docs/rules/config/the-config-is-an-immutable-snapshot.md:47`: "Nothing else starts a reload"
   names `nvs reload`. The `SIGHUP` decline keeps its reasons and says a socket answers them.
-- [ ] `docs/rules/packaging/a-service-answers-its-manager.md:9`: one sentence that `nvs reload` is the
+- [x] `docs/rules/packaging/a-service-answers-its-manager.md:9`: one sentence that `nvs reload` is the
   way to reload, on every platform, and a unit has no reload command.
-- [ ] `docs/rules/config/opcache-revalidation-is-system-class.md:9`: the long interval as the way to
+- [x] `docs/rules/config/opcache-revalidation-is-system-class.md:9`: the long interval as the way to
   rely on `nvs reload` alone.
-- [ ] `docs/rules/config/an-entry-runs-on-a-server-event.md:38`: `reload` fires for a code pass too,
+- [x] `docs/rules/config/an-entry-runs-on-a-server-event.md:38`: `reload` fires for a code pass too,
   with `programs` and `failed`, and `outcome` covers both.
-- [ ] `docs/rules/config/a-reload-names-what-it-could-not-apply.md:1`: the two program records.
-- [ ] `bun nv rules --render`, then the `rules` check.
+- [x] `docs/rules/config/a-reload-names-what-it-could-not-apply.md:1`: the two program records.
+- [x] `bun nv rules --render`, then the `rules` check.
 
 ### 2. each nvs serve process opens a private reload endpoint in its data folder
 
@@ -335,11 +338,21 @@ written.
 
 ### State
 
-Written by the authoring session from a user report. Nothing is built.
+Stage 1 is done and the `rules` check is green. `rule:config/a-reload-command-checks-now-and-waits`
+is new, `designed` and owned by this goal. The six amended rules cite it. Stage 3 flips its record's
+`status` to `shipped` and drops `goal` once the endpoint answers.
+
+The nightly CI failures (`xml::tests::source_stops_at_the_memory_limit_before_it_escapes` on every
+runner and Miri, and `tests/conformance/iter/an-object-map-passes-where-a-keyed-iterable-is-declared.nvst`
+on every conformance job) ran on `5d053fc6e6`. Both were fixed after it, by `e5a100b18f` and
+`438e9c44af`. Both pass on this tree, so no change was made for them.
 
 ### Next
 
-Stage 1, the rules, from its first item. Every check after `rules` names tests that do not exist yet
-and fails until its stage writes them.
+Stage 2, the endpoint, from its first item and its `**Split:**` line: `Folder::run` at
+`crates/nvs-config/src/data.rs:155`, the endpoint type at `crates/nvs-host/src/net.rs:717`, the
+wiring at `crates/nvs-cli/src/serve.rs:2961`, and the four `endpoint` tests in the new
+`crates/nvs-cli/tests/reload_command.rs`. Every check after `rules` names tests that do not exist
+yet and stays red until its stage writes them.
 
 ### Backlog

@@ -37,7 +37,11 @@ reaches is that case. The table keeps, per path, the unit in force and the one i
 reverted edit is a pointer swap and not a compile.
 
 There is no file-system watcher, no stop-the-world phase and no second process, and a client cannot
-trigger a recompile — only the program's own files changing do. The cost is one `stat` per loaded
+trigger a recompile — only the program's own files changing do. The one local exception is
+`nvs reload` (`rule:config/a-reload-command-checks-now-and-waits`): the serving account or an
+administrator runs the same check at once, through a private endpoint no request can reach, and it
+compiles only what that check finds moved. It is also the only thing that skips `settle`, because
+its caller says the writes are done. The cost is one `stat` per loaded
 file, and one per listed directory, per `revalidate_freq`, off the request path. Only a program some
 request has loaded is checked, so a deploy that touches many files recompiles only the programs in
 use. The table is the one structure every core shares, so a swap made by the check is what every

@@ -3,6 +3,8 @@
 
 # Configuration
 
+*1 of 67 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="config-the-file-is-nvs-toml-and-it-is-toml"></a>
 
 ## The configuration file is `nvs.toml`, and it is TOML
@@ -1203,8 +1205,10 @@ tree read or probed: each root, each include, each included directory and each o
 was absent. A stamp that moved and then holds for one more check is a saved file, and the tree is
 resolved and published under one lock, so two reloads never interleave two snapshots. A tree equal to
 the one serving publishes nothing. A tree that does not validate is logged once for each distinct
-refusal, with its file and line, and the running configuration stays. Nothing else starts a reload:
-no signal and no service manager's control ([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)). A server
+refusal, with its file and line, and the running configuration stays. The one other start is
+`nvs reload` ([`config/a-reload-command-checks-now-and-waits`](config.md#config-a-reload-command-checks-now-and-waits)), which runs the same check at once
+without the quiet check and replies with its outcome. No signal and no service manager's control
+starts a reload ([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)). A server
 whose roots are the shipped defaults read no file, and has nothing to check.
 
 Cost: one `Arc` clone at request start and **no syscall** on the request path, and one `stat` per
@@ -1225,13 +1229,16 @@ configuration path every two seconds on the checking thread.
   event that happens a few times a day.
 - **`SIGHUP` as the reload trigger.** It has no Windows equivalent and no payload, so it carries
   nothing a reload could report back ([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)). It also stops
-  the server, and a signal that stops it in one place and reloads it in another is a trap.
+  the server, and a signal that stops it in one place and reloads it in another is a trap. The
+  private socket `nvs reload` reaches answers all three: it exists on every platform, it replies
+  with the outcome, and it does nothing but reload.
 - **A file-system watcher on the configuration files.** A lost event is a change that never arrives,
   and a timed `stat` of a known list cannot miss one
   ([`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart)).
 - **Applying a changed file at once.** A file read while it is being written can be valid and still
   incomplete, a block cut off at a line boundary, and publishing it would drop every key after the
-  cut. One quiet check costs two seconds.
+  cut. One quiet check costs two seconds. `nvs reload` skips it, because the person who runs it
+  says the writes are done.
 - **Restart only.** Defensible behind a load balancer with rolling deploys, and still not enough
   when one process holds the whole concurrency.
 - **One snapshot per entry file, unshared.** Correct, but it spends a snapshot per file where most
@@ -1638,7 +1645,11 @@ reaches is that case. The table keeps, per path, the unit in force and the one i
 reverted edit is a pointer swap and not a compile.
 
 There is no file-system watcher, no stop-the-world phase and no second process, and a client cannot
-trigger a recompile — only the program's own files changing do. The cost is one `stat` per loaded
+trigger a recompile — only the program's own files changing do. The one local exception is
+`nvs reload` ([`config/a-reload-command-checks-now-and-waits`](config.md#config-a-reload-command-checks-now-and-waits)): the serving account or an
+administrator runs the same check at once, through a private endpoint no request can reach, and it
+compiles only what that check finds moved. It is also the only thing that skips `settle`, because
+its caller says the writes are done. The cost is one `stat` per loaded
 file, and one per listed directory, per `revalidate_freq`, off the request path. Only a program some
 request has loaded is checked, so a deploy that touches many files recompiles only the programs in
 use. The table is the one structure every core shares, so a swap made by the check is what every
@@ -1752,6 +1763,13 @@ line, under a message that states the running configuration is unchanged. A `Rel
 resource could not be built is one record of its own, naming the key and the reason, and that key
 keeps its running value ([`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)).
 
+**A code check names each program it swapped or could not compile.** A swapped program is one
+record under `program reloaded`, with its entry file and its new program digest. A program whose
+edit does not compile is one record under `program reload failed`, with its entry file and the
+first diagnostic's file, line and message. The revalidation pass writes both, whether a timed pass
+or `nvs reload` ([`config/a-reload-command-checks-now-and-waits`](config.md#config-a-reload-command-checks-now-and-waits)) started it. Cost: one record
+per edit, never one per request.
+
 Naming the ignored `Boot` keys is the difference between a reload an operator can trust and one they
 have to guess about: silently ignoring a changed listen address is how a deployment ends up believing
 it applied a change it did not. The report and the carry are one operation — the published snapshot
@@ -1770,6 +1788,94 @@ extension removed while source still references it — those units fail when nex
 ([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)).
 
 <sub>See also [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager).</sub>
+
+<a id="config-a-reload-command-checks-now-and-waits"></a>
+
+## `nvs reload` makes every running server of a data folder check its configuration and its loaded programs now, and replies when each compile ends  *(designed — owned by goal reload-now)*
+
+`rule:config/a-reload-command-checks-now-and-waits`
+
+`nvs reload` makes a running `nvs serve` match the disk now, for its configuration and its code
+alike, and returns when the server does. It is one command for both, and it never empties a cache:
+units are keyed by content ([`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart)), so
+stale code is not possible, only a delay, and emptying the table would recompile every program in
+front of live traffic.
+
+**What a reload does, in order.** The configuration check runs at once, without the extra quiet
+check a timed pass waits for, and publishes or refuses exactly as a timed pass does
+([`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot)). Then every loaded program is checked at once,
+with `[opcache] settle` skipped: the caller says the writes are done. The re-check after a compile
+stays, so a file that moved during the compile still discards it and the compile is retried. The
+reply is sent when every compile the reload started has ended. A program no request has loaded is
+not compiled; its first request compiles it, as it always does.
+
+**The endpoint.** Each `nvs serve` process opens one endpoint under `<data>/run/`, a folder beside
+`<data>/cache/` made private by the same code that makes the data folder private. Its name is
+`serve-<pid>-<start time>`, so a restarted process never reuses one.
+
+- **Unix:** a Unix socket at that path. The peer's uid must be the serving account's or `0`, read
+  with `SO_PEERCRED` on Linux and `getpeereid` on macOS, and any other peer is closed unanswered.
+- **Windows:** a named pipe with a random 128-bit name, written into a file at that path. The pipe's
+  DACL admits the serving account, `Administrators` and `SYSTEM`, and it is created with
+  `PIPE_REJECT_REMOTE_CLIENTS` and `FILE_FLAG_FIRST_PIPE_INSTANCE`.
+- **No TCP and no HTTP.** A request cannot reach the endpoint: the data folder is outside every
+  grant a program can hold.
+
+The endpoint is removed in the drain. A command that finds the endpoint of a process that is no
+longer running skips it and removes it.
+
+**The wire is one line each way.** The command sends `reload 1\n`. The server reads at most 64
+bytes and closes any other request without a reply. It answers with one JSON line: the
+configuration outcome (`applied`, `refused` or `unchanged`), the restart keys, the swapped program
+count, and every refusal with its file, line and message. Only the serving account or an
+administrator can read the reply, and both can read the log already, so it carries the error text
+the `reload` event leaves out. The 64-byte bound is a constant, not a setting.
+
+**Two reloads at once share one check.** A reply only ever comes from a check that began after the
+reload arrived, because a check that began earlier may have read the files before the caller's
+writes. So a reload that arrives while a check runs, a timed pass or another reload, waits for it to
+end, and then one more check runs. Every reload that arrived during the running check shares that
+next check and its reply, so a burst of reloads costs at most two checks.
+
+**The command.** `nvs reload [--config <path>]... [--data <dir>] [--json]` resolves the data folder
+as `nvs serve` does and reaches every endpoint in it, so several servers that share one data folder
+each get the reload, and the command reports each. It exits `0` when every server applied
+everything, `1` when any configuration file or program was refused, and `2` when no server
+answered. The requests that reach a refused program fail
+([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)). `--json` prints one document, in
+the shape `nvs cache --json` prints. A server that stops during a reload is reported as stopped.
+
+**Only `nvs serve` has an endpoint.** `nvs run` and `nvs test` start a new process that compiles
+from disk, so they need no reload, and a long `nvs run` worker is not reached.
+
+**A developer or an agent that relies on `nvs reload` alone sets a long interval**, such as
+`revalidate_freq = "1h"` ([`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class)). A forgotten reload
+still goes live within that interval.
+
+- **Memory:** per process, one endpoint and one blocked accept, on a thread the server already has
+  or one small thread of its own, and one 64-byte read buffer per connection while it is read. A
+  reload holds one reply until it is written. Nothing on the request path and nothing per request.
+- **Latency:** none on the request path. A reload compiles the programs a timed pass would have
+  compiled, sooner, on the same compile pool.
+
+**Declined:**
+- **A cache flush.** Stale code is not possible under content keys, and a flush recompiles every
+  program in front of live traffic.
+- **A TCP or HTTP endpoint.** A port is reachable by whatever else runs on the host, and an HTTP
+  route would be one a request could name. A private file in the data folder is reachable only by
+  the accounts that can already read the log.
+- **`SIGHUP`.** It has no Windows equivalent and carries no reply, so the caller cannot learn whether
+  the reload applied ([`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot)).
+- **A systemd `ExecReload` or a Windows service control.** The command would then differ per
+  platform, and the manager learns nothing it can report
+  ([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)).
+- **A `--timeout`.** Every compile is bounded by its own limits, and a server that stops during a
+  reload is reported as stopped.
+- **A `never` value for `revalidate_freq` or `validate`.** A forgotten reload would then pin the old
+  code until a restart; a long interval gives the same quiet with a bound
+  ([`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class)).
+
+<sub>See also [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/an-entry-runs-on-a-server-event`](config.md#config-an-entry-runs-on-a-server-event), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager).</sub>
 
 <a id="config-check-and-dump-audit-the-tree-offline"></a>
 
@@ -2589,9 +2695,13 @@ for the other.
   ends is cancelled as a request is. `stop` never runs on a kill, a crash or a power loss, so a
   "this host is down" alert still needs a monitor outside the process. A `cron` entry due during the
   drain does not run.
-- **`reload`** runs once per new reload outcome, under the snapshot serving when it runs. Its map
-  adds `"outcome" => "applied" | "refused"` and `"restart" => [<Boot key names>]`, the keys whose
-  change waits for a restart. It never carries a value, a file path or the refusal's text, because a
+- **`reload`** runs once per new reload outcome, under the snapshot serving when it runs. A reload
+  outcome is a configuration reload, a code check pass that swapped or refused a program, and every
+  `nvs reload` ([`config/a-reload-command-checks-now-and-waits`](config.md#config-a-reload-command-checks-now-and-waits)). Its map adds
+  `"outcome" => "applied" | "refused"`, `"restart" => [<Boot key names>]`, the keys whose change
+  waits for a restart, `"programs" => <int>`, the programs swapped, and `"failed" => <int>`, the
+  programs that did not compile. `outcome` is `refused` when the configuration or any program was
+  refused, and `applied` otherwise. It never carries a value, a file path or the refusal's text, because a
   refusal quotes the line it refused and that line can hold a secret; the script reads the details
   from the log. Several reloads between two passes run it once, with the newest outcome. The ticker
   rearms before it runs events, so an entry the reload itself added runs for that reload.
@@ -2917,6 +3027,11 @@ wins, because the mode supplies a default and nothing more.
 
 `revalidate_freq` is deliberately not a mode row: no value of it a developer's machine needs differs
 from an operator's, so it keeps its own default under either mode.
+
+**A server that relies on `nvs reload` alone sets a long interval**, such as
+`revalidate_freq = "1h"`, in place of `never`. A developer or a coding agent then makes each batch
+of edits live with `nvs reload` ([`config/a-reload-command-checks-now-and-waits`](config.md#config-a-reload-command-checks-now-and-waits)), and a
+forgotten reload still goes live within the hour.
 
 **Declined:**
 - **Keeping `never` for operators who want it.** It is the outage a restart-free deploy removes, and

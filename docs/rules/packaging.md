@@ -4458,7 +4458,8 @@ reporting what it can see from outside:
 No control from either manager starts a reload. The server reloads by itself when a configuration
 file is saved ([`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot)), and tells a systemd unit
 `RELOADING=1` and then `READY=1` around it. The SCM is never told the service accepts `PARAMCHANGE`,
-and a systemd unit has no reload command.
+and a systemd unit has no reload command. To reload at once, on every platform, an operator runs
+`nvs reload` ([`config/a-reload-command-checks-now-and-waits`](config.md#config-a-reload-command-checks-now-and-waits)).
 
 Failure actions are set at install — `--restart on-failure` by default, with a reset period — beside
 delayed auto-start (`--start`), dependencies (`--depends-on`, for a database that must come up first)
