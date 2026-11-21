@@ -940,3 +940,66 @@ fn ordinal(index: usize) -> String {
 fn is_separator(ch: char) -> bool {
     ch == '/' || ch == '\\'
 }
+
+/// What a request says its host is, read the way
+/// `rule:http-server/host-matching-is-on-the-host-part-only` compares a host
+/// mount by.
+///
+/// It is here, beside the rows it is compared with, because two crates pick a
+/// row by it: the server's door and `Core\Test::request`'s
+/// (`rule:testing/in-process-request`). One reading keeps a test request on
+/// the row a served one reaches.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Host<'a> {
+    /// The host part: no port, ASCII lower case, and one trailing dot removed.
+    /// Those three are equivalences the specifications define, so this is the
+    /// value as written rather than a repair of it, and punycode is compared
+    /// as the letters it is.
+    Named(std::borrow::Cow<'a, str>),
+    /// The request names no authority: no `Host` line, or an empty one, and
+    /// no authority in its target. On HTTP/1.1 the door answers it `400`.
+    Absent,
+    /// A host no mount may match: a byte that is not ASCII, or more than one
+    /// `Host` line. The door answers it `400` and gives it no mount, because a
+    /// host-less mount taking it would answer a request for a tenant the
+    /// deployment never named.
+    Refused,
+}
+
+/// One authority as a [`Host`]: the port stripped, then one trailing dot,
+/// then ASCII case folded.
+#[must_use]
+pub fn folded_host(authority: &str) -> Host<'_> {
+    use std::borrow::Cow;
+    if !authority.is_ascii() {
+        return Host::Refused;
+    }
+    let host = named(authority.trim_ascii());
+    let host = host
+        .strip_suffix('.')
+        .filter(|rest| !rest.is_empty())
+        .unwrap_or(host);
+    if host.is_empty() {
+        Host::Absent
+    } else if host.bytes().any(|byte| byte.is_ascii_uppercase()) {
+        Host::Named(Cow::Owned(host.to_ascii_lowercase()))
+    } else {
+        Host::Named(Cow::Borrowed(host))
+    }
+}
+
+/// An authority's host, without the port a client is entitled to send with it.
+///
+/// A `Host` header carries `name:port` and a mount's `host` is a name, so a
+/// comparison against the header as it arrived would never match the very
+/// deployment `rule:http-server/a-mount-table-expands-at-boot`'s
+/// `host = "{1}.example.com"` is written for — a development
+/// server on `:8123`. A bracketed IPv6 literal keeps its colons, since the port
+/// is the one after the `]`.
+fn named(authority: &str) -> &str {
+    let after = authority.rfind(']').map_or(0, |at| at + 1);
+    match authority[after..].find(':') {
+        Some(at) => &authority[..after + at],
+        None => authority,
+    }
+}

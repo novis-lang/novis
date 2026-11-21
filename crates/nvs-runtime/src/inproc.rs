@@ -136,6 +136,11 @@ impl Mounts {
     /// that prefix, the one whose host is `host` comes first, then the one with
     /// no host, then any. Each link is resolved by
     /// [`nvs_config::mount::links_of`], the function the server calls.
+    ///
+    /// `host` is the authority as the request wrote it, and it is read by
+    /// [`nvs_config::mount::folded_host`], as the server's door reads it: the
+    /// port, one trailing dot and the case do not change the row. A host the
+    /// door refuses reaches no row, so it gives no table.
     #[must_use]
     pub fn links_for(
         &self,
@@ -144,12 +149,18 @@ impl Mounts {
         handlers: &[String],
     ) -> Option<std::sync::Arc<crate::ModuleLinks>> {
         let prefix = if mount.is_empty() { "/" } else { mount };
+        let host = match host.map(nvs_config::mount::folded_host) {
+            Some(nvs_config::mount::Host::Refused) => return None,
+            Some(nvs_config::mount::Host::Named(name)) => Some(name),
+            Some(nvs_config::mount::Host::Absent) | None => None,
+        };
         let rows = &self.rows;
         let at = |wanted: Option<&str>| {
             rows.iter()
                 .position(|row| row.prefix == prefix && row.host.as_deref() == wanted)
         };
         let from = host
+            .as_deref()
             .and_then(|host| at(Some(host)))
             .or_else(|| at(None))
             .or_else(|| rows.iter().position(|row| row.prefix == prefix))?;

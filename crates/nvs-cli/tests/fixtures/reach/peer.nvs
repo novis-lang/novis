@@ -1,0 +1,87 @@
+<?nvs
+// The peer a test request states: its client address, its scheme, its cookies
+// and the trace it continues. Each test checks what the program reads back.
+use Core\Http\Method;
+
+class Peer
+{
+    #[Core\Test]
+    public function clientAddressIsStated(): void
+    {
+        var $answered = Core\Test::request(Method::Get, '/ip', { clientIp: '203.0.113.9' });
+        Core\Test::assertEquals($answered->body(), '203.0.113.9');
+        var $six = Core\Test::request(Method::Get, '/ip', { clientIp: '2001:db8::7' });
+        Core\Test::assertEquals($six->body(), '2001:db8::7');
+    }
+
+    #[Core\Test]
+    public function noPeerHasNoAddress(): void
+    {
+        Core\Test::assertEquals(Core\Test::request(Method::Get, '/ip')->body(), 'none');
+        Core\Test::assertEquals(Core\Test::request(Method::Get, '/scheme')->body(), 'http');
+    }
+
+    #[Core\Test]
+    public function badPeerIsALogicError(): void
+    {
+        Core\Test::assertThrows(fn(): void => {
+            Core\Test::request(Method::Get, '/ip', { clientIp: 'example.com' });
+        }, LogicError::class);
+        Core\Test::assertThrows(fn(): void => {
+            Core\Test::request(Method::Get, '/ip', { clientIp: '203.0.113.9:80' });
+        }, LogicError::class);
+        Core\Test::assertThrows(fn(): void => {
+            Core\Test::request(Method::Get, '/scheme', { scheme: 'ftp' });
+        }, LogicError::class);
+    }
+
+    #[Core\Test]
+    public function httpsReadsAHostCookie(): void
+    {
+        var $secure = Core\Test::request(Method::Get, '/host-cookie', {
+            scheme: 'https',
+            cookies: ['__Host-sid' => 'abc123'],
+        });
+        Core\Test::assertEquals($secure->body(), 'https abc123');
+        var $plain = Core\Test::request(Method::Get, '/host-cookie', {
+            cookies: ['__Host-sid' => 'abc123'],
+        });
+        Core\Test::assertEquals($plain->body(), 'http none');
+    }
+
+    #[Core\Test]
+    public function cookiesReachTheReaders(): void
+    {
+        var $answered = Core\Test::request(Method::Get, '/cookies', {
+            cookies: ['theme' => 'dark', 'lang' => 'de'],
+        });
+        Core\Test::assertEquals($answered->body(), 'dark de theme=dark; lang=de');
+        Core\Test::assertEquals(Core\Test::request(Method::Get, '/cookies')->body(), 'none none none');
+    }
+
+    #[Core\Test]
+    public function traceparentIsContinued(): void
+    {
+        var $answered = Core\Test::request(Method::Get, '/trace', {
+            headers: ['traceparent' => '00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01'],
+        });
+        Core\Test::assertEquals($answered->body(), '4bf92f3577b34da6a3ce929d0e0e4736');
+    }
+}
+
+// The suite's own load answers no request, so it writes nothing.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    var $path = Core\Request::path();
+    if ($path == '/ip') {
+        echo Core\Request::clientIp() ?? 'none';
+    } elseif ($path == '/scheme') {
+        echo Core\Request::scheme();
+    } elseif ($path == '/host-cookie') {
+        echo Core\Request::scheme(), ' ', Core\Request::cookie('__Host-sid') ?? 'none';
+    } elseif ($path == '/cookies') {
+        echo Core\Request::cookie('theme') ?? 'none', ' ', Core\Request::cookie('lang') ?? 'none', ' ',
+            Core\Request::header('cookie') ?? 'none';
+    } elseif ($path == '/trace') {
+        echo Core\Server::traceId();
+    }
+}

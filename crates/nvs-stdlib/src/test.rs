@@ -548,6 +548,15 @@ const SENT_BODY: &[CoreTy] = &[CoreTy::Text(Qual::Neutral), CoreTy::Blob(Qual::N
 /// and [`described`] throws a `LogicError` for it rather than handing a program
 /// captures under an empty prefix. Keys are not read: a map passed here is a
 /// defect too, and it is refused for the same reason.
+///
+/// **`clientIp` and `scheme` are stated, never derived**
+/// (`rule:testing/in-process-request`): they are what the `[server]
+/// trusted_proxies` walk would have settled on, so they default to
+/// [`Const::Null`] — no address, and `http` — and no header the bag carries
+/// changes them. **`cookies` is a map of name to value**, sent as one `cookie`
+/// field line by `nvs_runtime::InboundSpec::push_cookie`, as a `.nvt` case's
+/// `--COOKIE--` is. The three are appended after `captures` so every earlier
+/// option keeps its argument slot.
 const REQUEST_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "headers",
@@ -568,6 +577,21 @@ const REQUEST_OPTIONS: &[CoreOption] = &[
         name: "captures",
         ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
         default: Const::EmptyArray,
+    },
+    CoreOption {
+        name: "cookies",
+        ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+        default: Const::EmptyArray,
+    },
+    CoreOption {
+        name: "clientIp",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "scheme",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
     },
 ];
 
@@ -1243,6 +1267,27 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
                    pattern `/shops/{1}` and `mount: \"/shops/acme\"`, this is `[\"acme\"]`. \
                    `Core\\Request::mount()->captures()` returns this list. The default is an \
                    empty list. You need `mount` to give `captures`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "cookies",
+            desc: "The cookies the request sends, with the cookie name as the key, such as \
+                   `[\"sid\" => \"abc\"]`. `Core\\Request::cookie()` reads them. Each call sends \
+                   only the cookies you give it.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "clientIp",
+            desc: "The address of the client, such as `\"203.0.113.9\"`. \
+                   `Core\\Request::clientIp()` returns it. It must be one IPv4 or IPv6 address, \
+                   or the call throws a `LogicError`. If you give none, \
+                   `Core\\Request::clientIp()` returns `null`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "scheme",
+            desc: "`\"http\"` or `\"https\"`. `Core\\Request::scheme()` returns it. Any other \
+                   value throws a `LogicError`. The default is `\"http\"`.",
             shape: &[],
         },
     ],
@@ -2921,8 +2966,9 @@ fn verb_of(ordinal: i64) -> Option<String> {
 ///
 /// A [`Fault::fatal`] for a `headers` bag that is not `array<string>`, which
 /// `E0401` refuses a phase earlier and so is unreachable from source. A
-/// `LogicError` for `captures` given without a `mount`, and [`captures_of`]'s
-/// for `captures` that are not a list.
+/// `LogicError` for `captures` given without a `mount`, [`captures_of`]'s
+/// for `captures` that are not a list, and [`client_ip_of`]'s and
+/// [`scheme_of`]'s for a peer no trusted-proxy walk could settle on.
 fn described(verb: &str, target: &str, args: &[Value]) -> Result<nvs_runtime::InboundSpec, Fault> {
     // Split exactly as the door does: everything after the first `?` is the
     // query, undecoded, and a target with none has an empty one rather than no
@@ -2931,8 +2977,18 @@ fn described(verb: &str, target: &str, args: &[Value]) -> Result<nvs_runtime::In
     let mut spec = nvs_runtime::InboundSpec::new(verb, path);
     spec.set_query(query);
     for (name, value) in crate::http::headers_of(args, 2, "Core\\Test::request")? {
-        spec.push_header(&name, value.as_bytes());
+        // The host is the spec's own field, so `build` writes the one `host`
+        // line and the member reads the same value to pick the mount row.
+        if name.eq_ignore_ascii_case("host") {
+            spec.set_host(&value);
+        } else {
+            spec.push_header(&name, value.as_bytes());
+        }
     }
+    for (name, value) in cookies_of(&args[6])? {
+        spec.push_cookie(&name, &value);
+    }
+    spec.set_peer(client_ip_of(&args[7])?, scheme_of(&args[8])?);
     // A body is described only where one was written: the omitted default is
     // `null`, and a request carrying no body is not one carrying an empty body.
     // `SpecBody::Raw` frames nothing and declares nothing, which is what the
@@ -2977,9 +3033,88 @@ fn described(verb: &str, target: &str, args: &[Value]) -> Result<nvs_runtime::In
 fn links_through(
     mounts: &nvs_runtime::inproc::Mounts,
     mount: &str,
+    host: Option<&str>,
     handlers: &[String],
 ) -> Option<std::sync::Arc<nvs_runtime::ModuleLinks>> {
-    mounts.links_for(mount, None, handlers)
+    mounts.links_for(mount, host, handlers)
+}
+
+/// The `host` a test request's `headers` name, as the request wrote it, and
+/// `None` for none. [`links_through`] picks the mount row by it, after
+/// `nvs_config::mount::folded_host` reads it as the server's door does.
+fn host_of(args: &[Value]) -> Result<Option<String>, Fault> {
+    Ok(crate::http::headers_of(args, 2, "Core\\Test::request")?
+        .into_iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case("host"))
+        .map(|(_, value)| value))
+}
+
+/// The `cookies` option as name and value pairs, in the order written.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for an argument or a value that is not text,
+/// unreachable from source because the option declares `array<string>`.
+fn cookies_of(value: &Value) -> Result<Vec<(String, String)>, Fault> {
+    let Some(array) = value.array_ptr() else {
+        return Err(Fault::fatal(format!(
+            "Core\\Test::request expected an array for `cookies`, got tag {}",
+            value.tag_byte()
+        )));
+    };
+    crate::str::Entries::of(array)
+        .map(|(name, value)| {
+            // An array key is `int|string`, and neither is invalid UTF-8.
+            let name = String::from_utf8_lossy(name.as_bytes()).into_owned();
+            let text = value.as_text().ok_or_else(|| {
+                Fault::fatal(format!(
+                    "Core\\Test::request expected a `string` cookie value, got tag {}",
+                    value.tag_byte()
+                ))
+            })?;
+            Ok((name, text.to_owned()))
+        })
+        .collect()
+}
+
+/// The `clientIp` option: one IPv4 or IPv6 address, and `None` where it was
+/// omitted (`rule:testing/in-process-request`'s *the peer is stated*).
+///
+/// # Errors
+///
+/// A `LogicError` for text that is not one address. The trusted-proxy walk
+/// settles on an address or on none, so a host name, a port or a list is a
+/// request no server could have produced.
+fn client_ip_of(value: &Value) -> Result<Option<std::net::IpAddr>, Fault> {
+    let Some(text) = value.as_text() else {
+        return Ok(None);
+    };
+    text.parse().map(Some).map_err(|_| {
+        Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "Core\\Test::request(): `clientIp` must be one IPv4 or IPv6 address, and \
+                 `{text}` is not one"
+            ),
+        )
+    })
+}
+
+/// The `scheme` option, and `http` where it was omitted.
+///
+/// # Errors
+///
+/// A `LogicError` for anything but `"http"` and `"https"`, the two schemes a
+/// request is served over.
+fn scheme_of(value: &Value) -> Result<nvs_runtime::Scheme, Fault> {
+    match value.as_text() {
+        None | Some("http") => Ok(nvs_runtime::Scheme::Http),
+        Some("https") => Ok(nvs_runtime::Scheme::Https),
+        Some(other) => Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!("Core\\Test::request(): `scheme` must be \"http\" or \"https\", not `{other}`"),
+        )),
+    }
 }
 
 /// The `captures` option as the list `Core\Request\Mount::captures()` reads
@@ -3028,7 +3163,7 @@ fn captures_of(value: &Value) -> Result<Vec<String>, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Test::request(Core\Http\Method $method, string $path, { headers?: array<string>, body?: string|bytes, mount?: string, captures?: array<string> }): Core\Test\Response`
+    /// `Core\Test::request(Core\Http\Method $method, string $path, { headers?: array<string>, body?: string|bytes, mount?: string, captures?: array<string>, cookies?: array<string>, clientIp?: string, scheme?: string }): Core\Test\Response`
     /// — `rule:testing/in-process-request`'s in-process request.
     ///
     /// **Neither the match nor the dispatch happens here.** `rule:routing/matched-once-before-the-handler`'s
@@ -3049,7 +3184,7 @@ nvs_runtime::nvs_helper! {
     /// every request alike. So a handler that forgets to launder a header fails
     /// its test rather than production, and the test that pins it says nothing
     /// about being synthetic.
-    fn nvs_core_test_request(ctx, args: [6]) {
+    fn nvs_core_test_request(ctx, args: [9]) {
         let ordinal = args[0].as_int().unwrap_or(-1);
         let Some(verb) = verb_of(ordinal) else {
             // Unreachable from source — the parameter is `CoreTy::Enum`, so
@@ -3069,10 +3204,12 @@ nvs_runtime::nvs_helper! {
             ));
         };
         let mount = args[4].as_text().unwrap_or("");
+        let spec = described(&verb, target, args)?;
+        let host = host_of(args)?;
         let mut completion = match nvs_runtime::inproc::answer(
             ctx,
-            Box::new(described(&verb, target, args)?.build()),
-            |mounts, handlers| links_through(mounts, mount, handlers),
+            Box::new(spec.build()),
+            |mounts, handlers| links_through(mounts, mount, host.as_deref(), handlers),
         ) {
             Ok(completion) => completion,
             Err(refusal) => return Err(Fault::thrown(format!(
@@ -5899,6 +6036,29 @@ mod tests {
         assert_eq!(equality_members().count(), 3);
     }
 
+    /// `Core\Test::request`'s argument slots for `verb` and `target`, with
+    /// `mount`, `captures` and every other option at the default an omitting
+    /// call site passes. One home, so an option added to [`REQUEST_OPTIONS`]
+    /// moves this and no test.
+    fn request_args(
+        verb: &str,
+        target: &str,
+        mount: &str,
+        captures: nvs_runtime::NvsArray,
+    ) -> Vec<Value> {
+        vec![
+            Value::int(crate::router::method_case(verb).expect("a verb the roster names")),
+            Value::text(target),
+            Value::array(nvs_runtime::NvsArray::new()),
+            Value::null(),
+            Value::text(mount),
+            Value::array(captures),
+            Value::array(nvs_runtime::NvsArray::new()),
+            Value::null(),
+            Value::null(),
+        ]
+    }
+
     /// The release a compiled call site owes for a value a member answered.
     fn dropped(value: Value) {
         #[expect(unsafe_code, reason = "the member transferred what it answered")]
@@ -5934,9 +6094,10 @@ mod tests {
         );
         // The slots the ABI hands a member, of which this reading uses the bag's
         // alone: the verb is the caller's `verb_of` and the target is a
-        // parameter rather than a slot. The last two are `mount` and
-        // `captures`, written as the defaults an omitting call site passes,
-        // which describe a request served at the root.
+        // parameter rather than a slot. The last five are `mount`, `captures`,
+        // `cookies`, `clientIp` and `scheme`, written as the defaults an
+        // omitting call site passes, which describe a request served at the
+        // root from no address over `http`.
         let args = [
             Value::int(0),
             Value::text("/hooks?since=2"),
@@ -5944,6 +6105,9 @@ mod tests {
             Value::bytes(nvs_runtime::NvsStr::new(BODY)),
             Value::text(""),
             Value::array(nvs_runtime::NvsArray::new()),
+            Value::array(nvs_runtime::NvsArray::new()),
+            Value::null(),
+            Value::null(),
         ];
         let described =
             described("POST", "/hooks?since=2", &args).expect("this bag is what the row declares");
@@ -6589,14 +6753,7 @@ mod tests {
         }
 
         fn asked(ctx: &mut Ctx, mount: &str) -> String {
-            let args = [
-                Value::int(crate::router::method_case("GET").expect("a verb the roster names")),
-                Value::text("/"),
-                Value::array(nvs_runtime::NvsArray::new()),
-                Value::null(),
-                Value::text(mount),
-                Value::array(nvs_runtime::NvsArray::new()),
-            ];
+            let args = request_args("GET", "/", mount, nvs_runtime::NvsArray::new());
             let answered = nvs_runtime::call(nvs_core_test_request, ctx, &args)
                 .expect("an installed unit answers");
             for arg in args {
@@ -6721,14 +6878,7 @@ mod tests {
             for capture in captures {
                 listed.append(Value::text(capture));
             }
-            let args = [
-                Value::int(crate::router::method_case(verb).expect("a verb the roster names")),
-                Value::text(target),
-                Value::array(nvs_runtime::NvsArray::new()),
-                Value::null(),
-                Value::text(mount),
-                Value::array(listed),
-            ];
+            let args = request_args(verb, target, mount, listed);
             let answered = nvs_runtime::call(nvs_core_test_request, ctx, &args);
             for arg in args {
                 dropped(arg);
@@ -6863,14 +7013,7 @@ mod tests {
         }
 
         fn asked(ctx: &mut Ctx, unit: &HalfPage) -> Value {
-            let args = [
-                Value::int(crate::router::method_case("GET").expect("a verb the roster names")),
-                Value::text("/page"),
-                Value::array(nvs_runtime::NvsArray::new()),
-                Value::null(),
-                Value::text(""),
-                Value::array(nvs_runtime::NvsArray::new()),
-            ];
+            let args = request_args("GET", "/page", "", nvs_runtime::NvsArray::new());
             let answered = nvs_runtime::inproc::scoped(unit, || {
                 nvs_runtime::call(nvs_core_test_request, ctx, &args)
             })
@@ -6960,14 +7103,7 @@ mod tests {
         }
 
         let mut ctx = Ctx::buffered();
-        let args = [
-            Value::int(crate::router::method_case("GET").expect("a verb the roster names")),
-            Value::text("/document.pdf"),
-            Value::array(nvs_runtime::NvsArray::new()),
-            Value::null(),
-            Value::text(""),
-            Value::array(nvs_runtime::NvsArray::new()),
-        ];
+        let args = request_args("GET", "/document.pdf", "", nvs_runtime::NvsArray::new());
         let answered = nvs_runtime::inproc::scoped(&Octets, || {
             nvs_runtime::call(nvs_core_test_request, &mut ctx, &args)
         })
@@ -7115,14 +7251,7 @@ mod tests {
 
     /// `Core\Test::request` against `unit`, with every option at its default.
     fn declared(ctx: &mut Ctx, unit: &Declares) -> Value {
-        let args = [
-            Value::int(crate::router::method_case("GET").expect("a verb the roster names")),
-            Value::text("/page"),
-            Value::array(nvs_runtime::NvsArray::new()),
-            Value::null(),
-            Value::text(""),
-            Value::array(nvs_runtime::NvsArray::new()),
-        ];
+        let args = request_args("GET", "/page", "", nvs_runtime::NvsArray::new());
         let answered = nvs_runtime::inproc::scoped(unit, || {
             nvs_runtime::call(nvs_core_test_request, ctx, &args)
         })
@@ -7175,14 +7304,7 @@ mod tests {
         let script = dir.join("app.js");
         std::fs::write(&script, b"console.log(1)\n").expect("the scratch file is written");
         let mut ctx = Ctx::buffered();
-        let args = [
-            Value::int(crate::router::method_case("GET").expect("a verb the roster names")),
-            Value::text("/app.js"),
-            Value::array(nvs_runtime::NvsArray::new()),
-            Value::null(),
-            Value::text(""),
-            Value::array(nvs_runtime::NvsArray::new()),
-        ];
+        let args = request_args("GET", "/app.js", "", nvs_runtime::NvsArray::new());
         let answered = nvs_runtime::inproc::scoped(&SendsFile(script.clone()), || {
             nvs_runtime::call(nvs_core_test_request, &mut ctx, &args)
         })

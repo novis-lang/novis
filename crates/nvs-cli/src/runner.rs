@@ -1629,6 +1629,11 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         if let Some(matched) = self.routes.match_request(inbound.method(), inbound.path()) {
             inbound.set_route(matched);
         }
+        // The trace a served door takes off the same lines, so a `traceparent`
+        // the test wrote is continued (`rule:testing/in-process-request`). No
+        // sample rate is passed, as at the `.nvt` door: nothing here exports a
+        // trace, so nothing is recorded.
+        nvs_server::trace::take(&mut inbound, None);
         // `rule:routing/a-gate-answers-around-every-handler`'s refusal mode, for
         // the one door refusal a synthetic request can meet: its verb is a
         // `Core\Http\Method` case and its body is no stream, so only the CSRF

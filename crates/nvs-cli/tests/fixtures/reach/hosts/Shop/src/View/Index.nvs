@@ -1,0 +1,14 @@
+<?nvs
+namespace Framework\Shop\View;
+
+use Framework\Blog\View\Post;
+
+class Index
+{
+    #[Core\Route(path: '/item/{id}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public static function show(int $id): void
+    {
+        echo Core\Router::url(Index::show, ['id' => $id]), ' ', Core\Router::url(Post::show, ['id' => 5]);
+    }
+}

@@ -1,0 +1,43 @@
+<?nvs
+// The shop's entry and its tests. The `host` header of a test request picks
+// the mount row, so the link to the blog is the one a server gives on that host.
+autoload 'Framework\{..}' from '../src';
+autoload links discover 'Framework' from '../../*/src';
+
+use Core\Http\Method;
+
+class Open implements Core\Router\Gate
+{
+    public function allows(Core\Router\Match $route): bool
+    {
+        return true;
+    }
+
+    public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
+    {
+        echo 'refused';
+    }
+
+    public function failed(?Core\Router\Match $route, ?Throwable $error): void
+    {
+        echo 'failed: ', $error?->message ?? 'no error';
+    }
+}
+
+class HostTest
+{
+    #[Core\Test]
+    public function theHostPicksTheRow(): void
+    {
+        var $onHost = Core\Test::request(Method::Get, '/item/3', {
+            headers: ['host' => 'Shop.Example.com:8123'],
+        });
+        Core\Test::assertEquals($onHost->body(), '/item/3 https://www.example.com/base/blog/post/5');
+        var $noHost = Core\Test::request(Method::Get, '/item/3');
+        Core\Test::assertEquals($noHost->body(), '/item/3 /base/blog/post/5');
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Router::dispatch(new Open());
+}

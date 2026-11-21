@@ -23,7 +23,7 @@ pattern to capture.
 
 **The peer is stated, never derived.** `clientIp` and `scheme` are what the `[server]
 trusted_proxies` walk would have settled on, as a `.nvt` case's `--CLIENT_IP--` and `--SCHEME--`
-are, so `Core\Request::ip()`, `isSecure()` and a `__Host-` cookie read them. No test reads
+are, so `Core\Request::clientIp()`, `scheme()` and a `__Host-` cookie read them. No test reads
 `X-Forwarded-For`. A `clientIp` that is not one IPv4 or IPv6 address, and a `scheme` that is not
 `"http"` or `"https"`, is a `LogicError`. Omitted, the request has no address and is `http`. Cost:
 none per request.

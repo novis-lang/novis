@@ -1,0 +1,16 @@
+[server]
+root = "."
+
+[[server.mount]]
+scan = "*/public/index.nvs"
+prefix = "/base/{1:lower}"
+origin = "https://www.example.com"
+
+[[server.mount]]
+prefix = "/"
+entry = "Shop/public/index.nvs"
+
+[[server.mount]]
+host = "shop.example.com"
+entry = "Shop/public/index.nvs"
+origin = "https://shop.example.com"
