@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "A comparison with seven servers",
-      "text": "The comparison page measures Novis beside seven other servers, among them Node.js, .NET and Python. Recording a new comparison takes less work.",
-      "goals": [
-        "compare-seven-peers"
-      ]
-    },
-    {
       "title": "Reload a running server",
       "text": "`nvs reload` makes a running server use the files that are on the disk now. It tells you when the server runs the new files.",
       "goals": [
