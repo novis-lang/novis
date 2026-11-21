@@ -1331,7 +1331,7 @@ const SCRIPT_ANSWERS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::request`'s reference card — `rule:core-api/reference-card`.
 const REQUEST_DOC: MethodDoc = MethodDoc {
-    short: "Sends one request to your own program and returns the answer. It opens no network \
+    short: "Sends one request to your own program and returns the response. It opens no network \
             connection. The request goes through the same route table and the same code as a \
             real request.",
     params: &[
@@ -1426,9 +1426,12 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
     ret: "A `Core\\Test\\Response`. `status()` returns the status the program set, or `200` if \
           it set none. `body()` returns the text the program wrote, and `json()` and `jsonAs()` \
           decode it. `header()`, `headers()` and `cookies()` return the headers and cookies the \
-          program set. A path that no route matches still gets an answer, because your program \
-          decides what to do with it. A body that is not text, such as a PDF file, also gets \
-          an answer. Then `body()`, `json()` and `jsonAs()` throw an error.",
+          program set. A path that no route matches still returns a response, because your \
+          program decides what to do with it. A body that is not text, such as a PDF file, \
+          also returns a response. For such a body, `body()`, `json()` and `jsonAs()` throw an \
+          error. A `HEAD` request gets no body, the same as from the server. If the program \
+          starts work with `Core\\Task::afterResponse`, `request` returns only when that work \
+          has ended.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
@@ -1471,7 +1474,8 @@ const RESPONSE_BODY_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "Everything the program wrote with `echo`, in order. If the program wrote nothing, the \
           result is an empty string. If the program threw an error it did not catch, the result \
-          is also an empty string, because the server sends no body for a failed request.",
+          is also an empty string. The result is empty for a `HEAD` request too. The server \
+          sends no body for a request that threw an error, or for `HEAD`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "The body is not valid UTF-8, so it is not a string. `Core\\Response::bytes` and \

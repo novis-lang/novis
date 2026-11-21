@@ -1,7 +1,7 @@
 The options are `skip: string`, `at: string`, `seed: int`, `retries: int`, `because: string`,
-`db: string`, `server: bool`, `timeout: string` and `tags: array<string>`. An option with another name is `E0454`, and its help lists them. A
-value of the wrong type is `E0401`, so `skip: true` does not compile. An option given twice is
-`E0304`.
+`db: string`, `server: bool`, `timeout: string`, `tags: array<string>` and `env: array<string>`.
+An option with another name is `E0454`, and its help lists them. A value of the wrong type is
+`E0401`, so `skip: true` does not compile. An option given twice is `E0304`.
 
 A skipped test is not built, so its constructor does not run. The fixtures only it needs are not
 built either. The report prints the reason after `skipped:`.
@@ -12,15 +12,15 @@ that shows the format.
 
 `Core\Test::advance` moves the fixed clock forward by a duration, such as `90m`. In a test without
 `at:`, it throws a `LogicError`. It throws the same error under `nvs run`. The clock of the computer
-never moves.
+does not change.
 
 With `seed:`, `Core\Random` and `Core\Uuid::v7` give the same values on every run. Two tests with the
 same seed get the same values. A test without `seed:` gets different values on every run.
 
-`retries:` without `because:` is `E0734`. `because:` alone compiles and changes nothing.
+`retries:` without `because:` is `E0734`. `because:` without `retries:` compiles and has no effect.
 
-A test that fails and then passes is reported as flaky. The mark is `!`, and the report prints the
-message of the failed attempt. A test that fails every attempt is reported as failed, with the
+A test that fails and then passes is reported as flaky. The report shows `!` in front of it,
+and prints the message of the failed attempt. A test that fails every attempt is reported as failed, with the
 message of the last attempt.
 
 `db: "main"` opens a transaction on the database connection `[db.main]` before the test, and
