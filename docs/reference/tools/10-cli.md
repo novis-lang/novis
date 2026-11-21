@@ -7,8 +7,8 @@ keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nv
 
 # One binary
 
-Everything is one executable, `nvs`. It takes a subcommand, then that subcommand's options, then
-usually one file:
+Novis is one program, `nvs`. You give it a command, then the options of that command, and usually
+one file:
 
     nvs run hello.nvs
     nvs check src/app.nvs
@@ -21,15 +21,15 @@ usually one file:
 | `nvs serve <file>` | run an application until it is stopped: its HTTP requests, its scheduled jobs and its queue workers. See [the server chapter](#tools-server) |
 | `nvs reload` | make a running `nvs serve` use the code and configuration on disk now. See [the server chapter](#tools-server) |
 | `nvs service <verb>` | install, start, stop and remove a program that runs as a system service. See [the server chapter](#tools-server) |
-| `nvs check <path>` | parse, resolve and type-check a file or a directory, reporting every diagnostic; runs nothing |
+| `nvs check <path>` | check a file or a folder and report every error. It runs nothing |
 | `nvs test <paths>...` | run a program's `#[Test]` methods, or a tree of `.nvst` cases |
-| `nvs build --compile <file>` | write a single-file executable holding the program's source |
+| `nvs build --compile <file>` | write a single executable file that contains the program's source |
 | `nvs build --openapi <file>` | write the program's OpenAPI 3.1 document to standard output |
-| `nvs api diff <old> <new>` | classify every change between two OpenAPI documents |
+| `nvs api diff <old> <new>` | list every change between two OpenAPI documents, and say which changes break a client |
 | `nvs pkg <verb>` | add, download, update, pack and publish Novis packages. See [the packages chapter](#tools-packages) |
 | `nvs ext <verb>` | create, build, test, check and pin an extension |
-| `nvs init` | write a `nvs.toml` with every key commented out, into the working directory or to the one path `--config` names — see [Installing on a host](#tools-install) |
-| `nvs config check [files]` | resolve the configuration tree and report what it holds |
+| `nvs init` | write a `nvs.toml` with every key commented out, into the working directory or to the path `--config` gives. See [Installing on a host](#tools-install) |
+| `nvs config check [files]` | read every configuration file and report the errors in them |
 | `nvs config dump [files]` | print every configuration key in force |
 | `nvs queue migrate` | create the job queue's tables in its database |
 | `nvs schema <verb>` | print what a schema value would change in a database, run the safe steps, or print the schema the database has |
@@ -38,8 +38,8 @@ usually one file:
 | `nvs update-check` | check whether a newer version of Novis is released |
 | `nvs telemetry <verb>` | turn the anonymous usage counters on or off, and show what an upload sends |
 | `nvs info` | build, host and third-party licensing information |
-| `nvs meta --json` | the whole `Core` registry as JSON |
-| `nvs agent <verb>` | the same registry for a coding agent: a primer, an index, a search, one card — and the pointers `init` installs. See [the agents chapter](#tools-agents) |
+| `nvs meta --json` | print every `Core` class and function as JSON |
+| `nvs agent <verb>` | the `Core` classes and functions for a coding agent: a primer, an index, a search and one page. `nvs agent init` writes files that tell an agent to use these commands. See [the agents chapter](#tools-agents) |
 | `nvs doc <file>` | write a program's declarations as Markdown, one page per class |
 | `nvs stubs` | write one declaration file for each `Core` class, enum and attribute |
 | `nvs code <verb>` | find where a name is declared and used, print a file's outline, and rename or move code |
@@ -48,12 +48,12 @@ usually one file:
 | `nvs lsp` | run the language server on standard input and output. See [the editor chapter](#tools-editor) |
 | `nvs lsp-test <paths>...` | run a tree of `.lspt` cases against the language server. See [the editor chapter](#tools-editor) |
 | `nvs dap` | run the debug adapter on standard input and output. See [the editor chapter](#tools-editor) |
-| `nvs debug` | read recorded requests into the debug index, and keep reading |
+| `nvs debug` | read the requests a server recorded into one database, and wait for more |
 
-Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` and `-h`/`--help`.
-`--data` names the data folder, where Novis keeps its own files (see
-[Installing on a host](#tools-install)). Every operation is a subcommand: there is no `-i`, `-a`,
-`-r`, `-f` or lowercase `-v`.
+Every command also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` and `-h`/`--help`.
+`--data` sets the data folder, where Novis keeps its own files (see
+[Installing on a host](#tools-install)). The short options `-i`, `-a`, `-r`, `-f` and `-v` (lower
+case) do not exist. Each task has its own command, such as `nvs run` or `nvs info`.
 
 **Not in this chapter yet:** `nvs queue`, `nvs schema`, `nvs tmp`, `nvs doc` and `nvs stubs` have
 no section here. Run the command with `--help` to see its options. `nvs --help` lists every

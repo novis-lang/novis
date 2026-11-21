@@ -109,11 +109,18 @@ The built-in functions are in the `Core` namespace
 
     nvs agent primer
 
-The one document to read before writing anything: the lookup protocol above, one complete worked
-program with every shape in it annotated, the capability model with the smallest `nvs.toml` that
-grants a file read, how `nvs reload` makes a running server use your edits, and a map of the
-chapters of this reference. It is printed on standard output, and like every other verb here it
-writes nothing and caches nothing.
+`nvs agent primer` prints the one document a coding agent reads before it writes any code. It has
+five parts:
+
+- how to look things up with `nvs agent find` and `nvs agent show`;
+- one complete program, with a note on each part of it;
+- capabilities (the permissions a program needs, such as reading a file), with the smallest
+  `nvs.toml` that allows a program to read a file;
+- how `nvs reload` makes a running server use the code you changed;
+- a list of the chapters of this reference.
+
+The primer is printed on standard output. Like every other `nvs agent` command, it writes no file
+and saves nothing.
 
 Each part has a heading. These are the headings, in the order the primer prints them:
 
@@ -129,10 +136,10 @@ Each part has a heading. These are the headings, in the order the primer prints 
 ## The chapters
 ```
 
-No sentence of it is written for it. Each part is a section of a chapter of this reference, lifted
-whole from the copy of that chapter this binary carries, and the counts printed beside the chapter
-map are the registry's own, read at the call. So the primer describes the language this binary
-compiles, and a section that stops being true stops being printed rather than becoming a lie.
+The primer has no text of its own. Each part is a whole section of a chapter of this reference. The
+`nvs` binary contains this reference, and the primer copies each section from it. The first line
+gives the number of `Core` classes and methods, counted when you run the command. Because every
+part comes from this binary, the primer always describes the language that this binary compiles.
 
 # nvs agent changes
 
