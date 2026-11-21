@@ -30,7 +30,7 @@ stages:
     context: [benches/compare.json]
   - id: 7
     title: the comparison page shows seven servers
-    status: open
+    status: done
     context: [website/src/content/docs/in-depth/compare.mdx, website/src/lib/compare.ts, website/src/components/compare/FeatureTable.astro, website/src/components/compare/CaseCharts.astro, docs/agent/prose.md, docs/alternative-pages.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
@@ -209,6 +209,12 @@ nothing.
 order. Each peer's programs are disjoint files, so within a stage they go to writing subagents.
 Stage 7 touches only the website and `docs/alternative-pages.md`, and needs stage 6's record.
 
+**The charts colour by place, not by peer (stage 7's call).** Every bar in place 1 takes the accent
+colour, Novis's bars have a border, and the deploy boxes take their group's colour. No chart has a
+colour per peer, so no new peer needs one: seven colours would carry no meaning the place does not.
+The feature table scrolls inside its own box with the feature column sticky, so the page never
+scrolls sideways at phone width. The page's prose reads each new peer's result off the record.
+
 ## Stages
 
 ### 1. a run plans its work before it starts, and says where its time went
@@ -310,18 +316,18 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
 **Split:** none, one session.
 
-- [ ] `website/src/lib/compare.ts:145` `PEER_GROUP`: a group for each new peer, from its measured deploy
+- [x] `website/src/lib/compare.ts:145` `PEER_GROUP`: a group for each new peer, from its measured deploy
   rows. Fix every text that says "all four" at `website/src/lib/compare.ts:128` and
   `website/src/lib/compare.ts:259`.
-- [ ] `website/src/components/compare/FeatureTable.astro:17`: seven columns work at phone width with no
+- [x] `website/src/components/compare/FeatureTable.astro:17`: seven columns work at phone width with no
   page scroll. Each chart in `website/src/components/compare/` gets a colour for each new peer.
-- [ ] `website/src/content/docs/in-depth/compare.mdx:2`: the title, description and every "four"
+- [x] `website/src/content/docs/in-depth/compare.mdx:2`: the title, description and every "four"
   name seven servers. The page says that Novis has no REPL and no numeric or machine-learning stack,
   as `rule:tooling/python-claims` requires. It shows the date range of the reused rows. Reread it
   against `docs/agent/prose.md` and stamp it with `bun nv site --stamp`.
-- [ ] `docs/alternative-pages.md:1` § *The peers*: say the three peers are measured, and point to the
+- [x] `docs/alternative-pages.md:1` § *The peers*: say the three peers are measured, and point to the
   README section that is now their home.
-- [ ] The goal moves no feature, so it writes no `website/src/data/changes.json` entry.
+- [x] The goal moves no feature, so it writes no `website/src/data/changes.json` entry.
 
 ### 8. the goal is verified once, and every failure is fixed
 
@@ -332,7 +338,15 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
 ### State
 
-Stages 1 to 6 are done. `benches/compare.json` is the seven-peer record: cases at `0a0aa84bbd`
+Stages 1 to 7 are done. Stage 7: `website/src/lib/compare.ts` groups the three new peers as
+`build` and exports `rowDates`, which `Machine.astro` shows as the feature table's date range
+(2026-11-20 to 2026-11-21). The feature table scrolls in its own box. `compare.mdx` names seven
+servers, says Novis has no REPL and no numeric or machine-learning stack, and reads each new peer's
+results off the record. `bun nv render` refreshed `website/src/data/compare.json`, which still held
+the four-peer record of 2026-11-18. The page and `in-depth/index.mdx` passed a newcomer review and are
+stamped, and so are their questions. `site --check stale changes review` is green.
+
+`benches/compare.json` is the seven-peer record: cases at `0a0aa84bbd`
 (2026-11-20), rows at `d676c2f8fb` (2026-11-21), every peer in every case and all 18 rows. The rows
 took three background calls: a stopped run resumed without `--fresh` and kept its finished rows.
 
@@ -349,10 +363,13 @@ reach CI at the next full gate's push.
 
 ### Next
 
-Stage 7, the website: `website/src/lib/compare.ts:145` `PEER_GROUP` and the "all four" texts at
-`website/src/lib/compare.ts:128` and `:259`, the columns and chart colours under
-`website/src/components/compare/`, `website/src/content/docs/in-depth/compare.mdx` (seven servers,
-the python-claims sentence, the reused rows' date range, stamped), and `docs/alternative-pages.md`
-§ *The peers*. Expect no test red.
+Stage 8, the gate: the check the pack names (`looper verify` at a full gate, else a build and the
+`bench-compare` tests by name), then `bun nv owners --closes compare-seven-peers`, and move each
+standing decision only this file holds into `benches/compare/README.md` before the file is deleted.
+Expect no test red.
 
 ### Backlog
+
+- The `parallel` row records Novis as **One setting** (`[capabilities.script] spawn`,
+  `tools/nv/cmd/bench-compare.ts:1366`), while `compare.mdx` § *One request in four parts* says Novis
+  needs no setting for a script in its own app folder. The row's script or the sentence is wrong.
