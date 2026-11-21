@@ -20,12 +20,13 @@ a request tree that deferred work keeps running once its answer is complete, and
 // again to answer it, and `Core\Env::context()` is `Request` in that run
 // (`rule:core-classes/env-context`).
 if (Core\Env::context() == Core\Env::Context::Request) {
-    // The child. It registers deferred work and then finishes answering; the
-    // same rule keeps `Core\Request` readable inside the callable because the tree is
-    // still the same tree, and keeps `Core\Response` out of it because the
-    // response is not.
+    // The child. It registers deferred work and then finishes answering. The
+    // work runs as a child task, where `Core\Request` throws
+    // (`rule:security/request-state-throws-in-an-isolate`), so it takes the path
+    // from the variable it captured.
+    var $path = Core\Request::path();
     Core\Task::afterResponse(fn (): void => {
-        echo " deferred=", Core\Request::path();
+        echo " deferred=", $path;
     });
     echo "answered";
 } else {
