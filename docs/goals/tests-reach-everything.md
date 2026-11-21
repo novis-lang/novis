@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/inbound.rs, crates/nvs-server/src/trace.rs]
   - id: 3
     title: a test request sends every body Core\Http\Client can send
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/http.rs, crates/nvs-runtime/src/ctx/inbound.rs]
   - id: 4
     title: a test request is answered the way the server answers it
@@ -347,11 +347,11 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### 3. a test request sends every body Core\Http\Client can send
 
-- [ ] `crates/nvs-stdlib/src/http.rs:2371`: the body options' walk callable from `test.rs`, and the
+- [x] `crates/nvs-stdlib/src/http.rs:2371`: the body options' walk callable from `test.rs`, and the
   compile error for two bodies or `contentType` alone applied to `Core\Test::request`'s bag.
-- [ ] `crates/nvs-stdlib/src/test.rs:2940`: `json`, `form` and `multipart` built as `SpecBody::Json`,
+- [x] `crates/nvs-stdlib/src/test.rs:2940`: `json`, `form` and `multipart` built as `SpecBody::Json`,
   `Form` and `Files`, and `contentType` with `body`.
-- [ ] `crates/nvs-cli/tests/test_reach.rs`: the five `bodies` tests.
+- [x] `crates/nvs-cli/tests/test_reach.rs`: the five `bodies` tests.
 
 ### 4. a test request is answered the way the server answers it
 
@@ -443,31 +443,37 @@ outcome type exists; the session writes the run path.
 
 ### State
 
-Stages 1 and 2 are done. `Core\Test::request` takes `cookies`, `clientIp` and `scheme`, appended
-after `captures` (argument slots 6 to 8, so the member is `args: [9]`). A `host` header goes to
-`InboundSpec::set_host` and picks the mount row through `Mounts::links_for`, which now folds the host
-with `nvs_config::mount::folded_host`. `Host`, `folded_host` and `named` moved there from
-`nvs-server`'s `mount.rs`, which re-exports `Host`, so the door and a test pick a row by one
-reading. `UnderTest::answer` calls `nvs_server::trace::take`. The `peer` check's seven tests pass,
-run by name. The rule named `Core\Request::ip()` and `isSecure()`; the readers are `clientIp()` and
-`scheme()`, and the rule now says so.
+Stages 1 to 3 are done. `Core\Test::request`'s bag is, by slot: `headers` 2, `body` 3, `mount` 4,
+`captures` 5, `cookies` 6, `clientIp` 7, `scheme` 8, `json` 9, `form` 10, `contentType` 11,
+`multipart` 12, so the member is `args: [13]`. `body` also takes a `Core\Http\Part`, as the
+client's does. The body is read by `crate::http::spec_body_of`
+(`crates/nvs-stdlib/src/http.rs:3522`) at the slots `REQUEST_BODY_SLOTS` names
+(`crates/nvs-stdlib/src/test.rs:642`), and it builds `SpecBody::Json`, `Form`, `Files` or `Raw` with
+the client's part reading and its quoting checks. A raw body's `contentType` becomes a
+`content-type` field line. `described` now takes the `Ctx`, because `json` is encoded by
+`crate::json::written`. `registry::request_body_rule` answers for `Core\Test::request` too, so two
+bodies are `E0815` and `contentType` alone is `E0817`, as for the client. The `bodies` check's five
+tests pass, run by name, over `crates/nvs-cli/tests/fixtures/reach/bodies.nvs` and
+`two_bodies.nvs`.
 
-The unit tests in `test.rs` build the member's slots with one helper, `request_args`
-(`crates/nvs-stdlib/src/test.rs:6043`). Stage 3 adds its four options there and in `REQUEST_OPTIONS`.
+In a multipart request, `Core\Request::post()` read before `Core\Request::files()` makes `files()`
+throw, and read after it gives the field. The fixture reads `files()` first. That is the request
+readers' existing behaviour, not this stage's.
 
-The nightly run 44894790665 timed out on `granularity::tests::both_walks_agree_on_every_window`
-under Miri, at 300 s with a reach of 4. `156f11a7ca` cuts the Miri reach to 2, which is 240 windows
-and a third of the work. Miri cannot run on this Windows host (cargo-miri refuses cargo's argfile),
-so the next nightly is the check. If it still times out, the next step is a shorter text list
-under `cfg!(miri)`.
+The nightly failure the sweep named (run 44894790665, `granularity::tests::both_walks_agree_on_every_window`
+timing out under Miri) ran on `7e97fa8444`, before `156f11a7ca` cut the Miri reach to 2. Nothing new
+landed for it. The next nightly is the check, and if it still times out, the next step is a shorter
+text list under `cfg!(miri)`.
 
 ### Next
 
-Stage 3, from its first item. Anchors: `Core\Http\Client`'s options (`OPTIONS` at
-`crates/nvs-stdlib/src/http.rs:1069`, `JSON_OPTION` at `:1168`), the body read in `described` at
-`crates/nvs-stdlib/src/test.rs:2996`, `REQUEST_OPTIONS` at `:560`, and the unit-test helper
-`request_args` at `:6043`. Append the new options after `scheme`, so slots 0 to 8 keep their places.
-The `bodies`, `answers`, `clock`, `run` and `records` checks stay red until their stages write
-their tests in `crates/nvs-cli/tests/test_reach.rs`.
+Stage 4, from its first item. Anchors: `refuse_a_forged_write` at
+`crates/nvs-cli/src/runner.rs:4161`, `UnderTest::answer` near `runner.rs:1619`, the body limit read
+at `crates/nvs-cli/src/serve.rs:1381`, the failed-request answer in `nvs_core_test_request` at
+`crates/nvs-stdlib/src/test.rs:3275` (it builds the `500` with no body), and the join in
+`crates/nvs-host/src/isolate.rs:1263`. `Core\Test\Response::error()` adds a slot to `RESPONSE`, so
+every `crate::instance::build(&RESPONSE, [...])` in `test.rs` gains one value. The `answers`,
+`clock`, `run` and `records` checks stay red until their stages write their tests in
+`crates/nvs-cli/tests/test_reach.rs`.
 
 ### Backlog
