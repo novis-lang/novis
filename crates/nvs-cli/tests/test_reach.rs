@@ -405,8 +405,13 @@ fn test_run_without_a_command_entry_is_a_logic_error() {
 // covers: Core\Test
 #[test]
 fn the_env_option_reaches_the_test_and_its_requests() {
-    let method = "envReachesTheTestAndItsRequests";
-    let (report, passed) = run_in(&fixture(""), "records.nvs", method);
+    passes_in_records("envReachesTheTestAndItsRequests");
+}
+
+/// Runs the one `#[Test]` method `method` of `records/records.nvs` and asserts
+/// that it alone ran, and passed.
+fn passes_in_records(method: &str) {
+    let (report, passed) = run_in(&fixture("records"), "records.nvs", method);
     assert!(passed, "`{method}` failed:\n{report}");
     assert!(
         report.contains(method) && report.contains("0 failed, 1 passed"),
@@ -419,7 +424,7 @@ fn the_env_option_reaches_the_test_and_its_requests() {
 // covers: Core\Test
 #[test]
 fn the_env_option_does_not_reach_another_test() {
-    let (report, passed) = run_in(&fixture(""), "records.nvs", "env");
+    let (report, passed) = run_in(&fixture("records"), "records.nvs", "env");
     assert!(passed, "the env tests failed:\n{report}");
     assert!(
         report.contains("envReachesTheTestAndItsRequests")
@@ -427,4 +432,42 @@ fn the_env_option_does_not_reach_another_test() {
             && report.contains("0 failed, 2 passed"),
         "both env tests ran in one suite, and passed:\n{report}"
     );
+}
+
+/// `Core\Test::logs` returns the records the test, a request it made and a run
+/// it made wrote, in that order, with their levels, messages and fields.
+// covers: Core\Test::logs
+#[test]
+fn logs_reads_the_records_of_the_test_and_its_requests() {
+    passes_in_records("logsReadsTheTestAndItsRequests");
+}
+
+/// A test run after one that wrote three records reads none of them.
+// covers: Core\Test::logs
+#[test]
+fn logs_is_empty_in_a_new_test() {
+    let (report, passed) = run_in(&fixture("records"), "records.nvs", "logs");
+    assert!(passed, "the logs tests failed:\n{report}");
+    assert!(
+        report.contains("logsReadsTheTestAndItsRequests")
+            && report.contains("logsStartsEmpty")
+            && report.contains("0 failed, 2 passed"),
+        "both logs tests ran in one suite, and passed:\n{report}"
+    );
+}
+
+/// `Core\Test::sentMail` returns the message a request sent, with every field
+/// `Core\Mail::send` was given.
+// covers: Core\Test::sentMail
+#[test]
+fn sent_mail_reads_a_message_a_request_sent() {
+    passes_in_records("mailReadsWhatARequestSent");
+}
+
+/// A send under `nvs test` returns without a connection: the relay's port has
+/// no listener, so a real send would throw and fail the test.
+// covers: Core\Test::sentMail
+#[test]
+fn mail_under_nvs_test_opens_no_connection() {
+    passes_in_records("mailOpensNoConnection");
 }

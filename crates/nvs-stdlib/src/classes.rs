@@ -63,6 +63,8 @@ pub const CLASSES: &[CoreClass] = &[
     crate::test::CLASS,
     crate::test::RESPONSE,
     crate::test::run::RUN_RESULT,
+    crate::test::records::LOG_RECORD,
+    crate::test::records::SENT_MAIL,
     crate::test::SENT_REQUEST,
     crate::test::hooks::OUTCOME,
     crate::test::hooks::SUMMARY,

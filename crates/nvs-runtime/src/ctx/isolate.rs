@@ -424,6 +424,7 @@ impl Ctx {
         // parent and siblings read (`rule:testing/task-tree-and-virtual-clock`).
         child.fixed_clock = self.fixed_clock.clone();
         child.test_env = self.test_env.clone();
+        child.test_records = self.test_records.clone();
         child.statics = self.statics;
         child.debug = self.debug;
         child.debug_ceiling = self.debug;

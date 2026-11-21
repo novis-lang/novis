@@ -1,0 +1,119 @@
+<?nvs
+// What a test sets and reads back: its environment variables, its log records
+// and its mail. Each test checks what the test, a request and a run did.
+use Core\Http\Method;
+
+class Mode
+{
+    #[Core\Command(name: 'mode', about: 'Print the mode variable')]
+    public static function mode(): uint
+    {
+        echo Core\Env::get('REACH_MODE') ?? 'none', "\n";
+        return 0;
+    }
+
+    #[Core\Command(name: 'log', about: 'Write one log record')]
+    public static function log(): uint
+    {
+        Core\Log::write(Core\Log::Level::Error, 'from a run');
+        return 0;
+    }
+}
+
+class Records
+{
+    #[Core\Test(env: ['REACH_MODE' => 'test'])]
+    public function envReachesTheTestAndItsRequests(): void
+    {
+        Core\Test::assertEquals(Core\Env::get('REACH_MODE'), 'test');
+        Core\Test::assertEquals(Core\Test::request(Method::Get, '/mode')->body(), 'test');
+        Core\Test::assertEquals(Core\Test::run(['mode'])->stdout(), "test\n");
+    }
+
+    #[Core\Test]
+    public function envStaysWithItsTest(): void
+    {
+        Core\Test::assertNull(Core\Env::get('REACH_MODE'));
+        Core\Test::assertEquals(Core\Test::request(Method::Get, '/mode')->body(), 'none');
+        Core\Test::assertEquals(Core\Test::run(['mode'])->stdout(), "none\n");
+    }
+
+    #[Core\Test]
+    public function logsReadsTheTestAndItsRequests(): void
+    {
+        Core\Log::write(Core\Log::Level::Info, 'from the test', ['order' => 7, 'ok' => true]);
+        Core\Test::request(Method::Get, '/log');
+        Core\Test::run(['log']);
+
+        array<Core\Test\LogRecord> $logs = Core\Test::logs();
+        Core\Test::assertCount($logs, 3);
+        Core\Test::assertEquals($logs[0]->level(), 'info');
+        Core\Test::assertEquals($logs[0]->message(), 'from the test');
+        Core\Test::assertEquals($logs[0]->fields()['order'], 7);
+        Core\Test::assertEquals($logs[0]->fields()['ok'], true);
+        Core\Test::assertEquals($logs[1]->level(), 'warn');
+        Core\Test::assertEquals($logs[1]->message(), 'from a request');
+        Core\Test::assertEquals($logs[1]->fields()['path'], '/log');
+        Core\Test::assertEquals($logs[2]->level(), 'error');
+        Core\Test::assertEquals($logs[2]->message(), 'from a run');
+        Core\Test::assertCount($logs[2]->fields(), 0);
+    }
+
+    #[Core\Test]
+    public function logsStartsEmpty(): void
+    {
+        Core\Test::assertCount(Core\Test::logs(), 0);
+    }
+
+    #[Core\Test]
+    public function mailReadsWhatARequestSent(): void
+    {
+        Core\Test::request(Method::Post, '/mail');
+
+        array<Core\Test\SentMail> $sent = Core\Test::sentMail();
+        Core\Test::assertCount($sent, 1);
+        Core\Test::assertEquals($sent[0]->endpoint(), 'relay');
+        Core\Test::assertEquals($sent[0]->to(), ['ada@example.com']);
+        Core\Test::assertEquals($sent[0]->subject(), 'Order 7');
+        Core\Test::assertEquals($sent[0]->text(), 'Your order is on its way.');
+        Core\Test::assertEquals($sent[0]->cc(), ['shop@example.com']);
+        Core\Test::assertCount($sent[0]->bcc(), 0);
+        Core\Test::assertEquals($sent[0]->replyTo(), 'help@example.com');
+        Core\Test::assertNull($sent[0]->html());
+    }
+
+    #[Core\Test]
+    public function mailOpensNoConnection(): void
+    {
+        // Nothing listens on the relay's port, so a real send would throw.
+        Core\Mail::send('relay', ['ada@example.com'], 'Hello', 'Hi', { html: '<p>Hi</p>' });
+
+        array<Core\Test\SentMail> $sent = Core\Test::sentMail();
+        Core\Test::assertCount($sent, 1);
+        Core\Test::assertEquals($sent[0]->html(), '<p>Hi</p>');
+        Core\Test::assertNull($sent[0]->replyTo());
+    }
+}
+
+// A request to `/log` writes a record, and a request to `/mail` sends a
+// message. Any other request prints the mode variable. A run calls the
+// command its words name.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    var $path = Core\Request::path();
+    if ($path == '/log') {
+        Core\Log::write(Core\Log::Level::Warn, 'from a request', ['path' => $path]);
+    } else if ($path == '/mail') {
+        Core\Mail::send(
+            'relay',
+            ['ada@example.com'],
+            'Order 7',
+            'Your order is on its way.',
+            { cc: ['shop@example.com'], replyTo: 'help@example.com' },
+        );
+    } else {
+        echo Core\Env::get('REACH_MODE') ?? 'none';
+    }
+} else {
+    uint $status = Core\Command::run();
+    exit($status as int);
+}

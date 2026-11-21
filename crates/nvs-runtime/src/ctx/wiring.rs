@@ -367,6 +367,7 @@ impl Ctx {
             trace_context,
             fixed_clock: None,
             test_env: None,
+            test_records: None,
             owned_by_test: false,
             random_state: None,
             test_server: None,
@@ -942,6 +943,19 @@ impl Ctx {
     /// calls it on the test's isolate and on each request and run that test makes.
     pub fn set_test_env(&mut self, vars: std::rc::Rc<[(String, String)]>) {
         self.test_env = Some(vars);
+    }
+
+    /// The records of the test that owns this context, or `None` outside `nvs test` — see
+    /// [`Self::test_records`]'s field docs.
+    #[must_use]
+    pub fn test_records(&self) -> Option<&std::rc::Rc<crate::test_records::TestRecords>> {
+        self.test_records.as_ref()
+    }
+
+    /// Arms this context with a test's records, before its program runs. The runner calls it on
+    /// the suite's context, on each test's isolate, and on each request and run that test makes.
+    pub fn set_test_records(&mut self, records: std::rc::Rc<crate::test_records::TestRecords>) {
+        self.test_records = Some(records);
     }
 
     /// Whether a `#[Test]` method owns this context — see

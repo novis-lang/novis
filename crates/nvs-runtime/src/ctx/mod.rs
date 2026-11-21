@@ -1189,6 +1189,16 @@ pub struct Ctx {
     ///
     /// **What it spends:** one word per context, and the test's own variables once per test.
     test_env: Option<std::rc::Rc<[(String, String)]>>,
+    /// The log records and mail of the test that owns this context, or `None` for a context no
+    /// test armed (`rule:testing/a-test-reads-its-logs-and-mail`). `Core\Log::write` keeps each
+    /// record here as well, and `Core\Mail::send` keeps the message here and sends nothing.
+    ///
+    /// **Shared as [`Self::test_env`] is**: [`Ctx::child`] clones the `Rc`, and `nvs_cli::runner`
+    /// hands the same `Rc` to each request and run the test makes. The suite's own context has
+    /// one too, so a class hook's mail is never sent either.
+    ///
+    /// **What it spends:** one word per context, and the records of one test, freed with it.
+    test_records: Option<std::rc::Rc<crate::test_records::TestRecords>>,
     /// Whether a `#[Test]` method owns this context: `true` on the isolate
     /// `nvs_cli::runner` builds for one test, and on every task context
     /// [`Ctx::child`] opens under it. Only such a context keeps

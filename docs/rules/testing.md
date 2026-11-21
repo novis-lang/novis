@@ -3,8 +3,6 @@
 
 # Testing
 
-*1 of 83 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="testing-test-attribute"></a>
 
 ## A test is a method marked `#[Test]`, and its table is built while compiling
@@ -1114,7 +1112,7 @@ What it spends, per call: the child's isolate and both captures, held until the 
 
 <a id="testing-a-test-reads-its-logs-and-mail"></a>
 
-## A test reads the log records and the mail it caused, and mail is never sent under `nvs test`  *(designed — owned by goal tests-reach-everything)*
+## A test reads the log records and the mail it caused, and mail is never sent under `nvs test`
 
 `rule:testing/a-test-reads-its-logs-and-mail`
 

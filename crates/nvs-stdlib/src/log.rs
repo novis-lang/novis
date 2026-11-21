@@ -242,6 +242,12 @@ nvs_runtime::nvs_helper! {
             return Ok(Value::null());
         }
         let mut record = record(ctx, source, level, message, args[3]);
+        // Under `nvs test`, the record is kept for `Core\Test::logs` as well, before the repeat
+        // bound: a test that writes one record twice reads it twice
+        // (`rule:testing/a-test-reads-its-logs-and-mail`).
+        if let Some(records) = ctx.test_records() {
+            records.log(kept(level, message, &record));
+        }
         // `rule:errors/a-repeat-is-bounded-at-the-sink-that-suffers`: this
         // target's bound is a finite disk, and the cheapest place to protect
         // one is before the bytes exist. A run of identical records is one line
@@ -262,6 +268,21 @@ nvs_runtime::nvs_helper! {
         ctx.write_log_record(&record)
             .map_err(|why| Fault::fatal(format!("Core\\Log::write could not write: {why}")))?;
         Ok(Value::null())
+    }
+}
+
+/// `record` as the test's store keeps it: the level's name, the message, and the fields as the
+/// JSON object a `[log]` line writes for them.
+fn kept(level: Level, message: &str, record: &Record) -> nvs_runtime::test_records::KeptLog {
+    let fields = if record.envelope.fields.is_empty() {
+        String::new()
+    } else {
+        serde_json::Value::Object(nvs_render::json::fields(&record.envelope.fields)).to_string()
+    };
+    nvs_runtime::test_records::KeptLog {
+        level: level.name(),
+        message: message.to_owned(),
+        fields,
     }
 }
 

@@ -978,6 +978,9 @@ pub(crate) fn run(
         Format::Json | Format::Junit => nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Stderr),
     };
     unit.install_in(&mut ctx);
+    // A class hook or a fixture runs here, and its mail is kept and never sent, as a test's is
+    // (`rule:testing/a-test-reads-its-logs-and-mail`). No test reads these records.
+    ctx.set_test_records(nvs_runtime::test_records::TestRecords::new());
     ctx.set_query_sites(Arc::clone(&query_sites));
     ctx.set_copy_sites(Arc::clone(&copy_sites));
     // The class hooks and fixtures run on the suite's context, so it stops at a breakpoint too.
@@ -1682,6 +1685,9 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         // The test's `env:` variables reach the request too (`rule:testing/test-attribute`). The
         // child runs on this thread, inside the join below, so it shares the test's `Rc`.
         let vars = ctx.test_env().cloned();
+        // The test's records too, so what the request logs and mails is kept for the test
+        // (`rule:testing/a-test-reads-its-logs-and-mail`).
+        let records = ctx.test_records().cloned();
         let request = self.request;
         // The same program `crate::script::program_over` builds for a `spawn
         // script`, over this run's own unit instead of a resolved one: the
@@ -1695,6 +1701,9 @@ impl nvs_runtime::inproc::Answering for UnderTest {
                 }
                 if let Some(vars) = &vars {
                     ctx.set_test_env(Rc::clone(vars));
+                }
+                if let Some(records) = &records {
+                    ctx.set_test_records(Rc::clone(records));
                 }
                 if !routes.rows().is_empty() {
                     ctx.set_routes(std::sync::Arc::clone(&routes));
@@ -1771,6 +1780,7 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         // them in `answer`.
         let clock = ctx.fixed_clock();
         let vars = ctx.test_env().cloned();
+        let records = ctx.test_records().cloned();
         // The exit code and standard error the child's frame leaves here, read
         // once the child has ended. The child runs on this thread, inside the
         // join below, so the cell is never shared across threads.
@@ -1787,6 +1797,9 @@ impl nvs_runtime::inproc::Answering for UnderTest {
                 }
                 if let Some(vars) = vars {
                     ctx.set_test_env(vars);
+                }
+                if let Some(records) = records {
+                    ctx.set_test_records(records);
                 }
                 if !routes.rows().is_empty() {
                     ctx.set_routes(routes);
@@ -3976,6 +3989,10 @@ fn run_the_test(
         if let Some(vars) = vars {
             child.set_test_env(Rc::from(vars));
         }
+        // A fresh store of log records and mail for each test, so `Core\Test::logs` and
+        // `Core\Test::sentMail` read only what this test caused
+        // (`rule:testing/a-test-reads-its-logs-and-mail`).
+        child.set_test_records(nvs_runtime::test_records::TestRecords::new());
         // `rule:testing/in-process-request`'s listener, armed the same way and in the same place as the two
         // above: the address is the *child's* to read, so a sibling that
         // declared no `server:` answers `null` and cannot reach a port this

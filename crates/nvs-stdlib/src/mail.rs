@@ -1192,6 +1192,24 @@ nvs_runtime::nvs_helper! {
 
         let configured = endpoint_of(ctx, endpoint, &member)?;
 
+        // Under `nvs test`, the message is kept for `Core\Test::sentMail` and no connection is
+        // opened, so a test never reaches a real person
+        // (`rule:testing/a-test-reads-its-logs-and-mail`). The grant, the block and every address
+        // were checked above, as they are in production.
+        if let Some(records) = ctx.test_records() {
+            records.mail(nvs_runtime::test_records::KeptMail {
+                endpoint: endpoint.to_owned(),
+                to,
+                subject: subject.to_owned(),
+                text: text.to_owned(),
+                cc,
+                bcc,
+                reply_to,
+                html: html.map(str::to_owned),
+            });
+            return Ok(Value::null());
+        }
+
         let mut message = compose(
             &configured.from,
             &to,

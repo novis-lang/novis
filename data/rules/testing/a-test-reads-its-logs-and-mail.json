@@ -1,11 +1,14 @@
 {
   "title": "A test reads the log records and the mail it caused, and mail is never sent under `nvs test`",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/in-process-request",
     "testing/an-outbound-call-is-answered-from-a-table",
     "testing/doubles"
   ],
-  "guardedBy": [],
-  "goal": "tests-reach-everything"
+  "guardedBy": [
+    "crates/nvs-cli/tests/test_reach.rs",
+    "crates/nvs-runtime/src/test_records.rs",
+    "crates/nvs-stdlib/src/test/records.rs"
+  ]
 }

@@ -1,0 +1,10 @@
+# A mail server nothing listens on. A test sends through it, and the send
+# works only because `nvs test` keeps the message and opens no connection.
+[mail.relay]
+host = "127.0.0.1"
+port = 1
+from = "app@example.com"
+timeout = "1s"
+
+[capabilities.mail]
+send = ["relay"]

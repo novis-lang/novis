@@ -289,6 +289,7 @@
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 
 pub(crate) mod hooks;
+pub(crate) mod records;
 pub(crate) mod run;
 
 use crate::registry::{
@@ -848,6 +849,24 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(run::RUN_RESULT_NAME),
             symbol: "nvs_core_test_run",
             doc: Some(&run::RUN_DOC),
+        },
+        CoreMethod {
+            name: "logs",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Instance(records::LOG_RECORD_NAME)),
+            symbol: "nvs_core_test_logs",
+            doc: Some(&records::LOGS_DOC),
+        },
+        CoreMethod {
+            name: "sentMail",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Instance(records::SENT_MAIL_NAME)),
+            symbol: "nvs_core_test_sent_mail",
+            doc: Some(&records::SENT_MAIL_DOC),
         },
         CoreMethod {
             name: "answerHttp",
@@ -5833,6 +5852,9 @@ mod tests {
                     | "sentHttp"
                     | "answerSocket"
                     | "sentSocket"
+                    | "run"
+                    | "logs"
+                    | "sentMail"
             )
         })
     }
