@@ -234,9 +234,14 @@ enum Command {
     /// or `callee`. Under it, each call has an indented line with the
     /// position and the line of code. A test that sends a request to a
     /// route calls the method that handles the route.
+    ///
+    /// With several methods, each method gets a line with its name. Its
+    /// answer follows, indented by two spaces.
     Calls {
-        /// The method, as `Shop\Cart::addItem`.
-        symbol: String,
+        /// The methods, as `Shop\Cart::addItem`. If one name is not a method,
+        /// the command prints nothing else and fails.
+        #[arg(value_name = "METHOD", required = true)]
+        symbols: Vec<String>,
         /// Print the answer as one JSON document. An unknown method prints an
         /// `error` and a `nearest` list, and the command fails.
         #[arg(long)]
@@ -249,9 +254,14 @@ enum Command {
     /// line that starts with `test`. A last line starts with `at least` when
     /// a call that is only known when the program runs may also reach the
     /// method.
+    ///
+    /// With several methods, each method gets a line with its name. Its
+    /// answer follows, indented by two spaces.
     Reach {
-        /// The method, as `Shop\Cart::addItem`.
-        symbol: String,
+        /// The methods, as `Shop\Cart::addItem`. If one name is not a method,
+        /// the command prints nothing else and fails.
+        #[arg(value_name = "METHOD", required = true)]
+        symbols: Vec<String>,
         /// Print the answer as one JSON document. An unknown method prints an
         /// `error` and a `nearest` list, and the command fails.
         #[arg(long)]
@@ -287,8 +297,8 @@ impl Args {
                 json,
             } => order(&paths, check, dry_run, json),
             Command::Find { query, json } => find(&query, json),
-            Command::Calls { symbol, json } => calls(&symbol, json),
-            Command::Reach { symbol, json } => reach(&symbol, json),
+            Command::Calls { symbols, json } => calls(&symbols, json),
+            Command::Reach { symbols, json } => reach(&symbols, json),
         }
     }
 }
@@ -845,16 +855,146 @@ fn unknown_method(project: &Project, symbol: &str, json: bool) -> ExitCode {
     )
 }
 
-/// `nvs code calls`: the editor's call hierarchy of one method, the callers
-/// and then the callees, each with the places it calls.
-pub(crate) fn calls(symbol: &str, json: bool) -> ExitCode {
+/// The failure for several names when one or more of them is not a method of
+/// the project: each unknown name, in the order given, with its nearest
+/// methods. The JSON gives `error` and `unknown`, a list of `symbol` and
+/// `nearest`.
+fn unknown_methods(project: &Project, symbols: &[&str], json: bool) -> ExitCode {
+    let unknown: Vec<(String, Vec<String>)> = symbols
+        .iter()
+        .map(|symbol| {
+            let nearest = query::nearest_methods(project.workspace.index(), symbol, NEAREST)
+                .into_iter()
+                .map(escaped)
+                .collect();
+            (escaped(symbol), nearest)
+        })
+        .collect();
+    let names: Vec<String> = unknown
+        .iter()
+        .map(|(name, _)| format!("`{name}`"))
+        .collect();
+    let error = match names.as_slice() {
+        [one] => format!("no method {one} in this project"),
+        many => format!("no methods {} in this project", many.join(", ")),
+    };
+    if json {
+        let records: Vec<Value> = unknown
+            .iter()
+            .map(|(symbol, nearest)| json!({ "symbol": symbol, "nearest": nearest }))
+            .collect();
+        print!(
+            "{}",
+            pretty(json!({
+                "schemaVersion": SCHEMA_VERSION,
+                "error": error,
+                "unknown": records,
+            }))
+        );
+        return ExitCode::FAILURE;
+    }
+    eprintln!("error: {error}");
+    for (symbol, nearest) in &unknown {
+        if nearest.is_empty() {
+            eprintln!("nearest to {symbol}: none");
+            continue;
+        }
+        eprintln!("nearest to {symbol}:");
+        for name in nearest {
+            eprintln!("  {name}");
+        }
+    }
+    ExitCode::FAILURE
+}
+
+/// One method's answer: the JSON document without its `schemaVersion`, and
+/// the text lines.
+type Answer = (Map<String, Value>, Vec<String>);
+
+/// Opens the project and prints `answer` for each name in `symbols`.
+///
+/// One name prints its answer as it is, and an unknown one fails with its
+/// nearest methods. Several names are taken in the order given, each once.
+/// Every name is checked before anything prints, and any unknown one fails
+/// the whole call. Each answer then prints under a line with its name, its
+/// lines indented by two spaces. The JSON is `schemaVersion` and `methods`,
+/// the list of each name's document.
+fn per_method(
+    symbols: &[String],
+    json: bool,
+    answer: impl Fn(&mut Project, &str) -> Answer,
+) -> ExitCode {
     let mut project = match Project::open() {
         Ok(project) => project,
         Err(code) => return code,
     };
-    if !method(&project, symbol) {
-        return unknown_method(&project, symbol, json);
+    let mut names: Vec<&str> = Vec::new();
+    for symbol in symbols {
+        if !names.contains(&symbol.as_str()) {
+            names.push(symbol);
+        }
     }
+    if let [symbol] = names.as_slice() {
+        if !method(&project, symbol) {
+            return unknown_method(&project, symbol, json);
+        }
+        let (document, lines) = answer(&mut project, symbol);
+        if json {
+            let mut out = Map::new();
+            out.insert("schemaVersion".into(), Value::from(SCHEMA_VERSION));
+            out.extend(document);
+            print!("{}", pretty(Value::Object(out)));
+        } else {
+            for line in lines {
+                println!("{line}");
+            }
+        }
+        return ExitCode::SUCCESS;
+    }
+    let unknown: Vec<&str> = names
+        .iter()
+        .copied()
+        .filter(|symbol| !method(&project, symbol))
+        .collect();
+    if !unknown.is_empty() {
+        return unknown_methods(&project, &unknown, json);
+    }
+    let answers: Vec<(&str, Answer)> = names
+        .iter()
+        .map(|symbol| (*symbol, answer(&mut project, symbol)))
+        .collect();
+    if json {
+        let methods: Vec<Value> = answers
+            .into_iter()
+            .map(|(_, (document, _))| Value::Object(document))
+            .collect();
+        print!(
+            "{}",
+            pretty(json!({
+                "schemaVersion": SCHEMA_VERSION,
+                "methods": methods,
+            }))
+        );
+        return ExitCode::SUCCESS;
+    }
+    for (symbol, (_, lines)) in answers {
+        println!("{}", escaped(symbol));
+        for line in lines {
+            println!("  {line}");
+        }
+    }
+    ExitCode::SUCCESS
+}
+
+/// `nvs code calls`: the editor's call hierarchy of each method, the callers
+/// and then the callees, each with the places it calls.
+pub(crate) fn calls(symbols: &[String], json: bool) -> ExitCode {
+    per_method(symbols, json, calls_of)
+}
+
+/// The callers and the callees of the method `symbol`, each with the places
+/// it calls.
+fn calls_of(project: &mut Project, symbol: &str) -> Answer {
     let owned = |found: Vec<nvs_lsp::calls::Calls<'_>>| -> Vec<(String, Vec<Site>)> {
         found
             .into_iter()
@@ -881,87 +1021,70 @@ pub(crate) fn calls(symbol: &str, json: bool) -> ExitCode {
             (*side, escaped(method), places)
         })
         .collect();
-    if json {
-        let side = |wanted: &str| -> Vec<Value> {
-            rows.iter()
-                .filter(|(side, _, _)| *side == wanted)
-                .map(|(_, method, places)| {
-                    let sites: Vec<Value> = places
-                        .iter()
-                        .map(|place| {
-                            let mut record = place.json();
-                            record.insert("text".into(), Value::from(place.source.clone()));
-                            Value::Object(record)
-                        })
-                        .collect();
-                    json!({ "symbol": method, "sites": sites })
-                })
-                .collect()
-        };
-        print!(
-            "{}",
-            pretty(json!({
-                "schemaVersion": SCHEMA_VERSION,
-                "symbol": escaped(symbol),
-                "callers": side("caller"),
-                "callees": side("callee"),
-            }))
-        );
-        return ExitCode::SUCCESS;
-    }
+    let side = |wanted: &str| -> Vec<Value> {
+        rows.iter()
+            .filter(|(side, _, _)| *side == wanted)
+            .map(|(_, method, places)| {
+                let sites: Vec<Value> = places
+                    .iter()
+                    .map(|place| {
+                        let mut record = place.json();
+                        record.insert("text".into(), Value::from(place.source.clone()));
+                        Value::Object(record)
+                    })
+                    .collect();
+                json!({ "symbol": method, "sites": sites })
+            })
+            .collect()
+    };
+    let mut document = Map::new();
+    document.insert("symbol".into(), Value::from(escaped(symbol)));
+    document.insert("callers".into(), Value::from(side("caller")));
+    document.insert("callees".into(), Value::from(side("callee")));
     let width = rows
         .iter()
         .flat_map(|(_, _, places)| places)
         .map(|place| place.position().len())
         .max()
         .unwrap_or(0);
+    let mut lines = Vec::new();
     for (side, method, places) in &rows {
-        println!("{method}  {side}");
+        lines.push(format!("{method}  {side}"));
         for place in places {
-            println!("  {:<width$}  {}", place.position(), place.source);
+            lines.push(format!("  {:<width$}  {}", place.position(), place.source));
         }
     }
-    ExitCode::SUCCESS
+    (document, lines)
 }
 
-/// `nvs code reach`: the routes and the tests the used-by lens counts for one
-/// method, read off the call graph.
-pub(crate) fn reach(symbol: &str, json: bool) -> ExitCode {
-    let project = match Project::open() {
-        Ok(project) => project,
-        Err(code) => return code,
-    };
-    if !method(&project, symbol) {
-        return unknown_method(&project, symbol, json);
-    }
+/// `nvs code reach`: the routes and the tests the used-by lens counts for
+/// each method, read off the call graph.
+pub(crate) fn reach(symbols: &[String], json: bool) -> ExitCode {
+    per_method(symbols, json, reach_of)
+}
+
+/// The routes and the tests that reach the method `symbol`.
+fn reach_of(project: &mut Project, symbol: &str) -> Answer {
     let found = nvs_lsp::reach::reach(project.workspace.index(), symbol);
     let routes: Vec<String> = found.routes.iter().map(|route| escaped(route)).collect();
     let tests: Vec<String> = found.tests.iter().map(|test| escaped(test)).collect();
-    if json {
-        print!(
-            "{}",
-            pretty(json!({
-                "schemaVersion": SCHEMA_VERSION,
-                "symbol": escaped(symbol),
-                "routes": routes,
-                "tests": tests,
-                "atLeast": found.at_least,
-            }))
-        );
-        return ExitCode::SUCCESS;
-    }
-    for route in &routes {
-        println!("route  {route}");
-    }
-    for test in &tests {
-        println!("test   {test}");
-    }
+    let mut lines: Vec<String> = routes
+        .iter()
+        .map(|route| format!("route  {route}"))
+        .collect();
+    lines.extend(tests.iter().map(|test| format!("test   {test}")));
     if found.at_least {
-        println!(
+        lines.push(
             "at least: more routes or tests may reach this method. Some calls are only known when the program runs."
+                .to_owned(),
         );
     }
-    ExitCode::SUCCESS
+    let mut document = Map::new();
+    document.insert("symbol".into(), Value::from(escaped(symbol)));
+    document.insert("routes".into(), Value::from(routes));
+    document.insert("tests".into(), Value::from(tests));
+    document.insert("atLeast".into(), Value::from(found.at_least));
+    (document, lines)
 }
 
 /// `nvs code rename`: the editor's rename of a name or of the symbol at a

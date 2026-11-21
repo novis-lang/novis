@@ -1279,6 +1279,162 @@ fn code_find_calls_and_reach_json_have_every_key() {
     );
 }
 
+// covers: tools:cli/nvs-code
+#[test]
+fn reach_of_several_methods_prints_each_under_its_name() {
+    let dir = calls_project("reach-several");
+    let (out, err, ok) = code(
+        &dir,
+        &["reach", "Prices::plain", "Prices::base", "Prices::plain"],
+    );
+    assert!(ok, "{err}");
+    let lines: Vec<&str> = out.lines().collect();
+    // Each name prints once, in the order given, and its lines are indented.
+    assert_eq!(
+        lines[..5],
+        [
+            "Prices::plain",
+            "  route  GET /cart",
+            "  test   ShopTest::cartLoads",
+            "  test   ShopTest::plainIsFive",
+            "Prices::base",
+        ],
+        "{out}"
+    );
+    assert_eq!(
+        lines[5..7],
+        ["  route  GET /cart", "  test   ShopTest::cartLoads"],
+        "{out}"
+    );
+    assert_eq!(lines.len(), 8, "{out}");
+    assert!(lines[7].starts_with("  at least:"), "{out}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn calls_of_several_methods_prints_each_under_its_name() {
+    let dir = calls_project("calls-several");
+    let (out, err, ok) = code(&dir, &["calls", "Prices::plain", "ShopTest::cartLoads"]);
+    assert!(ok, "{err}");
+    let (plain, _, _) = code(&dir, &["calls", "Prices::plain"]);
+    let (loads, _, _) = code(&dir, &["calls", "ShopTest::cartLoads"]);
+    let mut expected = String::from("Prices::plain\n");
+    for line in plain.lines() {
+        expected.push_str(&format!("  {line}\n"));
+    }
+    expected.push_str("ShopTest::cartLoads\n");
+    for line in loads.lines() {
+        expected.push_str(&format!("  {line}\n"));
+    }
+    assert_eq!(out, expected);
+    assert_eq!(
+        words(&out)[..3],
+        [
+            "Prices::plain",
+            "Shop::cart caller",
+            "app.nvs:20:18 echo $p->plain();"
+        ],
+        "{out}"
+    );
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn several_methods_in_json_are_a_methods_list() {
+    let dir = calls_project("several-json");
+    let (out, err, ok) = code(&dir, &["reach", "--json", "Prices::base", "Prices::plain"]);
+    assert!(ok, "{err}");
+    let mut base = parsed(&code(&dir, &["reach", "--json", "Prices::base"]).0);
+    let mut plain = parsed(&code(&dir, &["reach", "--json", "Prices::plain"]).0);
+    for one in [&mut base, &mut plain] {
+        one.as_object_mut()
+            .expect("an object")
+            .remove("schemaVersion");
+    }
+    assert_eq!(
+        parsed(&out),
+        serde_json::json!({ "schemaVersion": 1, "methods": [base, plain] }),
+        "{out}"
+    );
+
+    let (out, err, ok) = code(&dir, &["calls", "--json", "Shop::cart", "Prices::base"]);
+    assert!(ok, "{err}");
+    let answer = parsed(&out);
+    assert_eq!(answer["schemaVersion"], 1, "{out}");
+    let methods = answer["methods"].as_array().expect("a methods list");
+    assert_eq!(methods.len(), 2, "{out}");
+    assert_eq!(methods[0]["symbol"], "Shop::cart", "{out}");
+    assert_eq!(methods[1]["symbol"], "Prices::base", "{out}");
+    assert!(methods[0].get("schemaVersion").is_none(), "{out}");
+    assert!(methods[0].get("callers").is_some(), "{out}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn one_unknown_method_among_several_fails_the_call_and_names_it() {
+    let dir = calls_project("several-unknown");
+    let (out, err, ok) = code(&dir, &["calls", "Prices::base", "Prices::bse", "Prices"]);
+    assert!(!ok);
+    // Nothing prints for the name that is a method.
+    assert_eq!(out, "");
+    assert!(
+        err.starts_with("error: no methods `Prices::bse`, `Prices` in this project\n"),
+        "{err}"
+    );
+    assert!(
+        err.contains("nearest to Prices::bse:\n  Prices::base\n"),
+        "{err}"
+    );
+    assert!(err.contains("nearest to Prices:\n"), "{err}");
+
+    let (out, _, ok) = code(&dir, &["reach", "--json", "Prices::plain", "Prices::bse"]);
+    assert!(!ok);
+    let answer = parsed(&out);
+    assert_eq!(answer["schemaVersion"], 1, "{out}");
+    assert_eq!(
+        answer["error"], "no method `Prices::bse` in this project",
+        "{out}"
+    );
+    let unknown = answer["unknown"].as_array().expect("an unknown list");
+    assert_eq!(unknown.len(), 1, "{out}");
+    assert_eq!(unknown[0]["symbol"], "Prices::bse", "{out}");
+    assert_eq!(unknown[0]["nearest"][0], "Prices::base", "{out}");
+    assert!(answer.get("methods").is_none(), "{out}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn one_method_prints_what_it_printed_before() {
+    let dir = calls_project("one-method");
+    // One name keeps the output with no heading and no indent.
+    let (out, err, ok) = code(&dir, &["reach", "Prices::plain"]);
+    assert!(ok, "{err}");
+    assert_eq!(
+        out,
+        "route  GET /cart\ntest   ShopTest::cartLoads\ntest   ShopTest::plainIsFive\n"
+    );
+    // The same name twice is one name.
+    let (twice, _, ok) = code(&dir, &["reach", "Prices::plain", "Prices::plain"]);
+    assert!(ok);
+    assert_eq!(twice, out);
+    let (out, err, ok) = code(&dir, &["calls", "Prices::plain"]);
+    assert!(ok, "{err}");
+    assert!(
+        out.starts_with("Shop::cart  caller\n  app.nvs:20:18  "),
+        "{out}"
+    );
+    // One unknown name keeps its error and its `nearest` list.
+    let (out, _, ok) = code(&dir, &["calls", "--json", "Prices::bse"]);
+    assert!(!ok);
+    let answer = parsed(&out);
+    assert_eq!(
+        answer["error"], "no method `Prices::bse` in this project",
+        "{out}"
+    );
+    assert_eq!(answer["nearest"][0], "Prices::base", "{out}");
+    assert!(answer.get("unknown").is_none(), "{out}");
+}
+
 /// A class whose method, property and constant are written in the reverse of
 /// the member order.
 const BASKET: &str = "<?nvs\nnamespace Shop;\n\nclass Basket\n{\n    \
