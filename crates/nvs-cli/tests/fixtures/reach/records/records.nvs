@@ -102,7 +102,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     if ($path == '/log') {
         Core\Log::write(Core\Log::Level::Warn, 'from a request', ['path' => $path]);
-    } else if ($path == '/mail') {
+    } elseif ($path == '/mail') {
         Core\Mail::send(
             'relay',
             ['ada@example.com'],
