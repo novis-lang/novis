@@ -1178,6 +1178,17 @@ pub struct Ctx {
     /// **What it spends:** one word per request, and nothing at all on the
     /// `Core\Time::now` path beyond one predictable not-taken branch.
     fixed_clock: Option<std::rc::Rc<crate::test_clock::TestClock>>,
+    /// `#[Test(env:)]`'s variables, as `(name, value)` in the order written, or `None` for a
+    /// context no test armed (`rule:testing/test-attribute`). [`crate::capability::env_var`] and
+    /// `env_vars` read them before the process environment.
+    ///
+    /// **Shared by the test's task tree and the isolates it starts**, as [`Self::fixed_clock`]
+    /// is: [`Ctx::child`] clones the `Rc`, and `nvs_cli::runner` hands the same `Rc` to each
+    /// request and run the test makes, which run on the test's own thread. Nothing writes it
+    /// after the test's isolate is armed.
+    ///
+    /// **What it spends:** one word per context, and the test's own variables once per test.
+    test_env: Option<std::rc::Rc<[(String, String)]>>,
     /// Whether a `#[Test]` method owns this context: `true` on the isolate
     /// `nvs_cli::runner` builds for one test, and on every task context
     /// [`Ctx::child`] opens under it. Only such a context keeps

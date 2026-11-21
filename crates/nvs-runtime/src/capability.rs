@@ -1820,23 +1820,46 @@ pub fn io_failure(member: &str, path: &Path, err: &std::io::Error) -> Fault {
 /// **Read-only.** Nothing in this runtime writes the environment after start, which is what makes
 /// an unsynchronised read from a core thread sound. **What it spends:** one grant check per read.
 ///
+/// Under `#[Test(env:)]` the test's variables are read first, and the process environment only
+/// for a name they do not set ([`Ctx::test_env`], `rule:testing/test-attribute`). The grant is
+/// asked either way, as it is in production.
+///
 /// # Errors
 ///
 /// [`require`]'s `RuntimeError` where `env` is not granted.
 pub fn env_var(ctx: &Ctx, name: &str, member: &str) -> Result<Option<OsString>, Fault> {
     require(ctx, Cap::Env, Scope::Unscoped, member)?;
+    if let Some(vars) = ctx.test_env()
+        && let Some((_, value)) = vars.iter().find(|(set, _)| set == name)
+    {
+        return Ok(Some(OsString::from(value)));
+    }
     Ok(std::env::var_os(name))
 }
 
 /// [`env_var`]'s door for every variable at once, in the platform's own order: a snapshot of one
 /// moment, collected so the caller holds no iterator over a table it does not own.
 ///
+/// A test's `env:` variables come first, in the order written, and replace a process variable
+/// of the same name, as [`env_var`] reads them.
+///
 /// # Errors
 ///
 /// [`require`]'s `RuntimeError` where `env` is not granted.
 pub fn env_vars(ctx: &Ctx, member: &str) -> Result<Vec<(OsString, OsString)>, Fault> {
     require(ctx, Cap::Env, Scope::Unscoped, member)?;
-    Ok(std::env::vars_os().collect())
+    let Some(vars) = ctx.test_env() else {
+        return Ok(std::env::vars_os().collect());
+    };
+    let mut all: Vec<(OsString, OsString)> = vars
+        .iter()
+        .map(|(name, value)| (OsString::from(name), OsString::from(value)))
+        .collect();
+    all.extend(std::env::vars_os().filter(|(name, _)| {
+        name.to_str()
+            .is_none_or(|name| !vars.iter().any(|(set, _)| set == name))
+    }));
+    Ok(all)
 }
 
 #[cfg(test)]

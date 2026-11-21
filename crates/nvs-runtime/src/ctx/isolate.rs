@@ -423,6 +423,7 @@ impl Ctx {
         // The test clock is the tree's, so a task's sleep moves the clock its
         // parent and siblings read (`rule:testing/task-tree-and-virtual-clock`).
         child.fixed_clock = self.fixed_clock.clone();
+        child.test_env = self.test_env.clone();
         child.statics = self.statics;
         child.debug = self.debug;
         child.debug_ceiling = self.debug;

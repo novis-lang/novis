@@ -1,0 +1,41 @@
+<?nvs
+// What a test sets and reads back: its environment variables. Each test
+// checks what the test, a request and a run read.
+use Core\Http\Method;
+
+class Mode
+{
+    #[Core\Command(name: 'mode', about: 'Print the mode variable')]
+    public static function mode(): uint
+    {
+        echo Core\Env::get('REACH_MODE') ?? 'none', "\n";
+        return 0;
+    }
+}
+
+class Records
+{
+    #[Core\Test(env: ['REACH_MODE' => 'test'])]
+    public function envReachesTheTestAndItsRequests(): void
+    {
+        Core\Test::assertEquals(Core\Env::get('REACH_MODE'), 'test');
+        Core\Test::assertEquals(Core\Test::request(Method::Get, '/mode')->body(), 'test');
+        Core\Test::assertEquals(Core\Test::run(['mode'])->stdout(), "test\n");
+    }
+
+    #[Core\Test]
+    public function envStaysWithItsTest(): void
+    {
+        Core\Test::assertNull(Core\Env::get('REACH_MODE'));
+        Core\Test::assertEquals(Core\Test::request(Method::Get, '/mode')->body(), 'none');
+        Core\Test::assertEquals(Core\Test::run(['mode'])->stdout(), "none\n");
+    }
+}
+
+// A request prints the mode variable. A run calls the command its words name.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    echo Core\Env::get('REACH_MODE') ?? 'none';
+} else {
+    uint $status = Core\Command::run();
+    exit($status as int);
+}

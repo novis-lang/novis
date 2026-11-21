@@ -25,6 +25,9 @@
 //! reaches the command its words name, feeds stdin, gives `exit`, the usage
 //! page and an uncaught error as exit codes, keeps stdout and stderr apart, and
 //! is a `LogicError` in a folder with no entry `nvs run` would run.
+//!
+//! The env tests are `rule:testing/test-attribute`'s `env:`: the test's
+//! variables reach the test, its requests and its runs, and no other test.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -394,5 +397,34 @@ fn test_run_without_a_command_entry_is_a_logic_error() {
     assert!(
         report.contains(method) && report.contains("0 failed, 1 passed"),
         "`{method}` was the one test that ran, and it passed:\n{report}"
+    );
+}
+
+/// `#[Test(env:)]`'s variable is what `Core\Env::get` reads in the test, in a
+/// request it makes and in a run it makes.
+// covers: Core\Test
+#[test]
+fn the_env_option_reaches_the_test_and_its_requests() {
+    let method = "envReachesTheTestAndItsRequests";
+    let (report, passed) = run_in(&fixture(""), "records.nvs", method);
+    assert!(passed, "`{method}` failed:\n{report}");
+    assert!(
+        report.contains(method) && report.contains("0 failed, 1 passed"),
+        "`{method}` was the one test that ran, and it passed:\n{report}"
+    );
+}
+
+/// A test without `env:`, run in the same suite as one with it, reads none of
+/// its variables, and neither do its requests and runs.
+// covers: Core\Test
+#[test]
+fn the_env_option_does_not_reach_another_test() {
+    let (report, passed) = run_in(&fixture(""), "records.nvs", "env");
+    assert!(passed, "the env tests failed:\n{report}");
+    assert!(
+        report.contains("envReachesTheTestAndItsRequests")
+            && report.contains("envStaysWithItsTest")
+            && report.contains("0 failed, 2 passed"),
+        "both env tests ran in one suite, and passed:\n{report}"
     );
 }

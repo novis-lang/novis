@@ -366,6 +366,7 @@ impl Ctx {
             own_file: 0,
             trace_context,
             fixed_clock: None,
+            test_env: None,
             owned_by_test: false,
             random_state: None,
             test_server: None,
@@ -928,6 +929,19 @@ impl Ctx {
             Some(clock) => clock.set(nanos),
             None => self.fixed_clock = Some(crate::test_clock::TestClock::new(nanos)),
         }
+    }
+
+    /// `#[Test(env:)]`'s variables, or `None` outside a test that set some — see
+    /// [`Self::test_env`]'s field docs.
+    #[must_use]
+    pub fn test_env(&self) -> Option<&std::rc::Rc<[(String, String)]>> {
+        self.test_env.as_ref()
+    }
+
+    /// Arms this context with a test's `env:` variables, before its program runs. The runner
+    /// calls it on the test's isolate and on each request and run that test makes.
+    pub fn set_test_env(&mut self, vars: std::rc::Rc<[(String, String)]>) {
+        self.test_env = Some(vars);
     }
 
     /// Whether a `#[Test]` method owns this context — see

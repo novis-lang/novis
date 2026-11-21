@@ -250,6 +250,7 @@ pub(crate) const OPTIONS: &[(&str, OptionTy)] = &[
     ("because", OptionTy::Str),
     ("timeout", OptionTy::Str),
     ("tags", OptionTy::StrList),
+    ("env", OptionTy::StrList),
 ];
 
 /// `rule:testing/bench-counters`' option shape for `#[Bench]`: `skip` and `because`, at the
@@ -1344,7 +1345,9 @@ pub(crate) fn check_bench_payload(fields: &[AnonObjectField], ctx: &Ctx<'_>, env
 /// reason, and a `retries:` below 1 retries nothing. `rule:testing/a-test-has-a-wall-time-limit`'s
 /// `timeout:` is read as `nvs.toml` reads a duration ([`timeout_nanos`]), and a zero limit would
 /// fail every run. A `rule:testing/tags-and-shards-select-what-runs` tag that is empty is a label no
-/// `--tag` can name.
+/// `--tag` can name. An `env:` key is a variable's name, so a list without keys, an empty name and
+/// a name with a character other than a letter, a digit or `_` set no variable a program means to
+/// read (`rule:testing/test-attribute`).
 ///
 /// The roster checks each value's type and not its value, so this reads the
 /// folded constants. A value of the wrong type is the roster's error already,
@@ -1398,6 +1401,19 @@ pub(crate) fn check_option_values(fields: &[AnonObjectField], env: &mut Env<'_>)
                 }
                 _ => continue,
             },
+            "env" => match crate::defaults::eval_const_value(&field.value, tags, env) {
+                Some(crate::defaults::ConstArg::Array(entries))
+                    if entries.iter().any(|(name, _)| !is_env_name(name)) =>
+                {
+                    (
+                        "has a key that is not a variable name",
+                        "write each variable as a name and a value, such as \
+                         `[\"APP_MODE\" => \"test\"]`. A name starts with a letter or `_`. \
+                         It has only letters, digits and `_`",
+                    )
+                }
+                _ => continue,
+            },
             _ => continue,
         };
         env.diags.report(
@@ -1406,6 +1422,17 @@ pub(crate) fn check_option_values(fields: &[AnonObjectField], env: &mut Env<'_>)
                 .with_help(help),
         );
     }
+}
+
+/// Whether `name` is an `env:` key a program can read back: an ASCII letter or `_`, then letters,
+/// digits and `_`. A list's own keys, `"0"` onward, are not, which is how a list without keys is
+/// refused.
+fn is_env_name(name: &str) -> bool {
+    let mut bytes = name.bytes();
+    bytes
+        .next()
+        .is_some_and(|first| first.is_ascii_alphabetic() || first == b'_')
+        && bytes.all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
 }
 
 /// `timeout:`'s text as nanoseconds, read the way `nvs.toml` reads `[limits] wall_time`

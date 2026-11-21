@@ -1679,6 +1679,9 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         // copy, so nothing the request does moves the test's clock. The `seed:` generator does not
         // cross: a copy of its state would draw the same values in every request a test makes.
         let clock = ctx.fixed_clock();
+        // The test's `env:` variables reach the request too (`rule:testing/test-attribute`). The
+        // child runs on this thread, inside the join below, so it shares the test's `Rc`.
+        let vars = ctx.test_env().cloned();
         let request = self.request;
         // The same program `crate::script::program_over` builds for a `spawn
         // script`, over this run's own unit instead of a resolved one: the
@@ -1689,6 +1692,9 @@ impl nvs_runtime::inproc::Answering for UnderTest {
                 unit.install_in(ctx);
                 if let Some(nanos) = clock {
                     ctx.set_fixed_clock(nanos);
+                }
+                if let Some(vars) = &vars {
+                    ctx.set_test_env(Rc::clone(vars));
                 }
                 if !routes.rows().is_empty() {
                     ctx.set_routes(std::sync::Arc::clone(&routes));
@@ -1761,8 +1767,10 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         let routes = std::sync::Arc::clone(&self.routes);
         let commands = command.commands.clone();
         let name = command.name.clone();
-        // A copy of the test's clock, as a request's child gets one in `answer`.
+        // A copy of the test's clock, and the test's `env:` variables, as a request's child gets
+        // them in `answer`.
         let clock = ctx.fixed_clock();
+        let vars = ctx.test_env().cloned();
         // The exit code and standard error the child's frame leaves here, read
         // once the child has ended. The child runs on this thread, inside the
         // join below, so the cell is never shared across threads.
@@ -1776,6 +1784,9 @@ impl nvs_runtime::inproc::Answering for UnderTest {
                 unit.install_in(ctx);
                 if let Some(nanos) = clock {
                     ctx.set_fixed_clock(nanos);
+                }
+                if let Some(vars) = vars {
+                    ctx.set_test_env(vars);
                 }
                 if !routes.rows().is_empty() {
                     ctx.set_routes(routes);
@@ -3923,6 +3934,9 @@ fn run_the_test(
     // would be two transactions on two connections deadlocking on each other.
     // `nvs_stdlib::db::begin_test_transaction` is the one home of that reading.
     let transacted = wants_db(case).map(str::to_owned);
+    // `#[Test(env:)]`'s variables, read here with the other options and made shared inside the
+    // child, on the test's own thread (`nvs_runtime::Ctx::test_env`).
+    let vars = env_of(case);
     let child_unit = Arc::clone(unit);
     let child_routes = (!routes.rows().is_empty()).then(|| Arc::clone(routes));
     let class_name = class.to_owned();
@@ -3956,6 +3970,11 @@ fn run_the_test(
         // cannot move another's (`nvs_stdlib::random::draw`).
         if let Some(seed) = seed {
             child.set_random_state(seed);
+        }
+        // `#[Test(env:)]`'s variables, on the child's context alone, so a sibling test reads the
+        // process environment (`rule:testing/test-attribute`).
+        if let Some(vars) = vars {
+            child.set_test_env(Rc::from(vars));
         }
         // `rule:testing/in-process-request`'s listener, armed the same way and in the same place as the two
         // above: the address is the *child's* to read, so a sibling that
@@ -4916,6 +4935,23 @@ fn wall_limit(
     }
     ctx.refresh_limits();
     Ok(Some(format!("{fallback:?}, set by `--mutate`")))
+}
+
+/// `#[Test(env:)]`'s variables of one test, as `(name, value)` in the order written, or `None`
+/// where it set none. The checker has refused a key that is not a variable name.
+fn env_of(case: &nvs_types::testing::TestCase) -> Option<Vec<(String, String)>> {
+    case.options.iter().find_map(|(name, value)| match value {
+        ConstArg::Array(entries) if name == "env" => Some(
+            entries
+                .iter()
+                .filter_map(|(key, value)| match value {
+                    ConstArg::Str(value) => Some((key.clone(), value.clone())),
+                    _ => None,
+                })
+                .collect(),
+        ),
+        _ => None,
+    })
 }
 
 /// `rule:testing/tags-and-shards-select-what-runs`'s tags of one test, as written.

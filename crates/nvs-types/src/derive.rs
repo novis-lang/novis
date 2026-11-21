@@ -354,6 +354,12 @@ pub const ATTRIBUTE_DOCS: &[AttributeDoc] = &[
                 required: false,
                 doc: "Labels for this test. `nvs test --tag` runs only the tests with a given label.",
             },
+            AttributeField {
+                name: "env",
+                ty: "array<string>",
+                required: false,
+                doc: "Environment variables for this test, such as `[\"APP_MODE\" => \"test\"]`. `Core\\Env` reads them first. The requests and runs the test makes read them too.",
+            },
         ],
         short: "Says that this method is a test. `nvs test` runs it and reports the result.",
         site: "a method",
