@@ -4,6 +4,8 @@
 //     bun nv proofs --group 'Core\Str'     one line per feature of that group
 //     bun nv proofs --id 'Core\Str::length'  one feature: every proof it has, and what it still owes
 //     bun nv proofs --owed [--limit N]     one line per feature still owing a proof: the worklist
+//     bun nv proofs --owed --goal SLUG     the same over what the goal's work reaches: its worklist
+//     bun nv proofs --gate --goal SLUG     exit 0 when nothing the goal's work reaches is owed: its check
 //     bun nv proofs --gaps                 every proof carrying a `proof: gap` marker
 //     bun nv proofs --gate [--limit N]     exit 0 when nothing in scope is owed; name the first 30 otherwise
 //     bun nv proofs --gate --no-skip PROOF the same, and a feature the policy skips for PROOF owes it
@@ -33,8 +35,11 @@
 //     bun nv proofs --perf-report          write data/perf/members.md from the ledger
 //     bun nv proofs --compact-ledger       drop the older records no reader uses, and measure nothing
 //
-// `--group` and `--only ID...` narrow the scope of `--owed`, `--gaps`, `--gate`, `--json`, `--run`,
-// `--verify` and `--record-perf`, and `--id` narrows `--run`, `--verify` and `--record-perf`. `--run`,
+// `--group`, `--only ID...`, `--since REV` and `--goal SLUG` narrow the scope of `--owed`, `--gaps`,
+// `--gate`, `--json`, `--run`, `--verify` and `--record-perf`, and `--id` narrows `--gate`, `--run`,
+// `--verify` and `--record-perf`. `--since REV` keeps the features the work since that commit reaches,
+// and `--goal SLUG` the ones the work since the commit that added the goal's file reaches
+// (`tools/nv/proofs/since.ts`). `--run`,
 // `--verify` and `--record-perf` take `--group` more than once, and `--run` and `--verify` also take
 // `--only-as LABEL ID...` more than once: a scope of the named features whose section is `LABEL` and
 // whose gate line reads as `--only`'s does. Over several scopes the roster is read once, every program
@@ -74,15 +79,16 @@ import { aboutFile, benchFile, DETAILS, examplesDir, hostileDir, noteRoster, pro
 import { newestNvs } from "../lib/nvs-binary.ts";
 import { bless, namedBinary, overshootScan, type Pass, proofBinary, releaseBinary, runPrograms, saveReads, showProgram, suiteLines, type Binary, type What } from "../proofs/run.ts";
 import { probeScan } from "../proofs/probe.ts";
+import { changedSince, goalBase, reached } from "../proofs/since.ts";
 import { featureGroup } from "../select/store.ts";
 import { type Diverged, runSelected } from "../proofs/select.ts";
 
 export const summary =
-  "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify] [--overshoot] [--probe] [--bless FILE...] [--comments PATH...] [--record-perf] [--perf-report] [--compact-ledger]";
+  "what each feature still owes of its proofs, and whether they pass: nv proofs [--group G]... [--only ID...] [--since REV | --goal SLUG] [--id ID] [--owed] [--gaps] [--gate] [--json] [--run] [--verify] [--overshoot] [--probe] [--bless FILE...] [--comments PATH...] [--record-perf] [--perf-report] [--compact-ledger]";
 
 const USAGE = [
   "usage: nv proofs [-h] [--group GROUP] [--only ID [ID ...]] [--id FEATURE]",
-  "                 [--only-as LABEL ID [ID ...]]",
+  "                 [--only-as LABEL ID [ID ...]] [--since REV | --goal SLUG]",
   "                 [--owed] [--gaps] [--limit LIMIT] [--json] [--gate] [--no-skip PROOF]",
   "                 [--run] [--verify] [--overshoot] [--probe] [--valgrind] [--quiet] [--no-cache]",
   "                 [--strict] [--show] [--no-perf] [--nvs NVS]",
@@ -458,8 +464,9 @@ export async function run(args: string[]): Promise<number> {
     ({ rest, list: hashed } = takeList(rest, "--impl-hash"));
     ({ flags, values } = parseArgs(rest, {
       flags: ["--owed", "--gaps", "--json", "--gate", "--no-perf", "--run", "--verify", "--overshoot", "--probe", "--valgrind", "--quiet", "--no-cache", "--strict", "--show", "--record-perf", "--force", "--perf-report", "--compact-ledger", "--no-callgrind"],
-      valued: ["--group", "--id", "--limit", "--nvs", "--reps", "--note", "--no-skip"],
+      valued: ["--group", "--id", "--limit", "--nvs", "--reps", "--note", "--no-skip", "--since", "--goal"],
     }));
+    if (values.has("--since") && values.has("--goal")) throw new ArgError("argument --goal: not allowed with argument --since");
     const noSkip = values.get("--no-skip");
     if (noSkip !== undefined && !(PROOFS as readonly string[]).includes(noSkip)) {
       throw new ArgError(`argument --no-skip: invalid choice: ${pyRepr(noSkip)} (choose from ${PROOFS.join(", ")})`);
@@ -564,7 +571,23 @@ export async function run(args: string[]): Promise<number> {
       return flush(1);
     }
   }
-  const label = group ?? (only !== null ? `${only.length} named feature(s)` : null);
+  // `--since` and `--goal` keep what the work reaches. A scope that reaches nothing passes: the work
+  // moved no feature.
+  const sinceRev = values.get("--since");
+  const goalSlug = values.get("--goal");
+  let workLabel: string | null = null;
+  if (sinceRev !== undefined || goalSlug !== undefined) {
+    let changed: string[];
+    try {
+      changed = changedSince(goalSlug !== undefined ? goalBase(goalSlug) : sinceRev!);
+    } catch (e) {
+      out.push(`nv proofs: ${e instanceof Error ? e.message : String(e)}`);
+      return flush(1);
+    }
+    scope = reached(scope, changed);
+    workLabel = goalSlug !== undefined ? `what goal ${goalSlug} reaches` : `what the work since ${sinceRev} reaches`;
+  }
+  const label = group ?? (only !== null ? `${only.length} named feature(s)` : workLabel);
   // Each `--only-as` is a scope of its own: its features in roster order, and a gate line that names
   // them as `--only` does. The run's scope is then the groups' features and theirs.
   const grouped = scope;
@@ -646,7 +669,14 @@ export async function run(args: string[]): Promise<number> {
 
   if (flags.has("--gate")) {
     const shown = values.has("--limit") ? limit || Number.MAX_SAFE_INTEGER : 30;
-    return flush(gate(out, scope, proofs, policy, skips, label, values.has("--no-skip") ? [values.get("--no-skip")!] : [], shown));
+    // `--id` narrows the gate to that one feature.
+    const fid = values.get("--id");
+    if (fid !== undefined && !fidEntry) {
+      out.push(`nv proofs: no feature ${pyRepr(fid)}.`);
+      return flush(1);
+    }
+    const gated = fidEntry ? [fidEntry] : scope;
+    return flush(gate(out, gated, proofs, policy, skips, fidEntry ? fidEntry.id : label, values.has("--no-skip") ? [values.get("--no-skip")!] : [], shown));
   }
   if (flags.has("--json")) {
     const doc = scope.map((e) => {
