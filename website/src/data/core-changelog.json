@@ -1,3 +1,915 @@
 {
-  "//": "Per-member changelog. Key: member id (e.g. \"Str.length\"). Value: array of {version, change}. Empty until the first release that changes a member."
+  "//": "Per-member changelog. Key: member id (e.g. \"Str.length\"). Value: array of {version, change}. Empty until the first release that changes a member.",
+  "tools:cli/nvs-code": [
+    {
+      "version": "0.0.5",
+      "change": "`nvs code` reads and saves the editor's index file, a list of every name in the project and every place it is used. A call analyses only the files whose content changed, so it is faster. `nvs code calls` and `nvs code reach` take several methods in one call."
+    },
+    {
+      "version": "0.0.5",
+      "change": "`nvs code refs` lists a route method passed to a `#[Core\\Router\\Target]` parameter as a use of that method."
+    }
+  ],
+  "Test.run": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::run` runs your program as a command, with the arguments you give and an optional `stdin`. It returns a `Core\\Test\\RunResult` with the exit code, the standard output and the standard error. The program runs inside the test's own process."
+    }
+  ],
+  "Test.RunResult.exitCode": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::run` runs your program as a command, with the arguments you give and an optional `stdin`. It returns a `Core\\Test\\RunResult` with the exit code, the standard output and the standard error. The program runs inside the test's own process."
+    }
+  ],
+  "Test.RunResult.stdout": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::run` runs your program as a command, with the arguments you give and an optional `stdin`. It returns a `Core\\Test\\RunResult` with the exit code, the standard output and the standard error. The program runs inside the test's own process."
+    }
+  ],
+  "Test.RunResult.stderr": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::run` runs your program as a command, with the arguments you give and an optional `stdin`. It returns a `Core\\Test\\RunResult` with the exit code, the standard output and the standard error. The program runs inside the test's own process."
+    }
+  ],
+  "Test.RunResult.bytes": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::run` runs your program as a command, with the arguments you give and an optional `stdin`. It returns a `Core\\Test\\RunResult` with the exit code, the standard output and the standard error. The program runs inside the test's own process."
+    }
+  ],
+  "Test.logs": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::logs` returns the log records written in the current test. The list includes the records of each request and each run the test started. Each record has `level()`, `message()` and `fields()`."
+    }
+  ],
+  "Test.LogRecord.level": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::logs` returns the log records written in the current test. The list includes the records of each request and each run the test started. Each record has `level()`, `message()` and `fields()`."
+    }
+  ],
+  "Test.LogRecord.message": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::logs` returns the log records written in the current test. The list includes the records of each request and each run the test started. Each record has `level()`, `message()` and `fields()`."
+    }
+  ],
+  "Test.LogRecord.fields": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::logs` returns the log records written in the current test. The list includes the records of each request and each run the test started. Each record has `level()`, `message()` and `fields()`."
+    }
+  ],
+  "Test.sentMail": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::sentMail` returns the messages your program sent in the current test. Each one is a `Core\\Test\\SentMail`, and its methods return the values given to `Core\\Mail::send`."
+    }
+  ],
+  "Test.SentMail.endpoint": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::sentMail` returns the messages your program sent in the current test. Each one is a `Core\\Test\\SentMail`, and its methods return the values given to `Core\\Mail::send`."
+    }
+  ],
+  "Test.SentMail.to": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::sentMail` returns the messages your program sent in the current test. Each one is a `Core\\Test\\SentMail`, and its methods return the values given to `Core\\Mail::send`."
+    }
+  ],
+  "Test.SentMail.subject": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::sentMail` returns the messages your program sent in the current test. Each one is a `Core\\Test\\SentMail`, and its methods return the values given to `Core\\Mail::send`."
+    }
+  ],
+  "Test.SentMail.text": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::sentMail` returns the messages your program sent in the current test. Each one is a `Core\\Test\\SentMail`, and its methods return the values given to `Core\\Mail::send`."
+    }
+  ],
+  "Test.SentMail.cc": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::sentMail` returns the messages your program sent in the current test. Each one is a `Core\\Test\\SentMail`, and its methods return the values given to `Core\\Mail::send`."
+    }
+  ],
+  "Test.SentMail.bcc": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::sentMail` returns the messages your program sent in the current test. Each one is a `Core\\Test\\SentMail`, and its methods return the values given to `Core\\Mail::send`."
+    }
+  ],
+  "Test.SentMail.replyTo": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::sentMail` returns the messages your program sent in the current test. Each one is a `Core\\Test\\SentMail`, and its methods return the values given to `Core\\Mail::send`."
+    }
+  ],
+  "Test.SentMail.html": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::sentMail` returns the messages your program sent in the current test. Each one is a `Core\\Test\\SentMail`, and its methods return the values given to `Core\\Mail::send`."
+    }
+  ],
+  "Mail.send": [
+    {
+      "version": "0.0.5",
+      "change": "Under `nvs test`, `Core\\Mail::send` sends nothing and opens no connection. It still checks the capability, the mail settings and every address. `Core\\Test::sentMail` returns the message."
+    }
+  ],
+  "Test.Response.error": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test\\Response::error` returns the class and message of the error that stopped a request, such as `RuntimeError: no stock`. It returns `null` when the request did not fail."
+    }
+  ],
+  "Test.request": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::request` has new options: `clientIp`, `scheme`, `cookies`, and the body options `json`, `form`, `multipart` and `contentType` of `Core\\Http\\Client`. The response is the one a server sends. A write from another site gets `403`, and a `HEAD` request gets no body."
+    }
+  ],
+  "Test.Response.status": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::request` has new options: `clientIp`, `scheme`, `cookies`, and the body options `json`, `form`, `multipart` and `contentType` of `Core\\Http\\Client`. The response is the one a server sends. A write from another site gets `403`, and a `HEAD` request gets no body."
+    }
+  ],
+  "Test.Response.body": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::request` has new options: `clientIp`, `scheme`, `cookies`, and the body options `json`, `form`, `multipart` and `contentType` of `Core\\Http\\Client`. The response is the one a server sends. A write from another site gets `403`, and a `HEAD` request gets no body."
+    }
+  ],
+  "Test.Response.bytes": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::request` has new options: `clientIp`, `scheme`, `cookies`, and the body options `json`, `form`, `multipart` and `contentType` of `Core\\Http\\Client`. The response is the one a server sends. A write from another site gets `403`, and a `HEAD` request gets no body."
+    }
+  ],
+  "Test.Response.json": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Test::request` has new options: `clientIp`, `scheme`, `cookies`, and the body options `json`, `form`, `multipart` and `contentType` of `Core\\Http\\Client`. The response is the one a server sends. A write from another site gets `403`, and a `HEAD` request gets no body."
+    }
+  ],
+  "lang:testing/test-options": [
+    {
+      "version": "0.0.5",
+      "change": "`#[Test(env: [...])]` sets environment variables for one test. `Core\\Env` reads them in the test and in each request and run it starts. Other tests do not see them."
+    }
+  ],
+  "Time.sleep": [
+    {
+      "version": "0.0.5",
+      "change": "In a test with `#[Test(at:)]`, `Core\\Time::sleep` ends at once and moves the test clock forward. A timeout of `Core\\Task::all` and the time to live of a `Core\\Cache::memory` entry use the same clock. Without `at:`, a sleep waits in real time."
+    }
+  ],
+  "Task.all": [
+    {
+      "version": "0.0.5",
+      "change": "In a test with `#[Test(at:)]`, `Core\\Time::sleep` ends at once and moves the test clock forward. A timeout of `Core\\Task::all` and the time to live of a `Core\\Cache::memory` entry use the same clock. Without `at:`, a sleep waits in real time."
+    }
+  ],
+  "Cache.memory": [
+    {
+      "version": "0.0.5",
+      "change": "In a test with `#[Test(at:)]`, `Core\\Time::sleep` ends at once and moves the test clock forward. A timeout of `Core\\Task::all` and the time to live of a `Core\\Cache::memory` entry use the same clock. Without `at:`, a sleep waits in real time."
+    }
+  ],
+  "Html.later": [
+    {
+      "version": "0.0.5",
+      "change": "A callable in `Core\\Html::later` can read the request with `Core\\Request`. The path, the query, a header, a cookie and the route parameters are the same as in the main script. A body read in the callable throws a `LogicError`."
+    }
+  ],
+  "Core\\Time::fromIso": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time::fromIso` and `Core\\Time::fromEpoch` are removed. The same methods are on `Core\\Time\\Instant`, with the same arguments."
+    }
+  ],
+  "Core\\Time::fromEpoch": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time::fromIso` and `Core\\Time::fromEpoch` are removed. The same methods are on `Core\\Time\\Instant`, with the same arguments."
+    }
+  ],
+  "Core\\Time::parse": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time::parse` is removed. The same method is on `Core\\Time\\DateTime`, with the same arguments."
+    }
+  ],
+  "Core\\Time::at": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time::at` is removed. It built a `DateTime` from a year, a month, a day, a zone and time options."
+    }
+  ],
+  "Core\\Time\\DateTime::Weekday": [
+    {
+      "version": "0.0.5",
+      "change": "The enum `Core\\Time\\DateTime::Weekday` is removed. The same seven cases are in `Core\\Time\\Weekday`."
+    }
+  ],
+  "Core\\Time\\Weekday": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\Weekday` is the enum of the days of the week, from `Monday` to `Sunday`. `Core\\Time\\Date::weekday` and `Core\\Time\\DateTime::weekday` return one of its cases."
+    }
+  ],
+  "Time.DateTime.weekday": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\DateTime::weekday` returns a `Core\\Time\\Weekday` case. `Core\\Time\\DateTime::next` and `Core\\Time\\DateTime::previous` take a `Core\\Time\\Weekday` case."
+    }
+  ],
+  "Time.DateTime.next": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\DateTime::weekday` returns a `Core\\Time\\Weekday` case. `Core\\Time\\DateTime::next` and `Core\\Time\\DateTime::previous` take a `Core\\Time\\Weekday` case."
+    }
+  ],
+  "Time.DateTime.previous": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\DateTime::weekday` returns a `Core\\Time\\Weekday` case. `Core\\Time\\DateTime::next` and `Core\\Time\\DateTime::previous` take a `Core\\Time\\Weekday` case."
+    }
+  ],
+  "Time.Instant.fromIso": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\Instant::fromIso` reads a timestamp such as `2024-03-01T12:00:00Z` and returns an `Instant`. `Core\\Time\\Instant::fromEpoch` builds an `Instant` from the number of seconds since 1 January 1970."
+    }
+  ],
+  "Time.Instant.fromEpoch": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\Instant::fromIso` reads a timestamp such as `2024-03-01T12:00:00Z` and returns an `Instant`. `Core\\Time\\Instant::fromEpoch` builds an `Instant` from the number of seconds since 1 January 1970."
+    }
+  ],
+  "Time.Date.fromIso": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\Date::fromIso` reads a date such as `2024-03-01`. `Core\\Time\\TimeOfDay::fromIso` reads a time such as `09:30` or `09:30:15.5`. A string literal in either method is checked when the program compiles."
+    }
+  ],
+  "Time.TimeOfDay.fromIso": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\Date::fromIso` reads a date such as `2024-03-01`. `Core\\Time\\TimeOfDay::fromIso` reads a time such as `09:30` or `09:30:15.5`. A string literal in either method is checked when the program compiles."
+    }
+  ],
+  "Time.DateTime.fromIso": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\DateTime::fromIso` reads a local date and time, such as `2024-03-01 09:30`, in the zone you give. `Core\\Time\\DateTime::at` builds a `DateTime` from a `Date`, a `TimeOfDay` and a zone. `Core\\Time\\DateTime::parse` reads text in a pattern you choose."
+    }
+  ],
+  "Time.DateTime.at": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\DateTime::fromIso` reads a local date and time, such as `2024-03-01 09:30`, in the zone you give. `Core\\Time\\DateTime::at` builds a `DateTime` from a `Date`, a `TimeOfDay` and a zone. `Core\\Time\\DateTime::parse` reads text in a pattern you choose."
+    }
+  ],
+  "Time.DateTime.parse": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\DateTime::fromIso` reads a local date and time, such as `2024-03-01 09:30`, in the zone you give. `Core\\Time\\DateTime::at` builds a `DateTime` from a `Date`, a `TimeOfDay` and a zone. `Core\\Time\\DateTime::parse` reads text in a pattern you choose."
+    }
+  ],
+  "Time.Date.year": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\Date::year`, `Core\\Time\\Date::month` and `Core\\Time\\Date::day` return the parts of a date as numbers. `Core\\Time\\Date::weekday` returns a `Core\\Time\\Weekday` case, and `Core\\Time\\Date::dayOfYear` returns the day of the year from `1`. `Core\\Time\\Date::isLeapYear` checks if the year is a leap year."
+    }
+  ],
+  "Time.Date.month": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\Date::year`, `Core\\Time\\Date::month` and `Core\\Time\\Date::day` return the parts of a date as numbers. `Core\\Time\\Date::weekday` returns a `Core\\Time\\Weekday` case, and `Core\\Time\\Date::dayOfYear` returns the day of the year from `1`. `Core\\Time\\Date::isLeapYear` checks if the year is a leap year."
+    }
+  ],
+  "Time.Date.day": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\Date::year`, `Core\\Time\\Date::month` and `Core\\Time\\Date::day` return the parts of a date as numbers. `Core\\Time\\Date::weekday` returns a `Core\\Time\\Weekday` case, and `Core\\Time\\Date::dayOfYear` returns the day of the year from `1`. `Core\\Time\\Date::isLeapYear` checks if the year is a leap year."
+    }
+  ],
+  "Time.Date.weekday": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\Date::year`, `Core\\Time\\Date::month` and `Core\\Time\\Date::day` return the parts of a date as numbers. `Core\\Time\\Date::weekday` returns a `Core\\Time\\Weekday` case, and `Core\\Time\\Date::dayOfYear` returns the day of the year from `1`. `Core\\Time\\Date::isLeapYear` checks if the year is a leap year."
+    }
+  ],
+  "Time.Date.dayOfYear": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\Date::year`, `Core\\Time\\Date::month` and `Core\\Time\\Date::day` return the parts of a date as numbers. `Core\\Time\\Date::weekday` returns a `Core\\Time\\Weekday` case, and `Core\\Time\\Date::dayOfYear` returns the day of the year from `1`. `Core\\Time\\Date::isLeapYear` checks if the year is a leap year."
+    }
+  ],
+  "Time.Date.isLeapYear": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\Date::year`, `Core\\Time\\Date::month` and `Core\\Time\\Date::day` return the parts of a date as numbers. `Core\\Time\\Date::weekday` returns a `Core\\Time\\Weekday` case, and `Core\\Time\\Date::dayOfYear` returns the day of the year from `1`. `Core\\Time\\Date::isLeapYear` checks if the year is a leap year."
+    }
+  ],
+  "Time.DateTime.year": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
+    }
+  ],
+  "Time.DateTime.month": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
+    }
+  ],
+  "Time.DateTime.day": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
+    }
+  ],
+  "Time.DateTime.hour": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
+    }
+  ],
+  "Time.DateTime.minute": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
+    }
+  ],
+  "Time.DateTime.second": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
+    }
+  ],
+  "Time.DateTime.nanos": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
+    }
+  ],
+  "Time.TimeOfDay.hour": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\TimeOfDay::hour`, `Core\\Time\\TimeOfDay::minute`, `Core\\Time\\TimeOfDay::second` and `Core\\Time\\TimeOfDay::nanos` return the parts of a time as numbers. Each one returns a `uint`."
+    }
+  ],
+  "Time.TimeOfDay.minute": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\TimeOfDay::hour`, `Core\\Time\\TimeOfDay::minute`, `Core\\Time\\TimeOfDay::second` and `Core\\Time\\TimeOfDay::nanos` return the parts of a time as numbers. Each one returns a `uint`."
+    }
+  ],
+  "Time.TimeOfDay.second": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\TimeOfDay::hour`, `Core\\Time\\TimeOfDay::minute`, `Core\\Time\\TimeOfDay::second` and `Core\\Time\\TimeOfDay::nanos` return the parts of a time as numbers. Each one returns a `uint`."
+    }
+  ],
+  "Time.TimeOfDay.nanos": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\TimeOfDay::hour`, `Core\\Time\\TimeOfDay::minute`, `Core\\Time\\TimeOfDay::second` and `Core\\Time\\TimeOfDay::nanos` return the parts of a time as numbers. Each one returns a `uint`."
+    }
+  ],
+  "Time.Instant.in": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\Instant::in` takes a zone written as text, such as `$instant->in('Europe/Berlin')` or `$instant->in('+05:30')`. The name is checked when the program compiles, and a wrong name does not compile. Every other method that takes a zone accepts text in the same way."
+    }
+  ],
+  "Time.Zone.of": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\Zone::of` with a name written in quotes is checked when the program compiles. An unknown name, or an offset such as `'+02:00'`, does not compile. A name in a variable throws a `RuntimeError` when the program runs."
+    }
+  ],
+  "Time.Zone.fixed": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Time\\Zone::fixed` with a written offset, such as `Core\\Time\\Zone::fixed(5h30m)`, is built once when the program compiles. Each use of it costs no call and no memory."
+    }
+  ],
+  "Core\\Session::start": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::start` is removed. The first call of any `Core\\Session` method opens the session from the session cookie."
+    }
+  ],
+  "Core\\Session::set": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::set` is removed. Each value in the session has a lifetime, and you choose it when you save the value. The `[session] ttl` setting is replaced by `short_lived` and `long_lived`."
+    }
+  ],
+  "Core\\Session::setSecret": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::setSecret` is removed. A secret in the session has a lifetime, the same as any other value."
+    }
+  ],
+  "Core\\Session::clear": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::clear` and `Core\\Session::destroy` are removed. Three new methods delete values by their lifetime, or delete the whole session."
+    }
+  ],
+  "Core\\Session::destroy": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::clear` and `Core\\Session::destroy` are removed. Three new methods delete values by their lifetime, or delete the whole session."
+    }
+  ],
+  "Session.setShortLived": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::setShortLived` saves a value that is deleted when the browser closes, or after `[session] short_lived` without a request. `Core\\Session::setLongLived` saves a value that stays after the browser closes, for `[session] long_lived`. Use the short lifetime for a login and the long one for a choice such as a language."
+    }
+  ],
+  "Session.setLongLived": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::setShortLived` saves a value that is deleted when the browser closes, or after `[session] short_lived` without a request. `Core\\Session::setLongLived` saves a value that stays after the browser closes, for `[session] long_lived`. Use the short lifetime for a login and the long one for a choice such as a language."
+    }
+  ],
+  "Session.setShortLivedSecret": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::setShortLivedSecret` and `Core\\Session::setLongLivedSecret` save an encrypted secret with a short or a long lifetime. `Core\\Session::getSecret` reads both, and `Core\\Session::get` returns `null` for them."
+    }
+  ],
+  "Session.setLongLivedSecret": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::setShortLivedSecret` and `Core\\Session::setLongLivedSecret` save an encrypted secret with a short or a long lifetime. `Core\\Session::getSecret` reads both, and `Core\\Session::get` returns `null` for them."
+    }
+  ],
+  "Session.clearShortLived": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::clearShortLived` deletes every short-lived value, and `Core\\Session::clearLongLived` deletes every long-lived value. Both give the session a new identifier. `Core\\Session::clearAll` deletes the whole session and tells the browser to delete both session cookies."
+    }
+  ],
+  "Session.clearLongLived": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::clearShortLived` deletes every short-lived value, and `Core\\Session::clearLongLived` deletes every long-lived value. Both give the session a new identifier. `Core\\Session::clearAll` deletes the whole session and tells the browser to delete both session cookies."
+    }
+  ],
+  "Session.clearAll": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::clearShortLived` deletes every short-lived value, and `Core\\Session::clearLongLived` deletes every long-lived value. Both give the session a new identifier. `Core\\Session::clearAll` deletes the whole session and tells the browser to delete both session cookies."
+    }
+  ],
+  "Session.openWithIdentifier": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::openWithIdentifier` opens the session under an identifier your program read itself, for example from a header. It reads no cookie and sends no cookie. It must be the first `Core\\Session` call of the request."
+    }
+  ],
+  "Session.get": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::get`, `Core\\Session::remove` and `Core\\Session::regenerate` open the session on their first use. In a program that handles no request, they throw a `LogicError`. `Core\\Session::get` returns `null` for a short-lived value after the browser closes."
+    },
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::get` inside `Core\\Html::later` returns the value saved in the session of the request. This also works when the main part of the request did not use the session."
+    }
+  ],
+  "Session.remove": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::get`, `Core\\Session::remove` and `Core\\Session::regenerate` open the session on their first use. In a program that handles no request, they throw a `LogicError`. `Core\\Session::get` returns `null` for a short-lived value after the browser closes."
+    },
+    {
+      "version": "0.0.5",
+      "change": "The session saves only the keys that a request changed. Two requests that change different keys at the same time keep both changes. `Core\\Session::regenerate` keeps every value, also a value that another request saved while it ran."
+    },
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::remove` inside `Core\\Html::later` or `Core\\Task::afterResponse` does not compile. Where the compiler cannot see the call, it throws a `LogicError`."
+    }
+  ],
+  "Session.regenerate": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Session::get`, `Core\\Session::remove` and `Core\\Session::regenerate` open the session on their first use. In a program that handles no request, they throw a `LogicError`. `Core\\Session::get` returns `null` for a short-lived value after the browser closes."
+    },
+    {
+      "version": "0.0.5",
+      "change": "The session saves only the keys that a request changed. Two requests that change different keys at the same time keep both changes. `Core\\Session::regenerate` keeps every value, also a value that another request saved while it ran."
+    }
+  ],
+  "Csrf.token": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Csrf::token` and the `Core\\Passkey` methods that save or check a challenge open the session on their first use. You do not call anything before them. In a program that handles no request, they throw a `LogicError`."
+    }
+  ],
+  "Passkey.registerOptions": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Csrf::token` and the `Core\\Passkey` methods that save or check a challenge open the session on their first use. You do not call anything before them. In a program that handles no request, they throw a `LogicError`."
+    }
+  ],
+  "Passkey.signInOptions": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Csrf::token` and the `Core\\Passkey` methods that save or check a challenge open the session on their first use. You do not call anything before them. In a program that handles no request, they throw a `LogicError`."
+    }
+  ],
+  "Passkey.verifyRegistration": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Csrf::token` and the `Core\\Passkey` methods that save or check a challenge open the session on their first use. You do not call anything before them. In a program that handles no request, they throw a `LogicError`."
+    }
+  ],
+  "Passkey.verifySignIn": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Csrf::token` and the `Core\\Passkey` methods that save or check a challenge open the session on their first use. You do not call anything before them. In a program that handles no request, they throw a `LogicError`."
+    }
+  ],
+  "Http.Client.post": [
+    {
+      "version": "0.0.5",
+      "change": "A request with a body of 16 KiB or less is sent in one write, together with its headers. A larger body, or a body that reads a file, is sent in two writes."
+    }
+  ],
+  "Http.Client.put": [
+    {
+      "version": "0.0.5",
+      "change": "A request with a body of 16 KiB or less is sent in one write, together with its headers. A larger body, or a body that reads a file, is sent in two writes."
+    }
+  ],
+  "Http.Client.patch": [
+    {
+      "version": "0.0.5",
+      "change": "A request with a body of 16 KiB or less is sent in one write, together with its headers. A larger body, or a body that reads a file, is sent in two writes."
+    }
+  ],
+  "Http.Client.stream": [
+    {
+      "version": "0.0.5",
+      "change": "A request with a body of 16 KiB or less is sent in one write, together with its headers. A larger body, or a body that reads a file, is sent in two writes."
+    }
+  ],
+  "Reflect.ClassInfo.parent": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Reflect\\ClassInfo::parent` returns the name of the class this class extends. It returns `null` for an interface and for a class that extends nothing. Call it in a loop to read the attributes of each parent class."
+    }
+  ],
+  "lang:attributes/core-router-target-and-core-router-params-a-method-that-takes-a-route": [
+    {
+      "version": "0.0.5",
+      "change": "You can write `#[Core\\Router\\Target]` on a `callable` parameter and `#[Core\\Router\\Params]` on an `array` parameter. Your method then takes a route method and its values, the way `Core\\Router::url` does. When a call writes the route method directly, the compiler checks it like a link."
+    }
+  ],
+  "tools:packages/restrictions-where-a-class-or-method-may-be-used": [
+    {
+      "version": "0.0.5",
+      "change": "A `[[restrict]]` table in `package.toml` says that a class, a method or a namespace may be used only in some places. A use outside those places does not compile. A call through `mixed` or `Core\\Reflect` throws a `LogicError` when it runs."
+    }
+  ],
+  "lang:types/property-paths": [
+    {
+      "version": "0.0.5",
+      "change": "After an array property, a property path can use `@key` for an element's key and `@value` for the element, such as `authors.@value.name`. A path converted while the program runs is checked in the same way. `Core\\Reflect::steps` lists both steps."
+    }
+  ],
+  "lang:types/strings-with-holes": [
+    {
+      "version": "0.0.5",
+      "change": "You can pass a string literal to a parameter whose type is a union of a class and one `string<propertyPath<T>>`, `property<T>` or `propertyPath<T>`. The compiler checks the literal as that type."
+    }
+  ],
+  "PropertyGuard": [
+    {
+      "version": "0.0.5",
+      "change": "A `PropertyGuard` whose `beforePropertyUnset` replaced the array could make `unset($object->property[$key])` use the old, freed array. Now the `unset` removes the key from the array the property has after the guard."
+    }
+  ],
+  "lang:classes/propertyguard": [
+    {
+      "version": "0.0.5",
+      "change": "A `PropertyGuard` whose `beforePropertyUnset` replaced the array could make `unset($object->property[$key])` use the old, freed array. Now the `unset` removes the key from the array the property has after the guard."
+    }
+  ],
+  "tools:cli/nvs-meta-json": [
+    {
+      "version": "0.0.5",
+      "change": "In the output of `nvs meta --json`, the description of a `@param` keeps its line breaks."
+    }
+  ],
+  "IO.read": [
+    {
+      "version": "0.0.5",
+      "change": "When a request is recorded, each call to `Core\\IO::read`, `Core\\IO::readText`, `Core\\IO::readBytes`, `Core\\IO::write` and `Core\\IO::append` is saved with its line and its file path. The editor shows the number of these calls and their time above the line."
+    }
+  ],
+  "IO.readText": [
+    {
+      "version": "0.0.5",
+      "change": "When a request is recorded, each call to `Core\\IO::read`, `Core\\IO::readText`, `Core\\IO::readBytes`, `Core\\IO::write` and `Core\\IO::append` is saved with its line and its file path. The editor shows the number of these calls and their time above the line."
+    }
+  ],
+  "IO.readBytes": [
+    {
+      "version": "0.0.5",
+      "change": "When a request is recorded, each call to `Core\\IO::read`, `Core\\IO::readText`, `Core\\IO::readBytes`, `Core\\IO::write` and `Core\\IO::append` is saved with its line and its file path. The editor shows the number of these calls and their time above the line."
+    }
+  ],
+  "IO.write": [
+    {
+      "version": "0.0.5",
+      "change": "When a request is recorded, each call to `Core\\IO::read`, `Core\\IO::readText`, `Core\\IO::readBytes`, `Core\\IO::write` and `Core\\IO::append` is saved with its line and its file path. The editor shows the number of these calls and their time above the line."
+    }
+  ],
+  "IO.append": [
+    {
+      "version": "0.0.5",
+      "change": "When a request is recorded, each call to `Core\\IO::read`, `Core\\IO::readText`, `Core\\IO::readBytes`, `Core\\IO::write` and `Core\\IO::append` is saved with its line and its file path. The editor shows the number of these calls and their time above the line."
+    }
+  ],
+  "IO.File.readLine": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\IO\\File::readLine` reads ahead into a buffer, so reading a file line by line is faster. Each open file that has read a line uses about 8 KB more memory while it is open."
+    },
+    {
+      "version": "0.0.5",
+      "change": "On a file that cannot seek, a method called after `Core\\IO\\File::readLine` throws an error. No bytes of the file are lost."
+    }
+  ],
+  "Arr.groupBy": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Arr::groupBy` and `Core\\Arr::countBy` copy a group's key only when the group is new. They allocate less memory and run faster on large arrays."
+    }
+  ],
+  "Arr.countBy": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Arr::groupBy` and `Core\\Arr::countBy` copy a group's key only when the group is new. They allocate less memory and run faster on large arrays."
+    }
+  ],
+  "Db.Connection.query": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Db\\Connection::query` and `Core\\Db\\Connection::stream` create the column names once for each result. Every row uses the same names, so reading many rows is faster and allocates less memory."
+    }
+  ],
+  "Db.Connection.stream": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Db\\Connection::query` and `Core\\Db\\Connection::stream` create the column names once for each result. Every row uses the same names, so reading many rows is faster and allocates less memory."
+    }
+  ],
+  "Json.decodeAs": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Json::decodeAs` matches each key with less work and finds each class's constructor once per call. Decoding a list of objects allocates only the objects and their strings."
+    }
+  ],
+  "Json.isValid": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Json::isValid` checks a document without building its values, so it is faster and uses less memory. It returns `true` for a valid document that is too large to decode under the memory limit."
+    }
+  ],
+  "IO.File.read": [
+    {
+      "version": "0.0.5",
+      "change": "On a file that cannot seek, a method called after `Core\\IO\\File::readLine` throws an error. No bytes of the file are lost."
+    }
+  ],
+  "ObjectMap.get": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\ObjectMap` and `Core\\ObjectSet` are faster. A lookup with a `string`, `int` or object key costs about the same as a lookup in an array. A `foreach` over either does not copy it."
+    }
+  ],
+  "ObjectMap.has": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\ObjectMap` and `Core\\ObjectSet` are faster. A lookup with a `string`, `int` or object key costs about the same as a lookup in an array. A `foreach` over either does not copy it."
+    }
+  ],
+  "ObjectMap.set": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\ObjectMap` and `Core\\ObjectSet` are faster. A lookup with a `string`, `int` or object key costs about the same as a lookup in an array. A `foreach` over either does not copy it."
+    }
+  ],
+  "ObjectSet.has": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\ObjectMap` and `Core\\ObjectSet` are faster. A lookup with a `string`, `int` or object key costs about the same as a lookup in an array. A `foreach` over either does not copy it."
+    }
+  ],
+  "lang:iteration/core-collections-are-iterable": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\ObjectMap` and `Core\\ObjectSet` are faster. A lookup with a `string`, `int` or object key costs about the same as a lookup in an array. A `foreach` over either does not copy it."
+    }
+  ],
+  "lang:iteration/keys-and-values-from-a-map": [
+    {
+      "version": "0.0.5",
+      "change": "`foreach` gives the key and the value of a `Core\\ObjectMap`: write `foreach ($map as var $key => var $value)`. A class of your own can do the same by implementing `KeyedIterable<K, V>`."
+    }
+  ],
+  "KeyedIterable": [
+    {
+      "version": "0.0.5",
+      "change": "`foreach` gives the key and the value of a `Core\\ObjectMap`: write `foreach ($map as var $key => var $value)`. A class of your own can do the same by implementing `KeyedIterable<K, V>`."
+    }
+  ],
+  "KeyedIterator": [
+    {
+      "version": "0.0.5",
+      "change": "`foreach` gives the key and the value of a `Core\\ObjectMap`: write `foreach ($map as var $key => var $value)`. A class of your own can do the same by implementing `KeyedIterable<K, V>`."
+    }
+  ],
+  "lang:classes/revocable-objects": [
+    {
+      "version": "0.0.5",
+      "change": "A class with no parent class can implement `Revocable`, so that the program can say an object is no longer valid. After `$object->revoke()`, every `Core\\ObjectMap`, `Core\\ObjectSet` and `Core\\Heap` removes the object immediately. Any other use of it throws `RevokedObjectError`, and its message names the line of the `revoke()` call."
+    }
+  ],
+  "Revocable": [
+    {
+      "version": "0.0.5",
+      "change": "A class with no parent class can implement `Revocable`, so that the program can say an object is no longer valid. After `$object->revoke()`, every `Core\\ObjectMap`, `Core\\ObjectSet` and `Core\\Heap` removes the object immediately. Any other use of it throws `RevokedObjectError`, and its message names the line of the `revoke()` call."
+    }
+  ],
+  "RevokedObjectError": [
+    {
+      "version": "0.0.5",
+      "change": "A class with no parent class can implement `Revocable`, so that the program can say an object is no longer valid. After `$object->revoke()`, every `Core\\ObjectMap`, `Core\\ObjectSet` and `Core\\Heap` removes the object immediately. Any other use of it throws `RevokedObjectError`, and its message names the line of the `revoke()` call."
+    }
+  ],
+  "tools:cli/nvs-test": [
+    {
+      "version": "0.0.5",
+      "change": "`nvs test CartTest.nvs:42` runs the test that contains line 42. `nvs test --since main` runs only the tests that reach code you changed since the git branch `main`."
+    }
+  ],
+  "tools:cli/nvs-test-mutate": [
+    {
+      "version": "0.0.5",
+      "change": "`nvs test --mutate=Shop\\Cart` makes mutants only in the code you name, and `#[NoMutate]` keeps a class or a method out. `--since main` makes mutants only on the lines you edited, and a run compiles the program once. Survivors you checked go in `mutants.toml`, and the report lists the others by method."
+    }
+  ],
+  "lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used": [
+    {
+      "version": "0.0.5",
+      "change": "An attribute is declared with `attribute Table on class { name: string }`, and the words after `on` list where it may be written. An attribute declared inside a class may be used only by the classes that extend it. `repeatable` allows more than one use on the same declaration."
+    },
+    {
+      "version": "0.0.5",
+      "change": "A `///` comment above a field of a shape or an attribute describes that field. The editor shows the comment when you type the field's name or point at it."
+    }
+  ],
+  "lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration": [
+    {
+      "version": "0.0.5",
+      "change": "An attribute without a name, `#[{ path: '/users' }]`, is removed. A `type` alias after `#[` does not compile any more."
+    }
+  ],
+  "Attributes.get": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration."
+    }
+  ],
+  "Attributes.all": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration."
+    }
+  ],
+  "Program.implementing": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration."
+    }
+  ],
+  "Program.implementingWith": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration."
+    }
+  ],
+  "Reflect.AttributeInfo.name": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration."
+    }
+  ],
+  "Reflect.AttributeInfo.field": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration."
+    }
+  ],
+  "Reflect.AttributeInfo.fields": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration."
+    }
+  ],
+  "Reflect.AttributeInfo.parameter": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration."
+    }
+  ],
+  "Reflect.AttributeInfo.target": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration."
+    }
+  ],
+  "Reflect.ClassInfo.attributes": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration."
+    }
+  ],
+  "Router.Match.attribute": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration."
+    }
+  ],
+  "lang:attributes/reading-attributes-back-core-attributes-get-and-all": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration."
+    }
+  ],
+  "lang:attributes/core-program-implementingwith-i-t-member-every-implementor-with-one-attribute": [
+    {
+      "version": "0.0.5",
+      "change": "`Core\\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\\Reflect\\AttributeInfo::name` returns the full name of the declaration."
+    }
+  ],
+  "lang:attributes/the-names-the-compiler-acts-on": [
+    {
+      "version": "0.0.5",
+      "change": "The attributes of `Core`, such as `#[Core\\Route]`, are checked like your own attributes. One written in a place it does not allow is the error `E0874`. A second `#[Core\\Access]` or `#[Core\\Api]` on one declaration is the error `E0763`."
+    }
+  ],
+  "lang:attributes/core-command-and-core-option-the-command-table": [
+    {
+      "version": "0.0.5",
+      "change": "The attributes of `Core`, such as `#[Core\\Route]`, are checked like your own attributes. One written in a place it does not allow is the error `E0874`. A second `#[Core\\Access]` or `#[Core\\Api]` on one declaration is the error `E0763`."
+    }
+  ],
+  "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec": [
+    {
+      "version": "0.0.5",
+      "change": "The attributes of `Core`, such as `#[Core\\Route]`, are checked like your own attributes. One written in a place it does not allow is the error `E0874`. A second `#[Core\\Access]` or `#[Core\\Api]` on one declaration is the error `E0763`."
+    }
+  ],
+  "lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file": [
+    {
+      "version": "0.0.5",
+      "change": "The attributes of `Core`, such as `#[Core\\Route]`, are checked like your own attributes. One written in a place it does not allow is the error `E0874`. A second `#[Core\\Access]` or `#[Core\\Api]` on one declaration is the error `E0763`."
+    }
+  ],
+  "tools:server/nvs-reload": [
+    {
+      "version": "0.0.5",
+      "change": "`nvs reload` makes a running `nvs serve` use the code and configuration on disk at once, and waits until the server has compiled each changed program. It prints each error with its file and line. The exit code is `0` when the server uses every new file, `1` when a file has an error and `2` when no server runs."
+    },
+    {
+      "version": "0.0.5",
+      "change": "A `[[schedule]]` entry with `on = \"reload\"` also runs when a check of the program files replaces a program or finds an error. It runs once for the whole check, not once for each program. `Core\\Script::args()` has two more keys: `programs`, the number of programs replaced, and `failed`, the number of programs with errors."
+    },
+    {
+      "version": "0.0.5",
+      "change": "The server writes one `program reloaded` line to its log for each program it replaces. A program that does not compile writes one `program reload failed` line, with the first error and its file and line."
+    }
+  ]
 }
