@@ -1,0 +1,70 @@
+<?nvs
+// Attack: a test sends subjects with line breaks, a NUL byte and several megabytes of text, and
+// then changes the subject it read. No subject may add a header, and nothing may crash.
+// proof: test
+
+use Core\Mail;
+use Core\Str;
+use Core\Test;
+
+class SubjectAttackTest
+{
+    #[Test]
+    public function theSubjectHolds(): void
+    {
+        // 1. A subject with a line break tries to add a `Bcc` header. The message has no `bcc`
+        // address, and `subject()` returns the subject exactly as it was given.
+        try {
+            Mail::send('site', ['ada@example.com'], "Hi\r\nBcc: spy@example.com", 'Hello');
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+        Test::assertCount(Test::sentMail(), 1);
+        Test::assertEquals(Test::sentMail()[0]->bcc(), []);
+        Test::assertEquals(Test::sentMail()[0]->to(), ['ada@example.com']);
+        Test::assertSame(Test::sentMail()[0]->subject(), "Hi\r\nBcc: spy@example.com");
+
+        // 2. A subject with only a line feed, then a subject with only a carriage return.
+        array<string> $subjects = ["Hi\nX-Spam: yes", "Hi\rX-Spam: yes"];
+        foreach ($subjects as string $subject) {
+            try {
+                Mail::send('site', ['ada@example.com'], $subject, 'Hello');
+            } catch (RuntimeError $error) {
+                echo 'refused: ', $error->message, "\n";
+            }
+        }
+        Test::assertSame(Test::sentMail()[2]->subject(), "Hi\rX-Spam: yes");
+
+        // 3. A subject with a NUL byte in the middle. The NUL byte is still there when it is read.
+        try {
+            Mail::send('site', ['ada@example.com'], "Hi\0there", 'Hello');
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+        Test::assertSame(Test::sentMail()[3]->subject(), "Hi\0there");
+
+        // 4. A subject of 4 MB. It is kept whole.
+        try {
+            Mail::send('site', ['ada@example.com'], Str::repeat('a', 4000000), 'Hello');
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+        Test::assertSame(Str::length(Test::sentMail()[4]->subject()), 4000000);
+
+        // 5. Changes the subject that `subject()` returned. A second read returns the first subject.
+        Mail::send('site', ['ada@example.com'], 'Original', 'Hello');
+        string $copy = Test::sentMail()[5]->subject();
+        $copy = $copy . ' changed';
+        Test::assertSame(Test::sentMail()[5]->subject(), 'Original');
+
+        // 6. Reads the subject of one message 3000 times.
+        var $one = Test::sentMail()[5];
+        int $total = 0;
+        int $i = 0;
+        while ($i < 3000) {
+            $total = $total + (Str::length($one->subject()) as int);
+            $i = $i + 1;
+        }
+        Test::assertSame($total, 24000);
+    }
+}

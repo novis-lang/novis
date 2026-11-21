@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to test that a short notice is sent as plain text, with no HTML body.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Login
+{
+    // Tells the user about a sign-in from a new device. The mail has only a plain-text body.
+    public static function newDevice(string $email, string $device): void
+    {
+        Mail::send('site', [$email], 'New sign-in', 'Someone signed in from ' . $device . '.');
+    }
+}
+
+class LoginTest
+{
+    #[Test]
+    public function theNoticeIsPlainText(): void
+    {
+        Login::newDevice('ada@example.com', 'a phone');
+
+        // No `html` option was given, so `html()` returns `null`.
+        Test::assertNull(Test::sentMail()[0]->html());
+        Test::assertSame(Test::sentMail()[0]->text(), 'Someone signed in from a phone.');
+    }
+}

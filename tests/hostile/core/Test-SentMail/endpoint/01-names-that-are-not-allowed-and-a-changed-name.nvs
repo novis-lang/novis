@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a test sends mail through mail servers that are missing or not allowed, and then
+// changes the name it read. Every such send should throw, and no message may be kept for it.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class EndpointAttackTest
+{
+    #[Test]
+    public function onlyAllowedNamesAreKept(): void
+    {
+        Mail::send('site', ['ada@example.com'], 'Hi', 'Hello');
+
+        // 1. Sends through `archive`. It is in `nvs.toml`, but the program may not use it.
+        try {
+            Mail::send('archive', ['ada@example.com'], 'Hi', 'Hello');
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+
+        // 2. Sends through names that are not in `nvs.toml` at all.
+        array<string> $names = ['', 'SITE', 'site ', 'site.alerts', '../site', "site\nalerts", "site\0"];
+        foreach ($names as string $name) {
+            try {
+                Mail::send($name, ['ada@example.com'], 'Hi', 'Hello');
+            } catch (RuntimeError $error) {
+                echo 'refused: ', $error->message, "\n";
+            }
+        }
+
+        // 3. Sends through a name of 100000 characters.
+        try {
+            Mail::send(Core\Str::repeat('a', 100000), ['ada@example.com'], 'Hi', 'Hello');
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+
+        // Only the first message was kept.
+        Test::assertCount(Test::sentMail(), 1);
+        Test::assertSame(Test::sentMail()[0]->endpoint(), 'site');
+
+        // 4. Changes the name that `endpoint()` returned. A second read still returns `site`.
+        string $read = Test::sentMail()[0]->endpoint();
+        $read = $read . 'x';
+        Test::assertSame(Test::sentMail()[0]->endpoint(), 'site');
+
+        // 5. Sends 2000 messages through two servers and counts each one.
+        int $i = 0;
+        while ($i < 2000) {
+            Mail::send($i % 2 == 0 ? 'site' : 'alerts', ['ada@example.com'], 'Hi', 'Hello');
+            $i = $i + 1;
+        }
+        int $alerts = 0;
+        foreach (Test::sentMail() as Core\Test\SentMail $mail) {
+            if ($mail->endpoint() == 'alerts') {
+                $alerts = $alerts + 1;
+            }
+        }
+        Test::assertSame($alerts, 1000);
+    }
+}

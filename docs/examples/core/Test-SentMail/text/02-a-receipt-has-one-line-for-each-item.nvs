@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to test a receipt mail that has one line for each item and a total at the end.
+// proof: test
+
+use Core\Mail;
+use Core\Str;
+use Core\Test;
+
+class Receipt
+{
+    // Writes one line for each item, then the total, and sends the receipt.
+    public static function send(string $customer, array<int> $items): void
+    {
+        array<string> $lines = [];
+        int $total = 0;
+        foreach ($items as string $name => int $price) {
+            $lines[] = $name . ': ' . $price . ' EUR';
+            $total = $total + $price;
+        }
+        $lines[] = 'Total: ' . $total . ' EUR';
+        Mail::send('site', [$customer], 'Your receipt', Str::join($lines, "\n"));
+    }
+}
+
+class ReceiptTest
+{
+    #[Test]
+    public function eachItemHasALine(): void
+    {
+        Receipt::send('ada@example.com', ['Tea' => 4, 'Cake' => 6]);
+
+        // `Str::lines` splits the body at each line break, so there are three lines.
+        array<string> $lines = Str::lines(Test::sentMail()[0]->text());
+        Test::assertEquals($lines, ['Tea: 4 EUR', 'Cake: 6 EUR', 'Total: 10 EUR']);
+    }
+}

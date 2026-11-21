@@ -1,0 +1,25 @@
+# The mail servers for the attack. Nothing listens on port 1, so a real send
+# would fail. Under `nvs test`, no message is sent and no connection is opened.
+[mail.site]
+host = "127.0.0.1"
+port = 1
+from = "hello@example.com"
+timeout = "1s"
+
+# A second mail server, for messages to the people who run the site.
+[mail.alerts]
+host = "127.0.0.1"
+port = 1
+from = "alerts@example.com"
+timeout = "1s"
+
+# This mail server is configured, but the program may not send through it.
+[mail.archive]
+host = "127.0.0.1"
+port = 1
+from = "archive@example.com"
+timeout = "1s"
+
+# The program may send mail through the `site` block and the `alerts` block.
+[capabilities.mail]
+send = ["site", "alerts"]

@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to test that a support form puts the title of the ticket into the subject.
+// proof: test
+
+use Core\Http\Method;
+use Core\Test;
+
+class TicketTest
+{
+    // The title in the form has spaces around it. The subject has the title without them.
+    #[Test]
+    public function theSubjectHasTheTitle(): void
+    {
+        Test::request(Method::Post, '/tickets', {
+            headers: ['content-type' => 'application/x-www-form-urlencoded'],
+            body: 'title=++Login+does+not+work++&message=Help',
+        });
+
+        Test::assertCount(Test::sentMail(), 1);
+        Test::assertSame(Test::sentMail()[0]->subject(), 'New ticket: Login does not work');
+    }
+}
+
+// `Core\Test::request` runs this file again for the request. It sends the ticket to support.
+// Form text is a `tainted string` (text from a visitor). `Core\Mail::send` accepts it.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    tainted string $title = Core\Str::trim(Core\Request::post('title') ?? '');
+    tainted string $message = Core\Request::post('message') ?? '';
+    Core\Mail::send('site', ['support@example.com'], 'New ticket: ' . $title, $message);
+    Core\Response::setStatus(201);
+}

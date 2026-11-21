@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to test that a request which fails sends an alert through the `alerts` mail server.
+// proof: test
+
+use Core\Http\Method;
+use Core\Test;
+
+class ImportTest
+{
+    // The body is empty, so the import fails. The customer gets no mail, and the team gets one alert.
+    #[Test]
+    public function anEmptyImportAlertsTheTeam(): void
+    {
+        var $response = Test::request(Method::Post, '/import', {
+            headers: ['content-type' => 'text/csv'],
+            body: '',
+        });
+        Test::assertEquals($response->status(), 422);
+
+        Test::assertCount(Test::sentMail(), 1);
+        Test::assertSame(Test::sentMail()[0]->endpoint(), 'alerts');
+        Test::assertEquals(Test::sentMail()[0]->to(), ['ops@example.com']);
+    }
+}
+
+// `Core\Test::request` runs this file again for the request. This part sends
+// an alert through the `alerts` block when the uploaded file is empty.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    if (Core\Str::trim(Core\Request::body()) == '') {
+        Core\Mail::send('alerts', ['ops@example.com'], 'Import failed', 'An upload to /import was empty.');
+        Core\Response::setStatus(422);
+    } else {
+        Core\Response::setStatus(200);
+    }
+}

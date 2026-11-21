@@ -1,0 +1,65 @@
+<?nvs
+// Attack: a test sends bodies with a dot line, a NUL byte and 8 MB of text. Then it changes
+// the body that it read. Each body should be kept exactly as given, and nothing may crash.
+// proof: test
+
+use Core\Mail;
+use Core\Str;
+use Core\Test;
+
+class TextAttackTest
+{
+    #[Test]
+    public function theBodyHolds(): void
+    {
+        // 1. A body with a line that is only a dot. A mail server reads that line as the end of
+        // the message. The body is kept as it was given, and no second message is kept.
+        string $early = "Hello\r\n.\r\nMAIL FROM:<spy@example.com>\r\n";
+        try {
+            Mail::send('site', ['ada@example.com'], 'Hi', $early);
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+        Test::assertCount(Test::sentMail(), 1);
+        Test::assertSame(Test::sentMail()[0]->text(), $early);
+
+        // 2. A body with a NUL byte in the middle. The NUL byte is still there when it is read.
+        try {
+            Mail::send('site', ['ada@example.com'], 'Hi', "Hello\0there");
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+        Test::assertSame(Test::sentMail()[1]->text(), "Hello\0there");
+
+        // 3. An empty body. `text()` returns an empty string.
+        try {
+            Mail::send('site', ['ada@example.com'], 'Hi', '');
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+        Test::assertSame(Test::sentMail()[2]->text(), '');
+
+        // 4. A body of 8 MB. It is kept whole.
+        try {
+            Mail::send('site', ['ada@example.com'], 'Hi', Str::repeat("line\n", 1600000));
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+        Test::assertSame(Str::length(Test::sentMail()[3]->text()), 8000000);
+
+        // 5. Changes the body that `text()` returned. A second read returns the first body.
+        string $copy = Test::sentMail()[1]->text();
+        $copy = $copy . ' changed';
+        Test::assertSame(Test::sentMail()[1]->text(), "Hello\0there");
+
+        // 6. Reads the 8 MB body 50 times. Each read returns the whole body.
+        var $big = Test::sentMail()[3];
+        int $total = 0;
+        int $i = 0;
+        while ($i < 50) {
+            $total = $total + (Str::length($big->text()) as int);
+            $i = $i + 1;
+        }
+        Test::assertSame($total, 400000000);
+    }
+}

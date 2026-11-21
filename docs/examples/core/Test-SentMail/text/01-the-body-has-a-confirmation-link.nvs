@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to test the confirmation link in the body of a newsletter sign-up mail.
+// proof: test
+
+use Core\Mail;
+use Core\Str;
+use Core\Test;
+
+class Subscribe
+{
+    // Sends a link that the reader opens to confirm the sign-up.
+    public static function start(string $email, string $code): void
+    {
+        string $link = 'https://example.com/newsletter/confirm?code=' . $code;
+        Mail::send('site', [$email], 'Please confirm', "Hello,\n\nOpen this link to confirm:\n" . $link . "\n");
+    }
+}
+
+class SubscribeTest
+{
+    #[Test]
+    public function theBodyHasTheLink(): void
+    {
+        Subscribe::start('ada@example.com', 'k7Q2');
+        string $text = Test::sentMail()[0]->text();
+
+        // `Str::contains` checks one part of the body. `Str::after` returns the text after the
+        // link's start, so this is `k7Q2` and the line break after it.
+        Test::assertTrue(Str::contains($text, 'https://example.com/newsletter/confirm?code='));
+        Test::assertSame(Str::after($text, 'confirm?code='), "k7Q2\n");
+    }
+}

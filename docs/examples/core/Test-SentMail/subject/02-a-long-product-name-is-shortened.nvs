@@ -1,0 +1,39 @@
+<?nvs
+// Shows how to test that a long product name is shortened so that the subject stays short.
+// proof: test
+
+use Core\Mail;
+use Core\Str;
+use Core\Test;
+
+class BackInStock
+{
+    // Uses the first 30 characters of the name, and adds `...` when the name is longer.
+    public static function notify(string $customer, string $product): void
+    {
+        string $name = Str::length($product) > 30 ? Str::slice($product, 0, 30) . '...' : $product;
+        Mail::send('site', [$customer], 'Back in stock: ' . $name, $product . ' is back in stock.');
+    }
+}
+
+class BackInStockTest
+{
+    #[Test]
+    public function aLongNameIsShortened(): void
+    {
+        BackInStock::notify('ada@example.com', 'Wireless noise-cancelling headphones with case');
+
+        // The subject is 15 + 30 + 3 = 48 characters long, and it ends with `...`.
+        string $subject = Test::sentMail()[0]->subject();
+        Test::assertSame(Str::length($subject), 48);
+        Test::assertTrue(Str::endsWith($subject, '...'));
+    }
+
+    // A short name is used as it is.
+    #[Test]
+    public function aShortNameStaysTheSame(): void
+    {
+        BackInStock::notify('ada@example.com', 'Blue mug');
+        Test::assertSame(Test::sentMail()[0]->subject(), 'Back in stock: Blue mug');
+    }
+}

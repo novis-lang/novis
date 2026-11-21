@@ -1,0 +1,34 @@
+<?nvs
+// Shows how to test that a request sends a mail with the same link in the HTML body and the text body.
+// proof: test
+
+use Core\Http\Method;
+use Core\Str;
+use Core\Test;
+
+class InvoiceTest
+{
+    #[Test]
+    public function bothBodiesHaveTheLink(): void
+    {
+        Test::request(Method::Post, '/invoices/77/send');
+
+        Test::assertCount(Test::sentMail(), 1);
+        string $link = 'https://example.com/invoices/77.pdf';
+
+        // `html()` returns a `?string`. `?? ''` gives an empty string when it is `null`.
+        string $html = Test::sentMail()[0]->html() ?? '';
+        Test::assertTrue(Str::contains($html, '<a href="' . $link . '">'));
+        Test::assertTrue(Str::contains(Test::sentMail()[0]->text(), $link));
+    }
+}
+
+// `Core\Test::request` runs this file again for the request. This part sends
+// the invoice link in a plain-text body and in an HTML body.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    string $link = 'https://example.com/invoices/77.pdf';
+    Core\Mail::send('site', ['billing@example.com'], 'Invoice 77', 'Download your invoice: ' . $link, {
+        html: '<p><a href="' . $link . '">Download your invoice</a></p>',
+    });
+    Core\Response::setStatus(202);
+}

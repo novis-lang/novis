@@ -1,0 +1,38 @@
+<?nvs
+// Shows how to test that an alert for the team goes through the `alerts` mail server.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Disk
+{
+    // Sends an alert to the team when the disk is almost full.
+    public static function check(int $percentUsed): void
+    {
+        if ($percentUsed >= 90) {
+            Mail::send('alerts', ['ops@example.com'], 'Disk almost full', 'The disk is ' . $percentUsed . '% full.');
+        }
+    }
+}
+
+class DiskTest
+{
+    #[Test]
+    public function aFullDiskSendsAnAlert(): void
+    {
+        Disk::check(95);
+
+        // The alert uses the `[mail.alerts]` block, so `endpoint()` returns `alerts`.
+        Test::assertCount(Test::sentMail(), 1);
+        Test::assertSame(Test::sentMail()[0]->endpoint(), 'alerts');
+    }
+
+    // A disk that is half full sends no alert.
+    #[Test]
+    public function aHalfFullDiskSendsNothing(): void
+    {
+        Disk::check(50);
+        Test::assertCount(Test::sentMail(), 0);
+    }
+}

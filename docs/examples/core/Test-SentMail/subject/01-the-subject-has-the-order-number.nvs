@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to test that the subject of a shipping mail has the order number in it.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+
+class Shipping
+{
+    // Tells the customer that their order has left the warehouse.
+    public static function shipped(string $customer, int $orderNumber): void
+    {
+        Mail::send('site', [$customer], 'Your order #' . $orderNumber . ' is on its way', 'It arrives in 3 days.');
+    }
+}
+
+class ShippingTest
+{
+    #[Test]
+    public function theSubjectNamesTheOrder(): void
+    {
+        Shipping::shipped('ada@example.com', 1042);
+
+        // `assertSame` checks the whole subject, character by character.
+        Test::assertSame(Test::sentMail()[0]->subject(), 'Your order #1042 is on its way');
+    }
+}

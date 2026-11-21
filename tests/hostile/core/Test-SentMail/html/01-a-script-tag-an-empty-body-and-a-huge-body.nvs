@@ -1,0 +1,72 @@
+<?nvs
+// Attack: a test sends HTML bodies with a script tag, a NUL byte, an empty string and several
+// megabytes of text. Each body should be kept exactly as given, and nothing may crash.
+// proof: test
+
+use Core\Mail;
+use Core\Str;
+use Core\Test;
+
+class HtmlAttackTest
+{
+    #[Test]
+    public function theHtmlBodyHolds(): void
+    {
+        // 1. An HTML body with a script tag. `html()` returns it exactly, so a test can find it.
+        string $script = '<p>Hi</p><script>fetch("https://evil.example.com")</script>';
+        try {
+            Mail::send('site', ['ada@example.com'], 'Hi', 'Hi', { html: $script });
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+        Test::assertSame(Test::sentMail()[0]->html(), $script);
+        Test::assertTrue(Str::contains(Test::sentMail()[0]->html() ?? '', '<script>'));
+
+        // 2. An empty HTML body. `html()` returns an empty string, not `null`.
+        try {
+            Mail::send('site', ['ada@example.com'], 'Hi', 'Hi', { html: '' });
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+        Test::assertSame(Test::sentMail()[1]->html(), '');
+
+        // 3. An HTML body with a NUL byte and a line that is only a dot.
+        try {
+            Mail::send('site', ['ada@example.com'], 'Hi', 'Hi', { html: "<p>a\0b</p>\r\n.\r\nQUIT" });
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+        Test::assertSame(Test::sentMail()[2]->html(), "<p>a\0b</p>\r\n.\r\nQUIT");
+
+        // 4. An HTML body of 8 MB. It is kept whole.
+        try {
+            Mail::send('site', ['ada@example.com'], 'Hi', 'Hi', { html: Str::repeat('<p>a</p>', 1000000) });
+        } catch (RuntimeError $error) {
+            echo 'refused: ', $error->message, "\n";
+        }
+        Test::assertSame(Str::length(Test::sentMail()[3]->html() ?? ''), 8000000);
+
+        // 5. Changes the HTML that `html()` returned. A second read returns the first HTML.
+        string $copy = Test::sentMail()[0]->html() ?? '';
+        $copy = $copy . '<img src=x>';
+        Test::assertSame(Test::sentMail()[0]->html(), $script);
+
+        // 6. Sends 2000 messages, and every second one has an HTML body. The others return `null`.
+        int $i = 0;
+        while ($i < 2000) {
+            if ($i % 2 == 0) {
+                Mail::send('site', ['ada@example.com'], 'Hi', 'Hi', { html: '<p>' . $i . '</p>' });
+            } else {
+                Mail::send('site', ['ada@example.com'], 'Hi', 'Hi');
+            }
+            $i = $i + 1;
+        }
+        int $none = 0;
+        foreach (Test::sentMail() as Core\Test\SentMail $mail) {
+            if ($mail->html() == null) {
+                $none = $none + 1;
+            }
+        }
+        Test::assertSame($none, 1000);
+    }
+}

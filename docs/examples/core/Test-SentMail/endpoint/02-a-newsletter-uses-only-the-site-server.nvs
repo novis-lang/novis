@@ -1,0 +1,40 @@
+<?nvs
+// Shows how to test that every message of a newsletter uses the `site` mail server.
+// proof: test
+
+use Core\Mail;
+use Core\Test;
+use Core\Test\SentMail;
+
+class Newsletter
+{
+    // Sends one message to each subscriber.
+    public static function send(array<string> $subscribers): void
+    {
+        foreach ($subscribers as string $address) {
+            Mail::send('site', [$address], 'News for May', 'Here is what is new this month.');
+        }
+    }
+}
+
+class NewsletterTest
+{
+    #[Test]
+    public function noMessageUsesTheAlertsServer(): void
+    {
+        Newsletter::send(['ada@example.com', 'bo@example.com', 'cy@example.com']);
+
+        // This loop counts the messages for each mail server.
+        int $site = 0;
+        int $other = 0;
+        foreach (Test::sentMail() as SentMail $mail) {
+            if ($mail->endpoint() == 'site') {
+                $site = $site + 1;
+            } else {
+                $other = $other + 1;
+            }
+        }
+        Test::assertSame($site, 3);
+        Test::assertSame($other, 0);
+    }
+}
