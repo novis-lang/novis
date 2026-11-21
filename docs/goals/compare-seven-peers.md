@@ -34,7 +34,7 @@ stages:
     context: [website/src/content/docs/in-depth/compare.mdx, website/src/lib/compare.ts, website/src/components/compare/FeatureTable.astro, website/src/components/compare/CaseCharts.astro, docs/agent/prose.md, docs/alternative-pages.md]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: plan
@@ -333,11 +333,11 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
 - [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
 - [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
-- [ ] `bun nv verify --doc` and `bun nv ci --check` are green, as a full gate's `DONE` requires.
+- [x] `bun nv verify --doc` and `bun nv ci --check` are green, as a full gate's `DONE` requires.
   - [x] `verify --doc`: every link resolves.
   - [x] `ci --check`'s rendered files, roadmap and compare questions are fixed.
-  - [ ] The 63 stale perf proofs are measured again.
-  - [ ] The 17 pages with stale questions are reread, their questions rewritten, and stamped.
+  - [x] The 63 stale perf proofs are measured again.
+  - [x] The 17 pages with stale questions are reread, their questions rewritten, and stamped.
 
 ## Handoff
 
