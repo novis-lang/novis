@@ -1,0 +1,107 @@
+<?nvs
+// `Core\Test::run` runs this file as a command program. Each test checks the
+// exit code and the output of one run.
+
+class Tool
+{
+    #[Core\Command(name: 'greet', about: 'Say hello to somebody')]
+    public static function greet(string $name): uint
+    {
+        echo 'hello ', $name, "\n";
+        return 0;
+    }
+
+    #[Core\Command(name: 'count', about: 'Count the lines of the input')]
+    public static function count(): uint
+    {
+        tainted string $input = Core\IO::stdin();
+        echo 'lines: ', Core\Arr::count(Core\Str::lines($input)), "\n";
+        return 0;
+    }
+
+    #[Core\Command(name: 'quit', about: 'Stop with an exit code')]
+    public static function quit(int $code): uint
+    {
+        echo "stopping\n";
+        if ($code > 0) {
+            exit($code);
+        }
+        return 0;
+    }
+
+    #[Core\Command(name: 'fail', about: 'Throw an error')]
+    public static function fail(): uint
+    {
+        throw new RuntimeError('the disk is full');
+    }
+
+    #[Core\Command(name: 'report', about: 'Write to both streams')]
+    public static function report(): uint
+    {
+        Core\Cli::write('working', { stream: Core\Cli::Stream::Err, newline: true });
+        echo "result 42\n";
+        return 0;
+    }
+}
+
+class Runs
+{
+    #[Core\Test]
+    public function reachesTheCommandItsWordsName(): void
+    {
+        var $run = Core\Test::run(['greet', 'Ada']);
+        Core\Test::assertEquals($run->exitCode(), 0);
+        Core\Test::assertEquals($run->stdout(), "hello Ada\n");
+        Core\Test::assertEquals($run->stderr(), '');
+    }
+
+    #[Core\Test]
+    public function feedsStdin(): void
+    {
+        var $run = Core\Test::run(['count'], { stdin: "one\ntwo\nthree\n" });
+        Core\Test::assertEquals($run->stdout(), "lines: 3\n");
+        var $empty = Core\Test::run(['count']);
+        Core\Test::assertEquals($empty->stdout(), "lines: 0\n");
+    }
+
+    #[Core\Test]
+    public function givesTheExitCodeOfExit(): void
+    {
+        var $run = Core\Test::run(['quit', '7']);
+        Core\Test::assertEquals($run->exitCode(), 7);
+        Core\Test::assertEquals($run->stdout(), "stopping\n");
+        Core\Test::assertEquals(Core\Test::run(['greet', 'Bo'])->exitCode(), 0);
+    }
+
+    #[Core\Test]
+    public function givesTheUsagePageOnStderr(): void
+    {
+        var $run = Core\Test::run(['greet']);
+        Core\Test::assertEquals($run->exitCode(), 2);
+        Core\Test::assertEquals($run->stdout(), '');
+        Core\Test::assertTrue(Core\Str::contains($run->stderr(), 'usage: greet <name>'));
+    }
+
+    #[Core\Test]
+    public function givesAnUncaughtErrorAsItsExitCode(): void
+    {
+        var $run = Core\Test::run(['fail']);
+        Core\Test::assertEquals($run->exitCode(), 1);
+        Core\Test::assertEquals($run->stdout(), '');
+        Core\Test::assertTrue(Core\Str::contains($run->stderr(), 'the disk is full'));
+    }
+
+    #[Core\Test]
+    public function keepsStdoutAndStderrApart(): void
+    {
+        var $run = Core\Test::run(['report']);
+        Core\Test::assertEquals($run->stdout(), "result 42\n");
+        Core\Test::assertEquals($run->stderr(), "working\n");
+        Core\Test::assertEquals(Core\Bytes::length($run->bytes()), 10);
+    }
+}
+
+// The program's entry: `Core\Command::run` calls the command the first word
+// names, and its result is the exit code.
+int $status = Core\Command::run();
+exit($status);

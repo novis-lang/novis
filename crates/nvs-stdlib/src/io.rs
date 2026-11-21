@@ -1340,7 +1340,8 @@ const STDIN_STREAM_CARD: ClassDoc = ClassDoc {
 /// contagious result is tainted, as `stdin`'s text is.
 ///
 /// **A `#[Test]` run reads end of input** and gives no chunk, as
-/// [`nvs_core_io_stdin`] does, so a test never waits for a person.
+/// [`nvs_core_io_stdin`] does, so a test never waits for a person. The child
+/// of a `Core\Test::run` reads the input the run gave it.
 ///
 /// **What it spends:** one chunk, resident in the slot until the next pull,
 /// and nothing that grows with the input. A loop that keeps every chunk keeps
@@ -2506,7 +2507,14 @@ nvs_runtime::nvs_helper! {
     ///
     /// **A `#[Test]` method reads end of input**, so a test never stops
     /// `nvs test` to wait for a person (`rule:testing/tests-run-across-every-core`).
+    /// The child of a `Core\Test::run` reads the run's `stdin` from where it
+    /// stands, and end of input after it (`rule:testing/a-test-runs-a-command`).
     fn nvs_core_io_stdin(ctx, _args: [0]) {
+        if let Some(input) = ctx.run_input_mut() {
+            let rest = input.get_ref().get(cursor_at(input)..).unwrap_or_default().to_vec();
+            input.set_position(u64::try_from(input.get_ref().len()).unwrap_or(u64::MAX));
+            return read_to_text(ctx, &mut rest.as_slice());
+        }
         if ctx.run_kind() == nvs_runtime::RunKind::Test {
             return text_of(&[], "Core\\IO::stdin", STDIN_HINT);
         }
@@ -2562,6 +2570,11 @@ fn read_to_text(ctx: &nvs_runtime::Ctx, input: &mut impl std::io::Read) -> Resul
     text_of(&bytes, "Core\\IO::stdin", STDIN_HINT)
 }
 
+/// Where `input` stands, as an index into its bytes.
+fn cursor_at(input: &std::io::Cursor<Vec<u8>>) -> usize {
+    usize::try_from(input.position()).unwrap_or(usize::MAX)
+}
+
 /// What `Core\IO::stdin`'s message says to do with input that is not UTF-8.
 const STDIN_HINT: &str = "Use `Core\\IO::stdinStream` to read it as bytes.";
 
@@ -2587,7 +2600,9 @@ nvs_runtime::nvs_helper! {
     /// `Iterator<tainted bytes>::advance(): bool`: reads the next chunk of
     /// standard input, and answers `false` at the end of input.
     fn nvs_core_io_stdin_stream_advance(ctx, args: [1]) {
-        let stepped = if ctx.run_kind() == nvs_runtime::RunKind::Test {
+        let stepped = if let Some(input) = ctx.run_input_mut() {
+            stdin_stream_step(args[0], input)
+        } else if ctx.run_kind() == nvs_runtime::RunKind::Test {
             stdin_stream_step(args[0], &mut std::io::empty())
         } else if let Some(deadline) = ctx.off_core_deadline() {
             stdin_stream_step(args[0], &mut StdinUntil { deadline })

@@ -59,6 +59,19 @@ pub enum Answered {
     },
 }
 
+/// What a `Core\Test::run` child left behind (`rule:testing/a-test-runs-a-command`).
+#[derive(Debug, Default)]
+pub struct Ran {
+    /// The status `nvs run` would exit with: `n` for `exit(n)`, as its low
+    /// byte, `1` for an uncaught error and `0` otherwise.
+    pub exit_code: i64,
+    /// What the child wrote to its standard output.
+    pub stdout: Vec<u8>,
+    /// What the child wrote to its standard error, an uncaught error's report
+    /// last.
+    pub stderr: Vec<u8>,
+}
+
 impl From<Completion> for Answered {
     fn from(completion: Completion) -> Self {
         Self::Ran {
@@ -119,6 +132,20 @@ pub trait Answering: std::fmt::Debug {
         inbound: Box<Inbound>,
         links: Option<Arc<ModuleLinks>>,
     ) -> Result<Answered, String>;
+
+    /// Runs the unit's entry, the file `nvs run` runs, as a command program
+    /// started with `arguments` and fed `stdin`, in a child isolate
+    /// (`rule:testing/a-test-runs-a-command`). `ctx` is the caller's, as for
+    /// [`Self::answer`].
+    ///
+    /// # Errors
+    ///
+    /// [`AnswerError::NoEntry`] for a unit with no such entry, which is the
+    /// default, and [`AnswerError::Refused`] for a child that could not start.
+    fn run(&self, ctx: &mut Ctx, arguments: Vec<String>, stdin: Vec<u8>) -> Result<Ran, AnswerError> {
+        let _ = (ctx, arguments, stdin);
+        Err(AnswerError::NoEntry)
+    }
 
     /// The mount table of the configuration this run reads, with the handlers
     /// each row serves. `None` where the configuration writes no
@@ -208,6 +235,12 @@ pub enum AnswerError {
     Reentrant,
     /// The implementor refused, carrying its own message.
     Refused(String),
+    /// A run was asked for from inside a run or a request
+    /// (`rule:testing/a-test-runs-a-command`).
+    InsideRun,
+    /// The unit has no entry `nvs run` would run: a directory of programs,
+    /// whose entry exists only to bring every file into the compile.
+    NoEntry,
 }
 
 impl std::fmt::Display for AnswerError {
@@ -222,6 +255,14 @@ impl std::fmt::Display for AnswerError {
                  it is the same program that asked, so a second request would answer itself",
             ),
             Self::Refused(message) => formatter.write_str(message),
+            Self::InsideRun => formatter.write_str(
+                "a command run may not be started from inside a run or a request: only a test \
+                 starts one",
+            ),
+            Self::NoEntry => formatter.write_str(
+                "this test program has no entry `nvs run` would run: a folder of programs has \
+                 none, so give `nvs test` the program's file",
+            ),
         }
     }
 }
@@ -335,6 +376,25 @@ pub fn answer(
     };
     unit.answer(ctx, inbound, links)
         .map_err(AnswerError::Refused)
+}
+
+/// Runs this thread's unit under test as a command program, started with
+/// `arguments` and fed `stdin` (`rule:testing/a-test-runs-a-command`).
+///
+/// # Errors
+///
+/// [`AnswerError::InsideRun`] when `ctx` is answering a request or is the
+/// child of a run, which is asked first for [`answer`]'s reason,
+/// [`AnswerError::NoUnit`] when nothing is installed here, and the
+/// implementor's own refusal otherwise.
+pub fn run(ctx: &mut Ctx, arguments: Vec<String>, stdin: Vec<u8>) -> Result<Ran, AnswerError> {
+    if ctx.inbound().is_some() || ctx.in_run() {
+        return Err(AnswerError::InsideRun);
+    }
+    let Some(unit) = CURRENT.with(Cell::get) else {
+        return Err(AnswerError::NoUnit);
+    };
+    unit.run(ctx, arguments, stdin)
 }
 
 /// Whether this thread has a unit under test, without running anything through

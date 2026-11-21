@@ -1528,6 +1528,22 @@ pub(crate) struct UnderTest {
     /// handlers, for a unit that links to another module
     /// ([`UnderTest::with_mounts`]). `None` for every other unit.
     mounts: Option<nvs_runtime::inproc::Mounts>,
+    /// What a `Core\Test::run` child is given that a request is not: the
+    /// command table and the program's name, as `nvs run` gives them. `None`
+    /// for a folder of programs, which has no entry `nvs run` would run
+    /// (`rule:testing/a-test-runs-a-command`).
+    command: Option<CommandEntry>,
+}
+
+/// The command table and the program's name a `Core\Test::run` child is
+/// given, as `nvs run` gives them to its program.
+struct CommandEntry {
+    /// `Core\Command`'s table, or `None` for a program that declares no
+    /// `#[Command]`.
+    commands: Option<std::sync::Arc<nvs_runtime::commands::CommandTable>>,
+    /// The entry file's stem, which `Core\Command::completions` registers a
+    /// script against.
+    name: String,
 }
 
 impl std::fmt::Debug for UnderTest {
@@ -1546,11 +1562,26 @@ impl UnderTest {
     /// The unit under test for this run, with `rule:routing/matched-once-before-the-handler`'s table already
     /// crossed into the runtime's shape.
     pub(crate) fn new(unit: &Arc<nvs_codegen::Unit>, checked: &crate::Checked) -> Self {
+        let command = (!checked.directory).then(|| {
+            let table = checked.exprs.commands();
+            CommandEntry {
+                commands: (!table.rows().is_empty())
+                    .then(|| std::sync::Arc::new(crate::runtime_commands(table))),
+                name: checked
+                    .map
+                    .file(checked.id)
+                    .path()
+                    .and_then(Path::file_stem)
+                    .map(|stem| stem.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+            }
+        });
         Self {
             unit: Arc::clone(unit),
             routes: std::sync::Arc::new(nvs_types::crossing::runtime_routes(&checked.exprs)),
             request: checked.request,
             mounts: None,
+            command,
         }
     }
 
@@ -1716,6 +1747,108 @@ impl nvs_runtime::inproc::Answering for UnderTest {
             after_response,
         })
     }
+
+    fn run(
+        &self,
+        ctx: &mut nvs_runtime::Ctx,
+        arguments: Vec<String>,
+        stdin: Vec<u8>,
+    ) -> Result<nvs_runtime::inproc::Ran, nvs_runtime::inproc::AnswerError> {
+        let Some(command) = &self.command else {
+            return Err(nvs_runtime::inproc::AnswerError::NoEntry);
+        };
+        let unit = Arc::clone(&self.unit);
+        let routes = std::sync::Arc::clone(&self.routes);
+        let commands = command.commands.clone();
+        let name = command.name.clone();
+        // A copy of the test's clock, as a request's child gets one in `answer`.
+        let clock = ctx.fixed_clock();
+        // The exit code and standard error the child's frame leaves here, read
+        // once the child has ended. The child runs on this thread, inside the
+        // join below, so the cell is never shared across threads.
+        let left = Rc::new(RefCell::new((0_i64, Vec::new())));
+        let into = Rc::clone(&left);
+        // The program `nvs run` builds for its entry, over this run's unit:
+        // the command line, the program's name and the command table, and
+        // standard error captured apart from standard output.
+        let program: nvs_runtime::script::Program =
+            Box::new(move |ctx: &mut nvs_runtime::Ctx, _args| {
+                unit.install_in(ctx);
+                if let Some(nanos) = clock {
+                    ctx.set_fixed_clock(nanos);
+                }
+                if !routes.rows().is_empty() {
+                    ctx.set_routes(routes);
+                }
+                if let Some(commands) = commands {
+                    ctx.set_commands(commands);
+                }
+                ctx.set_command_line(arguments);
+                ctx.set_program_name(name);
+                ctx.set_run_input(stdin);
+                ctx.set_diagnostic_sink(nvs_runtime::OutputSink::Buffer(Vec::new()));
+                let Some(entry) = unit.script() else {
+                    // Not reachable for a unit that compiled, as in `answer`.
+                    ctx.set_pending("the program under test has no script frame");
+                    return nvs_runtime::Value::null();
+                };
+                let (code, answer) = match entry.call(ctx) {
+                    Ok(value) => (0, value),
+                    Err(status) => (ended(ctx, status), nvs_runtime::Value::null()),
+                };
+                let stderr = ctx.take_buffered_diagnostic().unwrap_or_default();
+                *into.borrow_mut() = (code, stderr);
+                answer
+            });
+        let isolate = nvs_host::Isolate::new(
+            program,
+            nvs_runtime::Value::null(),
+            nvs_runtime::host::Output::Capture,
+        );
+        let running = isolate
+            .start(ctx)
+            .map_err(|error| nvs_runtime::inproc::AnswerError::Refused(error.to_string()))?;
+        let mut completion = running.join(ctx);
+        completion.discard_value();
+        let (mut exit_code, mut stderr) = left.take();
+        // A child that ended some other way, such as a frame that was never
+        // compiled, still ends the run as a failure, with its message.
+        if !completion.ok {
+            exit_code = 1;
+            if let Some(error) = &completion.error {
+                stderr.extend_from_slice(format!("{}: {}\n", error.class, error.message).as_bytes());
+            }
+        }
+        Ok(nvs_runtime::inproc::Ran {
+            exit_code,
+            stdout: completion.output.to_bytes().into_owned(),
+            stderr,
+        })
+    }
+}
+
+/// The exit code of a `Core\Test::run` child whose entry ended with `status`,
+/// as `nvs run` gives it: `n` for `exit(n)`, as its low byte, and `1` for an
+/// uncaught error or a `FATAL`. An uncaught error is reported on the child's
+/// standard error as `nvs run` reports one, after its handlers. Nothing is left
+/// pending, so the child ends the way `exit` ends one and the test goes on
+/// (`rule:testing/a-test-runs-a-command`).
+fn ended(ctx: &mut nvs_runtime::Ctx, status: i32) -> i64 {
+    ctx.set_ending(status);
+    if status == nvs_runtime::EXITED {
+        return ctx.exit_code() & 0xFF;
+    }
+    let thrown = ctx.take_thrown();
+    if status == nvs_runtime::THROWN {
+        ctx.run_uncaught_handler(&thrown);
+        let record = nvs_runtime::floor::uncaught(&thrown);
+        if !nvs_host::ladder::escalate(ctx, &record) {
+            let _ = ctx.write_diagnostic(nvs_render::plain::render(&record).as_bytes());
+        }
+    } else {
+        let _ = ctx.write_diagnostic(format!("FATAL: {}\n", thrown.message()).as_bytes());
+    }
+    1
 }
 
 /// Lowers and compiles `checked` into the **one** unit every test isolate of

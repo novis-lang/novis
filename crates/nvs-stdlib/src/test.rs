@@ -289,6 +289,7 @@
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 
 pub(crate) mod hooks;
+pub(crate) mod run;
 
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreField, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc,
@@ -832,6 +833,21 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Instance(RESPONSE_NAME),
             symbol: "nvs_core_test_request",
             doc: Some(&REQUEST_DOC),
+        },
+        CoreMethod {
+            name: "run",
+            names: &["arguments"],
+            // `Qual::Neutral`, as a request's path is: the words select a row of
+            // the program's own compiled command table, and the result carries
+            // only what the program wrote.
+            params: &[
+                CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+                CoreTy::Options(run::RUN_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(run::RUN_RESULT_NAME),
+            symbol: "nvs_core_test_run",
+            doc: Some(&run::RUN_DOC),
         },
         CoreMethod {
             name: "answerHttp",

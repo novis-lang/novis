@@ -1,0 +1,12 @@
+<?nvs
+// A folder of programs has no file that `nvs run` would run, so
+// `Core\Test::run` throws a `LogicError` here.
+
+class FolderRun
+{
+    #[Core\Test]
+    public function runIsALogicError(): void
+    {
+        Core\Test::assertThrows(fn(): mixed => Core\Test::run(['greet']), LogicError::class);
+    }
+}

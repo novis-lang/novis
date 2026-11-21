@@ -1017,6 +1017,10 @@ struct Checked {
     /// `None` for a single file and for a folder without one
     /// (`rule:testing/in-process-request`, [`Program::front_end`]).
     request: Option<nvs_diagnostics::SourceId>,
+    /// Whether the entry is a folder's generated one, which exists only to
+    /// bring every file into the compile. `Core\Test::run` runs the entry `nvs
+    /// run` runs, and a folder has none (`rule:testing/a-test-runs-a-command`).
+    directory: bool,
 }
 
 impl Checked {
@@ -1550,6 +1554,7 @@ fn front_end_in(
         names: module.symbols.len() + module.imports.len(),
         grants: namespace_grants,
         request: None,
+        directory: false,
     })
 }
 
@@ -3539,6 +3544,7 @@ impl Program {
         // Only a file with the served file's name is resolved, so a directory
         // of tests resolves one path here, not one per file.
         if let Self::Directory { dir, .. } = self {
+            checked.directory = true;
             let named = dir.join(nvs_config::mount::IMPLICIT_ENTRY);
             let mut served = None;
             checked.request = checked.files.iter().map(|file| file.id).find(|&id| {

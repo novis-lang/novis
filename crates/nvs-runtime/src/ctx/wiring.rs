@@ -358,6 +358,7 @@ impl Ctx {
             commands: None,
             routes: None,
             arguments: Vec::new(),
+            run_input: None,
             program_name: String::new(),
             program_id: None,
             config: None,
@@ -821,6 +822,24 @@ impl Ctx {
     /// Hands this program the words it was started with, before it runs.
     pub fn set_command_line(&mut self, arguments: Vec<String>) {
         self.arguments = arguments;
+    }
+
+    /// Makes this context the child of a `Core\Test::run`, whose standard
+    /// input is `input` — see [`Self::run_input`]'s field docs.
+    pub fn set_run_input(&mut self, input: Vec<u8>) {
+        self.run_input = Some(Box::new(std::io::Cursor::new(input)));
+    }
+
+    /// Whether this context is the child of a `Core\Test::run`.
+    #[must_use]
+    pub fn in_run(&self) -> bool {
+        self.run_input.is_some()
+    }
+
+    /// The rest of a run child's standard input, for `Core\IO::stdin` and
+    /// `Core\IO::stdinStream` to read from. `None` outside a run.
+    pub fn run_input_mut(&mut self) -> Option<&mut std::io::Cursor<Vec<u8>>> {
+        self.run_input.as_deref_mut()
     }
 
     /// The name a completion script registers this program against — what

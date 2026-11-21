@@ -527,6 +527,7 @@ fn lookup(symbol: &str) -> Option<nvs_runtime::Entry> {
         .or_else(|| task::address(symbol))
         .or_else(|| test::address(symbol))
         .or_else(|| test::hooks::address(symbol))
+        .or_else(|| test::run::address(symbol))
         .or_else(|| time::address(symbol))
         .or_else(|| topic::address(symbol))
         .or_else(|| totp::address(symbol))

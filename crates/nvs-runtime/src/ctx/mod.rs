@@ -1105,6 +1105,14 @@ pub struct Ctx {
     /// which is every served request. O(in-flight requests), per
     /// `rule:programs/memory-priority`.
     arguments: Vec<String>,
+    /// The standard input of a `Core\Test::run` child, read from its start
+    /// (`rule:testing/a-test-runs-a-command`). `Some` on that child alone, even
+    /// where the run gave no input, so it is also how [`crate::inproc::run`]
+    /// knows a context is already inside a run.
+    ///
+    /// **What it spends:** one pointer on every context, and the run's input
+    /// on the child of a run, freed with it.
+    run_input: Option<Box<std::io::Cursor<Vec<u8>>>>,
     /// The name the shell knows this program by — what
     /// `rule:tooling/commands-are-compiled`'s
     /// `Core\Command::completions` registers its script against. See

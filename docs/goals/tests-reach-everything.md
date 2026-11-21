@@ -391,15 +391,18 @@ two sessions writes what holds it in the handoff, and the next session splits it
 **Split:** the `Core\Test\RunResult` class and its cards go to one writing subagent once the child's
 outcome type exists; the session writes the run path.
 
-- [ ] `crates/nvs-stdlib/src/test.rs:743`: `Core\Test::run` in the member list, and
+- [x] `crates/nvs-stdlib/src/test.rs:743`: `Core\Test::run` in the member list, and
   `Core\Test\RunResult` with its four members.
-- [ ] `crates/nvs-cli/src/runner.rs:1619`: a run path beside `UnderTest::answer` that sets the
+- [x] `crates/nvs-cli/src/runner.rs:1619`: a run path beside `UnderTest::answer` that sets the
   child's command line (`ctx.set_command_line`, as `crates/nvs-cli/src/main.rs:2464` does), its stdin
   and two capture buffers, and turns `exit(n)` (`crates/nvs-cli/src/runner.rs:580`) into the exit
   code.
-- [ ] `crates/nvs-stdlib/src/io.rs:1342`: stdin reads the run's input in a child of `Core\Test::run`,
+- [x] `crates/nvs-stdlib/src/io.rs:1342`: stdin reads the run's input in a child of `Core\Test::run`,
   and end of input everywhere else in a test.
 - [ ] `crates/nvs-cli/tests/test_reach.rs`: the seven `run` tests.
+  - [x] the fixtures `crates/nvs-cli/tests/fixtures/reach/run.nvs` and `run_folder/checks.nvs`
+  - [ ] `run.nvs` compiles: its last lines pass a `uint` to `exit`
+  - [ ] the seven Rust tests, each run once by name
 
 ### 7. #[Test(env:)], Core\Test::logs and Core\Test::sentMail
 
@@ -453,33 +456,33 @@ outcome type exists; the session writes the run path.
 
 ### State
 
-Stages 1 to 5 are done. Stage 5's virtual clock is `crates/nvs-runtime/src/test_clock.rs`:
-`Ctx::fixed_clock` is an `Rc<TestClock>` that `Ctx::child` shares, `Ctx::test_clock` gives it to a
-member that parks, and `set_fixed_clock` moves a clock already there. `nvs_runtime::peer::sleep`
-parks on it, `Scheduler::run` (`crates/nvs-host/src/scheduler.rs`, at its loop's `break`) calls
-`advance_idle`, and `run_as_children` (`crates/nvs-host/src/group.rs`) files a `Core\Task::all`
-deadline on it. The memory cache keeps `Until::Test` for an entry a test writes
-(`crates/nvs-stdlib/src/cache.rs`, `Lifetime::until`), and `Core\Queue`'s push reads
-`crate::time::wall_clock`. The five `clock` tests pass, run by name, over
-`crates/nvs-cli/tests/fixtures/reach/clock.nvs`, and so does `test_clock`'s unit test.
+Stage 6's code is written and builds, with clippy clean. The seam is `nvs_runtime::inproc::run`
+and `Answering::run`, returning `inproc::Ran` (exit code, stdout, stderr), with two new
+`AnswerError`s, `InsideRun` and `NoEntry`. `UnderTest::run` (`crates/nvs-cli/src/runner.rs`, after
+`answer`) builds the child: the command table, the program name (the entry's stem), the command
+line, `Ctx::set_run_input` and a diagnostic buffer for stderr. `ended` turns `exit(n)` into `n & 0xFF`
+and an uncaught throw into `1`, writing its plain record on stderr. `Checked::directory` marks a
+folder's generated entry, which has no `nvs run` entry, so `run` there is a `LogicError`. Stdin reads
+`Ctx::run_input_mut` in `crates/nvs-stdlib/src/io.rs`. `Core\Test\RunResult` and the member's card
+are `crates/nvs-stdlib/src/test/run.rs`, registered in `classes.rs` and `lib.rs`.
 
-A `Core\Task::all` child of a test now reads the test's fixed clock. Before, `Ctx::child` did not
-copy it, so a child read the real clock. A test that relied on that may go red at the gate. A test
-under `at:` whose sleeps used to wait now ends at once, and one that measured that wait with
-`Core\Time::monotonic` would go red too. None was seen.
+`run_folder/checks.nvs` passes under `nvs test run_folder`. `run.nvs` does not compile yet: `int
+$status = Core\Command::run();` is `E0401`, since `run` returns `uint` and `exit` takes `int`. No
+test in `test_reach.rs` names it yet.
 
-Nightly run 44894790665 (a Miri timeout in `both_walks_agree_on_every_window`) ran on `7e97fa8444`,
-before `156f11a7ca` cut the Miri reach to 2, and no nightly has run since. If the next one still
-times out, shorten the text list under `cfg!(miri)`.
+Stages 1 to 5 are done. At the gate, a test whose `Core\Task::all` child relied on the real clock,
+or that timed a sleep under `at:`, may go red. Nightly 44894790665's Miri timeout predates
+`156f11a7ca`. If the next nightly still times out, shorten the list under `cfg!(miri)`.
 
 ### Next
 
-Stage 6, from its first item, following its `**Split:**` line: `Core\Test::run` and
-`Core\Test\RunResult` in `crates/nvs-stdlib/src/test.rs:743`, then the run path beside
-`UnderTest::answer` (`crates/nvs-cli/src/runner.rs:1619`) with `ctx.set_command_line` as
-`crates/nvs-cli/src/main.rs:2464` sets it, stdin in `crates/nvs-stdlib/src/io.rs:1342`, and the seven
-`run` tests in `crates/nvs-cli/tests/test_reach.rs`. A run's child gets its own copy of the test
-clock, as `UnderTest::answer`'s program sets one with `ctx.set_fixed_clock`. The `run` and `records`
-checks stay red until their stages write their tests.
+Stage 6's last item. Make the end of `crates/nvs-cli/tests/fixtures/reach/run.nvs` compile: give
+`exit` an `int` from `Core\Command::run()`'s `uint`, the way the language converts one. Then run
+`target/debug/nvs.exe --no-init test run.nvs` from that folder and fix what fails. Then add the
+seven `run` tests to `crates/nvs-cli/tests/test_reach.rs`, after the clock tests, each with
+`// covers: Core\Test::run`. Six map to `Runs::` methods in `run.nvs`. The seventh,
+`test_run_without_a_command_entry_is_a_logic_error`, runs `nvs test run_folder --filter
+runIsALogicError`. Run the `run` check by name, set `a-test-runs-a-command` to `shipped` with its
+`guardedBy`, and mark stage 6 done. Then stage 7. The `records` check stays red until stage 7.
 
 ### Backlog
