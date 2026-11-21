@@ -18,8 +18,8 @@ the values you chose. The test then runs without a mail server, a network or a d
 `Core\Test::assertCalled` checks that a method was called, how many times, and with which
 arguments. `Core\Test::assertNeverCalled` checks that a method was not called at all.
 
-Your class must take the interface as a parameter for this to work. A class that creates its own
-mailer inside a method cannot get a double.
+A test can pass a double only to a class that takes the interface as a parameter. A class that
+creates its own mailer inside a method cannot get a double.
 
 ## Other doubles
 
@@ -34,26 +34,31 @@ A test with `#[Test(at: "2026-03-01T09:00:00Z")]` runs with the clock fixed at t
 `Core\Time::now()` returns that time. `Core\Test::advance(1h)` moves the clock one hour forward.
 
 Under `at:`, `Core\Time::sleep` does not wait. `Core\Time::sleep(1h)` ends at once, and the clock
-is then one hour later. When two tasks sleep, the one with the shorter sleep wakes first. A timeout
-of `Core\Task::all` uses the same clock. So a test of a retry, a wait or a timeout takes
-microseconds.
+is then one hour later. A test of a retry, a wait or a timeout therefore takes microseconds.
 
-The clock also ends a cache entry of `Core\Cache::memory` when its time to live has passed, and
-makes a delayed queue job due. A test without `at:` uses the real clock, and a sleep really waits.
+`Core\Task::all` runs several tasks at the same time. When two of them sleep, the one with the
+shorter sleep wakes first. The `deadline` of `Core\Task::all` uses the same fixed clock.
+
+The fixed clock also decides when a value in `Core\Cache::memory` expires. After
+`Core\Test::advance` moves the clock past the value's time to live, `get` returns `null`. In the
+same way, a queue job with a delay is due once the clock passes that delay.
+
+A test without `at:` uses the real clock, and a sleep really waits.
 
 ## Mail and logs
 
 Under `nvs test`, `Core\Mail::send` sends nothing and opens no connection. It still checks the
-addresses and the `[mail]` settings. `Core\Test::sentMail` returns the messages your code sent in
+addresses and the `[mail]` settings in `nvs.toml`. `Core\Test::sentMail` returns the messages your code sent in
 this test, in the order sent. Each one is a `Core\Test\SentMail` with `to()`, `subject()`, `text()`
 and the other fields.
 
 `Core\Test::logs` returns the log records written in this test. Each one is a
-`Core\Test\LogRecord` with `level()`, `message()` and `fields()`. A record below the `[log] level`
-setting is not written, so it is not in the list.
+`Core\Test\LogRecord` with `level()`, `message()` and `fields()`. The `level` setting in the
+`[log]` block of `nvs.toml` decides which records are written. A record below that level is not in
+the list.
 
-Both lists contain what the test wrote, and what each request and each run it started wrote. Each
-test starts with two empty lists.
+Each test starts with two empty lists. `sentMail` and `logs` contain what the test itself did. They
+also contain what each request and each `Core\Test::run` of the test did.
 
 ## Do and don't
 

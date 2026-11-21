@@ -1680,7 +1680,7 @@
     "Core\\Log::write": "8655b14e7de08b3b"
   },
   "docs/examples/core/Mail/send/about.md": {
-    "Core\\Mail::send": "2d2047af3dafb2fc"
+    "Core\\Mail::send": "524577122401d0dc"
   },
   "docs/examples/core/Markdown/fromHtml/about.md": {
     "Core\\Markdown::fromHtml": "c6fc3f52b5a1b519"
@@ -2982,7 +2982,7 @@
     "Core\\Time::now": "fd049309c528761d"
   },
   "docs/examples/core/Time/sleep/about.md": {
-    "Core\\Time::sleep": "7ea9ef8c627babea"
+    "Core\\Time::sleep": "ebca5824acd7c40e"
   },
   "docs/examples/core/Time-Date/at/about.md": {
     "Core\\Time\\Date::at": "671cd45521c1ade7"
@@ -5244,7 +5244,7 @@
     "Core\\Bytes::unpack": "9d829a9be33cc779"
   },
   "help:Core\\Cache::memory": {
-    "Core\\Cache::memory": "28c99dfbdb7eec57"
+    "Core\\Cache::memory": "53f30da06c043ad3"
   },
   "help:Core\\Cache::shared": {
     "Core\\Cache::shared": "938111878ecbdf78"
@@ -6501,7 +6501,7 @@
     "Core\\Log::write": "a83fcce0db1d1078"
   },
   "help:Core\\Mail::send": {
-    "Core\\Mail::send": "a69bdeadfc57c029"
+    "Core\\Mail::send": "45b9c22ecba161f6"
   },
   "help:Core\\Markdown::fromHtml": {
     "Core\\Markdown::fromHtml": "04bd672178f203b7"
@@ -7671,7 +7671,7 @@
     "Core\\Task::afterResponse": "199303149acfe7b8"
   },
   "help:Core\\Task::all": {
-    "Core\\Task::all": "735517b1f04a1bb9"
+    "Core\\Task::all": "d9c19255f64b24c7"
   },
   "help:Core\\Task::map": {
     "Core\\Task::map": "8f4d42e8c055fb5c"
@@ -7683,7 +7683,7 @@
     "Core\\Task\\Channel::send": "2001a0b5d55448b9"
   },
   "help:Core\\Test::advance": {
-    "Core\\Test::advance": "1801972b726666c2"
+    "Core\\Test::advance": "afc67103fdb531f6"
   },
   "help:Core\\Test::answerHttp": {
     "Core\\Test::answerHttp": "273f99b57f0ed36f"
@@ -7794,10 +7794,10 @@
     "Core\\Test\\Outcome::passed": "41db41ca0c8b8020"
   },
   "help:Core\\Test\\Response::body": {
-    "Core\\Test\\Response::body": "7c2e64ba9401c158"
+    "Core\\Test\\Response::body": "14ebc5927782e1e2"
   },
   "help:Core\\Test\\Response::bytes": {
-    "Core\\Test\\Response::bytes": "16ad159b2e313e50"
+    "Core\\Test\\Response::bytes": "51940a734aeaf3b8"
   },
   "help:Core\\Test\\Response::cookies": {
     "Core\\Test\\Response::cookies": "4767bb6f5b390983"
@@ -7818,7 +7818,7 @@
     "Core\\Test\\Response::jsonAs": "134ca93e6d6052e0"
   },
   "help:Core\\Test\\Response::status": {
-    "Core\\Test\\Response::status": "3d890ce0fc267ba2"
+    "Core\\Test\\Response::status": "567b74bb4aeab22f"
   },
   "help:Core\\Test\\RunResult::bytes": {
     "Core\\Test\\RunResult::bytes": "6e340b9cffb37a98"
@@ -7893,7 +7893,7 @@
     "Core\\Time::now": "de1545638802961c"
   },
   "help:Core\\Time::sleep": {
-    "Core\\Time::sleep": "1880f7fd5fab3616"
+    "Core\\Time::sleep": "e656aa9d056800b6"
   },
   "help:Core\\Time\\Date::at": {
     "Core\\Time\\Date::at": "297d896d8ab51a38"
@@ -9687,7 +9687,7 @@
     "lang:testing/bench-and-nvs-test-bench": "332d3c44e3541b39",
     "lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup": "7dc527d1065301c7",
     "lang:testing/running-tests-nvs-test": "35ed159cdab1d562",
-    "lang:testing/test-options": "45327dc40cbcbccd"
+    "lang:testing/test-options": "0b67f7c4b36de513"
   },
   "syntax/values/arrays.mdx": {
     "lang:expressions/arrays-in-expressions": "e246ed6ffa3f0504",
@@ -9845,7 +9845,7 @@
     "lang:testing/bench-and-nvs-test-bench": "332d3c44e3541b39",
     "lang:testing/core-test-property-generated-inputs": "ac1715e807062536",
     "lang:testing/running-tests-nvs-test": "35ed159cdab1d562",
-    "lang:testing/test-options": "45327dc40cbcbccd",
+    "lang:testing/test-options": "0b67f7c4b36de513",
     "tools:cli/nvs-test": "3b17bb38adc0b4cb",
     "tools:cli/nvs-test-mutate": "d9ceecb30e34ccc7"
   }

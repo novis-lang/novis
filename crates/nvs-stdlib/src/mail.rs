@@ -212,8 +212,8 @@ const SEND_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "endpoint",
             desc: "The name of the `[mail.<name>]` block in `nvs.toml` to send through. A \
-                   `tainted` value does not compile here. The name selects a server setting, so \
-                   you write it in the code and never read it from input.",
+                   value that comes from the request is `tainted`, and a `tainted` value does \
+                   not compile here. Write the name in your code.",
             shape: &[],
         },
         ParamDoc {

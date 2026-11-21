@@ -4,8 +4,9 @@ covers: []
 description: Run your command-line program from a test with its arguments and input, and check its exit code and output.
 ---
 
-`Core\Test::run` runs your program as a command and returns how it ended. It is the same as
-`nvs run`, but no new process starts. Use it to test a command-line tool.
+`Core\Test::run` runs your program as a command and returns how it ended. The program runs the
+same way as with `nvs run`. It runs inside the test's own process, so no new process starts. Use
+it to test a command-line tool.
 
 You give the words a user types after the program name. `Test::run(['deploy', 'staging'])` runs
 the program as `deploy staging`. `Test::run(['rows'], {stdin: $csv})` also gives the program
@@ -20,19 +21,25 @@ The result is a `Core\Test\RunResult`:
 
 ## When the command fails
 
-- A missing argument prints the usage page of `Core\Command::run` on standard error. The exit code
+- `Core\Command::run` reads the arguments of a command. When an argument is missing, it prints a
+  usage page on standard error. A usage page lists the arguments the command takes. The exit code
   is `2`.
 - An error that the program does not catch gives the exit code `1`. Its message is on standard
   error.
-- A program with no code that `nvs run` can run throws a `LogicError`.
+- `Core\Test::run` needs a file that `nvs run` can run. When the program has no such file, it
+  throws a `LogicError`.
 
-A program that `Core\Test::run` or `Core\Test::request` started cannot call `Core\Test::run`. That
-call throws a `LogicError`.
+The program that `Core\Test::run` starts cannot call `Core\Test::run` itself. A request that
+`Core\Test::request` sends cannot call it either. Both calls throw a `LogicError`.
 
 ## Environment variables
 
 A test with `#[Test(env: ['API_KEY' => 'test-key'])]` sets the variable `API_KEY` for that test.
-`Core\Env` reads it in the test, and in each run and request the test starts. Other tests do not
-see it. The program still needs the `env` capability to read it.
+`Core\Env` reads it in the test. It also reads it in each program that the test starts with
+`Core\Test::run`, and in each request that the test sends with `Core\Test::request`. Other tests do
+not see it.
+
+The program still needs the `env` capability to read the variable. A capability is a permission
+that the configuration file gives a program.
 
 Read the examples in [Reference: Core\Test::run](/reference/core/test/run/).

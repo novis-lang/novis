@@ -23802,11 +23802,11 @@
           ],
           "returnType": "void",
           "doc": {
-            "shortHtml": "Sends one message to the SMTP server that <code>[mail.$endpoint]</code> names. It returns when that server has accepted the message.",
+            "shortHtml": "Sends one message to the SMTP server that <code>[mail.$endpoint]</code> names. It returns when that server has accepted the message. Under <code>nvs test</code>, it sends nothing. <code>Core\\Test::sentMail</code> returns the message.",
             "params": [
               {
                 "name": "endpoint",
-                "descHtml": "The name of the <code>[mail.&lt;name&gt;]</code> block in <code>nvs.toml</code> to send through. A <code>tainted</code> value does not compile here. The name selects a server setting, so you write it in the code and never read it from input."
+                "descHtml": "The name of the <code>[mail.&lt;name&gt;]</code> block in <code>nvs.toml</code> to send through. A value that comes from the request is <code>tainted</code>, and a <code>tainted</code> value does not compile here. Write the name in your code."
               },
               {
                 "name": "to",
@@ -47672,7 +47672,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "request(Core\\Http\\Method $method, string $path, { headers?: array<string>, body?: string|bytes, mount?: string, captures?: array<string> }): Core\\Test\\Response",
+          "signature": "request(Core\\Http\\Method $method, string $path, { headers?: array<string>, body?: string|bytes|Core\\Http\\Part, mount?: string, captures?: array<string>, cookies?: array<string>, clientIp?: string, scheme?: string, json?: mixed, form?: array<string>, contentType?: string, multipart?: array<string|Core\\Http\\Part> }): Core\\Test\\Response",
           "params": [
             {
               "kind": "param",
@@ -47698,7 +47698,7 @@
             },
             {
               "name": "body",
-              "type": "string|bytes"
+              "type": "string|bytes|Core\\Http\\Part"
             },
             {
               "name": "mount",
@@ -47707,6 +47707,34 @@
             {
               "name": "captures",
               "type": "array<string>"
+            },
+            {
+              "name": "cookies",
+              "type": "array<string>"
+            },
+            {
+              "name": "clientIp",
+              "type": "string"
+            },
+            {
+              "name": "scheme",
+              "type": "string"
+            },
+            {
+              "name": "json",
+              "type": "mixed"
+            },
+            {
+              "name": "form",
+              "type": "array<string>"
+            },
+            {
+              "name": "contentType",
+              "type": "string"
+            },
+            {
+              "name": "multipart",
+              "type": "array<string|Core\\Http\\Part>"
             }
           ],
           "returnType": "Core\\Test\\Response",
@@ -47727,7 +47755,7 @@
               },
               {
                 "name": "body",
-                "descHtml": "The body of the request, as a <code>string</code> or as <code>bytes</code>. If you give no body, the request has no body. An empty string is a body of length 0."
+                "descHtml": "The body of the request, as a <code>string</code>, as <code>bytes</code> or as a <code>Core\\Http\\Part</code>. It is sent exactly as given, with the media type in <code>contentType</code>. If you give no body, the request has no body. An empty string is a body of length 0. Only one of <code>body</code>, <code>json</code>, <code>form</code> and <code>multipart</code> may be given. Two of them do not compile."
               },
               {
                 "name": "mount",
@@ -47736,6 +47764,34 @@
               {
                 "name": "captures",
                 "descHtml": "The parts of the prefix that the mount's pattern matched, in order. For the pattern <code>/shops/{1}</code> and <code>mount: &quot;/shops/acme&quot;</code>, this is <code>[&quot;acme&quot;]</code>. <code>Core\\Request::mount()-&gt;captures()</code> returns this list. The default is an empty list. You need <code>mount</code> to give <code>captures</code>."
+              },
+              {
+                "name": "cookies",
+                "descHtml": "The cookies the request sends, with the cookie name as the key, such as <code>[&quot;sid&quot; =&gt; &quot;abc&quot;]</code>. <code>Core\\Request::cookie()</code> reads them. Each call sends only the cookies you give it."
+              },
+              {
+                "name": "clientIp",
+                "descHtml": "The address of the client, such as <code>&quot;203.0.113.9&quot;</code>. <code>Core\\Request::clientIp()</code> returns it. It must be one IPv4 or IPv6 address, or the call throws a <code>LogicError</code>. If you give none, <code>Core\\Request::clientIp()</code> returns <code>null</code>."
+              },
+              {
+                "name": "scheme",
+                "descHtml": "<code>&quot;http&quot;</code> or <code>&quot;https&quot;</code>. <code>Core\\Request::scheme()</code> returns it. Any other value throws a <code>LogicError</code>. The default is <code>&quot;http&quot;</code>."
+              },
+              {
+                "name": "json",
+                "descHtml": "The value to send as <code>application/json</code>. <code>Core\\Request::json()</code> reads it. A <code>null</code> value sends the JSON document <code>null</code>."
+              },
+              {
+                "name": "form",
+                "descHtml": "The fields to send as <code>application/x-www-form-urlencoded</code>, with the field name as the key. <code>Core\\Request::post()</code> reads them."
+              },
+              {
+                "name": "contentType",
+                "descHtml": "The media type of <code>body</code>, sent as the <code>Content-Type</code> header. Giving it without <code>body</code> does not compile."
+              },
+              {
+                "name": "multipart",
+                "descHtml": "The parts to send as <code>multipart/form-data</code>, with the field name as the key. A <code>string</code> is a form field, and a <code>Core\\Http\\Part</code> is a file. <code>Core\\Request::files()</code> reads the files."
               }
             ],
             "returnHtml": "A <code>Core\\Test\\Response</code>. <code>status()</code> returns the status the program set, or <code>200</code> if it set none. <code>body()</code> returns the text the program wrote, and <code>json()</code> and <code>jsonAs()</code> decode it. <code>header()</code>, <code>headers()</code> and <code>cookies()</code> return the headers and cookies the program set. A path that no route matches still gets an answer, because your program decides what to do with it. A body that is not text, such as a PDF file, also gets an answer. Then <code>body()</code>, <code>json()</code> and <code>jsonAs()</code> throw an error.",
@@ -47753,6 +47809,90 @@
           "slug": "request",
           "url": "/reference/core/test/request/",
           "examples": "core/Test/request"
+        },
+        {
+          "id": "Test.run",
+          "name": "run",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "run(array<string> $arguments, { stdin?: string|bytes }): Core\\Test\\RunResult",
+          "params": [
+            {
+              "kind": "param",
+              "name": "arguments",
+              "type": "array<string>",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "stdin",
+              "type": "string|bytes"
+            }
+          ],
+          "returnType": "Core\\Test\\RunResult",
+          "doc": {
+            "shortHtml": "Runs your own program as a command and returns how it ended. It starts no new process. The program runs the same way as with <code>nvs run</code>.",
+            "params": [
+              {
+                "name": "arguments",
+                "descHtml": "The words after the program name, such as <code>['greet', 'Ada', '--loud']</code>. <code>Core\\Command::run</code> and <code>Core\\Cli::arguments</code> read them."
+              },
+              {
+                "name": "stdin",
+                "descHtml": "The input of the program, as a <code>string</code> or as <code>bytes</code>. <code>Core\\IO::stdin</code> reads it. If you give no input, the input is empty."
+              }
+            ],
+            "returnHtml": "A <code>Core\\Test\\RunResult</code> with the exit code and the output. If the program calls <code>exit(3)</code>, the exit code is <code>3</code>. If the program throws an error it does not catch, the exit code is <code>1</code> and the error is on standard error.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "The test program has no file that <code>nvs run</code> would run. This is the case when you give <code>nvs test</code> a folder. The call is also an error inside a program that <code>run</code> or <code>Core\\Test::request</code> started."
+              }
+            ]
+          },
+          "slug": "run",
+          "url": "/reference/core/test/run/",
+          "examples": "core/Test/run"
+        },
+        {
+          "id": "Test.logs",
+          "name": "logs",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "logs(): array<Core\\Test\\LogRecord>",
+          "params": [],
+          "options": [],
+          "returnType": "array<Core\\Test\\LogRecord>",
+          "doc": {
+            "shortHtml": "Returns every log record written since this test started. This includes the records of every request and run the test made. Each record in the list is also written to the <code>[log] target</code>, the same as outside a test.",
+            "returnHtml": "One <code>Core\\Test\\LogRecord</code> for each call to <code>Core\\Log::write</code>, in the order written. A record below <code>[log] level</code> is not written anywhere, so it is not in the list either. The list is empty when nothing was written."
+          },
+          "slug": "logs",
+          "url": "/reference/core/test/logs/",
+          "examples": "core/Test/logs"
+        },
+        {
+          "id": "Test.sentMail",
+          "name": "sentMail",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "sentMail(): array<Core\\Test\\SentMail>",
+          "params": [],
+          "options": [],
+          "returnType": "array<Core\\Test\\SentMail>",
+          "doc": {
+            "shortHtml": "Returns every message <code>Core\\Mail::send</code> was given since this test started. This includes the messages of every request and run the test made. Under <code>nvs test</code>, <code>Core\\Mail::send</code> sends nothing and opens no connection.",
+            "returnHtml": "One <code>Core\\Test\\SentMail</code> for each message, in the order sent. The list is empty when nothing was sent."
+          },
+          "slug": "sentmail",
+          "url": "/reference/core/test/sentmail/",
+          "examples": "core/Test/sentMail"
         },
         {
           "id": "Test.answerHttp",
@@ -48317,7 +48457,7 @@
       "url": "/reference/core/test/",
       "summaryBlocks": [
         {
-          "html": "<p>The methods you call inside a <code>#[Test]</code> method. They check a result, move the fixed clock and give fake replies to the web requests your code sends. <code>nvs test</code> runs the test and reports each check that fails.</p>\n<p><code>Core\\Test</code> is the assertion surface: every member is <code>static</code>, takes the subject <strong>first</strong> (<code>assertEquals($actual, $expected)</code>), and is generic, so comparing an <code>int</code> with a <code>string</code> is a compile error rather than a failed test. A failed assertion throws <code>Core\\Test\\Failure</code>, an ordinary <code>Throwable</code> a <code>catch</code> may take — but the runner keeps its own ledger of what held and what failed, and a <code>catch</code> does not erase an entry; <code>expectFailure</code> is the one member that discharges one. A test is a <code>public</code>, non-<code>static</code> method returning <code>void</code> and marked <code>#[Core\\Test]</code> (or <code>#[Test]</code> after <code>use Core\\Test;</code>), run by <code>nvs test</code>; a test that asserts nothing fails. Marking, fixtures, data rows and the runner's report belong to testing.</p>"
+          "html": "<p>The methods you call inside a <code>#[Test]</code> method. They check a result, move the fixed clock and give fake replies to the web requests your code sends. <code>nvs test</code> runs the test and reports each check that fails.</p>\n<p><code>Core\\Test</code> is the assertion surface: every member is <code>static</code>, takes the subject <strong>first</strong> (<code>assertEquals($actual, $expected)</code>), and is generic, so comparing an <code>int</code> with a <code>string</code> is a compile error rather than a failed test. A failed assertion throws <code>Core\\Test\\Failure</code>, an ordinary <code>Throwable</code> a <code>catch</code> may take — but the runner keeps its own ledger of what held and what failed, and a <code>catch</code> does not erase an entry; <code>expectFailure</code> is the one member that discharges one. A test is a <code>public</code>, non-<code>static</code> method returning <code>void</code> and marked <code>#[Core\\Test]</code> (or <code>#[Test]</code> after <code>use Core\\Test;</code>), run by <code>nvs test</code>; a test that asserts nothing fails. Marking, fixtures, data rows and the runner's report belong to testing.</p>\n<p>A test can also run your whole program. <code>request</code> sends one HTTP request to it and returns the response. <code>run</code> runs it as a command and returns the exit code and the output. Both open no network connection and start no process. <code>logs</code> returns the log records the test wrote, and <code>sentMail</code> returns the mail it sent. Under <code>nvs test</code>, <code>Core\\Mail::send</code> keeps each message and sends nothing.</p>"
         },
         {
           "code": "<?nvs\nfinal class Cart\n{\n    private array<int> $prices = [];\n\n    public function add(int $price): void\n    {\n        if ($price < 0) {\n            throw new LogicError('a price is never negative');\n        }\n        $this->prices = Core\\Arr::append($this->prices, $price);\n    }\n\n    public function total(): int\n    {\n        return Core\\Arr::sum($this->prices) as int;\n    }\n\n    public function lines(): array<int>\n    {\n        return $this->prices;\n    }\n}\n\nfinal class CartTest\n{\n    #[Core\\Test]\n    public function sumsWhatWasAdded(): void\n    {\n        var $cart = new Cart();\n        $cart->add(3);\n        $cart->add(4);\n        Core\\Test::assertSame($cart->total(), 7);\n        Core\\Test::assertCount($cart->lines(), 2, { message: 'two lines were added' });\n    }\n\n    #[Core\\Test]\n    public function refusesANegativePrice(): void\n    {\n        var $cart = new Cart();\n        Core\\Test::assertThrows(fn(): void => { $cart->add(-1); }, LogicError::class);\n        Core\\Test::assertTrue($cart->total() == 0);\n    }\n}",
@@ -48326,6 +48466,79 @@
         {
           "code": "  CartTest\n    ✓ sumsWhatWasAdded\n    ✓ refusesANegativePrice\n  0 failed, 2 passed",
           "lang": "output"
+        }
+      ],
+      "returnedBy": []
+    },
+    {
+      "id": "Test.LogRecord",
+      "name": "Core\\Test\\LogRecord",
+      "summary": "One log record that a test, or a request or run it made, wrote with `Core\\Log::write`. `Core\\Test::logs` returns them. You cannot create one yourself.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "properties": [],
+      "members": [
+        {
+          "id": "Test.LogRecord.level",
+          "name": "level",
+          "static": false,
+          "receiver": "logRecord",
+          "generics": null,
+          "signature": "level(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the level of the record, in lower case.",
+            "returnHtml": "<code>&quot;debug&quot;</code>, <code>&quot;info&quot;</code>, <code>&quot;warn&quot;</code>, <code>&quot;error&quot;</code> or <code>&quot;critical&quot;</code>. This is the <code>level</code> a JSON log line has."
+          },
+          "slug": "level",
+          "url": "/reference/core/test-logrecord/level/",
+          "examples": "core/Test-LogRecord/level"
+        },
+        {
+          "id": "Test.LogRecord.message",
+          "name": "message",
+          "static": false,
+          "receiver": "logRecord",
+          "generics": null,
+          "signature": "message(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the message of the record.",
+            "returnHtml": "The <code>$message</code> given to <code>Core\\Log::write</code>."
+          },
+          "slug": "message",
+          "url": "/reference/core/test-logrecord/message/",
+          "examples": "core/Test-LogRecord/message"
+        },
+        {
+          "id": "Test.LogRecord.fields",
+          "name": "fields",
+          "static": false,
+          "receiver": "logRecord",
+          "generics": null,
+          "signature": "fields(): array<mixed>",
+          "params": [],
+          "options": [],
+          "returnType": "array<mixed>",
+          "doc": {
+            "shortHtml": "Returns the extra fields of the record, as the log wrote them.",
+            "returnHtml": "The <code>$fields</code> given to <code>Core\\Log::write</code>, in the order given. A string, a number, a <code>bool</code> and <code>null</code> keep their value. JSON has no type for some values, such as <code>bytes</code>. Such a value is a string: the same text that a JSON log line has for it. The array is empty when the record has no fields."
+          },
+          "slug": "fields",
+          "url": "/reference/core/test-logrecord/fields/",
+          "examples": "core/Test-LogRecord/fields"
+        }
+      ],
+      "slug": "test-logrecord",
+      "url": "/reference/core/test-logrecord/",
+      "summaryBlocks": [
+        {
+          "html": "<p>One log record that a test, or a request or run it made, wrote with <code>Core\\Log::write</code>. <code>Core\\Test::logs</code> returns them. You cannot create one yourself.</p>"
         }
       ],
       "returnedBy": []
@@ -48442,7 +48655,7 @@
     {
       "id": "Test.Response",
       "name": "Core\\Test\\Response",
-      "summary": "The answer to one request that `Core\\Test::request` sent to your own program. `status()` returns the status code, `header()` and `headers()` return the headers, `cookies()` returns the cookies the program set, and `body()`, `bytes()`, `json()` and `jsonAs()` return the body. You cannot create one yourself.",
+      "summary": "The answer to one request that `Core\\Test::request` sent to your own program. `status()` returns the status code, `header()` and `headers()` return the headers, `cookies()` returns the cookies the program set, and `body()`, `bytes()`, `json()` and `jsonAs()` return the body. `error()` returns the error that stopped a failed request. You cannot create one yourself.",
       "enums": [],
       "types": [],
       "constants": [],
@@ -48460,7 +48673,7 @@
           "returnType": "uint",
           "doc": {
             "shortHtml": "Returns the HTTP status code of the answer to this request.",
-            "returnHtml": "The code the program set with <code>Core\\Response::setStatus</code>. If the program set no code, the result is <code>200</code>. If the program threw an error it did not catch, the result is <code>500</code>, the same code the server sends."
+            "returnHtml": "The code the program set with <code>Core\\Response::setStatus</code>. If the program set no code, the result is <code>200</code>. If the program threw an error it did not catch, the result is <code>500</code>, the same code the server sends. If the server stops the request before the program runs, the result is the code the server sends, such as <code>403</code> or <code>413</code>."
           },
           "slug": "status",
           "url": "/reference/core/test-response/status/",
@@ -48672,13 +48885,31 @@
           "slug": "jsonas",
           "url": "/reference/core/test-response/jsonas/",
           "examples": "core/Test-Response/jsonAs"
+        },
+        {
+          "id": "Test.Response.error",
+          "name": "error",
+          "static": false,
+          "receiver": "response",
+          "generics": null,
+          "signature": "error(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the error that stopped this request, if the program threw one it did not catch.",
+            "returnHtml": "The class and the message of the error, as <code>Class: message</code>, for example <code>RuntimeError: the cart is empty</code>. If the request did not fail, the result is <code>null</code>."
+          },
+          "slug": "error",
+          "url": "/reference/core/test-response/error/",
+          "examples": "core/Test-Response/error"
         }
       ],
       "slug": "test-response",
       "url": "/reference/core/test-response/",
       "summaryBlocks": [
         {
-          "html": "<p>The answer to one request that <code>Core\\Test::request</code> sent to your own program. <code>status()</code> returns the status code, <code>header()</code> and <code>headers()</code> return the headers, <code>cookies()</code> returns the cookies the program set, and <code>body()</code>, <code>bytes()</code>, <code>json()</code> and <code>jsonAs()</code> return the body. You cannot create one yourself.</p>\n<p><code>Core\\Test\\Response</code> is the value <code>Core\\Test::request(...)</code> answers: what the program under test wrote while answering one synthetic request. <code>status()</code> is the status, <code>header()</code> and <code>headers()</code> the headers, <code>cookies()</code> the cookies it set, and <code>body()</code>, <code>json()</code> and <code>jsonAs&lt;T&gt;()</code> the body. It has no constructor — the only way to obtain one is to make a request.</p>\n<p>The readers are <code>Core\\Request</code>'s, read from the answer's side: <code>header</code> matches any case and joins repeated lines with <code>, </code>, <code>headers</code> keys lower-cased names to lists of lines, and <code>json</code> and <code>jsonAs</code> take the same <code>{maxDepth?}</code> option and throw the same errors. The headers are the ones a visitor is sent by the program — its <code>Content-Type</code>, which is HTML for a page that only echoed, a redirect's <code>Location</code>, the <code>Set-Cookie</code> of each <code>addCookie</code>, and every <code>setHeader</code> — and not the ones the server adds for itself. <code>header(&quot;Set-Cookie&quot;)</code> throws a <code>LogicError</code>, because two cookies joined are not a cookie; <code>cookies()</code> reads them by name.</p>\n<p>The request runs in this process. There is no socket and no port: the program's own entry is run as an isolate with the compiled route table's match already on it, so <code>Core\\Request::route()</code> inside the program reads the same match a served request would, and the handler chain that answers is the real one rather than a mock of it. What comes back is the status the program declared — <code>200</code> where it declared none — and every byte it echoed. A program that throws an error it does not catch answers <code>500</code>, an empty body and no headers of its own, which is what the server sends for a failed request.</p>"
+          "html": "<p>The answer to one request that <code>Core\\Test::request</code> sent to your own program. <code>status()</code> returns the status code, <code>header()</code> and <code>headers()</code> return the headers, <code>cookies()</code> returns the cookies the program set, and <code>body()</code>, <code>bytes()</code>, <code>json()</code> and <code>jsonAs()</code> return the body. <code>error()</code> returns the error that stopped a failed request. You cannot create one yourself.</p>\n<p><code>Core\\Test\\Response</code> is the value <code>Core\\Test::request(...)</code> answers: what the program under test wrote while answering one synthetic request. <code>status()</code> is the status, <code>header()</code> and <code>headers()</code> the headers, <code>cookies()</code> the cookies it set, and <code>body()</code>, <code>json()</code> and <code>jsonAs&lt;T&gt;()</code> the body. It has no constructor — the only way to obtain one is to make a request.</p>\n<p>The readers are <code>Core\\Request</code>'s, read from the answer's side: <code>header</code> matches any case and joins repeated lines with <code>, </code>, <code>headers</code> keys lower-cased names to lists of lines, and <code>json</code> and <code>jsonAs</code> take the same <code>{maxDepth?}</code> option and throw the same errors. The headers are the ones a visitor is sent by the program — its <code>Content-Type</code>, which is HTML for a page that only echoed, a redirect's <code>Location</code>, the <code>Set-Cookie</code> of each <code>addCookie</code>, and every <code>setHeader</code> — and not the ones the server adds for itself. <code>header(&quot;Set-Cookie&quot;)</code> throws a <code>LogicError</code>, because two cookies joined are not a cookie; <code>cookies()</code> reads them by name.</p>\n<p>The request runs in this process. There is no socket and no port: the program's own entry is run as an isolate with the compiled route table's match already on it, so <code>Core\\Request::route()</code> inside the program reads the same match a served request would, and the handler chain that answers is the real one rather than a mock of it. What comes back is the status the program declared — <code>200</code> where it declared none — and every byte it echoed. A program that throws an error it does not catch answers <code>500</code>, an empty body and no headers of its own, which is what the server sends for a failed request.</p>"
         },
         {
           "code": "#[Test]\npublic function itReturnsTheUser(): void {\n    var $rs = Core\\Test::request(Core\\Http\\Method::Get, \"/users/1\");\n\n    Core\\Test::assertEquals($rs->status(), 200);\n    Core\\Test::assertEquals($rs->body(), \"ada\");\n}",
@@ -48694,6 +48925,277 @@
           "url": "/reference/core/test/request/"
         }
       ]
+    },
+    {
+      "id": "Test.RunResult",
+      "name": "Core\\Test\\RunResult",
+      "summary": "How one run of your program by `Core\\Test::run` ended. `exitCode()` returns the exit code, `stdout()` and `bytes()` return the standard output, and `stderr()` returns the standard error. You cannot create one yourself.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "properties": [],
+      "members": [
+        {
+          "id": "Test.RunResult.exitCode",
+          "name": "exitCode",
+          "static": false,
+          "receiver": "runResult",
+          "generics": null,
+          "signature": "exitCode(): int",
+          "params": [],
+          "options": [],
+          "returnType": "int",
+          "doc": {
+            "shortHtml": "Returns the exit code of the program.",
+            "returnHtml": "<code>0</code> when the program ended normally. The number given to <code>exit</code> when the program called it. <code>2</code> when <code>Core\\Command::run</code> printed its usage page. <code>1</code> when the program threw an error it did not catch."
+          },
+          "slug": "exitcode",
+          "url": "/reference/core/test-runresult/exitcode/",
+          "examples": "core/Test-RunResult/exitCode"
+        },
+        {
+          "id": "Test.RunResult.stdout",
+          "name": "stdout",
+          "static": false,
+          "receiver": "runResult",
+          "generics": null,
+          "signature": "stdout(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the text the program wrote to standard output.",
+            "returnHtml": "Everything the program wrote with <code>echo</code>, in order. If the program wrote nothing, the result is an empty string.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The output is not valid UTF-8, so it is not a string. Read it with <code>bytes()</code>."
+              }
+            ]
+          },
+          "slug": "stdout",
+          "url": "/reference/core/test-runresult/stdout/",
+          "examples": "core/Test-RunResult/stdout"
+        },
+        {
+          "id": "Test.RunResult.stderr",
+          "name": "stderr",
+          "static": false,
+          "receiver": "runResult",
+          "generics": null,
+          "signature": "stderr(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the text the program wrote to standard error.",
+            "returnHtml": "Everything the program wrote to standard error, in order. A usage page from <code>Core\\Command::run</code> is here, and so is an error the program did not catch. If the program wrote nothing there, the result is an empty string.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The text is not valid UTF-8, so it is not a string."
+              }
+            ]
+          },
+          "slug": "stderr",
+          "url": "/reference/core/test-runresult/stderr/",
+          "examples": "core/Test-RunResult/stderr"
+        },
+        {
+          "id": "Test.RunResult.bytes",
+          "name": "bytes",
+          "static": false,
+          "receiver": "runResult",
+          "generics": null,
+          "signature": "bytes(): bytes",
+          "params": [],
+          "options": [],
+          "returnType": "bytes",
+          "doc": {
+            "shortHtml": "Returns what the program wrote to standard output, as <code>bytes</code>.",
+            "returnHtml": "Every byte of the standard output, in order. The bytes do not have to be valid UTF-8."
+          },
+          "slug": "bytes",
+          "url": "/reference/core/test-runresult/bytes/",
+          "examples": "core/Test-RunResult/bytes"
+        }
+      ],
+      "slug": "test-runresult",
+      "url": "/reference/core/test-runresult/",
+      "summaryBlocks": [
+        {
+          "html": "<p>How one run of your program by <code>Core\\Test::run</code> ended. <code>exitCode()</code> returns the exit code, <code>stdout()</code> and <code>bytes()</code> return the standard output, and <code>stderr()</code> returns the standard error. You cannot create one yourself.</p>"
+        }
+      ],
+      "returnedBy": [
+        {
+          "name": "Core\\Test::run",
+          "url": "/reference/core/test/run/"
+        }
+      ]
+    },
+    {
+      "id": "Test.SentMail",
+      "name": "Core\\Test\\SentMail",
+      "summary": "One message that a test, or a request or run it made, gave to `Core\\Mail::send`. Each method returns one parameter of that call. `Core\\Test::sentMail` returns them. You cannot create one yourself.",
+      "enums": [],
+      "types": [],
+      "constants": [],
+      "properties": [],
+      "members": [
+        {
+          "id": "Test.SentMail.endpoint",
+          "name": "endpoint",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "endpoint(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the name of the <code>[mail.&lt;name&gt;]</code> block the message was sent through.",
+            "returnHtml": "The <code>$endpoint</code> given to <code>Core\\Mail::send</code>."
+          },
+          "slug": "endpoint",
+          "url": "/reference/core/test-sentmail/endpoint/",
+          "examples": "core/Test-SentMail/endpoint"
+        },
+        {
+          "id": "Test.SentMail.to",
+          "name": "to",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "to(): array<string>",
+          "params": [],
+          "options": [],
+          "returnType": "array<string>",
+          "doc": {
+            "shortHtml": "Returns the addresses the message was sent to.",
+            "returnHtml": "The <code>$to</code> addresses, in the order given."
+          },
+          "slug": "to",
+          "url": "/reference/core/test-sentmail/to/",
+          "examples": "core/Test-SentMail/to"
+        },
+        {
+          "id": "Test.SentMail.subject",
+          "name": "subject",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "subject(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the subject of the message.",
+            "returnHtml": "The <code>$subject</code> given to <code>Core\\Mail::send</code>."
+          },
+          "slug": "subject",
+          "url": "/reference/core/test-sentmail/subject/",
+          "examples": "core/Test-SentMail/subject"
+        },
+        {
+          "id": "Test.SentMail.text",
+          "name": "text",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "text(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the plain-text body of the message.",
+            "returnHtml": "The <code>$text</code> given to <code>Core\\Mail::send</code>."
+          },
+          "slug": "text",
+          "url": "/reference/core/test-sentmail/text/",
+          "examples": "core/Test-SentMail/text"
+        },
+        {
+          "id": "Test.SentMail.cc",
+          "name": "cc",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "cc(): array<string>",
+          "params": [],
+          "options": [],
+          "returnType": "array<string>",
+          "doc": {
+            "shortHtml": "Returns the <code>cc</code> addresses of the message.",
+            "returnHtml": "The <code>cc</code> addresses, in the order given. The list is empty when none were given."
+          },
+          "slug": "cc",
+          "url": "/reference/core/test-sentmail/cc/",
+          "examples": "core/Test-SentMail/cc"
+        },
+        {
+          "id": "Test.SentMail.bcc",
+          "name": "bcc",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "bcc(): array<string>",
+          "params": [],
+          "options": [],
+          "returnType": "array<string>",
+          "doc": {
+            "shortHtml": "Returns the <code>bcc</code> addresses of the message.",
+            "returnHtml": "The <code>bcc</code> addresses, in the order given. The list is empty when none were given."
+          },
+          "slug": "bcc",
+          "url": "/reference/core/test-sentmail/bcc/",
+          "examples": "core/Test-SentMail/bcc"
+        },
+        {
+          "id": "Test.SentMail.replyTo",
+          "name": "replyTo",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "replyTo(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the <code>replyTo</code> address of the message.",
+            "returnHtml": "The <code>replyTo</code> address, or <code>null</code> when none was given."
+          },
+          "slug": "replyto",
+          "url": "/reference/core/test-sentmail/replyto/",
+          "examples": "core/Test-SentMail/replyTo"
+        },
+        {
+          "id": "Test.SentMail.html",
+          "name": "html",
+          "static": false,
+          "receiver": "sentMail",
+          "generics": null,
+          "signature": "html(): ?string",
+          "params": [],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns the HTML body of the message.",
+            "returnHtml": "The <code>html</code> body, or <code>null</code> when none was given."
+          },
+          "slug": "html",
+          "url": "/reference/core/test-sentmail/html/",
+          "examples": "core/Test-SentMail/html"
+        }
+      ],
+      "slug": "test-sentmail",
+      "url": "/reference/core/test-sentmail/",
+      "summaryBlocks": [
+        {
+          "html": "<p>One message that a test, or a request or run it made, gave to <code>Core\\Mail::send</code>. Each method returns one parameter of that call. <code>Core\\Test::sentMail</code> returns them. You cannot create one yourself.</p>"
+        }
+      ],
+      "returnedBy": []
     },
     {
       "id": "Test.SentRequest",
@@ -48993,7 +49495,7 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "Waits for <code>$d</code>. Only this task waits, so other work on the same core keeps running. If the request is cancelled during the wait, it stops here.",
+            "shortHtml": "Waits for <code>$d</code>. Only the code that calls <code>sleep</code> waits. The server runs other requests in the meantime. If the request is cancelled during the wait, for example because its time limit passed, the code stops at this call. In a test with <code>#[Test(at: ...)]</code>, it does not wait. It moves the test clock forward by <code>$d</code>.",
             "params": [
               {
                 "name": "d",

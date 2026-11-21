@@ -101,6 +101,9 @@ Conventions the whole file uses:
 | [`Core\Debug`](#core-core-debug) | one readable rendering of any value — `dump` writes it to stderr, `render` answers it as text |
 | [`Core\Test`](#core-core-test) | the typed assertions a `#[Test]` method calls, built into the language |
 | [`Core\Test\Response`](#core-core-test-response) | what `Core\Test::request` answers — the status, the headers, the cookies and the body one in-process request produced |
+| [`Core\Test\RunResult`](#core-core-test-runresult) |  |
+| [`Core\Test\LogRecord`](#core-core-test-logrecord) |  |
+| [`Core\Test\SentMail`](#core-core-test-sentmail) |  |
 | [`Core\Test\SentRequest`](#core-core-test-sentrequest) |  |
 | [`Core\Test\Outcome`](#core-core-test-outcome) |  |
 | [`Core\Test\Summary`](#core-core-test-summary) |  |
@@ -37944,7 +37947,7 @@ Reads a clock that only moves forward, for measuring how long something takes. S
 Core\Time::sleep(Core\Time\Duration $d): void
 ```
 
-Waits for `$d`. Only this task waits, so other work on the same core keeps running. If the request is cancelled during the wait, it stops here.
+Waits for `$d`. Only the code that calls `sleep` waits. The server runs other requests in the meantime. If the request is cancelled during the wait, for example because its time limit passed, the code stops at this call. In a test with `#[Test(at: ...)]`, it does not wait. It moves the test clock forward by `$d`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -42297,7 +42300,7 @@ Stops timing calls and closes the profile's file.
 <a id="core-core-test"></a>
 ### `Core\Test`
 
-Keywords: assertion, assertEquals, assertThrows, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, test failure, expected exception, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, answerHttp, tlsSession, sentHttp, answerSocket, sentSocket, double, partial, assertCalled, assertNeverCalled, assertCompletes
+Keywords: assertion, assertEquals, assertThrows, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, test failure, expected exception, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, run, logs, sentMail, answerHttp, tlsSession, sentHttp, answerSocket, sentSocket, double, partial, assertCalled, assertNeverCalled, assertCompletes
 
 `Core\Test` is the assertion surface: every member is `static`, takes the subject **first**
 (`assertEquals($actual, $expected)`), and is generic, so comparing an
@@ -42307,6 +42310,11 @@ what held and what failed, and a `catch` does not erase an entry; `expectFailure
 discharges one. A test is a `public`, non-`static` method returning `void` and marked `#[Core\Test]` (or
 `#[Test]` after `use Core\Test;`), run by `nvs test`; a test that asserts nothing fails. Marking, fixtures,
 data rows and the runner's report belong to [testing](#lang-testing).
+
+A test can also run your whole program. `request` sends one HTTP request to it and returns the
+response. `run` runs it as a command and returns the exit code and the output. Both open no network
+connection and start no process. `logs` returns the log records the test wrote, and `sentMail`
+returns the mail it sent. Under `nvs test`, `Core\Mail::send` keeps each message and sends nothing.
 
 ```nvs test
 <?nvs
@@ -42377,7 +42385,10 @@ final class CartTest
 | [`Core\Test::advance`](#core-core-test-advance) | `advance(Core\Time\Duration $by): void` |
 | [`Core\Test::serverUrl`](#core-core-test-serverurl) | `serverUrl(): ?string` |
 | [`Core\Test::scriptAnswers`](#core-core-test-scriptanswers) | `scriptAnswers(array<string> $answers): void` |
-| [`Core\Test::request`](#core-core-test-request) | `request(Core\Http\Method $method, string $path, { headers?: array<string>, body?: string\|bytes, mount?: string, captures?: array<string> }): Core\Test\Response` |
+| [`Core\Test::request`](#core-core-test-request) | `request(Core\Http\Method $method, string $path, { headers?: array<string>, body?: string\|bytes\|Core\Http\Part, mount?: string, captures?: array<string>, cookies?: array<string>, clientIp?: string, scheme?: string, json?: mixed, form?: array<string>, contentType?: string, multipart?: array<string\|Core\Http\Part> }): Core\Test\Response` |
+| [`Core\Test::run`](#core-core-test-run) | `run(array<string> $arguments, { stdin?: string\|bytes }): Core\Test\RunResult` |
+| [`Core\Test::logs`](#core-core-test-logs) | `logs(): array<Core\Test\LogRecord>` |
+| [`Core\Test::sentMail`](#core-core-test-sentmail) | `sentMail(): array<Core\Test\SentMail>` |
 | [`Core\Test::answerHttp`](#core-core-test-answerhttp) | `answerHttp(string $url, uint $status, { json?: mixed, body?: string\|bytes, headers?: array<string\|array<string>>, tls?: Core\Http\TlsInfo }): void` |
 | [`Core\Test::tlsSession`](#core-core-test-tlssession) | `tlsSession({ version?: string, cipher?: string, verified?: bool, subject?: string, issuer?: string, expiry?: Core\Time\Instant }): Core\Http\TlsInfo` |
 | [`Core\Test::sentHttp`](#core-core-test-senthttp) | `sentHttp(): array<Core\Test\SentRequest>` |
@@ -42640,7 +42651,7 @@ Gives the answers for the next `Core\Cli` prompts, so you can test a program tha
 #### `Core\Test::request`
 
 ```nvs skip
-Core\Test::request(Core\Http\Method $method, string $path, { headers?: array<string>, body?: string|bytes, mount?: string, captures?: array<string> }): Core\Test\Response
+Core\Test::request(Core\Http\Method $method, string $path, { headers?: array<string>, body?: string|bytes|Core\Http\Part, mount?: string, captures?: array<string>, cookies?: array<string>, clientIp?: string, scheme?: string, json?: mixed, form?: array<string>, contentType?: string, multipart?: array<string|Core\Http\Part> }): Core\Test\Response
 ```
 
 Sends one request to your own program and returns the answer. It opens no network connection. The request goes through the same route table and the same code as a real request.
@@ -42650,13 +42661,60 @@ Sends one request to your own program and returns the answer. It opens no networ
 | `$method` | `Core\Http\Method` | The HTTP method of the request, such as `Core\Http\Method::Get`. |
 | `$path` | `string` (neutral) | The path of the request, such as `/orders/7`. A `?` and the text after it are the query string. |
 | `{ headers: … }` | `array<string>` (default `[]`) | The headers of the request, with the header name as the key. If you give no `content-type` or `content-length`, the length is set from `body`. |
-| `{ body: … }` | `string\|bytes` (default `null`, neutral) | The body of the request, as a `string` or as `bytes`. If you give no body, the request has no body. An empty string is a body of length 0. |
+| `{ body: … }` | `string\|bytes\|Core\Http\Part` (default `null`, neutral) | The body of the request, as a `string`, as `bytes` or as a `Core\Http\Part`. It is sent exactly as given, with the media type in `contentType`. If you give no body, the request has no body. An empty string is a body of length 0. Only one of `body`, `json`, `form` and `multipart` may be given. Two of them do not compile. |
 | `{ mount: … }` | `string` (default `""`, neutral) | The prefix the program is served under, such as `/shop`. `Core\Request::mount()` returns it, and `Core\Router::url` adds it in front of each link. The default is `""`, which means the root. |
 | `{ captures: … }` | `array<string>` (default `[]`) | The parts of the prefix that the mount's pattern matched, in order. For the pattern `/shops/{1}` and `mount: "/shops/acme"`, this is `["acme"]`. `Core\Request::mount()->captures()` returns this list. The default is an empty list. You need `mount` to give `captures`. |
+| `{ cookies: … }` | `array<string>` (default `[]`) | The cookies the request sends, with the cookie name as the key, such as `["sid" => "abc"]`. `Core\Request::cookie()` reads them. Each call sends only the cookies you give it. |
+| `{ clientIp: … }` | `string` (default `null`, neutral) | The address of the client, such as `"203.0.113.9"`. `Core\Request::clientIp()` returns it. It must be one IPv4 or IPv6 address, or the call throws a `LogicError`. If you give none, `Core\Request::clientIp()` returns `null`. |
+| `{ scheme: … }` | `string` (default `null`, neutral) | `"http"` or `"https"`. `Core\Request::scheme()` returns it. Any other value throws a `LogicError`. The default is `"http"`. |
+| `{ json: … }` | `mixed` (default `(omitted)`) | The value to send as `application/json`. `Core\Request::json()` reads it. A `null` value sends the JSON document `null`. |
+| `{ form: … }` | `array<string>` (default `null`) | The fields to send as `application/x-www-form-urlencoded`, with the field name as the key. `Core\Request::post()` reads them. |
+| `{ contentType: … }` | `string` (default `null`, neutral) | The media type of `body`, sent as the `Content-Type` header. Giving it without `body` does not compile. |
+| `{ multipart: … }` | `array<string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, with the field name as the key. A `string` is a form field, and a `Core\Http\Part` is a file. `Core\Request::files()` reads the files. |
 
 **Returns** `Core\Test\Response` — A `Core\Test\Response`. `status()` returns the status the program set, or `200` if it set none. `body()` returns the text the program wrote, and `json()` and `jsonAs()` decode it. `header()`, `headers()` and `cookies()` return the headers and cookies the program set. A path that no route matches still gets an answer, because your program decides what to do with it. A body that is not text, such as a PDF file, also gets an answer. Then `body()`, `json()` and `jsonAs()` throw an error.
 
 **Throws** `LogicError` — `captures` is not empty and `mount` is `""`. The root has no pattern, so it has no captures. `captures` is also an error when it is not a list.; `RuntimeError` — There is no program to answer, because the call is not in `nvs test` or `nvs run`. The call is also an error inside a request that `request` sent, because a request cannot send another request.
+
+<a id="core-core-test-run"></a>
+#### `Core\Test::run`
+
+```nvs skip
+Core\Test::run(array<string> $arguments, { stdin?: string|bytes }): Core\Test\RunResult
+```
+
+Runs your own program as a command and returns how it ended. It starts no new process. The program runs the same way as with `nvs run`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$arguments` | `array<string>` | The words after the program name, such as `['greet', 'Ada', '--loud']`. `Core\Command::run` and `Core\Cli::arguments` read them. |
+| `{ stdin: … }` | `string\|bytes` (default `null`, neutral) | The input of the program, as a `string` or as `bytes`. `Core\IO::stdin` reads it. If you give no input, the input is empty. |
+
+**Returns** `Core\Test\RunResult` — A `Core\Test\RunResult` with the exit code and the output. If the program calls `exit(3)`, the exit code is `3`. If the program throws an error it does not catch, the exit code is `1` and the error is on standard error.
+
+**Throws** `LogicError` — The test program has no file that `nvs run` would run. This is the case when you give `nvs test` a folder. The call is also an error inside a program that `run` or `Core\Test::request` started.
+
+<a id="core-core-test-logs"></a>
+#### `Core\Test::logs`
+
+```nvs skip
+Core\Test::logs(): array<Core\Test\LogRecord>
+```
+
+Returns every log record written since this test started. This includes the records of every request and run the test made. Each record in the list is also written to the `[log] target`, the same as outside a test.
+
+**Returns** `array<Core\Test\LogRecord>` — One `Core\Test\LogRecord` for each call to `Core\Log::write`, in the order written. A record below `[log] level` is not written anywhere, so it is not in the list either. The list is empty when nothing was written.
+
+<a id="core-core-test-sentmail"></a>
+#### `Core\Test::sentMail`
+
+```nvs skip
+Core\Test::sentMail(): array<Core\Test\SentMail>
+```
+
+Returns every message `Core\Mail::send` was given since this test started. This includes the messages of every request and run the test made. Under `nvs test`, `Core\Mail::send` sends nothing and opens no connection.
+
+**Returns** `array<Core\Test\SentMail>` — One `Core\Test\SentMail` for each message, in the order sent. The list is empty when nothing was sent.
 
 <a id="core-core-test-answerhttp"></a>
 #### `Core\Test::answerHttp`
@@ -42838,7 +42896,7 @@ Moves the test's clock forward by `$settings.within`, runs `$body`, and checks t
 <a id="core-core-test-response"></a>
 ### `Core\Test\Response`
 
-Keywords: Core\Test::request, in-process request, HTTP test, functional test, route table, status, body, header, headers, cookies, json, jsonAs, response, no socket, status, body, bytes, header, headers, cookies, json, jsonAs
+Keywords: Core\Test::request, in-process request, HTTP test, functional test, route table, status, body, header, headers, cookies, json, jsonAs, response, no socket, status, body, bytes, header, headers, cookies, json, jsonAs, error
 
 `Core\Test\Response` is the value `Core\Test::request(...)` answers: what the program under test wrote
 while answering one synthetic request. `status()` is the status, `header()` and `headers()` the
@@ -42885,6 +42943,7 @@ there being no program under test to answer it.
 | [`Core\Test\Response->cookies`](#core-core-test-response-cookies) | `cookies(): array<string>` |
 | [`Core\Test\Response->json`](#core-core-test-response-json) | `json({ maxDepth?: uint }): mixed` |
 | [`Core\Test\Response->jsonAs`](#core-core-test-response-jsonas) | `jsonAs<T>({ maxDepth?: uint }): T` |
+| [`Core\Test\Response->error`](#core-core-test-response-error) | `error(): ?string` |
 
 <a id="core-core-test-response-status"></a>
 #### `Core\Test\Response->status`
@@ -42895,7 +42954,7 @@ $response->status(): uint
 
 Returns the HTTP status code of the answer to this request.
 
-**Returns** `uint` — The code the program set with `Core\Response::setStatus`. If the program set no code, the result is `200`. If the program threw an error it did not catch, the result is `500`, the same code the server sends.
+**Returns** `uint` — The code the program set with `Core\Response::setStatus`. If the program set no code, the result is `200`. If the program threw an error it did not catch, the result is `500`, the same code the server sends. If the server stops the request before the program runs, the result is the code the server sends, such as `403` or `413`.
 
 <a id="core-core-test-response-body"></a>
 #### `Core\Test\Response->body`
@@ -42993,6 +43052,225 @@ Reads the body of the answer as one JSON object and returns a new instance of th
 **Returns** `T` — A new `T` with its properties read from the body, or one `T` for each element for an `array<T>`. Every call creates new objects.
 
 **Throws** `LogicError` — `T` has no `#[Core\Json\Derive]` attribute. Or `maxDepth` is not from 1 to 1024.; `ParseError` — The body is not one whole JSON object, or it nests deeper than `maxDepth`. An empty body throws this error too. It is also thrown when a field is missing or has the wrong type. The `issues` list has one entry for each wrong field. The `Content-Type` header is not checked.; `RuntimeError` — The body is not valid UTF-8, so it is not text.; `RecursionError` — The call stack is full when a constructor runs. This happens when the call starts with the stack almost full, or when a constructor recurses deeply. A deep body within `maxDepth` does not throw this error.
+
+<a id="core-core-test-response-error"></a>
+#### `Core\Test\Response->error`
+
+```nvs skip
+$response->error(): ?string
+```
+
+Returns the error that stopped this request, if the program threw one it did not catch.
+
+**Returns** `?string` — The class and the message of the error, as `Class: message`, for example `RuntimeError: the cart is empty`. If the request did not fail, the result is `null`.
+
+<a id="core-core-test-runresult"></a>
+### `Core\Test\RunResult`
+
+Keywords: exitCode, stdout, stderr, bytes
+
+| Member | Signature |
+|---|---|
+| [`Core\Test\RunResult->exitCode`](#core-core-test-runresult-exitcode) | `exitCode(): int` |
+| [`Core\Test\RunResult->stdout`](#core-core-test-runresult-stdout) | `stdout(): string` |
+| [`Core\Test\RunResult->stderr`](#core-core-test-runresult-stderr) | `stderr(): string` |
+| [`Core\Test\RunResult->bytes`](#core-core-test-runresult-bytes) | `bytes(): bytes` |
+
+<a id="core-core-test-runresult-exitcode"></a>
+#### `Core\Test\RunResult->exitCode`
+
+```nvs skip
+$runResult->exitCode(): int
+```
+
+Returns the exit code of the program.
+
+**Returns** `int` — `0` when the program ended normally. The number given to `exit` when the program called it. `2` when `Core\Command::run` printed its usage page. `1` when the program threw an error it did not catch.
+
+<a id="core-core-test-runresult-stdout"></a>
+#### `Core\Test\RunResult->stdout`
+
+```nvs skip
+$runResult->stdout(): string
+```
+
+Returns the text the program wrote to standard output.
+
+**Returns** `string` — Everything the program wrote with `echo`, in order. If the program wrote nothing, the result is an empty string.
+
+**Throws** `RuntimeError` — The output is not valid UTF-8, so it is not a string. Read it with `bytes()`.
+
+<a id="core-core-test-runresult-stderr"></a>
+#### `Core\Test\RunResult->stderr`
+
+```nvs skip
+$runResult->stderr(): string
+```
+
+Returns the text the program wrote to standard error.
+
+**Returns** `string` — Everything the program wrote to standard error, in order. A usage page from `Core\Command::run` is here, and so is an error the program did not catch. If the program wrote nothing there, the result is an empty string.
+
+**Throws** `RuntimeError` — The text is not valid UTF-8, so it is not a string.
+
+<a id="core-core-test-runresult-bytes"></a>
+#### `Core\Test\RunResult->bytes`
+
+```nvs skip
+$runResult->bytes(): bytes
+```
+
+Returns what the program wrote to standard output, as `bytes`.
+
+**Returns** `bytes` — Every byte of the standard output, in order. The bytes do not have to be valid UTF-8.
+
+<a id="core-core-test-logrecord"></a>
+### `Core\Test\LogRecord`
+
+Keywords: level, message, fields
+
+| Member | Signature |
+|---|---|
+| [`Core\Test\LogRecord->level`](#core-core-test-logrecord-level) | `level(): string` |
+| [`Core\Test\LogRecord->message`](#core-core-test-logrecord-message) | `message(): string` |
+| [`Core\Test\LogRecord->fields`](#core-core-test-logrecord-fields) | `fields(): array<mixed>` |
+
+<a id="core-core-test-logrecord-level"></a>
+#### `Core\Test\LogRecord->level`
+
+```nvs skip
+$logRecord->level(): string
+```
+
+Returns the level of the record, in lower case.
+
+**Returns** `string` — `"debug"`, `"info"`, `"warn"`, `"error"` or `"critical"`. This is the `level` a JSON log line has.
+
+<a id="core-core-test-logrecord-message"></a>
+#### `Core\Test\LogRecord->message`
+
+```nvs skip
+$logRecord->message(): string
+```
+
+Returns the message of the record.
+
+**Returns** `string` — The `$message` given to `Core\Log::write`.
+
+<a id="core-core-test-logrecord-fields"></a>
+#### `Core\Test\LogRecord->fields`
+
+```nvs skip
+$logRecord->fields(): array<mixed>
+```
+
+Returns the extra fields of the record, as the log wrote them.
+
+**Returns** `array<mixed>` — The `$fields` given to `Core\Log::write`, in the order given. A string, a number, a `bool` and `null` keep their value. JSON has no type for some values, such as `bytes`. Such a value is a string: the same text that a JSON log line has for it. The array is empty when the record has no fields.
+
+<a id="core-core-test-sentmail"></a>
+### `Core\Test\SentMail`
+
+Keywords: endpoint, to, subject, text, cc, bcc, replyTo, html
+
+| Member | Signature |
+|---|---|
+| [`Core\Test\SentMail->endpoint`](#core-core-test-sentmail-endpoint) | `endpoint(): string` |
+| [`Core\Test\SentMail->to`](#core-core-test-sentmail-to) | `to(): array<string>` |
+| [`Core\Test\SentMail->subject`](#core-core-test-sentmail-subject) | `subject(): string` |
+| [`Core\Test\SentMail->text`](#core-core-test-sentmail-text) | `text(): string` |
+| [`Core\Test\SentMail->cc`](#core-core-test-sentmail-cc) | `cc(): array<string>` |
+| [`Core\Test\SentMail->bcc`](#core-core-test-sentmail-bcc) | `bcc(): array<string>` |
+| [`Core\Test\SentMail->replyTo`](#core-core-test-sentmail-replyto) | `replyTo(): ?string` |
+| [`Core\Test\SentMail->html`](#core-core-test-sentmail-html) | `html(): ?string` |
+
+<a id="core-core-test-sentmail-endpoint"></a>
+#### `Core\Test\SentMail->endpoint`
+
+```nvs skip
+$sentMail->endpoint(): string
+```
+
+Returns the name of the `[mail.<name>]` block the message was sent through.
+
+**Returns** `string` — The `$endpoint` given to `Core\Mail::send`.
+
+<a id="core-core-test-sentmail-to"></a>
+#### `Core\Test\SentMail->to`
+
+```nvs skip
+$sentMail->to(): array<string>
+```
+
+Returns the addresses the message was sent to.
+
+**Returns** `array<string>` — The `$to` addresses, in the order given.
+
+<a id="core-core-test-sentmail-subject"></a>
+#### `Core\Test\SentMail->subject`
+
+```nvs skip
+$sentMail->subject(): string
+```
+
+Returns the subject of the message.
+
+**Returns** `string` — The `$subject` given to `Core\Mail::send`.
+
+<a id="core-core-test-sentmail-text"></a>
+#### `Core\Test\SentMail->text`
+
+```nvs skip
+$sentMail->text(): string
+```
+
+Returns the plain-text body of the message.
+
+**Returns** `string` — The `$text` given to `Core\Mail::send`.
+
+<a id="core-core-test-sentmail-cc"></a>
+#### `Core\Test\SentMail->cc`
+
+```nvs skip
+$sentMail->cc(): array<string>
+```
+
+Returns the `cc` addresses of the message.
+
+**Returns** `array<string>` — The `cc` addresses, in the order given. The list is empty when none were given.
+
+<a id="core-core-test-sentmail-bcc"></a>
+#### `Core\Test\SentMail->bcc`
+
+```nvs skip
+$sentMail->bcc(): array<string>
+```
+
+Returns the `bcc` addresses of the message.
+
+**Returns** `array<string>` — The `bcc` addresses, in the order given. The list is empty when none were given.
+
+<a id="core-core-test-sentmail-replyto"></a>
+#### `Core\Test\SentMail->replyTo`
+
+```nvs skip
+$sentMail->replyTo(): ?string
+```
+
+Returns the `replyTo` address of the message.
+
+**Returns** `?string` — The `replyTo` address, or `null` when none was given.
+
+<a id="core-core-test-sentmail-html"></a>
+#### `Core\Test\SentMail->html`
+
+```nvs skip
+$sentMail->html(): ?string
+```
+
+Returns the HTML body of the message.
+
+**Returns** `?string` — The `html` body, or `null` when none was given.
 
 <a id="core-core-test-sentrequest"></a>
 ### `Core\Test\SentRequest`
@@ -46623,11 +46901,11 @@ Keywords: send
 Core\Mail::send(string $endpoint, array<string> $to, string $subject, string $text, { cc?: array<string>, bcc?: array<string>, replyTo?: string, html?: string }): void
 ```
 
-Sends one message to the SMTP server that `[mail.$endpoint]` names. It returns when that server has accepted the message.
+Sends one message to the SMTP server that `[mail.$endpoint]` names. It returns when that server has accepted the message. Under `nvs test`, it sends nothing. `Core\Test::sentMail` returns the message.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$endpoint` | `string` (sink) | The name of the `[mail.<name>]` block in `nvs.toml` to send through. A `tainted` value does not compile here. The name selects a server setting, so you write it in the code and never read it from input. |
+| `$endpoint` | `string` (sink) | The name of the `[mail.<name>]` block in `nvs.toml` to send through. A value that comes from the request is `tainted`, and a `tainted` value does not compile here. Write the name in your code. |
 | `$to` | `array<string>` | The recipients, one address per array entry. It is a list because a comma-separated string can be read in more than one way. |
 | `$subject` | `string` (neutral) | The subject. If it contains characters that a header line cannot contain, it is encoded with RFC 2047. So no subject can add a header. A long subject is split over several header lines, and a mail program joins them again. |
 | `$text` | `string` (neutral) | The plain-text body. Every message has one. |
@@ -62553,8 +62831,8 @@ running finishes on the code it started with. A file added where the program loo
 file removed, is a change too. This works in every mode, so a deploy needs no step after it.
 `nvs reload` makes the change take effect at once.
 
-A change that does not compile fails the requests that reach it, with its diagnostic. The server
-does not serve the last version that compiled in its place. When the file is fixed, the next check
+A change that does not compile fails the requests that reach it, with its error message. These
+requests do not get the last version that compiled. When the file is fixed, the next check
 finds the fix.
 
 **A configuration change.** The server checks its own configuration files every two seconds. When
@@ -62564,9 +62842,8 @@ Its `applied` field lists the keys that changed. Its `ignored` field lists the c
 a restart. `invalidated` is the number of compiled program files that the server compiles again.
 
 A file with an error changes nothing. The server writes `configuration reload refused` to the log
-once, with the error and its line, and keeps the configuration it has. A saved file starts a reload,
-and so does `nvs reload` (the next section). No signal and no command from a service manager starts
-one.
+once, with the error and its line, and keeps the configuration it has. A reload starts only in two
+ways: when you save a file, and when you run `nvs reload`.
 
 **Four keys need a restart**: `[server] listen`, `[server] socket_mode`, `[server] workers` and
 `[server] watchdog_margin`. A port below 1024 needs a privilege the server gave up after it opened

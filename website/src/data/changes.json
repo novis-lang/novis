@@ -9,7 +9,7 @@
         "Core\\Test\\RunResult::stderr",
         "Core\\Test\\RunResult::bytes"
       ],
-      "text": "`Core\\Test::run` runs your program as a command, with the arguments you give and an optional `stdin`. It returns a `Core\\Test\\RunResult` with the exit code, the standard output and the standard error. No new process starts."
+      "text": "`Core\\Test::run` runs your program as a command, with the arguments you give and an optional `stdin`. It returns a `Core\\Test\\RunResult` with the exit code, the standard output and the standard error. The program runs inside the test's own process."
     },
     {
       "kind": "new",

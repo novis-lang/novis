@@ -12,9 +12,10 @@ network and no server. It returns a `Core\Test\Response` that you can check.
 <Snippet src="guides/testing/test-a-route/test-a-route.nvs" />
 
 This program has both parts in one file, so you can run it as it is. In your own project, the page
-code is in your entry file. The test is a `#[Test]` method in a class under `src/` or in your
-`tests/` folder. Run `nvs test .` from your project folder, so the entry file is part of the test
-program.
+code is in your entry file. The entry file is the file the server runs for each request, such as
+`public/index.nvs`. The test is a `#[Test]` method in a class under `src/` or in your `tests/`
+folder. Run `nvs test .` from your project folder. Then the test and the entry file are compiled
+together, and the test can send requests to your pages.
 
 ## What you can check
 
@@ -37,16 +38,17 @@ A request can send a body. You write it with the same options as `Core\Http\Clie
 - `multipart:` sends fields and files. `Core\Request::files` reads the files.
 - `body:` sends a string or bytes as they are. `contentType:` gives its content type.
 
-A request can have only one of `body`, `json`, `form` and `multipart`. If you give two, the test
-does not compile. For example, `Test::request(Method::Post, '/orders', {json: ['count' => 2]})`
+A request can have only one of `body`, `json`, `form` and `multipart`. If you give two, the
+compiler shows an error, as it does for `Core\Http\Client`. For example, `Test::request(Method::Post, '/orders', {json: ['count' => 2]})`
 sends the JSON body `{"count":2}`.
 
 ## The client address, the scheme and cookies
 
 - `clientIp:` sets the address of the client. `Core\Request::clientIp()` returns it. Without it,
   the result is `null`.
-- `scheme:` is `"http"` or `"https"`. The default is `"http"`. A cookie with a `__Host-` name is
-  only read over `https`.
+- `scheme:` is `"http"` or `"https"`. The default is `"http"`. Browsers send a cookie whose name
+  starts with `__Host-` only over `https`. So your program reads such a cookie only when the scheme
+  is `"https"`.
 - `cookies:` sends cookies, such as `['session' => 'abc']`.
 - A `host` header in `headers:` sets the host of the request.
 
@@ -57,15 +59,16 @@ again, copy it from `cookies()` of the last response into the next call.
 
 A test gets the response that a real server sends:
 
-- A form post from another site gets the status `403`.
-- A body over the size limit in `[limits]` gets the status `413`.
+- A form post that another website forged gets the status `403`. The server makes the same check.
+- A body over the size limit gets the status `413`. The limit is set in the `[limits]` block of
+  `nvs.toml`.
 - A `HEAD` request gets the headers and no body.
 - A request that throws an error gets the status `500`. `error()` returns the error, such as
   `RuntimeError: no stock`.
 
-Your program can start work that runs after the response is sent. `Core\Test::request` returns only
-when that work has ended, so the test can check what the work wrote. If that work fails, the test
-fails.
+Your program can start work that runs after the response is sent, with `Core\Task::afterResponse`.
+`Core\Test::request` returns only when that work has ended. So the test can check what the work
+wrote. If that work fails, the test fails.
 
 Read the examples in [Reference: Core\Test::request](/reference/core/test/request/).
 
