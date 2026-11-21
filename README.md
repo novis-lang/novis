@@ -130,8 +130,7 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Tests that reach every part of a program.** *Working on it now.* A test can set the client address, cookies and the request body. It can run a command program and read its exit code and output. It can also read the logs and the mail a test caused.
-2. **Faster answers from nvs code.** `nvs code` uses the same index as the editor. It does not analyse an unchanged project again. The first index of a project uses every processor core. One `calls` or `reach` command can take several methods.
+1. **Faster answers from nvs code.** *Working on it now.* `nvs code` uses the same index as the editor. It does not analyse an unchanged project again. The first index of a project uses every processor core. One `calls` or `reach` command can take several methods.
 <!-- roadmap:end -->
 
 ## Contributing
