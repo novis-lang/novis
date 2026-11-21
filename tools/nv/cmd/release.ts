@@ -505,7 +505,28 @@ export function renderNotes(
   lines.push(...details);
 
   if (url) lines.push(`[Full changes](${url}/compare/${previousTag}...v${version}) — ${entries.length} commits.`, "");
-  return lines.join("\n");
+  return quoteMentions(lines.join("\n"));
+}
+
+/**
+ * Puts every bare `@word` of `markdown` in a code span. GitHub reads a bare `@param` in a release body as
+ * a mention: it lists that account under the release's *Contributors* and notifies it. A word already in
+ * a code span or a fenced block is left alone, and so is an address, whose `@` follows a word character.
+ */
+export function quoteMentions(markdown: string): string {
+  let fenced = false;
+  return markdown
+    .split("\n")
+    .map((line) => {
+      if (/^\s*(```|~~~)/.test(line)) fenced = !fenced;
+      if (fenced) return line;
+      // Odd parts of a split on backticks are inside a code span.
+      return line
+        .split("`")
+        .map((part, i) => (i % 2 === 1 ? part : part.replace(/(^|[^\w`/])@([A-Za-z0-9][\w-]*)/g, "$1`@$2`")))
+        .join("`");
+    })
+    .join("\n");
 }
 
 // ---------------------------------------------------------------------------------------------------

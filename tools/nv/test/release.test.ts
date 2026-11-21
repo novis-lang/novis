@@ -21,6 +21,7 @@ import {
   prependChangelog,
   releasedCrates,
   releaseTags,
+  quoteMentions,
   renderNotes,
   SEPARATE_LOCKS,
   staleLockPins,
@@ -193,6 +194,15 @@ describe("nv release notes", () => {
     expect(notes).toContain("#### Other\n\n- added logos");
     expect(notes).toContain("3 further commits: docs (2), test (1).");
     expect(notes).toContain("[Full changes](https://example.com/r/compare/v0.0.1...v0.1.0) — 6 commits.");
+  });
+
+  test("a bare @word is put in a code span, so GitHub does not read it as a mention", () => {
+    const tagged = parseLog(["a1", "feat(lsp): a stub documents @param and @return", ""].join("\x1f") + "\x1e\n").map(classify);
+    const notes = renderNotes("0.1.0", "v0.0.1", tagged, "", "2026-01-02");
+    expect(notes).toContain("a stub documents `@param` and `@return`");
+    expect(quoteMentions("`a.@value` and dev@example.com\n```\n@key\n```\n@key")).toBe(
+      "`a.@value` and dev@example.com\n```\n@key\n```\n`@key`",
+    );
   });
 
   test("every commit scoped fmt is listed under Formatter after Performance, and a breaking one is lifted", () => {
