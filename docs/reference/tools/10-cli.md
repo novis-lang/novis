@@ -1254,13 +1254,27 @@ When one run finds both, the status is `2`.
     nvs code move [--dry-run] [--json] <from> <to>
     nvs code order [--check] [--dry-run] [--json] [paths]...
     nvs code find [--json] <text>
-    nvs code calls [--json] <method>
-    nvs code reach [--json] <method>
+    nvs code calls [--json] <method>...
+    nvs code reach [--json] <method>...
 
 Answers questions about the project you are in, from the same index the editor uses. The project is
 the folder of the nearest `nvs.toml` at or above the working directory, or the working directory
 when there is none. Every `.nvs` file in it is read. Only `rename`, `move` and `order` change
 files.
+
+## The index file
+
+The editor and `nvs code` share one index file for each project, in the data folder. A call loads
+it, then compares the content of every file with what the index has. This also covers each
+`nvs.toml` and each extension the project uses. Only the files that changed are analysed again, so
+the answer is the same as a full analysis gives. A new file is analysed, and a deleted file leaves
+the index. When a settings file or an extension changed, the whole project is analysed again.
+
+After it analysed anything, the call saves the index file again, and the editor's next start uses
+it. Without a data folder, the call analyses the whole project and saves nothing. The other
+commands, such as `nvs check` and `nvs run`, never read this file.
+
+## The verbs
 
 - `show` prints where a name is declared, its signature and its `///` comment. For a `Core` name it
   prints the card `nvs agent show` prints.
@@ -1298,6 +1312,24 @@ $ nvs code reach 'Shop\Prices::base'
 route  GET /cart
 test   Shop\CartTest::cartLoads
 ```
+
+`calls` and `reach` also take several methods in one call. Each method gets a line with its name, in
+the order you gave. Its answer follows, indented by two spaces. A name you give twice prints once.
+
+```text
+$ nvs code reach 'Shop\Prices::base' 'Shop\Prices::plain'
+Shop\Prices::base
+  route  GET /cart
+  test   Shop\CartTest::cartLoads
+Shop\Prices::plain
+  test   Shop\PricesTest::plainIsFive
+```
+
+If one of the names is not a method, the call prints no answer and exits `1`. Standard error names
+each unknown name with its nearest method names. With `--json`, several methods print one document
+with `schemaVersion` and `methods`. `methods` is a list with the document of each method, without
+its own `schemaVersion`. An unknown name prints `error` and `unknown`, a list of objects with
+`symbol` and `nearest`.
 
 `rename` and `move` save the changed files. `--dry-run` prints each change and saves nothing. If the
 change is not possible, the command prints why, changes no file and exits `1`. A file that changed

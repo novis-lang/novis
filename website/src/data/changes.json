@@ -1,6 +1,13 @@
 {
   "entries": [
     {
+      "kind": "changed",
+      "features": [
+        "tools:cli/nvs-code"
+      ],
+      "text": "`nvs code` uses the index file of the editor, and it saves that file again after a call. A call checks the content of every file first and analyses only the files that changed, so it answers faster. `nvs code calls` and `nvs code reach` take several methods in one call."
+    },
+    {
       "kind": "new",
       "features": [
         "Core\\Test::run",

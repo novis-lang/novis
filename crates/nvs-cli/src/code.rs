@@ -61,6 +61,10 @@ use crate::agent::{SCHEMA_VERSION, pretty};
 /// `.nvs` file in it is read. Only `rename`, `move` and `order` change
 /// files.
 ///
+/// The editor and `nvs code` share one index file in the data folder. A
+/// call first compares the content of every file with the index. It
+/// analyses only the files that changed, so the answer is always current.
+///
 /// Write a name in full, with its namespace, as `'Shop\Cart::addItem'`.
 /// Put it in single quotes, so that the shell keeps the backslashes. A
 /// file is a path from the working directory.
