@@ -218,7 +218,7 @@ proofs --help` both name their new flags.
 
 **Does:** pushes once, watches the run and fixes what the layout breaks.
 
-- [ ] `bun nv ci --check`, then `bun nv ci --push`. Then `bun nv ci --watch --next` with
+- [x] `bun nv ci --check`, then `bun nv ci --push`. Then `bun nv ci --watch --next` with
   `run_in_background` and a timeout of 7200000, and end the turn.
 - [ ] A red job is fixed as `ci-green`'s decisions say, one push for every fix of a run. A red job the
   layout causes gets one fix, and if it is still red it is reverted for that job.
@@ -252,8 +252,8 @@ session builds once they end and runs the changed programs by name.
 
 ### State
 
-Stages 1 to 3 are done, one session each. Stage 3's layout in `.github/workflows/ci.yml` is not
-pushed yet, and `bun nv ci --check` is green on it.
+Stages 1 to 3 are done, one session each. Stage 4, session 1: `bun nv ci --push` pushed main at
+`4fa7a9fcc` with the stage 3 layout (push 1), and `bun nv ci --watch --next` is watching its run.
 
 - Windows nextest per slice, runs 44945274371 / 44940832132 / 44892963091: slice 1 6.8 / 11.1 / 8.4,
   slice 2 6.0 / 7.7 / 5.2, slice 3 7.1 / 7.2 / 8.0. Slice 2 now runs the benches and doc tests and
@@ -271,8 +271,8 @@ In 44940832132 that step took 22.4. Stage 5 reads its proof times artifact to se
 
 ### Next
 
-Stage 4, one session. `bun nv ci --check`, then `bun nv ci --push`, then `bun nv ci --watch --next`
-with `run_in_background` and a timeout of 7200000, and end the turn. Jobs to watch first: `proofs /
+Stage 4 goes on. If no verdict of push 1's run is written here, run `bun nv ci --watch` on it with
+`run_in_background` and a timeout of 7200000, and end the turn. Jobs to watch first: `proofs /
 windows-x86_64 (part 1/2)` and `(part 2/2)` (`ci.yml` `proofs:`), `test / windows-x86_64 (tests 2/3)`
 (it now runs the benches and doc tests), and `build` (`ci.yml` `build:`, now after `nvs-debug`). Then
 `bun nv ci --times` on the run, and the table in `### State` with the baseline's end beside each job
