@@ -1,7 +1,7 @@
 {
   "/": {
     "feature": "index.mdx",
-    "hash": "efb080dc5fdc2654",
+    "hash": "d1d641cf80eb97bf",
     "questions": [
       "What is Novis and what is it for?",
       "A fast and secure programming language for web applications",
@@ -365,7 +365,7 @@
   },
   "/guides/production/deploy/": {
     "feature": "guides/production/deploy.mdx",
-    "hash": "8f4537dd1237d282",
+    "hash": "50b38a4cbbf9538b",
     "questions": [
       "How do I deploy a new version without a restart?",
       "Switch to a new release folder with a symlink",
@@ -377,7 +377,7 @@
   },
   "/guides/production/docker/": {
     "feature": "guides/production/docker.mdx",
-    "hash": "33689feade74a67d",
+    "hash": "a6720cd6ad27c765",
     "questions": [
       "How do I run a Novis app in a Docker container?",
       "Which tag of the official Novis image should I deploy?",
@@ -413,7 +413,7 @@
   },
   "/guides/production/run-as-a-service/": {
     "feature": "guides/production/run-as-a-service.mdx",
-    "hash": "1f43bcd96fb8dee3",
+    "hash": "ec562008ed84c9ee",
     "questions": [
       "How do I keep my Novis server running after a reboot?",
       "Where does a background service write its log?",
@@ -517,7 +517,7 @@
   },
   "/guides/testing/": {
     "feature": "guides/testing/index.mdx",
-    "hash": "1cf6dcd3c4472c4b",
+    "hash": "b6aa736f4bbdfde0",
     "questions": [
       "How do I test my Novis application?",
       "Which testing guide do I need for my task?",
@@ -527,7 +527,7 @@
   },
   "/guides/testing/test-a-command/": {
     "feature": "guides/testing/test-a-command.mdx",
-    "hash": "a301bcc15e9bc9ca",
+    "hash": "048e110bc841bd6c",
     "questions": [
       "How do I test a CLI program in Novis?",
       "Check the exit code of my command in a test",
@@ -538,7 +538,7 @@
   },
   "/guides/testing/test-a-route/": {
     "feature": "guides/testing/test-a-route.mdx",
-    "hash": "7fdb6db1506fc12d",
+    "hash": "df876216ffdb0986",
     "questions": [
       "How do I test a page without starting a server?",
       "Check the status code and body of a route in a test",
@@ -550,7 +550,7 @@
   },
   "/guides/testing/test-doubles/": {
     "feature": "guides/testing/test-doubles.mdx",
-    "hash": "440899dd3a04a1d1",
+    "hash": "f0e7dd18591bb5b4",
     "questions": [
       "How do I fake a mail server in a test?",
       "Mock an HTTP API so tests run without a network",
@@ -846,7 +846,7 @@
   },
   "/in-depth/": {
     "feature": "in-depth/index.mdx",
-    "hash": "79b6876abb03002f",
+    "hash": "b875df86e02f5264",
     "questions": [
       "Why does Novis work the way it does?",
       "Where can I read about the design decisions behind Novis?",
@@ -866,7 +866,7 @@
   },
   "/in-depth/compare/": {
     "feature": "in-depth/compare.mdx",
-    "hash": "d45f828f33d9b1a7",
+    "hash": "87e45616c80d6b88",
     "questions": [
       "How does Novis compare with six other servers in requests per second and memory?",
       "How do Novis and the six other servers use more than one CPU core?",
@@ -3138,7 +3138,7 @@
   },
   "/reference/core/cache/memory/": {
     "feature": "Core\\Cache::memory",
-    "hash": "4ad877cb52c9c110",
+    "hash": "acf5969f66bb6b33",
     "questions": [
       "How do I cache data for the whole server?",
       "In-memory cache that every request on this server sees",
@@ -8096,7 +8096,7 @@
   },
   "/reference/core/mail/send/": {
     "feature": "Core\\Mail::send",
-    "hash": "6ea0fdb19817b5fa",
+    "hash": "39d87d9eee34eb71",
     "questions": [
       "How do I send an email with an HTML body?",
       "Send one message to several recipients",
@@ -14622,7 +14622,7 @@
   },
   "/reference/core/task/all/": {
     "feature": "Core\\Task::all",
-    "hash": "8a971109972a00c7",
+    "hash": "a15c6c01c8aa66fb",
     "questions": [
       "How do I call two web services at the same time?",
       "Load a database query and a cache lookup in parallel",
@@ -14687,7 +14687,7 @@
   },
   "/reference/core/test/advance/": {
     "feature": "Core\\Test::advance",
-    "hash": "a1e1b6a588c38ada",
+    "hash": "1e1f5095e48206c8",
     "questions": [
       "How do I move time forward in a test?",
       "Test that a token expires without waiting",
@@ -14867,6 +14867,17 @@
       "Test a helper that validates prices"
     ]
   },
+  "/reference/core/test/logs/": {
+    "feature": "Core\\Test::logs",
+    "hash": "439ed61f57b8671e",
+    "questions": [
+      "How do I check what my code logged in a test?",
+      "Read the log lines a request wrote during a test",
+      "Test that an error is logged with the right level",
+      "Check the fields of a log record in a test",
+      "Does a test see the logs of the requests it sends?"
+    ]
+  },
   "/reference/core/test/partial/": {
     "feature": "Core\\Test::partial",
     "hash": "81fd7251668f5ebf",
@@ -14889,6 +14900,17 @@
       "Test the response the real server sends over the network"
     ]
   },
+  "/reference/core/test/run/": {
+    "feature": "Core\\Test::run",
+    "hash": "4e9179bdfaf5a88e",
+    "questions": [
+      "How do I test a command-line program in Novis?",
+      "Run my CLI with arguments from a test",
+      "Check the exit code and output of a command in a test",
+      "Give a command input on stdin in a test",
+      "Test the usage message when an argument is missing"
+    ]
+  },
   "/reference/core/test/scriptanswers/": {
     "feature": "Core\\Test::scriptAnswers",
     "hash": "5afeafb045c63279",
@@ -14907,6 +14929,17 @@
       "Check that my API client sent an auth token",
       "Get the list of outgoing requests during a test",
       "Count the web calls my program made in a test"
+    ]
+  },
+  "/reference/core/test/sentmail/": {
+    "feature": "Core\\Test::sentMail",
+    "hash": "f0599dd75984b04a",
+    "questions": [
+      "How do I check which emails my code sent in a test?",
+      "Does CoreMail::send reach a real person under nvs test?",
+      "Test the subject and recipients of a sent email",
+      "Read the mail a request sent during a test",
+      "Test email sending without a mail server"
     ]
   },
   "/reference/core/test/sentsocket/": {
@@ -14937,6 +14970,46 @@
       "Test code that reads TLS version and cipher",
       "Create a test certificate chain with a custom expiry date",
       "Test a client that accepts only TLS 1.3"
+    ]
+  },
+  "/reference/core/test-logrecord/": {
+    "feature": "Core\\Test\\LogRecord",
+    "hash": "5127aac11dfafe2f",
+    "questions": [
+      "What does Core\\Test::logs return?",
+      "One log line that a test caused",
+      "Read the level, message and fields of a log line in a test",
+      "Which parts of a log record can a test check?"
+    ]
+  },
+  "/reference/core/test-logrecord/fields/": {
+    "feature": "Core\\Test\\LogRecord::fields",
+    "hash": "bf670cca142177a0",
+    "questions": [
+      "How do I read the extra fields of a log line in a test?",
+      "Check a value my code passed to Core\\Log::write",
+      "How does a test see a bytes value in a log field?",
+      "Is fields empty when a log line has no fields?"
+    ]
+  },
+  "/reference/core/test-logrecord/level/": {
+    "feature": "Core\\Test\\LogRecord::level",
+    "hash": "b19ac2fca1eca380",
+    "questions": [
+      "How do I check the level of a log line in a test?",
+      "Test that my code logged a warning",
+      "Read whether a log record is an error or a debug line",
+      "Which text does level return for a log record?"
+    ]
+  },
+  "/reference/core/test-logrecord/message/": {
+    "feature": "Core\\Test\\LogRecord::message",
+    "hash": "01e8f2d2669409f2",
+    "questions": [
+      "How do I read the text of a log line in a test?",
+      "Check the message my code logged",
+      "Test that a log line names the order that failed",
+      "Get the message of a log record without its fields"
     ]
   },
   "/reference/core/test-outcome/": {
@@ -15013,7 +15086,7 @@
   },
   "/reference/core/test-response/body/": {
     "feature": "Core\\Test\\Response::body",
-    "hash": "689d4bfae038c512",
+    "hash": "78c9eae6df6fc2cf",
     "questions": [
       "How do I read the page text my app returned in a test?",
       "Get the HTML output of a route in a test",
@@ -15024,7 +15097,7 @@
   },
   "/reference/core/test-response/bytes/": {
     "feature": "Core\\Test\\Response::bytes",
-    "hash": "b726b452838ea01c",
+    "hash": "4d7834cee7303df7",
     "questions": [
       "How do I test a route that returns a PDF?",
       "Compare a downloaded file with the file I expect in a test",
@@ -15041,6 +15114,16 @@
       "Test that login sets a session cookie",
       "Check that a cookie was deleted on logout",
       "Read cookie names and values from a test reply"
+    ]
+  },
+  "/reference/core/test-response/error/": {
+    "feature": "Core\\Test\\Response::error",
+    "hash": "ee7dfab074dc146f",
+    "questions": [
+      "How do I see why a test request returned 500?",
+      "Read the error that stopped a request in a test",
+      "Get the error class and message of a failed request",
+      "What does error return when the request did not fail?"
     ]
   },
   "/reference/core/test-response/header/": {
@@ -15085,13 +15168,153 @@
   },
   "/reference/core/test-response/status/": {
     "feature": "Core\\Test\\Response::status",
-    "hash": "b0cbeb61c7d0cfb9",
+    "hash": "909fb3ff18da738f",
     "questions": [
       "How do I check the HTTP status code in a test?",
       "Test that a page returns 404",
       "Check that an old address redirects with 301",
       "Why does my test get status 500?",
       "Why does a form post from another site get 403 in a test?"
+    ]
+  },
+  "/reference/core/test-runresult/": {
+    "feature": "Core\\Test\\RunResult",
+    "hash": "96314c76d6586a60",
+    "questions": [
+      "What does Core\\Test::run return?",
+      "The result of running a command in a test",
+      "Read the exit code, output and errors of a command in a test",
+      "Which parts of a finished command can a test check?"
+    ]
+  },
+  "/reference/core/test-runresult/bytes/": {
+    "feature": "Core\\Test\\RunResult::bytes",
+    "hash": "5d8822587c51384f",
+    "questions": [
+      "How do I read binary output of a command in a test?",
+      "Test a command that writes a file to standard output",
+      "Get the standard output as bytes instead of a string",
+      "Compare the raw output of a command with the bytes I expect"
+    ]
+  },
+  "/reference/core/test-runresult/exitcode/": {
+    "feature": "Core\\Test\\RunResult::exitCode",
+    "hash": "2978c00e49343173",
+    "questions": [
+      "How do I check the exit code of a command in a test?",
+      "Test that my CLI exits with code 2 on a missing argument",
+      "Which exit code does an uncaught error give in a test?",
+      "Read the code a program passed to exit in a test"
+    ]
+  },
+  "/reference/core/test-runresult/stderr/": {
+    "feature": "Core\\Test\\RunResult::stderr",
+    "hash": "fa89937c562b0622",
+    "questions": [
+      "How do I read what a command wrote to standard error?",
+      "Check the error message of a command in a test",
+      "Test the usage message my CLI prints",
+      "Read standard error apart from standard output in a test"
+    ]
+  },
+  "/reference/core/test-runresult/stdout/": {
+    "feature": "Core\\Test\\RunResult::stdout",
+    "hash": "28b3fc4d632a972a",
+    "questions": [
+      "How do I read what a command printed in a test?",
+      "Check the output of my CLI in a test",
+      "Read standard output as a string after a test run",
+      "Test the text a command prints for given arguments"
+    ]
+  },
+  "/reference/core/test-sentmail/": {
+    "feature": "Core\\Test\\SentMail",
+    "hash": "2ccdf3b2cb1c6737",
+    "questions": [
+      "What does Core\\Test::sentMail return?",
+      "One email that my code sent during a test",
+      "Which parts of a sent email can a test check?",
+      "Read the recipients, subject and body of a mail in a test"
+    ]
+  },
+  "/reference/core/test-sentmail/bcc/": {
+    "feature": "Core\\Test\\SentMail::bcc",
+    "hash": "80b12b981b89d8d6",
+    "questions": [
+      "How do I check the hidden recipients of an email in a test?",
+      "Test that a mail was sent as a blind copy",
+      "Read the bcc addresses of a sent email",
+      "Is bcc empty when the mail had no hidden recipients?"
+    ]
+  },
+  "/reference/core/test-sentmail/cc/": {
+    "feature": "Core\\Test\\SentMail::cc",
+    "hash": "5b8543fcd84b5089",
+    "questions": [
+      "How do I check the copy recipients of an email in a test?",
+      "Test that a manager got a copy of the mail",
+      "Read the cc addresses of a sent email",
+      "Is cc empty when the mail had no copy recipients?"
+    ]
+  },
+  "/reference/core/test-sentmail/endpoint/": {
+    "feature": "Core\\Test\\SentMail::endpoint",
+    "hash": "abedb2723441b98a",
+    "questions": [
+      "How do I check which mail server block an email used?",
+      "Test that a mail went through the right mail settings",
+      "Read the mail block name a test email was sent with",
+      "Which value does endpoint return for a sent email?"
+    ]
+  },
+  "/reference/core/test-sentmail/html/": {
+    "feature": "Core\\Test\\SentMail::html",
+    "hash": "c10d925be3b56831",
+    "questions": [
+      "How do I check the HTML body of an email in a test?",
+      "Test the HTML version of a sent mail",
+      "What does html return for a plain text email?",
+      "Read the HTML part my code sent in a test"
+    ]
+  },
+  "/reference/core/test-sentmail/replyto/": {
+    "feature": "Core\\Test\\SentMail::replyTo",
+    "hash": "c8c2e8481d3bab6d",
+    "questions": [
+      "How do I check the reply address of an email in a test?",
+      "Test that replies go to the support address",
+      "What does replyTo return when the mail set no reply address?",
+      "Read the reply-to address of a sent email"
+    ]
+  },
+  "/reference/core/test-sentmail/subject/": {
+    "feature": "Core\\Test\\SentMail::subject",
+    "hash": "cc0f02f74b8dddaf",
+    "questions": [
+      "How do I check the subject of an email in a test?",
+      "Test the subject line of a welcome mail",
+      "Read the subject my code sent with a mail",
+      "Does a test see the subject as my code wrote it?"
+    ]
+  },
+  "/reference/core/test-sentmail/text/": {
+    "feature": "Core\\Test\\SentMail::text",
+    "hash": "a984fc9ebc0f06d8",
+    "questions": [
+      "How do I check the text of an email in a test?",
+      "Test that a mail contains a reset link",
+      "Read the plain text body of a sent email",
+      "Check the body of a mail without a mail server"
+    ]
+  },
+  "/reference/core/test-sentmail/to/": {
+    "feature": "Core\\Test\\SentMail::to",
+    "hash": "77e28d30639ea36e",
+    "questions": [
+      "How do I check who an email was sent to in a test?",
+      "Test the recipients of a sent mail",
+      "Read the to addresses of an email in a test",
+      "Check that a mail went to the user who signed up"
     ]
   },
   "/reference/core/test-sentrequest/": {
@@ -15249,7 +15472,7 @@
   },
   "/reference/core/time/sleep/": {
     "feature": "Core\\Time::sleep",
-    "hash": "c70a97fcb14c447b",
+    "hash": "43bf7bd6587c58ad",
     "questions": [
       "How do I pause my program for a few seconds?",
       "Wait 500 milliseconds before the next step",
@@ -18849,7 +19072,7 @@
   },
   "/syntax/testing/writing-tests/": {
     "feature": "syntax/testing/writing-tests.mdx",
-    "hash": "4b113a98283ce223",
+    "hash": "0c1791745dc276a0",
     "questions": [
       "How do I write a unit test in Novis?",
       "How do I skip a test and give a reason?",
