@@ -632,7 +632,15 @@ work out again. How a goal is written in full is [loop-authoring.md](loop-author
   records a stage owes are items too, each with its rule and its `path:line` anchor. A file the stage
   creates is anchored at `path:1`.
 - **A set is listed, never described.** "The eleven `about.md` files" is written out in the goal, or its
-  item says that an `Explore` subagent lists it first.
+  item says that an `Explore` subagent lists it first. The features that owe proofs are the one
+  exception, below.
+- **A goal's feature proofs are one check, never a list of features.** A goal that moves a feature has
+  the check `proofs` with `run: [bun, nv, proofs, --gate, --goal, <slug>]` in its proofs stage. That
+  stage's items name the proofs the author can foresee, and its last item is `bun nv proofs --owed
+  --goal <slug>` naming nothing. The tool works out the features from what the goal's commits
+  changed (`tools/nv/proofs/since.ts`): every member of a new class, and every feature whose code
+  moved. A list written before the code exists misses them. A goal that moves no feature has no such
+  check.
 - **A stage names its split.** A `**Split:**` paragraph after the `**Does:**` one says what goes to
   subagents: the searches, and the batches of similar files (pages, examples, attacks, `.lspt` cases,
   fixtures) that writing subagents produce. Writing subagents whose files are disjoint run side by side

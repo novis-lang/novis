@@ -91,9 +91,10 @@ Each is here because not knowing it exists is the entire cost. The file named af
   and worktrees*).
 - **A feature is finished when its feature proofs exist, not when it works**: `about.md`, tests from
   Novis and from Rust, three examples, one bench with its growth, one attack, and its help in the
-  binary. `bun nv proofs --id '<feature>'` prints what it still owes and the path of each, and every
-  `.nvs` and `about.md` among them is held to § *Text an end user reads* below
-  (`rule:testing/feature-proofs`).
+  binary. `bun nv proofs --owed --goal <slug>` lists every feature the goal's work reached that
+  still owes a proof, new or changed, and `bun nv proofs --id '<feature>'` prints what one owes and
+  the path of each. Every `.nvs` and `about.md` among them is held to § *Text an end user reads*
+  below (`rule:testing/feature-proofs`).
 - **Every change to a feature reaches the website.** A goal ends with `bun nv site --check stale`,
   `changes` and `review` green: its pages, `about.md` and help reread and stamped, a
   `website/src/data/changes.json` entry for each feature it moved, and the gate stage's newcomer
@@ -266,7 +267,8 @@ What a loop session owes on top of the block's § *Session workflow*:
   6 says. A change to the `Core` API, a new checker mechanism, a scheduler run-order change and a fix
   that breaks callers are all design calls.
 - **Before `DONE`, the goal-end gates.** Every goal runs `bun nv owners --closes <slug>` and closes
-  every gap it names or gives it another owner. A reached goal's file is deleted, so first move each
+  every gap it names or gives it another owner. It runs `bun nv proofs --gate --goal <slug>` and pays
+  every feature it names, whether the goal listed it or not. A reached goal's file is deleted, so first move each
   decision only its prose holds to a rule or a module doc, and turn each check that proves more than a
   suite does into a test.
 - **Before a full gate's `DONE`, two more.** `bun nv verify --doc` and every broken doc link it names

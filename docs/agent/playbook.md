@@ -26,9 +26,7 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
-- **`bun nv proofs --id <feature> --gate` judges the whole roster, not the feature.** `--id` does
-  not narrow `--gate`, so a goal's `proofs` check stayed red on 146 features outside the goal.
-  Write a feature's gate check as `--only <feature> --gate`. See `tools/nv/cmd/proofs.ts`'s header.
+
 - **A Python edit script under `.agent-tmp/` that writes with `open(p, 'w')` turns every line
   ending into CRLF on Windows.** Git then warns "CRLF will be replaced by LF" for each file, and the
   working copy no longer matches rustfmt's output. Open the file with `newline=''`, or write bytes.
@@ -208,8 +206,8 @@ session the bullets it ranks highest for the live goal, and names how many more 
   names with `MSYS_NO_PATHCONV=1`. See `tools/nv/cmd/site.ts`.
 - **`bun nv proofs --gate --group 'Core\X'` does not reach a value class inside it, `Core\X\Y`.**
   Each class is its own group, so a goal that gated only the outer class learns at `bun nv ci
-  --check` that every member of the inner one owes all its proofs. Gate both groups from the start,
-  or run `bun nv proofs --gate --limit 0` once before the gate stage. See `tools/nv/cmd/proofs.ts`. `until: gone tools/nv/cmd/proofs.ts:--group`
+  --check` that every member of the inner one owes all its proofs. A goal's check is `bun nv proofs
+  --gate --goal <slug>`, which reaches both. See `tools/nv/proofs/since.ts`. `until: gone tools/nv/cmd/proofs.ts:--group`
 - **`gix`'s `blocking-network-client` feature does not bring `gix_transport`'s `Http` trait.** The
   `blocking_io::http` module sits behind gix-transport's own `http-client` feature, which gix turns
   on only with curl or reqwest. Name `gix-transport` with `http-client` alone, as the workspace row

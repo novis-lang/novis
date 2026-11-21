@@ -61,40 +61,10 @@ checks:
     name: "a download that is never finished is cut off, and the log names it"
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/zip-writer-a-download-never-finished-is-cut-off.nvst]
     timeout: 1800
-  - id: proofs-create-for-file
+  - id: proofs
     stage: 7
-    name: "Core\\Zip::createForFile has its feature proofs"
-    run: [bun, nv, proofs, --id, "Core\\Zip::createForFile", --gate]
-    timeout: 600
-  - id: proofs-create-for-download
-    stage: 7
-    name: "Core\\Zip::createForDownload has its feature proofs"
-    run: [bun, nv, proofs, --id, "Core\\Zip::createForDownload", --gate]
-    timeout: 600
-  - id: proofs-stream
-    stage: 7
-    name: "Core\\Zip::stream has its feature proofs"
-    run: [bun, nv, proofs, --id, "Core\\Zip::stream", --gate]
-    timeout: 600
-  - id: proofs-add
-    stage: 7
-    name: "Core\\Zip\\Writer::add has its feature proofs"
-    run: [bun, nv, proofs, --id, "Core\\Zip\\Writer::add", --gate]
-    timeout: 600
-  - id: proofs-finish
-    stage: 7
-    name: "Core\\Zip\\Writer::finish has its feature proofs"
-    run: [bun, nv, proofs, --id, "Core\\Zip\\Writer::finish", --gate]
-    timeout: 600
-  - id: proofs-compress
-    stage: 7
-    name: "Core\\Compress::compress keeps its feature proofs with the level"
-    run: [bun, nv, proofs, --id, "Core\\Compress::compress", --gate]
-    timeout: 600
-  - id: proofs-compressor
-    stage: 7
-    name: "Core\\Compress::compressor keeps its feature proofs with the level"
-    run: [bun, nv, proofs, --id, "Core\\Compress::compressor", --gate]
+    name: "every feature the goal's work reaches has its feature proofs"
+    run: [bun, nv, proofs, --gate, --goal, zip-writer]
     timeout: 600
 ---
 
@@ -404,7 +374,8 @@ member's proofs as the model (`bun nv proofs --id 'Core\Zip::read'`). The sessio
 - [ ] The benches that build archives by hand (`benches/members/core/Zip/entries.scale.nvs:10`,
   `extract.scale.nvs`, `read.scale.nvs`) build them with `Core\Zip::createForFile`, and their
   figures are measured again.
-- [ ] The seven checks `proofs-*` are green.
+- [ ] `bun nv proofs --owed --goal zip-writer` names nothing, and the check `proofs` is green. Each
+  feature it names is paid here, new or changed, listed above or not.
 
 ### 8. the help, the reference and the website say what Core\Zip writes and what a level does
 
