@@ -6,11 +6,11 @@ context: [.github/workflows/ci.yml, docs/rules/testing/every-run-runs-every-job.
 stages:
   - id: 1
     title: "bun nv ci --times prints each job's wait, run time and slow steps"
-    status: open
+    status: done
     context: [tools/nv/cmd/ci.ts, tools/nv/test/ci.test.ts]
   - id: 2
     title: "bun nv proofs --part k/n runs one part of the roster"
-    status: open
+    status: done
     context: [tools/nv/cmd/proofs.ts, tools/nv/proofs/run.ts, tools/nv/test/proof-command.test.ts]
   - id: 3
     title: "the new layout: lighter Windows test leg, Windows proofs in two parts, the dev build after the debug binaries"
@@ -171,11 +171,11 @@ names `--part`, and its check reads `--times`. Stages 3 to 5 run in order.
 
 **Does:** adds `--times [<run id>]` to `bun nv ci`.
 
-- [ ] `tools/nv/cmd/ci.ts:169`: `--times` in the usage lines and the file's head comment, as the
+- [x] `tools/nv/cmd/ci.ts:169`: `--times` in the usage lines and the file's head comment, as the
   standing decision gives it.
-- [ ] `tools/nv/cmd/ci.ts:1`: the reader and the printer. The newest complete push run of `ci.yml` on
+- [x] `tools/nv/cmd/ci.ts:1`: the reader and the printer. The newest complete push run of `ci.yml` on
   `main` when no id is given. A run still going prints `run <id> is still going` and exits 1.
-- [ ] `tools/nv/test/ci.test.ts:1`: a `describe("bun nv ci --times")` over a stored fixture under
+- [x] `tools/nv/test/ci.test.ts:1`: a `describe("bun nv ci --times")` over a stored fixture under
   `tools/nv/test/fixtures/`. It is cut down from run 44940832132's JSON to a handful of jobs, with
   neutral names kept as GitHub gave them. It checks the wait, the run, the end, the steps over a minute
   and the last line. It runs once, by name.
@@ -184,13 +184,13 @@ names `--part`, and its check reads `--times`. Stages 3 to 5 run in order.
 
 **Does:** adds `--part K/N` to `bun nv proofs`.
 
-- [ ] `tools/nv/cmd/proofs.ts:87` and `:90`: `--part K/N` in the help and the usage. `tools/nv/cmd/proofs.ts:1`:
+- [x] `tools/nv/cmd/proofs.ts:87` and `:90`: `--part K/N` in the help and the usage. `tools/nv/cmd/proofs.ts:1`:
   one line in the head comment.
-- [ ] `tools/nv/cmd/proofs.ts:466`: the argument is parsed, and refused outside `1 <= K <= N <= 8`, or
+- [x] `tools/nv/cmd/proofs.ts:466`: the argument is parsed, and refused outside `1 <= K <= N <= 8`, or
   without `--run` or `--verify`.
-- [ ] `tools/nv/cmd/proofs.ts:425`: `programs` is sorted by kind and path and cut to the part before
+- [x] `tools/nv/cmd/proofs.ts:425`: `programs` is sorted by kind and path and cut to the part before
   it runs. The gate before it is not cut. The summary line names the part: `part 1/2: 653 programs`.
-- [ ] `tools/nv/test/proof-command.test.ts:1`: a test named for `--part` that the union of the parts
+- [x] `tools/nv/test/proof-command.test.ts:1`: a test named for `--part` that the union of the parts
   is the list, no program is in two parts, and `0/2`, `3/2` and `1/9` are refused. It runs once, by name.
 
 ### 3. the new layout: lighter Windows test leg, Windows proofs in two parts, the dev build after the debug binaries
@@ -251,13 +251,31 @@ session builds once they end and runs the changed programs by name.
 
 ### State
 
-Written from the CI review of 2026-11-21. Nothing is built yet. Every design choice is above, under
-*Standing decisions*. The user's call is that a time saving with no trade-off beyond one-time work is
-taken. Everything else is the author's.
+Stages 1 and 2 are done, one session, and both checks pass by name.
+
+- `bun nv ci --times [<id>]` (`tools/nv/cmd/ci.ts` `timesLines`, `times`) prints one line per job
+  that ran, sorted by its end, each step of a minute or more under it, and `ended last: <job>, at
+  <min> min`. Jobs GitHub skipped are left out. Its test reads
+  `tools/nv/test/fixtures/ci-times-run.json`, cut down from run 44940832132.
+- `bun nv proofs --run|--verify --part K/N` (`tools/nv/cmd/proofs.ts` `parsePart`, `cutPart`,
+  `runScopes`) prints `part K/N: <m> of <all> programs` first. A suite with no program in the part
+  prints `... (none of its <n> files is in part K/N)`. It is refused with `--show`, `--overshoot`,
+  `--probe`, `--record-perf` and `--bless`.
+- The sweep's red `miri units (nvs-stdlib 2/12)` on nightly 44894790665 was a 300 s timeout of
+  `both_walks_agree_on_every_window`, not UB. `156f11a7ca` had already cut its Miri reach to 2, and
+  the job is green in push runs 44940832132 and 44945274371. This session fixed the stale doc comment.
+
+Run 44940832132's Windows nextest steps: slice 1 11.1 min (and benches 3.5, cache save 2.9), slice 2
+7.7, slice 3 7.2. The whole run ended at 45.9 min, on `proofs / windows-x86_64` (Feature proofs 32.1).
 
 ### Next
 
-Stage 1 and stage 2, side by side. The checks name tests that do not exist yet. They fail until
-stages 1 and 2 write them.
+Stage 3, one session. Read two more green push runs with `bun nv ci --times <id>` (find ids with `gh
+run list --workflow ci.yml --branch main --event push --status success --limit 4`), pick the lightest
+Windows slice, then change `.github/workflows/ci.yml` at the anchors the stage names (`:243`, `:348`,
+`:352`, `:510`-`:610`, `:1844`). Before the `build` `needs:` change, check its legs' run times
+against `debug nvs / windows-x86_64`'s end (8.3 min in 44940832132; the latest build leg ran 21.1
+min, so it ends near 29.4, under 45.9). `bun nv ci --check` ends the stage. No test is expected to go
+red.
 
 ### Backlog
