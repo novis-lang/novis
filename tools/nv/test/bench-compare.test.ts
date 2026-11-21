@@ -1182,7 +1182,7 @@ describe("the record shape", () => {
     ]);
     expect(record.tls).toBe("TLSv1.3");
     expect(record.host).toEqual(run.host);
-    expect(Object.keys(record.peers)).toEqual(["nvs", "php", "bun", "go"]);
+    expect(Object.keys(record.peers)).toEqual(PEERS.map((p) => p.id));
     expect(record.cases.hello!.concurrency).toBe(64);
     expect(Object.keys(record.cases.hello!.peers)).toEqual(["nvs", "php", "bun", "go"]);
     expect(record.cases.hello!.peers.go!.requests_per_sec).toBe(4);

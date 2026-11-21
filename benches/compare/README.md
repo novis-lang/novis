@@ -360,6 +360,14 @@ their replies. The host runs other work, and the fastest of three let one lucky 
 while a slow minute fell on whichever peer's block it hit. `cores` and `waiting` take the median of
 their passes too, one peer after another, because a row asks for its passes one budget at a time.
 
+**Five reps, because three did not give the same figures.** `--reps-check` takes every choice of three
+of a record's five passes and compares its medians with all five's. Three would be the default if every
+choice kept requests/sec within 3%, peak memory within 5%, p99 within 10%, and the order of the peers
+unchanged in every case. On the seven-peer record of 2026-11-20 (cases at `0a0aa84bbd`, rows at
+`d676c2f8fb`), none held: requests/sec moved 16.52% (`waiting` at one cpu, .NET), peak memory 18.17%
+(`hello`, Bun), p99 63.03% (`hello`, Python), and five choices reordered the peers in `hello` or
+`wait`. So `--reps` stays five, and a recording that changes the host or the peers runs the check again.
+
 **The numbers are relations.** The absolute figures depend on the machine. The record names the machine
 so the page can say which, and the page shows each peer against the best in each case.
 

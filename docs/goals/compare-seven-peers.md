@@ -26,7 +26,7 @@ stages:
     context: [benches/compare/compose.go.yaml, benches/compare/nginx/http.conf, docs/rules/tooling.md]
   - id: 6
     title: the seven-peer comparison is recorded, and its passes decide whether three reps are enough
-    status: open
+    status: done
     context: [benches/compare.json]
   - id: 7
     title: the comparison page shows seven servers
@@ -293,17 +293,17 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
 **Split:** none. The recording runs in the background, and the session ends its turn to wait.
 
-- [ ] Requirement: in a detached worktree at `HEAD`, run `bun nv bench-compare --record
+- [x] Requirement: in a detached worktree at `HEAD`, run `bun nv bench-compare --record
   benches/compare.json`, then `bun nv bench-compare --scenarios --fresh --record benches/compare.json`,
   and copy the record back (README § *One record*).
 - [x] `tools/nv/cmd/bench-compare.ts:1899` `repsHold`: a pure `repsHold(passes)` runs the three-of-five
   test from § *Standing decisions* over the record's kept passes. It returns the worst deviation for
   each figure, and whether the order changed. `bun nv bench-compare --reps-check benches/compare.json`
   prints it with no docker.
-- [ ] Requirement: run `--reps-check` on the new record. When it holds, the default at
+- [x] Requirement: run `--reps-check` on the new record. When it holds, the default at
   `tools/nv/cmd/bench-compare.ts:3097` becomes 3. Either way, `benches/compare/README.md:257`
   § *One record* states the reps, the worst deviation and the date of the record that decided them.
-- [ ] `tools/nv/test/bench-compare.test.ts:1`: the three `the record` tests. The plan test uses the
+- [x] `tools/nv/test/bench-compare.test.ts:1`: the three `the record` tests. The plan test uses the
   record as the prior, with Novis's key changed, at the reps default the check decided.
 
 ### 7. the comparison page shows seven servers
@@ -332,31 +332,27 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
 ### State
 
-Stages 1 to 5 are done, and stage 6's `repsHold` item (`--reps-check PATH`, 9 unit tests green by
-name). The case half is recorded at `0a0aa84bbd` in `.agent-tmp/wt-record`: all 7 peers agree in all
-4 cases, 1446 s of steps, with a copy at `.agent-tmp/compare-cases.json`. `--reps-check` on its
-passes already fails every bound: requests/sec 13.09% (html-page, .NET, reps 1 2 5), peak memory
-18.17% (hello, Bun, reps 1 2 3), p99 63.03% (hello, Python, reps 1 2 3), and 5 subsets reorder
-hello or wait. So the default stays 5: `DEFAULT_REPS` in `bench-compare.ts`, with the reason in its
-doc comment.
+Stages 1 to 6 are done. `benches/compare.json` is the seven-peer record: cases at `0a0aa84bbd`
+(2026-11-20), rows at `d676c2f8fb` (2026-11-21), every peer in every case and all 18 rows. The rows
+took three background calls: a stopped run resumed without `--fresh` and kept its finished rows.
 
-The rows half ran past the 2 h limit of a background call and was stopped at row 12 (`memory`),
-with nothing written. A detached `nohup` run dies with its Bash call too. So `d676c2f8fb` writes the
-record after each row. The rows run again in the worktree at `d676c2f8fb` with `--fresh`, logging
-to `.agent-tmp/record-rows.log`.
+`--reps-check` fails every bound, so `DEFAULT_REPS` stays 5. Worst: requests/sec 16.52% (`waiting`
+at 1 cpu, .NET), peak memory 18.17% (`hello`, Bun), p99 63.03% (`hello`, Python), and 5 subsets
+reorder `hello` or `wait`. README § *Five reps, because three did not give the same figures* records
+it. A routine seven-peer recording plans 140 case stacks plus 39 row stacks (85 row results kept),
+179 in all, against the four-peer baseline of 247: `--scenarios --plan --record
+benches/compare.json`. `--plan` reads no prior without `--record`, so it then counts every row.
 
-Uncommitted: the three `the record` tests in `tools/nv/test/bench-compare.test.ts`. They read
-`benches/compare.json`, so they are red until the seven-peer record is copied back. The nightly
-failures ran on `5d053fc6e6`, origin/main, and local `e5a100b18f` and `438e9c44af` fix them.
+The `the record` tests and the record-shape test, which listed four peers, are green by name. The
+nightly failures ran on `5d053fc6e6`, origin/main. Local `e5a100b18f` and `438e9c44af` fix them, and
+reach CI at the next full gate's push.
 
 ### Next
 
-If the rows run is stopped at 2 h, run `bun nv bench-compare --scenarios --record
-benches/compare.json` in the worktree with no `--fresh`, which keeps the finished rows. Never change
-the worktree's commit between the two, since the tool digest is in each row's key. Then copy the
-record to `benches/compare.json` and run `--reps-check` for the final worst figures. Write them and
-the record's date into README § *One record*, after § *Every figure is the median of interleaved
-runs*. Run the `the record` tests by name, commit, and remove the worktree and scratch copies. Then
-stage 7.
+Stage 7, the website: `website/src/lib/compare.ts:145` `PEER_GROUP` and the "all four" texts at
+`website/src/lib/compare.ts:128` and `:259`, the columns and chart colours under
+`website/src/components/compare/`, `website/src/content/docs/in-depth/compare.mdx` (seven servers,
+the python-claims sentence, the reused rows' date range, stamped), and `docs/alternative-pages.md`
+§ *The peers*. Expect no test red.
 
 ### Backlog
