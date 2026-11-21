@@ -1,0 +1,66 @@
+--TEST--
+`Core\Test::logs` returns the records of the test and of its requests in the order they were written, without the records below `[log] level`, and a request's mail is in `Core\Test::sentMail` — `rule:testing/a-test-reads-its-logs-and-mail`
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: Core\Test::logs, Core\Test::sentMail, Core\Test\LogRecord::level, Core\Test\LogRecord::message, Core\Test\LogRecord::fields, Core\Test\Response::error
+// covers: Core\Test\SentMail::endpoint, Core\Test\SentMail::to, Core\Test\SentMail::subject, Core\Test\SentMail::text, Core\Test\SentMail::cc, Core\Test\SentMail::bcc, Core\Test\SentMail::replyTo, Core\Test\SentMail::html
+use Core\Test;
+
+final class CheckoutLogTest {
+    #[Test]
+    public function theRecordsOfTheTestAndItsRequestAreKeptInOrder(): void {
+        Core\Log::write(Core\Log::Level::Error, "before checkout", ["cart" => 7]);
+        // The default `[log] level` is `info`, so this record is not kept.
+        Core\Log::write(Core\Log::Level::Debug, "not kept");
+
+        // The request writes a record, sends a mail and then throws an error.
+        var $response = Core\Test::request(Core\Http\Method::Post, "/checkout");
+        Test::assertSame($response->status(), 500);
+        Test::assertSame($response->error(), "RuntimeError: the cart is empty");
+
+        array<Core\Test\LogRecord> $logs = Core\Test::logs();
+        Test::assertCount($logs, 2);
+        Test::assertSame($logs[0]->level(), "error");
+        Test::assertSame($logs[0]->message(), "before checkout");
+        Test::assertEquals($logs[0]->fields(), ["cart" => 7]);
+        Test::assertSame($logs[1]->level(), "warn");
+        Test::assertSame($logs[1]->message(), "checkout failed");
+        // A record written with no fields has an empty list of fields.
+        Test::assertEquals($logs[1]->fields(), []);
+
+        // The mail was sent before the error, so it is in the list.
+        array<Core\Test\SentMail> $sent = Core\Test::sentMail();
+        Test::assertCount($sent, 1);
+        Test::assertSame($sent[0]->endpoint(), "site");
+        Test::assertEquals($sent[0]->to(), ["shop@example.com"]);
+        Test::assertSame($sent[0]->subject(), "Checkout failed");
+        Test::assertSame($sent[0]->text(), "A checkout failed.");
+        Test::assertEquals($sent[0]->cc(), []);
+        Test::assertEquals($sent[0]->bcc(), ["audit@example.com"]);
+        Test::assertNull($sent[0]->replyTo());
+        Test::assertNull($sent[0]->html());
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    Core\Log::write(Core\Log::Level::Warn, "checkout failed");
+    Core\Mail::send("site", ["shop@example.com"], "Checkout failed", "A checkout failed.", {bcc: ["audit@example.com"]});
+    throw new RuntimeError("the cart is empty");
+}
+--FILE nvs.toml--
+# Nothing listens on port 1, so a real send would fail.
+[mail.site]
+host = "127.0.0.1"
+port = 1
+from = "hello@example.com"
+timeout = "1s"
+
+[capabilities.mail]
+send = ["site"]
+--EXPECTF--
+  CheckoutLogTest
+    ✓ theRecordsOfTheTestAndItsRequestAreKeptInOrder %f ms
+
+  0 failed, 1 passed, 0 skipped, 0 flaky in %d ms

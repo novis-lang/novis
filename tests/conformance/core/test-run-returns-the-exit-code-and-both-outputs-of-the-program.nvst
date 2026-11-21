@@ -1,0 +1,72 @@
+--TEST--
+`Core\Test::run` runs the case's own program with the words it is given, and its `Core\Test\RunResult` has the exit code, standard output and standard error of that run — `rule:testing/a-test-runs-a-command`
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: Core\Test::run, Core\Test\RunResult::exitCode, Core\Test\RunResult::stdout, Core\Test\RunResult::stderr, Core\Test\RunResult::bytes
+// Each test runs the program at the bottom of this file. The first word
+// chooses what the program does.
+use Core\Test;
+
+final class RunTest {
+    // A program that ends normally has the exit code `0`.
+    #[Test]
+    public function aProgramThatEndsNormallyHasExitCodeZero(): void {
+        var $run = Core\Test::run(["greet", "Ada"]);
+        Test::assertSame($run->exitCode(), 0);
+        Test::assertSame($run->stdout(), "Hello, Ada\n");
+        Test::assertSame($run->stderr(), "");
+        Test::assertSame(Core\Bytes::length($run->bytes()), 11);
+    }
+
+    // `exit(3)` gives the exit code `3`. The output before it is kept.
+    #[Test]
+    public function exitGivesItsNumberAsTheExitCode(): void {
+        var $run = Core\Test::run(["give-up"]);
+        Test::assertSame($run->exitCode(), 3);
+        Test::assertSame($run->stdout(), "giving up\n");
+        Test::assertSame($run->stderr(), "");
+    }
+
+    // An error the program does not catch gives the exit code `1`.
+    // The error is on standard error.
+    #[Test]
+    public function anUncaughtErrorGivesExitCodeOne(): void {
+        var $run = Core\Test::run(["boom"]);
+        Test::assertSame($run->exitCode(), 1);
+        Test::assertSame($run->stdout(), "before\n");
+        Test::assertTrue(Core\Str::contains($run->stderr(), "the disk is full"));
+        Test::assertSame(Core\Bytes::length($run->bytes()), 7);
+    }
+
+    // `stdin` is the input of the program, as a `string` or as `bytes`.
+    // Without `stdin`, the input is empty.
+    #[Test]
+    public function stdinIsTheInputOfTheProgram(): void {
+        Test::assertSame(Core\Test::run(["copy"], {stdin: "abc"})->stdout(), "[abc]\n");
+        Test::assertSame(Core\Test::run(["copy"], {stdin: "xyz" as bytes})->stdout(), "[xyz]\n");
+        Test::assertSame(Core\Test::run(["copy"])->stdout(), "[]\n");
+    }
+}
+
+tainted string $word = Core\Cli::arguments()[0] ?? "";
+if ($word == "greet") {
+    echo "Hello, ", Core\Cli::arguments()[1] ?? "", "\n";
+} else if ($word == "give-up") {
+    echo "giving up\n";
+    exit(3);
+} else if ($word == "boom") {
+    echo "before\n";
+    throw new RuntimeError("the disk is full");
+} else if ($word == "copy") {
+    echo "[", Core\IO::stdin(), "]\n";
+}
+--EXPECTF--
+  RunTest
+    ✓ aProgramThatEndsNormallyHasExitCodeZero %f ms
+    ✓ exitGivesItsNumberAsTheExitCode  %f ms
+    ✓ anUncaughtErrorGivesExitCodeOne  %f ms
+    ✓ stdinIsTheInputOfTheProgram      %f ms
+
+  0 failed, 4 passed, 0 skipped, 0 flaky in %d ms

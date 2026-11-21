@@ -1,0 +1,66 @@
+--TEST--
+`Core\Test::run` throws a `LogicError` inside a run or a request, and `Core\Test\Response::error` shows the error that stopped the request — `rule:testing/a-test-runs-a-command`
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: Core\Test::run, Core\Test\RunResult::exitCode, Core\Test\RunResult::stdout, Core\Test\RunResult::stderr, Core\Test\RunResult::bytes, Core\Test\Response::error
+// Only a test may start a run. The program at the bottom of this file tries
+// to start one inside a request and inside a run.
+use Core\Test;
+
+final class NestedRunTest {
+    // The request does not catch the `LogicError`, so the response is `500`.
+    // `error()` returns the class and the message of that error.
+    #[Test]
+    public function aRunInsideARequestStopsTheRequest(): void {
+        var $response = Core\Test::request(Core\Http\Method::Get, "/nested");
+        Test::assertSame($response->status(), 500);
+        Test::assertSame(
+            $response->error(),
+            "LogicError: Core\\Test::run(): a command run may not be started from inside a run or a request: only a test starts one"
+        );
+    }
+
+    // A request that did not fail has no error, so `error()` returns `null`.
+    #[Test]
+    public function aRequestThatDidNotFailHasNoError(): void {
+        var $response = Core\Test::request(Core\Http\Method::Get, "/fine");
+        Test::assertSame($response->status(), 200);
+        Test::assertNull($response->error());
+    }
+
+    // The run catches the `LogicError`, prints its message and calls `exit(4)`.
+    #[Test]
+    public function aRunInsideARunThrowsALogicError(): void {
+        var $run = Core\Test::run(["nested"]);
+        Test::assertSame($run->exitCode(), 4);
+        Test::assertSame(
+            $run->stdout(),
+            "LogicError: Core\\Test::run(): a command run may not be started from inside a run or a request: only a test starts one\n"
+        );
+        Test::assertSame($run->stderr(), "");
+        Test::assertSame($run->bytes(), $run->stdout() as bytes);
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    if (Core\Request::path() == "/nested") {
+        Core\Test::run(["anything"]);
+    }
+    echo "fine";
+} else if ((Core\Cli::arguments()[0] ?? "") == "nested") {
+    try {
+        Core\Test::run(["anything"]);
+    } catch (LogicError $refused) {
+        echo "LogicError: ", $refused->message, "\n";
+        exit(4);
+    }
+}
+--EXPECTF--
+  NestedRunTest
+    ✓ aRunInsideARequestStopsTheRequest %f ms
+    ✓ aRequestThatDidNotFailHasNoError %f ms
+    ✓ aRunInsideARunThrowsALogicError  %f ms
+
+  0 failed, 3 passed, 0 skipped, 0 flaky in %d ms

@@ -1,0 +1,71 @@
+--TEST--
+`Core\Test::sentMail` returns every message `Core\Mail::send` was given in a test, in order and with every part, and no message reaches the mail server — `rule:testing/a-test-reads-its-logs-and-mail`
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: Core\Test::sentMail, Core\Test::logs, Core\Test\LogRecord::level, Core\Test\LogRecord::message, Core\Test\LogRecord::fields
+// covers: Core\Test\SentMail::endpoint, Core\Test\SentMail::to, Core\Test\SentMail::subject, Core\Test\SentMail::text, Core\Test\SentMail::cc, Core\Test\SentMail::bcc, Core\Test\SentMail::replyTo, Core\Test\SentMail::html
+// Nothing listens on the port in `nvs.toml`. A real send would throw an
+// `IOError`, so each send below passing shows that nothing was sent.
+use Core\Test;
+
+final class NewsletterTest {
+    #[Test]
+    public function everyPartOfEachMessageIsKept(): void {
+        Core\Mail::send(
+            "site",
+            ["ada@example.com", "bo@example.com"],
+            "News",
+            "The news in text.",
+            {
+                cc: ["editor@example.com"],
+                bcc: ["archive@example.com"],
+                replyTo: "desk@example.com",
+                html: "<p>The news in HTML.</p>"
+            }
+        );
+        Core\Mail::send("site", ["cy@example.com"], "Second", "A second message.");
+        Core\Log::write(Core\Log::Level::Info, "newsletter sent", ["count" => 2]);
+
+        array<Core\Test\SentMail> $sent = Core\Test::sentMail();
+        Test::assertCount($sent, 2);
+        Test::assertSame($sent[0]->endpoint(), "site");
+        Test::assertEquals($sent[0]->to(), ["ada@example.com", "bo@example.com"]);
+        Test::assertSame($sent[0]->subject(), "News");
+        Test::assertSame($sent[0]->text(), "The news in text.");
+        Test::assertEquals($sent[0]->cc(), ["editor@example.com"]);
+        Test::assertEquals($sent[0]->bcc(), ["archive@example.com"]);
+        Test::assertSame($sent[0]->replyTo(), "desk@example.com");
+        Test::assertSame($sent[0]->html(), "<p>The news in HTML.</p>");
+
+        // The second message has no optional parts.
+        Test::assertEquals($sent[1]->to(), ["cy@example.com"]);
+        Test::assertSame($sent[1]->subject(), "Second");
+        Test::assertEquals($sent[1]->cc(), []);
+        Test::assertNull($sent[1]->replyTo());
+        Test::assertNull($sent[1]->html());
+
+        // The program's own record is the only record. Sending mail in a
+        // test writes none.
+        array<Core\Test\LogRecord> $logs = Core\Test::logs();
+        Test::assertCount($logs, 1);
+        Test::assertSame($logs[0]->level(), "info");
+        Test::assertSame($logs[0]->message(), "newsletter sent");
+        Test::assertEquals($logs[0]->fields(), ["count" => 2]);
+    }
+}
+--FILE nvs.toml--
+[mail.site]
+host = "127.0.0.1"
+port = 1
+from = "hello@example.com"
+timeout = "1s"
+
+[capabilities.mail]
+send = ["site"]
+--EXPECTF--
+  NewsletterTest
+    ✓ everyPartOfEachMessageIsKept     %f ms
+
+  0 failed, 1 passed, 0 skipped, 0 flaky in %d ms

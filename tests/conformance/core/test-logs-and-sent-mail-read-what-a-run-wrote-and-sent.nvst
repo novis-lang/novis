@@ -1,0 +1,72 @@
+--TEST--
+`Core\Test::logs` and `Core\Test::sentMail` return the log records and the mail of a run the test started, and each test starts with both lists empty — `rule:testing/a-test-reads-its-logs-and-mail`
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: Core\Test::run, Core\Test::logs, Core\Test::sentMail, Core\Test\LogRecord::level, Core\Test\LogRecord::message, Core\Test\LogRecord::fields
+// covers: Core\Test\SentMail::endpoint, Core\Test\SentMail::to, Core\Test\SentMail::subject, Core\Test\SentMail::text, Core\Test\SentMail::cc, Core\Test\SentMail::bcc, Core\Test\SentMail::replyTo, Core\Test\SentMail::html
+// covers: Core\Test\RunResult::exitCode, Core\Test\RunResult::stdout, Core\Test\RunResult::stderr, Core\Test\RunResult::bytes
+// The program at the bottom of this file signs a user up. It writes one log
+// record and sends one mail. Nothing is sent to the mail server.
+use Core\Test;
+
+final class SignUpRunTest {
+    #[Test]
+    public function theTestReadsTheRecordAndTheMailOfTheRun(): void {
+        var $run = Core\Test::run(["sign-up"]);
+        Test::assertSame($run->exitCode(), 0);
+        Test::assertSame($run->stdout(), "welcome sent\n");
+        Test::assertSame(Core\Bytes::length($run->bytes()), 13);
+        // The record is also written to the log target, which is standard error.
+        Test::assertTrue(Core\Str::contains($run->stderr(), "signed up"));
+
+        array<Core\Test\LogRecord> $logs = Core\Test::logs();
+        Test::assertCount($logs, 1);
+        Test::assertSame($logs[0]->level(), "info");
+        Test::assertSame($logs[0]->message(), "signed up");
+        Test::assertEquals($logs[0]->fields(), ["email" => "ada@example.com"]);
+
+        array<Core\Test\SentMail> $sent = Core\Test::sentMail();
+        Test::assertCount($sent, 1);
+        Test::assertSame($sent[0]->endpoint(), "site");
+        Test::assertEquals($sent[0]->to(), ["ada@example.com"]);
+        Test::assertSame($sent[0]->subject(), "Welcome");
+        Test::assertSame($sent[0]->text(), "Your account is ready.");
+        // The program gave only the four required arguments.
+        Test::assertEquals($sent[0]->cc(), []);
+        Test::assertEquals($sent[0]->bcc(), []);
+        Test::assertNull($sent[0]->replyTo());
+        Test::assertNull($sent[0]->html());
+    }
+
+    // The record and the mail of the test above are not in this test's lists.
+    #[Test]
+    public function eachTestStartsWithEmptyLists(): void {
+        Test::assertCount(Core\Test::logs(), 0);
+        Test::assertCount(Core\Test::sentMail(), 0);
+    }
+}
+
+if ((Core\Cli::arguments()[0] ?? "") == "sign-up") {
+    string $email = "ada@example.com";
+    Core\Log::write(Core\Log::Level::Info, "signed up", ["email" => $email]);
+    Core\Mail::send("site", [$email], "Welcome", "Your account is ready.");
+    echo "welcome sent\n";
+}
+--FILE nvs.toml--
+# Nothing listens on port 1, so a real send would fail.
+[mail.site]
+host = "127.0.0.1"
+port = 1
+from = "hello@example.com"
+timeout = "1s"
+
+[capabilities.mail]
+send = ["site"]
+--EXPECTF--
+  SignUpRunTest
+    ✓ theTestReadsTheRecordAndTheMailOfTheRun %f ms
+    ✓ eachTestStartsWithEmptyLists     %f ms
+
+  0 failed, 2 passed, 0 skipped, 0 flaky in %d ms

@@ -1,0 +1,46 @@
+--TEST--
+`Core\Test::request` throws a `LogicError` for a `clientIp` that is not one address and for a `scheme` other than `http` and `https`, and `Core\Test\Response::error` is `null` for a request that did not fail — `rule:testing/in-process-request`
+--FILE--
+<?nvs
+// covers: Core\Test::request, Core\Test\Response::status, Core\Test\Response::error
+// A host name, an address with a port and a list of addresses are not one
+// address, so each `clientIp` below throws a `LogicError`.
+if (Core\Env::context() == Core\Env::Context::Request) {
+    if (Core\Request::path() == "/fails") {
+        throw new LogicError("no such order");
+    }
+    echo "ok";
+} else {
+    array<string> $addresses = ["example.com", "203.0.113.9:80", "203.0.113.9, 198.51.100.7"];
+    foreach ($addresses as string $address) {
+        try {
+            Core\Test::request(Core\Http\Method::Get, "/", {clientIp: $address});
+        } catch (LogicError $wrongAddress) {
+            echo $wrongAddress->message, "\n";
+        }
+    }
+    // Only `http` and `https` are allowed. The check is case-sensitive.
+    array<string> $schemes = ["ftp", "HTTPS", ""];
+    foreach ($schemes as string $scheme) {
+        try {
+            Core\Test::request(Core\Http\Method::Get, "/", {scheme: $scheme});
+        } catch (LogicError $wrongScheme) {
+            echo $wrongScheme->message, "\n";
+        }
+    }
+    // An IPv6 address and `https` are allowed. The request did not fail,
+    // so `error()` returns `null`.
+    var $fine = Core\Test::request(Core\Http\Method::Get, "/", {clientIp: "2001:db8::1", scheme: "https"});
+    echo $fine->status(), " ", $fine->error() ?? "null", "\n";
+    var $failed = Core\Test::request(Core\Http\Method::Get, "/fails");
+    echo $failed->status(), " ", $failed->error() ?? "null", "\n";
+}
+--EXPECT--
+Core\Test::request(): `clientIp` must be one IPv4 or IPv6 address, and `example.com` is not one
+Core\Test::request(): `clientIp` must be one IPv4 or IPv6 address, and `203.0.113.9:80` is not one
+Core\Test::request(): `clientIp` must be one IPv4 or IPv6 address, and `203.0.113.9, 198.51.100.7` is not one
+Core\Test::request(): `scheme` must be "http" or "https", not `ftp`
+Core\Test::request(): `scheme` must be "http" or "https", not `HTTPS`
+Core\Test::request(): `scheme` must be "http" or "https", not ``
+200 null
+500 LogicError: no such order
