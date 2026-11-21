@@ -21,7 +21,7 @@ stages:
     context: [crates/nvs-cli/src/code.rs, crates/nvs-cli/tests/code.rs]
   - id: 5
     title: the help, the reference, about.md and the website
-    status: open
+    status: done
     context: [docs/reference/tools/10-cli.md, docs/examples/tools/cli/nvs-code/about.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -252,17 +252,17 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### 5. the help, the reference, about.md and the website
 
-- [ ] `docs/reference/tools/10-cli.md:1083`: `# nvs code` says that a call reuses the editor's
+- [x] `docs/reference/tools/10-cli.md:1083`: `# nvs code` says that a call reuses the editor's
   index, that it checks every file's content first, and that `calls` and `reach` take several
   methods.
-- [ ] `docs/examples/tools/cli/nvs-code/about.md:1`: the same, held to AGENTS.md § *Text an end user
+- [x] `docs/examples/tools/cli/nvs-code/about.md:1`: the same, held to AGENTS.md § *Text an end user
   reads*. `docs/examples/tools/cli/nvs-code/01-who-calls-a-method.nvs:1` shows two methods in one
   call.
-- [ ] `website/src/content/docs/tools/editor/index.mdx:210`: one sentence that the editor and
+- [x] `website/src/content/docs/tools/editor/index.mdx:210`: one sentence that the editor and
   `nvs code` share one index.
-- [ ] `website/src/data/changes.json`: `changed` `nvs code`, covering the faster answers and several
+- [x] `website/src/data/changes.json`: `changed` `nvs code`, covering the faster answers and several
   methods in `calls` and `reach`.
-- [ ] Reread and stamp every page `bun nv site --check stale` names, then the `proofs` check.
+- [x] Reread and stamp every page `bun nv site --check stale` names, then the `proofs` check.
 
 ### 6. the goal is verified once, and every failure is fixed
 
@@ -275,8 +275,14 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### State
 
-Stages 1 to 4 are done and committed. The `never-stale`, `code-index` and `several` tests pass,
-each run once by name.
+Stages 1 to 5 are done and committed. The `never-stale`, `code-index` and `several` tests pass,
+each run once by name. `site-stale` and `site-changes` are green.
+
+Stage 5 (`e211c8832d`): the reference's `# nvs code` gained `## The index file`, `## The verbs`
+and the several-methods shape; the help, `about.md`, the example (two methods in one `calls`,
+checked against a real run), the editor page and `changes.json` say the same.
+`proofs` is red for `tools:cli/nvs-code` only on the `about.md` review, which stage 6 does. Its
+`--gate` covers the whole roster, where 146 features outside this goal also owe proofs.
 
 - `crates/nvs-cli/src/code.rs`: `Project::open` loads and saves `index_file_of(&root)`.
   `per_method` drives `calls` and `reach` in the shapes § *Standing decisions* gives, and
@@ -295,15 +301,13 @@ its Miri reach to 2 after that run, so the fix is already in the tree. The next 
 
 ### Next
 
-Stage 5, all prose, held to AGENTS.md § *Text an end user reads*:
-`docs/reference/tools/10-cli.md:1083` (`# nvs code`: a call reuses the editor's index file and
-checks every file's content first, and `calls` and `reach` take several methods, with the heading
-and indent shape and `methods` in JSON), `docs/examples/tools/cli/nvs-code/about.md:1`,
-`docs/examples/tools/cli/nvs-code/01-who-calls-a-method.nvs:1` (two methods in one call),
-`website/src/content/docs/tools/editor/index.mdx:210`, the `website/src/data/changes.json` entry,
-then `bun nv site --check stale` and `bun nv proofs --id tools:cli/nvs-code --gate`. A new `##`,
-never a new `#`, in the reference chapter (playbook). Expected red until done: `proofs`,
-`site-stale`, `site-changes`, `site-review`.
+Stage 6, a close (not the full gate). First the newcomer review (prose.md § *A newcomer reads
+it*) of the five texts `bun nv site --check review` names:
+`docs/examples/tools/cli/nvs-code/01-who-calls-a-method.nvs`, its `about.md`,
+`help:tools:cli/nvs-code`, `website/src/content/docs/tools/editor/index.mdx` and
+`website/src/data/changes.json`. Then the build, clippy and this goal's tests by name: the
+`parallel`, `never-stale`, `code-index` and `several` checks. Expected red until done:
+`site-review`, and `proofs` for the review of `about.md`.
 
 ### Backlog
 
