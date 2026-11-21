@@ -104,6 +104,7 @@
   "help:RevokedObjectError": "f627d25b13dd8443",
   "help:tools:cli/nvs-test": "e30e32945ef34461",
   "help:tools:cli/nvs-test-mutate": "a6bad84031128838",
+  "help:tools:server/nvs-reload": "e021f047ca6ac320",
   "tests/hostile/core/Attributes/all/01-one-roster-read-back-at-many-places.nvs": "e98b4af237ec57d5",
   "tests/hostile/core/Attributes/get/01-a-roster-of-near-misses.nvs": "9128a88c35271443",
   "tests/hostile/core/Router-Match/attribute/01-a-route-tries-to-read-another-routes-setting.nvs": "2268bbaaf86b09b8",

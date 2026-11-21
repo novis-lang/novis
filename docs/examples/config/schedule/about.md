@@ -5,7 +5,8 @@ Each `[[schedule]]` entry in `nvs.toml` has a `name`, a `script` file, and eithe
 
 - `"start"` runs once, after the server starts to accept requests.
 - `"stop"` runs when the server begins to stop. It does not run when the server crashes or is killed.
-- `"reload"` runs after the server reloads its configuration, or fails to.
+- `"reload"` runs after the server reloads its configuration or a changed program, or fails to.
+  `nvs reload` starts a reload too.
 - `"failed"` runs when scheduled scripts or queue jobs fail, at most once a minute.
 
 The script runs isolated, like a request. It reads its entry's `name` and its `on` value from

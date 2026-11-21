@@ -519,6 +519,7 @@ fn a_stale_endpoint_is_skipped_and_removed() {
 
 /// A request cannot read the endpoint: the data folder is outside every grant, so the read throws
 /// before anything is opened.
+// covers: tools:server/nvs-reload
 #[test]
 fn a_request_cannot_reach_the_endpoint() {
     let served = Served::start("request", |_| {});
@@ -550,6 +551,7 @@ fn a_request_cannot_reach_the_endpoint() {
 
 /// A reload compiles an edit at once and replies once it is live. The program check runs once an
 /// hour, so nothing else can be the cause.
+// covers: tools:server/nvs-reload
 #[test]
 fn a_reload_makes_an_edit_live_before_the_timer() {
     let served = Served::start_with("edit", HOURLY, |_| {});
@@ -666,6 +668,7 @@ fn two_reloads_at_once_share_one_check() {
 }
 
 /// `nvs reload` exits `0` once an edit is live, and the next request runs it.
+// covers: tools:server/nvs-reload
 #[test]
 fn nvs_reload_exits_zero_when_everything_is_live() {
     let served = Served::start_with("cli-live", HOURLY, |_| {});
@@ -692,6 +695,7 @@ fn nvs_reload_exits_zero_when_everything_is_live() {
 }
 
 /// `nvs reload` exits `1` when a file is refused, and prints each refusal with its file.
+// covers: tools:server/nvs-reload
 #[test]
 fn nvs_reload_exits_one_and_prints_every_refusal() {
     let served = Served::start_with("cli-refused", HOURLY, |_| {});
@@ -733,6 +737,7 @@ fn nvs_reload_exits_one_and_prints_every_refusal() {
 }
 
 /// `nvs reload` exits `2` when no server uses the data folder, and says so.
+// covers: tools:server/nvs-reload
 #[test]
 fn nvs_reload_exits_two_with_no_server() {
     let data = nvs_repo::scratch_private("nvsdata-none");
@@ -753,6 +758,7 @@ fn nvs_reload_exits_two_with_no_server() {
 }
 
 /// Two servers that share one data folder are both reloaded, and each is reported.
+// covers: tools:server/nvs-reload
 #[test]
 fn nvs_reload_reaches_every_server_of_a_data_folder() {
     let first = Served::start_with("cli-first", HOURLY, |_| {});
@@ -785,6 +791,7 @@ fn nvs_reload_reaches_every_server_of_a_data_folder() {
 }
 
 /// `nvs reload --json` prints one JSON document with one entry per server.
+// covers: tools:server/nvs-reload
 #[test]
 fn nvs_reload_json_is_one_document() {
     let served = Served::start_with("cli-json", HOURLY, |_| {});
@@ -815,6 +822,7 @@ fn nvs_reload_json_is_one_document() {
 
 /// A program that `nvs reload` swaps is one `program reloaded` record, with its entry file. A
 /// second reload with nothing changed writes none.
+// covers: tools:server/nvs-reload
 #[test]
 fn a_swapped_program_is_one_log_record() {
     let served = Served::start_with("log-swap", HOURLY, |_| {});
@@ -835,6 +843,7 @@ fn a_swapped_program_is_one_log_record() {
 
 /// A program that does not compile is one `program reload failed` record, with its entry file and
 /// the line of its first error. Later reloads still report it, but write no second record.
+// covers: tools:server/nvs-reload
 #[test]
 fn a_failed_compile_is_one_log_record() {
     let served = Served::start_with("log-failed", HOURLY, |_| {});
@@ -859,6 +868,7 @@ fn a_failed_compile_is_one_log_record() {
 
 /// `nvs reload` runs the `on = "reload"` entry once, and its map counts the programs swapped and
 /// the programs that do not compile.
+// covers: tools:server/nvs-reload
 #[test]
 fn a_code_swap_fires_the_reload_event_with_its_counts() {
     let served = Served::start_recording("event-swap", HOURLY);

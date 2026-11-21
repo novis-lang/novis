@@ -93,8 +93,8 @@ rather than becoming a lie. The marker is stripped from `/llms-full.txt`, where 
 nothing.
 
 What the primer carries is fixed: the lookup protocol, one complete worked program with every shape
-in it annotated, the capability model and the smallest `nvs.toml` that grants a file read, and the
-chapter map from this front matter. A section that is none of those puts
+in it annotated, the capability model and the smallest `nvs.toml` that grants a file read,
+`nvs reload` after an edit to a running server, and the chapter map from this front matter. A section that is none of those puts
 prose in front of a reader spending a token budget on it, and a part of the primer that no section
 expresses is a chapter missing it — the edit belongs in the chapter.
 

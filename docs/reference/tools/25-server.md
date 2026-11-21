@@ -1,8 +1,8 @@
 ---
 id: server
 title: The HTTP server
-summary: `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, the drain, what happens when the client goes away and `nvs service`
-keywords: nvs serve, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, development_hosts, Host header, 421, Misdirected Request, loopback, DNS rebinding, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, development server, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
+summary: `nvs serve`, the `[server]` block and its mounts, how a request finds the file that answers it, what a program reads about the door it came through, what reaches a running server, `nvs reload`, the drain, what happens when the client goes away and `nvs service`
+keywords: nvs serve, nvs reload, reload now, program reloaded, program reload failed, server, HTTP, disconnect, client disconnect, client goes away, cancel_on_disconnect, disconnect_grace, restart, restart required, deploy, hot reload, zero downtime, symlink, settle, revalidate_freq, listen, port, --listen, --port, [server], [[server.mount]], mount, prefix, host, scan, entry, origin, root, dispatch, static, static files, trusted_proxies, development_hosts, Host header, 421, Misdirected Request, loopback, DNS rebinding, X-Forwarded-For, X-Forwarded-Proto, client IP, health_path, health check, max_in_flight, workers, timeout, drain, drain_timeout, graceful shutdown, reload, nvs service, service, systemd, Windows service, Core\Request::mount, Core\Request\Mount, Core\Router::url, multi-tenant, subdirectory, virtual host, front controller, try_files, development server, nginx, Apache, .htaccess, RewriteBase, SCRIPT_NAME, PATH_INFO, DocumentRoot
 ---
 
 # nvs serve
@@ -336,8 +336,9 @@ Its `applied` field lists the keys that changed. Its `ignored` field lists the c
 a restart. `invalidated` is the number of compiled program files that the server compiles again.
 
 A file with an error changes nothing. The server writes `configuration reload refused` to the log
-once, with the error and its line, and keeps the configuration it has. A saved file is the only
-thing that starts a reload. No signal and no command from a service manager starts one.
+once, with the error and its line, and keeps the configuration it has. A saved file starts a reload,
+and so does `nvs reload` (the next section). No signal and no command from a service manager starts
+one.
 
 **Four keys need a restart**: `[server] listen`, `[server] socket_mode`, `[server] workers` and
 `[server] watchdog_margin`. A port below 1024 needs a privilege the server gave up after it opened
@@ -382,6 +383,48 @@ new code so that it reads what the old code wrote. For example, a job that gains
 default for the jobs queued without it.
 
 <!-- src: `rule:config/an-edit-reaches-the-next-request-without-a-restart`, `rule:config/a-broken-edit-fails-the-requests-that-resolve-it`, `rule:config/the-config-is-an-immutable-snapshot`, `rule:config/reloadability-is-its-own-field`, `rule:config/a-reload-names-what-it-could-not-apply` -->
+
+<!-- primer -->
+# nvs reload
+
+    nvs reload [--config <path>]... [--data <dir>] [--json]
+
+`nvs reload` makes a running `nvs serve` use what is on disk now. Run it after you edit code or
+configuration. The server checks its configuration files and every program it has loaded at once.
+It does not wait for `settle`. The command returns when every compile has ended:
+
+| Exit code | Meaning |
+|---|---|
+| `0` | every server uses the files on disk |
+| `1` | a configuration file or a program has an error; each error is printed with its file and line |
+| `2` | no server is running for this data folder |
+
+```text
+$ nvs reload
+server 4120: configuration unchanged, 1 program reloaded, 0 programs with errors
+```
+
+The command finds the data folder the same way `nvs serve` does, and reloads every server that uses
+it. Only the account that runs the server, or an administrator, can reload it. A request cannot.
+`--json` prints one JSON document with a `servers` array.
+
+A program with an error is not replaced. Its requests fail with the error until it is fixed. A
+program that no request has loaded yet is compiled by its first request.
+
+The server still checks the files by itself every `revalidate_freq`. When you or a coding agent run
+`nvs reload` after each batch of edits, set a long interval. A forgotten reload then still takes
+effect within that time:
+
+```toml
+[opcache]
+revalidate_freq = "1h"
+```
+
+Each program a reload replaces writes one `program reloaded` line to the log. Each program that does
+not compile writes one `program reload failed` line, with the first error. A `[[schedule]]` entry
+with `on = "reload"` runs after a reload, and its arguments include `programs` and `failed`.
+
+<!-- src: `rule:config/a-reload-command-checks-now-and-waits` -->
 
 # Stopping and reloading: the drain
 

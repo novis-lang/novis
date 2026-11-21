@@ -909,6 +909,12 @@ pub(crate) fn primer() -> ExitCode {
     if let Some(note) = stale_note() {
         eprintln!("{note}");
     }
+    print!("{}", primer_text());
+    ExitCode::SUCCESS
+}
+
+/// The document [`primer`] prints.
+fn primer_text() -> String {
     let document = crate::meta::document();
     let chapters: Vec<Chapter> = CHAPTERS.iter().map(|text| chapter(text)).collect();
     let classes = array(&document, "classes");
@@ -943,9 +949,7 @@ pub(crate) fn primer() -> ExitCode {
             chapter.id, chapter.title, chapter.summary
         ));
     }
-
-    print!("{out}");
-    ExitCode::SUCCESS
+    out
 }
 
 /// A chapter's leading `---` block — `key: value` lines, three of which the
@@ -2931,6 +2935,27 @@ mod tests {
             [1, 0, 3]
         );
         assert!(super::section_order("an-of-is", &sections).is_empty());
+    }
+
+    /// The primer tells an agent to run `nvs reload` after an edit, with the long interval that
+    /// workflow sets and the exit code that means an error.
+    #[test]
+    fn the_primer_carries_the_reload_workflow() {
+        let primer = super::primer_text();
+        let at = primer
+            .find("# nvs reload\n")
+            .expect("the primer has the `# nvs reload` section");
+        let section = &primer[at..];
+        for needed in [
+            "Run it after you edit code or",
+            "revalidate_freq = \"1h\"",
+            "| `1` |",
+        ] {
+            assert!(
+                section.contains(needed),
+                "the `# nvs reload` section lacks {needed:?}"
+            );
+        }
     }
 
     /// A plural and its singular compare equal, and a word ending in `ss` keeps

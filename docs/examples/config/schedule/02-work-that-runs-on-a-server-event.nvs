@@ -1,5 +1,5 @@
 <?nvs
-// Shows a script that runs when the server starts, stops or has failed work.
+// Shows a script that runs when the server starts, stops, reloads or has failed work.
 //
 //     [[schedule]]
 //     name   = "announce-start"
@@ -10,6 +10,12 @@
 //     [[schedule]]
 //     name   = "announce-stop"
 //     on     = "stop"               # once, when the server begins to stop
+//     script = "jobs/announce.nvs"
+//     scope  = "host"
+//
+//     [[schedule]]
+//     name   = "announce-reload"
+//     on     = "reload"             # after new code or configuration, or an error in it
 //     script = "jobs/announce.nvs"
 //     scope  = "host"
 //
@@ -35,5 +41,12 @@ if ($given == null) {
         array<mixed> $names = $run['schedule'] as array<mixed>;
         echo 'failed entries: ', Core\Arr::count($names), "\n";
         echo 'dead-letter jobs: ', $run['dead_letter'] as int, "\n";
+    }
+
+    // A `reload` run gets the number of programs with new code,
+    // and the number of programs that do not compile now.
+    if ($event == 'reload') {
+        echo 'programs reloaded: ', $run['programs'] as int, "\n";
+        echo 'programs with errors: ', $run['failed'] as int, "\n";
     }
 }

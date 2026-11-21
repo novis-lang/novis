@@ -13,7 +13,9 @@ The primer is generated — from marked sections of the reference chapters, thos
 and the registry — so it cannot drift from the language, and a section that stops being true stops being
 rendered rather than becoming a lie. What it carries is fixed by what an agent gets wrong without it:
 the lookup protocol, one complete worked program with every shape annotated, the capability model and
-the smallest `nvs.toml` that grants a file read, and the chapter map. It carries no table of PHP
+the smallest `nvs.toml` that grants a file read, `nvs reload` with the long `revalidate_freq` an
+agent that edits a running server sets (`rule:config/a-reload-command-checks-now-and-waits`), and
+the chapter map. It carries no table of PHP
 spellings and their replacements: `rule:programs/no-compatibility-promise` allows no such table, and an
 agent that writes a PHP habit meets the diagnostic for it at its first `nvs check`.
 

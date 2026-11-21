@@ -9,7 +9,9 @@ monitor outside it.
 
 `Core\Script::args()` returns a map. It has the entry's `name`, and the event in `on`. A `cron`
 run has `"on" => "cron"`. A `reload` run also has `outcome`, which is `"applied"` or `"refused"`.
-It also has `restart`, the names of the settings that need a restart. A `failed` run also has
+It also has `restart`, the names of the settings that need a restart. `programs` is the number of
+programs the reload replaced with new code. `failed` is the number of loaded programs that do not
+compile now. The outcome is `"refused"` while `failed` is more than `0`. A `failed` run also has
 `schedule`, the names of the entries that failed. It also has `dead_letter`, the number of queue
 jobs that were moved to the dead-letter table.
 
