@@ -1,0 +1,10 @@
+--TEST--
+an anonymous object written on one line is a list like an array literal, so a cursor on one of its keys is offered to put each field on a line of its own, `rule:types/anonymous-object`
+--FILE--
+<?nvs
+var $point = {x: 1, y<|>: 2};
+echo $point->y, "\n";
+--REQUEST--
+codeAction
+--EXPECT--
+2:14-2:26 refactor.rewrite Put on separate lines -> "{\n    x: 1,\n    y: 2,\n}"

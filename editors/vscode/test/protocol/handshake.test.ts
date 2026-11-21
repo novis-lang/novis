@@ -30,6 +30,7 @@ const TOKEN_TYPES = [
   "parameter",
   "variable",
   "typeParameter",
+  "decorator",
 ];
 const TOKEN_MODIFIERS = ["defaultLibrary", "tainted", "secret"];
 

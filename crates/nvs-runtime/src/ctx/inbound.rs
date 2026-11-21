@@ -91,9 +91,7 @@ impl Ctx {
     /// [`Self::inbound_mut`] stays `None` there and the body cannot be read.
     #[must_use]
     pub fn inbound(&self) -> Option<&Inbound> {
-        self.inbound
-            .as_deref()
-            .or_else(|| self.lent_head())
+        self.inbound.as_deref().or_else(|| self.lent_head())
     }
     /// The same request, borrowed so its body can be pulled from.
     ///

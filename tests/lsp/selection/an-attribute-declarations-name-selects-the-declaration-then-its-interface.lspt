@@ -1,0 +1,14 @@
+--TEST--
+a cursor on an attribute declaration's name selects the whole declaration first, then the interface it is declared in, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+interface Page {
+    attribute Pa<|>th on method { path: string }
+
+    public function render(): string;
+}
+--REQUEST--
+selectionRange
+--EXPECT--
+3:5-3:46
+2:1-6:2

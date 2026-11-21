@@ -1,0 +1,13 @@
+--TEST--
+an attribute declaration with a well-formed name carries no diagnostic, so nothing is offered on its name, `rule:ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`
+--FILE--
+<?nvs
+interface Page {
+    attribute Pa<|>th on method { path: string }
+
+    public function render(): string;
+}
+--REQUEST--
+codeAction
+--EXPECT--
+none

@@ -1,0 +1,10 @@
+--TEST--
+a key of an anonymous object is not a declaration the reference index knows, so nothing is highlighted, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+var $point = {x: 1, y<|>: 2};
+echo $point->y, "\n";
+--REQUEST--
+documentHighlight
+--EXPECT--
+none

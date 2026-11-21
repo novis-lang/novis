@@ -1,0 +1,11 @@
+--TEST--
+a cursor on a key of an anonymous object selects the whole object first, then the statement it is written in, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+var $point = {x: 1, y<|>: 2};
+echo $point->y, "\n";
+--REQUEST--
+selectionRange
+--EXPECT--
+2:14-2:26
+2:1-2:27

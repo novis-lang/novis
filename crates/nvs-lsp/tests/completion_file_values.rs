@@ -15,6 +15,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionItemTag, CompletionTextEdit, DiagnosticSeverity,
@@ -32,10 +33,17 @@ struct Workspace {
     root: PathBuf,
 }
 
+/// The number of workspaces this process has made, so two tests that pass the
+/// same name still get different folders while they run side by side.
+static MADE: AtomicUsize = AtomicUsize::new(0);
+
 impl Workspace {
     fn new(name: &str) -> Self {
-        let root = Path::new(env!("CARGO_TARGET_TMPDIR"))
-            .join(format!("completion-values-{}-{name}", std::process::id()));
+        let made = MADE.fetch_add(1, Ordering::Relaxed);
+        let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!(
+            "completion-values-{}-{made}-{name}",
+            std::process::id()
+        ));
         let _ = fs::remove_dir_all(&root);
         fs::create_dir_all(&root).expect("a scratch directory");
         Self { root }
@@ -1058,7 +1066,7 @@ fn a_field_name_in_an_attribute_payload_offers_the_fields_of_its_shape() {
     assert_eq!(edit(&items, "page").0, "page: ");
     assert_eq!(
         named(&items, "order").detail.as_deref(),
-        Some("array<\"asc\"|\"desc\"> (optional)")
+        Some("array<'asc'|'desc'> (optional)")
     );
 
     // A name half written after another field replaces only what is written of it.

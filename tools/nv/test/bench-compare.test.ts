@@ -40,6 +40,7 @@ import {
   LOOP_DEFAULT,
   LOOP_IN_CODE,
   MEMORY_DEFAULT,
+  MEMORY_IN_CODE,
   comparable,
   configResult,
   coresResult,
@@ -850,7 +851,8 @@ describe("the feature scenarios", () => {
   test("the runaway rows run every peer at its defaults: Novis and PHP name the limit they start with", () => {
     expect(LOOP_DEFAULT).toEqual({ nvs: { name: "[limits] cpu_time", default: true }, php: { name: "max_execution_time", default: true } });
     expect(MEMORY_DEFAULT).toEqual({ nvs: { name: "[limits] memory", default: true }, php: { name: "memory_limit", default: true } });
-    expect(Object.keys(LOOP_IN_CODE)).toEqual(["bun"]);
+    expect(Object.keys(LOOP_IN_CODE)).toEqual(["bun", "node"]);
+    expect(Object.keys(MEMORY_IN_CODE)).toEqual(["node"]);
     const shipped = readFileSync(join(import.meta.dir, "..", "..", "..", "crates", "nvs-config", "src", "default.toml"), "utf8");
     expect(shipped).toContain('#memory = "128M"                      # default');
     expect(shipped).toContain('#cpu_time = "30s"                     # default: 30s for server work');

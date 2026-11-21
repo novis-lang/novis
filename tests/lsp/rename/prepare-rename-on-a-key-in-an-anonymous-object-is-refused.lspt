@@ -1,0 +1,10 @@
+--TEST--
+`prepareRename` on a key of an anonymous object is refused, because the key is no declaration a rename can follow to every read, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+var $point = {x: 1, y<|>: 2};
+echo $point->y, "\n";
+--REQUEST--
+prepareRename
+--EXPECT--
+refused: There is nothing to rename here. You can rename a class, a variable, a method, a property, a constant or an enum case.

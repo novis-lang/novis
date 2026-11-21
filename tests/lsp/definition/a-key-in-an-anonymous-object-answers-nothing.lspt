@@ -1,0 +1,10 @@
+--TEST--
+a key written in an anonymous object declares that key, so a jump from it has nowhere else to go, `rule:types/anonymous-object`
+--FILE--
+<?nvs
+var $point = {x: 1, y<|>: 2};
+echo $point->y, "\n";
+--REQUEST--
+definition
+--EXPECT--
+none

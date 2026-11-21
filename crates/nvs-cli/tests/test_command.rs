@@ -24,7 +24,7 @@ fn scratch(case: &str) -> PathBuf {
 /// Runs `nvs test` with `args` from `dir`.
 fn test_in(dir: &Path, args: &[&str]) -> Output {
     let data = nvs_repo::scratch_private("nvsdata");
-    Command::new(env!("CARGO_BIN_EXE_nvs"))
+    nvs_repo::spawn(env!("CARGO_BIN_EXE_nvs"), &[])
         .arg("--data")
         .arg(&*data)
         .arg("test")
@@ -881,7 +881,7 @@ fn git_in(dir: &Path, args: &[&str]) {
 /// A `git` command in `dir` that reads no global or system configuration
 /// and finds no checkout above `dir`.
 fn git_command(dir: &Path) -> Command {
-    let mut command = Command::new("git");
+    let mut command = nvs_repo::spawn("git", &[]);
     command.current_dir(dir);
     for (key, value) in git_env(dir) {
         command.env(key, value);
@@ -914,7 +914,7 @@ fn git_env(dir: &Path) -> Vec<(&'static str, std::ffi::OsString)> {
 /// Runs `nvs test` with `args` from `dir`, under [`git_env`].
 fn test_in_checkout(dir: &Path, args: &[&str]) -> Output {
     let data = nvs_repo::scratch_private("nvsdata");
-    let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+    let mut command = nvs_repo::spawn(env!("CARGO_BIN_EXE_nvs"), &[]);
     command
         .arg("--data")
         .arg(&*data)
@@ -1114,7 +1114,7 @@ fn selected_checkout(case: &str) -> (PathBuf, nvs_repo::Scratch) {
 /// with the data folder `data`, under [`git_env`]. Gives the `Class::method`
 /// of every test that ran, sorted, and the standard error.
 fn since_run(dir: &Path, data: &Path) -> (Vec<String>, String) {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+    let mut command = nvs_repo::spawn(env!("CARGO_BIN_EXE_nvs"), &[]);
     command
         .arg("--data")
         .arg(data)

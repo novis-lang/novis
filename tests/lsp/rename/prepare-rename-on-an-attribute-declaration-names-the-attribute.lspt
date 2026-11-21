@@ -1,0 +1,18 @@
+--TEST--
+`prepareRename` on the name in an attribute's own declaration answers the range of that name, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+interface Page {
+    attribute Pa<|>th on method { path: string }
+
+    public function render(): string;
+}
+
+class Home implements Page {
+    #[Path(path: "/")]
+    public function render(): string { return "home"; }
+}
+--REQUEST--
+prepareRename
+--EXPECT--
+case.nvs:3:15-3:19

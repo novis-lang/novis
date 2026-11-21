@@ -1,0 +1,10 @@
+--TEST--
+inside the `{ }` written as the last argument of a `Core` method that takes options, completion offers the option names that method declares, `rule:types/anonymous-object`
+--FILE--
+<?nvs
+array<string> $stock = ["pen", "ink", "pad"];
+var $runs = Core\Arr::chunk($stock, 2, { <|> });
+--REQUEST--
+completion
+--EXPECT--
+preserveKeys field     bool

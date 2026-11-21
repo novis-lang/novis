@@ -656,7 +656,6 @@ fn a_type_is_written_alone_where_a_type_or_a_statement_may_start() {
         "class A implements Shape, ",
         "var $a = $b is ",
         "var $a = $b as ?",
-        "#[",
         "var $a = 1 < ",
         "class ",
     ] {
@@ -667,6 +666,13 @@ fn a_type_is_written_alone_where_a_type_or_a_statement_may_start() {
             "`{written}` may be followed by a type, so the name is the whole of it"
         );
     }
+
+    // Only an attribute declaration may follow `#[`, so no class is offered there.
+    let items = offered_to(EDITOR, &format!("{TYPES}#["));
+    assert!(
+        items.iter().all(|item| item.label != "Square"),
+        "a class is offered at `#[`"
+    );
 }
 
 #[test]
