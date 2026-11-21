@@ -1,0 +1,48 @@
+<?nvs
+// Shows how to test a command with a flag, by running the program with the words a user types.
+// proof: test
+
+use Core\Test;
+
+class Deploy
+{
+    #[Core\Command(name: 'deploy', about: 'Deploy the site to a server')]
+    public static function deploy(
+        string $target,
+        #[Core\Option(long: 'dry-run', about: 'Print the plan and change nothing')] bool $dryRun = false,
+    ): uint
+    {
+        if ($dryRun) {
+            echo 'would deploy to ', $target, "\n";
+        } else {
+            echo 'deploying to ', $target, "\n";
+        }
+        return 0;
+    }
+}
+
+class DeployTest
+{
+    #[Test]
+    public function itDeploysToTheTarget(): void
+    {
+        // This runs the program as `deploy staging`.
+        var $run = Test::run(['deploy', 'staging']);
+        Test::assertEquals($run->exitCode(), 0);
+        Test::assertEquals($run->stdout(), "deploying to staging\n");
+    }
+
+    #[Test]
+    public function theFlagChangesNothing(): void
+    {
+        // This runs the program as `deploy staging --dry-run`.
+        var $run = Test::run(['deploy', 'staging', '--dry-run']);
+        Test::assertEquals($run->exitCode(), 0);
+        Test::assertEquals($run->stdout(), "would deploy to staging\n");
+    }
+}
+
+// `Test::run` starts the program here. `Core\Command::run` calls the command
+// that the first word names, and its result is the exit code.
+uint $status = Core\Command::run();
+exit($status as int);

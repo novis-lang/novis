@@ -1,0 +1,40 @@
+<?nvs
+// Runs the program itself as a command and reads its exit code and output, as a test of a command-line tool does.
+// bench: iterations 2000
+// bench: complexity constant
+
+class Tool
+{
+    #[Core\Command(name: 'greet', about: 'Say hello to somebody')]
+    public static function greet(string $name): uint
+    {
+        echo 'hello ', $name, "\n";
+        return 0;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $names = ['Anna', 'Omar', 'Charles'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $result = Core\Test::run(['greet', $names[(($total + $i) % 3) as int]]);
+            uint $ok = $result->exitCode() == 0 ? 1 : 0;
+            $total = $total + $ok + Core\Str::length($result->stdout());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each run starts this file again with the words `greet` and a name. That run
+// calls the command. The first run has no words, so it runs the bench.
+if (Core\Arr::count(Core\Cli::arguments()) > 0) {
+    uint $status = Core\Command::run();
+    exit($status as int);
+} else {
+    echo Bench::run(2000), "\n";
+}

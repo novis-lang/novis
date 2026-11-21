@@ -1,0 +1,146 @@
+<?nvs
+// Attack: a test runs its own program with huge input, many strange words and huge output.
+// The program also runs itself again, recurses forever and fills its memory. Each run should end with an exit code.
+// proof: test
+// hostile: timeout-ms 60000
+
+use Core\Test;
+
+class Tool
+{
+    #[Core\Command(name: 'nest', about: 'Run the program again from inside a run')]
+    public static function nest(): uint
+    {
+        var $inner = Test::run(['nest']);
+        echo $inner->exitCode(), "\n";
+        return 0;
+    }
+
+    #[Core\Command(name: 'size', about: 'Print the length of the input')]
+    public static function size(): uint
+    {
+        tainted string $input = Core\IO::stdin();
+        echo Core\Str::length($input), "\n";
+        return 0;
+    }
+
+    #[Core\Command(name: 'word', about: 'Print the length of one word')]
+    public static function word(string $word): uint
+    {
+        echo Core\Str::length($word), "\n";
+        return 0;
+    }
+
+    #[Core\Command(name: 'flood', about: 'Write many megabytes to standard output')]
+    public static function flood(uint $megabytes): uint
+    {
+        string $block = Core\Str::repeat('x', 1048576);
+        uint $i = 0;
+        while ($i < $megabytes) {
+            echo $block;
+            $i = $i + 1;
+        }
+        return 0;
+    }
+
+    #[Core\Command(name: 'deep', about: 'Call itself until the call stack is full')]
+    public static function deep(int $depth): uint
+    {
+        return Tool::deep($depth + 1);
+    }
+
+    #[Core\Command(name: 'hog', about: 'Use memory until the limit stops the program')]
+    public static function hog(): uint
+    {
+        array<string> $blocks = [];
+        while (true) {
+            $blocks[] = Core\Str::repeat('m', 1048576);
+        }
+        return 0;
+    }
+}
+
+class RunAttackTest
+{
+    // 1. The program calls `Test::run` again from inside a run.
+    #[Test]
+    public function aRunInsideARun(): void
+    {
+        var $run = Test::run(['nest']);
+        // The inner call throws a `LogicError`, so the program stops with exit code `1`.
+        Test::assertEquals($run->exitCode(), 1);
+        Test::assertTrue(Core\Str::contains($run->stderr(), 'LogicError'));
+    }
+
+    // 2. The input is 32 megabytes.
+    #[Test]
+    public function aHugeInput(): void
+    {
+        var $run = Test::run(['size'], { stdin: Core\Str::repeat('s', 33554432) });
+        Test::assertEquals($run->stdout(), "33554432\n");
+    }
+
+    // 3. The input is bytes that are not valid UTF-8.
+    #[Test]
+    public function anInputThatIsNotText(): void
+    {
+        var $run = Test::run(['size'], { stdin: Core\Encoding::fromHex('fffe00c3') });
+        Test::assertTrue($run->exitCode() == 0 || $run->exitCode() == 1);
+    }
+
+    // 4. A command that takes one word gets one hundred thousand words.
+    #[Test]
+    public function tooManyWords(): void
+    {
+        array<string> $words = ['word'];
+        uint $i = 0;
+        while ($i < 100000) {
+            $words[] = 'w' . $i;
+            $i = $i + 1;
+        }
+        var $run = Test::run($words);
+        Test::assertEquals($run->exitCode(), 2);
+    }
+
+    // 5. Words that are empty, contain a zero byte or a new line, look like options, or are very long.
+    #[Test]
+    public function strangeWords(): void
+    {
+        array<string> $odd = ['', "\0", "a\nb", '--', '-', '--word=x', '--help', Core\Str::repeat('z', 1000000)];
+        foreach ($odd as string $word) {
+            var $run = Test::run(['word', $word]);
+            Test::assertTrue($run->exitCode() == 0 || $run->exitCode() == 2);
+        }
+    }
+
+    // 6. The program writes 64 megabytes to standard output.
+    #[Test]
+    public function aHugeOutput(): void
+    {
+        var $run = Test::run(['flood', '64']);
+        Test::assertEquals(Core\Bytes::length($run->bytes()), 67108864);
+    }
+
+    // 7. The program calls itself until the call stack is full.
+    #[Test]
+    public function endlessRecursion(): void
+    {
+        var $run = Test::run(['deep', '0']);
+        Test::assertEquals($run->exitCode(), 1);
+        Test::assertTrue(Core\Str::contains($run->stderr(), 'RecursionError'));
+    }
+
+    // 8. The program uses memory until its limit stops it. The test still goes on.
+    #[Test]
+    public function aProgramThatFillsItsMemory(): void
+    {
+        var $run = Test::run(['hog']);
+        Test::assertEquals($run->exitCode(), 1);
+        Test::assertTrue(Core\Str::contains($run->stderr(), 'memory limit'));
+    }
+}
+
+// `Test::run` starts the program here. `Core\Command::run` calls the command
+// that the first word names, and its result is the exit code.
+uint $status = Core\Command::run();
+exit($status as int);

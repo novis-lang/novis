@@ -1,0 +1,36 @@
+<?nvs
+// Shows what a test sees when a command is called without an argument it needs.
+// proof: test
+
+use Core\Test;
+
+class Backup
+{
+    #[Core\Command(name: 'backup', about: 'Copy a database to a file')]
+    public static function backup(string $database): uint
+    {
+        echo 'saved ', $database, "\n";
+        return 0;
+    }
+}
+
+class BackupTest
+{
+    #[Test]
+    public function itNeedsTheDatabaseName(): void
+    {
+        var $run = Test::run(['backup']);
+
+        // `Core\Command::run` prints a usage page and the exit code is `2`.
+        Test::assertEquals($run->exitCode(), 2);
+
+        // The usage page is on standard error, so standard output is empty.
+        Test::assertEquals($run->stdout(), '');
+        Test::assertTrue(Core\Str::contains($run->stderr(), 'usage: backup <database>'));
+    }
+}
+
+// `Test::run` starts the program here. `Core\Command::run` calls the command
+// that the first word names, and its result is the exit code.
+uint $status = Core\Command::run();
+exit($status as int);

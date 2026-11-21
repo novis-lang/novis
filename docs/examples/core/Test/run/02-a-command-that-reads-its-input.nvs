@@ -1,0 +1,41 @@
+<?nvs
+// Shows how to test a command that reads its input, by giving the input with `stdin`.
+// proof: test
+
+use Core\Test;
+
+class Csv
+{
+    #[Core\Command(name: 'rows', about: 'Count the rows of a CSV file on the input')]
+    public static function rows(): uint
+    {
+        tainted string $input = Core\IO::stdin();
+        array<tainted string> $lines = Core\Str::lines(Core\Str::trim($input));
+        // The first line is the header, so it is not a row.
+        echo 'rows: ', Core\Arr::count($lines) - 1, "\n";
+        return 0;
+    }
+}
+
+class CsvTest
+{
+    #[Test]
+    public function itCountsTheRowsBelowTheHeader(): void
+    {
+        string $csv = "name,email\nAda,ada@example.com\nBo,bo@example.com\n";
+        var $run = Test::run(['rows'], { stdin: $csv });
+        Test::assertEquals($run->stdout(), "rows: 2\n");
+    }
+
+    #[Test]
+    public function aFileWithOnlyAHeaderHasNoRows(): void
+    {
+        var $run = Test::run(['rows'], { stdin: "name,email\n" });
+        Test::assertEquals($run->stdout(), "rows: 0\n");
+    }
+}
+
+// `Test::run` starts the program here. `Core\Command::run` calls the command
+// that the first word names, and its result is the exit code.
+uint $status = Core\Command::run();
+exit($status as int);
