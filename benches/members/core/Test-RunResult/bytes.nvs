@@ -1,0 +1,32 @@
+<?nvs
+// Reads the output of one run of the program as bytes, as a test does before it compares an export.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Core\Test\RunResult> $runs = [
+            Core\Test::run(['a']),
+            Core\Test::run(['bbbb']),
+            Core\Test::run(['ccccccc']),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Bytes::length($runs[($total % 3) as int]->bytes());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each run starts this file again with one word. In that run, this part prints the word.
+var $word = Core\Cli::arguments()[0] ?? '';
+if ($word != '') {
+    echo $word;
+} else {
+    echo Bench::run(400000), "\n";
+}

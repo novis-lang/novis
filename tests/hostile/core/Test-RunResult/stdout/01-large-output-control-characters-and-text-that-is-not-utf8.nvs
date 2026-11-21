@@ -1,0 +1,41 @@
+<?nvs
+// Attack: the program prints a lot of text, control characters and bytes that are not UTF-8. The
+// test should get a valid string every time, and nothing may crash.
+
+use Core\Test;
+
+var $word = Core\Cli::arguments()[0] ?? '';
+if ($word == 'large') {
+    echo Core\Str::repeat('a', 4000000);
+} else if ($word == 'control') {
+    // The escape character, a screen clear, a NUL character and a carriage return.
+    echo Core\Encoding::fromHex('1b5b324a000d') as string, "end\n";
+} else if ($word == 'not-utf8') {
+    echo 'start ';
+    echo Core\Encoding::fromHex('ff') as string;
+} else if ($word == 'small') {
+    echo "ok\n";
+} else if ($word == '') {
+    // 1. Four million characters of output. The string has all of them.
+    echo 'large: ', Core\Str::length(Test::run(['large'])->stdout()), "\n";
+
+    // 2. No output at all. The result is an empty string.
+    echo 'empty: ', Core\Str::length(Test::run(['nothing'])->stdout()), "\n";
+
+    // 3. Control characters. Each one is replaced by a visible character, so the output is safe to print.
+    echo 'control: ', Core\Encoding::toHex(Test::run(['control'])->stdout() as bytes), "\n";
+
+    // 4. A byte that is not UTF-8. Converting it throws, so only `start ` is printed.
+    var $broken = Test::run(['not-utf8']);
+    echo 'not utf8: ', $broken->exitCode(), ' [', $broken->stdout(), "]\n";
+
+    // 5. Read the output of one run 100000 times.
+    var $run = Test::run(['small']);
+    uint $total = 0;
+    uint $i = 0;
+    while ($i < 100000) {
+        $total = $total + Core\Str::length($run->stdout());
+        $i = $i + 1;
+    }
+    echo 'total ', $total, "\n";
+}

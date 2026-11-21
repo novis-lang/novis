@@ -1,0 +1,16 @@
+<?nvs
+// Shows that `exitCode()` returns the number the program gave to `exit`.
+
+use Core\Test;
+
+if ((Core\Cli::arguments()[0] ?? '') == 'check-stock') {
+    // This part is the program. Nothing is in stock, so it stops with `exit(3)`.
+    echo "no items left\n";
+    exit(3);
+} else {
+    var $run = Test::run(['check-stock']);
+
+    // The exit code is `3`. The text printed before `exit` is kept.
+    // This prints `3 no items left`.
+    echo $run->exitCode(), ' ', $run->stdout();
+}

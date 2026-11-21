@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the text that a run of your own program printed.
+
+use Core\Test;
+
+if ((Core\Cli::arguments()[0] ?? '') == 'greet') {
+    // This part is the program. It prints one line.
+    echo 'Hello, ', Core\Cli::arguments()[1] ?? '', "\n";
+} else {
+    var $run = Test::run(['greet', 'Ada']);
+
+    // `stdout()` returns everything the program printed, with the newline at the end.
+    // This prints `The program printed: Hello, Ada`.
+    echo 'The program printed: ', $run->stdout();
+}

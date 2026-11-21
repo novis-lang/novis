@@ -270,3 +270,91 @@ fn text_of(args: &[Value], slot: usize, member: &str) -> Result<Value, Fault> {
     })?;
     Ok(Value::text(text))
 }
+
+#[cfg(test)]
+mod tests {
+    use nvs_runtime::{Ctx, NvsStr};
+
+    use super::*;
+
+    /// The release a compiled call site owes for a value a member answered.
+    fn dropped(value: Value) {
+        #[expect(unsafe_code, reason = "the member transferred what it answered")]
+        // SAFETY: a member's answer carries a reference of its own, and this
+        // driver is the caller that would otherwise hold it.
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// A `RunResult` built as `nvs_core_test_run` builds one from a run.
+    fn ran(exit_code: i64, stdout: &[u8], stderr: &[u8]) -> Value {
+        crate::instance::build(
+            &RUN_RESULT,
+            [
+                Value::int(exit_code),
+                Value::bytes(NvsStr::new(stdout)),
+                Value::bytes(NvsStr::new(stderr)),
+            ],
+        )
+    }
+
+    /// Each reader returns its slot with a reference of the caller's own, so
+    /// reading twice returns the same value and releasing a reading leaves the
+    /// result whole. `bytes` returns standard output whatever it holds, while
+    /// `stdout` and `stderr` throw for bytes that are not UTF-8, and a receiver
+    /// that is not a `RunResult` throws.
+    // covers: Core\Test\RunResult::exitCode, Core\Test\RunResult::stdout
+    // covers: Core\Test\RunResult::stderr, Core\Test\RunResult::bytes
+    #[test]
+    fn run_result_readers_return_the_exit_code_and_both_outputs_and_text_must_be_utf8() {
+        let mut ctx = Ctx::buffered();
+        let result = ran(3, b"giving up\n", b"the disk is full\n");
+        for round in 0..2 {
+            let code = nvs_runtime::call(nvs_core_test_run_result_exit_code, &mut ctx, &[result])
+                .expect("reading the exit code cannot fail");
+            let out = nvs_runtime::call(nvs_core_test_run_result_stdout, &mut ctx, &[result])
+                .expect("UTF-8 standard output is a string");
+            let err = nvs_runtime::call(nvs_core_test_run_result_stderr, &mut ctx, &[result])
+                .expect("UTF-8 standard error is a string");
+            let raw = nvs_runtime::call(nvs_core_test_run_result_bytes, &mut ctx, &[result])
+                .expect("reading the bytes cannot fail");
+            assert_eq!(code.as_int(), Some(3), "round {round}: the exit code");
+            assert_eq!(out.as_text(), Some("giving up\n"), "round {round}: stdout");
+            assert_eq!(err.as_text(), Some("the disk is full\n"), "round {round}: stderr");
+            assert_eq!(raw.as_bytes(), Some(&b"giving up\n"[..]), "round {round}: bytes");
+            for value in [code, out, err, raw] {
+                dropped(value);
+            }
+        }
+        dropped(result);
+
+        let binary = ran(0, &[0x89, b'P', b'N', b'G'], &[0xff]);
+        let raw = nvs_runtime::call(nvs_core_test_run_result_bytes, &mut ctx, &[binary])
+            .expect("bytes that are not UTF-8 are still bytes");
+        assert_eq!(raw.as_bytes(), Some(&[0x89, b'P', b'N', b'G'][..]));
+        dropped(raw);
+        for reader in [
+            nvs_core_test_run_result_stdout as nvs_runtime::NvsFn,
+            nvs_core_test_run_result_stderr,
+        ] {
+            assert!(
+                nvs_runtime::call(reader, &mut ctx, &[binary]).is_err(),
+                "output that is not UTF-8 is not a string"
+            );
+            let message = ctx.take_pending().unwrap_or_default();
+            assert!(
+                message.contains("not valid UTF-8 at byte 0"),
+                "the error names the first bad byte: {message}"
+            );
+        }
+        dropped(binary);
+
+        let stranger = Value::int(7);
+        assert!(
+            nvs_runtime::call(nvs_core_test_run_result_exit_code, &mut ctx, &[stranger]).is_err(),
+            "a receiver that is not a run result throws"
+        );
+        let _ = ctx.take_pending();
+    }
+}

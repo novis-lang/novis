@@ -1,0 +1,19 @@
+<?nvs
+// Shows where an error goes when the program does not catch it.
+
+use Core\Test;
+
+if ((Core\Cli::arguments()[0] ?? '') == 'save') {
+    // This part is the program. It prints one line and then throws an error.
+    echo "saving the order\n";
+    throw new RuntimeError('the disk is full');
+} else {
+    var $run = Test::run(['save']);
+
+    // The error is on standard error. Its first line is `[error]` and the message.
+    var $lines = Core\Str::split($run->stderr(), "\n");
+    echo 'stderr: ', $lines[0], "\n";
+
+    // The text printed before the error is on standard output.
+    echo 'stdout: ', $run->stdout();
+}

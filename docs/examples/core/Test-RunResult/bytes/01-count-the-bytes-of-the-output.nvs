@@ -1,0 +1,15 @@
+<?nvs
+// Shows that `bytes()` returns the output of a run as bytes, so you can count every byte.
+
+use Core\Test;
+
+if ((Core\Cli::arguments()[0] ?? '') == 'price') {
+    // This part is the program. It prints a price in euros.
+    echo "12 €\n";
+} else {
+    var $run = Test::run(['price']);
+
+    // The output has 5 characters. The `€` sign is 3 bytes in UTF-8, so it has 7 bytes.
+    // This prints `7 bytes, 5 characters`.
+    echo Core\Bytes::length($run->bytes()), ' bytes, ', Core\Str::length($run->stdout()), " characters\n";
+}

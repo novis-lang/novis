@@ -1,0 +1,34 @@
+<?nvs
+// Shows how to test the exit code of a command-line tool in each way it can end.
+
+use Core\Test;
+
+class Tool
+{
+    #[Core\Command(name: 'import', about: 'Import orders from a CSV file')]
+    public static function import(string $file): uint
+    {
+        if (!Core\Str::endsWith($file, '.csv')) {
+            throw new RuntimeError('only CSV files can be imported');
+        }
+        echo 'imported ', $file, "\n";
+        return 0;
+    }
+}
+
+if ((Core\Cli::arguments()[0] ?? '') != '') {
+    // This part is the tool. `Core\Command::run` returns the exit code.
+    exit(Core\Command::run() as int);
+} else {
+    // A file that ends in `.csv` is imported, so the exit code is `0`.
+    Test::assertEquals(Test::run(['import', 'orders.csv'])->exitCode(), 0);
+
+    // An error the tool does not catch gives the exit code `1`.
+    Test::assertEquals(Test::run(['import', 'orders.pdf'])->exitCode(), 1);
+
+    // A command name that does not exist prints the usage page and gives `2`.
+    Test::assertEquals(Test::run(['improt'])->exitCode(), 2);
+
+    // All three checks passed, so this prints `the tool ends with the right codes`.
+    echo "the tool ends with the right codes\n";
+}

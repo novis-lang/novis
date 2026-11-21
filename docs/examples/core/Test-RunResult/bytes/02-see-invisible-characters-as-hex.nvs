@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to find characters you cannot see in the output, such as a tab.
+
+use Core\Test;
+
+if ((Core\Cli::arguments()[0] ?? '') == 'header') {
+    // This part is the program. A tab separates the two column names.
+    echo "name\tprice\n";
+} else {
+    var $run = Test::run(['header']);
+
+    // `Core\Encoding::toHex` shows each byte as two hex digits.
+    // The tab is `09` and the newline is `0a`. This prints `6e616d65097072696365 0a`.
+    var $hex = Core\Encoding::toHex($run->bytes());
+    echo Core\Str::slice($hex, 0, 20), ' ', Core\Str::slice($hex, 20), "\n";
+}

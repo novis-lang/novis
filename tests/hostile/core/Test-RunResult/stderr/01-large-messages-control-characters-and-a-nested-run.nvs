@@ -1,0 +1,44 @@
+<?nvs
+// Attack: the program writes a lot of text to standard error, throws an error with a very long
+// message, and writes control characters there. The test should get a valid string each time.
+
+use Core\Test;
+
+var $word = Core\Cli::arguments()[0] ?? '';
+if ($word == 'large') {
+    Core\Cli::write(Core\Str::repeat('e', 1000000), { stream: Core\Cli::Stream::Err });
+} else if ($word == 'long-error') {
+    throw new RuntimeError(Core\Str::repeat('x', 100000));
+} else if ($word == 'control') {
+    // The escape character and a code that turns the text red.
+    Core\Cli::write(Core\Encoding::fromHex('1b5b33316d') as string, { stream: Core\Cli::Stream::Err });
+    Core\Cli::write('red', { stream: Core\Cli::Stream::Err });
+} else if ($word == 'nested') {
+    Test::run(['large']);
+} else if ($word == 'small') {
+    Core\Cli::write('note', { stream: Core\Cli::Stream::Err });
+} else if ($word == '') {
+    // 1. One million characters on standard error. The string has all of them.
+    echo 'large: ', Core\Str::length(Test::run(['large'])->stderr()), "\n";
+
+    // 2. An error with a message of 100000 characters. The whole message is on standard error.
+    var $long = Test::run(['long-error']);
+    echo 'long error: ', $long->exitCode(), ' ', Core\Str::length($long->stderr()) > 100000, "\n";
+
+    // 3. Control characters. Each one is replaced by a visible character.
+    echo 'control: ', Core\Encoding::toHex(Test::run(['control'])->stderr() as bytes), "\n";
+
+    // 4. A run that tries to start a run of its own. The error is on standard error.
+    var $nested = Test::run(['nested']);
+    echo 'nested: ', $nested->exitCode(), ' ', Core\Str::contains($nested->stderr(), 'LogicError'), "\n";
+
+    // 5. Read the standard error of one run 100000 times.
+    var $run = Test::run(['small']);
+    uint $total = 0;
+    uint $i = 0;
+    while ($i < 100000) {
+        $total = $total + Core\Str::length($run->stderr());
+        $i = $i + 1;
+    }
+    echo 'total ', $total, "\n";
+}

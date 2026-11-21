@@ -1,0 +1,18 @@
+<?nvs
+// Shows that `stderr()` and `stdout()` return the two output streams of a run apart.
+
+use Core\Test;
+
+if ((Core\Cli::arguments()[0] ?? '') == 'count-orders') {
+    // This part is the program. The progress note goes to standard error.
+    Core\Cli::write('reading orders.csv', { stream: Core\Cli::Stream::Err, newline: true });
+
+    // The result goes to standard output.
+    echo "314 orders\n";
+} else {
+    var $run = Test::run(['count-orders']);
+
+    // This prints `notes: reading orders.csv`, and then `result: 314 orders`.
+    echo 'notes: ', $run->stderr();
+    echo 'result: ', $run->stdout();
+}

@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to test that a wrong command name prints the usage page.
+
+use Core\Test;
+
+class Tool
+{
+    #[Core\Command(name: 'backup', about: 'Copy the database to a safe place')]
+    public static function backup(): uint
+    {
+        echo "backup done\n";
+        return 0;
+    }
+}
+
+if ((Core\Cli::arguments()[0] ?? '') != '') {
+    // This part is the tool.
+    exit(Core\Command::run() as int);
+} else {
+    // This part is the test. `bakup` is not a command of this tool.
+    var $run = Test::run(['bakup']);
+
+    // `Core\Command::run` writes the usage page to standard error.
+    // The page lists each command of the tool.
+    Test::assertEquals($run->exitCode(), 2);
+    Test::assertTrue(Core\Str::contains($run->stderr(), 'backup  Copy the database to a safe place'));
+    Test::assertEquals($run->stdout(), '');
+
+    // All three checks passed, so this prints `a typo shows the usage page`.
+    echo "a typo shows the usage page\n";
+}

@@ -1,0 +1,52 @@
+<?nvs
+// Attack: the program prints a lot of output, no output, and characters that are not text. The
+// test should get every byte each time, and nothing may crash or keep memory.
+
+use Core\Test;
+
+var $word = Core\Cli::arguments()[0] ?? '';
+if ($word == 'large') {
+    echo Core\Str::repeat('ä', 2000000);
+} else if ($word == 'control') {
+    // A NUL character and the escape character.
+    echo Core\Encoding::fromHex('001b') as string;
+} else if ($word == 'not-utf8') {
+    echo 'start ';
+    echo Core\Encoding::fromHex('c3') as string;
+} else if ($word == 'small') {
+    echo "ok\n";
+} else if ($word == '') {
+    // 1. Two million characters of 2 bytes each. The result has four million bytes.
+    echo 'large: ', Core\Bytes::length(Test::run(['large'])->bytes()), "\n";
+
+    // 2. No output at all. The result is empty.
+    echo 'empty: ', Core\Bytes::length(Test::run(['nothing'])->bytes()), "\n";
+
+    // 3. Characters that are not text. Each one is replaced by a visible character.
+    echo 'control: ', Core\Encoding::toHex(Test::run(['control'])->bytes()), "\n";
+
+    // 4. Half of a 2-byte character. Converting it throws, so only `start ` is printed.
+    echo 'not utf8: ', Core\Encoding::toHex(Test::run(['not-utf8'])->bytes()), "\n";
+
+    // 5. Run the program 2000 times and compare each output with the first one.
+    var $first = Test::run(['small'])->bytes();
+    uint $same = 0;
+    uint $i = 0;
+    while ($i < 2000) {
+        if (Test::run(['small'])->bytes() == $first) {
+            $same = $same + 1;
+        }
+        $i = $i + 1;
+    }
+    echo 'same: ', $same, "\n";
+
+    // 6. Read the bytes of one run 100000 times.
+    var $run = Test::run(['small']);
+    uint $total = 0;
+    $i = 0;
+    while ($i < 100000) {
+        $total = $total + Core\Bytes::length($run->bytes());
+        $i = $i + 1;
+    }
+    echo 'total ', $total, "\n";
+}

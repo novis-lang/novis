@@ -1,0 +1,31 @@
+<?nvs
+// Reads the standard error of one run of the program, as a test does before it checks an error message.
+// bench: iterations 400000
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<Core\Test\RunResult> $runs = [
+            Core\Test::run(['a']),
+            Core\Test::run(['bbbb']),
+            Core\Test::run(['ccccccc']),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($runs[($total % 3) as int]->stderr());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+// Each run starts this file again with one word. In that run, this part writes the word to standard error.
+var $word = Core\Cli::arguments()[0] ?? '';
+if ($word != '') {
+    Core\Cli::write($word, { stream: Core\Cli::Stream::Err });
+} else {
+    echo Bench::run(400000), "\n";
+}

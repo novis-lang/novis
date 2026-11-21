@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to test that an export command prints exactly the bytes you expect.
+
+use Core\Test;
+
+class Tool
+{
+    #[Core\Command(name: 'export', about: 'Print the customers as CSV')]
+    public static function export(): uint
+    {
+        // A real tool would read the customers from a database here.
+        echo "id,name\n";
+        echo "1,Zoë\n";
+        return 0;
+    }
+}
+
+if ((Core\Cli::arguments()[0] ?? '') != '') {
+    // This part is the tool.
+    exit(Core\Command::run() as int);
+} else {
+    // This part is the test. `==` compares two `bytes` values byte for byte.
+    var $expected = "id,name\n1,Zoë\n" as bytes;
+    Test::assertTrue(Test::run(['export'])->bytes() == $expected);
+
+    // The check passed, so this prints `the export has the expected bytes`.
+    echo "the export has the expected bytes\n";
+}

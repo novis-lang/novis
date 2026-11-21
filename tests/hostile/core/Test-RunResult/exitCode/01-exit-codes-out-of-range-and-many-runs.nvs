@@ -1,0 +1,55 @@
+<?nvs
+// Attack: the program exits with numbers far outside the range of an exit code, and a test runs it
+// many times. Each run should give a code from 0 to 255, and nothing may crash or keep memory.
+
+use Core\Test;
+
+var $word = Core\Cli::arguments()[0] ?? '';
+if ($word == 'negative') {
+    exit(-1);
+} else if ($word == 'large') {
+    exit(300);
+} else if ($word == 'largest') {
+    exit(9223372036854775807);
+} else if ($word == 'smallest') {
+    exit(-9223372036854775807 - 1);
+} else if ($word == 'nested') {
+    Test::run(['negative']);
+} else if ($word == 'count') {
+    if ((Core\Cli::arguments()[1] ?? '') == '7') {
+        exit(7);
+    }
+    exit(8);
+} else {
+    // 1. A negative number. The exit code is 255.
+    echo 'negative: ', Test::run(['negative'])->exitCode(), "\n";
+
+    // 2. A number above 255. The exit code is 44.
+    echo 'large: ', Test::run(['large'])->exitCode(), "\n";
+
+    // 3. The largest and the smallest whole number there is.
+    echo 'largest: ', Test::run(['largest'])->exitCode(), "\n";
+    echo 'smallest: ', Test::run(['smallest'])->exitCode(), "\n";
+
+    // 4. A run that tries to start a run of its own. That throws an error, so the exit code is 1.
+    echo 'nested: ', Test::run(['nested'])->exitCode(), "\n";
+
+    // 5. Run the program 2000 times and add up the exit codes.
+    int $total = 0;
+    int $i = 0;
+    while ($i < 2000) {
+        $total = $total + Test::run(['count', $i % 2 == 0 ? '7' : '8'])->exitCode();
+        $i = $i + 1;
+    }
+    echo 'runs: ', $total, "\n";
+
+    // 6. Read the exit code of one run 100000 times.
+    var $run = Test::run(['large']);
+    $total = 0;
+    $i = 0;
+    while ($i < 100000) {
+        $total = $total + $run->exitCode();
+        $i = $i + 1;
+    }
+    echo 'total ', $total, "\n";
+}

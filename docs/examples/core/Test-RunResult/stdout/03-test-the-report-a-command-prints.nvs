@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to test the report that a command-line tool prints.
+
+use Core\Test;
+
+class Tool
+{
+    #[Core\Command(name: 'report', about: 'Print the orders of one day')]
+    public static function report(string $day): uint
+    {
+        // A real tool would read the orders from a database here.
+        echo 'orders on ', $day, ": 3\n";
+        echo "total: 42.50 EUR\n";
+        return 0;
+    }
+}
+
+if ((Core\Cli::arguments()[0] ?? '') != '') {
+    // This part is the tool.
+    exit(Core\Command::run() as int);
+} else {
+    // This part is the test. It compares the whole output with the report it expects.
+    var $run = Test::run(['report', '2024-05-01']);
+    Test::assertEquals($run->stdout(), "orders on 2024-05-01: 3\ntotal: 42.50 EUR\n");
+
+    // The check passed, so this prints `the report is correct`.
+    echo "the report is correct\n";
+}

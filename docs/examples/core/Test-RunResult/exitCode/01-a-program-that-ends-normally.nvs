@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the exit code of a run of your own program.
+
+use Core\Test;
+
+if ((Core\Cli::arguments()[0] ?? '') == 'greet') {
+    // This part is the program. It prints a greeting and ends normally.
+    echo 'Hello, ', Core\Cli::arguments()[1] ?? '', "\n";
+} else {
+    // This part runs the program above with the words `greet` and `Ada`.
+    var $run = Test::run(['greet', 'Ada']);
+
+    // The program ended normally, so the exit code is `0`. This prints `0`.
+    echo $run->exitCode(), "\n";
+}
