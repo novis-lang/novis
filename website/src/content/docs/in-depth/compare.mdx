@@ -25,17 +25,21 @@ The page has four parts:
   away.
 - **Features**: a table of things a web server needs, and which server has each one.
 
-:::tip[Change the code of a running server]
-With Novis, you can change a source file while the server runs. The next requests use the new code.
-You do not restart the server or reload it, and no request fails.
+:::tip[Novis and PHP do two things that the other five servers do not]
+Keep these two features in mind when you read the results. They are extra work for the server. Both
+work in production with the default settings.
 
-Novis waits until no file has changed for 1 second. Then it switches to the whole new program at
-once, so a request never runs a mix of old and new files.
+- **New code without a restart.** You change a source file while the server runs, and the next
+  requests use the new code. There is no restart, no reload and no failed request. Novis waits until
+  no file has changed for 1 second. Then it switches to the whole new program at once, so a request
+  never runs a mix of old and new files.
+- **A limit for each request.** Each request has its own memory limit and CPU time limit. A request
+  that goes over its limit is stopped, and the other requests are still answered.
 
-Of the seven servers on this page, only Novis and PHP do this in production, with their default
-settings. Bun, Node.js and Python load new code only when they restart. Go and .NET also need a new
-build first. [Deploying a new version](#deploying-a-new-version) shows what happens to requests on
-each server.
+Bun, Go, Node.js, .NET and Python load new code only when they restart. Go and .NET also need a new
+build first. These five servers have no limit for one request.
+[Deploying a new version](#deploying-a-new-version) and [Runaway requests](#runaway-requests) show
+what this changes.
 :::
 
 ## How the test works
