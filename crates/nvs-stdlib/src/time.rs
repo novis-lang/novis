@@ -2608,7 +2608,8 @@ const TIME_MONOTONIC_DOC: MethodDoc = MethodDoc {
 /// `Core\Time::sleep`'s reference card — `rule:core-api/reference-card`.
 const TIME_SLEEP_DOC: MethodDoc = MethodDoc {
     short: "Waits for `$d`. Only this task waits, so other work on the same core keeps running. \
-            If the request is cancelled during the wait, it stops here.",
+            If the request is cancelled during the wait, it stops here. In a test with \
+            `#[Test(at: ...)]`, it does not wait. It moves the test clock forward by `$d`.",
     params: &[ParamDoc {
         name: "d",
         desc: "How long to wait; zero or negative returns at once.",

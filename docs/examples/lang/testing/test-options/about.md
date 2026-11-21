@@ -7,7 +7,8 @@ moves that fixed clock forward. `seed:` fixes the numbers `Core\Random` draws, s
 same sequence on every run. `retries:` allows more attempts after a failure, and needs `because:`
 beside it to state why. A test that fails and then passes is reported as flaky, never as passed.
 `timeout:` gives one test its own time limit. `tags:` labels a test, and `nvs test --tag` runs only the
-tests with that label.
+tests with that label. `env:` sets environment variables, such as `['API_KEY' => 'test']`, for this
+test and for each request and run it starts.
 
 **Good to know:** an option with a wrong name does not compile, so a typo is found before the tests
 run.

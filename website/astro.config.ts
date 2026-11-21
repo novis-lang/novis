@@ -541,6 +541,11 @@ export default defineConfig({
                   link: '/guides/testing/test-a-route/',
                   attrs: { 'data-subtext': 'Check a response without starting a server' },
                 },
+                {
+                  label: 'Testing a command',
+                  link: '/guides/testing/test-a-command/',
+                  attrs: { 'data-subtext': 'Check the exit code and output of a command' },
+                },
 
               ],
             },

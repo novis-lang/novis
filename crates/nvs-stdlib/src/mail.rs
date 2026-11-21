@@ -206,7 +206,8 @@ const CARD: ClassDoc = ClassDoc {
 /// `Core\Mail::send`'s reference card — `rule:core-api/reference-card`.
 const SEND_DOC: MethodDoc = MethodDoc {
     short: "Sends one message to the SMTP server that `[mail.$endpoint]` names. It returns when \
-            that server has accepted the message.",
+            that server has accepted the message. Under `nvs test`, it sends nothing. \
+            `Core\\Test::sentMail` returns the message.",
     params: &[
         ParamDoc {
             name: "endpoint",

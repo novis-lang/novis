@@ -25,6 +25,49 @@ program.
 - `header("content-type")` returns one header.
 - `cookies()` returns the cookies the page set.
 - `jsonAs<Order>()` reads a JSON body into an instance of your class.
+- `error()` returns the class and message of the error that stopped the request. It is `null` when
+  the request did not fail.
+
+## Send a body
+
+A request can send a body. You write it with the same options as `Core\Http\Client`:
+
+- `json:` sends a value as JSON. The content type is `application/json`.
+- `form:` sends the fields of a form. `Core\Request::post` reads them.
+- `multipart:` sends fields and files. `Core\Request::files` reads the files.
+- `body:` sends a string or bytes as they are. `contentType:` gives its content type.
+
+A request can have only one of `body`, `json`, `form` and `multipart`. If you give two, the test
+does not compile. For example, `Test::request(Method::Post, '/orders', {json: ['count' => 2]})`
+sends the JSON body `{"count":2}`.
+
+## The client address, the scheme and cookies
+
+- `clientIp:` sets the address of the client. `Core\Request::clientIp()` returns it. Without it,
+  the result is `null`.
+- `scheme:` is `"http"` or `"https"`. The default is `"http"`. A cookie with a `__Host-` name is
+  only read over `https`.
+- `cookies:` sends cookies, such as `['session' => 'abc']`.
+- A `host` header in `headers:` sets the host of the request.
+
+Each call is a new request. The test does not keep cookies between two calls. To send a cookie
+again, copy it from `cookies()` of the last response into the next call.
+
+## The same response as the server
+
+A test gets the response that a real server sends:
+
+- A form post from another site gets the status `403`.
+- A body over the size limit in `[limits]` gets the status `413`.
+- A `HEAD` request gets the headers and no body.
+- A request that throws an error gets the status `500`. `error()` returns the error, such as
+  `RuntimeError: no stock`.
+
+Your program can start work that runs after the response is sent. `Core\Test::request` returns only
+when that work has ended, so the test can check what the work wrote. If that work fails, the test
+fails.
+
+Read the examples in [Reference: Core\Test::request](/reference/core/test/request/).
 
 ## A real server
 

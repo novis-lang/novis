@@ -13,4 +13,5 @@ The options add copy recipients (`cc`), hidden recipients (`bcc`), a reply addre
 HTML version of the text (`html`). A mail server that cannot be reached throws an `IOError`.
 
 **Good to know:** the operator decides which blocks a program may use. `[app.capabilities.mail] send`
-in `nvs.toml` lists the names.
+in `nvs.toml` lists the names. Under `nvs test`, `send` makes the same checks but sends nothing and
+opens no connection. `Core\Test::sentMail` returns the message.

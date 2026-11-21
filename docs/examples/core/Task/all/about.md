@@ -9,7 +9,8 @@ If one callable throws an error, the other callables are stopped, and the call t
 The option `limit` sets how many callables run at the same time. The option `deadline` is a time
 limit for the whole call. When it runs out, the call throws a `TimeoutError`. The deadline is checked
 while the callables wait. A callable that never waits, such as an endless loop, is stopped by the
-request's `cpu_time` limit instead.
+request's `cpu_time` limit instead. In a test with `#[Test(at: ...)]`, the deadline uses the test
+clock, so the test does not wait for it.
 
 **The examples below** show two results used together, an error from one of the tasks, and a
 dashboard loaded with a time limit.

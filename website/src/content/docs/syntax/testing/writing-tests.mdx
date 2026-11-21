@@ -29,6 +29,7 @@ exact text a whole program prints.
 ## Do and don't
 
 - Do use `at:` and `seed:` in a test that reads the time or random numbers.
+- Do use `env:` to set an environment variable for one test. Other tests do not see it.
 - Do give every `skip:` a reason that says when the test will run again.
 - Do give a slow test a `tags:` label, such as `"slow"`. `nvs test --skip-tag slow` then runs every
   other test.

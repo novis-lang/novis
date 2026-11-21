@@ -1,6 +1,83 @@
 {
   "entries": [
     {
+      "kind": "new",
+      "features": [
+        "Core\\Test::run",
+        "Core\\Test\\RunResult::exitCode",
+        "Core\\Test\\RunResult::stdout",
+        "Core\\Test\\RunResult::stderr",
+        "Core\\Test\\RunResult::bytes"
+      ],
+      "text": "`Core\\Test::run` runs your program as a command, with the arguments you give and an optional `stdin`. It returns a `Core\\Test\\RunResult` with the exit code, the standard output and the standard error. No new process starts."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Test::logs",
+        "Core\\Test\\LogRecord::level",
+        "Core\\Test\\LogRecord::message",
+        "Core\\Test\\LogRecord::fields"
+      ],
+      "text": "`Core\\Test::logs` returns the log records written in the current test. The list includes the records of each request and each run the test started. Each record has `level()`, `message()` and `fields()`."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Test::sentMail",
+        "Core\\Test\\SentMail::endpoint",
+        "Core\\Test\\SentMail::to",
+        "Core\\Test\\SentMail::subject",
+        "Core\\Test\\SentMail::text",
+        "Core\\Test\\SentMail::cc",
+        "Core\\Test\\SentMail::bcc",
+        "Core\\Test\\SentMail::replyTo",
+        "Core\\Test\\SentMail::html"
+      ],
+      "text": "`Core\\Test::sentMail` returns the messages your program sent in the current test. Each one is a `Core\\Test\\SentMail`, and its methods return the values given to `Core\\Mail::send`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Mail::send"
+      ],
+      "text": "Under `nvs test`, `Core\\Mail::send` sends nothing and opens no connection. It still checks the capability, the mail settings and every address. `Core\\Test::sentMail` returns the message."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "Core\\Test\\Response::error"
+      ],
+      "text": "`Core\\Test\\Response::error` returns the class and message of the error that stopped a request, such as `RuntimeError: no stock`. It returns `null` when the request did not fail."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Test::request",
+        "Core\\Test\\Response::status",
+        "Core\\Test\\Response::body",
+        "Core\\Test\\Response::bytes",
+        "Core\\Test\\Response::json"
+      ],
+      "text": "`Core\\Test::request` has new options: `clientIp`, `scheme`, `cookies`, and the body options `json`, `form`, `multipart` and `contentType` of `Core\\Http\\Client`. The response is the one a server sends. A write from another site gets `403`, and a `HEAD` request gets no body."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "lang:testing/test-options"
+      ],
+      "text": "`#[Test(env: [...])]` sets environment variables for one test. `Core\\Env` reads them in the test and in each request and run it starts. Other tests do not see them."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Time::sleep",
+        "Core\\Task::all",
+        "Core\\Cache::memory"
+      ],
+      "text": "In a test with `#[Test(at:)]`, `Core\\Time::sleep` ends at once and moves the test clock forward. A timeout of `Core\\Task::all` and the time to live of a `Core\\Cache::memory` entry use the same clock. Without `at:`, a sleep waits in real time."
+    },
+    {
       "kind": "changed",
       "features": [
         "Core\\Html::later"

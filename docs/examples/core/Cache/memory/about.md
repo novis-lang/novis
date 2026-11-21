@@ -9,7 +9,8 @@ your program can build again. This is the cache to use for ordinary caching.
 
 **Good to know:** a restart empties the store. A second server process, or a second machine, has a store
 of its own and does not see these values. If another server must find the value, or your program would be
-wrong without it, use `Core\Cache::shared`.
+wrong without it, use `Core\Cache::shared`. In a test with `#[Test(at: ...)]`, a value's lifetime uses
+the test clock, so `Core\Test::advance` ends it.
 
 **The examples below** show a write and a read first, then a value with a lifetime, then a slow result
 that one request fetches and later requests find ready.

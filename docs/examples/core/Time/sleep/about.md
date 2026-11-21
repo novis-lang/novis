@@ -5,5 +5,8 @@ the time that is left until a deadline, and the deadline has already passed. Whi
 waits, the server can run other requests, so a wait does not slow down anybody else. If a task is
 cancelled while it waits, for example because a deadline passed, it stops there.
 
+In a test with a fixed clock, `#[Test(at: ...)]`, a sleep does not wait. It ends at once, and the
+test clock moves forward by its length.
+
 **The examples below** show a retry that waits longer after each failure, a wait of zero or less,
 and a pause between batches of messages.

@@ -516,7 +516,7 @@
     "Core\\Bytes::unpack": "4caf988d56e20b2d"
   },
   "docs/examples/core/Cache/memory/about.md": {
-    "Core\\Cache::memory": "bcd10225a992ce30"
+    "Core\\Cache::memory": "cb0824294e19d2f9"
   },
   "docs/examples/core/Cache/shared/about.md": {
     "Core\\Cache::shared": "85db8fb0f4306526"
@@ -1680,7 +1680,7 @@
     "Core\\Log::write": "8655b14e7de08b3b"
   },
   "docs/examples/core/Mail/send/about.md": {
-    "Core\\Mail::send": "81e263f1b7a85b69"
+    "Core\\Mail::send": "2d2047af3dafb2fc"
   },
   "docs/examples/core/Markdown/fromHtml/about.md": {
     "Core\\Markdown::fromHtml": "c6fc3f52b5a1b519"
@@ -2811,7 +2811,7 @@
     "Core\\Task::afterResponse": "5ca887291f04adbb"
   },
   "docs/examples/core/Task/all/about.md": {
-    "Core\\Task::all": "60e1da21eedf48f8"
+    "Core\\Task::all": "cc21d34b25dcc138"
   },
   "docs/examples/core/Task/map/about.md": {
     "Core\\Task::map": "f9928b40179b403f"
@@ -2823,7 +2823,7 @@
     "Core\\Task\\Channel::send": "e2594e4856aadc69"
   },
   "docs/examples/core/Test/advance/about.md": {
-    "Core\\Test::advance": "f59eeb6cf6272dd5"
+    "Core\\Test::advance": "7ad384fd84673438"
   },
   "docs/examples/core/Test/answerHttp/about.md": {
     "Core\\Test::answerHttp": "561167197c1673cf"
@@ -2876,17 +2876,26 @@
   "docs/examples/core/Test/expectFailure/about.md": {
     "Core\\Test::expectFailure": "cb93455176cc67d3"
   },
+  "docs/examples/core/Test/logs/about.md": {
+    "Core\\Test::logs": "69954bc5cc82d5b2"
+  },
   "docs/examples/core/Test/partial/about.md": {
     "Core\\Test::partial": "dd2d67ae57910e51"
   },
   "docs/examples/core/Test/request/about.md": {
-    "Core\\Test::request": "a8eba3091168d112"
+    "Core\\Test::request": "351f6886c8c5fcca"
+  },
+  "docs/examples/core/Test/run/about.md": {
+    "Core\\Test::run": "a01a537014467314"
   },
   "docs/examples/core/Test/scriptAnswers/about.md": {
     "Core\\Test::scriptAnswers": "9d5207a508f80cce"
   },
   "docs/examples/core/Test/sentHttp/about.md": {
     "Core\\Test::sentHttp": "0a898ac22924a193"
+  },
+  "docs/examples/core/Test/sentMail/about.md": {
+    "Core\\Test::sentMail": "9218df44e9952002"
   },
   "docs/examples/core/Test/sentSocket/about.md": {
     "Core\\Test::sentSocket": "0cb390403262bd27"
@@ -2913,10 +2922,10 @@
     "Core\\Test\\Outcome::passed": "d78d6a978754aeca"
   },
   "docs/examples/core/Test-Response/body/about.md": {
-    "Core\\Test\\Response::body": "46a475de5662ca05"
+    "Core\\Test\\Response::body": "f1ff6b3a864a12f9"
   },
   "docs/examples/core/Test-Response/bytes/about.md": {
-    "Core\\Test\\Response::bytes": "d741ad4ca01dffbd"
+    "Core\\Test\\Response::bytes": "e4cd895e4480aac9"
   },
   "docs/examples/core/Test-Response/cookies/about.md": {
     "Core\\Test\\Response::cookies": "921147f585b241d1"
@@ -2928,13 +2937,13 @@
     "Core\\Test\\Response::headers": "41f3ce62d4cd24c8"
   },
   "docs/examples/core/Test-Response/json/about.md": {
-    "Core\\Test\\Response::json": "672e3b9556f5eb65"
+    "Core\\Test\\Response::json": "905efdd6c1167743"
   },
   "docs/examples/core/Test-Response/jsonAs/about.md": {
     "Core\\Test\\Response::jsonAs": "799623817b19ce73"
   },
   "docs/examples/core/Test-Response/status/about.md": {
-    "Core\\Test\\Response::status": "6eefbf8521aa3eb8"
+    "Core\\Test\\Response::status": "a85e91817a1d5676"
   },
   "docs/examples/core/Test-SentRequest/body/about.md": {
     "Core\\Test\\SentRequest::body": "c7ac1666fa3472fd"
@@ -2973,7 +2982,7 @@
     "Core\\Time::now": "fd049309c528761d"
   },
   "docs/examples/core/Time/sleep/about.md": {
-    "Core\\Time::sleep": "ee90b7ebd81cbaca"
+    "Core\\Time::sleep": "7ea9ef8c627babea"
   },
   "docs/examples/core/Time-Date/at/about.md": {
     "Core\\Time\\Date::at": "671cd45521c1ade7"
@@ -3795,7 +3804,7 @@
     "lang:testing/running-tests-nvs-test": "7508f7ee312f56ef"
   },
   "docs/examples/lang/testing/test-options/about.md": {
-    "lang:testing/test-options": "e946df05be6d2d93"
+    "lang:testing/test-options": "7ca1e697dd8a86b4"
   },
   "docs/examples/lang/types/a-member-every-class-of-a-union-declares/about.md": {
     "lang:types/a-member-every-class-of-a-union-declares": "36f4cad317cb8424"
@@ -5235,7 +5244,7 @@
     "Core\\Bytes::unpack": "9d829a9be33cc779"
   },
   "help:Core\\Cache::memory": {
-    "Core\\Cache::memory": "b133c74bbfbc48bc"
+    "Core\\Cache::memory": "28c99dfbdb7eec57"
   },
   "help:Core\\Cache::shared": {
     "Core\\Cache::shared": "938111878ecbdf78"
@@ -6492,7 +6501,7 @@
     "Core\\Log::write": "a83fcce0db1d1078"
   },
   "help:Core\\Mail::send": {
-    "Core\\Mail::send": "cd1e2c6c28e2a489"
+    "Core\\Mail::send": "a69bdeadfc57c029"
   },
   "help:Core\\Markdown::fromHtml": {
     "Core\\Markdown::fromHtml": "04bd672178f203b7"
@@ -7662,7 +7671,7 @@
     "Core\\Task::afterResponse": "199303149acfe7b8"
   },
   "help:Core\\Task::all": {
-    "Core\\Task::all": "72a633bd4f73c2b7"
+    "Core\\Task::all": "735517b1f04a1bb9"
   },
   "help:Core\\Task::map": {
     "Core\\Task::map": "8f4d42e8c055fb5c"
@@ -7674,7 +7683,7 @@
     "Core\\Task\\Channel::send": "2001a0b5d55448b9"
   },
   "help:Core\\Test::advance": {
-    "Core\\Test::advance": "7692e6b9d07f66ff"
+    "Core\\Test::advance": "1801972b726666c2"
   },
   "help:Core\\Test::answerHttp": {
     "Core\\Test::answerHttp": "273f99b57f0ed36f"
@@ -7727,17 +7736,26 @@
   "help:Core\\Test::expectFailure": {
     "Core\\Test::expectFailure": "7a3598445ba352d5"
   },
+  "help:Core\\Test::logs": {
+    "Core\\Test::logs": "e2356c4527aafdf5"
+  },
   "help:Core\\Test::partial": {
     "Core\\Test::partial": "aad184cf17e5368b"
   },
   "help:Core\\Test::request": {
-    "Core\\Test::request": "77001d537b140a4f"
+    "Core\\Test::request": "f09ec72e0662df69"
+  },
+  "help:Core\\Test::run": {
+    "Core\\Test::run": "2ca0dfdbdaf24091"
   },
   "help:Core\\Test::scriptAnswers": {
     "Core\\Test::scriptAnswers": "6793c50fde074a43"
   },
   "help:Core\\Test::sentHttp": {
     "Core\\Test::sentHttp": "d257fdacac90e995"
+  },
+  "help:Core\\Test::sentMail": {
+    "Core\\Test::sentMail": "fa42aebba5524d63"
   },
   "help:Core\\Test::sentSocket": {
     "Core\\Test::sentSocket": "8a79effb4b12eb99"
@@ -7750,6 +7768,15 @@
   },
   "help:Core\\Test\\Failure": {
     "Core\\Test\\Failure": "096038ef67c63e3e"
+  },
+  "help:Core\\Test\\LogRecord::fields": {
+    "Core\\Test\\LogRecord::fields": "6e340b9cffb37a98"
+  },
+  "help:Core\\Test\\LogRecord::level": {
+    "Core\\Test\\LogRecord::level": "6e340b9cffb37a98"
+  },
+  "help:Core\\Test\\LogRecord::message": {
+    "Core\\Test\\LogRecord::message": "6e340b9cffb37a98"
   },
   "help:Core\\Test\\Outcome::attempt": {
     "Core\\Test\\Outcome::attempt": "b12377c328fb16b8"
@@ -7767,13 +7794,16 @@
     "Core\\Test\\Outcome::passed": "41db41ca0c8b8020"
   },
   "help:Core\\Test\\Response::body": {
-    "Core\\Test\\Response::body": "67502de9b11a3b10"
+    "Core\\Test\\Response::body": "7c2e64ba9401c158"
   },
   "help:Core\\Test\\Response::bytes": {
-    "Core\\Test\\Response::bytes": "58256e84f063f5b6"
+    "Core\\Test\\Response::bytes": "16ad159b2e313e50"
   },
   "help:Core\\Test\\Response::cookies": {
     "Core\\Test\\Response::cookies": "4767bb6f5b390983"
+  },
+  "help:Core\\Test\\Response::error": {
+    "Core\\Test\\Response::error": "6e340b9cffb37a98"
   },
   "help:Core\\Test\\Response::header": {
     "Core\\Test\\Response::header": "fe7027efe78c2bf3"
@@ -7782,13 +7812,49 @@
     "Core\\Test\\Response::headers": "34801f23f33a3f4f"
   },
   "help:Core\\Test\\Response::json": {
-    "Core\\Test\\Response::json": "4659b957042755f4"
+    "Core\\Test\\Response::json": "46de35bfd57ba750"
   },
   "help:Core\\Test\\Response::jsonAs": {
     "Core\\Test\\Response::jsonAs": "134ca93e6d6052e0"
   },
   "help:Core\\Test\\Response::status": {
-    "Core\\Test\\Response::status": "983a607999257fb7"
+    "Core\\Test\\Response::status": "3d890ce0fc267ba2"
+  },
+  "help:Core\\Test\\RunResult::bytes": {
+    "Core\\Test\\RunResult::bytes": "6e340b9cffb37a98"
+  },
+  "help:Core\\Test\\RunResult::exitCode": {
+    "Core\\Test\\RunResult::exitCode": "6e340b9cffb37a98"
+  },
+  "help:Core\\Test\\RunResult::stderr": {
+    "Core\\Test\\RunResult::stderr": "6e340b9cffb37a98"
+  },
+  "help:Core\\Test\\RunResult::stdout": {
+    "Core\\Test\\RunResult::stdout": "6e340b9cffb37a98"
+  },
+  "help:Core\\Test\\SentMail::bcc": {
+    "Core\\Test\\SentMail::bcc": "6e340b9cffb37a98"
+  },
+  "help:Core\\Test\\SentMail::cc": {
+    "Core\\Test\\SentMail::cc": "6e340b9cffb37a98"
+  },
+  "help:Core\\Test\\SentMail::endpoint": {
+    "Core\\Test\\SentMail::endpoint": "6e340b9cffb37a98"
+  },
+  "help:Core\\Test\\SentMail::html": {
+    "Core\\Test\\SentMail::html": "6e340b9cffb37a98"
+  },
+  "help:Core\\Test\\SentMail::replyTo": {
+    "Core\\Test\\SentMail::replyTo": "6e340b9cffb37a98"
+  },
+  "help:Core\\Test\\SentMail::subject": {
+    "Core\\Test\\SentMail::subject": "6e340b9cffb37a98"
+  },
+  "help:Core\\Test\\SentMail::text": {
+    "Core\\Test\\SentMail::text": "6e340b9cffb37a98"
+  },
+  "help:Core\\Test\\SentMail::to": {
+    "Core\\Test\\SentMail::to": "6e340b9cffb37a98"
   },
   "help:Core\\Test\\SentRequest::body": {
     "Core\\Test\\SentRequest::body": "04ca6eb9c5f10ed3"
@@ -7827,7 +7893,7 @@
     "Core\\Time::now": "de1545638802961c"
   },
   "help:Core\\Time::sleep": {
-    "Core\\Time::sleep": "93f5530cac411f5c"
+    "Core\\Time::sleep": "1880f7fd5fab3616"
   },
   "help:Core\\Time\\Date::at": {
     "Core\\Time\\Date::at": "297d896d8ab51a38"
@@ -9621,7 +9687,7 @@
     "lang:testing/bench-and-nvs-test-bench": "332d3c44e3541b39",
     "lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup": "7dc527d1065301c7",
     "lang:testing/running-tests-nvs-test": "35ed159cdab1d562",
-    "lang:testing/test-options": "a9cf559722e174fc"
+    "lang:testing/test-options": "45327dc40cbcbccd"
   },
   "syntax/values/arrays.mdx": {
     "lang:expressions/arrays-in-expressions": "e246ed6ffa3f0504",
@@ -9779,7 +9845,7 @@
     "lang:testing/bench-and-nvs-test-bench": "332d3c44e3541b39",
     "lang:testing/core-test-property-generated-inputs": "ac1715e807062536",
     "lang:testing/running-tests-nvs-test": "35ed159cdab1d562",
-    "lang:testing/test-options": "a9cf559722e174fc",
+    "lang:testing/test-options": "45327dc40cbcbccd",
     "tools:cli/nvs-test": "3b17bb38adc0b4cb",
     "tools:cli/nvs-test-mutate": "d9ceecb30e34ccc7"
   }

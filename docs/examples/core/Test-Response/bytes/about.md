@@ -7,7 +7,8 @@ or a file sent with `Core\Response::sendFile`. If the program wrote nothing, the
 UTF-8. Use `bytes()` for such a body, and compare it with the bytes you expect.
 
 If the program throws an error that it does not catch, the result is empty `bytes`. The server sends
-no body for a failed request, and a test sees the same answer as a real visitor.
+no body for a failed request, and a test sees the same answer as a real visitor. A `HEAD` request
+also gives empty `bytes`.
 
 You can call `bytes()` as often as you like. Each call returns the same bytes.
 
