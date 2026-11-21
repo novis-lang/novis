@@ -1,11 +1,14 @@
 {
   "title": "`Core\\Test::run` runs the program's command entry in a child isolate and returns its exit code and output",
-  "status": "designed",
+  "status": "shipped",
   "seeAlso": [
     "testing/in-process-request",
     "testing/isolate-per-test",
     "core-classes/process-run"
   ],
-  "guardedBy": [],
-  "goal": "tests-reach-everything"
+  "guardedBy": [
+    "crates/nvs-cli/tests/test_reach.rs",
+    "crates/nvs-cli/src/runner.rs",
+    "crates/nvs-runtime/src/inproc.rs"
+  ]
 }

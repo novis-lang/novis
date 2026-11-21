@@ -103,5 +103,5 @@ class Runs
 
 // The program's entry: `Core\Command::run` calls the command the first word
 // names, and its result is the exit code.
-int $status = Core\Command::run();
-exit($status);
+uint $status = Core\Command::run();
+exit($status as int);

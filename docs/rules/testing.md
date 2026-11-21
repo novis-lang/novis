@@ -3,7 +3,7 @@
 
 # Testing
 
-*2 of 83 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 83 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -902,7 +902,7 @@ runs per request ([`testing/a-directory-of-programs-is-one-test-program`](testin
 answers with its own entry. The `#[Test(server: true)]` listener still runs the generated entry.
 
 The signature is `Core\Test::request(Core\Http\Method $method, string $path, {headers?:
-array<string>, body?: string|bytes, json?: mixed, form?: array<string>, multipart?:
+array<string>, body?: string|bytes|Core\Http\Part, json?: mixed, form?: array<string>, multipart?:
 array<string|Core\Http\Part>, contentType?: string, cookies?: array<string>, clientIp?: string, scheme?:
 string, mount?: string, captures?: array<string>}): Core\Test\Response`. A `?` in `$path` starts the
 query. A request with none of `body`, `json`, `form` and `multipart` has no body, which is not an
@@ -913,7 +913,7 @@ pattern to capture.
 
 **The peer is stated, never derived.** `clientIp` and `scheme` are what the `[server]
 trusted_proxies` walk would have settled on, as a `.nvt` case's `--CLIENT_IP--` and `--SCHEME--`
-are, so `Core\Request::ip()`, `isSecure()` and a `__Host-` cookie read them. No test reads
+are, so `Core\Request::clientIp()`, `scheme()` and a `__Host-` cookie read them. No test reads
 `X-Forwarded-For`. A `clientIp` that is not one IPv4 or IPv6 address, and a `scheme` that is not
 `"http"` or `"https"`, is a `LogicError`. Omitted, the request has no address and is `http`. Cost:
 none per request.
@@ -1082,7 +1082,7 @@ already taken it off the network, and no request input reaches the certificate i
 
 <a id="testing-a-test-runs-a-command"></a>
 
-## `Core\Test::run` runs the program's command entry in a child isolate and returns its exit code and output  *(designed — owned by goal tests-reach-everything)*
+## `Core\Test::run` runs the program's command entry in a child isolate and returns its exit code and output
 
 `rule:testing/a-test-runs-a-command`
 

@@ -20,6 +20,11 @@
 //! is a virtual deadline*: under `#[Test(at:)]` a sleep ends at once, two
 //! sleeping tasks wake in deadline order, a `Core\Task::all` deadline races a
 //! sleep, and a memory cache entry's `ttl` runs on the same clock.
+//!
+//! The run tests are `rule:testing/a-test-runs-a-command`: `Core\Test::run`
+//! reaches the command its words name, feeds stdin, gives `exit`, the usage
+//! page and an uncaught error as exit codes, keeps stdout and stderr apart, and
+//! is a `LogicError` in a folder with no entry `nvs run` would run.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -322,4 +327,72 @@ fn a_sleep_without_at_waits_in_real_time() {
 #[test]
 fn a_cache_entry_expires_with_advance() {
     passes_in_clock("cacheEntryExpiresWithAdvance");
+}
+
+/// Runs `method` of `run.nvs` and asserts that it alone ran, and passed.
+fn passes_in_run(method: &str) {
+    let (report, passed) = run_in(&fixture(""), "run.nvs", method);
+    assert!(passed, "`{method}` failed:\n{report}");
+    assert!(
+        report.contains(method) && report.contains("0 failed, 1 passed"),
+        "`{method}` was the one test that ran, and it passed:\n{report}"
+    );
+}
+
+/// `Core\Test::run(['greet', 'Ada'])` reaches the `greet` command with `Ada`
+/// as its argument, and exits `0` with its output on stdout.
+// covers: Core\Test::run
+#[test]
+fn test_run_reaches_the_command_its_words_name() {
+    passes_in_run("reachesTheCommandItsWordsName");
+}
+
+/// The `stdin` option is what `Core\IO::stdin()` reads in the run, and a run
+/// without it reads an empty input.
+// covers: Core\Test::run
+#[test]
+fn test_run_feeds_stdin() {
+    passes_in_run("feedsStdin");
+}
+
+/// `exit(7)` in the run ends it with the exit code `7`, keeping what it wrote.
+// covers: Core\Test::run
+#[test]
+fn test_run_gives_the_exit_code_of_exit() {
+    passes_in_run("givesTheExitCodeOfExit");
+}
+
+/// A command line missing an argument exits `2` with the usage page on stderr.
+// covers: Core\Test::run
+#[test]
+fn test_run_gives_the_usage_page_on_stderr_and_exit_2() {
+    passes_in_run("givesTheUsagePageOnStderr");
+}
+
+/// An uncaught error exits `1` with its message on stderr.
+// covers: Core\Test::run
+#[test]
+fn test_run_gives_an_uncaught_error_as_its_exit_code() {
+    passes_in_run("givesAnUncaughtErrorAsItsExitCode");
+}
+
+/// What the run writes to stdout and to stderr is read back apart.
+// covers: Core\Test::run
+#[test]
+fn test_run_keeps_stdout_and_stderr_apart() {
+    passes_in_run("keepsStdoutAndStderrApart");
+}
+
+/// A folder of programs has no entry `nvs run` would run, so
+/// `Core\Test::run` there throws a `LogicError`.
+// covers: Core\Test::run
+#[test]
+fn test_run_without_a_command_entry_is_a_logic_error() {
+    let method = "runIsALogicError";
+    let (report, passed) = run_in(&fixture(""), "run_folder", method);
+    assert!(passed, "`{method}` failed:\n{report}");
+    assert!(
+        report.contains(method) && report.contains("0 failed, 1 passed"),
+        "`{method}` was the one test that ran, and it passed:\n{report}"
+    );
 }
