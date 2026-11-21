@@ -265,6 +265,7 @@ mod profile;
 mod queue;
 mod registry;
 mod reload;
+mod reload_endpoint;
 mod run;
 mod runner;
 mod schema;

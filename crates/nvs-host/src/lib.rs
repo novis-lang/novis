@@ -124,6 +124,10 @@
 //! [`debug`] is a debug session's controller: it arms breakpoints in a unit
 //! compiled under the debug switch, and parks a task that stops until the
 //! session resumes it.
+//!
+//! [`endpoint`] is the reload endpoint each `nvs serve` opens in its data folder: a Unix socket
+//! or a named pipe that only the serving account or an administrator reaches, and which that
+//! module's doc describes.
 
 pub mod affinity;
 pub mod block_on;
@@ -133,6 +137,7 @@ pub mod channel;
 pub mod counts;
 pub mod cpuclock;
 pub mod debug;
+pub mod endpoint;
 pub mod group;
 pub mod isolate;
 pub mod ladder;

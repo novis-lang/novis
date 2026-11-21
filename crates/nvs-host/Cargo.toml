@@ -88,6 +88,8 @@ libc.workspace = true
 
 [target.'cfg(windows)'.dependencies]
 windows-sys.workspace = true
+# `src/endpoint/windows.rs`: the reload pipe's 128 random name bits, from the OS CSPRNG.
+ring.workspace = true
 
 [dev-dependencies]
 # `tests/limits.rs`'s capability case builds the snapshot a request reads and hands it to

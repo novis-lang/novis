@@ -155,6 +155,15 @@ impl Folder {
         self.root.join("cache")
     }
 
+    /// `run/`: one reload endpoint per running `nvs serve` that uses this folder, named
+    /// `serve-<pid>-<start>` (`rule:config/a-reload-command-checks-now-and-waits`). It has no key: a
+    /// command reaches the servers of a data folder by this path alone. [`Folder::prepare`] creates
+    /// it privately, so only this account, `SYSTEM` and `Administrators` can list it.
+    #[must_use]
+    pub fn run(&self) -> PathBuf {
+        self.root.join("run")
+    }
+
     /// `cache/lsp-index/`: the language server's on-disk symbol index, one file per workspace
     /// root. The compiled-code cache under `cache/` sweeps only its own shard directories and
     /// `.nvsc` files, so it never deletes a file here. Deleting the directory costs the next
@@ -360,7 +369,13 @@ impl Folder {
         create_private_root(&self.root).map_err(|err| unusable(err.to_string(), None))?;
         self.check()
             .map_err(|why| unusable(why.message().to_owned(), why.help()))?;
-        for sub in [self.cache(), self.tmp(), self.lsp_root(), self.logs()] {
+        for sub in [
+            self.cache(),
+            self.tmp(),
+            self.lsp_root(),
+            self.logs(),
+            self.run(),
+        ] {
             create_private_root(&sub)
                 .map_err(|err| unusable(format!("{}: {err}", sub.display()), None))?;
         }

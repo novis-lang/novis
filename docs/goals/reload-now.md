@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/config/opcache-revalidation-is-system-class.md, docs/rules/config/an-entry-runs-on-a-server-event.md, docs/rules/packaging/a-service-answers-its-manager.md, docs/rules/config/a-reload-names-what-it-could-not-apply.md]
   - id: 2
     title: each nvs serve process opens a private reload endpoint in its data folder
-    status: open
+    status: done
     context: [crates/nvs-config/src/data.rs, crates/nvs-config/src/trust.rs, crates/nvs-host/src/net.rs, crates/nvs-cli/src/serve.rs]
   - id: 3
     title: a reload through the endpoint checks now, skips settle, waits for its compiles and replies
@@ -224,6 +224,17 @@ and run migrations with `nvs run`, which compiles from disk at once. It has a se
 and coding agents: `revalidate_freq = "1h"` and `nvs reload` after each batch of edits. The
 production index, the service page and the Docker page link to it.
 
+**The endpoint's shape, as stage 2 built it.** It is `nvs_host::endpoint` (`crates/nvs-host/src/endpoint.rs`,
+with `endpoint/unix.rs` and `endpoint/windows.rs`), not a type in `net.rs`: it blocks on a thread of
+its own and never parks on a core, so it shares nothing with the parking streams. The path appears
+only once it can be reached (bound under `.new`, then renamed), so a path nobody listens at is
+stale for certain. **A starting server removes every stale endpoint in `run/`** (`reach_all`), and
+the command does the same; that is what a killed server leaves. **A Unix socket path over
+`sun_path` gets no endpoint**: the server warns once and serves, and a shorter `--data` is the fix.
+No second socket folder exists to keep private and track. The Windows pipe name's 128 bits come
+from `ring::rand::SystemRandom`, already in the binary. The accepted Unix stream has a 5 s read and
+write timeout; the Windows stream has none yet.
+
 **Lanes.** Stage 1 touches only rules. Stage 2 (`nvs-config`, `nvs-host`, `serve.rs`) and stage 5
 (`schedule.rs`, `run_args`) are disjoint, but stage 5's tests drive `nvs reload`, so the stages run in
 order. One goal, no side lanes.
@@ -259,12 +270,12 @@ sessions writes what holds it in the handoff and the next session splits it.
 **Split:** the Windows named pipe and its DACL in `crates/nvs-host/src/` go to one writing subagent,
 the Unix socket and peer check to another; the session wires `serve.rs` and builds once both end.
 
-- [ ] `crates/nvs-config/src/data.rs:155`: `Folder::run`, made private as `prepare` makes the folder
+- [x] `crates/nvs-config/src/data.rs:155`: `Folder::run`, made private as `prepare` makes the folder
   (`crates/nvs-config/src/data.rs:719`).
-- [ ] `crates/nvs-host/src/net.rs:717`: a reload endpoint type with `bind`, `accept` and `connect`,
+- [x] `crates/nvs-host/src/net.rs:717`: a reload endpoint type with `bind`, `accept` and `connect`,
   the Unix peer-uid check and the Windows pipe with its DACL and name file.
-- [ ] `crates/nvs-cli/src/serve.rs:2961`: open the endpoint before `READY=1`, remove it in the drain.
-- [ ] `crates/nvs-cli/tests/reload_command.rs:1`: the four `endpoint` tests. Run them in WSL too with
+- [x] `crates/nvs-cli/src/serve.rs:2961`: open the endpoint before `READY=1`, remove it in the drain.
+- [x] `crates/nvs-cli/tests/reload_command.rs:1`: the four `endpoint` tests. Run them in WSL too with
   `bun nv linux-test`.
 
 ### 3. a reload through the endpoint checks now, skips settle, waits for its compiles and replies
@@ -338,21 +349,25 @@ written.
 
 ### State
 
-Stage 1 is done and the `rules` check is green. `rule:config/a-reload-command-checks-now-and-waits`
-is new, `designed` and owned by this goal. The six amended rules cite it. Stage 3 flips its record's
-`status` to `shipped` and drops `goal` once the endpoint answers.
+Stages 1 and 2 are done; `rules` and `endpoint` are green. The four `endpoint` tests pass on
+Windows and in WSL (`bun nv linux-test --test reload_command`). macOS code (`getpeereid`, the
+`ENOTSOCK` mapping in `connect`) was reviewed and not compiled; CI's macOS job is its first build.
 
-The nightly CI failures (`xml::tests::source_stops_at_the_memory_limit_before_it_escapes` on every
-runner and Miri, and `tests/conformance/iter/an-object-map-passes-where-a-keyed-iterable-is-declared.nvst`
-on every conformance job) ran on `5d053fc6e6`. Both were fixed after it, by `e5a100b18f` and
-`438e9c44af`. Both pass on this tree, so no change was made for them.
+`rule:config/a-reload-command-checks-now-and-waits` is still `designed` and owned by this goal.
+Stage 3 flips its record's `status` to `shipped` and drops `goal` once the endpoint replies.
+
+The nightly CI run the sweep listed (44722386375) ran on `5d053fc6e6`, the same run the last
+handoff covered; both of its failures were fixed after it, so no change was made for them.
 
 ### Next
 
-Stage 2, the endpoint, from its first item and its `**Split:**` line: `Folder::run` at
-`crates/nvs-config/src/data.rs:155`, the endpoint type at `crates/nvs-host/src/net.rs:717`, the
-wiring at `crates/nvs-cli/src/serve.rs:2961`, and the four `endpoint` tests in the new
-`crates/nvs-cli/tests/reload_command.rs`. Every check after `rules` names tests that do not exist
-yet and stays red until its stage writes them.
+Stage 3, the reply. The endpoint is `nvs_host::endpoint` (`crates/nvs-host/src/endpoint.rs`), and
+the server side is `crate::reload_endpoint` (`crates/nvs-cli/src/reload_endpoint.rs`), opened at
+`crates/nvs-cli/src/serve.rs:793`. Its `accept` loop reads up to `LINE` bytes and closes the
+connection, on one thread: stage 3 replaces that loop with the line parse, the shared check and the
+JSON reply, and gives each connection its own thread (or a read deadline), because the Windows
+stream has no read timeout and a silent client would hold the one thread. The other stage 3 anchors
+are in its items (`reload.rs:530`, `script.rs:934`). The `check-now`, `command` and `events`
+checks stay red until their stages write those tests.
 
 ### Backlog
