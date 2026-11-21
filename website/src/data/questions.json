@@ -517,35 +517,47 @@
   },
   "/guides/testing/": {
     "feature": "guides/testing/index.mdx",
-    "hash": "e52a093e8d490802",
+    "hash": "1cf6dcd3c4472c4b",
     "questions": [
       "How do I test my Novis application?",
       "Which testing guide do I need for my task?",
-      "Guides for fake services and page tests",
+      "Which guide shows how to test a command line tool?",
       "Where do I start with testing in Novis?"
+    ]
+  },
+  "/guides/testing/test-a-command/": {
+    "feature": "guides/testing/test-a-command.mdx",
+    "hash": "a301bcc15e9bc9ca",
+    "questions": [
+      "How do I test a CLI program in Novis?",
+      "Check the exit code of my command in a test",
+      "Give a program input on stdin from a test",
+      "Read what my command printed to standard error",
+      "Run my program with arguments without starting a new process"
     ]
   },
   "/guides/testing/test-a-route/": {
     "feature": "guides/testing/test-a-route.mdx",
-    "hash": "bbd6358fd0e016ca",
+    "hash": "7fdb6db1506fc12d",
     "questions": [
       "How do I test a page without starting a server?",
       "Check the status code and body of a route in a test",
-      "Send a fake request through my routes in a test",
+      "Set the client IP address or HTTPS in a test request",
       "How do I test a WebSocket with a real local server?",
-      "Read a JSON response into an object inside a test"
+      "Read a JSON response into an object inside a test",
+      "Send a JSON body or a file upload in a test request"
     ]
   },
   "/guides/testing/test-doubles/": {
     "feature": "guides/testing/test-doubles.mdx",
-    "hash": "feeaba0b6ea636ac",
+    "hash": "440899dd3a04a1d1",
     "questions": [
       "How do I fake a mail server in a test?",
       "Mock an HTTP API so tests run without a network",
       "How do I fix the clock at a certain time in a test?",
       "Check that my code called a method with the right arguments",
-      "Replace only some methods of a real object in a test",
-      "Why can my class not get a fake object in a test?"
+      "Check which emails and log lines my code wrote in a test",
+      "Make a sleep or a timeout in a test finish at once"
     ]
   },
   "/guides/tour/": {
@@ -3126,13 +3138,14 @@
   },
   "/reference/core/cache/memory/": {
     "feature": "Core\\Cache::memory",
-    "hash": "12bbde6ee99875b8",
+    "hash": "4ad877cb52c9c110",
     "questions": [
       "How do I cache data for the whole server?",
       "In-memory cache that every request on this server sees",
       "Fetch a slow result once and reuse it in every request",
       "Cache data that can be rebuilt at any time",
-      "Fast cache with no configuration and no network"
+      "Fast cache with no configuration and no network",
+      "Does a cached value expire when a test moves the clock?"
     ]
   },
   "/reference/core/cache/shared/": {
@@ -8083,14 +8096,14 @@
   },
   "/reference/core/mail/send/": {
     "feature": "Core\\Mail::send",
-    "hash": "6cde907101e5b622",
+    "hash": "6ea0fdb19817b5fa",
     "questions": [
       "How do I send an email with an HTML body?",
       "Send one message to several recipients",
       "Add hidden copy recipients to an email",
-      "Set the reply address of an email",
       "What happens when the mail server cannot be reached?",
-      "Why does an email address with a line break throw an error?"
+      "Why does an email address with a line break throw an error?",
+      "Does nvs test send real emails?"
     ]
   },
   "/reference/core/markdown/": {
@@ -14609,13 +14622,14 @@
   },
   "/reference/core/task/all/": {
     "feature": "Core\\Task::all",
-    "hash": "2d5981349c412c2d",
+    "hash": "8a971109972a00c7",
     "questions": [
       "How do I call two web services at the same time?",
       "Load a database query and a cache lookup in parallel",
       "Wait for several functions and use all their results",
       "Run tasks at once with a time limit for all of them",
-      "What happens when one of several parallel tasks fails?"
+      "What happens when one of several parallel tasks fails?",
+      "Test a task deadline without waiting in real time"
     ]
   },
   "/reference/core/task/map/": {
@@ -14661,23 +14675,25 @@
   },
   "/reference/core/test/": {
     "feature": "Core\\Test",
-    "hash": "03d39d8f8c9ffec2",
+    "hash": "152d14f5fb79adf6",
     "questions": [
       "How do I write unit tests in Novis?",
       "Check results inside a test method",
       "Fake web services and the clock in tests",
       "Run tests with nvs test",
-      "Which checks can a test use?"
+      "Which checks can a test use?",
+      "Test a command program and read its output"
     ]
   },
   "/reference/core/test/advance/": {
     "feature": "Core\\Test::advance",
-    "hash": "eab5821dfca854df",
+    "hash": "a1e1b6a588c38ada",
     "questions": [
       "How do I move time forward in a test?",
       "Test that a token expires without waiting",
       "Fake the passing of 30 minutes in a test",
-      "Change the current time during a test"
+      "Change the current time during a test",
+      "Does a sleep wait in a test with a fixed clock?"
     ]
   },
   "/reference/core/test/answerhttp/": {
@@ -14863,11 +14879,11 @@
   },
   "/reference/core/test/request/": {
     "feature": "Core\\Test::request",
-    "hash": "e0b1042804ba68df",
+    "hash": "de2c97bc4032367e",
     "questions": [
       "How do I test a route of my web app?",
       "Send a fake HTTP request to my own program",
-      "Test a POST endpoint with a JSON body",
+      "Test a POST endpoint with a JSON body or a form",
       "Test a page without starting a server",
       "Test an app that is served under a path prefix",
       "Test the response the real server sends over the network"
@@ -14985,34 +15001,36 @@
   },
   "/reference/core/test-response/": {
     "feature": "Core\\Test\\Response",
-    "hash": "eb73ace0cd4447de",
+    "hash": "1dbb5b64ddcca54e",
     "questions": [
       "What does a test request return?",
       "The response object of a request in a test",
       "Which parts of my app's reply can a test read?",
       "Read the status, headers, cookies and body in a test",
-      "Can a test read a reply that is not text?"
+      "Can a test read a reply that is not text?",
+      "How do I see which error made a test request fail?"
     ]
   },
   "/reference/core/test-response/body/": {
     "feature": "Core\\Test\\Response::body",
-    "hash": "2de0bfe0b519a59a",
+    "hash": "689d4bfae038c512",
     "questions": [
       "How do I read the page text my app returned in a test?",
       "Get the HTML output of a route in a test",
       "Why is the body empty when my request failed?",
-      "Check the echoed output of a request",
+      "Why is the body empty for a HEAD request?",
       "Why does body() throw an error for an image response?"
     ]
   },
   "/reference/core/test-response/bytes/": {
     "feature": "Core\\Test\\Response::bytes",
-    "hash": "224b58396b9fc8b7",
+    "hash": "b726b452838ea01c",
     "questions": [
       "How do I test a route that returns a PDF?",
       "Compare a downloaded file with the file I expect in a test",
       "Read the raw bytes my app sent in a test",
-      "Test an endpoint that serves an image"
+      "Test an endpoint that serves an image",
+      "Read the bytes of a response to a HEAD request"
     ]
   },
   "/reference/core/test-response/cookies/": {
@@ -15067,12 +15085,13 @@
   },
   "/reference/core/test-response/status/": {
     "feature": "Core\\Test\\Response::status",
-    "hash": "31656b7e5b084f34",
+    "hash": "b0cbeb61c7d0cfb9",
     "questions": [
       "How do I check the HTTP status code in a test?",
       "Test that a page returns 404",
       "Check that an old address redirects with 301",
-      "Why does my test get status 500?"
+      "Why does my test get status 500?",
+      "Why does a form post from another site get 403 in a test?"
     ]
   },
   "/reference/core/test-sentrequest/": {
@@ -15230,13 +15249,14 @@
   },
   "/reference/core/time/sleep/": {
     "feature": "Core\\Time::sleep",
-    "hash": "82ab80a5d53892ef",
+    "hash": "c70a97fcb14c447b",
     "questions": [
       "How do I pause my program for a few seconds?",
       "Wait 500 milliseconds before the next step",
       "Wait longer after each failed retry",
       "Add a delay between batches of messages",
-      "Does waiting block other requests on the server?"
+      "Does waiting block other requests on the server?",
+      "Does a sleep make my tests slow?"
     ]
   },
   "/reference/core/time-date/": {
@@ -18829,11 +18849,11 @@
   },
   "/syntax/testing/writing-tests/": {
     "feature": "syntax/testing/writing-tests.mdx",
-    "hash": "d719dfe9b475b07d",
+    "hash": "4b113a98283ce223",
     "questions": [
       "How do I write a unit test in Novis?",
       "How do I skip a test and give a reason?",
-      "What is a flaky test in the test report?",
+      "Set an environment variable for only one test",
       "Run only one test class from the command line",
       "How do I leave out slow tests when I run the suite?",
       "How do I measure how fast a function is with a benchmark?"
