@@ -321,8 +321,16 @@ mod tests {
                 .expect("reading the bytes cannot fail");
             assert_eq!(code.as_int(), Some(3), "round {round}: the exit code");
             assert_eq!(out.as_text(), Some("giving up\n"), "round {round}: stdout");
-            assert_eq!(err.as_text(), Some("the disk is full\n"), "round {round}: stderr");
-            assert_eq!(raw.as_bytes(), Some(&b"giving up\n"[..]), "round {round}: bytes");
+            assert_eq!(
+                err.as_text(),
+                Some("the disk is full\n"),
+                "round {round}: stderr"
+            );
+            assert_eq!(
+                raw.as_bytes(),
+                Some(&b"giving up\n"[..]),
+                "round {round}: bytes"
+            );
             for value in [code, out, err, raw] {
                 dropped(value);
             }
