@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/http.rs, crates/nvs-runtime/src/ctx/inbound.rs]
   - id: 4
     title: a test request is answered the way the server answers it
-    status: open
+    status: done
     context: [crates/nvs-cli/src/serve.rs, crates/nvs-host/src/isolate.rs, crates/nvs-runtime/src/host.rs]
   - id: 5
     title: a sleep and a timer under at follow the test clock
@@ -355,15 +355,15 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### 4. a test request is answered the way the server answers it
 
-- [ ] `crates/nvs-cli/src/runner.rs:4156`: `refuse_a_forged_write` answers `403` for a program that
+- [x] `crates/nvs-cli/src/runner.rs:4156`: `refuse_a_forged_write` answers `403` for a program that
   does not dispatch, and `UnderTest::answer` returns that answer.
-- [ ] `crates/nvs-cli/src/runner.rs:1619`: the body limit from `crates/nvs-cli/src/serve.rs:1381`,
+- [x] `crates/nvs-cli/src/runner.rs:1619`: the body limit from `crates/nvs-cli/src/serve.rs:1381`,
   and the `HEAD` body removed where the server removes it.
-- [ ] `crates/nvs-stdlib/src/test.rs:3090`: `Core\Test\Response::error()`, its card and its
+- [x] `crates/nvs-stdlib/src/test.rs:3090`: `Core\Test\Response::error()`, its card and its
   `RESPONSE` field.
-- [ ] `crates/nvs-host/src/isolate.rs:1263`: a request `Core\Test::request` made is joined after its
+- [x] `crates/nvs-host/src/isolate.rs:1263`: a request `Core\Test::request` made is joined after its
   after-response work, and a failure there fails the test.
-- [ ] `crates/nvs-cli/tests/test_reach.rs`: the six `answers` tests.
+- [x] `crates/nvs-cli/tests/test_reach.rs`: the six `answers` tests.
 
 ### 5. a sleep and a timer under at follow the test clock
 
@@ -443,37 +443,33 @@ outcome type exists; the session writes the run path.
 
 ### State
 
-Stages 1 to 3 are done. `Core\Test::request`'s bag is, by slot: `headers` 2, `body` 3, `mount` 4,
-`captures` 5, `cookies` 6, `clientIp` 7, `scheme` 8, `json` 9, `form` 10, `contentType` 11,
-`multipart` 12, so the member is `args: [13]`. `body` also takes a `Core\Http\Part`, as the
-client's does. The body is read by `crate::http::spec_body_of`
-(`crates/nvs-stdlib/src/http.rs:3522`) at the slots `REQUEST_BODY_SLOTS` names
-(`crates/nvs-stdlib/src/test.rs:642`), and it builds `SpecBody::Json`, `Form`, `Files` or `Raw` with
-the client's part reading and its quoting checks. A raw body's `contentType` becomes a
-`content-type` field line. `described` now takes the `Ctx`, because `json` is encoded by
-`crate::json::written`. `registry::request_body_rule` answers for `Core\Test::request` too, so two
-bodies are `E0815` and `contentType` alone is `E0817`, as for the client. The `bodies` check's five
-tests pass, run by name, over `crates/nvs-cli/tests/fixtures/reach/bodies.nvs` and
-`two_bodies.nvs`.
+Stages 1 to 4 are done. `Core\Test::request` is `args: [13]`, and its bodies go through
+`crate::http::spec_body_of`. The in-process seam returns `nvs_runtime::inproc::Answered`:
+`Door(status)` where the server answers before the program runs, or `Ran { completion,
+after_response }`. `answer_at_the_door` (`crates/nvs-cli/src/runner.rs`) takes the forged write,
+then a `content-length` over `[limits] upload_total`, in the server's order. The `HEAD` body is
+dropped in `nvs_core_test_request`, as hyper drops it on the wire. `Core\Test\Response::error()` is
+`RESPONSE`'s `ERROR_SLOT`. `nvs_host::Isolate::awaiting_after_response` runs the after-response
+work before the answer is filed, and `run_deferred` returns the first failure, which becomes a
+ledger failure of `Core\Test::request`. The six `answers` tests pass, run by name, over
+`crates/nvs-cli/tests/fixtures/reach/answers/`, copied to a scratch folder.
 
-In a multipart request, `Core\Request::post()` read before `Core\Request::files()` makes `files()`
-throw, and read after it gives the field. The fixture reads `files()` first. That is the request
-readers' existing behaviour, not this stage's.
+A test request to a program that does not dispatch now meets the CSRF door, so an old test that
+sends it a cross-origin write may go red at the gate. None was seen.
 
-The nightly failure the sweep named (run 44894790665, `granularity::tests::both_walks_agree_on_every_window`
-timing out under Miri) ran on `7e97fa8444`, before `156f11a7ca` cut the Miri reach to 2. Nothing new
-landed for it. The next nightly is the check, and if it still times out, the next step is a shorter
-text list under `cfg!(miri)`.
+Nightly run 44894790665 (a Miri timeout in `both_walks_agree_on_every_window`) ran on `7e97fa8444`,
+before `156f11a7ca` cut the Miri reach to 2, and no nightly has run since. If the next one still
+times out, shorten the text list under `cfg!(miri)`.
 
 ### Next
 
-Stage 4, from its first item. Anchors: `refuse_a_forged_write` at
-`crates/nvs-cli/src/runner.rs:4161`, `UnderTest::answer` near `runner.rs:1619`, the body limit read
-at `crates/nvs-cli/src/serve.rs:1381`, the failed-request answer in `nvs_core_test_request` at
-`crates/nvs-stdlib/src/test.rs:3275` (it builds the `500` with no body), and the join in
-`crates/nvs-host/src/isolate.rs:1263`. `Core\Test\Response::error()` adds a slot to `RESPONSE`, so
-every `crate::instance::build(&RESPONSE, [...])` in `test.rs` gains one value. The `answers`,
-`clock`, `run` and `records` checks stay red until their stages write their tests in
-`crates/nvs-cli/tests/test_reach.rs`.
+Stage 5, from its first item: write `a_sleep_under_at_ends_at_once_and_moves_the_clock` in
+`crates/nvs-cli/tests/test_reach.rs`, run it once by name and see it red. Then the virtual deadline
+queue in `crates/nvs-host/src/timer.rs:305` and `crates/nvs-host/src/scheduler.rs`, the sleep in
+`crates/nvs-runtime/src/peer.rs:605`, and the expiries in `crates/nvs-stdlib/src/cache.rs:855`,
+`:1036` and `crates/nvs-stdlib/src/queue.rs:3013` through the clock seam at
+`crates/nvs-stdlib/src/time.rs:4358`. The child's copy of the clock is set in `UnderTest::answer`'s
+program (`ctx.set_fixed_clock`). The `clock`, `run` and `records` checks stay red until their stages
+write their tests.
 
 ### Backlog
