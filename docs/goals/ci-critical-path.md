@@ -14,7 +14,7 @@ stages:
     context: [tools/nv/cmd/proofs.ts, tools/nv/proofs/run.ts, tools/nv/test/proof-command.test.ts]
   - id: 3
     title: "the new layout: lighter Windows test leg, Windows proofs in two parts, the dev build after the debug binaries"
-    status: open
+    status: done
     context: [.github/workflows/build.yml]
   - id: 4
     title: "the layout is pushed, its run is green, and its times are recorded"
@@ -126,7 +126,8 @@ saves runner minutes, but the parts would wait for it, so the run would end late
 
 **The Windows `tests` slice that runs the benches, the doc tests and the cache save is the lightest
 one.** The session reads the nextest step of the last three green push runs with `bun nv ci --times
-<id>` and picks the slice with the smallest total. In run 44940832132 it is slice 3. The `if:` at
+<id>` and picks the slice with the smallest total. Over runs 44945274371, 44940832132 and
+44892963091 it is slice 2: 18.9 minutes, against 26.3 for slice 1 and 22.3 for slice 3. The `if:` at
 `ci.yml:348` and `:352` and the `save-if` at `:243` name that slice for Windows. Every other row keeps
 its current condition: Linux x86_64 runs them in `conformance 2/2`, and the single-leg rows in their
 `tests` leg.
@@ -198,20 +199,20 @@ names `--part`, and its check reads `--times`. Stages 3 to 5 run in order.
 **Does:** changes `ci.yml` as the standing decisions say. Gate: `bun nv ci --times --help` and `bun nv
 proofs --help` both name their new flags.
 
-- [ ] Read the last three green push runs with `bun nv ci --times <id>`, and write each Windows slice's
+- [x] Read the last three green push runs with `bun nv ci --times <id>`, and write each Windows slice's
   nextest total in the handoff. Pick the lightest.
-- [ ] `ci.yml:243`, `:348` and `:352`: the benches, the doc tests and the cache save go to that
+- [x] `ci.yml:243`, `:348` and `:352`: the benches, the doc tests and the cache save go to that
   Windows slice. Every other row is unchanged. The comment at `ci.yml:339` says which slice and why.
-- [ ] `ci.yml:527`: the proofs matrix has two Windows rows with `part: 1` and `part: 2`. The job name
+- [x] `ci.yml:527`: the proofs matrix has two Windows rows with `part: 1` and `part: 2`. The job name
   shows the part. `ci.yml:543`: the cache key stays per OS, and only part 1 saves.
-- [ ] `ci.yml:579` and `:610`: the forced unwind test and the website stale guard run on every row
+- [x] `ci.yml:579` and `:610`: the forced unwind test and the website stale guard run on every row
   but Windows part 2. `ci.yml:584`: the step passes `--part <k>/2` on Windows and nothing elsewhere.
   It sets `NVS_PROOF_TIMES`, and a step after it uploads the file as the decision says.
-- [ ] `ci.yml:510`: the job's comment rewritten as a whole: the parts, what they spend (one more
+- [x] `ci.yml:510`: the job's comment rewritten as a whole: the parts, what they spend (one more
   Windows runner and one more proof build) and why macOS has one part.
-- [ ] `ci.yml:1844`: `build` gets `needs: [tested, nvs-debug]`, after the check the decision names.
+- [x] `ci.yml:1844`: `build` gets `needs: [tested, nvs-debug]`, after the check the decision names.
   Its comment says why it waits.
-- [ ] `bun nv ci --check` is green. It lints the workflow files with the rest.
+- [x] `bun nv ci --check` is green. It lints the workflow files with the rest.
 
 ### 4. the layout is pushed, its run is green, and its times are recorded
 
@@ -251,31 +252,30 @@ session builds once they end and runs the changed programs by name.
 
 ### State
 
-Stages 1 and 2 are done, one session, and both checks pass by name.
+Stages 1 to 3 are done, one session each. Stage 3's layout in `.github/workflows/ci.yml` is not
+pushed yet, and `bun nv ci --check` is green on it.
 
-- `bun nv ci --times [<id>]` (`tools/nv/cmd/ci.ts` `timesLines`, `times`) prints one line per job
-  that ran, sorted by its end, each step of a minute or more under it, and `ended last: <job>, at
-  <min> min`. Jobs GitHub skipped are left out. Its test reads
-  `tools/nv/test/fixtures/ci-times-run.json`, cut down from run 44940832132.
-- `bun nv proofs --run|--verify --part K/N` (`tools/nv/cmd/proofs.ts` `parsePart`, `cutPart`,
-  `runScopes`) prints `part K/N: <m> of <all> programs` first. A suite with no program in the part
-  prints `... (none of its <n> files is in part K/N)`. It is refused with `--show`, `--overshoot`,
-  `--probe`, `--record-perf` and `--bless`.
-- The sweep's red `miri units (nvs-stdlib 2/12)` on nightly 44894790665 was a 300 s timeout of
-  `both_walks_agree_on_every_window`, not UB. `156f11a7ca` had already cut its Miri reach to 2, and
-  the job is green in push runs 44940832132 and 44945274371. This session fixed the stale doc comment.
+- Windows nextest per slice, runs 44945274371 / 44940832132 / 44892963091: slice 1 6.8 / 11.1 / 8.4,
+  slice 2 6.0 / 7.7 / 5.2, slice 3 7.1 / 7.2 / 8.0. Slice 2 now runs the benches and doc tests and
+  saves the cache: `(matrix.shard || 2) == 2`, so a leg with no shard still runs them.
+- `proofs` has Windows rows `part: 1` and `part: 2`. Part 2 skips the forced unwind test and the
+  stale guard and saves no cache. `Feature proofs` passes `--part k/2` on Windows, writes
+  `NVS_PROOF_TIMES` off macOS, and `Keep the proof times` uploads `proof-times-<name>-<part or 1>`.
+- `build` has `needs: [tested, nvs-debug]`. Its last leg would end at 28.1, 29.4 and 46.9 min in the
+  three runs, before their last jobs at 54.4, 45.9 and 83.1.
+- `website/src/data/roadmap.json` lists `ci-critical-path` and `windows-rust-lld` as `internal`.
+- `miri units (nvs-stdlib 2/12)` on nightly 44894790665 was a timeout, fixed by `156f11a7ca`.
 
-Run 44940832132's Windows nextest steps: slice 1 11.1 min (and benches 3.5, cache save 2.9), slice 2
-7.7, slice 3 7.2. The whole run ended at 45.9 min, on `proofs / windows-x86_64` (Feature proofs 32.1).
+In run 44945274371 `proofs / linux-x86_64` ended last at 54.4 min, with Feature proofs 41.6 min.
+In 44940832132 that step took 22.4. Stage 5 reads its proof times artifact to see why.
 
 ### Next
 
-Stage 3, one session. Read two more green push runs with `bun nv ci --times <id>` (find ids with `gh
-run list --workflow ci.yml --branch main --event push --status success --limit 4`), pick the lightest
-Windows slice, then change `.github/workflows/ci.yml` at the anchors the stage names (`:243`, `:348`,
-`:352`, `:510`-`:610`, `:1844`). Before the `build` `needs:` change, check its legs' run times
-against `debug nvs / windows-x86_64`'s end (8.3 min in 44940832132; the latest build leg ran 21.1
-min, so it ends near 29.4, under 45.9). `bun nv ci --check` ends the stage. No test is expected to go
-red.
+Stage 4, one session. `bun nv ci --check`, then `bun nv ci --push`, then `bun nv ci --watch --next`
+with `run_in_background` and a timeout of 7200000, and end the turn. Jobs to watch first: `proofs /
+windows-x86_64 (part 1/2)` and `(part 2/2)` (`ci.yml` `proofs:`), `test / windows-x86_64 (tests 2/3)`
+(it now runs the benches and doc tests), and `build` (`ci.yml` `build:`, now after `nvs-debug`). Then
+`bun nv ci --times` on the run, and the table in `### State` with the baseline's end beside each job
+(baseline: 44940832132). No test is expected to go red.
 
 ### Backlog

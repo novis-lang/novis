@@ -155,8 +155,11 @@ jobs:
     # Windows's `tests` part is three legs, `shard` 1 to 3, each building the workspace and running
     # a third of the tests (nextest's `--partition slice:<n>/3`). One leg took 53 minutes warm: 18 to
     # build and 32 of tests, the longest in the run. The split spends two more Windows builds of
-    # runner time to bring the leg to about 30 minutes. The first shard alone saves the cache entry
-    # and runs the doc tests and the benches.
+    # runner time to bring the leg to about 30 minutes. The second shard alone saves the cache entry
+    # and runs the doc tests and the benches, because its slice of nextest is the lightest: 6.0, 7.7
+    # and 5.2 minutes in push runs 44945274371, 44940832132 and 44892963091, where slice 1 took 6.8,
+    # 11.1 and 8.4 and slice 3 took 7.1, 7.2 and 8.0. On slice 1 those steps added about 9 minutes
+    # and made it the last Windows `tests` leg to end.
     #
     # Linux x86_64's `tests` leg is the run's wall time, so its doc tests and benches run in its
     # `conformance 2/2` leg, which ends sooner. That leg builds them from the conformance cache entry,
@@ -240,7 +243,7 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           shared-key: ${{ matrix.name }}-${{ matrix.part == 'conformance' && 'conformance' || 'test' }}
-          save-if: ${{ matrix.half != 2 && (matrix.shard || 1) == 1 }}
+          save-if: ${{ matrix.half != 2 && (matrix.shard || 2) == 2 }}
 
       # Some Rust tests check the tree through `bun nv` (`nvs-ir`'s refusal roster reads
       # `bun nv holes`), so the test job needs Bun and the tools' dependencies too.
@@ -340,16 +343,17 @@ jobs:
       # `cargo test` ran the binaries one after another, and nextest took 7 to 9 minutes off the
       # Windows leg and 4 to 6 off Linux x86_64. Its `ci` profile in `.config/nextest.toml` lists
       # every failure. nextest cannot list a bench that sets `harness = false`, so `cargo test` runs
-      # the benches.
+      # the benches. On Windows the benches and the doc tests run in shard 2, the lightest slice,
+      # as the job's comment says. A leg with no shard counts as shard 2.
       - if: matrix.part != 'conformance'
         run: >-
           cargo nextest run --profile ci --workspace --lib --bins --tests --examples
           ${{ matrix.shard && format('--partition slice:{0}/3', matrix.shard) || '' }}
-      - if: (matrix.part == 'tests' && (matrix.shard || 1) == 1 && matrix.name != 'linux-x86_64') || (matrix.name == 'linux-x86_64' && matrix.half == 2)
+      - if: (matrix.part == 'tests' && (matrix.shard || 2) == 2 && matrix.name != 'linux-x86_64') || (matrix.name == 'linux-x86_64' && matrix.half == 2)
         run: cargo test --workspace --benches
       # Doc tests are excluded from --all-targets and are real tests for a
       # library this API-heavy.
-      - if: (matrix.part == 'tests' && (matrix.shard || 1) == 1 && matrix.name != 'linux-x86_64') || (matrix.name == 'linux-x86_64' && matrix.half == 2)
+      - if: (matrix.part == 'tests' && (matrix.shard || 2) == 2 && matrix.name != 'linux-x86_64') || (matrix.name == 'linux-x86_64' && matrix.half == 2)
         run: cargo test --workspace --doc
 
       # The `.nvst` conformance suite, on every platform for the reason the
@@ -513,9 +517,22 @@ jobs:
   # `nv verify` marks a proof program the change reaches as owed and leaves it there. A job of its
   # own, beside `test` rather than inside it, so the proof build and the whole roster's run do not
   # lengthen the Windows leg, and so a change to an example alone runs this job and nothing else.
+  #
+  # Windows runs the roster in two legs, `part` 1 and 2, each taking every second program with
+  # `bun nv proofs --part <k>/2`. Its one leg ended last in the run: 45.9 minutes in push run
+  # 44940832132, 32.1 of them the proofs. Both parts build the proof binary and run the gate whole,
+  # so each part proves the tree alone. The steps that run once per OS, the forced unwind test and the
+  # website stale guard, run in part 1, which also saves the cache entry that part 2 reads. What it
+  # spends: one more Windows runner and one more proof build per run, to take about 15 minutes off
+  # the run. One build job that handed the binary to both parts would save the build, but both parts
+  # would wait for it, so the run would end later. Linux keeps one leg, which ended near 31 minutes,
+  # and macOS keeps one because the run has no free macOS runner for a second.
+  #
+  # Each Linux and Windows leg writes every program's time to `NVS_PROOF_TIMES` and keeps the file
+  # 7 days as the artifact `proof-times-<name>-<part>`, so a slow program can be found from any run.
   # ---------------------------------------------------------------------------
   proofs:
-    name: proofs / ${{ matrix.name }}
+    name: proofs / ${{ matrix.name }}${{ matrix.part && format(' (part {0}/2)', matrix.part) || '' }}
     needs: tested
     if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' }}
     runs-on: ${{ matrix.os }}
@@ -530,6 +547,10 @@ jobs:
             os: ubuntu-26.04
           - name: windows-x86_64
             os: windows-latest
+            part: 1
+          - name: windows-x86_64
+            os: windows-latest
+            part: 2
           - name: macos-aarch64
             os: macos-latest
     steps:
@@ -538,9 +559,11 @@ jobs:
       - name: Install toolchain
         run: rustup toolchain install --no-self-update
 
+      # One cache entry per OS. Windows part 2 reads the entry part 1 saves.
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: proofs-${{ matrix.name }}
+          save-if: ${{ matrix.part != 2 }}
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
@@ -574,17 +597,31 @@ jobs:
       # the optimized build inlined a task's body into `corosensei`'s `sysv64` entry, whose cleanup
       # funclets then clobbered registers the C++ runtime keeps (`Task::force_unwind` in
       # `crates/nvs-host/src/scheduler.rs` has the cause). A debug build never inlines it, so only
-      # this profile can catch the crash coming back. It runs on every leg, because the fault is
+      # this profile can catch the crash coming back. It runs once per OS, because the fault is
       # one OS's and the test is the same everywhere.
       - name: Teardown of a cancelled task (proof profile)
+        if: matrix.part != 2
         run: cargo test --profile proof --test forced_unwind
 
       # Two programs at a time on every leg. The default is half the runner's cores, and one image
       # comes with 3 or 5 cores, so the same commit was judged at a different load from run to run.
+      # A Windows leg runs its part of the roster. A leg off macOS writes each program's time.
       - name: Feature proofs
         env:
           NVS_PROOF_JOBS: '2'
-        run: bun nv proofs --verify --nvs target/proof/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
+          NVS_PROOF_TIMES: ${{ runner.os != 'macOS' && format('{0}/proof-times.tsv', runner.temp) || '' }}
+        run: >-
+          bun nv proofs --verify --nvs target/proof/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
+          ${{ matrix.part && format('--part {0}/2', matrix.part) || '' }}
+
+      - name: Keep the proof times
+        if: always() && runner.os != 'macOS'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: proof-times-${{ matrix.name }}-${{ matrix.part || 1 }}
+          path: ${{ runner.temp }}/proof-times.tsv
+          if-no-files-found: warn
+          retention-days: 7
 
       # The PDF/A-2b, PDF/A-3b and PDF/UA-1 files the same binary writes, checked by veraPDF's image,
       # pinned by digest in `tools/nv/cmd/pdf-validate.ts` (`rule:core-classes/pdf-standards-and-passwords`).
@@ -606,8 +643,9 @@ jobs:
       # The nginx, Caddy and Dockerfile checks run in pinned Linux images, so the Linux leg judges them
       # and the other legs print why they pass. The first Caddyfile with a plugin builds Caddy once,
       # about a minute. `tools/nv/cmd/site.ts` is what each part asserts. `reference` needs the built
-      # site, so it does not run here.
+      # site, so it does not run here. It runs once per OS.
       - name: Website stale guard
+        if: matrix.part != 2
         run: bun nv site --check structure snippets stale changes review questions syntax guides tools in-depth roadmap prose apps code --nvs target/proof/nvs${{ runner.os == 'Windows' && '.exe' || '' }}
 
       # Every website screenshot taken again from a real run against the same binary, and its
@@ -1840,10 +1878,17 @@ jobs:
   # version. `build.yml` is the one home of the build, which `release.yml` calls with its version.
   # The archives stay 30 days as this run's artifacts, so a tester can take any commit's binaries
   # from its run, and the `dev-image` job below packages the Linux ones.
+  #
+  # It starts once the `debug nvs` legs end, so that the run's macOS legs get their runners first.
+  # GitHub gives the whole run 5 macOS runners, and the build's macOS leg took one at the start, so a
+  # macOS `test` leg waited 6.7 minutes for it in push run 44940832132. The build ends no later: its
+  # longest leg, Windows, took 20 to 21 minutes warm and starts near minute 8.3, so it ends near 29.4,
+  # before the run's last job. A cold Windows build took 37.5 minutes, which ends near 47, still
+  # before that run's last job at 83. `release.yml` calls `build.yml` itself, so a release does not wait.
   # ---------------------------------------------------------------------------
   build:
     name: build
-    needs: tested
+    needs: [tested, nvs-debug]
     if: ${{ !cancelled() }}
     uses: ./.github/workflows/build.yml
     with:
