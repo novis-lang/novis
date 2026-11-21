@@ -32,6 +32,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   check: () => import("./cmd/check.ts"),
   "checkout-acl": () => import("./cmd/checkout-acl.ts"),
   ci: () => import("./cmd/ci.ts"),
+  close: () => import("./cmd/close.ts"),
   "db-matrix": () => import("./cmd/db-matrix.ts"),
   debt: () => import("./cmd/debt.ts"),
   deep: () => import("./cmd/deep.ts"),
