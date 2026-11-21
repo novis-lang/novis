@@ -3139,7 +3139,7 @@
   },
   "/reference/core/cache/memory/": {
     "feature": "Core\\Cache::memory",
-    "hash": "acf5969f66bb6b33",
+    "hash": "640aefdf15bf070a",
     "questions": [
       "How do I cache data for the whole server?",
       "In-memory cache that every request on this server sees",
