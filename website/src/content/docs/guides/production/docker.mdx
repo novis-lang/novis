@@ -69,6 +69,15 @@ The volume `novis-data` keeps the compile cache when you remove the container.
 `serve` checks every configuration file before it starts, and again at each reload. The file
 and its folder must not be writable by a group or by everyone. Use `chmod go-w` to fix that.
 
+When you change the files of a mounted application, run `nvs reload` in the container. The server
+then uses the new files at once. `2` is the exit code when no server runs in the container:
+
+```sh skip="runs a command in a container with docker"
+docker exec <container> nvs reload
+```
+
+[Deploy a new version](/guides/production/deploy/) shows the whole deploy.
+
 Mount your application read-only, with `:ro`. Then `nvs.toml` and the files it includes may belong
 to your own account on the host. If you mount them writable, they must belong to uid 65532 or to
 root. Otherwise `serve`

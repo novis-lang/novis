@@ -408,7 +408,8 @@ fn trigger(
                 entry,
                 format!("`on = \"{on}\"` is not a server event"),
                 "`start` runs when the server starts, `stop` when it begins to stop, `reload` \
-                 after a configuration reload, and `failed` after a scheduled run or a queued job \
+                 after the server reloads its configuration or a program, and `failed` after a \
+                 scheduled run or a queued job \
                  fails",
                 "name one of `start`, `stop`, `reload` or `failed`",
                 origins,

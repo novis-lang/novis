@@ -1260,6 +1260,19 @@
     },
     {
       "area": "cli",
+      "slug": "nvs-reload",
+      "url": "/reference/cli/nvs-reload/",
+      "title": "nvs reload",
+      "group": "Server",
+      "intro": {
+        "id": "tools:server/nvs-reload",
+        "title": "nvs reload",
+        "examples": "tools/server/nvs-reload"
+      },
+      "keys": []
+    },
+    {
+      "area": "cli",
       "slug": "nvs-service",
       "url": "/reference/cli/nvs-service/",
       "title": "nvs service",

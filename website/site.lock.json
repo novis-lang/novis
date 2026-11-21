@@ -174,7 +174,7 @@
     "directive:regex.backtracking": "1149c8a53d4fa399"
   },
   "docs/examples/config/schedule/about.md": {
-    "directive:schedule": "4e298d43c8dbbe00"
+    "directive:schedule": "89ff85fa929a2982"
   },
   "docs/examples/config/server/about.md": {
     "directive:server": "72896ea1e7fa0395"
@@ -4550,6 +4550,9 @@
   "docs/examples/tools/server/mounts-which-file-answers-a-request/about.md": {
     "tools:server/mounts-which-file-answers-a-request": "9b53efe7337f5547"
   },
+  "docs/examples/tools/server/nvs-reload/about.md": {
+    "tools:server/nvs-reload": "d5ac8cba1c440282"
+  },
   "docs/examples/tools/server/nvs-serve/about.md": {
     "tools:server/nvs-serve": "e77bad0426c52981"
   },
@@ -4566,7 +4569,7 @@
     "tools:server/what-a-program-reads-about-its-door": "99cf760c505b7da3"
   },
   "docs/examples/tools/server/what-reaches-a-running-server/about.md": {
-    "tools:server/what-reaches-a-running-server": "12811b7d673baec3"
+    "tools:server/what-reaches-a-running-server": "4d98ab01cceb218a"
   },
   "docs/examples/tools/server/when-the-client-goes-away/about.md": {
     "tools:server/when-the-client-goes-away": "ac290c8fdd828ab3"
@@ -8484,7 +8487,7 @@
     "directive:regex.backtracking": "96ae5940629bb69d"
   },
   "help:directive:schedule": {
-    "directive:schedule": "364548515defa453"
+    "directive:schedule": "83500eb911a3ee97"
   },
   "help:directive:server": {
     "directive:server": "67371c7b68e26856"
@@ -9344,6 +9347,9 @@
   "help:tools:server/mounts-which-file-answers-a-request": {
     "tools:server/mounts-which-file-answers-a-request": "641769e3c81982fa"
   },
+  "help:tools:server/nvs-reload": {
+    "tools:server/nvs-reload": "616fc5a68f05545e"
+  },
   "help:tools:server/nvs-serve": {
     "tools:server/nvs-serve": "3082ff8d2a7a7d02"
   },
@@ -9360,7 +9366,7 @@
     "tools:server/what-a-program-reads-about-its-door": "d5a3beab0e36a12d"
   },
   "help:tools:server/what-reaches-a-running-server": {
-    "tools:server/what-reaches-a-running-server": "5354de986b89ad05"
+    "tools:server/what-reaches-a-running-server": "a05fe1197c4dbd55"
   },
   "help:tools:server/when-the-client-goes-away": {
     "tools:server/when-the-client-goes-away": "80eceee392cd0a60"

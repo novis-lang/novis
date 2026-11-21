@@ -470,6 +470,28 @@
         "lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file"
       ],
       "text": "The attributes of `Core`, such as `#[Core\\Route]`, are checked like your own attributes. One written in a place it does not allow is the error `E0874`. A second `#[Core\\Access]` or `#[Core\\Api]` on one declaration is the error `E0763`."
+    },
+    {
+      "kind": "new",
+      "highlight": true,
+      "features": [
+        "tools:server/nvs-reload"
+      ],
+      "text": "`nvs reload` makes a running `nvs serve` use the code and configuration on disk at once, and returns when every compile has ended. It prints each error with its file and line. The exit code is `0` when everything is live, `1` when a file has an error and `2` when no server runs."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:server/nvs-reload"
+      ],
+      "text": "A `[[schedule]]` entry with `on = \"reload\"` also runs when the server replaces a changed program, or when a program does not compile. `Core\\Script::args()` has two more values: `programs`, the number of programs replaced, and `failed`, the number of programs with errors."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "tools:server/nvs-reload"
+      ],
+      "text": "The server writes one `program reloaded` line to its log for each program it replaces. A program that does not compile writes one `program reload failed` line, with the first error and its file and line."
     }
   ],
   "unseen": {

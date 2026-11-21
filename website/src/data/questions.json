@@ -354,17 +354,30 @@
   },
   "/guides/production/": {
     "feature": "guides/production/index.mdx",
-    "hash": "cc396afcfd2b971c",
+    "hash": "d99b8485ddbd1cde",
     "questions": [
       "How do I deploy a Novis application to production?",
       "Host a Novis web app on my own server",
       "Steps before putting my Novis app on the internet",
-      "Production setup guides for a Novis server"
+      "Production setup guides for a Novis server",
+      "Update my app on the server without a restart"
+    ]
+  },
+  "/guides/production/deploy/": {
+    "feature": "guides/production/deploy.mdx",
+    "hash": "8f4537dd1237d282",
+    "questions": [
+      "How do I deploy a new version without a restart?",
+      "Switch to a new release folder with a symlink",
+      "Roll back a deploy when the new code has an error",
+      "When do I run database migrations during a deploy?",
+      "Check in a deploy script that the new code is live",
+      "Use nvs reload with a coding agent while I develop"
     ]
   },
   "/guides/production/docker/": {
     "feature": "guides/production/docker.mdx",
-    "hash": "1d10db5ad457b25b",
+    "hash": "33689feade74a67d",
     "questions": [
       "How do I run a Novis app in a Docker container?",
       "Which tag of the official Novis image should I deploy?",
@@ -400,7 +413,7 @@
   },
   "/guides/production/run-as-a-service/": {
     "feature": "guides/production/run-as-a-service.mdx",
-    "hash": "7d46fc6dcd37f770",
+    "hash": "1f43bcd96fb8dee3",
     "questions": [
       "How do I keep my Novis server running after a reboot?",
       "Where does a background service write its log?",
@@ -1403,6 +1416,18 @@
       "Get the JSON schema of each class that encodes itself to JSON"
     ]
   },
+  "/reference/cli/nvs-reload/": {
+    "feature": "tools:server/nvs-reload",
+    "hash": "276d9fc1d5890069",
+    "questions": [
+      "Make my running server use the new code at once",
+      "How do I know if a deploy has a compile error?",
+      "What do the exit codes of nvs reload mean?",
+      "Reload every server that uses one data folder",
+      "Can a web request start a reload of the server?",
+      "My coding agent edits many files. How do I stop half-edited compiles?"
+    ]
+  },
   "/reference/cli/nvs-run/": {
     "feature": "tools:cli/nvs-run",
     "hash": "4b967e9f4aa6519b",
@@ -1813,7 +1838,7 @@
   },
   "/reference/config/schedule/": {
     "feature": "directive:schedule",
-    "hash": "b65807731bdf8d0c",
+    "hash": "52924dff7854cb4e",
     "questions": [
       "Run a job every night",
       "How do I run a script at fixed times like cron?",

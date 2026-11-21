@@ -563,6 +563,11 @@ export default defineConfig({
                   attrs: { 'data-subtext': 'Run your application in a container' },
                 },
                 {
+                  label: 'Deploy a new version',
+                  link: '/guides/production/deploy/',
+                  attrs: { 'data-subtext': 'Switch a release and run nvs reload' },
+                },
+                {
                   label: 'Behind a reverse proxy',
                   link: '/guides/production/reverse-proxy/',
                   attrs: { 'data-subtext': 'Use nginx or another proxy for TLS' },

@@ -316,14 +316,15 @@ the proxy, or none.
 
 # What reaches a running server
 
-A running server takes a change without a restart, except a change to three keys.
+A running server takes a change without a restart, except a change to four keys.
 
 **A code change.** The server checks every file a program has loaded once per `[opcache]
 revalidate_freq`, off the request path. When a file changed, the server waits until no file of the
 program has changed for `[opcache] settle`: `1s` in production, `100ms` in development. Then it
 compiles the whole program again, and the next request runs the new code. A request that is already
 running finishes on the code it started with. A file added where the program looks for one, or a
-file removed, is a change too. This works in every mode, and a deploy has no step to run after it.
+file removed, is a change too. This works in every mode, so a deploy needs no step after it.
+`nvs reload` makes the change take effect at once.
 
 A change that does not compile fails the requests that reach it, with its diagnostic. The server
 does not serve the last version that compiled in its place. When the file is fixed, the next check
