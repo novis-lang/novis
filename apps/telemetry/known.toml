@@ -29,6 +29,7 @@ commands = [
     "pkg",
     "queue",
     "registry",
+    "reload",
     "run",
     "schema",
     "serve",

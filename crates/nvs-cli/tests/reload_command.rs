@@ -39,7 +39,7 @@ const PLAIN: &str = "<?nvs\necho \"ok\";\n";
 struct Served {
     child: Child,
     dir: PathBuf,
-    data: nvs_repo::Scratch,
+    data: Arc<nvs_repo::Scratch>,
     addr: SocketAddr,
     stderr: Arc<Mutex<String>>,
 }
@@ -54,19 +54,31 @@ impl Served {
     /// Starts the server over [`PLAIN`] and `config` in a fresh directory named for `case`.
     /// `before` runs on the data folder first.
     fn start_with(case: &str, config: &str, before: impl FnOnce(&Path)) -> Self {
+        let data = nvs_repo::scratch_private("nvsdata");
+        before(&data);
+        Self::launch(case, config, Arc::new(data))
+    }
+
+    /// Starts a second server over [`PLAIN`] and `config`, in a fresh directory named for `case`,
+    /// that shares `self`'s data folder.
+    fn beside(&self, case: &str, config: &str) -> Self {
+        Self::launch(case, config, Arc::clone(&self.data))
+    }
+
+    /// Starts the server over [`PLAIN`] and `config` in a fresh directory named for `case`, with
+    /// `data` as its data folder.
+    fn launch(case: &str, config: &str, data: Arc<nvs_repo::Scratch>) -> Self {
         let dir = Path::new(env!("CARGO_TARGET_TMPDIR"))
             .join(format!("reload-command-{case}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("the case's directory is created");
         write_file(&dir.join("app.nvs"), PLAIN);
         write_file(&dir.join("nvs.toml"), config);
-        let data = nvs_repo::scratch_private("nvsdata");
-        before(&data);
 
         let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
         command
             .arg("--data")
-            .arg(&*data)
+            .arg(data.path())
             .args(["serve", "app.nvs", "--listen", "127.0.0.1:0"])
             .current_dir(&dir)
             .stdin(Stdio::null())
@@ -256,6 +268,31 @@ fn reload(endpoint: &Path, said: impl Fn() -> String) -> serde_json::Value {
         .unwrap_or_else(|error| panic!("the reply is not read: {error}\n{}", said()));
     serde_json::from_str(&line)
         .unwrap_or_else(|error| panic!("the reply {line:?} is not JSON: {error}\n{}", said()))
+}
+
+/// What one run of `nvs reload` over the data folder `data` did.
+struct Ran {
+    code: Option<i32>,
+    stdout: String,
+    stderr: String,
+}
+
+/// Runs `nvs --data <data> reload`, with `--json` where `json` is set, and waits for it.
+fn nvs_reload(data: &Path, json: bool) -> Ran {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_nvs"));
+    command.arg("--data").arg(data).arg("reload");
+    if json {
+        command.arg("--json");
+    }
+    let output = command
+        .stdin(Stdio::null())
+        .output()
+        .expect("the `nvs` binary this test was built beside starts");
+    Ran {
+        code: output.status.code(),
+        stdout: String::from_utf8_lossy(&output.stdout).into_owned(),
+        stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+    }
 }
 
 /// Writes `text` to `path` in one rename, so the server never reads half a file.
@@ -530,6 +567,151 @@ fn two_reloads_at_once_share_one_check() {
         "the request after the reloads: {}",
         served.said()
     );
+}
+
+/// `nvs reload` exits `0` once an edit is live, and the next request runs it.
+#[test]
+fn nvs_reload_exits_zero_when_everything_is_live() {
+    let served = Served::start_with("cli-live", HOURLY, |_| {});
+    assert_eq!(served.get(), "ok", "the first request: {}", served.said());
+    write_file(&served.dir.join("app.nvs"), "<?nvs\necho \"new\";\n");
+    let ran = nvs_reload(served.data.path(), false);
+    assert_eq!(
+        ran.code,
+        Some(0),
+        "`nvs reload` printed {}{}\nthe server wrote: {}",
+        ran.stdout,
+        ran.stderr,
+        served.said()
+    );
+    let pid = served.child.id();
+    assert!(
+        ran.stdout
+            .contains(&format!("server {pid}: configuration unchanged, 1 program reloaded")),
+        "`nvs reload` printed {}",
+        ran.stdout
+    );
+    assert_eq!(served.get(), "new", "the request after the reload");
+}
+
+/// `nvs reload` exits `1` when a file is refused, and prints each refusal with its file.
+#[test]
+fn nvs_reload_exits_one_and_prints_every_refusal() {
+    let served = Served::start_with("cli-refused", HOURLY, |_| {});
+    assert_eq!(served.get(), "ok", "the first request: {}", served.said());
+    write_file(
+        &served.dir.join("app.nvs"),
+        "<?nvs\necho \"ok\";\necho (;\n",
+    );
+    write_file(
+        &served.dir.join("nvs.toml"),
+        &HOURLY.replace("[server]\n", "[server]\nno_such_key = 1\n"),
+    );
+    let ran = nvs_reload(served.data.path(), false);
+    assert_eq!(
+        ran.code,
+        Some(1),
+        "`nvs reload` printed {}{}\nthe server wrote: {}",
+        ran.stdout,
+        ran.stderr,
+        served.said()
+    );
+    let errors: Vec<&str> = ran
+        .stdout
+        .lines()
+        .filter(|line| line.starts_with("  error: "))
+        .collect();
+    assert_eq!(errors.len(), 2, "`nvs reload` printed {}", ran.stdout);
+    let printed = ran.stdout.replace('\\', "/");
+    assert!(
+        printed.contains("/app.nvs:3: "),
+        "`nvs reload` printed {}",
+        ran.stdout
+    );
+    assert!(
+        printed.contains("nvs.toml"),
+        "`nvs reload` printed {}",
+        ran.stdout
+    );
+}
+
+/// `nvs reload` exits `2` when no server uses the data folder, and says so.
+#[test]
+fn nvs_reload_exits_two_with_no_server() {
+    let data = nvs_repo::scratch_private("nvsdata-none");
+    let ran = nvs_reload(data.path(), false);
+    assert_eq!(
+        ran.code,
+        Some(2),
+        "`nvs reload` printed {}{}",
+        ran.stdout,
+        ran.stderr
+    );
+    assert!(
+        ran.stderr.contains("no `nvs serve` process uses the data folder"),
+        "`nvs reload` wrote {}",
+        ran.stderr
+    );
+}
+
+/// Two servers that share one data folder are both reloaded, and each is reported.
+#[test]
+fn nvs_reload_reaches_every_server_of_a_data_folder() {
+    let first = Served::start_with("cli-first", HOURLY, |_| {});
+    let second = first.beside("cli-second", HOURLY);
+    for served in [&first, &second] {
+        assert_eq!(served.get(), "ok", "the first request: {}", served.said());
+        write_file(&served.dir.join("app.nvs"), "<?nvs\necho \"new\";\n");
+    }
+    let ran = nvs_reload(first.data.path(), false);
+    assert_eq!(
+        ran.code,
+        Some(0),
+        "`nvs reload` printed {}{}\nthe servers wrote: {}\n{}",
+        ran.stdout,
+        ran.stderr,
+        first.said(),
+        second.said()
+    );
+    for served in [&first, &second] {
+        let pid = served.child.id();
+        assert!(
+            ran.stdout
+                .contains(&format!("server {pid}: configuration unchanged, 1 program reloaded")),
+            "`nvs reload` printed {}",
+            ran.stdout
+        );
+        assert_eq!(served.get(), "new", "the request after the reload");
+    }
+}
+
+/// `nvs reload --json` prints one JSON document with one entry per server.
+#[test]
+fn nvs_reload_json_is_one_document() {
+    let served = Served::start_with("cli-json", HOURLY, |_| {});
+    let ran = nvs_reload(served.data.path(), true);
+    assert_eq!(
+        ran.code,
+        Some(0),
+        "`nvs reload --json` printed {}{}",
+        ran.stdout,
+        ran.stderr
+    );
+    let document: serde_json::Value = serde_json::from_str(&ran.stdout).unwrap_or_else(|error| {
+        panic!(
+            "`nvs reload --json` printed {:?}, which is not one document: {error}",
+            ran.stdout
+        )
+    });
+    assert_eq!(document["schema"], 1, "the document: {document}");
+    let servers = document["servers"].as_array().expect("`servers` is a list");
+    assert_eq!(servers.len(), 1, "the document: {document}");
+    let server = &servers[0];
+    assert_eq!(server["pid"], served.child.id(), "the server: {server}");
+    assert_eq!(server["state"], "replied", "the server: {server}");
+    assert_eq!(server["config"], "unchanged", "the server: {server}");
+    assert_eq!(server["failed"], 0, "the server: {server}");
+    assert!(server["refusals"].is_array(), "the server: {server}");
 }
 
 /// A request longer than the line is closed without a reply, and the endpoint still answers the

@@ -17,7 +17,7 @@ stages:
     status: done
   - id: 4
     title: the nvs reload command
-    status: open
+    status: done
     context: [crates/nvs-cli/src/main.rs, crates/nvs-cli/src/cache_cmd.rs]
   - id: 5
     title: a code swap is logged and fires on = "reload" with its counts
@@ -251,6 +251,19 @@ thread-local the compiling thread reads right after its front end, and the confi
 shares the one reload lock, and a program both compile is single-flighted, so `Rounds` orders only
 reloads among themselves.
 
+**The command, as stage 4 built it.** `crates/nvs-cli/src/reload_cmd.rs`. It sends the request to
+every live endpoint first and then reads each reply, so several servers of one folder check at the
+same time. A server is named by the pid in its endpoint's name. The text is one line per server,
+`server <pid>: configuration <outcome>, N programs reloaded, N programs with errors`, then one
+`  error: <file>:<line>: <message>` line per refusal and one line naming the restart keys. `--json`
+is `{"schema":1,"servers":[{"pid","state":"replied|stopped|unreachable","error"?, ...the reply's
+fields}]}`, in that order (a derived `Serialize`). Exit `2` when no server replied (none found, all
+stopped or all unreachable); else `1` when a reply refused anything **or a found server could not be
+reached** (a server the command could not reload does not match the disk); else `0`. A server that
+stopped during the reload does not change the exit code: it was going away. No data folder at all
+is exit `2` with its own message. `reload` is in the telemetry command table and in
+`apps/telemetry/known.toml`.
+
 **Lanes.** Stage 1 touches only rules. Stage 2 (`nvs-config`, `nvs-host`, `serve.rs`) and stage 5
 (`schedule.rs`, `run_args`) are disjoint, but stage 5's tests drive `nvs reload`, so the stages run in
 order. One goal, no side lanes.
@@ -317,11 +330,11 @@ the Unix socket and peer check to another; the session wires `serve.rs` and buil
 
 ### 4. the nvs reload command
 
-- [ ] `crates/nvs-cli/src/reload_cmd.rs:1`: the command, its help text (AGENTS.md § *Text an end user
+- [x] `crates/nvs-cli/src/reload_cmd.rs:1`: the command, its help text (AGENTS.md § *Text an end user
   reads*), the text and `--json` output, and the exit codes.
-- [ ] `crates/nvs-cli/src/main.rs:577`: `Reload(reload_cmd::Args)` in `Command`, beside `Cache`
+- [x] `crates/nvs-cli/src/main.rs:577`: `Reload(reload_cmd::Args)` in `Command`, beside `Cache`
   (`crates/nvs-cli/src/main.rs:595`).
-- [ ] `crates/nvs-cli/tests/reload_command.rs`: the five `command` tests.
+- [x] `crates/nvs-cli/tests/reload_command.rs`: the five `command` tests.
 
 ### 5. a code swap is logged and fires on = "reload" with its counts
 
@@ -373,34 +386,36 @@ written.
 
 ### State
 
-Stages 1 to 3 are done; `rules`, `endpoint` and `check-now` are green. All nine
+Stages 1 to 4 are done; `rules`, `endpoint`, `check-now` and `command` are green. All fourteen
 `reload_command` tests pass on Windows and in WSL (`bun nv linux-test --test reload_command`),
-and the three `reload_endpoint::tests` unit tests pass. macOS is still uncompiled here; CI's macOS
-job is its first build. `rule:config/a-reload-command-checks-now-and-waits` is `shipped`, with
-`reload_endpoint.rs` and the test file in its `guardedBy`.
+and `reload_cmd::tests`' two unit tests and the two telemetry command-table tests pass. macOS is
+still uncompiled here; CI's macOS job is its first build.
+`rule:config/a-reload-command-checks-now-and-waits` is `shipped`, with `reload_cmd.rs`,
+`reload_endpoint.rs` and the test file in its `guardedBy`. The command's output and exit codes are
+§ *Standing decisions* § *The command, as stage 4 built it*.
 
 The server answers `reload 1\n` with the reply § *Standing decisions* § *The reply, as stage 3
 built it* describes. `Rechecked::Swapped`'s two fields carry an `#[expect(dead_code)]` until
 stage 5's `program reloaded` record reads them; stage 5 removes it.
 
-The nightly CI run the sweep listed (44722386375) ran on `5d053fc6e6`, the same run the last two
+The nightly CI run the sweep listed (44722386375) ran on `5d053fc6e6`, the same run the last three
 handoffs covered; its failures were fixed after it, so no change was made for them.
+
+`nvs reload` has its help in the binary but no reference section yet, so `tools:server/nvs-reload`
+does not exist on the roster until stage 6 writes `# nvs reload` in
+`docs/reference/tools/25-server.md`. Expected red until then: `events` (stage 5), `proofs`,
+`primer` (stage 6), `site-stale`, `site-changes` (stage 7) and `site-review` (stage 8).
 
 ### Next
 
-Stage 4, the command. The client side is `nvs_host::endpoint::reach_all`
-(`crates/nvs-host/src/endpoint.rs`), which returns each live endpoint's connection and removes the
-stale ones. Send `crate::reload_endpoint::REQUEST` (`crates/nvs-cli/src/reload_endpoint.rs:59`),
-read one line, and parse the JSON `reply` writes (`crates/nvs-cli/src/reload_endpoint.rs:194`). A
-connection that closes with no line is a server that stopped (it was draining). Exit `0` when every
-reply is `failed: 0` and not `config: refused`, `1` otherwise, `2` when no endpoint answered. The
-test helper `reload` in `crates/nvs-cli/tests/reload_command.rs` is the client shape. The data
-folder resolves as `nvs serve`'s does (`nvs_config::data::current`, `Folder::run`). Wire it as
-`Command::Reload` beside `Command::Cache` (`crates/nvs-cli/src/main.rs:596`, `:560`, `:954`).
-The `command` and `events` checks stay red until stages 4 and 5 write their tests.
-
-Stage 5 then logs from `Compiler::revalidate_now`'s and `revalidate`'s results
-(`crates/nvs-cli/src/script.rs:1012`) and feeds `Events` beside `Process::logged`
-(`crates/nvs-cli/src/reload.rs:687`).
+Stage 5, the events. Log one `program reloaded` and one `program reload failed` record from
+`Compiler::revalidate_now`'s and `revalidate`'s results (`crates/nvs-cli/src/script.rs:1012`;
+the items name `:1382` and `:1353`), and remove `Rechecked::Swapped`'s `#[expect(dead_code)]`.
+Feed the swapped and failed counts into `Events` beside `Process::logged`
+(`crates/nvs-cli/src/reload.rs:687`), give `Reloaded` the two counts
+(`crates/nvs-server/src/schedule.rs:263`), and add `programs` and `failed` to `run_args`
+(`crates/nvs-cli/src/serve.rs:2171`). The four `events` tests drive `nvs reload` through the
+`nvs_reload` helper in `crates/nvs-cli/tests/reload_command.rs`, and a server is started with
+`Served::start_with` (`Served::beside` shares a data folder).
 
 ### Backlog

@@ -78,6 +78,9 @@
 //!   artifact cache a run reads: the eviction walk of
 //!   `rule:packaging/eviction-rides-the-cold-miss-at-a-probability` without its roll, and every
 //!   entry removed; see [`cache_cmd`].
+//! * `nvs reload` — `rule:config/a-reload-command-checks-now-and-waits`: every running
+//!   `nvs serve` of the data folder checks its configuration and loaded programs now, and the
+//!   command prints each server's reply; see [`reload_cmd`].
 //! * `nvs update-check` — `rule:tooling/update-check-states-the-whole-picture`: the telemetry
 //!   switch, this version and the latest release GitHub lists, one line per step or `--json`,
 //!   exit `0` always; see [`update_check`], and [`endpoints`] for the URLs it reads.
@@ -265,6 +268,7 @@ mod profile;
 mod queue;
 mod registry;
 mod reload;
+mod reload_cmd;
 mod reload_endpoint;
 mod run;
 mod runner;
@@ -558,6 +562,7 @@ fn carries_upload(command: &Command) -> bool {
         | Command::Schema(_)
         | Command::Tmp(_)
         | Command::Cache(_)
+        | Command::Reload(_)
         | Command::Service(_)
         | Command::InstallService(_)
         | Command::Fmt(_)
@@ -594,6 +599,7 @@ enum Command {
     Schema(schema::Args),
     Tmp(tmp::Args),
     Cache(cache_cmd::Args),
+    Reload(reload_cmd::Args),
     UpdateCheck(update_check::Args),
     Telemetry(telemetry::Args),
     Service(service::Args),
@@ -620,7 +626,7 @@ enum Command {
 /// Every subcommand's name as clap writes it: the closed set a telemetry counter names
 /// (`rule:tooling/telemetry-counters-are-a-closed-set`). A test holds it equal to [`Command`]'s
 /// table, so a new command that is not listed here fails it, and until then counts as `unknown`.
-const COMMAND_NAMES: [&str; 31] = [
+const COMMAND_NAMES: [&str; 32] = [
     "ast",
     "check",
     "run",
@@ -637,6 +643,7 @@ const COMMAND_NAMES: [&str; 31] = [
     "schema",
     "tmp",
     "cache",
+    "reload",
     "update-check",
     "telemetry",
     "service",
@@ -952,6 +959,7 @@ fn main() -> ExitCode {
         Command::Schema(args) => args.run(&cli.config),
         Command::Tmp(args) => args.run(&cli.config),
         Command::Cache(args) => args.run(&cli.config),
+        Command::Reload(args) => args.run(),
         Command::UpdateCheck(args) => args.run(),
         Command::Telemetry(args) => args.run(),
         Command::InstallService(args) => args.run(&cli.config),

@@ -11,6 +11,7 @@
   ],
   "guardedBy": [
     "crates/nvs-cli/src/reload.rs",
+    "crates/nvs-cli/src/reload_cmd.rs",
     "crates/nvs-cli/src/reload_endpoint.rs",
     "crates/nvs-cli/src/script.rs",
     "crates/nvs-cli/tests/reload_command.rs"
