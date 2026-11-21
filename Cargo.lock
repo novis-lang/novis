@@ -4191,7 +4191,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-abi-probe"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "anyhow",
  "corosensei",
@@ -4216,7 +4216,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-cli"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "base64 0.23.1",
  "blake3",
@@ -4269,7 +4269,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-codegen"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "blake3",
  "cranelift",
@@ -4295,7 +4295,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-config"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "base64 0.23.1",
  "blake3",
@@ -4313,7 +4313,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-db"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "base64 0.23.1",
  "bytes",
@@ -4333,7 +4333,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-diagnostics"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "anstyle",
  "insta",
@@ -4344,7 +4344,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-ext"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "aes",
  "brotli",
@@ -4376,7 +4376,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-fmt"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "nvs-diagnostics",
  "nvs-repo",
@@ -4385,14 +4385,14 @@ dependencies = [
 
 [[package]]
 name = "nvs-footprint"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "nvs-repo",
 ]
 
 [[package]]
 name = "nvs-fuzz-checks"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "httparse",
  "nvs-codegen",
@@ -4409,7 +4409,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-hir"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "ignore",
  "nvs-diagnostics",
@@ -4421,7 +4421,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-host"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "base64 0.23.1",
  "core_affinity",
@@ -4472,7 +4472,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-ir"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "blake3",
  "insta",
@@ -4489,7 +4489,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-ldap"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "nvs-host",
  "nvs-repo",
@@ -4498,7 +4498,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-lsp"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "blake3",
  "crossbeam-channel",
@@ -4526,7 +4526,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-render"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "serde",
  "serde_json",
@@ -4534,14 +4534,14 @@ dependencies = [
 
 [[package]]
 name = "nvs-repo"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "nvs-footprint",
 ]
 
 [[package]]
 name = "nvs-runtime"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "base64 0.23.1",
  "bitflags 2.13.2",
@@ -4565,14 +4565,14 @@ dependencies = [
 
 [[package]]
 name = "nvs-serve-probe"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "clap",
 ]
 
 [[package]]
 name = "nvs-server"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "base64 0.23.1",
  "hyper",
@@ -4592,7 +4592,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-stdlib"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "aes-gcm",
  "aes-kw",
@@ -4663,7 +4663,7 @@ dependencies = [
 
 [[package]]
 name = "nvs-syntax"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "insta",
  "nvs-diagnostics",
@@ -4673,14 +4673,14 @@ dependencies = [
 
 [[package]]
 name = "nvs-test"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "nvs-repo",
 ]
 
 [[package]]
 name = "nvs-types"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "nvs-config",
  "nvs-diagnostics",

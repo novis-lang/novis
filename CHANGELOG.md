@@ -13,6 +13,398 @@ Before 1.0 the breaking slot moves left: `0.MINOR` carries breaking changes.
 A release is cut by [the release workflow](.github/workflows/release.yml), fired by hand from the
 Actions tab; [docs/release.md](docs/release.md) is the procedure and what it needs configured.
 
+## [0.0.5] - 2026-11-21
+
+### Breaking changes
+
+- `Core\Time::fromIso` and `Core\Time::fromEpoch` are removed. The same methods are on `Core\Time\Instant`, with the same arguments. Use `Core\Time\Instant::fromIso` and `Core\Time\Instant::fromEpoch`. The compiler error names the new method and offers a fix that writes it.
+- `Core\Time::parse` is removed. The same method is on `Core\Time\DateTime`, with the same arguments. Use `Core\Time\DateTime::parse`. The compiler error names the new method and offers a fix that writes it.
+- `Core\Time::at` is removed. It built a `DateTime` from a year, a month, a day, a zone and time options. Use `Core\Time\DateTime::fromIso('2024-03-01 09:30', $zone)`, or `Core\Time\DateTime::at(Core\Time\Date::at(2024, 3, 1), Core\Time\TimeOfDay::at(9, 30), $zone)`.
+- The enum `Core\Time\DateTime::Weekday` is removed. The same seven cases are in `Core\Time\Weekday`. Write `Core\Time\Weekday::Monday` where the program has `Core\Time\DateTime::Weekday::Monday`.
+- `Core\Time\DateTime::weekday` returns a `Core\Time\Weekday` case. `Core\Time\DateTime::next` and `Core\Time\DateTime::previous` take a `Core\Time\Weekday` case. Write `Core\Time\Weekday::Friday` where the program has `Core\Time\DateTime::Weekday::Friday`.
+- `Core\Session::start` is removed. The first call of any `Core\Session` method opens the session from the session cookie. Delete the call to `Core\Session::start`. If your program reads the session identifier itself, for example from a header, call `Core\Session::openWithIdentifier` first.
+- `Core\Session::set` is removed. Each value in the session has a lifetime, and you choose it when you save the value. The `[session] ttl` setting is replaced by `short_lived` and `long_lived`. Use `Core\Session::setShortLived` for a login or other value that ends when the browser closes. Use `Core\Session::setLongLived` for a choice the visitor should keep, such as their language.
+- `Core\Session::setSecret` is removed. A secret in the session has a lifetime, the same as any other value. Use `Core\Session::setShortLivedSecret` for a secret of a login, such as an access token. Use `Core\Session::setLongLivedSecret` for a secret of the device.
+- `Core\Session::clear` and `Core\Session::destroy` are removed. Three new methods delete values by their lifetime, or delete the whole session. To sign a user out, use `Core\Session::clearShortLived`. To delete the whole session, use `Core\Session::clearAll`. To delete only the long-lived values, use `Core\Session::clearLongLived`.
+- `Core\Session::remove` inside `Core\Html::later` or `Core\Task::afterResponse` does not compile. Where the compiler cannot see the call, it throws a `LogicError`. Call `Core\Session::remove` in the main part of the request, before the response is sent.
+- An attribute without a name, `#[{ path: '/users' }]`, is removed. A `type` alias after `#[` does not compile any more. Declare the attribute with `attribute Route on method { path: string }` and write `#[Route(path: '/users')]`. The error on a `type` alias offers a fix that writes the declaration.
+- `Core\Attributes::get<Table>` returns only the attributes written as `#[Table(...)]`, so two attributes with the same fields are not mixed up. For a method that a class inherits and does not override, `get` and `all` return the attributes its parent class wrote on it. `Core\Reflect\AttributeInfo::name` returns the full name of the declaration. Name an attribute declaration between `<` and `>`, as in `Core\Attributes::get<Table>(User::constructor)`. A shape such as `get<{name: string}>` does not compile.
+
+### New
+
+- A class with no parent class can implement `Revocable`, so that the program can say an object is no longer valid. After `$object->revoke()`, every `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap` removes the object immediately. Any other use of it throws `RevokedObjectError`, and its message names the line of the `revoke()` call.
+- `nvs test --mutate=Shop\Cart` makes mutants only in the code you name, and `#[NoMutate]` keeps a class or a method out. `--since main` makes mutants only on the lines you edited, and a run compiles the program once. Survivors you checked go in `mutants.toml`, and the report lists the others by method.
+- An attribute is declared with `attribute Table on class { name: string }`, and the words after `on` list where it may be written. An attribute declared inside a class may be used only by the classes that extend it. `repeatable` allows more than one use on the same declaration.
+- `nvs reload` makes a running `nvs serve` use the code and configuration on disk at once, and waits until the server has compiled each changed program. It prints each error with its file and line. The exit code is `0` when the server uses every new file, `1` when a file has an error and `2` when no server runs.
+- `nvs code` reads and saves the editor's index file, a list of every name in the project and every place it is used. A call analyses only the files whose content changed, so it is faster. `nvs code calls` and `nvs code reach` take several methods in one call.
+- `Core\Test::run` runs your program as a command, with the arguments you give and an optional `stdin`. It returns a `Core\Test\RunResult` with the exit code, the standard output and the standard error. The program runs inside the test's own process.
+- `Core\Test::logs` returns the log records written in the current test. The list includes the records of each request and each run the test started. Each record has `level()`, `message()` and `fields()`.
+- `Core\Test::sentMail` returns the messages your program sent in the current test. Each one is a `Core\Test\SentMail`, and its methods return the values given to `Core\Mail::send`.
+- Under `nvs test`, `Core\Mail::send` sends nothing and opens no connection. It still checks the capability, the mail settings and every address. `Core\Test::sentMail` returns the message.
+- `Core\Test\Response::error` returns the class and message of the error that stopped a request, such as `RuntimeError: no stock`. It returns `null` when the request did not fail.
+- `Core\Test::request` has new options: `clientIp`, `scheme`, `cookies`, and the body options `json`, `form`, `multipart` and `contentType` of `Core\Http\Client`. The response is the one a server sends. A write from another site gets `403`, and a `HEAD` request gets no body.
+- `#[Test(env: [...])]` sets environment variables for one test. `Core\Env` reads them in the test and in each request and run it starts. Other tests do not see them.
+- In a test with `#[Test(at:)]`, `Core\Time::sleep` ends at once and moves the test clock forward. A timeout of `Core\Task::all` and the time to live of a `Core\Cache::memory` entry use the same clock. Without `at:`, a sleep waits in real time.
+- A callable in `Core\Html::later` can read the request with `Core\Request`. The path, the query, a header, a cookie and the route parameters are the same as in the main script. A body read in the callable throws a `LogicError`.
+- `Core\Time\Weekday` is the enum of the days of the week, from `Monday` to `Sunday`. `Core\Time\Date::weekday` and `Core\Time\DateTime::weekday` return one of its cases.
+- `Core\Time\Instant::fromIso` reads a timestamp such as `2024-03-01T12:00:00Z` and returns an `Instant`. `Core\Time\Instant::fromEpoch` builds an `Instant` from the number of seconds since 1 January 1970.
+- `Core\Time\Date::fromIso` reads a date such as `2024-03-01`. `Core\Time\TimeOfDay::fromIso` reads a time such as `09:30` or `09:30:15.5`. A string literal in either method is checked when the program compiles.
+- `Core\Time\DateTime::fromIso` reads a local date and time, such as `2024-03-01 09:30`, in the zone you give. `Core\Time\DateTime::at` builds a `DateTime` from a `Date`, a `TimeOfDay` and a zone. `Core\Time\DateTime::parse` reads text in a pattern you choose.
+- `Core\Time\Date::year`, `Core\Time\Date::month` and `Core\Time\Date::day` return the parts of a date as numbers. `Core\Time\Date::weekday` returns a `Core\Time\Weekday` case, and `Core\Time\Date::dayOfYear` returns the day of the year from `1`. `Core\Time\Date::isLeapYear` checks if the year is a leap year.
+- `Core\Time\DateTime::year`, `Core\Time\DateTime::month`, `Core\Time\DateTime::day`, `Core\Time\DateTime::hour`, `Core\Time\DateTime::minute`, `Core\Time\DateTime::second` and `Core\Time\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\Time\DateTime::year` returns an `int`, and the others return a `uint`.
+- `Core\Time\TimeOfDay::hour`, `Core\Time\TimeOfDay::minute`, `Core\Time\TimeOfDay::second` and `Core\Time\TimeOfDay::nanos` return the parts of a time as numbers. Each one returns a `uint`.
+- `Core\Time\Instant::in` takes a zone written as text, such as `$instant->in('Europe/Berlin')` or `$instant->in('+05:30')`. The name is checked when the program compiles, and a wrong name does not compile. Every other method that takes a zone accepts text in the same way.
+- `Core\Time\Zone::of` with a name written in quotes is checked when the program compiles. An unknown name, or an offset such as `'+02:00'`, does not compile. A name in a variable throws a `RuntimeError` when the program runs.
+- `Core\Session::setShortLived` saves a value that is deleted when the browser closes, or after `[session] short_lived` without a request. `Core\Session::setLongLived` saves a value that stays after the browser closes, for `[session] long_lived`. Use the short lifetime for a login and the long one for a choice such as a language.
+- `Core\Session::setShortLivedSecret` and `Core\Session::setLongLivedSecret` save an encrypted secret with a short or a long lifetime. `Core\Session::getSecret` reads both, and `Core\Session::get` returns `null` for them.
+- `Core\Session::clearShortLived` deletes every short-lived value, and `Core\Session::clearLongLived` deletes every long-lived value. Both give the session a new identifier. `Core\Session::clearAll` deletes the whole session and tells the browser to delete both session cookies.
+- `Core\Session::openWithIdentifier` opens the session under an identifier your program read itself, for example from a header. It reads no cookie and sends no cookie. It must be the first `Core\Session` call of the request.
+- `Core\Session::get`, `Core\Session::remove` and `Core\Session::regenerate` open the session on their first use. In a program that handles no request, they throw a `LogicError`. `Core\Session::get` returns `null` for a short-lived value after the browser closes.
+- The session saves only the keys that a request changed. Two requests that change different keys at the same time keep both changes. `Core\Session::regenerate` keeps every value, also a value that another request saved while it ran.
+- `Core\Csrf::token` and the `Core\Passkey` methods that save or check a challenge open the session on their first use. You do not call anything before them. In a program that handles no request, they throw a `LogicError`.
+- `Core\Reflect\ClassInfo::parent` returns the name of the class this class extends. It returns `null` for an interface and for a class that extends nothing. Call it in a loop to read the attributes of each parent class.
+- You can write `#[Core\Router\Target]` on a `callable` parameter and `#[Core\Router\Params]` on an `array` parameter. Your method then takes a route method and its values, the way `Core\Router::url` does. When a call writes the route method directly, the compiler checks it like a link.
+- A `[[restrict]]` table in `package.toml` says that a class, a method or a namespace may be used only in some places. A use outside those places does not compile. A call through `mixed` or `Core\Reflect` throws a `LogicError` when it runs.
+- After an array property, a property path can use `@key` for an element's key and `@value` for the element, such as `authors.@value.name`. A path converted while the program runs is checked in the same way. `Core\Reflect::steps` lists both steps.
+- You can pass a string literal to a parameter whose type is a union of a class and one `string<propertyPath<T>>`, `property<T>` or `propertyPath<T>`. The compiler checks the literal as that type.
+- `nvs code refs` lists a route method passed to a `#[Core\Router\Target]` parameter as a use of that method.
+- In the output of `nvs meta --json`, the description of a `@param` keeps its line breaks.
+- When a request is recorded, each call to `Core\IO::read`, `Core\IO::readText`, `Core\IO::readBytes`, `Core\IO::write` and `Core\IO::append` is saved with its line and its file path. The editor shows the number of these calls and their time above the line.
+- `Core\Json::isValid` checks a document without building its values, so it is faster and uses less memory. It returns `true` for a valid document that is too large to decode under the memory limit.
+- On a file that cannot seek, a method called after `Core\IO\File::readLine` throws an error. No bytes of the file are lost.
+- `foreach` gives the key and the value of a `Core\ObjectMap`: write `foreach ($map as var $key => var $value)`. A class of your own can do the same by implementing `KeyedIterable<K, V>`.
+- `nvs test CartTest.nvs:42` runs the test that contains line 42. `nvs test --since main` runs only the tests that reach code you changed since the git branch `main`.
+- A `///` comment above a field of a shape or an attribute describes that field. The editor shows the comment when you type the field's name or point at it.
+- The attributes of `Core`, such as `#[Core\Route]`, are checked like your own attributes. One written in a place it does not allow is the error `E0874`. A second `#[Core\Access]` or `#[Core\Api]` on one declaration is the error `E0763`.
+- A `[[schedule]]` entry with `on = "reload"` also runs when a check of the program files replaces a program or finds an error. It runs once for the whole check, not once for each program. `Core\Script::args()` has two more keys: `programs`, the number of programs replaced, and `failed`, the number of programs with errors.
+- The server writes one `program reloaded` line to its log for each program it replaces. A program that does not compile writes one `program reload failed` line, with the first error and its file and line.
+
+### Faster
+
+- `Core\ObjectMap` and `Core\ObjectSet` are faster. A lookup with a `string`, `int` or object key costs about the same as a lookup in an array. A `foreach` over either does not copy it.
+- `Core\Time\Zone::fixed` with a written offset, such as `Core\Time\Zone::fixed(5h30m)`, is built once when the program compiles. Each use of it costs no call and no memory.
+- A request with a body of 16 KiB or less is sent in one write, together with its headers. A larger body, or a body that reads a file, is sent in two writes.
+- `Core\IO\File::readLine` reads ahead into a buffer, so reading a file line by line is faster. Each open file that has read a line uses about 8 KB more memory while it is open.
+- `Core\Arr::groupBy` and `Core\Arr::countBy` copy a group's key only when the group is new. They allocate less memory and run faster on large arrays.
+- `Core\Db\Connection::query` and `Core\Db\Connection::stream` create the column names once for each result. Every row uses the same names, so reading many rows is faster and allocates less memory.
+- `Core\Json::decodeAs` matches each key with less work and finds each class's constructor once per call. Decoding a list of objects allocates only the objects and their strings.
+
+### Fixes
+
+- `Core\Session::get` inside `Core\Html::later` returns the value saved in the session of the request. This also works when the main part of the request did not use the session.
+- A `PropertyGuard` whose `beforePropertyUnset` replaced the array could make `unset($object->property[$key])` use the old, freed array. Now the `unset` removes the key from the array the property has after the guard.
+
+### Internal changes
+
+600 further commits: docs (396), chore (109), test (71), refactor (18), build (4), wip (2).
+
+### Details
+
+#### Features
+
+- **bench**: bench-compare --direct prints each HTTP peer's CPU time per request with no proxy ([`2e308811`](https://github.com/novis-lang/novis/commit/2e3088115e32873eb9fc579c0d801ae39d55d992))
+- **bench-compare**: --reps-check reads whether three of five passes give the recorded medians ([`0a0aa84b`](https://github.com/novis-lang/novis/commit/0a0aa84bbd0ed8a906f9aacd8c2027091894368b))
+- **bench-compare**: .NET is a peer, an ASP.NET Core minimal API on Kestrel behind the same nginx ([`95fb05fa`](https://github.com/novis-lang/novis/commit/95fb05faa6639142f7f8dde4fb4ee8afdf99cb6f))
+- **bench-compare**: Node.js is a peer, behind the same nginx, with a cluster worker per cpu ([`99303230`](https://github.com/novis-lang/novis/commit/993032307d68ff3e4d4bf1e0176bbda342bd667a))
+- **bench-compare**: Python is a peer, an ASGI program under uvicorn behind the same nginx ([`3c167478`](https://github.com/novis-lang/novis/commit/3c1674783c70d6a5ea49e3e049f64abb152466e5))
+- **bench-compare**: a recording builds each image once, checks answers on rep 1, and keeps an unchanged row ([`841fd3f5`](https://github.com/novis-lang/novis/commit/841fd3f50fbb3b219d69db026471726385b159b9))
+- **bench-compare**: a row run writes the record after each row, so a stopped run leaves its finished rows ([`d676c2f8`](https://github.com/novis-lang/novis/commit/d676c2f8fb6e5bb9ac52eedb25781486663fe5bc))
+- **bench-compare**: a run walks a plan counted before it starts, and the record says where its time went ([`09d59175`](https://github.com/novis-lang/novis/commit/09d5917573475cc99dc3886e03a9ea5644b0e159))
+- **cache**: the shared tier's client reads a hash and moves a key ([`9bdd0634`](https://github.com/novis-lang/novis/commit/9bdd06344d4db25964083dff0d4033e50f9cb0ef))
+- **check**: a copy that moving one statement removes is warned as W1032 or W1033 ([`f26dc6ad`](https://github.com/novis-lang/novis/commit/f26dc6add7cad9a257ff78e1cc660d88ae92e66b))
+- **cli**: a hidden --no-cheaper-forms compiles every form as written ([`d39d487b`](https://github.com/novis-lang/novis/commit/d39d487b3f29b75d85fbed0411baf158c65eb5de))
+- **cli**: nvs code calls and reach take several methods ([`3d11d542`](https://github.com/novis-lang/novis/commit/3d11d542dba3472f7fcfe55065b0e224a47e6ef2))
+- **cli**: nvs code loads, checks by content and saves the editor's index file ([`87704784`](https://github.com/novis-lang/novis/commit/87704784c8d4d21085846e9c025f9e8d05335558))
+- **cli**: nvs reload reloads every server of a data folder and exits 0, 1 or 2 ([`57295046`](https://github.com/novis-lang/novis/commit/5729504620be6cade547fbdbe0c033fb174535a5))
+- **cli**: run, test and serve take a hidden --no-in-place, and nv suite --no-in-place-too runs a suite both ways ([`bdb63ad3`](https://github.com/novis-lang/novis/commit/bdb63ad386024eb9dfaa7f0509e2d5ba3d7b54f8))
+- **codegen**: an object's inline release is bounded by the revoked flag ([`7c396b8c`](https://github.com/novis-lang/novis/commit/7c396b8c1f3f08247d812f8c29c4d1948dbe00e2))
+- **codegen**: every use of a revoked object throws, and the check is compiled only where it may be revocable ([`81702801`](https://github.com/novis-lang/novis/commit/8170280181962f9fface1d337970114ba5a9b498))
+- **codegen**: revoke() and isRevoked() run the runtime's functions, written or by name ([`18fcb978`](https://github.com/novis-lang/novis/commit/18fcb9781c30b8a129ec1e3b7ac02d476fb654b3))
+- **config**: a [[restrict]] table is read from the application's and each package's package.toml ([`ffbc01c7`](https://github.com/novis-lang/novis/commit/ffbc01c73925e9fed950a9a63d12bcf3df1f7a08))
+- **debug**: a recorded request counts the copies it made at each kept-copy site ([`191df1eb`](https://github.com/novis-lang/novis/commit/191df1eb68958cf1761ab6a13a67839a477e0c0d))
+- **debug**: the viewer lists a request's copy sites, the most copied first, with their help ([`cbb0bbfa`](https://github.com/novis-lang/novis/commit/cbb0bbfaad69141d370de112c217245326c70f63))
+- **forms**: a form only an edit can make faster is W1034 with its fast form as an alternative ([`a77c9f24`](https://github.com/novis-lang/novis/commit/a77c9f24b2d4293fc1da4724ebe332017d47f235))
+- **ir**: `.=` on a property or static property is lent to its append by the ownership pass ([`179ba0c5`](https://github.com/novis-lang/novis/commit/179ba0c5beafea2fbfb757ba501f87dcb3d65d48))
+- **ir**: a caught conversion that assigns null compiles as the conversion that returns null ([`54478254`](https://github.com/novis-lang/novis/commit/54478254ef7d54bb23a72edd073c010f4ba8d469))
+- **ir**: a comparator that compares one expression of each side compiles as by ([`fca242a5`](https://github.com/novis-lang/novis/commit/fca242a50ed2f720d9c69fe0f0681ba8a2deda2f))
+- **ir**: a debug build poisons a lent property and traps a read of it ([`3dea4f02`](https://github.com/novis-lang/novis/commit/3dea4f024effddd726794bc5b521eb3f8d6ad523))
+- **ir**: a filter that tests contains against a captured array compiles as diff or intersect ([`3364b554`](https://github.com/novis-lang/novis/commit/3364b55414f917c3864a8f767bbc50750a8b7f94))
+- **ir**: a first, firstKey or any of a filter whose callback is proven compiles as find, findKey or any ([`632a416c`](https://github.com/novis-lang/novis/commit/632a416c064e476bdf8aa5041dbbda31a24b4a11))
+- **ir**: a generator's resume takes its parked locals, and every loop body reaches the ownership pass ([`1a7338e8`](https://github.com/novis-lang/novis/commit/1a7338e8ab8496f30165efa9ff69927c5cfedcbc))
+- **ir**: a join and a literal's first spread take the local they open with ([`bc590aaa`](https://github.com/novis-lang/novis/commit/bc590aaaefef3b2de94235015ad0a5d72101aa85))
+- **ir**: a keyed foreach runs over a Core\ObjectMap and a user KeyedIterable ([`483a0a68`](https://github.com/novis-lang/novis/commit/483a0a68fc12ec88d23924867de20b41e726d742))
+- **ir**: a local a catch reads is lent to a known Novis callee's lent body ([`f7472189`](https://github.com/novis-lang/novis/commit/f747218948813dd4e48ad6042be97044454e27b8))
+- **ir**: a loop over keys, values or a range walks without a list, and an unread key is not made ([`55fccabb`](https://github.com/novis-lang/novis/commit/55fccabbe85a7940b26e6d648ff48e069de6b923))
+- **ir**: a method call with one body at or below its receiver's class is direct ([`070c4517`](https://github.com/novis-lang/novis/commit/070c451772e8915c167b959b640eae864dc690a7))
+- **ir**: a null test of a match and a count or first of keys or values compile as their fast forms ([`7851ecd0`](https://github.com/novis-lang/novis/commit/7851ecd0d72a186ea01e0b83535980a1eb51f50a))
+- **ir**: a property replaced by a known Novis callee's result is lent to its lent body ([`d091beec`](https://github.com/novis-lang/novis/commit/d091beec4f7c18a0cec521e4e09c82d8efecba50))
+- **ir**: a second holder is released at its last use, and a loop that writes only its own entry walks its variable ([`af0e518f`](https://github.com/novis-lang/novis/commit/af0e518f1ee385fb651ee1e4c9af89bab29c887f))
+- **ir**: a static:: call of a method no class overrides is a direct call ([`ef06d797`](https://github.com/novis-lang/novis/commit/ef06d79700af5eaff0365e49c347304eb3f92a5b))
+- **ir**: a static::NAME no class declares again is its constant ([`c35f5b81`](https://github.com/novis-lang/novis/commit/c35f5b817b1cdced616f257dde5912ec8a433a77))
+- **ir**: an array element a statement replaces is lent to an owning Core member ([`4fe6079b`](https://github.com/novis-lang/novis/commit/4fe6079bed668e5218cf4fbaf8a8c99c3ae06f3b))
+- **ir**: an array literal whose keys are all different literals is built in one step ([`ee8e527a`](https://github.com/novis-lang/novis/commit/ee8e527a8b6877488ea3933c33e193730667f2b6))
+- **ir**: each function's effect summary covers its callees, solved over the call graph ([`ebb8197b`](https://github.com/novis-lang/novis/commit/ebb8197b74f6763b2a898c37e9da4487877c5e58))
+- **ir**: each instruction states its effects, and a property slot is lent to an owning member ([`9154c507`](https://github.com/novis-lang/novis/commit/9154c507b6d55ad517b787889c324d5daa416023))
+- **ir**: one ownership pass decides every move from the IR ([`437b803b`](https://github.com/novis-lang/novis/commit/437b803bc198c18246c706aa45133fe7ebc5578c))
+- **ir**: one table of cheaper forms, with the rule and the test that counts its cases ([`5c52826a`](https://github.com/novis-lang/novis/commit/5c52826a06e25747d3158fc67c043caa487104bd))
+- **ir**: the ownership pass lends a guarded or `lateinit` element-write root ([`6ffbaf62`](https://github.com/novis-lang/novis/commit/6ffbaf6224476409bdcf068f33f731c5f0877868))
+- **ir**: the ownership pass lends a plain slot to a nested element write and a nested `.=` ([`c768561b`](https://github.com/novis-lang/novis/commit/c768561b242fbe20042435c6a38e11fa27cc1d4d))
+- **ir**: the ownership pass lends a plain slot to a one-level element write ([`cffcc132`](https://github.com/novis-lang/novis/commit/cffcc132672f7f2affc0ee7d10fd64a59c15cfc2))
+- **ir**: the ownership pass records every copy it keeps, and a unit carries the table ([`5cbfb182`](https://github.com/novis-lang/novis/commit/5cbfb1822df2d502015cc65a8dfd8181ff42ca57))
+- **lsp**: a Core stub documents its members with @param, @return and @throws ([`31c0a117`](https://github.com/novis-lang/novis/commit/31c0a117ffd2603278aa4deed97fd598f529dd71))
+- **lsp**: a Core\Router\Target call completes, hovers and finds its route like a link ([`dbb1e4bf`](https://github.com/novis-lang/novis/commit/dbb1e4bf346ef8e8ee623e7377942028cede2100))
+- **lsp**: a bare callable or mixed parameter is offered the type every caller passes ([`bdf22372`](https://github.com/novis-lang/novis/commit/bdf22372fe4f35a88231026bd17ff2e08cf5d8fd))
+- **lsp**: a content-checked load of the index file answers as a cold build ([`deffd3d2`](https://github.com/novis-lang/novis/commit/deffd3d2d35df369988fc4ab324713687b28276b))
+- **lsp**: a hover on Revocable, revoke() and isRevoked() shows its card ([`ad12cfbb`](https://github.com/novis-lang/novis/commit/ad12cfbbb75d4aa61c404b0890c47a66b48bf128))
+- **lsp**: a key in any object literal at a shape type shows the doc of its shape field ([`24fdde95`](https://github.com/novis-lang/novis/commit/24fdde95fbcb378cf293dd0eaa5f0a9ff05acafa))
+- **lsp**: a line where a recorded request copied a value shows its count and its help ([`c6e9bc8e`](https://github.com/novis-lang/novis/commit/c6e9bc8ecc2b401999597745ed468bf60d80f74f))
+- **lsp**: a property path completes, explains and jumps through @key and @value ([`5de977ff`](https://github.com/novis-lang/novis/commit/5de977ffb62cb16e530d5e0bc8ad1b3cdb73d65e))
+- **lsp**: a string at a property<static> field of an attribute completes and jumps to the property ([`67e6cfcd`](https://github.com/novis-lang/novis/commit/67e6cfcd34132c48374885cbf0e1f2f106ad7e43))
+- **lsp**: a userland attribute's payload completes its shape's fields and allowed values ([`ed441259`](https://github.com/novis-lang/novis/commit/ed441259577623b98255f9c032a980859920b278))
+- **lsp**: an edit's re-index shows a progress run, and lsp-start measures memory ([`36615c96`](https://github.com/novis-lang/novis/commit/36615c9658d8bfd8e565e497ea374ac0f10b8148))
+- **lsp**: the editor offers at #[ only the attribute declarations that fit, and shows each key's doc ([`9b154d39`](https://github.com/novis-lang/novis/commit/9b154d39c46ca600414f3e661b47c48e9b018dae))
+- **lsp**: the editor shows W1032 and W1033 and offers each fix as a code action ([`7e4e36d8`](https://github.com/novis-lang/novis/commit/7e4e36d85fdd6ae4f27d57c3724af62cb035d361))
+- **lsp**: the editor shows a restricted use, its rule, its fix, its hover and its completion ([`618bf682`](https://github.com/novis-lang/novis/commit/618bf6827d8c0a0d8a5811bd8be73bfcc324ffa0))
+- **lsp**: the recorded lens counts HTTP, cache, session and file calls by line and names their kind ([`707ccd67`](https://github.com/novis-lang/novis/commit/707ccd67bd24bdc99114a4326818743260d24012))
+- **mutate**: a log call's arguments and a thrown exception's message make no mutant ([`04e37561`](https://github.com/novis-lang/novis/commit/04e37561f723077e6b3483779dc84eabf55727cb))
+- **mutate**: a mutation run compiles the program once, with every mutant behind one switch ([`c394b68d`](https://github.com/novis-lang/novis/commit/c394b68d6bead7f45a36361b0e596d3bc873b567))
+- **nv**: bun nv close --goal runs a goal's end check in about three minutes ([`b3721460`](https://github.com/novis-lang/novis/commit/b37214606cd1a6db9e7eed99d40bf777d40821e8))
+- **nv**: proofs --goal and --since judge the features a goal's work reaches ([`c01ab405`](https://github.com/novis-lang/novis/commit/c01ab405c0e523534b0c0260b58f64371f391f96))
+- **nv**: serve-mem measures memory and threads across compiler panics ([`dda46734`](https://github.com/novis-lang/novis/commit/dda4673469c8fef5126c0d450e70ae23f2c4309a))
+- **nv**: serve-mem measures memory per recompile and counts answers under keep-alive load while the source is edited ([`ae2513b4`](https://github.com/novis-lang/novis/commit/ae2513b436a2bf2fc0d5e74fa520287b06bcbe8b))
+- **nv**: serve-mem sets the copy's memory limit and keeps the server's log ([`ea9a5527`](https://github.com/novis-lang/novis/commit/ea9a552757bb8cec3df6c6ac31f31644ad4646cd))
+- **pkg**: nvs pkg api lists a package's restrictions and nvs pkg diff calls a new one a break ([`a9e9f9f9`](https://github.com/novis-lang/novis/commit/a9e9f9f96fa10a7d9f5c594bac8bcfddbf929736))
+- **proofs**: Reviewed is a feature proof, and the website stale guard runs review ([`60a2bfc8`](https://github.com/novis-lang/novis/commit/60a2bfc89b72d6822abbabd8f6ebc5573fc26274))
+- **proofs**: the perf ledger keeps only the records a reader uses ([`049daebf`](https://github.com/novis-lang/novis/commit/049daebf4a16c740c95e3d920d60d0b19472cee1))
+- **reflect**: ClassInfo::parent names the class a described class extends ([`309a58e6`](https://github.com/novis-lang/novis/commit/309a58e6f10aa9ca53b82269a583d5151ad2d588))
+- **reflect**: a reflective act on a restricted member outside its allowed places throws ([`81ff7023`](https://github.com/novis-lang/novis/commit/81ff702318e5442123b023e7d2bf6ad871dbcc50))
+- **release**: the release notes start with the change entries, and a release moves them out ([`482eb9e3`](https://github.com/novis-lang/novis/commit/482eb9e3928ef0d4c77833835493c341af1f3078))
+- **rereads**: a second read of one cache key, query or file path is W1035 ([`930a1dec`](https://github.com/novis-lang/novis/commit/930a1dec6642672ee14184c08e04066eb6511ed3))
+- **runtime**: a Core member can own its subject through nvs_helper!'s check and apply form ([`729cb594`](https://github.com/novis-lang/novis/commit/729cb594bffc52b8f802f4f69cbee59f02e35c32))
+- **runtime**: a Core\Html::later slot reads the request it belongs to, and a body read there throws ([`df66796b`](https://github.com/novis-lang/novis/commit/df66796b7aeae95bc2d40f9815247acaeb0b56f0))
+- **runtime**: a list has room at both ends, and a map knows its first live entry ([`cd5e776f`](https://github.com/novis-lang/novis/commit/cd5e776fbc9f595380e935fb5a5a409e05fc087d))
+- **runtime**: a run-time path and Core\Reflect::steps take @key and @value ([`fa63365d`](https://github.com/novis-lang/novis/commit/fa63365df3b4d6dcef9ebeee4dccd6b5db19da1b))
+- **runtime**: a sole string drops its front without moving the rest ([`d7b3e5ea`](https://github.com/novis-lang/novis/commit/d7b3e5ea8ab6ab10c20cdd55a196c9e05b33c5ea))
+- **runtime**: an object carries a revoked flag in its count word, and revoke keeps its first site ([`a03baee8`](https://github.com/novis-lang/novis/commit/a03baee8d404a1c43637afbbf2af37575c6b0805))
+- **scaling**: a run ladder with rounds is judged by the difference of half and all of its rounds ([`0285ab2c`](https://github.com/novis-lang/novis/commit/0285ab2c5a0966f386ba9d879d37654f125575ce))
+- **serve**: a reload through the endpoint checks now, waits for its compiles and replies ([`8590f6cb`](https://github.com/novis-lang/novis/commit/8590f6cb0a02a42acdd91b5b30f1b310cb9f6a42))
+- **serve**: a swapped or broken program is one log record and one reload outcome with its counts ([`f24fe19a`](https://github.com/novis-lang/novis/commit/f24fe19ae2a2ef96b776298abe8ebcdfba2fd740))
+- **serve**: each nvs serve opens a private reload endpoint in its data folder's run/ ([`0439a220`](https://github.com/novis-lang/novis/commit/0439a2202fef475727320702b96b33445554aaa8))
+- **server**: a request body that arrived with its head reaches the program with no park ([`a545d6a0`](https://github.com/novis-lang/novis/commit/a545d6a01ef031525aa2545c55477345fc3e5cd6))
+- **session**: Core\Csrf and Core\Passkey open the session on first use and name no start ([`a30e4aad`](https://github.com/novis-lang/novis/commit/a30e4aad76173a87969168297810cef16f94086d))
+- **session**: a session is kept and written back per key on both stores ([`bd25be9d`](https://github.com/novis-lang/novis/commit/bd25be9d6615dd8777f00c609595b285de24ee31))
+- **session**: both stores keep each value's lifetime, two clocks and a short token ([`6ea7ba22`](https://github.com/novis-lang/novis/commit/6ea7ba2275a83dab93fcdd23cd5822bb10df68fd))
+- **session**: the session opens on its first use and every write states its lifetime ([`471783bb`](https://github.com/novis-lang/novis/commit/471783bbb7cdd9ce9aeea5423e337b66d57a8de8))
+- **site**: a Configuration, CLI or Types page shows each feature's changelog ([`0c4a1d8c`](https://github.com/novis-lang/novis/commit/0c4a1d8c38adbdb0d80eb77eb5da13dbee577f97))
+- **site**: a feature added, removed or changed since the snapshot needs an entry in changes.json ([`694602d6`](https://github.com/novis-lang/novis/commit/694602d6b263083e7010aa94b227b0fca3b915f8))
+- **site**: a feature's covering tests are in its page hash, and its about.md and help card are stamped ([`3317b913`](https://github.com/novis-lang/novis/commit/3317b9137b41b4120499424aba9a778378c3dc9d))
+- **site**: a tip box has a rainbow border in the six site tones, a subtle ground and a blue title ([`56a2fd54`](https://github.com/novis-lang/novis/commit/56a2fd5417ee6fdfb83d58e424aacc11f7c68d4a))
+- **site**: every text a user reads has a key and a hash, and a changed one needs a review stamp ([`94311314`](https://github.com/novis-lang/novis/commit/94311314567c32ec0e4a2fabcd749a7f2a50a1d9))
+- **site**: the home page links the comparison above the walkthroughs, with the two things only Novis and PHP do ([`e3d5e59a`](https://github.com/novis-lang/novis/commit/e3d5e59ab3487020bb8591a7f9829cbbd8fb982f))
+- **site**: the website stale guard runs the changes part ([`9ac03900`](https://github.com/novis-lang/novis/commit/9ac03900041e4707ef88a098c2af8b9571bc28ed))
+- …and 44 more, in the full changes below.
+
+#### Fixes
+
+- **apps**: chat's signed-in test browser sends the short session cookie with the identifier ([`b43ff609`](https://github.com/novis-lang/novis/commit/b43ff6098037ece480911c1aa53a792546a6e1ac))
+- **apps**: the registry's test browser keeps every cookie a response sets, both session cookies too ([`8d945cbe`](https://github.com/novis-lang/novis/commit/8d945cbeb21f2d6886f443d90ff0884c74c4df98))
+- **bench-compare**: the parallel row grants Novis no setting, because its default runs a script in the app folder ([`10463e08`](https://github.com/novis-lang/novis/commit/10463e08d1f883b8454944a8df71524021142d74))
+- **ci**: a green push to main publishes the dev image again ([`64a1e129`](https://github.com/novis-lang/novis/commit/64a1e12999879c4fbc89cc56f8d6f2269a03b58a))
+- **cli**: a compile that panics is a failed compile for its content ([`8d54b620`](https://github.com/novis-lang/novis/commit/8d54b62014ffaffaf191a9d5a9af45d801ae8c2b))
+- **codegen**: a finished unit frees its JIT module and keeps only its pages ([`f05b7b44`](https://github.com/novis-lang/novis/commit/f05b7b447234a8851f212a5cc49224dff4f7ef85))
+- **codegen**: a unit whose code generation fails or panics frees its pages ([`eff7d8fa`](https://github.com/novis-lang/novis/commit/eff7d8faf0530200c7413735b57fe974b2c5b764))
+- **deps**: the fuzz lock has cranelift 0.137.2 and wasmtime 50.0.2, as the workspace does ([`6093d021`](https://github.com/novis-lang/novis/commit/6093d02168d121da6ebb74dcb36ca5a4aee8e190))
+- **deps**: wasmtime is 50.0.2 and cranelift 0.137.2, past RUSTSEC-2026-0566 to -0573 ([`eb5c02e9`](https://github.com/novis-lang/novis/commit/eb5c02e983f0951f59c598c89c738cac05cf09c3))
+- **docs**: the goal-end gates are green but for the perf records ([`47a4f3af`](https://github.com/novis-lang/novis/commit/47a4f3af2a2d19abe14d456fb40c83f51c6ccc38))
+- **examples**: `Storage::delete`'s cleanup example reads back only its own keys ([`c1e505db`](https://github.com/novis-lang/novis/commit/c1e505db3d6da52faa23f45080462fcf23f4b390))
+- **footprint**: a footprint log's own allocations are in no count, from the first line of nvs ([`c7d57c34`](https://github.com/novis-lang/novis/commit/c7d57c34705f4b3208f5647577d53fa0a778129d))
+- **gate**: the revoke primitives deny a panic, and three tests count what the chain added ([`f4403813`](https://github.com/novis-lang/novis/commit/f4403813094973646477c0c183c7e564623d19f6))
+- **goals**: the plan and less-work checks name each test as bun prints it ([`3f4a82c8`](https://github.com/novis-lang/novis/commit/3f4a82c8a1fd63b5e0dc60c37cbb23584254e040))
+- **http**: a test request reads a file part within the request's memory limit ([`0d84d303`](https://github.com/novis-lang/novis/commit/0d84d303ea7f74eb3e4fde9a6cff22946a274aaf))
+- **ir**: `is Iterable` and `is KeyedIterable` hold for the Core classes the checker reads as one ([`438e9c44`](https://github.com/novis-lang/novis/commit/438e9c44af256cdf6b47a7d9ff5b552d5b50547c))
+- **ir**: a generator reads its called class from its state object ([`160d5069`](https://github.com/novis-lang/novis/commit/160d506950a2568b985d9aa150dbf54ce0b600f3))
+- **ir**: a getter read owns its value, and a program with doubles calls every method virtually ([`cde817c1`](https://github.com/novis-lang/novis/commit/cde817c1538a16b29943e15a51fd8b96a107854f))
+- **ir**: a join led by a string consumes that string and appends onto it ([`668d5f1c`](https://github.com/novis-lang/novis/commit/668d5f1c4e8cda512a64bae21154f8eb4a8c9549))
+- **ir**: a loop that reassigns a local, and a call with a later argument that can fail, move it ([`d58f7224`](https://github.com/novis-lang/novis/commit/d58f7224eb984bf2880cf6501c690fb760a611c0))
+- **ir**: an element `unset` holds its root across a guard, and the ownership pass lends a plain root ([`ed5e121c`](https://github.com/novis-lang/novis/commit/ed5e121c61935e2c4e70bf247f7940a01ad1d363))
+- **ir**: the called class is loaded right after the receiver is defined ([`16aeb27d`](https://github.com/novis-lang/novis/commit/16aeb27d5adca81a5b8eeca704253ec0fac94767))
+- **json**: the constructor's door into compiled code is constructor_of, and its row says who typed it ([`9c62bc7f`](https://github.com/novis-lang/novis/commit/9c62bc7fe37fc33e7c1cd1dff217304f5780b891))
+- **kit**: a DONE claim rewrites last-sweep.md in either sweep mode ([`3fea85e8`](https://github.com/novis-lang/novis/commit/3fea85e8042cc51a768b646685da4be7ac116aaa))
+- **kit**: a check id names one check, and a close leaves checks to DONE ([`074512e4`](https://github.com/novis-lang/novis/commit/074512e442808c979ed5096d0f6ddf965368b8ad))
+- **lsp**: a cold index plans no entry ahead whose program's plan still runs ([`909455e4`](https://github.com/novis-lang/novis/commit/909455e4aba4deac9866893fba1802ec3e586fcd))
+- **lsp**: a worker frees its allocator's cached blocks before its thread ends ([`edb767b4`](https://github.com/novis-lang/novis/commit/edb767b46f449ba07c8e2fac0a10188366c52360))
+- **lsp**: an open document reads the output the index stored for its graph ([`b78c7b21`](https://github.com/novis-lang/novis/commit/b78c7b215192d317b508fa322d7759ccc7398fa2))
+- **nv**: a red app test run prints the tests that failed, not its last lines ([`74495519`](https://github.com/novis-lang/novis/commit/74495519c705470d07289653c5bd858b1375e88d))
+- **nv**: a red differential suite run saves its whole output and names its failing cases ([`d48e25fc`](https://github.com/novis-lang/novis/commit/d48e25fc13b476fe7074d944a235e67aee33f2ec))
+- **nv**: a sweep empties the discard pool after its covws build ([`aa61ff87`](https://github.com/novis-lang/novis/commit/aa61ff870947670507ba026a1e04de80d1a1835e))
+- **nv**: ci --push merges origin's new commits, and a push it cannot make pauses the loop ([`23312c6b`](https://github.com/novis-lang/novis/commit/23312c6bb7cadd37d6afd957a44f851ddeef16a6))
+- **nv**: site --roadmap and its retire hook sort the themes by chain order, so a goal end's push keeps the order green ([`b6599884`](https://github.com/novis-lang/novis/commit/b6599884227810d134ed1c49361b70fc89ada307))
+- **nv**: start-cost counts with the pipeline's debug build, never a hand build ([`67bda0c8`](https://github.com/novis-lang/novis/commit/67bda0c8c09debd26f61dc1092bf602a78a6b385))
+- **nv**: the sweep's cargo queries stop inside the hook's timeout ([`ac8eb6c8`](https://github.com/novis-lang/novis/commit/ac8eb6c878f8e9aadaadb22ca9ec3c5bbc003514))
+- **proofs**: a proof: test program reads its directory's nvs.toml ([`f331b121`](https://github.com/novis-lang/novis/commit/f331b121b1cb2615e3d1907f77ce94b85361a5fb))
+- **registry**: the backup tests write their copies whatever another test copied ([`4ea75226`](https://github.com/novis-lang/novis/commit/4ea7522647f775a0a4a29cf7957ff0277b4cc443))
+- **rereads**: a file handle, a process or another cache class between two reads stops W1035 ([`536c8551`](https://github.com/novis-lang/novis/commit/536c8551f826a63d46c1f7c317831f8b6d560490))
+- **runtime**: a child's context box is freed inside its tree's turn ([`52839b8e`](https://github.com/novis-lang/novis/commit/52839b8e9103add01ac14190cd24d85e14705094))
+- **runtime**: a dump of an ObjectMap or ObjectSet keyed by string or int shows its keys ([`e66698da`](https://github.com/novis-lang/novis/commit/e66698da29e07e98f2c9157fceda9144171d42a1))
+- **runtime**: an immortal string's handle may read its payload ([`4c82a240`](https://github.com/novis-lang/novis/commit/4c82a2409afc7638fb840aa4b4288097ccad0fbd))
+- **runtime**: an owning member's borrowed entry holds its subject before the callbacks run ([`6e3f5185`](https://github.com/novis-lang/novis/commit/6e3f51856b0507dced4d09e5df1828a07e6be0a6))
+- **runtime**: echo checks a string's UTF-8 at the sink again ([`2b7fafda`](https://github.com/novis-lang/novis/commit/2b7fafda84ca3c9c1fea66b78cb67dc03f011321))
+- **runtime**: one ASCII byte of text is a shared immortal string ([`23a4aa7a`](https://github.com/novis-lang/novis/commit/23a4aa7a254d85ceed826862274613cecd1fcf1c))
+- **runtime**: the lent and owned array primitives and the lend trap deny a panic in their bodies ([`e30622eb`](https://github.com/novis-lang/novis/commit/e30622ebce998df9db1fa74a6297278cddfce76d))
+- **server**: a served hello request makes 25 allocations on every platform, and each finds its row ([`a4dcfc92`](https://github.com/novis-lang/novis/commit/a4dcfc929e0769724cbfbc45a5dc963d7ecdcec1))
+- **server**: an unknown host from this machine is a logged 421 in development, and development_hosts admits a proxy ([`5c0aad1f`](https://github.com/novis-lang/novis/commit/5c0aad1f11e5cfd71be7e34b2a9bc98d7fa1b6a9))
+- **server**: the development host check is formatted, rendered and has its search questions ([`17769d00`](https://github.com/novis-lang/novis/commit/17769d00688d2d3e01ffe78f22acc4506fe147e4))
+- **session**: a Core\Html::later slot reads the request's session, and opens it on its first use there ([`5c3f087e`](https://github.com/novis-lang/novis/commit/5c3f087ed9dd06c1967122750621cfb71fab5721))
+- **site**: `Storage::delete`'s page questions are stamped for its edited example ([`7a419a1d`](https://github.com/novis-lang/novis/commit/7a419a1d02a3aa4cf30aaf4f026137f151b1d044))
+- **site**: roadmap themes follow the chain, with request work after recompile-leaks and lsp-memory ([`c9a7959a`](https://github.com/novis-lang/novis/commit/c9a7959a689a0b2d8bf903c26caa28e2ea15c6e6))
+- **stdlib**: Core\Arr::mapKeys holds one copy of each distinct key it names ([`bf7a4115`](https://github.com/novis-lang/novis/commit/bf7a41159881fe663ff77c573090641bf9451915))
+- **stdlib**: Core\Ast has a class for the attribute declaration node ([`fa0e6ea7`](https://github.com/novis-lang/novis/commit/fa0e6ea768a858b5020861d677bc5c470f9abd12))
+- **stdlib**: File::readLine keeps its buffer and reads a long line a whole block at a time ([`9a52242a`](https://github.com/novis-lang/novis/commit/9a52242aba7fa1ade1307db32a8b0601d45595f9))
+- **stdlib**: RunResult, LogRecord and SentMail have capability and extension rows ([`d09b02d7`](https://github.com/novis-lang/novis/commit/d09b02d79503b0c8cf292474284bd80349863a39))
+- **stdlib**: a call to a member's owning entry is traced under the member's name ([`aabba46a`](https://github.com/novis-lang/novis/commit/aabba46a3e1ab248bbd16b256e21896a5dd1db91))
+- **stdlib**: a string position walks only to itself, from whichever end it counts ([`51ba0c4b`](https://github.com/novis-lang/novis/commit/51ba0c4bf65cfe6d3dcd7501ce8f9480e684b2d4))
+- **stdlib**: padStart and padEnd throw when the allocator cannot hold their run ([`ecc6d5ab`](https://github.com/novis-lang/novis/commit/ecc6d5abd994756b1707f0ef030e1a9aa4a9f242))
+- **stdlib**: the XML source test builds the class descriptors before it measures a request ([`e5a100b1`](https://github.com/novis-lang/novis/commit/e5a100b18f762d06595ed3e0d8c76f7aec15d4fa))
+- **stdlib**: the strings-in-place gate is green ([`0e634e80`](https://github.com/novis-lang/novis/commit/0e634e80c20df58bf1ba4c7dd1528c5850b22273))
+- **test**: Core\Test\LogRecord::fields keeps the order the fields were written in ([`f27de799`](https://github.com/novis-lang/novis/commit/f27de79971cc43aa29f41c3a223daf4dd7215a33))
+- **test**: a method reference passed as a value finds its route under nvs test ([`3304eedd`](https://github.com/novis-lang/novis/commit/3304eeddb9d9552f68eccf3214b7847e11643040))
+- **test**: four gate checks read the tree as it is now written ([`cbcfc89e`](https://github.com/novis-lang/novis/commit/cbcfc89ee3e0ced51c84c968e6e74336aad52d25))
+- **test**: the matrix readers and the component cache pass the goal's gate ([`1d5c5195`](https://github.com/novis-lang/novis/commit/1d5c5195a4b955ed7c5e6f7de8ffd2f46be8ecad))
+- **test**: the new Core\Test classes say what their slots hold and the unit tests know them ([`cae95007`](https://github.com/novis-lang/novis/commit/cae95007e41610bce762c62826918e084fb9a3a2))
+- **test**: the reload command tests use a data folder whose endpoint fits a macOS socket path ([`fd7f0cd1`](https://github.com/novis-lang/novis/commit/fd7f0cd171eb56b8ded6fb20d94b29c8e9d077fe))
+- **tests**: the suites match the attribute declarations, and two tests no longer race ([`ea956ecb`](https://github.com/novis-lang/novis/commit/ea956ecb3a423a2fe14bee3ad1b2c953171845ad))
+- **time**: a written zone name is looked up as Zone::of looks it up, case ignored ([`dd0d61a2`](https://github.com/novis-lang/novis/commit/dd0d61a242109c16306d5241f5bfbcacbf701e22))
+- **types**: `is property<T>`, `is propertyPath<T>` and `is string<K>` are E0867 and no longer crash lowering ([`fb1025ac`](https://github.com/novis-lang/novis/commit/fb1025ac37087f28c05dc51f6f7fdc1d3dbf2c3b))
+- **types**: a call or property access through mixed is held to a restriction ([`4a57b10d`](https://github.com/novis-lang/novis/commit/4a57b10d17f72fb7f9361c4b0d0de92822336883))
+- **types**: a call through a native class or interface stays virtual ([`5ad76267`](https://github.com/novis-lang/novis/commit/5ad76267b5585b0eb308698774fcba02e5a6d1ac))
+- **types**: a keyed property access is a use of every property its key may name ([`981359cf`](https://github.com/novis-lang/novis/commit/981359cfb41fe42f56393d89fb1f47b7d91378a7))
+- **types**: a literal in an attribute payload keeps the single-value type its field names ([`4708c293`](https://github.com/novis-lang/novis/commit/4708c2935a9b72d072d8caf7d59562f60ef6a91c))
+- **types**: a restriction's error names its manifest relative to the project ([`ec80faf6`](https://github.com/novis-lang/novis/commit/ec80faf6f48a55b5c53afc6dabd87e536c66a69b))
+- **types**: a retrieval of an inherited method reads the declaration its parent wrote ([`f8c7d5ee`](https://github.com/novis-lang/novis/commit/f8c7d5ee758e5f3c2658f427907dffc4c73bc535))
+- **types**: a second #[Json\Field] on one property is E0763 alone ([`f632eefe`](https://github.com/novis-lang/novis/commit/f632eefe611cacce1e3ba894a1b9307216025e43))
+- **types**: a secret passed to setShortLived or setLongLived does not compile ([`50244a84`](https://github.com/novis-lang/novis/commit/50244a8447a87c3e713dfeec9d26a9afc4c0484b))
+- **types**: a tainted map key and a two-argument interface get help that names them ([`26d8821b`](https://github.com/novis-lang/novis/commit/26d8821bc2ac0f836f1dda24e0220c6ab9ff8975))
+- **types**: an attribute declaration lowers and autoloads, and stage 3's nine cases are green ([`ce5c1663`](https://github.com/novis-lang/novis/commit/ce5c1663c36704a187914eefcdda6624d018bd05))
+- **types**: the attribute diagnostics name declarations, never shapes or aliases ([`2542b753`](https://github.com/novis-lang/novis/commit/2542b753017575e9bc3b45ddcc5dd293a2bb5988))
+- **vscode**: the Test Explorer lists and runs a project folder as one program ([`f00b7e7d`](https://github.com/novis-lang/novis/commit/f00b7e7d3e1a416ebe4d063bd323579d31c3fc0e))
+
+#### Performance
+
+- **attributes**: the route-target bench has its budget share, and the types and attributes chapters are measured again ([`3255b345`](https://github.com/novis-lang/novis/commit/3255b34541f0e9a65881f0d0ea7847265aa46e31))
+- **bench**: ObjectMap and ObjectSet benches measure a string-keyed map and a loop start ([`dc86057c`](https://github.com/novis-lang/novis/commit/dc86057cc0f9afc034b9f5b885074b83538ee86b))
+- **bench**: a keyed map loop is measured beside an array loop ([`271663e6`](https://github.com/novis-lang/novis/commit/271663e6700cb16e9f47183bd36b4ed20519b30c))
+- **bench**: a loop start over an ObjectMap or ObjectSet is flat in the collection's size, at seven allocations ([`fe4baee1`](https://github.com/novis-lang/novis/commit/fe4baee1db5f6e290847acdb2a62de1c0dbc0e42))
+- **bench**: the ObjectMap, ObjectSet and Heap records are measured on the keyed stores and the shared loop ([`d137a713`](https://github.com/novis-lang/novis/commit/d137a713bf19a1cdebb94d1bcd48797bc80503fc))
+- **bench**: the comparison's cases and feature rows are recorded again at 44aad66b90 ([`fe890525`](https://github.com/novis-lang/novis/commit/fe89052504176f744a810d94a668da4cb3a8c813))
+- **callable**: a Core\Arr callback the checker proved is called without the check of each call ([`762c7202`](https://github.com/novis-lang/novis/commit/762c720290ab9ac29407f57dd09d051d4eacb0be))
+- **cli**: a cold run compiles its artifact's object on a scoped thread ([`73d88d37`](https://github.com/novis-lang/novis/commit/73d88d3766e9ab36b9d86e351c575a2d3d545b37))
+- **cli**: an artifact is written without a sync, and a torn one is deleted ([`1f84d10f`](https://github.com/novis-lang/novis/commit/1f84d10fde9745624f1774c0adbbd727c6b242df))
+- **cli**: nvs run starts its revalidation thread with the first compiled path ([`722cdbc0`](https://github.com/novis-lang/novis/commit/722cdbc00159c351b3c7e7afa0e646939fe53688))
+- **cli**: one start is counted by phase, and bun nv start-cost measures it ([`33f3dfb6`](https://github.com/novis-lang/novis/commit/33f3dfb622c104af16f780e2ee8010fdc89c2c50))
+- **codegen**: a release that leaves the count above zero is inline ([`a9eedffe`](https://github.com/novis-lang/novis/commit/a9eedffeaa465fff076706de77b82449ea3ac688))
+- **codegen**: a scalar test, a widening, a string `==` and a class test answer inline ([`32223460`](https://github.com/novis-lang/novis/commit/32223460f4a99d041b842fecce3c8f742b93cec2))
+- **config**: a configuration file is parsed once ([`20662ee5`](https://github.com/novis-lang/novis/commit/20662ee57be69baa65776048b5c4713971b56488))
+- **config**: the data folder's nvs.toml is read once per start ([`258fd0a9`](https://github.com/novis-lang/novis/commit/258fd0a9276be4ec6dc52ca2cc78e4d4a30418fc))
+- **db**: a MySQL executeMany writes its executes in windows of 64 KiB ([`6b777305`](https://github.com/novis-lang/novis/commit/6b777305fbe84076f4079d1afc9e1d3a052d2584))
+- **db**: a MySQL pool reset sends its four commands in one write ([`186cf283`](https://github.com/novis-lang/novis/commit/186cf2834c6a9a7c8df016786505fa2b522592f2))
+- **db**: a SQLite pool reset prepares its reads once per connection ([`29e77d4a`](https://github.com/novis-lang/novis/commit/29e77d4a4a0731fd0f0a3349ecca68ac3d04a26e))
+- **db**: a block's slow_query threshold is parsed once per snapshot ([`375f114e`](https://github.com/novis-lang/novis/commit/375f114efcf69d32f5b44a939c04d1d3c018999f))
+- **db**: a result's rows share one set of keys, built in one row loop ([`f7b2e9ac`](https://github.com/novis-lang/novis/commit/f7b2e9accfd58d6952926f745fedf1b11c00a8fc))
+- **ext**: a component's Novis source is shared, not copied ([`0d543a41`](https://github.com/novis-lang/novis/commit/0d543a41e64feac7fc1201007613b0f4f4c4d301))
+- **ext**: an extension resolves its imports once, and its cached artifact is checked once ([`cf007e29`](https://github.com/novis-lang/novis/commit/cf007e29b5caeed0860214bd1ae798e0db1c9b1b))
+- **hir**: a written name is split into segments in one place, with no copy ([`51cd83bd`](https://github.com/novis-lang/novis/commit/51cd83bdbb395a304f36cb4851bc4cee4b4c0a0e))
+- **host**: every TCP stream sends without Nagle's delay ([`07c5438b`](https://github.com/novis-lang/novis/commit/07c5438bcae60d5019bd07daa8e3e5bdc7919522))
+- **host**: the slice thread starts with a scheduler's second task ([`0a2cf124`](https://github.com/novis-lang/novis/commit/0a2cf1246df50d102219137dba93df42ec648609))
+- **html**: a Markup composition and an escape write their text straight into the result ([`4d6ab125`](https://github.com/novis-lang/novis/commit/4d6ab125f51a838ad260c23321c7e969b38ccec5))
+- **http**: a client request with a small held body is one write ([`9c9dd375`](https://github.com/novis-lang/novis/commit/9c9dd37578740f0a360975e57062ec612e7b5b45))
+- **image**: wrapped text costs its length, and each shaping plan is compiled once ([`3ee59f2a`](https://github.com/novis-lang/novis/commit/3ee59f2ac005b1a87b700b54db7564f4304202a8))
+- **ir**: an element of a local array is lent to an owning call ([`db9e5bed`](https://github.com/novis-lang/novis/commit/db9e5bedb03c56383d92ddd28c0f9d40ddd185d0))
+- **json**: a decoded object is constructed from its argument vector, with no second copy ([`a39508bc`](https://github.com/novis-lang/novis/commit/a39508bcac7890cce5363d17d54c798cf9e83f9c))
+- **json**: a parse counts its deadline poll in a plain integer, and jsonAs checks its codec once ([`cbd0ccf3`](https://github.com/novis-lang/novis/commit/cbd0ccf37e817bb01e8c739b784938520127294d))
+- **json**: a typed decode finds each constructor once and reuses each object's argument vector ([`570645e8`](https://github.com/novis-lang/novis/commit/570645e8fb7301b91b30a12b1547792e2297037a))
+- **json**: a typed decode keeps its spare constructors and argument vectors inline ([`264af5f1`](https://github.com/novis-lang/novis/commit/264af5f1d56efa0eb8204a4f29a8b6826ded7521))
+- **json**: a typed decode matches a declared key on its bytes, from where the last match left off ([`4d85a34a`](https://github.com/novis-lang/novis/commit/4d85a34a92d625a63943e42d23147120b08c14d7))
+- **lsp**: a cold index plans on every worker and checks each body once per graph ([`2322cffa`](https://github.com/novis-lang/novis/commit/2322cffa620fb9b1f888ecbb2e80f4c8d1bbcf95))
+- **lsp**: a completion lists the index's types once, off the stored entries ([`c6e361b6`](https://github.com/novis-lang/novis/commit/c6e361b673eb4c8f9716c59277945108556256f5))
+- **lsp**: a document resolves its path once, when it opens ([`cdccbac6`](https://github.com/novis-lang/novis/commit/cdccbac6f5e79c5b5f701018f1c7c65a63efae97))
+- **lsp**: an analysis checks the bodies of the files it will own and no others ([`b3225828`](https://github.com/novis-lang/novis/commit/b3225828aad2943e35b5d74be511247ad21d69a0))
+- **lsp**: every worker reads the server's one parse of each file ([`16e3ae7e`](https://github.com/novis-lang/novis/commit/16e3ae7ee2e321e1cd79df0123d5b168205ed944))
+- **lsp**: inlay hints walk only the statements the asked range reaches ([`04303f1e`](https://github.com/novis-lang/novis/commit/04303f1e7d3ca8cc4172dceb2c67ac25775a3514))
+- **lsp**: the parse cache resolves each path once until the tree changes ([`682c5f7d`](https://github.com/novis-lang/novis/commit/682c5f7da86ba8b7e64c67187d3090ecc2b5b146))
+- **lsp**: the workers split one graph's bodies and check each file once ([`55244b39`](https://github.com/novis-lang/novis/commit/55244b39d3f646f41ea925e227ba26688bcba83e))
+- **mutate**: judging mutants lowers the program once per round, not once per mutant ([`5a40aa7f`](https://github.com/novis-lang/novis/commit/5a40aa7f2e98b18a798a955baff7d536404e5d8e))
+- **nv**: a case batch is extracted while the next one runs, and recorded in one transaction ([`86b921d4`](https://github.com/novis-lang/novis/commit/86b921d42e6acd8ad4467cff89a96fe18aaab227))
+- **nv**: a recorded atom's functions come from one profile process ([`4757d8b1`](https://github.com/novis-lang/novis/commit/4757d8b1c5781d804743cabf337c73aadc60f742))
+- **nv**: a recorder makes its compile-cache parent private once ([`f9e8ce63`](https://github.com/novis-lang/novis/commit/f9e8ce63e1c3a5ac77cdab79ccfae48aa82f4d02))
+- **nv**: a selection reads the tree once ([`bbaf5c4c`](https://github.com/novis-lang/novis/commit/bbaf5c4c35e00832c064779ecbb55cbe474a215c))
+- **nv**: the pre-push checks run side by side and once per tree ([`0747c9ac`](https://github.com/novis-lang/novis/commit/0747c9ac1fdf8a599ccfd87634a5eefa5be2a0e0))
+- **nvs-diagnostics**: the code test scans the test text once ([`6262e95c`](https://github.com/novis-lang/novis/commit/6262e95c3ae3aed965802d329ee02fc2573315b3))
+- **nvs-ext**: the built-in component tests share compiled components on disk ([`2a3239bb`](https://github.com/novis-lang/novis/commit/2a3239bbd6c29c285db843cd171c1aba9bac6dae))
+- **nvs-syntax**: the prefix sweeps share the corpus worker pool ([`a92fc321`](https://github.com/novis-lang/novis/commit/a92fc321cc79752ba0d88ec706f9d066b47fe4be))
+- **proofs**: 243 members whose source changed in this gate are measured again ([`e02c9daf`](https://github.com/novis-lang/novis/commit/e02c9daff775ef931fd9a3c189c41ee955d182ba))
+- **proofs**: the 129 records the chain made stale are measured from the release binary ([`cde8d52e`](https://github.com/novis-lang/novis/commit/cde8d52ef8f9aa4accdd095b5edcb54316da5b3b))
+- **proofs**: the statements and iteration features are measured again, and llms-full.txt matches its sources ([`9507cbb3`](https://github.com/novis-lang/novis/commit/9507cbb39d0f554b8ca3a61f812a6197eb784a78))
+- **proofs**: the twelve Session members are measured again on the lent-session source ([`f30c0ebb`](https://github.com/novis-lang/novis/commit/f30c0ebbfd8072a375bb36da45711a55e3d60bc4))
+- **queue**: a busy worker claims again without asking the roster ([`4c25a1eb`](https://github.com/novis-lang/novis/commit/4c25a1eb19b4ad6d4facd60b2a27fef78d9ba88e))
+- **ratelimit**: a shed entry lives as long as its window ([`18ecf7d7`](https://github.com/novis-lang/novis/commit/18ecf7d789aff0cc66109c18d604e155b6b5827a))
+- **reference**: the testing chapter's features are measured again ([`6c26fa89`](https://github.com/novis-lang/novis/commit/6c26fa8963a497ac51ca794010a6abb90e430e03))
+- **reflect**: every Core\Reflect member is measured after the parent change ([`ec0d2880`](https://github.com/novis-lang/novis/commit/ec0d28802d9037f668fd9ffe0de5564e9bd8134f))
+- **router**: a route's repeated query keys are counted in one pass ([`7af70cb3`](https://github.com/novis-lang/novis/commit/7af70cb3b9c4677cd4c5d6ce2c05b99a3e0d6df0))
+- **runtime**: a file's media type is looked up without an allocation ([`eb69110d`](https://github.com/novis-lang/novis/commit/eb69110d9c75558991bf3fae982a81b31f8a96ec))
+- **runtime**: a freed graph keeps its first eight waiting containers on the stack ([`9e56258c`](https://github.com/novis-lang/novis/commit/9e56258c0372156ac99b003e4110c16f8f3b0221))
+- **runtime**: a spawned task shares its request's tree, deadline and origin ([`b8916acf`](https://github.com/novis-lang/novis/commit/b8916acf8e7bc7e469be107899c4ed3d1ff7ecab))
+- **runtime**: a typed array check reads the tags the array was written with ([`ec7eb683`](https://github.com/novis-lang/novis/commit/ec7eb683fb1851c38475f927d7b5bf607341569d))
+- **runtime**: an integer key on a hashed array allocates only the key it keeps ([`d32f6b5e`](https://github.com/novis-lang/novis/commit/d32f6b5e657faf99224e4e6aa0675b5d1f19924c))
+- **server**: a hello request makes 25 allocations, and each has a row that says why ([`831705be`](https://github.com/novis-lang/novis/commit/831705be88f42c40ea6b6d33afb2f31947a1d259))
+- **server**: a small static file is one blocking job, and a 304 opens no file ([`e151bb2b`](https://github.com/novis-lang/novis/commit/e151bb2bc01313b507b8e61bd2105ba3dcfb71c9))
+- **server**: steps 3 and 4 look up a remainder once between them ([`37155af1`](https://github.com/novis-lang/novis/commit/37155af12efeed4074150489f4b7d9ac5caca7e0))
+- **server**: the door tests the snapshot's debug store flag before it builds a Request ([`ccaaa617`](https://github.com/novis-lang/novis/commit/ccaaa6173e35e739283c2aad22a17118b46c20c2))
+- **server**: the head scanner steps byte by byte only through a line that can frame a body ([`83eff1af`](https://github.com/novis-lang/novis/commit/83eff1afb2a6140890bb507c0e0890397faf9e9b))
+- **server**: the two stream cells are made only for a request that runs a program ([`4a83ceaf`](https://github.com/novis-lang/novis/commit/4a83ceafa4d6762189cd204a6bf8e8697215c3e9))
+- **session**: the session benches are recorded again, and get and remove are constant ([`fd22d06c`](https://github.com/novis-lang/novis/commit/fd22d06c6e8a606a37ab7a4407a5637f0f6996b4))
+- **start**: `nv start-cost --floor` measures the Linux start floor, and the size's share is recorded ([`cd1ab688`](https://github.com/novis-lang/novis/commit/cd1ab68876fa857f83c993918dcefdbe1895d6e5))
+- **start**: the built-in manifests are shared as `Arc<Manifest>`, not copied per start ([`ad9622e1`](https://github.com/novis-lang/novis/commit/ad9622e1883bea12cb297f06750c144ec18f547b))
+- **stdlib**: BigInt compareTo, neg and abs work on the stored magnitude ([`2be66fe2`](https://github.com/novis-lang/novis/commit/2be66fe2216952a3f546f99baf484abf5f47d0e6))
+- **stdlib**: Compress reserves room for its output before it encodes or decodes ([`24381f90`](https://github.com/novis-lang/novis/commit/24381f90b05f84843d154454628ea3ceddf0f0c1))
+- **stdlib**: Compress::compress starts its output empty again ([`f736ff90`](https://github.com/novis-lang/novis/commit/f736ff90c013efdb9a8cf29048480db9348d15fb))
+- **stdlib**: Core\Json::isValid reads the document and builds nothing ([`fdf2fedc`](https://github.com/novis-lang/novis/commit/fdf2fedc1edd2a7142e767aa571f45aef85074dc))
+- **stdlib**: File::readLine reads ahead into a buffer kept beside the open file ([`d8e98e00`](https://github.com/novis-lang/novis/commit/d8e98e00ec4ab676355dded9ae42c1f6e83b1b41))
+- **stdlib**: File::readLine zeroes its read-ahead buffer only when it grows ([`d9908516`](https://github.com/novis-lang/novis/commit/d9908516e15295218bd4fe36ede282e8bbed7c43))
+- **stdlib**: Net Stream::read and Datagram::receive read into a buffer per thread ([`880c03a2`](https://github.com/novis-lang/novis/commit/880c03a25bae124a914693cdc0f68b2c65105893))
+- **stdlib**: Regex::replace and replaceWith reserve the subject and return it on no match ([`8206ea76`](https://github.com/novis-lang/novis/commit/8206ea761c9a5ba715597829317ea7b65194f62f))
+- **stdlib**: Str::trim returns its argument when nothing is trimmed ([`b60d85d2`](https://github.com/novis-lang/novis/commit/b60d85d22365f6521b986de2142672efa705f95a))
+- **stdlib**: Zip::extract decompresses every entry into one block ([`9aea54f0`](https://github.com/novis-lang/novis/commit/9aea54f0ede3d0142ec7181b7422527a6f742738))
+- **stdlib**: a Core\Request body read allocates no error name unless it throws ([`04a65b6c`](https://github.com/novis-lang/novis/commit/04a65b6c2fffafa89f1d0b02cfee8d501e131a0e))
+- **stdlib**: a collection loop's cursor allocates no empty pairs array, back to seven allocations a round ([`5fd64fc1`](https://github.com/novis-lang/novis/commit/5fd64fc18197116f97d5f8f19b88923a871c2b78))
+- **stdlib**: a keyed CSV row retains its header names ([`5515ef90`](https://github.com/novis-lang/novis/commit/5515ef908900d8da39b26b6e61a733309e965dcb))
+- **stdlib**: a loop over an ObjectMap or ObjectSet shares its store and copies it only on a write ([`5c44cd5d`](https://github.com/novis-lang/novis/commit/5c44cd5d63f8eff468edf36d61af0439f4a35839))
+- **stdlib**: a reply body is read in 64 KiB steps straight onto its buffer ([`9c61b787`](https://github.com/novis-lang/novis/commit/9c61b787fbee7c07813a57fcfce211fd6a6ec034))
+- **stdlib**: a split with a limit and a search that ignores case read only what they need ([`00aa18de`](https://github.com/novis-lang/novis/commit/00aa18de62d9132caa80df2ba1df1a59b5d3041f))
+- **stdlib**: an ObjectMap or ObjectSet keyed by a class stores each object by its identity ([`d6dc7a2f`](https://github.com/novis-lang/novis/commit/d6dc7a2fb844fed7a9968cf4be4a52c36df2549e))
+- **stdlib**: an ObjectMap or ObjectSet keyed by exactly string or int stores the key as it is ([`e82cfd3e`](https://github.com/novis-lang/novis/commit/e82cfd3e4780dd3b830e5de950c19016c03915bb))
+- **stdlib**: append, prepend, replaceRange, slice and sort keep their old code ([`426919d9`](https://github.com/novis-lang/novis/commit/426919d92bca444394ccf314fdecdd6685f796f3))
+- **stdlib**: appendAll, padStart, padEnd, overlay, overlayDeep and underlay change a sole array in place ([`742e3626`](https://github.com/novis-lang/novis/commit/742e3626f296a5a3444d4ed0339a59cb08172510))
+- **stdlib**: every Core\Arr member and testing feature this goal changed is measured again ([`55d45ade`](https://github.com/novis-lang/novis/commit/55d45ade4e7155e484d27409b64f056bfe28d5a1))
+- **stdlib**: replaceRange, filter, withoutNull, unique, diff and intersect change a sole array in place ([`a1982946`](https://github.com/novis-lang/novis/commit/a1982946d14eecfec646b35aa7d452e6a364da11))
+- **stdlib**: reverse, sort, sortByKey, values, map, mapKeys and flip change a sole array in place ([`d05a2fea`](https://github.com/novis-lang/novis/commit/d05a2feabb8cff92808510cc57323afe0b864781))
+- **stdlib**: the bucket, set and appending array members allocate per result ([`36972375`](https://github.com/novis-lang/novis/commit/3697237546ce28df48098e42c2d2678dc5298c2a))
+- **stdlib**: the members this goal changed are measured again ([`37dc67f1`](https://github.com/novis-lang/novis/commit/37dc67f160ff2359d15bb287d4e3fda117400a21))
+- **stdlib**: the members this goal changed are measured again ([`4858965e`](https://github.com/novis-lang/novis/commit/4858965ede718777c7f672de1e494da18db35261))
+- …and 8 more, in the full changes below.
+
+#### Formatter
+
+- **fmt**: cargo fmt --check is clean over the workspace ([`7d0d7064`](https://github.com/novis-lang/novis/commit/7d0d70641ef3c9ddce813c9a11c0e9d98e3cd855))
+- **fmt**: four corpus files and the Time-Date reference block are formatted ([`c49a3e16`](https://github.com/novis-lang/novis/commit/c49a3e165b964d3058272b219b786e7d7e1cbb10))
+- **fmt**: http.rs is formatted as rustfmt writes it ([`42ae5e46`](https://github.com/novis-lang/novis/commit/42ae5e46ba9957de91530fdaf82cd9ebfa032512))
+- **fmt**: the checker's borrowed walks and File::readLine are rustfmt clean ([`937ae854`](https://github.com/novis-lang/novis/commit/937ae854a51c55eba0feec8acdd638d414146b84))
+- **fmt**: the goal's edits are formatted and the comparison page renders its recorded bench ([`bcfeec6a`](https://github.com/novis-lang/novis/commit/bcfeec6ac28dd63eee1fec68036129e835fe0547))
+- **fmt**: the tree is formatted and its rendered pages match their sources ([`82a92afe`](https://github.com/novis-lang/novis/commit/82a92afe579ab6e188dfda512e4d2a2ced15d093))
+- **fmt**: three files are rustfmt-clean and the types rule chapter matches its fragments ([`4904dff5`](https://github.com/novis-lang/novis/commit/4904dff5cb9902f4481b72f2fc74316c6a54e3b1))
+- **fmt**: two test files are formatted as rustfmt writes them ([`cbe10627`](https://github.com/novis-lang/novis/commit/cbe10627b3fdb4c0a7404e6aa19a24c6988a33eb))
+
+[Full changes](https://github.com/novis-lang/novis/compare/v0.0.4...v0.0.5) — 941 commits.
+
 ## [0.0.4] - 2026-11-15
 
 ### Features
