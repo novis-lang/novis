@@ -9,7 +9,7 @@ stages:
     status: done
   - id: 2
     title: a cold index keeps every worker busy and checks each body once
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/document.rs, crates/nvs-lsp/tests/incremental.rs]
   - id: 3
     title: nvs code loads, checks by content and saves the editor's index file
@@ -205,16 +205,16 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### 2. a cold index keeps every worker busy and checks each body once
 
-- [ ] `crates/nvs-lsp/tests/incremental.rs:82`: count, on a generated tree of many one-file programs
+- [x] `crates/nvs-lsp/tests/incremental.rs:82`: count, on a generated tree of many one-file programs
   and on this repository with `bun nv lsp-start . --cold`, which files are checked more than once
   and why. Write the cause in the handoff.
-- [ ] `crates/nvs-lsp/src/index.rs:956`: entries ahead of their turn plan in parallel, up to the
+- [x] `crates/nvs-lsp/src/index.rs:956`: entries ahead of their turn plan in parallel, up to the
   workers' room. The merge stays in path order.
-- [ ] `crates/nvs-lsp/src/workers.rs:17`: each body is checked once, by the fix the first item
+- [x] `crates/nvs-lsp/src/workers.rs:17`: each body is checked once, by the fix the first item
   names.
-- [ ] `crates/nvs-lsp/src/document.rs:778`: a `Work` count of the most plans in flight, and
+- [x] `crates/nvs-lsp/src/document.rs:778`: a `Work` count of the most plans in flight, and
   `crates/nvs-lsp/tests/incremental.rs`: the two `parallel` tests.
-- [ ] `crates/nvs-lsp/src/workers.rs:47`: § *What it costs* gets the new `bun nv lsp-start . --cold`
+- [x] `crates/nvs-lsp/src/workers.rs:47`: § *What it costs* gets the new `bun nv lsp-start . --cold`
   figures: wall time, CPU time and the work counts.
 
 ### 3. nvs code loads, checks by content and saves the editor's index file
@@ -262,22 +262,39 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### State
 
-Stage 1 is done. `rule:tooling/nvs-code-answers-about-the-project` now states the load from the
-editor's index file, the five guarantees, the cold-build proof, the workers, the writers and what it
-costs, and the several-methods shapes of `calls` and `reach`. Its *disk cache* decline is gone, and
-a decline of trusting size and time stands in its place. `rule:ide/the-index-is-incremental-and-persistent`
-names `nvs code` as the second reader and a second writer, and says `nvs check`, compiling and running
-never read the file. The `rules` check is green. No code changed.
+Stages 1 and 2 are done, and the `parallel` check is green.
 
-The nightly `miri units (nvs-stdlib 2/12)` failure (run 44894790665) was already fixed on disk by
-`156f11a7ca`: the run tested `7e97fa8`, before that commit cut the Miri reach to 2.
+The cause stage 2 measured, by trace lines on the repository's cold index (removed again): 9147
+files gave 17520 bodies checked, in 8872 plans and 8872 split entries, 8792 of them one part.
+
+- **A file an extension carries has no path**, so `absent` was never asked about it. Every plan
+  checked it (4155 bodies in plans, which should check none) and so did every part of the entry.
+  Now `analyse_through` takes `checks_carried`: a plan and every part but the first leave such files
+  out, so each is checked once per graph (`crates/nvs-lsp/src/document.rs` `analyse_through`).
+- **Plans ahead of their turn ran one at a time**: the split cursor stopped at a planning entry. Now
+  `turns` plans the entries past the cursor whose graph nobody knows, in the room the split left,
+  once one plan came back (`Pool::has_room_to_plan`, `plan_cursor`, `reached`). An entry a known
+  graph reaches is left for its turn. `Work::planned` counts the most plans at once and is printed in
+  the server's `index work:` line.
+
+Measured on 16 cores with `bun nv lsp-start . --cold`: 20.1 s and 17520 checked before, 5.3 s wall,
+59 s CPU, 13292 checked and up to 15 plans at once after. Peak paged went from 808 MB to 990 MB.
+`lsp-start` now prints CPU time. The figures are in `crates/nvs-lsp/src/workers.rs` � *What it costs*.
+
+The two new tests and the build and clippy ran. No other test ran. Watch these at the gate, since
+plans ahead changes the order jobs run in: `a_parallel_index_holds_what_the_serial_index_holds`,
+`a_cold_settle_parses_each_file_once_on_any_number_of_workers`,
+`an_edit_during_a_parallel_index_requeues_the_entries_that_read_it` in `tests/incremental.rs`.
 
 ### Next
 
-Stage 2, from its first item: count on a generated tree of many one-file programs
-(`crates/nvs-lsp/tests/incremental.rs:82`) and with `bun nv lsp-start . --cold` which files are
-checked more than once, and why, and write the cause here. Then `crates/nvs-lsp/src/index.rs:956`
-(plan ahead of turn) and `crates/nvs-lsp/src/workers.rs:17`. Expected red until written: the
-`parallel`, `never-stale`, `code-index` and `several` checks, whose tests do not exist yet.
+Stage 3, from its first item: `crates/nvs-lsp/src/disk_index.rs:1`, which configuration inputs an
+entry records today (guarantee 5), then the content-only freshness at `crates/nvs-lsp/src/index.rs`
+`freshness`. Expected red until written: the `never-stale`, `code-index` and `several` checks,
+whose tests do not exist yet.
 
 ### Backlog
+
+- On `bun nv lsp-start --copies 12 --cold --edits 5`, five surface edits check 5833 bodies, about
+  1166 an edit over 972 files. The commit before stage 2 gives the same count, so it is older than
+  this goal. Not in this goal's scope; a later goal finds which entry checks a file twice on an edit.
