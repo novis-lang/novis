@@ -1,0 +1,4 @@
+{
+  "feature": "Core\\Test\\LogRecord::fields",
+  "perf": "A bench runs under `nvs run`, where no test keeps records, so there is no `LogRecord` to read: only `Core\\Test::logs` under `nvs test` creates one."
+}

@@ -2906,6 +2906,15 @@
   "docs/examples/core/Test/tlsSession/about.md": {
     "Core\\Test::tlsSession": "2cbae9a8db24bcfd"
   },
+  "docs/examples/core/Test-LogRecord/fields/about.md": {
+    "Core\\Test\\LogRecord::fields": "ee754370375dbc61"
+  },
+  "docs/examples/core/Test-LogRecord/level/about.md": {
+    "Core\\Test\\LogRecord::level": "10eb9a8848b148e6"
+  },
+  "docs/examples/core/Test-LogRecord/message/about.md": {
+    "Core\\Test\\LogRecord::message": "343517d8b0085c21"
+  },
   "docs/examples/core/Test-Outcome/attempt/about.md": {
     "Core\\Test\\Outcome::attempt": "562c95b2ba6b5373"
   },
@@ -2947,6 +2956,42 @@
   },
   "docs/examples/core/Test-Response/status/about.md": {
     "Core\\Test\\Response::status": "4d34566e5cdf2439"
+  },
+  "docs/examples/core/Test-RunResult/bytes/about.md": {
+    "Core\\Test\\RunResult::bytes": "d8e5e3cdfe2de219"
+  },
+  "docs/examples/core/Test-RunResult/exitCode/about.md": {
+    "Core\\Test\\RunResult::exitCode": "4276257b2bd0942a"
+  },
+  "docs/examples/core/Test-RunResult/stderr/about.md": {
+    "Core\\Test\\RunResult::stderr": "a2ad6e63af9a14d0"
+  },
+  "docs/examples/core/Test-RunResult/stdout/about.md": {
+    "Core\\Test\\RunResult::stdout": "85c36b13fa430397"
+  },
+  "docs/examples/core/Test-SentMail/bcc/about.md": {
+    "Core\\Test\\SentMail::bcc": "30bc01ac102ef27a"
+  },
+  "docs/examples/core/Test-SentMail/cc/about.md": {
+    "Core\\Test\\SentMail::cc": "a226750d670ac554"
+  },
+  "docs/examples/core/Test-SentMail/endpoint/about.md": {
+    "Core\\Test\\SentMail::endpoint": "2942c238a91dfa7e"
+  },
+  "docs/examples/core/Test-SentMail/html/about.md": {
+    "Core\\Test\\SentMail::html": "a4d389f1b7e31be2"
+  },
+  "docs/examples/core/Test-SentMail/replyTo/about.md": {
+    "Core\\Test\\SentMail::replyTo": "74ab3f075712f474"
+  },
+  "docs/examples/core/Test-SentMail/subject/about.md": {
+    "Core\\Test\\SentMail::subject": "bbc8d0de4bb1de85"
+  },
+  "docs/examples/core/Test-SentMail/text/about.md": {
+    "Core\\Test\\SentMail::text": "86ffdc112e999421"
+  },
+  "docs/examples/core/Test-SentMail/to/about.md": {
+    "Core\\Test\\SentMail::to": "8e9c3fd131ab1e3b"
   },
   "docs/examples/core/Test-SentRequest/body/about.md": {
     "Core\\Test\\SentRequest::body": "c7ac1666fa3472fd"
@@ -7773,13 +7818,13 @@
     "Core\\Test\\Failure": "096038ef67c63e3e"
   },
   "help:Core\\Test\\LogRecord::fields": {
-    "Core\\Test\\LogRecord::fields": "7ae30a37096ee07c"
+    "Core\\Test\\LogRecord::fields": "0e2a0ed9d535a4ca"
   },
   "help:Core\\Test\\LogRecord::level": {
-    "Core\\Test\\LogRecord::level": "7ae30a37096ee07c"
+    "Core\\Test\\LogRecord::level": "91b15a9b9bf76cc7"
   },
   "help:Core\\Test\\LogRecord::message": {
-    "Core\\Test\\LogRecord::message": "7ae30a37096ee07c"
+    "Core\\Test\\LogRecord::message": "dd328d0f3863f9bc"
   },
   "help:Core\\Test\\Outcome::attempt": {
     "Core\\Test\\Outcome::attempt": "b12377c328fb16b8"
@@ -7824,40 +7869,40 @@
     "Core\\Test\\Response::status": "6caa91e501de1ffc"
   },
   "help:Core\\Test\\RunResult::bytes": {
-    "Core\\Test\\RunResult::bytes": "7af6e71901d034de"
+    "Core\\Test\\RunResult::bytes": "4c72bd70d6ae074b"
   },
   "help:Core\\Test\\RunResult::exitCode": {
-    "Core\\Test\\RunResult::exitCode": "7af6e71901d034de"
+    "Core\\Test\\RunResult::exitCode": "b7decf7e79e9e725"
   },
   "help:Core\\Test\\RunResult::stderr": {
-    "Core\\Test\\RunResult::stderr": "7af6e71901d034de"
+    "Core\\Test\\RunResult::stderr": "af466fcdc68dd72f"
   },
   "help:Core\\Test\\RunResult::stdout": {
-    "Core\\Test\\RunResult::stdout": "7af6e71901d034de"
+    "Core\\Test\\RunResult::stdout": "23f2cdf41e1b932b"
   },
   "help:Core\\Test\\SentMail::bcc": {
-    "Core\\Test\\SentMail::bcc": "7ae30a37096ee07c"
+    "Core\\Test\\SentMail::bcc": "c23964b0b9ea107c"
   },
   "help:Core\\Test\\SentMail::cc": {
-    "Core\\Test\\SentMail::cc": "7ae30a37096ee07c"
+    "Core\\Test\\SentMail::cc": "528565888d130ff6"
   },
   "help:Core\\Test\\SentMail::endpoint": {
-    "Core\\Test\\SentMail::endpoint": "7ae30a37096ee07c"
+    "Core\\Test\\SentMail::endpoint": "8f5cb9496d0d94af"
   },
   "help:Core\\Test\\SentMail::html": {
-    "Core\\Test\\SentMail::html": "7ae30a37096ee07c"
+    "Core\\Test\\SentMail::html": "5f6685c7914714e5"
   },
   "help:Core\\Test\\SentMail::replyTo": {
-    "Core\\Test\\SentMail::replyTo": "7ae30a37096ee07c"
+    "Core\\Test\\SentMail::replyTo": "2bb1399a50a85ee3"
   },
   "help:Core\\Test\\SentMail::subject": {
-    "Core\\Test\\SentMail::subject": "7ae30a37096ee07c"
+    "Core\\Test\\SentMail::subject": "240c7b977afaf8e5"
   },
   "help:Core\\Test\\SentMail::text": {
-    "Core\\Test\\SentMail::text": "7ae30a37096ee07c"
+    "Core\\Test\\SentMail::text": "8d2ffe50ec9a48ff"
   },
   "help:Core\\Test\\SentMail::to": {
-    "Core\\Test\\SentMail::to": "7ae30a37096ee07c"
+    "Core\\Test\\SentMail::to": "cbf249a27b517378"
   },
   "help:Core\\Test\\SentRequest::body": {
     "Core\\Test\\SentRequest::body": "04ca6eb9c5f10ed3"

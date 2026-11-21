@@ -8,8 +8,7 @@ is `3`. When the program throws an error that it does not catch, the exit code i
 
 An exit code is a number from `0` to `255`. A number outside that range is changed to fit, as on
 Linux and macOS. The exit code is the remainder after division by 256. So `exit(-1)` gives `255`,
-and `exit(300)` gives `44`. `exit` with a string prints
-the string and gives `0`.
+and `exit(300)` gives `44`. `exit` with a string prints the string and gives `0`.
 
 You can call `exitCode()` as often as you like. Each call returns the same number.
 

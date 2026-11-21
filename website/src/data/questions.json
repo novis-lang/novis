@@ -8097,7 +8097,7 @@
   },
   "/reference/core/mail/send/": {
     "feature": "Core\\Mail::send",
-    "hash": "39d87d9eee34eb71",
+    "hash": "e5a3b6ea2804cc77",
     "questions": [
       "How do I send an email with an HTML body?",
       "Send one message to several recipients",
@@ -14623,7 +14623,7 @@
   },
   "/reference/core/task/all/": {
     "feature": "Core\\Task::all",
-    "hash": "a15c6c01c8aa66fb",
+    "hash": "9ad3d26e1ed00d0e",
     "questions": [
       "How do I call two web services at the same time?",
       "Load a database query and a cache lookup in parallel",
@@ -14986,7 +14986,7 @@
   },
   "/reference/core/test-logrecord/fields/": {
     "feature": "Core\\Test\\LogRecord::fields",
-    "hash": "bf670cca142177a0",
+    "hash": "1275dc9b5fb4e091",
     "questions": [
       "How do I read the extra fields of a log line in a test?",
       "Check a value my code passed to Core\\Log::write",
@@ -14996,7 +14996,7 @@
   },
   "/reference/core/test-logrecord/level/": {
     "feature": "Core\\Test\\LogRecord::level",
-    "hash": "b19ac2fca1eca380",
+    "hash": "0f382f4e4e41fed0",
     "questions": [
       "How do I check the level of a log line in a test?",
       "Test that my code logged a warning",
@@ -15006,7 +15006,7 @@
   },
   "/reference/core/test-logrecord/message/": {
     "feature": "Core\\Test\\LogRecord::message",
-    "hash": "01e8f2d2669409f2",
+    "hash": "1387ebb4869c3734",
     "questions": [
       "How do I read the text of a log line in a test?",
       "Check the message my code logged",
@@ -15120,7 +15120,7 @@
   },
   "/reference/core/test-response/error/": {
     "feature": "Core\\Test\\Response::error",
-    "hash": "ee7dfab074dc146f",
+    "hash": "6923b297f4d5cd3b",
     "questions": [
       "How do I see why a test request returned 500?",
       "Read the error that stopped a request in a test",
@@ -15192,7 +15192,7 @@
   },
   "/reference/core/test-runresult/bytes/": {
     "feature": "Core\\Test\\RunResult::bytes",
-    "hash": "5d8822587c51384f",
+    "hash": "998731adafb8d5a6",
     "questions": [
       "How do I read binary output of a command in a test?",
       "Test a command that writes a file to standard output",
@@ -15202,7 +15202,7 @@
   },
   "/reference/core/test-runresult/exitcode/": {
     "feature": "Core\\Test\\RunResult::exitCode",
-    "hash": "2978c00e49343173",
+    "hash": "1a83a9dbbffa5f3f",
     "questions": [
       "How do I check the exit code of a command in a test?",
       "Test that my CLI exits with code 2 on a missing argument",
@@ -15212,7 +15212,7 @@
   },
   "/reference/core/test-runresult/stderr/": {
     "feature": "Core\\Test\\RunResult::stderr",
-    "hash": "fa89937c562b0622",
+    "hash": "e89d2586f87b7697",
     "questions": [
       "How do I read what a command wrote to standard error?",
       "Check the error message of a command in a test",
@@ -15222,7 +15222,7 @@
   },
   "/reference/core/test-runresult/stdout/": {
     "feature": "Core\\Test\\RunResult::stdout",
-    "hash": "28b3fc4d632a972a",
+    "hash": "89fe69af045c6af7",
     "questions": [
       "How do I read what a command printed in a test?",
       "Check the output of my CLI in a test",
@@ -15242,7 +15242,7 @@
   },
   "/reference/core/test-sentmail/bcc/": {
     "feature": "Core\\Test\\SentMail::bcc",
-    "hash": "80b12b981b89d8d6",
+    "hash": "1327efef4785907e",
     "questions": [
       "How do I check the hidden recipients of an email in a test?",
       "Test that a mail was sent as a blind copy",
@@ -15252,7 +15252,7 @@
   },
   "/reference/core/test-sentmail/cc/": {
     "feature": "Core\\Test\\SentMail::cc",
-    "hash": "5b8543fcd84b5089",
+    "hash": "c675ee22d64821d8",
     "questions": [
       "How do I check the copy recipients of an email in a test?",
       "Test that a manager got a copy of the mail",
@@ -15262,7 +15262,7 @@
   },
   "/reference/core/test-sentmail/endpoint/": {
     "feature": "Core\\Test\\SentMail::endpoint",
-    "hash": "abedb2723441b98a",
+    "hash": "946dabf8481ff9b5",
     "questions": [
       "How do I check which mail server block an email used?",
       "Test that a mail went through the right mail settings",
@@ -15272,7 +15272,7 @@
   },
   "/reference/core/test-sentmail/html/": {
     "feature": "Core\\Test\\SentMail::html",
-    "hash": "c10d925be3b56831",
+    "hash": "29fb8818eefc2424",
     "questions": [
       "How do I check the HTML body of an email in a test?",
       "Test the HTML version of a sent mail",
@@ -15282,7 +15282,7 @@
   },
   "/reference/core/test-sentmail/replyto/": {
     "feature": "Core\\Test\\SentMail::replyTo",
-    "hash": "c8c2e8481d3bab6d",
+    "hash": "2762b83778e625f5",
     "questions": [
       "How do I check the reply address of an email in a test?",
       "Test that replies go to the support address",
@@ -15292,7 +15292,7 @@
   },
   "/reference/core/test-sentmail/subject/": {
     "feature": "Core\\Test\\SentMail::subject",
-    "hash": "cc0f02f74b8dddaf",
+    "hash": "2b794d353a6c003f",
     "questions": [
       "How do I check the subject of an email in a test?",
       "Test the subject line of a welcome mail",
@@ -15302,7 +15302,7 @@
   },
   "/reference/core/test-sentmail/text/": {
     "feature": "Core\\Test\\SentMail::text",
-    "hash": "a984fc9ebc0f06d8",
+    "hash": "47c6f365c5198e13",
     "questions": [
       "How do I check the text of an email in a test?",
       "Test that a mail contains a reset link",
@@ -15312,7 +15312,7 @@
   },
   "/reference/core/test-sentmail/to/": {
     "feature": "Core\\Test\\SentMail::to",
-    "hash": "77e28d30639ea36e",
+    "hash": "00cbb73b922a34d6",
     "questions": [
       "How do I check who an email was sent to in a test?",
       "Test the recipients of a sent mail",

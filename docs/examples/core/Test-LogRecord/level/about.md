@@ -5,7 +5,7 @@ The result is one of five strings: `"debug"`, `"info"`, `"warn"`, `"error"` or `
 the same text as the `level` in a JSON log line. It matches the `Core\Log::Level` case that your
 program gave to `Core\Log::write`.
 
-Use `level()` to check that a problem is logged as serious as it is. A failed payment should be an
+Use `level()` to check that a problem is logged at the right level. A failed payment should be an
 `error`, not an `info`.
 
 **Good to know:** a record below the setting `[log] level` is not kept. The default is `info`, so a
