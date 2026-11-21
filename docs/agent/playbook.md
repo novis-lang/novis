@@ -26,6 +26,9 @@ works goes in that crate's own module doc comment. The *shape* of something you 
 session the bullets it ranks highest for the live goal, and names how many more there are.
 
 ## Tooling
+- **`bun nv proofs --id <feature> --gate` judges the whole roster, not the feature.** `--id` does
+  not narrow `--gate`, so a goal's `proofs` check stayed red on 146 features outside the goal.
+  Write a feature's gate check as `--only <feature> --gate`. See `tools/nv/cmd/proofs.ts`'s header.
 - **A Python edit script under `.agent-tmp/` that writes with `open(p, 'w')` turns every line
   ending into CRLF on Windows.** Git then warns "CRLF will be replaced by LF" for each file, and the
   working copy no longer matches rustfmt's output. Open the file with `newline=''`, or write bytes.
