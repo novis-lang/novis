@@ -1,0 +1,153 @@
+---
+/**
+ * The front page's link to the comparison page: what the page compares, and
+ * two cards for the two things only some servers do. Each card lists every
+ * server in the record and marks the ones that do it, so the marks follow
+ * the record. Before a run is recorded, the section is not shown.
+ *
+ * "New code without a restart" is a peer whose deploy group is `files`.
+ * "A limit for each request" is a peer that stops a request in both the
+ * `memory` and the `loop` row with no code of its own: built in, on by
+ * default or one setting.
+ */
+import { Icon } from '@astrojs/starlight/components'
+import Section from './Section.astro'
+import { HOME_PEER, peers, record, rows } from '~/lib/compare'
+import { withBase } from '~/lib/base'
+
+const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten']
+const count = (n: number) => WORDS[n] ?? String(n)
+
+const STOPS = new Set(['built-in', 'on-by-default', 'one-setting'])
+const stops = (rowId: string, index: number) => {
+  const cell = rows.find((r) => r.id === rowId)?.cells[index]
+  return cell != null && STOPS.has(cell.verdict)
+}
+
+const cards = [
+  {
+    icon: 'random',
+    title: 'New code without a restart',
+    text: 'You change a source file on a running server. The next requests use the new code, and no request fails.',
+    has: peers.map((p) => p.group === 'files'),
+  },
+  {
+    icon: 'padlock',
+    title: 'A limit for each request',
+    text: 'Each request has its own memory limit and CPU time limit. One bad request cannot stop the whole server.',
+    has: peers.map((_, i) => stops('memory', i) && stops('loop', i)),
+  },
+]
+
+const names = peers.map((p) => p.label)
+const lead = `The same small web programs run in ${names.slice(0, -1).join(', ')} and ${names.at(-1)}. One command measures all ${count(names.length)} servers on one machine: speed, memory, deploys and runaway requests.`
+---
+
+{
+  record && (
+    <Section id="compare" eyebrow="Compared" title="How Novis compares with the top languages for the web" lead={lead}>
+      <div class="cards">
+        {cards.map((c) => (
+          <div class="card nv-reveal">
+            <div class="head">
+              <span class="nv-icon-tile" data-tint="info">
+                <Icon name={c.icon as any} size="1.2rem" />
+              </span>
+              <h3>{c.title}</h3>
+            </div>
+            <p class="text">{c.text}</p>
+            <ul class="servers" role="list">
+              {peers.map((p, i) => (
+                <li class:list={[c.has[i] ? 'yes' : 'no', p.id === HOME_PEER && 'home']}>
+                  <Icon name={c.has[i] ? 'approve-check' : 'close'} size="0.85rem" />
+                  {p.label}
+                  <span class="sr-only">{c.has[i] ? ': yes' : ': no'}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <p class="more nv-reveal">
+        <a class="nv-button nv-button-secondary" href={withBase('/in-depth/compare/')}>
+          See the full comparison
+          <Icon name="right-arrow" size="1.1rem" />
+        </a>
+      </p>
+    </Section>
+  )
+}
+
+<style>
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+    gap: var(--nv-space-4);
+    max-width: 56rem;
+    margin-inline: auto;
+  }
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--nv-space-3);
+    padding: var(--nv-space-5);
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius-lg);
+    background: var(--nv-surface);
+  }
+  .head {
+    display: flex;
+    align-items: center;
+    gap: var(--nv-space-3);
+  }
+  h3 {
+    margin: 0;
+    font-size: var(--sl-text-lg);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--sl-color-white);
+  }
+  .text {
+    margin: 0;
+    color: var(--sl-color-gray-2);
+  }
+  .servers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--nv-space-2);
+    margin: var(--nv-space-2) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .servers li {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
+    margin: 0;
+    padding: 0.2em 0.65em;
+    border: 1px solid var(--nv-hairline);
+    border-radius: var(--nv-radius-pill);
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+    line-height: 1.5;
+  }
+  .servers li.yes {
+    border-color: color-mix(in oklab, var(--nv-ok) 45%, transparent);
+    background: color-mix(in oklab, var(--nv-ok) 12%, transparent);
+    color: var(--sl-color-white);
+  }
+  .servers li.yes :global(svg) {
+    color: var(--nv-ok);
+  }
+  .servers li.no {
+    color: var(--sl-color-gray-3);
+  }
+  .servers li.home {
+    border-width: 2px;
+  }
+  .more {
+    display: flex;
+    justify-content: center;
+    margin: var(--nv-space-5) 0 0;
+  }
+</style>
