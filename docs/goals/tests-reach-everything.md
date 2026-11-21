@@ -34,7 +34,7 @@ stages:
     context: [crates/nvs-runtime/src/capability.rs, crates/nvs-stdlib/src/log.rs, crates/nvs-stdlib/src/mail.rs]
   - id: 8
     title: the feature proofs and the help of every new member and option
-    status: open
+    status: done
     context: [docs/examples/core/Test/request/about.md]
   - id: 9
     title: the website shows what a test can reach, and lists the change
@@ -436,7 +436,7 @@ outcome type exists; the session writes the run path.
   with the examples, benches and attacks their `bun nv proofs --id` names. The `sentMail` attack: a
   test tries to send real mail, and no connection opens.
 - [x] `docs/examples/core/Test/advance/about.md`: a retry with backoff tested in microseconds.
-- [ ] `bun nv proofs --comments` over every new `.nvs`, then the four `proofs` checks.
+- [x] `bun nv proofs --comments` over every new `.nvs`, then the four `proofs` checks.
 
 ### 9. the website shows what a test can reach, and lists the change
 
