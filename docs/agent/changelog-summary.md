@@ -153,7 +153,10 @@ Write the summary and each example under `.agent-tmp/changelog/`.
 
 ## 7. Hand it over
 
-The reply carries the summary as Markdown and, under it:
+**The reply carries the summary as raw Markdown source, never rendered.** It is one fenced block
+opened with ` ````markdown ` and closed with ` ```` `. The fence has four backticks, because the
+examples inside it use three. The person copies the block as it is into the release. Under the block
+the reply gives:
 
 - the range and its commit count, and the number of bullets in each section;
 - *Not verified*: each item whose effect could not be shown, with its commit;
