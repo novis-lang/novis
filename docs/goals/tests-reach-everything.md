@@ -38,7 +38,7 @@ stages:
     context: [docs/examples/core/Test/request/about.md]
   - id: 9
     title: the website shows what a test can reach, and lists the change
-    status: open
+    status: done
   - id: 10
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -440,14 +440,14 @@ outcome type exists; the session writes the run path.
 
 ### 9. the website shows what a test can reach, and lists the change
 
-- [ ] The testing guide pages `bun nv brief --where "Core\\Test"` names under
+- [x] The testing guide pages `bun nv brief --where "Core\\Test"` names under
   `website/src/content/docs/`: test a command program, the client address and scheme, the request
   body options, logs and mail, and the clock.
-- [ ] `website/src/data/changes.json`: `new` `Core\Test::run`, `Core\Test::logs`,
+- [x] `website/src/data/changes.json`: `new` `Core\Test::run`, `Core\Test::logs`,
   `Core\Test::sentMail`, `Core\Test\Response::error`, `#[Test(env:)]`; `changed`
   `Core\Test::request` (options and answers), `Core\Mail::send` (sends nothing under `nvs test`),
   `Core\Time::sleep` (follows the test clock under `at:`).
-- [ ] Reread and stamp every page `bun nv site --check stale` names.
+- [x] Reread and stamp every page `bun nv site --check stale` names.
 
 ### 10. the goal is verified once, and every failure is fixed
 
@@ -460,18 +460,14 @@ outcome type exists; the session writes the run path.
 
 ### State
 
-Stages 1 to 8 are done, and every code check (`peer` to `records`) is green. What is left is the
-website (stage 9) and the close (stage 10).
+Stages 1 to 9 are done, and every code check (`peer` to `records`), `site-stale` and
+`site-changes` are green. What is left is the close (stage 10).
 
-Stage 8 landed in `de12e39f33` to `84558d87c4`. Each of `request`, `run`, `logs` and `sentMail` has
-its about.md, examples, attack and stamped help, and `advance` gained `04`, a retry whose wait
-doubles. `logs` and `sentMail` carry a perf skip under `data/proofs/skip/core/Test/`, as `advance`
-does: a bench runs under `nvs run`, where no test keeps records. `tools/nv/proofs/run.ts`
-`spawnProof` now hands a directory's `nvs.toml` to a `proof: test` program (`f331b121b1`), which
-the `sentMail` examples and attack need. `Core\Test\LogRecord::fields` now keeps the written key
-order (`f27de79971`, `nvs_render::json::fields_text`). The newcomer review of all 45 texts this
-goal changed is done and stamped, so stage 10's first item is done for every text so far; the
-website pages stage 9 writes still owe theirs.
+Stage 9 is `47c0f33d16` and `6c85af66be`: a new `guides/testing/test-a-command.mdx`, the other
+testing guides extended, eight `changes.json` entries, 45 texts stamped and the moved pages' search
+questions rewritten. `#[Test(env:)]` has no roster id, so its entry is `changed`
+`lang:testing/test-options`, which the env tests in `test_reach.rs` now cover. Stage 8's texts have
+their newcomer review; what stage 9 wrote does not yet.
 
 At the gate, these may go red: a test whose `Core\Task::all` child relied on the real clock or
 timed a sleep under `at:`; a test that lists `#[Test]`'s options (`env` is new); a test that lists
@@ -482,14 +478,18 @@ Nightly 44894790665's Miri timeout predates `156f11a7ca`, which fixed it.
 
 ### Next
 
-Stage 9, the website. Find the testing guide pages with `bun nv brief --where "Core\\Test"` under
-`website/src/content/docs/`, and add what stage 9's first item lists. Each page can link to the
-examples under `docs/examples/core/Test/{request,run,logs,sentMail}/`. Then the
-`website/src/data/changes.json` entries stage 9's second item lists; a `changed` entry needs a test
-with `// covers: <feature>` (playbook: *`site --check changes` counts a feature as moved only
-through tests that carry `// covers:`*). Then `bun nv site --check stale` and stamp what it names.
-The pages written there owe the newcomer review (stage 10's first item), done as this session did:
-`bun nv site --review` for the keys, `--brief` per batch, one `reader` each, then `--stamp`.
+Stage 10, the close. First the newcomer review of what stage 9 wrote: the four pages under
+`website/src/content/docs/guides/testing/`, `syntax/testing/writing-tests.mdx`, the nine about.md
+files and the two help cards (`crates/nvs-stdlib/src/time.rs` `TIME_SLEEP_DOC`,
+`crates/nvs-stdlib/src/mail.rs` `SEND_DOC`) amended in `47c0f33d16`. Take the keys from
+`bun nv site --review`, `--brief` per batch, one `reader` each, then `--stamp`, until
+`bun nv site --check review` is green. Then the close check the pack names: a build, clippy and
+this goal's `test_reach` tests by name, unless the pack names this goal as a full gate.
+
+`bun nv site --check questions` still names six pages this goal did not touch, stale since
+`8ec87a7122`: `/guides/production/{deploy,docker,run-as-a-service}/`, `/in-depth/compare/`,
+`/in-depth/` and `/`. `ci --check` fails on them at the next full gate; reread each, rewrite its
+questions and `bun nv site --questions --stamp` it (with `MSYS_NO_PATHCONV=1`).
 
 ### Backlog
 
