@@ -12,12 +12,47 @@ runs per request (`rule:testing/a-directory-of-programs-is-one-test-program`). E
 answers with its own entry. The `#[Test(server: true)]` listener still runs the generated entry.
 
 The signature is `Core\Test::request(Core\Http\Method $method, string $path, {headers?:
-array<string>, body?: string|bytes, mount?: string, captures?: array<string>}):
-Core\Test\Response`. A `?` in `$path` starts the query. A `body` that is not given is no body, which
-is not an empty one. `mount` is the prefix the request came in under, `""` for the root, and
-`captures` is the list `Core\Request\Mount::captures()` reads back, `{1}` first. The two are one
-mount row, so `captures` without a `mount`, or keyed by anything but position, is a `LogicError`:
-the root has no pattern to capture.
+array<string>, body?: string|bytes, json?: mixed, form?: array<string>, multipart?:
+array<string|Core\Http\Part>, contentType?: string, cookies?: array<string>, clientIp?: string, scheme?:
+string, mount?: string, captures?: array<string>}): Core\Test\Response`. A `?` in `$path` starts the
+query. A request with none of `body`, `json`, `form` and `multipart` has no body, which is not an
+empty one. `mount` is the prefix the request came in under, `""` for the root, and `captures` is the
+list `Core\Request\Mount::captures()` reads back, `{1}` first. The two are one mount row, so
+`captures` without a `mount`, or keyed by anything but position, is a `LogicError`: the root has no
+pattern to capture.
+
+**The peer is stated, never derived.** `clientIp` and `scheme` are what the `[server]
+trusted_proxies` walk would have settled on, as a `.nvt` case's `--CLIENT_IP--` and `--SCHEME--`
+are, so `Core\Request::ip()`, `isSecure()` and a `__Host-` cookie read them. No test reads
+`X-Forwarded-For`. A `clientIp` that is not one IPv4 or IPv6 address, and a `scheme` that is not
+`"http"` or `"https"`, is a `LogicError`. Omitted, the request has no address and is `http`. Cost:
+none per request.
+
+**`cookies` sends its pairs as one `cookie` field**, read by the same code as `--COOKIE--`. There is
+no cookie jar: each call is one request, and a test copies `Response::cookies()` into the next call
+itself. A `host` header given in `headers` is the request's host, and it picks the mount row the
+server would pick for that host, so a link resolves through the row a real request under that host
+reaches. A `traceparent` header is taken as the wire takes it, so the request continues that trace.
+
+**A body is written with `Core\Http\Client`'s options, read by the client's own code.** `json`,
+`form` and `multipart` build the body and its `Content-Type` as the client would send them, and
+`contentType` names the type of a raw `body`. Only one of `body`, `json`, `form` and `multipart` may
+be given, and `contentType` needs `body`. Both mistakes are compile errors, as they are on the
+client, so a test writes a request the way a program writes one.
+
+**The answer is the server's answer.** Each refusal the wire makes before the program runs is made by
+the same function in a test. A forged write to a program that does not call `Core\Router::dispatch`
+answers `403` with no body, and a dispatching program keeps its gate's `refused`. A body over the
+run's `[limits]` answers what the wire answers for it. A `HEAD` request answers with no body, its
+status and headers kept. A request whose program fails keeps the server's `500`, and
+`Core\Test\Response::error(): ?string` reads the class and message of the error that ended it as
+`Class: message`, `null` for a request that did not fail. It is a string, because the error object
+belongs to the request's isolate and does not cross into the test's.
+
+**The call returns once the request's after-response work has ended.** The response is the same, and
+a test then reads what that work wrote. An after-response task that fails fails the test, named as
+such, as a task left running does (`rule:testing/task-tree-and-virtual-clock`). On the server, that
+work stays detached from the response.
 
 **A test request gives the link to another module that `nvs serve` gives.** Where the unit links to
 a route of an `autoload links` root and the configuration the test run reads writes a
@@ -72,3 +107,12 @@ bound, so it can be called from anywhere. A test reaching its own listener needs
 granted — `net.connect` for the host and `net.internal` for loopback
 (`rule:http-server/allow-url-pins-the-address`) — because nothing about the listener being the
 test's own widens that policy.
+
+**Declined:**
+- **A cookie jar kept between `Core\Test::request` calls.** It is hidden state between two calls,
+  and copying `Response::cookies()` into the next call is one line.
+- **Repeated header lines.** Joining the values gives the same request, and a second `Host` line is
+  a request the server refuses.
+- **Server-added headers, upgrades, chunk boundaries and `Range` in an in-process request.** The
+  `[http.headers]` table, CORS, the CSP nonce, a WebSocket or SSE upgrade and the framing belong to
+  the wire, and `#[Test(server: true)]` serves the program on a real listener for them.

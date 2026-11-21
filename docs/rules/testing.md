@@ -3,6 +3,8 @@
 
 # Testing
 
+*2 of 83 rules below are **designed** rather than shipped, and are marked where they appear.*
+
 <a id="testing-test-attribute"></a>
 
 ## A test is a method marked `#[Test]`, and its table is built while compiling
@@ -35,10 +37,17 @@ test tree keeps the rows. Cost: one symbol lookup and one file lookup per class 
 per compile; nothing at run time.
 
 `#[Test]`'s payload is an options bag — `skip`, `at`, `seed`, `db`, `server`, `retries`,
-`because`, `timeout` ([`testing/a-test-has-a-wall-time-limit`](testing.md#testing-a-test-has-a-wall-time-limit)) and `tags`
-([`testing/tags-and-shards-select-what-runs`](testing.md#testing-tags-and-shards-select-what-runs)) — every field optional and every field checked at its own type. An option the roster does
+`because`, `timeout` ([`testing/a-test-has-a-wall-time-limit`](testing.md#testing-a-test-has-a-wall-time-limit)), `tags`
+([`testing/tags-and-shards-select-what-runs`](testing.md#testing-tags-and-shards-select-what-runs)) and `env` — every field optional and every field checked at its own type. An option the roster does
 not name is refused, one written twice is refused, and `skip: true` is a `bool` where a `string` is
 declared.
+
+**`env: array<string>` sets environment variables for that test.** `Core\Env` reads them first and
+the process environment after them. They reach the test, every request and run it makes
+([`testing/in-process-request`](testing.md#testing-in-process-request), [`testing/a-test-runs-a-command`](testing.md#testing-a-test-runs-a-command)), and no other test. The
+`env` grant is still needed to read them, as it is in production. It is one option on the test and
+not one per call: a program reads its environment at any point, and two values in one test would
+test nothing a real deployment has. Cost: the test's own variables, freed with its isolate.
 
 The attribute is matched **nominally**, by resolved name: `#[Core\Test]` and a `use`d `#[Test]` are
 one attribute, and a userland `class Test` is never it. The marker and the assertions are one class,
@@ -829,10 +838,25 @@ task still running then fails the test, named as such**. The alternative is what
 its own: cancel the leftovers as the task retires and report a green test that never waited for its
 work.
 
-Because the clock is under the test's control, a `Duration` sleep inside a task elapses instantly.
-That makes retry, backoff and timeout logic — some of the most error-prone code anyone writes, and
-the least tested — testable in microseconds rather than in the seconds it describes.
-`Core\Test::assertCompletes(fn, {within: Duration})` states a budget against that same clock.
+**Under `#[Test(at:)]` a sleep is a virtual deadline.** A `Duration` sleep or a timer of the test's
+task tree parks on a deadline read from the fixed clock
+([`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test)), not from the operating system's. When no task of
+the tree can run, the clock moves to the earliest deadline and wakes the tasks parked on it; tasks
+whose deadlines are equal wake in the order they parked. So a sleep ends at once and moves
+`Core\Time::now()` by its length, two sleeping tasks wake in deadline order, and a timeout races a
+sleep the way it would in real time. That makes retry, backoff and timeout logic — some of the most
+error-prone code anyone writes, and the least tested — testable in microseconds rather than in the
+seconds it describes. `Core\Test::assertCompletes(fn, {within: Duration})` states a budget against
+that same clock. Without `at:`, a sleep waits in real time.
+
+**A request or a run a test makes has its own copy of the clock and its own deadlines**, taken when
+the call starts ([`testing/in-process-request`](testing.md#testing-in-process-request)). Its sleeps move its copy and never the test's.
+
+**The expiries Novis computes itself read the same clock**: a cache entry's TTL and a queue job's
+delay, so `Core\Test::advance` expires the one and makes the other due. A TTL kept by Redis or a
+database, a lock wait and an I/O timeout stay in real time, because the other side of each is a real
+program the test does not control. Cost: one check of the fixed clock per sleep and per expiry read,
+and nothing where no clock is fixed.
 
 <sub>See also [`testing/determinism-declared-on-the-test`](testing.md#testing-determinism-declared-on-the-test), [`testing/runner-is-strict`](testing.md#testing-runner-is-strict), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test).</sub>
 
@@ -878,12 +902,47 @@ runs per request ([`testing/a-directory-of-programs-is-one-test-program`](testin
 answers with its own entry. The `#[Test(server: true)]` listener still runs the generated entry.
 
 The signature is `Core\Test::request(Core\Http\Method $method, string $path, {headers?:
-array<string>, body?: string|bytes, mount?: string, captures?: array<string>}):
-Core\Test\Response`. A `?` in `$path` starts the query. A `body` that is not given is no body, which
-is not an empty one. `mount` is the prefix the request came in under, `""` for the root, and
-`captures` is the list `Core\Request\Mount::captures()` reads back, `{1}` first. The two are one
-mount row, so `captures` without a `mount`, or keyed by anything but position, is a `LogicError`:
-the root has no pattern to capture.
+array<string>, body?: string|bytes, json?: mixed, form?: array<string>, multipart?:
+array<string|Core\Http\Part>, contentType?: string, cookies?: array<string>, clientIp?: string, scheme?:
+string, mount?: string, captures?: array<string>}): Core\Test\Response`. A `?` in `$path` starts the
+query. A request with none of `body`, `json`, `form` and `multipart` has no body, which is not an
+empty one. `mount` is the prefix the request came in under, `""` for the root, and `captures` is the
+list `Core\Request\Mount::captures()` reads back, `{1}` first. The two are one mount row, so
+`captures` without a `mount`, or keyed by anything but position, is a `LogicError`: the root has no
+pattern to capture.
+
+**The peer is stated, never derived.** `clientIp` and `scheme` are what the `[server]
+trusted_proxies` walk would have settled on, as a `.nvt` case's `--CLIENT_IP--` and `--SCHEME--`
+are, so `Core\Request::ip()`, `isSecure()` and a `__Host-` cookie read them. No test reads
+`X-Forwarded-For`. A `clientIp` that is not one IPv4 or IPv6 address, and a `scheme` that is not
+`"http"` or `"https"`, is a `LogicError`. Omitted, the request has no address and is `http`. Cost:
+none per request.
+
+**`cookies` sends its pairs as one `cookie` field**, read by the same code as `--COOKIE--`. There is
+no cookie jar: each call is one request, and a test copies `Response::cookies()` into the next call
+itself. A `host` header given in `headers` is the request's host, and it picks the mount row the
+server would pick for that host, so a link resolves through the row a real request under that host
+reaches. A `traceparent` header is taken as the wire takes it, so the request continues that trace.
+
+**A body is written with `Core\Http\Client`'s options, read by the client's own code.** `json`,
+`form` and `multipart` build the body and its `Content-Type` as the client would send them, and
+`contentType` names the type of a raw `body`. Only one of `body`, `json`, `form` and `multipart` may
+be given, and `contentType` needs `body`. Both mistakes are compile errors, as they are on the
+client, so a test writes a request the way a program writes one.
+
+**The answer is the server's answer.** Each refusal the wire makes before the program runs is made by
+the same function in a test. A forged write to a program that does not call `Core\Router::dispatch`
+answers `403` with no body, and a dispatching program keeps its gate's `refused`. A body over the
+run's `[limits]` answers what the wire answers for it. A `HEAD` request answers with no body, its
+status and headers kept. A request whose program fails keeps the server's `500`, and
+`Core\Test\Response::error(): ?string` reads the class and message of the error that ended it as
+`Class: message`, `null` for a request that did not fail. It is a string, because the error object
+belongs to the request's isolate and does not cross into the test's.
+
+**The call returns once the request's after-response work has ended.** The response is the same, and
+a test then reads what that work wrote. An after-response task that fails fails the test, named as
+such, as a task left running does ([`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock)). On the server, that
+work stays detached from the response.
 
 **A test request gives the link to another module that `nvs serve` gives.** Where the unit links to
 a route of an `autoload links` root and the configuration the test run reads writes a
@@ -938,6 +997,15 @@ bound, so it can be called from anywhere. A test reaching its own listener needs
 granted — `net.connect` for the host and `net.internal` for loopback
 ([`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address)) — because nothing about the listener being the
 test's own widens that policy.
+
+**Declined:**
+- **A cookie jar kept between `Core\Test::request` calls.** It is hidden state between two calls,
+  and copying `Response::cookies()` into the next call is one line.
+- **Repeated header lines.** Joining the values gives the same request, and a second `Host` line is
+  a request the server refuses.
+- **Server-added headers, upgrades, chunk boundaries and `Range` in an in-process request.** The
+  `[http.headers]` table, CORS, the CSP nonce, a WebSocket or SSE upgrade and the framing belong to
+  the wire, and `#[Test(server: true)]` serves the program on a real listener for them.
 
 <sub>See also [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`routing/a-gate-answers-around-every-handler`](routing.md#routing-a-gate-answers-around-every-handler).</sub>
 
@@ -1011,6 +1079,68 @@ already taken it off the network, and no request input reaches the certificate i
   compiled into the binary could not show three different uses of `subject`.
 
 <sub>See also [`testing/in-process-request`](testing.md#testing-in-process-request), [`testing/doubles`](testing.md#testing-doubles), [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address).</sub>
+
+<a id="testing-a-test-runs-a-command"></a>
+
+## `Core\Test::run` runs the program's command entry in a child isolate and returns its exit code and output  *(designed — owned by goal tests-reach-everything)*
+
+`rule:testing/a-test-runs-a-command`
+
+`Core\Test::run(array<string> $arguments, {stdin?: string|bytes}): Core\Test\RunResult` runs the
+program's entry, the file `nvs run` runs, in a child isolate, as `Core\Test::request` runs a request
+([`testing/in-process-request`](testing.md#testing-in-process-request)). `$arguments` is the command line after the program name, so a
+command program's words reach the command they name, and `stdin` is its whole input; without it the
+input is empty.
+
+`Core\Test\RunResult` has `exitCode(): int`, `stdout(): string`, `stderr(): string` and `bytes():
+bytes` for stdout, the names `Core\Process`'s result uses ([`core-classes/process-run`](core-classes.md#core-classes-process-run)). The two
+captures stay apart. `exit(n)` in the child ends the child, never the test, and `n` is its exit code.
+An uncaught error is the exit code `nvs run` gives for one, with its message on stderr, and a usage
+page a command program prints is on stderr with its exit code, as on a terminal.
+
+The child runs on the test's clock and environment, a copy of each taken when the call starts
+([`testing/task-tree-and-virtual-clock`](testing.md#testing-task-tree-and-virtual-clock), [`testing/test-attribute`](testing.md#testing-test-attribute)), with the run's
+`[capabilities]`, as a test request does. A unit with no entry `nvs run` would run is a
+`LogicError`. A run from inside a run or a request is refused, as a request from inside a request is.
+What it spends, per call: the child's isolate and both captures, held until the result is freed.
+
+**Declined:**
+- **A `cwd` option.** A program reads no working directory but its grants, so the option would set
+  nothing the program can observe.
+- **A fake for `Core\Process`.** A program that runs a command wraps it in its own class, and
+  `Core\Test::double` replaces that class ([`testing/doubles`](testing.md#testing-doubles)).
+
+<sub>See also [`testing/in-process-request`](testing.md#testing-in-process-request), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`core-classes/process-run`](core-classes.md#core-classes-process-run).</sub>
+
+<a id="testing-a-test-reads-its-logs-and-mail"></a>
+
+## A test reads the log records and the mail it caused, and mail is never sent under `nvs test`  *(designed — owned by goal tests-reach-everything)*
+
+`rule:testing/a-test-reads-its-logs-and-mail`
+
+`Core\Test::logs(): array<Core\Test\LogRecord>` returns every log record written since the test
+started, by the test, its requests and its runs, in the order written. `Core\Test\LogRecord` has
+`level(): string`, `message(): string` and `fields(): array<mixed>`. Records still reach their `[log]
+target`, so a test's report and a run's log file read the same. What it spends: the records of one
+test, freed with it.
+
+**Under `nvs test`, `Core\Mail` sends nothing.** `Core\Mail::send` keeps the message and opens no
+connection, and `Core\Test::sentMail(): array<Core\Test\SentMail>` returns the messages sent since
+the test started, by the test, its requests and its runs, in the order sent. `Core\Test\SentMail`'s
+members are the fields `Core\Mail::send` takes, read back. It is the reason an outbound HTTP call is
+answered from a table in a test ([`testing/an-outbound-call-is-answered-from-a-table`](testing.md#testing-an-outbound-call-is-answered-from-a-table)): a test
+never reaches a real person. What it spends: the messages of one test, freed with it.
+
+What a request or a run wrote crosses back into the test as a copy, because nothing crosses an
+isolate boundary by reference ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)).
+
+**Declined:**
+- **A fake for `Core\Process`.** A program that runs a command wraps it in its own class, and
+  `Core\Test::double` replaces that class ([`testing/doubles`](testing.md#testing-doubles)).
+- **Running a `[[schedule]]` row from a test.** `spawn script` runs the script the row names, so a
+  test reaches the same code without a scheduler.
+
+<sub>See also [`testing/in-process-request`](testing.md#testing-in-process-request), [`testing/an-outbound-call-is-answered-from-a-table`](testing.md#testing-an-outbound-call-is-answered-from-a-table), [`testing/doubles`](testing.md#testing-doubles).</sub>
 
 <a id="testing-an-outbound-socket-is-answered-by-a-scripted-peer"></a>
 

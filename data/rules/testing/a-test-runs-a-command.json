@@ -1,0 +1,11 @@
+{
+  "title": "`Core\\Test::run` runs the program's command entry in a child isolate and returns its exit code and output",
+  "status": "designed",
+  "seeAlso": [
+    "testing/in-process-request",
+    "testing/isolate-per-test",
+    "core-classes/process-run"
+  ],
+  "guardedBy": [],
+  "goal": "tests-reach-everything"
+}

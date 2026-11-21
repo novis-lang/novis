@@ -26,6 +26,8 @@
     "testing/db-transaction",
     "testing/in-process-request",
     "testing/an-outbound-call-is-answered-from-a-table",
+    "testing/a-test-runs-a-command",
+    "testing/a-test-reads-its-logs-and-mail",
     "testing/an-outbound-socket-is-answered-by-a-scripted-peer",
     "testing/property-testing",
     "testing/inline-snapshots",

@@ -1,0 +1,11 @@
+{
+  "title": "A test reads the log records and the mail it caused, and mail is never sent under `nvs test`",
+  "status": "designed",
+  "seeAlso": [
+    "testing/in-process-request",
+    "testing/an-outbound-call-is-answered-from-a-table",
+    "testing/doubles"
+  ],
+  "guardedBy": [],
+  "goal": "tests-reach-everything"
+}

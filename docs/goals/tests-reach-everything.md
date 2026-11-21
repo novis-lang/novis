@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/test.rs, crates/nvs-cli/src/runner.rs, docs/rule
 stages:
   - id: 1
     title: the rules say what a test can set and read, and the virtual clock rule matches the code it will have
-    status: open
+    status: done
     context: [docs/rules/testing/determinism-declared-on-the-test.md, docs/rules/testing/an-outbound-call-is-answered-from-a-table.md, docs/rules/core-classes/process-run.md]
   - id: 2
     title: a test request states its client address, scheme, cookies and host
@@ -302,6 +302,11 @@ never reaches a real person.
 - An expected-to-fail mark for a whole test, a file snapshot and an exact-name filter. `skip:` with a
   reason, inline snapshots and `--filter` cover them.
 
+**The two new rules are `designed` until their stage ships them.** `a-test-runs-a-command` and
+`a-test-reads-its-logs-and-mail` carry `"goal": "tests-reach-everything"`, so the rulebook marks them
+as not yet built. Stage 6 and stage 7 set each to `shipped` and fill its `guardedBy`. The three
+amended rules stay `shipped`, because most of each is built already.
+
 **Lanes.** Stages 2, 3 and 4 share `crates/nvs-stdlib/src/test.rs` and run in order. Stage 5
 (`peer.rs`, `nvs-host`) and stage 6 (`command.rs`, `cli.rs`, `io.rs`, `runner.rs`'s run path) touch
 disjoint files and could run as side goals, but stage 6's `Core\Test::run` shares `test.rs` with
@@ -314,20 +319,20 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### 1. the rules say what a test can set and read, and the virtual clock rule matches the code it will have
 
-- [ ] `docs/rules/testing/in-process-request.md:14`: the signature with `clientIp`, `scheme`,
+- [x] `docs/rules/testing/in-process-request.md:14`: the signature with `clientIp`, `scheme`,
   `cookies`, `json`, `form`, `multipart` and `contentType`; the host picks the mount row; a
   `traceparent` is taken; the refusals the wire makes; `error()`; the call returns after
   after-response work. Declined: a cookie jar, repeated header lines, server-added headers and
   upgrades.
-- [ ] `docs/rules/testing/task-tree-and-virtual-clock.md:8`: the virtual deadlines, the order of
+- [x] `docs/rules/testing/task-tree-and-virtual-clock.md:8`: the virtual deadlines, the order of
   wakes, a copy per request and run, the expiries that follow it and those that stay real.
-- [ ] `docs/rules/testing/a-test-runs-a-command.md:1` and its `data/rules/testing/` entry: the new
+- [x] `docs/rules/testing/a-test-runs-a-command.md:1` and its `data/rules/testing/` entry: the new
   rule for `Core\Test::run`, from § *Standing decisions*.
-- [ ] `docs/rules/testing/test-attribute.md:34`: `env:` in the option list, with its reach.
-- [ ] `docs/rules/testing/a-test-reads-its-logs-and-mail.md:1` and its `data/rules/testing/` entry:
+- [x] `docs/rules/testing/test-attribute.md:34`: `env:` in the option list, with its reach.
+- [x] `docs/rules/testing/a-test-reads-its-logs-and-mail.md:1` and its `data/rules/testing/` entry:
   `Core\Test::logs` and `Core\Test::sentMail`, and that mail is never sent under `nvs test`.
   Declined: a `Core\Process` fake and running a schedule row.
-- [ ] `bun nv rules --render`, then the `rules` check.
+- [x] `bun nv rules --render`, then the `rules` check.
 
 ### 2. a test request states its client address, scheme, cookies and host
 
@@ -438,13 +443,24 @@ outcome type exists; the session writes the run path.
 
 ### State
 
-Written by the authoring session from a user report and a search of the test runner. Nothing is
-built.
+Stage 1 is done: the rules say what a test can set and read, and `bun nv rules --check` is green.
+`in-process-request.md`, `task-tree-and-virtual-clock.md` and `test-attribute.md` stay `shipped` and
+now state what stages 2 to 5 and 7 build. `a-test-runs-a-command` and
+`a-test-reads-its-logs-and-mail` are new and `designed`, owned by this goal, with empty `guardedBy`.
+Stage 6 flips the first and stage 7 the second to `shipped`, each with its tests in `guardedBy`.
+
+The nightly CI run 44722386375 tested `5d053fc6e6`. Both of its failures are fixed at this tip:
+`xml::tests::source_stops_at_the_memory_limit_before_it_escapes` by `e5a100b18f`, and the checked-types
+case `tests/conformance/iter/an-object-map-passes-where-a-keyed-iterable-is-declared.nvst` by
+`438e9c44af`. Each passes here, run by name.
 
 ### Next
 
-Stage 1, the rules, from its first item. Every check after `rules` names tests in
-`crates/nvs-cli/tests/test_reach.rs`, which does not exist yet, so each fails until its stage writes
-them.
+Stage 2, from its first item. Anchors: `Core\Test::request`'s options in
+`crates/nvs-stdlib/src/test.rs`, `InboundSpec::push_cookie` and `set_host` at
+`crates/nvs-runtime/src/ctx/inbound.rs:1586`, and `UnderTest::answer` at
+`crates/nvs-cli/src/runner.rs:1619`. Every check after `rules` names tests in
+`crates/nvs-cli/tests/test_reach.rs`, which does not exist yet, so each stays red until its stage
+writes them.
 
 ### Backlog

@@ -24,10 +24,17 @@ test tree keeps the rows. Cost: one symbol lookup and one file lookup per class 
 per compile; nothing at run time.
 
 `#[Test]`'s payload is an options bag — `skip`, `at`, `seed`, `db`, `server`, `retries`,
-`because`, `timeout` (`rule:testing/a-test-has-a-wall-time-limit`) and `tags`
-(`rule:testing/tags-and-shards-select-what-runs`) — every field optional and every field checked at its own type. An option the roster does
+`because`, `timeout` (`rule:testing/a-test-has-a-wall-time-limit`), `tags`
+(`rule:testing/tags-and-shards-select-what-runs`) and `env` — every field optional and every field checked at its own type. An option the roster does
 not name is refused, one written twice is refused, and `skip: true` is a `bool` where a `string` is
 declared.
+
+**`env: array<string>` sets environment variables for that test.** `Core\Env` reads them first and
+the process environment after them. They reach the test, every request and run it makes
+(`rule:testing/in-process-request`, `rule:testing/a-test-runs-a-command`), and no other test. The
+`env` grant is still needed to read them, as it is in production. It is one option on the test and
+not one per call: a program reads its environment at any point, and two values in one test would
+test nothing a real deployment has. Cost: the test's own variables, freed with its isolate.
 
 The attribute is matched **nominally**, by resolved name: `#[Core\Test]` and a `use`d `#[Test]` are
 one attribute, and a userland `class Test` is never it. The marker and the assertions are one class,
