@@ -30025,27 +30025,29 @@ echo Registry::count(), "\n";
 
 ### `#[Test(...)]` options
 
-`#[Test(...)]` takes options that change how one test runs. Every option is optional, and a test that
-needs none is written as plain `#[Test]`.
+`#[Test(...)]` takes options that change how one test runs. Every option is optional. A test that
+needs none is plain `#[Test]`.
 
-`skip:` states a reason, and the test is reported as skipped without being run. `at:` fixes the clock
-at one instant, so a test of dates and times reads the same time on every run. `Core\Test::advance`
-moves that fixed clock forward. `seed:` fixes the numbers `Core\Random` draws, so the test draws the
-same sequence on every run. `retries:` allows more attempts after a failure, and needs `because:`
-beside it to state why. A test that fails and then passes is reported as flaky, never as passed.
-`timeout:` gives one test its own time limit. `tags:` labels a test, and `nvs test --tag` runs only the
-tests with that label.
+`skip:` gives a reason, and the test is reported as skipped and does not run. `at:` sets the clock
+to one time that does not change, so every run reads the same time. `Core\Test::advance` moves that
+clock forward. `seed:` makes `Core\Random` give the same numbers on every run. `retries:` allows
+more attempts after a failure, and needs `because:` to say why. A test that passes only on a retry
+is reported as flaky. It does not count as passed.
 
-**Good to know:** an option with a wrong name does not compile, so a typo is found before the tests
-run.
+`timeout:` sets a time limit for one test. `tags:` labels a test, and `nvs test --tag` runs only
+the tests with that label. `env:` sets environment variables for the test, such as
+`['API_KEY' => 'test']`. The requests the test sends with `Core\Test::request` and the programs it
+runs with `Core\Test::run` get them too.
 
-**The examples below** show a skipped test, a fixed clock, a test class that uses several options
-together, a time limit, and tags.
+**Good to know:** an option with a wrong name does not compile.
+
+**The examples below** show a skipped test, a fixed clock, several options together, a flaky test,
+retries that need a reason, a time limit, and tags.
 
 The options are `skip: string`, `at: string`, `seed: int`, `retries: int`, `because: string`,
-`db: string`, `server: bool`, `timeout: string` and `tags: array<string>`. An option with another name is `E0454`, and its help lists them. A
-value of the wrong type is `E0401`, so `skip: true` does not compile. An option given twice is
-`E0304`.
+`db: string`, `server: bool`, `timeout: string`, `tags: array<string>` and `env: array<string>`.
+An option with another name is `E0454`, and its help lists them. A value of the wrong type is
+`E0401`, so `skip: true` does not compile. An option given twice is `E0304`.
 
 A skipped test is not built, so its constructor does not run. The fixtures only it needs are not
 built either. The report prints the reason after `skipped:`.
@@ -30056,15 +30058,15 @@ that shows the format.
 
 `Core\Test::advance` moves the fixed clock forward by a duration, such as `90m`. In a test without
 `at:`, it throws a `LogicError`. It throws the same error under `nvs run`. The clock of the computer
-never moves.
+does not change.
 
 With `seed:`, `Core\Random` and `Core\Uuid::v7` give the same values on every run. Two tests with the
 same seed get the same values. A test without `seed:` gets different values on every run.
 
-`retries:` without `because:` is `E0734`. `because:` alone compiles and changes nothing.
+`retries:` without `because:` is `E0734`. `because:` without `retries:` compiles and has no effect.
 
-A test that fails and then passes is reported as flaky. The mark is `!`, and the report prints the
-message of the failed attempt. A test that fails every attempt is reported as failed, with the
+A test that fails and then passes is reported as flaky. The report shows `!` in front of it,
+and prints the message of the failed attempt. A test that fails every attempt is reported as failed, with the
 message of the last attempt.
 
 `db: "main"` opens a transaction on the database connection `[db.main]` before the test, and
@@ -42654,7 +42656,7 @@ Gives the answers for the next `Core\Cli` prompts, so you can test a program tha
 Core\Test::request(Core\Http\Method $method, string $path, { headers?: array<string>, body?: string|bytes|Core\Http\Part, mount?: string, captures?: array<string>, cookies?: array<string>, clientIp?: string, scheme?: string, json?: mixed, form?: array<string>, contentType?: string, multipart?: array<string|Core\Http\Part> }): Core\Test\Response
 ```
 
-Sends one request to your own program and returns the answer. It opens no network connection. The request goes through the same route table and the same code as a real request.
+Sends one request to your own program and returns the response. It opens no network connection. The request goes through the same route table and the same code as a real request.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -42672,7 +42674,7 @@ Sends one request to your own program and returns the answer. It opens no networ
 | `{ contentType: … }` | `string` (default `null`, neutral) | The media type of `body`, sent as the `Content-Type` header. Giving it without `body` does not compile. |
 | `{ multipart: … }` | `array<string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, with the field name as the key. A `string` is a form field, and a `Core\Http\Part` is a file. `Core\Request::files()` reads the files. |
 
-**Returns** `Core\Test\Response` — A `Core\Test\Response`. `status()` returns the status the program set, or `200` if it set none. `body()` returns the text the program wrote, and `json()` and `jsonAs()` decode it. `header()`, `headers()` and `cookies()` return the headers and cookies the program set. A path that no route matches still gets an answer, because your program decides what to do with it. A body that is not text, such as a PDF file, also gets an answer. Then `body()`, `json()` and `jsonAs()` throw an error.
+**Returns** `Core\Test\Response` — A `Core\Test\Response`. `status()` returns the status the program set, or `200` if it set none. `body()` returns the text the program wrote, and `json()` and `jsonAs()` decode it. `header()`, `headers()` and `cookies()` return the headers and cookies the program set. A path that no route matches still returns a response, because your program decides what to do with it. A body that is not text, such as a PDF file, also returns a response. For such a body, `body()`, `json()` and `jsonAs()` throw an error. A `HEAD` request gets no body, the same as from the server. If the program starts work with `Core\Task::afterResponse`, `request` returns only when that work has ended.
 
 **Throws** `LogicError` — `captures` is not empty and `mount` is `""`. The root has no pattern, so it has no captures. `captures` is also an error when it is not a list.; `RuntimeError` — There is no program to answer, because the call is not in `nvs test` or `nvs run`. The call is also an error inside a request that `request` sent, because a request cannot send another request.
 
@@ -42965,7 +42967,7 @@ $response->body(): string
 
 Returns the text the program wrote while it answered this request.
 
-**Returns** `string` — Everything the program wrote with `echo`, in order. If the program wrote nothing, the result is an empty string. If the program threw an error it did not catch, the result is also an empty string, because the server sends no body for a failed request.
+**Returns** `string` — Everything the program wrote with `echo`, in order. If the program wrote nothing, the result is an empty string. If the program threw an error it did not catch, the result is also an empty string. The result is empty for a `HEAD` request too. The server sends no body for a request that threw an error, or for `HEAD`.
 
 **Throws** `RuntimeError` — The body is not valid UTF-8, so it is not a string. `Core\Response::bytes` and `Core\Response::sendFile` can write such a body. Read it with `bytes()`.
 
@@ -60047,8 +60049,8 @@ Keywords: nvs, nvs run, nvs check, nvs test, nvs build, --compile, --openapi, nv
 
 ### One binary
 
-Everything is one executable, `nvs`. It takes a subcommand, then that subcommand's options, then
-usually one file:
+Novis is one program, `nvs`. You give it a command, then the options of that command, and usually
+one file:
 
     nvs run hello.nvs
     nvs check src/app.nvs
@@ -60059,16 +60061,17 @@ usually one file:
 |---|---|
 | `nvs run <file>` | check, compile and run a program |
 | `nvs serve <file>` | run an application until it is stopped: its HTTP requests, its scheduled jobs and its queue workers. See [the server chapter](#tools-server) |
+| `nvs reload` | make a running `nvs serve` use the code and configuration on disk now. See [the server chapter](#tools-server) |
 | `nvs service <verb>` | install, start, stop and remove a program that runs as a system service. See [the server chapter](#tools-server) |
-| `nvs check <path>` | parse, resolve and type-check a file or a directory, reporting every diagnostic; runs nothing |
+| `nvs check <path>` | check a file or a folder and report every error. It runs nothing |
 | `nvs test <paths>...` | run a program's `#[Test]` methods, or a tree of `.nvst` cases |
-| `nvs build --compile <file>` | write a single-file executable holding the program's source |
+| `nvs build --compile <file>` | write a single executable file that contains the program's source |
 | `nvs build --openapi <file>` | write the program's OpenAPI 3.1 document to standard output |
-| `nvs api diff <old> <new>` | classify every change between two OpenAPI documents |
+| `nvs api diff <old> <new>` | list every change between two OpenAPI documents, and say which changes break a client |
 | `nvs pkg <verb>` | add, download, update, pack and publish Novis packages. See [the packages chapter](#tools-packages) |
 | `nvs ext <verb>` | create, build, test, check and pin an extension |
-| `nvs init` | write a `nvs.toml` with every key commented out, into the working directory or to the one path `--config` names — see [Installing on a host](#tools-install) |
-| `nvs config check [files]` | resolve the configuration tree and report what it holds |
+| `nvs init` | write a `nvs.toml` with every key commented out, into the working directory or to the path `--config` gives. See [Installing on a host](#tools-install) |
+| `nvs config check [files]` | read every configuration file and report the errors in them |
 | `nvs config dump [files]` | print every configuration key in force |
 | `nvs queue migrate` | create the job queue's tables in its database |
 | `nvs schema <verb>` | print what a schema value would change in a database, run the safe steps, or print the schema the database has |
@@ -60077,8 +60080,8 @@ usually one file:
 | `nvs update-check` | check whether a newer version of Novis is released |
 | `nvs telemetry <verb>` | turn the anonymous usage counters on or off, and show what an upload sends |
 | `nvs info` | build, host and third-party licensing information |
-| `nvs meta --json` | the whole `Core` registry as JSON |
-| `nvs agent <verb>` | the same registry for a coding agent: a primer, an index, a search, one card — and the pointers `init` installs. See [the agents chapter](#tools-agents) |
+| `nvs meta --json` | print every `Core` class and function as JSON |
+| `nvs agent <verb>` | the `Core` classes and functions for a coding agent: a primer, an index, a search and one page. `nvs agent init` writes files that tell an agent to use these commands. See [the agents chapter](#tools-agents) |
 | `nvs doc <file>` | write a program's declarations as Markdown, one page per class |
 | `nvs stubs` | write one declaration file for each `Core` class, enum and attribute |
 | `nvs code <verb>` | find where a name is declared and used, print a file's outline, and rename or move code |
@@ -60087,12 +60090,12 @@ usually one file:
 | `nvs lsp` | run the language server on standard input and output. See [the editor chapter](#tools-editor) |
 | `nvs lsp-test <paths>...` | run a tree of `.lspt` cases against the language server. See [the editor chapter](#tools-editor) |
 | `nvs dap` | run the debug adapter on standard input and output. See [the editor chapter](#tools-editor) |
-| `nvs debug` | read recorded requests into the debug index, and keep reading |
+| `nvs debug` | read the requests a server recorded into one database, and wait for more |
 
-Every subcommand also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` and `-h`/`--help`.
-`--data` names the data folder, where Novis keeps its own files (see
-[Installing on a host](#tools-install)). Every operation is a subcommand: there is no `-i`, `-a`,
-`-r`, `-f` or lowercase `-v`.
+Every command also takes `--config <PATH>` (see `nvs run`), `--data <PATH>` and `-h`/`--help`.
+`--data` sets the data folder, where Novis keeps its own files (see
+[Installing on a host](#tools-install)). The short options `-i`, `-a`, `-r`, `-f` and `-v` (lower
+case) do not exist. Each task has its own command, such as `nvs run` or `nvs info`.
 
 **Not in this chapter yet:** `nvs queue`, `nvs schema`, `nvs tmp`, `nvs doc` and `nvs stubs` have
 no section here. Run the command with `--help` to see its options. `nvs --help` lists every
@@ -61294,20 +61297,35 @@ When one run finds both, the status is `2`.
     nvs code move [--dry-run] [--json] <from> <to>
     nvs code order [--check] [--dry-run] [--json] [paths]...
     nvs code find [--json] <text>
-    nvs code calls [--json] <method>
-    nvs code reach [--json] <method>
+    nvs code calls [--json] <method>...
+    nvs code reach [--json] <method>...
 
-Answers questions about the project you are in, from the same index the editor uses. The project is
-the folder of the nearest `nvs.toml` at or above the working directory, or the working directory
+Prints information about the code of the project you are in. It uses the same index as the editor.
+An index is a list of every name in the project and every place it is used. The project is the folder of the nearest `nvs.toml` at or above the working directory, or the working directory
 when there is none. Every `.nvs` file in it is read. Only `rename`, `move` and `order` change
 files.
+
+#### The index file
+
+The editor and `nvs code` share one index file for each project. It is in the data folder, the
+folder where `nvs` keeps its own files. A call loads the index file. Then it compares the content of
+every file with what the index has. It also compares each `nvs.toml` and each `.nvsx` extension file
+the project uses. Only the files that changed are analysed again. So the result is the same as a
+full analysis gives. A new file is analysed, and a deleted file leaves
+the index. When a settings file or an extension changed, the whole project is analysed again.
+
+After it analysed anything, the call saves the index file again, and the editor's next start uses
+it. Without a data folder, the call analyses the whole project and saves nothing. The other
+commands, such as `nvs check` and `nvs run`, never read this file.
+
+#### The verbs
 
 - `show` prints where a name is declared, its signature and its `///` comment. For a `Core` name it
   prints the card `nvs agent show` prints.
 - `refs` prints every place a name is written: the declaration first, then each `use` line and each
   use, in file and line order. A `Core` name lists the places the project uses it.
 - `impls` prints the types that extend or implement a type, or the methods that override a method.
-- `outline` prints what a file declares, one line each, with a class's members indented under it.
+- `outline` prints what a file declares, one line each, with the constants, properties and methods of a class indented under it.
 - `types` prints the type of each variable a file declares with `var`. `:10` limits it to line 10,
   and `:10-20` to lines 10 to 20.
 - `rename` renames a class, a method, a property, a constant, an enum case, a type alias or a
@@ -61317,27 +61335,47 @@ files.
   renamed inside the class and everywhere `Order::Total` is written.
 - `move` moves a file or a folder and changes every `require` that names a moved file. The folder of
   `<to>` must exist, and nothing may exist at `<to>` yet.
-- `order` puts the members of each class and interface in the standard order. It is the editor's
+- `order` puts the constants, properties and methods of each class and interface in the standard
+  order. It is the editor's
   *Order class members* action. A path is a file or a folder, and with no path every file is
   ordered. Each changed file is also formatted, as `nvs fmt` does.
 - `find` prints every class, method, property, constant and enum case whose name contains the text.
   Upper and lower case count as the same. The namespace is not part of the name, and `Core` names
   are not searched. `nvs agent find` searches them.
-- `calls` prints the methods that call a method, and then the methods it calls. Each method has a
-  line with `caller` or `callee`. Each call is on an indented line under it, with its position and
+- `calls` prints the methods that call a method, and then the methods it calls. Each of these
+  methods has a line that starts with `caller` or `callee`. Each call is on an indented line under it, with its position and
   its line of code. A test that sends a request with `Core\Test::request` calls the method that
   handles the route.
-- `reach` prints the routes and the tests that reach a method through a chain of calls. A last line
-  starts with `at least` when there may be more. Some calls are only known when the program runs.
+- `reach` prints the routes and the tests that reach a method through a chain of calls. A route is
+  a URL your program handles. Some calls are only known when the program runs. So when there may be
+  more, the last line starts with `at least`.
 
 `calls` and `reach` need the name of a method. For any other name, they exit `1` and list the
-nearest method names:
+method names that are most similar:
 
 ```text
 $ nvs code reach 'Shop\Prices::base'
 route  GET /cart
 test   Shop\CartTest::cartLoads
 ```
+
+`calls` and `reach` also take several methods in one call. Each method gets a line with its name, in
+the order you gave. Its lines follow, indented by two spaces. A name you give twice prints once.
+
+```text
+$ nvs code reach 'Shop\Prices::base' 'Shop\Prices::plain'
+Shop\Prices::base
+  route  GET /cart
+  test   Shop\CartTest::cartLoads
+Shop\Prices::plain
+  test   Shop\PricesTest::plainIsFive
+```
+
+If one of the names is not a method, the call prints nothing and exits `1`. On standard error, it prints
+each unknown name with the method names that are most similar. With `--json`, several methods print one document
+with `schemaVersion` and `methods`. `methods` is a list with the document of each method, without
+its own `schemaVersion`. An unknown name prints `error` and `unknown`, a list of objects with
+`symbol` and `nearest`.
 
 `rename` and `move` save the changed files. `--dry-run` prints each change and saves nothing. If the
 change is not possible, the command prints why, changes no file and exits `1`. A file that changed
@@ -61346,17 +61384,17 @@ after the command read it also stops the command, and no file is changed.
 `order` uses this order, from the top of the class to the bottom:
 
 1. `enum` and `type` declarations, then constants, then properties, then methods.
-2. In each group, every `static` member comes first.
+2. In each group, everything `static` comes first.
 3. Then `public` comes before `protected`, and `protected` before `private`.
 4. Then `abstract` comes before `final`, and `final` before the rest.
 
-The constructor is the first method that is not `static`. Members that are equal in this order keep
-the order you wrote. A member moves with its `///` comment, its attributes and the comments above
-it. Enum cases and promoted constructor parameters do not move.
+The constructor is the first method that is not `static`. Two that are equal in this order keep
+the order you wrote. Each one moves with its `///` comment, its attributes and the comments above
+it. Enum cases do not move. Properties declared in the constructor's parameters do not move.
 
 A class with `#[Core\Json\Derive]` writes its JSON keys in the order of its properties. When `order`
 changes that order, it prints a note that names the class. With `#[Core\Json\KeepKeyOrder]`, the
-properties keep the order you wrote. If no member order keeps them, the class is not changed and a
+properties keep the order you wrote. If no order keeps them, the class is not changed and a
 note names it.
 
 `order` prints one line for each changed file, with the number of classes it changed. `--dry-run`
@@ -61381,16 +61419,16 @@ src/Priced.nvs:5:21    declared  public function price(): int;
 public/index.nvs:9:22  use       $total += $item->price();
 ```
 
-A file with errors still answers, from what the analysis recovered. Standard error then gets one
-line with the number of files that have errors, because a use inside one of them may be missing,
-and the exit status is `0`. An empty answer exits `0` too. A name or a file the project does not
-have exits `1` and lists the nearest names.
+A project with errors still gets a result, from the code the analysis could read. The exit status
+is `0`. The number of files that have errors is printed on standard error. A use inside such a file may be
+missing from the result. An empty result also exits `0`. A name or a file the project does not
+have exits `1` and lists the names that are most similar.
 
-`--json` prints one document with `schemaVersion: 1` and every key present, the way `nvs check
---json` does, and adds the byte `start` and `end` of each position. A failure prints its document
-too, with `error` and `nearest`, on standard output. Every control character but tab in text from
-the project is printed as `\u{..}`, in the text and in the JSON, so a file's bytes never reach the
-terminal as anything but text.
+`--json` prints one document with `schemaVersion: 1` and every key present, as `nvs check
+--json` does. Each position also has `start` and `end`, counted in bytes from the start of the file.
+A failure prints its document too, with `error` and `nearest`, on standard output. Text from the
+project is printed with every control character except tab written as `\u{..}`. This is the same in
+the text and in the JSON. So the bytes of a file are never sent to the terminal as control codes.
 
 ### The compile cache
 
@@ -65165,10 +65203,18 @@ The built-in functions are in the `Core` namespace
 
     nvs agent primer
 
-The one document to read before writing anything: the lookup protocol above, one complete worked
-program with every shape in it annotated, the capability model with the smallest `nvs.toml` that
-grants a file read, and a map of the chapters of this reference. It is printed on standard output,
-and like every other verb here it writes nothing and caches nothing.
+`nvs agent primer` prints the one document a coding agent reads before it writes any code. It has
+five parts:
+
+- how to look things up with `nvs agent find` and `nvs agent show`;
+- one complete program, with a note on each part of it;
+- capabilities (the permissions a program needs, such as reading a file), with the smallest
+  `nvs.toml` that allows a program to read a file;
+- how `nvs reload` makes a running server use the code you changed;
+- a list of the chapters of this reference.
+
+The primer is printed on standard output. Like every other `nvs agent` command, it writes no file
+and saves nothing.
 
 Each part has a heading. These are the headings, in the order the primer prints them:
 
@@ -65180,13 +65226,14 @@ Each part has a heading. These are the headings, in the order the primer prints 
 ##### Example 02: show the best scores first
 ##### Example 03: answer a form with json
 #### `[capabilities]`
+#### nvs reload
 #### The chapters
 ```
 
-No sentence of it is written for it. Each part is a section of a chapter of this reference, lifted
-whole from the copy of that chapter this binary carries, and the counts printed beside the chapter
-map are the registry's own, read at the call. So the primer describes the language this binary
-compiles, and a section that stops being true stops being printed rather than becoming a lie.
+The primer has no text of its own. Each part is a whole section of a chapter of this reference. The
+`nvs` binary contains this reference, and the primer copies each section from it. The first line
+gives the number of `Core` classes and methods, counted when you run the command. Because every
+part comes from this binary, the primer always describes the language that this binary compiles.
 
 ### nvs agent changes
 

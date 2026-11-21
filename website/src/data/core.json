@@ -47739,7 +47739,7 @@
           ],
           "returnType": "Core\\Test\\Response",
           "doc": {
-            "shortHtml": "Sends one request to your own program and returns the answer. It opens no network connection. The request goes through the same route table and the same code as a real request.",
+            "shortHtml": "Sends one request to your own program and returns the response. It opens no network connection. The request goes through the same route table and the same code as a real request.",
             "params": [
               {
                 "name": "method",
@@ -47794,7 +47794,7 @@
                 "descHtml": "The parts to send as <code>multipart/form-data</code>, with the field name as the key. A <code>string</code> is a form field, and a <code>Core\\Http\\Part</code> is a file. <code>Core\\Request::files()</code> reads the files."
               }
             ],
-            "returnHtml": "A <code>Core\\Test\\Response</code>. <code>status()</code> returns the status the program set, or <code>200</code> if it set none. <code>body()</code> returns the text the program wrote, and <code>json()</code> and <code>jsonAs()</code> decode it. <code>header()</code>, <code>headers()</code> and <code>cookies()</code> return the headers and cookies the program set. A path that no route matches still gets an answer, because your program decides what to do with it. A body that is not text, such as a PDF file, also gets an answer. Then <code>body()</code>, <code>json()</code> and <code>jsonAs()</code> throw an error.",
+            "returnHtml": "A <code>Core\\Test\\Response</code>. <code>status()</code> returns the status the program set, or <code>200</code> if it set none. <code>body()</code> returns the text the program wrote, and <code>json()</code> and <code>jsonAs()</code> decode it. <code>header()</code>, <code>headers()</code> and <code>cookies()</code> return the headers and cookies the program set. A path that no route matches still returns a response, because your program decides what to do with it. A body that is not text, such as a PDF file, also returns a response. For such a body, <code>body()</code>, <code>json()</code> and <code>jsonAs()</code> throw an error. A <code>HEAD</code> request gets no body, the same as from the server. If the program starts work with <code>Core\\Task::afterResponse</code>, <code>request</code> returns only when that work has ended.",
             "errors": [
               {
                 "error": "LogicError",
@@ -48691,7 +48691,7 @@
           "returnType": "string",
           "doc": {
             "shortHtml": "Returns the text the program wrote while it answered this request.",
-            "returnHtml": "Everything the program wrote with <code>echo</code>, in order. If the program wrote nothing, the result is an empty string. If the program threw an error it did not catch, the result is also an empty string, because the server sends no body for a failed request.",
+            "returnHtml": "Everything the program wrote with <code>echo</code>, in order. If the program wrote nothing, the result is an empty string. If the program threw an error it did not catch, the result is also an empty string. The result is empty for a <code>HEAD</code> request too. The server sends no body for a request that threw an error, or for <code>HEAD</code>.",
             "errors": [
               {
                 "error": "RuntimeError",

@@ -1202,12 +1202,13 @@
   },
   "/reference/cli/nvs-agent-primer/": {
     "feature": "tools:agents/nvs-agent-primer",
-    "hash": "0b2bd88593b435b1",
+    "hash": "3fb37e4d1df35aca",
     "questions": [
       "What should an AI assistant read before writing Novis code?",
       "Print a short introduction to the language for a coding agent",
       "Get one annotated example program and the chapter list",
-      "Quick overview document for AI tools that matches my installed version"
+      "Quick overview document for AI tools that matches my installed version",
+      "How does a coding agent learn to reload a running server after edits?"
     ]
   },
   "/reference/cli/nvs-api-diff/": {
@@ -1281,13 +1282,13 @@
   },
   "/reference/cli/nvs-code/": {
     "feature": "tools:cli/nvs-code",
-    "hash": "d4ab7ce51709d270",
+    "hash": "250d518e16625b7c",
     "questions": [
       "Find every place a method is used in my project",
       "Rename a class or a method everywhere from the terminal",
       "Move a file and update every require that loads it",
-      "Which methods call this method, and which routes reach it?",
-      "Rename a type alias declared inside a class",
+      "Which routes and tests reach a method, or several methods at once?",
+      "Does the command line reuse the index the editor already built?",
       "Sort the properties and methods of every class in my project"
     ]
   },
@@ -1526,10 +1527,10 @@
   },
   "/reference/cli/one-binary/": {
     "feature": "tools:cli/one-binary",
-    "hash": "d33c811051be5621",
+    "hash": "119580b070439ae0",
     "questions": [
       "What commands does the Novis command-line tool have?",
-      "Overview of every command and its options",
+      "Which command makes a running server use my changed code?",
       "How do I see the help for a command?",
       "Is there a short flag for running or checking a file?",
       "What can I do with the nvs program?",
@@ -14890,25 +14891,26 @@
   },
   "/reference/core/test/request/": {
     "feature": "Core\\Test::request",
-    "hash": "de2c97bc4032367e",
+    "hash": "058f4b4c5a28ba1d",
     "questions": [
       "How do I test a route of my web app?",
       "Send a fake HTTP request to my own program",
       "Test a POST endpoint with a JSON body or a form",
       "Test a page without starting a server",
       "Test an app that is served under a path prefix",
-      "Test the response the real server sends over the network"
+      "Does a test request wait for work that runs after the response?"
     ]
   },
   "/reference/core/test/run/": {
     "feature": "Core\\Test::run",
-    "hash": "4e9179bdfaf5a88e",
+    "hash": "a52238d88e3e9508",
     "questions": [
       "How do I test a command-line program in Novis?",
       "Run my CLI with arguments from a test",
       "Check the exit code and output of a command in a test",
       "Give a command input on stdin in a test",
-      "Test the usage message when an argument is missing"
+      "Test the usage message when an argument is missing",
+      "Why does a command run inside a request throw a LogicError?"
     ]
   },
   "/reference/core/test/scriptanswers/": {
@@ -15086,7 +15088,7 @@
   },
   "/reference/core/test-response/body/": {
     "feature": "Core\\Test\\Response::body",
-    "hash": "78c9eae6df6fc2cf",
+    "hash": "58fcee60d33cc802",
     "questions": [
       "How do I read the page text my app returned in a test?",
       "Get the HTML output of a route in a test",
@@ -15168,13 +15170,14 @@
   },
   "/reference/core/test-response/status/": {
     "feature": "Core\\Test\\Response::status",
-    "hash": "909fb3ff18da738f",
+    "hash": "e703a7d9097aee50",
     "questions": [
       "How do I check the HTTP status code in a test?",
       "Test that a page returns 404",
       "Check that an old address redirects with 301",
       "Why does my test get status 500?",
-      "Why does a form post from another site get 403 in a test?"
+      "Why does a form post from another site get 403 in a test?",
+      "Which status does a test get when the request body is too large?"
     ]
   },
   "/reference/core/test-runresult/": {
@@ -19259,10 +19262,10 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "bfb1de390ec12738",
+    "hash": "b7dc9d12d62da58a",
     "questions": [
       "Install the Novis extension from the Marketplace, Open VSX or a .vsix file",
-      "Rename a method or a parameter in every file of my project",
+      "Why is nvs code faster once the editor has opened my project?",
       "Which quick fixes and code actions does the editor offer?",
       "How can I see which routes and tests use a method?",
       "How do I change a colour of the Novis Dark theme?",
