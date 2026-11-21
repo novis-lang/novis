@@ -45,8 +45,9 @@ nvs service install shop -- serve /srv/shop/public/index.nvs --config /srv/shop/
 
 ## The installer checks the configuration
 
-A server checks who owns its configuration file, and it does not start when the check fails. So
-the installer runs that check on every `--config` file, for the account the service runs as. The
+A server checks who owns its configuration file, and it does not start when the check fails. The
+installer checks every `--config` file in the same way before it installs the service. It checks
+for the account that the service runs as. The
 account is the one that `--account` names. Without `--account`, it is `LocalSystem` on Windows and
 `root` on Linux.
 
@@ -103,7 +104,8 @@ keep = 10          # how many old files are kept
 
 Some errors happen before the server has read its configuration, for example a compile error.
 These go to the standard error stream. On Linux, systemd keeps it in the journal. On Windows, it
-goes to the Event Log. The log also goes there when the data folder cannot be used.
+goes to the Event Log. When the server cannot use its data folder, it writes its whole log to the
+standard error stream too.
 
 ## See what it installs
 

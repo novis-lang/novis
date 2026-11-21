@@ -258,7 +258,9 @@ the whole server, so the open requests failed. Docker then started the server ag
 In the feature table, the memory row for Node.js says **Your code**. A Node.js program can run each
 request in a `Worker` with a memory limit (`resourceLimits`). This limit counts only JavaScript
 objects. The memory of a `Buffer` is not counted, so a request can still use all the memory of the
-server. Bun has no such limit, because Bun ignores `resourceLimits`. The program in this test does
+server.
+
+Bun has no such limit, because Bun ignores `resourceLimits`. The program in this test does
 not use a `Worker`. It is the plain program that the Node.js documentation shows.
 
 #### A request that never ends
@@ -266,8 +268,8 @@ not use a `Worker`. It is the plain program that the Node.js documentation shows
 <FaultCharts chart="loop" />
 
 Each server has one CPU core in this test. Novis stopped the runaway request after 30 seconds of CPU
-time. Until then, Novis let the other requests use the core every 10 ms, so every other request was
-answered. PHP stopped the runaway request too.
+time. Until then, Novis paused the runaway request every 10 ms and ran the other requests, so every
+other request was answered. PHP stopped the runaway request too.
 
 The other five servers never stopped the runaway request. Go and .NET shared the core between the
 runaway request and the other requests, so every other request was answered. On Bun, Node.js and
@@ -343,7 +345,7 @@ sets `pm.max_children` high enough for 1000 requests at the same time.
 
 Novis checks for edited source files while it runs. No setting turns this check off. PHP checks for
 edited files by default, with `opcache.validate_timestamps`. Every test on this page runs PHP with
-this check on. By default, both servers check every 2 seconds.
+this check on. By default, both servers look for edited files every 2 seconds.
 
 Bun shows an edit only when it runs with `bun --hot`. Node.js needs `node --watch`, and Python needs
 `uvicorn --reload`. Go and .NET compile the program, so you must build it and start it again.

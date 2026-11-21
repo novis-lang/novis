@@ -70,7 +70,7 @@ The volume `novis-data` keeps the compile cache when you remove the container.
 and its folder must not be writable by a group or by everyone. Use `chmod go-w` to fix that.
 
 When you change the files of a mounted application, run `nvs reload` in the container. The server
-then uses the new files at once. `2` is the exit code when no server runs in the container:
+then uses the new files at once:
 
 ```sh skip="runs a command in a container with docker"
 docker exec <container> nvs reload

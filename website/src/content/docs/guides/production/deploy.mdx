@@ -35,8 +35,9 @@ ln -sfn releases/2026-11-21 /srv/shop/current.new
 mv -T /srv/shop/current.new /srv/shop/current
 ```
 
-The server reads the link at the start of each compile and again at the end. So it never builds
-one program from two releases.
+The server reads the link at the start of each compile and again at the end. If the link changed
+during the compile, the server throws that compile away and compiles again. So it never builds one
+program from two releases.
 
 ## Make the server use it now
 
@@ -56,7 +57,8 @@ when every compile has ended. A program that no request has loaded yet is compil
 request.
 
 Run `nvs reload` as the account that runs the server, or as an administrator. It reloads every
-server that uses the same data folder. If the server was started with `--data`, give the same
+server that uses the same data folder. The data folder is where `nvs` keeps its own files,
+such as the compile cache. If the server was started with `--data`, give the same
 `--data` to `nvs reload`. `--json` prints the result as one JSON document.
 
 ## Check the exit code
@@ -67,7 +69,8 @@ server that uses the same data folder. If the server was started with `--data`, 
 | `1` | A configuration file or a program has an error. Each error is printed with its file and line. |
 | `2` | No server is running for this data folder. |
 
-A program with an error is not replaced. Its requests fail with the error until the file is fixed.
+When a program has an error, the server does not use the new version of it. Every request to that
+program fails with the error until you fix the file.
 So a deploy script switches back to the previous release when the exit code is `1`:
 
 ```sh skip="a shell script that switches links"
@@ -115,7 +118,8 @@ The server compiles a changed program when its files stay unchanged for `[opcach
 person or a coding agent can pause between two edits for longer than that. The server then
 compiles a program that is only half edited, and logs errors that you did not make.
 
-Set a long interval instead, and run `nvs reload` after each batch of edits:
+To stop this, set a long `revalidate_freq`, so that the server checks its files only once an hour.
+Then run `nvs reload` after each batch of edits:
 
 ```toml
 [opcache]

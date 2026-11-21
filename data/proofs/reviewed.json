@@ -112,7 +112,7 @@
   "help:tools:cli/nvs-test": "e30e32945ef34461",
   "help:tools:cli/nvs-test-mutate": "a6bad84031128838",
   "help:tools:server/nvs-reload": "e021f047ca6ac320",
-  "help:tools:server/what-reaches-a-running-server": "2e256902d73f31ac",
+  "help:tools:server/what-reaches-a-running-server": "a8f81d353222a9ee",
   "tests/hostile/core/Attributes/all/01-one-roster-read-back-at-many-places.nvs": "e98b4af237ec57d5",
   "tests/hostile/core/Attributes/get/01-a-roster-of-near-misses.nvs": "9128a88c35271443",
   "tests/hostile/core/Router-Match/attribute/01-a-route-tries-to-read-another-routes-setting.nvs": "2268bbaaf86b09b8",
@@ -131,8 +131,13 @@
   "website/snippets/guides/cookbook/forget-deleted-row/forget-deleted-row.nvs": "551dfc43b9b8ed2e",
   "website/src/content/docs/guides/cookbook/forget-deleted-row.mdx": "bb2bd4c3d4921215",
   "website/src/content/docs/guides/cookbook/index.mdx": "f87c90969447db8f",
-  "website/src/content/docs/in-depth/compare.mdx": "467c84bed39bf337",
-  "website/src/content/docs/in-depth/index.mdx": "14a944aad06f3bfe",
+  "website/src/content/docs/guides/production/deploy.mdx": "c62b1bbda85b334e",
+  "website/src/content/docs/guides/production/docker.mdx": "a3fd4ad156bc3c48",
+  "website/src/content/docs/guides/production/index.mdx": "025e01992e60c963",
+  "website/src/content/docs/guides/production/run-as-a-service.mdx": "c9315c118ae8737e",
+  "website/src/content/docs/in-depth/compare.mdx": "cad43c0b1b235c4b",
+  "website/src/content/docs/in-depth/index.mdx": "786267cd2b67dc4c",
+  "website/src/content/docs/index.mdx": "e99499187203664b",
   "website/src/content/docs/syntax/attributes/writing-and-reading.mdx": "e3d33a2c48b52c0d",
   "website/src/content/docs/syntax/classes/property-names.mdx": "e156d0a7d43453b1",
   "website/src/content/docs/syntax/classes/revocable-objects.mdx": "4700eb753f0a9a6f",
@@ -140,5 +145,5 @@
   "website/src/content/docs/syntax/control-flow/iterators.mdx": "bb7f40ac15471ee7",
   "website/src/content/docs/syntax/errors/error-types.mdx": "c441d0499b122fc6",
   "website/src/content/docs/tools/test-runner/index.mdx": "17047d1c820b003e",
-  "website/src/data/changes.json": "7e8962e55ab7ba06"
+  "website/src/data/changes.json": "93a3b0d84212bd30"
 }

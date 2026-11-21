@@ -477,14 +477,14 @@
       "features": [
         "tools:server/nvs-reload"
       ],
-      "text": "`nvs reload` makes a running `nvs serve` use the code and configuration on disk at once, and returns when every compile has ended. It prints each error with its file and line. The exit code is `0` when everything is live, `1` when a file has an error and `2` when no server runs."
+      "text": "`nvs reload` makes a running `nvs serve` use the code and configuration on disk at once, and waits until the server has compiled each changed program. It prints each error with its file and line. The exit code is `0` when the server uses every new file, `1` when a file has an error and `2` when no server runs."
     },
     {
       "kind": "changed",
       "features": [
         "tools:server/nvs-reload"
       ],
-      "text": "A `[[schedule]]` entry with `on = \"reload\"` also runs when the server replaces a changed program, or when a program does not compile. `Core\\Script::args()` has two more values: `programs`, the number of programs replaced, and `failed`, the number of programs with errors."
+      "text": "A `[[schedule]]` entry with `on = \"reload\"` also runs when a check of the program files replaces a program or finds an error. It runs once for the whole check, not once for each program. `Core\\Script::args()` has two more keys: `programs`, the number of programs replaced, and `failed`, the number of programs with errors."
     },
     {
       "kind": "new",

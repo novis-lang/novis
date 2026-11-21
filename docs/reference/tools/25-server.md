@@ -326,8 +326,8 @@ running finishes on the code it started with. A file added where the program loo
 file removed, is a change too. This works in every mode, so a deploy needs no step after it.
 `nvs reload` makes the change take effect at once.
 
-A change that does not compile fails the requests that reach it, with its diagnostic. The server
-does not serve the last version that compiled in its place. When the file is fixed, the next check
+A change that does not compile fails the requests that reach it, with its error message. These
+requests do not get the last version that compiled. When the file is fixed, the next check
 finds the fix.
 
 **A configuration change.** The server checks its own configuration files every two seconds. When
@@ -337,9 +337,8 @@ Its `applied` field lists the keys that changed. Its `ignored` field lists the c
 a restart. `invalidated` is the number of compiled program files that the server compiles again.
 
 A file with an error changes nothing. The server writes `configuration reload refused` to the log
-once, with the error and its line, and keeps the configuration it has. A saved file starts a reload,
-and so does `nvs reload` (the next section). No signal and no command from a service manager starts
-one.
+once, with the error and its line, and keeps the configuration it has. A reload starts only in two
+ways: when you save a file, and when you run `nvs reload`.
 
 **Four keys need a restart**: `[server] listen`, `[server] socket_mode`, `[server] workers` and
 `[server] watchdog_margin`. A port below 1024 needs a privilege the server gave up after it opened
