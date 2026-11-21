@@ -25,7 +25,7 @@ stages:
     context: [docs/reference/tools/10-cli.md, docs/examples/tools/cli/nvs-code/about.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: rules
@@ -74,7 +74,7 @@ checks:
   - id: proofs
     stage: 5
     name: "nvs code has every feature proof"
-    run: [bun, nv, proofs, --id, "tools:cli/nvs-code", --gate]
+    run: [bun, nv, proofs, --only, "tools:cli/nvs-code", --gate]
     timeout: 1800
   - id: site-stale
     stage: 5
@@ -266,54 +266,36 @@ two sessions writes what holds it in the handoff, and the next session splits it
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of every page this goal changed ([prose.md](../agent/prose.md) § *A
+- [x] The newcomer review of every page this goal changed ([prose.md](../agent/prose.md) § *A
   newcomer reads it*).
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done and committed. The `never-stale`, `code-index` and `several` tests pass,
-each run once by name. `site-stale` and `site-changes` are green.
+Every stage is done. Stage 6 closed the goal without the full gate. The newcomer review of the
+five texts found the words "answers" and "members", two sentences over 25 words, and terms it never
+explained (the index, the data folder). Each was fixed in the reference's `# nvs code`, the help in
+`crates/nvs-cli/src/code.rs`, the example, `about.md`, the editor page and the `changes.json`
+entry, then stamped. The build, clippy, and the `parallel`, `never-stale`, `code-index`,
+`several`, `rules`, `proofs`, `site-stale`, `site-changes` and `site-review` checks are green.
 
-Stage 5 (`e211c8832d`): the reference's `# nvs code` gained `## The index file`, `## The verbs`
-and the several-methods shape; the help, `about.md`, the example (two methods in one `calls`,
-checked against a real run), the editor page and `changes.json` say the same.
-`proofs` is red for `tools:cli/nvs-code` only on the `about.md` review, which stage 6 does. Its
-`--gate` covers the whole roster, where 146 features outside this goal also owe proofs.
+The `proofs` check ran `--id ... --gate`, and `--id` does not narrow `--gate`, so it judged the
+whole roster, where 146 other features owe proofs. It now runs `--only tools:cli/nvs-code --gate`.
 
-- `crates/nvs-cli/src/code.rs`: `Project::open` loads and saves `index_file_of(&root)`.
-  `per_method` drives `calls` and `reach` in the shapes § *Standing decisions* gives, and
-  `unknown_methods` fails several names first, with `nearest to <name>:` for each.
-- `crates/nvs-cli/tests/code.rs` `run` passes `--data <cwd>/.nvsdata` on every call.
-- `crates/nvs-lsp`: `load_by_content`, `freshen`, format 2's `Input`s, `workspace_from`.
-
-Only the new tests, the build and clippy ran. Watch at the gate: the disk tests in
-`crates/nvs-lsp/tests/incremental.rs` from `a_cold_start_with_a_valid_index_...` to
-`two_servers_writing_one_root_...`, the three `parallel` ones, `tests/query.rs`, and every test
-in `crates/nvs-cli/tests/code.rs`, which now load the index file and run through `per_method`.
-
-The nightly `miri units (nvs-stdlib 2/12)` failure was a 300 s timeout of
-`granularity::tests::both_walks_agree_on_every_window` on commit `7e97fa8`. `156f11a7ca` lowered
-its Miri reach to 2 after that run, so the fix is already in the tree. The next nightly confirms it.
+The nightly `miri units (nvs-stdlib 2/12)` failure on `7e97fa8` was a 300 s timeout of
+`granularity::tests::both_walks_agree_on_every_window`. `156f11a7ca`, after that run, lowered its
+Miri reach, so the tree has the fix. The next nightly confirms it.
 
 ### Next
 
-Stage 6, a close (not the full gate). First the newcomer review (prose.md § *A newcomer reads
-it*) of the five texts `bun nv site --check review` names:
-`docs/examples/tools/cli/nvs-code/01-who-calls-a-method.nvs`, its `about.md`,
-`help:tools:cli/nvs-code`, `website/src/content/docs/tools/editor/index.mdx` and
-`website/src/data/changes.json`. Then the build, clippy and this goal's tests by name: the
-`parallel`, `never-stale`, `code-index` and `several` checks. Expected red until done:
-`site-review`, and `proofs` for the review of `about.md`.
+Nothing in this goal. The full gate runs in a later goal of the chain. Watch there: the disk tests
+in `crates/nvs-lsp/tests/incremental.rs`, `tests/query.rs`, every test in
+`crates/nvs-cli/tests/code.rs`, and any test that pins `nvs code --help`.
 
 ### Backlog
 
-- On `bun nv lsp-start --copies 12 --cold --edits 5`, five surface edits check 5833 bodies, about
-  1166 an edit over 972 files. The commit before stage 2 gives the same count, so it is older than
-  this goal. Not in this goal's scope; a later goal finds which entry checks a file twice on an edit.
-- `cargo fmt --all` on this machine reformats seven files nobody edited (`crates/nvs-cli/src/runner.rs`,
-  `crates/nvs-stdlib/src/http.rs` and others). They were reverted. `bun nv ci --check` at the next full
-  gate says whether the tree or the local rustfmt is behind.
+- The two backlog items moved to `ci-green`'s backlog: the local rustfmt drift and the edit that
+  checks a file twice.

@@ -156,3 +156,9 @@ Not started. The goal runs once every goal before it on the chain is reached.
 - `tools/nv/cmd/ci.ts:329`: the pre-push attribution check runs `gen-attribution --check` only, and
   CI's job also runs `--check-c-deps`. Adding it to `PRE_PUSH` would catch a stale C-dependency
   ledger entry before the push.
+- `cargo fmt --all` on one Windows machine reformatted seven files nobody edited
+  (`crates/nvs-cli/src/runner.rs`, `crates/nvs-stdlib/src/http.rs` and others). `bun nv ci --check`
+  at this gate says whether the tree or the local rustfmt is behind.
+- On `bun nv lsp-start --copies 12 --cold --edits 5`, five surface edits check 5833 bodies, about
+  1166 an edit over 972 files, so some entry checks a file twice on an edit. It predates
+  code-warm-index. Not CI work: a later goal owns it, and this note moves there when one is written.
