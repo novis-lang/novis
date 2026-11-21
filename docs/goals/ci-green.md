@@ -6,7 +6,7 @@ context: [tools/nv/cmd/ci.ts, docs/rules/testing/every-run-runs-every-job.md, do
 stages:
   - id: 1
     title: "the goal is verified once, then pushed, watched and fixed until the run is green"
-    status: open
+    status: done
     gate: true
     context: [.github/workflows/ci.yml, tools/nv/cmd/deep.ts, docs/agent/testing.md]
 checks:
@@ -139,7 +139,7 @@ Once verify is green, every session runs this cycle until the run is green or th
 4. Once the context reaches 120k, write the handoff with what is fixed, what is pushed and which run
    is going. Write the status line `CONTINUE <the fixes>, pushed in <sha>`, and stop.
 
-- [ ] `bun nv ci --green` exits 0 (`tools/nv/cmd/ci.ts:1130`).
+- [x] `bun nv ci --green` exits 0 (`tools/nv/cmd/ci.ts:1130`).
 
 ## Handoff
 
@@ -158,18 +158,15 @@ Once verify is green, every session runs this cycle until the run is green or th
 2. Push 2, `fd7f0cd17`. A side loop pushed `a477b5804` on top before the run started. CI run
    44940832132 and Website run 44940832016 on `a477b5804`: **green**.
 3. Push 3, `33d4a8eb1`: two side-loop commits (`b37214606c`, `33d4a8eb1c`) that local `main` had
-   after `a477b5804`. Its runs were going when this session ended.
+   after `a477b5804`. CI run 44945274371 and Website run 44945274362: **green**, and
+   `bun nv ci --green` exits 0 on `33d4a8eb1`.
 
 `LogRecord` and `SentMail` readers have a `perf` skip: their values exist only under `nvs test`.
 
 ### Next
 
-Step 1 of the cycle: `bun nv ci --green` (`tools/nv/cmd/ci.ts:1130`). Exit 0 means `DONE`. When
-it names runs still going on `33d4a8eb1`, run `bun nv ci --watch --next` in the background. A red
-job there starts from § *Standing decisions*. A side loop's commits on local `main` are pushed
-too, since a push carries every commit.
-
-No test is expected to go red: the code push 3 adds is the side loop's `bun nv close` tooling.
+The goal is reached: the driver's acceptance check `main-tip-is-green` runs `bun nv ci --green`,
+and then the goal is retired. No test is expected to go red.
 
 ### Backlog
 

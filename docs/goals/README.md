@@ -37,7 +37,7 @@ The chain holds 1 goal(s). `ci-green` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
-| 1 | [`ci-green`](ci-green.md) **live** | Reached when origin/main holds every commit of the chain that a CI run builds, and the push runs of CI and Website on that commit ended green. The session pushes, watches the run, fixes every red job and pushes again until that holds. | **1 the goal is verified once, then pushed, watched and fixed until the run is green** |
+| 1 | [`ci-green`](ci-green.md) **live** | Reached when origin/main holds every commit of the chain that a CI run builds, and the push runs of CI and Website on that commit ended green. The session pushes, watches the run, fixes every red job and pushes again until that holds. | 1 ✓ the goal is verified once, then pushed, watched and fixed until the run is green |
 
 Off the chain (side goals): [`release-green`](release-green.md), [`zip-writer`](zip-writer.md).
 
