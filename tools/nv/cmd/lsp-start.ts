@@ -19,7 +19,8 @@
 //
 // After the indexing `end` it prints the server's memory now and at its peak: on Windows `Get-Process`'s
 // `PrivateMemorySize64` and `PeakPagedMemorySize64`, on Linux `/proc/<pid>/status`'s `VmRSS` and `VmHWM`.
-// Another system prints no figure.
+// Another system prints no figure. Beside it, it prints the CPU time the server's threads spent since the
+// start: `Get-Process`'s `TotalProcessorTime` on Windows, `/proc/<pid>/stat`'s `utime` and `stime` on Linux.
 //
 // `--copies <n>` writes `.agent-tmp/lsp-start/tree/`: `src/C<k>/` for k from 1 to n, each a copy of
 // `apps/registry/src` in the namespace `App\C<k>`, one entry `public/c<k>.nvs` per copy, which is the
@@ -132,6 +133,26 @@ function memory(pid: number): string {
   return `no figure on ${process.platform}`;
 }
 
+/** The CPU time every thread of the process spent so far, as one line, or why there is no figure. */
+function cpu(pid: number): string {
+  if (process.platform === "win32") {
+    // Whole milliseconds, so the figure has no decimal separator for the system's locale to choose.
+    const script = `[int64](Get-Process -Id ${pid}).TotalProcessorTime.TotalMilliseconds`;
+    const out = Bun.spawnSync(["powershell", "-NoProfile", "-Command", script]).stdout.toString().trim();
+    const ms = Number(out);
+    if (!Number.isFinite(ms) || out === "") return `no figure: Get-Process printed ${JSON.stringify(out)}`;
+    return `${(ms / 1000).toFixed(2)} s`;
+  }
+  if (process.platform === "linux") {
+    // The fields after the command's closing parenthesis; `utime` and `stime` are the 14th and 15th, in
+    // clock ticks of 1/100 s on every Linux this runs on.
+    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+    const fields = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
+    return `${((Number(fields[11]) + Number(fields[12])) / 100).toFixed(2)} s`;
+  }
+  return `no figure on ${process.platform}`;
+}
+
 export async function run(args: string[]): Promise<number> {
   if (args.some((a) => a === "-h" || a === "--help")) {
     console.log(summary);
@@ -216,6 +237,7 @@ async function measure(exe: string, args: Args): Promise<number> {
     if (edit === 0) {
       if (!indexed || !symbolsDone || work === null) return;
       report.push(`memory after indexing: ${memory(stdin!.pid)}`);
+      report.push(`cpu time after indexing: ${cpu(stdin!.pid)}`);
       if (args.edits === 0) return close();
       send({
         method: "textDocument/didOpen",
@@ -228,6 +250,7 @@ async function measure(exe: string, args: Args): Promise<number> {
     report.push(`after ${edit} edits:       ${at()}`);
     report.push(editWork);
     report.push(`memory after ${edit} edits: ${memory(stdin!.pid)}`);
+    report.push(`cpu time after ${edit} edits: ${cpu(stdin!.pid)}`);
     close();
   };
 
