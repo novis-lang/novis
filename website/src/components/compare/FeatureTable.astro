@@ -3,13 +3,16 @@
  * The comparison page's feature table: one row per recorded scenario, one
  * column per peer. Every cell links to the folder on GitHub with the programs
  * the row runs, so a reader can check the result. A row the page explains
- * under its own heading links there too.
+ * under its own heading links there too. On a narrow screen the table
+ * scrolls inside its own box, with the feature column fixed at the left, so
+ * the page itself never scrolls sideways.
  */
 import { peers, record, rows } from '~/lib/compare'
 ---
 
 {
   record?.scenarios ? (
+    <div class="compare-features-scroll">
     <table class="compare-features">
       <thead>
         <tr>
@@ -52,18 +55,42 @@ import { peers, record, rows } from '~/lib/compare'
         ))}
       </tbody>
     </table>
+    </div>
   ) : (
     <p class="compare-empty">No run of the feature table is recorded yet.</p>
   )
 }
 
 <style>
+  .compare-features-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+  .compare-features {
+    display: table;
+    overflow: visible;
+  }
   .compare-features td,
   .compare-features th {
     vertical-align: top;
   }
-  .compare-features td:first-child {
+  .compare-features td:first-child,
+  .compare-features th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
     min-width: 12rem;
+    background: var(--sl-color-bg);
+  }
+  @media (max-width: 50rem) {
+    .compare-features td:first-child,
+    .compare-features th:first-child {
+      min-width: 9rem;
+      max-width: 9rem;
+    }
+    .compare-features {
+      font-size: var(--sl-text-xs);
+    }
   }
   .compare-features code {
     font-size: var(--sl-text-xs);

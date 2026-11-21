@@ -1,7 +1,7 @@
 ---
-title: Novis, PHP, Bun and Go compared
+title: Novis compared with six other web servers
 covers: []
-description: The same small web programs in Novis, PHP, Bun and Go, measured on one machine with one command.
+description: The same small web programs in Novis, PHP, Bun, Go, Node.js, .NET and Python, measured on one machine with one command.
 ---
 
 import Machine from '@components/compare/Machine.astro'
@@ -11,8 +11,11 @@ import FeatureTable from '@components/compare/FeatureTable.astro'
 import FaultCharts from '@components/compare/FaultCharts.astro'
 import SessionChart from '@components/compare/SessionChart.astro'
 
-This page compares Novis with PHP, Bun and Go. Each language runs the same small web programs. One
-command measures all four on one machine, and anybody can run it.
+This page compares Novis with PHP, Bun, Go, Node.js, .NET and Python. Each language runs the same
+small web programs. One command measures all seven servers on one machine, and anybody can run it.
+
+The page compares web servers only. Novis has no REPL (an interactive prompt that runs code line by
+line). It also has no library for numbers or machine learning, like the ones Python has.
 
 The page has four parts:
 
@@ -32,30 +35,42 @@ cores, and only one server runs at a time.
 - PHP runs with PHP-FPM, with opcache turned on.
 - Bun runs with `Bun.serve`.
 - Go runs with the `net/http` package.
+- Node.js runs with the `node:http` module. The `node:cluster` module starts one process for each
+  core.
+- .NET runs an ASP.NET Core program on Kestrel, the web server that comes with .NET.
+- Python runs a program with `uvicorn`, a web server for Python. It uses CPython 3.15.2, the
+  standard build of Python.
+
+Python's standard library has no web server for production use. So the Python programs need
+`uvicorn`, which is not part of Python. Every other server uses only what comes with its language.
 
 Each server runs with its default settings. When a setting is needed for a test, the page says which
 one. When a server stops, Docker starts it again. Servers in production run the same way.
 
-Each program is written the way the documentation of its language shows. Before a test is timed, the
-four servers must return the same answer for the same request. A server that returns a different
-answer gets no number.
+Each program is written the way the documentation of its language shows. Before a test is timed, all
+servers must return the same answer for the same request. A server that returns a different answer
+gets no number.
 
 This is the machine and the run:
 
 <Machine />
 
+The feature table can have results from more than one day. A new run measures a row again only when
+the row's programs or the server changed. Otherwise it keeps the earlier result. Novis changes with
+every new version, so its results are measured again in every run.
+
 ### How to read the charts
 
-The absolute numbers depend on the machine. A faster machine gives bigger numbers for all four. The
-result is the relation between the four servers.
+The absolute numbers depend on the machine. A faster machine gives bigger numbers for every server.
+The result is the relation between the servers.
 
 The number in the circle before a bar is the server's place, and place 1 is the best result. The
 coloured bars are the best results. The margin of error is about 3%. Two results closer than that
 get the same place, and the next place is skipped.
 
 Every number is the middle result of several runs. Each speed test runs 5 times, and the runs take
-turns between the four servers. The tests in "When something goes wrong" run 3 times each. A slow
-moment on the machine then affects all four servers in the same way.
+turns between the servers. The tests in "When something goes wrong" run 3 times each. A slow moment
+on the machine then affects every server in the same way.
 
 Novis's bars have a border, so you can find them quickly.
 
@@ -68,9 +83,8 @@ full bar. The best results are the most requests and the least memory.
 <CaseCharts />
 
 Novis runs every request in its own isolate: a separate memory area with a CPU limit and a memory
-limit. Bun and Go run all
-requests in one process and have no limit for one request. The rows `loop`, `memory` and `flood`
-below show what that changes.
+limit. Bun, Go, Node.js, .NET and Python have no CPU limit and no memory limit for one request. The
+rows `loop`, `memory` and `flood` below show what that changes.
 
 `p99` is the time within which 99 of 100 requests were answered. Peak memory is the most memory the
 server's container used during the test. Memory matters as much as speed when you pay for a server,
@@ -88,8 +102,8 @@ each on its own core. Or one request can split its own work into parts that run 
 ### Scaling with more cores
 
 This test checks if a server gets faster when it has more CPU cores. Each request runs a loop that
-takes about one millisecond of CPU time. The test runs each server with one core and then with four
-cores.
+takes about one millisecond of CPU time in most languages. The test runs each server with one core
+and then with four cores.
 
 Each bar shows how many times more requests per second the server answers with four cores than with
 one. With four cores, four times is the most possible, and that is the full bar.
@@ -99,8 +113,9 @@ with four cores. The test would then measure nginx and not the server.
 
 <CoreCharts chart="many-requests" />
 
-All four servers use the cores. Novis, PHP and Go do it with no extra code. One Bun process runs your
-code on one core. So the Bun program starts one Bun process for each core itself.
+All seven servers use the cores. Novis, PHP, Go, .NET and Python do it with no extra code. One Bun
+or Node.js process runs your code on one core. So the Bun program starts one Bun process for each
+core. The Node.js program uses `node:cluster` to start one process for each core.
 
 ### One request in four parts
 
@@ -112,7 +127,7 @@ same length.
 
 <CoreCharts chart="one-request" />
 
-The three languages split the work in different ways:
+The six languages split the work in different ways:
 
 - In Novis, each part is a script with its own memory. It gets a copy of its arguments and cannot
   change the request's variables. Together, the parts must stay under the request's memory and CPU
@@ -120,6 +135,11 @@ The three languages split the work in different ways:
 - In Bun, each part is a `Worker` with its own memory. Values are copied between them.
 - In Go, each part is a goroutine. All parts share the same memory, so one part can change a value
   that another part reads.
+- In Node.js, each part is a `Worker` from `node:worker_threads`, with its own memory. Values are
+  copied between them.
+- In .NET, each part is a task started with `Task.Run`. All parts share the same memory.
+- In Python, each part runs in its own process from a `ProcessPoolExecutor`. Values are copied between
+  them. Python threads run one at a time, so threads do not help here.
 
 PHP is not in this chart. PHP-FPM runs one request on one core, and PHP has no built-in way to split
 it. Novis needs no setting for this. A program may start the scripts in its own app folder. A
@@ -132,12 +152,12 @@ happened to those requests.
 
 ### Deploying a new version
 
-The four servers take a new version of a program in two different ways:
+The servers take a new version of a program in two different ways:
 
 - **Live deploy:** Novis and PHP. You copy the new source files to the server, and the next request
   uses them. There is no build, no restart and no reload.
-- **Build and restart:** Bun and Go. The server loads new code only when it restarts. Go also needs
-  a new build first.
+- **Build and restart:** Bun, Go, Node.js, .NET and Python. The server loads new code only when it
+  restarts. Go and .NET also need a new build first.
 
 Each chart shows the two groups in separate boxes, and the place counts inside each box.
 
@@ -154,10 +174,10 @@ takes about 2 seconds.
 <FaultCharts chart="deploy" />
 
 Novis waits until no file has changed for 1 second. Then it switches to the whole new program at
-once. In this test, it used the new version 1.1 seconds after the copy, and every page was
-complete. PHP had no failed request, but 56% of its pages mixed old and new files. PHP checks each
-file on its own, so during the copy some files are new and others are still old. Bun and Go need a
-restart, and some requests failed during each restart.
+once. In this test, it used the new version 1.2 seconds after the copy, and every page was
+complete. PHP had no failed request, but 46% of its pages mixed old and new files. PHP checks each
+file on its own, so during the copy some files are new and others are still old. The other five
+servers need a restart, and some requests failed during each restart.
 
 #### A big deploy
 
@@ -165,10 +185,10 @@ The new version is 2,000 source files, copied the same way. This takes about 20 
 
 <FaultCharts chart="deploy-big" />
 
-Novis used the new version 2.9 seconds after the copy, and every page was complete. PHP mixed old
+Novis used the new version 2.8 seconds after the copy, and every page was complete. PHP mixed old
 and new files in 91% of its pages. The copy took longer on PHP's server, because the copy and PHP's
-workers share the one CPU core. Bun and Go failed requests during the restart, as in the small
-deploy.
+workers share the one CPU core. The other five servers failed requests during the restart, as in the
+small deploy.
 
 #### Switching to a new release
 
@@ -180,8 +200,8 @@ recommend.
 <FaultCharts chart="deploy-switch" />
 
 Novis and PHP had no failed request and no mixed page. For PHP, switching a link is the safe way to
-deploy. Novis is also safe when you copy the new files over the old ones. Bun and Go still need a
-restart.
+deploy. Novis is also safe when you copy the new files over the old ones. The other five servers
+still need a restart.
 
 ### Runaway requests
 
@@ -200,24 +220,34 @@ runaway request and kept running gets a better place than one that did not.
 
 By default, Novis and PHP stop a request at 128 MB of memory or 30 seconds of CPU time. In Novis,
 these limits are in the `[limits]` table. In PHP, they are `memory_limit` and `max_execution_time`.
-Bun and Go have no limit for one request.
+Bun, Go, Node.js, .NET and Python have no limit for one request.
 
 #### A request that uses too much memory
 
 <FaultCharts chart="memory" />
 
-Novis and PHP stopped the runaway request, and every other request was answered. Bun and Go have no
-memory limit for one request. The container's memory limit stopped the whole server, so the open
-requests failed. Docker then started the server again.
+Novis and PHP stopped the runaway request, and every other request was answered. .NET has no limit
+for one request, but it stopped the runaway request too. When .NET could not get more memory, it
+threw an error in that request, and the server kept running.
+
+Bun, Go, Node.js and Python did not stop the runaway request. The container's memory limit stopped
+the whole server, so the open requests failed. Docker then started the server again.
+
+In the feature table, the memory row for Node.js says **Your code**. A Node.js program can run each
+request in a `Worker` with a memory limit (`resourceLimits`). The program in this test does not do
+that. It is the plain program that the Node.js documentation shows.
 
 #### A request that never ends
 
 <FaultCharts chart="loop" />
 
 Each server has one CPU core in this test. Novis stopped the runaway request after 30 seconds of CPU
-time. Until then, Novis gave the core to the other requests every 10 ms, so every other request was
-answered. PHP and Go also share the core between their requests. Bun and Go never stopped the runaway request. On Bun, the
-runaway request kept the core, and some other requests failed.
+time. Until then, Novis let the other requests use the core every 10 ms, so every other request was
+answered. PHP stopped the runaway request too.
+
+The other five servers never stopped the runaway request. Go and .NET shared the core between the
+runaway request and the other requests, so every other request was answered. On Bun, Node.js and
+Python, the runaway request kept the core, and some other requests failed.
 
 ## Features
 
@@ -236,9 +266,9 @@ Most Novis settings that are off by default are off for security. A Novis progra
 access that you give it. The details on this page say why a setting is off, for every language
 where the reason is known.
 
-Click a result to see the four programs for that row. Click **See details** to read more about a
-row on this page. The table shows every result, also the rows where another language does better
-than Novis.
+Click a result to see the programs for that row. Click **See details** to read more about a row on
+this page. The table shows every result, also the rows where another language does better than
+Novis. On a small screen, you can scroll the table sideways.
 
 <FeatureTable />
 
@@ -247,7 +277,8 @@ than Novis.
 In Novis, every string you print in a request is escaped. To write HTML tags, you use an `html`
 template, and the values in it are still escaped. To print raw HTML, the program must use
 `Core\Html\Markup`, so it can only happen when you choose it. In Go, `html/template` escapes, but
-`fmt.Fprintf` writes the same text unescaped.
+`fmt.Fprintf` writes the same text unescaped. In .NET, `HtmlEncoder` escapes a value, but text
+written without it is not escaped.
 
 ### Outside data
 
@@ -260,8 +291,8 @@ SQL string is a compile error, so the program never runs with it.
 
 One visitor sends two requests with the same session cookie. The slow request changes a value in
 the session and then works for 2 seconds. The fast request starts 200 ms later and only reads the
-session. The chart shows how long the fast request waited for its answer. Bun and Go have no
-sessions without a library, so they are not in the chart.
+session. The chart shows how long the fast request waited for its answer. Bun, Go, Node.js and
+Python have no sessions without a library, so they are not in the chart.
 
 <SessionChart />
 
@@ -275,6 +306,9 @@ ends, and only if it changed. No request waits for another one. This has a cost.
 one visitor can change the session at the same time. Then the session from the request that ends
 last is kept, and the change of the other request is lost.
 
+ASP.NET Core does not lock the session either. Its documentation says the same: when two requests
+change the session at the same time, the last one wins.
+
 ### Many waiting requests
 
 PHP-FPM answers each request in its own worker process. By default, it starts at most 5 workers.
@@ -285,10 +319,10 @@ sets `pm.max_children` high enough for 1000 requests at the same time.
 
 Novis checks for edited source files while it runs. No setting turns this check off. PHP checks for
 edited files by default, with `opcache.validate_timestamps`. Every test on this page runs PHP with
-this check on. Both servers use their default and check every 2 seconds.
+this check on. By default, both servers check every 2 seconds.
 
-Bun shows an edit only when it runs with `bun --hot`. Go compiles the program, so you must build and
-start it again.
+Bun shows an edit only when it runs with `bun --hot`. Node.js needs `node --watch`, and Python needs
+`uvicorn --reload`. Go and .NET compile the program, so you must build it and start it again.
 
 ## Run it yourself
 

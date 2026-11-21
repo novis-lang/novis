@@ -45,7 +45,17 @@ interface CompareRecord {
   host: { platform?: string; processor?: string; cpus?: number }
   peers: Record<string, { label: string }>
   cases: Record<string, { concurrency: number; peers: Record<string, PeerFigures> }>
-  scenarios: { rows: Record<string, { folder: string; peers: Record<string, RowResult> }> } | null
+  scenarios: {
+    rows: Record<
+      string,
+      {
+        folder: string
+        peers: Record<string, RowResult>
+        /** When each measured result was taken: this run, or an earlier run whose result the recording kept. */
+        measured?: Record<string, { date: string; commit: string }>
+      }
+    >
+  } | null
 }
 
 const raw = data as { recorded: false } | CompareRecord
@@ -125,7 +135,7 @@ function textOf<T>(table: Record<string, T>, id: string, what: string): T {
  * How a peer takes a new version. A `files` peer serves a new source file once it is copied in, and a
  * `build` peer needs a restart, and Go a new build too. Only the deploy chart is split by it, because
  * the deploy row is the one test that changes files under load, and the two ways pay for a new version
- * differently. Every other chart sends one unchanged program, so it ranks all four peers together.
+ * differently. Every other chart sends one unchanged program, so it ranks every peer together.
  */
 export type Group = 'files' | 'build'
 
@@ -138,11 +148,20 @@ const GROUP_TEXT: Record<Group, { title: string; note: string }> = {
   },
   build: {
     title: 'Build and restart',
-    note: 'Bun and Go load new code only when the server restarts. Go also needs a new build first.',
+    note: 'Bun, Go, Node.js, .NET and Python load new code only when the server restarts. Go and .NET also need a new build first.',
   },
 }
 
-const PEER_GROUP: Record<string, Group> = { nvs: 'files', php: 'files', bun: 'build', go: 'build' }
+/** Each peer's group, from what its deploy rows measured: a `build` peer's deploy is "a restart" or "a new image and a restart". */
+const PEER_GROUP: Record<string, Group> = {
+  nvs: 'files',
+  php: 'files',
+  bun: 'build',
+  go: 'build',
+  node: 'build',
+  dotnet: 'build',
+  python: 'build',
+}
 
 /** The peer this website is about, whose bars every chart marks. */
 export const HOME_PEER = 'nvs'
@@ -256,7 +275,7 @@ export interface CaseChart {
 
 /**
  * Every recorded case, each peer's throughput against the best peer's in that case. Places are counted
- * over all four peers, because a case sends one unchanged program, and every peer in place 1 is `best`,
+ * over every peer, because a case sends one unchanged program, and every peer in place 1 is `best`,
  * so the accent colour and the place agree.
  */
 export const charts: CaseChart[] = record
@@ -297,7 +316,7 @@ export interface Cell {
 export interface FeatureRow {
   id: string
   text: string
-  /** The folder on GitHub with the four programs this row runs. */
+  /** The folder on GitHub with the programs this row runs, one for each peer. */
   url: string
   /** The page's own link to the heading that explains this row, or `null` for a row with none. */
   details: string | null
@@ -318,6 +337,18 @@ export const rows: FeatureRow[] = record?.scenarios
       }),
     }))
   : []
+
+/**
+ * The dates of the oldest and the newest measured row result, `YYYY-MM-DD`, or `null` with no feature
+ * table. A recording keeps a peer's earlier result for a row whose programs and image did not change,
+ * so the table's results can come from more than one day, and the page shows the range.
+ */
+export const rowDates: { oldest: string; newest: string } | null = (() => {
+  const dates = Object.values(record?.scenarios?.rows ?? {})
+    .flatMap((r) => Object.values(r.measured ?? {}).map((m) => m.date.slice(0, 10)))
+    .sort()
+  return dates.length === 0 ? null : { oldest: dates[0]!, newest: dates[dates.length - 1]! }
+})()
 
 /**
  * How a figure where less is better compares with the least one: `best` for
@@ -431,7 +462,7 @@ export interface SessionWait {
   code: string | null
 }
 
-/** The `session` row: the fast request's wait for each peer that has sessions, Novis and PHP. */
+/** The `session` row: the fast request's wait for each peer whose standard library has sessions. */
 export const sessionWaits: SessionWait[] = evidenceOf('session')
   .filter(({ evidence: e }) => typeof e.fast_wait_ms === 'number')
   .map(({ peer, label, evidence: e }) => ({

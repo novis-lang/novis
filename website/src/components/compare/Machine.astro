@@ -3,10 +3,14 @@
  * The machine and the run behind the comparison page's figures, from
  * src/lib/compare.ts. Before a run is recorded it says so.
  */
-import { record } from '~/lib/compare'
+import { record, rowDates } from '~/lib/compare'
+
+const range = (r: { oldest: string; newest: string }) => (r.oldest === r.newest ? r.oldest : `${r.oldest} to ${r.newest}`)
 
 const facts = record
   ? [
+      ['Speed tests run on', record.date.slice(0, 10)],
+      ...(rowDates ? [['Feature table run on', range(rowDates)]] : []),
       ['CPU', record.host.processor?.trim() || 'not recorded'],
       ['Cores', String(record.host.cpus ?? 'not recorded')],
       ['Operating system', record.host.platform ?? 'not recorded'],

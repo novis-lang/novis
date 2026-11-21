@@ -40,7 +40,7 @@ comparative advertising also requires a claim against a named product to be obje
 
 These pages already exist, and the new pages link to them. No new page repeats what they say.
 
-- `in-depth/compare.mdx`: Novis, PHP, Bun and Go, with charts rendered from `benches/compare.json`
+- `in-depth/compare.mdx`: Novis, PHP, Bun, Go, Node.js, .NET and Python, with charts rendered from `benches/compare.json`
   and one command anyone can rerun. It is the strongest evidence the site has.
 - `in-depth/coming-from-php.mdx`, `in-depth/what-for.mdx`, `in-depth/new.mdx`, `in-depth/never.mdx`.
 - `guides/why-novis/`: one short page per feature, such as tainted input, secret values and typed
@@ -60,7 +60,7 @@ is under *In depth*, and its title does not match any of those searches.
 | `/choose/php-alternative/` | "PHP alternative", "replace PHP", "modern PHP" | The same handler in both languages, PHP's figures, and the tools a PHP project installs that Novis has built in |
 | `/choose/go-alternative/` | "Go for web development", "Go alternative" | Go's speed with less code, Go's figures, and the request isolation Go leaves to the developer |
 | `/choose/javascript-alternative/` | "Node alternative backend", "Bun vs Node" | Built-in tools against an npm dependency tree, and the Bun (and Node) figures |
-| `/choose/dotnet-alternative/` | "C# web API alternative", "ASP.NET Core vs Go" | Only once .NET is a measured peer (§ *The peers*) |
+| `/choose/dotnet-alternative/` | "C# web API alternative", "ASP.NET Core vs Go" | The .NET figures and feature rows (§ *The peers*) |
 
 A language gets a page only once it is a measured peer. A page with no numbers behind it costs more
 trust than a missing page.
@@ -95,28 +95,15 @@ first (§ *Decisions for the user*).
 
 ## The peers
 
-`benches/compare/README.md` § *Why these peers* is the home of which peers are measured and why.
-The goal `compare-seven-peers` adds .NET, Node.js and Python, and cuts a recording's fixed work so
-seven peers do not take twice as long. This section is the reasoning it was written from.
+Seven servers are measured: Novis, PHP, Bun, Go, Node.js, .NET and Python, and `benches/compare.json`
+holds every one in every case and every row. `benches/compare/README.md` § *Why these peers* is the
+home of which peers are measured, how each is deployed and why. Each page under § *The pages* takes
+its figures and rows from that record.
 
-The README admits a peer that a team choosing a web server weighs Novis against, using **only its
-standard library**, tuned to its own advantage, with every setting in git. That rule rules out a
-framework fight, and it decides most of the list below.
-
-| Language | Add? | Why |
-|---|---|---|
-| **C# / ASP.NET Core** (minimal API, Kestrel) | **Yes, first** | The main enterprise choice for business web apps. Kestrel is part of the shared framework, so it meets the standard-library rule. It is among the fastest servers in public benchmarks, so a Novis figure beside it is worth more |
-| **Node.js** (`node:http`) | **Yes** | The README leaves it out because it says little new beside Bun. For these pages that is not true: far more people run Node than Bun and search for "Node alternative". The case programs differ from Bun's only in the server wrapper |
-| **Python** | **Yes** | `rule:tooling/python-claims` permits a measured figure, quoted with its engine, mode and host. It forbids only the phrasings "faster than Python" and "replaces Python", and requires the page to say Novis has no REPL and no numeric stack. "Python vs PHP" is a very large search |
-| **Java** | No | The standard-library `HttpServer` is not what anybody deploys. Spring Boot is a framework, and a fairness argument follows every framework comparison |
-| **Ruby** | No | Same reason. Rails is the only thing people compare, and it is a framework |
-| **Rust** | No | No standard-library server. A reader who chooses Rust is not choosing a web-application language |
-
-**Each new peer costs:** a `PEERS` entry in `tools/nv/cmd/bench-compare.ts`, a `compose.<peer>.yaml`, an
-nginx config, one program for each of the 4 cases under `cases/`, and one for each feature scenario
-under `scenarios/` that has per-peer programs. Each recording run gets one more stack. With four peers
-today, each new peer makes a run about a quarter longer. The cases must stay byte-equal, as
-the README requires.
+Three languages stay out, for the README's own reason: a peer uses its standard library, so the
+comparison is never a framework fight. Java's standard-library `HttpServer` is not what anybody
+deploys, and Spring Boot is a framework. Ruby is compared only as Rails, a framework. Rust has no
+standard-library server, and a reader who chooses Rust is not choosing a web-application language.
 
 ## Technical changes
 
