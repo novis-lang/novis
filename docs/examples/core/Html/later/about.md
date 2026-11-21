@@ -9,11 +9,9 @@ If the callable throws an error, the page shows the `error` markup in its place,
 stays the same. `deadline` sets the longest time the callable may run. On a route with
 `slotted: true`, the browser gets the page first and each part as soon as it is ready.
 
-**Good to know:** a callable in `later` cannot set a header, a cookie or the status. The page has
-already decided those. It can read the request with `Core\Request`: the path, the query, a
-header, a cookie and the route parameters. It cannot read the body. `Core\Request::body` and the
-other body methods throw a `LogicError` there. Read the body in the main script and pass the
-value to the callable.
+**Good to know:** a callable in `later` cannot set a header, a cookie or the status. It can read
+the request with `Core\Request`, but not its body. A body method throws a `LogicError` there, so
+read the body in the main script and pass the value to the callable.
 
 **The examples below** show two parts that run at the same time, a part that fails, and a part
 that takes too long.

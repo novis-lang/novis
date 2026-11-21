@@ -5443,7 +5443,7 @@
   },
   "/reference/core/html/later/": {
     "feature": "Core\\Html::later",
-    "hash": "cd895d3eab3eecae",
+    "hash": "770e8ac38c63c528",
     "questions": [
       "Load slow parts of a page at the same time",
       "How do I render page sections in parallel?",
