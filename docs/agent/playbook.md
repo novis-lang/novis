@@ -261,6 +261,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   See `benches/members/README.md` and `benches/members/core/Session/get.scale.nvs`.
 
 ## Running things
+- **Miri does not run on the Windows host.** `cargo +nightly miri test` stops at `cargo uses an
+  argfile to invoke rustc, which is not supported by cargo-miri`, after minutes of building into
+  `target/miri`. A Miri timeout cannot be timed here: cut the `cfg!(miri)` input by a wide margin,
+  delete `target/miri`, and let the next nightly judge it. See `156f11a7ca`.
 - **`git add <file> && git commit` commits everything already staged, and a writing subagent's
   `git mv` stages its moves.** A one-file Miri fix took 46 renames and deletions two subagents had
   staged in the same tree. While writing subagents run, commit a slice with `git commit -F <msg>
