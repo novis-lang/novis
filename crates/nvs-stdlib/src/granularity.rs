@@ -984,9 +984,8 @@ mod tests {
     }
 
     /// The window `slice` reads, against the walk that counted the whole
-    /// subject first, for every offset and length from -12 to 12 (-4 to 4
-    /// under Miri) on texts
-    /// with combining marks, emoji, flags and a CRLF.
+    /// subject first, for every offset and length from -12 to 12 (-2 to 2
+    /// under Miri) on texts with combining marks, emoji, flags and a CRLF.
     #[test]
     fn both_walks_agree_on_every_window() {
         fn counted(unit: Unit, subject: &str, offset: i64, length: Option<i64>) -> (usize, usize) {
