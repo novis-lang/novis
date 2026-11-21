@@ -453,6 +453,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **Two helpers that build a scratch folder from a caller's short name collide when two tests pass
+  the same name, and the tests run in parallel threads of one process.** `moded("plain")` and
+  `linked("plain")` both made `completion-values-<pid>-plain`, and one deleted the other's folder
+  partway: `create_dir_all` failed one run in a few. Put a process-wide counter in the folder name.
+  See `crates/nvs-lsp/tests/completion_file_values.rs` `Workspace::new`.
 - **An `.lspt` cursor in an unfinished statement inside a `{ }` body resolves to `Block`, and the
   coverage gate then owes a case for every other request at `Block`.** A completion case wrote
   `echo $tag-><|>` inside a `foreach` body, and `cargo test --test coverage` named nine empty cells.

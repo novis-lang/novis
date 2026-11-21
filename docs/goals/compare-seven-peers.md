@@ -331,42 +331,49 @@ session writes the compose file, the Dockerfile, `PEERS` and the settings.
 
 ### 8. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [ ] `bun nv verify --doc` and `bun nv ci --check` are green, as a full gate's `DONE` requires.
+  - [x] `verify --doc`: every link resolves.
+  - [x] `ci --check`'s rendered files, roadmap and compare questions are fixed.
+  - [ ] The 63 stale perf proofs are measured again.
+  - [ ] The 17 pages with stale questions are reread, their questions rewritten, and stamped.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done. Stage 7: `website/src/lib/compare.ts` groups the three new peers as
-`build` and exports `rowDates`, which `Machine.astro` shows as the feature table's date range
-(2026-11-20 to 2026-11-21). The feature table scrolls in its own box. `compare.mdx` names seven
-servers, says Novis has no REPL and no numeric or machine-learning stack, and reads each new peer's
-results off the record. `bun nv render` refreshed `website/src/data/compare.json`, which still held
-the four-peer record of 2026-11-18. The page and `in-depth/index.mdx` passed a newcomer review and are
-stamped, and so are their questions. `site --check stale changes review` is green.
+Stages 1 to 7 are done, and so is stage 8's verify. `benches/compare.json` is the seven-peer record,
+`DEFAULT_REPS` stays 5 (README § *Five reps, because three did not give the same figures*), and a
+routine seven-peer recording plans 179 stacks against the four-peer baseline of 247.
 
-`benches/compare.json` is the seven-peer record: cases at `0a0aa84bbd`
-(2026-11-20), rows at `d676c2f8fb` (2026-11-21), every peer in every case and all 18 rows. The rows
-took three background calls: a stopped run resumed without `--fresh` and kept its finished rows.
+`looper verify` is green over everything since the last full gate, after the fix pass `ea956ecb3a`.
+The nightly failures are fixed by `e5a100b18f` and `438e9c44af`, and reach CI with this gate's push.
+`owners --closes` names no gap, and every standing decision is in `benches/compare/README.md`.
+`bun nv verify --doc` is green. `bun nv ci --check` is red in two checks, and the full gate is not
+passed until both are green:
 
-`--reps-check` fails every bound, so `DEFAULT_REPS` stays 5. Worst: requests/sec 16.52% (`waiting`
-at 1 cpu, .NET), peak memory 18.17% (`hello`, Bun), p99 63.03% (`hello`, Python), and 5 subsets
-reorder `hello` or `wait`. README § *Five reps, because three did not give the same figures* records
-it. A routine seven-peer recording plans 140 case stacks plus 39 row stacks (85 row results kept),
-179 in all, against the four-peer baseline of 247: `--scenarios --plan --record
-benches/compare.json`. `--plan` reads no prior without `--record`, so it then counts every row.
-
-The `the record` tests and the record-shape test, which listed four peers, are green by name. The
-nightly failures ran on `5d053fc6e6`, origin/main. Local `e5a100b18f` and `438e9c44af` fix them, and
-reach CI at the next full gate's push.
+- **feature proofs:** 63 features owe a perf proof that is stale, because `request.rs`,
+  `docs/reference/lang/20-types.md` and `docs/reference/lang/90-attributes.md` changed since they were
+  measured (the `Core\Request` members, `lang:types/*`, `lang:attributes/*`).
+- **website stale guard:** 17 pages' questions are stale: `Core\Attributes::get` and `all`,
+  `Core\Html::later`, `Core\Program::implementingWith`, the five `Core\Reflect\AttributeInfo` members,
+  `Core\Reflect\ClassInfo::attributes` and `parent`, `Core\Router\Match::attribute`,
+  `/reference/cli/nvs-test/`, `/reference/cli/nvs-test-mutate/`,
+  `/syntax/attributes/writing-and-reading/`, `/syntax/classes/property-names/` and
+  `/tools/test-runner/`.
 
 ### Next
 
-Stage 8, the gate: the check the pack names (`looper verify` at a full gate, else a build and the
-`bench-compare` tests by name), then `bun nv owners --closes compare-seven-peers`, and move each
-standing decision only this file holds into `benches/compare/README.md` before the file is deleted.
-Expect no test red.
+Close stage 8's last item, then `DONE`:
+
+1. `bun nv proofs --gate --limit 0 --nvs target/debug/nvs.exe` lists the stale perf proofs. Measure
+   them again with `bun nv proofs --record-perf` over those ids (see `bun nv proofs --help`). This is
+   long, so run it in the background.
+2. For each of the 17 pages: reread it, rewrite its questions in `website/src/data/questions.json`,
+   and stamp it with `MSYS_NO_PATHCONV=1 bun nv site --questions --stamp <path>`. They are a batch of
+   similar pages, so they go to writing subagents.
+3. `bun nv ci --check` green, then write `DONE`. No test is expected to go red.
 
 ### Backlog
 
