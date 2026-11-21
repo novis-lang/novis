@@ -3243,7 +3243,7 @@ pub(crate) mod tests {
         // what a member can reach at run time is the shipped half.
         let shipped: Vec<&str> = include_str!("cache.rs")
             .lines()
-            .take_while(|line| line.trim_start() != "#[cfg(test)]")
+            .take_while(|line| line.trim_end() != "pub(crate) mod tests {")
             .filter(|line| !line.trim_start().starts_with("//"))
             .collect();
         for half in ["nvs_runtime::encode_within(", "nvs_runtime::decode("] {
@@ -4809,7 +4809,7 @@ pub(crate) mod tests {
         }
         let shipped: Vec<&str> = include_str!("cache.rs")
             .lines()
-            .take_while(|line| line.trim_start() != "#[cfg(test)]")
+            .take_while(|line| line.trim_end() != "pub(crate) mod tests {")
             .filter(|line| !line.trim_start().starts_with("//"))
             .collect();
         assert!(
