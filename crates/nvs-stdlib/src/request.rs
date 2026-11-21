@@ -1856,7 +1856,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
 /// body and what it left behind is not what `need` asks for.
 fn claim_body(ctx: &mut Ctx, member: &'static str, need: BodyNeed) -> Result<(), Fault> {
     let total = ctx.upload_total_limit();
-    let inbound = body_carrier(ctx, &format!("Core\\Request::{member}"))?;
+    let inbound = body_carrier(ctx, RequestMember(member))?;
     if let Some((class, why)) = inbound.body_failure() {
         return Err(Fault::thrown_as(
             class,
@@ -2139,6 +2139,16 @@ pub(crate) fn served<'a>(ctx: &'a Ctx, who: &str) -> Result<&'a Inbound, Fault> 
     ctx.inbound().ok_or_else(|| no_request(who))
 }
 
+/// A `Core\Request` member's name, spelled `Core\Request::member` only when
+/// it is written into an error message.
+struct RequestMember(&'static str);
+
+impl std::fmt::Display for RequestMember {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Core\\Request::{}", self.0)
+    }
+}
+
 /// The carrier, borrowed so its body can be read, for `who` spelled
 /// `Core\Class::member`. Every path that reads the body takes it here.
 ///
@@ -2154,8 +2164,15 @@ pub(crate) fn served<'a>(ctx: &'a Ctx, who: &str) -> Result<&'a Inbound, Fault> 
 ///
 /// [`no_request`]'s `LogicError` where no request arrived, and a `LogicError`
 /// naming the main script in a slot.
-fn body_carrier<'a>(ctx: &'a mut Ctx, who: &str) -> Result<&'a mut Inbound, Fault> {
-    if served(ctx, who)?.is_lent() {
+///
+/// `who` is spelled only on those two refusals, so a body read that is
+/// allowed allocates nothing here. Each `Core\Request` body member declares
+/// its allocations per call, and its bench holds it to that count.
+fn body_carrier(ctx: &mut Ctx, who: impl std::fmt::Display) -> Result<&mut Inbound, Fault> {
+    let Some(inbound) = ctx.inbound() else {
+        return Err(no_request(&who.to_string()));
+    };
+    if inbound.is_lent() {
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
             format!(
