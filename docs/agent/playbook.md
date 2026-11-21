@@ -467,6 +467,15 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **A new `.nvs` example, attack or bench is a formatter corpus file, and `nvs-fmt::identity`
+  fails on every CI leg when it is not written as the formatter writes it.** Six `Core\Test\RunResult`
+  proof files used `else if` and `{stdin: ...}`, and one push run went red on all four test legs.
+  Run `bun nv nvs-fmt <paths>` on each new file before its commit. See `crates/nvs-fmt/tests/identity.rs`.
+- **A test that starts `nvs serve` and reaches its reload endpoint fails only on macOS when its data
+  folder's path is long.** The endpoint `run/serve-<pid>-<ms>.new` must fit 103 bytes there, and
+  107 on Linux, so `nvsdata-<pid>-<n>/case/` passed on Linux and failed every macOS case. Use
+  `nvs_repo::scratch_private_for_socket`, which checks the length. See
+  `crates/nvs-cli/tests/reload_command.rs` `data_folder`.
 - **Two helpers that build a scratch folder from a caller's short name collide when two tests pass
   the same name, and the tests run in parallel threads of one process.** `moded("plain")` and
   `linked("plain")` both made `completion-values-<pid>-plain`, and one deleted the other's folder

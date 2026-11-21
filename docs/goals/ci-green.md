@@ -145,47 +145,31 @@ Once verify is green, every session runs this cycle until the run is green or th
 
 ### State
 
-**`looper verify` is green** (fourth run, after the fixes below). Pushes so far: **0**. Nothing of
-this goal is on `origin/main` yet.
+**`looper verify` was green** (fourth run). Pushes so far: **3**.
 
-- The nightly's `miri units (nvs-stdlib 2/12)` red (run 44894790665, a timeout in
-  `granularity::tests::both_walks_agree_on_every_window`) ran on `7e97fa8444`. That is before
-  `156f11a7ca` cut the test to reach 2 under Miri. The fix is on local `main`, and the first push run's
-  Miri shard confirms it.
-- Verify's reds, fixed: rustfmt and the testing chapter's render; the cache scans that stopped at a
-  test-only `#[cfg(test)]` (and poisoned every case after them); the unix endpoint tests on
-  `std::env::temp_dir()`; the `Core\Test` completeness tables, conformance cases and `nvs:ext` REFUSED
-  rows; an unbounded `read_to_end` in `http.rs` `part_octets`; the `nvs reload` CLI row and primer
-  heading list; two formatter fixtures; an LSP cold settle that parsed a program's class files twice
-  on 4 workers (`crates/nvs-lsp/src/index.rs`); a stale completion expectation; two conformance cases
-  for `Core\Test::request`'s new HEAD and after-response behaviour.
-- `bun nv ci --check` was then red on the website and the proofs gate. Fixed and committed: the
-  roadmap lists `ci-green` as `internal`; 36 texts restamped, reviews and questions done; full
-  feature proofs (about.md, examples, attack, Rust `covers:` test) for `Core\Test\RunResult`'s four
-  readers, `Core\Test\LogRecord`'s three, `Core\Test\SentMail`'s eight and
-  `Core\Test\Response::error`; `Core\Task::all` and `Core\Mail::send` about.md within 160 words. The
-  last build, clippy, fmt and `bun nv verify --fast -p nvs-stdlib` (2262 passed) are green.
+1. Push 1, `5151abf52`, CI run 44934736208: **red** on all four `test` legs. Website green.
+   - `nvs-fmt::identity`, every leg: six new `Core\Test\RunResult` proof files were not formatted.
+     Fixed by `bun nv nvs-fmt` in `10c3fe28a4`.
+   - `nvs-cli::reload_command`, macOS only, every case: the data folder put the endpoint socket at
+     about 105 bytes, over macOS's 103. Fixed in `fd7f0cd171` with
+     `nvs_repo::scratch_private_for_socket` (99 bytes now). Checked on Windows and in WSL.
+   - The `miri units (nvs-stdlib 2/12)` shard passed: the nightly red (run 44894790665) was from
+     `7e97fa8444`, before `156f11a7ca`.
+2. Push 2, `fd7f0cd17`. A side loop pushed `a477b5804` on top before the run started. CI run
+   44940832132 and Website run 44940832016 on `a477b5804`: **green**.
+3. Push 3, `33d4a8eb1`: two side-loop commits (`b37214606c`, `33d4a8eb1c`) that local `main` had
+   after `a477b5804`. Its runs were going when this session ended.
+
+`LogRecord` and `SentMail` readers have a `perf` skip: their values exist only under `nvs test`.
 
 ### Next
 
-Step 2 of the cycle, still before the first push. `bun nv ci --check` owes these, as last seen:
+Step 1 of the cycle: `bun nv ci --green` (`tools/nv/cmd/ci.ts:1130`). Exit 0 means `DONE`. When
+it names runs still going on `33d4a8eb1`, run `bun nv ci --watch --next` in the background. A red
+job there starts from § *Standing decisions*. A side loop's commits on local `main` are pushed
+too, since a push carries every commit.
 
-1. **`reviewed`** for the 15 new about.md under `docs/examples/core/Test-RunResult/`,
-   `Test-LogRecord/` and `Test-SentMail/`: the newcomer review (docs/agent/prose.md), then
-   `bun nv site --review --stamp <path>` for each.
-2. **`perf`**: the stale and never-measured figures. `bun nv proofs --gate --limit 0 --nvs
-   target/debug/nvs.exe` names them: `Core\IO`, `Core\Queue`, `lang:testing/*`, `Core\Test\*`. Record
-   with `bun nv proofs --record-perf --group <g>`, one group at a time, after a commit.
-3. **No bench for `LogRecord`/`SentMail`:** their records exist only under `nvs test`, and a bench runs
-   under `nvs run`, so a bench there would measure an empty list. Decide between a `perf` skip under
-   `data/proofs/skip/core/Test-LogRecord/` and `Test-SentMail/` with that reason, and a bench that runs
-   under `nvs test`. The skip is the simpler one, and it costs nothing on the request path.
-4. `NVS_BIN=target/debug/nvs.exe bun nv render --website`: `docs/reference/core/Test-Response.md` was
-   rewritten in plain voice (check that wider edit), and the new cards feed `llms-full.txt`.
-5. Then `bun nv ci --check` again, `bun nv ci --push`, and `bun nv ci --watch --next` in the
-   background.
-
-No test is expected to go red. The new Rust tests compiled and passed in the stdlib run.
+No test is expected to go red: the code push 3 adds is the side loop's `bun nv close` tooling.
 
 ### Backlog
 
