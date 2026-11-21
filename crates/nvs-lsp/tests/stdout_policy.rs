@@ -128,6 +128,23 @@ fn exempt(krate: &str, writer: &str) -> bool {
     krate == THE_OUTPUT_SINK && writer == "stdout()"
 }
 
+/// `line` with every span between a pair of backticks taken out, backticks
+/// included. An unpaired last backtick and what follows it stay, so a line
+/// that only opens a span is still searched.
+fn outside_backticks(line: &str) -> String {
+    let mut kept = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(open) = rest.find('`') {
+        let Some(close) = rest[open + 1..].find('`') else {
+            break;
+        };
+        kept.push_str(&rest[..open]);
+        rest = &rest[open + 1 + close + 1..];
+    }
+    kept.push_str(rest);
+    kept
+}
+
 #[test]
 fn no_crate_the_server_links_writes_to_stdout() {
     let crates = crates_dir();
@@ -146,6 +163,11 @@ fn no_crate_the_server_links_writes_to_stdout() {
                 // and stderr is where logging is supposed to go — so the
                 // stderr macros come out before the line is searched at all.
                 let printing = code.replace("eprintln!(", "").replace("eprint!(", "");
+                // A backtick is no Rust token, so a span between two is prose
+                // inside a string, such as a reference card naming `stdout()`.
+                // A string that runs over several lines has no quote on its
+                // middle lines, so the span is the only mark of it there.
+                let printing = outside_backticks(&printing);
                 for writer in WRITERS {
                     if printing.contains(writer) && !exempt(&krate, writer) {
                         let path = from_the_root(&crates, &file);
