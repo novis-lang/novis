@@ -29,7 +29,7 @@ stages:
     context: [docs/reference/tools/25-server.md, docs/reference/README.md, crates/nvs-cli/src/agent.rs]
   - id: 7
     title: the website shows the deploy and development workflow, and lists the change
-    status: open
+    status: done
     context: [website/src/content/docs/guides/production/index.mdx, website/src/content/docs/guides/production/run-as-a-service.mdx, website/src/content/docs/guides/production/docker.mdx]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
@@ -378,15 +378,15 @@ written.
 
 ### 7. the website shows the deploy and development workflow, and lists the change
 
-- [ ] `website/src/content/docs/guides/production/deploy.mdx:1`: *Deploy a new version*, as § *Standing
+- [x] `website/src/content/docs/guides/production/deploy.mdx:1`: *Deploy a new version*, as § *Standing
   decisions* says, with its development and agent section.
-- [ ] `website/src/content/docs/guides/production/index.mdx`,
+- [x] `website/src/content/docs/guides/production/index.mdx`,
   `website/src/content/docs/guides/production/run-as-a-service.mdx` and
   `website/src/content/docs/guides/production/docker.mdx:69`: link to it, and `docker exec <c> nvs
   reload`.
-- [ ] `website/src/data/changes.json`: `new` `nvs reload`, `changed` the `on = "reload"` event, `new`
+- [x] `website/src/data/changes.json`: `new` `nvs reload`, `changed` the `on = "reload"` event, `new`
   the two log records.
-- [ ] Reread and stamp every page `bun nv site --check stale` names.
+- [x] Reread and stamp every page `bun nv site --check stale` names.
 
 ### 8. the goal is verified once, and every failure is fixed
 
@@ -399,31 +399,29 @@ written.
 
 ### State
 
-Stages 1 to 6 are done; `rules`, `endpoint`, `check-now`, `command`, `events`, `proofs` and
-`primer` are green on Windows. `# nvs reload` is in `docs/reference/tools/25-server.md` after
-`# What reaches a running server`, marked `<!-- primer -->`; the primer rule and
-`docs/reference/README.md` § *Marking a section for the primer* name it as a part the primer carries.
-The `primer` check ran `cargo test --lib`, which reaches no test of `nvs-cli` (a bin-only crate),
-so it now runs `cargo test --bin nvs`. The proofs are `docs/examples/tools/server/nvs-reload/` (about,
-a deploy script, an edit live at once with `revalidate_freq = "1h"`, and an `nvs.toml`), the attack
-`tests/hostile/tools/server/nvs-reload/01-*.nvs` with its `.nvsr`, and ten tests in
-`crates/nvs-cli/tests/reload_command.rs` marked `// covers: tools:server/nvs-reload`. The deploy
-example names `Core\Process::run('nvs', ['reload'])` in a comment and does not run it: no runner
-puts the binary under test on `PATH`. The schedule example, about and details name `programs` and
-`failed`. Every text changed is review-stamped, and `bun nv proofs --gate` owes nothing.
+Stages 1 to 7 are done; every check but `site-review` is green on Windows. The guide is
+`website/src/content/docs/guides/production/deploy.mdx`, in the sidebar after *Docker*, and linked
+from the production index, the service page and the Docker page (`docker exec <container> nvs
+reload`). The three `changes.json` entries all name `tools:server/nvs-reload`, because
+`directive:schedule` has not moved since v0.0.4 and the check refuses it. `bun nv render --website`
+added `/reference/cli/nvs-reload/`. The `on` diagnostic (`crates/nvs-config/src/schedule.rs:410`)
+names a program reload. The deploy page and `/reference/cli/nvs-reload/` have stamped questions.
 
-The nightly CI run the sweep listed (44722386375) is the same run the last five handoffs covered;
+The nightly CI run the sweep listed (44722386375) is the same run the last six handoffs covered;
 its failures were fixed after it, so no change was made for them.
 
-Expected red: `site-stale`, `site-changes` (stage 7) and `site-review` (stage 8).
+Expected red: `site-review` (stage 8). `bun nv site --check` is also red outside this goal:
+`questions` on `/`, `/in-depth/` and `/in-depth/compare/`, `prose` at `compare.mdx:258` and
+`roadmap` (`ci-green` in no theme). `site reference` names `/reference/cli/nvs-reload/` until the
+site is built again.
 
 ### Next
 
-Stage 7, the website. Write `website/src/content/docs/guides/production/deploy.mdx`, *Deploy a new
-version*, as § *Standing decisions* § *The website* says: switch `current`, run `nvs reload`, check
-its exit code (0, 1, 2 as in `docs/reference/tools/25-server.md` § *nvs reload*), migrations with
-`nvs run`, and a section for development and coding agents with `revalidate_freq = "1h"`. Link it
-from `index.mdx`, `run-as-a-service.mdx` and `docker.mdx:69` (`docker exec <c> nvs reload`). Add the
-three `changes.json` entries, then reread and stamp what `bun nv site --check stale` names.
+Stage 8, the close. Do the newcomer review (`docs/agent/prose.md` § *A newcomer reads it*) of
+`deploy.mdx`, `docker.mdx`, `index.mdx`, `run-as-a-service.mdx`, `changes.json` and
+`help:tools:server/what-reaches-a-running-server`, fix each finding, and stamp each with
+`bun nv site --review --stamp <key>`. Then close with what the pack names for this stage: a build
+and this goal's tests by name, or `looper verify` at a full gate. Run `bun nv owners --closes
+reload-now`, move any decision only this file holds into a rule or a module doc, and delete the file.
 
 ### Backlog
