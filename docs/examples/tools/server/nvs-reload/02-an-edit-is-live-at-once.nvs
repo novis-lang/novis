@@ -1,0 +1,14 @@
+<?nvs
+// Shows the setting for a project where you run `nvs reload` after each batch of edits.
+
+// `nvs.toml` beside this example sets `revalidate_freq` to `1h`.
+// The server then checks the files by itself once an hour. This prints `1h`.
+echo 'check the files every: ', Core\Config::get('opcache.revalidate_freq') ?? '(no value)', "\n";
+
+// This is an edit. After you save it, run `nvs reload`.
+// The command returns when the new code is compiled, and the next request runs it.
+string $page = Core\Path::join(Core\IO::temporaryDir(), 'hello.nvs');
+Core\IO::write($page, "<?nvs\necho 'Hello, version 2';\n");
+echo 'saved: ', Core\Path::basename($page), "\n";
+
+// If you forget `nvs reload`, the server still finds the edit within one hour.

@@ -1,0 +1,30 @@
+<?nvs
+// Shows a deploy script that copies a new release into place and then runs `nvs reload`.
+
+class Deploy
+{
+    // Returns what the deploy reports for each exit code of `nvs reload`.
+    public static function outcome(int $code): string
+    {
+        return match ($code) {
+            0 => 'live: every server runs the new release',
+            1 => 'not live: fix the errors that nvs reload printed',
+            2 => 'no server is running: the next start uses the new release',
+            default => 'nvs reload stopped with exit code ' . ($code as string),
+        };
+    }
+}
+
+// The deploy writes the files of the new release into the app folder.
+string $app = Core\Path::join(Core\IO::temporaryDir(), 'shop');
+Core\IO::makeDir($app);
+Core\IO::write(Core\Path::join($app, 'index.nvs'), "<?nvs\necho 'Shop, release 2';\n");
+echo 'copied: ', Core\Arr::count(Core\IO::list($app)), " file\n";
+
+// A real deploy then runs the command and reads its exit code:
+//     int $code = Core\Process::run('nvs', ['reload'])->exitCode();
+// No server runs this example, so it prints the report for each exit code.
+array<int> $codes = [0, 1, 2];
+foreach ($codes as int $code) {
+    echo $code, ' = ', Deploy::outcome($code), "\n";
+}

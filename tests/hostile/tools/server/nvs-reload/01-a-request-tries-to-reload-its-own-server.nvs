@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a request tries to make its own server reload. Only the account that runs the
+// server may do that, so every attempt below should fail.
+// Every error is caught, so each step after it still runs.
+
+// 1. List the folder where the server keeps its reload socket.
+try {
+    uint $names = Core\Arr::count(Core\IO::list('.nvsdata/run'));
+    echo 'list run folder:    reached, ', $names, " names\n";
+} catch (Throwable $refused) {
+    echo "list run folder:    refused\n";
+}
+
+// 2. Read the configuration in the data folder, to learn where the socket is.
+try {
+    string $config = Core\IO::read('.nvsdata/nvs.toml');
+    echo 'read data config:   reached, ', Core\Str::length($config), " characters\n";
+} catch (Throwable $refused) {
+    echo "read data config:   refused\n";
+}
+
+// 3. Connect to a guessed socket file in that folder.
+try {
+    Core\Net\Stream $socket = Core\Net::connectLocal('.nvsdata/run/serve.sock', 1s);
+    $socket->close();
+    echo "socket file:        reached\n";
+} catch (Throwable $refused) {
+    echo "socket file:        refused\n";
+}
+
+// 4. Open a guessed named pipe, the way the socket looks on Windows.
+try {
+    string $pipe = Core\IO::read('\\\\.\\pipe\\nvs-reload');
+    echo 'named pipe:         reached, ', Core\Str::length($pipe), " characters\n";
+} catch (Throwable $refused) {
+    echo "named pipe:         refused\n";
+}
+
+// 5. Open a TCP connection to the server's own port.
+try {
+    Core\Net\Stream $tcp = Core\Net::connect('127.0.0.1', 8000, 1s);
+    $tcp->close();
+    echo "tcp to own port:    reached\n";
+} catch (Throwable $refused) {
+    echo "tcp to own port:    refused\n";
+}
+
+// 6. Send an HTTP request to a reload path on the same server.
+try {
+    Core\Http\Response $response = Core\Http\Client::post('http://127.0.0.1:8000/reload', { body: '' });
+    echo 'http reload path:   reached, status ', $response->status(), "\n";
+} catch (Throwable $refused) {
+    echo "http reload path:   refused\n";
+}
+
+// 7. Run the `nvs reload` command itself.
+try {
+    int $code = Core\Process::run('nvs', ['reload'])->exitCode();
+    echo 'run nvs reload:     reached, exit code ', $code, "\n";
+} catch (Throwable $refused) {
+    echo "run nvs reload:     refused\n";
+}

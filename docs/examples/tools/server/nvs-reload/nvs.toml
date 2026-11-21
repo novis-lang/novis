@@ -1,0 +1,4 @@
+# The server checks the files of a program by itself only once an hour.
+# You run `nvs reload` after each batch of edits instead.
+[opcache]
+revalidate_freq = "1h"

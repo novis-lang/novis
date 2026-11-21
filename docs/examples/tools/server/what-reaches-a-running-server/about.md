@@ -4,8 +4,8 @@ configuration keys are the exception.
 The server checks the files of a program regularly, and `[opcache] revalidate_freq` sets how often.
 When a file changed, the server waits until the files stay unchanged for the time in
 `[opcache] settle`. It then compiles the whole program again, and the next request runs the new
-code. A request that is already running finishes on the old code. Run `nvs reload` to make the
-server check every file at once, without the wait. The command returns when the new code is live.
+code. A request that is already running finishes on the old code. `nvs reload` checks every file at
+once, without the wait.
 
 The server checks its configuration files every two seconds. When you save a file, the server reads
 and checks all of them, and then the next request uses the new values. The server writes each
@@ -16,5 +16,5 @@ keeps the configuration it has.
 restart.
 
 **Good to know:** when the new code does not compile, the requests that reach it fail with the
-compile error. The server does not run the older version. The requests work again after you fix the
+compile error. The requests work again after you fix the
 file.

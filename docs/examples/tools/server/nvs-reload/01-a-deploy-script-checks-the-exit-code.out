@@ -1,0 +1,4 @@
+copied: 1 file
+0 = live: every server runs the new release
+1 = not live: fix the errors that nvs reload printed
+2 = no server is running: the next start uses the new release
