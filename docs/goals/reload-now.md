@@ -33,7 +33,7 @@ stages:
     context: [website/src/content/docs/guides/production/index.mdx, website/src/content/docs/guides/production/run-as-a-service.mdx, website/src/content/docs/guides/production/docker.mdx]
   - id: 8
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: rules
@@ -390,38 +390,36 @@ written.
 
 ### 8. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of every page this goal changed ([prose.md](../agent/prose.md) § *A
+- [x] The newcomer review of every page this goal changed ([prose.md](../agent/prose.md) § *A
   newcomer reads it*).
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 7 are done; every check but `site-review` is green on Windows. The guide is
-`website/src/content/docs/guides/production/deploy.mdx`, in the sidebar after *Docker*, and linked
-from the production index, the service page and the Docker page (`docker exec <container> nvs
-reload`). The three `changes.json` entries all name `tools:server/nvs-reload`, because
-`directive:schedule` has not moved since v0.0.4 and the check refuses it. `bun nv render --website`
-added `/reference/cli/nvs-reload/`. The `on` diagnostic (`crates/nvs-config/src/schedule.rs:410`)
-names a program reload. The deploy page and `/reference/cli/nvs-reload/` have stamped questions.
+Every stage is done, and every check of this goal is green on Windows. The newcomer review covered
+the nine texts `bun nv site --review` listed: the help of
+`tools:server/what-reaches-a-running-server`, `deploy.mdx`, `docker.mdx`, the production index,
+`run-as-a-service.mdx`, `changes.json`, `compare.mdx`, `/in-depth/` and the home page. Each finding
+was fixed and each text stamped. The seven-sentence paragraph at `compare.mdx:258` was split, so
+`site prose` is green. The close ran `cargo build`, `cargo test --test reload_command` (18 passed),
+the primer test, `bun nv proofs --id tools:server/nvs-reload --gate`, `bun nv rules --check` and
+`bun nv site --check review stale changes prose`, all green. `bun nv owners --closes reload-now`
+names no gap. Every standing decision has its home in
+`rule:config/a-reload-command-checks-now-and-waits` or in the module docs of `reload_endpoint.rs`,
+`reload_cmd.rs`, `nvs_host::endpoint` and `script.rs`.
 
-The nightly CI run the sweep listed (44722386375) is the same run the last six handoffs covered;
-its failures were fixed after it, so no change was made for them.
+The nightly CI run the sweep listed (44722386375) is the run the last seven handoffs covered; its
+failures were fixed after it. This goal joins the chain's `ungated:` list, and the full gate runs
+at a later goal.
 
-Expected red: `site-review` (stage 8). `bun nv site --check` is also red outside this goal:
-`questions` on `/`, `/in-depth/` and `/in-depth/compare/`, `prose` at `compare.mdx:258` and
-`roadmap` (`ci-green` in no theme). `site reference` names `/reference/cli/nvs-reload/` until the
-site is built again.
+Expected red: none of this goal's. Outside it: `site --check questions` on `/`, `/in-depth/` and
+`/in-depth/compare/`, and `roadmap` (`ci-green` in no theme).
 
 ### Next
 
-Stage 8, the close. Do the newcomer review (`docs/agent/prose.md` § *A newcomer reads it*) of
-`deploy.mdx`, `docker.mdx`, `index.mdx`, `run-as-a-service.mdx`, `changes.json` and
-`help:tools:server/what-reaches-a-running-server`, fix each finding, and stamp each with
-`bun nv site --review --stamp <key>`. Then close with what the pack names for this stage: a build
-and this goal's tests by name, or `looper verify` at a full gate. Run `bun nv owners --closes
-reload-now`, move any decision only this file holds into a rule or a module doc, and delete the file.
+Nothing. The goal is reached, and the driver retires its file.
 
 ### Backlog
