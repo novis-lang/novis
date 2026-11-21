@@ -34,10 +34,13 @@ work in production with the default settings.
   no file has changed for 1 second. Then it switches to the whole new program at once, so a request
   never runs a mix of old and new files.
 - **A limit for each request.** Each request has its own memory limit and CPU time limit. A request
-  that goes over its limit is stopped, and the other requests are still answered.
+  that goes over its limit is stopped, and the other requests are still answered. This is a security
+  feature. One bad request, for example from an attacker, cannot stop the whole server.
 
 Bun, Go, Node.js, .NET and Python load new code only when they restart. Go and .NET also need a new
-build first. These five servers have no limit for one request.
+build first. These five servers also have no setting that limits the memory or CPU time of one
+request. One request can use all the memory or CPU time of the server, and the other requests can
+fail.
 [Deploying a new version](#deploying-a-new-version) and [Runaway requests](#runaway-requests) show
 what this changes.
 :::
