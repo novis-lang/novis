@@ -77,8 +77,9 @@ Each is here because not knowing it exists is the entire cost. The file named af
   "chain"`: the chain's last goal and every fifth goal take it, and the pack names which one you are
   in. That goal's gate stage runs the full gate once over every goal since the last one. Only when it
   is red, every failure it names is fixed in one pass and it runs again. Every other goal's gate stage only closes it, with
-  the build, clippy and the tests it wrote, by name. Its `DONE` runs its own checks, and it joins the
-  chain's `ungated:` list.
+  the build, clippy, the tests it wrote, by name, and `bun nv close --goal <slug>`, about three
+  minutes: `ci --check`'s checks of the tree's own files, the goal's owners and the proofs of every
+  feature its work reached. Its `DONE` runs its own checks, and it joins the chain's `ungated:` list.
 - **The full gate is `bun nv affected --run`.** It runs `bun nv verify` over what changed since the
   last green run, then the acceptance checks it reaches that are not green yet. In the loop, `looper
   verify` runs `bun nv verify` and joins a run already going ([commands.md](docs/agent/commands.md)
@@ -266,9 +267,9 @@ What a loop session owes on top of the block's § *Session workflow*:
   so the session picks the option the priority ordering favours and builds on it, as the block's step
   6 says. A change to the `Core` API, a new checker mechanism, a scheduler run-order change and a fix
   that breaks callers are all design calls.
-- **Before `DONE`, the goal-end gates.** Every goal runs `bun nv owners --closes <slug>` and closes
-  every gap it names or gives it another owner. It runs `bun nv proofs --gate --goal <slug>` and pays
-  every feature it names, whether the goal listed it or not. A reached goal's file is deleted, so first move each
+- **Before `DONE`, the goal-end gates.** Every goal runs `bun nv close --goal <slug>` and fixes each
+  red it names. Its `owners` closes every gap that names the goal or gives it another owner, and its
+  `goal proofs` pays every feature the goal's work reached, whether the goal listed it or not. A reached goal's file is deleted, so first move each
   decision only its prose holds to a rule or a module doc, and turn each check that proves more than a
   suite does into a test.
 - **Before a full gate's `DONE`, two more.** `bun nv verify --doc` and every broken doc link it names

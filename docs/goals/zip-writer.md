@@ -66,6 +66,11 @@ checks:
     name: "every feature the goal's work reaches has its feature proofs"
     run: [bun, nv, proofs, --gate, --goal, zip-writer]
     timeout: 600
+  - id: close
+    stage: 9
+    name: "the goal-end check is green: ci --check's checks of the tree's files, the owners and the goal's proofs"
+    run: [bun, nv, close, --goal, zip-writer]
+    timeout: 900
 ---
 
 # a program writes zip archives as a stream, and reads one entry as a stream

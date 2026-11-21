@@ -641,6 +641,9 @@ work out again. How a goal is written in full is [loop-authoring.md](loop-author
   changed (`tools/nv/proofs/since.ts`): every member of a new class, and every feature whose code
   moved. A list written before the code exists misses them. A goal that moves no feature has no such
   check.
+- **Every goal's gate stage has the check `close`**, with `run: [bun, nv, close, --goal, <slug>]` and
+  `timeout: 900`. It is the goal-end check (`tools/nv/cmd/close.ts`), so looper runs it when the goal
+  only closes. The goal that takes the full gate has it too, beside the full gate's wider checks.
 - **A stage names its split.** A `**Split:**` paragraph after the `**Does:**` one says what goes to
   subagents: the searches, and the batches of similar files (pages, examples, attacks, `.lspt` cases,
   fixtures) that writing subagents produce. Writing subagents whose files are disjoint run side by side

@@ -657,6 +657,7 @@ bun nv ci --release-status                            # the newest completed Rel
 bun nv ci --approve-release | --publish-release       # approves the waiting real run, then publishes its whole draft
 bun nv ci --release-published                         # the newest release: published, tag on main, images promoted and public
 bun nv debt                                           # pays the floor debt: the floor check `floor-debt`
+bun nv close --goal <slug>                            # the goal-end check, about three minutes: every goal's check `close`
 
 bun nv valgrind --nvs <binary> [<file>...]            # every examples/ program under memcheck, on Linux: CI's nightly `valgrind` job
 bun nv linux-test --test <name> [<filter>]            # one filtered cargo test on a Linux build, inside WSL
