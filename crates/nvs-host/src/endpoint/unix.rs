@@ -175,20 +175,11 @@ fn peer_uid(stream: &UnixStream) -> io::Result<libc::uid_t> {
 mod tests {
     use super::*;
     use std::io::{BufRead, BufReader, Write};
-    use std::path::PathBuf;
-
-    /// A fresh, short folder under the temp dir, so the socket path fits `sun_path`.
-    fn scratch(tag: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("nvep-{tag}-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
-        dir
-    }
 
     #[test]
     fn a_line_goes_both_ways_through_the_socket() {
-        let dir = scratch("rt");
-        let path = dir.join("s");
+        // `nvs_repo::socket` stops the test when the path is too long for `sun_path`.
+        let (dir, path) = nvs_repo::socket("s");
         let listener = bind(&path, &dir.join("s.new")).unwrap();
         assert!(!dir.join("s.new").exists());
         let mode = path.symlink_metadata().unwrap().permissions().mode() & 0o777;
@@ -208,27 +199,22 @@ mod tests {
         reader.read_line(&mut line).unwrap();
         assert_eq!(line, "pong\n");
         server.join().unwrap();
-        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
     fn binding_over_an_existing_path_is_already_exists() {
-        let dir = scratch("ex");
-        let path = dir.join("s");
+        let (dir, path) = nvs_repo::socket("s");
         std::fs::write(&path, b"").unwrap();
         let err = bind(&path, &dir.join("s.new")).err().unwrap();
         assert_eq!(err.kind(), io::ErrorKind::AlreadyExists);
         assert!(!dir.join("s.new").exists());
-        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
     fn connecting_to_a_regular_file_is_stale() {
-        let dir = scratch("st");
-        let path = dir.join("s");
+        let (_dir, path) = nvs_repo::socket("s");
         std::fs::write(&path, b"").unwrap();
         let err = connect(&path).err().unwrap();
         assert!(super::super::is_stale(&err), "{err:?}");
-        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
