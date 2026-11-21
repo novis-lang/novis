@@ -33,6 +33,13 @@ const HOURLY: &str = "[opcache]\nvalidate = \"hash\"\nrevalidate_freq = \"1h\"\n
 /// The program every case starts with.
 const PLAIN: &str = "<?nvs\necho \"ok\";\n";
 
+/// A private data folder for a server, named so its endpoint fits a socket path on every runner.
+/// The endpoint is `run/serve-<pid>-<ms>`, bound under a `.new` name first. A macOS socket path
+/// is at most 103 bytes, so the folder's own name is one letter.
+fn data_folder() -> nvs_repo::Scratch {
+    nvs_repo::scratch_private_for_socket("d", "run/serve-99999-1700000000000.new")
+}
+
 /// What an event case adds to its `nvs.toml`: scripts under `jobs/` that may write there, and an
 /// `on = "reload"` entry that runs [`RECORDING`].
 const ON_RELOAD: &str = "\n[capabilities.script]\nspawn = [\"jobs/\"]\n\n\
@@ -65,7 +72,7 @@ impl Served {
     /// Starts the server over [`PLAIN`] and `config` in a fresh directory named for `case`.
     /// `before` runs on the data folder first.
     fn start_with(case: &str, config: &str, before: impl FnOnce(&Path)) -> Self {
-        let data = nvs_repo::scratch_private("nvsdata");
+        let data = data_folder();
         before(&data);
         Self::launch(case, config, &[], Arc::new(data))
     }
@@ -73,7 +80,7 @@ impl Served {
     /// Starts the server over [`PLAIN`], `config` with [`ON_RELOAD`] after it, and
     /// `jobs/redeploy.nvs`, in a fresh directory named for `case`.
     fn start_recording(case: &str, config: &str) -> Self {
-        let data = nvs_repo::scratch_private("nvsdata");
+        let data = data_folder();
         Self::launch(
             case,
             &format!("{config}{ON_RELOAD}"),

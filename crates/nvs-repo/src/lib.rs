@@ -260,6 +260,25 @@ pub fn scratch_private(name: &str) -> Scratch {
     Scratch { path, root }
 }
 
+/// As [`scratch_private`], for a test whose program binds a Unix socket at `inside`, a relative
+/// path under the directory such as `run/serve-12345-1700000000000.new`. Give `name` few bytes:
+/// the socket path is the checkout's path, `target/test-scratch/<name>-<pid>-<n>/case/` and
+/// `inside`, and macOS binds at most 103 bytes of it.
+///
+/// # Panics
+///
+/// As [`scratch_private`], and on Unix if the socket path is longer than a socket path may be
+/// there. That message names the limit: the fix is a checkout at a shorter path.
+#[must_use]
+pub fn scratch_private_for_socket(name: &str, inside: &str) -> Scratch {
+    let scratch = scratch_private(name);
+    #[cfg(unix)]
+    fits_a_socket(&scratch.path.join(inside));
+    #[cfg(not(unix))]
+    let _ = inside;
+    scratch
+}
+
 /// The longest socket path the platform binds, counted in bytes: `sun_path` is 108 bytes on
 /// Linux and 104 on macOS and the BSDs, and one of them is the terminating NUL.
 #[cfg(any(target_os = "linux", target_os = "android"))]
