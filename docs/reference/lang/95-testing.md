@@ -472,9 +472,12 @@ needs none is written as plain `#[Test]`.
 at one instant, so a test of dates and times reads the same time on every run. `Core\Test::advance`
 moves that fixed clock forward. `seed:` fixes the numbers `Core\Random` draws, so the test draws the
 same sequence on every run. `retries:` allows more attempts after a failure, and needs `because:`
-beside it to state why. A test that fails and then passes is reported as flaky, never as passed.
+beside it to state why. A test that fails and then passes on a retry is reported as flaky. A flaky
+test is not counted as passed.
 `timeout:` gives one test its own time limit. `tags:` labels a test, and `nvs test --tag` runs only the
-tests with that label.
+tests with that label. `env:` sets environment variables, such as `['API_KEY' => 'test']`, for this
+test. They also reach each request the test sends with `Core\Test::request` and each program it
+runs with `Core\Test::run`.
 
 **Good to know:** an option with a wrong name does not compile, so a typo is found before the tests
 run.
