@@ -125,7 +125,7 @@ class RealMailAttack
     }
 }
 
-// A request to `/many` sends a thousand messages. A run calls the command its words name.
+// A request to `/many` sends a thousand messages. A run calls the command named by its first argument.
 if (Core\Env::context() == Core\Env::Context::Request) {
     uint $i = 0;
     while ($i < 1000) {

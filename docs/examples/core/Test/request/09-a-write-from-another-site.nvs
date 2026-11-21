@@ -8,8 +8,8 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. It saves the comment.
     echo 'saved';
 } else {
-    // `origin` names the site of the form. It is this site and scheme, so the
-    // program saves the comment. This prints `200 saved`.
+    // The browser sends the `origin` header. It names the site that sent the form.
+    // Here it is the same site, so the program saves the comment. This prints `200 saved`.
     var $same = Test::request(Method::Post, '/comments', {
         scheme: 'https',
         headers: ['host' => 'blog.example.com', 'origin' => 'https://blog.example.com'],

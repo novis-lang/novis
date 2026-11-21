@@ -24,7 +24,7 @@ class Retry
         return Time::now()->compareTo($this->nextTry) >= 0;
     }
 
-    // Starts the next wait, and makes the wait after it twice as long.
+    // Sets the time of the next try, and doubles the wait for the failure after it.
     public function failed(): void
     {
         $this->nextTry = Time::now()->plus($this->wait);
@@ -46,7 +46,7 @@ class RetryTest
         Test::advance(1s);
         Test::assertTrue($retry->canTry());
 
-        // After the second failure, it waits 2 seconds. One second is not enough.
+        // After the second failure, it waits 2 seconds. After 1 second, it cannot try yet.
         $retry->failed();
         Test::advance(1s);
         Test::assertSame($retry->canTry(), false);

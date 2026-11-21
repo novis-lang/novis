@@ -145,11 +145,12 @@ pub(crate) const SENT_MAIL: CoreClass = CoreClass {
 /// `Core\Test::logs`'s reference card — `rule:core-api/reference-card`.
 pub(crate) const LOGS_DOC: MethodDoc = MethodDoc {
     short: "Returns every log record written since this test started. This includes the records \
-            of every request and run the test made. The records also go to the `[log] target`, as \
-            they do outside a test.",
+            of every request and run the test made. Each record in the list is also written to \
+            the `[log] target`, the same as outside a test.",
     params: &[],
     ret: "One `Core\\Test\\LogRecord` for each call to `Core\\Log::write`, in the order written. A \
-          record below `[log] level` is not written, so it is not in the list. The list is empty \
+          record below `[log] level` is not written anywhere, so it is not in the list either. \
+          The list is empty \
           when nothing was written.",
     errors: &[],
 };
@@ -194,7 +195,7 @@ const FIELDS_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "The `$fields` given to `Core\\Log::write`, in the order given, as they look in a JSON \
           log line. A string, a \
-          number, a `bool` and `null` are the same. A value JSON cannot contain, such as `bytes`, \
+          number, a `bool` and `null` keep their value. A value JSON cannot contain, such as `bytes`, \
           is the text the log wrote for it. The array is empty when the record has no fields.",
     errors: &[],
 };
