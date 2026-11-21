@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-stdlib/src/command.rs, crates/nvs-stdlib/src/cli.rs, crates/nvs-stdlib/src/io.rs, crates/nvs-cli/src/main.rs]
   - id: 7
     title: "#[Test(env:)], Core\\Test::logs and Core\\Test::sentMail"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/capability.rs, crates/nvs-stdlib/src/log.rs, crates/nvs-stdlib/src/mail.rs]
   - id: 8
     title: the feature proofs and the help of every new member and option
@@ -410,15 +410,15 @@ outcome type exists; the session writes the run path.
   `array<string>`, and carried to the test's isolate and every child.
 - [x] `crates/nvs-runtime/src/capability.rs:1826`: `env_var` and `env_vars` read the test's
   variables first.
-- [ ] `crates/nvs-stdlib/src/log.rs:229`: a record is kept for `Core\Test::logs` in a test and its
+- [x] `crates/nvs-stdlib/src/log.rs:229`: a record is kept for `Core\Test::logs` in a test and its
   children, and `Core\Test\LogRecord` with its three members.
-- [ ] `crates/nvs-stdlib/src/mail.rs:1173`: under `nvs test`, `send` keeps the message and opens no
+- [x] `crates/nvs-stdlib/src/mail.rs:1173`: under `nvs test`, `send` keeps the message and opens no
   connection, and `Core\Test::sentMail` with `Core\Test\SentMail`.
-- [ ] `crates/nvs-cli/tests/test_reach.rs`: the six `records` tests.
+- [x] `crates/nvs-cli/tests/test_reach.rs`: the six `records` tests.
   - [x] the two `env` tests, in `crates/nvs-cli/tests/fixtures/reach/records.nvs`
-  - [ ] the two `logs` tests
-  - [ ] the two `mail` tests
-  - [ ] `a-test-reads-its-logs-and-mail` set to `shipped`, and the `records` check run by name
+  - [x] the two `logs` tests
+  - [x] the two `mail` tests
+  - [x] `a-test-reads-its-logs-and-mail` set to `shipped`, and the `records` check run by name
 
 ### 8. the feature proofs and the help of every new member and option
 
@@ -460,35 +460,36 @@ outcome type exists; the session writes the run path.
 
 ### State
 
-Stage 6 is done: the `run` check is green, and `a-test-runs-a-command` is `shipped`. Its fixture's
-entry gives `exit` its status as `$status as int`.
+Stages 1 to 7 are done, and every code check (`peer` to `records`) is green. What is left is
+documentation: the proofs, the help and the website.
 
-Stage 7's `env:` is built and committed. `#[Test(env: ['NAME' => 'value'])]` is a row of
-`nvs_types::testing::OPTIONS`, and `check_option_values` refuses a key that is not a variable name
-with `E0880` (a list without keys included). `Ctx::test_env` is an `Rc<[(String, String)]>`,
-shared by `Ctx::child`, armed in the test's isolate by `env_of` in `crates/nvs-cli/src/runner.rs`,
-and handed to each `answer` and `run` child, which run on the test's thread. `capability::env_var`
-and `env_vars` read it first. The two `env` tests in `test_reach.rs` pass by name, over
-`fixtures/reach/records.nvs`. `derive.rs` documents the field for the `#[Test]` help.
+Stage 7 landed in `41abf24364`. `nvs_runtime::test_records::TestRecords` is one store of log
+records and mail per test, on `Ctx::test_records`, shared by `Ctx::child` and handed to each
+`answer` and `run` child in `crates/nvs-cli/src/runner.rs` beside `test_env`. The suite's context
+gets a store too, so a class hook's mail is never sent. `Core\Log::write` keeps a record after the
+`[log] level` filter and before the repeat bound, as its level name, message and fields' JSON text.
+`Core\Mail::send` checks the grant, the block and every address, then keeps the message and
+returns. `Core\Test\LogRecord` and `Core\Test\SentMail` are in `crates/nvs-stdlib/src/test/records.rs`.
+The fixture moved to `crates/nvs-cli/tests/fixtures/reach/records/`, with an `nvs.toml` naming a
+`[mail.relay]` on port 1 that nothing listens on. `a-test-reads-its-logs-and-mail` is `shipped`.
 
-Stages 1 to 5 are done. At the gate, a test whose `Core\Task::all` child relied on the real clock,
-or that timed a sleep under `at:`, may go red, and so may a test that lists `#[Test]`'s options or
-fields, since `env` is now one. Nightly 44894790665's Miri timeout predates `156f11a7ca`, which
-fixed it.
+At the gate, these may go red: a test whose `Core\Task::all` child relied on the real clock or
+timed a sleep under `at:`; a test that lists `#[Test]`'s options (`env` is new); a test that lists
+`Core\Test`'s members or the `Core` class roster (`logs`, `sentMail`, `LogRecord`, `SentMail` are
+new; `run`, `logs` and `sentMail` joined `asserting_members`' exclusions in `test.rs`); and any
+existing test that calls `Core\Mail::send` under `nvs test` expecting a connection or its error.
+Nightly 44894790665's Miri timeout predates `156f11a7ca`, which fixed it.
 
 ### Next
 
-Stage 7's logs and mail, in `records.nvs` and `test_reach.rs`. The records ride beside `env` on
-the same shared state: the test, its requests and its runs all run on the test's thread, so one
-`Rc<RefCell<..>>` on `Ctx`, cloned the way `test_env` is (`ctx/isolate.rs` `child`, the two
-children in `runner.rs`), holds both lists. A record's `fields` cannot carry a request's values
-into the test's isolate. Keep each field as the text `[log]` writes for it, and build the
-`array<mixed>` from that text when `Core\Test::logs` is called. `crates/nvs-stdlib/src/log.rs:229`
-is where a record is written. `crates/nvs-stdlib/src/mail.rs:1173` is `send`: under a test context
-(`Ctx::owned_by_test`, or the shared state being present), keep the message and open no
-connection. Add `Core\Test\LogRecord` and `Core\Test\SentMail` beside `test/run.rs`, registered
-as `RunResult` is. Then the four tests the `records` check names, set
-`a-test-reads-its-logs-and-mail` to `shipped` with `bun nv rules --render`, run the check by name,
-and mark stage 7 done.
+Stage 8, the feature proofs, as its `**Split:**` line says: the session writes the
+`Core\Test::request` ones (`docs/examples/core/Test/request/about.md:1`), and three writing
+subagents write `Core\Test::run`, `Core\Test::logs` and `Core\Test::sentMail` side by side. Start
+with `bun nv proofs --id '<feature>'` for each, which prints what it owes and each path. The
+reference cards are already in the binary: `RUN_DOC` in `crates/nvs-stdlib/src/test/run.rs`, and
+`LOGS_DOC`, `SENT_MAIL_DOC` and both class cards in `crates/nvs-stdlib/src/test/records.rs`. A
+`sentMail` example needs an `nvs.toml` with a `[mail.<name>]` block and `[capabilities.mail] send`,
+as `crates/nvs-cli/tests/fixtures/reach/records/nvs.toml` has. Then `bun nv proofs --comments`
+over every new `.nvs`, and the four `proofs` checks by name.
 
 ### Backlog
