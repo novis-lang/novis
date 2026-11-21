@@ -114,7 +114,7 @@ use crate::definition::{
     FileScope, Target, attribute_uses, body_of, covers, named_at, paired, supertype_names,
     target_of, text_of, written_types_in,
 };
-use crate::disk_index::{self, Stamp};
+use crate::disk_index::{self, Input, Stamp};
 use crate::document::{Analysed, Documents, Entry, Reads, Work, analyse_through};
 use crate::session::Session;
 
@@ -465,6 +465,26 @@ pub struct SymbolIndex {
     /// flight, with the counter it moved to. A result that read one of them
     /// after its job was sent is stale. Cleared once no entry waits.
     changed: FxHashMap<PathBuf, u64>,
+    /// Every configuration input of the entries' directories
+    /// (`crate::tree_cache::inputs`), as it was when the index was planned or
+    /// loaded. A directory found later adds its inputs as they are then.
+    /// [`save_to`](Self::save_to) writes them, and a load that finds one
+    /// changed discards the file. One path and one digest per input, usually
+    /// one `nvs.toml` per directory.
+    inputs: BTreeMap<PathBuf, Input>,
+}
+
+/// How a load decides that an indexed file still has the text its entry was
+/// built from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Check {
+    /// A matching size and modification time is trusted, and only another
+    /// file is read and hashed. The editor checks this way, since a stale
+    /// answer there lasts one keystroke.
+    Stamp,
+    /// Every file is read and hashed. `nvs code` checks this way, since its
+    /// answer must never be stale.
+    Content,
 }
 
 /// Where one entry of a file's list is: the file's key and the entry's position
@@ -505,10 +525,15 @@ impl SymbolIndex {
 
     /// [`planned`](Self::planned) over a tree [`tree`] already walked.
     pub(crate) fn planned_tree(tree: Vec<(PathBuf, i32)>) -> Self {
-        Self {
+        let mut index = Self {
             pending: tree.into_iter().map(|(path, _)| path).collect(),
             ..Self::default()
-        }
+        };
+        add_inputs(
+            &mut index.inputs,
+            index.pending.iter().map(PathBuf::as_path),
+        );
+        index
     }
 
     /// [`planned`](Self::planned), with every entry of the index file at
@@ -541,18 +566,38 @@ impl SymbolIndex {
         root: Option<&Path>,
         path: &Path,
     ) -> Self {
-        Self::load_from_tree(documents, scope, root, path, tree(documents, scope, root))
+        let tree = tree(documents, scope, root);
+        Self::load_from_tree(documents, scope, root, path, tree, Check::Stamp)
     }
 
-    /// [`load_from`](Self::load_from) over a tree [`tree`] already walked.
+    /// [`load_from`](Self::load_from) at `Workspace` scope, with every
+    /// indexed file read and hashed ([`Check::Content`]) on one thread per
+    /// core. A matching size and modification time is never trusted, so no
+    /// entry is kept whose file changed. This is the load `nvs code` makes.
+    #[must_use]
+    pub fn load_by_content(documents: &Documents, root: &Path, path: &Path) -> Self {
+        let tree = tree(documents, CheckScope::Workspace, Some(root));
+        Self::load_from_tree(
+            documents,
+            CheckScope::Workspace,
+            Some(root),
+            path,
+            tree,
+            Check::Content,
+        )
+    }
+
+    /// [`load_from`](Self::load_from) over a tree [`tree`] already walked,
+    /// checking each file as `check` says.
     pub(crate) fn load_from_tree(
         documents: &Documents,
         scope: CheckScope,
         root: Option<&Path>,
         path: &Path,
         tree: Vec<(PathBuf, i32)>,
+        check: Check,
     ) -> Self {
-        match Self::loaded(documents, scope, root, path, &tree) {
+        match Self::loaded(documents, scope, root, path, &tree, check) {
             Some(index) => index,
             None => Self::planned_tree(tree),
         }
@@ -565,6 +610,7 @@ impl SymbolIndex {
         root: Option<&Path>,
         path: &Path,
         tree: &[(PathBuf, i32)],
+        check: Check,
     ) -> Option<Self> {
         let root = root.filter(|_| scope == CheckScope::Workspace)?;
         let stamp = nvs_config::cache::build_stamp()?;
@@ -572,17 +618,36 @@ impl SymbolIndex {
         let saved = disk_index::decode(&bytes, stamp, &canonical_key(root))?;
         drop(bytes);
 
+        // Every configuration input the saved entries' directories have now
+        // must be recorded with the same content. A new include, a new
+        // `nvs.toml`, another data folder or an edited `.nvsx` discards the
+        // whole file.
+        let mut inputs = BTreeMap::new();
+        add_inputs(
+            &mut inputs,
+            saved.reads.iter().map(|(entry, _)| entry.as_path()),
+        );
+        let recorded: BTreeMap<PathBuf, Input> = saved.inputs.into_iter().collect();
+        if inputs
+            .iter()
+            .any(|(input, now)| recorded.get(input) != Some(now))
+        {
+            return None;
+        }
+
         let started = SystemTime::now();
         let mut index = Self {
             reads: saved.reads.into_iter().collect(),
+            inputs,
             ..Self::default()
         };
         let mut stale = BTreeSet::new();
         let mut moved = Vec::new();
         let mut gone = Vec::new();
         let mut restamped = false;
-        for (key, mut indexed) in saved.files {
-            match freshness(&key, &indexed, started) {
+        let fresh = freshen(&saved.files, started, check);
+        for ((key, mut indexed), fresh) in saved.files.into_iter().zip(fresh) {
+            match fresh {
                 Freshness::Same => {}
                 Freshness::Restamped(stamp) => {
                     indexed.stamp = stamp;
@@ -619,15 +684,37 @@ impl SymbolIndex {
         for key in &gone {
             stale.remove(key);
         }
+        // An entry point the walk no longer selects, such as a file an ignore
+        // file now names, indexes nothing in a cold build. The files it
+        // indexed leave with it, and every entry point that read one of them
+        // waits, so the first of them in path order indexes it again.
+        let selected: BTreeSet<&Path> = tree.iter().map(|(entry, _)| entry.as_path()).collect();
+        let unselected: Vec<PathBuf> = index
+            .reads
+            .keys()
+            .filter(|entry| !selected.contains(entry.as_path()))
+            .cloned()
+            .collect();
+        let orphaned = index.drop_owned(&unselected);
+        for key in &orphaned {
+            stale.extend(index.readers_of(key));
+        }
+        for entry in &unselected {
+            stale.remove(entry);
+        }
         index.pending = stale;
         for (entry, _) in tree {
             if !index.files.contains_key(entry) {
                 index.pending.insert(entry.clone());
             }
         }
+        add_inputs(
+            &mut index.inputs,
+            tree.iter().map(|(entry, _)| entry.as_path()),
+        );
         // The index now says what the file says, except where a stamp moved
         // or a file left.
-        index.generation = u64::from(restamped || !gone.is_empty());
+        index.generation = u64::from(restamped || !gone.is_empty() || !orphaned.is_empty());
         Some(index)
     }
 
@@ -649,9 +736,14 @@ impl SymbolIndex {
         let refused = |why: &str| std::io::Error::new(std::io::ErrorKind::Unsupported, why);
         let stamp = nvs_config::cache::build_stamp()
             .ok_or_else(|| refused("this build cannot identify itself"))?;
+        // An entry whose directory the index found after it was planned
+        // records that directory's inputs as they are now.
+        let mut inputs = self.inputs.clone();
+        add_inputs(&mut inputs, self.reads.keys().map(PathBuf::as_path));
         let bytes = disk_index::encode(
             self.files.iter(),
             self.reads.iter(),
+            inputs.iter(),
             stamp,
             &canonical_key(root),
         )
@@ -855,6 +947,14 @@ impl SymbolIndex {
         } else {
             crate::workers::Pool::new(count)
         });
+    }
+
+    /// Stops the workers and waits for each to end. Every entry that still
+    /// waits is settled on the caller's thread from now on.
+    pub fn stop_workers(&mut self) {
+        if let Some(mut pool) = self.workers.take() {
+            pool.stop();
+        }
     }
 
     /// How many worker threads run now. A settled index has none.
@@ -1937,16 +2037,67 @@ enum Freshness {
     Gone,
 }
 
+/// Adds to `inputs` the configuration inputs of each directory of `entries`
+/// that it does not cover yet, with what each is now. A directory is covered
+/// once its `nvs.toml` is among the inputs, present or absent.
+fn add_inputs<'a>(inputs: &mut BTreeMap<PathBuf, Input>, entries: impl Iterator<Item = &'a Path>) {
+    let dirs: BTreeSet<&Path> = entries
+        .filter_map(Path::parent)
+        .filter(|dir| !inputs.contains_key(&dir.join(nvs_config::resolve::LOCAL_FILE)))
+        .collect();
+    if dirs.is_empty() {
+        return;
+    }
+    let data = nvs_config::data::config_file();
+    for input in crate::tree_cache::inputs(dirs.into_iter(), data.as_deref()) {
+        let now = Input::of(&input);
+        inputs.entry(input).or_insert(now);
+    }
+}
+
+/// [`freshness`] of every file in `files`, in order, on one thread per core.
+///
+/// Each thread takes one run of the files in order, so the result is the
+/// serial one. Reading and hashing every file of a large tree is most of a
+/// load by content, and the threads end before this returns.
+fn freshen(files: &[(PathBuf, Indexed)], started: SystemTime, check: Check) -> Vec<Freshness> {
+    let threads = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+    let run = files.len().div_ceil(threads).max(1);
+    std::thread::scope(|scope| {
+        let parts: Vec<_> = files
+            .chunks(run)
+            .map(|part| {
+                scope.spawn(move || {
+                    let fresh: Vec<Freshness> = part
+                        .iter()
+                        .map(|(key, indexed)| freshness(key, indexed, started, check))
+                        .collect();
+                    nvs_runtime::budget::release_pooled_blocks();
+                    fresh
+                })
+            })
+            .collect();
+        parts
+            .into_iter()
+            .flat_map(|part| match part.join() {
+                Ok(fresh) => fresh,
+                Err(panic) => std::panic::resume_unwind(panic),
+            })
+            .collect()
+    })
+}
+
 /// Whether the file at `key` still has the text `indexed` was built from.
-/// `started` is when the load began, which [`Stamp::of`] needs.
-fn freshness(key: &Path, indexed: &Indexed, started: SystemTime) -> Freshness {
+/// `started` is when the load began, which [`Stamp::of`] needs. Under
+/// [`Check::Content`] the file is always read and hashed.
+fn freshness(key: &Path, indexed: &Indexed, started: SystemTime, check: Check) -> Freshness {
     let Ok(metadata) = std::fs::metadata(key) else {
         return Freshness::Gone;
     };
     if !metadata.is_file() {
         return Freshness::Gone;
     }
-    if indexed.stamp.is_some_and(|stamp| stamp.matches(&metadata)) {
+    if check == Check::Stamp && indexed.stamp.is_some_and(|stamp| stamp.matches(&metadata)) {
         return Freshness::Same;
     }
     let Ok(bytes) = std::fs::read(key) else {

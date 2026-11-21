@@ -867,7 +867,7 @@ mod work_per_file {
 
     /// The `ledger` fixture as `shop.nvsx` in `dir`, and the `nvs.toml` text
     /// that pins it (`tests/extensions.rs` reads the same fixture).
-    fn ledger(dir: &TempDir) -> String {
+    pub(super) fn ledger(dir: &TempDir) -> String {
         let fixture = nvs_repo::path("tests/conformance/ext/fixtures/ledger");
         let manifest = fs::read(fixture.join("manifest.json")).expect("the fixture's manifest");
         let receipt = fs::read_to_string(fixture.join("source/Ledger/Receipt.nvs.src"))
@@ -910,5 +910,294 @@ mod work_per_file {
         assert!(pins(&documents), "the next analysis reads the pinned set");
         dir.write("nvs.toml", "# No extension is pinned now.\n");
         assert!(!pins(&documents), "and the one after reads it unpinned");
+    }
+}
+
+/// `nvs code`'s load: every indexed file and every configuration input is
+/// checked by its content, so a loaded index answers as a cold build does
+/// after every kind of edit (`rule:ide/the-index-is-incremental-and-persistent`).
+///
+/// Each step runs [`nvs_lsp::workspace_from`] as two `nvs code` calls do: it
+/// loads the file the step before saved, settles, and saves again. Its index
+/// is compared with [`nvs_lsp::workspace`]'s, which reads no file.
+mod never_stale {
+    use nvs_lsp::Workspace;
+
+    use super::*;
+
+    /// Library class `n` of four. `next` calls the following class's
+    /// `value`, and `value` and `twice` have names of one length, so an edit
+    /// from one call to the other keeps the file's size.
+    fn part(n: usize) -> String {
+        let next = (n + 1) % 4;
+        format!(
+            "<?nvs\nnamespace Framework;\n\nclass Part{n}\n{{\n    \
+             public function value(int $n): int\n    {{\n        return $n + {n};\n    }}\n\n    \
+             public function twice(int $n): int\n    {{\n        return $n * 2;\n    }}\n\n    \
+             public function next(int $n): int\n    {{\n        Part{next} $other = new Part{next}();\n        \
+             return $other->value($n);\n    }}\n}}\n"
+        )
+    }
+
+    /// A tree with an empty `nvs.toml`, a library of four classes under
+    /// `lib/Framework/`, and two programs, `Blog` and `Shop`, that each
+    /// autoload it and their own `src/Home.nvs`. `start.nvs` beside
+    /// `nvs.toml` and `tools/script.nvs` are programs of one file.
+    fn tree(name: &str) -> TempDir {
+        let dir = temp(name);
+        dir.write("nvs.toml", "");
+        for n in 0..4 {
+            dir.write(&format!("lib/Framework/Part{n}.nvs"), &part(n));
+        }
+        for (at, name) in ["Blog", "Shop"].into_iter().enumerate() {
+            dir.write(
+                &format!("{name}/main.nvs"),
+                &format!(
+                    "<?nvs\nautoload 'Framework' from '../lib/Framework';\n\
+                     autoload '{name}' from './src';\n\nuse {name}\\Home;\n\n\
+                     Home $home = new Home();\necho $home->total(3), \"\\n\";\n"
+                ),
+            );
+            dir.write(
+                &format!("{name}/src/Home.nvs"),
+                &format!(
+                    "<?nvs\nnamespace {name};\n\nuse Framework\\Part{at};\n\n\
+                     class Home\n{{\n    public function total(int $n): int\n    {{\n        \
+                     Part{at} $part = new Part{at}();\n        return $part->next($n);\n    }}\n}}\n"
+                ),
+            );
+        }
+        dir.write("start.nvs", "<?nvs\necho 1, \"\\n\";\n");
+        dir.write(
+            "tools/script.nvs",
+            "<?nvs\nclass Script\n{\n    public function run(): int\n    {\n        return 1;\n    }\n}\n",
+        );
+        dir
+    }
+
+    /// The index file of `dir`. It is not a `.nvs` file, so the tree does not
+    /// hold it.
+    fn index_file(dir: &TempDir) -> PathBuf {
+        dir.at("index/root.idx")
+    }
+
+    /// `nvs code`'s workspace over `dir`: loaded from its index file, settled
+    /// and saved.
+    fn loaded(dir: &TempDir) -> Workspace {
+        nvs_lsp::workspace_from(dir.root(), Some(&index_file(dir)))
+    }
+
+    /// Every field the index holds for each file, in path order, and which
+    /// entry points read it.
+    fn rendered(index: &SymbolIndex) -> Vec<String> {
+        let mut lines: Vec<String> = index
+            .files()
+            .map(|file| {
+                format!(
+                    "{}\n  declarations {:?}\n  occurrences {:?}\n  requests {:?}\n  readers {:?}",
+                    file.display(),
+                    index.declarations_in(file),
+                    index.occurrences_in(file),
+                    index.requests_in(file),
+                    index.readers(file),
+                )
+            })
+            .collect();
+        lines.extend(
+            index
+                .sole_kinds()
+                .map(|(file, kind)| format!("{} is {kind:?}", file.display())),
+        );
+        lines.sort();
+        lines.push(format!("{} with errors", index.files_with_errors()));
+        lines
+    }
+
+    /// Asserts that the loaded index of `dir` holds what a cold build holds,
+    /// after the edit `step` names, and returns the loaded workspace.
+    fn agrees(dir: &TempDir, step: &str) -> Workspace {
+        let loaded = loaded(dir);
+        let cold = nvs_lsp::workspace(dir.root());
+        assert_eq!(
+            rendered(loaded.index()),
+            rendered(cold.index()),
+            "after {step}, the loaded index differs from a cold build"
+        );
+        loaded
+    }
+
+    /// Whether any file of `index` has a use of `symbol`.
+    fn uses(index: &SymbolIndex, symbol: &str) -> bool {
+        index.files().any(|file| {
+            index
+                .occurrences_in(file)
+                .iter()
+                .any(|used| used.symbol == symbol)
+        })
+    }
+
+    /// Writes `text` to `name` in `dir` and gives the file back the
+    /// modification time it had.
+    fn write_keeping_the_time(dir: &TempDir, name: &str, text: &str) {
+        let path = dir.at(name);
+        let before = fs::metadata(&path)
+            .and_then(|metadata| metadata.modified())
+            .expect("a scratch file has a modification time");
+        dir.write(name, text);
+        fs::File::options()
+            .write(true)
+            .open(&path)
+            .and_then(|file| file.set_modified(before))
+            .expect("a scratch file takes a modification time");
+    }
+
+    /// The `twice` edit of `lib/Framework/Part1.nvs`: its call to `value`
+    /// becomes a call to `twice`, at the same size.
+    fn calls_twice() -> String {
+        part(1).replace("return $other->value($n);", "return $other->twice($n);")
+    }
+
+    /// Every kind of edit, one after another: a body, a signature, a file
+    /// added, deleted and moved, an ignore file, `nvs.toml`, an extension
+    /// pinned and then changed, and new content at the old size and time.
+    #[test]
+    fn a_content_checked_load_answers_as_a_cold_build_after_every_kind_of_edit() {
+        let dir = tree("never-stale-every-edit");
+        agrees(&dir, "the first call");
+        assert!(index_file(&dir).is_file(), "the first call saves the index");
+
+        dir.write(
+            "lib/Framework/Part2.nvs",
+            &part(2).replace("$n + 2", "$n + 20"),
+        );
+        agrees(&dir, "a body edit");
+
+        dir.write(
+            "lib/Framework/Part3.nvs",
+            &part(3).replace(
+                "function value(int $n)",
+                "function value(int $n, int $m = 0)",
+            ),
+        );
+        agrees(&dir, "a signature edit");
+
+        dir.write(
+            "Blog/src/Extra.nvs",
+            "<?nvs\nnamespace Blog;\n\nclass Extra\n{\n    public function more(): int\n    {\n        \
+             return (new \\Framework\\Part0())->value(1);\n    }\n}\n",
+        );
+        agrees(&dir, "a file added");
+
+        fs::remove_file(dir.at("Blog/src/Extra.nvs")).expect("a scratch file is deleted");
+        agrees(&dir, "a file deleted");
+
+        fs::rename(dir.at("Shop/src/Home.nvs"), dir.at("Shop/src/Start.nvs"))
+            .expect("a scratch file is moved");
+        agrees(&dir, "a file moved");
+
+        dir.write(".gitignore", "tools/\n");
+        let ignored = agrees(&dir, "an ignore file");
+        assert!(
+            !ignored
+                .index()
+                .files()
+                .any(|file| file.ends_with("script.nvs")),
+            "an ignored program leaves the index"
+        );
+
+        dir.write("nvs.toml", "# The tree has no settings.\n");
+        agrees(&dir, "an edit to nvs.toml");
+
+        dir.write("ledger.nvs", "<?nvs\nShop\\Ledger::echoInt(7);\n");
+        let pinned = super::work_per_file::ledger(&dir);
+        dir.write("nvs.toml", &pinned);
+        let with = agrees(&dir, "an extension pinned");
+        assert!(
+            uses(with.index(), "Shop\\Ledger::echoInt"),
+            "the pinned extension resolves its function"
+        );
+
+        let mut bytes = fs::read(dir.at("shop.nvsx")).expect("the extension");
+        bytes.push(0);
+        fs::write(dir.at("shop.nvsx"), &bytes).expect("a writable scratch file");
+        let without = agrees(&dir, "an extension changed");
+        assert!(
+            !uses(without.index(), "Shop\\Ledger::echoInt"),
+            "an extension that no longer matches its pin resolves nothing"
+        );
+
+        write_keeping_the_time(&dir, "lib/Framework/Part1.nvs", &calls_twice());
+        let last = agrees(&dir, "new content at the old size and time");
+        assert!(
+            uses(last.index(), "Framework\\Part2::twice"),
+            "the edit at the old size and time is indexed"
+        );
+    }
+
+    /// A file written with new content of the old size and given back its
+    /// old modification time is read, hashed and analysed again.
+    #[test]
+    fn a_changed_file_with_its_old_size_and_time_is_analysed_again() {
+        let dir = tree("never-stale-same-stamp");
+        drop(loaded(&dir));
+        let before = fs::read_to_string(dir.at("lib/Framework/Part1.nvs")).expect("a scratch file");
+        let edited = calls_twice();
+        assert_eq!(before.len(), edited.len(), "the edit keeps the size");
+        write_keeping_the_time(&dir, "lib/Framework/Part1.nvs", &edited);
+
+        let after = agrees(&dir, "new content at the old size and time");
+        assert!(
+            after.index().work().checked > 0,
+            "the changed file is analysed"
+        );
+        assert!(
+            uses(after.index(), "Framework\\Part2::twice"),
+            "the new call is indexed"
+        );
+    }
+
+    /// An edit to `nvs.toml` discards the index file, so every entry is
+    /// analysed again, as in a cold build.
+    #[test]
+    fn a_changed_configuration_input_is_analysed_again() {
+        let dir = tree("never-stale-config");
+        let first = loaded(&dir);
+        let files = first.index().len();
+        drop(first);
+        write_keeping_the_time(&dir, "nvs.toml", "#\n");
+
+        let after = agrees(&dir, "an edit to nvs.toml");
+        assert!(
+            after.index().work().checked >= files,
+            "{} bodies checked after an edit to nvs.toml, for {files} files",
+            after.index().work().checked
+        );
+    }
+
+    /// A load of a tree that did not change since the last save keeps every
+    /// entry, and parses and checks nothing.
+    #[test]
+    fn a_content_checked_load_of_an_unchanged_tree_analyses_nothing() {
+        let dir = tree("never-stale-unchanged");
+        let first = loaded(&dir);
+        assert!(
+            first.index().work().checked > 0,
+            "the first call analyses the tree"
+        );
+        drop(first);
+        let saved = fs::read(index_file(&dir)).expect("the first call saves the index");
+
+        let again = agrees(&dir, "no edit");
+        let work = again.index().work();
+        assert_eq!(
+            (work.parsed, work.checked),
+            (0, 0),
+            "a load of an unchanged tree analysed files"
+        );
+        assert_eq!(
+            fs::read(index_file(&dir)).expect("the index file"),
+            saved,
+            "a call that analysed nothing does not write the index again"
+        );
     }
 }

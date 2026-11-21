@@ -17,6 +17,8 @@
 //! u32 paths, each a string
 //! u32 files, each a path index and one entry
 //! u32 reads, each an entry's path index, then u32 n and n path indices
+//! u32 inputs, each a path index, a u8 kind and, for a file or a
+//!     directory, a 32-byte BLAKE3
 //! 32-byte BLAKE3 of everything before it
 //! ```
 //!
@@ -25,6 +27,15 @@
 //! all name the same path. An entry carries the file's content hash, its size
 //! and modification time when they can be trusted ([`Stamp`]), its surface
 //! hash, and every field of the entry.
+//!
+//! An input is a path outside the `.nvs` files that the analyses read to find
+//! their configuration and extension set (`crate::tree_cache::inputs`):
+//! `nvs.toml`, the data folder's file, an included settings file or
+//! directory, and each `.nvsx`. Its kind is absent, a file with the hash of
+//! its bytes, a directory with the hash of its sorted names, or a file that
+//! cannot be read ([`Input`]). A load that finds any input different from
+//! what is recorded discards the whole file, since a change to one usually
+//! reaches every entry.
 //!
 //! # A file is untrusted input
 //!
@@ -40,9 +51,10 @@
 //!
 //! One file per workspace root, about the size of the index's entries in
 //! memory without the postings. A write is one encode and one rename, in one
-//! idle turn. A load is one read, one BLAKE3 pass over the file, and one
-//! `metadata` call per indexed file. A file whose size or modification time
-//! moved, or has none recorded, is read and hashed as well.
+//! idle turn. A load is one read, one BLAKE3 pass over the file, one read and
+//! hash of each input, and one `metadata` call per indexed file. A file whose
+//! size or modification time moved, or has none recorded, is read and hashed
+//! as well. A load by content reads and hashes every indexed file.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -61,7 +73,7 @@ const MAGIC: &[u8; 6] = b"NVSIDX";
 
 /// The layout's version. A change to what is written raises it, and a file of
 /// another version is discarded.
-pub(crate) const FORMAT: u32 = 1;
+pub(crate) const FORMAT: u32 = 2;
 
 /// The length of a digest on disk.
 const DIGEST: usize = 32;
@@ -115,6 +127,55 @@ impl Stamp {
     }
 }
 
+/// What one configuration input was when the index was built.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Input {
+    /// Nothing is at the path.
+    Absent,
+    /// A file, with the BLAKE3 hash of its bytes.
+    File(Digest),
+    /// A directory, with the BLAKE3 hash of its entries' names, sorted, each
+    /// followed by a zero byte.
+    Dir(Digest),
+    /// Something is at the path that cannot be read.
+    Unreadable,
+}
+
+impl Input {
+    /// What is at `path` now.
+    pub(crate) fn of(path: &Path) -> Self {
+        let Ok(metadata) = std::fs::metadata(path) else {
+            return Self::Absent;
+        };
+        if metadata.is_dir() {
+            let Ok(listing) = std::fs::read_dir(path) else {
+                return Self::Unreadable;
+            };
+            let mut names: Vec<_> = listing
+                .filter_map(Result::ok)
+                .map(|entry| entry.file_name())
+                .collect();
+            names.sort();
+            let mut hasher = blake3::Hasher::new();
+            for name in names {
+                hasher.update(name.as_encoded_bytes());
+                hasher.update(&[0]);
+            }
+            return Self::Dir(Digest::from_bytes(*hasher.finalize().as_bytes()));
+        }
+        std::fs::read(path).map_or(Self::Unreadable, |bytes| Self::File(content_hash(&bytes)))
+    }
+
+    const fn tag(self) -> u8 {
+        match self {
+            Self::Absent => 0,
+            Self::File(_) => 1,
+            Self::Dir(_) => 2,
+            Self::Unreadable => 3,
+        }
+    }
+}
+
 /// `at` in nanoseconds since the Unix epoch, where that fits a `u64`.
 fn nanos(at: SystemTime) -> Option<u64> {
     u64::try_from(at.duration_since(UNIX_EPOCH).ok()?.as_nanos()).ok()
@@ -162,14 +223,17 @@ pub(crate) struct Saved {
     pub(crate) files: Vec<(PathBuf, Indexed)>,
     /// Every entry point's reads.
     pub(crate) reads: Vec<(PathBuf, Vec<PathBuf>)>,
+    /// Every configuration input, as it was when the entries were built.
+    pub(crate) inputs: Vec<(PathBuf, Input)>,
 }
 
-/// The bytes of an index file over `files` and `reads`, for the build `stamp`
+/// The bytes of an index file over `files`, `reads` and `inputs`, for the build `stamp`
 /// and the canonical workspace `root`. `None` when a path is not UTF-8, which
 /// the format cannot write.
 pub(crate) fn encode<'a>(
     files: impl Iterator<Item = (&'a PathBuf, &'a Indexed)>,
     reads: impl Iterator<Item = (&'a PathBuf, &'a Vec<PathBuf>)>,
+    inputs: impl Iterator<Item = (&'a PathBuf, &'a Input)>,
     stamp: Digest,
     root: &Path,
 ) -> Option<Vec<u8>> {
@@ -187,6 +251,15 @@ pub(crate) fn encode<'a>(
         body.u32(u32::try_from(read.len()).ok()?);
         for path in read {
             body.path(path)?;
+        }
+    }
+    let inputs: Vec<_> = inputs.collect();
+    body.u32(u32::try_from(inputs.len()).ok()?);
+    for (path, input) in inputs {
+        body.path(path)?;
+        body.u8(input.tag());
+        if let Input::File(digest) | Input::Dir(digest) = input {
+            body.digest(*digest);
         }
     }
 
@@ -247,7 +320,24 @@ pub(crate) fn decode(bytes: &[u8], stamp: Digest, root: &Path) -> Option<Saved> 
         }
         reads.push((entry, read));
     }
-    reader.bytes.is_empty().then_some(Saved { files, reads })
+    let count = reader.count()?;
+    let mut inputs = Vec::with_capacity(count);
+    for _ in 0..count {
+        let path = reader.path()?;
+        let input = match reader.u8()? {
+            0 => Input::Absent,
+            1 => Input::File(reader.digest()?),
+            2 => Input::Dir(reader.digest()?),
+            3 => Input::Unreadable,
+            _ => return None,
+        };
+        inputs.push((path, input));
+    }
+    reader.bytes.is_empty().then_some(Saved {
+        files,
+        reads,
+        inputs,
+    })
 }
 
 /// The bytes being written, and the path table they refer to.

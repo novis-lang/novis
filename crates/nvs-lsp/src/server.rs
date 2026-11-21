@@ -738,9 +738,7 @@ fn index_file(settings: &Settings) -> Option<PathBuf> {
     if settings.scope != CheckScope::Workspace {
         return None;
     }
-    let root = settings.root.as_deref()?;
-    let folder = nvs_config::data::current()?;
-    Some(crate::disk_index::file_for(&folder.lsp_index(), root))
+    index_file_of(settings.root.as_deref()?)
 }
 
 /// Whether the index `settings` select is built from a tree under a root, which
@@ -761,7 +759,14 @@ fn start_index(
 ) -> SymbolIndex {
     let root = settings.root.as_deref();
     let mut index = match index_file(settings) {
-        Some(file) => SymbolIndex::load_from_tree(documents, settings.scope, root, &file, tree),
+        Some(file) => SymbolIndex::load_from_tree(
+            documents,
+            settings.scope,
+            root,
+            &file,
+            tree,
+            crate::index::Check::Stamp,
+        ),
         None => SymbolIndex::planned_tree(tree),
     };
     index.use_workers(0);
@@ -2525,22 +2530,59 @@ impl Workspace {
 }
 
 /// Analyses and indexes every `.nvs` file under `root`, as an editor does for
-/// a workspace at `CheckScope::Workspace`.
-///
-/// The survey runs first, for the reason [`serve`]'s does: an autoloaded file
-/// resolves its names through the map of the program that autoloads it. A file
-/// with errors is indexed with what its analysis recovered. The cost is one
-/// analysis per file under the root.
+/// a workspace at `CheckScope::Workspace`, with no index file: [`workspace_from`]
+/// with `None`.
 #[must_use]
 pub fn workspace(root: &Path) -> Workspace {
+    workspace_from(root, None)
+}
+
+/// The workspace under `root`, with the index file at `file` loaded first and
+/// saved after, where there is one.
+///
+/// The survey runs first, for the reason [`serve`]'s does: an autoloaded file
+/// resolves its names through the map of the program that autoloads it. Then
+/// the index is loaded by content ([`SymbolIndex::load_by_content`]): every
+/// indexed file and every configuration input is read and hashed, so an
+/// entry is kept only where its file has the text it was built from. Every
+/// other entry is analysed on the workers, which are stopped before this
+/// returns. A file with errors is indexed with what its analysis recovered.
+///
+/// The index is saved to `file` only when it changed, and a failed save
+/// changes nothing. Two writers each rename a whole file, and the last
+/// rename wins. Without a file, or with one that does not load, every `.nvs`
+/// file under the root is analysed.
+#[must_use]
+pub fn workspace_from(root: &Path, file: Option<&Path>) -> Workspace {
     let mut documents = Documents::new();
     documents.survey(CheckScope::Workspace, Some(root));
-    let index = SymbolIndex::build(&documents, CheckScope::Workspace, Some(root));
+    let mut index = match file {
+        Some(file) => SymbolIndex::load_by_content(&documents, root, file),
+        None => SymbolIndex::planned(&documents, CheckScope::Workspace, Some(root)),
+    };
+    index.use_workers(0);
+    index.settle(&documents);
+    index.stop_workers();
+    if let Some(file) = file
+        && index.generation() != 0
+        && let Some(dir) = file.parent()
+        && nvs_config::data::create_private_root(dir).is_ok()
+    {
+        drop(index.save_to(file, root));
+    }
     Workspace {
         root: root.to_owned(),
         documents,
         index,
     }
+}
+
+/// The index file of the workspace `root` in the data folder, the one the
+/// editor reads and writes for that root. `None` without a data folder.
+#[must_use]
+pub fn index_file_of(root: &Path) -> Option<PathBuf> {
+    let folder = nvs_config::data::current()?;
+    Some(crate::disk_index::file_for(&folder.lsp_index(), root))
 }
 
 /// The settings one `.lspt` case is answered under.

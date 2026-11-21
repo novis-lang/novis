@@ -244,6 +244,63 @@ fn read_tree(files: Vec<PathBuf>) -> KeptTree {
     }
 }
 
+/// Every path outside the `.nvs` files that the analysis of a document in one
+/// of `dirs` reads to find its configuration and its extension set, with
+/// `data` as the data folder's `nvs.toml`.
+///
+/// For each directory it is every path [`TreeCache::extensions`] looks at: the
+/// `nvs.toml` beside the document, the data folder's file where that one is
+/// absent, every file the tree read or looked for, each directory it listed,
+/// and each `.nvsx` the tree names. The index file records each one with its
+/// content (`crate::disk_index::Input`), and a load that finds any of them
+/// changed discards the file.
+///
+/// The extension paths are the tree's `[[extension]]` entries, which an
+/// `[[app]]` block does not change. A tree is read once per list of root
+/// files, so many directories that share one `nvs.toml` read it once.
+pub(crate) fn inputs<'a>(
+    dirs: impl Iterator<Item = &'a Path>,
+    data: Option<&Path>,
+) -> std::collections::BTreeSet<PathBuf> {
+    let mut found = std::collections::BTreeSet::new();
+    let mut read = std::collections::HashSet::new();
+    for dir in dirs {
+        let recording = Recording::default();
+        let nvs_config::Roots::Files(files) = roots(&[], dir, data, &recording) else {
+            found.extend(recording.seen.into_inner());
+            continue;
+        };
+        found.extend(recording.seen.into_inner());
+        if !read.insert(files.clone()) {
+            continue;
+        }
+        let recording = Recording::default();
+        let tree = resolve(
+            &nvs_config::Roots::Files(files),
+            &mut SourceMap::new(),
+            &recording,
+        );
+        found.extend(recording.seen.into_inner());
+        if let Ok(resolved) = tree {
+            found.extend(
+                resolved
+                    .config
+                    .extension
+                    .iter()
+                    .enumerate()
+                    .map(|(index, written)| {
+                        nvs_config::extension::file(
+                            index,
+                            written.path.as_deref().unwrap_or_default(),
+                            &resolved.origins,
+                        )
+                    }),
+            );
+        }
+    }
+    found
+}
+
 /// [`Unowned`], and every path it was asked about.
 #[derive(Default)]
 struct Recording {
