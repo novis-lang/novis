@@ -53,17 +53,18 @@ use serde_json::{Map, Value, json};
 
 use crate::agent::{SCHEMA_VERSION, pretty};
 
-/// Answer questions about the Novis project you are in: where a name is
-/// used, what declares it, and which type a variable has.
+/// Print information about the code of the Novis project you are in: where
+/// a name is used, what declares it, and which type a variable has.
 ///
 /// The project is the folder of the nearest `nvs.toml` at or above the
 /// working directory. If there is none, it is the working directory. Every
 /// `.nvs` file in it is read. Only `rename`, `move` and `order` change
 /// files.
 ///
-/// The editor and `nvs code` share one index file in the data folder. A
-/// call first compares the content of every file with the index. It
-/// analyses only the files that changed, so the answer is always current.
+/// The editor and `nvs code` share one index file in the data folder. The
+/// index lists every name in the project and every place it is used. A call
+/// first compares the content of every file with the index. It analyses
+/// only the files that changed, so the result is always current.
 ///
 /// Write a name in full, with its namespace, as `'Shop\Cart::addItem'`.
 /// Put it in single quotes, so that the shell keeps the backslashes. A
@@ -85,7 +86,7 @@ enum Command {
         /// The name, as `Shop\Cart`, `Shop\Cart::addItem` or
         /// `Shop\Cart::$total`.
         symbol: String,
-        /// Print the answer as one JSON document. An unknown name prints an
+        /// Print the result as one JSON document. An unknown name prints an
         /// `error` and a `nearest` list, and the command fails.
         #[arg(long)]
         json: bool,
@@ -99,7 +100,7 @@ enum Command {
         /// The name, as `Shop\Cart::addItem`. A `Core` name lists the places
         /// where the project uses it.
         symbol: String,
-        /// Print the answer as one JSON document. An unknown name prints an
+        /// Print the result as one JSON document. An unknown name prints an
         /// `error` and a `nearest` list, and the command fails.
         #[arg(long)]
         json: bool,
@@ -112,17 +113,17 @@ enum Command {
     Impls {
         /// The name of a type or a method, as `Shop\Priced`.
         symbol: String,
-        /// Print the answer as one JSON document. An unknown name prints an
+        /// Print the result as one JSON document. An unknown name prints an
         /// `error` and a `nearest` list, and the command fails.
         #[arg(long)]
         json: bool,
     },
-    /// Print what a file declares, one line each. The members of a class are
-    /// indented under it.
+    /// Print what a file declares, one line each. The constants, properties
+    /// and methods of a class are indented under it.
     Outline {
         /// The file, as `src/Cart.nvs`.
         file: String,
-        /// Print the answer as one JSON document. An unknown file prints an
+        /// Print the result as one JSON document. An unknown file prints an
         /// `error` and a `nearest` list, and the command fails.
         #[arg(long)]
         json: bool,
@@ -132,7 +133,7 @@ enum Command {
         /// The file, as `src/Cart.nvs`. Add `:10` for line 10 only, or
         /// `:10-20` for lines 10 to 20.
         file: String,
-        /// Print the answer as one JSON document. An unknown file prints an
+        /// Print the result as one JSON document. An unknown file prints an
         /// `error` and a `nearest` list, and the command fails.
         #[arg(long)]
         json: bool,
@@ -188,15 +189,15 @@ enum Command {
         #[arg(long)]
         json: bool,
     },
-    /// Put the members of each class and interface in the standard order,
-    /// and save the changed files.
+    /// Put the constants, properties and methods of each class and interface
+    /// in the standard order, and save the changed files.
     ///
     /// This is the same change as the editor's "Order class members" action.
     /// Types come first, then constants, then properties, then methods. In
-    /// each group, static members come before the others. Then `public`
-    /// comes before `protected`, and `protected` before `private`. The
-    /// constructor is the first method that is not static. Members that are
-    /// equal in this order keep the order you wrote. Each changed file is
+    /// each group, everything static comes first. Then `public` comes
+    /// before `protected`, and `protected` before `private`. The constructor
+    /// is the first method that is not static. Two that are equal in this
+    /// order keep the order you wrote. Each changed file is
     /// also formatted as `nvs fmt` formats it.
     ///
     /// The command prints one line for each changed file. A class with
@@ -206,12 +207,11 @@ enum Command {
         /// The files or directories to order, as `src/Cart.nvs` or `src`.
         /// With no path, every `.nvs` file in the project is ordered.
         paths: Vec<String>,
-        /// Save nothing. Print each class whose members are not in order, and
-        /// fail if there is one.
+        /// Save nothing. Print each class that is not in order, and fail if
+        /// there is one.
         #[arg(long, conflicts_with = "dry_run")]
         check: bool,
-        /// Print each class whose members would move, and the notes. Save
-        /// nothing.
+        /// Print each class that would change, and the notes. Save nothing.
         #[arg(long)]
         dry_run: bool,
         /// Print the files, the classes and the notes as one JSON document.
@@ -228,7 +228,7 @@ enum Command {
     Find {
         /// The text to look for, as `item`. It finds `Shop\Cart::addItem`.
         query: String,
-        /// Print the answer as one JSON document.
+        /// Print the result as one JSON document.
         #[arg(long)]
         json: bool,
     },
@@ -240,13 +240,13 @@ enum Command {
     /// route calls the method that handles the route.
     ///
     /// With several methods, each method gets a line with its name. Its
-    /// answer follows, indented by two spaces.
+    /// own lines follow, indented by two spaces.
     Calls {
         /// The methods, as `Shop\Cart::addItem`. If one name is not a method,
         /// the command prints nothing else and fails.
         #[arg(value_name = "METHOD", required = true)]
         symbols: Vec<String>,
-        /// Print the answer as one JSON document. An unknown method prints an
+        /// Print the result as one JSON document. An unknown method prints an
         /// `error` and a `nearest` list, and the command fails.
         #[arg(long)]
         json: bool,
@@ -260,13 +260,13 @@ enum Command {
     /// method.
     ///
     /// With several methods, each method gets a line with its name. Its
-    /// answer follows, indented by two spaces.
+    /// own lines follow, indented by two spaces.
     Reach {
         /// The methods, as `Shop\Cart::addItem`. If one name is not a method,
         /// the command prints nothing else and fails.
         #[arg(value_name = "METHOD", required = true)]
         symbols: Vec<String>,
-        /// Print the answer as one JSON document. An unknown method prints an
+        /// Print the result as one JSON document. An unknown method prints an
         /// `error` and a `nearest` list, and the command fails.
         #[arg(long)]
         json: bool,

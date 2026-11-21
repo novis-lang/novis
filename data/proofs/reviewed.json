@@ -117,6 +117,8 @@
   "docs/examples/lang/types/property-keys/08-an-attribute-that-names-properties-of-its-class.nvs": "b0200b0406ddd19e",
   "docs/examples/lang/types/property-keys/about.md": "e4bcc3dd15556809",
   "docs/examples/lang/types/property-keys/details.md": "76fbdede13bbbea3",
+  "docs/examples/tools/cli/nvs-code/01-who-calls-a-method.nvs": "0d24b131e274651f",
+  "docs/examples/tools/cli/nvs-code/about.md": "fd9b0dc859b41b87",
   "docs/examples/tools/cli/nvs-test-mutate/04-no-mutate-on-a-view.nvs": "f385116d03b6f7f4",
   "docs/examples/tools/cli/nvs-test-mutate/about.md": "df9e257139bab60d",
   "docs/examples/tools/cli/nvs-test/about.md": "c2bebae057d470c7",
@@ -161,6 +163,7 @@
   "help:KeyedIterator": "8bc8ba435555f409",
   "help:Revocable": "819935aa39f1a081",
   "help:RevokedObjectError": "f627d25b13dd8443",
+  "help:tools:cli/nvs-code": "96fc8347bc71106e",
   "help:tools:cli/nvs-test": "e30e32945ef34461",
   "help:tools:cli/nvs-test-mutate": "a6bad84031128838",
   "help:tools:server/nvs-reload": "e021f047ca6ac320",
@@ -204,6 +207,7 @@
   "website/src/content/docs/syntax/control-flow/iterators.mdx": "bb7f40ac15471ee7",
   "website/src/content/docs/syntax/errors/error-types.mdx": "c441d0499b122fc6",
   "website/src/content/docs/syntax/testing/writing-tests.mdx": "663309b50d56941f",
+  "website/src/content/docs/tools/editor/index.mdx": "98ba1c152bd2b46e",
   "website/src/content/docs/tools/test-runner/index.mdx": "17047d1c820b003e",
-  "website/src/data/changes.json": "427192ec95d9103c"
+  "website/src/data/changes.json": "c36dccf6b62ea6fb"
 }

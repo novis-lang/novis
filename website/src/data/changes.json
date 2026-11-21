@@ -5,7 +5,7 @@
       "features": [
         "tools:cli/nvs-code"
       ],
-      "text": "`nvs code` uses the index file of the editor, and it saves that file again after a call. A call checks the content of every file first and analyses only the files that changed, so it answers faster. `nvs code calls` and `nvs code reach` take several methods in one call."
+      "text": "`nvs code` reads and saves the editor's index file, a list of every name in the project and every place it is used. A call analyses only the files whose content changed, so it is faster. `nvs code calls` and `nvs code reach` take several methods in one call."
     },
     {
       "kind": "new",

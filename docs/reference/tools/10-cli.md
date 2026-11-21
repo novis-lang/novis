@@ -1257,17 +1257,18 @@ When one run finds both, the status is `2`.
     nvs code calls [--json] <method>...
     nvs code reach [--json] <method>...
 
-Answers questions about the project you are in, from the same index the editor uses. The project is
-the folder of the nearest `nvs.toml` at or above the working directory, or the working directory
+Prints information about the code of the project you are in. It uses the same index as the editor.
+An index is a list of every name in the project and every place it is used. The project is the folder of the nearest `nvs.toml` at or above the working directory, or the working directory
 when there is none. Every `.nvs` file in it is read. Only `rename`, `move` and `order` change
 files.
 
 ## The index file
 
-The editor and `nvs code` share one index file for each project, in the data folder. A call loads
-it, then compares the content of every file with what the index has. This also covers each
-`nvs.toml` and each extension the project uses. Only the files that changed are analysed again, so
-the answer is the same as a full analysis gives. A new file is analysed, and a deleted file leaves
+The editor and `nvs code` share one index file for each project. It is in the data folder, the
+folder where `nvs` keeps its own files. A call loads the index file. Then it compares the content of
+every file with what the index has. It also compares each `nvs.toml` and each `.nvsx` extension file
+the project uses. Only the files that changed are analysed again. So the result is the same as a
+full analysis gives. A new file is analysed, and a deleted file leaves
 the index. When a settings file or an extension changed, the whole project is analysed again.
 
 After it analysed anything, the call saves the index file again, and the editor's next start uses
@@ -1281,7 +1282,7 @@ commands, such as `nvs check` and `nvs run`, never read this file.
 - `refs` prints every place a name is written: the declaration first, then each `use` line and each
   use, in file and line order. A `Core` name lists the places the project uses it.
 - `impls` prints the types that extend or implement a type, or the methods that override a method.
-- `outline` prints what a file declares, one line each, with a class's members indented under it.
+- `outline` prints what a file declares, one line each, with the constants, properties and methods of a class indented under it.
 - `types` prints the type of each variable a file declares with `var`. `:10` limits it to line 10,
   and `:10-20` to lines 10 to 20.
 - `rename` renames a class, a method, a property, a constant, an enum case, a type alias or a
@@ -1291,21 +1292,23 @@ commands, such as `nvs check` and `nvs run`, never read this file.
   renamed inside the class and everywhere `Order::Total` is written.
 - `move` moves a file or a folder and changes every `require` that names a moved file. The folder of
   `<to>` must exist, and nothing may exist at `<to>` yet.
-- `order` puts the members of each class and interface in the standard order. It is the editor's
+- `order` puts the constants, properties and methods of each class and interface in the standard
+  order. It is the editor's
   *Order class members* action. A path is a file or a folder, and with no path every file is
   ordered. Each changed file is also formatted, as `nvs fmt` does.
 - `find` prints every class, method, property, constant and enum case whose name contains the text.
   Upper and lower case count as the same. The namespace is not part of the name, and `Core` names
   are not searched. `nvs agent find` searches them.
-- `calls` prints the methods that call a method, and then the methods it calls. Each method has a
-  line with `caller` or `callee`. Each call is on an indented line under it, with its position and
+- `calls` prints the methods that call a method, and then the methods it calls. Each of these
+  methods has a line that starts with `caller` or `callee`. Each call is on an indented line under it, with its position and
   its line of code. A test that sends a request with `Core\Test::request` calls the method that
   handles the route.
-- `reach` prints the routes and the tests that reach a method through a chain of calls. A last line
-  starts with `at least` when there may be more. Some calls are only known when the program runs.
+- `reach` prints the routes and the tests that reach a method through a chain of calls. A route is
+  a URL your program handles. Some calls are only known when the program runs. So when there may be
+  more, the last line starts with `at least`.
 
 `calls` and `reach` need the name of a method. For any other name, they exit `1` and list the
-nearest method names:
+method names that are most similar:
 
 ```text
 $ nvs code reach 'Shop\Prices::base'
@@ -1314,7 +1317,7 @@ test   Shop\CartTest::cartLoads
 ```
 
 `calls` and `reach` also take several methods in one call. Each method gets a line with its name, in
-the order you gave. Its answer follows, indented by two spaces. A name you give twice prints once.
+the order you gave. Its lines follow, indented by two spaces. A name you give twice prints once.
 
 ```text
 $ nvs code reach 'Shop\Prices::base' 'Shop\Prices::plain'
@@ -1325,8 +1328,8 @@ Shop\Prices::plain
   test   Shop\PricesTest::plainIsFive
 ```
 
-If one of the names is not a method, the call prints no answer and exits `1`. Standard error names
-each unknown name with its nearest method names. With `--json`, several methods print one document
+If one of the names is not a method, the call prints nothing and exits `1`. On standard error, it prints
+each unknown name with the method names that are most similar. With `--json`, several methods print one document
 with `schemaVersion` and `methods`. `methods` is a list with the document of each method, without
 its own `schemaVersion`. An unknown name prints `error` and `unknown`, a list of objects with
 `symbol` and `nearest`.
@@ -1338,17 +1341,17 @@ after the command read it also stops the command, and no file is changed.
 `order` uses this order, from the top of the class to the bottom:
 
 1. `enum` and `type` declarations, then constants, then properties, then methods.
-2. In each group, every `static` member comes first.
+2. In each group, everything `static` comes first.
 3. Then `public` comes before `protected`, and `protected` before `private`.
 4. Then `abstract` comes before `final`, and `final` before the rest.
 
-The constructor is the first method that is not `static`. Members that are equal in this order keep
-the order you wrote. A member moves with its `///` comment, its attributes and the comments above
-it. Enum cases and promoted constructor parameters do not move.
+The constructor is the first method that is not `static`. Two that are equal in this order keep
+the order you wrote. Each one moves with its `///` comment, its attributes and the comments above
+it. Enum cases do not move. Properties declared in the constructor's parameters do not move.
 
 A class with `#[Core\Json\Derive]` writes its JSON keys in the order of its properties. When `order`
 changes that order, it prints a note that names the class. With `#[Core\Json\KeepKeyOrder]`, the
-properties keep the order you wrote. If no member order keeps them, the class is not changed and a
+properties keep the order you wrote. If no order keeps them, the class is not changed and a
 note names it.
 
 `order` prints one line for each changed file, with the number of classes it changed. `--dry-run`
@@ -1373,16 +1376,16 @@ src/Priced.nvs:5:21    declared  public function price(): int;
 public/index.nvs:9:22  use       $total += $item->price();
 ```
 
-A file with errors still answers, from what the analysis recovered. Standard error then gets one
-line with the number of files that have errors, because a use inside one of them may be missing,
-and the exit status is `0`. An empty answer exits `0` too. A name or a file the project does not
-have exits `1` and lists the nearest names.
+A project with errors still gets a result, from the code the analysis could read. The exit status
+is `0`. The number of files that have errors is printed on standard error. A use inside such a file may be
+missing from the result. An empty result also exits `0`. A name or a file the project does not
+have exits `1` and lists the names that are most similar.
 
-`--json` prints one document with `schemaVersion: 1` and every key present, the way `nvs check
---json` does, and adds the byte `start` and `end` of each position. A failure prints its document
-too, with `error` and `nearest`, on standard output. Every control character but tab in text from
-the project is printed as `\u{..}`, in the text and in the JSON, so a file's bytes never reach the
-terminal as anything but text.
+`--json` prints one document with `schemaVersion: 1` and every key present, as `nvs check
+--json` does. Each position also has `start` and `end`, counted in bytes from the start of the file.
+A failure prints its document too, with `error` and `nearest`, on standard output. Text from the
+project is printed with every control character except tab written as `\u{..}`. This is the same in
+the text and in the JSON. So the bytes of a file are never sent to the terminal as control codes.
 
 # The compile cache
 

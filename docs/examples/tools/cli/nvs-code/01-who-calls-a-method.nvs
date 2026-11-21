@@ -37,8 +37,8 @@ class Basket
         return $total;
     }
 
-    // `nvs code calls 'Shop\Basket::total' 'Shop\Basket::withShipping'` prints the calls of both methods.
-    // Each method gets a line with its name. Its callers and callees are indented under it.
+    // `nvs code calls 'Shop\Basket::total' 'Shop\Basket::withShipping'` prints a line with each name.
+    // Under it are the methods that call it and the methods it calls.
     public static function withShipping(array<Priced> $items): int
     {
         return Basket::total($items) + 5;
@@ -49,5 +49,5 @@ class Basket
 // Each line starts with the file, the line and the column of the class.
 array<Priced> $basket = [new Book(), new Lamp(), new Book()];
 
-// This prints `59`.
+// The basket costs 12 + 30 + 12, plus 5 for shipping. This prints `59`.
 echo Basket::withShipping($basket), "\n";

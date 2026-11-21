@@ -4362,7 +4362,7 @@
     "tools:cli/nvs-check": "a01272659c024d70"
   },
   "docs/examples/tools/cli/nvs-code/about.md": {
-    "tools:cli/nvs-code": "321d16899d4ed6e8"
+    "tools:cli/nvs-code": "ed403f8a152acbbe"
   },
   "docs/examples/tools/cli/nvs-config-check-and-nvs-config-dump/about.md": {
     "tools:cli/nvs-config-check-and-nvs-config-dump": "f45a5ca1d4120bee"
@@ -9216,7 +9216,7 @@
     "tools:cli/nvs-check": "ab8ef0701139caef"
   },
   "help:tools:cli/nvs-code": {
-    "tools:cli/nvs-code": "3b5186485048e503"
+    "tools:cli/nvs-code": "6d7d99e63839fb49"
   },
   "help:tools:cli/nvs-config-check-and-nvs-config-dump": {
     "tools:cli/nvs-config-check-and-nvs-config-dump": "7ce1cdebb2da6e80"
