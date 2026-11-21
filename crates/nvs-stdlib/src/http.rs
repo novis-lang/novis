@@ -3606,19 +3606,21 @@ type ReadPart = (Vec<u8>, Option<String>, Option<String>);
 ///
 /// # Errors
 ///
-/// [`part_of`]'s, and a thrown `RuntimeError` for a file that cannot be read.
+/// [`part_of`]'s, and [`crate::byte_source::read_bounded`]'s for a file that
+/// cannot be read or does not fit in the request's intake limit or memory.
 fn part_octets(ctx: &Ctx, value: Value, member: &str) -> Result<ReadPart, Fault> {
     let part = part_of(ctx, value, member)?;
     let bytes = match part.piece {
         transport::Piece::Held(octets) => octets,
         transport::Piece::File { handle, .. } => {
-            let mut octets = Vec::new();
-            std::io::Read::read_to_end(&mut *handle.borrow_mut(), &mut octets).map_err(|err| {
-                Fault::thrown(format!(
-                    "{member}: the file of a part could not be read — {err}"
-                ))
-            })?;
-            octets
+            // The file is read whole, so the read stops at the request's intake
+            // limit and its memory ceiling, whatever size the file has.
+            let held = crate::instance::slot(
+                crate::instance::receiver(value, &PART, member)?,
+                PART_PATH_SLOT,
+            );
+            let path = std::path::Path::new(held.as_text().unwrap_or_default());
+            crate::byte_source::read_bounded(ctx, &mut *handle.borrow_mut(), member, path)?
         }
     };
     Ok((bytes, part.filename, part.content_type))
