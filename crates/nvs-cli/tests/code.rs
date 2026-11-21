@@ -69,9 +69,19 @@ fn code(cwd: &Path, args: &[&str]) -> (String, String, bool) {
     run(cwd, "code", args)
 }
 
+/// `nvs <command> <args...>` run in `cwd` with its data folder in `cwd`'s
+/// `.nvsdata`, so no index file reaches the binary's own data folder. The
+/// project walk skips a dot-directory, so the folder is never analysed.
 fn run(cwd: &Path, command: &str, args: &[&str]) -> (String, String, bool) {
+    run_with_data(cwd, &cwd.join(".nvsdata"), command, args)
+}
+
+/// `nvs --data <data> <command> <args...>` run in `cwd`.
+fn run_with_data(cwd: &Path, data: &Path, command: &str, args: &[&str]) -> (String, String, bool) {
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
         .current_dir(cwd)
+        .arg("--data")
+        .arg(data)
         .arg(command)
         .args(args)
         .output()
@@ -114,6 +124,79 @@ fn refs_prints_the_declaration_first_then_each_use_with_its_position_and_line() 
         .collect();
     assert_eq!(kinds.first(), Some(&"declared"), "{class}");
     assert!(kinds.contains(&"import"), "{class}");
+}
+
+/// The index files in the data folder `data`, the one per project root the
+/// editor reads and writes.
+fn index_files(data: &Path) -> Vec<std::path::PathBuf> {
+    fs::read_dir(data.join("cache/lsp-index"))
+        .map(|dir| dir.filter_map(|entry| Some(entry.ok()?.path())).collect())
+        .unwrap_or_default()
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn the_first_call_saves_the_index_in_the_data_folder() {
+    let dir = project("index-saved", &[]);
+    let data = dir.join(".nvsdata");
+    assert!(index_files(&data).is_empty());
+    let (first, err, ok) = code(&dir, &["refs", r"Shop\Cart::addItem"]);
+    assert!(ok, "{err}");
+    let saved = index_files(&data);
+    assert_eq!(saved.len(), 1, "{saved:?}");
+    let bytes = fs::read(&saved[0]).expect("the saved index file reads");
+    assert!(bytes.starts_with(b"NVSIDX"), "{saved:?}");
+    // A second call loads the file, analyses nothing and saves nothing, so
+    // the file keeps its bytes and the answer is the same.
+    let (second, err, ok) = code(&dir, &["refs", r"Shop\Cart::addItem"]);
+    assert!(ok, "{err}");
+    assert_eq!(second, first);
+    assert_eq!(fs::read(&saved[0]).expect("the index file reads"), bytes);
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn an_edit_between_two_calls_reaches_the_second_answer() {
+    let dir = project("index-edit", &[]);
+    let (before, err, ok) = code(&dir, &["refs", r"Shop\Cart::addItem"]);
+    assert!(ok, "{err}");
+    assert_eq!(before.lines().count(), 2, "{before}");
+    assert_eq!(index_files(&dir.join(".nvsdata")).len(), 1);
+    // A new call in the program, and a body edit in the library that keeps
+    // the file's size, both reach the second answer.
+    let index = dir.join("public/index.nvs");
+    let mut text = fs::read_to_string(&index).expect("the program reads");
+    text.push_str("$cart->addItem(5);\n");
+    fs::write(&index, text).expect("the program writes");
+    let cart = dir.join("src/Cart.nvs");
+    let edited = CART.replace("$this->total + $n;", "$this->addItem(1);");
+    assert_eq!(edited.len(), CART.len());
+    fs::write(&cart, edited).expect("the library writes");
+    let (after, err, ok) = code(&dir, &["refs", r"Shop\Cart::addItem"]);
+    assert!(ok, "{err}");
+    assert_eq!(after.lines().count(), 4, "{after}");
+    assert!(after.contains("\npublic/index.nvs:13:8 "), "{after}");
+    assert!(after.contains("\nsrc/Cart.nvs:11:31 "), "{after}");
+}
+
+// covers: tools:cli/nvs-code
+#[test]
+fn a_call_without_a_data_folder_answers_cold() {
+    let dir = project("index-cold", &[]);
+    let (with, err, ok) = code(&dir, &["refs", r"Shop\Cart::addItem"]);
+    assert!(ok, "{err}");
+    // A data folder that is a file has no index file to load or save, so
+    // every call analyses the whole project and gives the same answer.
+    let file = dir.join("not-a-folder");
+    fs::write(&file, "").expect("a writable scratch file");
+    for _ in 0..2 {
+        let (without, err, ok) =
+            run_with_data(&dir, &file, "code", &["refs", r"Shop\Cart::addItem"]);
+        assert!(ok, "{err}");
+        assert_eq!(without, with);
+    }
+    assert!(file.is_file());
+    assert_eq!(fs::read(&file).expect("the file reads"), b"");
 }
 
 /// A program with one route and a method that takes a route, and a call that
@@ -737,6 +820,8 @@ fn code_rename_refuses_a_file_that_changed_after_it_was_read() {
             "NVS_TEST_CODE_CHANGE_BEFORE_WRITE",
             dir.join("src/Cart.nvs"),
         )
+        .arg("--data")
+        .arg(dir.join(".nvsdata"))
         .args(["code", "rename", r"Shop\Cart::addItem", "addProduct"])
         .output()
         .expect("the `nvs` binary this test was built beside runs");
@@ -1316,6 +1401,8 @@ fn code_order_refuses_a_file_that_changed_after_it_was_read() {
             "NVS_TEST_CODE_CHANGE_BEFORE_WRITE",
             dir.join("src/Basket.nvs"),
         )
+        .arg("--data")
+        .arg(dir.join(".nvsdata"))
         .args(["code", "order"])
         .output()
         .expect("the `nvs` binary this test was built beside runs");

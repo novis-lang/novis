@@ -14,9 +14,14 @@
 //! them. [`write_out`] prints what `rename` and `move` wrote, and [`order()`]
 //! prints what it wrote by class.
 //!
-//! A call costs one analysis per `.nvs` file under the project root, and
-//! nothing is kept after it: there is no cache and no daemon, because either
-//! is a second copy of the project that can be stale.
+//! A call loads the editor's index file for the project root from the data
+//! folder ([`nvs_lsp::index_file_of`]) and saves it again when it analysed
+//! anything, so the editor and every call share one index. The load checks
+//! every indexed file and every configuration input by its content hash and
+//! analyses, on the workers, each entry whose input changed, so an answer is
+//! the one a cold build gives. Without a data folder, or with an index file
+//! that does not load, every `.nvs` file under the root is analysed, on the
+//! workers too. There is no daemon.
 //!
 //! **A position** is `path:line:column`, the path relative to the working
 //! directory with `/` between its parts, the line and the column counted from
@@ -300,8 +305,9 @@ struct Project {
 }
 
 impl Project {
-    /// Finds the project and indexes it, and reports on standard error how
-    /// many of its files have errors.
+    /// Finds the project and indexes it from the data folder's index file,
+    /// saving that file again, and reports on standard error how many of its
+    /// files have errors.
     fn open() -> Result<Self, ExitCode> {
         let cwd = std::env::current_dir().map_err(|err| {
             eprintln!("error: the working directory cannot be read: {err}");
@@ -309,7 +315,8 @@ impl Project {
         })?;
         let cwd = canonical_key(&cwd);
         let root = project_root(&cwd);
-        let workspace = nvs_lsp::workspace(&root);
+        let file = nvs_lsp::index_file_of(&root);
+        let workspace = nvs_lsp::workspace_from(&root, file.as_deref());
         match workspace.index().files_with_errors() {
             0 => {}
             1 => eprintln!(
