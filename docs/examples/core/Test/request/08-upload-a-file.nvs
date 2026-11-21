@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to test a form that uploads a file together with a text field.
+
+use Core\Http\Method;
+use Core\Http\Part;
+use Core\Test;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // This part answers each request. It writes the name, the type and the size
+    // of each uploaded file, and then the text field `title`.
+    foreach (Core\Request::files() as Core\Request\Part $part) {
+        echo $part->filename() ?? 'no name', ' ', $part->contentType(), ' ';
+        echo Core\Bytes::length($part->readAll({ max: 100000 })), " bytes\n";
+    }
+    echo 'title: ', Core\Request::post('title') ?? 'none';
+} else {
+    // `multipart` sends a form with a file, the same way a browser does.
+    // `Part::bytes` creates the file from its content, its name and its type.
+    var $response = Test::request(Method::Post, '/invoices', {
+        multipart: [
+            'title' => 'March invoice',
+            'scan' => Part::bytes('%PDF-1.7 invoice', 'march.pdf', { contentType: 'application/pdf' }),
+        ],
+    });
+
+    // This prints `march.pdf application/pdf 16 bytes` and `title: March invoice`.
+    echo $response->body(), "\n";
+}

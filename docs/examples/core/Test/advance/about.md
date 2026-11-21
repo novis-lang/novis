@@ -9,5 +9,6 @@ A negative duration moves the clock back. In a test without `at:`, or outside a 
 throws a `LogicError`. A clock can show a time from about the year -9999 to the year 9999. When the moved time is
 outside that range, `advance` throws a `RuntimeError` and the clock does not move.
 
-**The examples below** show a token that expires, a clock moved in several small steps, and a
-session that ends when its user does nothing for 30 minutes.
+**The examples below** show a token that expires, a clock moved in several small steps, a
+session that ends when its user does nothing for 30 minutes, and a retry that waits longer after
+each failure.

@@ -1,0 +1,28 @@
+<?nvs
+// Shows that a form post from another site gets the status `403`, the same as on the server.
+
+use Core\Http\Method;
+use Core\Test;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // This part answers each request. It saves the comment.
+    echo 'saved';
+} else {
+    // `origin` names the site of the form. It is this site and scheme, so the
+    // program saves the comment. This prints `200 saved`.
+    var $same = Test::request(Method::Post, '/comments', {
+        scheme: 'https',
+        headers: ['host' => 'blog.example.com', 'origin' => 'https://blog.example.com'],
+        form: ['text' => 'Nice post'],
+    });
+    echo $same->status(), ' ', $same->body(), "\n";
+
+    // Here the form comes from another site. The program does not run,
+    // and the response has no body. This prints `403 ''`.
+    var $forged = Test::request(Method::Post, '/comments', {
+        scheme: 'https',
+        headers: ['host' => 'blog.example.com', 'origin' => 'https://other.example.com'],
+        form: ['text' => 'Buy cheap watches'],
+    });
+    echo $forged->status(), " '", $forged->body(), "'\n";
+}

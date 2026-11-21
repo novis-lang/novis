@@ -1,0 +1,61 @@
+<?nvs
+// Shows how to test a retry that waits twice as long after each failure. The test takes microseconds.
+// proof: test
+
+use Core\Test;
+use Core\Time;
+use Core\Time\Duration;
+use Core\Time\Instant;
+
+class Retry
+{
+    private Duration $wait;
+    private Instant $nextTry;
+
+    public function constructor()
+    {
+        $this->wait = 1s;
+        $this->nextTry = Time::now();
+    }
+
+    // Returns `true` when the wait after the last failure has passed.
+    public function canTry(): bool
+    {
+        return Time::now()->compareTo($this->nextTry) >= 0;
+    }
+
+    // Starts the next wait, and makes the wait after it twice as long.
+    public function failed(): void
+    {
+        $this->nextTry = Time::now()->plus($this->wait);
+        $this->wait = $this->wait->multipliedBy(2);
+    }
+}
+
+class RetryTest
+{
+    #[Test(at: '2026-03-01T09:00:00Z')]
+    public function theWaitDoublesAfterEachFailure(): void
+    {
+        var $retry = new Retry();
+        Test::assertTrue($retry->canTry());
+
+        // After the first failure, the retry waits 1 second.
+        $retry->failed();
+        Test::assertSame($retry->canTry(), false);
+        Test::advance(1s);
+        Test::assertTrue($retry->canTry());
+
+        // After the second failure, it waits 2 seconds. One second is not enough.
+        $retry->failed();
+        Test::advance(1s);
+        Test::assertSame($retry->canTry(), false);
+        Test::advance(1s);
+        Test::assertTrue($retry->canTry());
+
+        // After the third failure, it waits 4 seconds.
+        $retry->failed();
+        Test::advance(4s);
+        Test::assertTrue($retry->canTry());
+    }
+}

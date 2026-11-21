@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to test an API that reads a JSON body and returns JSON.
+
+use Core\Http\Method;
+use Core\Test;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // This part answers each request. It reads the order from the JSON body
+    // and returns the total price.
+    var $order = Core\Request::json() as array<mixed>;
+    int $total = ($order['price'] as int) * ($order['quantity'] as int);
+    Core\Response::setStatus(201);
+    Core\Response::json(['total' => $total]);
+} else {
+    // `json` encodes the value as the body and sets the `Content-Type` header.
+    var $response = Test::request(Method::Post, '/orders', {
+        json: ['price' => 250, 'quantity' => 3],
+    });
+
+    // This prints `201 750`.
+    var $answer = $response->json() as array<mixed>;
+    echo $response->status(), ' ', $answer['total'], "\n";
+}

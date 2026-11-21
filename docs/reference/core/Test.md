@@ -12,6 +12,11 @@ discharges one. A test is a `public`, non-`static` method returning `void` and m
 `#[Test]` after `use Core\Test;`), run by `nvs test`; a test that asserts nothing fails. Marking, fixtures,
 data rows and the runner's report belong to [testing](#lang-testing).
 
+A test can also run your whole program. `request` sends one HTTP request to it and returns the
+response. `run` runs it as a command and returns the exit code and the output. Both open no network
+connection and start no process. `logs` returns the log records the test wrote, and `sentMail`
+returns the mail it sent. Under `nvs test`, `Core\Mail::send` keeps each message and sends nothing.
+
 ```nvs test
 <?nvs
 final class Cart

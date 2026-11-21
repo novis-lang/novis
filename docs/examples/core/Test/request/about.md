@@ -1,17 +1,16 @@
 `Core\Test::request()` sends one request to your own program and returns the response. It opens no
-network connection. The request runs through the same route table and the same code as a real
-request. You give the HTTP method and the path, such as `Core\Http\Method::Get` and `/orders/7`. You
-can also give `headers`, a `body` and a `mount` prefix. If the server mounts your program with a
-pattern such as `/shops/{1}`, `captures` gives the parts of the prefix that the pattern matched.
-`captures` without `mount` throws a `LogicError`.
+network connection. Novis runs your program again from the top, and the `Core\Request` methods read
+the request you sent.
 
-The result is a `Core\Test\Response`. `status()` returns the status code. If the program set no
-status, it is `200`. `body()` returns the text the program wrote, and `json()` and `jsonAs()` decode
-it. `header()`, `headers()` and `cookies()` return the headers and cookies that the program set.
-A page that uses `Core\Response::slotted()`
-arrives whole, with each part already in place. To test what the server sends, declare the test
-with `#[Test(server: true)]` and send the request to `Core\Test::serverUrl()`.
+You give the HTTP method and the path, such as `/orders/7`. Options set the rest: `headers`,
+`cookies`, the client address `clientIp` and the `scheme`. A body is one of `body`, `json`, `form`
+or `multipart`, the same options as in `Core\Http\Client`. `mount` and `captures` set the prefix
+that the server mounts your program under.
 
-Novis runs your program again from the top to handle the request. In that run, the `Core\Request`
-methods read the request you sent. A request cannot send another request, so in that run
-`Core\Test::request` throws a `RuntimeError`.
+The result is a `Core\Test\Response`. `status()`, `body()`, `json()`, `headers()` and `cookies()`
+return what the program sent. The response is the one the server sends. A write from another site
+gets `403`, and a body over the size limit gets `413`. A `HEAD` request gets no body. A request that
+throws gets `500`, and `error()` returns the class and message of the error.
+
+**Good to know:** the call returns after the program's after-response work has ended. A request
+cannot send another request.

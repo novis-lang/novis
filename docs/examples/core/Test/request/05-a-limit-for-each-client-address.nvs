@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to test a limit of two requests per minute for each client address.
+
+use Core\Http\Method;
+use Core\Test;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // This part answers each request. The limit counts the requests of each
+    // client address. The third request in one minute gets the status `429`.
+    var $address = Core\Request::clientIp() ?? 'unknown';
+    var $decision = Core\RateLimit::shed('search:' . $address, 2, 1m);
+    if (!$decision->allowed()) {
+        Core\Response::setStatus(429);
+    }
+    echo $address;
+} else {
+    // `clientIp` is the address of the client that sends the request.
+    // This prints `200`, `200` and then `429`.
+    uint $try = 0;
+    while ($try < 3) {
+        echo Test::request(Method::Get, '/search', { clientIp: '203.0.113.9' })->status(), "\n";
+        $try = $try + 1;
+    }
+
+    // Another address has its own limit, so this prints `200`.
+    echo Test::request(Method::Get, '/search', { clientIp: '198.51.100.4' })->status(), "\n";
+}

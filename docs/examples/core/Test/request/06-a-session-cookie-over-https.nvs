@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to test a login cookie that the browser sends only over `https`.
+
+use Core\Http\Method;
+use Core\Test;
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    // This part answers each request. A cookie whose name starts with
+    // `__Host-` is read only from a request over `https`.
+    echo Core\Request::cookie('__Host-session') ?? 'not logged in';
+} else {
+    // `cookies` sends the cookie, and `scheme` says the request came over `https`.
+    // This prints `user-7`.
+    var $secure = Test::request(Method::Get, '/account', {
+        scheme: 'https',
+        cookies: ['__Host-session' => 'user-7'],
+    });
+    echo $secure->body(), "\n";
+
+    // Without `scheme`, the request is `http`. This prints `not logged in`.
+    var $plain = Test::request(Method::Get, '/account', {
+        cookies: ['__Host-session' => 'user-7'],
+    });
+    echo $plain->body(), "\n";
+}
