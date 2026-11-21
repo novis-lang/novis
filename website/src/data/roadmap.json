@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Reload a running server",
-      "text": "`nvs reload` makes a running server use the files that are on the disk now. It tells you when the server runs the new files.",
-      "goals": [
-        "reload-now"
-      ]
-    },
-    {
       "title": "Tests that reach every part of a program",
       "text": "A test can set the client address, cookies and the request body. It can run a command program and read its exit code and output. It can also read the logs and the mail a test caused.",
       "goals": [
