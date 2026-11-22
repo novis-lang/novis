@@ -27,6 +27,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **`bun nv splice` edits a file another live session claims, and only `git add` refuses it.** The
+  edit guard checks Edit and Write, not a shell tool. A loop session spliced its goal file while an
+  interactive session still claimed it, and then could not commit its handoff. Run `looper claims`
+  before a splice that touches a goal file. See `tools/looper/src/claims/claims.ts`.
 - **A Python edit script under `.agent-tmp/` that writes with `open(p, 'w')` turns every line
   ending into CRLF on Windows.** Git then warns "CRLF will be replaced by LF" for each file, and the
   working copy no longer matches rustfmt's output. Open the file with `newline=''`, or write bytes.
