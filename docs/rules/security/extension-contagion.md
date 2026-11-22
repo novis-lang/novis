@@ -22,6 +22,9 @@ engine is no exception, so a component's own source types what an upload's recor
 `tainted`: the cells `Novis\Spreadsheet\Reader` reads from a `tainted bytes` workbook are
 (`tests/conformance/novis/spreadsheet-a-cell-read-from-an-upload-is-tainted.nvst`).
 
+**Not on disk.** An argument's taint is not read inside a shape, so an image opened from a `tainted
+bytes` upload encodes to plain `bytes` (gap:nvs-types/extension-shape-argument-drops-taint).
+
 **Declined:**
 - **Stripping qualifiers at the boundary.** Nothing to design and nothing to freeze into the extension
   ABI, but unsound rather than merely limited: passing a value through any `.nvsx` would launder it.

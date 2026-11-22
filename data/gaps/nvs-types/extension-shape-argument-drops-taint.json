@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-types/src/expr/quals.rs",
+  "title": "An extension call drops the taint of a shape argument's field, so `Novis\\Image\\Image` turns an upload into plain `bytes`.",
+  "text": "`rule:security/extension-contagion` makes every `string` and `bytes` of an extension's result `tainted` when an argument is. `carries_tainted` does not step into a shape, and `Novis\\Image\\Codec::run` takes its source inside a shape, so `Image::open($upload)->encode()` compiles to plain `bytes` from a `tainted bytes` upload, and the raw pixels the attacker chose leave clean through `pixels()`. Closing it makes the contagion of an extension call read `may_carry_outside_text`, which steps into a shape, and writes `tainted bytes` on the image and PDF components' terminals. Every program that keeps an image or a page in a plain `bytes` then writes `tainted bytes` (about 165 programs, counted when the walk stepped in once before). A row of `crates/nvs-types/tests/taint_every_form.rs` opens a `tainted bytes` source and requires a tainted result.",
+  "goal": "taint-fail-closed"
+}

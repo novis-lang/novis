@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/tests/taint_signatures.rs, docs/rules/security/tainted-sources.md]
   - id: 4
     title: "every expression form and every codec has a taint row, and a form or a type without one does not compile"
-    status: open
+    status: done
     context: [crates/nvs-types/src/derive.rs]
   - id: 5
     title: "no launderer returns a value its own sink reads as an instruction"
@@ -231,6 +231,18 @@ result was tainted even when the program read a file. That is 165 programs. Whet
 text reaches a contagious result is a question about what each member writes, and stage 4's rows
 answer it. `may_carry_outside_text` is the classifier's full answer and does step in.
 
+**An extension call's result is tainted when a shape argument carries outside text.** Stage 4 found
+the hole: `Image::open($upload)->encode()` from a `tainted bytes` upload compiles to plain `bytes`,
+and `pixels()` returns bytes the attacker chose. `rule:security/extension-contagion` already says an
+extension's result carries every argument's taint, and a component that cleans an upload is the
+bypass that rule exists to stop. So an extension call's contagion reads `may_carry_outside_text`,
+which steps into a shape, and the image and PDF components' terminals return `tainted bytes`. A
+program that reads a file into an image then writes `tainted bytes` too, because the source's type
+has an upload arm and the qualifier has no generic form. That over-taint is accepted: a response
+body, storage and a file all take `tainted bytes`, and security outranks simplicity. A `Core` row's
+shape argument stays out of `carries_tainted`, since no row writes a shape argument's text into its
+result. `gap:nvs-types/extension-shape-argument-drops-taint` holds the work, about 165 programs.
+
 **The return mark is a field on every row, and the checker reads it where it seeds the row.**
 `CoreMethod::text` is a `TextOrigin`: `Unmarked`, `Derived`, `Source` or `Clean(reason)`. A row that
 returns no text keeps `Unmarked`, and `taint_signatures.rs` fails on a mark on such a row. A shared
@@ -362,14 +374,14 @@ or `bytes`, one line each.
   One program decodes a document into `{ counts: array<int> }` with a bad value under a key the
   document chose, and prints the issue's path. If the key text is in it, `Core\Issue::$path` becomes
   `tainted string` (`crates/nvs-types/src/error_lib.rs:222`), and stage 6 lists it.
-- [ ] *check first*: `crates/nvs-stdlib/src/db/row.rs:220` and the `format!` calls of `json.rs` not
+- [x] *check first*: `crates/nvs-stdlib/src/db/row.rs:220` and the `format!` calls of `json.rs` not
   yet read. A message that includes input text makes `Throwable::$message` `tainted string`
   (`error_lib.rs:238`). One program for each finding.
   - [x] The finding: `Core\Json::decode`'s repeated-key message quotes the key. `row.rs:220` and the
     issue messages are clean.
   - [x] `Throwable::$message` and the constructor's `$message` are `tainted string`; the ten examples
     write `tainted string`; `taint_every_form` has the program.
-  - [ ] Every conformance case, hostile test, snippet and app that keeps a message in a plain
+  - [x] Every conformance case, hostile test, snippet and app that keeps a message in a plain
     `string` writes `tainted string`. `bun nv suite` names them, and this checkpoint requires the run.
 - [x] `cargo build`, clippy, `bun nv relink --build` and `bun nv against`. No IR difference. Each
   program whose diagnostics differ is either a hole, named under `### State` with its source, or a
@@ -432,51 +444,45 @@ or `bytes`, one line each.
 ### State
 
 The against base is in `.agent-tmp/against/base/`, from `1ec4cda0d4`, and stays until stage 7.
+Last `bun nv against`: no IR difference but the wording of `06-a-secret-in-an-error-message`, which
+compiles in neither build. `assertTrusted` 48 and 48, median check-time ratio 1.000.
 
-Stages 1 to 3 are done. The six `Source` rows of stage 3 are process output,
-`Core\Db\Connection::serverVersion` and `Core\Ldap\Connection::whoami`.
+Stages 1 to 4 are done. What moved, for stage 6: six `Source` rows (process output,
+`Core\Db\Connection::serverVersion`, `Core\Ldap\Connection::whoami`); `Core\Ldap\Filter` and
+`Dn` render as tainted (`registry.rs` `renders_tainted_text`); `Throwable::$message` is `tainted
+string`, because `Core\Json::decode`'s repeated-key message quotes the key (`json/reader.rs:392`).
+`Core\Issue`'s `path` and `message` stay plain. Every case, attack and app that kept a message in a
+plain `string` writes `tainted string` (`8f91d1af85`, `9636325f95`); conformance 4195 passed,
+`apps/registry` 113 passed, no `assertTrusted` added. `apps/registry` reads `nvs` output paths
+through `Core\IO::within` in `Index::logPath`.
 
-Stage 4: `crates/nvs-types/tests/taint_every_form.rs` has a row or more for each of the 49
-`ExprKind::NAMES` (`crates/nvs-syntax/src/ast.rs`), six statement forms (destructuring, `foreach`
-key and value, `return`, a property write), and `Core\Str::upper`, `Core\Json::encode` and
-`Core\Str::format`. Green, run by name. The rows found two holes:
+The shape-argument question is decided in § *Standing decisions*. The image hole it found is
+`gap:nvs-types/extension-shape-argument-drops-taint`, owned by this goal, so `close` is red until
+it lands.
 
-- `Core\Ldap\Filter` and `Core\Ldap\Dn` rendered as plain text through `.`, an interpolation and
-  `as string`, though `toString` returns `tainted string`. Fixed at
-  `crates/nvs-stdlib/src/registry.rs` `renders_tainted_text`, read by `quals.rs` `text_class`.
-- `Throwable::$message` was plain, but `Core\Json::decode`'s repeated-key message quotes the
-  document's key (`json/reader.rs:392`; `.agent-tmp/dup.nvs` printed `the key "<b>x</b>" appears
-  twice`). Fixed at `crates/nvs-types/src/error_lib.rs` `root_properties` and `constructor`. Ten
-  examples write `tainted string`, and `06-a-secret-in-an-error-message.out` names `tainted string`.
-
-`Core\Issue`'s `path` and `message` are clean, so they stay plain.
-
-`bun nv against` on this tree: the one IR and diagnostic difference is the wording of
-`06-a-secret-in-an-error-message`, a program that does not compile in either build. `assertTrusted`
-48 and 48, median check-time ratio 1.000.
-
-Sessions per stage: 1: one. 2: one. 3: two. 4: one.
+Sessions per stage: 1: one. 2: one. 3: two. 4: two.
 
 ### Next
 
-Stage 4, its one open checkpoint, then the backlog question it owns.
+Stage 5 from its first item, then the gap.
 
-1. `bun nv suite` once, and every conformance case it names red because it keeps `$e->message` in a
-   plain `string` (a `return` from a `: string` function, a `string $x =`, a `string` parameter)
-   writes `tainted string` instead. About 68 files match `return …->message` or
-   `string $x = …->message` under `tests/` and `website/`, such as
-   `tests/conformance/core/count-shaped-producers-refuse-alike.nvst` and
-   `encoding-each-decoder-says-why-it-refused-and-where.nvst`. **Split:** writing subagents over
-   disjoint folders, and the session builds and reruns the suite once they end. A case whose
-   `.out` names `string` for the message is updated with it. Then `tests/hostile/`,
-   `website/snippets/` and `website/apps/` the same way (`bun nv site apps`).
-2. The backlog's shape-argument question, decided with a row in `taint_every_form` for the image
-   plan shape.
-3. Then stage 5 from its first item.
+1. Stage 5: `crates/nvs-stdlib/tests/launderer_matrix.rs`, then `encodeComponent` at
+   `crates/nvs-stdlib/src/uri.rs:3215`, then the rest of the stage in order.
+2. `gap:nvs-types/extension-shape-argument-drops-taint`, before stage 6, so its proofs and change
+   entries land there. The checker side: an extension call's contagion
+   (`crates/nvs-types/src/ext_lib.rs` and `quals.rs` `contagious_result`, `:997`) asks
+   `may_carry_outside_text` (`quals.rs:303`) of each argument, and a `Core` row keeps
+   `carries_tainted`. Then `extensions/image/nvs/Image.nvs` `encode`, `pixels` and the other
+   terminals return `tainted bytes`, and the PDF component the same. Then every program that keeps
+   their result in `bytes`. **Split:** the session lands the checker and the two components, builds,
+   lists the red programs with `nvs test tests/conformance` and `bun nv against`, and writing
+   subagents fix them over disjoint folders. A row in `taint_every_form` opens a `tainted bytes`
+   image and requires a tainted result. Delete the gap record and the extension-contagion
+   **Not on disk.** line in the same slice.
 
-Tests expected red: the conformance cases above, until step 1. Stage 6's first item now also owes
-`Throwable::$message` a `changes.json` entry and `about.md` line, and `Core\Ldap\Filter`/`Dn`
-one each.
+Tests expected red: none now. Stage 6's first item also owes `Throwable::$message` a `changes.json`
+entry and `about.md` line, `Core\Ldap\Filter`/`Dn` one each, and the image and PDF terminals one each
+once the gap lands.
 
 ### Backlog
 
@@ -484,8 +490,3 @@ one each.
   `Stringable` and the conversion always throws when it runs. It is a type-check gap, not a taint
   hole, since no text is ever produced. `require_stringable_object` in
   `crates/nvs-types/src/expr/operators.rs` returns early for a non-class type.
-
-- **A shape argument to a contagious member.** `carries_tainted` does not step into a shape, so a
-  `tainted` field of a shape argument does not taint a contagious result. Stage 4 decides it with the
-  rows. The image extension's plan shape is the case to check: its `Core\Bytes::Source` field has a
-  `Core\Request\Part` arm, so a whole-type answer taints a file's result too.
