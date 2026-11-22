@@ -10,7 +10,7 @@ stages:
     context: [.github/workflows/build.yml, tools/nv/main.ts]
   - id: 2
     title: a local rebuild measures link.exe against rust-lld
-    status: open
+    status: done
     context: [docs/agent/commands.md]
   - id: 3
     title: "rust-lld links every Windows build, and nothing it links behaves differently"
@@ -138,11 +138,11 @@ names `--times`.
 
 ### 2. a local rebuild measures link.exe against rust-lld
 
-- [ ] `bun nv disk`, then the two warm builds and the four measured builds, as the standing decision
+- [x] `bun nv disk`, then the two warm builds and the four measured builds, as the standing decision
   says. The figures go under `### State`: each build's wall time and binaries linked.
-- [ ] The linker `x86_64-unknown-linux-gnu` uses on 1.99.1, from the installed toolchain's release
+- [x] The linker `x86_64-unknown-linux-gnu` uses on 1.99.1, from the installed toolchain's release
   notes, under `### State`.
-- [ ] The decision is taken by the standing decision's rule, and `.agent-tmp/lld-probe/` is deleted.
+- [x] The decision is taken by the standing decision's rule, and `.agent-tmp/lld-probe/` is deleted.
 
 ### 3. rust-lld links every Windows build, and nothing it links behaves differently
 
@@ -180,25 +180,30 @@ Only when stage 2 adopted rust-lld.
 
 ### State
 
-Stage 1 is done in one session. `bun nv pe-flags --bin <path>` (`tools/nv/cmd/pe-flags.ts`) reads
-the PE32+ headers and names each missing protection. Its test `tools/nv/test/pe-flags.test.ts`
-passes, 6 of 6. The local `target/release/nvs.exe` passes it: it is newer than the last change to
-`crates/nvs-cli/build.rs`, so no relink was needed. `build.yml`'s step *The Windows binary keeps its
-protections* runs it on the Windows leg, after the version step and before *Package*. That step has
-not run in CI yet: stage 4's push is its first run. `bun nv ci --check` is green with all of it.
+Stage 1 is done: `bun nv pe-flags` and its `build.yml` step, which first runs in stage 4's push.
+Stage 2 is done, and rust-lld is adopted. Each measured build was a touch of
+`crates/nvs-runtime/src/lib.rs`, then `cargo build --workspace --all-targets`:
 
-The acceptance sweep's red, nightly `miri units (nvs-stdlib 2/12)` (run 44894790665), was
-`granularity::tests::both_walks_agree_on_every_window` timing out at 300 s. That run tested
-7e97fa8444, which is older than 156f11a7ca, the commit that cut its Miri reach to 2. The fix is
-already on origin/main, so nothing changed. The next nightly is the proof.
+| Build | Linker | Wall time | Binaries linked |
+|---|---|---|---|
+| a | link.exe | 127.4 s | 305 |
+| b | rust-lld.exe | 106.8 s | 305 |
+| a | link.exe | 132.7 s | 305 |
+| b | rust-lld.exe | 73.3 s | 305 |
 
-Sessions per stage: stage 1, one. Stage 2, none yet.
+The `a` runs differ by 5.3 s, and `b` is faster by 20.6 s and 59.4 s. The probe is deleted.
+Linux links with rust-lld already: WSL's rustc 1.99.1 gives `x86_64-unknown-linux-gnu` the flavor
+`gnu-lld-cc` with a self-contained linker, the default since 1.90.0. No backlog line is needed.
+Nightly Miri run 44894790665 tested 7e97fa8444, older than its fix 156f11a7ca; the next one proves it.
+
+Sessions per stage: stage 1, one. Stage 2, one. Stage 3, none yet.
 
 ### Next
 
-Stage 2 from its first item, at `docs/goals/windows-rust-lld.md` § *2. a local rebuild measures
-link.exe against rust-lld*. `bun nv disk` first: the probe does not start below 80 GB free. Then
-the two warm builds under `.agent-tmp/lld-probe/a` and `b`, and the measured order a, b, a, b, as
-the standing decision gives it. No test is expected to go red.
+Stage 3 from its first item, at `docs/goals/windows-rust-lld.md` § *3. rust-lld links every Windows
+build*. Create `.cargo/config.toml` with `[target.x86_64-pc-windows-msvc] linker = "rust-lld.exe"`
+and the comment the standing decision names, using the figures above. The first `cargo build` after
+it relinks every binary. A test that fails only under rust-lld is investigated once, then gets the
+safe default. No test is expected to go red.
 
 ### Backlog
