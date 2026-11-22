@@ -3,6 +3,8 @@ error[E0401]: expected `string`, found `tainted string`
   |
 8 | Core\Regex\Pattern $pattern = Core\Regex::compile($search);
   |                                                   ^^^^^^^ this is `tainted string`
+  = help: this parameter cannot take `tainted` text. `Core\Regex::quote` makes the text safe for it
+  = suggestion (review): pass it through `Core\Regex::quote`: `Core\Regex::quote($search)`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

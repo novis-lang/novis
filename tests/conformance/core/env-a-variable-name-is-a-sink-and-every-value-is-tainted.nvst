@@ -23,6 +23,7 @@ error[E0401]: expected `string`, found `tainted string`
   |
 8 | var $leak = Core\Env::get($chosen);
   |                           ^^^^^^^ this is `tainted string`
+  = help: no `Core` method makes text safe for this parameter. If you know the value is safe, write `Core\Taint::assertTrusted($value, $reason)` with the reason
 
 error[E0401]: expected `string`, found `tainted string`
    --> case.nvs:14:53
