@@ -2149,6 +2149,18 @@ document is admitted, and every text field it fills must be `tainted` (`E0810`),
 own `string` fills a plain field. Admitting the document launders nothing, because the class it
 answers carries the mark in each field that receives text.
 
+The check reaches every class the type argument reaches, not only one written at its root. One walk
+steps into an inline shape's fields, an array's element and a nullable, at any depth, and through a
+deriving class's own shape property. So `jsonAs<{ blog: { post: Post } }>`, `jsonAs<array<{ post:
+Post }>>` and `jsonAs<Blog>` with a `{ post: Post }` property each hold `Post` to `E0810`, to
+`E0820` where its constructor cannot be filled, and to `E0821` where it has no codec, as
+`jsonAs<Post>` does. Every typed decoder that builds from a document runs it:
+`Core\Request::jsonAs`, `queryAs` and `postAs`, `Core\Json::decodeAs` and `decodeEach`, and
+`Core\Arr::shapeAs`. A row decoder does not, because a row has no column for a class. The run-time
+decoder's own refusal of a class it cannot build stays as the last line. Declined: a walk per check
+that knew only a root class and an array of one; a class under a shape then decoded plain text into a
+plain `string`, which is the hole this paragraph closes.
+
 A `secret` property on a `#[Json\Derive]` class is a field its decoder fills, so a login form read
 through `jsonAs` or `postAs` lands its password in a `secret tainted string` and the debug record
 replaces it ([`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced)). Encoding
@@ -2163,7 +2175,8 @@ class encodable. So such a class has a decoder and no usable derived encoder.
 A `#[Db\Derive]` class keeps the refusal at the declaration: a row is read and written by the same
 derive, so a `secret` property there is `E0462` where it is written, with skipping it as the fix.
 
-Trade-offs: one walk of the argument's type per encode call at compile time, and at run time one scan
+Trade-offs: one walk of the type argument per decode call and of the argument's type per encode call
+at compile time, and at run time one scan
 of a class's slot bits per object encoded whose class has a `secret` property.
 
 **Declined:** keeping the declaration refusal for JSON. It made the replacement in a recorded body

@@ -1080,6 +1080,23 @@ A local's element, `$a[k] = M($a[k])`, is not lent: a local is not a slot, so on
 sole every later read of the local's old value, the error edges' releases included, would have to
 read the sole array. It keeps its retain.
 
+**What a quiet call is.** A lend crosses only calls that run no program code and write no slot on its
+chain. Three things make a call not quiet, and each keeps the retain:
+
+- **A helper that runs program code.** A helper's row is `true` unless its runtime body was read and
+  runs none. A body that converts, compares, encodes or clones a value that can be an object runs
+  program code: `as ?string` runs a `toString`. A release is not program code, as a plain release
+  is not.
+- **A `Core` member given an object.** A callable argument is judged by the anonymous function's own
+  summary. An array argument counts as an object unless the checker proved it holds no object at any
+  depth, because a member may run an element's `toString`, `compareTo` or encode hook.
+  `Core\Arr::sort` of an `array<int>` is lent; of an `array<Item>` it is not.
+- **A `Core` member that may park its task.** While a task waits, another task of the same request may
+  run: a `Core\Task::all` group's callables are children on the same core and share the request's
+  objects and static properties. A member of any class but `Core\Str`, `Core\Math`, `Core\Arr` and
+  `Core\Regex` may park, so it counts as writing anything, and so does a Novis callee that calls one.
+  It costs the lend on a call whose callee does I/O; the call copies at its change instead.
+
 **Four forms the pass covers beyond a call.**
 
 - A literal that opens with a spread of its own target, `$list = [...$list, $x]`, takes that source as

@@ -155,6 +155,7 @@ goals into themes, and `bun nv site --check roadmap` fails when the two disagree
 
 <!-- layout:begin  bun nv layout --check gates this listing; see tools/nv/cmd/layout.ts -->
 ```
+.cargo/             Cargo's config: Windows links with rust-lld in every profile
 crates/             the Cargo workspace
   nvs-diagnostics   spans, source maps, the one diagnostic record
   nvs-render        that record's three renderings: terminal, JSON, LSP
