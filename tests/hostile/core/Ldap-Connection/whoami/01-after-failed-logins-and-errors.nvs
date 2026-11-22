@@ -8,7 +8,7 @@ class Account
 {
     // Returns `yes` when the connection still has the account `$before`.
     // If `whoami` throws an error, it returns `error`.
-    public static function same(Core\Ldap\Connection $corp, string $before): string
+    public static function same(Core\Ldap\Connection $corp, tainted string $before): string
     {
         try {
             return $corp->whoami() == $before ? 'yes' : 'no';
@@ -19,7 +19,7 @@ class Account
 }
 
 var $corp = Core\Ldap::connect('corp');
-string $before = '';
+tainted string $before = '';
 try {
     $before = $corp->whoami();
 } catch (Throwable $error) {

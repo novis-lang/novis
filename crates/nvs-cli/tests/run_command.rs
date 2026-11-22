@@ -541,7 +541,7 @@ Core\Process\Handle $child = Core\Process::spawn(
     "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
     ["-NoProfile", "-Command", '$g = Start-Process -PassThru -NoNewWindow -FilePath powershell.exe -ArgumentList "-NoProfile -Command Start-Sleep 120"; "$PID $($g.Id)"; Start-Sleep 120']
 );
-?bytes $pids = $child->readStdout();
+?tainted bytes $pids = $child->readStdout();
 echo ($pids ?? "" as bytes) as string, "\n";
 Core\Time::sleep(120s);
 "#;
@@ -757,7 +757,7 @@ Core\Process\Handle $child = Core\Process::spawn(
     "/bin/sh",
     ["-c", 'sleep 120 & echo "$$ $!"; wait']
 );
-?bytes $pids = $child->readStdout();
+?tainted bytes $pids = $child->readStdout();
 echo ($pids ?? "" as bytes) as string, "\n";
 Core\Time::sleep(120s);
 "#;

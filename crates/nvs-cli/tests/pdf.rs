@@ -87,7 +87,7 @@ Core\IO\File $file = Core\IO::open('hello.pdf', Core\IO::FileMode::Read);
 $file->readBytes(4);
 var $reader = Reader::open($file);
 echo $reader->pageCount, ' ', $reader->text(1), ' ', $file->tell(), "\n";
-bytes $merged = Pages::merge([Pages::of($file), Pages::of(Core\IO::readBytes('hello.pdf'))]);
+tainted bytes $merged = Pages::merge([Pages::of($file), Pages::of(Core\IO::readBytes('hello.pdf'))]);
 echo Reader::open($merged)->pageCount, "\n";
 "#,
     );

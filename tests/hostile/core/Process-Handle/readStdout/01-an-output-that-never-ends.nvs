@@ -44,7 +44,7 @@ var $endless = Attack::endless();
 uint $size = 0;
 int $reads = 0;
 while ($reads < 1000) {
-    ?bytes $part = $endless->readStdout();
+    ?tainted bytes $part = $endless->readStdout();
     if ($part != null) {
         $size = $size + Core\Bytes::length($part);
     }
@@ -77,8 +77,8 @@ $short->wait();
 // program here.
 echo "step 4\n";
 var $flood = Attack::endless();
-array<bytes> $kept = [];
-?bytes $next = $flood->readStdout();
+array<tainted bytes> $kept = [];
+?tainted bytes $next = $flood->readStdout();
 while ($next != null) {
     $kept[] = $next;
     $next = $flood->readStdout();

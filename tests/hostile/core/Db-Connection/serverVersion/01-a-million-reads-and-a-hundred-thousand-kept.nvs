@@ -17,7 +17,7 @@ echo '1 letters: ', $letters, "\n";
 
 // 2. A hundred thousand versions held at once, then dropped together. They are
 // all the same short text, so the memory must go back when the list does.
-array<string> $kept = [];
+array<tainted string> $kept = [];
 $i = 0;
 while ($i < 100000) {
     $kept[] = $db->serverVersion();

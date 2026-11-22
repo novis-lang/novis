@@ -54,7 +54,7 @@ try {
 }
 
 // 2. After `kill()` and `wait()`, the handle is read, written and killed again.
-?bytes $late = $endless->readStdout();
+?tainted bytes $late = $endless->readStdout();
 echo 'read after the end: ', $late == null ? 'nothing' : 'data', "\n";
 try {
     $endless->writeStdin('too late' as bytes);

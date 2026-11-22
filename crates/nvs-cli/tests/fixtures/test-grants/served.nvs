@@ -13,7 +13,7 @@ class Live
 
 class Served
 {
-    public static function opens(): string
+    public static function opens(): tainted string
     {
         try {
             Core\Db::connect('notes')->query('select 1', []);

@@ -48,7 +48,7 @@ echo 'signed:    ', $link->path(), " verifies under the ring that signed it\n";
 // lived — so a parameter that has to stay free does not belong in a signed
 // URL at all.
 Core\Uri $edited = $link->withQueryParameter('act', 'delete');
-string $tampered = '';
+tainted string $tampered = '';
 try {
     $edited->verifySignature($ring);
     echo 'an edited link verified', "\n";
@@ -59,7 +59,7 @@ try {
 // A URL that was never signed fails the same way, and that is the point: two
 // quite different failures, one sentence, so a forgery says nothing about
 // which half of the check it failed.
-string $unsigned = '';
+tainted string $unsigned = '';
 try {
     Core\Uri::parse('https://example.test/files/7?act=download')->verifySignature($ring);
     echo 'an unsigned link verified', "\n";
@@ -76,7 +76,7 @@ echo 'forgeries: ', $tampered == $unsigned ? 'one sentence for both' : 'two sent
 Core\Time\Instant $ago = Core\Time::now()->minus(1h);
 Core\Uri $stale = Core\Uri::parse('https://example.test/files/7?act=download')
     ->sign({ keys: $ring, until: $ago });
-string $expired = '';
+tainted string $expired = '';
 try {
     $stale->verifySignature($ring);
     echo 'an expired link verified', "\n";
@@ -91,7 +91,7 @@ echo 'expiry:    ', $expired == $tampered ? 'shares the one sentence' : 'has its
 // once minted a link that expired then.
 secret bytes $another = Core\Crypto::generateKey();
 array<secret bytes> $theirs = [$another];
-string $elsewhere = '';
+tainted string $elsewhere = '';
 try {
     $stale->verifySignature($theirs);
     echo 'an expired link verified under a ring that never signed it', "\n";
