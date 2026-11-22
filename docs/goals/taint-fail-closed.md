@@ -141,6 +141,33 @@ A row with no mark answers tainted, so a member added later is safe until its au
 `taint_signatures.rs` lists each `Clean` row with its reason, and fails on a reason that is empty.
 Most of the 168 rows are `Derived`. The classification is one pass, and it never recurs.
 
+**The flip changes no answer for a type the walks already know.** `text_class` gives every `Ty`
+variant the answer today's walks give it, and only a type no walk names changes, to tainted. A row
+marked `Derived` answers what it answers today. So a program that compiled before still compiles,
+unless it used a source that was not marked. Reason: the goal closes holes, and it must not move the
+line for text that was already decided.
+
+**Over-tainting is measured, not guessed.** Tainted text is only refused at a sink where text becomes
+an instruction (`rule:security/sink-predicate`). A bound query parameter, a response body, an HTML
+hole, a log field and a file's contents all take it. So too much taint shows up in exactly one way: a
+program that compiled before no longer compiles. `bun nv against` lists each such program with its
+diagnostic. Each one is a hole the flip found, and its line under `### State` names the source. Or it
+is a wrong mark or a wrong arm, and it is fixed there. It is never fixed with
+`Core\Taint::assertTrusted` in the program. A program that newly needs `assertTrusted` means a
+launderer or a mark is missing, and that is the fix.
+
+**`assertTrusted` has a budget.** Stage 1 counts the calls in `docs/examples/`, `tests/hostile/`,
+`benches/members/` and `website/snippets/`, which was 48 on 2026-11-22. The count never grows during
+this goal. Readers copy these programs, so stage 6 reads each call. A call whose value a launderer, a
+checked conversion or a `Clean` row could untaint gets that instead. A call that stays names a case
+that has no launderer and cannot have one (`rule:security/assert-trusted`).
+
+**A refusal at a sink names the untaint for that sink.** The `E0401` that a tainted argument gets at
+a `Sink` parameter has a help line that names the sink's launderer, such as `Core\IO::within` at a
+path. Where the sink has none, the help line names `assertTrusted`. The editor's hover already shows
+where the taint entered (`rule:ide/a-hover-shows-where-a-tainted-or-secret-value-came-from`). So a
+user is pointed at the exact place to untaint, which is the sink, never the source.
+
 **The bit stays a compile-time fact.** Nothing in this goal adds a tag, a branch or a byte on the
 request path. The one runtime change is in stage 5: a launderer refuses a dot segment.
 
@@ -162,7 +189,8 @@ request path. The one runtime change is in stage 5: a launderer refuses a dot se
 **`bun nv against` is the one way to compare.** It runs after every code stage, so it is a command:
 `bun nv against --record` copies `target/release/nvs` and its commit to `.agent-tmp/against/base/`.
 `bun nv against` compares the current release binary with the base. It prints every program whose IR
-differs, and the median check-time ratio with its pairs. The corpus is `benches/members/` and
+differs, every program whose diagnostics differ with both sets, the `assertTrusted` count, and the
+median check-time ratio with its pairs. The corpus is `benches/members/` and
 `docs/examples/` for the IR, and the 40 largest programs of both for the timing. A base that differs
 from itself on a second dump fails the record, so a dump that is not deterministic is found before it
 can hide a change. The gate stage deletes `.agent-tmp/against/`.
@@ -204,9 +232,10 @@ deleted.
   with `Glob`-style walks over the two folders, and uses one `nvs check` and one `nvs run --dump-ir`
   per program.
 - [ ] `tools/nv/test/against.test.ts:1`: a record of the current binary, then a compare of that same
-  binary against it, prints no IR difference and a ratio between 0.9 and 1.1. It runs once, by name.
-- [ ] `bun nv relink --build`, then `bun nv against --record` on the commit before stage 2. The commit
-  and the corpus size go under `### State`.
+  binary against it, prints no IR difference, no diagnostic difference and a ratio between 0.9 and
+  1.1. It runs once, by name.
+- [ ] `bun nv relink --build`, then `bun nv against --record` on the commit before stage 2. The
+  commit, the corpus size and the `assertTrusted` count go under `### State`.
 - [ ] `docs/agent/commands.md`: one line for `bun nv against` in its table.
 
 ### 2. one exhaustive classifier decides every taint walk, and a type it does not recognise counts as tainted
@@ -233,7 +262,8 @@ each, before the classifier is written.
 - [ ] The rule fragments `taint-propagation.md` and `tainted-qualifier.md` say "clean is the proof"
   in one paragraph each, and the `quals.rs` module doc says it once.
 - [ ] `cargo build`, `cargo clippy --all-targets -- -D warnings`, then `bun nv relink --build` and
-  `bun nv against`. No IR difference, and the ratio goes under `### State`.
+  `bun nv against`. No IR difference and no diagnostic difference, since this stage changes no known
+  type's answer. The ratio goes under `### State`.
 
 ### 3. a Core member's returned text is tainted unless its row says where the text comes from
 
@@ -252,8 +282,13 @@ subagents mark the rows file by file, in disjoint batches of the 49 files. None 
 - [ ] `rule:security/tainted-sources` gains one paragraph: the mark, and that no mark means tainted.
   `rule:security/unclassified-parameter-refuses-tainted` names the return side as its pair.
 - [ ] The conformance cases that go red are those whose program used a row now marked `Source`. Each
-  is fixed in its program, never in its expected output, unless the expected output is the bug.
-- [ ] `cargo build`, clippy, `bun nv relink --build` and `bun nv against`. No IR difference.
+  is fixed in its program with the sink's launderer or a checked conversion, never with
+  `assertTrusted` and never in its expected output, unless the expected output is the bug. A case
+  whose row was marked `Source` wrongly gets `Derived` or `Clean` instead, and the case stays as it
+  was.
+- [ ] `cargo build`, clippy, `bun nv relink --build` and `bun nv against`. No IR difference. Each
+  program whose diagnostics differ is either a hole, named under `### State` with its source, or a
+  wrong `Source` mark, fixed at the row. The `assertTrusted` count has not grown.
 
 ### 4. every expression form and every codec has a taint row, and a form or a type without one does not compile
 
@@ -274,7 +309,9 @@ or `bytes`, one line each.
 - [ ] *check first*: `crates/nvs-stdlib/src/db/row.rs:220` and the `format!` calls of `json.rs` not
   yet read. A message that includes input text makes `Throwable::$message` `tainted string`
   (`error_lib.rs:238`). One program for each finding.
-- [ ] `cargo build`, clippy, `bun nv relink --build` and `bun nv against`. No IR difference.
+- [ ] `cargo build`, clippy, `bun nv relink --build` and `bun nv against`. No IR difference. Each
+  program whose diagnostics differ is either a hole, named under `### State` with its source, or a
+  wrong `Source` mark, fixed at the row. The `assertTrusted` count has not grown.
 
 ### 5. no launderer returns a value its own sink reads as an instruction
 
@@ -288,9 +325,16 @@ or `bytes`, one line each.
   is.
 - [ ] Each cell that is unsafe only at another sink, such as the terminal escape's `..` at a path
   sink, gets one gap record under `data/gaps/` that names the carrier design as the fix.
+- [ ] `crates/nvs-types/src/expr/args.rs:815` (`check_arg_admitting_quals`): the `E0401` at a
+  `Sink` parameter has a help line that names that sink's launderer, read from the launderer roster.
+  A sink with no launderer names `Core\Taint::assertTrusted`. *check first*: some sinks may name one
+  already, so list which do not before writing it. One `.nvst` case under `tests/conformance/reject/`
+  for a path sink and one for a regex pattern. `rule:security/launderers-are-sink-named`
 - [ ] `tests/hostile/`: one attack, a request whose route capture is `..`, encoded with
   `encodeComponent` into an outbound URL's path. The call throws.
-- [ ] `cargo build`, clippy, `bun nv relink --build` and `bun nv against`. No IR difference.
+- [ ] `cargo build`, clippy, `bun nv relink --build` and `bun nv against`. No IR difference. Each
+  program whose diagnostics differ is either a hole, named under `### State` with its source, or a
+  wrong `Source` mark, fixed at the row. The `assertTrusted` count has not grown.
 
 ### 6. the features that moved have their proofs, their pages and their change entries
 
@@ -300,6 +344,11 @@ or `bytes`, one line each.
 - [ ] The `about.md` and help of each: reread against what was built and stamped with
   `bun nv site --stamp`. The page on `tainted` says in one sentence that text from a `Core` member is
   tainted unless the member says otherwise.
+- [ ] Every `Core\Taint::assertTrusted` and `assertTrustedBytes` call in `docs/examples/`,
+  `tests/hostile/`, `benches/members/` and `website/snippets/` is read. **Split:** an `Explore`
+  subagent lists them, one line each. A call that a launderer, a checked conversion or a `Clean` row
+  can replace is replaced. A call that stays has a reason naming a case with no launderer. The count
+  before and after goes under `### State`.
 - [ ] `bun nv proofs --owed --goal taint-fail-closed`, and every proof it names is paid.
 - [ ] `bun nv site --check stale`, `changes` and `review` are green.
 
