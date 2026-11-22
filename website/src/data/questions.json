@@ -2445,7 +2445,7 @@
   },
   "/reference/core/arr/shapeas/": {
     "feature": "Core\\Arr::shapeAs",
-    "hash": "8f65799de2acb1a3",
+    "hash": "13ec0794d5d65c60",
     "questions": [
       "How do I convert an array into a typed object or shape?",
       "Read form data into a class with typed fields",
@@ -6684,7 +6684,7 @@
   },
   "/reference/core/json/decodeas/": {
     "feature": "Core\\Json::decodeAs",
-    "hash": "7f1b4c558e0d37af",
+    "hash": "c58a967f7bea0558",
     "questions": [
       "How do I read JSON straight into my own class?",
       "Fill an object from a JSON document",
@@ -6695,7 +6695,7 @@
   },
   "/reference/core/json/decodeeach/": {
     "feature": "Core\\Json::decodeEach",
-    "hash": "043339460b1d8dbb",
+    "hash": "255f001dd03f2c32",
     "questions": [
       "How do I read a JSON file larger than memory?",
       "Read one element of a JSON array at a time",
@@ -12810,13 +12810,14 @@
   },
   "/reference/core/request/jsonas/": {
     "feature": "Core\\Request::jsonAs",
-    "hash": "bdca8e38b7d1b855",
+    "hash": "d96a1c3229245fd7",
     "questions": [
       "How do I turn a JSON body into an object of my class?",
       "Validate incoming JSON fields and types",
       "Read a JSON array of items into a list of objects",
       "Return a 422 error for wrong JSON fields",
-      "Map request JSON to a typed class"
+      "Map request JSON to a typed class",
+      "Why must a string property be tainted in a class inside a shape?"
     ]
   },
   "/reference/core/request/method/": {
@@ -12874,13 +12875,14 @@
   },
   "/reference/core/request/postas/": {
     "feature": "Core\\Request::postAs",
-    "hash": "3990a0fab1aace1b",
+    "hash": "3bced92800cdd850",
     "questions": [
       "How do I read a whole form into a class?",
       "Validate a sign-up form and list every wrong field",
       "Convert form fields to numbers and other types",
       "Read nested form fields like address[city]",
-      "How do I read the lines of an order form into a list?"
+      "How do I read the lines of an order form into a list?",
+      "Fix error E0810 for a class nested inside a form shape"
     ]
   },
   "/reference/core/request/query/": {
@@ -12906,13 +12908,14 @@
   },
   "/reference/core/request/queryas/": {
     "feature": "Core\\Request::queryAs",
-    "hash": "daef15760891ab0a",
+    "hash": "964b81cbbabc4d49",
     "questions": [
       "How do I read all URL parameters into a class?",
       "Validate search filters from the address",
       "Filter products by a price range from the URL",
       "Read nested URL parameters like price[min]",
-      "Return an error for a wrong page number in the URL"
+      "Return an error for a wrong page number in the URL",
+      "Why does a class inside my query shape give error E0810?"
     ]
   },
   "/reference/core/request/route/": {
@@ -18267,7 +18270,7 @@
   },
   "/reference/types/revocable/": {
     "feature": "Revocable",
-    "hash": "c2a4225aa617fb8e",
+    "hash": "82fcc74121cf23c4",
     "questions": [
       "Which interface lets me revoke an object?",
       "Why can my subclass not implement Revocable?",
@@ -18277,7 +18280,7 @@
   },
   "/reference/types/revokedobjecterror/": {
     "feature": "RevokedObjectError",
-    "hash": "c766914f7171f4df",
+    "hash": "e4d88f610a321bba",
     "questions": [
       "What does the error 'A revoked object cannot be used' mean?",
       "Which uses of a revoked object throw an error?",
@@ -18683,7 +18686,7 @@
   },
   "/syntax/classes/revocable-objects/": {
     "feature": "syntax/classes/revocable-objects.mdx",
-    "hash": "fb191dfe5505f591",
+    "hash": "e8bb71d8dc36e52b",
     "questions": [
       "How do I tell the program that an object is no longer valid?",
       "Remove a deleted object from every map and set at once",

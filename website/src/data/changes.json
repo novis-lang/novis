@@ -25,5 +25,10 @@
       "security": true
     }
   ],
-  "unseen": {}
+  "unseen": {
+    "tools:cli/nvs-code": {
+      "hash": "9c7b5f35fa50d9c2",
+      "why": "A test sets its files' modification time to an hour ago, so it gives the same result under load. What `nvs code` does is unchanged."
+    }
+  }
 }
