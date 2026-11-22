@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/regex.rs",
+  "title": "`Core\\Regex::quote` answers a plain `string` that keeps `/` and writes `\\` before each `.`, so a path sink takes the answer and reads it as separators.",
+  "text": "The quote is safe at its own sink: `launderer_matrix.rs` shows the answer matches its input and nothing else. Its answer is a plain `string`, and a plain `string` carries no sink, so a path built from it compiles, and on Windows `\\.\\.` is a path of separators. The root fix is an answer type for each sink, which `rule:security/launderer-answers-a-carrier` declined for every launderer whose sink does not escape on its own. Reversing that is the user's to decide. `CROSS_SINK` in `crates/nvs-stdlib/tests/launderer_matrix.rs` lists this record.",
+  "goal": "taint-fail-closed"
+}

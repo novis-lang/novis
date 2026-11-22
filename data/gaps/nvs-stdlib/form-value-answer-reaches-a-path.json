@@ -1,0 +1,6 @@
+{
+  "module": "crates/nvs-stdlib/src/uri.rs",
+  "title": "`Core\\Uri::encodeFormValue` answers `.` and `..` as themselves, so a path sink takes the answer and reads it as a step to another folder.",
+  "text": "A dot is unreserved in a form value, and a form value is never resolved as a path, so the answer is safe at its own sink. Its answer is a plain `string`, and a plain `string` carries no sink, so a URL path or a file path built from it compiles with a request's `..` in it. `Core\\Uri::encodeComponent` throws on `.` and `..` for its own sink, and this member keeps them, because a query value of `..` is legitimate. The root fix is an answer type for each sink, which `rule:security/launderer-answers-a-carrier` declined for every launderer whose sink does not escape on its own. Reversing that is the user's to decide. `CROSS_SINK` in `crates/nvs-stdlib/tests/launderer_matrix.rs` lists this record.",
+  "goal": "taint-fail-closed"
+}

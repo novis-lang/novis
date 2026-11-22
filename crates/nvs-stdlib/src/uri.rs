@@ -378,7 +378,7 @@ use fluent_uri::component::{Authority, Scheme};
 use fluent_uri::pct_enc::EStr;
 use fluent_uri::resolve::ResolveError;
 use fluent_uri::{ParseErrorKind, Uri, UriRef};
-use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
+use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::ext_record::Part;
 use crate::registry::{
@@ -755,7 +755,12 @@ const ENCODE_COMPONENT_DOC: MethodDoc = MethodDoc {
     ret: "The escaped text, with upper-case hex digits. A `tainted` argument (text from outside \
           the program, such as a request) gives a plain result. No byte of the result can change \
           the structure of the URI.",
-    errors: &[],
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$s` is `.` or `..`. In a path, these move to the same folder or the parent \
+               folder. For a value in a query string, use `$uri->withQueryParameter` or \
+               `Core\\Uri::buildQuery`.",
+    }],
 };
 
 /// `Core\Uri::decodeComponent`'s reference card — `rule:core-api/reference-card`.
@@ -3234,8 +3239,28 @@ nvs_runtime::nvs_helper! {
     /// fragment. A `tainted` argument comes back plain because after this
     /// member no byte of it can be read as a delimiter — which is `rule:security/unclassified-parameter-refuses-tainted`
     /// 's whole condition for claiming the mark.
+    ///
+    /// **`.` and `..` throw a `LogicError`.** Both are unreserved, so they
+    /// would come back as themselves, and a path reads them as a step to the
+    /// same or the parent folder. Encoding the dots as `%2E` does not help,
+    /// because a URL parser reads `%2e%2e` as `..` too. A query value is the
+    /// other common use, and `withQueryParameter` and `buildQuery` take any
+    /// value there, so the message names them. It costs one length test per
+    /// call. An empty argument still answers an empty component:
+    /// `gap:nvs-stdlib/uri-empty-component-opens-an-authority` records the
+    /// one place that is a hole.
     fn nvs_core_uri_encode_component(_ctx, args: [1]) -> Value, owns NvsStr {
         let text = text_of(args, "encodeComponent")?;
+        if text == "." || text == ".." {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "Core\\Uri::encodeComponent() cannot encode {text:?}: in a path it is a dot \
+                     segment, which moves to another folder. For a query value, use \
+                     $uri->withQueryParameter or Core\\Uri::buildQuery"
+                ),
+            ));
+        }
 
         encoded(text.as_bytes(), Form::Component)
     } apply(result, _subject) {
