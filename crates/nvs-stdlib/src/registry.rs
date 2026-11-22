@@ -4575,20 +4575,46 @@ pub fn carries_tainted_bytes(class: &str) -> bool {
         })
 }
 
+/// Whether `class`'s `toString` row answers `tainted` text, such as
+/// `Core\Ldap\Filter`, whose values came from the program's input.
+///
+/// `.`, an interpolation and `as string` render an instance through that row
+/// without a call the program writes, so the checker counts such an instance
+/// as tainted text wherever it goes (`rule:security/taint-propagation`).
+#[must_use]
+pub fn renders_tainted_text(class: &str) -> bool {
+    CLASSES
+        .iter()
+        .find(|declared| declared.name.eq_ignore_ascii_case(class))
+        .and_then(|declared| declared.members().find(|member| member.name == "toString"))
+        .is_some_and(|member| {
+            matches!(
+                member.return_ty,
+                CoreTy::TaintedStr
+                    | CoreTy::TaintedBytes
+                    | CoreTy::SecretTaintedStr
+                    | CoreTy::SecretTaintedBytes
+            )
+        })
+}
+
 /// Whether an instance of `class` carries no text of its own, so a value of it
 /// is clean wherever it goes (`rule:security/taint-propagation`).
 ///
 /// It is every class [`CLASSES`] declares, except [`carries_tainted_bytes`]'s
 /// sources and [`CELL_CLASSES`]. A `Core` instance has no property a program
 /// can reach ([`CoreTy::Instance`]), so its text leaves only through its
-/// members, and each member's row says what its answer carries. A `Core` name
-/// that no row declares answers `false`, so the checker counts it as tainted.
+/// members, and each member's row says what its answer carries. A class whose
+/// `toString` answers `tainted` text is not one of them
+/// ([`renders_tainted_text`]). A `Core` name that no row declares answers
+/// `false`, so the checker counts it as tainted.
 ///
 /// It reads [`CLASSES`] directly for [`carries_tainted_bytes`]'s reason, and
 /// compares without regard to ASCII case, as the compiler compares a name.
 #[must_use]
 pub fn instance_carries_no_text(class: &str) -> bool {
     !carries_tainted_bytes(class)
+        && !renders_tainted_text(class)
         && !holds_cells_of_its_source(class)
         && CLASSES
             .iter()

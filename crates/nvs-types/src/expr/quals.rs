@@ -278,7 +278,9 @@ pub fn text_class(ty: TypeId, interner: &TypeInterner) -> TextClass {
         Ty::Union(members) | Ty::Intersection(members) => TextClass::Holds(members.clone()),
         Ty::Class(qname, args) if qname.is_core() => {
             let name = qname.to_string();
-            if nvs_stdlib::registry::carries_tainted_bytes(&name) {
+            if nvs_stdlib::registry::carries_tainted_bytes(&name)
+                || nvs_stdlib::registry::renders_tainted_text(&name)
+            {
                 TextClass::Tainted
             } else if nvs_stdlib::registry::holds_cells_of_its_source(&name) {
                 TextClass::Holds(args.clone())
