@@ -260,6 +260,25 @@ beside stage 2 as a side goal once stage 1 is done. Stage 5 touches `uri.rs` and
 run beside either. This goal starts after `safety-holes`. Gate: `docs/goals/safety-holes.md` is
 deleted.
 
+**A new expression kind fails at the parser and then at the test.** `ExprKind` is `non_exhaustive`,
+so a match in `nvs-types`'s tests cannot be exhaustive. `ExprKind::name` in `nvs-syntax` matches
+every variant with no catch-all arm and returns its entry of `ExprKind::NAMES`. A new variant does
+not compile until it has a name, and `taint_every_form` then fails naming the kind with no row.
+Reason: removing `non_exhaustive` from the AST for one test would move a crate boundary the other
+enums keep.
+
+**An error's message is `tainted`.** `Core\Json::decode` writes a repeated key of the document into
+its message (`json/reader.rs:392`). `Throwable::$message` and the constructor's `$message` are
+`tainted string`, so wrapping a message still compiles. Making each runtime message prove it leaves
+input out would be an invariant held by attention. `Core\Issue`'s `path` and `message` stay plain:
+`Segment::Key` borrows only the contract's keys, and `describe` returns fixed words.
+`rule:security/tainted-sources` records it.
+
+**A `Core` class whose `toString` returns `tainted` text is tainted.** `.`, an interpolation and
+`as string` render through `toString` with no call written. `registry::renders_tainted_text` reads
+the row, and `text_class` and `instance_carries_no_text` read it. Today that is `Core\Ldap\Filter`
+and `Core\Ldap\Dn`.
+
 ## Stages
 
 ### 1. the request path's IR and the checker's time have a baseline, and one command compares a build against it
@@ -332,21 +351,27 @@ subagents mark the rows file by file, in disjoint batches of the 49 files. None 
 **Split:** an `Explore` subagent lists every expression kind of `nvs-syntax` that can give a `string`
 or `bytes`, one line each.
 
-- [ ] `crates/nvs-types/tests/taint_every_form.rs:1`: one row per expression kind, read through an
+- [x] `crates/nvs-types/tests/taint_every_form.rs:1`: one row per expression kind, read through an
   exhaustive match in the test so a new kind fails to compile the test. Each row is a program in which
   a tainted operand reaches the result, and the result must be tainted. The forms include
   destructuring, spread, `yield`, a closure capture, `??=`, `?->`, a string-holes literal, `match` and
   a heredoc. It runs once, by name.
-- [ ] Each row that compiles clean is a hole, fixed at the expression's check, with its anchor under
+- [x] Each row that compiles clean is a hole, fixed at the expression's check, with its anchor under
   `### State`.
-- [ ] *check first*: a decode issue's `path` uses the declared field's key (`crates/nvs-stdlib/src/json.rs:5321`).
+- [x] *check first*: a decode issue's `path` uses the declared field's key (`crates/nvs-stdlib/src/json.rs:5321`).
   One program decodes a document into `{ counts: array<int> }` with a bad value under a key the
   document chose, and prints the issue's path. If the key text is in it, `Core\Issue::$path` becomes
   `tainted string` (`crates/nvs-types/src/error_lib.rs:222`), and stage 6 lists it.
 - [ ] *check first*: `crates/nvs-stdlib/src/db/row.rs:220` and the `format!` calls of `json.rs` not
   yet read. A message that includes input text makes `Throwable::$message` `tainted string`
   (`error_lib.rs:238`). One program for each finding.
-- [ ] `cargo build`, clippy, `bun nv relink --build` and `bun nv against`. No IR difference. Each
+  - [x] The finding: `Core\Json::decode`'s repeated-key message quotes the key. `row.rs:220` and the
+    issue messages are clean.
+  - [x] `Throwable::$message` and the constructor's `$message` are `tainted string`; the ten examples
+    write `tainted string`; `taint_every_form` has the program.
+  - [ ] Every conformance case, hostile test, snippet and app that keeps a message in a plain
+    `string` writes `tainted string`. `bun nv suite` names them, and this checkpoint requires the run.
+- [x] `cargo build`, clippy, `bun nv relink --build` and `bun nv against`. No IR difference. Each
   program whose diagnostics differ is either a hole, named under `### State` with its source, or a
   wrong `Source` mark, fixed at the row. The `assertTrusted` count has not grown.
 
@@ -408,39 +433,57 @@ or `bytes`, one line each.
 
 The against base is in `.agent-tmp/against/base/`, from `1ec4cda0d4`, and stays until stage 7.
 
-Stage 3 is done. `TextOrigin` and `CoreMethod::text` are in `crates/nvs-stdlib/src/registry.rs`,
-and all 214 rows that return plain text are marked. `Core\Http\Socket::protocol` is now `Clean`:
-`transport::settled` refuses a subprotocol the call did not offer. The six `Source` rows are process
-output, `Core\Db\Connection::serverVersion` and `Core\Ldap\Connection::whoami`. The 24 programs
-that kept their text write `tainted` on the variable and return type. Two needed more:
-`Process-Result/stderr/03-*` puts the tool's message in an error through `Core\Cli::escape`, and
-`Process-Result/stdout/03-*` returns `as int`. The 14 process conformance cases are green, run once
-by name.
+Stages 1 to 3 are done. The six `Source` rows of stage 3 are process output,
+`Core\Db\Connection::serverVersion` and `Core\Ldap\Connection::whoami`.
 
-`bun nv against` on the final stage 3 tree: no IR difference, no diagnostic difference,
-`assertTrusted` 48 and 48, median check-time ratio 1.017. 22 programs are listed as edited: their
-source changed, and both binaries lower the new source alike. `against.ts` now reports those apart
-and does not fail on them; before, it counted them as IR differences.
+Stage 4: `crates/nvs-types/tests/taint_every_form.rs` has a row or more for each of the 49
+`ExprKind::NAMES` (`crates/nvs-syntax/src/ast.rs`), six statement forms (destructuring, `foreach`
+key and value, `return`, a property write), and `Core\Str::upper`, `Core\Json::encode` and
+`Core\Str::format`. Green, run by name. The rows found two holes:
 
-Sessions per stage: 1: one. 2: one. 3: two.
+- `Core\Ldap\Filter` and `Core\Ldap\Dn` rendered as plain text through `.`, an interpolation and
+  `as string`, though `toString` returns `tainted string`. Fixed at
+  `crates/nvs-stdlib/src/registry.rs` `renders_tainted_text`, read by `quals.rs` `text_class`.
+- `Throwable::$message` was plain, but `Core\Json::decode`'s repeated-key message quotes the
+  document's key (`json/reader.rs:392`; `.agent-tmp/dup.nvs` printed `the key "<b>x</b>" appears
+  twice`). Fixed at `crates/nvs-types/src/error_lib.rs` `root_properties` and `constructor`. Ten
+  examples write `tainted string`, and `06-a-secret-in-an-error-message.out` names `tainted string`.
+
+`Core\Issue`'s `path` and `message` are clean, so they stay plain.
+
+`bun nv against` on this tree: the one IR and diagnostic difference is the wording of
+`06-a-secret-in-an-error-message`, a program that does not compile in either build. `assertTrusted`
+48 and 48, median check-time ratio 1.000.
+
+Sessions per stage: 1: one. 2: one. 3: two. 4: one.
 
 ### Next
 
-Stage 4, from its first item.
+Stage 4, its one open checkpoint, then the backlog question it owns.
 
-1. Its **Split:** an `Explore` subagent lists every expression kind of `nvs-syntax` that can give
-   `string` or `bytes`, one line each (`crates/nvs-syntax/src/ast.rs`'s `ExprKind`).
-2. `crates/nvs-types/tests/taint_every_form.rs`: one row per kind through an exhaustive match. Each
-   row that compiles clean is a hole, fixed at the expression's check in `crates/nvs-types/src/expr/`.
-3. The two *check first* items: `Core\Issue::$path` (`crates/nvs-stdlib/src/json.rs:5321`,
-   `crates/nvs-types/src/error_lib.rs:222`) and `Throwable::$message` (`db/row.rs:220`,
-   `error_lib.rs:238`).
-4. Build, clippy, `bun nv relink --build`, `bun nv against`.
+1. `bun nv suite` once, and every conformance case it names red because it keeps `$e->message` in a
+   plain `string` (a `return` from a `: string` function, a `string $x =`, a `string` parameter)
+   writes `tainted string` instead. About 68 files match `return …->message` or
+   `string $x = …->message` under `tests/` and `website/`, such as
+   `tests/conformance/core/count-shaped-producers-refuse-alike.nvst` and
+   `encoding-each-decoder-says-why-it-refused-and-where.nvst`. **Split:** writing subagents over
+   disjoint folders, and the session builds and reruns the suite once they end. A case whose
+   `.out` names `string` for the message is updated with it. Then `tests/hostile/`,
+   `website/snippets/` and `website/apps/` the same way (`bun nv site apps`).
+2. The backlog's shape-argument question, decided with a row in `taint_every_form` for the image
+   plan shape.
+3. Then stage 5 from its first item.
 
-Tests expected red: none known. Stage 6's first item names the six rows that need a `changes.json`
-entry and an `about.md` line.
+Tests expected red: the conformance cases above, until step 1. Stage 6's first item now also owes
+`Throwable::$message` a `changes.json` entry and `about.md` line, and `Core\Ldap\Filter`/`Dn`
+one each.
 
 ### Backlog
+
+- **`shape as string` compiles.** `(await $h) as string` has no diagnostic, though a shape has no
+  `Stringable` and the conversion always throws when it runs. It is a type-check gap, not a taint
+  hole, since no text is ever produced. `require_stringable_object` in
+  `crates/nvs-types/src/expr/operators.rs` returns early for a non-class type.
 
 - **A shape argument to a contagious member.** `carries_tainted` does not step into a shape, so a
   `tainted` field of a shape argument does not taint a contagious result. Stage 4 decides it with the
