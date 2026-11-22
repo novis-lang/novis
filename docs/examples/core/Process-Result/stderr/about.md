@@ -1,6 +1,6 @@
 Returns everything a program wrote to its standard error. Programs write their error messages and
 warnings there, and their normal results to the standard output. The two outputs are kept apart, so
-a warning never ends up in the middle of the data that `stdout` returns.
+a warning is never mixed into the data that `stdout` returns.
 
 The result is `tainted bytes`, like the result of `stdout`. Use `as string` to convert it to text,
 and write `tainted string` on the variable. When the program wrote no errors, the result is empty.

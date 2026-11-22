@@ -1,10 +1,10 @@
 Escapes a text so that you can put it into one part of a link, such as a path segment, a fragment or
 a query value.
 
-A link can only contain some characters, and some of them have a meaning: `/` starts a new part of
-the path, `?` starts the query and `&` starts a new query pair. `Core\Uri::encodeComponent` writes
-every other character as a `%` and two hex digits. `Core\Uri::encodeComponent("red shoes & bags")`
-returns `red%20shoes%20%26%20bags`. Letters, digits and `-_.~` are not changed. A character such as
+Some characters have a meaning in a link. `/` starts a new part of the path, `?` starts the query
+and `&` starts a new query pair. `Core\Uri::encodeComponent` writes each of these as a `%` and two
+hex digits. It does the same for every other character except letters, digits and `-_.~`.
+`Core\Uri::encodeComponent("red shoes & bags")` returns `red%20shoes%20%26%20bags`. A character such as
 `é` is two bytes, so it becomes two escapes.
 
 A text that is exactly `.` or `..` throws a `LogicError`. In a path, such a segment changes which

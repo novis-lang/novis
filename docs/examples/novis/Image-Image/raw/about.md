@@ -1,6 +1,6 @@
 Runs every step of the image and returns its pixels.
 
-`raw` returns a shape with three keys. `width` and `height` are the size in pixels. `pixels` contains
+`raw` returns a shape (a value with named fields) with three fields. `width` and `height` are the size in pixels. `pixels` contains
 the image row by row, from the top-left corner. Each pixel is four bytes: red, green, blue and alpha,
 each from 0 to 255. So `pixels` has `width` times `height` times 4 bytes.
 

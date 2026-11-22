@@ -1,5 +1,5 @@
 <?nvs
-// Shows a small method that asks a system tool for one value and returns it as a whole number.
+// Shows a small method that gets one value from a system tool and returns it as a whole number.
 // requires: unix
 
 class Days

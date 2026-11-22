@@ -1,5 +1,6 @@
 Runs another program, waits until it ends, and returns its exit code and everything it printed.
-The printed output is `bytes`, because a program can write anything. Use `as string` for text.
+The printed output is `tainted bytes`, because another program wrote it and it can be anything. Use
+`as string` for text.
 
 You give the name or the path of the program and an array of arguments, one in each element. A name
 such as `git` is looked up in the folders of `PATH`. The program is started directly, never through

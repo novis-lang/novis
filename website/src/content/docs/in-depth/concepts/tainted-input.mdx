@@ -48,10 +48,11 @@ reason is for the people who read the code, so a reviewer can search for every p
 
 ## Why this is different
 
-- **The compiler adds the taint itself.** You do not mark which values come from outside. Every way
-  into a program gives a tainted value, also a value read back from a database.
+- **The compiler adds the taint itself.** You do not have to say which values come from outside.
+  Every way into a program gives a tainted value, including a value read back from a database.
 - **A new function is safe by default.** A `Core` function that does not say what it accepts does
-  not accept a tainted value. So a function that nobody checked fails at compile time.
+  not accept a tainted value. Text that a `Core` function returns is tainted, unless the function
+  says where the text comes from. So a function that nobody checked fails at compile time.
 - **There is no general `sanitize()`.** Each kind of use has its own escape function, named for that
   use. Some uses have none.
 - **Nothing can turn it off.** The check is part of `nvs check` and of every run. There is no

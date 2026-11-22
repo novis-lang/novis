@@ -351,7 +351,8 @@ final class Checkout
 try {
     echo Checkout::pay('4021'), "\n";
 } catch (Throwable $failed) {
-    string $line = $failed->message . ' at ' . $failed->location;
+    // A message can contain text from the input, so it is `tainted string`.
+    tainted string $line = $failed->message . ' at ' . $failed->location;
     var $cause = $failed->previous;
     bool $more = true;
     while ($more) {
@@ -1897,7 +1898,7 @@ try {
     echo Core\Str::before($denied->message, ' for '), "\n";
     // The second line of the message is the line to add to `nvs.toml`.
     // It also contains the full path of the folder. This prints `...` in its place.
-    string $help = Core\Str::after($denied->message, "\n") ?? '';
+    tainted string $help = Core\Str::after($denied->message, "\n") ?? '';
     echo Core\Str::before($help, "\""), '...]', Core\Str::after($help, "\"]"), "\n";
 }
 

@@ -506,10 +506,10 @@ const READ_STDOUT_DOC: MethodDoc = MethodDoc {
             Call it in a loop to read the output one part at a time while the program runs. \
             Other requests keep running while this one waits.",
     params: &[],
-    ret: "The next part of the output, as `bytes`, up to 64 KiB. A part is whatever has arrived: \
-          it can be less than one line or several lines. At the end of the output the result is \
-          `null`, and every later call also returns `null`. Use `as string` to convert a part \
-          to text.",
+    ret: "The next part of the output, as `tainted bytes`, up to 64 KiB. A part is whatever has \
+          arrived: it can be less than one line or several lines. At the end of the output the \
+          result is `null`, and every later call also returns `null`. Use `as string` to convert \
+          a part to text.",
     errors: &[
         TIMED_OUT_DOC,
         ErrorDoc {
@@ -526,9 +526,9 @@ const READ_STDERR_DOC: MethodDoc = MethodDoc {
             Programs write their error messages and warnings there. It works like `readStdout`, \
             and the two outputs are never mixed.",
     params: &[],
-    ret: "The next part of the error output, as `bytes`, up to 64 KiB. At the end of the error \
-          output the result is `null`, and every later call also returns `null`. Use `as string` \
-          to convert a part to text.",
+    ret: "The next part of the error output, as `tainted bytes`, up to 64 KiB. At the end of the \
+          error output the result is `null`, and every later call also returns `null`. Use \
+          `as string` to convert a part to text.",
     errors: &[
         TIMED_OUT_DOC,
         ErrorDoc {
@@ -700,9 +700,9 @@ const EXIT_CODE_DOC: MethodDoc = MethodDoc {
 const STDOUT_DOC: MethodDoc = MethodDoc {
     short: "Returns everything the program wrote to its standard output.",
     params: &[],
-    ret: "The output, as `bytes`. A program can write data that is not valid text, so the result \
-          is not a `string`. Use `as string` to convert it to text. That throws an error if the \
-          output is not valid UTF-8.",
+    ret: "The output, as `tainted bytes`. A program can write data that is not valid text, so \
+          the result is not a `string`. Use `as string` to convert it to text. That throws an \
+          error if the output is not valid UTF-8.",
     errors: &[],
 };
 
@@ -711,7 +711,7 @@ const STDERR_DOC: MethodDoc = MethodDoc {
     short: "Returns everything the program wrote to its standard error. Programs write their error \
             messages and warnings there. This output is never mixed with `stdout`.",
     params: &[],
-    ret: "The error output, as `bytes`. Use `as string` to convert it to text.",
+    ret: "The error output, as `tainted bytes`. Use `as string` to convert it to text.",
     errors: &[],
 };
 

@@ -19,7 +19,7 @@
         "Core\\Json::decodeEach",
         "Core\\Arr::shapeAs"
       ],
-      "text": "`Core\\Json::decodeAs`, `Core\\Request::jsonAs` and the other decoders that take a type check a class inside a shape or an array, however deep it is. `Core\\Request::jsonAs`,`queryAs` and `postAs` give the error `E0810` when such a class has a plain `string` property.",
+      "text": "`Core\\Json::decodeAs`, `Core\\Request::jsonAs` and the other decoders that take a type check a class inside a shape or an array, however deep it is. `Core\\Request::jsonAs`, `queryAs` and `postAs` give the error `E0810` when such a class has a plain `string` property.",
       "breaking": true,
       "instead": "Write `tainted string` on each string property of a class that a request decoder reads.",
       "security": true
@@ -46,7 +46,7 @@
       ],
       "text": "The output of a child process is `tainted bytes`. The version text of a database server and the name an LDAP server returns are `tainted string`. Another program or a server writes this text, so it may contain input from outside.",
       "breaking": true,
-      "instead": "Write `tainted` on the variable that keeps the value. Before a sink, use a checked conversion or the sink's own method that makes text safe.",
+      "instead": "Write `tainted` on the variable that keeps the value. Before the value goes into a path, a query or a command, convert it with a check such as `as ?int`. Or use the method that makes it safe there.",
       "security": true
     },
     {

@@ -555,7 +555,9 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
 const WHOAMI_DOC: MethodDoc = MethodDoc {
     short: "Returns the account the connection is logged in as, as the server reports it.",
     params: &[],
-    ret: "`dn:` and then the account's DN, or `u:` and then its login name. The result is an \
+    ret: "A `tainted string`, because the server sent it. It is `dn:` and then the account's DN \
+          (distinguished name), \
+          or `u:` and then its login name. The result is an \
           empty string when the connection did not log in.",
     errors: &[
         ErrorDoc {

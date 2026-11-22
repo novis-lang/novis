@@ -4846,17 +4846,16 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 text from outside your program, such as a form field. `secret string` is a confidential value, such
 as a password or an API key.
 
-A string built from such a value with `.` or interpolation is tainted or secret too. The compiler
-checks both words, so they do not make the program slower.
+A string built from such a value with `.` or interpolation is tainted or secret too. Text that a
+`Core` method returns is tainted, unless the method's documentation says where the text comes from.
+The compiler checks both words, so they do not make the program slower.
 
-A tainted string cannot be a regular expression, a format template or a date pattern. It cannot be
-assigned to a plain `string` either. A secret value does not compile with `echo`, in an error
-message, in a debug dump or in `Core\Json::encode`.
+A tainted string cannot be a regular expression, a format template or a plain `string`. The error
+names the method that makes the value safe there, such as `Core\IO::within` for a path. A secret
+value does not compile with `echo`, in an error message, in a debug dump or in `Core\Json::encode`.
 
-`secret` can also go before `mixed`. A plain `mixed` variable cannot contain a secret value. A
-secret value cannot be an array key, and `as int` does not compile with it.
-`Core\Secret::reveal($value, "reason")` is the only method that gives a plain value from a secret
-one.
+`secret` can also go before `mixed`. `Core\Secret::reveal($value, "reason")` is the only method that
+gives a plain value from a secret one.
 
 Examples 04 to 07 show each kind of mistake, and none of them compiles.
 
@@ -5059,6 +5058,8 @@ error[E0401]: expected `string`, found `tainted string`
   |
 8 | Core\Regex\Pattern $pattern = Core\Regex::compile($search);
   |                                                   ^^^^^^^ this is `tainted string`
+  = help: this parameter cannot take `tainted` text. `Core\Regex::quote` makes the text safe for it
+  = suggestion (review): pass it through `Core\Regex::quote`: `Core\Regex::quote($search)`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -5084,7 +5085,7 @@ error[E0422]: a `secret`-qualified value cannot be passed as a `Throwable` messa
   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ secret value used as the message here
   = help: reveal it explicitly first with `Core\Secret::reveal(..., "reason")`
 
-error[E0401]: expected `string`, found `secret string`
+error[E0401]: expected `tainted string`, found `secret string`
   --> main.nvs:7:24
   |
 7 | throw new RuntimeError('bad token ' . $token);

@@ -81,7 +81,7 @@
     "directive:http.csrf_key_file": "e549bc0fe7e193b3"
   },
   "docs/examples/config/image-max_pixels/about.md": {
-    "directive:image.max_pixels": "9f107aa02ea091ca"
+    "directive:image.max_pixels": "ed8a65ac25f6e795"
   },
   "docs/examples/config/include/about.md": {
     "directive:include": "79c82ac3d5fdadf3"
@@ -399,7 +399,7 @@
     "Core\\BigInt::abs": "ad2d2ca71064ba4e"
   },
   "docs/examples/core/BigInt/add/about.md": {
-    "Core\\BigInt::add": "740468645717d476"
+    "Core\\BigInt::add": "34c49a381e425c21"
   },
   "docs/examples/core/BigInt/compareTo/about.md": {
     "Core\\BigInt::compareTo": "f98417b93713fcdb"
@@ -420,7 +420,7 @@
     "Core\\BigInt::mod": "709bcf442f76e9de"
   },
   "docs/examples/core/BigInt/mul/about.md": {
-    "Core\\BigInt::mul": "9d0827e6658df247"
+    "Core\\BigInt::mul": "4bd99964ec4fe8c1"
   },
   "docs/examples/core/BigInt/neg/about.md": {
     "Core\\BigInt::neg": "c1cb06c75246f304"
@@ -477,7 +477,7 @@
     "Core\\Budget::memoryPeak": "560c49ce099ba216"
   },
   "docs/examples/core/Bytes/at/about.md": {
-    "Core\\Bytes::at": "cdd67834328dd360"
+    "Core\\Bytes::at": "9be3e515cdb8ec0e"
   },
   "docs/examples/core/Bytes/compare/about.md": {
     "Core\\Bytes::compare": "750e4a5205eae422"
@@ -495,7 +495,7 @@
     "Core\\Bytes::indexOf": "9936d5d94e0fe217"
   },
   "docs/examples/core/Bytes/join/about.md": {
-    "Core\\Bytes::join": "4098a1a20a1ee049"
+    "Core\\Bytes::join": "8e307a8507ad5ec4"
   },
   "docs/examples/core/Bytes/length/about.md": {
     "Core\\Bytes::length": "0835aa92dcbede02"
@@ -774,7 +774,7 @@
     "Core\\Db\\Connection::queryAs": "44ea24d258365043"
   },
   "docs/examples/core/Db-Connection/serverVersion/about.md": {
-    "Core\\Db\\Connection::serverVersion": "dbce0ab12bb51f8a"
+    "Core\\Db\\Connection::serverVersion": "07f2f65415983121"
   },
   "docs/examples/core/Db-Connection/stream/about.md": {
     "Core\\Db\\Connection::stream": "8646c7a8d3f86f4b"
@@ -1002,7 +1002,7 @@
     "Core\\Env::get": "af655cf2c9c745dd"
   },
   "docs/examples/core/Env/mode/about.md": {
-    "Core\\Env::mode": "44bc167efc6c2640"
+    "Core\\Env::mode": "32e025da719625bb"
   },
   "docs/examples/core/Env/secret/about.md": {
     "Core\\Env::secret": "e1ab6747733c95bb"
@@ -1326,13 +1326,13 @@
     "Core\\Json::decodeAs": "e03d957010223763"
   },
   "docs/examples/core/Json/decodeEach/about.md": {
-    "Core\\Json::decodeEach": "6d96027b4fb43007"
+    "Core\\Json::decodeEach": "21290c26003501a4"
   },
   "docs/examples/core/Json/encode/about.md": {
     "Core\\Json::encode": "5b71f7e0dbf02bd3"
   },
   "docs/examples/core/Json/encodeEach/about.md": {
-    "Core\\Json::encodeEach": "dc0cbdbc28ad5506"
+    "Core\\Json::encodeEach": "d09f6bf84f0fa7b6"
   },
   "docs/examples/core/Json/isValid/about.md": {
     "Core\\Json::isValid": "e12f73b03708816d"
@@ -1509,7 +1509,7 @@
     "Core\\Ldap\\Connection::add": "83c788c70aecc409"
   },
   "docs/examples/core/Ldap-Connection/authenticate/about.md": {
-    "Core\\Ldap\\Connection::authenticate": "338ce24e458686f6"
+    "Core\\Ldap\\Connection::authenticate": "8f0efd68f6cd79c7"
   },
   "docs/examples/core/Ldap-Connection/changePassword/about.md": {
     "Core\\Ldap\\Connection::changePassword": "598f8214e2868a2f"
@@ -1539,7 +1539,7 @@
     "Core\\Ldap\\Connection::setPassword": "d8a04a4cf5040168"
   },
   "docs/examples/core/Ldap-Connection/whoami/about.md": {
-    "Core\\Ldap\\Connection::whoami": "ef0dd3c63e7c0d65"
+    "Core\\Ldap\\Connection::whoami": "507e0749645de29b"
   },
   "docs/examples/core/Ldap-Dn/child/about.md": {
     "Core\\Ldap\\Dn::child": "d7a6766ad5322a90"
@@ -1968,16 +1968,16 @@
     "Core\\Passkey::credentialId": "636f8cde8792071f"
   },
   "docs/examples/core/Passkey/registerOptions/about.md": {
-    "Core\\Passkey::registerOptions": "32685530922d0d6a"
+    "Core\\Passkey::registerOptions": "f9b8d17e24837a19"
   },
   "docs/examples/core/Passkey/signInOptions/about.md": {
-    "Core\\Passkey::signInOptions": "ca3232b18b90c0a4"
+    "Core\\Passkey::signInOptions": "c62136d98fbf3c2d"
   },
   "docs/examples/core/Passkey/verifyRegistration/about.md": {
-    "Core\\Passkey::verifyRegistration": "5bb4f50282555a6a"
+    "Core\\Passkey::verifyRegistration": "de7893bdfe38e2d2"
   },
   "docs/examples/core/Passkey/verifySignIn/about.md": {
-    "Core\\Passkey::verifySignIn": "3dc9005341bd2332"
+    "Core\\Passkey::verifySignIn": "a9d621cb20644c0e"
   },
   "docs/examples/core/Passkey-Credential/algorithm/about.md": {
     "Core\\Passkey\\Credential::algorithm": "4895ff0d4772dbb1"
@@ -1986,7 +1986,7 @@
     "Core\\Passkey\\Credential::id": "be91f08515cd4758"
   },
   "docs/examples/core/Passkey-Credential/of/about.md": {
-    "Core\\Passkey\\Credential::of": "34bef67b7512e280"
+    "Core\\Passkey\\Credential::of": "9f7d376a907388d4"
   },
   "docs/examples/core/Passkey-Credential/publicKey/about.md": {
     "Core\\Passkey\\Credential::publicKey": "989f5648e2303110"
@@ -2040,34 +2040,34 @@
     "Core\\Path::withExtension": "869c779d953ee90b"
   },
   "docs/examples/core/Process/run/about.md": {
-    "Core\\Process::run": "fa93d0bb4903b391"
+    "Core\\Process::run": "3ec8ec6daeec0c40"
   },
   "docs/examples/core/Process/spawn/about.md": {
-    "Core\\Process::spawn": "af82d5fbb506f571"
+    "Core\\Process::spawn": "68ebef83f2ed29b7"
   },
   "docs/examples/core/Process-Handle/kill/about.md": {
-    "Core\\Process\\Handle::kill": "ed3d2099612d9954"
+    "Core\\Process\\Handle::kill": "b7bb16562d318e80"
   },
   "docs/examples/core/Process-Handle/readStderr/about.md": {
-    "Core\\Process\\Handle::readStderr": "ed86c18eb9fb6f4c"
+    "Core\\Process\\Handle::readStderr": "d0af3499ac828317"
   },
   "docs/examples/core/Process-Handle/readStdout/about.md": {
-    "Core\\Process\\Handle::readStdout": "16761d2319176f20"
+    "Core\\Process\\Handle::readStdout": "e927b22781815631"
   },
   "docs/examples/core/Process-Handle/wait/about.md": {
-    "Core\\Process\\Handle::wait": "3fd31d2badea7f4d"
+    "Core\\Process\\Handle::wait": "ef4666483680f64a"
   },
   "docs/examples/core/Process-Handle/writeStdin/about.md": {
-    "Core\\Process\\Handle::writeStdin": "659febc0a6a8197a"
+    "Core\\Process\\Handle::writeStdin": "651849cf77e8971c"
   },
   "docs/examples/core/Process-Result/exitCode/about.md": {
-    "Core\\Process\\Result::exitCode": "f123c5785354a0c3"
+    "Core\\Process\\Result::exitCode": "1919683011d2c181"
   },
   "docs/examples/core/Process-Result/stderr/about.md": {
-    "Core\\Process\\Result::stderr": "7103d2a41346c5d1"
+    "Core\\Process\\Result::stderr": "df0f2c8eff3253eb"
   },
   "docs/examples/core/Process-Result/stdout/about.md": {
-    "Core\\Process\\Result::stdout": "dafbd79d2b3a89db"
+    "Core\\Process\\Result::stdout": "a8a722daa9fdf7ca"
   },
   "docs/examples/core/Program/constructors/about.md": {
     "Core\\Program::constructors": "b65d8051eb118f72"
@@ -2148,25 +2148,25 @@
     "Core\\Random::token": "cbdbf4ee4b9c98f2"
   },
   "docs/examples/core/Random-Seeded/bytes/about.md": {
-    "Core\\Random\\Seeded::bytes": "d35ac1733ab794d1"
+    "Core\\Random\\Seeded::bytes": "236a2a0087432a78"
   },
   "docs/examples/core/Random-Seeded/float/about.md": {
     "Core\\Random\\Seeded::float": "82e85d454e833a3c"
   },
   "docs/examples/core/Random-Seeded/int/about.md": {
-    "Core\\Random\\Seeded::int": "055bdbde2107e6c2"
+    "Core\\Random\\Seeded::int": "b1390af09bcbfce0"
   },
   "docs/examples/core/Random-Seeded/pick/about.md": {
-    "Core\\Random\\Seeded::pick": "a5bf0816ec0d5891"
+    "Core\\Random\\Seeded::pick": "3e7da645221a486a"
   },
   "docs/examples/core/Random-Seeded/sample/about.md": {
-    "Core\\Random\\Seeded::sample": "d29aa1f07030484e"
+    "Core\\Random\\Seeded::sample": "43bb6a1575c8bf65"
   },
   "docs/examples/core/Random-Seeded/shuffle/about.md": {
-    "Core\\Random\\Seeded::shuffle": "00b518ad3f5f7f70"
+    "Core\\Random\\Seeded::shuffle": "65b43d5a0cf00cee"
   },
   "docs/examples/core/Random-Seeded/token/about.md": {
-    "Core\\Random\\Seeded::token": "4d265737898efdf9"
+    "Core\\Random\\Seeded::token": "37c817243901959f"
   },
   "docs/examples/core/RateLimit/consume/about.md": {
     "Core\\RateLimit::consume": "dd388dee9d7e72fd"
@@ -2442,10 +2442,10 @@
     "Core\\Request\\Part::saveTo": "6eec6c6a6385295a"
   },
   "docs/examples/core/Response/addCookie/about.md": {
-    "Core\\Response::addCookie": "5fd5de5c3fd318ac"
+    "Core\\Response::addCookie": "8d18d47e247ed66b"
   },
   "docs/examples/core/Response/bytes/about.md": {
-    "Core\\Response::bytes": "6db127424089e609"
+    "Core\\Response::bytes": "75a71764289332df"
   },
   "docs/examples/core/Response/html/about.md": {
     "Core\\Response::html": "402a95385af85041"
@@ -2484,7 +2484,7 @@
     "Core\\Response\\Stream::offset": "771960d8db77846d"
   },
   "docs/examples/core/Response-Stream/write/about.md": {
-    "Core\\Response\\Stream::write": "599560d8249c23d3"
+    "Core\\Response\\Stream::write": "e4bd61449b40b054"
   },
   "docs/examples/core/Router/dispatch/about.md": {
     "Core\\Router::dispatch": "d88a70fa2af3913d"
@@ -2538,16 +2538,16 @@
     "Core\\Script::onExit": "2ff273c03b876122"
   },
   "docs/examples/core/Script-ExitReport/error/about.md": {
-    "Core\\Script\\ExitReport::error": "04bcd554237dba6a"
+    "Core\\Script\\ExitReport::error": "d8e9af744438c794"
   },
   "docs/examples/core/Script-ExitReport/memoryPeak/about.md": {
     "Core\\Script\\ExitReport::memoryPeak": "337ff0c7e25e191d"
   },
   "docs/examples/core/Script-ExitReport/reason/about.md": {
-    "Core\\Script\\ExitReport::reason": "2e3fa0b38f339730"
+    "Core\\Script\\ExitReport::reason": "da2feb12ed3be8db"
   },
   "docs/examples/core/Script-ExitReport/status/about.md": {
-    "Core\\Script\\ExitReport::status": "3d7b18b680865bc5"
+    "Core\\Script\\ExitReport::status": "a9ec6422a135b42e"
   },
   "docs/examples/core/Secret/reveal/about.md": {
     "Core\\Secret::reveal": "3ad2ac7eb96d66db"
@@ -2649,7 +2649,7 @@
     "Core\\Sse::current": "70ee0dbf6d207b27"
   },
   "docs/examples/core/Sse/receive/about.md": {
-    "Core\\Sse::receive": "1ca04882be3b8409"
+    "Core\\Sse::receive": "33a7bcea6056279f"
   },
   "docs/examples/core/Sse/retry/about.md": {
     "Core\\Sse::retry": "0afad0b5278d6a06"
@@ -3066,7 +3066,7 @@
     "Core\\Time\\Date::weekday": "1477d8e8db492614"
   },
   "docs/examples/core/Time-Date/with/about.md": {
-    "Core\\Time\\Date::with": "b97b217a3db2394b"
+    "Core\\Time\\Date::with": "68b0d223c0a52423"
   },
   "docs/examples/core/Time-Date/year/about.md": {
     "Core\\Time\\Date::year": "dfb3939e8a42e12a"
@@ -3141,7 +3141,7 @@
     "Core\\Time\\DateTime::weekday": "ca518b67f818488a"
   },
   "docs/examples/core/Time-DateTime/with/about.md": {
-    "Core\\Time\\DateTime::with": "b05ed40a0d672007"
+    "Core\\Time\\DateTime::with": "c987831abbd94fe5"
   },
   "docs/examples/core/Time-DateTime/withTime/about.md": {
     "Core\\Time\\DateTime::withTime": "26531f0f13659f56"
@@ -3213,10 +3213,10 @@
     "Core\\Time\\Instant::compareTo": "e714452d0cae63d7"
   },
   "docs/examples/core/Time-Instant/fromEpoch/about.md": {
-    "Core\\Time\\Instant::fromEpoch": "76aebc0ce0013ec0"
+    "Core\\Time\\Instant::fromEpoch": "980c29d6ab8ed7e2"
   },
   "docs/examples/core/Time-Instant/fromIso/about.md": {
-    "Core\\Time\\Instant::fromIso": "a6320468f3b33b74"
+    "Core\\Time\\Instant::fromIso": "b52f3cb4993033a8"
   },
   "docs/examples/core/Time-Instant/in/about.md": {
     "Core\\Time\\Instant::in": "7e0a299e4db727d0"
@@ -3273,7 +3273,7 @@
     "Core\\Time\\TimeOfDay::second": "fdac920160e9c7f3"
   },
   "docs/examples/core/Time-TimeOfDay/with/about.md": {
-    "Core\\Time\\TimeOfDay::with": "7ad42e760035dc0b"
+    "Core\\Time\\TimeOfDay::with": "6f0409fc9be7daad"
   },
   "docs/examples/core/Time-Zone/fixed/about.md": {
     "Core\\Time\\Zone::fixed": "ee4e0f48414a4a55"
@@ -3315,7 +3315,7 @@
     "Core\\Uri::decodeFormValue": "d2d277b5fd8db6a4"
   },
   "docs/examples/core/Uri/encodeComponent/about.md": {
-    "Core\\Uri::encodeComponent": "2c3480f53e4e5d96"
+    "Core\\Uri::encodeComponent": "16df341a9a7feb20"
   },
   "docs/examples/core/Uri/encodeFormValue/about.md": {
     "Core\\Uri::encodeFormValue": "296fc67d502d9ea0"
@@ -3351,7 +3351,7 @@
     "Core\\Uri::scheme": "92506ca026828de0"
   },
   "docs/examples/core/Uri/sign/about.md": {
-    "Core\\Uri::sign": "8c555f1f90724e05"
+    "Core\\Uri::sign": "37fb98765d6cca12"
   },
   "docs/examples/core/Uri/toString/about.md": {
     "Core\\Uri::toString": "ffb4e5746a3aa743"
@@ -3363,7 +3363,7 @@
     "Core\\Uri::userInfo": "1e24f3a26224e464"
   },
   "docs/examples/core/Uri/verifySignature/about.md": {
-    "Core\\Uri::verifySignature": "80afef845ca38b0c"
+    "Core\\Uri::verifySignature": "d18f9ad4043229b7"
   },
   "docs/examples/core/Uri/with/about.md": {
     "Core\\Uri::with": "20e3026e4f042b17"
@@ -3537,7 +3537,7 @@
     "lang:attributes/the-names-the-compiler-acts-on": "d182ff9202674c63"
   },
   "docs/examples/lang/classes/comparable/about.md": {
-    "lang:classes/comparable": "d93734e6115406ec"
+    "lang:classes/comparable": "bf2135913518a46b"
   },
   "docs/examples/lang/classes/constants-and-class/about.md": {
     "lang:classes/constants-and-class": "82e9ef3fd79cdb66"
@@ -3555,7 +3555,7 @@
     "lang:classes/interfaces": "b18c9b167c1dce85"
   },
   "docs/examples/lang/classes/lateinit/about.md": {
-    "lang:classes/lateinit": "76e75256cd60a2dd"
+    "lang:classes/lateinit": "a08e8951000b1b85"
   },
   "docs/examples/lang/classes/methods-self-static-and-parent/about.md": {
     "lang:classes/methods-self-static-and-parent": "cd3823e80324f640"
@@ -3564,7 +3564,7 @@
     "lang:classes/nullable-objects-and": "3d00be520cdd56ec"
   },
   "docs/examples/lang/classes/object-the-top-of-every-class-type/about.md": {
-    "lang:classes/object-the-top-of-every-class-type": "aad12c59ffd758ba"
+    "lang:classes/object-the-top-of-every-class-type": "649f60b23c1624e9"
   },
   "docs/examples/lang/classes/objects-are-handles/about.md": {
     "lang:classes/objects-are-handles": "b2547845ca372754"
@@ -3597,7 +3597,7 @@
     "lang:concurrency/a-child-s-failure-is-a-value": "a57852c7c3f033dc"
   },
   "docs/examples/lang/concurrency/a-child-s-throw/about.md": {
-    "lang:concurrency/a-child-s-throw": "306b62c5b630a05c"
+    "lang:concurrency/a-child-s-throw": "0c22a5ee319af2a0"
   },
   "docs/examples/lang/concurrency/a-child-shares-nothing/about.md": {
     "lang:concurrency/a-child-shares-nothing": "e671dc38cee83300"
@@ -3645,7 +3645,7 @@
     "lang:enums/declaring-an-enum": "265383ab6c148e57"
   },
   "docs/examples/lang/enums/from-an-integer-back-to-a-case/about.md": {
-    "lang:enums/from-an-integer-back-to-a-case": "57752945cc78ac3a"
+    "lang:enums/from-an-integer-back-to-a-case": "772932669c1c14ec"
   },
   "docs/examples/lang/enums/match-and-switch-over-an-enum/about.md": {
     "lang:enums/match-and-switch-over-an-enum": "d10023cdaf705047"
@@ -3660,7 +3660,7 @@
     "lang:errors/assertion-failures": "2b9ab78ccba5ffaf"
   },
   "docs/examples/lang/errors/capability-denials-are-catchable/about.md": {
-    "lang:errors/capability-denials-are-catchable": "4ec5afbdd4aa0a34"
+    "lang:errors/capability-denials-are-catchable": "74797e822eaf26ad"
   },
   "docs/examples/lang/errors/constructing-and-subclassing/about.md": {
     "lang:errors/constructing-and-subclassing": "27882206a1f8a3b1"
@@ -3672,28 +3672,28 @@
     "lang:errors/inspecting-a-value": "e682eac5ce0f530e"
   },
   "docs/examples/lang/errors/properties-not-accessors/about.md": {
-    "lang:errors/properties-not-accessors": "1d39f36e8cf0844f"
+    "lang:errors/properties-not-accessors": "87b334ca2966d62d"
   },
   "docs/examples/lang/errors/recursion-depth/about.md": {
     "lang:errors/recursion-depth": "44e38279c5b2f601"
   },
   "docs/examples/lang/errors/rethrowing/about.md": {
-    "lang:errors/rethrowing": "9bd50d3d2a777d0f"
+    "lang:errors/rethrowing": "69598c50c0db6b6b"
   },
   "docs/examples/lang/errors/the-throwable-tree/about.md": {
-    "lang:errors/the-throwable-tree": "973559d6fb695db5"
+    "lang:errors/the-throwable-tree": "07d393458ae7ea16"
   },
   "docs/examples/lang/errors/throw/about.md": {
     "lang:errors/throw": "7d695ceb939fa15e"
   },
   "docs/examples/lang/errors/try-catch-finally/about.md": {
-    "lang:errors/try-catch-finally": "c7c160ff59d89256"
+    "lang:errors/try-catch-finally": "cb7c34de075bf7b7"
   },
   "docs/examples/lang/expressions/and-the-ternary/about.md": {
     "lang:expressions/and-the-ternary": "3211bb3e7c5e9df2"
   },
   "docs/examples/lang/expressions/anonymous-functions/about.md": {
-    "lang:expressions/anonymous-functions": "1918d9b305d219f6"
+    "lang:expressions/anonymous-functions": "3e5aa75569a26f9d"
   },
   "docs/examples/lang/expressions/anonymous-objects/about.md": {
     "lang:expressions/anonymous-objects": "d0c8b80555bb9b3d"
@@ -3867,16 +3867,16 @@
     "lang:types/every-binding-has-a-type": "2a429907708204e7"
   },
   "docs/examples/lang/types/mixed/about.md": {
-    "lang:types/mixed": "5edee3d13ea7f9c8"
+    "lang:types/mixed": "424ba28230ee0b03"
   },
   "docs/examples/lang/types/narrowing/about.md": {
     "lang:types/narrowing": "4f13488d00ff55ab"
   },
   "docs/examples/lang/types/nullable-union-single-value-and-enum-case-types/about.md": {
-    "lang:types/nullable-union-single-value-and-enum-case-types": "3497ec3c45b5c595"
+    "lang:types/nullable-union-single-value-and-enum-case-types": "64baf472f89b4d76"
   },
   "docs/examples/lang/types/numbers-bool-int-uint-float-decimal/about.md": {
-    "lang:types/numbers-bool-int-uint-float-decimal": "39600f2c3bbc3ace"
+    "lang:types/numbers-bool-int-uint-float-decimal": "f9899e548f4da0bf"
   },
   "docs/examples/lang/types/parameters/about.md": {
     "lang:types/parameters": "72be88dd0e14c672"
@@ -3891,16 +3891,16 @@
     "lang:types/property-paths": "b01f87d7db8d44ee"
   },
   "docs/examples/lang/types/qualifiers-tainted-and-secret/about.md": {
-    "lang:types/qualifiers-tainted-and-secret": "8a325478f95aadde"
+    "lang:types/qualifiers-tainted-and-secret": "bf2b709e893907bd"
   },
   "docs/examples/lang/types/strings-with-holes/about.md": {
     "lang:types/strings-with-holes": "49364928ad40dcc1"
   },
   "docs/examples/lang/types/text-string-and-bytes/about.md": {
-    "lang:types/text-string-and-bytes": "229aa23c7c5c36f6"
+    "lang:types/text-string-and-bytes": "31b64b7deedd5a76"
   },
   "docs/examples/lang/types/the-conversion-operator-as/about.md": {
-    "lang:types/the-conversion-operator-as": "9717e3ff8fdfa948"
+    "lang:types/the-conversion-operator-as": "212e324c696ee0c8"
   },
   "docs/examples/lang/types/truthiness/about.md": {
     "lang:types/truthiness": "38b50154aea3ffc4"
@@ -3927,112 +3927,112 @@
     "Novis\\Image\\Barcode::svg": "d2cc62a83bf3a789"
   },
   "docs/examples/novis/Image-Color/hex/about.md": {
-    "Novis\\Image\\Color::hex": "639f563a0d7780e9"
+    "Novis\\Image\\Color::hex": "54121e662c42a286"
   },
   "docs/examples/novis/Image-Color/rgba/about.md": {
-    "Novis\\Image\\Color::rgba": "41f06b8a75040f4a"
+    "Novis\\Image\\Color::rgba": "2523b4d285615e97"
   },
   "docs/examples/novis/Image-Diff/constructor/about.md": {
     "Novis\\Image\\Diff::constructor": "d458be0b24205aad"
   },
   "docs/examples/novis/Image-Font/fromBytes/about.md": {
-    "Novis\\Image\\Font::fromBytes": "974c8a1856b351e3"
+    "Novis\\Image\\Font::fromBytes": "605cc69a143396c7"
   },
   "docs/examples/novis/Image-Image/blur/about.md": {
-    "Novis\\Image\\Image::blur": "9d51a4d835ebced1"
+    "Novis\\Image\\Image::blur": "3db6b854b2de5872"
   },
   "docs/examples/novis/Image-Image/brightness/about.md": {
-    "Novis\\Image\\Image::brightness": "40c6e714db16ce73"
+    "Novis\\Image\\Image::brightness": "935b4d87fc1d22da"
   },
   "docs/examples/novis/Image-Image/compare/about.md": {
-    "Novis\\Image\\Image::compare": "63e412341c9e2837"
+    "Novis\\Image\\Image::compare": "1792637d0fbb6dae"
   },
   "docs/examples/novis/Image-Image/composite/about.md": {
-    "Novis\\Image\\Image::composite": "6da70116a7f75dea"
+    "Novis\\Image\\Image::composite": "fc21f011adb246dd"
   },
   "docs/examples/novis/Image-Image/contrast/about.md": {
-    "Novis\\Image\\Image::contrast": "964d24e628421780"
+    "Novis\\Image\\Image::contrast": "79c3df81f71923b0"
   },
   "docs/examples/novis/Image-Image/create/about.md": {
-    "Novis\\Image\\Image::create": "f3b9090bbcc9ccee"
+    "Novis\\Image\\Image::create": "40a62a0c017727d6"
   },
   "docs/examples/novis/Image-Image/crop/about.md": {
-    "Novis\\Image\\Image::crop": "53b3db0123dcac95"
+    "Novis\\Image\\Image::crop": "739f553632d1f969"
   },
   "docs/examples/novis/Image-Image/encode/about.md": {
-    "Novis\\Image\\Image::encode": "7f0cdb8c51df8b3d"
+    "Novis\\Image\\Image::encode": "3b38926da5f9dd55"
   },
   "docs/examples/novis/Image-Image/extension/about.md": {
-    "Novis\\Image\\Image::extension": "115e156323926686"
+    "Novis\\Image\\Image::extension": "2b87ed10d6b2f45a"
   },
   "docs/examples/novis/Image-Image/flatten/about.md": {
-    "Novis\\Image\\Image::flatten": "5f7bbe796beb3736"
+    "Novis\\Image\\Image::flatten": "656af41afc50052b"
   },
   "docs/examples/novis/Image-Image/flip/about.md": {
-    "Novis\\Image\\Image::flip": "790e5cebc7f22ab6"
+    "Novis\\Image\\Image::flip": "8a7669052baefd45"
   },
   "docs/examples/novis/Image-Image/format/about.md": {
-    "Novis\\Image\\Image::format": "d2acaf18853b7ce3"
+    "Novis\\Image\\Image::format": "8d442f6990208b0d"
   },
   "docs/examples/novis/Image-Image/fromRaw/about.md": {
-    "Novis\\Image\\Image::fromRaw": "8748105e96c77527"
+    "Novis\\Image\\Image::fromRaw": "bb6b9bef7246aef1"
   },
   "docs/examples/novis/Image-Image/gamma/about.md": {
-    "Novis\\Image\\Image::gamma": "127f0728df73842e"
+    "Novis\\Image\\Image::gamma": "7f063c84fbd4b436"
   },
   "docs/examples/novis/Image-Image/grayscale/about.md": {
-    "Novis\\Image\\Image::grayscale": "a6ef300592250fe2"
+    "Novis\\Image\\Image::grayscale": "dedd712f11088cb3"
   },
   "docs/examples/novis/Image-Image/hash/about.md": {
-    "Novis\\Image\\Image::hash": "9d8f8cc5523a1fc7"
+    "Novis\\Image\\Image::hash": "9a0606382a6237e3"
   },
   "docs/examples/novis/Image-Image/hashDistance/about.md": {
-    "Novis\\Image\\Image::hashDistance": "c4980001cb1c2998"
+    "Novis\\Image\\Image::hashDistance": "4e40d123ef7c858c"
   },
   "docs/examples/novis/Image-Image/info/about.md": {
-    "Novis\\Image\\Image::info": "89f6fd4aa05b31a1"
+    "Novis\\Image\\Image::info": "168f5f0885e68008"
   },
   "docs/examples/novis/Image-Image/measureText/about.md": {
-    "Novis\\Image\\Image::measureText": "0bf166092634089b"
+    "Novis\\Image\\Image::measureText": "c0896b0f874c6094"
   },
   "docs/examples/novis/Image-Image/metadata/about.md": {
-    "Novis\\Image\\Image::metadata": "c4774a017b5abc54"
+    "Novis\\Image\\Image::metadata": "2b616bae08a0e140"
   },
   "docs/examples/novis/Image-Image/mime/about.md": {
-    "Novis\\Image\\Image::mime": "0a1f6bf0729774b1"
+    "Novis\\Image\\Image::mime": "b2dd876d25eb3290"
   },
   "docs/examples/novis/Image-Image/open/about.md": {
-    "Novis\\Image\\Image::open": "486587d5e982591e"
+    "Novis\\Image\\Image::open": "2fbf456c39de9c92"
   },
   "docs/examples/novis/Image-Image/palette/about.md": {
-    "Novis\\Image\\Image::palette": "61c3242be83472e0"
+    "Novis\\Image\\Image::palette": "09559db4eb931fce"
   },
   "docs/examples/novis/Image-Image/placeholder/about.md": {
-    "Novis\\Image\\Image::placeholder": "d6b879cb9cad6583"
+    "Novis\\Image\\Image::placeholder": "7cd6f0e8b78cc8d8"
   },
   "docs/examples/novis/Image-Image/raw/about.md": {
-    "Novis\\Image\\Image::raw": "3870d0a3177a1799"
+    "Novis\\Image\\Image::raw": "7816bd0204d5b90a"
   },
   "docs/examples/novis/Image-Image/resize/about.md": {
-    "Novis\\Image\\Image::resize": "c63292833d04352e"
+    "Novis\\Image\\Image::resize": "bdd9b62863b323df"
   },
   "docs/examples/novis/Image-Image/rotate/about.md": {
     "Novis\\Image\\Image::rotate": "28c3a99fbc1793e5"
   },
   "docs/examples/novis/Image-Image/sharpen/about.md": {
-    "Novis\\Image\\Image::sharpen": "85a74be6d9da9595"
+    "Novis\\Image\\Image::sharpen": "58bef57489b6da32"
   },
   "docs/examples/novis/Image-Image/text/about.md": {
-    "Novis\\Image\\Image::text": "558cee50a8ba12b1"
+    "Novis\\Image\\Image::text": "d5b537624624d65d"
   },
   "docs/examples/novis/Image-Image/tint/about.md": {
-    "Novis\\Image\\Image::tint": "3beb8ec8fa91776b"
+    "Novis\\Image\\Image::tint": "ecc8150c9b8b9949"
   },
   "docs/examples/novis/Image-Image/trim/about.md": {
-    "Novis\\Image\\Image::trim": "86c31c2b8c3c0159"
+    "Novis\\Image\\Image::trim": "4aba023e69261c06"
   },
   "docs/examples/novis/Image-Image/variants/about.md": {
-    "Novis\\Image\\Image::variants": "989876f2c972a8a9"
+    "Novis\\Image\\Image::variants": "033705d0dfc0b510"
   },
   "docs/examples/novis/Image-QrCode/giroCode/about.md": {
     "Novis\\Image\\QrCode::giroCode": "5c7076bc2b335497"
@@ -4095,7 +4095,7 @@
     "Novis\\Intl\\Segmenter::words": "65b88134f5dd9ea7"
   },
   "docs/examples/novis/Pdf-Document/asset/about.md": {
-    "Novis\\Pdf\\Document::asset": "c4c275fd8da445d3"
+    "Novis\\Pdf\\Document::asset": "c23590ca70c5c15f"
   },
   "docs/examples/novis/Pdf-Document/created/about.md": {
     "Novis\\Pdf\\Document::created": "ebca92a06d8e4917"
@@ -4116,7 +4116,7 @@
     "Novis\\Pdf\\Document::password": "f7c338030b1f2c09"
   },
   "docs/examples/novis/Pdf-Document/render/about.md": {
-    "Novis\\Pdf\\Document::render": "c5b1db40650100d5"
+    "Novis\\Pdf\\Document::render": "5d853f7681783cb0"
   },
   "docs/examples/novis/Pdf-Document/slots/about.md": {
     "Novis\\Pdf\\Document::slots": "b2de1466a63836b2"
@@ -4143,7 +4143,7 @@
     "Novis\\Pdf\\Page::string": "28533ef9cb4bd4f0"
   },
   "docs/examples/novis/Pdf-Pages/merge/about.md": {
-    "Novis\\Pdf\\Pages::merge": "b2302ff06fe6d8b8"
+    "Novis\\Pdf\\Pages::merge": "c247a82789174fc4"
   },
   "docs/examples/novis/Pdf-Pages/of/about.md": {
     "Novis\\Pdf\\Pages::of": "25388a592122ff9d"
@@ -4593,7 +4593,7 @@
     "tools:php-differences/porting-a-program": "a2f7ba0fc01ed83f"
   },
   "docs/examples/tools/php-differences/the-short-list/about.md": {
-    "tools:php-differences/the-short-list": "30f1bc9120a77f29"
+    "tools:php-differences/the-short-list": "92fa5f4e21be98d1"
   },
   "docs/examples/tools/php-differences/the-tools-you-do-not-install/about.md": {
     "tools:php-differences/the-tools-you-do-not-install": "4e9409184abda7a6"
@@ -4638,7 +4638,7 @@
     "Core\\Api\\SchemeType": "5ade4d71ceac9557"
   },
   "docs/examples/types/ArithmeticError/about.md": {
-    "ArithmeticError": "c0ce35a1b1e941c4"
+    "ArithmeticError": "3920bd7864eae7e1"
   },
   "docs/examples/types/Arr-Order/about.md": {
     "Core\\Arr::Order": "7af3387747a25bf7"
@@ -4677,7 +4677,7 @@
     "Core\\Crypto::Cipher": "c6edf8e59fc4279b"
   },
   "docs/examples/types/Crypto-KeyKind/about.md": {
-    "Core\\Crypto\\KeyKind": "46144bb00d8fe8b0"
+    "Core\\Crypto\\KeyKind": "a5dcdc1bd92dadc8"
   },
   "docs/examples/types/Crypto-PublicKey-Format/about.md": {
     "Core\\Crypto\\PublicKey::Format": "03610626c737b104"
@@ -4686,7 +4686,7 @@
     "Core\\Db\\Column::Type": "0dccf2f4ea094ec4"
   },
   "docs/examples/types/Db-DbError/about.md": {
-    "Core\\Db\\DbError": "86f5c37e6ebe9ff1"
+    "Core\\Db\\DbError": "fbbbff44f772ea7b"
   },
   "docs/examples/types/Db-DbError-Kind/about.md": {
     "Core\\Db\\DbError::Kind": "0891193b169f8ae3"
@@ -4701,7 +4701,7 @@
     "Core\\Db\\Plan\\Step::Grade": "8bb1a30c27067cec"
   },
   "docs/examples/types/Db-RolledBack/about.md": {
-    "Core\\Db\\RolledBack": "e203606e83e6eb83"
+    "Core\\Db\\RolledBack": "1d5fe720429e95f0"
   },
   "docs/examples/types/Db-Tls/about.md": {
     "Core\\Db::Tls": "f2e352219dc34486"
@@ -4746,7 +4746,7 @@
     "KeyedIterator": "107dc14c061263e2"
   },
   "docs/examples/types/LateInit/about.md": {
-    "LateInit": "29162510134426d4"
+    "LateInit": "310cc4500d7ce698"
   },
   "docs/examples/types/Ldap-Connection-Scope/about.md": {
     "Core\\Ldap\\Connection::Scope": "3203d9b3ac5bb8d3"
@@ -4755,10 +4755,10 @@
     "Core\\Ldap\\Entry::AccountType": "db73f72f904db25e"
   },
   "docs/examples/types/Ldap-LdapError/about.md": {
-    "Core\\Ldap\\LdapError": "676d2998496630c5"
+    "Core\\Ldap\\LdapError": "22ea1da2d91c0152"
   },
   "docs/examples/types/Ldap-LdapError-Kind/about.md": {
-    "Core\\Ldap\\LdapError::Kind": "687e6780c43dec22"
+    "Core\\Ldap\\LdapError::Kind": "91c126817e1b736e"
   },
   "docs/examples/types/Ldap-Tls/about.md": {
     "Core\\Ldap::Tls": "acbbd5b01b33c6eb"
@@ -4767,7 +4767,7 @@
     "Core\\Log::Level": "241ce941e6b068e6"
   },
   "docs/examples/types/LogicError/about.md": {
-    "LogicError": "9adfeafc25bd352d"
+    "LogicError": "0ece06483013f288"
   },
   "docs/examples/types/Mime-Type/about.md": {
     "Core\\Mime::Type": "6f7bc51c4a4df43e"
@@ -4776,10 +4776,10 @@
     "Novis\\Image\\Barcode::Symbology": "0f2e7a74a9d9626f"
   },
   "docs/examples/types/Novis-Image-Format/about.md": {
-    "Novis\\Image\\Format": "5d27df121ee34701"
+    "Novis\\Image\\Format": "737dd050b0d1bcd9"
   },
   "docs/examples/types/Novis-Image-Image-Align/about.md": {
-    "Novis\\Image\\Image::Align": "a112a274ff1a2e74"
+    "Novis\\Image\\Image::Align": "26df8adfde73980a"
   },
   "docs/examples/types/Novis-Image-Image-Axis/about.md": {
     "Novis\\Image\\Image::Axis": "04242bf8e79a3ef8"
@@ -4788,7 +4788,7 @@
     "Novis\\Image\\Image::Blend": "7cd789f54181a829"
   },
   "docs/examples/types/Novis-Image-Image-Filter/about.md": {
-    "Novis\\Image\\Image::Filter": "e4cecf7c1074dac1"
+    "Novis\\Image\\Image::Filter": "ef313bc24104daad"
   },
   "docs/examples/types/Novis-Image-Image-Fit/about.md": {
     "Novis\\Image\\Image::Fit": "bc6aaef679b84986"
@@ -4797,10 +4797,10 @@
     "Novis\\Image\\Image::Gravity": "22434fda756ff0e8"
   },
   "docs/examples/types/Novis-Image-Image-HashKind/about.md": {
-    "Novis\\Image\\Image::HashKind": "5708c6e0176082be"
+    "Novis\\Image\\Image::HashKind": "107328f56b9becac"
   },
   "docs/examples/types/Novis-Image-Image-PlaceholderKind/about.md": {
-    "Novis\\Image\\Image::PlaceholderKind": "8875514ad7f0ff33"
+    "Novis\\Image\\Image::PlaceholderKind": "eb834a19920c496f"
   },
   "docs/examples/types/Novis-Image-QrCode-Level/about.md": {
     "Novis\\Image\\QrCode::Level": "98d2369cc0c0be68"
@@ -4914,7 +4914,7 @@
     "Core\\Router\\Responder": "6ab94219c9fcf492"
   },
   "docs/examples/types/RuntimeError/about.md": {
-    "RuntimeError": "82b21fb10f3f1024"
+    "RuntimeError": "856b5a91ad7991d3"
   },
   "docs/examples/types/Script-ExitReport-Reason/about.md": {
     "Core\\Script\\ExitReport::Reason": "46ab7c384ac161b2"
@@ -4929,10 +4929,10 @@
     "Stringable": "fc040ec30508e2ce"
   },
   "docs/examples/types/Test-Failure/about.md": {
-    "Core\\Test\\Failure": "ead743a85e3c454c"
+    "Core\\Test\\Failure": "9f5a29f4778be04d"
   },
   "docs/examples/types/Throwable/about.md": {
-    "Throwable": "f49f43ca38267c72"
+    "Throwable": "394c224abda22158"
   },
   "docs/examples/types/Time-Weekday/about.md": {
     "Core\\Time\\Weekday": "c997c11535cc79a8"
@@ -4947,13 +4947,13 @@
     "Core\\Xml\\Node::Kind": "787325a225bf3321"
   },
   "guides/why-novis/secret-values.mdx": {
-    "lang:types/qualifiers-tainted-and-secret": "3a2c2e56a6275ffb"
+    "lang:types/qualifiers-tainted-and-secret": "fa9e331d88ad04aa"
   },
   "guides/why-novis/tainted-input.mdx": {
-    "lang:types/qualifiers-tainted-and-secret": "3a2c2e56a6275ffb"
+    "lang:types/qualifiers-tainted-and-secret": "fa9e331d88ad04aa"
   },
   "help:ArithmeticError": {
-    "ArithmeticError": "aec8302283080b07"
+    "ArithmeticError": "ca76428d1dfa1c38"
   },
   "help:Comparable": {
     "Comparable": "a14cf72084628ef9"
@@ -5175,7 +5175,7 @@
     "Core\\BigInt::abs": "69c32869dab0705e"
   },
   "help:Core\\BigInt::add": {
-    "Core\\BigInt::add": "ee21259f3984008b"
+    "Core\\BigInt::add": "9ed420f11b415076"
   },
   "help:Core\\BigInt::compareTo": {
     "Core\\BigInt::compareTo": "2f33b00ace35dcf1"
@@ -5196,7 +5196,7 @@
     "Core\\BigInt::mod": "ddb4e2c1056ae32c"
   },
   "help:Core\\BigInt::mul": {
-    "Core\\BigInt::mul": "62e67cd8c3446e1c"
+    "Core\\BigInt::mul": "155fbd31e823ef15"
   },
   "help:Core\\BigInt::neg": {
     "Core\\BigInt::neg": "df4333b8995cfa13"
@@ -5253,7 +5253,7 @@
     "Core\\Budget::memoryPeak": "50b24a38b7a9bf69"
   },
   "help:Core\\Bytes::at": {
-    "Core\\Bytes::at": "9045081330230f39"
+    "Core\\Bytes::at": "a10c742af3ee4219"
   },
   "help:Core\\Bytes::compare": {
     "Core\\Bytes::compare": "9fd2d1e1bed971d8"
@@ -5271,7 +5271,7 @@
     "Core\\Bytes::indexOf": "696e9392635e2503"
   },
   "help:Core\\Bytes::join": {
-    "Core\\Bytes::join": "fda7d50906f1cdd0"
+    "Core\\Bytes::join": "625bb075e3b61a6f"
   },
   "help:Core\\Bytes::length": {
     "Core\\Bytes::length": "caf10b50d0106b3f"
@@ -5496,7 +5496,7 @@
     "Core\\Crypto::verify": "7bf88379cf5842f0"
   },
   "help:Core\\Crypto\\KeyKind": {
-    "Core\\Crypto\\KeyKind": "328664befa63582c"
+    "Core\\Crypto\\KeyKind": "220488e3cf5d17fe"
   },
   "help:Core\\Crypto\\KeyPair::publicKey": {
     "Core\\Crypto\\KeyPair::publicKey": "7a1390bbf04abdc5"
@@ -5586,7 +5586,7 @@
     "Core\\Db\\Connection::queryAs": "13370a189fd3d480"
   },
   "help:Core\\Db\\Connection::serverVersion": {
-    "Core\\Db\\Connection::serverVersion": "05d6973bcb8d6a7f"
+    "Core\\Db\\Connection::serverVersion": "1c10a24f3cce0ef1"
   },
   "help:Core\\Db\\Connection::stream": {
     "Core\\Db\\Connection::stream": "ee0e2fed7368cf58"
@@ -5598,7 +5598,7 @@
     "Core\\Db\\Connection::transaction": "469f937620363e0e"
   },
   "help:Core\\Db\\DbError": {
-    "Core\\Db\\DbError": "85060e4cb0350bbb"
+    "Core\\Db\\DbError": "ec4dd57078d38d84"
   },
   "help:Core\\Db\\DbError::Kind": {
     "Core\\Db\\DbError::Kind": "f63511c7eb6ee540"
@@ -5628,7 +5628,7 @@
     "Core\\Db\\Plan\\Step::sql": "11befacf82c6ec34"
   },
   "help:Core\\Db\\RolledBack": {
-    "Core\\Db\\RolledBack": "26e31377bca1fc7b"
+    "Core\\Db\\RolledBack": "873681ef60fc4e49"
   },
   "help:Core\\Db\\Row::bool": {
     "Core\\Db\\Row::bool": "91094f30d913d95f"
@@ -5838,7 +5838,7 @@
     "Core\\Env::get": "5a10748a111faf47"
   },
   "help:Core\\Env::mode": {
-    "Core\\Env::mode": "a6081dd7cfbb390b"
+    "Core\\Env::mode": "30aa0ef3f23ba81a"
   },
   "help:Core\\Env::Mode": {
     "Core\\Env::Mode": "dd2d7600b4201b75"
@@ -6177,13 +6177,13 @@
     "Core\\Json::decodeAs": "b31ec6d3ba1d14e0"
   },
   "help:Core\\Json::decodeEach": {
-    "Core\\Json::decodeEach": "86f8d45b2ba61a22"
+    "Core\\Json::decodeEach": "b07a659510dbdc5e"
   },
   "help:Core\\Json::encode": {
     "Core\\Json::encode": "da614086c42841b2"
   },
   "help:Core\\Json::encodeEach": {
-    "Core\\Json::encodeEach": "45705c3e9b7673e5"
+    "Core\\Json::encodeEach": "5f72074f0be6ac67"
   },
   "help:Core\\Json::isValid": {
     "Core\\Json::isValid": "703e1d52ee5d119c"
@@ -6363,7 +6363,7 @@
     "Core\\Ldap\\Connection::add": "3000cfe13f7911a3"
   },
   "help:Core\\Ldap\\Connection::authenticate": {
-    "Core\\Ldap\\Connection::authenticate": "a456cdcb25014554"
+    "Core\\Ldap\\Connection::authenticate": "f0f48f0b8f748800"
   },
   "help:Core\\Ldap\\Connection::changePassword": {
     "Core\\Ldap\\Connection::changePassword": "e3b61b8c288ca59f"
@@ -6396,7 +6396,7 @@
     "Core\\Ldap\\Connection::setPassword": "340c83d0ea2fddc2"
   },
   "help:Core\\Ldap\\Connection::whoami": {
-    "Core\\Ldap\\Connection::whoami": "f320c7d3eb55d08a"
+    "Core\\Ldap\\Connection::whoami": "a2042ec7a7fffd93"
   },
   "help:Core\\Ldap\\Dn::child": {
     "Core\\Ldap\\Dn::child": "59f427e86f290a2c"
@@ -6522,10 +6522,10 @@
     "Core\\Ldap\\Filter::toString": "bfc6866b3927d445"
   },
   "help:Core\\Ldap\\LdapError": {
-    "Core\\Ldap\\LdapError": "70eec4d889dd8f65"
+    "Core\\Ldap\\LdapError": "9e918a8824eb94ef"
   },
   "help:Core\\Ldap\\LdapError::Kind": {
-    "Core\\Ldap\\LdapError::Kind": "b7bcdebbc25939dd"
+    "Core\\Ldap\\LdapError::Kind": "c55ee5821c502572"
   },
   "help:Core\\Ldap\\Sid::bytes": {
     "Core\\Ldap\\Sid::bytes": "b864052faaa5dd96"
@@ -6840,16 +6840,16 @@
     "Core\\Passkey::credentialId": "a6122eb84a2e5a81"
   },
   "help:Core\\Passkey::registerOptions": {
-    "Core\\Passkey::registerOptions": "1b369725aa9dcdef"
+    "Core\\Passkey::registerOptions": "9cec8335ee56e4bb"
   },
   "help:Core\\Passkey::signInOptions": {
-    "Core\\Passkey::signInOptions": "7d6fc7a80e3d7904"
+    "Core\\Passkey::signInOptions": "27f94b636d5f5e44"
   },
   "help:Core\\Passkey::verifyRegistration": {
-    "Core\\Passkey::verifyRegistration": "66c72f1ff5217f1b"
+    "Core\\Passkey::verifyRegistration": "31e43b09371c9bc9"
   },
   "help:Core\\Passkey::verifySignIn": {
-    "Core\\Passkey::verifySignIn": "849d1d64b058fa79"
+    "Core\\Passkey::verifySignIn": "62408c7a5a8c1cf6"
   },
   "help:Core\\Passkey\\Credential::algorithm": {
     "Core\\Passkey\\Credential::algorithm": "6699cd60cb5c612b"
@@ -6861,7 +6861,7 @@
     "Core\\Passkey\\Credential::id": "7fb64d809ee8bb8e"
   },
   "help:Core\\Passkey\\Credential::of": {
-    "Core\\Passkey\\Credential::of": "4203ba53168e7dd7"
+    "Core\\Passkey\\Credential::of": "554a31ac1b13601e"
   },
   "help:Core\\Passkey\\Credential::publicKey": {
     "Core\\Passkey\\Credential::publicKey": "0cd865dd784eaebd"
@@ -6915,34 +6915,34 @@
     "Core\\Path::withExtension": "fbea9032aabc109d"
   },
   "help:Core\\Process::run": {
-    "Core\\Process::run": "8db62ca7b8223f6c"
+    "Core\\Process::run": "b8ea38cf320da34f"
   },
   "help:Core\\Process::spawn": {
-    "Core\\Process::spawn": "f0685b554b02756d"
+    "Core\\Process::spawn": "13b513abf087ccfa"
   },
   "help:Core\\Process\\Handle::kill": {
-    "Core\\Process\\Handle::kill": "384fe084c291371c"
+    "Core\\Process\\Handle::kill": "8a782a5ac488c962"
   },
   "help:Core\\Process\\Handle::readStderr": {
-    "Core\\Process\\Handle::readStderr": "0a6d0ed5b4c2c2b6"
+    "Core\\Process\\Handle::readStderr": "9a3d2172303c41ad"
   },
   "help:Core\\Process\\Handle::readStdout": {
-    "Core\\Process\\Handle::readStdout": "69800961ea066b26"
+    "Core\\Process\\Handle::readStdout": "c255218065a56bdb"
   },
   "help:Core\\Process\\Handle::wait": {
-    "Core\\Process\\Handle::wait": "736b856d9039a3e8"
+    "Core\\Process\\Handle::wait": "d1fb1dffb2c5915b"
   },
   "help:Core\\Process\\Handle::writeStdin": {
-    "Core\\Process\\Handle::writeStdin": "3b644007eeed97b3"
+    "Core\\Process\\Handle::writeStdin": "a53618a5eda1165f"
   },
   "help:Core\\Process\\Result::exitCode": {
-    "Core\\Process\\Result::exitCode": "0ce0986b4f0f86df"
+    "Core\\Process\\Result::exitCode": "8ca76df4dea716d0"
   },
   "help:Core\\Process\\Result::stderr": {
-    "Core\\Process\\Result::stderr": "ad281215d92a1db7"
+    "Core\\Process\\Result::stderr": "1d2f997f04efeca9"
   },
   "help:Core\\Process\\Result::stdout": {
-    "Core\\Process\\Result::stdout": "fc4640d2476cd022"
+    "Core\\Process\\Result::stdout": "a8c35201c7bdfbcf"
   },
   "help:Core\\Program::constructors": {
     "Core\\Program::constructors": "dd5b6a4b85fff089"
@@ -7026,25 +7026,25 @@
     "Core\\Random::token": "f8f71799bd0d0164"
   },
   "help:Core\\Random\\Seeded::bytes": {
-    "Core\\Random\\Seeded::bytes": "4b3f22be77cdb7d1"
+    "Core\\Random\\Seeded::bytes": "0de91d4393e6550a"
   },
   "help:Core\\Random\\Seeded::float": {
     "Core\\Random\\Seeded::float": "3d92d387a7e997dd"
   },
   "help:Core\\Random\\Seeded::int": {
-    "Core\\Random\\Seeded::int": "d90aabaefe425af2"
+    "Core\\Random\\Seeded::int": "079cbf105dd5e930"
   },
   "help:Core\\Random\\Seeded::pick": {
-    "Core\\Random\\Seeded::pick": "c9bef8e32c44099b"
+    "Core\\Random\\Seeded::pick": "db2358ce6643f712"
   },
   "help:Core\\Random\\Seeded::sample": {
-    "Core\\Random\\Seeded::sample": "6cd40b102cb38f56"
+    "Core\\Random\\Seeded::sample": "a31f095dc960d9c7"
   },
   "help:Core\\Random\\Seeded::shuffle": {
-    "Core\\Random\\Seeded::shuffle": "d729d13f7786c10a"
+    "Core\\Random\\Seeded::shuffle": "36a3e29873bf027d"
   },
   "help:Core\\Random\\Seeded::token": {
-    "Core\\Random\\Seeded::token": "7be4d9c8d133406b"
+    "Core\\Random\\Seeded::token": "dee078cad28edede"
   },
   "help:Core\\RateLimit::consume": {
     "Core\\RateLimit::consume": "f1625cdd68afb8fd"
@@ -7323,10 +7323,10 @@
     "Core\\Request\\Part::saveTo": "2c7c6ec6ea41ca5d"
   },
   "help:Core\\Response::addCookie": {
-    "Core\\Response::addCookie": "25f1c7867badd758"
+    "Core\\Response::addCookie": "3dcec7d860c7fc04"
   },
   "help:Core\\Response::bytes": {
-    "Core\\Response::bytes": "ef18046e9e036521"
+    "Core\\Response::bytes": "7d38885e29cf1284"
   },
   "help:Core\\Response::html": {
     "Core\\Response::html": "b4aed3a0e981c507"
@@ -7371,7 +7371,7 @@
     "Core\\Response\\Stream::offset": "bf9553574535d06f"
   },
   "help:Core\\Response\\Stream::write": {
-    "Core\\Response\\Stream::write": "74595bfc0a7579ba"
+    "Core\\Response\\Stream::write": "f677f669f641186a"
   },
   "help:Core\\RoundMode": {
     "Core\\RoundMode": "c41f780e07e6d2dc"
@@ -7437,19 +7437,19 @@
     "Core\\Script::onExit": "3b1f15d698fe70c1"
   },
   "help:Core\\Script\\ExitReport::error": {
-    "Core\\Script\\ExitReport::error": "ec0f041cb7d9264a"
+    "Core\\Script\\ExitReport::error": "7b6a7d9e998bb0c0"
   },
   "help:Core\\Script\\ExitReport::memoryPeak": {
     "Core\\Script\\ExitReport::memoryPeak": "9b8de72c6dde3983"
   },
   "help:Core\\Script\\ExitReport::reason": {
-    "Core\\Script\\ExitReport::reason": "a2e2ac812212cc93"
+    "Core\\Script\\ExitReport::reason": "f683a22693ad00f5"
   },
   "help:Core\\Script\\ExitReport::Reason": {
     "Core\\Script\\ExitReport::Reason": "924ded3358e7677c"
   },
   "help:Core\\Script\\ExitReport::status": {
-    "Core\\Script\\ExitReport::status": "b26441a48004fb81"
+    "Core\\Script\\ExitReport::status": "2a2fee78fa9b7676"
   },
   "help:Core\\Script\\Finished": {
     "Core\\Script\\Finished": "2db1ce2fc58130d9"
@@ -7554,7 +7554,7 @@
     "Core\\Sse::current": "324e8a1fecd0c181"
   },
   "help:Core\\Sse::receive": {
-    "Core\\Sse::receive": "35473cd549fe38ad"
+    "Core\\Sse::receive": "b6733e55302a19fc"
   },
   "help:Core\\Sse::retry": {
     "Core\\Sse::retry": "2b16fdcf021833a8"
@@ -7815,7 +7815,7 @@
     "Core\\Test::tlsSession": "3ad58b6cbaff1dc7"
   },
   "help:Core\\Test\\Failure": {
-    "Core\\Test\\Failure": "096038ef67c63e3e"
+    "Core\\Test\\Failure": "2ec50c5b87f7f8f6"
   },
   "help:Core\\Test\\LogRecord::fields": {
     "Core\\Test\\LogRecord::fields": "0e2a0ed9d535a4ca"
@@ -7977,7 +7977,7 @@
     "Core\\Time\\Date::weekday": "26bbf801b9867178"
   },
   "help:Core\\Time\\Date::with": {
-    "Core\\Time\\Date::with": "659f02ccf6e962c2"
+    "Core\\Time\\Date::with": "6cb7356e2a199b90"
   },
   "help:Core\\Time\\Date::year": {
     "Core\\Time\\Date::year": "d68381c146daee52"
@@ -8052,7 +8052,7 @@
     "Core\\Time\\DateTime::weekday": "3fd2ce06d4e2202b"
   },
   "help:Core\\Time\\DateTime::with": {
-    "Core\\Time\\DateTime::with": "c6926b3951ac91bb"
+    "Core\\Time\\DateTime::with": "b0c138b521de373f"
   },
   "help:Core\\Time\\DateTime::withTime": {
     "Core\\Time\\DateTime::withTime": "638c71ac5c32abb0"
@@ -8124,10 +8124,10 @@
     "Core\\Time\\Instant::compareTo": "719bf7524e483a30"
   },
   "help:Core\\Time\\Instant::fromEpoch": {
-    "Core\\Time\\Instant::fromEpoch": "94858562f13fa332"
+    "Core\\Time\\Instant::fromEpoch": "b8dd7f31636c0836"
   },
   "help:Core\\Time\\Instant::fromIso": {
-    "Core\\Time\\Instant::fromIso": "a6a27afcae12da58"
+    "Core\\Time\\Instant::fromIso": "025ecb5878abad4a"
   },
   "help:Core\\Time\\Instant::in": {
     "Core\\Time\\Instant::in": "bf722fd3c673d676"
@@ -8184,7 +8184,7 @@
     "Core\\Time\\TimeOfDay::second": "c26c1093bec5f6fc"
   },
   "help:Core\\Time\\TimeOfDay::with": {
-    "Core\\Time\\TimeOfDay::with": "efda8cc4fcbdd584"
+    "Core\\Time\\TimeOfDay::with": "f55a3942552c2b41"
   },
   "help:Core\\Time\\Weekday": {
     "Core\\Time\\Weekday": "6ac79ea53df0feab"
@@ -8232,7 +8232,7 @@
     "Core\\Uri::decodeFormValue": "f2f2d37305f24a5d"
   },
   "help:Core\\Uri::encodeComponent": {
-    "Core\\Uri::encodeComponent": "0ccb40728c59451d"
+    "Core\\Uri::encodeComponent": "9fe1b5e3a6639577"
   },
   "help:Core\\Uri::encodeFormValue": {
     "Core\\Uri::encodeFormValue": "3de88f44b7afacc9"
@@ -8268,7 +8268,7 @@
     "Core\\Uri::scheme": "9e538251728a1734"
   },
   "help:Core\\Uri::sign": {
-    "Core\\Uri::sign": "c5349b8dc31d6281"
+    "Core\\Uri::sign": "9a38ec28eb040083"
   },
   "help:Core\\Uri::toString": {
     "Core\\Uri::toString": "1ce0243f8b0c0aea"
@@ -8280,7 +8280,7 @@
     "Core\\Uri::userInfo": "77736029aa99d402"
   },
   "help:Core\\Uri::verifySignature": {
-    "Core\\Uri::verifySignature": "c1eed21ad6b31e61"
+    "Core\\Uri::verifySignature": "3ee53f6a16128424"
   },
   "help:Core\\Uri::with": {
     "Core\\Uri::with": "9d92491bc1b98d48"
@@ -8508,7 +8508,7 @@
     "directive:http.csrf_key_file": "28efcc04a08d0722"
   },
   "help:directive:image.max_pixels": {
-    "directive:image.max_pixels": "1ab10ce66fdbfb14"
+    "directive:image.max_pixels": "359fdaccb8a7fe04"
   },
   "help:directive:include": {
     "directive:include": "e8277e7619af793a"
@@ -8643,10 +8643,10 @@
     "KeyedIterator": "73e91b3fcc612170"
   },
   "help:LateInit": {
-    "LateInit": "5f81af62bf2731d2"
+    "LateInit": "1893c4ac9f07be65"
   },
   "help:LogicError": {
-    "LogicError": "90eafa9467ae4cc9"
+    "LogicError": "2b2d610712af3d78"
   },
   "help:Novis\\Image\\Barcode::render": {
     "Novis\\Image\\Barcode::render": "b24cd8b9fc1f5f49"
@@ -8658,22 +8658,22 @@
     "Novis\\Image\\Barcode::Symbology": "5c88401227cae4f7"
   },
   "help:Novis\\Image\\Color::hex": {
-    "Novis\\Image\\Color::hex": "4c6ee44c542718a5"
+    "Novis\\Image\\Color::hex": "9fc65387aa5fa900"
   },
   "help:Novis\\Image\\Color::rgba": {
-    "Novis\\Image\\Color::rgba": "0133462f2db00f63"
+    "Novis\\Image\\Color::rgba": "1d3e86dbf3869c17"
   },
   "help:Novis\\Image\\Diff::constructor": {
     "Novis\\Image\\Diff::constructor": "0d5b05835ac86ce9"
   },
   "help:Novis\\Image\\Font::fromBytes": {
-    "Novis\\Image\\Font::fromBytes": "9e22d93b4c1d8f2b"
+    "Novis\\Image\\Font::fromBytes": "cfc174782a9371eb"
   },
   "help:Novis\\Image\\Format": {
-    "Novis\\Image\\Format": "d737bcd80bd26344"
+    "Novis\\Image\\Format": "dc49c620b0a76426"
   },
   "help:Novis\\Image\\Image::Align": {
-    "Novis\\Image\\Image::Align": "3241b62b68c834f6"
+    "Novis\\Image\\Image::Align": "cd7b7f218a5b5376"
   },
   "help:Novis\\Image\\Image::Axis": {
     "Novis\\Image\\Image::Axis": "327a808c31859d38"
@@ -8682,115 +8682,115 @@
     "Novis\\Image\\Image::Blend": "db99dd4f8cd6d41d"
   },
   "help:Novis\\Image\\Image::blur": {
-    "Novis\\Image\\Image::blur": "06bb84ce3c5f54de"
+    "Novis\\Image\\Image::blur": "375e864e563fef22"
   },
   "help:Novis\\Image\\Image::brightness": {
-    "Novis\\Image\\Image::brightness": "fd367eec2a466136"
+    "Novis\\Image\\Image::brightness": "9120f7b08d786c55"
   },
   "help:Novis\\Image\\Image::compare": {
-    "Novis\\Image\\Image::compare": "d2d6f58cbbc9eb7f"
+    "Novis\\Image\\Image::compare": "990c95f33e84dad4"
   },
   "help:Novis\\Image\\Image::composite": {
-    "Novis\\Image\\Image::composite": "30b57996d6538fbe"
+    "Novis\\Image\\Image::composite": "b443657378d79c72"
   },
   "help:Novis\\Image\\Image::contrast": {
-    "Novis\\Image\\Image::contrast": "389bc36084d61f44"
+    "Novis\\Image\\Image::contrast": "17a9f5cdf5452501"
   },
   "help:Novis\\Image\\Image::create": {
-    "Novis\\Image\\Image::create": "2708467923593f5d"
+    "Novis\\Image\\Image::create": "46fb194472ab7c3f"
   },
   "help:Novis\\Image\\Image::crop": {
-    "Novis\\Image\\Image::crop": "b09a9c35791cbe93"
+    "Novis\\Image\\Image::crop": "b359eb2830b1caab"
   },
   "help:Novis\\Image\\Image::encode": {
-    "Novis\\Image\\Image::encode": "ff4b5529e1522995"
+    "Novis\\Image\\Image::encode": "49e9b35be29f7988"
   },
   "help:Novis\\Image\\Image::extension": {
-    "Novis\\Image\\Image::extension": "e01a94c7f62bf4e4"
+    "Novis\\Image\\Image::extension": "947c22e3da5bfb21"
   },
   "help:Novis\\Image\\Image::Filter": {
-    "Novis\\Image\\Image::Filter": "69bc9eaf257bcfcb"
+    "Novis\\Image\\Image::Filter": "7c67cd8bc819375e"
   },
   "help:Novis\\Image\\Image::Fit": {
     "Novis\\Image\\Image::Fit": "11b415c39ed02588"
   },
   "help:Novis\\Image\\Image::flatten": {
-    "Novis\\Image\\Image::flatten": "7c3f3fc84ad360e3"
+    "Novis\\Image\\Image::flatten": "0d8e815569ce1caa"
   },
   "help:Novis\\Image\\Image::flip": {
-    "Novis\\Image\\Image::flip": "68a398349bf0ca76"
+    "Novis\\Image\\Image::flip": "adc19603c82ea5f0"
   },
   "help:Novis\\Image\\Image::format": {
-    "Novis\\Image\\Image::format": "e694416700d3f418"
+    "Novis\\Image\\Image::format": "20a390884097249f"
   },
   "help:Novis\\Image\\Image::fromRaw": {
-    "Novis\\Image\\Image::fromRaw": "1f7da909796c823a"
+    "Novis\\Image\\Image::fromRaw": "0160d679b4c88fc0"
   },
   "help:Novis\\Image\\Image::gamma": {
-    "Novis\\Image\\Image::gamma": "620c4777c07735e1"
+    "Novis\\Image\\Image::gamma": "8f6cff7607fa25de"
   },
   "help:Novis\\Image\\Image::Gravity": {
     "Novis\\Image\\Image::Gravity": "532d2907e4da2806"
   },
   "help:Novis\\Image\\Image::grayscale": {
-    "Novis\\Image\\Image::grayscale": "9f58048161d703b3"
+    "Novis\\Image\\Image::grayscale": "168ece223810af23"
   },
   "help:Novis\\Image\\Image::hash": {
-    "Novis\\Image\\Image::hash": "d11a6fde1244c85b"
+    "Novis\\Image\\Image::hash": "db1febd3b3c005e9"
   },
   "help:Novis\\Image\\Image::hashDistance": {
-    "Novis\\Image\\Image::hashDistance": "501aea0dac62052f"
+    "Novis\\Image\\Image::hashDistance": "2e6de9e0ac559970"
   },
   "help:Novis\\Image\\Image::HashKind": {
-    "Novis\\Image\\Image::HashKind": "e3360904d1b9808c"
+    "Novis\\Image\\Image::HashKind": "cb5ba15c93a0c29e"
   },
   "help:Novis\\Image\\Image::info": {
-    "Novis\\Image\\Image::info": "d9ace13478ac7e13"
+    "Novis\\Image\\Image::info": "7c6a253fbee070c5"
   },
   "help:Novis\\Image\\Image::measureText": {
-    "Novis\\Image\\Image::measureText": "396d1411f39bad8e"
+    "Novis\\Image\\Image::measureText": "d1cac679bb5d24c9"
   },
   "help:Novis\\Image\\Image::metadata": {
-    "Novis\\Image\\Image::metadata": "c8c8ad7712d4b08a"
+    "Novis\\Image\\Image::metadata": "e03b924d9d773fd0"
   },
   "help:Novis\\Image\\Image::mime": {
-    "Novis\\Image\\Image::mime": "9f1affde74edc48a"
+    "Novis\\Image\\Image::mime": "a9593f6a90d44075"
   },
   "help:Novis\\Image\\Image::open": {
-    "Novis\\Image\\Image::open": "8b9cc8961f46b91e"
+    "Novis\\Image\\Image::open": "ab144ecd5925a862"
   },
   "help:Novis\\Image\\Image::palette": {
-    "Novis\\Image\\Image::palette": "e9569324ea70fdfd"
+    "Novis\\Image\\Image::palette": "a1e5642797da6c33"
   },
   "help:Novis\\Image\\Image::placeholder": {
-    "Novis\\Image\\Image::placeholder": "3d22ef07a1c0e1a9"
+    "Novis\\Image\\Image::placeholder": "52c4e30eba73bab9"
   },
   "help:Novis\\Image\\Image::PlaceholderKind": {
-    "Novis\\Image\\Image::PlaceholderKind": "6442682e30336351"
+    "Novis\\Image\\Image::PlaceholderKind": "d4b8c5714b509aa5"
   },
   "help:Novis\\Image\\Image::raw": {
-    "Novis\\Image\\Image::raw": "180bd69969b4dcd3"
+    "Novis\\Image\\Image::raw": "5b6c77b0435a62f2"
   },
   "help:Novis\\Image\\Image::resize": {
-    "Novis\\Image\\Image::resize": "5ee28cf3f88497ff"
+    "Novis\\Image\\Image::resize": "46ffbaaa421e3dfc"
   },
   "help:Novis\\Image\\Image::rotate": {
     "Novis\\Image\\Image::rotate": "92e499261a4e52dd"
   },
   "help:Novis\\Image\\Image::sharpen": {
-    "Novis\\Image\\Image::sharpen": "46791df72dba78d5"
+    "Novis\\Image\\Image::sharpen": "2f373a5e1e275d43"
   },
   "help:Novis\\Image\\Image::text": {
-    "Novis\\Image\\Image::text": "aa9c59aae36c06ce"
+    "Novis\\Image\\Image::text": "2ba67f58608f12ad"
   },
   "help:Novis\\Image\\Image::tint": {
-    "Novis\\Image\\Image::tint": "5fc88ce9c18655cc"
+    "Novis\\Image\\Image::tint": "044a1a4321ad8f0c"
   },
   "help:Novis\\Image\\Image::trim": {
-    "Novis\\Image\\Image::trim": "47483d4af3a060ac"
+    "Novis\\Image\\Image::trim": "c146b9229d7ed3d2"
   },
   "help:Novis\\Image\\Image::variants": {
-    "Novis\\Image\\Image::variants": "a7cba93aec7c1ff8"
+    "Novis\\Image\\Image::variants": "d73664b813d8ea4d"
   },
   "help:Novis\\Image\\QrCode::giroCode": {
     "Novis\\Image\\QrCode::giroCode": "5003662883935133"
@@ -8889,7 +8889,7 @@
     "Novis\\Intl\\Width": "f8b5f8435239ca3b"
   },
   "help:Novis\\Pdf\\Document::asset": {
-    "Novis\\Pdf\\Document::asset": "515ab8e8403c9a53"
+    "Novis\\Pdf\\Document::asset": "97c55f3f06d3c843"
   },
   "help:Novis\\Pdf\\Document::created": {
     "Novis\\Pdf\\Document::created": "4ad152a316eb1b0f"
@@ -8910,7 +8910,7 @@
     "Novis\\Pdf\\Document::password": "8441cf3f8771a6b2"
   },
   "help:Novis\\Pdf\\Document::render": {
-    "Novis\\Pdf\\Document::render": "b53eeeb245b88cfa"
+    "Novis\\Pdf\\Document::render": "b9d3f467efd0822d"
   },
   "help:Novis\\Pdf\\Document::slots": {
     "Novis\\Pdf\\Document::slots": "f766f6a76ec957cb"
@@ -8940,7 +8940,7 @@
     "Novis\\Pdf\\Page::string": "33939709ba89b34a"
   },
   "help:Novis\\Pdf\\Pages::merge": {
-    "Novis\\Pdf\\Pages::merge": "f0e4c40c790d7e1b"
+    "Novis\\Pdf\\Pages::merge": "4f5bfff0584aa643"
   },
   "help:Novis\\Pdf\\Pages::of": {
     "Novis\\Pdf\\Pages::of": "0bfc31c52e81f014"
@@ -9216,13 +9216,13 @@
     "RevokedObjectError": "95125b0115d9a52c"
   },
   "help:RuntimeError": {
-    "RuntimeError": "0573a2edff77b88a"
+    "RuntimeError": "e7cedadf2d83ca38"
   },
   "help:Stringable": {
     "Stringable": "72478447e6b56a78"
   },
   "help:Throwable": {
-    "Throwable": "33035a95ca370177"
+    "Throwable": "3656c70128bf2e4b"
   },
   "help:TimeoutError": {
     "TimeoutError": "96cf6d41999eda99"
@@ -9447,7 +9447,7 @@
     "tools:php-differences/porting-a-program": "858ffc6f449227dd"
   },
   "help:tools:php-differences/the-short-list": {
-    "tools:php-differences/the-short-list": "2b9b9fccec561df3"
+    "tools:php-differences/the-short-list": "534deb56c2c2c99f"
   },
   "help:tools:php-differences/the-tools-you-do-not-install": {
     "tools:php-differences/the-tools-you-do-not-install": "3a3585481eb92a1b"
@@ -9540,17 +9540,17 @@
   },
   "syntax/classes/objects.mdx": {
     "lang:classes/nullable-objects-and": "33f2b2b1930580fe",
-    "lang:classes/object-the-top-of-every-class-type": "531cfd4cb27e8bad",
+    "lang:classes/object-the-top-of-every-class-type": "31838345f5d25b32",
     "lang:classes/objects-are-handles": "5e50d70650452f53",
     "lang:classes/what-a-class-cannot-declare": "01e5f31f2f8f17b1",
     "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "209291ff1bfecdea",
     "lang:types/callable-classes-object-shapes": "976abda4d756a387"
   },
   "syntax/classes/properties.mdx": {
-    "lang:classes/lateinit": "3c1c1a10645e9cd8",
+    "lang:classes/lateinit": "04a908eb48054d47",
     "lang:classes/properties": "524a2d4f1f052fd8",
     "lang:types/properties-and-constants": "b2f7a0a244acdedb",
-    "LateInit": "4acec3750b0a45a4"
+    "LateInit": "8164b39b69556518"
   },
   "syntax/classes/property-hooks.mdx": {
     "lang:classes/property-hooks": "52d68dd1bee28f39",
@@ -9570,7 +9570,7 @@
   },
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "523b12d8f6179bfb",
-    "lang:classes/comparable": "08d16989d331d7a5",
+    "lang:classes/comparable": "01153e733acc148d",
     "lang:classes/parses": "57519de72d2364a1",
     "lang:classes/stringable": "33fdc04b0d92eee6",
     "Parses": "82f5bbcdc026fb73",
@@ -9585,7 +9585,7 @@
     "lang:concurrency/isolates-spawn-script-and-await": "a6b0044995955116"
   },
   "syntax/concurrency/limits-and-errors.mdx": {
-    "lang:concurrency/a-child-s-throw": "a669b5fd63354b19",
+    "lang:concurrency/a-child-s-throw": "fe2485872de426d7",
     "lang:concurrency/limit-and-deadline": "8059cd4c38d3c16b"
   },
   "syntax/concurrency/tasks.mdx": {
@@ -9633,7 +9633,7 @@
     "lang:statements/switch": "8e6341e442366194"
   },
   "syntax/errors/assert-and-dump.mdx": {
-    "Core\\Test\\Failure": "8c613b08e5a6728c",
+    "Core\\Test\\Failure": "5c606b600288e366",
     "lang:errors/assertion-failures": "cd75eac925819327",
     "lang:errors/inspecting-a-value": "8b2297034d68105c"
   },
@@ -9641,41 +9641,41 @@
     "lang:statements/catch-as-an-expression": "5f7fd47485ae0935"
   },
   "syntax/errors/error-types.mdx": {
-    "ArithmeticError": "aeb2fff975548d87",
+    "ArithmeticError": "2b84858fcb59cd8a",
     "Core\\Cli\\NotInteractive": "2ca79f6dd1456a42",
-    "Core\\Db\\DbError": "645a9d739c245697",
-    "Core\\Db\\RolledBack": "d017e0f0ad84bdf7",
+    "Core\\Db\\DbError": "f15039dfdaa27aa4",
+    "Core\\Db\\RolledBack": "d1773c24ca372d52",
     "Core\\DeprecatedError": "74a7d1a1f75da5ad",
-    "Core\\Ldap\\LdapError": "76b6672266292a6a",
+    "Core\\Ldap\\LdapError": "7a8ed81b68505665",
     "Core\\Script\\Finished": "65c6645029a4c605",
     "ExtensionError": "bd74754e37d48a28",
     "IOError": "ed4eb8be56c6aa15",
     "lang:errors/constructing-and-subclassing": "6bb332f3160408c8",
-    "lang:errors/properties-not-accessors": "aedfc957316530e4",
-    "lang:errors/the-throwable-tree": "b451e8efe66db0b1",
-    "LogicError": "e44581a03ca5df2c",
+    "lang:errors/properties-not-accessors": "3b3e457afcc1cc09",
+    "lang:errors/the-throwable-tree": "76e53b9203f5f0f4",
+    "LogicError": "8582e87eecd7da0c",
     "ParseError": "709c85b8a4956739",
     "RecursionError": "9b6a469ed19f5f2c",
     "RevokedObjectError": "337f2209151087ef",
-    "RuntimeError": "c477ca7075f9b543",
-    "Throwable": "e249ac2070c9ebdd",
+    "RuntimeError": "f22cd39836648629",
+    "Throwable": "873d3ce41380a5af",
     "TimeoutError": "f007bc89dbf9ea07"
   },
   "syntax/errors/limits.mdx": {
-    "lang:errors/capability-denials-are-catchable": "e897c9d62b9fa5d0",
+    "lang:errors/capability-denials-are-catchable": "b1005efa68f01915",
     "lang:errors/fatal-errors-limits-no-catch-sees": "c1b92dc79f1edd86",
     "lang:errors/recursion-depth": "ded0050c79327f42"
   },
   "syntax/errors/rethrowing.mdx": {
     "lang:errors/an-uncaught-throw": "b8e14c2437e5a34c",
-    "lang:errors/rethrowing": "6e0bbaa0a7f37e00"
+    "lang:errors/rethrowing": "304029a1178c9563"
   },
   "syntax/errors/throw-and-catch.mdx": {
     "lang:errors/throw": "b15a969bf290b03a",
-    "lang:errors/try-catch-finally": "199ec2758a8a77f4"
+    "lang:errors/try-catch-finally": "3dded1d540d73c1e"
   },
   "syntax/functions/anonymous-functions.mdx": {
-    "lang:expressions/anonymous-functions": "0ebd2274c7c8dee2"
+    "lang:expressions/anonymous-functions": "9e74f7dfc209c624"
   },
   "syntax/functions/calls.mdx": {
     "lang:expressions/calls": "b7064752532b2e60"
@@ -9742,7 +9742,7 @@
     "lang:types/array-t": "2bce18472e581290"
   },
   "syntax/values/as.mdx": {
-    "lang:types/the-conversion-operator-as": "8e390cdd5c8c268e",
+    "lang:types/the-conversion-operator-as": "09090ccb6bab96b2",
     "lang:types/widening-without-as": "820f85a72e23f555"
   },
   "syntax/values/bool-and-null.mdx": {
@@ -9761,7 +9761,7 @@
     "Core\\Command::Shell": "a60945d5f400f97f",
     "Core\\Compress::Codec": "c12386a228200487",
     "Core\\Crypto::Cipher": "90abadca6d12684b",
-    "Core\\Crypto\\KeyKind": "97231fa3e220d9b3",
+    "Core\\Crypto\\KeyKind": "d262f8819061e072",
     "Core\\Crypto\\PublicKey::Format": "db0317ab2ee5857c",
     "Core\\Db::Tls": "84979489e55bcb2a",
     "Core\\Db\\Column::Type": "8849719da9476f28",
@@ -9778,7 +9778,7 @@
     "Core\\Ldap::Tls": "0382890ec5e59827",
     "Core\\Ldap\\Connection::Scope": "1444c881a81df7ba",
     "Core\\Ldap\\Entry::AccountType": "02d013d3cb8aef79",
-    "Core\\Ldap\\LdapError::Kind": "ce2870d8d14b5da5",
+    "Core\\Ldap\\LdapError::Kind": "5ed910d08ef45bde",
     "Core\\Log::Level": "be24e2bd35d08681",
     "Core\\Mime::Type": "a5ec25d2698548a5",
     "Core\\Passkey\\Credential::Algorithm": "7fbaadbbff223b8d",
@@ -9799,19 +9799,19 @@
     "lang:enums/comparing-cases": "a0a08f99c81ee55d",
     "lang:enums/core-enums": "db45db6747220f04",
     "lang:enums/declaring-an-enum": "1cd5ec8be37bd5a8",
-    "lang:enums/from-an-integer-back-to-a-case": "abed042494e2f8d8",
+    "lang:enums/from-an-integer-back-to-a-case": "93fa43fd89189064",
     "lang:enums/match-and-switch-over-an-enum": "b1b08136e24c2f3c",
     "lang:enums/what-an-enum-does-not-have": "66c326760d04130e",
     "Novis\\Image\\Barcode::Symbology": "587538600c54fcf7",
-    "Novis\\Image\\Format": "49d8b123c4f01e11",
-    "Novis\\Image\\Image::Align": "b8dc2a1965bd259a",
+    "Novis\\Image\\Format": "47e56e298b92235a",
+    "Novis\\Image\\Image::Align": "d6d31af66c62325d",
     "Novis\\Image\\Image::Axis": "be818bde9ee6f870",
     "Novis\\Image\\Image::Blend": "2b388092cd5ee5d7",
-    "Novis\\Image\\Image::Filter": "b888e1dd6a259aae",
+    "Novis\\Image\\Image::Filter": "3bcc32b213640124",
     "Novis\\Image\\Image::Fit": "23e2065121a73d88",
     "Novis\\Image\\Image::Gravity": "19fe46cab60fc529",
-    "Novis\\Image\\Image::HashKind": "ce124060f41ba7f6",
-    "Novis\\Image\\Image::PlaceholderKind": "9f7153f3797a7f7c",
+    "Novis\\Image\\Image::HashKind": "ef59992b332937c1",
+    "Novis\\Image\\Image::PlaceholderKind": "6064f5c5bb057e87",
     "Novis\\Image\\QrCode::Level": "39f1c80d3733cbb2",
     "Novis\\Intl\\Collator::CaseFirst": "d9e5c1580c355100",
     "Novis\\Intl\\Collator::Strength": "bb9d7d5edf993a20",
@@ -9838,21 +9838,21 @@
     "lang:types/narrowing": "d01af4ffcc75d5ac"
   },
   "syntax/values/nullable.mdx": {
-    "lang:types/nullable-union-single-value-and-enum-case-types": "4d74d0c68e84e2f9"
+    "lang:types/nullable-union-single-value-and-enum-case-types": "465e748d0717a2b5"
   },
   "syntax/values/numbers.mdx": {
-    "lang:types/numbers-bool-int-uint-float-decimal": "4223ef796cd03ed7"
+    "lang:types/numbers-bool-int-uint-float-decimal": "f2cb23082d78b41e"
   },
   "syntax/values/strings.mdx": {
-    "lang:types/text-string-and-bytes": "ce4a87982f1bf356",
+    "lang:types/text-string-and-bytes": "aa89eec649a4e5cb",
     "lang:types/values-written-in-the-code": "aeae8d2aae9002ce"
   },
   "syntax/values/tainted-and-secret.mdx": {
-    "lang:types/qualifiers-tainted-and-secret": "3a2c2e56a6275ffb"
+    "lang:types/qualifiers-tainted-and-secret": "fa9e331d88ad04aa"
   },
   "syntax/values/union-types.mdx": {
     "lang:types/a-member-every-class-of-a-union-declares": "d6d9b38fc279bb09",
-    "lang:types/mixed": "fc36a0ebbfa30fe9",
+    "lang:types/mixed": "1837ebcf63b0fbe5",
     "lang:types/type-aliases": "c5a4a163e6bd4d6f"
   },
   "tools/api-document/index.mdx": {

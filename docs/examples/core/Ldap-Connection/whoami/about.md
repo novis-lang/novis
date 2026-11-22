@@ -1,7 +1,8 @@
-Returns the account the connection is logged in as. The server decides what it returns.
+Returns the account the connection is logged in as, as the server reports it.
 
-The result is a `tainted string`, because the server sends it. It has one of two forms. It starts with `dn:` and then the DN of the account,
-or with `u:` and then a login name. Active Directory and Samba return the login name with the
+The result is a `tainted string`, because the server sends it. It has one of two forms. It starts
+with `dn:` and then the DN of the account, or with `u:` and then a login name. A DN (distinguished
+name) is the full path of an entry in the directory. Active Directory and Samba return the login name with the
 domain in front, such as `u:EXAMPLE\Reader`. A connection that did not log in returns an empty
 string.
 

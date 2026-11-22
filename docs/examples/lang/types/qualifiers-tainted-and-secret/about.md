@@ -6,16 +6,11 @@ A string built from such a value with `.` or interpolation is tainted or secret 
 `Core` method returns is tainted, unless the method's documentation says where the text comes from.
 The compiler checks both words, so they do not make the program slower.
 
-When a tainted value reaches a place that does not take it, the error names the method that makes
-the value safe for that place. For a path, that is `Core\IO::within`.
+A tainted string cannot be a regular expression, a format template or a plain `string`. The error
+names the method that makes the value safe there, such as `Core\IO::within` for a path. A secret
+value does not compile with `echo`, in an error message, in a debug dump or in `Core\Json::encode`.
 
-A tainted string cannot be a regular expression, a format template or a date pattern. It cannot be
-assigned to a plain `string` either. A secret value does not compile with `echo`, in an error
-message, in a debug dump or in `Core\Json::encode`.
-
-`secret` can also go before `mixed`. A plain `mixed` variable cannot contain a secret value. A
-secret value cannot be an array key, and `as int` does not compile with it.
-`Core\Secret::reveal($value, "reason")` is the only method that gives a plain value from a secret
-one.
+`secret` can also go before `mixed`. `Core\Secret::reveal($value, "reason")` is the only method that
+gives a plain value from a secret one.
 
 Examples 04 to 07 show each kind of mistake, and none of them compiles.

@@ -6,8 +6,8 @@ connection opens. SQL Server gives three numbers with dots between them. SQLite 
 gives the version of the database library this program is built with.
 
 The database reports its version while the connection is opening, and the connection keeps that
-text. Reading it therefore costs no statement, and the result is the same every time. Even a walk
-over rows can read it, and a walk holds the connection so that no statement can run.
+text. Reading it therefore runs no statement, and the result is the same every time. You can also
+read it while a `stream` of rows uses the connection and no other statement can run.
 
 The result is `tainted string`, because the server sends this text. Write `tainted string` on the
 variable that keeps it.

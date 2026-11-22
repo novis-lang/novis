@@ -5,8 +5,9 @@ from it. The new file has the pages of the first part, then the pages of the sec
 You can add terms to a contract, split a file, or take pages out of it.
 
 A page number past the end of its file throws a `LogicError`. A file that is encrypted, or that is
-not a PDF file, throws a `ParseError`. A part of a file that unpacks to more than the server's
-`[limits]` allow also throws a `ParseError`. An empty list of parts also throws an error.
+not a PDF file, throws a `ParseError`. A compressed part that is larger than the
+`[limits]` in the server's configuration also throws a `ParseError`. An empty list of parts also
+throws an error.
 
 The result is `tainted bytes`, because a PDF file may be an upload. Write `tainted bytes` on the
 variable that keeps it.

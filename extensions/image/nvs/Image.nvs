@@ -298,7 +298,7 @@ final class Image
         return Codec::run($this->source, { steps: $this->steps, overlays: $this->overlays, output: Output::Encoded });
     }
 
-    /// `raw` runs every step and returns the pixels as RGBA8 rows, four bytes per pixel.
+    /// `raw` runs every step and returns the pixels row by row. Each pixel is four bytes: red, green, blue and alpha.
     /// The pixels are `tainted bytes`, because the image may come from an uploaded file.
     public function raw(): Raw
     {

@@ -1,7 +1,7 @@
 Joins several `bytes` values into one.
 
-You give the list of buffers, and a separator when you want one. The result is a new value holding
-every buffer in the order of the list. The separator is written between neighbours only, so there is
+You give the list of buffers, and a separator when you want one. The result is a new value that
+contains every buffer, in the order of the list. The separator is written between neighbours only, so there is
 none before the first buffer and none after the last one. Without a separator the buffers follow
 each other directly.
 

@@ -628,7 +628,8 @@ const SERVER_VERSION_DOC: MethodDoc = MethodDoc {
             The server sent it when the connection opened, so reading it runs no statement. \
             You can call it while a `stream` is using the connection.",
     params: &[],
-    ret: "The version. It is never empty and never changed. A suffix that a distribution adds \
+    ret: "The version, as a `tainted string`, because the server sent it. It is never empty and \
+          never changed. A suffix that a distribution adds \
           is part of it.",
     errors: &[ErrorDoc {
         error: "LogicError",
