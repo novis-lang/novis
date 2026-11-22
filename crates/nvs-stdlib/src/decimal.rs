@@ -74,7 +74,7 @@ use nvs_runtime::{Decimal, Fault, NvsArray, ThrownClass, Value};
 
 use crate::math::{RoundMode, round_mode};
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, TextOrigin,
 };
 
 /// `Core\Decimal`'s class card — `rule:core-api/reference-card`.
@@ -105,6 +105,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Decimal, CoreTy::Decimal],
             defaults: &[],
             return_ty: CoreTy::Decimal,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_decimal_div_exact",
             doc: Some(&DIV_EXACT_DOC),
         },
@@ -119,6 +120,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Decimal,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_decimal_div_round",
             doc: Some(&DIV_ROUND_DOC),
         },
@@ -128,6 +130,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Decimal, CoreTy::Array(&CoreTy::Decimal)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Decimal),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_decimal_allocate",
             doc: Some(&ALLOCATE_DOC),
         },
@@ -137,6 +140,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Decimal, CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Decimal,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_decimal_pow",
             doc: Some(&POW_DOC),
         },
@@ -146,6 +150,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Decimal, CoreTy::Uint],
             defaults: &[Const::Uint(0)],
             return_ty: CoreTy::Decimal,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_decimal_floor",
             doc: Some(&FLOOR_DOC),
         },
@@ -155,6 +160,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Decimal, CoreTy::Uint],
             defaults: &[Const::Uint(0)],
             return_ty: CoreTy::Decimal,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_decimal_ceil",
             doc: Some(&CEIL_DOC),
         },
@@ -164,6 +170,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Decimal, CoreTy::Uint],
             defaults: &[Const::Uint(0)],
             return_ty: CoreTy::Decimal,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_decimal_truncate",
             doc: Some(&TRUNCATE_DOC),
         },
@@ -177,6 +184,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[Const::Uint(0)],
             return_ty: CoreTy::Decimal,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_decimal_round",
             doc: Some(&ROUND_DOC),
         },

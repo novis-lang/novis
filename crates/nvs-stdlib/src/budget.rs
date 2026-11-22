@@ -45,7 +45,7 @@
 
 use nvs_runtime::Value;
 
-use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, TextOrigin};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
@@ -78,6 +78,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_budget_memory_held",
             doc: Some(&MEMORY_HELD_DOC),
         },
@@ -87,6 +88,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_budget_memory_peak",
             doc: Some(&MEMORY_PEAK_DOC),
         },
@@ -96,6 +98,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_budget_memory_limit",
             doc: Some(&MEMORY_LIMIT_DOC),
         },

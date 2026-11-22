@@ -50,7 +50,7 @@ use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
 use crate::crypto::{KEY_PAIR, KEY_PAIR_NAME, KeyKind, PrivateKey};
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 /// The class name, once, for the messages that all name it.
@@ -144,6 +144,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Instance(SUBSCRIPTION_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_webpush_subscription",
             doc: Some(&SUBSCRIPTION_DOC),
         },
@@ -154,6 +155,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Instance(KEY_PAIR_NAME)],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean(
+                "The key is the program's own public key, encoded as base64url.",
+            ),
             symbol: "nvs_core_webpush_application_server_key",
             doc: Some(&APPLICATION_SERVER_KEY_DOC),
         },
@@ -172,6 +176,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[Const::Int(DEFAULT_TTL)],
             return_ty: CoreTy::Instance(SENT_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_webpush_send",
             doc: Some(&SEND_DOC),
         },
@@ -194,6 +199,7 @@ pub(crate) const SENT: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_webpush_sent_status",
             doc: Some(&STATUS_DOC),
         },
@@ -203,6 +209,7 @@ pub(crate) const SENT: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_webpush_sent_gone",
             doc: Some(&GONE_DOC),
         },
@@ -226,6 +233,7 @@ pub(crate) const SUBSCRIPTION: CoreClass = CoreClass {
         defaults: &[],
         // The browser wrote the URL, so the answer keeps the mark the JSON had.
         return_ty: CoreTy::TaintedStr,
+        text: TextOrigin::Unmarked,
         symbol: "nvs_core_webpush_subscription_endpoint",
         doc: Some(&ENDPOINT_DOC),
     }],

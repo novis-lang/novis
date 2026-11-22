@@ -49,7 +49,9 @@
 //! answer, and **not** required to be a literal, since a `const` holding the
 //! reason is as greppable at the call site as the text would have been.
 
-use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual, TextOrigin,
+};
 
 /// `Core\Taint`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
@@ -78,6 +80,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Launder), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_taint_assert_trusted",
             doc: Some(&ASSERT_TRUSTED_DOC),
         },
@@ -87,6 +90,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Blob(Qual::Launder), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_taint_assert_trusted_bytes",
             doc: Some(&ASSERT_TRUSTED_BYTES_DOC),
         },

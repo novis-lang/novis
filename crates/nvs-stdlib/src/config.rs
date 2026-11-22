@@ -69,7 +69,7 @@
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 /// This class's fully-qualified name, in one place so the registry row and
@@ -125,6 +125,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Text(Qual::Neutral)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_config_get",
             doc: Some(&GET_DOC),
         },
@@ -134,6 +135,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_config_set",
             doc: Some(&SET_DOC),
         },
@@ -143,6 +145,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_config_restore",
             doc: Some(&RESTORE_DOC),
         },
@@ -152,6 +155,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Text(Qual::Neutral)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_config_all",
             doc: Some(&ALL_DOC),
         },
@@ -161,6 +165,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&SETTING),
+            text: TextOrigin::Clean(
+                "A configuration value is written by the person who runs the program.",
+            ),
             symbol: "nvs_core_config_setting",
             doc: Some(&SETTING_DOC),
         },
@@ -170,6 +177,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::SecretStr),
+            text: TextOrigin::Clean(
+                "A configuration value is written by the person who runs the program.",
+            ),
             symbol: "nvs_core_config_secret",
             doc: Some(&SECRET_DOC),
         },

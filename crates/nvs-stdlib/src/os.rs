@@ -42,7 +42,7 @@
 
 use nvs_runtime::{Fault, NvsArray, Value};
 
-use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, TextOrigin};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
@@ -65,6 +65,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_os_pid",
             doc: Some(&PID_DOC),
         },
@@ -74,6 +75,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("The host name is set by the person who runs the machine."),
             symbol: "nvs_core_os_hostname",
             doc: Some(&HOSTNAME_DOC),
         },
@@ -83,6 +85,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_os_cpu_count",
             doc: Some(&CPU_COUNT_DOC),
         },
@@ -92,6 +95,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_os_resident_bytes",
             doc: Some(&RESIDENT_BYTES_DOC),
         },
@@ -101,6 +105,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Float),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_os_load_average",
             doc: Some(&LOAD_AVERAGE_DOC),
         },

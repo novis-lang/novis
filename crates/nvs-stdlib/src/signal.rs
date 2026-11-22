@@ -62,7 +62,7 @@
 
 use nvs_runtime::{Fault, Tag, Value};
 
-use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, TextOrigin};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
@@ -94,6 +94,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         params: &[CoreTy::CallableSig(&[], &CoreTy::Mixed)],
         defaults: &[],
         return_ty: CoreTy::Void,
+        text: TextOrigin::Unmarked,
         symbol: "nvs_core_signal_on_shutdown",
         doc: Some(&ON_SHUTDOWN_DOC),
     }],

@@ -148,7 +148,7 @@ use rand::Rng;
 use nvs_runtime::{Fault, ThrownClass, Value};
 
 use crate::registry::{
-    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 /// The variant every hash this module writes is made with — RFC 9106 § 4's
@@ -251,6 +251,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Reveal)],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean(
+                "A password hash is written in the PHC format from a salt and a digest.",
+            ),
             symbol: "nvs_core_password_hash",
             doc: Some(&HASH_DOC),
         },
@@ -260,6 +263,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Reveal), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_password_verify",
             doc: Some(&VERIFY_DOC),
         },
@@ -269,6 +273,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_password_needs_rehash",
             doc: Some(&NEEDS_REHASH_DOC),
         },

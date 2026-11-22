@@ -104,7 +104,7 @@ use nvs_runtime::commands::{ArgConv, CaseValue, Command, CommandArg, CommandTabl
 use nvs_runtime::{Decimal, Fault, MethodRow, NvsArray, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 /// This class's fully-qualified name, in one place so the registry row and
@@ -139,6 +139,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Nullable(&CoreTy::Text(Qual::Neutral))],
             defaults: &[],
             return_ty: CoreTy::Instance(crate::cli::NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_command_help",
             doc: Some(&HELP_DOC),
         },
@@ -148,6 +149,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_command_run",
             doc: Some(&RUN_DOC),
         },
@@ -157,6 +159,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Enum(crate::cli::SHELL_NAME)],
             defaults: &[],
             return_ty: CoreTy::Text(Qual::Neutral),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_command_completions",
             doc: Some(&COMPLETIONS_DOC),
         },

@@ -130,7 +130,7 @@ use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ThrownClass, Value};
 use crate::byte_source::{ByteSource, READ_CHUNK};
 use crate::compress::{Bound, DEFAULT_MAX_BYTES, DEFAULT_MAX_RATIO};
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 // ============================================================================
@@ -193,6 +193,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[SOURCE],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::TaintedStr),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_zip_entries",
             doc: Some(&ENTRIES_DOC),
         },
@@ -210,6 +211,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                 Const::Uint(DEFAULT_MAX_RATIO),
             ],
             return_ty: CoreTy::TaintedBytes,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_zip_read",
             doc: Some(&READ_DOC),
         },
@@ -222,6 +224,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                 Const::Uint(DEFAULT_MAX_RATIO),
             ],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_zip_extract",
             doc: Some(&EXTRACT_DOC),
         },

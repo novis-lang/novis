@@ -13,7 +13,8 @@
 use nvs_runtime::{Fault, ThrownClass, Value};
 
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    Qual, TextOrigin,
 };
 
 /// `Core\Test\RunResult`'s fully-qualified name.
@@ -48,6 +49,10 @@ const fn reader(
         params: &[],
         defaults: &[],
         return_ty,
+        text: TextOrigin::Clean(
+            "A test's own program wrote this text, and the test reads it back.",
+        )
+        .on(&return_ty),
         symbol,
         doc: Some(doc),
     }

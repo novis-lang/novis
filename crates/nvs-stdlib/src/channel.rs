@@ -74,7 +74,7 @@ use nvs_runtime::host::{Waker, Woken};
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ObjHeader, Value};
 
 use crate::identity_store as store;
-use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, TextOrigin};
 
 /// The class's fully-qualified name, as [`CoreTy::Instance`] spells it.
 pub(crate) const NAME: &str = r"Core\Task\Channel";
@@ -106,6 +106,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     params: &[CoreTy::Uint],
     defaults: &[],
     return_ty: CoreTy::Instance(NAME),
+    text: TextOrigin::Unmarked,
     symbol: NEW_SYMBOL,
     doc: Some(&CONSTRUCTOR_DOC),
 };
@@ -140,6 +141,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_channel_send",
             doc: Some(&SEND_DOC),
         },
@@ -149,6 +151,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_channel_close",
             doc: Some(&CLOSE_DOC),
         },

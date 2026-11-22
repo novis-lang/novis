@@ -142,7 +142,7 @@ use nvs_hir::QName;
 use nvs_stdlib::registry::{
     CAPABILITIES, CLASSES, CONSTRUCT_CAPABILITIES, Const, CoreAlias, CoreClass, CoreConst,
     CoreEnum, CoreMethod, CoreOption, CoreTy, ENUMS, EnumDoc, ErrorDoc, MethodDoc, NEEDS_NONE,
-    ParamDoc, Qual, aliases_of, class_type_params, constructor_of,
+    ParamDoc, Qual, TextOrigin, aliases_of, class_type_params, constructor_of,
 };
 use nvs_syntax::ast::{
     ClassDecl, ClassMember, ClassMemberKind, ConstMember, DocComment, DocTagKind, EnumDecl,
@@ -335,6 +335,7 @@ fn contract_json(contract: &nvs_stdlib::registry::CoreContract) -> Value {
                 params: member.params,
                 defaults: &[],
                 return_ty: member.return_ty,
+                text: TextOrigin::Unmarked,
                 symbol: "",
                 doc: member.doc,
             };

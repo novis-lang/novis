@@ -69,7 +69,7 @@ use crate::html::{
     markdown_id, settled, source_with,
 };
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 use crate::xml::{Kind, Parsed};
 use callbacks::{Answer, Callables, Callbacks, NoCallbacks, Trusted, given};
@@ -131,6 +131,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[Const::Null, Const::Null, Const::Null, Const::Null],
             return_ty: CoreTy::Instance(MARKUP_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_markdown_to_html",
             doc: Some(&TO_HTML_DOC),
         },
@@ -163,6 +164,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[Const::Null, Const::Null, Const::Null, Const::Null],
             return_ty: CoreTy::Instance(GROUPS_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_markdown_to_html_each",
             doc: Some(&TO_HTML_EACH_DOC),
         },
@@ -177,6 +179,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[Const::Null, Const::Null, Const::Null, Const::Null],
             return_ty: CoreTy::Instance(LIVE_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_markdown_live",
             doc: Some(&LIVE_DOC),
         },
@@ -193,6 +196,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ])],
             defaults: &[],
             return_ty: CoreTy::TaintedStr,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_markdown_from_html",
             doc: Some(&FROM_HTML_DOC),
         },
@@ -226,6 +230,7 @@ pub(crate) const LIVE: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Instance(UPDATE_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_markdown_live_push",
             doc: Some(&LIVE_PUSH_DOC),
         },
@@ -235,6 +240,7 @@ pub(crate) const LIVE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(MARKUP_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_markdown_live_finish",
             doc: Some(&LIVE_FINISH_DOC),
         },
@@ -258,6 +264,7 @@ pub(crate) const UPDATE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(MARKUP_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_markdown_update_done",
             doc: Some(&UPDATE_DONE_DOC),
         },
@@ -267,6 +274,7 @@ pub(crate) const UPDATE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(MARKUP_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_markdown_update_open",
             doc: Some(&UPDATE_OPEN_DOC),
         },

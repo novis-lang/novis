@@ -37,7 +37,7 @@ $corp->add($owners, ["objectClass" => "user", "sAMAccountName" => $account]);
 $corp->setPassword($owners, "Owners-first-Pass-7");
 $corp->modify($owners, [Core\Ldap\Change::replace("userAccountControl", 512)]);
 
-string $before = $corp->whoami();
+tainted string $before = $corp->whoami();
 tainted string $login = $owners;
 $corp->authenticate($login, "Owners-first-Pass-7");
 echo "accepted", "\n";

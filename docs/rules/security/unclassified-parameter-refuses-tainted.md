@@ -11,6 +11,10 @@ library's own table was the one fail-open surface, and flipping its default was 
 rather than a language change. The pass marks most parameters *contagious*, because most genuinely
 are, and it never recurs: the next member added is safe until its author says otherwise.
 
+The return side is this rule's pair: a row that returns text with no mark on where the text comes
+from answers it `tainted` (`rule:security/tainted-sources`). Both defaults fail closed, and both are
+lists the library's own tests read.
+
 Every mark is checked before the program runs and erased before code is generated, so the default
 costs nothing on the request path: no representation, no branch.
 

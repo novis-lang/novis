@@ -64,7 +64,9 @@
 use nvs_config::capability::{Cap, Scope};
 use nvs_runtime::{Fault, Tag, Value};
 
-use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual, TextOrigin,
+};
 
 /// The class's own name, for the rosters in [`crate::registry`] that key on it.
 pub(crate) const NAME: &str = r"Core\Cap";
@@ -126,6 +128,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         params: &[CoreTy::Text(Qual::Neutral)],
         defaults: &[],
         return_ty: CoreTy::Bool,
+        text: TextOrigin::Unmarked,
         symbol: "nvs_core_cap_has",
         doc: Some(&HAS_DOC),
     }],

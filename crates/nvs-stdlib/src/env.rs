@@ -125,7 +125,7 @@ use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreTy, EnumDoc,
-    ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 /// `Core\Env`'s class card — `rule:core-api/reference-card`.
@@ -152,6 +152,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_env_get",
             doc: Some(&GET_DOC),
         },
@@ -161,6 +162,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::SecretStr),
+            text: TextOrigin::Clean(
+                "The operator who started the process set the variable (rule:security/secret-has-no-ambient-source).",
+            ),
             symbol: "nvs_core_env_secret",
             doc: Some(&SECRET_DOC),
         },
@@ -170,6 +174,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::TaintedStr),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_env_all",
             doc: Some(&ALL_DOC),
         },
@@ -179,6 +184,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Enum(MODE_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_env_mode",
             doc: Some(&MODE_MEMBER_DOC),
         },
@@ -188,6 +194,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Enum(CONTEXT_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_env_context",
             doc: Some(&CONTEXT_MEMBER_DOC),
         },

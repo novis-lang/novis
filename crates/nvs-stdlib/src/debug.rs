@@ -108,7 +108,7 @@ use nvs_render::{Level, Node, Record, Source};
 use nvs_runtime::{Ctx, DebugFlags, Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 /// The class's fully-qualified name.
@@ -133,6 +133,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Variadic(&CoreTy::Mixed)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_debug_dump",
             doc: Some(&DUMP_DOC),
         },
@@ -142,6 +143,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Mixed],
             defaults: &[],
             return_ty: CoreTy::Instance(crate::cli::NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_debug_render",
             doc: Some(&RENDER_DOC),
         },
@@ -151,6 +153,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Bool],
             defaults: &[Const::Bool(false)],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_debug_start_coverage",
             doc: Some(&START_COVERAGE_DOC),
         },
@@ -160,6 +163,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_debug_stop_coverage",
             doc: Some(&STOP_COVERAGE_DOC),
         },
@@ -169,6 +173,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Int)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_debug_coverage",
             doc: Some(&COVERAGE_DOC),
         },
@@ -178,6 +183,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_debug_start_trace",
             doc: Some(&START_TRACE_DOC),
         },
@@ -187,6 +193,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_debug_stop_trace",
             doc: Some(&STOP_TRACE_DOC),
         },
@@ -196,6 +203,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Path(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_debug_start_profile",
             doc: Some(&START_PROFILE_DOC),
         },
@@ -205,6 +213,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_debug_stop_profile",
             doc: Some(&STOP_PROFILE_DOC),
         },

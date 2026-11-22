@@ -25,7 +25,7 @@ int $absent = 0;
 // way could not be told apart from a real status.
 int $echoStatus = -2;
 int $talkStatus = -2;
-string $echoed = "<nothing ran>";
+tainted string $echoed = "<nothing ran>";
 string $seen = "<nothing ran>";
 string $seenErr = "<nothing ran>";
 
@@ -49,7 +49,7 @@ try {
     // the wrong place.
     Core\Process\Handle $talker = Core\Process::spawn("/bin/sh", ["-c", "echo one; echo two; echo oops >&2"]);
     string $out = "";
-    ?bytes $chunk = $talker->readStdout();
+    ?tainted bytes $chunk = $talker->readStdout();
     while ($chunk != null) {
         $out = $out . ($chunk as string);
         $chunk = $talker->readStdout();
@@ -57,7 +57,7 @@ try {
     $seen = $out;
 
     string $err = "";
-    ?bytes $errChunk = $talker->readStderr();
+    ?tainted bytes $errChunk = $talker->readStderr();
     while ($errChunk != null) {
         $err = $err . ($errChunk as string);
         $errChunk = $talker->readStderr();
@@ -83,7 +83,7 @@ try {
 
     Core\Process\Handle $talkerOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "echo one&echo two&echo oops 1>&2"]);
     string $outOnWindows = "";
-    ?bytes $chunkOnWindows = $talkerOnWindows->readStdout();
+    ?tainted bytes $chunkOnWindows = $talkerOnWindows->readStdout();
     while ($chunkOnWindows != null) {
         $outOnWindows = $outOnWindows . ($chunkOnWindows as string);
         $chunkOnWindows = $talkerOnWindows->readStdout();
@@ -91,7 +91,7 @@ try {
     $seen = $outOnWindows;
 
     string $errOnWindows = "";
-    ?bytes $errChunkOnWindows = $talkerOnWindows->readStderr();
+    ?tainted bytes $errChunkOnWindows = $talkerOnWindows->readStderr();
     while ($errChunkOnWindows != null) {
         $errOnWindows = $errOnWindows . ($errChunkOnWindows as string);
         $errChunkOnWindows = $talkerOnWindows->readStderr();

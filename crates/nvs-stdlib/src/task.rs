@@ -91,6 +91,7 @@ use nvs_runtime::{Ctx, Fault, NvsArray, NvsObj, Tag, ThrownClass, Value};
 
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    TextOrigin,
 };
 use crate::time::DURATION_NAME;
 
@@ -152,6 +153,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::ShapeOfCallables("S"), CoreTy::Options(OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Var("S"),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_task_all",
             doc: Some(&ALL_DOC),
         },
@@ -165,6 +167,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("U")),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_task_map",
             doc: Some(&MAP_DOC),
         },
@@ -177,6 +180,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_task_after_response",
             doc: Some(&AFTER_RESPONSE_DOC),
         },

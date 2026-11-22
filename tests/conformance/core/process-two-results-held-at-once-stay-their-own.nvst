@@ -31,8 +31,8 @@ Two `Core\Process\Result`s held at once each keep their own run's status and out
 // `-2` and not `-1`, again because a signalled child answers `-1`; the byte
 // sentinels are non-empty so that a run in which nothing started cannot print
 // a plausible line.
-bytes $firstOut = "sentinel" as bytes;
-bytes $secondOut = "sentinel" as bytes;
+tainted bytes $firstOut = "sentinel" as bytes;
+tainted bytes $secondOut = "sentinel" as bytes;
 int $firstStatus = -2;
 int $secondStatus = -2;
 int $started = 0;

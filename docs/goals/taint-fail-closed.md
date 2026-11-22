@@ -231,6 +231,23 @@ result was tainted even when the program read a file. That is 165 programs. Whet
 text reaches a contagious result is a question about what each member writes, and stage 4's rows
 answer it. `may_carry_outside_text` is the classifier's full answer and does step in.
 
+**The return mark is a field on every row, and the checker reads it where it seeds the row.**
+`CoreMethod::text` is a `TextOrigin`: `Unmarked`, `Derived`, `Source` or `Clean(reason)`. A row that
+returns no text keeps `Unmarked`, and `taint_signatures.rs` fails on a mark on such a row. A shared
+row builder writes `TextOrigin::Clean(..).on(&return_ty)`, which is `Unmarked` for a non-text return.
+`nvs_types::core_lib`'s `return_of` writes `tainted` on the return type of an `Unmarked` or `Source`
+row, so `MethodSig::contagious_return` needs no change: the return type already says it. `Derived`
+and `Clean` check the same way, and `Clean` only adds the reason a reviewer reads. Reason: one read at
+seeding costs nothing per call, and a field cannot be forgotten the way a roster beside the rows can.
+
+**A child process's output is `Source`.** `Core\Process\Result::stdout`/`stderr` and
+`Core\Process\Handle::readStdout`/`readStderr` answer `tainted bytes`. The program chose the command,
+but not what `git`, `curl` or a compiler prints about data it reads, so `Core\IO`'s reason for clean
+reads does not carry over. A program writes `tainted bytes` on the variable that keeps it. So are
+`Core\Db\Connection::serverVersion`, `Core\Ldap\Connection::whoami` and
+`Core\Http\Socket::protocol`: text a server sends. `Core\Db\Plan\Step::reason` and `::sql` are
+`Clean`: the planner writes them from its own sentences and the program's schema.
+
 **What stops it.** One attempt per item, and two sessions per stage, counted in `### State`. At two
 sessions a stage's open items move to `### Backlog` as declined, each with its reason, and a security
 item among them gets a gap record. No stage gains an item. A `bun nv against` that is over budget
@@ -290,15 +307,15 @@ each, before the classifier is written.
 an array of either or a shape with either, one line each with its file and the member. Then writing
 subagents mark the rows file by file, in disjoint batches of the 49 files. None of them builds.
 
-- [ ] `crates/nvs-stdlib/src/registry.rs:242`: the return mark on `CoreMethod`, with `Derived`,
+- [x] `crates/nvs-stdlib/src/registry.rs:242`: the return mark on `CoreMethod`, with `Derived`,
   `Source` and `Clean(&'static str)`. A row with no mark answers tainted.
   `rule:security/tainted-sources`
-- [ ] Every row of the Explore list is marked. A row whose text comes from outside and was plain is a
+- [x] Every row of the Explore list is marked. A row whose text comes from outside and was plain is a
   bug fixed here: its `about.md` change and its change entry go into stage 6's list.
-- [ ] `crates/nvs-types/src/signatures.rs:182`: `contagious_return` reads the mark.
-- [ ] `crates/nvs-stdlib/tests/taint_signatures.rs:127`: fails on a text return with no mark, lists
+- [x] `crates/nvs-types/src/signatures.rs:182`: `contagious_return` reads the mark.
+- [x] `crates/nvs-stdlib/tests/taint_signatures.rs:127`: fails on a text return with no mark, lists
   every `Clean` row, and fails on an empty reason. The allow list at `:21` keeps its rows.
-- [ ] `rule:security/tainted-sources` gains one paragraph: the mark, and that no mark means tainted.
+- [x] `rule:security/tainted-sources` gains one paragraph: the mark, and that no mark means tainted.
   `rule:security/unclassified-parameter-refuses-tainted` names the return side as its pair.
 - [ ] The conformance cases that go red are those whose program used a row now marked `Source`. Each
   is fixed in its program with the sink's launderer or a checked conversion, never with
@@ -385,37 +402,48 @@ or `bytes`, one line each.
 
 ### State
 
-Stage 1 is done. `bun nv against` (`tools/nv/cmd/against.ts`) records and compares, and
-`tools/nv/test/against.test.ts` is green, run once by name.
+The against base is in `.agent-tmp/against/base/`, from `1ec4cda0d4`, and stays until stage 7.
 
-The base is recorded in `.agent-tmp/against/base/`, from the release binary of `main` at `1ec4cda0d4`.
-The corpus is 6687 programs, and every one dumped the same IR and diagnostics twice. The
-`assertTrusted` budget is 48 calls: 35 `assertTrusted` and 13 `assertTrustedBytes`. That matches the
-figure of § *Why*, so the count takes both members. The base must stay on disk until stage 7, so no
-session deletes `.agent-tmp/against/` before then. If it is lost, record it again from `1ec4cda0d4`
-in a worktree, never from a tree stage 2 changed.
+Stage 3: `TextOrigin` and `CoreMethod::text` are in `crates/nvs-stdlib/src/registry.rs`. All 214
+rows that return plain text are marked (120 `Derived`, 87 `Clean`, 7 `Source`), and the test record
+builders write `Clean(..).on(..)`. `core_lib.rs`'s `return_of` taints an `Unmarked` or `Source` row,
+with its unit test green. `taint_signatures.rs`'s 6 tests are green, run once by name. Both rule
+paragraphs are written.
 
-A compare takes about three minutes for the dumps and about a minute for the timing at 5 rounds.
+`bun nv against` (built before the plan-step rows became `Clean`): ratio 0.999, `assertTrusted` 48
+and 48. 29 programs differ, each IR difference a program that no longer compiles. 4 were
+`Db-Plan-Step` examples, fixed at the row. The other 25 keep a new `Source` row's text in a plain
+`bytes`, `?bytes` or `string` declaration, with no sink refusal: 22 read process output
+(`docs/examples/core/Process*/` and three `benches/members/core/Process*` files), and
+`Db-Connection/serverVersion/02-*`, `Ldap-Connection/whoami/02-*` and `03-*`, and
+`Http-Socket/protocol/03-*`. Of 136 process, db, ldap and socket conformance cases, 16 were red: 2
+fixed by the plan-step rows, 14 rewritten to declare `tainted` and not yet rerun.
 
-Stage 2 is done. `text_class` and `TextClass` are in `crates/nvs-types/src/expr/quals.rs`, before
-`is_tainted`, with `may_carry_outside_text` as the classifier's full answer. The registry gained
-`instance_carries_no_text` (`crates/nvs-stdlib/src/registry.rs`, after `carries_tainted_bytes`).
-`crates/nvs-types/tests/text_class.rs` has 6 tests, green, run once by name. The `Ty` variants were
-read straight from the enum, because it is one block of 33 variants.
-
-`bun nv against` after stage 2: IR identical for every program, diagnostics identical, 48
-`assertTrusted` calls, median check-time ratio 0.998. The first compare found 165 programs broken, all
-from `carries_tainted` stepping into shapes. Standing decisions now say why it does not.
-
-Sessions per stage: 1: one. 2: one.
+Sessions per stage: 1: one. 2: one. 3: one.
 
 ### Next
 
-Stage 3, at `crates/nvs-stdlib/src/registry.rs:242`: the return mark on `CoreMethod`, then the items
-in order. `instance_carries_no_text` counts every declared `Core` class as carrying no text, so
-stage 3's rows on the getters decide what a class's text is. No test is expected to go red. The
-stage's last item runs `bun nv relink --build` and `bun nv against`, and the base in
-`.agent-tmp/against/base/` stays.
+Stage 3's last two items. Rebuild with `cargo build`, then:
+
+1. The 25 programs above: write `tainted bytes`, `?tainted bytes` or `tainted string` on each
+   declaration the diagnostic names, and a method's return type for each `E0403`. Where the text
+   then reaches a sink, use that sink's launderer, never `assertTrusted`. The diagnostics are in
+   `bun nv against`'s output; `.agent-tmp/fix_cases.py <nvs test output>` rewrites declarations from
+   an `nvs test` run's output and works on these with its `FAIL` line adapted. Comments stay as they
+   are unless one now says something false.
+2. `Http-Socket/protocol`: read `crates/nvs-stdlib/src/http/socket.rs` to see whether the client
+   checks that the server's subprotocol is one it offered. If it does, the row is `Clean` with that
+   reason, and the example stays as it was.
+3. Run the 14 conformance cases above once by name with `target/debug/nvs.exe test <files>`.
+4. `bun nv relink --build` and `bun nv against`: no IR difference and no diagnostic difference left,
+   `assertTrusted` 48 at most. Then tick the last two items and set stage 3 to done.
+5. Stage 6's list gains: `changes.json` entries for `Core\Process\Result::stdout`, `::stderr`,
+   `Core\Process\Handle::readStdout`, `::readStderr`, `Core\Db\Connection::serverVersion`,
+   `Core\Ldap\Connection::whoami` and `Core\Http\Socket::protocol` if it stays `Source`, and each
+   one's `about.md` saying its text is `tainted`.
+
+Tests expected red until then: the 25 programs' example and bench checks, and any conformance case
+of the 14 that the script did not fully fix.
 
 ### Backlog
 

@@ -12,14 +12,14 @@
 int $started = 0;
 bool $inFolder = false;
 string $probe = "<nothing ran>";
-string $spawnedProbe = "<nothing ran>";
+tainted string $spawnedProbe = "<nothing ran>";
 int $runStopped = 0;
 int $spawnStopped = 0;
 
 try {
     var $unix = Core\Process::run("/bin/sh", ["-c", 'pwd; echo "probe=$NVS_PROBE"'], {cwd: "/", env: ["NVS_PROBE" => "given"]});
     $started += 1;
-    string $out = $unix->stdout() as string;
+    tainted string $out = $unix->stdout() as string;
     $inFolder = Core\Str::startsWith($out, "/\n");
     $probe = $out;
 
@@ -31,7 +31,7 @@ try {
 try {
     var $windows = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "cd& echo probe=%NVS_PROBE%"], {cwd: "C:\\Windows", env: ["NVS_PROBE" => "given"]});
     $started += 1;
-    string $outOnWindows = $windows->stdout() as string;
+    tainted string $outOnWindows = $windows->stdout() as string;
     $inFolder = Core\Str::startsWith($outOnWindows, "C:\\Windows\r\n");
     $probe = $outOnWindows;
 

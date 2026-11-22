@@ -11,7 +11,7 @@
 //! the list. A member it names either carries the mark, or is written in [`ALLOWED`] with the rule
 //! that says why its plain answer is right.
 
-use nvs_stdlib::registry::{CLASSES, CoreMethod, CoreTy, Qual};
+use nvs_stdlib::registry::{CLASSES, CoreMethod, CoreTy, Qual, TextOrigin};
 
 /// The members that answer plain text from a parameter that can carry outside text, each with the
 /// rule that says why. Two kinds stand here. A launderer encodes what it is handed for one sink
@@ -356,6 +356,66 @@ fn every_member_that_returns_a_plain_keyed_array_says_where_its_keys_come_from()
             "`{class_name}::{member}` carries the key mark now, so its `KEYS_FROM` row is stale"
         );
     }
+}
+
+/// `rule:security/tainted-sources`' return mark: every row that returns plain text says where the
+/// text comes from, and a row with no mark answers `tainted`. This test is the list, so a new
+/// member cannot skip the question.
+#[test]
+fn every_text_return_says_where_its_text_comes_from() {
+    let mut open = Vec::new();
+    let mut stale = Vec::new();
+    for class in CLASSES {
+        for member in class.members() {
+            let text = member.return_ty.has_plain_text();
+            let marked = member.text != TextOrigin::Unmarked;
+            if text && !marked {
+                open.push(format!(
+                    "{}::{} ({}): {}",
+                    class.name,
+                    member.name,
+                    member.symbol,
+                    member.return_ty.spelled()
+                ));
+            } else if marked && !text {
+                stale.push(format!("{}::{}", class.name, member.name));
+            }
+        }
+    }
+    assert!(
+        open.is_empty(),
+        "each member below returns text and does not say where the text comes from, so it answers \
+         `tainted`. Write `TextOrigin::Derived`, `Source` or `Clean` on its row:\n{}",
+        open.join("\n")
+    );
+    assert!(
+        stale.is_empty(),
+        "each member below carries a return mark and returns no plain text. Write \
+         `TextOrigin::Unmarked` on its row:\n{}",
+        stale.join("\n")
+    );
+}
+
+/// Every [`TextOrigin::Clean`] row gives its reason as a sentence: the claim that no text of the
+/// answer comes from outside is the one a reviewer reads, and a search for `TextOrigin::Clean`
+/// lists every one of them with its reason.
+#[test]
+fn every_clean_return_gives_its_reason() {
+    let mut empty = Vec::new();
+    for class in CLASSES {
+        for member in class.members() {
+            if let TextOrigin::Clean(reason) = member.text
+                && (reason.trim().is_empty() || !reason.trim_end().ends_with('.'))
+            {
+                empty.push(format!("{}::{}", class.name, member.name));
+            }
+        }
+    }
+    assert!(
+        empty.is_empty(),
+        "each `TextOrigin::Clean` row below has no reason, or a reason that is not a sentence:\n{}",
+        empty.join("\n")
+    );
 }
 
 /// `rule:security/sink-predicate` over `Core\Reflect`: text that picks a class, a method, a

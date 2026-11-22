@@ -298,7 +298,7 @@ use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreField, CoreInterface, CoreMethod,
-    CoreOption, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual, ShapeKeyDoc,
+    CoreOption, CoreTy, EnumDoc, ErrorDoc, MethodDoc, ParamDoc, Qual, ShapeKeyDoc, TextOrigin,
 };
 
 mod bind;

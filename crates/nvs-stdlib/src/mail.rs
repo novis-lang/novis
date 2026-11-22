@@ -93,7 +93,8 @@ use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value};
 use nvs_syntax::duration;
 
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    Qual, TextOrigin,
 };
 
 /// The class name, as `registry::CAPABILITIES` and a refusal both spell it.
@@ -188,6 +189,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         ],
         defaults: &[],
         return_ty: CoreTy::Void,
+        text: TextOrigin::Unmarked,
         symbol: "nvs_core_mail_send",
         doc: Some(&SEND_DOC),
     }],

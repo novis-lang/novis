@@ -251,7 +251,7 @@ use nvs_runtime::{Fault, ThrownClass, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
-    ParamDoc, Qual,
+    ParamDoc, Qual, TextOrigin,
 };
 
 /// One field a pattern letter names, already resolved from the letter so
@@ -1647,6 +1647,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Enum(PLURAL_CATEGORY_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_cldr_plural_category",
             doc: Some(&PLURAL_CATEGORY_MEMBER_DOC),
         },
@@ -1659,6 +1660,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Enum(PLURAL_CATEGORY_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_cldr_ordinal_category",
             doc: Some(&ORDINAL_CATEGORY_MEMBER_DOC),
         },

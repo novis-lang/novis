@@ -64,7 +64,7 @@ use nvs_runtime::revoke::{self, MembershipKind};
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, Value};
 
 use crate::identity_store as store;
-use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, TextOrigin};
 
 /// The class's fully-qualified name, as [`CoreTy::Instance`] spells it.
 pub(crate) const NAME: &str = r"Core\ObjectMap";
@@ -104,6 +104,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     params: &[],
     defaults: &[],
     return_ty: CoreTy::Instance(NAME),
+    text: TextOrigin::Unmarked,
     symbol: NEW_SYMBOL,
     doc: Some(&CONSTRUCTOR_DOC),
 };
@@ -133,6 +134,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Var("K"), CoreTy::Var("V")],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_object_map_set",
             doc: Some(&SET_DOC),
         },
@@ -142,6 +144,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Var("K")],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Var("V")),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_object_map_get",
             doc: Some(&GET_DOC),
         },
@@ -151,6 +154,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Var("K")],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_object_map_has",
             doc: Some(&HAS_DOC),
         },
@@ -160,6 +164,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Var("K")],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_object_map_remove",
             doc: Some(&REMOVE_DOC),
         },
@@ -169,6 +174,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_object_map_count",
             doc: Some(&COUNT_DOC),
         },
@@ -178,6 +184,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_object_map_is_empty",
             doc: Some(&IS_EMPTY_DOC),
         },
@@ -187,6 +194,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("K")),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_object_map_keys",
             doc: Some(&KEYS_DOC),
         },
@@ -196,6 +204,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("V")),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_object_map_values",
             doc: Some(&VALUES_DOC),
         },
@@ -205,6 +214,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_object_map_clear",
             doc: Some(&CLEAR_DOC),
         },

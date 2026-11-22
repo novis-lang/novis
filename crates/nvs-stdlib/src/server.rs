@@ -35,7 +35,7 @@
 
 use nvs_runtime::{NvsStr, Value};
 
-use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, TextOrigin};
 
 /// `Core\Server`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
@@ -62,6 +62,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_server_is_draining",
             doc: Some(&IS_DRAINING_DOC),
         },
@@ -71,6 +72,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("The runtime makes the trace id from random digits."),
             symbol: "nvs_core_server_trace_id",
             doc: Some(&TRACE_ID_DOC),
         },

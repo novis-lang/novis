@@ -28,7 +28,7 @@ array<bytes> $kept = [];
 uint $size = 0;
 bool $ended = false;
 while (!$ended && $size < 67108864) {
-    ?bytes $part = $program->readStdout();
+    ?tainted bytes $part = $program->readStdout();
     if ($part != null) {
         $kept[] = $part;
         $size = $size + Core\Bytes::length($part);

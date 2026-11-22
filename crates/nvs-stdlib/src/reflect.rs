@@ -205,7 +205,7 @@ use nvs_runtime::{ClassDesc, Fault, NvsArray, NvsObj, Tag, ThrownClass, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
-    ParamDoc, Qual,
+    ParamDoc, Qual, TextOrigin,
 };
 
 /// The class name, as a program writes it.
@@ -351,6 +351,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // a name the running program declares no class for is an absence
             // (`rule:core-api/shape-rules` R6), not a failure — see the card.
             return_ty: CoreTy::Nullable(&CoreTy::Instance(CLASS_INFO_NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_for_class",
             doc: Some(&FOR_CLASS_DOC),
         },
@@ -363,6 +364,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Mixed],
             defaults: &[],
             return_ty: CoreTy::Instance(CLASS_INFO_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_for_object",
             doc: Some(&FOR_OBJECT_DOC),
         },
@@ -375,6 +377,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Mixed],
             defaults: &[],
             return_ty: CoreTy::Enum(TYPE_KIND_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_type_of",
             doc: Some(&TYPE_OF_DOC),
         },
@@ -387,6 +390,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::PropertyPath(&CoreTy::Var("T"))],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Instance(PROPERTY_INFO_NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_steps",
             doc: Some(&STEPS_DOC),
         },
@@ -572,6 +576,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_class_info_name",
             doc: Some(&NAME_DOC),
         },
@@ -581,6 +586,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Instance(PROPERTY_INFO_NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_class_info_properties",
             doc: Some(&PROPERTIES_DOC),
         },
@@ -590,6 +596,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_class_info_readable_properties",
             doc: Some(&READABLE_PROPERTIES_DOC),
         },
@@ -599,6 +606,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_class_info_has_property",
             doc: Some(&HAS_PROPERTY_DOC),
         },
@@ -608,6 +616,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Instance(METHOD_INFO_NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_class_info_methods",
             doc: Some(&METHODS_DOC),
         },
@@ -617,6 +626,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Instance(CONSTANT_INFO_NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_class_info_constants",
             doc: Some(&CONSTANTS_DOC),
         },
@@ -629,6 +639,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             // literal kinds a constant folded to is not known where the call
             // is written, the class being named at run time.
             return_ty: CoreTy::Mixed,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_class_info_constant",
             doc: Some(&CONSTANT_DOC),
         },
@@ -638,6 +649,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_class_info_has_method",
             doc: Some(&HAS_METHOD_DOC),
         },
@@ -647,6 +659,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Instance(ATTRIBUTE_INFO_NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_class_info_attributes",
             doc: Some(&ATTRIBUTES_DOC),
         },
@@ -656,6 +669,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_class_info_parent",
             doc: Some(&PARENT_DOC),
         },
@@ -667,6 +681,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             // `mixed`: the whole point of the read is that the property's
             // declared type is not known where the call is written.
             return_ty: CoreTy::Mixed,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_class_info_get",
             doc: Some(&GET_DOC),
         },
@@ -685,6 +700,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_class_info_set",
             doc: Some(&SET_DOC),
         },
@@ -704,6 +720,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             // `mixed`, for `get`'s reason one line up: the method's declared
             // return type is not known where the call is written.
             return_ty: CoreTy::Mixed,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_class_info_call",
             doc: Some(&CALL_DOC),
         },
@@ -718,6 +735,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             // built is named by the description at run time, so what comes back
             // has no type at the site the call is written.
             return_ty: CoreTy::Mixed,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_class_info_construct",
             doc: Some(&CONSTRUCT_DOC),
         },
@@ -1153,6 +1171,7 @@ pub(crate) const METHOD_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_method_info_name",
             doc: Some(&METHOD_NAME_DOC),
         },
@@ -1162,6 +1181,7 @@ pub(crate) const METHOD_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_method_info_is_public",
             doc: Some(&IS_PUBLIC_DOC),
         },
@@ -1174,6 +1194,7 @@ pub(crate) const METHOD_INFO: CoreClass = CoreClass {
             // list is what a call site is judged against, which is
             // [`nvs_runtime::MethodRow::arity`]'s own reading.
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_method_info_parameter_count",
             doc: Some(&PARAMETER_COUNT_DOC),
         },
@@ -1183,6 +1204,7 @@ pub(crate) const METHOD_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Instance(PARAMETER_INFO_NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_method_info_parameters",
             doc: Some(&METHOD_PARAMETERS_DOC),
         },
@@ -1265,6 +1287,7 @@ pub(crate) const PARAMETER_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_parameter_info_name",
             doc: Some(&PARAMETER_NAME_DOC),
         },
@@ -1278,6 +1301,7 @@ pub(crate) const PARAMETER_INFO: CoreClass = CoreClass {
             // *declaration* was never read rather than a parameter that
             // declined to name one.
             return_ty: CoreTy::Nullable(&CoreTy::Str),
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_parameter_info_type",
             doc: Some(&PARAMETER_TYPE_DOC),
         },
@@ -1345,6 +1369,7 @@ pub(crate) const ENUM_INFO: CoreClass = CoreClass {
         // `?EnumInfo`, on `Core\Reflect::forClass`'s terms exactly: a name the
         // program declares no enum for is an absence (`rule:core-api/shape-rules` R6), not a failure.
         return_ty: CoreTy::Nullable(&CoreTy::Instance(ENUM_INFO_NAME)),
+        text: TextOrigin::Unmarked,
         symbol: "nvs_core_reflect_enum_info_of",
         doc: Some(&ENUM_OF_DOC),
     }],
@@ -1355,6 +1380,7 @@ pub(crate) const ENUM_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_enum_info_name",
             doc: Some(&ENUM_NAME_DOC),
         },
@@ -1364,6 +1390,7 @@ pub(crate) const ENUM_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_enum_info_cases",
             doc: Some(&ENUM_CASES_DOC),
         },
@@ -1376,6 +1403,7 @@ pub(crate) const ENUM_INFO: CoreClass = CoreClass {
             // third: which one this enum answers with is `isUnsigned`, asked
             // once rather than per case.
             return_ty: CoreTy::Union(&[CoreTy::Int, CoreTy::Uint]),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_enum_info_value_of",
             doc: Some(&ENUM_VALUE_OF_DOC),
         },
@@ -1385,6 +1413,7 @@ pub(crate) const ENUM_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_enum_info_is_unsigned",
             doc: Some(&ENUM_IS_UNSIGNED_DOC),
         },
@@ -1487,6 +1516,7 @@ pub(crate) const PROPERTY_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_property_info_name",
             doc: Some(&PROPERTY_NAME_DOC),
         },
@@ -1496,6 +1526,7 @@ pub(crate) const PROPERTY_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_property_info_is_public",
             doc: Some(&PROPERTY_IS_PUBLIC_DOC),
         },
@@ -1508,6 +1539,7 @@ pub(crate) const PROPERTY_INFO: CoreClass = CoreClass {
             // [`nvs_runtime::ClassDesc::field_type`]'s own doc comment owns the
             // two slots no declaration named a type for.
             return_ty: CoreTy::Nullable(&CoreTy::Str),
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_property_info_type",
             doc: Some(&PROPERTY_TYPE_DOC),
         },
@@ -1593,6 +1625,7 @@ pub(crate) const CONSTANT_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_constant_info_name",
             doc: Some(&CONSTANT_NAME_DOC),
         },
@@ -1602,6 +1635,7 @@ pub(crate) const CONSTANT_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_constant_info_is_public",
             doc: Some(&CONSTANT_IS_PUBLIC_DOC),
         },
@@ -1611,6 +1645,7 @@ pub(crate) const CONSTANT_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_constant_info_has_value",
             doc: Some(&CONSTANT_HAS_VALUE_DOC),
         },
@@ -1678,6 +1713,7 @@ pub(crate) const ATTRIBUTE_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_attribute_info_name",
             doc: Some(&ATTRIBUTE_NAME_DOC),
         },
@@ -1687,6 +1723,7 @@ pub(crate) const ATTRIBUTE_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_attribute_info_target",
             doc: Some(&ATTRIBUTE_TARGET_DOC),
         },
@@ -1696,6 +1733,7 @@ pub(crate) const ATTRIBUTE_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_attribute_info_parameter",
             doc: Some(&ATTRIBUTE_PARAMETER_DOC),
         },
@@ -1705,6 +1743,7 @@ pub(crate) const ATTRIBUTE_INFO: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
+            text: TextOrigin::Clean("The text is a name the program declared."),
             symbol: "nvs_core_reflect_attribute_info_fields",
             doc: Some(&ATTRIBUTE_FIELDS_DOC),
         },
@@ -1717,6 +1756,7 @@ pub(crate) const ATTRIBUTE_INFO: CoreClass = CoreClass {
             // literal kinds a payload field folded to is not known where the
             // call is written, the class being named at run time.
             return_ty: CoreTy::Mixed,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_reflect_attribute_info_field",
             doc: Some(&ATTRIBUTE_FIELD_DOC),
         },

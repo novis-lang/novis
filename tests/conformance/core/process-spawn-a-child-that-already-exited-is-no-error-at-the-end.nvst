@@ -15,7 +15,7 @@ if (Core\Env::OS == Core\Env::Platform::Windows) {
 }
 Core\Process\Handle $child = Core\Process::spawn($path, $arguments);
 string $said = "";
-?bytes $part = $child->readStdout();
+?tainted bytes $part = $child->readStdout();
 while ($part != null) {
     $said = $said . ($part as string);
     $part = $child->readStdout();

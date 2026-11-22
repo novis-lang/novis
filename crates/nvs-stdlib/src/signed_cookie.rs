@@ -109,7 +109,7 @@ use nvs_runtime::{Fault, Value};
 use crate::cache::bound;
 use crate::keyring::KEY;
 use crate::registry::{
-    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 /// The class name, once, for the messages that all name it.
@@ -164,6 +164,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_signed_cookie_seal",
             doc: Some(&SEAL_DOC),
         },
@@ -179,6 +180,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::TaintedStr,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_signed_cookie_open",
             doc: Some(&OPEN_DOC),
         },

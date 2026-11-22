@@ -127,7 +127,7 @@ use subtle::ConstantTimeEq as _;
 
 use crate::registry::{
     CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
-    ParamDoc, Qual,
+    ParamDoc, Qual, TextOrigin,
 };
 
 // ============================================================================
@@ -370,6 +370,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Union(SOURCE), CoreTy::Enum(DIGEST_NAME)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
+            text: TextOrigin::Clean(
+                "A digest is a fixed-length number, and it carries no text of its input.",
+            ),
             symbol: "nvs_core_hash_of",
             doc: Some(&OF_DOC),
         },
@@ -383,6 +386,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Bytes,
+            text: TextOrigin::Clean(
+                "A digest is a fixed-length number, and it carries no text of its input.",
+            ),
             symbol: "nvs_core_hash_hmac",
             doc: Some(&HMAC_DOC),
         },
@@ -392,6 +398,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Blob(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_hash_equals",
             doc: Some(&EQUALS_DOC),
         },
@@ -401,6 +408,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Enum(DIGEST_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(STREAM_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_hash_stream",
             doc: Some(&STREAM_DOC),
         },
@@ -521,6 +529,7 @@ pub(crate) const STREAM: CoreClass = CoreClass {
             params: &[CoreTy::Union(DATA)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_hash_stream_update",
             doc: Some(&STREAM_UPDATE_DOC),
         },
@@ -530,6 +539,9 @@ pub(crate) const STREAM: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bytes,
+            text: TextOrigin::Clean(
+                "A digest is a fixed-length number, and it carries no text of its input.",
+            ),
             symbol: "nvs_core_hash_stream_finish",
             doc: Some(&STREAM_FINISH_DOC),
         },

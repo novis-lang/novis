@@ -37,6 +37,7 @@ use nvs_runtime::{Fault, NvsObj, Tag, Value};
 
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    TextOrigin,
 };
 
 /// The class's fully-qualified name.
@@ -72,6 +73,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             CoreTy::Instance(crate::html::MARKUP_NAME),
             CoreTy::Instance(crate::cli::NAME),
         ]),
+        text: TextOrigin::Unmarked,
         symbol: "nvs_core_out_capture",
         doc: Some(&CAPTURE_DOC),
     }],

@@ -169,7 +169,8 @@ use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, TraceKind, Value, budget};
 use nvs_syntax::duration;
 
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    Qual, TextOrigin,
 };
 
 pub(crate) mod redis;
@@ -220,6 +221,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(STORE_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_cache_memory",
             doc: Some(&MEMORY_DOC),
         },
@@ -229,6 +231,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(STORE_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_cache_shared",
             doc: Some(&SHARED_DOC),
         },
@@ -354,6 +357,7 @@ pub(crate) const STORE: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_cache_put",
             doc: Some(&PUT_DOC),
         },
@@ -366,6 +370,7 @@ pub(crate) const STORE: CoreClass = CoreClass {
             // the copy admits, so there is no `T` to make nullable, and `mixed`
             // already spells the absent answer.
             return_ty: CoreTy::Mixed,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_cache_get",
             doc: Some(&GET_DOC),
         },
@@ -378,6 +383,7 @@ pub(crate) const STORE: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_cache_forget",
             doc: Some(&FORGET_DOC),
         },
@@ -403,6 +409,7 @@ pub(crate) const STORE: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_cache_put_secret",
             doc: Some(&PUT_SECRET_DOC),
         },
@@ -422,6 +429,9 @@ pub(crate) const STORE: CoreClass = CoreClass {
             // went in was typed as — which is why the return spells
             // `CoreTy::SecretStr` and not the parameter form beside it.
             return_ty: CoreTy::Nullable(&CoreTy::SecretStr),
+            text: TextOrigin::Clean(
+                "The value is opened under the program's own key, so only the program could have sealed it.",
+            ),
             symbol: "nvs_core_cache_get_secret",
             doc: Some(&GET_SECRET_DOC),
         },
@@ -735,6 +745,7 @@ pub(crate) const SECRET_ENTRY: CoreClass = CoreClass {
         ],
         defaults: &[],
         return_ty: CoreTy::Instance(SECRET_ENTRY_NAME),
+        text: TextOrigin::Unmarked,
         symbol: "nvs_core_cache_secret_entry_of",
         doc: Some(&SECRET_ENTRY_OF_DOC),
     }],

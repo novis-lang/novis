@@ -95,7 +95,8 @@ use std::path::PathBuf;
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    Qual, TextOrigin,
 };
 
 /// The class name, as `registry::CAPABILITIES` and every refusal both spell it.
@@ -209,6 +210,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_storage_put",
             doc: Some(&PUT_DOC),
         },
@@ -220,6 +222,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // `rule:security/tainted-sources`: an object is as untrusted as a
             // row, since a visitor's upload is what usually put it there.
             return_ty: CoreTy::Nullable(&CoreTy::TaintedBytes),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_storage_get",
             doc: Some(&GET_DOC),
         },
@@ -229,6 +232,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_storage_delete",
             doc: Some(&DELETE_DOC),
         },
@@ -238,6 +242,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Options(LIST_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Str),
+            text: TextOrigin::Clean(
+                "A key is 1 to 255 letters, digits, dots, dashes and underscores (rule:security/tainted-sources).",
+            ),
             symbol: "nvs_core_storage_list",
             doc: Some(&LIST_DOC),
         },

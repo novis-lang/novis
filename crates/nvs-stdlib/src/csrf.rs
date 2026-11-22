@@ -110,7 +110,7 @@ use nvs_runtime::csrf::{Key, NONCE_LEN};
 use nvs_runtime::{Fault, Value};
 
 use crate::registry::{
-    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 /// The class name, once, for the messages that all name it.
@@ -151,6 +151,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean(
+                "The token is made from random bytes and the program's own key.",
+            ),
             symbol: "nvs_core_csrf_token",
             doc: Some(&TOKEN_DOC),
         },
@@ -164,6 +167,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral), KEY],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean(
+                "The token is made from random bytes and the program's own key.",
+            ),
             symbol: "nvs_core_csrf_issue",
             doc: Some(&ISSUE_DOC),
         },
@@ -180,6 +186,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_csrf_verify",
             doc: Some(&VERIFY_DOC),
         },

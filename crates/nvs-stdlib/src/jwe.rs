@@ -83,7 +83,7 @@ use nvs_runtime::{Fault, NvsStr, Tag, ThrownClass, Value};
 
 use crate::crypto::{self, KeyFormat, KeyKind, PrivateKey, PublicKey};
 use crate::registry::{
-    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 /// `Core\Jwe`'s fully-qualified name.
@@ -191,6 +191,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Contagious), KEY_TY],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_jwe_encrypt",
             doc: Some(&ENCRYPT_DOC),
         },
@@ -208,6 +209,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // `rule:security/verification-does-not-launder`: decrypting proves
             // who wrote the payload and never that it is safe for a sink.
             return_ty: CoreTy::TaintedStr,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_jwe_decrypt",
             doc: Some(&DECRYPT_DOC),
         },
@@ -324,6 +326,7 @@ pub(crate) const KEY: CoreClass = CoreClass {
             params: &[crate::keyring::KEY],
             defaults: &[],
             return_ty: CoreTy::Instance(KEY_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_jwe_key_shared",
             doc: Some(&KEY_SHARED_DOC),
         },
@@ -337,6 +340,7 @@ pub(crate) const KEY: CoreClass = CoreClass {
             params: &[CoreTy::SecretText(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Instance(KEY_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_jwe_key_password",
             doc: Some(&KEY_PASSWORD_DOC),
         },
@@ -346,6 +350,7 @@ pub(crate) const KEY: CoreClass = CoreClass {
             params: &[CoreTy::Instance(crypto::PUBLIC_KEY_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(KEY_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_jwe_key_recipient",
             doc: Some(&KEY_RECIPIENT_DOC),
         },
@@ -355,6 +360,7 @@ pub(crate) const KEY: CoreClass = CoreClass {
             params: &[CoreTy::Instance(crypto::KEY_PAIR_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(KEY_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_jwe_key_own",
             doc: Some(&KEY_OWN_DOC),
         },

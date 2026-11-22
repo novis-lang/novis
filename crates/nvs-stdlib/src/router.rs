@@ -67,7 +67,7 @@ use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 use crate::keyring::KEY;
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc,
-    MethodDoc, ParamDoc, Qual, ShapeKeyDoc,
+    MethodDoc, ParamDoc, Qual, ShapeKeyDoc, TextOrigin,
 };
 use crate::signature::{Confirmed, Domain};
 use crate::uri::{Form, SIG_NAME, encode};
@@ -324,6 +324,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Callable, PARAMS],
             defaults: &[Const::EmptyArray],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_router_url",
             doc: Some(&URL_DOC),
         },
@@ -333,6 +334,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Callable, PARAMS],
             defaults: &[Const::EmptyArray],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_router_url_absolute",
             doc: Some(&URL_ABSOLUTE_DOC),
         },
@@ -364,6 +366,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // than a `tainted string` is what says the URL-path sink has been
             // written for (`rule:security/launderers-are-sink-named`).
             return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_router_url_signed",
             doc: Some(&URL_SIGNED_DOC),
         },
@@ -383,6 +386,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // no falsy answer a caller could drop on the floor, and what comes
             // back is the match itself rather than a second reading of it.
             return_ty: CoreTy::Instance(MATCH_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_router_signed_route",
             doc: Some(&SIGNED_ROUTE_DOC),
         },
@@ -392,6 +396,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Enum(METHOD_NAME), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: MATCHED,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_router_match",
             doc: Some(&MATCH_DOC),
         },
@@ -401,6 +406,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: METHODS,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_router_methods_for",
             doc: Some(&METHODS_FOR_DOC),
         },
@@ -410,6 +416,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Instance(GATE_NAME)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_router_dispatch",
             doc: Some(&DISPATCH_DOC),
         },
@@ -772,6 +779,7 @@ pub(crate) const MATCH: CoreClass = CoreClass {
             params: &[CoreTy::Callable],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_router_match_is",
             doc: Some(&MATCH_IS_DOC),
         },
@@ -781,6 +789,7 @@ pub(crate) const MATCH: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(CAPTURE),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_router_match_params",
             doc: Some(&MATCH_PARAMS_DOC),
         },
@@ -790,6 +799,7 @@ pub(crate) const MATCH: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(CAPTURE),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_router_match_param",
             doc: Some(&MATCH_PARAM_DOC),
         },
@@ -799,6 +809,7 @@ pub(crate) const MATCH: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Enum(METHOD_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_router_match_method",
             doc: Some(&MATCH_METHOD_DOC),
         },
@@ -808,6 +819,9 @@ pub(crate) const MATCH: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
+            text: TextOrigin::Clean(
+                "The access name comes from the program's own route attributes.",
+            ),
             symbol: "nvs_core_router_match_access",
             doc: Some(&MATCH_ACCESS_DOC),
         },
@@ -817,6 +831,7 @@ pub(crate) const MATCH: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Written("T")),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_router_match_access_as",
             doc: Some(&MATCH_ACCESS_AS_DOC),
         },
@@ -826,6 +841,7 @@ pub(crate) const MATCH: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Written("T")),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_router_match_attribute",
             doc: Some(&MATCH_ATTRIBUTE_DOC),
         },

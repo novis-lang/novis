@@ -243,7 +243,8 @@ use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
 use crate::crypto::{self, KeyFormat, KeyKind, PrivateKey, PublicKey};
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    Qual, TextOrigin,
 };
 
 /// The class name, once, for the messages that all name it.
@@ -453,6 +454,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_jwt_sign",
             doc: Some(&SIGN_DOC),
         },
@@ -474,6 +476,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_jwt_sign_object",
             doc: Some(&SIGN_OBJECT_DOC),
         },
@@ -487,6 +490,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral), KEY],
             defaults: &[],
             return_ty: CoreTy::Array(&CLAIM),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_jwt_verify",
             doc: Some(&VERIFY_DOC),
         },
@@ -510,6 +514,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Written("T"),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_jwt_verify_issued",
             doc: Some(&VERIFY_ISSUED_DOC),
         },
@@ -834,6 +839,7 @@ pub(crate) const KEY_SET: CoreClass = CoreClass {
         params: &[CoreTy::Text(Qual::Neutral), CoreTy::Options(READ_OPTIONS)],
         defaults: &[],
         return_ty: CoreTy::Instance(KEY_SET_NAME),
+        text: TextOrigin::Unmarked,
         symbol: "nvs_core_jwt_key_set_read",
         doc: Some(&KEY_SET_READ_DOC),
     }],

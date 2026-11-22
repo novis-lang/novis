@@ -232,6 +232,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Instance(CONNECTION_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_connect",
             doc: Some(&CONNECT_DOC),
         },
@@ -251,6 +252,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Instance(CONNECTION_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_open",
             doc: Some(&OPEN_DOC),
         },
@@ -260,6 +262,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Array(&CoreTy::Mixed)],
             defaults: &[],
             return_ty: CoreTy::Instance(IN_LIST_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_in_list",
             doc: Some(&IN_LIST_DOC),
         },
@@ -269,6 +272,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_db_quote_identifier",
             doc: Some(&QUOTE_IDENTIFIER_DOC),
         },
@@ -344,6 +348,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_connection_close",
             doc: Some(&CLOSE_DOC),
         },
@@ -357,6 +362,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             // one place the answer is a fact rather than a request, since a
             // `connect` reads it out of the block the operator wrote.
             return_ty: CoreTy::Enum(DRIVER_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_connection_driver",
             doc: Some(&DRIVER_MEMBER_DOC),
         },
@@ -371,6 +377,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             // of the `tainted` reads `rule:core-classes/db-column-types` gives a
             // row — those are the values a request can put bytes into.
             return_ty: CoreTy::Str,
+            text: TextOrigin::Source,
             symbol: "nvs_core_db_connection_server_version",
             doc: Some(&SERVER_VERSION_DOC),
         },
@@ -380,6 +387,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_connection_is_open",
             doc: Some(&IS_OPEN_DOC),
         },
@@ -416,6 +424,7 @@ const QUERY_ROW: CoreMethod = CoreMethod {
     // [`CoreTy::Instance`]: the bare spelling would intern the class at
     // its *own* `T`, a variable no call site of `query` ever binds.
     return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Instance(ROW_NAME)]),
+    text: TextOrigin::Unmarked,
     symbol: "nvs_core_db_connection_query",
     doc: Some(&QUERY_DOC),
 };
@@ -439,6 +448,7 @@ const QUERY_AS_ROW: CoreMethod = CoreMethod {
     // generic: `CoreMethod::written` finds the `T` here and nowhere
     // else, so a call naming no type argument is `E0442`.
     return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Written("T")]),
+    text: TextOrigin::Unmarked,
     symbol: "nvs_core_db_connection_query_as",
     doc: Some(&QUERY_AS_DOC),
 };
@@ -457,6 +467,7 @@ const EXECUTE_ROW: CoreMethod = CoreMethod {
     ],
     defaults: &[],
     return_ty: CoreTy::Instance(WRITE_NAME),
+    text: TextOrigin::Unmarked,
     symbol: "nvs_core_db_connection_execute",
     doc: Some(&EXECUTE_DOC),
 };
@@ -486,6 +497,7 @@ const EXECUTE_MANY_ROW: CoreMethod = CoreMethod {
     // has no second return to hand rows or a `lastId` back through,
     // because there is no one execution for either to belong to.
     return_ty: CoreTy::Uint,
+    text: TextOrigin::Unmarked,
     symbol: "nvs_core_db_connection_execute_many",
     doc: Some(&EXECUTE_MANY_DOC),
 };
@@ -520,6 +532,7 @@ const STREAM_ROW: CoreMethod = CoreMethod {
     // own `T` on `streamAs` below, because a second class would be a
     // second iteration protocol saying the same thing.
     return_ty: CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Instance(ROW_NAME)]),
+    text: TextOrigin::Unmarked,
     symbol: "nvs_core_db_connection_stream",
     doc: Some(&STREAM_DOC),
 };
@@ -544,6 +557,7 @@ const STREAM_AS_ROW: CoreMethod = CoreMethod {
     // the `T` here and nowhere else, so a call naming no type argument
     // is `E0442`.
     return_ty: CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Written("T")]),
+    text: TextOrigin::Unmarked,
     symbol: "nvs_core_db_connection_stream_as",
     doc: Some(&STREAM_AS_DOC),
 };
@@ -701,6 +715,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
     // — the same binding `Core\Cli::live` performs, and the reason a
     // transaction can wrap an existing expression without retyping it.
     return_ty: CoreTy::Var("T"),
+    text: TextOrigin::Unmarked,
     symbol: "nvs_core_db_connection_transaction",
     doc: Some(&TRANSACTION_DOC),
 };
@@ -757,6 +772,7 @@ pub(crate) const TRANSACTION: CoreClass = CoreClass {
             // It always throws, so there is no value to answer with. The
             // `void` is the honest half of "sets a flag *and* throws".
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_transaction_roll_back",
             doc: Some(&ROLL_BACK_DOC),
         },
@@ -1255,6 +1271,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
             // by `nvs_types::expr::args::substitute_receiver_args`, exactly as
             // `Core\ObjectSet`'s members' `T` is.
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_rows_all",
             doc: Some(&ROWS_ALL_DOC),
         },
@@ -1265,6 +1282,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
             defaults: &[],
             // `?T`, for the reason `all` answers `array<T>` above.
             return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_rows_first",
             doc: Some(&ROWS_FIRST_DOC),
         },
@@ -1274,6 +1292,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Mixed,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_rows_value",
             doc: Some(&ROWS_VALUE_DOC),
         },
@@ -1288,6 +1307,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
             params: &[CoreTy::Union(&[CoreTy::Int, CoreTy::Text(Qual::Neutral)])],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_rows_column",
             doc: Some(&ROWS_COLUMN_DOC),
         },
@@ -1297,6 +1317,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_rows_count",
             doc: Some(&ROWS_COUNT_DOC),
         },
@@ -1310,6 +1331,7 @@ pub(crate) const ROWS: CoreClass = CoreClass {
             // describes the same columns `query` does and the class variable
             // has nothing to say about it.
             return_ty: CoreTy::Array(&CoreTy::Instance(COLUMN_NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_rows_columns",
             doc: Some(&ROWS_COLUMNS_DOC),
         },
@@ -1372,6 +1394,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_row_has",
             doc: Some(&ROW_HAS_DOC),
         },
@@ -1381,6 +1404,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Mixed,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_row_get",
             doc: Some(&ROW_GET_DOC),
         },
@@ -1390,6 +1414,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_row_to_array",
             doc: Some(&ROW_TO_ARRAY_DOC),
         },
@@ -1399,6 +1424,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_row_string",
             doc: Some(&ROW_STRING_DOC),
         },
@@ -1408,6 +1434,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::TaintedBytes),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_row_bytes",
             doc: Some(&ROW_BYTES_DOC),
         },
@@ -1417,6 +1444,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Int),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_row_int",
             doc: Some(&ROW_INT_DOC),
         },
@@ -1426,6 +1454,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Uint),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_row_uint",
             doc: Some(&ROW_UINT_DOC),
         },
@@ -1435,6 +1464,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Float),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_row_float",
             doc: Some(&ROW_FLOAT_DOC),
         },
@@ -1444,6 +1474,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Bool),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_row_bool",
             doc: Some(&ROW_BOOL_DOC),
         },
@@ -1453,6 +1484,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Decimal),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_row_decimal",
             doc: Some(&ROW_DECIMAL_DOC),
         },
@@ -1462,6 +1494,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(crate::time::INSTANT_NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_row_instant",
             doc: Some(&ROW_INSTANT_DOC),
         },
@@ -1471,6 +1504,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(crate::time::DATE_NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_row_date",
             doc: Some(&ROW_DATE_DOC),
         },
@@ -1480,6 +1514,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(crate::time::TIME_OF_DAY_NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_row_time",
             doc: Some(&ROW_TIME_DOC),
         },
@@ -1489,6 +1524,7 @@ pub(crate) const ROW: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(crate::uuid::NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_row_uuid",
             doc: Some(&ROW_UUID_DOC),
         },
@@ -1537,6 +1573,7 @@ pub(crate) const WRITE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_write_affected",
             doc: Some(&WRITE_AFFECTED_DOC),
         },
@@ -1546,6 +1583,7 @@ pub(crate) const WRITE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Uint),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_write_changed",
             doc: Some(&WRITE_CHANGED_DOC),
         },
@@ -1555,6 +1593,7 @@ pub(crate) const WRITE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Uint),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_write_last_id",
             doc: Some(&WRITE_LAST_ID_DOC),
         },
@@ -1608,6 +1647,7 @@ pub(crate) const COLUMN: CoreClass = CoreClass {
             // `rule:core-classes/db-column-types` gives a row — those are the
             // column's values, which is what a request can put bytes into.
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("A column name comes from the program's own query and schema."),
             symbol: "nvs_core_db_column_name",
             doc: Some(&COLUMN_LABEL_DOC),
         },
@@ -1617,6 +1657,7 @@ pub(crate) const COLUMN: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Enum(COLUMN_TYPE_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_column_type",
             doc: Some(&COLUMN_DECLARED_DOC),
         },
@@ -1630,6 +1671,7 @@ pub(crate) const COLUMN: CoreClass = CoreClass {
             // learn nothing, and [`COLUMN_NULLABLE_DOC`] says instead what the
             // one answer this driver can give means.
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_column_nullable",
             doc: Some(&COLUMN_NULLABLE_DOC),
         },
@@ -1682,6 +1724,7 @@ pub(crate) const SCHEMA: CoreClass = CoreClass {
         params: &[CoreTy::Array(&CoreTy::Mixed)],
         defaults: &[],
         return_ty: CoreTy::Instance(SCHEMA_NAME),
+        text: TextOrigin::Unmarked,
         symbol: "nvs_core_db_schema_from_array",
         doc: Some(&SCHEMA_FROM_ARRAY_DOC),
     }],
@@ -1692,6 +1735,7 @@ pub(crate) const SCHEMA: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Mixed),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_schema_to_array",
             doc: Some(&SCHEMA_TO_ARRAY_DOC),
         },
@@ -1701,6 +1745,7 @@ pub(crate) const SCHEMA: CoreClass = CoreClass {
             params: &[CoreTy::Instance(CONNECTION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(PLAN_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_schema_plan_against",
             doc: Some(&SCHEMA_PLAN_AGAINST_DOC),
         },
@@ -1710,6 +1755,7 @@ pub(crate) const SCHEMA: CoreClass = CoreClass {
             params: &[CoreTy::Instance(CONNECTION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_schema_apply_safe",
             doc: Some(&SCHEMA_APPLY_SAFE_DOC),
         },
@@ -1719,6 +1765,7 @@ pub(crate) const SCHEMA: CoreClass = CoreClass {
             params: &[CoreTy::Instance(CONNECTION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_schema_apply_including_risky",
             doc: Some(&SCHEMA_APPLY_RISKY_DOC),
         },
@@ -1863,6 +1910,7 @@ pub(crate) const PLAN: CoreClass = CoreClass {
         params: &[],
         defaults: &[],
         return_ty: CoreTy::Array(&CoreTy::Instance(STEP_NAME)),
+        text: TextOrigin::Unmarked,
         symbol: "nvs_core_db_plan_steps",
         doc: Some(&PLAN_STEPS_DOC),
     }],
@@ -1899,6 +1947,7 @@ pub(crate) const STEP: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Enum(GRADE_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_plan_step_grade",
             doc: Some(&STEP_GRADE_DOC),
         },
@@ -1908,6 +1957,7 @@ pub(crate) const STEP: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("The planner writes the reason from its own fixed sentences."),
             symbol: "nvs_core_db_plan_step_reason",
             doc: Some(&STEP_REASON_DOC),
         },
@@ -1917,6 +1967,9 @@ pub(crate) const STEP: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean(
+                "The planner writes the statement from the schema the program declares.",
+            ),
             symbol: "nvs_core_db_plan_step_sql",
             doc: Some(&STEP_SQL_DOC),
         },
@@ -1926,6 +1979,7 @@ pub(crate) const STEP: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_db_plan_step_is_refused",
             doc: Some(&STEP_IS_REFUSED_DOC),
         },

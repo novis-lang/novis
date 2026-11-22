@@ -24,8 +24,8 @@
 // absolutely, and the one that is not this platform's starts nothing —
 // `IOError` on Windows, `RuntimeError` for a path with no root on Unix.
 
-bytes $out = "" as bytes;
-bytes $err = "" as bytes;
+tainted bytes $out = "" as bytes;
+tainted bytes $err = "" as bytes;
 int $started = 0;
 
 try {

@@ -138,7 +138,7 @@ use nvs_syntax::duration;
 use crate::cache::redis::{Connection, Renamed, Replay};
 use crate::cache::{application, bound, configured, on_shared, open_configured, sealed_key};
 use crate::registry::{
-    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 mod sqlite;
@@ -186,6 +186,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[KEY, CoreTy::Mixed],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_session_set_short_lived",
             doc: Some(&SET_SHORT_LIVED_DOC),
         },
@@ -195,6 +196,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[KEY, CoreTy::Mixed],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_session_set_long_lived",
             doc: Some(&SET_LONG_LIVED_DOC),
         },
@@ -206,6 +208,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // `mixed` rather than `rule:core-api/shape-rules` R7's `?T`: what went in is any value the byte carrier
             // admits, so there is no `T` to make nullable, and `mixed` already spells absent.
             return_ty: CoreTy::Mixed,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_session_get",
             doc: Some(&GET_DOC),
         },
@@ -215,6 +218,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[KEY],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_session_remove",
             doc: Some(&REMOVE_DOC),
         },
@@ -224,6 +228,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_session_clear_short_lived",
             doc: Some(&CLEAR_SHORT_LIVED_DOC),
         },
@@ -233,6 +238,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_session_clear_long_lived",
             doc: Some(&CLEAR_LONG_LIVED_DOC),
         },
@@ -242,6 +248,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_session_clear_all",
             doc: Some(&CLEAR_ALL_DOC),
         },
@@ -254,6 +261,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_session_regenerate",
             doc: Some(&REGENERATE_DOC),
         },
@@ -275,6 +283,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_session_set_short_lived_secret",
             doc: Some(&SET_SHORT_LIVED_SECRET_DOC),
         },
@@ -288,6 +297,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_session_set_long_lived_secret",
             doc: Some(&SET_LONG_LIVED_SECRET_DOC),
         },
@@ -302,6 +312,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // `string` that went in was typed as — which is why this spells `CoreTy::SecretStr`
             // and not the parameter form beside it.
             return_ty: CoreTy::Nullable(&CoreTy::SecretStr),
+            text: TextOrigin::Clean(
+                "The value is opened under the program's own key, so only the program could have sealed it.",
+            ),
             symbol: "nvs_core_session_get_secret",
             doc: Some(&GET_SECRET_DOC),
         },
@@ -315,6 +328,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[KEY],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_session_open_with_identifier",
             doc: Some(&OPEN_WITH_IDENTIFIER_DOC),
         },

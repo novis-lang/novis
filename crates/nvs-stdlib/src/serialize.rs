@@ -40,7 +40,7 @@
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
 use crate::registry::{
-    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 /// `Core\Serialize`'s class card — `rule:core-api/reference-card`.
@@ -67,6 +67,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Mixed],
             defaults: &[],
             return_ty: CoreTy::Bytes,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_serialize_encode",
             doc: Some(&ENCODE_DOC),
         },
@@ -76,6 +77,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Blob(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Mixed,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_serialize_decode",
             doc: Some(&DECODE_DOC),
         },

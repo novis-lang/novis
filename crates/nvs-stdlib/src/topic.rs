@@ -227,7 +227,7 @@ use std::sync::Arc;
 use nvs_runtime::{Ctx, Delivery, Fault, Inbox, ThrownClass, Value, budget};
 
 use crate::registry::{
-    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 use crate::socket::retained;
 
@@ -267,6 +267,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: SUBSCRIBE_SYMBOL,
             doc: Some(&SUBSCRIBE_DOC),
         },
@@ -280,6 +281,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Mixed],
             defaults: &[],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: PUBLISH_SYMBOL,
             doc: Some(&PUBLISH_DOC),
         },
@@ -289,6 +291,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: UNSUBSCRIBE_SYMBOL,
             doc: Some(&UNSUBSCRIBE_DOC),
         },

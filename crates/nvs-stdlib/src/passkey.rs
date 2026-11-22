@@ -88,7 +88,7 @@ use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc,
-    MethodDoc, ParamDoc, Qual,
+    MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 /// The class name, once, for the messages that all name it.
@@ -200,6 +200,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[Const::EmptyArray],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean(
+                "The options are JSON the runtime writes from random bytes and the program's settings.",
+            ),
             symbol: "nvs_core_passkey_register_options",
             doc: Some(&REGISTER_OPTIONS_DOC),
         },
@@ -216,6 +219,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Instance(CREDENTIAL_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_passkey_verify_registration",
             doc: Some(&VERIFY_REGISTRATION_DOC),
         },
@@ -229,6 +233,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[Const::EmptyArray],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean(
+                "The options are JSON the runtime writes from random bytes and the program's settings.",
+            ),
             symbol: "nvs_core_passkey_sign_in_options",
             doc: Some(&SIGN_IN_OPTIONS_DOC),
         },
@@ -240,6 +247,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_passkey_credential_id_of",
             doc: Some(&CREDENTIAL_ID_DOC),
         },
@@ -256,6 +264,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Instance(CREDENTIAL_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_passkey_verify_sign_in",
             doc: Some(&VERIFY_SIGN_IN_DOC),
         },
@@ -286,6 +295,7 @@ pub(crate) const CREDENTIAL: CoreClass = CoreClass {
         ],
         defaults: &[],
         return_ty: CoreTy::Instance(CREDENTIAL_NAME),
+        text: TextOrigin::Unmarked,
         symbol: "nvs_core_passkey_credential_of",
         doc: Some(&OF_DOC),
     }],
@@ -296,6 +306,7 @@ pub(crate) const CREDENTIAL: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bytes,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_passkey_credential_id",
             doc: Some(&ID_DOC),
         },
@@ -305,6 +316,7 @@ pub(crate) const CREDENTIAL: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bytes,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_passkey_credential_public_key",
             doc: Some(&PUBLIC_KEY_DOC),
         },
@@ -314,6 +326,7 @@ pub(crate) const CREDENTIAL: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Enum(ALGORITHM_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_passkey_credential_algorithm",
             doc: Some(&ALGORITHM_DOC),
         },
@@ -323,6 +336,7 @@ pub(crate) const CREDENTIAL: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_passkey_credential_sign_count",
             doc: Some(&SIGN_COUNT_DOC),
         },

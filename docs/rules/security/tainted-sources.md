@@ -51,6 +51,19 @@ row is `tainted` too, and reaches a key parameter through `Core\Taint::assertTru
 reason. The seeded `int`, `float`, `pick`, `sample` and `shuffle` stay plain: none is the type a key
 parameter takes. `nvs_stdlib::keyring::KEY` is the one type every key parameter is written with.
 
+**Every `Core` row that returns text says where the text comes from, and a row that says nothing
+answers `tainted`.** The mark is `nvs_stdlib::registry::TextOrigin`, on the row beside its return
+type. `Derived` text is made only from the arguments and the program's own state, and it is
+`tainted` when a contagious argument is. `Source` text comes from outside and is always `tainted`.
+`Clean` text never comes from outside, and the row gives the sentence that says why: a status code,
+a `Core\Storage::list` key, `Core\Env::secret`, a digest. A row with no mark is read as `Source`, so
+a member added later is safe until its author says otherwise, and
+`crates/nvs-stdlib/tests/taint_signatures.rs` fails on it. The mark is read once, when the checker
+seeds the row's signature, and costs nothing at run time. A child process's output is `Source`: the
+program chose the command, but not what the command prints about the files and data it reads. So
+are the text a database or a directory server sends about itself, such as its version and the
+identity it reports.
+
 No `Core` member names a qualifier, and the taint diagnosis has no opt-out. A `taintedPostAs` would
 make every other member's name read as a claim it does not make. A caller who finds the diagnosis
 verbose writes `tainted {…}` over the shape.

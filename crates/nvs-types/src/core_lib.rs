@@ -455,6 +455,20 @@ fn decodes_a_document(owner: &str, method: &str) -> bool {
         && !crate::derive::stands_in_for_a_class(owner)
 }
 
+/// The type a call of `method` returns, with `tainted` on its text when the
+/// row's [`nvs_stdlib::registry::TextOrigin`] says the text comes from outside
+/// or says nothing (`rule:security/tainted-sources`). A `Derived` or `Clean`
+/// row returns the type it writes, and a `tainted` argument at a contagious
+/// parameter still taints it at the call.
+fn return_of(method: &nvs_stdlib::registry::CoreMethod, interner: &mut TypeInterner) -> TypeId {
+    let written = lower(&method.return_ty, interner);
+    if method.text.always_tainted() && method.return_ty.has_plain_text() {
+        crate::expr::quals::tainted_result(written, interner)
+    } else {
+        written
+    }
+}
+
 /// One registry row as the checker's own signature.
 fn method_sig(
     method: &nvs_stdlib::registry::CoreMethod,
@@ -505,7 +519,7 @@ fn method_sig(
             .into_iter()
             .map(|(name, bound)| (name.to_owned(), lower(bound, interner)))
             .collect(),
-        return_ty: lower(&method.return_ty, interner),
+        return_ty: return_of(method, interner),
         contagious_return: None,
         // A `Core` member is reachable exactly one way (`rule:core-api/shape-rules`
         // R20): a static one through its class name, an instance
@@ -1439,6 +1453,7 @@ mod tests {
             params: &[CoreTy::Shape(&[SERVER, FILE])],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: nvs_stdlib::registry::TextOrigin::Unmarked,
             symbol: "nvs_core_shape_fixture_open",
             doc: None,
         };
@@ -1480,6 +1495,39 @@ mod tests {
                 .map(|(name, _)| name.as_str())
                 .collect::<Vec<_>>(),
         );
+    }
+
+    /// `rule:security/tainted-sources`' return mark: a row with no mark and a `Source` row answer
+    /// their text `tainted`, and a `Derived` or `Clean` row answers the type it writes.
+    #[test]
+    fn a_row_with_no_text_mark_returns_tainted_text() {
+        use nvs_stdlib::registry::{CoreMethod, TextOrigin};
+        const fn row(text: TextOrigin) -> CoreMethod {
+            CoreMethod {
+                name: "read",
+                names: &[],
+                params: &[],
+                defaults: &[],
+                return_ty: CoreTy::Nullable(&CoreTy::Array(&CoreTy::Str)),
+                text,
+                symbol: "nvs_core_text_mark_fixture_read",
+                doc: None,
+            }
+        }
+        let mut interner = TypeInterner::new();
+        for (text, tainted) in [
+            (TextOrigin::Unmarked, true),
+            (TextOrigin::Source, true),
+            (TextOrigin::Derived, false),
+            (TextOrigin::Clean("The fixture says so."), false),
+        ] {
+            let sig = method_sig(&row(text), true, &mut interner);
+            assert_eq!(
+                crate::expr::quals::carries_tainted(sig.return_ty, &interner),
+                tainted,
+                "a row marked {text:?} answers the wrong `tainted` bit",
+            );
+        }
     }
 
     #[test]

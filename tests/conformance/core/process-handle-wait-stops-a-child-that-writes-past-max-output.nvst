@@ -19,7 +19,7 @@ int $started = 0;
 int $absent = 0;
 string $out = "<nothing ran>";
 string $err = "<nothing ran>";
-string $small = "<nothing ran>";
+tainted string $small = "<nothing ran>";
 
 try {
     Core\Process\Handle $flood = Core\Process::spawn("/bin/sh", ["-c", 'trap "" PIPE; while :; do echo a line that repeats; done']);

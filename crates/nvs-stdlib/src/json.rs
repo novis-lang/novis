@@ -389,7 +389,8 @@ use nvs_runtime::{
 };
 
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    Qual, TextOrigin,
 };
 
 // ============================================================================
@@ -415,6 +416,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Mixed, CoreTy::Options(ENCODE_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_json_encode",
             doc: Some(&ENCODE_DOC),
         },
@@ -427,6 +429,7 @@ pub const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Mixed,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_json_decode",
             doc: Some(&DECODE_DOC),
         },
@@ -439,6 +442,7 @@ pub const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Written("T"),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_json_decode_as",
             doc: Some(&DECODE_AS_DOC),
         },
@@ -448,6 +452,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_json_is_valid",
             doc: Some(&IS_VALID_DOC),
         },
@@ -489,6 +494,7 @@ pub const CLASS: CoreClass = CoreClass {
             // `Core\Db\Queryable::streamAs<T>` answers its walk: one generic
             // class, so the element is the receiver's own `T`.
             return_ty: CoreTy::InstanceAt(ELEMENTS_NAME, &[CoreTy::Written("T")]),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_json_decode_each",
             doc: Some(&DECODE_EACH_DOC),
         },
@@ -505,6 +511,7 @@ pub const CLASS: CoreClass = CoreClass {
             // `bytes`, and `tainted bytes` when an item can hold outside text,
             // as `encode`'s `string` is (`registry::CELL_CLASSES`).
             return_ty: CoreTy::InstanceAt(PIECES_NAME, &[CoreTy::Bytes]),
+            text: TextOrigin::Derived,
             symbol: "nvs_core_json_encode_each",
             doc: Some(&ENCODE_EACH_DOC),
         },

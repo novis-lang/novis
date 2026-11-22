@@ -215,7 +215,8 @@ use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 use crate::byte_source::ByteSource;
 
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    Qual, TextOrigin,
 };
 
 // ============================================================================
@@ -253,6 +254,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Array(&CoreTy::Str)),
+            text: TextOrigin::Derived,
             symbol: "nvs_core_csv_parse",
             doc: Some(&PARSE_DOC),
         },
@@ -267,6 +269,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_csv_format",
             doc: Some(&FORMAT_DOC),
         },
@@ -300,6 +303,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::InstanceAt(ROWS_NAME, &[CoreTy::Str]),
+            text: TextOrigin::Derived,
             symbol: "nvs_core_csv_rows",
             doc: Some(&ROWS_DOC),
         },

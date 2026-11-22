@@ -134,7 +134,7 @@ use subtle::ConstantTimeEq as _;
 use crate::keyring::KEY;
 use crate::registry::{
     ClassDoc, CoreClass, CoreField, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
-    ShapeKeyDoc,
+    ShapeKeyDoc, TextOrigin,
 };
 
 // ============================================================================
@@ -240,6 +240,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_signature_sign",
             doc: Some(&SIGN_DOC),
         },
@@ -253,6 +254,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral), CoreTy::Array(&KEY)],
             defaults: &[],
             return_ty: CoreTy::Array(&SIGNED),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_signature_verify",
             doc: Some(&VERIFY_DOC),
         },

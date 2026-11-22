@@ -48,8 +48,8 @@ try {
     // one answer a read gives that is neither data nor a failure. Both,
     // because `wait` drained them separately and a member that left one of
     // them behind would answer a chunk here on the one it forgot.
-    ?bytes $afterOut = $child->readStdout();
-    ?bytes $afterErr = $child->readStderr();
+    ?tainted bytes $afterOut = $child->readStdout();
+    ?tainted bytes $afterErr = $child->readStderr();
     $ended = "more";
     if ($afterOut == null && $afterErr == null) {
         $ended = "end";
@@ -75,8 +75,8 @@ try {
         $wrote = "refused";
     }
 
-    ?bytes $afterOutOnWindows = $childOnWindows->readStdout();
-    ?bytes $afterErrOnWindows = $childOnWindows->readStderr();
+    ?tainted bytes $afterOutOnWindows = $childOnWindows->readStdout();
+    ?tainted bytes $afterErrOnWindows = $childOnWindows->readStderr();
     $ended = "more";
     if ($afterOutOnWindows == null && $afterErrOnWindows == null) {
         $ended = "end";

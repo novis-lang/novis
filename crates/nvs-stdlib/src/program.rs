@@ -52,6 +52,7 @@ use nvs_runtime::{Fault, ThrownClass, Value};
 
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreField, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    TextOrigin,
 };
 
 /// This class's fully-qualified name, in one place so the registry row and
@@ -128,6 +129,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&T),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_program_implementing",
             doc: Some(&IMPLEMENTING_DOC),
         },
@@ -137,6 +139,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Array(&ROW),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_program_implementing_with",
             doc: Some(&IMPLEMENTING_WITH_DOC),
         },
@@ -146,6 +149,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&MAKER),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_program_constructors",
             doc: Some(&CONSTRUCTORS_DOC),
         },
@@ -155,6 +159,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Text(Qual::Neutral),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_program_id",
             doc: Some(&ID_DOC),
         },

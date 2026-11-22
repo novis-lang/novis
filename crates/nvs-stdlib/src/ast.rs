@@ -87,7 +87,7 @@
 use nvs_runtime::{Fault, NvsArray, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 /// The class name, as a program writes it.
@@ -138,6 +138,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         params: &[CoreTy::Text(Qual::Neutral)],
         defaults: &[],
         return_ty: CoreTy::Instance(NODE_NAME),
+        text: TextOrigin::Unmarked,
         symbol: "nvs_core_ast_parse",
         doc: Some(&PARSE_DOC),
     }],
@@ -196,6 +197,7 @@ pub(crate) const NODE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("A kind is a name from the parser's fixed list."),
             symbol: "nvs_core_ast_node_kind",
             doc: Some(&KIND_DOC),
         },
@@ -205,6 +207,7 @@ pub(crate) const NODE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Instance(NODE_NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_ast_node_children",
             doc: Some(&CHILDREN_DOC),
         },
@@ -214,6 +217,7 @@ pub(crate) const NODE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Instance(NODE_NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_ast_node_nodes",
             doc: Some(&NODES_DOC),
         },
@@ -223,6 +227,7 @@ pub(crate) const NODE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_ast_node_line",
             doc: Some(&LINE_DOC),
         },
@@ -232,6 +237,7 @@ pub(crate) const NODE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_ast_node_column",
             doc: Some(&COLUMN_DOC),
         },
@@ -241,6 +247,7 @@ pub(crate) const NODE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_ast_node_offset",
             doc: Some(&OFFSET_DOC),
         },

@@ -161,6 +161,7 @@ use nvs_runtime::{Fault, Tag, Value};
 
 use crate::registry::{
     ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, MethodDoc, ParamDoc, Qual,
+    TextOrigin,
 };
 
 // ============================================================================
@@ -184,6 +185,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_validate_is_email",
             doc: Some(&IS_EMAIL_DOC),
         },
@@ -193,6 +195,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_validate_is_domain",
             doc: Some(&IS_DOMAIN_DOC),
         },
@@ -202,6 +205,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral), CoreTy::Options(IP_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_validate_is_ip",
             doc: Some(&IS_IP_DOC),
         },
@@ -211,6 +215,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_validate_is_mac",
             doc: Some(&IS_MAC_DOC),
         },
@@ -220,6 +225,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_validate_is_ascii",
             doc: Some(&IS_ASCII_DOC),
         },
@@ -229,6 +235,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_validate_is_printable",
             doc: Some(&IS_PRINTABLE_DOC),
         },

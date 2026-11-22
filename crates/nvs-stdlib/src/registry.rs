@@ -1326,6 +1326,93 @@ pub struct ErrorDoc {
     pub desc: &'static str,
 }
 
+/// Where the text a `Core` member returns comes from: [`CoreMethod::text`].
+///
+/// It reaches a plain `string` or `bytes` in the return, at any depth, and a
+/// `secret` one too, whose taint axis is plain. A return the row already
+/// writes as `tainted` needs no mark. `nvs_types::core_lib` reads it once, when
+/// it seeds the row's signature, so the mark costs nothing at run time.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TextOrigin {
+    /// No mark. A row that returns text answers it `tainted`, as
+    /// [`Self::Source`] does, and `taint_signatures.rs` fails on it.
+    Unmarked,
+    /// The text is made only from the arguments and the program's own state.
+    /// It is `tainted` when a [`Qual::Contagious`] argument is.
+    Derived,
+    /// The text comes from outside the program: a request, a reply, a stored
+    /// object, a decoded document. It is always `tainted`.
+    Source,
+    /// The text never comes from outside, and the sentence says why. It is
+    /// `tainted` only when a [`Qual::Contagious`] argument is, as
+    /// [`Self::Derived`] is.
+    Clean(&'static str),
+}
+
+impl TextOrigin {
+    /// This mark on a row that returns `ty`, and [`Self::Unmarked`] where `ty`
+    /// has no plain text. A shared row builder writes it once for every row it
+    /// makes, so a reader that returns an `int` carries no mark.
+    #[must_use]
+    pub const fn on(self, ty: &CoreTy) -> Self {
+        if ty.has_plain_text() {
+            self
+        } else {
+            Self::Unmarked
+        }
+    }
+
+    /// Whether the checker answers this row's text `tainted` whatever its
+    /// arguments are.
+    #[must_use]
+    pub const fn always_tainted(self) -> bool {
+        matches!(self, Self::Unmarked | Self::Source)
+    }
+}
+
+impl CoreTy {
+    /// Whether this return type has text that is plain on the `tainted` axis
+    /// anywhere a caller can read it: a `string` or `bytes`, `secret` or not,
+    /// at any depth. Such a return needs a [`TextOrigin`] other than
+    /// [`TextOrigin::Unmarked`], and a `tainted` one needs none.
+    #[must_use]
+    pub const fn has_plain_text(&self) -> bool {
+        match self {
+            Self::Str | Self::Bytes | Self::SecretStr | Self::SecretBytes => true,
+            Self::Array(inner)
+            | Self::Iterated(inner)
+            | Self::Nullable(inner)
+            | Self::Dispatched(inner)
+            | Self::Alias(_, inner) => inner.has_plain_text(),
+            Self::Union(members) | Self::InstanceAt(_, members) => {
+                let mut at = 0;
+                while at < members.len() {
+                    if members[at].has_plain_text() {
+                        return true;
+                    }
+                    at += 1;
+                }
+                false
+            }
+            Self::Shape(arms) => {
+                let mut arm = 0;
+                while arm < arms.len() {
+                    let mut field = 0;
+                    while field < arms[arm].len() {
+                        if arms[arm][field].ty.has_plain_text() {
+                            return true;
+                        }
+                        field += 1;
+                    }
+                    arm += 1;
+                }
+                false
+            }
+            _ => false,
+        }
+    }
+}
+
 /// One `Core` member.
 #[derive(Clone, Copy, Debug)]
 pub struct CoreMethod {
@@ -1368,6 +1455,12 @@ pub struct CoreMethod {
     pub defaults: &'static [Const],
     /// The declared return type.
     pub return_ty: CoreTy,
+    /// Where the text this member returns comes from — the mark
+    /// `rule:security/tainted-sources` reads on the return side.
+    /// [`TextOrigin::Unmarked`] on a row that returns text makes the text
+    /// `tainted`, so a member added later is safe until its author says
+    /// otherwise. A row that returns no text keeps `Unmarked`.
+    pub text: TextOrigin,
     /// The linker symbol its implementation is reachable at — what
     /// [`crate::symbols`] hands the JIT and what `nvs-ir` records in the
     /// instruction it lowers a call to. Prefixed `nvs_core_` so a `Core`
@@ -5115,6 +5208,7 @@ mod tests {
             ],
             defaults: &[],
             return_ty: CoreTy::Written("R"),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_sample",
             doc: Some(&SAMPLE_DOC),
         };

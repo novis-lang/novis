@@ -61,8 +61,8 @@ int $past = 0;
 int $stopped = 0;
 
 foreach ($sweep as int $size) {
-    bytes $out = "" as bytes;
-    bytes $err = "" as bytes;
+    tainted bytes $out = "" as bytes;
+    tainted bytes $err = "" as bytes;
 
     try {
         var $unix = Core\Process::run("/bin/sh", [

@@ -34,7 +34,7 @@
 
 use nvs_runtime::{Fault, Tag, Value};
 
-use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, TextOrigin};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
@@ -66,6 +66,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             )],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_fatal_on_limit",
             doc: Some(&ON_LIMIT_DOC),
         },
@@ -78,6 +79,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             )],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_fatal_on_uncaught_throw",
             doc: Some(&ON_UNCAUGHT_THROW_DOC),
         },

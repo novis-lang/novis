@@ -28,7 +28,9 @@
 //! casing rule needs at least one character — and so is the one value that can
 //! mean "the target itself" without shadowing a real name.
 
-use crate::registry::{ClassDoc, Const, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual, TextOrigin,
+};
 
 /// This class's fully-qualified name, in one place so the registry row and
 /// every consumer that matches on it cannot drift apart.
@@ -73,6 +75,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Callable, MEMBER],
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Nullable(&T),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_attributes_get",
             doc: Some(&GET_DOC),
         },
@@ -82,6 +85,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Callable, MEMBER],
             defaults: &[Const::Str("")],
             return_ty: CoreTy::Array(&T),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_attributes_all",
             doc: Some(&ALL_DOC),
         },

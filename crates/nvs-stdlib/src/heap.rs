@@ -66,7 +66,7 @@ use nvs_runtime::{Ctx, Fault, NvsArray, ObjHeader, Tag, Value};
 use crate::identity_store as store;
 use crate::ordering::{compare_values, sign_of};
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, TextOrigin,
 };
 
 /// The class's fully-qualified name, as [`CoreTy::Instance`] spells it.
@@ -96,6 +96,7 @@ pub(crate) const NEW: CoreMethod = CoreMethod {
     ))],
     defaults: &[Const::Null],
     return_ty: CoreTy::Instance(NAME),
+    text: TextOrigin::Unmarked,
     symbol: NEW_SYMBOL,
     doc: Some(&CONSTRUCTOR_DOC),
 };
@@ -123,6 +124,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Var("T")],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_heap_push",
             doc: Some(&PUSH_DOC),
         },
@@ -132,6 +134,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Var("T"),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_heap_peek",
             doc: Some(&PEEK_DOC),
         },
@@ -141,6 +144,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Var("T"),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_heap_pop",
             doc: Some(&POP_DOC),
         },
@@ -150,6 +154,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_heap_count",
             doc: Some(&COUNT_DOC),
         },
@@ -159,6 +164,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_heap_is_empty",
             doc: Some(&IS_EMPTY_DOC),
         },

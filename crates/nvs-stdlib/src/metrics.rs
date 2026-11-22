@@ -63,7 +63,8 @@ use nvs_runtime::metrics::{Refused, Written};
 use nvs_runtime::{Fault, ThrownClass, Value};
 
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    Qual, TextOrigin,
 };
 
 /// The class's fully-qualified name.
@@ -167,6 +168,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Sink), CoreTy::Options(INCREMENT_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_metrics_increment",
             doc: Some(&INCREMENT_DOC),
         },
@@ -180,6 +182,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_metrics_observe",
             doc: Some(&OBSERVE_DOC),
         },
@@ -193,6 +196,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_metrics_gauge",
             doc: Some(&GAUGE_DOC),
         },

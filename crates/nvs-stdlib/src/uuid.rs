@@ -126,7 +126,7 @@ use nvs_runtime::{Fault, NvsStr, Value};
 use crate::ext_record::Part;
 
 use crate::registry::{
-    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 // ============================================================================
@@ -153,6 +153,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_uuid_v4",
             doc: Some(&V4_DOC),
         },
@@ -162,6 +163,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_uuid_v7",
             doc: Some(&V7_DOC),
         },
@@ -177,6 +179,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_uuid_parse",
             doc: Some(&PARSE_DOC),
         },
@@ -186,6 +189,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(NAME)),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_uuid_try_parse",
             doc: Some(&TRY_PARSE_DOC),
         },
@@ -200,6 +204,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Blob(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_uuid_from_bytes",
             doc: Some(&FROM_BYTES_DOC),
         },
@@ -211,6 +216,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("A UUID is printed as hexadecimal digits and dashes."),
             symbol: "nvs_core_uuid_to_string",
             doc: Some(&TO_STRING_DOC),
         },
@@ -220,6 +226,7 @@ pub const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bytes,
+            text: TextOrigin::Clean("The bytes are the UUID's own sixteen bytes."),
             symbol: "nvs_core_uuid_to_bytes",
             doc: Some(&TO_BYTES_DOC),
         },

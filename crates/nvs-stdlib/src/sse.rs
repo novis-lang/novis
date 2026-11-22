@@ -113,7 +113,7 @@ use nvs_runtime::{
 };
 
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 use crate::socket::{entry_program, release_crossed, retained, upgrade_narrowing};
 
@@ -173,6 +173,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[Const::Null, Const::Null, Const::Null, Const::Null],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: UPGRADE_SYMBOL,
             doc: Some(&UPGRADE_DOC),
         },
@@ -187,6 +188,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
+            text: TextOrigin::Unmarked,
             symbol: STREAM_SYMBOL,
             doc: Some(&STREAM_DOC),
         },
@@ -202,6 +204,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
+            text: TextOrigin::Unmarked,
             symbol: CURRENT_SYMBOL,
             doc: Some(&CURRENT_DOC),
         },
@@ -217,6 +220,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Instance(MESSAGE_NAME)),
+            text: TextOrigin::Unmarked,
             symbol: RECEIVE_SYMBOL,
             doc: Some(&RECEIVE_DOC),
         },
@@ -239,6 +243,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[Const::Null, Const::Null],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: SEND_SYMBOL,
             doc: Some(&SEND_DOC),
         },
@@ -252,6 +257,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Instance(crate::time::DURATION_NAME)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: RETRY_SYMBOL,
             doc: Some(&RETRY_DOC),
         },
@@ -513,6 +519,7 @@ pub(crate) const MESSAGE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("A topic is one of the names the program subscribed under."),
             symbol: MESSAGE_TOPIC_SYMBOL,
             doc: Some(&MESSAGE_TOPIC_DOC),
         },
@@ -522,6 +529,7 @@ pub(crate) const MESSAGE: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Mixed,
+            text: TextOrigin::Unmarked,
             symbol: MESSAGE_VALUE_SYMBOL,
             doc: Some(&MESSAGE_VALUE_DOC),
         },

@@ -34,7 +34,9 @@
 //! does not require one either; a rule refusing a `const` holding the reason
 //! would buy no confidentiality, since the call is greppable by its own name.
 
-use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual};
+use crate::registry::{
+    ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc, Qual, TextOrigin,
+};
 
 /// `Core\Secret`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
@@ -61,6 +63,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Reveal), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_secret_reveal",
             doc: Some(&REVEAL_DOC),
         },
@@ -70,6 +73,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Blob(Qual::Reveal), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_secret_reveal_bytes",
             doc: Some(&REVEAL_BYTES_DOC),
         },

@@ -39,8 +39,8 @@ foreach ($statuses as int $status) {
     // answers `-1`, so a sentinel spelled that way could not be told apart from
     // a real status.
     int $code = -2;
-    bytes $out = "" as bytes;
-    bytes $err = "" as bytes;
+    tainted bytes $out = "" as bytes;
+    tainted bytes $err = "" as bytes;
 
     try {
         var $unix = Core\Process::run("/bin/sh", [

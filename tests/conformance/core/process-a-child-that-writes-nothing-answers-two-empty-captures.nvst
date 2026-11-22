@@ -39,8 +39,8 @@
 // The sentinels are non-empty, and that is the whole point of them: a run in
 // which no child started at all would otherwise print the two zeroes this case
 // is looking for and pass without ever having measured a capture.
-bytes $out = "sentinel" as bytes;
-bytes $err = "sentinel" as bytes;
+tainted bytes $out = "sentinel" as bytes;
+tainted bytes $err = "sentinel" as bytes;
 int $started = 0;
 
 try {

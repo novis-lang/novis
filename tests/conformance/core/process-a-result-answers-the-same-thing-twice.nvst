@@ -32,10 +32,10 @@ Every `Core\Process\Result` member answers the same thing on a second call — a
 // The child is the platform's own shell, named absolutely, for the reason
 // `process-a-completed-run-answers-the-status-the-child-chose.nvst` states.
 
-bytes $firstOut = "sentinel one" as bytes;
-bytes $secondOut = "sentinel two" as bytes;
-bytes $firstErr = "sentinel one" as bytes;
-bytes $secondErr = "sentinel two" as bytes;
+tainted bytes $firstOut = "sentinel one" as bytes;
+tainted bytes $secondOut = "sentinel two" as bytes;
+tainted bytes $firstErr = "sentinel one" as bytes;
+tainted bytes $secondErr = "sentinel two" as bytes;
 int $firstCode = -2;
 int $secondCode = -3;
 int $started = 0;

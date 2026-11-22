@@ -91,7 +91,7 @@ use subtle::ConstantTimeEq as _;
 use nvs_runtime::{Fault, NvsStr, ThrownClass, Value};
 
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 /// The class name, once, for the messages that all name it.
@@ -142,6 +142,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[SECRET],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("A code is six to eight digits."),
             symbol: "nvs_core_totp_code",
             doc: Some(&CODE_DOC),
         },
@@ -153,6 +154,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral), SECRET, CoreTy::Int],
             defaults: &[Const::Int(0)],
             return_ty: CoreTy::Nullable(&CoreTy::Int),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_totp_check",
             doc: Some(&CHECK_DOC),
         },

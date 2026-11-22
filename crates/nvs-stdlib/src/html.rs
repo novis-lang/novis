@@ -168,7 +168,8 @@ use html5ever::{Attribute, QualName};
 use nvs_runtime::{Fault, NvsStr, Tag, Value};
 
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    Qual, TextOrigin,
 };
 use crate::xml::{DEPTH_CEILING, Kind, Parsed};
 
@@ -203,6 +204,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Instance(MARKUP_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_html_escape",
             doc: Some(&ESCAPE_DOC),
         },
@@ -220,6 +222,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Instance(MARKUP_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_html_join",
             doc: Some(&JOIN_DOC),
         },
@@ -232,6 +235,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Instance(MARKUP_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_html_later",
             doc: Some(&LATER_DOC),
         },
@@ -241,6 +245,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Instance(MARKUP_NAME), CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_html_to_source",
             doc: Some(&TO_SOURCE_DOC),
         },
@@ -250,6 +255,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Instance(crate::xml::NODE_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_html_parse",
             doc: Some(&PARSE_DOC),
         },
@@ -259,6 +265,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Text(Qual::Launder)],
             defaults: &[],
             return_ty: CoreTy::Instance(MARKUP_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_html_sanitize",
             doc: Some(&SANITIZE_DOC),
         },

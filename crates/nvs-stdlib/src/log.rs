@@ -76,7 +76,7 @@ use nvs_runtime::{Ctx, Fault, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, MethodDoc,
-    ParamDoc, Qual,
+    ParamDoc, Qual, TextOrigin,
 };
 
 /// This class's fully-qualified name, in one place so the registry row and
@@ -154,6 +154,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         ],
         defaults: &[Const::EmptyArray],
         return_ty: CoreTy::Void,
+        text: TextOrigin::Unmarked,
         symbol: "nvs_core_log_write",
         doc: Some(&WRITE_DOC),
     }],

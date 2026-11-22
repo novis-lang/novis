@@ -12,7 +12,7 @@
 
 use nvs_runtime::{NvsArray, Value};
 
-use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc};
+use crate::registry::{ClassDoc, CoreClass, CoreMethod, CoreTy, MethodDoc, TextOrigin};
 
 /// `Core\Test\Outcome`'s fully-qualified name.
 pub(crate) const OUTCOME_NAME: &str = r"Core\Test\Outcome";
@@ -33,6 +33,10 @@ const fn reader(
         params: &[],
         defaults: &[],
         return_ty,
+        text: TextOrigin::Clean(
+            "A test's own program wrote this text, and the test reads it back.",
+        )
+        .on(&return_ty),
         symbol,
         doc: Some(doc),
     }

@@ -129,7 +129,8 @@
 use nvs_runtime::{Fault, Tag, ThrownClass, Value};
 
 use crate::registry::{
-    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    ClassDoc, Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    Qual, TextOrigin,
 };
 
 /// The class name, once, for the messages that all name it.
@@ -198,6 +199,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Instance(DECISION_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_ratelimit_consume",
             doc: Some(&CONSUME_DOC),
         },
@@ -217,6 +219,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[],
             return_ty: CoreTy::Instance(DECISION_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_ratelimit_shed",
             doc: Some(&SHED_DOC),
         },
@@ -366,6 +369,7 @@ pub(crate) const DECISION: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_ratelimit_decision_allowed",
             doc: Some(&ALLOWED_DOC),
         },
@@ -375,6 +379,7 @@ pub(crate) const DECISION: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_ratelimit_decision_limit",
             doc: Some(&LIMIT_DOC),
         },
@@ -384,6 +389,7 @@ pub(crate) const DECISION: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_ratelimit_decision_remaining",
             doc: Some(&REMAINING_DOC),
         },
@@ -396,6 +402,7 @@ pub(crate) const DECISION: CoreClass = CoreClass {
             // allowed arrival has no wait, and a wait of zero is a different
             // claim from having none.
             return_ty: CoreTy::Nullable(&DURATION),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_ratelimit_decision_retry_after",
             doc: Some(&RETRY_AFTER_DOC),
         },

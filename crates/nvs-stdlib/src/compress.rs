@@ -105,7 +105,7 @@ use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc,
-    MethodDoc, ParamDoc, Qual,
+    MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
 // ============================================================================
@@ -255,6 +255,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Union(COMPRESS_DATA), CoreTy::Enum(CODEC_NAME)],
             defaults: &[],
             return_ty: CoreTy::Bytes,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_compress_compress",
             doc: Some(&COMPRESS_DOC),
         },
@@ -272,6 +273,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                 Const::Uint(DEFAULT_MAX_RATIO),
             ],
             return_ty: CoreTy::Bytes,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_compress_decompress",
             doc: Some(&DECOMPRESS_DOC),
         },
@@ -281,6 +283,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Enum(CODEC_NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(COMPRESSOR_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_compress_compressor",
             doc: Some(&COMPRESSOR_DOC),
         },
@@ -293,6 +296,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
                 Const::Uint(DEFAULT_MAX_RATIO),
             ],
             return_ty: CoreTy::Instance(DECOMPRESSOR_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_compress_decompressor",
             doc: Some(&DECOMPRESSOR_DOC),
         },
@@ -445,6 +449,7 @@ pub(crate) const COMPRESSOR: CoreClass = CoreClass {
             params: &[CoreTy::Union(DATA)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_compress_compressor_add",
             doc: Some(&COMPRESSOR_ADD_DOC),
         },
@@ -454,6 +459,7 @@ pub(crate) const COMPRESSOR: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bytes,
+            text: TextOrigin::Derived,
             symbol: "nvs_core_compress_compressor_finish",
             doc: Some(&COMPRESSOR_FINISH_DOC),
         },
@@ -514,6 +520,7 @@ pub(crate) const DECOMPRESSOR: CoreClass = CoreClass {
             params: &[CoreTy::Blob(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_compress_decompressor_add",
             doc: Some(&DECOMPRESSOR_ADD_DOC),
         },
@@ -523,6 +530,7 @@ pub(crate) const DECOMPRESSOR: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::TaintedBytes,
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_compress_decompressor_finish",
             doc: Some(&DECOMPRESSOR_FINISH_DOC),
         },

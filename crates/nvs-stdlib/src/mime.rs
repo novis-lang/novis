@@ -58,7 +58,7 @@ use nvs_runtime::{Fault, Value};
 
 use crate::registry::{
     CaseDoc, ClassDoc, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
-    ParamDoc, Qual,
+    ParamDoc, Qual, TextOrigin,
 };
 
 // ============================================================================
@@ -229,6 +229,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             )],
             defaults: &[],
             return_ty: CoreTy::Enum(TYPE_NAME),
+            text: TextOrigin::Unmarked,
             symbol: "nvs_core_mime_detect",
             doc: Some(&DETECT_DOC),
         },
@@ -238,6 +239,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[CoreTy::Enum(TYPE_NAME)],
             defaults: &[],
             return_ty: CoreTy::Str,
+            text: TextOrigin::Clean("The media type comes from the runtime's own table of types."),
             symbol: "nvs_core_mime_media_type",
             doc: Some(&MEDIA_TYPE_DOC),
         },

@@ -109,7 +109,7 @@ use nvs_runtime::script::ResolveError;
 use nvs_runtime::{Fault, NvsObj, ThrownClass, Value};
 
 use crate::registry::{
-    CaseDoc, ClassDoc, CoreClass, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc,
+    CaseDoc, ClassDoc, CoreClass, CoreMethod, CoreTy, EnumDoc, MethodDoc, ParamDoc, TextOrigin,
 };
 
 /// The handle class's fully-qualified name, as
@@ -167,6 +167,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Mixed,
+            text: TextOrigin::Unmarked,
             symbol: ARGS_SYMBOL,
             doc: Some(&ARGS_DOC),
         },
@@ -179,6 +180,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             )],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: ON_EXIT_SYMBOL,
             doc: Some(&ON_EXIT_DOC),
         },
@@ -188,6 +190,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
+            text: TextOrigin::Unmarked,
             symbol: FINISH_SYMBOL,
             doc: Some(&FINISH_DOC),
         },
@@ -329,6 +332,7 @@ pub(crate) const EXIT_REPORT: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Enum(EXIT_REASON_NAME),
+            text: TextOrigin::Unmarked,
             symbol: REASON_SYMBOL,
             doc: Some(&REASON_DOC),
         },
@@ -338,6 +342,7 @@ pub(crate) const EXIT_REPORT: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Int,
+            text: TextOrigin::Unmarked,
             symbol: STATUS_SYMBOL,
             doc: Some(&STATUS_DOC),
         },
@@ -350,6 +355,7 @@ pub(crate) const EXIT_REPORT: CoreClass = CoreClass {
             // exception, and a `Throwable` with an empty message would be a
             // different claim from having none.
             return_ty: CoreTy::Nullable(&THROWABLE),
+            text: TextOrigin::Unmarked,
             symbol: ERROR_SYMBOL,
             doc: Some(&ERROR_DOC),
         },
@@ -362,6 +368,7 @@ pub(crate) const EXIT_REPORT: CoreClass = CoreClass {
             // figure is the one `Core\Budget::memoryPeak` reads, saturated at
             // `i64::MAX` in [`report_of`].
             return_ty: CoreTy::Int,
+            text: TextOrigin::Unmarked,
             symbol: MEMORY_PEAK_SYMBOL,
             doc: Some(&MEMORY_PEAK_DOC),
         },
