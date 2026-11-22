@@ -1589,6 +1589,7 @@ impl<'a> Lowering<'a> {
                 args: vec![v],
                 subject: None,
                 proven: 0,
+                plain: 0,
             },
             env,
         );

@@ -968,6 +968,7 @@ pub(crate) fn lower_callable(
                 args,
                 subject: None,
                 proven: 0,
+                plain: 0,
             },
             &env,
         );

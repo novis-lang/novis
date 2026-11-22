@@ -183,17 +183,6 @@ Cart::run();
     )
 }
 
-/// Compiles and runs a lowered program, and returns what it echoed.
-fn output_of_program(program: &nvs_ir::Program) -> String {
-    let unit = nvs_codegen::compile(program).expect("the fixture compiles");
-    let mut ctx = Ctx::buffered();
-    unit.install_in(&mut ctx);
-    let entry = unit.script().expect("the script frame was compiled");
-    entry.call(&mut ctx).expect("the script ran to completion");
-    String::from_utf8(ctx.take_buffered_output().expect("a buffered context"))
-        .expect("the script echoed UTF-8")
-}
-
 /// Whether `Cart::run` retains the result of an element or property read.
 fn retains_a_read(program: &nvs_ir::Program) -> bool {
     let run = program

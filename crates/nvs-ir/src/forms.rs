@@ -1392,6 +1392,7 @@ impl Rewrite {
             args: self.operands,
             subject: Some(0),
             proven: 0,
+            plain: 0,
         };
         filter.ty = Some(self.fast.1);
         let outer = &mut f.blocks[self.outer.0].insts[self.outer.1];

@@ -551,6 +551,31 @@ pub(crate) fn can_hold_an_object(ty: TypeId, interner: &TypeInterner) -> bool {
     }
 }
 
+/// Whether a checked type is an array that holds no object at any depth: its
+/// element is a scalar, an enum, or such an array again. A `Core` member that
+/// takes one runs no program code through its elements: no `toString`, no
+/// `compareTo` and no encode hook
+/// (`rule:types/a-replaced-value-is-changed-in-place`). A shape, a type
+/// variable and `mixed` are not plain, so a type this does not know counts as
+/// one that holds an object.
+pub(crate) fn is_plain_array(ty: TypeId, interner: &TypeInterner) -> bool {
+    match interner.get(ty) {
+        Ty::Array(element) => holds_no_object(*element, interner),
+        _ => false,
+    }
+}
+
+/// Whether no value of `ty` is an object or contains one, at any depth.
+fn holds_no_object(ty: TypeId, interner: &TypeInterner) -> bool {
+    match interner.get(ty) {
+        Ty::Array(element) => holds_no_object(*element, interner),
+        Ty::Union(members) => members
+            .iter()
+            .all(|member| holds_no_object(*member, interner)),
+        _ => !can_hold_an_object(ty, interner),
+    }
+}
+
 /// `rule:classes/clone-is-shallow`'s operand rule: `clone $x` is "a new instance of `$x`'s
 /// class", so a value that can hold no object names nothing to instantiate
 /// and `nvs_ir::lower::expr` panics rather than lowering one.

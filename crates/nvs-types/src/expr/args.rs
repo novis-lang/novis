@@ -66,6 +66,11 @@ pub(crate) fn check_args_typed(
     let outer_keys = std::mem::take(&mut env.key_options);
     let outer_note = std::mem::replace(&mut env.secret_in_arguments, false);
     let checked = check_arg_list(list, sig, call_span, live, scope, ctx, env);
+    for (arg, ty) in list.iter().zip(&checked.0) {
+        if super::members::is_plain_array(*ty, env.interner) {
+            env.exprs.record_plain_array(arg.value.span);
+        }
+    }
     // Whether this call's arguments hold a `secret`: one was written inside an
     // argument, or an argument's own type contains one. An inner call's note
     // stays on the outer one, so a nested call only widens it.

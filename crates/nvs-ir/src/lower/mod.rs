@@ -2735,6 +2735,9 @@ pub(crate) struct LoweredArgs {
     /// checker proved against the parameter they fill
     /// (`ExprTypeTable::callback_is_proven`). Only a `Core` call reads it.
     proven: Vec<ValueId>,
+    /// The values among [`Self::values`] that are arrays holding no object
+    /// (`ExprTypeTable::is_plain_array`). Only a `Core` call reads it.
+    plain: Vec<ValueId>,
 }
 
 /// One resolved signature's argument-shape, as [`Lowering::lower_call_args`]

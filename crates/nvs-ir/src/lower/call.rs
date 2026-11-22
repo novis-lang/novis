@@ -119,6 +119,7 @@ impl<'a> Lowering<'a> {
         let mut filled: Vec<Option<LoweredArgs>> = (0..fixed).map(|_| None).collect();
         let mut tail = Vec::new();
         let mut proven = Vec::new();
+        let mut plain = Vec::new();
         let values: Vec<&Expr> = list.iter().map(|arg| &arg.value).collect();
         for (i, (arg, slot)) in list.iter().zip(&sig.arg_slots).enumerate() {
             let index = match *slot {
@@ -152,6 +153,11 @@ impl<'a> Lowering<'a> {
             {
                 proven.push(value);
             }
+            if let [value] = one.values[..]
+                && self.exprs.is_plain_array(arg.value.span)
+            {
+                plain.push(value);
+            }
             filled[index] = Some(one);
         }
         assert!(
@@ -161,6 +167,7 @@ impl<'a> Lowering<'a> {
         );
         let mut out = LoweredArgs {
             proven,
+            plain,
             ..LoweredArgs::default()
         };
         for (index, one) in filled.into_iter().enumerate() {
@@ -699,6 +706,7 @@ impl<'a> Lowering<'a> {
                     args: values,
                     subject: None,
                     proven: 0,
+                    plain: 0,
                 },
                 env,
             );

@@ -178,6 +178,9 @@ impl Summaries {
         tys: &FxHashMap<ValueId, Ty>,
         callables: impl Fn(ValueId) -> Option<String>,
     ) -> Summary {
+        if may_park(kind) {
+            return Summary::ANYTHING;
+        }
         let effects = kind.effects();
         let mut summary = Summary::default();
         summary.reads.add(effects.reads);
@@ -194,17 +197,11 @@ impl Summaries {
             },
             UserCode::ItsCallables => {
                 let mut bodies = Vec::new();
-                let mut unknown = false;
-                kind.for_each_operand(|v| {
-                    if takes_an_object(&InstKind::Retain { operand: v }, tys) {
-                        match callables(v) {
-                            Some(name) => bodies.push(name),
-                            None => unknown = true,
-                        }
+                for v in object_operands(kind, tys) {
+                    match callables(v) {
+                        Some(name) => bodies.push(name),
+                        None => return Summary::ANYTHING,
                     }
-                });
-                if unknown {
-                    return Summary::ANYTHING;
                 }
                 for name in bodies {
                     match self.get(&name) {
@@ -251,28 +248,83 @@ pub(crate) fn types(f: &Function) -> FxHashMap<ValueId, Ty> {
         .collect()
 }
 
-/// Whether any argument of `kind` may be a callable. A callable is an
-/// object, and a tagged value may hold one.
+/// The `Core` classes none of whose members parks its task. A member of any
+/// other class may park: it waits on I/O, a timer, a channel or a group of
+/// tasks.
+const NEVER_PARKS: &[&str] = &[
+    "nvs_core_str_",
+    "nvs_core_math_",
+    "nvs_core_arr_",
+    "nvs_core_regex_",
+];
+
+/// Whether `kind` is a `Core` call that may park its task.
+///
+/// While a task is parked, another task of the same request may run: the
+/// callables of a `Core\Task::all` group are children on the same core, and
+/// they share the request's objects and static properties. That task may
+/// write any slot, so a call that may park counts as one that writes
+/// anything, and a lend never crosses it
+/// (`rule:types/a-replaced-value-is-changed-in-place`). A callback a member
+/// runs is judged by its own summary.
+pub(crate) fn may_park(kind: &InstKind) -> bool {
+    matches!(kind, InstKind::CoreCall { symbol, .. }
+        if !NEVER_PARKS.iter().any(|prefix| symbol.starts_with(prefix)))
+}
+
+/// Whether any argument of `kind` may be an object or hold one. See
+/// [`object_operands`].
 pub(crate) fn takes_an_object(kind: &InstKind, tys: &FxHashMap<ValueId, Ty>) -> bool {
-    let mut found = false;
-    kind.for_each_operand(|v| {
-        found |= !matches!(
-            tys.get(&v),
-            Some(
-                Ty::Bool
-                    | Ty::Int
-                    | Ty::Uint
-                    | Ty::Float
-                    | Ty::Decimal
-                    | Ty::Null
-                    | Ty::Str
-                    | Ty::Bytes
-                    | Ty::Array
-                    | Ty::Enum(_)
-            )
-        );
-    });
+    !object_operands(kind, tys).is_empty()
+}
+
+/// Each operand of `kind` that may be an object or hold one, in order. A
+/// callable is an object, and a tagged value may hold one. An array argument
+/// of an [`InstKind::CoreCall`] counts unless its `plain` bit says it holds no
+/// object: the member may run an element's `toString`, `compareTo` or encode
+/// hook. An array operand of any other instruction is read as values, and
+/// does not count.
+pub(crate) fn object_operands(kind: &InstKind, tys: &FxHashMap<ValueId, Ty>) -> Vec<ValueId> {
+    let mut found = Vec::new();
+    match kind {
+        InstKind::CoreCall { args, plain, .. } => {
+            for (at, &v) in args.iter().enumerate() {
+                let is_plain = u32::try_from(at)
+                    .ok()
+                    .and_then(|at| 1u32.checked_shl(at))
+                    .is_some_and(|bit| plain & bit != 0);
+                if may_be_an_object(tys.get(&v), is_plain) {
+                    found.push(v);
+                }
+            }
+        }
+        _ => kind.for_each_operand(|v| {
+            if may_be_an_object(tys.get(&v), true) {
+                found.push(v);
+            }
+        }),
+    }
     found
+}
+
+/// Whether a value of representation `ty` may be an object or hold one. An
+/// array counts unless it is `plain`. A value whose type is not known counts.
+fn may_be_an_object(ty: Option<&Ty>, plain: bool) -> bool {
+    match ty {
+        Some(Ty::Array) => !plain,
+        Some(
+            Ty::Bool
+            | Ty::Int
+            | Ty::Uint
+            | Ty::Float
+            | Ty::Decimal
+            | Ty::Null
+            | Ty::Str
+            | Ty::Bytes
+            | Ty::Enum(_),
+        ) => false,
+        _ => true,
+    }
 }
 
 /// One function with the tables its summary reads.

@@ -201,6 +201,7 @@ impl<'a> Lowering<'a> {
                     args: vec![lv, rv],
                     subject: None,
                     proven: 0,
+                    plain: 0,
                 },
                 env,
             );
@@ -700,6 +701,7 @@ impl<'a> Lowering<'a> {
                 args: operands.map(|(_, value)| value).to_vec(),
                 subject: None,
                 proven: 0,
+                plain: 0,
             },
             env,
         );

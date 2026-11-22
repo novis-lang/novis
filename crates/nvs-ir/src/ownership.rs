@@ -133,7 +133,9 @@
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::copies::{KeptCopy, Reason};
-use crate::effects::{OwnedSlot, Summaries, Summary, callback, own, takes_an_object, types};
+use crate::effects::{
+    OwnedSlot, Summaries, Summary, callback, may_park, object_operands, own, takes_an_object, types,
+};
 use crate::ids::ValueId;
 use crate::ir::{Function, Inst, InstKind, Slot, Terminator, UserCode};
 use crate::ty::Ty;
@@ -1173,7 +1175,7 @@ impl Lend<'_> {
         gone.push(self.old_release(b, old_at, old, store)?);
         self.window_is_quiet(b, start, c, &[read], subject, &chain)?;
         gone.extend(self.subject_counts((b, c), subject)?);
-        self.callbacks_are_quiet(args, subject, &chain)?;
+        self.callbacks_are_quiet(&self.f.blocks[b].insts[c].kind, args, subject, &chain)?;
         if let Some(callee) = callee
             && !self.ignore
             && chain.iter().any(|&s| callee.writes.reaches(s))
@@ -1410,7 +1412,7 @@ impl Lend<'_> {
         };
         self.window_is_quiet(b, start, c, &skip, subject, &chain)?;
         gone.extend(self.subject_counts((b, c), subject)?);
-        self.callbacks_are_quiet(args, subject, &chain)?;
+        self.callbacks_are_quiet(&self.f.blocks[b].insts[c].kind, args, subject, &chain)?;
         Some((
             gone,
             Element {
@@ -1589,9 +1591,13 @@ impl Lend<'_> {
     }
 
     /// Whether every callable among `args` is an anonymous function whose
-    /// effect summary, its callees' included, writes no slot on `chain`.
+    /// effect summary, its callees' included, writes no slot on `chain`. An
+    /// array argument that may hold an object fails, the lent subject
+    /// included: the member may run an element's hook, and the hook may
+    /// write the slot.
     fn callbacks_are_quiet(
         &self,
+        call: &InstKind,
         args: &[ValueId],
         subject: ValueId,
         chain: &[Slot<'_>],
@@ -1599,8 +1605,13 @@ impl Lend<'_> {
         if self.ignore {
             return Some(());
         }
+        if may_park(call) {
+            return None;
+        }
+        let objects = object_operands(call, self.tys);
         for &arg in args {
-            if arg == subject || !takes_an_object(&InstKind::Retain { operand: arg }, self.tys) {
+            let lent_object = arg == subject && !matches!(self.tys.get(&arg), Some(Ty::Array));
+            if lent_object || !objects.contains(&arg) {
                 continue;
             }
             let &(ab, ai) = self.defs.get(&arg)?;
@@ -1690,7 +1701,7 @@ impl Lend<'_> {
         let effects = kind.effects();
         let user_code = match effects.user_code {
             UserCode::No => false,
-            UserCode::ItsCallables => takes_an_object(kind, self.tys),
+            UserCode::ItsCallables => may_park(kind) || takes_an_object(kind, self.tys),
             UserCode::Yes => true,
         };
         !user_code

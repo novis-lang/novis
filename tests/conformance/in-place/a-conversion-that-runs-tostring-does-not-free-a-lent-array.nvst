@@ -1,0 +1,82 @@
+--TEST--
+A static property replaced with the result of a call keeps its old value whole while the call runs code that writes the property: a `toString` that `as ?string` runs, a `compareTo` that `Core\Arr::sort` runs, and another task that runs while the call waits — `rule:types/a-replaced-value-is-changed-in-place`
+--FILE--
+<?nvs
+class Shop {
+    public static array<string> $items = [];
+
+    // Makes many strings of the same size, so a freed value is reused.
+    public static function fill(): void {
+        array<string> $fill = [];
+        for (int $i = 0; $i < 256; $i++) { $fill[] = Core\Str::repeat("y", 40); }
+    }
+
+    public static function add(array<string> $xs, mixed $m): array<string> {
+        $xs[] = Core\Str::length(($m as ?string) ?? "") > 0 ? "t" : "f";
+        return $xs;
+    }
+
+    public static function waitThenAdd(array<string> $xs): array<string> {
+        Core\Time::sleep(1ms);
+        $xs[] = "t";
+        return $xs;
+    }
+}
+
+class Post {
+    // This method empties `Shop::$items` while `Shop::add` uses the array.
+    public function toString(): string {
+        Shop::$items = [];
+        Shop::fill();
+        return "zz";
+    }
+}
+
+class Item implements Comparable {
+    public static array<Item> $all = [];
+    public int $n = 0;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+
+    // This method empties `Item::$all` while the sort uses the array.
+    public function compareTo(self $other): int {
+        Item::$all = [];
+        Shop::fill();
+        return $this->n <=> $other->n;
+    }
+}
+
+// 1. `as ?string` runs `Post::toString`. The result has both old entries and "t".
+Shop::$items = [Core\Str::repeat("a", 40), Core\Str::repeat("b", 40)];
+Shop::$items = Shop::add(Shop::$items, new Post());
+echo Core\Json::encode(Shop::$items), "\n";
+
+// 2. `Core\Arr::sort` runs `Item::compareTo`. The result has all three items.
+Item::$all = [new Item(3), new Item(1), new Item(2)];
+Item::$all = Core\Arr::sort(Item::$all);
+foreach (Item::$all as Item $item) {
+    echo $item->n;
+}
+echo "\n";
+
+// 3. `add` waits inside `Shop::waitThenAdd`, and `clear` runs during the wait.
+// `add` then stores the old entry and "t".
+Shop::$items = [Core\Str::repeat("c", 40)];
+Core\Task::all({
+    add: fn(): int => {
+        Shop::$items = Shop::waitThenAdd(Shop::$items);
+        return 1;
+    },
+    clear: fn(): int => {
+        Shop::$items = [];
+        Shop::fill();
+        return 2;
+    },
+});
+echo Core\Json::encode(Shop::$items), "\n";
+--EXPECT--
+["aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","t"]
+123
+["cccccccccccccccccccccccccccccccccccccccc","t"]

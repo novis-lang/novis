@@ -2591,6 +2591,13 @@ pub enum InstKind {
         /// Only a `Core\Arr` member is marked: none of them keeps its callback
         /// past the call, so the mark never leaves the slot.
         proven: u32,
+        /// Bit `i` is set when `args[i]` is an array the checker proved
+        /// holds no object at any depth
+        /// (`nvs_types::expr_table::ExprTypeTable::is_plain_array`). The
+        /// member then runs no program code through its elements. Every other
+        /// array argument may hold an object with a `toString`, `compareTo`
+        /// or encode hook, so [`crate::effects::takes_an_object`] counts it.
+        plain: u32,
     },
     /// A static call to a method of a loaded extension — `Shop\Ledger::echoInt($n)`
     /// (`rule:packaging/extension-calls-are-statically-typed`).
@@ -4568,6 +4575,14 @@ impl Helper {
     /// Whether this helper may run user code: a callable, an erased method,
     /// or a class's `toString`. One exhaustive `match`, as
     /// [`InstKind::effects`] is.
+    ///
+    /// A row is `true` unless its runtime body was read and runs no program
+    /// code (`rule:types/a-replaced-value-is-changed-in-place`). Each `false`
+    /// row names the `nvs-runtime` function it was read against. A body that
+    /// converts, compares, encodes or clones a value that can be an object
+    /// runs program code. A release counts as no program code, as
+    /// [`InstKind::Release`] does, so a helper whose only way in is a release
+    /// stays `false`.
     #[must_use]
     pub const fn may_run_user_code(self) -> bool {
         match self {
@@ -4577,31 +4592,58 @@ impl Helper {
             | Helper::CallErasedMethod
             | Helper::TaggedToString
             | Helper::TaggedAsString
+            // `nvs_to_string_or_null` calls an object's `toString`.
+            | Helper::ToStringOrNull
             | Helper::EchoValue
             | Helper::Exit => true,
+            // `nvs_int_to_string`, `nvs_uint_to_string`,
+            // `nvs_float_to_string`, `nvs_bool_to_string` and
+            // `nvs_decimal_to_string` format a scalar.
             Helper::IntToString
             | Helper::UintToString
             | Helper::FloatToString
             | Helper::BoolToString
+            | Helper::DecimalToString
+            // `nvs_class_desc_name` and `nvs_class_constant` read the
+            // class descriptor.
             | Helper::ClassDescName
             | Helper::ClassConstant
+            // `nvs_type_check_failed`, `nvs_covariant_rejected`,
+            // `nvs_single_value_mismatch`, `nvs_property_path_mismatch` and
+            // `nvs_string_holes_mismatch` build a message from type names
+            // and strings.
             | Helper::TypeCheckFailed
             | Helper::CovariantRejected
+            | Helper::SingleValueMismatch
+            | Helper::PropertyPathMismatch
+            | Helper::StringHolesMismatch
+            // `nvs_covariant_property_checked` tests a type and a class name.
             | Helper::CovariantPropertyChecked
+            // `nvs_restricted_erased_act` scans a restriction list.
             | Helper::RestrictedErasedAct
+            // `nvs_late_init_running` reads a flag on the context.
             | Helper::LateInitRunning
+            // `nvs_int_truthy`, `nvs_uint_truthy`, `nvs_float_truthy`,
+            // `nvs_str_truthy`, `nvs_bytes_truthy`, `nvs_array_truthy`,
+            // `nvs_decimal_truthy` and `nvs_value_truthy` test a value
+            // without a call. Every object is true.
             | Helper::IntTruthy
             | Helper::UintTruthy
             | Helper::FloatTruthy
             | Helper::StrTruthy
             | Helper::BytesTruthy
             | Helper::ArrayTruthy
+            | Helper::DecimalTruthy
             | Helper::ValueTruthy
+            // `nvs_array_write_through`, `nvs_array_str_append_through` and
+            // `nvs_array_inout_write` store a value and release the one it
+            // replaces.
             | Helper::ArrayWriteThrough
             | Helper::ArrayStrAppendThrough
             | Helper::ArrayInoutWrite
+            // `nvs_guard_key_path` reads keys of the root array.
             | Helper::GuardKeyPath
-            | Helper::DecimalTruthy
+            // `nvs_decimal_add` to `nvs_decimal_cmp` are decimal arithmetic.
             | Helper::DecimalAdd
             | Helper::DecimalSub
             | Helper::DecimalMul
@@ -4612,6 +4654,9 @@ impl Helper {
             | Helper::DecimalLt
             | Helper::DecimalLtEq
             | Helper::DecimalCmp
+            // `nvs_int_to_uint` to `nvs_str_to_float`, `nvs_range_last` and
+            // `nvs_decimal_to_int` to `nvs_decimal_to_float` convert or
+            // parse a scalar.
             | Helper::IntToUint
             | Helper::UintToInt
             | Helper::RangeLast
@@ -4622,35 +4667,48 @@ impl Helper {
             | Helper::StrToInt
             | Helper::StrToUint
             | Helper::StrToFloat
-            | Helper::BytesToString
-            | Helper::ToIntOrNull
-            | Helper::ToUintOrNull
-            | Helper::ToFloatOrNull
-            | Helper::ToStringOrNull
-            | Helper::ToBytesOrNull
-            | Helper::ToDecimal
-            | Helper::ToDecimalOrNull
             | Helper::DecimalToInt
             | Helper::DecimalToUint
             | Helper::DecimalToFloat
-            | Helper::DecimalToString
+            // `nvs_bytes_to_string` checks UTF-8.
+            | Helper::BytesToString
+            // `nvs_to_int_or_null`, `nvs_to_uint_or_null`,
+            // `nvs_to_float_or_null`, `nvs_to_bytes_or_null`,
+            // `nvs_to_decimal`, `nvs_to_decimal_or_null`,
+            // `nvs_tagged_to_int`, `nvs_tagged_to_uint`,
+            // `nvs_tagged_to_float`, `nvs_tagged_widen_to_float` and
+            // `nvs_tagged_to_bytes` read a tag table with no object row.
+            | Helper::ToIntOrNull
+            | Helper::ToUintOrNull
+            | Helper::ToFloatOrNull
+            | Helper::ToBytesOrNull
+            | Helper::ToDecimal
+            | Helper::ToDecimalOrNull
             | Helper::TaggedToInt
             | Helper::TaggedToUint
             | Helper::TaggedToFloat
             | Helper::TaggedWidenToFloat
             | Helper::TaggedToBytes
+            // `nvs_to_array_of` and `nvs_to_array_of_or_null` walk element
+            // tags and widen numbers.
             | Helper::ToArrayOf
             | Helper::ToArrayOfOrNull
+            // `nvs_echo_str` and `nvs_echo_markup` write a string.
             | Helper::EchoStr
             | Helper::EchoMarkup
-            | Helper::SingleValueMismatch
+            // `nvs_property_path_valid` and `nvs_string_holes_valid` parse
+            // bytes.
             | Helper::PropertyPathValid
-            | Helper::PropertyPathMismatch
             | Helper::StringHolesValid
-            | Helper::StringHolesMismatch
+            // `nvs_clone_not_an_object` throws and releases its operand.
             | Helper::CloneOperandNotAnObject
+            // `nvs_clone_guard` reads a class flag.
             | Helper::CloneGuard
+            // `nvs_value_identical` compares objects by address, with no
+            // hook.
             | Helper::Identical
+            // `nvs_numeric_eq` to `nvs_numeric_cmp` and `nvs_value_lt` to
+            // `nvs_value_cmp` order numbers and booleans. An object throws.
             | Helper::NumericEq
             | Helper::NumericLt
             | Helper::NumericLtEq
@@ -4658,6 +4716,7 @@ impl Helper {
             | Helper::ValueLt
             | Helper::ValueLtEq
             | Helper::ValueCmp
+            // `nvs_value_add` to `nvs_value_bit_not` have numeric rows only.
             | Helper::ValueAdd
             | Helper::ValueSub
             | Helper::ValueMul
@@ -4671,10 +4730,14 @@ impl Helper {
             | Helper::ValueShr
             | Helper::ValueNeg
             | Helper::ValueBitNot
+            // `nvs_value_index_get`, `nvs_value_index_optional_get` and
+            // `nvs_value_to_array_key` read an entry or a key.
             | Helper::ValueIndexGet
             | Helper::ValueIndexOptionalGet
             | Helper::ValueToArrayKey
+            // `nvs_secret_eq` compares bytes.
             | Helper::SecretEq
+            // `nvs_callable_bind` copies a closure and sets its `this`.
             | Helper::BindCallable => false,
         }
     }

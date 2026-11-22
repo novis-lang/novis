@@ -1689,6 +1689,9 @@ pub struct ExprTypeTable {
     types: FxHashMap<Span, TypeId>,
     float_widened: FxHashSet<Span>,
     proven_callbacks: FxHashSet<Span>,
+    /// Call arguments that are arrays holding no object. See
+    /// [`Self::is_plain_array`].
+    plain_arrays: FxHashSet<Span>,
     /// Whether a call of `Core\Test::double` or `Core\Test::partial` was
     /// checked. See [`Self::makes_classes_at_run_time`].
     run_time_classes: bool,
@@ -1889,6 +1892,7 @@ impl ExprTypeTable {
             types,
             float_widened,
             proven_callbacks,
+            plain_arrays,
             run_time_classes,
             guarded_target_reads,
             covariant_writes,
@@ -1958,6 +1962,7 @@ impl ExprTypeTable {
         self.types.extend(types);
         self.float_widened.extend(float_widened);
         self.proven_callbacks.extend(proven_callbacks);
+        self.plain_arrays.extend(plain_arrays);
         self.run_time_classes |= run_time_classes;
         self.guarded_target_reads.extend(guarded_target_reads);
         self.covariant_writes.extend(covariant_writes);
@@ -2053,6 +2058,7 @@ impl ExprTypeTable {
         section("types", sorted(&self.types));
         section("float_widened", sorted(&self.float_widened));
         section("proven_callbacks", sorted(&self.proven_callbacks));
+        section("plain_arrays", sorted(&self.plain_arrays));
         if self.run_time_classes {
             section("run_time_classes", vec!["true".to_owned()]);
         }
@@ -3575,6 +3581,22 @@ impl ExprTypeTable {
     #[must_use]
     pub fn callback_is_proven(&self, span: Span) -> bool {
         self.proven_callbacks.contains(&span)
+    }
+
+    /// Records that the call argument at `span` is an array that holds no
+    /// object at any depth (`crate::expr::members::is_plain_array`).
+    pub(crate) fn record_plain_array(&mut self, span: Span) {
+        self.plain_arrays.insert(span);
+    }
+
+    /// Whether the call argument at `span` is an array that holds no object
+    /// at any depth. `nvs-ir` marks such an argument of a `Core` call, and
+    /// the ownership pass then knows the member runs no program code through
+    /// its elements. An argument not recorded counts as one that may hold an
+    /// object. One span per such argument, held for the compile.
+    #[must_use]
+    pub fn is_plain_array(&self, span: Span) -> bool {
+        self.plain_arrays.contains(&span)
     }
 
     /// Records that the level at `span` of a `??=` target is read guarded.

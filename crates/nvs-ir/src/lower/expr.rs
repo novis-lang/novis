@@ -1289,6 +1289,7 @@ impl<'a> Lowering<'a> {
                     args: vec![receiver],
                     subject: None,
                     proven: 0,
+                    plain: 0,
                 },
                 env,
             );
@@ -2759,6 +2760,7 @@ impl<'a> Lowering<'a> {
                 args: vec![spec, v],
                 subject: None,
                 proven: 0,
+                plain: 0,
             },
             env,
         );
@@ -2876,6 +2878,7 @@ impl<'a> Lowering<'a> {
                 args: vec![bytes],
                 subject: None,
                 proven: 0,
+                plain: 0,
             },
             env,
         );
@@ -2933,6 +2936,7 @@ impl<'a> Lowering<'a> {
                     args: vec![v],
                     subject: None,
                     proven: 0,
+                    plain: 0,
                 },
                 env,
             );
@@ -2977,6 +2981,7 @@ impl<'a> Lowering<'a> {
                 args: vec![part.value],
                 subject: None,
                 proven: 0,
+                plain: 0,
             },
             PartKind::Format(_) => panic!(
                 "nvs-ir: an html template hole lowered to a `Core\\Str::format` placeholder — \
@@ -3888,6 +3893,7 @@ impl<'a> Lowering<'a> {
                     args: values,
                     subject: None,
                     proven: 0,
+                    plain: 0,
                 },
                 env,
             );
@@ -4514,6 +4520,7 @@ impl<'a> Lowering<'a> {
                 args: call_args,
                 subject: None,
                 proven: 0,
+                plain: 0,
             },
             env,
         );
@@ -4629,6 +4636,7 @@ impl<'a> Lowering<'a> {
                 args: vec![handle],
                 subject: None,
                 proven: 0,
+                plain: 0,
             },
             env,
         );
@@ -4751,6 +4759,7 @@ impl<'a> Lowering<'a> {
                 args: lowered,
                 subject: None,
                 proven: 0,
+                plain: 0,
             },
             env,
         );
@@ -4858,6 +4867,7 @@ impl<'a> Lowering<'a> {
                 args: vec![object_v, label],
                 subject: None,
                 proven: 0,
+                plain: 0,
             },
             env,
         );
@@ -5089,6 +5099,7 @@ impl<'a> Lowering<'a> {
                     args: arg_values,
                     subject,
                     proven: 0,
+                    plain: 0,
                 },
                 env,
             );
@@ -5721,6 +5732,7 @@ impl<'a> Lowering<'a> {
         } else {
             0
         };
+        let plain = proven_bits(&arg_values, &lowered.plain);
         let result = self.emit_fallible(
             *cur,
             return_ty,
@@ -5729,6 +5741,7 @@ impl<'a> Lowering<'a> {
                 args: arg_values,
                 subject,
                 proven,
+                plain,
             },
             env,
         );
@@ -5859,6 +5872,7 @@ impl<'a> Lowering<'a> {
                 args: lowered.values,
                 subject: Some(0),
                 proven: 0,
+                plain: 0,
             },
             env,
         );
@@ -9032,9 +9046,9 @@ pub(super) fn enum_repr(backing: nvs_types::EnumBacking) -> Ty {
 /// [`Lowering::reinterpret_enum_to_backing`]'s reason — `nvs-codegen`'s binary
 /// operator table carries no [`Ty::Enum`] row. The tag test before it still
 /// reads the enum's own tag.
-/// The [`InstKind::CoreCall`] `proven` mask for `args`: bit `i` is set when
-/// `args[i]` is one of `proven`. A position past the mask's 32 bits stays
-/// checked.
+/// An [`InstKind::CoreCall`] mask for `args`, `proven` or `plain`: bit `i` is
+/// set when `args[i]` is one of `proven`. A position past the mask's 32 bits
+/// stays unmarked, so it keeps its check and counts as holding an object.
 fn proven_bits(args: &[ValueId], proven: &[ValueId]) -> u32 {
     args.iter()
         .enumerate()
