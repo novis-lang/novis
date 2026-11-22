@@ -213,6 +213,17 @@ jobs:
             esac
           fi
 
+      # The Windows binary keeps the protections a linker change could drop without any test seeing
+      # it: ASLR with high-entropy addresses, NX, the 8 MiB main-thread stack `crates/nvs-cli/build.rs`
+      # links, and the icon and version resource. It runs before the archive, so no release ships a
+      # binary that lacks one. `tools/nv/cmd/pe-flags.ts`'s header says why each matters.
+      - name: The Windows binary keeps its protections
+        if: matrix.target == 'x86_64-pc-windows-msvc'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: bun nv pe-flags --bin "target/$TARGET/release/nvs.exe"
+
       - name: Package
         shell: bash
         env:

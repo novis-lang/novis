@@ -6,7 +6,7 @@ context: [crates/nvs-cli/build.rs, rust-toolchain.toml]
 stages:
   - id: 1
     title: "bun nv pe-flags checks the protections of a Windows binary, and every Windows build runs it"
-    status: open
+    status: done
     context: [.github/workflows/build.yml, tools/nv/main.ts]
   - id: 2
     title: a local rebuild measures link.exe against rust-lld
@@ -127,13 +127,13 @@ names `--times`.
 
 ### 1. bun nv pe-flags checks the protections of a Windows binary, and every Windows build runs it
 
-- [ ] `tools/nv/cmd/pe-flags.ts:1`: the command, registered in `tools/nv/main.ts:69`, as the standing
+- [x] `tools/nv/cmd/pe-flags.ts:1`: the command, registered in `tools/nv/main.ts:69`, as the standing
   decision gives it. Its head comment names each flag and why each one matters.
-- [ ] `tools/nv/test/pe-flags.test.ts:1`: a header with every protection passes, and each missing one
+- [x] `tools/nv/test/pe-flags.test.ts:1`: a header with every protection passes, and each missing one
   is named. A file that is not PE32+ is refused with its reason. It runs once, by name.
-- [ ] `bun nv pe-flags --bin target/release/nvs.exe` passes on this machine's release binary, built
+- [x] `bun nv pe-flags --bin target/release/nvs.exe` passes on this machine's release binary, built
   by `bun nv relink --build` if it is older than the tree's last change to `crates/nvs-cli/build.rs`.
-- [ ] `.github/workflows/build.yml:1`: the Windows leg runs it before the archive step, with a comment
+- [x] `.github/workflows/build.yml:1`: the Windows leg runs it before the archive step, with a comment
   that says what it checks.
 
 ### 2. a local rebuild measures link.exe against rust-lld
@@ -180,13 +180,25 @@ Only when stage 2 adopted rust-lld.
 
 ### State
 
-Written from the CI review of 2026-11-21. Nothing is built or measured yet. Every design choice is
-above, under *Standing decisions*. The user's call is that a time saving with no trade-off beyond
-one-time work is taken. Everything else is the author's.
+Stage 1 is done in one session. `bun nv pe-flags --bin <path>` (`tools/nv/cmd/pe-flags.ts`) reads
+the PE32+ headers and names each missing protection. Its test `tools/nv/test/pe-flags.test.ts`
+passes, 6 of 6. The local `target/release/nvs.exe` passes it: it is newer than the last change to
+`crates/nvs-cli/build.rs`, so no relink was needed. `build.yml`'s step *The Windows binary keeps its
+protections* runs it on the Windows leg, after the version step and before *Package*. That step has
+not run in CI yet: stage 4's push is its first run. `bun nv ci --check` is green with all of it.
+
+The acceptance sweep's red, nightly `miri units (nvs-stdlib 2/12)` (run 44894790665), was
+`granularity::tests::both_walks_agree_on_every_window` timing out at 300 s. That run tested
+7e97fa8444, which is older than 156f11a7ca, the commit that cut its Miri reach to 2. The fix is
+already on origin/main, so nothing changed. The next nightly is the proof.
+
+Sessions per stage: stage 1, one. Stage 2, none yet.
 
 ### Next
 
-Stage 1 from its first item, once `ci-critical-path` is reached. The `pe-flags` check names a test
-that does not exist yet. It fails until stage 1 writes it.
+Stage 2 from its first item, at `docs/goals/windows-rust-lld.md` § *2. a local rebuild measures
+link.exe against rust-lld*. `bun nv disk` first: the probe does not start below 80 GB free. Then
+the two warm builds under `.agent-tmp/lld-probe/a` and `b`, and the measured order a, b, a, b, as
+the standing decision gives it. No test is expected to go red.
 
 ### Backlog
