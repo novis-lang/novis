@@ -11,8 +11,6 @@
 //! binary again as a child, which this crate's tests share their linker and
 //! profile with, and reads the child's stderr.
 
-use std::process::Command;
-
 /// Set in the child's environment, so only the child panics.
 const CHILD: &str = "NOVIS_PANIC_LOCATION_CHILD";
 
@@ -34,7 +32,8 @@ fn child_panics_when_asked() {
 #[test]
 fn a_panic_names_its_file_and_line() {
     let exe = std::env::current_exe().expect("the test binary knows its own path");
-    let out = Command::new(exe)
+    // The child is this test binary, and it opens nothing in the tree.
+    let out = nvs_repo::spawn(exe, &[])
         .args([
             "--exact",
             "child_panics_when_asked",
