@@ -30,7 +30,7 @@ stages:
     context: [website/src/data/changes.json]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: against-base
@@ -460,22 +460,35 @@ or `bytes`, one line each.
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of [prose.md](../agent/prose.md) § *A newcomer reads it* over the texts
+- [x] The newcomer review of [prose.md](../agent/prose.md) § *A newcomer reads it* over the texts
   stage 6 wrote.
-- [ ] `crates/nvs-lsp/tests/latency.rs` runs once, by name, and is green at its bound.
-- [ ] `bun nv against` once more on the final tree. Its figures go under `### State`, and
+- [x] `crates/nvs-lsp/tests/latency.rs` runs once, by name, and is green at its bound.
+- [x] `bun nv against` once more on the final tree. Its figures go under `### State`, and
   `.agent-tmp/against/` is deleted.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-The against base is in `.agent-tmp/against/base/`, from `1ec4cda0d4`, and stays until stage 7.
-Last `bun nv against`: 172 programs' IR differs only in source positions (the image component's
-source gained a line), with no instruction changed. Ten compile only in the new build, because they
-write `tainted bytes`, and two in neither (wording). Median check-time ratio 1.005.
+Stage 7 is done. `cargo test --test latency` is green at its bound (2 passed). The final
+`bun nv against`, on a release binary relinked from the tree, against the base from `1ec4cda0d4`:
+172 programs' IR differs, each only in source positions, or in a program that compiles only in the
+new build (it writes `tainted bytes`), or in one of 29 programs edited since the base that both
+builds lower alike. No instruction changed. Two programs' diagnostics differ, both failing in both
+builds, in wording only (the new sink help line, and `tainted string` as a `Throwable` message's
+type). `assertTrusted` 48 in the base, 48 now. Median check-time ratio 1.005 (budget 1.03).
+`.agent-tmp/against/` is deleted.
+
+`bun nv close --goal taint-fail-closed` is green. Its first run found what stage 6 left: rustfmt
+in `taint_every_form.rs`, `docs/rules/security.md` and `core.json` not rendered, the
+`Image-Image.md` chapter example and `apps/paperwork`'s `send` still writing plain `bytes` for an
+image or PDF result, 57 pages' search questions stale against the rendered data, two SQL `.err`
+snippets without the new help line, and six snippets with no `.tainted` for `$e->message`. Each
+is fixed, four search questions are added for the moved behaviour, and the tests this goal wrote
+(`text_class`, `taint_signatures`, `taint_every_form`, `launderer_matrix`, `against.test.ts`)
+pass by name.
 
 `assertTrusted`: 44 calls (`against` counts 48, with comments), none replaced. 18 show the method
 itself. The rest read the program's own text back through a decoder (Passkey challenge,
@@ -494,19 +507,16 @@ The base build counts the same, so the change is not this goal's. Four growth fa
 (`BigInt::compareTo`, `IO\Metadata::modifiedAt`, `Test::assertSame`, `Session::get`) passed on a
 second run. `bun nv proofs --gate --limit 0` is green over the whole roster, and stage 6 is done.
 
-Sessions per stage: 1: one. 2: one. 3: two. 4: two. 5: two. 6: two.
+Sessions per stage: 1: one. 2: one. 3: two. 4: two. 5: two. 6: two. 7: one.
 
 ### Next
 
-1. Stage 7. Its newcomer review is done for every text stage 6 wrote (36 keys, stamped). Run
-   `crates/nvs-lsp/tests/latency.rs` by name (`cargo test --test latency`), then `bun nv relink
-   --build` and `bun nv against` once more. Record the figures under `### State`, then delete
-   `.agent-tmp/against/` and run `bun nv close --goal taint-fail-closed`. The full gate runs at a
-   later goal of the chain.
+1. Nothing. Every stage is done and the goal's DONE is claimed. The full gate runs at a later goal
+   of the chain, and its `looper verify` is the first full run over this goal's work.
 
-Tests expected red: a test outside `tests/conformance` that pins the exact text of an `E0401` at a
-`Core` sink, and a test that pins the help text of a process output, `serverVersion`, `whoami` or
-`Image::raw` (none found by grep).
+Tests expected red at that full gate: a test outside `tests/conformance` that pins the exact text
+of an `E0401` at a `Core` sink, or the plain `bytes` type of an image, PDF or process result (none
+found by grep).
 
 ### Backlog
 
