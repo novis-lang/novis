@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `accountFlags` reads the flags of an account, as a program does before it lets a person log in.
 // bench: iterations 400000
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 // requires: samba-ad
 

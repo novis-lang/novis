@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `bytes` reads one binary value, as a program does to store an entry's `objectGUID`.
 // bench: iterations 400000
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 // requires: samba-ad
 

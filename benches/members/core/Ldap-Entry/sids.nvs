@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `sids` reads a user's security groups, as a program does to check what a user may do.
 // bench: iterations 200000
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 // requires: samba-ad
 

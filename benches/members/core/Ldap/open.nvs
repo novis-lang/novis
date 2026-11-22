@@ -2,7 +2,7 @@
 // Measures how fast `Core\Ldap::open` throws for a host that is not allowed.
 // A program meets this when a customer sets up the address of their own directory.
 // bench: iterations 20000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

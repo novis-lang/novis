@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `parent` finds the unit of an entry, as a program does when it shows where a user is.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

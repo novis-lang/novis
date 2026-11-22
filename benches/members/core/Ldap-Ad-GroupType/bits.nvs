@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `bits` returns the number of a group type, as a program does before it writes the number back.
 // bench: iterations 1000000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 

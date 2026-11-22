@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `Core\Ldap\Dn::of` makes a DN from a name, as a program does with a name from a form.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 3
 // bench: complexity constant
 
 class Bench

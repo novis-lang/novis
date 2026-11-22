@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `cookie` returns the cookie of a sync, as a program does to save it after the loop.
 // bench: iterations 200000
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 // requires: samba-ad
 

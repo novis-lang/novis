@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `toArray` returns every attribute of an entry, as a program does to show all of its fields.
 // bench: iterations 400000
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 // requires: samba-ad
 

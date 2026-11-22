@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `total` returns the count of a sorted search, as a program does to print a page number.
 // bench: iterations 400000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 

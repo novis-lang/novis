@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `delete` removes an entry, as a program does when it cleans up accounts it no longer needs.
 // bench: iterations 100
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 // requires: samba-ad
 

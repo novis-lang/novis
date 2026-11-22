@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `enabled` builds its filter and joins it with another, as a program does before it lists active users.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench

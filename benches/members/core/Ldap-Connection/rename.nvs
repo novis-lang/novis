@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `rename` gives an entry a new name, as an admin tool does when a team is renamed.
 // bench: iterations 200
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 

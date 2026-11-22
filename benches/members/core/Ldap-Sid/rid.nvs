@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `rid` reads the last number of a SID, as a program does to find a well-known group.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `compare` checks one value, as a program does when it tests a person's department.
 // bench: iterations 2000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 

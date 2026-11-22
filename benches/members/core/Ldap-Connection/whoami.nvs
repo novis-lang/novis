@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `whoami` returns the account, as a health check does before it reports.
 // bench: iterations 2000
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 // requires: samba-ad
 

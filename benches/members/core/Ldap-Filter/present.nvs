@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `Core\Ldap\Filter::present` builds a filter, as a program does to find the entries with a mail address.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

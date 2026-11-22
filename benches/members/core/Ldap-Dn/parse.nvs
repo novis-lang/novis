@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `Core\Ldap\Dn::parse` reads a short DN, as a program does with a search base from its settings.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `Core\Ldap\Filter::all` combines two filters, as a login page does to find one user account.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

@@ -2,7 +2,7 @@
 // Measures how fast `Core\Ldap::connect` throws for a name that is not allowed.
 // A program meets this when it takes the directory name from a request.
 // bench: iterations 20000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

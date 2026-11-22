@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `add` writes a new unit with a description, as a program does when it creates a team.
 // bench: iterations 100
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 // requires: samba-ad
 

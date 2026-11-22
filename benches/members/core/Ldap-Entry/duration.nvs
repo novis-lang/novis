@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `duration` reads one length of time, as a program does to say when a password expires.
 // bench: iterations 400000
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 // requires: samba-ad
 

@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `Core\Ldap\Filter::parse` reads a short filter, as a program does with a filter from its settings.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

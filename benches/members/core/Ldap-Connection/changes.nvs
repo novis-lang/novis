@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `changes` checks for changes with a cookie, as a sync job does each time it runs.
 // bench: iterations 200
-// bench: calls 2
+// bench: calls 5
 // bench: complexity constant
 // requires: samba-ad
 

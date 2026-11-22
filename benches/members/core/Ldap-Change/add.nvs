@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `add` builds a change, as a program does before it sends a `modify`.
 // bench: iterations 200000
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench

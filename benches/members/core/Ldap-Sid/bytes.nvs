@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `bytes` returns the binary form of a SID, as a program does to compare it with `objectSid`.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench

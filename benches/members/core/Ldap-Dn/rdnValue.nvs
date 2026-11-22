@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `rdnValue` reads the name of an entry, as a program does when it shows a list of users.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench

@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `strings` reads every value of an attribute, as a program does to list a group's members.
 // bench: iterations 200000
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 // requires: samba-ad
 

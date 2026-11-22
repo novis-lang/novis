@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `authenticate` checks a login and password, as a login page does for each visitor.
 // bench: iterations 10
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 

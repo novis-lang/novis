@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `memberOf` builds a group filter, as a program does before it lists a group's members.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

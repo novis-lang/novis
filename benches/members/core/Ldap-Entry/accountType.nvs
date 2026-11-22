@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `accountType` reads what kind of account an entry is, as a program does to keep only people.
 // bench: iterations 400000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 

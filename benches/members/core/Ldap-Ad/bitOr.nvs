@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `bitOr` builds a bit filter, as a program does to find accounts with one of several settings.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 
 class Bench

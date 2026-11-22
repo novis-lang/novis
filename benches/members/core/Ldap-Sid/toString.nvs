@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `toString` writes a SID as text, as a program does to show or log it.
 // bench: iterations 100000
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 
 class Bench

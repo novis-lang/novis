@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `read` returns one entry, as a program does when it shows a person's profile.
 // bench: iterations 2000
-// bench: calls 0
+// bench: calls 3
 // bench: complexity constant
 // requires: samba-ad
 

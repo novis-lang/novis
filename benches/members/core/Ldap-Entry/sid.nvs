@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `sid` reads one SID, as a program does to find the account behind a user.
 // bench: iterations 400000
-// bench: calls 0
+// bench: calls 1
 // bench: complexity constant
 // requires: samba-ad
 

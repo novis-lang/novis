@@ -1,7 +1,7 @@
 <?nvs
 // Measures how fast `with` makes a changed copy of an account's flags, as a program does before it disables an account.
 // bench: iterations 400000
-// bench: calls 0
+// bench: calls 2
 // bench: complexity constant
 // requires: samba-ad
 
