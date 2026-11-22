@@ -18,7 +18,7 @@ stages:
     context: [.github/workflows/build.yml]
   - id: 4
     title: "the layout is pushed, its run is green, and its times are recorded"
-    status: open
+    status: done
     context: [docs/goals/ci-green.md]
   - id: 5
     title: the slowest proof programs wait only where the wait is what they prove
@@ -220,10 +220,10 @@ proofs --help` both name their new flags.
 
 - [x] `bun nv ci --check`, then `bun nv ci --push`. Then `bun nv ci --watch --next` with
   `run_in_background` and a timeout of 7200000, and end the turn.
-- [ ] A red job is fixed as `ci-green`'s decisions say, one push for every fix of a run. A red job the
+- [x] A red job is fixed as `ci-green`'s decisions say, one push for every fix of a run. A red job the
   layout causes gets one fix, and if it is still red it is reverted for that job.
-- [ ] `bun nv ci --green` exits 0.
-- [ ] `bun nv ci --times` on that run: the table in the handoff's `### State`, with the baseline's
+- [x] `bun nv ci --green` exits 0.
+- [x] `bun nv ci --times` on that run: the table in the handoff's `### State`, with the baseline's
   ending minute beside each job, and the two Windows proofs parts' run times.
 
 ### 5. the slowest proof programs wait only where the wait is what they prove
@@ -252,13 +252,13 @@ session builds once they end and runs the changed programs by name.
 
 ### State
 
-Stages 1 to 3 are done, one session each. Stage 4 is on its second session.
+Stages 1 to 3 are done, one session each. Stage 4 is done, in two sessions.
 
-- Push 1, `4fa7a9fcc`, run 44957146195: red in one job, `test / macos-aarch64 (tests)`. Its `cargo
-  test` step failed `nvs-host` `net::tests::a_short_read_that_came_with_a_hang_up_reads_once_more`: the
-  test waited for the bytes, and the peer's FIN reached the socket after them. Not the layout. Fixed
-  by `67ad97ac87`, which waits on a second poll for the hang-up itself; green on Windows and WSL.
-- Push 2 carries that fix and this handoff. Its run's verdict is not written here yet.
+- Push 1, run 44957146195: red only in a racy `nvs-host` hang-up test, fixed by `67ad97ac87`.
+- Push 2, `0adafda88`, run 44980678443: green, and `bun nv ci --green` exits 0. It ended at 53.9 min, last `proofs / linux-x86_64` with a run of 53.8 (31.6 in the baseline, 34.2
+  in push 1). Windows proofs part 1 41.5, part 2 40.6, 0.9 apart. `test / windows-x86_64 (tests
+  2/3)` 33.7, `(tests 1/3)` 25.8, `(tests 3/3)` 29.4. `test / macos-aarch64 (tests)` 26.4, waited
+  0.1. Build legs end by 28.5 (windows). The Linux proofs leg alone holds the run open.
 - The layout's times, push 1 against the baseline 44940832132 (end minute, new / baseline): the run
   ended at 39.3 / 45.9. `proofs / windows-x86_64` 30.7 (part 1/2, run 30.6) and 24.8 (part 2/2, run
   24.7) / 45.9 in one part. `test / windows-x86_64 (tests 2/3)` 26.9 / 30.4, `(tests 1/3)` 34.1 /
@@ -266,18 +266,15 @@ Stages 1 to 3 are done, one session each. Stage 4 is on its second session.
   6.7. `test / macos-aarch64 (conformance)` 37.5 / 16.2. `proofs / macos-aarch64` 39.3, last / 40.0.
   `proofs / linux-x86_64` 34.2 / 31.6. Build legs: macos 26.8 (waited 10.3) / 20.1, windows 24.5 /
   21.1, linux-x86_64 20.1 / 11.5, linux-aarch64 17.4 / 9.3. Every build leg ends before the last job.
-- The two Windows proofs parts differ by 5.9 minutes, over the 3 the `--part` decision allows. Its
-  safe default holds: the split is left as it is, and the figures are here.
-- `miri units (nvs-stdlib 2/12)` on nightly 44894790665 was a timeout, fixed by `156f11a7ca`, which
-  is on `origin/main`. Push runs since then are green in that job.
+- Push 1's Windows proofs parts differ by 5.9 min, over the decision's 3; its safe default leaves it.
+- Nightly 44894790665's Miri timeout is fixed by `156f11a7ca`, on `origin/main`.
 - `website/src/data/roadmap.json` lists `ci-critical-path` and `windows-rust-lld` as `internal`.
 
 ### Next
 
-Stage 4 goes on. If push 2's verdict is not written here, run `bun nv ci --watch` on its run with
-`run_in_background` and a timeout of 7200000, and end the turn. When it is green, `bun nv ci --green`,
-then `bun nv ci --times` on it: refresh the figures above, tick stage 4's items and set its status to
-done. A red job: one fix, one push, as `ci-green`'s decisions say. Then stage 5, which reads that
-run's `proof-times-*` artifacts. No test is expected to go red.
+Stage 5. Its runs: 44980678443 (push 2, `proofs / linux-x86_64` 53.8 min) and 44957146195 (push 1,
+34.2 min). `gh run download 44980678443 -p 'proof-times-*' -D .agent-tmp/proof-times/`, then follow
+stage 5's items. Look first at why the Linux leg ran 53.8 in one run and 34.2 in the other: the
+same slow programs, or a wait that only sometimes runs long. No test is expected to go red.
 
 ### Backlog
