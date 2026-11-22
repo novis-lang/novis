@@ -6,7 +6,7 @@
 
 final class Report
 {
-    public static function rowsIn(string $document, uint $depth): string
+    public static function rowsIn(string $document, uint $depth): tainted string
     {
         try {
             var $rows = Core\Json::decode($document, { maxDepth: $depth });

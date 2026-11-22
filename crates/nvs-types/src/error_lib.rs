@@ -228,14 +228,20 @@ fn issue_shape(interner: &mut TypeInterner) -> TypeId {
 }
 
 /// `Throwable`'s four readonly properties.
+///
+/// `message` is `tainted string` (`rule:security/taint-propagation`): the
+/// runtime writes input text into some messages, such as the repeated key
+/// that `Core\Json::decode` names. `location` and `backtrace` name places in
+/// the program, so they are plain.
 fn root_properties(interner: &mut TypeInterner) -> FxHashMap<String, TypeId> {
     let string = interner.string();
+    let message = interner.tainted_string();
     let throwable = interner.class(QName::parse(ROOT));
     let null = interner.null();
     let previous = interner.make_union([throwable, null]);
     let backtrace = interner.array(string);
     let by_name: FxHashMap<&str, TypeId> = [
-        ("message", string),
+        ("message", message),
         ("previous", previous),
         ("backtrace", backtrace),
         ("location", string),
@@ -274,8 +280,11 @@ fn root_properties(interner: &mut TypeInterner) -> FxHashMap<String, TypeId> {
 /// The same signature for every class that declares one: a subclass's
 /// synthesized body differs only in which slots it fills, never in what a
 /// `new` writes at the call site.
+///
+/// `$message` is `tainted string`, as the property it fills is, so a program
+/// can put another error's message in a new one.
 fn constructor(interner: &mut TypeInterner) -> FxHashMap<String, MethodSig> {
-    let string = interner.string();
+    let string = interner.tainted_string();
     let void = interner.void();
     let throwable = interner.class(QName::parse(ROOT));
     let null = interner.null();
@@ -373,7 +382,7 @@ mod tests {
 
         let ty = resolve_property(&QName::parse("TimeoutError"), "message", &table, &graph)
             .expect("`message` resolves through the seeded links");
-        assert_eq!(interner.describe(ty), "string");
+        assert_eq!(interner.describe(ty), "tainted string");
         let backtrace = resolve_property(&QName::parse("IOError"), "backtrace", &table, &graph)
             .expect("`backtrace` resolves through the seeded links");
         assert_eq!(interner.describe(backtrace), "array<string>");

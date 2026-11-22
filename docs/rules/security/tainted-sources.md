@@ -18,6 +18,14 @@ and like a status code it carries nothing a sink can misread. **A file read thro
 keeps uploads as plain files chose the folder an upload lands in. An upload itself is `tainted` where
 it enters, through `Core\Request\Part`.
 
+**An error's message is `tainted`.** `Throwable::$message` is `tainted string`, and so is the
+constructor's `$message`, so a program can wrap one error's message in another. The runtime writes
+input text into some messages: `Core\Json::decode` names a repeated key of the document. Proving each
+message clean would rest on every future message leaving input out, which no check holds.
+`$e->location` and `$e->backtrace` name places in the program and stay plain, and so do a
+`Core\Issue`'s `path` and `message`, which a decoder writes only from the declared keys, positions and
+fixed words.
+
 **A request field is read as text, and typed at the accessor.** `Core\Request::query` and `::post`
 answer one field as `?tainted string` — `null` for a name that is absent and for one written with
 brackets — and `::queryArray` and `::postArray` answer a bracketed name's one level of values as

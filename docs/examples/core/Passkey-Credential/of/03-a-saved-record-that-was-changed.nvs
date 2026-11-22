@@ -4,7 +4,7 @@
 class Load
 {
     // Creates the passkey. If a value is wrong, it returns the error message.
-    public static function check(bytes $id, bytes $publicKey, Core\Passkey\Credential::Algorithm $algorithm, int $signCount): string
+    public static function check(bytes $id, bytes $publicKey, Core\Passkey\Credential::Algorithm $algorithm, int $signCount): tainted string
     {
         try {
             Core\Passkey\Credential::of($id, $publicKey, $algorithm, $signCount);

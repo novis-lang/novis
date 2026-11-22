@@ -6,7 +6,7 @@
 
 final class Handler
 {
-    public static function reply(string $path): string
+    public static function reply(string $path): tainted string
     {
         try {
             if ($path == '/orders') {
@@ -40,6 +40,6 @@ final class Handler
 
 array<string> $paths = ['/', '/orders', '/export', '/admin', '/legacy'];
 foreach ($paths as string $path) {
-    string $status = Handler::reply($path);
+    tainted string $status = Handler::reply($path);
     echo $path, ' -> ', $status, "\n";
 }

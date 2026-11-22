@@ -20,7 +20,7 @@ final class Delivery
         return 'accepted';
     }
 
-    public static function withRetries(string $parcel): string
+    public static function withRetries(string $parcel): tainted string
     {
         int $attempt = 1;
         while ($attempt <= 3) {
@@ -43,7 +43,7 @@ echo 'flaky: ', Delivery::withRetries('flaky'), "\n";
 // The bug is not retried. It leaves the loop on the first attempt and reaches
 // whoever is responsible for fixing it.
 try {
-    string $labelled = Delivery::withRetries('misaddressed');
+    tainted string $labelled = Delivery::withRetries('misaddressed');
     echo 'misaddressed: ', $labelled, "\n";
 } catch (LogicError $ourBug) {
     echo 'misaddressed: not retried, ', $ourBug->message, "\n";

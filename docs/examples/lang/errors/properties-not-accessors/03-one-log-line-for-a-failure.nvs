@@ -26,7 +26,8 @@ final class Checkout
 try {
     echo Checkout::pay('4021'), "\n";
 } catch (Throwable $failed) {
-    string $line = $failed->message . ' at ' . $failed->location;
+    // A message can contain text from the input, so it is `tainted string`.
+    tainted string $line = $failed->message . ' at ' . $failed->location;
     var $cause = $failed->previous;
     bool $more = true;
     while ($more) {

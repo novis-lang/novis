@@ -6,7 +6,7 @@
 
 final class Intake
 {
-    public static function step(string $stage): string
+    public static function step(string $stage): tainted string
     {
         try {
             if ($stage == 'upload') {

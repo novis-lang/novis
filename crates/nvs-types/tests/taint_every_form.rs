@@ -327,6 +327,24 @@ fn judge(label: &str, src: &str, outside: bool) -> Option<String> {
     None
 }
 
+/// `Core\Json::decode` writes a repeated key of the document into its
+/// error's message, so every `Throwable::$message` is `tainted string`. The
+/// constructor takes one, so a program can wrap another error's message.
+#[test]
+fn a_throwable_message_is_tainted_and_a_new_error_takes_one() {
+    let keep = in_method!(
+        "    try { echo $t; } catch (RuntimeError $e) {\n      string $m = $e->message;\n    }"
+    );
+    assert!(names_taint(&check_src(&program(keep, "string"))));
+
+    let wrap = in_method!(
+        "    try { echo $t; } catch (RuntimeError $e) {\n      \
+         throw new LogicError('failed: ' . $e->message);\n    }"
+    );
+    let diags = check_src(&program(wrap, "string"));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
 #[test]
 fn every_expression_kind_has_a_row() {
     let missing: Vec<&str> = ExprKind::NAMES
