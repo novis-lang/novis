@@ -3608,7 +3608,17 @@ mod tests {
     /// the behaviour holds on every runner.
     #[test]
     fn a_short_read_that_came_with_a_hang_up_reads_once_more() {
-        let (mut server, mut client) = connected_pair();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("the OS refused a port");
+        let addr = listener
+            .local_addr()
+            .expect("a bound listener had no address");
+        let mut client =
+            std::net::TcpStream::connect(addr).expect("the loopback refused a connection");
+        let (accepted, _) = listener.accept().expect("the accept failed");
+        let watch = accepted
+            .try_clone()
+            .expect("the OS refused a second handle");
+        let mut server = NvsTcp::from_std(accepted).expect("the socket refused non-blocking mode");
         let mut sched = Scheduler::new();
         let _installed = install(Reactor::new().expect("the OS refused a poll"));
         let seen = Rc::new(RefCell::new(Vec::new()));
@@ -3624,11 +3634,10 @@ mod tests {
                 .shutdown(std::net::Shutdown::Write)
                 .expect("the shutdown failed");
             // Both are on the socket before the reactor polls, so one event
-            // reports them together.
-            let mut probe = [0_u8; 2];
-            while !matches!(server.inner.peek(&mut probe), Ok(2)) {
-                std::thread::sleep(Duration::from_millis(1));
-            }
+            // reports them together. The hang-up can reach the socket after
+            // the bytes, so the wait is for the hang-up, which TCP delivers
+            // after them.
+            wait_for_hang_up(watch);
             let _ = suspend_current(Waiting::Parked);
             for _ in 0..2 {
                 let answer = match server.poll_read(&mut buf) {
@@ -3644,5 +3653,25 @@ mod tests {
             vec![Some(2), Some(0)],
             "the read after the short one did not find the end of the stream"
         );
+    }
+
+    /// Blocks until `watch`, a second handle on a socket, reports the peer's
+    /// hang-up. It registers with a poll of its own, because the test's
+    /// reactor must see the socket's events first. A new registration
+    /// reports the socket's state at once, and a later hang-up raises an
+    /// event, so the wait is on events alone.
+    fn wait_for_hang_up(watch: std::net::TcpStream) {
+        let mut watch = mio::net::TcpStream::from_std(watch);
+        let mut poll = MioPoll::new().expect("the OS refused a poll");
+        poll.registry()
+            .register(&mut watch, Token(0), mio::Interest::READABLE)
+            .expect("the OS refused the registration");
+        let mut events = Events::with_capacity(4);
+        loop {
+            poll.poll(&mut events, None).expect("the poll failed");
+            if events.iter().any(mio::event::Event::is_read_closed) {
+                return;
+            }
+        }
     }
 }
