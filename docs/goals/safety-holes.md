@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md, crates/nvs-ir/src/lower/operand.rs]
   - id: 2
     title: "every helper's effect row matches what its runtime body runs"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/effects.rs, crates/nvs-ir/src/ownership/lent.rs]
   - id: 3
     title: a test build refuses a function whose borrowed value outlives the move of its owner
@@ -184,6 +184,19 @@ an instruction that consumes the value it was read from. A missing row in its li
 instructions is a missed check, never a wrong program, which is why this knowledge may live here and
 not in the pass. It costs nothing in a release build.
 
+**A call that may park counts as writing anything.** Stage 2 read the scheduler: a
+`Core\Task::all` group's callables are children on the same core and share the request's objects and
+static properties, so a sibling runs while a task waits. `effects::may_park` names every `Core` call
+outside `Core\Str`, `Core\Math`, `Core\Arr` and `Core\Regex`, and such a call makes a summary
+"anything". Reason: one prefix list, safe by default for a class added later. It costs the lend on a
+callee that does I/O, which then copies at its change. Declined: a "may suspend" bit per member in the
+registry. A missing bit would be a use after free.
+
+**A release is not program code in an effect row.** A helper that reaches program code only through a
+release stays `false`, as `InstKind::Release` does. Reason: the rows describe a call, and a release
+is everywhere; the one release that runs program code, a suspended generator's `finally`, is a
+question for every release and is in `### Backlog`.
+
 **Hole 3: one walk for a decode target, and it steps through shapes.** The walks that hold a decoded
 class to `E0810`, `E0820` and codec membership step into a shape's fields, an array's element and a
 nullable, at any depth, and a shape at the root records its site. Every typed decoder is covered:
@@ -251,21 +264,27 @@ an element or a property unretained, as `file.rs:NN` and whether it calls `later
 the runtime function and whether it can reach `convert_to_string`, `call_method`, a compare, an encode
 or a clone. The session decides each row from that list.
 
-- [ ] `crates/nvs-ir/src/ir.rs:4629`: `ToStringOrNull` is `true`, and so is every helper the list
+- [x] `crates/nvs-ir/src/ir.rs:4629`: `ToStringOrNull` is `true`, and so is every helper the list
   shows reaching program code. Each row left `false` names its runtime function in a comment.
   `rule:types/a-replaced-value-is-changed-in-place`
-- [ ] `crates/nvs-ir/src/effects.rs:256`: `takes_an_object` reads an array argument's element type, as
+  - [x] The reader's list: `ToStringOrNull` is the one helper that calls program code.
+  - [x] Four helpers reach it only by a release; they stay `false`, as `Release` does.
+- [x] `crates/nvs-ir/src/effects.rs:256`: `takes_an_object` reads an array argument's element type, as
   the standing decision says.
-- [ ] `crates/nvs-host/src/scheduler.rs:1268`: the suspension question is settled by reading, and
+  - [x] The checker records a plain array argument (`ExprTypeTable::is_plain_array`).
+  - [x] `CoreCall` carries a `plain` mask, and `object_operands` counts every other array.
+  - [x] `callbacks_are_quiet` refuses a lent subject that may hold objects.
+- [x] `crates/nvs-host/src/scheduler.rs:1268`: the suspension question is settled by reading, and
   either `crates/nvs-ir/src/ownership.rs:1691` (`quiet`) refuses a member that can park, or the rule
   fragment gains its one sentence.
-- [ ] `crates/nvs-codegen/tests/helper_effects.rs:1`: the program of § *Why* 2, then one case per
+  - [x] Yes: `effects::may_park`, read by `of_inst`, `quiet` and `callbacks_are_quiet`.
+- [x] `crates/nvs-codegen/tests/helper_effects.rs:1`: the program of § *Why* 2, then one case per
   helper moved to `true`, one for a `Core` member whose array holds objects with a hook that replaces
   the lent value, and one for a `Core\Task::all` pair if the suspension answer was yes. Each runs both
   ways. It runs once, by name.
-- [ ] `tests/conformance/in-place/a-conversion-that-runs-tostring-does-not-free-a-lent-array.nvst:1`.
-- [ ] `docs/rules/types/a-replaced-value-is-changed-in-place.md:57`: what a quiet call is, as built.
-- [ ] `cargo build` and clippy are green.
+- [x] `tests/conformance/in-place/a-conversion-that-runs-tostring-does-not-free-a-lent-array.nvst:1`.
+- [x] `docs/rules/types/a-replaced-value-is-changed-in-place.md:57`: what a quiet call is, as built.
+- [x] `cargo build` and clippy are green.
 
 ### 3. a test build refuses a function whose borrowed value outlives the move of its owner
 
@@ -354,19 +373,33 @@ conformance case passed once. The nightly Miri timeout of
 `granularity::tests::both_walks_agree_on_every_window` was a slow test, not undefined behaviour; it
 now walks a reach of 1 over six texts under Miri.
 
-Sessions per stage: stage 1, one.
+Stage 2 is done. `Helper::ToStringOrNull` is `true`, and every `false` row of `may_run_user_code`
+(`crates/nvs-ir/src/ir.rs`) names its runtime function. The checker records each call argument that
+is an array holding no object (`ExprTypeTable::is_plain_array`), the lowering turns it into
+`CoreCall::plain`, and `effects::object_operands` counts every other array argument of a `Core` call.
+`effects::may_park` makes a `Core` call outside `Str`, `Math`, `Arr` and `Regex` "anything".
+`cargo test --test helper_effects` passed once, four cases. The new conformance case passed once. The
+acceptance sweep's Miri failure ran on a commit before `709a1947b2`, which already fixed it.
+
+Sessions per stage: stage 1, one; stage 2, one.
 
 ### Next
 
-Stage 2 from its first item: read the body of every helper in the `false` arm of
-`may_run_user_code` (`crates/nvs-ir/src/ir.rs:4629`), starting with `Helper::ToStringOrNull`, whose
-body calls `convert_to_string` (`crates/nvs-runtime/src/helpers.rs:2398`). Then `takes_an_object`
-(`crates/nvs-ir/src/effects.rs:256`) for array element types, then the scheduler question of the
-standing decision. Write `crates/nvs-codegen/tests/helper_effects.rs` from the program of § *Why* 2.
+Stage 3 from its first item: the borrow verifier beside `releases_after`
+(`crates/nvs-ir/src/ownership.rs:2008`), behind `cfg(any(test, debug_assertions))`, as the standing
+decision says. Then `crates/nvs-codegen/tests/borrow_verifier.rs` with a hand-built function.
 
 Tests expected to go red at the gate: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` that
 hold an expression where a later operand passes on the local an earlier operand read. Each gains a
-`retain` and `release` pair and is accepted. The conformance case has no `// covers:` marker yet;
-stage 6 adds it with the change entry.
+`retain` and `release` pair and is accepted. Snapshots and ownership unit tests that lend a slot to a
+`Core` call given an array of non-scalars, or to a callee that calls a `Core` member outside `Str`,
+`Math`, `Arr` and `Regex`, now keep the retain; each is accepted where the array may hold an object or
+the callee may park. Neither conformance case has a `// covers:` marker yet; stage 6 adds them with
+the change entries.
 
 ### Backlog
+
+- A release of the last reference to a suspended generator runs its `finally` bodies
+  (`crates/nvs-runtime/src/object.rs:5126`, `unwind_abandoned`). An `InstKind::Release` counts as no
+  program code, so a lend may cross a release that runs a `finally` which writes the lent slot. Found
+  by stage 2's reader; not reproduced.
