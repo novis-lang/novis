@@ -487,15 +487,17 @@ tainted text.
 238 stale texts are reread and stamped, and the newcomer review of 36 changed texts is done.
 `site --check stale`, `changes` and `review` are green. Decision `d14` is closed (option 1).
 
-Perf: stage 3 made 1062 features perf-stale. `--record-perf` ran on them (`.agent-tmp/perf.txt`).
+Perf: stage 3 made 1062 features perf-stale, and none is recorded yet. A run takes about 15 s a
+feature and writes the ledger only when it ends, so one run of all 1062 would pass the 2-hour bound.
 
 Sessions per stage: 1: one. 2: one. 3: two. 4: two. 5: two. 6: one.
 
 ### Next
 
-1. **Perf.** `bun nv proofs --gate --limit 0 --nvs target/release/nvs.exe`, grep `perf: stale`,
-   and record what is left with `xargs -d '\n' -a <list> bun nv proofs --record-perf --nvs
-   target/release/nvs.exe --only`. A `calibration did not measure anything` line means the machine
+1. **Perf.** `bun nv relink --build`, then `bun nv proofs --gate --limit 0 --nvs
+   target/release/nvs.exe`, grep `perf: stale`, and record the list in runs of 100 features
+   (`xargs -d '\n' -n 100 -a <list> bun nv proofs --record-perf --nvs target/release/nvs.exe
+   --only`), in the background, with no build or test beside it. A `calibration did not measure anything` line means the machine
    was busy, so rerun that class alone. Then tick stage 6's `proofs --owed` item, and set stage 6 to
    `done` once `bun nv proofs --gate --goal taint-fail-closed` is green.
 2. Stage 7. Its newcomer review is done for every text stage 6 wrote (36 keys, stamped). Then

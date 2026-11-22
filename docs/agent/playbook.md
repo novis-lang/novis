@@ -413,6 +413,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   `bun nv proofs --gate --limit 0`'s list and give each its own `--group`
   (`tools/nv/cmd/proofs.ts`).
   `until: gone tools/nv/cmd/proofs.ts:--group`
+- **`--record-perf` writes the ledger only when its run ends, so a run that is killed keeps
+  nothing.** One run over 1062 features takes about four hours, and a background command stops at
+  two. Record with `xargs -n 100`, so each run of 100 writes its figures. See
+  `tools/nv/proofs/perf.ts` `writeLedger`.
 - **A stale perf figure refuses every goal's DONE, whoever made it stale.** The floor check
   `ci-check` runs `bun nv proofs --gate`, so a handoff that leaves another session's stale `arr.rs` figures to them gets its
   DONE refused. Before `DONE`, run `bun nv proofs --gate --limit 0` and record each class it names.
