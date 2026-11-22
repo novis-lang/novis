@@ -6,7 +6,7 @@ context: [docs/rules/security/taint-propagation.md, docs/rules/security/tainted-
 stages:
   - id: 1
     title: "the request path's IR and the checker's time have a baseline, and one command compares a build against it"
-    status: open
+    status: done
     context: [tools/nv/cmd/start-cost.ts, docs/rules/testing/perf-two-mechanisms.md]
   - id: 2
     title: "one exhaustive classifier decides every taint walk, and a type it does not recognise counts as tainted"
@@ -228,16 +228,16 @@ deleted.
 
 ### 1. the request path's IR and the checker's time have a baseline, and one command compares a build against it
 
-- [ ] `tools/nv/cmd/against.ts:1`: `--record` and the compare, as the standing decision gives them.
+- [x] `tools/nv/cmd/against.ts:1`: `--record` and the compare, as the standing decision gives them.
   The help text follows `docs/agent/conventions.md` § *An `nvs` command*. The command finds programs
   with `Glob`-style walks over the two folders, and uses one `nvs check` and one `nvs run --dump-ir`
   per program.
-- [ ] `tools/nv/test/against.test.ts:1`: a record of the current binary, then a compare of that same
+- [x] `tools/nv/test/against.test.ts:1`: a record of the current binary, then a compare of that same
   binary against it, prints no IR difference, no diagnostic difference and a ratio between 0.9 and
   1.1. It runs once, by name.
-- [ ] `bun nv relink --build`, then `bun nv against --record` on the commit before stage 2. The
+- [x] `bun nv relink --build`, then `bun nv against --record` on the commit before stage 2. The
   commit, the corpus size and the `assertTrusted` count go under `### State`.
-- [ ] `docs/agent/commands.md`: one line for `bun nv against` in its table.
+- [x] `docs/agent/commands.md`: one line for `bun nv against` in its table.
 
 ### 2. one exhaustive classifier decides every taint walk, and a type it does not recognise counts as tainted
 
@@ -367,15 +367,25 @@ or `bytes`, one line each.
 
 ### State
 
-Nothing is built. The figures of § *Why* were read on 2026-11-22 from `main` at `06cb4bfb05`, and the
-`encodeComponent` probe ran on the release binary of that day.
+Stage 1 is done. `bun nv against` (`tools/nv/cmd/against.ts`) records and compares, and
+`tools/nv/test/against.test.ts` is green, run once by name.
 
-Sessions per stage: none yet.
+The base is recorded in `.agent-tmp/against/base/`, from the release binary of `main` at `1ec4cda0d4`.
+The corpus is 6687 programs, and every one dumped the same IR and diagnostics twice. The
+`assertTrusted` budget is 48 calls: 35 `assertTrusted` and 13 `assertTrustedBytes`. That matches the
+figure of § *Why*, so the count takes both members. The base must stay on disk until stage 7, so no
+session deletes `.agent-tmp/against/` before then. If it is lost, record it again from `1ec4cda0d4`
+in a worktree, never from a tree stage 2 changed.
+
+A compare takes about three minutes for the dumps and about a minute for the timing at 5 rounds.
+
+Sessions per stage: 1: one.
 
 ### Next
 
-Stage 1 from its first item, at `tools/nv/cmd/against.ts:1`. Read `tools/nv/cmd/start-cost.ts` for how
-a `bun nv` command finds and runs the release binary, then write the record and the compare. No test
-is expected to go red.
+Stage 2 from its **Split:** line: an `Explore` subagent lists every `Ty` variant in
+`crates/nvs-types/src/ty.rs`. Then write `text_class` at `crates/nvs-types/src/expr/quals.rs:1`, and
+take the items in order. Stage 3 may run beside it as a side goal. No test is expected to go red in
+stage 2. Its last item runs `bun nv relink --build` and `bun nv against`.
 
 ### Backlog

@@ -563,6 +563,15 @@ bun nv bench --warm-start --max-work-ms 9    # what CI runs: the empty program's
 `bun nv bench` measures this one figure, and `tools/nv/cmd/bench.ts` owns its bounds. Nothing here
 builds: the release binary on disk is the binary that runs, and a `target/debug/` one is refused by name.
 
+## A checker change against a base build
+
+```sh
+bun nv against --record    # copy target/release/nvs as the base, and dump the corpus twice
+bun nv against             # the current build's IR, diagnostics and check time against the base
+```
+
+`tools/nv/cmd/against.ts` owns the corpus, the budget and what it prints.
+
 ## The server's throughput, in two legs that are not one series
 
 ```sh
