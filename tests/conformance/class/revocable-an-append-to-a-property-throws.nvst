@@ -1,0 +1,23 @@
+--TEST--
+`.=` on a property of a revoked object throws `RevokedObjectError`
+--FILE--
+<?nvs
+// `.=` adds text to the end of a property. After `revoke()`, it throws `RevokedObjectError`.
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+}
+
+var $post = new Post("Hello");
+$post->title .= ", world";
+echo $post->title, "\n";
+$post->revoke();
+try {
+    $post->title .= "!";
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo "RevokedObjectError\n";
+}
+// covers: lang:classes/revocable-objects, RevokedObjectError
+--EXPECT--
+Hello, world
+RevokedObjectError

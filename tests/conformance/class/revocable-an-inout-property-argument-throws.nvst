@@ -1,0 +1,48 @@
+--TEST--
+An `inout` argument that is a property of a revoked object throws `RevokedObjectError`, before the call and when the value is written back
+--FILE--
+<?nvs
+// An `inout` property is read before the call and written back after it.
+// Both steps throw `RevokedObjectError` if the object is revoked.
+class Counter implements Revocable {
+    public int $count = 0;
+}
+
+class Steps {
+    public static function bump(inout int $n): void {
+        $n = $n + 1;
+    }
+
+    public static function bumpAndRevoke(inout int $n, Counter $counter): void {
+        $n = $n + 1;
+        $counter->revoke();
+        echo "revoked inside the call\n";
+    }
+}
+
+var $counter = new Counter();
+Steps::bump(inout $counter->count);
+echo $counter->count, "\n";
+
+// The function revokes the object, so writing the value back throws.
+var $other = new Counter();
+try {
+    Steps::bumpAndRevoke(inout $other->count, $other);
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo "RevokedObjectError\n";
+}
+
+$counter->revoke();
+try {
+    Steps::bump(inout $counter->count);
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo "RevokedObjectError\n";
+}
+// covers: lang:classes/revocable-objects, RevokedObjectError
+--EXPECT--
+1
+revoked inside the call
+RevokedObjectError
+RevokedObjectError

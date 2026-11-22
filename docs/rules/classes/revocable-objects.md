@@ -15,14 +15,30 @@ exception to `rule:classes/interface-default-methods`'s override):
 Both are intrinsics the runtime runs, not compiled bodies, and a call of either compiles no check.
 
 **Using a revoked object throws `RevokedObjectError`**, a global subclass of `LogicError`, as
-`RecursionError` is global, because the runtime throws it on a language operation. These throw: a
-property read or write, a method call (a `Stringable` or `Comparable` call is one), `clone`,
-`Core\Json::encode`, and a `Core\Reflect` read, call or write. `serialize()` and a graph copy into a
+`RecursionError` is global, because the runtime throws it on a language operation. The promise is
+every use, so a use form this paragraph does not name throws. These throw:
+
+- a property read or write, `.=`, `+=`, `++` and `--` on a property, `isset`, `empty` and `isinit` of
+  a property, and an `inout` property argument, both before the call and when the value is written
+  back, because the callee may revoke the object;
+- a method call, `?->` included, a `static` method called through the object, a delegated method
+  (`rule:classes/delegation-by-property`), which checks the delegate, and a call the runtime makes by
+  name;
+- a call of a method reference, each time it is called;
+- a conversion to a string: a string with a hole, an html template, a concatenation, `echo` and
+  `print`, each of which calls `toString()`;
+- `<`, `<=`, `>`, `>=` and `<=>`, which call `compareTo` on the left operand;
+- a `foreach` over a revoked `Iterable` or `Iterator`, and each step of a cursor the body revokes;
+- `clone`, `Core\Json::encode`, and a `Core\Reflect` read, call or write.
+
+`serialize()` and a graph copy into a
 task or a cache refuse a revoked object too, with `RevokedObjectError`'s message under the error that
 door already throws, because every caller of the copy picks its own error
 (`rule:classes/graph-copy`). These do not throw: `isRevoked()`, a second `revoke()`, passing the
-object, storing it, `==` (identity, `rule:expressions/equality-semantics`), the type test `is`
-(`rule:types/type-test`) and `::class`. `Core\Debug` prints the class name followed by `(revoked)`,
+object, storing it, returning it, `yield`, making a method reference, `==`, `match` and `switch`
+(identity, `rule:expressions/equality-semantics`), the type test `is` (`rule:types/type-test`), `as`
+to a type the object has, and `::class`. `crates/nvs-codegen/tests/revocable.rs`'s `USES` is the table
+of every use form, with a row for each syntax kind. `Core\Debug` prints the class name followed by `(revoked)`,
 without its properties, and does not throw, so a program can inspect one. The message names the
 class and the place of the first `revoke()`: "This `Blog\Post` object was revoked in
 `src/Blog/Post.nvs` on line 42. A revoked object cannot be used." A `revoke()` called by name,
@@ -53,9 +69,12 @@ The check is compiled only where the static type could be revocable: a revocable
 containing one of these. The compiler asks it of the class or interface the access's member resolved
 to, which the checker records: that class is an ancestor of the receiver's, and a class tree is
 revocable as a whole, so the answer is the receiver type's for a class, and a type parameter or a union
-reaches it through its bound or each of its members. It is `CheckRevoked { object, site }` before a
-property read or write and a method call with a receiver, written or direct. A property write is checked
-once the receiver is held, before the value is computed. Erased access through `mixed` is checked
+reaches it through its bound or each of its members. It is `CheckRevoked { object, site }` before each
+use the list above names, written or direct. A `foreach` step asks it of the iteration interfaces,
+and a delegated method's forward checks wherever the program has a revocable class, because neither
+records a member's class. A property write is checked once the receiver is held, before the value is
+computed. A method reference's thunk checks its object when it is called, and `dispatch::call_method`
+checks as the erased entry does. Erased access through `mixed` is checked
 inside the runtime's erased entries, and `clone` inside the clone guard every `clone` already calls. It
 is one load and one predicted branch on the header line a method call already reads: a count with the
 flag is negative as a signed word, and the immortal count is `-1`, so a count below `-1` is revoked. The

@@ -1,0 +1,40 @@
+--TEST--
+Converting a revoked object to a string throws `RevokedObjectError`, in a string with a hole, in a concatenation and in `echo`
+--FILE--
+<?nvs
+// A conversion to a string calls `toString()`. After `revoke()`, each conversion throws `RevokedObjectError`.
+class Post implements Revocable, Stringable {
+    public function constructor(public string $title) {}
+
+    public function toString(): string {
+        return "a post";
+    }
+}
+
+var $post = new Post("Hello");
+echo "{$post}\n";
+$post->revoke();
+try {
+    echo "{$post}\n";
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo "RevokedObjectError\n";
+}
+try {
+    echo "Post: " . $post, "\n";
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo "RevokedObjectError\n";
+}
+try {
+    echo $post;
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo "RevokedObjectError\n";
+}
+// covers: lang:classes/revocable-objects, RevokedObjectError
+--EXPECT--
+a post
+RevokedObjectError
+RevokedObjectError
+RevokedObjectError

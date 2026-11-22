@@ -1,0 +1,38 @@
+--TEST--
+A method reference to a revoked object throws `RevokedObjectError` when it is called, and making one does not throw
+--FILE--
+<?nvs
+// A method reference checks its object each time you call it.
+// After `revoke()`, the call throws `RevokedObjectError`.
+class Post implements Revocable {
+    public function constructor(public string $title) {}
+
+    public function shout(): string {
+        return "HELLO";
+    }
+}
+
+var $post = new Post("Hello");
+callable $shout = $post->shout(...);
+echo $shout(), "\n";
+$post->revoke();
+callable $later = $post->shout(...);
+echo "made a reference\n";
+try {
+    echo $shout(), "\n";
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo "RevokedObjectError\n";
+}
+try {
+    echo $later(), "\n";
+    echo "not reached\n";
+} catch (RevokedObjectError $e) {
+    echo "RevokedObjectError\n";
+}
+// covers: lang:classes/revocable-objects, RevokedObjectError
+--EXPECT--
+HELLO
+made a reference
+RevokedObjectError
+RevokedObjectError
