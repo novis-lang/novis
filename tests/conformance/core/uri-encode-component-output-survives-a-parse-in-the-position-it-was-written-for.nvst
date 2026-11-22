@@ -21,8 +21,10 @@ for (; $b <= 127; $b = $b + 1) {
 
     // The encoded form. `x` in front of the byte gives the segment content that
     // is not itself in question, so a byte that vanished would show as a
-    // shorter path rather than as an empty one.
-    string $encoded = "http://h/x" . Core\Uri::encodeComponent($c);
+    // shorter path rather than as an empty one. The `x` is encoded with the
+    // byte, because `encodeComponent` throws on a segment that is only `.` or
+    // `..`, and `x.` is one segment's content.
+    string $encoded = "http://h/" . Core\Uri::encodeComponent("x" . $c);
     try {
         var $safe = Core\Uri::parse($encoded);
         $survived = $survived + 1;

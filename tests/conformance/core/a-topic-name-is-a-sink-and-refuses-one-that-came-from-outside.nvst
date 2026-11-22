@@ -27,12 +27,14 @@ error[E0401]: expected `string`, found `tainted string`
    |
 13 |     Core\Topic::subscribe($word);
    |                           ^^^^^ this is `tainted string`
+   = help: no `Core` method makes text safe for this parameter. If you know the value is safe, write `Core\Taint::assertTrusted($value, $reason)` with the reason
 
 error[E0401]: expected `string`, found `tainted string`
    --> case.nvs:14:29
    |
 14 |     Core\Topic::unsubscribe($word);
    |                             ^^^^^ this is `tainted string`
+   = help: no `Core` method makes text safe for this parameter. If you know the value is safe, write `Core\Taint::assertTrusted($value, $reason)` with the reason
 
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

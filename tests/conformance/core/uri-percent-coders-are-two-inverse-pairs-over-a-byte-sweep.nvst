@@ -16,7 +16,10 @@ int $componentReadsForm = 0;
 int $sameSpelling = 0;
 string $differ = "";
 for (int $b = 0; $b < 128; $b = $b + 1) {
-    var $c = Core\Str::fromCodePoint($b as uint);
+    // Each byte is encoded after an `x`, because `encodeComponent` throws on a
+    // component that is only `.` or `..`. The `x` encodes to itself, so the
+    // escape after it is the byte's own escape.
+    var $c = "x" . Core\Str::fromCodePoint($b as uint);
     var $ec = Core\Uri::encodeComponent($c);
     var $ef = Core\Uri::encodeFormValue($c);
     // Each decoder undoes its own encoder. Nothing here is exempt: a NUL, a
@@ -36,7 +39,8 @@ for (int $b = 0; $b < 128; $b = $b + 1) {
     } else {
         // Not counted — spelled out, so a third disagreement could not hide
         // inside a number that still looked plausible.
-        $differ = $differ . " " . $ec . "/" . $ef;
+        // The `x` in front is cut off, so the line shows the byte's escapes.
+        $differ = $differ . " " . Core\Str::after($ec, "x") . "/" . Core\Str::after($ef, "x");
     }
 }
 echo "component pair ", $componentPair, "/128\n";

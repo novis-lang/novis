@@ -33,12 +33,15 @@ for (; $code <= 126; $code = $code + 1) {
     // The same byte, escaped. `encodeComponent` is the encoder that never
     // writes a `+` for anything, so its output is the common ground: an escape
     // means the same thing to both decoders, `%2B` included, which is why a
-    // form value can still carry a literal `+`.
-    string $escaped = Core\Uri::encodeComponent($c);
+    // form value can still carry a literal `+`. The byte is encoded between an
+    // `a` and a `b`, because `encodeComponent` throws on a component that is
+    // only `.` or `..`.
+    string $plain = "a" . $c . "b";
+    string $escaped = Core\Uri::encodeComponent($plain);
     if ((Core\Uri::decodeComponent($escaped) as string) == (Core\Uri::decodeFormValue($escaped) as string)) {
         $escapedAgree = $escapedAgree + 1;
     }
-    if ((Core\Uri::decodeFormValue($escaped) as string) == $c) {
+    if ((Core\Uri::decodeFormValue($escaped) as string) == $plain) {
         $escapedRoundTrip = $escapedRoundTrip + 1;
     }
 }

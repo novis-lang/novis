@@ -2091,6 +2091,12 @@ mod tests {
                     "finish",
                     "tainted bytes".to_owned(),
                 ),
+                // The database server wrote its version text.
+                (
+                    r"Core\Db\Connection",
+                    "serverVersion",
+                    "tainted string".to_owned(),
+                ),
                 (r"Core\Db\Row", "bytes", "null|tainted bytes".to_owned()),
                 (r"Core\Db\Row", "string", "null|tainted string".to_owned()),
                 (r"Core\Env", "all", "array<tainted string>".to_owned()),
@@ -2156,6 +2162,12 @@ mod tests {
                 // A value in a DN may have come from a request.
                 (r"Core\Ldap\Dn", "rdnValue", "tainted string".to_owned()),
                 (r"Core\Ldap\Dn", "toString", "tainted string".to_owned()),
+                // The server wrote the identity it reports.
+                (
+                    r"Core\Ldap\Connection",
+                    "whoami",
+                    "tainted string".to_owned(),
+                ),
                 // A parsed node's text is tainted, and the answer cannot follow
                 // one arm of its union parameter (`rule:core-classes/markdown-from-html`).
                 (r"Core\Markdown", "fromHtml", "tainted string".to_owned()),
@@ -2165,6 +2177,19 @@ mod tests {
                     "tainted bytes".to_owned(),
                 ),
                 (r"Core\Net\Stream", "read", "tainted bytes".to_owned()),
+                // A child process wrote its own output.
+                (
+                    r"Core\Process\Handle",
+                    "readStderr",
+                    "null|tainted bytes".to_owned(),
+                ),
+                (
+                    r"Core\Process\Handle",
+                    "readStdout",
+                    "null|tainted bytes".to_owned(),
+                ),
+                (r"Core\Process\Result", "stderr", "tainted bytes".to_owned()),
+                (r"Core\Process\Result", "stdout", "tainted bytes".to_owned()),
                 // Seeded output is predictable, so a key or a token refuses it.
                 (r"Core\Random\Seeded", "bytes", "tainted bytes".to_owned()),
                 (r"Core\Random\Seeded", "token", "tainted string".to_owned()),

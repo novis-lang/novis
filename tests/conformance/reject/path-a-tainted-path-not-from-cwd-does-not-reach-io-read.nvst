@@ -20,6 +20,7 @@ error[E0401]: expected `string`, found `tainted string`
   |
 5 |     echo Core\IO::read($typed);
   |                        ^^^^^^ this is `tainted string`
+  = help: a file path cannot be `tainted`. Check it with `Core\IO::within($base, $path)`, which returns the path inside `$base` and throws an error for a path that leaves it
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

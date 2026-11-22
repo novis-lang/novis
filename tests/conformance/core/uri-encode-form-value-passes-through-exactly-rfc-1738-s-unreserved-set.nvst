@@ -38,7 +38,9 @@ int $b = 0;
 for (; $b <= 127; $b = $b + 1) {
     string $c = Core\Str::fromCodePoint($b as uint);
     string $form = Core\Uri::encodeFormValue($c);
-    string $component = Core\Uri::encodeComponent($c);
+    // `encodeComponent` throws on a component that is only `.` or `..`, so the
+    // byte is encoded between two `a`s and passes through when the `a`s do.
+    bool $componentKeeps = Core\Uri::encodeComponent("a" . $c . "a") == "a" . $c . "a";
 
     if ($form == $c) {
         $passedThrough = $passedThrough + 1;
@@ -52,7 +54,7 @@ for (; $b <= 127; $b = $b + 1) {
         }
     }
 
-    if ($component == $c) {
+    if ($componentKeeps) {
         $componentPassedThrough = $componentPassedThrough + 1;
         if ($form != $c) {
             $onlyComponentKeeps = $onlyComponentKeeps . $c;
