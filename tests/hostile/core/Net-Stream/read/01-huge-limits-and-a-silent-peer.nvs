@@ -41,7 +41,7 @@ try {
 uint $i = 0;
 while ($i < 1000) {
     try {
-        $connection->read(1000000000, 1ms);
+        $connection->read(1000000000, 1us);
     } catch (TimeoutError $late) {
     }
     $i = $i + 1;
@@ -81,7 +81,7 @@ echo "6 ok\n";
 
 // 7. A read that waits on a peer that never sends and is never closed. The request ends with it open.
 try {
-    $connection->read(64, 2s);
+    $connection->read(64, 100ms);
 } catch (TimeoutError $late) {
     echo "7 ok\n";
 }
