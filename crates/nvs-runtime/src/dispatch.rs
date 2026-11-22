@@ -100,6 +100,18 @@ pub fn call_method(
     let Some(target) = method_address(receiver, name, what)? else {
         return Ok(None);
     };
+    // `rule:classes/revocable-objects`: a call of a revoked object throws, as
+    // `call_erased_unchecked`'s does, so every caller here checks it too.
+    let desc = descriptor_of(receiver, what, name)?;
+    #[expect(
+        unsafe_code,
+        reason = "`descriptor_of` answers only a non-null descriptor, and one \
+                  is owned by its class table for that table's whole life"
+    )]
+    let revocable = unsafe { &*desc }.is_revocable();
+    if revocable {
+        crate::revoke::revoked_use(&receiver)?;
+    }
     call_at(ctx, receiver, target, args).map(Some)
 }
 

@@ -1410,7 +1410,16 @@ impl<'a> Lowering<'a> {
                         (tested.to_string(), class.to_string())
                     })
                     .collect();
-                let (object_v, _) = self.lower_expr(object, None, env, cur);
+                let (object_v, object_ty) = self.lower_expr(object, None, env, cur);
+                // `rule:classes/revocable-objects`: checked once, before the
+                // read, when one arm's class may be revocable.
+                if let Some(tested) = arms
+                    .iter()
+                    .map(|(tested, _)| tested.clone())
+                    .find(|tested| self.exprs.may_be_revocable_class(tested))
+                {
+                    self.emit_revoked_check(*cur, object_v, object_ty, &tested, env);
+                }
                 let read = self.branch_on_union_class(
                     object_v,
                     &arms,
@@ -1457,7 +1466,10 @@ impl<'a> Lowering<'a> {
                 };
                 let class = class.to_string();
                 let field = name.clone();
-                let (object_v, _) = self.lower_expr(object, None, env, cur);
+                let (object_v, object_ty) = self.lower_expr(object, None, env, cur);
+                // `rule:classes/revocable-objects`: an `inout` property is read
+                // here and written back after the call, and both check.
+                self.emit_revoked_check(*cur, object_v, object_ty, &class, env);
                 let (v, _) = self.emit(
                     *cur,
                     ty,
@@ -1549,6 +1561,7 @@ pub(crate) fn delegation_forward(
     delegation: &nvs_types::Delegation,
     checked_types: &TypeInterner,
     never_written: bool,
+    check_revoked: bool,
 ) -> Option<Function> {
     let mut ids = IdGen::default();
     let entry = ids.next_block();
@@ -1679,6 +1692,31 @@ pub(crate) fn delegation_forward(
             field: delegation.field.clone(),
         },
     ));
+    // `rule:classes/revocable-objects`: a revoked delegate throws before the
+    // call. The delegate is borrowed from `$this`, so the stop releases the
+    // arguments and `$this` alone. A forward has no call site, so the message
+    // names the class.
+    if check_revoked {
+        let site = ids.next_value();
+        insts.push(defines(
+            site,
+            Ty::ClassDesc,
+            InstKind::SourceConst {
+                source: None,
+                restricted: None,
+            },
+        ));
+        insts.push(Inst {
+            result: None,
+            ty: None,
+            kind: InstKind::CheckRevoked {
+                object: inner,
+                site,
+            },
+            on_error: Some(stopped),
+            raise_site: None,
+        });
+    }
     insts.push(plain(InstKind::Retain { operand: inner }));
     insts.push(defines(
         desc,

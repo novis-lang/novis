@@ -228,6 +228,10 @@ impl<'a> Lowering<'a> {
                 BinaryOp::GtEq => "`>=`",
                 _ => "`<=>`",
             };
+            // `rule:classes/revocable-objects`: the comparison is a call of
+            // `compareTo` on the left operand, so a revoked one throws here.
+            let class = call.class.to_string();
+            self.emit_revoked_check(*cur, lv, lty, &class, env);
             let desc = self.emit_same_class_check(lv, rv, written, expr.span, env, cur);
             self.forget_temporaries_since(check_mark);
             for (v, borrowed) in [(lv, lb), (rv, rb)] {

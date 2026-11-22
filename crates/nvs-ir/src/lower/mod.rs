@@ -1535,7 +1535,13 @@ fn lower_program_as(
         // obliged to fill, and dispatching on what it then holds is what
         // `delegation_forward`'s guard exists to stop.
         let never_written = exprs.read_may_find_unset(&delegation.class, &delegation.field);
-        let Some(function) = delegation_forward(delegation, checked_types, never_written) else {
+        // `rule:classes/revocable-objects`: the forward calls a method of the
+        // delegate, so it checks the delegate wherever the program has a
+        // revocable class.
+        let check_revoked = exprs.has_revocable();
+        let Some(function) =
+            delegation_forward(delegation, checked_types, never_written, check_revoked)
+        else {
             continue;
         };
         // Public: `rule:classes/delegation-by-property` synthesizes a forward for an
@@ -4564,13 +4570,23 @@ impl<'a> Lowering<'a> {
                 object,
                 class,
                 field,
-            } => self.write_back_field(*cur, *object, class, field, written, ty),
+            } => {
+                self.check_written_back_object(*cur, *object, class, written, ty, env);
+                self.write_back_field(*cur, *object, class, field, written, ty);
+            }
             RefHolder::UnionField {
                 object,
                 arms,
                 field,
                 span,
             } => {
+                if let Some(tested) = arms
+                    .iter()
+                    .map(|(tested, _)| tested.clone())
+                    .find(|tested| self.exprs.may_be_revocable_class(tested))
+                {
+                    self.check_written_back_object(*cur, *object, &tested, written, ty, env);
+                }
                 self.branch_on_union_class(
                     *object,
                     arms,
@@ -4584,6 +4600,26 @@ impl<'a> Lowering<'a> {
                 );
             }
         }
+    }
+    /// [`Self::write_back_holder`]'s `rule:classes/revocable-objects` check of
+    /// an `inout` property's object before the value is written back. The
+    /// callee may have revoked the object, so the read's check is not enough.
+    /// `written` is this frame's until the store, so a throw releases it.
+    fn check_written_back_object(
+        &mut self,
+        cur: BlockId,
+        object: ValueId,
+        class: &str,
+        written: ValueId,
+        ty: Ty,
+        env: &Env,
+    ) {
+        let mark = self.temporaries_mark();
+        if ty.is_refcounted() {
+            self.own_temporary(written);
+        }
+        self.emit_revoked_check(cur, object, Ty::Object, class, env);
+        self.forget_temporaries_since(mark);
     }
     /// [`Self::write_back_holder`]'s store into one class's slot: `written` is
     /// stored, then the old value is released, so a `finally` the release runs

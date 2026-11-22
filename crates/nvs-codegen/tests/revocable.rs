@@ -4,6 +4,10 @@
 //! is still freed with its last reference. The tests read the Cranelift text,
 //! as `refcount_calls.rs` does, or the request heap's live bytes, as
 //! `callables.rs` does, and none reads a clock (`rule:testing/bench-counters`).
+//!
+//! `USES` is the table of every use form, one or more rows per syntax kind of
+//! `nvs-syntax`'s `ast.rs`, and `NO_OBJECT` lists the kinds that cannot take a
+//! revocable object. A kind in neither fails the test by name.
 // covers: lang:classes/revocable-objects
 
 mod common;
@@ -424,4 +428,641 @@ fn peak_bytes_of_run(source: &str) -> isize {
     ctx.rebase_memory();
     entry.call(&mut ctx).expect("the script ran to completion");
     isize::try_from(ctx.memory_peak()).expect("a peak fits in an `isize`")
+}
+
+/// What one use form of a revoked object does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Does {
+    /// It throws `RevokedObjectError`.
+    Throws,
+    /// It does not throw, for the reason the sentence of
+    /// `rule:classes/revocable-objects` gives.
+    Passes(&'static str),
+}
+
+/// One row of the table: the syntax kind of `nvs-syntax`'s `ast.rs` the form
+/// belongs to, a label, the statements that use the revoked `$p`, and what
+/// they do.
+struct Use {
+    kind: &'static str,
+    form: &'static str,
+    body: &'static str,
+    does: Does,
+}
+
+const PASSING: &str = "passing the object, storing it";
+const IDENTITY: &str = "`==` (identity)";
+
+/// `rule:classes/revocable-objects`'s promise is "every use": a kind the rule
+/// does not name throws. Each row is run against a revoked `$p` and a revoked
+/// `$feed`.
+const USES: &[Use] = &[
+    Use {
+        kind: "ExprKind::Interpolated",
+        form: "a string with a hole",
+        body: r#"var $s = "post {$p}";"#,
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::HtmlTemplate",
+        form: "an html template with a hole",
+        body: "var $h = html`<p>{$p}</p>`;",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::ArrayLiteral",
+        form: "an array literal",
+        body: "var $a = [$p];",
+        does: Does::Passes(PASSING),
+    },
+    Use {
+        kind: "ExprKind::Unary",
+        form: "a minus on a property",
+        body: "var $n = -$p->count;",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::PreIncDec",
+        form: "`++` on a property",
+        body: "++$p->count;",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::PostIncDec",
+        form: "`--` on a property",
+        body: "$p->count--;",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::Binary",
+        form: "a concatenation",
+        body: r#"var $s = "post " . $p;"#,
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::Binary",
+        form: "`<`, which calls `compareTo`",
+        body: "var $b = $p < $other;",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::Binary",
+        form: "`<=>`, which calls `compareTo`",
+        body: "var $n = $p <=> $other;",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::Binary",
+        form: "`==`",
+        body: "var $b = $p == $other;",
+        does: Does::Passes(IDENTITY),
+    },
+    Use {
+        kind: "ExprKind::Binary",
+        form: "`??`",
+        body: "var $q = $p ?? $other;",
+        does: Does::Passes(PASSING),
+    },
+    Use {
+        kind: "ExprKind::Assign",
+        form: "a property write",
+        body: r#"$p->title = "x";"#,
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::Assign",
+        form: "`.=` on a property",
+        body: r#"$p->title .= "x";"#,
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::Assign",
+        form: "`+=` on a property",
+        body: "$p->count += 1;",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::Assign",
+        form: "an assignment of the object",
+        body: "$other = $p;",
+        does: Does::Passes(PASSING),
+    },
+    Use {
+        kind: "ExprKind::Ternary",
+        form: "a ternary that gives the object",
+        body: "var $q = $other->count == 0 ? $p : $other;",
+        does: Does::Passes(PASSING),
+    },
+    Use {
+        kind: "ExprKind::Conversion",
+        form: "`as` to an interface",
+        body: "var $n = $p as Named;",
+        does: Does::Passes(PASSING),
+    },
+    Use {
+        kind: "ExprKind::TypeTest",
+        form: "`is`",
+        body: "var $b = $p is Post;",
+        does: Does::Passes("the type test `is`"),
+    },
+    Use {
+        kind: "ExprKind::Call",
+        form: "an argument",
+        body: "Probe::take($p);",
+        does: Does::Passes(PASSING),
+    },
+    Use {
+        kind: "ExprKind::Call",
+        form: "an `inout` property argument",
+        body: "Probe::bump(inout $p->count);",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::Call",
+        form: "making a method reference",
+        body: "$f = $p->name(...);",
+        does: Does::Passes("a method reference checks its object when it is called"),
+    },
+    Use {
+        kind: "ExprKind::Call",
+        form: "calling a method reference",
+        body: "$f = $p->name(...); $f();",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::Call",
+        form: "`Core\\Json::encode`",
+        body: "var $j = Core\\Json::encode($p);",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::MethodCall",
+        form: "a method call",
+        body: "$p->name();",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::MethodCall",
+        form: "a `?->` method call",
+        body: "$p?->name();",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::MethodCall",
+        form: "a `static` method called through the object",
+        body: "$p->make();",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::MethodCall",
+        form: "`toString()`",
+        body: "$p->toString();",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::MethodCall",
+        form: "a delegated method",
+        body: "$holder->name();",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::MethodCall",
+        form: "`isRevoked()`",
+        body: "$p->isRevoked();",
+        does: Does::Passes("`isRevoked()`"),
+    },
+    Use {
+        kind: "ExprKind::MethodCall",
+        form: "a second `revoke()`",
+        body: "$p->revoke();",
+        does: Does::Passes("a second `revoke()`"),
+    },
+    Use {
+        kind: "ExprKind::PropertyAccess",
+        form: "a property read",
+        body: "var $t = $p->title;",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::PropertyAccess",
+        form: "a `?->` property read",
+        body: "var $t = $p?->title;",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::ClassNameConst",
+        form: "`::class`",
+        body: "var $c = $p::class;",
+        does: Does::Passes("`::class`"),
+    },
+    Use {
+        kind: "ExprKind::Index",
+        form: "an element that is the object",
+        body: "var $q = [$p][0];",
+        does: Does::Passes(PASSING),
+    },
+    Use {
+        kind: "ExprKind::Clone",
+        form: "`clone`",
+        body: "var $q = clone $p;",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::Match",
+        form: "a `match` on the object",
+        body: "var $m = match ($p) { $other => 1, default => 2 };",
+        does: Does::Passes(IDENTITY),
+    },
+    Use {
+        kind: "ExprKind::Catch",
+        form: "a `catch` expression",
+        body: r#"var $t = $p->title catch (RecursionError $e) => "caught";"#,
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::Yield",
+        form: "`yield`",
+        body: "foreach (Probe::each($p) as var $x) {}",
+        does: Does::Passes(PASSING),
+    },
+    Use {
+        kind: "ExprKind::Print",
+        form: "`print`",
+        body: "print $p;",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::Isset",
+        form: "`isset` of a property",
+        body: "var $b = isset($p->note);",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::IsInit",
+        form: "`isinit` of a property",
+        body: "var $b = isinit($p->late);",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::Empty",
+        form: "`empty` of a property",
+        body: "var $b = empty($p->title);",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::Paren",
+        form: "a parenthesized receiver",
+        body: "var $t = ($p)->title;",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "ExprKind::AnonObject",
+        form: "an anonymous object field",
+        body: "var $o = { post: $p };",
+        does: Does::Passes(PASSING),
+    },
+    Use {
+        kind: "StmtKind::Expr",
+        form: "an expression statement",
+        body: "$p->name();",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "StmtKind::Return",
+        form: "`return`",
+        body: "Probe::same($p);",
+        does: Does::Passes(PASSING),
+    },
+    Use {
+        kind: "StmtKind::If",
+        form: "an `if` condition",
+        body: "if ($p->count > 0) {}",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "StmtKind::While",
+        form: "a `while` condition",
+        body: "while ($p->count > 5) {}",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "StmtKind::DoWhile",
+        form: "a `do` `while` condition",
+        body: "do {} while ($p->count > 5);",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "StmtKind::For",
+        form: "a `for` condition",
+        body: "for (int $i = 0; $i < $p->count; $i++) {}",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "StmtKind::Foreach",
+        form: "a `foreach` over a revoked iterator",
+        body: "foreach ($feed as var $n) {}",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "StmtKind::Foreach",
+        form: "a `foreach` over an array that has the object",
+        body: "foreach ([$p] as var $x) {}",
+        does: Does::Passes(PASSING),
+    },
+    Use {
+        kind: "StmtKind::Switch",
+        form: "a `switch` on the object",
+        body: "switch ($p) { case $other: break; default: break; }",
+        does: Does::Passes(IDENTITY),
+    },
+    Use {
+        kind: "StmtKind::Echo",
+        form: "`echo`",
+        body: "echo $p;",
+        does: Does::Throws,
+    },
+    Use {
+        kind: "StmtKind::Unset",
+        form: "`unset` of an element that is the object",
+        body: "var $list = [$p]; unset($list[0]);",
+        does: Does::Passes(PASSING),
+    },
+    Use {
+        kind: "StmtKind::LocalDecl",
+        form: "a typed variable",
+        body: "Post $q = $p;",
+        does: Does::Passes(PASSING),
+    },
+    Use {
+        kind: "StmtKind::Destructure",
+        form: "a destructuring assignment",
+        body: "array<Post> $list = [$p]; [Post $a] = $list;",
+        does: Does::Passes(PASSING),
+    },
+];
+
+/// The kinds of `ast.rs` that cannot have a revocable object as an operand,
+/// each with the reason.
+const NO_OBJECT: &[(&str, &str)] = &[
+    ("ExprKind::Null", "a literal"),
+    ("ExprKind::Bool", "a literal"),
+    ("ExprKind::Int", "a literal"),
+    ("ExprKind::Float", "a literal"),
+    ("ExprKind::Duration", "a literal"),
+    ("ExprKind::Str", "a literal"),
+    (
+        "ExprKind::Variable",
+        "reading a variable is passing the object",
+    ),
+    ("ExprKind::ConstFetch", "a constant is a compile-time value"),
+    ("ExprKind::SelfExpr", "names a class"),
+    ("ExprKind::StaticExpr", "names a class"),
+    ("ExprKind::ParentExpr", "names a class"),
+    (
+        "ExprKind::StaticCall",
+        "its left side is a class name or a class reference",
+    ),
+    (
+        "ExprKind::StaticPropertyAccess",
+        "its left side is a class name or a class reference",
+    ),
+    (
+        "ExprKind::ClassConstAccess",
+        "its left side is a class name or a class reference",
+    ),
+    (
+        "ExprKind::New",
+        "its target is a class name or a class reference",
+    ),
+    (
+        "ExprKind::Fn",
+        "a closure's body is a function, and its rows are its own",
+    ),
+    (
+        "ExprKind::Throw",
+        "a thrown value extends an error class, and only a root class is revocable",
+    ),
+    ("ExprKind::Exit", "takes an `int` or a `string`"),
+    (
+        "ExprKind::SpawnScript",
+        "a script's options are copied as a graph copy is",
+    ),
+    (
+        "ExprKind::Await",
+        "awaits a task handle, which is a `Core` object",
+    ),
+    ("ExprKind::Require", "takes a path"),
+    (
+        "ExprKind::YieldFrom",
+        "Novis has no `yield from`, and the parser reports it",
+    ),
+    ("ExprKind::Error", "a parse error"),
+    ("StmtKind::Block", "has statements, not a value"),
+    ("StmtKind::Empty", "has no value"),
+    ("StmtKind::InlineHtml", "has text"),
+    ("StmtKind::Break", "takes a level"),
+    ("StmtKind::Continue", "takes a level"),
+    ("StmtKind::Try", "has statements, not a value"),
+    ("StmtKind::Global", "names variables"),
+    ("StmtKind::Goto", "names a label"),
+    ("StmtKind::StaticLocal", "a default is a compile-time value"),
+    ("StmtKind::ClassDecl", "a declaration"),
+    ("StmtKind::InterfaceDecl", "a declaration"),
+    ("StmtKind::EnumDecl", "a declaration"),
+    ("StmtKind::NamespaceDecl", "a declaration"),
+    ("StmtKind::UseDecl", "a declaration"),
+    ("StmtKind::AutoloadDecl", "a declaration"),
+    ("StmtKind::TypeAliasDecl", "a declaration"),
+    ("StmtKind::AttributeDecl", "a declaration"),
+    ("StmtKind::TopLevelFunction", "a declaration"),
+    (
+        "StmtKind::TopLevelConst",
+        "a constant is a compile-time value",
+    ),
+    ("StmtKind::Error", "a parse error"),
+];
+
+/// Every variant of `pub enum <name>` in `nvs-syntax`'s `ast.rs`, read from the
+/// source, so a kind added there fails `every_syntax_kind_has_a_row` by name.
+fn variants_of(name: &str) -> Vec<String> {
+    let ast = include_str!("../../nvs-syntax/src/ast.rs");
+    let head = format!("pub enum {name} {{\n");
+    let start = ast
+        .find(&head)
+        .unwrap_or_else(|| panic!("`ast.rs` declares no `{name}`"))
+        + head.len();
+    let body = &ast[start..];
+    let body = &body[..body.find("\n}\n").expect("the enum is closed")];
+    body.lines()
+        .filter_map(|line| line.strip_prefix("    "))
+        .filter(|line| line.starts_with(|c: char| c.is_ascii_uppercase()))
+        .map(|line| {
+            let end = line
+                .find(|c: char| !c.is_ascii_alphanumeric())
+                .unwrap_or(line.len());
+            format!("{name}::{}", &line[..end])
+        })
+        .collect()
+}
+
+#[test]
+fn every_syntax_kind_has_a_row() {
+    let mut missing = Vec::new();
+    for kind in variants_of("ExprKind")
+        .into_iter()
+        .chain(variants_of("StmtKind"))
+    {
+        let used = USES.iter().any(|row| row.kind == kind);
+        let excused = NO_OBJECT.iter().any(|(name, _)| *name == kind);
+        assert!(
+            !(used && excused),
+            "`{kind}` has a row and is listed as taking no object"
+        );
+        if !used && !excused {
+            missing.push(kind);
+        }
+    }
+    assert!(
+        missing.is_empty(),
+        "these syntax kinds have no row in `USES` or `NO_OBJECT`: {missing:?}"
+    );
+}
+
+/// The program each row runs: `$p` and `$feed` are revoked, and the row's body
+/// runs inside a `try` that reports whether it threw. No method body reads
+/// `$this`, so a row throws only where the use itself is checked.
+fn use_program(body: &str) -> String {
+    format!(
+        r#"<?nvs
+interface Named
+{{
+    public function name(): string;
+}}
+
+class Post implements Revocable, Named, Stringable, Comparable
+{{
+    public int $count = 0;
+    public ?string $note = null;
+    public lateinit string $late;
+
+    public function constructor(public string $title)
+    {{}}
+
+    public function name(): string
+    {{
+        return 'post';
+    }}
+
+    public function toString(): string
+    {{
+        return 'post';
+    }}
+
+    public function compareTo(self $other): int
+    {{
+        return 0;
+    }}
+
+    public static function make(): string
+    {{
+        return 'made';
+    }}
+}}
+
+class Feed implements Revocable, Iterator<int>
+{{
+    public function advance(): bool
+    {{
+        return false;
+    }}
+
+    public function current(): int
+    {{
+        return 1;
+    }}
+}}
+
+class Holder implements Named by $post
+{{
+    public function constructor(public Post $post)
+    {{}}
+}}
+
+class Probe
+{{
+    public static function bump(inout int $n): void
+    {{
+        $n = $n + 1;
+    }}
+
+    public static function take(Post $p): string
+    {{
+        return 'taken';
+    }}
+
+    public static function same(Post $p): Post
+    {{
+        return $p;
+    }}
+
+    public static function each(Post $p): Iterator<Post>
+    {{
+        yield $p;
+    }}
+
+    public static function run(): string
+    {{
+        Post $p = new Post('a');
+        Post $other = new Post('b');
+        Feed $feed = new Feed();
+        Holder $holder = new Holder($p);
+        callable $f = $other->name(...);
+        $p->revoke();
+        $feed->revoke();
+        try {{
+            {body}
+        }} catch (RevokedObjectError $e) {{
+            return 'throws';
+        }}
+        return 'passes';
+    }}
+}}
+
+echo Probe::run();
+"#
+    )
+}
+
+#[test]
+fn a_revoked_object_does_what_its_row_says() {
+    let mut wrong = Vec::new();
+    for row in USES {
+        let program = use_program(row.body);
+        let ran = std::panic::catch_unwind(|| output_of(&program));
+        let want = match row.does {
+            Does::Throws => "throws",
+            Does::Passes(_) => "passes",
+        };
+        match ran {
+            Ok(out) if out.ends_with(want) => {}
+            Ok(out) => wrong.push(format!(
+                "{} ({}): wanted `{want}`, got `{out}`",
+                row.kind, row.form
+            )),
+            Err(panic) => {
+                let why = panic
+                    .downcast_ref::<String>()
+                    .cloned()
+                    .or_else(|| panic.downcast_ref::<&str>().map(|s| (*s).to_owned()))
+                    .unwrap_or_default();
+                wrong.push(format!("{} ({}): did not run: {why}", row.kind, row.form));
+            }
+        }
+    }
+    assert!(
+        wrong.is_empty(),
+        "{} use forms do not do what their row says:\n{}",
+        wrong.len(),
+        wrong.join("\n")
+    );
 }

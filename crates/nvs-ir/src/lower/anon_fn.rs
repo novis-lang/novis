@@ -764,6 +764,17 @@ pub(crate) fn lower_callable(
         // one the callee will release has to be a new one.
         low.emit_retain(entry, v);
         low.own_temporary(v);
+        // `rule:classes/revocable-objects`: a method reference checks its
+        // object each time it is called, not when it is made. `revoke` and
+        // `isRevoked` check nothing, as a direct call of either does.
+        if let ThunkTarget::Forward { call, .. } = target {
+            let class = call.class.to_string();
+            let intrinsic =
+                class == "Revocable" && matches!(call.method.as_str(), "revoke" | "isRevoked");
+            if !intrinsic {
+                low.emit_revoked_check(entry, v, Ty::Object, &class, &env);
+            }
+        }
         v
     });
 

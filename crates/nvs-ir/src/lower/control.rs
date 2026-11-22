@@ -1757,6 +1757,21 @@ impl<'a> Lowering<'a> {
         ret: Ty,
         env: &Env,
     ) -> ValueId {
+        // `rule:classes/revocable-objects`: each call checks its receiver, so
+        // a `foreach` over a revoked object throws, and so does the next step
+        // of a cursor the body revoked. A receiver this frame gives away is
+        // its own until the call, so the throw releases it.
+        let iface = ["Iterable", "Iterator", "KeyedIterable", "KeyedIterator"]
+            .into_iter()
+            .find(|name| self.exprs.may_be_revocable_class(name));
+        if let Some(iface) = iface {
+            let mark = self.temporaries_mark();
+            if !keep_receiver {
+                self.own_temporary(receiver);
+            }
+            self.emit_revoked_check(b, receiver, Ty::Object, iface, env);
+            self.forget_temporaries_since(mark);
+        }
         if keep_receiver {
             self.emit_retain(b, receiver);
         }

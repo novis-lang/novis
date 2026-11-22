@@ -1300,7 +1300,18 @@ impl<'a> Lowering<'a> {
             .has_body
             .then(|| format!("{}::{}", call.class, call.method));
         let method = call.method.clone();
-        if self.sole_operand_borrowed(expr) {
+        // `rule:classes/revocable-objects`: a conversion of a revoked object
+        // throws before `toString()` runs. A fresh receiver is this frame's
+        // until the call takes it, so the throw releases it.
+        let borrowed = self.sole_operand_borrowed(expr);
+        let mark = self.temporaries_mark();
+        if !borrowed {
+            self.own_temporary(receiver);
+        }
+        let class = call.class.to_string();
+        self.emit_revoked_check(cur, receiver, Ty::Object, &class, env);
+        self.forget_temporaries_since(mark);
+        if borrowed {
             self.emit_retain(cur, receiver);
         }
         let (desc, _) = self.emit(
@@ -5139,6 +5150,10 @@ impl<'a> Lowering<'a> {
         // docs. Nothing is retained for it; a descriptor is not
         // refcounted.
         let receiver_v = if is_static {
+            // `rule:classes/revocable-objects`: the call uses the object to
+            // find its class, and that is a use, so a revoked one throws.
+            let class = call.class.to_string();
+            self.emit_revoked_check(*cur, object_v, receiver_ty, &class, env);
             let (v, _) = self.emit(
                 *cur,
                 Ty::ClassDesc,
@@ -6793,6 +6808,9 @@ impl<'a> Lowering<'a> {
         if receiver_ty.is_refcounted() && !self.sole_operand_borrowed(object) {
             self.own_temporary(object_v);
         }
+        // `rule:classes/revocable-objects`: `isinit` reads the object's slot,
+        // and that is a use, so a revoked object throws.
+        self.emit_revoked_check(*cur, object_v, receiver_ty, &class, env);
         let (is_init, _) = self.emit(
             *cur,
             Ty::Bool,

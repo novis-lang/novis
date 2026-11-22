@@ -666,6 +666,9 @@ impl<'a> Lowering<'a> {
                 if receiver_ty.is_refcounted() && owner != OperandOwner::Slot {
                     self.own_temporary(object_v);
                 }
+                // `rule:classes/revocable-objects`: checked once the receiver is
+                // held, before the suffix is computed, as a plain write is.
+                self.emit_revoked_check(*cur, object_v, receiver_ty, &class, env);
                 let suffix = self.slot_append_parts(value, env, cur);
                 let (old, _) = self.emit(
                     *cur,
