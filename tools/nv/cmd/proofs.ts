@@ -60,7 +60,8 @@
 // (`tools/nv/proofs/select.ts`); `--no-cache` runs every program in scope, and a binary named with
 // `--nvs` runs every program and records nothing. `--part K/N`, with `--run` or `--verify` alone, runs
 // every N-th program from the K-th, of the run's programs sorted by kind and then path (`cutPart`), so
-// the parts are the same on every OS; each gate runs whole in every part.
+// the parts are the same on every OS; each gate runs whole in every part. Declined: a split by recorded
+// time, which needs a ledger that every new program misses.
 //
 // CI's `proofs` job is the one suite that runs every proof program: `--verify --nvs` on a fresh proof
 // binary, over the whole roster, on each platform, in every CI run. `nv

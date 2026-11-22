@@ -181,3 +181,7 @@ and then the goal is retired. No test is expected to go red.
 - On `bun nv lsp-start --copies 12 --cold --edits 5`, five surface edits check 5833 bodies, about
   1166 an edit over 972 files, so some entry checks a file twice on an edit. It predates
   code-warm-index. Not CI work: a later goal owns it, and this note moves there when one is written.
+- `Core\Http\Client`'s `deadline` does not bound name resolution: `http://0x7f000001/` with
+  `deadline: 100ms` ran 2,689 ms on Windows. A latency bug on the request path; a goal of its own.
+- About 211 image proof programs take 11 s each in the proofs pool and 1.25 s alone, about 39 of the
+  Linux leg's 72 program minutes. Read why (threads per program, or a repeated compile) first.

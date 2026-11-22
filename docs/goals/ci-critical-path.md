@@ -26,7 +26,7 @@ stages:
     context: [tools/nv/proofs/run.ts, docs/rules/testing/feature-proofs.md, docs/agent/prose.md]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: ci-times
@@ -245,46 +245,39 @@ session builds once they end and runs the changed programs by name.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 3 are done, one session each, stage 4 in two, stage 5 in one.
+Every stage is done, one session each and stage 4 in two. The goal is reached.
+
+- Stage 6, a close: `cargo build`, `cargo clippy --all-targets -- -D warnings`, `ci-times`,
+  `proofs-part` and `bun nv close --goal ci-critical-path` are green, none red on the first run.
+- Its decisions have homes: the layout in `ci.yml`'s job comments, `--times` in `tools/nv/cmd/ci.ts`'s
+  header, `--part` and its Declined in `tools/nv/cmd/proofs.ts`'s header. Its Backlog moved to
+  `ci-green`'s Backlog.
 
 - Push 2, `0adafda88`, run 44980678443, is green (`bun nv ci --green`). It ended at 53.9 min, last
   `proofs / linux-x86_64`, 53.8 (34.2 in push 1, 31.6 in the baseline 44940832132). Windows proofs
   parts 41.5 and 40.6. Push 1 ended at 39.3 against the baseline's 45.9. Build legs end before the last job.
 - The Linux leg's 53.8 against 34.2 is a slower runner, not a wait: its programs total 72.3 min
   against 48.8, and every program is about 1.5 times slower.
-- The 30 slowest Windows programs, Windows s / Linux s. A grep for `sleep`, `timeout`, `deadline`,
-  `wait` and `delay` replaced the `reader`. A timed probe found each cause.
-  - `hostile/core/Net-Stream/read/01` 13.5 / 3.3: 1000 reads at `1ms`, about 15 ms each on Windows,
-    and a `2s` read. Not what it proves. Now `1us` and `100ms`: 17.5 s became 0.9 s locally.
-  - `hostile/core/Http-Client/request/01` 22.5 / 0.5 and `stream/01` 14.0 / 0.2: resolving
-    `0x7f000001` takes 2.7 s per method on Windows. A shorter `deadline` did not help. Left as is.
-  - `Response/sendFile/01`, `Zip/extract/01`, `IO-Metadata/size/01`, `IO/list/02` (28.1 to 13.2 /
-    5.7 to 2.0): file work. Three Db attacks (17.9 to 16.0 / 9.5 to 10.1): database work. No wait.
-  - `Pdf-Document/render/01` 20.6 / 20.0 and 19 image examples at 11.9 to 13.6 / 10.6 to 13.3:
-    computation, no wait. `Image-Image/rotate/01` runs in 1.25 s alone, so the time is the pool.
-- Nightly 44894790665's Miri failure predates its fix `156f11a7ca`; push 2's Miri jobs are green.
+- Of the 30 slowest Windows programs, only `hostile/core/Net-Stream/read/01` waited where the wait
+  is not what it proves: now `1us` and `100ms` reads, 17.5 s became 0.9 s. The `Http-Client`
+  attacks wait on Windows name resolution; the rest is file, database or image work.
+- Nightly 44894790665 ran `7e97fa8444`, which does not hold the Miri fix `156f11a7ca`
+  (`git merge-base --is-ancestor`). Push 2's Miri jobs are green.
 - `website/src/data/roadmap.json` lists `ci-critical-path` and `windows-rust-lld` as `internal`.
 
 ### Next
 
-Stage 6, the gate stage. Run the check the pack names: at a close, `cargo build`, `cargo clippy
---all-targets -- -D warnings`, the two checks this goal wrote (`ci-times`, `proofs-part`) and `bun
-nv close --goal ci-critical-path`. Then delete the goal's file, as AGENTS.md § *In the loop* says.
+The goal is reached: the driver runs its acceptance and retires it, then `windows-rust-lld` is live.
 No test is expected to go red.
 
 ### Backlog
 
-- `Core\Http\Client`'s `deadline` does not bound name resolution. A request to `http://0x7f000001/`
-  with `deadline: 100ms` ran 2,689 ms on Windows before it threw "could not resolve". A request can
-  outlast its deadline whenever DNS is slow. This is a latency bug on the request path, and it is
-  most of the time of the two `Http-Client` attacks above. A goal of its own should fix it.
-- About 211 image proof programs take 11 s each in the pool on both OS, and 1.25 s alone. Together
-  they are about 39 of the Linux leg's 72 program minutes. Read why they slow down so much under
-  the pool (threads per program, or a compile each one repeats) before the next goal on CI times.
+- Both items, the `Core\Http\Client` deadline that does not bound name resolution and the image
+  programs slow under the proofs pool, are in `docs/goals/ci-green.md`'s Backlog.
