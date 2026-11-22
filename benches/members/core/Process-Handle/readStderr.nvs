@@ -24,7 +24,7 @@ class Bench
             // The program prints one line for each line it reads.
             // So each read returns exactly that one line.
             $program->writeStdin($line);
-            ?bytes $part = $program->readStderr();
+            ?tainted bytes $part = $program->readStderr();
             // The total depends on every part, so no read can be skipped.
             if ($part != null) {
                 $total = $total + Core\Bytes::length($part);

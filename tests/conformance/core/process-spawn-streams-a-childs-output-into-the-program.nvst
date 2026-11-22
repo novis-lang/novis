@@ -26,8 +26,8 @@ int $absent = 0;
 int $echoStatus = -2;
 int $talkStatus = -2;
 tainted string $echoed = "<nothing ran>";
-string $seen = "<nothing ran>";
-string $seenErr = "<nothing ran>";
+tainted string $seen = "<nothing ran>";
+tainted string $seenErr = "<nothing ran>";
 
 try {
     // The round trip. `cat` reads its input to the end and writes it back, so
@@ -48,7 +48,7 @@ try {
     // error, so a member reading both streams through one pipe answers it in
     // the wrong place.
     Core\Process\Handle $talker = Core\Process::spawn("/bin/sh", ["-c", "echo one; echo two; echo oops >&2"]);
-    string $out = "";
+    tainted string $out = "";
     ?tainted bytes $chunk = $talker->readStdout();
     while ($chunk != null) {
         $out = $out . ($chunk as string);
@@ -56,7 +56,7 @@ try {
     }
     $seen = $out;
 
-    string $err = "";
+    tainted string $err = "";
     ?tainted bytes $errChunk = $talker->readStderr();
     while ($errChunk != null) {
         $err = $err . ($errChunk as string);
@@ -82,7 +82,7 @@ try {
     $echoStatus = $backOnWindows->exitCode();
 
     Core\Process\Handle $talkerOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "echo one&echo two&echo oops 1>&2"]);
-    string $outOnWindows = "";
+    tainted string $outOnWindows = "";
     ?tainted bytes $chunkOnWindows = $talkerOnWindows->readStdout();
     while ($chunkOnWindows != null) {
         $outOnWindows = $outOnWindows . ($chunkOnWindows as string);
@@ -90,7 +90,7 @@ try {
     }
     $seen = $outOnWindows;
 
-    string $errOnWindows = "";
+    tainted string $errOnWindows = "";
     ?tainted bytes $errChunkOnWindows = $talkerOnWindows->readStderr();
     while ($errChunkOnWindows != null) {
         $errOnWindows = $errOnWindows . ($errChunkOnWindows as string);

@@ -5,7 +5,7 @@
 var $result = Core\Process::run('/bin/echo', ['Hello from another program']);
 
 // `stdout()` returns `bytes`. `as string` converts them to text.
-string $text = $result->stdout() as string;
+tainted string $text = $result->stdout() as string;
 
 // `echo` ends its output with a new line. `Core\Str::trim` removes it.
 // This prints `[Hello from another program]`.

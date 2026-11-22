@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/expr/quals.rs, crates/nvs-types/src/derive.rs, crates/nvs-types/src/expr/args.rs]
   - id: 3
     title: "a Core member's returned text is tainted unless its row says where the text comes from"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/tests/taint_signatures.rs, docs/rules/security/tainted-sources.md]
   - id: 4
     title: "every expression form and every codec has a taint row, and a form or a type without one does not compile"
@@ -244,9 +244,10 @@ seeding costs nothing per call, and a field cannot be forgotten the way a roster
 `Core\Process\Handle::readStdout`/`readStderr` answer `tainted bytes`. The program chose the command,
 but not what `git`, `curl` or a compiler prints about data it reads, so `Core\IO`'s reason for clean
 reads does not carry over. A program writes `tainted bytes` on the variable that keeps it. So are
-`Core\Db\Connection::serverVersion`, `Core\Ldap\Connection::whoami` and
-`Core\Http\Socket::protocol`: text a server sends. `Core\Db\Plan\Step::reason` and `::sql` are
-`Clean`: the planner writes them from its own sentences and the program's schema.
+`Core\Db\Connection::serverVersion` and `Core\Ldap\Connection::whoami`: text a server sends.
+`Core\Db\Plan\Step::reason` and `::sql` are `Clean`: the planner writes them from its own sentences
+and the program's schema. `Core\Http\Socket::protocol` is `Clean` too: the handshake refuses a
+subprotocol the call did not offer (`transport::settled`), so the name is one the program wrote.
 
 **What stops it.** One attempt per item, and two sessions per stage, counted in `### State`. At two
 sessions a stage's open items move to `### Backlog` as declined, each with its reason, and a security
@@ -317,12 +318,12 @@ subagents mark the rows file by file, in disjoint batches of the 49 files. None 
   every `Clean` row, and fails on an empty reason. The allow list at `:21` keeps its rows.
 - [x] `rule:security/tainted-sources` gains one paragraph: the mark, and that no mark means tainted.
   `rule:security/unclassified-parameter-refuses-tainted` names the return side as its pair.
-- [ ] The conformance cases that go red are those whose program used a row now marked `Source`. Each
+- [x] The conformance cases that go red are those whose program used a row now marked `Source`. Each
   is fixed in its program with the sink's launderer or a checked conversion, never with
   `assertTrusted` and never in its expected output, unless the expected output is the bug. A case
   whose row was marked `Source` wrongly gets `Derived` or `Clean` instead, and the case stays as it
   was.
-- [ ] `cargo build`, clippy, `bun nv relink --build` and `bun nv against`. No IR difference. Each
+- [x] `cargo build`, clippy, `bun nv relink --build` and `bun nv against`. No IR difference. Each
   program whose diagnostics differ is either a hole, named under `### State` with its source, or a
   wrong `Source` mark, fixed at the row. The `assertTrusted` count has not grown.
 
@@ -376,7 +377,10 @@ or `bytes`, one line each.
 
 - [ ] `website/src/data/changes.json:1`: `changed` for `Core\Uri::encodeComponent`, for each row
   stage 3 moved from plain to tainted, and for `Core\Issue` and `Throwable::$message` if stage 4
-  changed them.
+  changed them. Stage 3 moved six: `Core\Process\Result::stdout` and `::stderr`,
+  `Core\Process\Handle::readStdout` and `::readStderr`, `Core\Db\Connection::serverVersion` and
+  `Core\Ldap\Connection::whoami`. Each one's `about.md` says its text is `tainted`, and how to keep
+  it (`tainted bytes` on the variable, a checked conversion, or the sink's launderer).
 - [ ] The `about.md` and help of each: reread against what was built and stamped with
   `bun nv site --stamp`. The page on `tainted` says in one sentence that text from a `Core` member is
   tainted unless the member says otherwise.
@@ -404,46 +408,37 @@ or `bytes`, one line each.
 
 The against base is in `.agent-tmp/against/base/`, from `1ec4cda0d4`, and stays until stage 7.
 
-Stage 3: `TextOrigin` and `CoreMethod::text` are in `crates/nvs-stdlib/src/registry.rs`. All 214
-rows that return plain text are marked (120 `Derived`, 87 `Clean`, 7 `Source`), and the test record
-builders write `Clean(..).on(..)`. `core_lib.rs`'s `return_of` taints an `Unmarked` or `Source` row,
-with its unit test green. `taint_signatures.rs`'s 6 tests are green, run once by name. Both rule
-paragraphs are written.
+Stage 3 is done. `TextOrigin` and `CoreMethod::text` are in `crates/nvs-stdlib/src/registry.rs`,
+and all 214 rows that return plain text are marked. `Core\Http\Socket::protocol` is now `Clean`:
+`transport::settled` refuses a subprotocol the call did not offer. The six `Source` rows are process
+output, `Core\Db\Connection::serverVersion` and `Core\Ldap\Connection::whoami`. The 24 programs
+that kept their text write `tainted` on the variable and return type. Two needed more:
+`Process-Result/stderr/03-*` puts the tool's message in an error through `Core\Cli::escape`, and
+`Process-Result/stdout/03-*` returns `as int`. The 14 process conformance cases are green, run once
+by name.
 
-`bun nv against` (built before the plan-step rows became `Clean`): ratio 0.999, `assertTrusted` 48
-and 48. 29 programs differ, each IR difference a program that no longer compiles. 4 were
-`Db-Plan-Step` examples, fixed at the row. The other 25 keep a new `Source` row's text in a plain
-`bytes`, `?bytes` or `string` declaration, with no sink refusal: 22 read process output
-(`docs/examples/core/Process*/` and three `benches/members/core/Process*` files), and
-`Db-Connection/serverVersion/02-*`, `Ldap-Connection/whoami/02-*` and `03-*`, and
-`Http-Socket/protocol/03-*`. Of 136 process, db, ldap and socket conformance cases, 16 were red: 2
-fixed by the plan-step rows, 14 rewritten to declare `tainted` and not yet rerun.
+`bun nv against` on the final stage 3 tree: no IR difference, no diagnostic difference,
+`assertTrusted` 48 and 48, median check-time ratio 1.017. 22 programs are listed as edited: their
+source changed, and both binaries lower the new source alike. `against.ts` now reports those apart
+and does not fail on them; before, it counted them as IR differences.
 
-Sessions per stage: 1: one. 2: one. 3: one.
+Sessions per stage: 1: one. 2: one. 3: two.
 
 ### Next
 
-Stage 3's last two items. Rebuild with `cargo build`, then:
+Stage 4, from its first item.
 
-1. The 25 programs above: write `tainted bytes`, `?tainted bytes` or `tainted string` on each
-   declaration the diagnostic names, and a method's return type for each `E0403`. Where the text
-   then reaches a sink, use that sink's launderer, never `assertTrusted`. The diagnostics are in
-   `bun nv against`'s output; `.agent-tmp/fix_cases.py <nvs test output>` rewrites declarations from
-   an `nvs test` run's output and works on these with its `FAIL` line adapted. Comments stay as they
-   are unless one now says something false.
-2. `Http-Socket/protocol`: read `crates/nvs-stdlib/src/http/socket.rs` to see whether the client
-   checks that the server's subprotocol is one it offered. If it does, the row is `Clean` with that
-   reason, and the example stays as it was.
-3. Run the 14 conformance cases above once by name with `target/debug/nvs.exe test <files>`.
-4. `bun nv relink --build` and `bun nv against`: no IR difference and no diagnostic difference left,
-   `assertTrusted` 48 at most. Then tick the last two items and set stage 3 to done.
-5. Stage 6's list gains: `changes.json` entries for `Core\Process\Result::stdout`, `::stderr`,
-   `Core\Process\Handle::readStdout`, `::readStderr`, `Core\Db\Connection::serverVersion`,
-   `Core\Ldap\Connection::whoami` and `Core\Http\Socket::protocol` if it stays `Source`, and each
-   one's `about.md` saying its text is `tainted`.
+1. Its **Split:** an `Explore` subagent lists every expression kind of `nvs-syntax` that can give
+   `string` or `bytes`, one line each (`crates/nvs-syntax/src/ast.rs`'s `ExprKind`).
+2. `crates/nvs-types/tests/taint_every_form.rs`: one row per kind through an exhaustive match. Each
+   row that compiles clean is a hole, fixed at the expression's check in `crates/nvs-types/src/expr/`.
+3. The two *check first* items: `Core\Issue::$path` (`crates/nvs-stdlib/src/json.rs:5321`,
+   `crates/nvs-types/src/error_lib.rs:222`) and `Throwable::$message` (`db/row.rs:220`,
+   `error_lib.rs:238`).
+4. Build, clippy, `bun nv relink --build`, `bun nv against`.
 
-Tests expected red until then: the 25 programs' example and bench checks, and any conformance case
-of the 14 that the script did not fully fix.
+Tests expected red: none known. Stage 6's first item names the six rows that need a `changes.json`
+entry and an `about.md` line.
 
 ### Backlog
 

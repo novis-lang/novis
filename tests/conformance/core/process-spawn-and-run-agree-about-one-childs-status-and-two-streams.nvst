@@ -16,15 +16,15 @@ int $started = 0;
 int $absent = 0;
 int $spawnStatus = -2;
 int $runStatus = -2;
-string $out = "<nothing ran>";
-string $err = "<nothing ran>";
+tainted string $out = "<nothing ran>";
+tainted string $err = "<nothing ran>";
 tainted string $ranOut = "<nothing ran>";
 tainted string $ranErr = "<nothing ran>";
 
 try {
     Core\Process\Handle $child = Core\Process::spawn("/bin/sh", ["-c", "echo out; echo err 1>&2; exit 3"]);
     $started += 1;
-    string $seen = "";
+    tainted string $seen = "";
     ?tainted bytes $chunk = $child->readStdout();
     while ($chunk != null) {
         $seen = $seen . ($chunk as string);
@@ -32,7 +32,7 @@ try {
     }
     $out = $seen;
 
-    string $seenErr = "";
+    tainted string $seenErr = "";
     ?tainted bytes $errChunk = $child->readStderr();
     while ($errChunk != null) {
         $seenErr = $seenErr . ($errChunk as string);
@@ -61,7 +61,7 @@ try {
 try {
     Core\Process\Handle $childOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "echo out&echo err 1>&2&exit 3"]);
     $started += 1;
-    string $seenOnWindows = "";
+    tainted string $seenOnWindows = "";
     ?tainted bytes $chunkOnWindows = $childOnWindows->readStdout();
     while ($chunkOnWindows != null) {
         $seenOnWindows = $seenOnWindows . ($chunkOnWindows as string);
@@ -69,7 +69,7 @@ try {
     }
     $out = $seenOnWindows;
 
-    string $seenErrOnWindows = "";
+    tainted string $seenErrOnWindows = "";
     ?tainted bytes $errChunkOnWindows = $childOnWindows->readStderr();
     while ($errChunkOnWindows != null) {
         $seenErrOnWindows = $seenErrOnWindows . ($errChunkOnWindows as string);

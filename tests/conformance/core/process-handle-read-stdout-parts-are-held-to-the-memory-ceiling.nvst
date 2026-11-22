@@ -24,7 +24,7 @@ Core\Process\Handle $program = Core\Process::spawn($path, $arguments);
 // `--EXPECT--` is exact, so this line being the whole of stdout is what asserts
 // the loop was stopped while it kept parts.
 echo "before\n";
-array<bytes> $kept = [];
+array<tainted bytes> $kept = [];
 uint $size = 0;
 bool $ended = false;
 while (!$ended && $size < 67108864) {

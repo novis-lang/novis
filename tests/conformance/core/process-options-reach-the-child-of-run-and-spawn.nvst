@@ -11,7 +11,7 @@
 
 int $started = 0;
 bool $inFolder = false;
-string $probe = "<nothing ran>";
+tainted string $probe = "<nothing ran>";
 tainted string $spawnedProbe = "<nothing ran>";
 int $runStopped = 0;
 int $spawnStopped = 0;

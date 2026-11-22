@@ -6,7 +6,7 @@
 var $program = Core\Process::spawn('/bin/sh', ['-c', 'echo first; sleep 1; echo second']);
 
 // `readStdout()` reads the first line. This prints `read: first`.
-?bytes $part = $program->readStdout();
+?tainted bytes $part = $program->readStdout();
 echo 'read: ', $part as string;
 
 // The result of `wait()` has only the second line. This prints `wait: second`.

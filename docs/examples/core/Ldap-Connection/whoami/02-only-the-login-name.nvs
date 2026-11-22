@@ -6,10 +6,10 @@ class Login
 {
     // The result starts with `u:` and a login name, or with `dn:` and a DN.
     // A login name can start with a domain and `\`, so the domain is cut off too.
-    public static function name(string $who): string
+    public static function name(tainted string $who): tainted string
     {
         if (Core\Str::startsWith($who, 'u:')) {
-            string $login = Core\Str::after($who, 'u:') ?? '';
+            tainted string $login = Core\Str::after($who, 'u:') ?? '';
             return Core\Str::after($login, "\\", { last: true }) ?? $login;
         }
         if (Core\Str::startsWith($who, 'dn:')) {

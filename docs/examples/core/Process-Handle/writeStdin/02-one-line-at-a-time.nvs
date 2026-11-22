@@ -13,7 +13,7 @@ var $program = Core\Process::spawn(
 array<string> $lines = ['hello', 'goodbye'];
 foreach ($lines as string $line) {
     $program->writeStdin(($line . "\n") as bytes);
-    ?bytes $reply = $program->readStdout();
+    ?tainted bytes $reply = $program->readStdout();
     if ($reply != null) {
         echo $reply as string;
     }

@@ -5,7 +5,7 @@
 array<string> $scripts = ['echo done', "echo done; echo 'warning: old settings' >&2"];
 
 foreach ($scripts as string $script) {
-    bytes $warnings = Core\Process::run('/bin/sh', ['-c', $script])->stderr();
+    tainted bytes $warnings = Core\Process::run('/bin/sh', ['-c', $script])->stderr();
     // An empty error output has length `0`.
     if (Core\Bytes::length($warnings) == 0) {
         echo "no warnings\n";

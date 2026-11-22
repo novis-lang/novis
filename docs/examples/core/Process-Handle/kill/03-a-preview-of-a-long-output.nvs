@@ -4,12 +4,12 @@
 
 class Preview
 {
-    public static function firstLines(string $path, array<string> $arguments, int $count): array<string>
+    public static function firstLines(string $path, array<string> $arguments, int $count): array<tainted string>
     {
         var $program = Core\Process::spawn($path, $arguments);
-        string $text = '';
-        array<string> $lines = [];
-        ?bytes $part = $program->readStdout();
+        tainted string $text = '';
+        array<tainted string> $lines = [];
+        ?tainted bytes $part = $program->readStdout();
         while ($part != null) {
             $text = $text . ($part as string);
             $lines = Core\Str::lines($text);
@@ -27,6 +27,6 @@ class Preview
 }
 
 // `seq 1 1000000` prints one million numbers. This prints only 1, 2 and 3.
-foreach (Preview::firstLines('/usr/bin/seq', ['1', '1000000'], 3) as string $line) {
+foreach (Preview::firstLines('/usr/bin/seq', ['1', '1000000'], 3) as tainted string $line) {
     echo $line, "\n";
 }

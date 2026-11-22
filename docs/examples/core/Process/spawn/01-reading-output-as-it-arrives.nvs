@@ -8,7 +8,7 @@ var $numbers = Core\Process::spawn('/usr/bin/seq', ['1', '3']);
 
 // `readStdout()` returns the next part of the output, as `bytes`.
 // It returns `null` when the program has closed its output.
-?bytes $part = $numbers->readStdout();
+?tainted bytes $part = $numbers->readStdout();
 while ($part != null) {
     echo $part as string;
     $part = $numbers->readStdout();

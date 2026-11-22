@@ -4,14 +4,14 @@
 
 // `printf` writes three bytes here. The last one, `\377`, is not valid UTF-8.
 var $result = Core\Process::run('/usr/bin/printf', ["AB\\377"]);
-bytes $data = $result->stdout();
+tainted bytes $data = $result->stdout();
 
 // `bytes` can contain any data. This prints `3`.
 echo Core\Bytes::length($data), "\n";
 
 // The data is not valid text, so `as string` throws an error.
 try {
-    string $text = $data as string;
+    tainted string $text = $data as string;
     echo $text, "\n";
 } catch (RuntimeError $notText) {
     echo 'not text: ', $notText->message, "\n";

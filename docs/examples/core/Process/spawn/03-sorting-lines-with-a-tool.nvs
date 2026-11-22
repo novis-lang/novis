@@ -4,7 +4,7 @@
 
 class Tools
 {
-    public static function filter(string $path, array<string> $arguments, string $input): string
+    public static function filter(string $path, array<string> $arguments, string $input): tainted string
     {
         var $tool = Core\Process::spawn($path, $arguments);
         // `writeStdin` sends the text to the tool. A `string` converts to `bytes` here.

@@ -6,7 +6,7 @@
 var $endless = Core\Process::spawn('/usr/bin/yes', ['ready']);
 
 // This reads one part of the output, and prints its first line: `ready`.
-?bytes $part = $endless->readStdout();
+?tainted bytes $part = $endless->readStdout();
 echo Core\Str::lines($part as string)[0], "\n";
 
 // `kill()` stops the program. `wait()` then returns its exit code.

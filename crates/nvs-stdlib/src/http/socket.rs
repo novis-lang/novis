@@ -282,7 +282,10 @@ pub(crate) const SOCKET: CoreClass = CoreClass {
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::Str),
-            text: TextOrigin::Source,
+            text: TextOrigin::Clean(
+                "The handshake refuses a subprotocol the call did not offer, so the name is one the \
+                 program wrote.",
+            ),
             symbol: PROTOCOL_SYMBOL,
             doc: Some(&PROTOCOL_DOC),
         },

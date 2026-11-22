@@ -6,11 +6,11 @@
 var $program = Core\Process::spawn('/usr/bin/true', []);
 
 // The output has ended, so the result is `null`.
-?bytes $first = $program->readStdout();
+?tainted bytes $first = $program->readStdout();
 echo 'first read: ', $first == null ? 'null' : 'data', "\n";
 
 // A second call also returns `null`. It does not throw an error.
-?bytes $second = $program->readStdout();
+?tainted bytes $second = $program->readStdout();
 echo 'second read: ', $second == null ? 'null' : 'data', "\n";
 
 // This prints `exit code 0`.

@@ -9,15 +9,15 @@ var $program = Core\Process::spawn(
 );
 
 // `readStdout()` returns only the result. The note is not in it.
-string $result = '';
-?bytes $part = $program->readStdout();
+tainted string $result = '';
+?tainted bytes $part = $program->readStdout();
 while ($part != null) {
     $result = $result . ($part as string);
     $part = $program->readStdout();
 }
 
 // `readStderr()` returns only the note.
-string $note = '';
+tainted string $note = '';
 $part = $program->readStderr();
 while ($part != null) {
     $note = $note . ($part as string);

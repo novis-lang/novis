@@ -6,7 +6,7 @@ var $db = Core\Db::connect('notes');
 
 // The version begins with the main number and then a dot. `Core\Str::before`
 // gives the text in front of the first dot.
-string $main = Core\Str::before($db->serverVersion(), '.') ?? '0';
+tainted string $main = Core\Str::before($db->serverVersion(), '.') ?? '0';
 
 // `as ?int` converts that text to a whole number. If that is not possible, the
 // result is `null`, and `?? 0` turns it into `0`.

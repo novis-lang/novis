@@ -4,13 +4,14 @@
 
 class Tools
 {
-    public static function run(string $path, array<string> $arguments): string
+    public static function run(string $path, array<string> $arguments): tainted string
     {
         var $result = Core\Process::run($path, $arguments);
         if ($result->exitCode() != 0) {
             // The tool's message says what went wrong. `Core\Str::trim` removes the new line.
-            string $message = Core\Str::trim($result->stderr() as string);
-            throw new RuntimeError('the tool failed: ' . $message);
+            tainted string $message = Core\Str::trim($result->stderr() as string);
+            // `Core\Cli::escape` makes the message safe to print in a terminal.
+            throw new RuntimeError('the tool failed: ' . Core\Cli::escape($message));
         }
         return $result->stdout() as string;
     }

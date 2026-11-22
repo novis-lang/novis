@@ -14,7 +14,7 @@ if (Core\Env::OS == Core\Env::Platform::Windows) {
     $arguments = ["/c", "echo done"];
 }
 Core\Process\Handle $child = Core\Process::spawn($path, $arguments);
-string $said = "";
+tainted string $said = "";
 ?tainted bytes $part = $child->readStdout();
 while ($part != null) {
     $said = $said . ($part as string);
