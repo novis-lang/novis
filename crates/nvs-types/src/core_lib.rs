@@ -1840,7 +1840,10 @@ mod tests {
                 .collect::<Vec<_>>()
         };
         assert_eq!(names(r"Core\IO"), [(r"Core\IO::within".to_owned(), false)]);
-        assert_eq!(names(r"Core\Regex"), [(r"Core\Regex::quote".to_owned(), true)]);
+        assert_eq!(
+            names(r"Core\Regex"),
+            [(r"Core\Regex::quote".to_owned(), true)]
+        );
         assert!(names(r"Core\Taint").is_empty());
         assert!(names(r"Core\NoSuchClass").is_empty());
     }

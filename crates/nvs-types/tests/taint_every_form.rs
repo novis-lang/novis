@@ -68,9 +68,15 @@ const ROWS: &[(&str, Row)] = &[
     ("Bool", Row::NoText("a boolean has no text.")),
     ("Int", Row::NoText("a number literal has no text.")),
     ("Float", Row::NoText("a number literal has no text.")),
-    ("Duration", Row::NoText("a duration literal is a `Core\\Time\\Duration`.")),
+    (
+        "Duration",
+        Row::NoText("a duration literal is a `Core\\Time\\Duration`."),
+    ),
     ("Str", Row::NoText("a literal is text the program wrote.")),
-    ("Interpolated", Row::Text(in_method!("    string $s = \"a {$t} b\";"))),
+    (
+        "Interpolated",
+        Row::Text(in_method!("    string $s = \"a {$t} b\";")),
+    ),
     (
         "Interpolated",
         Row::Text(in_method!("    string $s = <<<EOT\n    a {$t} b\n    EOT;")),
@@ -83,41 +89,99 @@ const ROWS: &[(&str, Row)] = &[
         ),
     ),
     ("Variable", Row::Text(in_method!("    string $s = $t;"))),
-    ("ConstFetch", Row::NoText("a constant's value is a constant expression the program wrote.")),
+    (
+        "ConstFetch",
+        Row::NoText("a constant's value is a constant expression the program wrote."),
+    ),
     ("SelfExpr", Row::NoText("`self` names a class.")),
     ("StaticExpr", Row::NoText("`static` names a class.")),
     ("ParentExpr", Row::NoText("`parent` names a class.")),
-    ("ArrayLiteral", Row::Text(in_method!("    array<string> $a = [$t, \"b\"];"))),
-    ("ArrayLiteral", Row::Text(in_method!("    array<string> $a = [\"k\" => $t];"))),
     (
         "ArrayLiteral",
-        Row::Text(in_method!("    var $x = [$t];\n    array<string> $a = [...$x, \"b\"];")),
+        Row::Text(in_method!("    array<string> $a = [$t, \"b\"];")),
     ),
-    ("Unary", Row::NoText("`-`, `+`, `!` and `~` give a number or a boolean.")),
+    (
+        "ArrayLiteral",
+        Row::Text(in_method!("    array<string> $a = [\"k\" => $t];")),
+    ),
+    (
+        "ArrayLiteral",
+        Row::Text(in_method!(
+            "    var $x = [$t];\n    array<string> $a = [...$x, \"b\"];"
+        )),
+    ),
+    (
+        "Unary",
+        Row::NoText("`-`, `+`, `!` and `~` give a number or a boolean."),
+    ),
     ("PreIncDec", Row::NoText("`++` and `--` give a number.")),
     ("PostIncDec", Row::NoText("`++` and `--` give a number.")),
-    ("Binary", Row::Text(in_method!("    string $s = $t . \"b\";"))),
-    ("Binary", Row::Text(in_method!("    string $s = \"a\" . $t;"))),
-
     (
         "Binary",
-        Row::Text(in_method!("    ?{T} $n = $t;\n    string $s = $n ?? \"b\";")),
+        Row::Text(in_method!("    string $s = $t . \"b\";")),
     ),
     (
         "Binary",
-        Row::Text(in_method!("    ?string $n = null;\n    string $s = $n ?? $t;")),
+        Row::Text(in_method!("    string $s = \"a\" . $t;")),
     ),
-    ("Assign", Row::Text(in_method!("    string $s = \"a\";\n    $s = $t;"))),
-    ("Assign", Row::Text(in_method!("    {T} $u = \"a\";\n    string $s = ($u = $t);"))),
-    ("Assign", Row::Text(in_method!("    string $s = \"a\";\n    $s .= $t;"))),
-    ("Assign", Row::Text(in_method!("    ?string $s = null;\n    $s ??= $t;"))),
-    ("Assign", Row::Text(in_method!("    ?string $s = null;\n    $s ??.= $t;"))),
-    ("Ternary", Row::Text(in_method!("    string $s = true ? $t : \"b\";"))),
-    ("Ternary", Row::Text(in_method!("    string $s = false ? \"b\" : $t;"))),
-    ("Ternary", Row::Text(in_method!("    string $s = $t ?: \"b\";"))),
-    ("Conversion", Row::Text(in_method!("    string $s = $t as string;"))),
-    ("Conversion", Row::Text(in_method!("    bytes $b = $t as bytes;"))),
-    ("Conversion", Row::Text(in_method!("    string $s = ($t as bytes) as string;"))),
+    (
+        "Binary",
+        Row::Text(in_method!(
+            "    ?{T} $n = $t;\n    string $s = $n ?? \"b\";"
+        )),
+    ),
+    (
+        "Binary",
+        Row::Text(in_method!(
+            "    ?string $n = null;\n    string $s = $n ?? $t;"
+        )),
+    ),
+    (
+        "Assign",
+        Row::Text(in_method!("    string $s = \"a\";\n    $s = $t;")),
+    ),
+    (
+        "Assign",
+        Row::Text(in_method!(
+            "    {T} $u = \"a\";\n    string $s = ($u = $t);"
+        )),
+    ),
+    (
+        "Assign",
+        Row::Text(in_method!("    string $s = \"a\";\n    $s .= $t;")),
+    ),
+    (
+        "Assign",
+        Row::Text(in_method!("    ?string $s = null;\n    $s ??= $t;")),
+    ),
+    (
+        "Assign",
+        Row::Text(in_method!("    ?string $s = null;\n    $s ??.= $t;")),
+    ),
+    (
+        "Ternary",
+        Row::Text(in_method!("    string $s = true ? $t : \"b\";")),
+    ),
+    (
+        "Ternary",
+        Row::Text(in_method!("    string $s = false ? \"b\" : $t;")),
+    ),
+    (
+        "Ternary",
+        Row::Text(in_method!("    string $s = $t ?: \"b\";")),
+    ),
+    (
+        "Conversion",
+        Row::Text(in_method!("    string $s = $t as string;")),
+    ),
+    (
+        "Conversion",
+        Row::Text(in_method!("    bytes $b = $t as bytes;")),
+    ),
+    (
+        "Conversion",
+        Row::Text(in_method!("    string $s = ($t as bytes) as string;")),
+    ),
     (
         "Conversion",
         Row::Outside(concat!(
@@ -153,23 +217,46 @@ const ROWS: &[(&str, Row)] = &[
             "    var $f = fn({T} $x) => $x . \"!\";\n    string $s = $f($t);"
         )),
     ),
-    ("MethodCall", Row::Text(with_box!("    string $s = (new Box($t))->get();"))),
     (
         "MethodCall",
-        Row::Text(with_box!("    ?Box $b = new Box($t);\n    string $s = $b?->get() ?? \"\";")),
+        Row::Text(with_box!("    string $s = (new Box($t))->get();")),
     ),
-    ("StaticCall", Row::Text(in_method!("    string $s = Core\\Str::upper($t);"))),
-    ("StaticCall", Row::Text(in_method!("    string $s = Core\\Json::encode([$t]);"))),
+    (
+        "MethodCall",
+        Row::Text(with_box!(
+            "    ?Box $b = new Box($t);\n    string $s = $b?->get() ?? \"\";"
+        )),
+    ),
     (
         "StaticCall",
-        Row::Text(in_method!("    string $s = Core\\Str::format(\"%s!\", $t);")),
+        Row::Text(in_method!("    string $s = Core\\Str::upper($t);")),
     ),
-    ("PropertyAccess", Row::Text(with_box!("    string $s = (new Box($t))->v;"))),
+    (
+        "StaticCall",
+        Row::Text(in_method!("    string $s = Core\\Json::encode([$t]);")),
+    ),
+    (
+        "StaticCall",
+        Row::Text(in_method!(
+            "    string $s = Core\\Str::format(\"%s!\", $t);"
+        )),
+    ),
     (
         "PropertyAccess",
-        Row::Text(with_box!("    ?Box $b = new Box($t);\n    string $s = $b?->v ?? \"\";")),
+        Row::Text(with_box!("    string $s = (new Box($t))->v;")),
     ),
-    ("PropertyAccess", Row::Text(in_method!("    var $o = { v: $t };\n    string $s = $o->v;"))),
+    (
+        "PropertyAccess",
+        Row::Text(with_box!(
+            "    ?Box $b = new Box($t);\n    string $s = $b?->v ?? \"\";"
+        )),
+    ),
+    (
+        "PropertyAccess",
+        Row::Text(in_method!(
+            "    var $o = { v: $t };\n    string $s = $o->v;"
+        )),
+    ),
     (
         "StaticPropertyAccess",
         Row::NoText(
@@ -177,22 +264,45 @@ const ROWS: &[(&str, Row)] = &[
              only its declared type is read.",
         ),
     ),
-    ("ClassConstAccess", Row::NoText("a class constant is a constant expression.")),
-    ("ClassNameConst", Row::NoText("`C::class` is a class name the program wrote.")),
-    ("Index", Row::Text(in_method!("    var $a = [$t];\n    string $s = $a[0];"))),
-    ("Index", Row::Text(in_method!("    var $a = [\"k\" => $t];\n    string $s = $a[\"k\"];"))),
-    ("New", Row::NoText("`new` gives an object, and each property has its declared type.")),
+    (
+        "ClassConstAccess",
+        Row::NoText("a class constant is a constant expression."),
+    ),
+    (
+        "ClassNameConst",
+        Row::NoText("`C::class` is a class name the program wrote."),
+    ),
+    (
+        "Index",
+        Row::Text(in_method!("    var $a = [$t];\n    string $s = $a[0];")),
+    ),
+    (
+        "Index",
+        Row::Text(in_method!(
+            "    var $a = [\"k\" => $t];\n    string $s = $a[\"k\"];"
+        )),
+    ),
+    (
+        "New",
+        Row::NoText("`new` gives an object, and each property has its declared type."),
+    ),
     (
         "Clone",
-        Row::Text(in_method!("    var $o = { v: $t };\n    string $s = (clone $o)->v;")),
+        Row::Text(in_method!(
+            "    var $o = { v: $t };\n    string $s = (clone $o)->v;"
+        )),
     ),
     (
         "Fn",
-        Row::Text(in_method!("    var $f = fn() => $t;\n    string $s = $f();")),
+        Row::Text(in_method!(
+            "    var $f = fn() => $t;\n    string $s = $f();"
+        )),
     ),
     (
         "Fn",
-        Row::Text(in_method!("    var $f = fn() => $t . \"!\";\n    string $s = $f();")),
+        Row::Text(in_method!(
+            "    var $f = fn() => $t . \"!\";\n    string $s = $f();"
+        )),
     ),
     (
         "Match",
@@ -245,9 +355,14 @@ const ROWS: &[(&str, Row)] = &[
     ("Paren", Row::Text(in_method!("    string $s = ($t);"))),
     (
         "AnonObject",
-        Row::Text(in_method!("    var $o = { v: $t, w: 1 };\n    string $s = $o->v;")),
+        Row::Text(in_method!(
+            "    var $o = { v: $t, w: 1 };\n    string $s = $o->v;"
+        )),
     ),
-    ("Error", Row::NoText("a recovery placeholder: the parser already reported an error.")),
+    (
+        "Error",
+        Row::NoText("a recovery placeholder: the parser already reported an error."),
+    ),
 ];
 
 /// Statement forms that move text into a written type without an
@@ -261,7 +376,9 @@ const STATEMENTS: &[(&str, &str)] = &[
     ),
     (
         "keyed destructuring",
-        in_method!("    array<{T}> $p = [\"k\" => $t];\n    [\"k\" => string $a] = $p;\n    echo $a;"),
+        in_method!(
+            "    array<{T}> $p = [\"k\" => $t];\n    [\"k\" => string $a] = $p;\n    echo $a;"
+        ),
     ),
     (
         "foreach value",
@@ -269,7 +386,9 @@ const STATEMENTS: &[(&str, &str)] = &[
     ),
     (
         "foreach key",
-        in_method!("    var $p = [$t => 1];\n    foreach ($p as string $k => int $v) { echo $k . $v; }"),
+        in_method!(
+            "    var $p = [$t => 1];\n    foreach ($p as string $k => int $v) { echo $k . $v; }"
+        ),
     ),
     (
         "return",
@@ -314,15 +433,21 @@ fn judge(label: &str, src: &str, outside: bool) -> Option<String> {
     let clean = program(src, "string");
     let diags = check_src(&clean);
     if !outside && diags.has_errors() {
-        return Some(format!("{label}: the clean form does not compile: {diags:?}\n{clean}"));
+        return Some(format!(
+            "{label}: the clean form does not compile: {diags:?}\n{clean}"
+        ));
     }
     let tainted = program(src, "tainted string");
     let diags = check_src(&tainted);
     if !names_taint(&diags) {
-        return Some(format!("{label}: the result is not tainted: {diags:?}\n{tainted}"));
+        return Some(format!(
+            "{label}: the result is not tainted: {diags:?}\n{tainted}"
+        ));
     }
     if outside && !names_taint(&check_src(&clean)) {
-        return Some(format!("{label}: outside text reached a plain `string`\n{clean}"));
+        return Some(format!(
+            "{label}: outside text reached a plain `string`\n{clean}"
+        ));
     }
     None
 }
@@ -365,7 +490,10 @@ fn every_expression_kind_has_a_row() {
 fn a_no_text_row_says_why() {
     for (kind, row) in ROWS {
         if let Row::NoText(reason) = row {
-            assert!(!reason.trim().is_empty(), "{kind}: a no-text row with no reason");
+            assert!(
+                !reason.trim().is_empty(),
+                "{kind}: a no-text row with no reason"
+            );
         }
     }
 }

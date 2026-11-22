@@ -3,6 +3,7 @@ error[E0401]: expected `string`, found `tainted string`
   |
 6 | var $users = $db->query("select id from users where name = '" . $name . "'", []);
   |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ this is `tainted string`
+  = help: SQL text cannot be `tainted`. Write a `?` in the SQL and pass the value as a bound parameter. A table or column name goes through `Core\Db::quoteIdentifier`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

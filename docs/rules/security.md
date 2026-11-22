@@ -1446,6 +1446,12 @@ every request-handling function would have to launder on its first line.
 `tainted` is written after `secret` when both appear, and `tainted secret string` is a diagnostic
 naming the required order rather than a second spelling ([`security/secret-qualifier`](security.md#security-secret-qualifier)).
 
+**Clean is the proof, and tainted is the default.** A plain `string` is still the written form of
+clean text, and the grammar does not change. What moves is the checker's default for a type it was
+never told about: text is clean only when the checker proves it, as a literal, a constant, a launderer's
+answer, a checked conversion, or an operation whose every text operand is clean. A type no rule names
+counts as tainted, so a case nobody decided gives a compile error, never a hole.
+
 **False positives are the accepted failure direction.** A value the program wrote itself can read back
 `tainted` once it round-trips through a store, and [`security/assert-trusted`](security.md#security-assert-trusted) exists for that case
 at the cost of one written reason per call site.
@@ -1491,6 +1497,14 @@ and like a status code it carries nothing a sink can misread. **A file read thro
 keeps uploads as plain files chose the folder an upload lands in. An upload itself is `tainted` where
 it enters, through `Core\Request\Part`.
 
+**An error's message is `tainted`.** `Throwable::$message` is `tainted string`, and so is the
+constructor's `$message`, so a program can wrap one error's message in another. The runtime writes
+input text into some messages: `Core\Json::decode` names a repeated key of the document. Proving each
+message clean would rest on every future message leaving input out, which no check holds.
+`$e->location` and `$e->backtrace` name places in the program and stay plain, and so do a
+`Core\Issue`'s `path` and `message`, which a decoder writes only from the declared keys, positions and
+fixed words.
+
 **A request field is read as text, and typed at the accessor.** `Core\Request::query` and `::post`
 answer one field as `?tainted string` — `null` for a name that is absent and for one written with
 brackets — and `::queryArray` and `::postArray` answer a bracketed name's one level of values as
@@ -1523,6 +1537,19 @@ That covers each key `Core\Crypto`, `Core\Crypto\KeyPair::read`, `Core\Hash::hma
 row is `tainted` too, and reaches a key parameter through `Core\Taint::assertTrustedBytes` with its
 reason. The seeded `int`, `float`, `pick`, `sample` and `shuffle` stay plain: none is the type a key
 parameter takes. `nvs_stdlib::keyring::KEY` is the one type every key parameter is written with.
+
+**Every `Core` row that returns text says where the text comes from, and a row that says nothing
+answers `tainted`.** The mark is `nvs_stdlib::registry::TextOrigin`, on the row beside its return
+type. `Derived` text is made only from the arguments and the program's own state, and it is
+`tainted` when a contagious argument is. `Source` text comes from outside and is always `tainted`.
+`Clean` text never comes from outside, and the row gives the sentence that says why: a status code,
+a `Core\Storage::list` key, `Core\Env::secret`, a digest. A row with no mark is read as `Source`, so
+a member added later is safe until its author says otherwise, and
+`crates/nvs-stdlib/tests/taint_signatures.rs` fails on it. The mark is read once, when the checker
+seeds the row's signature, and costs nothing at run time. A child process's output is `Source`: the
+program chose the command, but not what the command prints about the files and data it reads. So
+are the text a database or a directory server sends about itself, such as its version and the
+identity it reports.
 
 No `Core` member names a qualifier, and the taint diagnosis has no opt-out. A `taintedPostAs` would
 make every other member's name read as a claim it does not make. A caller who finds the diagnosis
@@ -1663,6 +1690,16 @@ whether the content is safe for a given sink, and a conversion that laundered he
 bypass of every rule below. All of it is decided while checking: no tag at run time, nothing on the
 request path.
 
+**Clean is the proof, and tainted is the default.** Every walk that asks whether a value can carry
+outside text reads one classifier, `text_class` in `crates/nvs-types/src/expr/quals.rs`. It names
+every type with no catch-all arm: a type is clean text, tainted text, no text, or it holds the types
+of its elements, fields, members or type arguments. A walk that sets the bit counts tainted and steps
+into what a type holds. A `Core` class carries no text of its own only when the registry declares it,
+because its text leaves only through its members' rows. A source of request bytes, such as
+`Core\Request\Part`, is tainted, and a `Core` name no row declares is tainted too. So a type added
+later does not compile until its class is decided, and a walk never answers clean for a type it
+forgot.
+
 - **Memory:** none. The qualifier is erased before codegen; the cost is compile time, one walk of the
   operand's type per conversion, `.`, interpolation and type test, one walk of the subject's element
   type per `foreach` with a key, and one property lookup per text field of a shape target over an
@@ -1748,6 +1785,10 @@ fail-closed, because a plain `string` parameter of a user's function refuses a t
 library's own table was the one fail-open surface, and flipping its default was one pass over one table
 rather than a language change. The pass marks most parameters *contagious*, because most genuinely
 are, and it never recurs: the next member added is safe until its author says otherwise.
+
+The return side is this rule's pair: a row that returns text with no mark on where the text comes
+from answers it `tainted` ([`security/tainted-sources`](security.md#security-tainted-sources)). Both defaults fail closed, and both are
+lists the library's own tests read.
 
 Every mark is checked before the program runs and erased before code is generated, so the default
 costs nothing on the request path: no representation, no branch.
@@ -2021,6 +2062,17 @@ anyway, so a carrier answer removes the second escape rather than adding a wrapp
 - **A carrier for every non-idempotent launderer**, such as a URI component, a database identifier and
   a regex pattern type. It forces a builder API onto four classes whose values are normally assembled
   by concatenation, against a hazard that takes a visible second call to reach.
+- **A carrier per sink, so a launderer's answer cannot reach a path sink.** Three launderers answer
+  a plain `string` that a path reads as a step: `Core\Cli::escape` keeps `.`, `..`, `/` and `\`,
+  `Core\Regex::quote` keeps `/` and writes `\.`, and `Core\Uri::encodeFormValue` keeps `.` and `..`.
+  Each answer is safe at its own sink. And `Core\Uri::encodeComponent('')` answers an empty
+  component, so `"/" . encodeComponent($a) . "/" . encodeComponent($b)` with an empty `$a` is
+  `//host`. Throwing on an empty argument would break every empty query value and fragment. These
+  are documented limits: a path sink's launderer is `Core\IO::within`, and a URL path is built with
+  `Core\Uri`'s methods, never by joining encoded text. A carrier for each would put a type on every
+  launderer's answer for a hazard that takes a launderer used at the wrong sink.
+  `launderer_matrix.rs`'s `CROSS_SINK` lists the three, so a fourth fails the test until it is
+  added here.
 
 <sub>See also [`security/launderers-are-sink-named`](security.md#security-launderers-are-sink-named), [`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier), [`security/sink-predicate`](security.md#security-sink-predicate), [`core-classes/html-escape-answers-markup`](core-classes.md#core-classes-html-escape-answers-markup), [`core-classes/html-to-source`](core-classes.md#core-classes-html-to-source).</sub>
 
@@ -3030,6 +3082,15 @@ rather than dropping the bit (`crates/nvs-types/tests/extensions.rs`). A built-i
 engine is no exception, so a component's own source types what an upload's records carry as
 `tainted`: the cells `Novis\Spreadsheet\Reader` reads from a `tainted bytes` workbook are
 (`tests/conformance/novis/spreadsheet-a-cell-read-from-an-upload-is-tainted.nvst`).
+
+**An argument's taint is read at every depth.** An extension's native code builds its result from
+everything it was handed, so a contagious argument counts when any field of a shape, any property of
+an object or any `mixed` in it may carry outside text, and the argument is admitted with that reach.
+A `Core` row reads an argument only as far as its row says. So an image opened from a `tainted
+bytes` upload encodes to `tainted bytes`. The image component's plan types its source as
+`Core\Bytes::Source`, which has an upload arm, so every image terminal answers `tainted bytes`,
+even for an image the program drew itself. That over-taint is accepted: a response body, storage
+and a file all take `tainted bytes` (`tests/conformance/novis/image-an-upload-gives-tainted-bytes.nvst`).
 
 **Declined:**
 - **Stripping qualifiers at the boundary.** Nothing to design and nothing to freeze into the extension

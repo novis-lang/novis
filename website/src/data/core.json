@@ -9258,7 +9258,7 @@
           "returnType": "string",
           "doc": {
             "shortHtml": "Returns the version the database server reported, exactly as it reported it. This is PostgreSQL's <code>server_version</code>, the greeting banner of MySQL and MariaDB, <code>major.minor.build</code> from the SQL Server login reply, or SQLite's library version. The server sent it when the connection opened, so reading it runs no statement. You can call it while a <code>stream</code> is using the connection.",
-            "returnHtml": "The version. It is never empty and never changed. A suffix that a distribution adds is part of it.",
+            "returnHtml": "The version, as a <code>tainted string</code>, because the server sent it. It is never empty and never changed. A suffix that a distribution adds is part of it.",
             "errors": [
               {
                 "error": "LogicError",
@@ -21251,7 +21251,7 @@
           "returnType": "string",
           "doc": {
             "shortHtml": "Returns the account the connection is logged in as, as the server reports it.",
-            "returnHtml": "<code>dn:</code> and then the account's DN, or <code>u:</code> and then its login name. The result is an empty string when the connection did not log in.",
+            "returnHtml": "A <code>tainted string</code>, because the server sent it. It is <code>dn:</code> and then the account's DN (distinguished name), or <code>u:</code> and then its login name. The result is an empty string when the connection did not log in.",
             "errors": [
               {
                 "error": "LogicError",
@@ -27627,7 +27627,7 @@
         {
           "name": "$data",
           "access": "$font->data",
-          "type": "bytes",
+          "type": "tainted bytes",
           "descHtml": "the bytes of the <code>.ttf</code> or <code>.otf</code> file"
         }
       ],
@@ -27638,12 +27638,12 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "fromBytes(bytes $data): Font",
+          "signature": "fromBytes(tainted bytes $data): Font",
           "params": [
             {
               "kind": "param",
               "name": "data",
-              "type": "bytes",
+              "type": "tainted bytes",
               "default": null,
               "optional": false,
               "variadic": false
@@ -27652,7 +27652,7 @@
           "options": [],
           "returnType": "Font",
           "doc": {
-            "shortHtml": "<code>Font::fromBytes</code> makes a <code>Font</code> from the bytes of a <code>.ttf</code> or <code>.otf</code> file.\nBytes that do not start like a font file throw a <code>ParseError</code>.\nA font file with broken tables throws a <code>ParseError</code> when the image is drawn."
+            "shortHtml": "<code>Font::fromBytes</code> makes a <code>Font</code> from the bytes of a <code>.ttf</code> or <code>.otf</code> file.\nBytes that do not start like a font file throw a <code>ParseError</code>.\nA font file with broken tables throws a <code>ParseError</code> when the image is drawn.\n<code>$data</code> may be an uploaded file. An image drawn with the font is then <code>tainted bytes</code> too."
           },
           "slug": "frombytes",
           "url": "/reference/core/novis-image-font/frombytes/",
@@ -27789,7 +27789,7 @@
         },
         {
           "name": "Raw",
-          "type": "{ width: uint, height: uint, pixels: bytes }",
+          "type": "{ width: uint, height: uint, pixels: tainted bytes }",
           "descHtml": ""
         },
         {
@@ -28512,12 +28512,12 @@
           "static": false,
           "receiver": "image",
           "generics": null,
-          "signature": "encode(): bytes",
+          "signature": "encode(): tainted bytes",
           "params": [],
           "options": [],
-          "returnType": "bytes",
+          "returnType": "tainted bytes",
           "doc": {
-            "shortHtml": "<code>encode</code> runs every step and returns the encoded file."
+            "shortHtml": "<code>encode</code> runs every step and returns the encoded file.\nThe result is <code>tainted bytes</code>, because the image may come from an uploaded file."
           },
           "slug": "encode",
           "url": "/reference/core/novis-image-image/encode/",
@@ -28534,7 +28534,7 @@
           "options": [],
           "returnType": "Raw",
           "doc": {
-            "shortHtml": "<code>raw</code> runs every step and returns the pixels as RGBA8 rows, four bytes per pixel."
+            "shortHtml": "<code>raw</code> runs every step and returns the pixels row by row. Each pixel is four bytes: red, green, blue and alpha.\nThe pixels are <code>tainted bytes</code>, because the image may come from an uploaded file."
           },
           "slug": "raw",
           "url": "/reference/core/novis-image-image/raw/",
@@ -28546,7 +28546,7 @@
           "static": false,
           "receiver": "image",
           "generics": null,
-          "signature": "variants(array<Variant> $set): array<bytes>",
+          "signature": "variants(array<Variant> $set): array<tainted bytes>",
           "params": [
             {
               "kind": "param",
@@ -28558,9 +28558,9 @@
             }
           ],
           "options": [],
-          "returnType": "array<bytes>",
+          "returnType": "array<tainted bytes>",
           "doc": {
-            "shortHtml": "<code>variants</code> decodes the image once and returns one encoded file per entry, in the same order.\nAn entry may resize the image and choose its own format and quality."
+            "shortHtml": "<code>variants</code> decodes the image once and returns one encoded file per entry, in the same order.\nEach file is <code>tainted bytes</code>, because the image may come from an uploaded file.\nAn entry may resize the image and choose its own format and quality."
           },
           "slug": "variants",
           "url": "/reference/core/novis-image-image/variants/",
@@ -28752,7 +28752,7 @@
           "html": "<p>An image and a list of steps to run on it. Each step method returns a new <code>Image</code> and leaves this one as it was. Nothing is decoded until <code>encode</code>, <code>variants</code> or <code>raw</code> runs.</p>\n<p><code>Novis\\Image\\Image</code> is an image and a list of steps to run on it. Each step method, such as <code>resize</code>, <code>crop</code> or <code>format</code>, returns a new <code>Image</code> and does not change the old one. No pixel is decoded until <code>encode</code>, <code>variants</code> or <code>raw</code> runs the steps, so bytes that are not an image throw a <code>ParseError</code> only then. <code>open</code>, <code>info</code>, <code>hash</code>, <code>placeholder</code>, <code>palette</code> and <code>compare</code> read an encoded image from <code>bytes</code>, an open <code>Core\\IO\\File</code> or an uploaded <code>Core\\Request\\Part</code>. <code>encode</code> removes all metadata, such as the place a photo was taken, unless <code>metadata({ keep: true })</code> is a step.</p>"
         },
         {
-          "code": "<?nvs\nuse Novis\\Image\\Format;\nuse Novis\\Image\\Image;\n\n// A PNG of 3 by 2 pixels, written as hex.\nbytes $png = Core\\Encoding::fromHex(\n    '89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a'\n        . '0000000b49444154789c6360c00500001a0001bc3ce0410000000049454e44ae426082',\n);\n\nImage $photo = Image::open($png);\nbytes $thumb = $photo->resize({ width: 6, upscale: true })->format(Format::Jpeg, { quality: 80 })->encode();\n\nvar $info = Image::info($thumb);\necho Image::mime($info->format), ' ', $info->width, 'x', $info->height, \"\\n\";",
+          "code": "<?nvs\nuse Novis\\Image\\Format;\nuse Novis\\Image\\Image;\n\n// A PNG of 3 by 2 pixels, written as hex.\nbytes $png = Core\\Encoding::fromHex(\n    '89504e470d0a1a0a0000000d49484452000000030000000208060000009d74661a'\n        . '0000000b49444154789c6360c00500001a0001bc3ce0410000000049454e44ae426082',\n);\n\nImage $photo = Image::open($png);\n// `encode` returns `tainted bytes`, because an image can come from an upload.\ntainted bytes $thumb = $photo->resize({ width: 6, upscale: true })->format(Format::Jpeg, { quality: 80 })->encode();\n\nvar $info = Image::info($thumb);\necho Image::mime($info->format), ' ', $info->width, 'x', $info->height, \"\\n\";",
           "lang": "nvs"
         },
         {
@@ -30471,7 +30471,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "merge(array<Pages> $parts): bytes",
+          "signature": "merge(array<Pages> $parts): tainted bytes",
           "params": [
             {
               "kind": "param",
@@ -30483,9 +30483,9 @@
             }
           ],
           "options": [],
-          "returnType": "bytes",
+          "returnType": "tainted bytes",
           "doc": {
-            "shortHtml": "<code>Pages::merge</code> returns one PDF file with the chosen pages of each part, in order.\nA page number past the end of its file throws a <code>LogicError</code>. A file that is encrypted or does not parse throws a <code>ParseError</code>."
+            "shortHtml": "<code>Pages::merge</code> returns one PDF file with the chosen pages of each part, in order.\nThe result is <code>tainted bytes</code>, because a part may be an uploaded file.\nA page number past the end of its file throws a <code>LogicError</code>. A file that is encrypted or does not parse throws a <code>ParseError</code>."
           },
           "slug": "merge",
           "url": "/reference/core/novis-pdf-pages/merge/",
@@ -35679,7 +35679,7 @@
           "returnType": "?bytes",
           "doc": {
             "shortHtml": "Waits until the program writes to its standard output, and returns what it wrote. Call it in a loop to read the output one part at a time while the program runs. Other requests keep running while this one waits.",
-            "returnHtml": "The next part of the output, as <code>bytes</code>, up to 64 KiB. A part is whatever has arrived: it can be less than one line or several lines. At the end of the output the result is <code>null</code>, and every later call also returns <code>null</code>. Use <code>as string</code> to convert a part to text.",
+            "returnHtml": "The next part of the output, as <code>tainted bytes</code>, up to 64 KiB. A part is whatever has arrived: it can be less than one line or several lines. At the end of the output the result is <code>null</code>, and every later call also returns <code>null</code>. Use <code>as string</code> to convert a part to text.",
             "errors": [
               {
                 "error": "TimeoutError",
@@ -35707,7 +35707,7 @@
           "returnType": "?bytes",
           "doc": {
             "shortHtml": "Waits until the program writes to its standard error, and returns what it wrote. Programs write their error messages and warnings there. It works like <code>readStdout</code>, and the two outputs are never mixed.",
-            "returnHtml": "The next part of the error output, as <code>bytes</code>, up to 64 KiB. At the end of the error output the result is <code>null</code>, and every later call also returns <code>null</code>. Use <code>as string</code> to convert a part to text.",
+            "returnHtml": "The next part of the error output, as <code>tainted bytes</code>, up to 64 KiB. At the end of the error output the result is <code>null</code>, and every later call also returns <code>null</code>. Use <code>as string</code> to convert a part to text.",
             "errors": [
               {
                 "error": "TimeoutError",
@@ -35876,7 +35876,7 @@
           "returnType": "bytes",
           "doc": {
             "shortHtml": "Returns everything the program wrote to its standard output.",
-            "returnHtml": "The output, as <code>bytes</code>. A program can write data that is not valid text, so the result is not a <code>string</code>. Use <code>as string</code> to convert it to text. That throws an error if the output is not valid UTF-8."
+            "returnHtml": "The output, as <code>tainted bytes</code>. A program can write data that is not valid text, so the result is not a <code>string</code>. Use <code>as string</code> to convert it to text. That throws an error if the output is not valid UTF-8."
           },
           "slug": "stdout",
           "url": "/reference/core/process-result/stdout/",
@@ -35894,7 +35894,7 @@
           "returnType": "bytes",
           "doc": {
             "shortHtml": "Returns everything the program wrote to its standard error. Programs write their error messages and warnings there. This output is never mixed with <code>stdout</code>.",
-            "returnHtml": "The error output, as <code>bytes</code>. Use <code>as string</code> to convert it to text."
+            "returnHtml": "The error output, as <code>tainted bytes</code>. Use <code>as string</code> to convert it to text."
           },
           "slug": "stderr",
           "url": "/reference/core/process-result/stderr/",
@@ -52994,7 +52994,13 @@
                 "descHtml": "The text to encode."
               }
             ],
-            "returnHtml": "The escaped text, with upper-case hex digits. A <code>tainted</code> argument (text from outside the program, such as a request) gives a plain result. No byte of the result can change the structure of the URI."
+            "returnHtml": "The escaped text, with upper-case hex digits. A <code>tainted</code> argument (text from outside the program, such as a request) gives a plain result. No byte of the result can change the structure of the URI.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$s</code> is <code>.</code> or <code>..</code>. In a path, these move to the same folder or the parent folder. For a value in a query string, use <code>$uri-&gt;withQueryParameter</code> or <code>Core\\Uri::buildQuery</code>."
+              }
+            ]
           },
           "slug": "encodecomponent",
           "url": "/reference/core/uri/encodecomponent/",

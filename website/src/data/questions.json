@@ -932,7 +932,7 @@
   },
   "/in-depth/concepts/tainted-input/": {
     "feature": "in-depth/concepts/tainted-input.mdx",
-    "hash": "0f5f673e403f6af7",
+    "hash": "bac07add3dfdb4ef",
     "questions": [
       "How does Novis prevent SQL injection and cross-site scripting?",
       "What is tainted input and why does it matter?",
@@ -1715,7 +1715,7 @@
   },
   "/reference/config/image/": {
     "feature": "directive:image.max_pixels",
-    "hash": "b351617397e297b3",
+    "hash": "e29777f85416572a",
     "questions": [
       "How do I stop huge images from crashing the server?",
       "Protect against decompression bomb image uploads",
@@ -2997,7 +2997,7 @@
   },
   "/reference/core/bytes/at/": {
     "feature": "Core\\Bytes::at",
-    "hash": "079e4a1cb310bfab",
+    "hash": "873aa5fa17cfa32e",
     "questions": [
       "How do I read one byte at a position as a number?",
       "Get the numeric value of a byte in a buffer",
@@ -3057,7 +3057,7 @@
   },
   "/reference/core/bytes/join/": {
     "feature": "Core\\Bytes::join",
-    "hash": "e0d5e7419eb3c5cd",
+    "hash": "3b950d04af0c191c",
     "questions": [
       "How do I join several binary buffers into one?",
       "Concatenate byte chunks with a separator",
@@ -4325,7 +4325,7 @@
   },
   "/reference/core/db-connection/serverversion/": {
     "feature": "Core\\Db\\Connection::serverVersion",
-    "hash": "fe1b4643f5a030ca",
+    "hash": "f37f7a50444711d8",
     "questions": [
       "How do I get the database server version?",
       "Which version of the database am I connected to?",
@@ -5250,7 +5250,7 @@
   },
   "/reference/core/env/mode/": {
     "feature": "Core\\Env::mode",
-    "hash": "2ca318a235d47df0",
+    "hash": "052aef6e294c5934",
     "questions": [
       "How do I know if my program runs in production?",
       "Switch between development and production mode",
@@ -7555,7 +7555,7 @@
   },
   "/reference/core/ldap-connection/whoami/": {
     "feature": "Core\\Ldap\\Connection::whoami",
-    "hash": "336b5aac27ab5254",
+    "hash": "9469f67a6dc7fcdf",
     "questions": [
       "Which account is the LDAP connection logged in as?",
       "Check the login of the connection in a health check",
@@ -9008,7 +9008,7 @@
   },
   "/reference/core/novis-image-color/hex/": {
     "feature": "Novis\\Image\\Color::hex",
-    "hash": "ca831c8c750a39ae",
+    "hash": "9b538a4149b22c65",
     "questions": [
       "How do I use a hex color like #ff8800?",
       "Convert a hex color code to RGB",
@@ -9061,7 +9061,7 @@
   },
   "/reference/core/novis-image-font/frombytes/": {
     "feature": "Novis\\Image\\Font::fromBytes",
-    "hash": "ba916e0c20af3e4b",
+    "hash": "eb209d6f789e0a52",
     "questions": [
       "How do I load a TTF or OTF font file?",
       "Load a font once and use it for many images",
@@ -9082,7 +9082,7 @@
   },
   "/reference/core/novis-image-image/blur/": {
     "feature": "Novis\\Image\\Image::blur",
-    "hash": "5ea824ea1fd78cda",
+    "hash": "6abefc94da3adf7c",
     "questions": [
       "How do I make an image blurry?",
       "Blur a background behind text",
@@ -9102,7 +9102,7 @@
   },
   "/reference/core/novis-image-image/compare/": {
     "feature": "Novis\\Image\\Image::compare",
-    "hash": "b83b978a6ca513de",
+    "hash": "3ab0e79c3323a4c1",
     "questions": [
       "How do I check if two images are the same?",
       "Compare two screenshots in a visual test",
@@ -9135,7 +9135,7 @@
   },
   "/reference/core/novis-image-image/create/": {
     "feature": "Novis\\Image\\Image::create",
-    "hash": "fab172b9d652ba35",
+    "hash": "80eae342025e876c",
     "questions": [
       "How do I make a blank image of one colour?",
       "Create an empty transparent canvas",
@@ -9146,7 +9146,7 @@
   },
   "/reference/core/novis-image-image/crop/": {
     "feature": "Novis\\Image\\Image::crop",
-    "hash": "4f8b6ae489c1b361",
+    "hash": "67b50b9d83bbbc7e",
     "questions": [
       "How do I cut out part of an image?",
       "Crop a picture to a box at x and y",
@@ -9156,17 +9156,18 @@
   },
   "/reference/core/novis-image-image/encode/": {
     "feature": "Novis\\Image\\Image::encode",
-    "hash": "dc1ee0f6a110a142",
+    "hash": "9759624f2cb21155",
     "questions": [
       "How do I save the edited image as a file?",
       "Get the bytes of the finished image",
       "Run all image changes and write the output",
-      "Why does my image edit not happen until the end?"
+      "Why does my image edit not happen until the end?",
+      "Why is an encoded image tainted bytes?"
     ]
   },
   "/reference/core/novis-image-image/extension/": {
     "feature": "Novis\\Image\\Image::extension",
-    "hash": "c613ebeee97a210d",
+    "hash": "aaed90eb4bd307e7",
     "questions": [
       "Which file extension should an uploaded image get?",
       "Get jpg or png from an image format",
@@ -9176,7 +9177,7 @@
   },
   "/reference/core/novis-image-image/flatten/": {
     "feature": "Novis\\Image\\Image::flatten",
-    "hash": "fdb090cdc1c5e6b1",
+    "hash": "dd389284c4ec3c56",
     "questions": [
       "How do I remove transparency from a PNG?",
       "Put a transparent image on a white background",
@@ -9186,7 +9187,7 @@
   },
   "/reference/core/novis-image-image/flip/": {
     "feature": "Novis\\Image\\Image::flip",
-    "hash": "0d6f0b81d3ebe899",
+    "hash": "958d9c38637e61b2",
     "questions": [
       "How do I mirror an image?",
       "Flip a picture upside down",
@@ -9196,7 +9197,7 @@
   },
   "/reference/core/novis-image-image/format/": {
     "feature": "Novis\\Image\\Image::format",
-    "hash": "82467bead9d9cda4",
+    "hash": "e13675bcf2eabc52",
     "questions": [
       "How do I convert a PNG to WebP?",
       "Set the JPEG quality of an output image",
@@ -9207,7 +9208,7 @@
   },
   "/reference/core/novis-image-image/fromraw/": {
     "feature": "Novis\\Image\\Image::fromRaw",
-    "hash": "4bf4a7dc21ac885b",
+    "hash": "ccf6524786674f91",
     "questions": [
       "How do I build an image from pixel data?",
       "Turn an array of RGBA bytes into a PNG",
@@ -9227,7 +9228,7 @@
   },
   "/reference/core/novis-image-image/grayscale/": {
     "feature": "Novis\\Image\\Image::grayscale",
-    "hash": "9becff46097ff450",
+    "hash": "5eef14810f5bbe08",
     "questions": [
       "How do I make an image black and white?",
       "Convert a colour photo to gray",
@@ -9237,7 +9238,7 @@
   },
   "/reference/core/novis-image-image/hash/": {
     "feature": "Novis\\Image\\Image::hash",
-    "hash": "58f3880972e8f161",
+    "hash": "86fc43dff558b700",
     "questions": [
       "How do I find duplicate images?",
       "Make a fingerprint of a picture to store in a database",
@@ -9249,7 +9250,7 @@
   },
   "/reference/core/novis-image-image/hashdistance/": {
     "feature": "Novis\\Image\\Image::hashDistance",
-    "hash": "2d74e96be4fd04f7",
+    "hash": "e4e59dd64f7d8158",
     "questions": [
       "How similar are two image fingerprints?",
       "Count the different bits between two hashes",
@@ -9259,7 +9260,7 @@
   },
   "/reference/core/novis-image-image/info/": {
     "feature": "Novis\\Image\\Image::info",
-    "hash": "18c4b379fe603fe7",
+    "hash": "d8398eedd2dfa537",
     "questions": [
       "How do I get the width and height of an image?",
       "Read the image size without loading the pixels",
@@ -9271,7 +9272,7 @@
   },
   "/reference/core/novis-image-image/measuretext/": {
     "feature": "Novis\\Image\\Image::measureText",
-    "hash": "5764ffb61c13bbf8",
+    "hash": "6eaf1130ecd541b6",
     "questions": [
       "How wide will my text be in pixels?",
       "Measure a caption before drawing it",
@@ -9282,7 +9283,7 @@
   },
   "/reference/core/novis-image-image/metadata/": {
     "feature": "Novis\\Image\\Image::metadata",
-    "hash": "f7a6c6c9cb6667d6",
+    "hash": "6895c7a0cb97ba72",
     "questions": [
       "How do I keep EXIF data in a photo?",
       "Remove GPS location from uploaded photos",
@@ -9292,7 +9293,7 @@
   },
   "/reference/core/novis-image-image/mime/": {
     "feature": "Novis\\Image\\Image::mime",
-    "hash": "ce6db94ebf6d9282",
+    "hash": "d43f957c1337e8a8",
     "questions": [
       "What Content-Type header should I send for an image?",
       "Get image/webp from an image format",
@@ -9302,7 +9303,7 @@
   },
   "/reference/core/novis-image-image/open/": {
     "feature": "Novis\\Image\\Image::open",
-    "hash": "d66dba6d0f77eea6",
+    "hash": "25e2185adae09cb1",
     "questions": [
       "How do I load an uploaded image?",
       "Open a JPEG, AVIF or JPEG XL file from disk",
@@ -9314,7 +9315,7 @@
   },
   "/reference/core/novis-image-image/palette/": {
     "feature": "Novis\\Image\\Image::palette",
-    "hash": "2265039b56ce10e7",
+    "hash": "374089a8f6624b6b",
     "questions": [
       "How do I get the main colours of a photo?",
       "Find the dominant colour of an image",
@@ -9324,7 +9325,7 @@
   },
   "/reference/core/novis-image-image/placeholder/": {
     "feature": "Novis\\Image\\Image::placeholder",
-    "hash": "f00076624dedafe1",
+    "hash": "f359745d4662e370",
     "questions": [
       "How do I show a blurred preview while an image loads?",
       "Make a BlurHash for an uploaded image",
@@ -9334,7 +9335,7 @@
   },
   "/reference/core/novis-image-image/raw/": {
     "feature": "Novis\\Image\\Image::raw",
-    "hash": "f94a82c007586df4",
+    "hash": "fbe32bc7759be3c4",
     "questions": [
       "How do I read the colour of one pixel?",
       "Get the RGBA pixel values of an image",
@@ -9344,7 +9345,7 @@
   },
   "/reference/core/novis-image-image/resize/": {
     "feature": "Novis\\Image\\Image::resize",
-    "hash": "af65cbe6df88f59e",
+    "hash": "450ed622d60428a9",
     "questions": [
       "How do I resize an image to fit a thumbnail?",
       "Scale a photo to 800 pixels wide and keep proportions",
@@ -9365,7 +9366,7 @@
   },
   "/reference/core/novis-image-image/sharpen/": {
     "feature": "Novis\\Image\\Image::sharpen",
-    "hash": "1ff452a4b00ff0ed",
+    "hash": "e3bf784c7d99267b",
     "questions": [
       "How do I make a blurry image sharper?",
       "Make a thumbnail look clear after resizing",
@@ -9375,7 +9376,7 @@
   },
   "/reference/core/novis-image-image/text/": {
     "feature": "Novis\\Image\\Image::text",
-    "hash": "0ccb85285871c623",
+    "hash": "0af9049173abc89a",
     "questions": [
       "How do I write text on an image?",
       "Add a caption at the bottom of a photo",
@@ -9407,7 +9408,7 @@
   },
   "/reference/core/novis-image-image/variants/": {
     "feature": "Novis\\Image\\Image::variants",
-    "hash": "d590693c0e270336",
+    "hash": "8bfb23aa9cba8bc0",
     "questions": [
       "How do I make several sizes of one image at once?",
       "Create images for responsive srcset widths",
@@ -9810,7 +9811,7 @@
   },
   "/reference/core/novis-pdf-document/render/": {
     "feature": "Novis\\Pdf\\Document::render",
-    "hash": "bff34f16441b7ede",
+    "hash": "b8bdc7abceb02014",
     "questions": [
       "How do I get the PDF bytes to send in a response?",
       "Count the pages of a generated PDF",
@@ -9928,7 +9929,7 @@
   },
   "/reference/core/novis-pdf-pages/merge/": {
     "feature": "Novis\\Pdf\\Pages::merge",
-    "hash": "f8e4d7e640330e44",
+    "hash": "a458c6a6db57b25a",
     "questions": [
       "How do I merge several PDF files into one?",
       "Add terms and conditions to a contract PDF",
@@ -11200,7 +11201,7 @@
   },
   "/reference/core/passkey-credential/of/": {
     "feature": "Core\\Passkey\\Credential::of",
-    "hash": "a7f8f0882a7f4da0",
+    "hash": "fa41fee621136988",
     "questions": [
       "How do I load a saved passkey from my database?",
       "Rebuild a WebAuthn credential from its id, key and counter",
@@ -11412,7 +11413,7 @@
   },
   "/reference/core/process/run/": {
     "feature": "Core\\Process::run",
-    "hash": "cb5dacf57ee9beb9",
+    "hash": "312bc3a296ccb07c",
     "questions": [
       "How do I run another program and read its output?",
       "Run a command and wait until it finishes",
@@ -11424,7 +11425,7 @@
   },
   "/reference/core/process/spawn/": {
     "feature": "Core\\Process::spawn",
-    "hash": "0cfc1aed31a73f11",
+    "hash": "5c1064e7bb12164f",
     "questions": [
       "How do I start a program in the background and keep going?",
       "Read a program's output while it is still running",
@@ -11446,7 +11447,7 @@
   },
   "/reference/core/process-handle/kill/": {
     "feature": "Core\\Process\\Handle::kill",
-    "hash": "3f2ce72565d2e9d2",
+    "hash": "0f21b72b9c1fe117",
     "questions": [
       "How do I stop a program that never ends?",
       "Kill a running program",
@@ -11457,7 +11458,7 @@
   },
   "/reference/core/process-handle/readstderr/": {
     "feature": "Core\\Process\\Handle::readStderr",
-    "hash": "4f187f76877636ff",
+    "hash": "b0c0b3a5677cf767",
     "questions": [
       "How do I read warnings from a running program?",
       "Read error messages while the program is still running",
@@ -11467,7 +11468,7 @@
   },
   "/reference/core/process-handle/readstdout/": {
     "feature": "Core\\Process\\Handle::readStdout",
-    "hash": "0e36c5f31aeecf75",
+    "hash": "e4ecc5badbf315ac",
     "questions": [
       "How do I read output line by line as it arrives?",
       "Stream a program's output to my own output",
@@ -11477,7 +11478,7 @@
   },
   "/reference/core/process-handle/wait/": {
     "feature": "Core\\Process\\Handle::wait",
-    "hash": "c60ab5169e7df899",
+    "hash": "ab9627f99c636fe9",
     "questions": [
       "How do I wait for a started program to finish?",
       "Get the exit code of a background program",
@@ -11487,7 +11488,7 @@
   },
   "/reference/core/process-handle/writestdin/": {
     "feature": "Core\\Process\\Handle::writeStdin",
-    "hash": "be06a3cc5b8508ea",
+    "hash": "12c00d505cc52527",
     "questions": [
       "How do I send input to a running program?",
       "Write lines to the standard input of a command",
@@ -11518,7 +11519,7 @@
   },
   "/reference/core/process-result/stderr/": {
     "feature": "Core\\Process\\Result::stderr",
-    "hash": "79c206ee190a846a",
+    "hash": "2a39c14bd60f8835",
     "questions": [
       "How do I get the error message of a failed command?",
       "Read what a program wrote to standard error",
@@ -11528,13 +11529,14 @@
   },
   "/reference/core/process-result/stdout/": {
     "feature": "Core\\Process\\Result::stdout",
-    "hash": "e7328df373638975",
+    "hash": "9ecc2cc851ebea51",
     "questions": [
       "How do I get the text a command printed?",
       "Read the standard output of a finished program",
       "Convert program output from bytes to a string",
       "Read binary output like an image from a tool",
-      "Format a date with a system tool and read the result"
+      "Format a date with a system tool and read the result",
+      "Why is the output of a command tainted?"
     ]
   },
   "/reference/core/program/": {
@@ -13114,7 +13116,7 @@
   },
   "/reference/core/response/addcookie/": {
     "feature": "Core\\Response::addCookie",
-    "hash": "3fe547f67013d3b0",
+    "hash": "dc89bd476cbb9de8",
     "questions": [
       "How do I set a cookie in the browser?",
       "Create a secure HttpOnly session cookie",
@@ -13126,7 +13128,7 @@
   },
   "/reference/core/response/bytes/": {
     "feature": "Core\\Response::bytes",
-    "hash": "d70b6de879669ca1",
+    "hash": "0cc8635052864826",
     "questions": [
       "How do I send an image from memory as the response?",
       "Return a CSV report with a custom content type",
@@ -16563,13 +16565,14 @@
   },
   "/reference/core/uri/encodecomponent/": {
     "feature": "Core\\Uri::encodeComponent",
-    "hash": "afc8dee075fda5d9",
+    "hash": "9b281a04b3a0b5a0",
     "questions": [
       "How do I make text safe to put in a URL path?",
       "Escape spaces and slashes as %20 and %2F",
       "Percent-encode a file name for a download link",
       "How do I link to a heading with spaces in its name?",
-      "Escape characters like & and # inside a link"
+      "Escape characters like & and # inside a link",
+      "Why does encoding .. as a path segment throw an error?"
     ]
   },
   "/reference/core/uri/encodeformvalue/": {
@@ -17817,7 +17820,7 @@
   },
   "/reference/types/logicerror/": {
     "feature": "LogicError",
-    "hash": "e784306e9cde6550",
+    "hash": "7fd5f6eb24be31da",
     "questions": [
       "Which error should I throw for a bug in my own code?",
       "How do I tell a programming mistake from an outside failure?",
@@ -17852,7 +17855,7 @@
   },
   "/reference/types/novis-image-format/": {
     "feature": "Novis\\Image\\Format",
-    "hash": "484fff41f2bd0d68",
+    "hash": "cfd75177330a9796",
     "questions": [
       "Which image formats can I save an image as?",
       "How do I convert an image to WebP?",
@@ -17863,7 +17866,7 @@
   },
   "/reference/types/novis-image-image-align/": {
     "feature": "Novis\\Image\\Image::Align",
-    "hash": "601dd59dbf349472",
+    "hash": "fdc2fcdfe1ad49bd",
     "questions": [
       "How do I center multi-line text drawn on an image?",
       "Right align text lines on an image",
@@ -17893,7 +17896,7 @@
   },
   "/reference/types/novis-image-image-filter/": {
     "feature": "Novis\\Image\\Image::Filter",
-    "hash": "892e75608e098df1",
+    "hash": "b0663ba796e433d4",
     "questions": [
       "Which filter should I use to resize a photo?",
       "Resize pixel art without blurring the edges",
@@ -17925,7 +17928,7 @@
   },
   "/reference/types/novis-image-image-hashkind/": {
     "feature": "Novis\\Image\\Image::HashKind",
-    "hash": "7c5c7051391344ee",
+    "hash": "c02127e74d05edd2",
     "questions": [
       "How do I find images that look the same?",
       "Detect duplicate images with different sizes or formats",
@@ -17936,7 +17939,7 @@
   },
   "/reference/types/novis-image-image-placeholderkind/": {
     "feature": "Novis\\Image\\Image::PlaceholderKind",
-    "hash": "479aef9ea960f6ac",
+    "hash": "79349329e9d8eb97",
     "questions": [
       "Which kinds of image placeholder can I choose?",
       "Generate a BlurHash for an image",
@@ -18335,7 +18338,7 @@
   },
   "/reference/types/runtimeerror/": {
     "feature": "RuntimeError",
-    "hash": "ad1e492fd2cd2840",
+    "hash": "8bec9c417511c95c",
     "questions": [
       "Which error should I throw when an outside service fails?",
       "Catch all errors that come from outside the program",
@@ -18401,13 +18404,14 @@
   },
   "/reference/types/throwable/": {
     "feature": "Throwable",
-    "hash": "8822e402f684dc44",
+    "hash": "9adda9d65b2626c0",
     "questions": [
       "How do I catch every possible error?",
       "How do I create my own error class?",
       "Get the backtrace and location of a caught error",
       "Is there an Exception base class?",
-      "In which order should catch blocks be written?"
+      "In which order should catch blocks be written?",
+      "Why is the message of a caught error tainted?"
     ]
   },
   "/reference/types/time-weekday/": {

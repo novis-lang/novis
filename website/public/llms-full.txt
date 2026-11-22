@@ -6957,17 +6957,16 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 text from outside your program, such as a form field. `secret string` is a confidential value, such
 as a password or an API key.
 
-A string built from such a value with `.` or interpolation is tainted or secret too. The compiler
-checks both words, so they do not make the program slower.
+A string built from such a value with `.` or interpolation is tainted or secret too. Text that a
+`Core` method returns is tainted, unless the method's documentation says where the text comes from.
+The compiler checks both words, so they do not make the program slower.
 
-A tainted string cannot be a regular expression, a format template or a date pattern. It cannot be
-assigned to a plain `string` either. A secret value does not compile with `echo`, in an error
-message, in a debug dump or in `Core\Json::encode`.
+A tainted string cannot be a regular expression, a format template or a plain `string`. The error
+names the method that makes the value safe there, such as `Core\IO::within` for a path. A secret
+value does not compile with `echo`, in an error message, in a debug dump or in `Core\Json::encode`.
 
-`secret` can also go before `mixed`. A plain `mixed` variable cannot contain a secret value. A
-secret value cannot be an array key, and `as int` does not compile with it.
-`Core\Secret::reveal($value, "reason")` is the only method that gives a plain value from a secret
-one.
+`secret` can also go before `mixed`. `Core\Secret::reveal($value, "reason")` is the only method that
+gives a plain value from a secret one.
 
 Examples 04 to 07 show each kind of mistake, and none of them compiles.
 
@@ -7170,6 +7169,8 @@ error[E0401]: expected `string`, found `tainted string`
   |
 8 | Core\Regex\Pattern $pattern = Core\Regex::compile($search);
   |                                                   ^^^^^^^ this is `tainted string`
+  = help: this parameter cannot take `tainted` text. `Core\Regex::quote` makes the text safe for it
+  = suggestion (review): pass it through `Core\Regex::quote`: `Core\Regex::quote($search)`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
@@ -7195,7 +7196,7 @@ error[E0422]: a `secret`-qualified value cannot be passed as a `Throwable` messa
   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ secret value used as the message here
   = help: reveal it explicitly first with `Core\Secret::reveal(..., "reason")`
 
-error[E0401]: expected `string`, found `secret string`
+error[E0401]: expected `tainted string`, found `secret string`
   --> main.nvs:7:24
   |
 7 | throw new RuntimeError('bad token ' . $token);
@@ -22385,7 +22386,8 @@ final class Checkout
 try {
     echo Checkout::pay('4021'), "\n";
 } catch (Throwable $failed) {
-    string $line = $failed->message . ' at ' . $failed->location;
+    // A message can contain text from the input, so it is `tainted string`.
+    tainted string $line = $failed->message . ' at ' . $failed->location;
     var $cause = $failed->previous;
     bool $more = true;
     while ($more) {
@@ -23931,7 +23933,7 @@ try {
     echo Core\Str::before($denied->message, ' for '), "\n";
     // The second line of the message is the line to add to `nvs.toml`.
     // It also contains the full path of the folder. This prints `...` in its place.
-    string $help = Core\Str::after($denied->message, "\n") ?? '';
+    tainted string $help = Core\Str::after($denied->message, "\n") ?? '';
     echo Core\Str::before($help, "\""), '...]', Core\Str::after($help, "\"]"), "\n";
 }
 
@@ -36349,7 +36351,7 @@ Returns the byte at `$index` of `$b` as a number. A negative index counts from t
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$b` | `bytes` | The buffer. |
+| `$b` | `bytes` (neutral) | The buffer. |
 | `$index` | `int` | The position of the byte. A negative index counts from the end. |
 
 **Returns** `uint` — The byte as a number from `0` to `255`.
@@ -37795,7 +37797,7 @@ $result->stdout(): bytes
 
 Returns everything the program wrote to its standard output.
 
-**Returns** `bytes` — The output, as `bytes`. A program can write data that is not valid text, so the result is not a `string`. Use `as string` to convert it to text. That throws an error if the output is not valid UTF-8.
+**Returns** `bytes` — The output, as `tainted bytes`. A program can write data that is not valid text, so the result is not a `string`. Use `as string` to convert it to text. That throws an error if the output is not valid UTF-8.
 
 <a id="core-core-process-result-stderr"></a>
 #### `Core\Process\Result->stderr`
@@ -37806,7 +37808,7 @@ $result->stderr(): bytes
 
 Returns everything the program wrote to its standard error. Programs write their error messages and warnings there. This output is never mixed with `stdout`.
 
-**Returns** `bytes` — The error output, as `bytes`. Use `as string` to convert it to text.
+**Returns** `bytes` — The error output, as `tainted bytes`. Use `as string` to convert it to text.
 
 <a id="core-core-process-handle"></a>
 ### `Core\Process\Handle`
@@ -37830,7 +37832,7 @@ $handle->readStdout(): ?bytes
 
 Waits until the program writes to its standard output, and returns what it wrote. Call it in a loop to read the output one part at a time while the program runs. Other requests keep running while this one waits.
 
-**Returns** `?bytes` — The next part of the output, as `bytes`, up to 64 KiB. A part is whatever has arrived: it can be less than one line or several lines. At the end of the output the result is `null`, and every later call also returns `null`. Use `as string` to convert a part to text.
+**Returns** `?bytes` — The next part of the output, as `tainted bytes`, up to 64 KiB. A part is whatever has arrived: it can be less than one line or several lines. At the end of the output the result is `null`, and every later call also returns `null`. Use `as string` to convert a part to text.
 
 **Throws** `TimeoutError` — The `timeout` given to `spawn` has passed. The program is stopped, and every later call except `kill` throws this error too.; `IOError` — The operating system could not read the output. The output is then closed, so the next call returns `null`.
 
@@ -37843,7 +37845,7 @@ $handle->readStderr(): ?bytes
 
 Waits until the program writes to its standard error, and returns what it wrote. Programs write their error messages and warnings there. It works like `readStdout`, and the two outputs are never mixed.
 
-**Returns** `?bytes` — The next part of the error output, as `bytes`, up to 64 KiB. At the end of the error output the result is `null`, and every later call also returns `null`. Use `as string` to convert a part to text.
+**Returns** `?bytes` — The next part of the error output, as `tainted bytes`, up to 64 KiB. At the end of the error output the result is `null`, and every later call also returns `null`. Use `as string` to convert a part to text.
 
 **Throws** `TimeoutError` — The `timeout` given to `spawn` has passed. The program is stopped, and every later call except `kill` throws this error too.; `IOError` — The operating system could not read the error output. The error output is then closed, so the next call returns `null`.
 
@@ -41004,6 +41006,8 @@ Escapes `$s` so that it can be one part of a URI, such as a path segment, a frag
 | `$s` | `string` (launder) | The text to encode. |
 
 **Returns** `string` — The escaped text, with upper-case hex digits. A `tainted` argument (text from outside the program, such as a request) gives a plain result. No byte of the result can change the structure of the URI.
+
+**Throws** `LogicError` — `$s` is `.` or `..`. In a path, these move to the same folder or the parent folder. For a value in a query string, use `$uri->withQueryParameter` or `Core\Uri::buildQuery`.
 
 <a id="core-core-uri-decodecomponent"></a>
 #### `Core\Uri::decodeComponent`
@@ -52565,7 +52569,7 @@ $connection->serverVersion(): string
 
 Returns the version the database server reported, exactly as it reported it. This is PostgreSQL's `server_version`, the greeting banner of MySQL and MariaDB, `major.minor.build` from the SQL Server login reply, or SQLite's library version. The server sent it when the connection opened, so reading it runs no statement. You can call it while a `stream` is using the connection.
 
-**Returns** `string` — The version. It is never empty and never changed. A suffix that a distribution adds is part of it.
+**Returns** `string` — The version, as a `tainted string`, because the server sent it. It is never empty and never changed. A suffix that a distribution adds is part of it.
 
 **Throws** `LogicError` — The connection has been closed.
 
@@ -53552,7 +53556,7 @@ $connection->whoami(): string
 
 Returns the account the connection is logged in as, as the server reports it.
 
-**Returns** `string` — `dn:` and then the account's DN, or `u:` and then its login name. The result is an empty string when the connection did not log in.
+**Returns** `string` — A `tainted string`, because the server sent it. It is `dn:` and then the account's DN (distinguished name), or `u:` and then its login name. The result is an empty string when the connection did not log in.
 
 **Throws** `LogicError` — The connection is closed.; `Core\Ldap\LdapError` — The server did not respond, or it returned an error. `$kind` says why.
 
@@ -55725,14 +55729,14 @@ Keywords: $data, fromBytes
 
 | Member | Signature |
 |---|---|
-| [`Novis\Image\Font::$data`](#core-novis-image-font-data) | `bytes $data` |
-| [`Novis\Image\Font::fromBytes`](#core-novis-image-font-frombytes) | `fromBytes(bytes $data): Font` |
+| [`Novis\Image\Font::$data`](#core-novis-image-font-data) | `tainted bytes $data` |
+| [`Novis\Image\Font::fromBytes`](#core-novis-image-font-frombytes) | `fromBytes(tainted bytes $data): Font` |
 
 <a id="core-novis-image-font-data"></a>
 #### `Novis\Image\Font::$data`
 
 ```nvs skip
-Novis\Image\Font::bytes $data
+Novis\Image\Font::tainted bytes $data
 ```
 
 the bytes of the `.ttf` or `.otf` file
@@ -55743,12 +55747,13 @@ the bytes of the `.ttf` or `.otf` file
 #### `Novis\Image\Font::fromBytes`
 
 ```nvs skip
-Novis\Image\Font::fromBytes(bytes $data): Font
+Novis\Image\Font::fromBytes(tainted bytes $data): Font
 ```
 
 `Font::fromBytes` makes a `Font` from the bytes of a `.ttf` or `.otf` file.
 Bytes that do not start like a font file throw a `ParseError`.
 A font file with broken tables throws a `ParseError` when the image is drawn.
+`$data` may be an uploaded file. An image drawn with the font is then `tainted bytes` too.
 
 **Returns** `Font`
 
@@ -55776,7 +55781,8 @@ bytes $png = Core\Encoding::fromHex(
 );
 
 Image $photo = Image::open($png);
-bytes $thumb = $photo->resize({ width: 6, upscale: true })->format(Format::Jpeg, { quality: 80 })->encode();
+// `encode` returns `tainted bytes`, because an image can come from an upload.
+tainted bytes $thumb = $photo->resize({ width: 6, upscale: true })->format(Format::Jpeg, { quality: 80 })->encode();
 
 var $info = Image::info($thumb);
 echo Image::mime($info->format), ' ', $info->width, 'x', $info->height, "\n";
@@ -55811,9 +55817,9 @@ image/jpeg 6x4
 | [`Novis\Image\Image::measureText`](#core-novis-image-image-measuretext) | `measureText(string $text, Font $font, { size: float, maxWidth?: uint, align?: Align } $options): Size` |
 | [`Novis\Image\Image->format`](#core-novis-image-image-format) | `format(Format $format, ?{ quality?: uint, progressive?: bool, lossless?: bool, effort?: uint } $options = null): Image` |
 | [`Novis\Image\Image->metadata`](#core-novis-image-image-metadata) | `metadata({ keep: bool } $options): Image` |
-| [`Novis\Image\Image->encode`](#core-novis-image-image-encode) | `encode(): bytes` |
+| [`Novis\Image\Image->encode`](#core-novis-image-image-encode) | `encode(): tainted bytes` |
 | [`Novis\Image\Image->raw`](#core-novis-image-image-raw) | `raw(): Raw` |
-| [`Novis\Image\Image->variants`](#core-novis-image-image-variants) | `variants(array<Variant> $set): array<bytes>` |
+| [`Novis\Image\Image->variants`](#core-novis-image-image-variants) | `variants(array<Variant> $set): array<tainted bytes>` |
 | [`Novis\Image\Image::compare`](#core-novis-image-image-compare) | `compare(Core\Bytes::Source\|Image $a, Core\Bytes::Source\|Image $b, ?{ tolerance?: uint, render?: bool } $options = null): Diff` |
 | [`Novis\Image\Image::hash`](#core-novis-image-image-hash) | `hash(Core\Bytes::Source $data, HashKind $kind): bytes` |
 | [`Novis\Image\Image::hashDistance`](#core-novis-image-image-hashdistance) | `hashDistance(bytes $a, bytes $b): uint` |
@@ -56109,12 +56115,13 @@ $image->metadata({ keep: bool } $options): Image
 #### `Novis\Image\Image->encode`
 
 ```nvs skip
-$image->encode(): bytes
+$image->encode(): tainted bytes
 ```
 
 `encode` runs every step and returns the encoded file.
+The result is `tainted bytes`, because the image may come from an uploaded file.
 
-**Returns** `bytes`
+**Returns** `tainted bytes`
 
 <a id="core-novis-image-image-raw"></a>
 #### `Novis\Image\Image->raw`
@@ -56123,7 +56130,8 @@ $image->encode(): bytes
 $image->raw(): Raw
 ```
 
-`raw` runs every step and returns the pixels as RGBA8 rows, four bytes per pixel.
+`raw` runs every step and returns the pixels row by row. Each pixel is four bytes: red, green, blue and alpha.
+The pixels are `tainted bytes`, because the image may come from an uploaded file.
 
 **Returns** `Raw`
 
@@ -56131,13 +56139,14 @@ $image->raw(): Raw
 #### `Novis\Image\Image->variants`
 
 ```nvs skip
-$image->variants(array<Variant> $set): array<bytes>
+$image->variants(array<Variant> $set): array<tainted bytes>
 ```
 
 `variants` decodes the image once and returns one encoded file per entry, in the same order.
+Each file is `tainted bytes`, because the image may come from an uploaded file.
 An entry may resize the image and choose its own format and quality.
 
-**Returns** `array<bytes>`
+**Returns** `array<tainted bytes>`
 
 <a id="core-novis-image-image-compare"></a>
 #### `Novis\Image\Image::compare`
@@ -57222,7 +57231,7 @@ Keywords: of, merge
 | Member | Signature |
 |---|---|
 | [`Novis\Pdf\Pages::of`](#core-novis-pdf-pages-of) | `of(Core\Bytes::Source $pdf, ?array<uint> $pages = null): Pages` |
-| [`Novis\Pdf\Pages::merge`](#core-novis-pdf-pages-merge) | `merge(array<Pages> $parts): bytes` |
+| [`Novis\Pdf\Pages::merge`](#core-novis-pdf-pages-merge) | `merge(array<Pages> $parts): tainted bytes` |
 
 <a id="core-novis-pdf-pages-of"></a>
 #### `Novis\Pdf\Pages::of`
@@ -57241,13 +57250,14 @@ Without `$pages`, every page is chosen. A page listed twice is used twice, and a
 #### `Novis\Pdf\Pages::merge`
 
 ```nvs skip
-Novis\Pdf\Pages::merge(array<Pages> $parts): bytes
+Novis\Pdf\Pages::merge(array<Pages> $parts): tainted bytes
 ```
 
 `Pages::merge` returns one PDF file with the chosen pages of each part, in order.
+The result is `tainted bytes`, because a part may be an uploaded file.
 A page number past the end of its file throws a `LogicError`. A file that is encrypted or does not parse throws a `ParseError`.
 
-**Returns** `bytes`
+**Returns** `tainted bytes`
 
 <a id="core-novis-pdf-reader"></a>
 ### `Novis\Pdf\Reader`

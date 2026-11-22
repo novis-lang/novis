@@ -22,7 +22,8 @@ bytes $png = Core\Encoding::fromHex(
 );
 
 Image $photo = Image::open($png);
-bytes $thumb = $photo->resize({ width: 6, upscale: true })->format(Format::Jpeg, { quality: 80 })->encode();
+// `encode` returns `tainted bytes`, because an image can come from an upload.
+tainted bytes $thumb = $photo->resize({ width: 6, upscale: true })->format(Format::Jpeg, { quality: 80 })->encode();
 
 var $info = Image::info($thumb);
 echo Image::mime($info->format), ' ', $info->width, 'x', $info->height, "\n";
