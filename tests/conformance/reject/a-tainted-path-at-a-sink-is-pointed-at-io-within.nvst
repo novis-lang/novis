@@ -1,0 +1,21 @@
+--TEST--
+a tainted argument at a path parameter does not compile, and the help names `Core\IO::within`, the launderer for a path — `rule:security/launderers-are-sink-named`
+--FILE--
+<?nvs
+// covers: lang:types/qualifiers-tainted-and-secret
+// A file name from outside the program is `tainted`.
+tainted string $name = "note.txt";
+
+// `Core\IO::read` takes a path, so this line does not compile.
+// The error tells you to check the path with `Core\IO::within`.
+string $content = Core\IO::read($name);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:8:33
+%A
+  = help: a file path cannot be `tainted`. Check it with `Core\IO::within($base, $path)`, which returns the path inside `$base` and throws an error for a path that leaves it
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

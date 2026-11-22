@@ -135,6 +135,12 @@ pub struct MethodSig {
     /// `crate::paths` is the one reader: it resolves a relative string literal
     /// written at a [`ParamText::Path`] parameter.
     pub param_text: Vec<ParamText>,
+    /// The `Core` class whose row this is, and `None` for every other
+    /// signature. A `tainted` argument refused at a [`Qual::Sink`] parameter
+    /// reads it to name the launderers of that class
+    /// (`crate::core_lib::sink_launderers`), and only once it is refused, so
+    /// a call that checks costs nothing more.
+    pub core_class: Option<&'static str>,
     /// Which parameters carry `#[Core\Router\Target]` and
     /// `#[Core\Router\Params]` (`rule:routing/a-route-target-parameter-is-checked-like-a-link`),
     /// read by [`crate::route_params::declared_slots`]. `None` for every
@@ -1681,6 +1687,7 @@ fn collect_members(
                         param_quals: Vec::new(),
                         param_text,
                         route_slots,
+                        core_class: None,
                         // `rule:types/declaration`: a user-declared method
                         // has no type parameters to write.
                         type_params: Vec::new(),

@@ -1,0 +1,22 @@
+--TEST--
+a tainted argument at a regex pattern parameter does not compile, and the help names `Core\Regex::quote` with a fix that wraps the argument — `rule:security/launderers-are-sink-named`
+--FILE--
+<?nvs
+// covers: lang:types/qualifiers-tainted-and-secret
+// A search word from outside the program is `tainted`.
+tainted string $word = "a.b";
+
+// `Core\Regex::compile` takes a pattern, so this line does not compile.
+// The error tells you to pass the word through `Core\Regex::quote`.
+Core\Regex\Pattern $pattern = Core\Regex::compile($word);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+  --> case.nvs:8:51
+%A
+  = help: this parameter cannot take `tainted` text. `Core\Regex::quote` makes the text safe for it
+  = suggestion (review): pass it through `Core\Regex::quote`: `Core\Regex::quote($word)`
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

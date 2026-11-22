@@ -257,6 +257,7 @@ fn seed_class(
             .chain(class.instance.iter().map(|method| (method, false)))
         {
             let mut sig = method_sig(method, is_static, interner);
+            sig.core_class = Some(class.name);
             if decodes_a_document(class.name, method.name) {
                 sig.contagious_return = Some(sig.return_ty);
             }
@@ -271,7 +272,9 @@ fn seed_class(
         // call would pass is the instance being built; nothing resolves it as
         // a static one.
         if let Some(new) = nvs_stdlib::registry::constructor_of(class.name) {
-            methods.insert(new.name.to_owned(), method_sig(new, false, interner));
+            let mut sig = method_sig(new, false, interner);
+            sig.core_class = Some(class.name);
+            methods.insert(new.name.to_owned(), sig);
         }
         // No properties, for either kind: a `Core` instance's slots are
         // `nvs-stdlib`'s layout rather than a surface a program reads, so
@@ -544,6 +547,7 @@ fn method_sig(
             .map(|index| method.param_text(index))
             .collect(),
         route_slots: None,
+        core_class: None,
     }
 }
 
@@ -811,6 +815,44 @@ fn qual_of(ty: &CoreTy) -> Option<Qual> {
         // does.
         _ => ty.classification(),
     }
+}
+
+/// A launderer a refused `tainted` argument is pointed at: its name as
+/// `Class::member`, and whether `Class::member($value)` is a whole call.
+pub(crate) struct SinkLaunderer {
+    pub(crate) name: String,
+    pub(crate) one_argument: bool,
+}
+
+/// The launderers of `class`'s own sinks: every row of the class with a
+/// [`Qual::Launder`] parameter. `rule:security/launderers-are-sink-named`
+/// puts a sink's launderer on the class that owns the sink, so this is the
+/// roster read from the side of the sink. `Core\Taint` names every sink and
+/// so names none here.
+///
+/// It runs only for a diagnostic, once an argument is refused.
+pub(crate) fn sink_launderers(class: &str) -> Vec<SinkLaunderer> {
+    if class == r"Core\Taint" {
+        return Vec::new();
+    }
+    let Some(row) = nvs_stdlib::registry::class(class) else {
+        return Vec::new();
+    };
+    let statics = row.methods.iter().map(|method| (method, true));
+    let instance = row.instance.iter().map(|method| (method, false));
+    statics
+        .chain(instance)
+        .filter(|(method, _)| {
+            method
+                .params
+                .iter()
+                .any(|param| qual_of(param) == Some(Qual::Launder))
+        })
+        .map(|(method, is_static)| SinkLaunderer {
+            name: format!("{}::{}", row.name, method.name),
+            one_argument: is_static && method.params.len() == 1,
+        })
+        .collect()
 }
 
 /// The id `key`'s type was interned at, or `intern`'s id, recorded under `key`.
@@ -1784,6 +1826,23 @@ mod tests {
              makes laundering sink-named and names a single exception, and a second class here is \
              the generic `sanitize()` that section exists to refuse"
         );
+    }
+
+    /// A `tainted` argument refused at a sink is pointed at the launderers of
+    /// the sink's own class (`rule:security/launderers-are-sink-named`), and
+    /// `Core\Taint` names none of them, since it answers for every sink.
+    #[test]
+    fn a_sink_names_the_launderers_of_its_own_class() {
+        let names = |class: &str| {
+            sink_launderers(class)
+                .into_iter()
+                .map(|launderer| (launderer.name, launderer.one_argument))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(names(r"Core\IO"), [(r"Core\IO::within".to_owned(), false)]);
+        assert_eq!(names(r"Core\Regex"), [(r"Core\Regex::quote".to_owned(), true)]);
+        assert!(names(r"Core\Taint").is_empty());
+        assert!(names(r"Core\NoSuchClass").is_empty());
     }
 
     /// `rule:security/verification-does-not-launder`, which reads like an oversight and is a decision: a

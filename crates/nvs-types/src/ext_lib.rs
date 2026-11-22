@@ -374,6 +374,7 @@ fn method_sig(
         generator: false,
         param_text: vec![ParamText::Plain; count],
         route_slots: None,
+        core_class: None,
     }
 }
 

@@ -24,6 +24,7 @@
 
 use super::*;
 use nvs_stdlib::registry::{KeyOrigin, ParamText, Qual};
+use std::borrow::Cow;
 
 /// Checks a call's arguments against a resolved [`MethodSig`], when one was
 /// found: works out which parameter each written argument fills, reports
@@ -215,8 +216,9 @@ fn check_arg_list(
                 Some(want) if admitted.any(want, env) => {
                     check_arg_admitting_quals(&arg.value, want, admitted, live, scope, ctx, env)
                 }
-                Some(want) if carrier_help(want, env).is_some() => {
-                    check_carrier_arg(&arg.value, want, live, scope, ctx, env)
+                Some(want) if sink_site(&sig, slot).is_some() || carrier_help(want, env).is_some() => {
+                    let site = sink_site(&sig, slot);
+                    check_carrier_arg(&arg.value, want, site, live, scope, ctx, env)
                 }
                 _ => check_arg(&arg.value, expected, live, scope, ctx, env),
             }
@@ -1162,16 +1164,20 @@ fn carrier_help(expected: TypeId, env: &mut Env<'_>) -> Option<Carrier> {
     };
     if admits(r"Core\Http\Target") {
         Some(Carrier {
-            help: "a `tainted` URL is a sink: pass it through `Core\\Http::allowUrl($url)` first, \
-                   which checks the address and returns the `Core\\Http\\Target` this parameter \
-                   accepts",
-            launderer: Some(r"Core\Http::allowUrl"),
+            help: Cow::Borrowed(
+                "a `tainted` URL is a sink: pass it through `Core\\Http::allowUrl($url)` first, \
+                 which checks the address and returns the `Core\\Http\\Target` this parameter \
+                 accepts",
+            ),
+            launderer: Some(Cow::Borrowed(r"Core\Http::allowUrl")),
         })
     } else if admits(r"Core\Ldap\Dn") {
         Some(Carrier {
-            help: "a `tainted` DN is a sink: build it with `Core\\Ldap\\Dn::of($attribute, \
-                   $value)` or `$dn->child($attribute, $value)`, which escape the value and \
-                   return the `Core\\Ldap\\Dn` this parameter accepts",
+            help: Cow::Borrowed(
+                "a `tainted` DN is a sink: build it with `Core\\Ldap\\Dn::of($attribute, \
+                 $value)` or `$dn->child($attribute, $value)`, which escape the value and \
+                 return the `Core\\Ldap\\Dn` this parameter accepts",
+            ),
             launderer: None,
         })
     } else {
@@ -1179,15 +1185,91 @@ fn carrier_help(expected: TypeId, env: &mut Env<'_>) -> Option<Carrier> {
     }
 }
 
-/// The launderers of a sink's carrier, as [`carrier_help`] names them.
+/// The launderers of a sink's carrier, as [`carrier_help`] names them, or of
+/// a sink parameter, as [`sink_help`] names them.
 struct Carrier {
-    help: &'static str,
+    help: Cow<'static, str>,
     /// The call that takes the refused value as its one argument and returns
     /// the carrier, which is what makes it a fix
     /// (`rule:ide/a-quick-fix-is-a-diagnostics-own-suggestion`). `Dn::of`
     /// also needs an attribute name, which nothing here knows, so the DN has
     /// none.
-    launderer: Option<&'static str>,
+    launderer: Option<Cow<'static, str>>,
+}
+
+/// A [`Qual::Sink`] parameter an argument fills, as its help line reads it:
+/// what the parameter's text names, and the `Core` class whose row it is.
+#[derive(Clone, Copy)]
+struct SinkSite {
+    text: ParamText,
+    class: Option<&'static str>,
+}
+
+/// The [`SinkSite`] of `slot`, or `None` where the parameter is no sink.
+fn sink_site(sig: &MethodSig, slot: ArgSlot) -> Option<SinkSite> {
+    let ArgSlot::Param(index) = slot else {
+        return None;
+    };
+    matches!(sig.qual_at(index), Some(Qual::Sink)).then(|| SinkSite {
+        text: sig.text_at(index),
+        class: sig.core_class,
+    })
+}
+
+/// The help for a `tainted` argument refused at a sink parameter: the
+/// launderer of that sink (`rule:security/launderers-are-sink-named`).
+///
+/// A path is answered by `Core\IO::within`, whichever class takes it. SQL text
+/// is answered by a bound parameter, and a table or column name by
+/// `Core\Db::quoteIdentifier`. Any other sink is answered by the launderers of
+/// its own class ([`crate::core_lib::sink_launderers`]), and a class with none
+/// names `Core\Taint::assertTrusted`.
+fn sink_help(site: SinkSite) -> Carrier {
+    if site.text == ParamText::Path {
+        return Carrier {
+            help: Cow::Borrowed(
+                "a file path cannot be `tainted`. Check it with `Core\\IO::within($base, \
+                 $path)`, which returns the path inside `$base` and throws an error for a path \
+                 that leaves it",
+            ),
+            launderer: None,
+        };
+    }
+    let class = site.class.unwrap_or_default();
+    if class == r"Core\Db" || class.starts_with(r"Core\Db\") {
+        return Carrier {
+            help: Cow::Borrowed(
+                "SQL text cannot be `tainted`. Write a `?` in the SQL and pass the value as a \
+                 bound parameter. A table or column name goes through `Core\\Db::quoteIdentifier`",
+            ),
+            launderer: None,
+        };
+    }
+    let launderers = crate::core_lib::sink_launderers(class);
+    if launderers.is_empty() {
+        return Carrier {
+            help: Cow::Borrowed(
+                "no `Core` method makes text safe for this parameter. If you know the value is \
+                 safe, write `Core\\Taint::assertTrusted($value, $reason)` with the reason",
+            ),
+            launderer: None,
+        };
+    }
+    let names = launderers
+        .iter()
+        .map(|launderer| format!("`{}`", launderer.name))
+        .collect::<Vec<_>>()
+        .join(" or ");
+    let launderer = match launderers.as_slice() {
+        [only] if only.one_argument => Some(Cow::Owned(only.name.clone())),
+        _ => None,
+    };
+    Carrier {
+        help: Cow::Owned(format!(
+            "this parameter cannot take `tainted` text. {names} makes the text safe for it"
+        )),
+        launderer,
+    }
 }
 
 impl Carrier {
@@ -1196,8 +1278,8 @@ impl Carrier {
     /// at run time and may throw, and it is the author's choice over
     /// declaring the value trusted another way.
     fn attach(&self, diag: Diagnostic, value: &Expr, env: &Env<'_>) -> Diagnostic {
-        let diag = diag.with_help(self.help);
-        match self.launderer {
+        let diag = diag.with_help(self.help.clone());
+        match &self.launderer {
             Some(call) => diag.with_alternative_fix(
                 value.span,
                 format!("{call}({})", span_text(env.src, value.span)),
@@ -1209,15 +1291,18 @@ impl Carrier {
 }
 
 /// [`check_expr`] for an argument at a parameter that accepts a sink's
-/// carrier ([`carrier_help`]), which names the launderer when `tainted` is the
-/// whole objection.
+/// carrier ([`carrier_help`]) or at a sink parameter (`site`, [`sink_help`]),
+/// which names the launderer when `tainted` is the whole objection.
 ///
 /// It is [`check_shape_field`]'s help for an ordinary parameter. The guards
 /// are [`check_expr`]'s, and a parenthesised argument is left to it, because
 /// its `Paren` arm re-enters there and would report the mismatch a second time.
+/// A sink parameter is text, never a callable, so [`check_expr`]'s callable
+/// refusal has nothing to add here.
 fn check_carrier_arg(
     value: &Expr,
     expected: TypeId,
+    site: Option<SinkSite>,
     live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
@@ -1242,8 +1327,12 @@ fn check_carrier_arg(
     let Some(mut diag) = mismatch(value.span, expected, actual, env) else {
         return actual;
     };
-    if qualifier_alone && let Some(carrier) = carrier_help(expected, env) {
-        diag = carrier.attach(diag, value, env);
+    if qualifier_alone {
+        if let Some(carrier) = carrier_help(expected, env) {
+            diag = carrier.attach(diag, value, env);
+        } else if let Some(site) = site {
+            diag = sink_help(site).attach(diag, value, env);
+        }
     }
     env.diags.report(diag);
     actual

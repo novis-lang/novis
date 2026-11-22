@@ -370,6 +370,7 @@ pub(crate) fn bodiless(names: &[&str], params: Vec<TypeId>, return_ty: TypeId) -
         param_quals: Vec::new(),
         param_text: Vec::new(),
         route_slots: None,
+        core_class: None,
         defaults: vec![None; params.len()],
         param_names: names.iter().map(|name| (*name).to_owned()).collect(),
         params,
