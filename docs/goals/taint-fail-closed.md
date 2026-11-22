@@ -208,6 +208,12 @@ same question is asked of every launderer in stage 5's matrix.
 matrix that is only a hole at another sink. It names that carrier design as the fix, for the user to
 decide.
 
+**`encodeComponent` of an empty string stays an empty component.** One empty segment changes no
+structure. The hole needs it first in a path and a second segment the attacker chose after it,
+which gives `//host`. Throwing on it would break every empty query value and fragment a program
+encodes by hand, at run time, which is common. So the matrix counts the empty cell as safe, and
+`gap:nvs-stdlib/uri-empty-component-opens-an-authority` names the path-segment carrier as the fix.
+
 **The HTML template's blind spot stays out.** A hole in `href=` or `<script>` is escaped as element
 text, and `rule:core-classes/html-template` records that and its Declined list. Closing it reverses a
 recorded decision and needs an HTML position model. The user declined a goal for it, so no session
@@ -389,15 +395,18 @@ or `bytes`, one line each.
 
 ### 5. no launderer returns a value its own sink reads as an instruction
 
-- [ ] `crates/nvs-stdlib/tests/launderer_matrix.rs:1`: every launderer on the roster
+- [x] `crates/nvs-stdlib/tests/launderer_matrix.rs:1`: every launderer on the roster
   (`rule:security/launderer-answers-a-carrier`'s registry guard lists it), given `.`, `..`, `/`,
   `\`, a NUL byte, CR LF and an empty string. Each answer must be safe at the launderer's own sink. It
   runs once, by name.
-- [ ] `crates/nvs-stdlib/src/uri.rs:3215`: `encodeComponent` throws a `LogicError` on `.` and `..`.
+  - [x] a row per launderer, called through its linked symbol, and a check per sink
+  - [x] the roster is read from the registry, and a launderer with no row fails
+  - [x] run once, by name: the one red row was `encodeComponent`'s `.` and `..`
+- [x] `crates/nvs-stdlib/src/uri.rs:3215`: `encodeComponent` throws a `LogicError` on `.` and `..`.
   Its doc at `:723` says so, and the error names `withQueryParameter`. `rule:security/launderers-are-sink-named`
-- [ ] Each matrix cell that is unsafe at its own sink is fixed in the launderer, as `encodeComponent`
+- [x] Each matrix cell that is unsafe at its own sink is fixed in the launderer, as `encodeComponent`
   is.
-- [ ] Each cell that is unsafe only at another sink, such as the terminal escape's `..` at a path
+- [x] Each cell that is unsafe only at another sink, such as the terminal escape's `..` at a path
   sink, gets one gap record under `data/gaps/` that names the carrier design as the fix.
 - [ ] `crates/nvs-types/src/expr/args.rs:815` (`check_arg_admitting_quals`): the `E0401` at a
   `Sink` parameter has a help line that names that sink's launderer, read from the launderer roster.
@@ -456,19 +465,30 @@ plain `string` writes `tainted string` (`8f91d1af85`, `9636325f95`); conformance
 `apps/registry` 113 passed, no `assertTrusted` added. `apps/registry` reads `nvs` output paths
 through `Core\IO::within` in `Index::logPath`.
 
-The shape-argument question is decided in § *Standing decisions*. The image hole it found is
-`gap:nvs-types/extension-shape-argument-drops-taint`, owned by this goal, so `close` is red until
-it lands.
+`gap:nvs-types/extension-shape-argument-drops-taint` is owned by this goal, so `close` is red
+until it lands.
 
-Sessions per stage: 1: one. 2: one. 3: two. 4: two.
+Stage 5's first four items are done (`168b75e096`). `launderer_matrix.rs` has a row for each of 21
+launderers and an `EXEMPT` reason for three (`assertTrusted`, `assertTrustedBytes`,
+`Core\Markdown\Live::push`). Its one red row was `encodeComponent`'s `.` and `..`, which now throw
+a `LogicError`. Four gap records under `data/gaps/nvs-stdlib/`: the terminal escape, `Regex::quote`
+and `encodeFormValue` answers at a path sink, and the empty component. They name this goal as their
+owner only because `owners` needs a chain goal, and the fix they name is the user's call.
+
+Sessions per stage: 1: one. 2: one. 3: two. 4: two. 5: one.
 
 ### Next
 
-Stage 5 from its first item, then the gap.
+The rest of stage 5, then the gap.
 
-1. Stage 5: `crates/nvs-stdlib/tests/launderer_matrix.rs`, then `encodeComponent` at
-   `crates/nvs-stdlib/src/uri.rs:3215`, then the rest of the stage in order.
-2. `gap:nvs-types/extension-shape-argument-drops-taint`, before stage 6, so its proofs and change
+1. **The four new gaps' owner.** Before stage 7, each must name a goal that is not this one, or
+   `close` stays red. File `looper decision ask` with the carrier design (a per-sink answer type,
+   which `rule:security/launderer-answers-a-carrier` declined) and the recommendation to keep it
+   declined and accept the four as documented limits. Then move them to the goal the user names, or
+   delete them and add each case to that rule's Declined list.
+2. Stage 5's `E0401` help line at `crates/nvs-types/src/expr/args.rs:815`, then the attack under
+   `tests/hostile/`, then the stage's build and `bun nv against`.
+3. `gap:nvs-types/extension-shape-argument-drops-taint`, before stage 6, so its proofs and change
    entries land there. The checker side: an extension call's contagion
    (`crates/nvs-types/src/ext_lib.rs` and `quals.rs` `contagious_result`, `:997`) asks
    `may_carry_outside_text` (`quals.rs:303`) of each argument, and a `Core` row keeps
@@ -480,7 +500,8 @@ Stage 5 from its first item, then the gap.
    image and requires a tainted result. Delete the gap record and the extension-contagion
    **Not on disk.** line in the same slice.
 
-Tests expected red: none now. Stage 6's first item also owes `Throwable::$message` a `changes.json`
+Tests expected red: none now. Stage 6's first item also owes `Core\Uri::encodeComponent`'s new
+`LogicError` a `changes.json` entry and an `about.md` line, `Throwable::$message` a `changes.json`
 entry and `about.md` line, `Core\Ldap\Filter`/`Dn` one each, and the image and PDF terminals one each
 once the gap lands.
 
