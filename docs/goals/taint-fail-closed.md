@@ -210,7 +210,8 @@ decide.
 
 **The HTML template's blind spot stays out.** A hole in `href=` or `<script>` is escaped as element
 text, and `rule:core-classes/html-template` records that and its Declined list. Closing it reverses a
-recorded decision and needs an HTML position model, so it is a goal of its own if the user wants one.
+recorded decision and needs an HTML position model. The user declined a goal for it, so no session
+proposes one.
 
 **What stops it.** One attempt per item, and two sessions per stage, counted in `### State`. At two
 sessions a stage's open items move to `### Backlog` as declined, each with its reason, and a security
