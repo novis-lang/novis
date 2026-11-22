@@ -15,7 +15,10 @@
 //
 // The compare dumps every program once with the current binary and prints:
 //
-// - every program whose IR differs from the base's, with its first differing line;
+// - every program whose IR differs from the base's, with its first differing line. When the hash
+//   differs, the base binary dumps the program's current source again. If that dump is the current
+//   binary's, only the source changed since the base, and the program is listed apart as edited: it
+//   does not fail the compare;
 // - every program whose diagnostics differ, with both sets;
 // - the `assertTrusted` count, then and now;
 // - the median ratio of `nvs check`'s time, current over base, over the 40 largest programs. Each program
@@ -266,6 +269,8 @@ export async function timings(base: Binary, current: Binary, files: string[], ro
 /** What a compare found. */
 export interface Compare {
   irDiffers: string[];
+  /** Programs whose source changed since the base, and that both binaries lower alike. */
+  edited: string[];
   diagDiffers: { file: string; base: string; current: string }[];
   added: string[];
   assertTrusted: { base: number; current: number };
@@ -284,19 +289,22 @@ export async function compare(work: string, roots: string[], rounds: number): Pr
   const known = files.filter((f) => base.programs[f] !== undefined);
   const now = await outputs(paths.current, known, "dump");
   const irDiffers: string[] = [];
+  const edited: string[] = [];
   const diagDiffers: Compare["diagDiffers"] = [];
   for (const file of known) {
     const was = base.programs[file]!;
     const is = now.get(file)!;
     if (hash(is.ir) !== was.ir) {
       const old = await output(paths.base, file);
-      irDiffers.push(`${file}: ${firstDifference(old.ir, is.ir)}`);
+      if (old.ir === is.ir) edited.push(file);
+      else irDiffers.push(`${file}: ${firstDifference(old.ir, is.ir)}`);
     }
     if (is.diag !== was.diag) diagDiffers.push({ file, base: was.diag, current: is.diag });
   }
   const timed = await timings(paths.base, paths.current, largest(known, LARGEST), rounds);
   return {
     irDiffers,
+    edited,
     diagDiffers,
     added: files.filter((f) => base.programs[f] === undefined),
     assertTrusted: { base: base.assertTrusted, current: assertTrustedCalls(COPIED) },
@@ -310,6 +318,10 @@ export function report(c: Compare, rounds: number): string[] {
   const lines: string[] = [];
   lines.push(`IR: ${c.irDiffers.length === 0 ? "every program lowers as the base does" : `${c.irDiffers.length} program(s) differ`}`);
   for (const line of c.irDiffers) lines.push(`  ${line}`);
+  if (c.edited.length > 0) {
+    lines.push(`edited since the base, and both binaries lower the new source alike: ${c.edited.length} program(s)`);
+    for (const file of c.edited) lines.push(`  ${file}`);
+  }
   lines.push(`diagnostics: ${c.diagDiffers.length === 0 ? "every program is told what the base told it" : `${c.diagDiffers.length} program(s) differ`}`);
   for (const d of c.diagDiffers) {
     lines.push(`  ${d.file}`, "    base:", ...d.base.trimEnd().split("\n").map((l) => `      ${l}`));

@@ -33,6 +33,7 @@ test.skipIf(!existsSync(releaseCli()))(
       if (typeof c === "string") throw new Error(c);
       const printed = report(c, 5).join("\n");
       expect(c.irDiffers, printed).toEqual([]);
+      expect(c.edited, printed).toEqual([]);
       expect(c.diagDiffers, printed).toEqual([]);
       expect(c.added).toEqual([]);
       expect(c.timings.length).toBe(6);
