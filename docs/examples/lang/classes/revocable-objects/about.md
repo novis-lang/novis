@@ -7,9 +7,9 @@ nothing. `isRevoked()` returns `true` after `revoke()` was called.
 After `revoke()`, every `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap` removes the object
 immediately. Their `count()` is correct, and a running `foreach` skips it.
 
-A plain array, a property or a variable still contains the object. On a revoked object, reading a
-property, calling a method, `clone` and `Core\Json::encode` throw `RevokedObjectError`. The message
-names the class and the line of the first `revoke()`. `==`, `is` and `::class` do not throw.
+A plain array, a property or a variable still contains the object. Every use of a revoked object
+throws `RevokedObjectError`, such as a property read, a method call or a conversion to a string. The message
+names the class and the line of the first `revoke()`. `==`, `is`, `::class` and passing or storing the object do not throw.
 
 **Good to know:** only a class with no parent class can write `implements Revocable`. All its
 subclasses are then revocable too.

@@ -1,4 +1,29 @@
 {
-  "entries": [],
+  "entries": [
+    {
+      "kind": "fixed",
+      "features": [
+        "lang:classes/revocable-objects",
+        "RevokedObjectError"
+      ],
+      "text": "Every use of a revoked object now throws `RevokedObjectError`. This includes `.=` on a property, an `inout` property argument, a call of a method reference and `isinit`. It also includes a conversion to a string, a comparison, a `foreach`, a delegated method and a `static` call through the object.",
+      "security": true
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Request::jsonAs",
+        "Core\\Request::queryAs",
+        "Core\\Request::postAs",
+        "Core\\Json::decodeAs",
+        "Core\\Json::decodeEach",
+        "Core\\Arr::shapeAs"
+      ],
+      "text": "`Core\\Json::decodeAs`, `Core\\Request::jsonAs` and the other decoders that take a type check a class inside a shape or an array, however deep it is. `Core\\Request::jsonAs`,`queryAs` and `postAs` give the error `E0810` when such a class has a plain `string` property.",
+      "breaking": true,
+      "instead": "Write `tainted string` on each string property of a class that a request decoder reads.",
+      "security": true
+    }
+  ],
   "unseen": {}
 }

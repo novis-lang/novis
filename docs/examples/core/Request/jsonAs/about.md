@@ -2,7 +2,8 @@ Reads the body of the request as one JSON object and returns a new instance of o
 classes. You write the class between `<` and `>`: `Core\Request::jsonAs<NewUser>()`. The class needs
 the `#[Core\Json\Derive]` attribute, and each public property reads the key with the same name. Write
 `array<NewUser>` to read a JSON array that has one object for each element. The body comes from the
-client, so every string property must be `tainted string`.
+client, so every string property must be `tainted string`. A `tainted string` is text that came from
+outside your program. This also applies to a class inside a shape or an array, however deep it is.
 
 If the body is not valid JSON, or a field is missing or has the wrong type, `jsonAs` throws a
 `ParseError`. Its `issues` list has one entry for each wrong field. A web program usually answers

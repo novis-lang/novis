@@ -1,7 +1,8 @@
 Reads a form that a browser sent with `POST` into a class or a shape that you write. You write the
 type between `<` and `>`: `Core\Request::postAs<SignUp>()`. A class needs the
 `#[Core\Json\Derive]` attribute, and each public property reads the form field with the same name. The
-form comes from the client, so every string field must be `tainted string`.
+form comes from the client, so every string field must be `tainted string`. This also applies to a
+class inside a shape or an array, however deep it is.
 
 Every value in a form is text. A field of another type, such as `uint`, converts the text the same
 way `as` does. Form fields that the type does not name are ignored. `postAs` reads both kinds of
@@ -13,5 +14,5 @@ write `{ name: "address" }`, and the field `city` gets `Paris`.
 If a field is missing or its value does not convert, `postAs` throws a `ParseError`. Its `issues`
 list has one entry for each wrong field.
 
-**The examples below** read a sign-up form into a class, show the error for a wrong age, and read
-the lines of an order form into a list.
+**The examples below** read a sign-up form into a class and show the error for a wrong age. The
+last one reads the lines of an order form into a list.

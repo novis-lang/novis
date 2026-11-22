@@ -3585,7 +3585,7 @@
     "lang:classes/propertyobserver": "f0d934f68a6b7ca4"
   },
   "docs/examples/lang/classes/revocable-objects/about.md": {
-    "lang:classes/revocable-objects": "7e62c1bd9ffc3fd2"
+    "lang:classes/revocable-objects": "bec98eb635a0b903"
   },
   "docs/examples/lang/classes/stringable/about.md": {
     "lang:classes/stringable": "3ccc9a5c650887ad"
@@ -4899,7 +4899,7 @@
     "Revocable": "fdf985348878c63a"
   },
   "docs/examples/types/RevokedObjectError/about.md": {
-    "RevokedObjectError": "0378dba8c3b8820b"
+    "RevokedObjectError": "b45e20898aa80d8b"
   },
   "docs/examples/types/RoundMode/about.md": {
     "Core\\RoundMode": "3ae75800d0af20b6"
@@ -5109,7 +5109,7 @@
     "Core\\Arr::SetOn": "b31c0e25e4bae156"
   },
   "help:Core\\Arr::shapeAs": {
-    "Core\\Arr::shapeAs": "10581d63b8dbaad8"
+    "Core\\Arr::shapeAs": "839235e8ce42f844"
   },
   "help:Core\\Arr::slice": {
     "Core\\Arr::slice": "5729626248eb5b6e"
@@ -6174,10 +6174,10 @@
     "Core\\Json::decode": "4009022567bc2f70"
   },
   "help:Core\\Json::decodeAs": {
-    "Core\\Json::decodeAs": "c0eadd4f13dd3d4a"
+    "Core\\Json::decodeAs": "b31ec6d3ba1d14e0"
   },
   "help:Core\\Json::decodeEach": {
-    "Core\\Json::decodeEach": "2f57702ff53c21a4"
+    "Core\\Json::decodeEach": "86f8d45b2ba61a22"
   },
   "help:Core\\Json::encode": {
     "Core\\Json::encode": "da614086c42841b2"
@@ -7257,7 +7257,7 @@
     "Core\\Request::json": "74778fa8aefdd1b2"
   },
   "help:Core\\Request::jsonAs": {
-    "Core\\Request::jsonAs": "7ba2ccca9488d223"
+    "Core\\Request::jsonAs": "6c3da807d5e4e1fd"
   },
   "help:Core\\Request::method": {
     "Core\\Request::method": "5b47322bafebe384"
@@ -7275,7 +7275,7 @@
     "Core\\Request::postArray": "55f1d04026e7be75"
   },
   "help:Core\\Request::postAs": {
-    "Core\\Request::postAs": "37e87273aef8769c"
+    "Core\\Request::postAs": "1eee5738d6690ac1"
   },
   "help:Core\\Request::query": {
     "Core\\Request::query": "8a4d9ec0d9c91ee6"
@@ -7284,7 +7284,7 @@
     "Core\\Request::queryArray": "a9d7944a1b8feec4"
   },
   "help:Core\\Request::queryAs": {
-    "Core\\Request::queryAs": "145ebe362401e533"
+    "Core\\Request::queryAs": "2dc862276ceeeb17"
   },
   "help:Core\\Request::route": {
     "Core\\Request::route": "f336c1cc50307937"
@@ -9210,10 +9210,10 @@
     "RecursionError": "ae0c181e7809b0b7"
   },
   "help:Revocable": {
-    "Revocable": "db06a560ece87f75"
+    "Revocable": "b9a21092766bd064"
   },
   "help:RevokedObjectError": {
-    "RevokedObjectError": "f3a3a8d2e0dba238"
+    "RevokedObjectError": "95125b0115d9a52c"
   },
   "help:RuntimeError": {
     "RuntimeError": "0573a2edff77b88a"
@@ -9565,8 +9565,8 @@
     "lang:types/strings-with-holes": "643089d2047c6f64"
   },
   "syntax/classes/revocable-objects.mdx": {
-    "lang:classes/revocable-objects": "7292c2ab78c8257b",
-    "Revocable": "f7b4d900e4a0b509"
+    "lang:classes/revocable-objects": "d5587a8a6a9abd89",
+    "Revocable": "c13ce44c06534cf8"
   },
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "523b12d8f6179bfb",
@@ -9656,7 +9656,7 @@
     "LogicError": "e44581a03ca5df2c",
     "ParseError": "709c85b8a4956739",
     "RecursionError": "9b6a469ed19f5f2c",
-    "RevokedObjectError": "b5f0914f40fca868",
+    "RevokedObjectError": "337f2209151087ef",
     "RuntimeError": "c477ca7075f9b543",
     "Throwable": "e249ac2070c9ebdd",
     "TimeoutError": "f007bc89dbf9ea07"

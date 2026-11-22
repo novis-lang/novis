@@ -7,8 +7,8 @@ import FeatureSection from '@components/FeatureSection.astro'
 
 Some objects stop being valid while the program runs. A row that was deleted from the database is
 one example. A class that implements `Revocable` gets the method `revoke()`. To revoke an object
-means to tell the program that the object is no longer valid. After that, a property read or a
-method call on the object throws an error.
+means to tell the program that the object is no longer valid. After that, every use of the object
+throws an error. Passing, storing and comparing it with `==` do not throw.
 
 <FeatureSection examples="lang/classes/revocable-objects" heading="Revocable objects" id="revocable-objects" />
 
@@ -19,7 +19,14 @@ method call on the object throws an error.
 | `$post->revoke()` | the object is removed from every `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap` |
 | `$post->isRevoked()` | `true` |
 | `$post->title`, `$post->title = 'x'` | throws `RevokedObjectError` |
-| `$post->publish()` | throws `RevokedObjectError` |
+| `$post->title .= '!'`, `isinit($post->title)`, `bump(inout $post->views)` | throws `RevokedObjectError` |
+| `$post->publish()`, `$post?->publish()`, a `static` method called as `$post->make()` | throws `RevokedObjectError` |
+| `$publish = $post->publish(...)` | no error |
+| `$publish()` | throws `RevokedObjectError` |
+| `"Title: {$post}"`, `echo $post`, `'x' . $post` | throws `RevokedObjectError` |
+| `$post < $other`, `$post <=> $other` | throws `RevokedObjectError` |
+| `foreach ($post as $line)` | throws `RevokedObjectError` |
+| a method the class delegates to a property | throws `RevokedObjectError` |
 | `clone $post`, `Core\Json::encode($post)` | throws `RevokedObjectError` |
 | a `Core\Reflect` read, call or write | throws `RevokedObjectError` |
 | `$post == $other`, `$post is Post`, `$post::class` | no error |
