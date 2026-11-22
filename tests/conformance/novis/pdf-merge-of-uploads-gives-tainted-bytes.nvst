@@ -1,0 +1,23 @@
+--TEST--
+`Pages::merge` gives `tainted bytes`, so the merged file goes only where `tainted bytes` may, and a plain `bytes` variable does not compile: rule:security/extension-contagion
+--FILE--
+<?nvs
+// covers: Novis\Pdf\Pages::merge
+use Novis\Pdf\Pages;
+
+final class Upload
+{
+    public static function combine(tainted bytes $first, tainted bytes $second): void
+    {
+        tainted bytes $kept = Pages::merge([Pages::of($first), Pages::of($second, [1])]);
+        bytes $file = Pages::merge([Pages::of($first)]);
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bytes`, found `tainted bytes`
+   --> case.nvs:%d:%d
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.

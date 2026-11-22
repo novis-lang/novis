@@ -1,0 +1,23 @@
+--TEST--
+`Core\Bytes::at` reads an octet of an upload as a plain `uint`, and `Core\Bytes::join` takes `array<tainted bytes>` and gives `tainted bytes`, which a plain `bytes` variable does not take: rule:security/taint-propagation
+--FILE--
+<?nvs
+// covers: Core\Bytes::at
+// covers: Core\Bytes::join
+final class Upload
+{
+    public static function check(tainted bytes $upload, array<tainted bytes> $parts): void
+    {
+        uint $first = Core\Bytes::at($upload, 0);
+        tainted bytes $kept = Core\Bytes::join($parts, "-" as bytes);
+        bytes $plain = Core\Bytes::join($parts);
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bytes`, found `tainted bytes`
+   --> case.nvs:%d:%d
+%A
+error: aborting due to 1 error
+To read what a code means and how to fix it, run `nvs agent show <code>`.
