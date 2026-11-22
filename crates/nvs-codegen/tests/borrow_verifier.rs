@@ -58,6 +58,30 @@ Blog::$items = Blog::add(Blog::$items, new Post());
 echo Core\Json::encode(Blog::$items), "\n";
 "#;
 
+/// A call that is given `$cart` and the property it lends from
+/// `$cart->item`. The call's own retain of `$cart` comes before the read of
+/// `$cart->item`, and the local still owns `$cart` after the call.
+const RETAINED_BEFORE_THE_READ: &str = r#"<?nvs
+final class Post {
+    public string $text;
+    public function constructor(string $text) { $this->text = $text; }
+}
+final class Cart {
+    public Post $item;
+    public function constructor(string $text) { $this->item = new Post($text); }
+}
+final class Shop {
+    public static function add(Cart $cart, string $text, string $x): string {
+        echo "saw: ", $cart->item->text, "\n";
+        $text .= $x;
+        return $text;
+    }
+}
+Cart $cart = new Cart("ab");
+$cart->item->text = Shop::add($cart, $cart->item->text, "c");
+echo $cart->item->text, "\n";
+"#;
+
 /// The lowered function whose name ends with `name`.
 fn function(program: &nvs_ir::Program, name: &str) -> Function {
     program
@@ -126,6 +150,38 @@ fn an_element_read_while_its_array_is_still_owned_is_not_refused() {
     let program = nvs_ir::lower::without_in_place(|| common::lower(MOVED_TO_CALLEE));
     let (unretained, _) = without_element_retains(function(&program, "Shop::main"));
     assert_eq!(verify_borrows(&unretained), Ok(()));
+}
+
+#[test]
+fn a_retain_of_the_owner_before_the_read_pays_for_the_call_that_takes_it() {
+    let program = common::lower(RETAINED_BEFORE_THE_READ);
+    let script = function(&program, "<script>");
+    assert_eq!(verify_borrows(&script), Ok(()), "the lowered function");
+    // Without the call's retain of `$cart`, the call takes the local's own
+    // reference, and `$cart->item` is read after it.
+    let given: Vec<_> = script
+        .blocks
+        .iter()
+        .flat_map(|block| &block.insts)
+        .filter_map(|inst| match &inst.kind {
+            InstKind::Call { args, .. } => Some(args.clone()),
+            _ => None,
+        })
+        .flatten()
+        .collect();
+    let mut broken = script;
+    let mut removed = false;
+    for block in &mut broken.blocks {
+        block.insts.retain(|inst| match inst.kind {
+            InstKind::Retain { operand } if given.contains(&operand) && !removed => {
+                removed = true;
+                false
+            }
+            _ => true,
+        });
+    }
+    assert!(removed, "the call's argument has a retain");
+    verify_borrows(&broken).expect_err("`$cart->item` is read after `$cart` was given up");
 }
 
 #[test]

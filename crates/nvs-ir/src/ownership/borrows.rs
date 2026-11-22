@@ -37,6 +37,11 @@
 //! borrowed value after that, in an instruction, a phi or a terminator, is
 //! refused. A path that reaches the read again, on a loop's back edge, ends.
 //!
+//! A retain of the owner earlier in the read's block pays too, when no
+//! instruction between it and the read gave the owner up. A call's argument
+//! is retained before the operands after it are read, so that retain is the
+//! reference the call takes, and the owner's own reference outlives the call.
+//!
 //! # What a missing row costs
 //!
 //! A borrowing instruction or a way to give up an owner that is not listed
@@ -117,7 +122,7 @@ pub fn verify(f: &Function) -> Result<(), Refusal> {
                 value,
                 owner: o,
             };
-            if let Some(block) = walk.read_after_given_up(at) {
+            if let Some(block) = walk.read_after_given_up(at, walk.paid_before(at)) {
                 return Err(Refusal {
                     function: f.name.clone(),
                     borrowed: value,
@@ -219,11 +224,27 @@ impl State {
 const MAX_PAID: u8 = 4;
 
 impl Walk<'_> {
+    /// How many retains of the owner earlier in the block of the read at
+    /// `(rb, ri)` are not given up before the read, capped.
+    fn paid_before(&self, (rb, ri): At) -> u8 {
+        let mut paid: u8 = 0;
+        for inst in self.f.blocks[rb].insts.iter().take(ri) {
+            if matches!(inst.kind, InstKind::Retain { operand } if operand == self.owner) {
+                paid = (paid + 1).min(MAX_PAID);
+            }
+            if gives_up(inst, self.owner).0 {
+                paid = paid.saturating_sub(1);
+            }
+        }
+        paid
+    }
+
     /// The block where a path from the read at `(rb, ri)` reads the borrowed
-    /// value after the owner was given up, or `None` when no path does.
-    fn read_after_given_up(&self, (rb, ri): At) -> Option<BlockId> {
+    /// value after the owner was given up, or `None` when no path does. The
+    /// path starts with `paid` retains of the owner not yet given up.
+    fn read_after_given_up(&self, (rb, ri): At, paid: u8) -> Option<BlockId> {
         let start = State {
-            paid: 0,
+            paid,
             given_up: false,
         };
         let mut seen: FxHashSet<(usize, State)> = FxHashSet::default();
