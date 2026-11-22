@@ -497,3 +497,9 @@ programs of § *Why*. The group tests of `crates/nvs-host/src/group.rs:1352` rea
 green. No test is expected to go red.
 
 ### Backlog
+
+- A release of the last reference to a suspended generator runs its `finally` bodies
+  (`crates/nvs-runtime/src/object.rs:5126`, `unwind_abandoned`). An `InstKind::Release` counts as no
+  program code (`rule:types/a-replaced-value-is-changed-in-place` § *What a quiet call is*), so a
+  lend may cross a release that runs a `finally` which writes the lent slot. Found by
+  `safety-holes`' stage 2 reader; not reproduced.

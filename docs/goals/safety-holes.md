@@ -30,7 +30,7 @@ stages:
     context: [website/src/data/changes.json]
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: operand-moves
@@ -364,48 +364,28 @@ that takes an object operand, one line each. The table's rows come from that lis
 
 - [x] The newcomer review of [prose.md](../agent/prose.md) § *A newcomer reads it* over the texts
   stage 6 wrote.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done, with `site --check` and `proofs --gate` green. The Miri failure of run
-44894790665 ran on `7e97fa8444`; `709a1947b2` fixed it. Stage 7's gate is green through `test`
-(9484 Rust tests). `47509b6150` removed two costs stages 1 and 2 added: a local store receiver is
-held only when a later operand writes it (`site_can_free`, `lower/operand.rs`), and a variadic tail
-of scalars is `plain` (`lower_args_as_judged_array`, `lower/call.rs`).
-
-Red: `conformance`, the 20 `in-place/property-chain-fn-reads-*` cases. The borrow verifier refuses
-each `<script>`: "ValueId(4) is borrowed from ValueId(1) … read after ValueId(1) was given up". The
-shape is `$box->inner->text = Lib::add($box, $box->inner->text, "c")`. Not known yet: a real borrow
-after a move, or a verifier miss. `47509b6150` does not reach it (the receiver is a property).
+Every stage is done. `looper verify` is green. `bun nv close --goal safety-holes`, `bun nv verify
+--doc` and `bun nv ci --check` are green too. The 20 `in-place/property-chain-fn-reads-*` cases were
+a verifier miss, not a real borrow after a move. `42fed34d2c` fixed it, so stage 3 stays. The Miri
+failure of run 44894790665 ran on `7e97fa8444`, and `709a1947b2` fixed it. Every standing decision
+is already in its rule or module doc: the operand rule, the quiet-call section of
+`rule:types/a-replaced-value-is-changed-in-place`, `ownership/borrows.rs`,
+`rule:security/derived-codec-qualifiers` and `rule:classes/revocable-objects`.
 
 Sessions per stage: stage 1, one; stage 2, one; stage 3, one; stage 4, one; stage 5, one; stage 6,
-one; stage 7, one.
+one; stage 7, two.
 
 ### Next
 
-Stage 7, its third item. Run one failing case alone:
-`target/debug/nvs.exe test tests/conformance/in-place/property-chain-fn-reads-before-straight-string.nvst`,
-print its `<script>` IR with the pass on, and find which instruction gives up ValueId(1) and which
-reads ValueId(4) after it (`crates/nvs-ir/src/ownership/borrows.rs`, the verifier; the property-chain
-store at `crates/nvs-ir/src/lower/stmt.rs:2229`). A real borrow after a move is fixed where the read
-is lowered, then every case of the 20 passes. A refusal that is not one follows the standing decision
-*What stops it*: stage 3 is declined, its items go to `### Backlog` with the count of refused
-functions, and the `borrow-verifier` check is deleted. Then `looper verify` once more, and the
-goal-end gates: `bun nv close --goal safety-holes`, `bun nv verify --doc`, `bun nv ci --check`. Before
-`DONE`, move each decision only this file holds to its rule, then delete the file.
-
-Tests expected to go red: the steps after `conformance` have not run in this gate (`reference`,
-`soundness`, `clippy`, `extension`). A suite program that decodes a class with a plain `string`
-property through a shape gets `E0810`, fixed with `tainted`. A suite program that uses a revoked
-object in one of the new forms throws `RevokedObjectError`.
+Nothing. The driver retires the goal. No test is expected to go red.
 
 ### Backlog
 
-- A release of the last reference to a suspended generator runs its `finally` bodies
-  (`crates/nvs-runtime/src/object.rs:5126`, `unwind_abandoned`). An `InstKind::Release` counts as no
-  program code, so a lend may cross a release that runs a `finally` which writes the lent slot. Found
-  by stage 2's reader; not reproduced.
+- The generator `finally` question moved to `review-hardening`'s `### Backlog`.
