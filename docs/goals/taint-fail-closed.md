@@ -257,7 +257,16 @@ program that reads a file into an image then writes `tainted bytes` too, because
 has an upload arm and the qualifier has no generic form. That over-taint is accepted: a response
 body, storage and a file all take `tainted bytes`, and security outranks simplicity. A `Core` row's
 shape argument stays out of `carries_tainted`, since no row writes a shape argument's text into its
-result. `gap:nvs-types/extension-shape-argument-drops-taint` holds the work, about 165 programs.
+result. `MethodSig::reads_whole_arguments` (a signature with a `contagious_return` and no
+`core_class`) is that extension. `carries_contagion` reads `may_carry_outside_text` there, and the
+admission clears `tainted` with `quals::untainted_toward`, which follows the declared type, since a
+shape's fields compare invariantly and a manifest cannot write `tainted`.
+
+**`Core\Bytes::at` is `Neutral`, and `Core\Bytes::join`'s parts are contagious.** `at` answers a
+`uint`, which has no `tainted` form, so it refused every upload for nothing, as `length` does not.
+`join` refused an `array<tainted bytes>` while `Core\Str::join` took one. Neither costs anything at
+run time. `Novis\Image\Font::fromBytes` takes `tainted bytes`, since a font may be an upload and the
+extension's result is tainted anyway.
 
 **The return mark is a field on every row, and the checker reads it where it seeds the row.**
 `CoreMethod::text` is a `TextOrigin`: `Unmarked`, `Derived`, `Source` or `Clean(reason)`. A row that
@@ -467,50 +476,54 @@ Last `bun nv against`: the IR differs only in two programs that compile in neith
 `05-tainted-text-as-a-pattern` (the new help line; its `.out` is updated) and
 `06-a-secret-in-an-error-message` (known wording). `assertTrusted` 48 and 48, median ratio 1.011.
 
-Stages 1 to 5 are done. What moved, for stage 6: six `Source` rows (process output,
-`Core\Db\Connection::serverVersion`, `Core\Ldap\Connection::whoami`); `Core\Ldap\Filter` and `Dn`
-render as tainted; `Throwable::$message` is `tainted string`; `encodeComponent` throws on `.` and
-`..`; the `E0401` at a `Core` sink has a help line (`args.rs` `sink_help`, `core_lib.rs`
-`sink_launderers`). 38 sink classes have no launderer, so their help names `assertTrusted`, among
-them `Core\Str::format`, `Core\Process::run`, `Core\Response::setHeader` and `Core\Storage`.
+Stages 1 to 5 are done. 38 sink classes have no launderer, so their help names `assertTrusted`.
 
-`close` is red for two reasons. `gap:nvs-types/extension-shape-argument-drops-taint` is owned by
-this goal. The four launderer gap records under `data/gaps/nvs-stdlib/` name it too, until the
-user answers decision `d14` (built on option 1: keep the carrier declined).
+The extension-shape gap is closed and its record deleted: `args.rs` `carries_contagion` and the
+`Admitted::everywhere` admission, `quals.rs` `untainted_toward`, `signatures.rs`
+`reads_whole_arguments`. `Image::encode`, `raw` (its `Raw::pixels`), `variants` and
+`Pages::merge` answer `tainted bytes`; `Font::fromBytes` takes it. About 95 programs and 5
+conformance cases now write `tainted bytes` (a `Core\Bytes::join([...])` literal moved into an
+`array<tainted bytes> $parts` line). Every program that uses the image or PDF component checks with
+the debug build, and the 38 image and PDF cases plus the new
+`image-an-upload-gives-tainted-bytes.nvst` pass. `extensions.rs`
+`a_tainted_field_of_a_shape_argument_taints_an_extension_result` passes. No `bun nv against` ran
+after it, since that needs a release build.
 
-Sessions per stage: 1: one. 2: one. 3: two. 4: two. 5: two.
+`close` stays red only on decision `d14`: the four launderer records under `data/gaps/nvs-stdlib/`
+name this goal (built on option 1: keep the carrier declined).
+
+Sessions per stage: 1: one. 2: one. 3: two. 4: two. 5: two. 6: one.
 
 ### Next
-
-The gap, then stage 6.
 
 1. **Decision `d14`.** When the user answers, option 1: delete the four records under
    `data/gaps/nvs-stdlib/` and add each case to `rule:security/launderer-answers-a-carrier`'s
    Declined list, and remove `CROSS_SINK`'s gap paths in `launderer_matrix.rs` (keep each row with
    the rule's reason). Option 2: move them to the goal the user names. Then `looper decision close
-   d14` and record the answer under `## Standing decisions`. `close` stays red until then.
-2. `gap:nvs-types/extension-shape-argument-drops-taint`, before stage 6, so its proofs and change
-   entries land there. The checker side: an extension call's contagion
-   (`crates/nvs-types/src/ext_lib.rs` and `quals.rs` `contagious_result`, `:997`) asks
-   `may_carry_outside_text` (`quals.rs:303`) of each argument, and a `Core` row keeps
-   `carries_tainted`. Then `extensions/image/nvs/Image.nvs` `encode`, `pixels` and the other
-   terminals return `tainted bytes`, and the PDF component the same. Then every program that keeps
-   their result in `bytes`. **Split:** the session lands the checker and the two components, builds,
-   lists the red programs with `nvs test tests/conformance` and `bun nv against`, and writing
-   subagents fix them over disjoint folders. A row in `taint_every_form` opens a `tainted bytes`
-   image and requires a tainted result. Delete the gap record and the extension-contagion
-   **Not on disk.** line in the same slice.
+   d14` and record the answer under `## Standing decisions`.
+2. `bun nv relink --build`, then `bun nv against`: the IR must still be byte-identical except for
+   programs that now compile in neither build. Record the figures above.
+3. Stage 6's items. `changes.json` owes entries for: `Core\Uri::encodeComponent`'s `LogicError`,
+   `Throwable::$message`, `Core\Ldap\Filter`/`Dn`, the six `Source` rows, the sink help under
+   `lang:types/qualifiers-tainted-and-secret`, `Novis\Image\Image::encode`/`raw`/`variants` and
+   `Novis\Pdf\Pages::merge` (breaking: write `tainted bytes` on the variable), `Font::fromBytes`,
+   `Core\Bytes::at` and `Core\Bytes::join`. `Pages::merge`, `Core\Bytes::at` and `join` have no test
+   with a `// covers:` line yet, so `site --check changes` will refuse their entries until one is
+   added (a `.nvst` each). The `about.md` of each image terminal and of `Pages::merge` says the result
+   is `tainted bytes`. Then the `assertTrusted` read, `proofs --owed`, and the site checks.
 
 Tests expected red: a test outside `tests/conformance` that pins the exact text of an `E0401` at a
-`Core` sink, since it now has a help line. The two in conformance that did are updated, and no
-Rust test pins one. Stage 6's first item also owes `Core\Uri::encodeComponent`'s new `LogicError` a
-`changes.json` entry and an `about.md` line, `Throwable::$message` a `changes.json` entry and
-`about.md` line, `Core\Ldap\Filter`/`Dn` one each, the image and PDF terminals one each once the gap
-lands, and the new sink help a `changes.json` entry under `lang:types/qualifiers-tainted-and-secret`
-(both new reject cases carry its `// covers:`).
+`Core` sink, and any Rust test that pins `Core\Bytes::at` as `Contagious` (none found by grep).
+A `.out` of an image or PDF program is unchanged, since only types moved.
 
 ### Backlog
 
+- **An array literal argument with a `tainted` element is refused at a contagious array
+  parameter.** `Core\Str::join([$tainted, 'x'])` and `Core\Bytes::join([...])` give `E0401` at the
+  element, on the base build too, while the same array in a variable is admitted. The literal is
+  inferred against the declared `array<string>` before the admission clears the bit
+  (`args.rs` `check_arg_admitting_quals`). Widening the expectation risks typing a plain literal as
+  tainted, so it needs its own look.
 - **`shape as string` compiles.** `(await $h) as string` has no diagnostic, though a shape has no
   `Stringable` and the conversion always throws when it runs. It is a type-check gap, not a taint
   hole, since no text is ever produced. `require_stringable_object` in
