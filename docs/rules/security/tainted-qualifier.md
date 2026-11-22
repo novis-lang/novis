@@ -25,6 +25,12 @@ every request-handling function would have to launder on its first line.
 `tainted` is written after `secret` when both appear, and `tainted secret string` is a diagnostic
 naming the required order rather than a second spelling (`rule:security/secret-qualifier`).
 
+**Clean is the proof, and tainted is the default.** A plain `string` is still the written form of
+clean text, and the grammar does not change. What moves is the checker's default for a type it was
+never told about: text is clean only when the checker proves it, as a literal, a constant, a launderer's
+answer, a checked conversion, or an operation whose every text operand is clean. A type no rule names
+counts as tainted, so a case nobody decided gives a compile error, never a hole.
+
 **False positives are the accepted failure direction.** A value the program wrote itself can read back
 `tainted` once it round-trips through a store, and `rule:security/assert-trusted` exists for that case
 at the cost of one written reason per call site.

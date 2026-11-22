@@ -10,7 +10,7 @@ stages:
     context: [tools/nv/cmd/start-cost.ts, docs/rules/testing/perf-two-mechanisms.md]
   - id: 2
     title: "one exhaustive classifier decides every taint walk, and a type it does not recognise counts as tainted"
-    status: open
+    status: done
     context: [crates/nvs-types/src/expr/quals.rs, crates/nvs-types/src/derive.rs, crates/nvs-types/src/expr/args.rs]
   - id: 3
     title: "a Core member's returned text is tainted unless its row says where the text comes from"
@@ -213,6 +213,24 @@ text, and `rule:core-classes/html-template` records that and its Declined list. 
 recorded decision and needs an HTML position model. The user declined a goal for it, so no session
 proposes one.
 
+**Only a walk that asks whether text may come from outside reads `text_class`.** Those are
+`carries_tainted`, `carries_qualifier`, `keys_from_outside`, `walks_outside_text`,
+`field_from_outside`, `classes_reached` and `unqualified_text`. The others keep their own last arm,
+because they ask another question of a type. `carries_unchecked`, `unchecked_outside_arrays` and
+`all_unchecked` ask whether it is `mixed`. `holds_array` asks whether it may be an array, and
+`has_fields` whether it has fields. `untainted_shape_text` and `untainted_field_from_outside` ask
+about the written target. `db_reachable` and `json_reachable` are type maps whose last arm already
+refuses. The transforms `tainted_result`, `tainted_walks`, `untainted` and `untainted_entries` leave a
+type with no `tainted` form unchanged. A contagious member that returns one then refuses a `tainted`
+argument, which is the safe direction. `:1741` matches a member's name, not a type. Reason: forcing a
+text answer onto a question about array-ness or fields would only move answers the flip must keep.
+
+**`carries_tainted` does not step into a shape.** Stepping in turned every image and PDF result into
+`tainted bytes`. The plan shape's `Core\Bytes::Source` field has a `Core\Request\Part` arm, so the
+result was tainted even when the program read a file. That is 165 programs. Whether a shape argument's
+text reaches a contagious result is a question about what each member writes, and stage 4's rows
+answer it. `may_carry_outside_text` is the classifier's full answer and does step in.
+
 **What stops it.** One attempt per item, and two sessions per stage, counted in `### State`. At two
 sessions a stage's open items move to `### Backlog` as declined, each with its reason, and a security
 item among them gets a gap record. No stage gains an item. A `bun nv against` that is over budget
@@ -244,25 +262,25 @@ deleted.
 **Split:** an `Explore` subagent lists every variant of `Ty` (`crates/nvs-types/src/ty.rs`), one line
 each, before the classifier is written.
 
-- [ ] `crates/nvs-types/src/expr/quals.rs:1`: `text_class` and `TextClass`, as the standing decision
+- [x] `crates/nvs-types/src/expr/quals.rs:1`: `text_class` and `TextClass`, as the standing decision
   gives them. `rule:security/taint-propagation`
-- [ ] `quals.rs`: every catch-all arm of § *Why* reads `text_class`. Each keeps its direction: those
+- [x] `quals.rs`: every catch-all arm of § *Why* reads `text_class`. Each keeps its direction: those
   at `:260`, `:305`, `:315`, `:327`, `:361`, `:452`, `:503`, `:525`, `:554`, `:654`, `:680`, `:897`,
   `:931`, `:994`, `:1418`, `:1741`, `:1906`. `:1873` already answers tainted and stays.
-- [ ] `crates/nvs-types/src/derive.rs:2385` (`classes_reached`), `:2408` (`unqualified_text`),
+- [x] `crates/nvs-types/src/derive.rs:2385` (`classes_reached`), `:2408` (`unqualified_text`),
   `:2529` (`db_reachable`) and `:2597` (`json_reachable`) read `text_class`. `classes_reached` steps
   into a class's type arguments. *check first*: `db_reachable` lists no `SecretString`,
   `SecretBytes` or `SecretTaintedString`, and `json_reachable` no `TaintedBytes` or `SecretBytes`.
   Write one program for each that should not compile.
-- [ ] `crates/nvs-stdlib/src/registry.rs:4461` and `:4313`: `carries_tainted_bytes` and
+- [x] `crates/nvs-stdlib/src/registry.rs:4461` and `:4313`: `carries_tainted_bytes` and
   `holds_cells_of_its_source` keep their lists. An unlisted `Core` class answers `Tainted` unless the
   registry lists it as `NoText`.
-- [ ] `crates/nvs-types/tests/text_class.rs:1`: an unknown `Core` class, a generic wrapper, a shape
+- [x] `crates/nvs-types/tests/text_class.rs:1`: an unknown `Core` class, a generic wrapper, a shape
   in an array in a nullable, and `jsonAs<{ a: { b: User } }>` each count as tainted. It runs once,
   by name.
-- [ ] The rule fragments `taint-propagation.md` and `tainted-qualifier.md` say "clean is the proof"
+- [x] The rule fragments `taint-propagation.md` and `tainted-qualifier.md` say "clean is the proof"
   in one paragraph each, and the `quals.rs` module doc says it once.
-- [ ] `cargo build`, `cargo clippy --all-targets -- -D warnings`, then `bun nv relink --build` and
+- [x] `cargo build`, `cargo clippy --all-targets -- -D warnings`, then `bun nv relink --build` and
   `bun nv against`. No IR difference and no diagnostic difference, since this stage changes no known
   type's answer. The ratio goes under `### State`.
 
@@ -379,13 +397,29 @@ in a worktree, never from a tree stage 2 changed.
 
 A compare takes about three minutes for the dumps and about a minute for the timing at 5 rounds.
 
-Sessions per stage: 1: one.
+Stage 2 is done. `text_class` and `TextClass` are in `crates/nvs-types/src/expr/quals.rs`, before
+`is_tainted`, with `may_carry_outside_text` as the classifier's full answer. The registry gained
+`instance_carries_no_text` (`crates/nvs-stdlib/src/registry.rs`, after `carries_tainted_bytes`).
+`crates/nvs-types/tests/text_class.rs` has 6 tests, green, run once by name. The `Ty` variants were
+read straight from the enum, because it is one block of 33 variants.
+
+`bun nv against` after stage 2: IR identical for every program, diagnostics identical, 48
+`assertTrusted` calls, median check-time ratio 0.998. The first compare found 165 programs broken, all
+from `carries_tainted` stepping into shapes. Standing decisions now say why it does not.
+
+Sessions per stage: 1: one. 2: one.
 
 ### Next
 
-Stage 2 from its **Split:** line: an `Explore` subagent lists every `Ty` variant in
-`crates/nvs-types/src/ty.rs`. Then write `text_class` at `crates/nvs-types/src/expr/quals.rs:1`, and
-take the items in order. Stage 3 may run beside it as a side goal. No test is expected to go red in
-stage 2. Its last item runs `bun nv relink --build` and `bun nv against`.
+Stage 3, at `crates/nvs-stdlib/src/registry.rs:242`: the return mark on `CoreMethod`, then the items
+in order. `instance_carries_no_text` counts every declared `Core` class as carrying no text, so
+stage 3's rows on the getters decide what a class's text is. No test is expected to go red. The
+stage's last item runs `bun nv relink --build` and `bun nv against`, and the base in
+`.agent-tmp/against/base/` stays.
 
 ### Backlog
+
+- **A shape argument to a contagious member.** `carries_tainted` does not step into a shape, so a
+  `tainted` field of a shape argument does not taint a contagious result. Stage 4 decides it with the
+  rows. The image extension's plan shape is the case to check: its `Core\Bytes::Source` field has a
+  `Core\Request\Part` arm, so a whole-type answer taints a file's result too.

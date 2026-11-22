@@ -115,6 +115,16 @@ whether the content is safe for a given sink, and a conversion that laundered he
 bypass of every rule below. All of it is decided while checking: no tag at run time, nothing on the
 request path.
 
+**Clean is the proof, and tainted is the default.** Every walk that asks whether a value can carry
+outside text reads one classifier, `text_class` in `crates/nvs-types/src/expr/quals.rs`. It names
+every type with no catch-all arm: a type is clean text, tainted text, no text, or it holds the types
+of its elements, fields, members or type arguments. A walk that sets the bit counts tainted and steps
+into what a type holds. A `Core` class carries no text of its own only when the registry declares it,
+because its text leaves only through its members' rows. A source of request bytes, such as
+`Core\Request\Part`, is tainted, and a `Core` name no row declares is tainted too. So a type added
+later does not compile until its class is decided, and a walk never answers clean for a type it
+forgot.
+
 - **Memory:** none. The qualifier is erased before codegen; the cost is compile time, one walk of the
   operand's type per conversion, `.`, interpolation and type test, one walk of the subject's element
   type per `foreach` with a key, and one property lookup per text field of a shape target over an

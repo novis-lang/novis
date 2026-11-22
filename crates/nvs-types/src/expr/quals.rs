@@ -31,6 +31,22 @@
 //! safe over-approximation of "may be tainted"/"may be secret," the same
 //! direction `mixed` never gets — but never narrows through assignment.
 //!
+//! **Clean is the proof, and tainted is the default.** [`text_class`] gives
+//! every [`Ty`] variant a [`TextClass`] with no catch-all arm, and each walk
+//! that asks whether text may come from outside — [`carries_tainted`],
+//! [`carries_qualifier`], [`keys_from_outside`], `walks_outside_text`,
+//! `field_from_outside` and `crate::derive`'s `classes_reached` and
+//! `unqualified_text` — answers a type it does not name from it, in its own
+//! direction. A `Core` class no registry row declares is tainted.
+//! [`carries_tainted`] does not step into a shape's fields, as before: a
+//! contagious member puts a shape argument's text in its result only where its
+//! row says so. The walks
+//! that ask another question of a type keep their own last arm: whether it is
+//! `mixed` ([`carries_unchecked`]), an array, or a value with fields, and the
+//! transforms ([`tainted_result`], [`untainted`]), which leave a type with no
+//! `tainted` form as it is, so a contagious member that returns one refuses a
+//! `tainted` argument.
+//!
 //! The sinks reachable here are eleven, and the three below are the ones a
 //! conversion reaches. [`reject_computed_markup_conversion`]
 //! is `rule:core-classes/html-auto-escape`'s compile-time half: `as Core\Html\Markup` accepts only a
@@ -178,6 +194,120 @@ impl ErasingPosition {
     }
 }
 
+/// What a value of a type can carry as text, for every walk that asks whether
+/// text may come from outside (`rule:security/taint-propagation`).
+///
+/// **Clean is the proof, and tainted is the default.** [`text_class`] names
+/// every [`Ty`] variant with no catch-all arm, so a variant added later does
+/// not compile until somebody decides its class.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TextClass {
+    /// No text: a number, a `bool`, `null`, an enum, a callable, a `Core`
+    /// instance whose text leaves only through its members, or the error type.
+    NoText,
+    /// Text the program made: a plain `string` or `bytes`, with or without
+    /// `secret`, a literal's single-value type, a class or property name.
+    Clean,
+    /// Text that may come from outside: a `tainted` atom, `mixed`, `object`,
+    /// `iterable`, a type variable, a source of request bytes, and a `Core`
+    /// class that no registry row declares.
+    Tainted,
+    /// The text of these types, and nothing of its own: an array's element, a
+    /// shape's fields, a union's or an intersection's members, and a class's
+    /// type arguments. A program's own class also has its declared properties,
+    /// which only a walk with the signature table reads, so a walk that reads
+    /// them names [`Ty::Class`] itself.
+    Holds(Vec<TypeId>),
+}
+
+/// The [`TextClass`] of `ty`. Each walk reads the answer in its own direction:
+/// a walk that *sets* the bit counts [`TextClass::Tainted`] and steps into
+/// [`TextClass::Holds`], and a walk that *admits* admits only
+/// [`TextClass::Clean`] and [`TextClass::NoText`].
+///
+/// A `Core` class is [`TextClass::NoText`] only where
+/// [`nvs_stdlib::registry::instance_carries_no_text`] says so. A source of
+/// request bytes is [`TextClass::Tainted`], a class of cells holds its type
+/// arguments, and a name no row declares is [`TextClass::Tainted`].
+#[must_use]
+pub fn text_class(ty: TypeId, interner: &TypeInterner) -> TextClass {
+    match interner.get(ty) {
+        Ty::Null
+        | Ty::Bool
+        | Ty::Int
+        | Ty::Uint
+        | Ty::Float
+        | Ty::Decimal
+        | Ty::True
+        | Ty::False
+        | Ty::SingleValueInt(_)
+        | Ty::Enum(..)
+        | Ty::EnumCase(..)
+        | Ty::Void
+        | Ty::Never
+        | Ty::Callable
+        | Ty::CallableSig { .. }
+        | Ty::ShapeOfCallables(_)
+        // `rule:types/one-mistake-reports-once`: a program with the error type
+        // never runs, so its text reaches nothing.
+        | Ty::Error => TextClass::NoText,
+        Ty::String
+        | Ty::Bytes
+        | Ty::SecretString
+        | Ty::SecretBytes
+        | Ty::SingleValueString(_)
+        | Ty::StringHoles { tainted: false, .. }
+        | Ty::ClassRef(_)
+        | Ty::PropertyKey(_)
+        | Ty::PropertyPath(_) => TextClass::Clean,
+        Ty::TaintedString
+        | Ty::TaintedBytes
+        | Ty::SecretTaintedString
+        | Ty::SecretTaintedBytes
+        | Ty::StringHoles { tainted: true, .. }
+        | Ty::Mixed
+        | Ty::SecretMixed
+        | Ty::Object
+        | Ty::Iterable
+        | Ty::TypeVar(_) => TextClass::Tainted,
+        Ty::Array(elem) => TextClass::Holds(vec![*elem]),
+        Ty::Shape(fields) => TextClass::Holds(fields.iter().map(|field| field.ty).collect()),
+        Ty::CoreShape(shape) => {
+            TextClass::Holds(shape.fields.iter().map(|field| field.ty).collect())
+        }
+        Ty::Union(members) | Ty::Intersection(members) => TextClass::Holds(members.clone()),
+        Ty::Class(qname, args) if qname.is_core() => {
+            let name = qname.to_string();
+            if nvs_stdlib::registry::carries_tainted_bytes(&name) {
+                TextClass::Tainted
+            } else if nvs_stdlib::registry::holds_cells_of_its_source(&name) {
+                TextClass::Holds(args.clone())
+            } else if nvs_stdlib::registry::instance_carries_no_text(&name) {
+                TextClass::NoText
+            } else {
+                TextClass::Tainted
+            }
+        }
+        Ty::Class(_, args) => TextClass::Holds(args.clone()),
+    }
+}
+
+/// Whether a value of `ty` can carry `tainted` text anywhere, read entirely
+/// from [`text_class`] in the direction that sets the bit. `mixed` and its
+/// family count here, as an encoder counts them (`rule:security/taint-propagation`).
+///
+/// `pub` for `tests/text_class.rs`, which holds the classifier to its answers.
+#[must_use]
+pub fn may_carry_outside_text(ty: TypeId, interner: &TypeInterner) -> bool {
+    match text_class(ty, interner) {
+        TextClass::Tainted => true,
+        TextClass::Clean | TextClass::NoText => false,
+        TextClass::Holds(children) => children
+            .iter()
+            .any(|&child| may_carry_outside_text(child, interner)),
+    }
+}
+
 /// Whether `ty` carries `rule:security/tainted-qualifier`'s `tainted` qualifier — on its own
 /// (`tainted string`/`tainted bytes`) or composed with `secret`
 /// (`secret tainted string`/`secret tainted bytes`, `rule:security/secret-qualifier`). The one
@@ -231,33 +361,23 @@ pub(crate) fn carries_tainted(ty: TypeId, interner: &TypeInterner) -> bool {
         return true;
     }
     match interner.get(ty) {
-        Ty::Array(elem) => carries_tainted(*elem, interner),
-        Ty::Union(members) => members
-            .iter()
-            .any(|&member| carries_tainted(member, interner)),
-        Ty::Class(qname, args) => match (qname.segments(), args.as_slice()) {
-            ([only], [elem])
-                if only == nvs_hir::interfaces::ITERABLE
-                    || only == nvs_hir::interfaces::ITERATOR =>
-            {
-                carries_tainted(*elem, interner)
-            }
-            // `rule:iteration/keyed-interfaces`'s pair carries it through its
-            // key or its value.
-            ([only], [key, value])
-                if only == nvs_hir::interfaces::KEYED_ITERABLE
-                    || only == nvs_hir::interfaces::KEYED_ITERATOR =>
-            {
-                carries_tainted(*key, interner) || carries_tainted(*value, interner)
-            }
-            _ if qname.is_core()
-                && nvs_stdlib::registry::holds_cells_of_its_source(&qname.to_string()) =>
-            {
-                args.iter().any(|&arg| carries_tainted(arg, interner))
-            }
-            _ => qname.is_core() && nvs_stdlib::registry::carries_tainted_bytes(&qname.to_string()),
+        // Text out of `mixed` is [`carries_unchecked`]'s question, and each
+        // caller asks it beside this one.
+        Ty::Mixed | Ty::SecretMixed | Ty::Object | Ty::Iterable | Ty::TypeVar(_) => false,
+        // A shape's fields are not this walk's reach. A contagious argument
+        // that is a shape, such as an extension's plan, puts its fields in the
+        // result only where the member writes them there, and its row says so.
+        Ty::Shape(_) | Ty::CoreShape(_) | Ty::Intersection(_) => false,
+        // `rule:iteration/keyed-interfaces`' pair and the iteration
+        // interfaces carry it through their type arguments, which
+        // [`text_class`] gives as what they hold.
+        _ => match text_class(ty, interner) {
+            TextClass::Tainted => true,
+            TextClass::Clean | TextClass::NoText => false,
+            TextClass::Holds(children) => children
+                .iter()
+                .any(|&child| carries_tainted(child, interner)),
         },
-        _ => false,
     }
 }
 
@@ -358,6 +478,10 @@ pub(crate) fn keys_from_outside(ty: TypeId, interner: &TypeInterner) -> bool {
         // The error type is not `mixed` here, for [`carries_unchecked`]'s reason.
         Ty::Mixed | Ty::SecretMixed | Ty::Iterable => true,
         Ty::Array(elem) => carries_unchecked(*elem, interner) || carries_tainted(*elem, interner),
+        // A class's keys are outside text when [`text_class`] cannot prove
+        // the class clean, such as a `Core` class no row declares.
+        Ty::Class(..) => text_class(ty, interner) == TextClass::Tainted,
+        // Any other value has no keys: a scalar, a shape, a callable.
         _ => false,
     }
 }
@@ -551,7 +675,17 @@ fn field_from_outside(from: TypeId, name: &str, wanted: TypeId, env: &mut Env<'_
             Some(field) => field.ty,
             None => return true,
         },
-        _ => return false,
+        // Any other value fills the field from what [`text_class`] says it
+        // has: an element, a member, or text that may be outside.
+        _ => {
+            return match text_class(from, env.interner) {
+                TextClass::Tainted => true,
+                TextClass::Clean | TextClass::NoText => false,
+                TextClass::Holds(children) => children
+                    .iter()
+                    .any(|&child| field_from_outside(child, name, wanted, env)),
+            };
+        }
     };
     fields_unchecked(source, env.interner)
         || carries_tainted(source, env.interner)
@@ -1408,14 +1542,25 @@ pub(crate) fn carries_qualifier(ty: TypeId, interner: &TypeInterner) -> bool {
             .fields
             .iter()
             .any(|field| carries_qualifier(field.ty, interner)),
-        Ty::Union(members) | Ty::Intersection(members) | Ty::Class(_, members) => {
+        Ty::Union(members) | Ty::Intersection(members) => {
             members.iter().any(|&m| carries_qualifier(m, interner))
         }
         Ty::CallableSig { params, ret } => {
             carries_qualifier(*ret, interner)
                 || params.iter().any(|&p| carries_qualifier(p, interner))
         }
-        _ => false,
+        // `mixed` and its family have no qualifier written on them, and a
+        // write of one is checked as `mixed` is.
+        Ty::Mixed | Ty::SecretMixed | Ty::Object | Ty::Iterable | Ty::TypeVar(_) => false,
+        // A class carries what [`text_class`] says: its type arguments, or
+        // `tainted` for a source of request bytes and an unknown `Core` name.
+        _ => match text_class(ty, interner) {
+            TextClass::Tainted => true,
+            TextClass::Clean | TextClass::NoText => false,
+            TextClass::Holds(children) => children
+                .iter()
+                .any(|&child| carries_qualifier(child, interner)),
+        },
     }
 }
 
@@ -1902,8 +2047,18 @@ fn walks_outside_text(
         Ty::Union(members) | Ty::Intersection(members) => members
             .iter()
             .any(|&member| walks_outside_text(member, seen, env)),
-        Ty::Class(qname, args) => class_fields_outside(&qname, &args, seen, env),
-        _ => false,
+        // A `Core` instance has no property a program can reach, so its row
+        // in the registry decides, through [`text_class`] below.
+        Ty::Class(qname, args) if !qname.is_core() => {
+            class_fields_outside(&qname, &args, seen, env)
+        }
+        _ => match text_class(ty, env.interner) {
+            TextClass::Tainted => true,
+            TextClass::Clean | TextClass::NoText => false,
+            TextClass::Holds(children) => children
+                .iter()
+                .any(|&child| walks_outside_text(child, seen, env)),
+        },
     }
 }
 

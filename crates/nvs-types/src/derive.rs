@@ -2369,20 +2369,19 @@ pub(crate) fn classes_reached(
     interner: &crate::ty::TypeInterner,
     out: &mut Vec<QName>,
 ) {
-    match interner.get(ty) {
-        Ty::Class(name, _) => out.push(name.clone()),
-        Ty::Array(element) => classes_reached(*element, interner, out),
-        Ty::Shape(fields) => {
-            for field in fields {
-                classes_reached(field.ty, interner, out);
-            }
+    if let Ty::Class(name, _) = interner.get(ty) {
+        out.push(name.clone());
+    }
+    // Everything a value can hold is walked through the one classifier, so a
+    // class under a shape, an intersection or a class's type argument is
+    // reached as a class at the root is
+    // (`crate::expr::quals::text_class`).
+    if let crate::expr::quals::TextClass::Holds(children) =
+        crate::expr::quals::text_class(ty, interner)
+    {
+        for child in children {
+            classes_reached(child, interner, out);
         }
-        Ty::Union(arms) => {
-            for &arm in arms {
-                classes_reached(arm, interner, out);
-            }
-        }
-        _ => {}
     }
 }
 
@@ -2405,7 +2404,26 @@ pub(crate) fn unqualified_text(declared: TypeId, interner: &crate::ty::TypeInter
         Ty::Shape(fields) => fields
             .iter()
             .any(|field| unqualified_text(field.ty, interner)),
-        _ => false,
+        // A nested class is walked as a class of its own, by
+        // [`classes_reached`].
+        Ty::Class(..) => false,
+        // Text a decoder checks against a fixed set of values, or against a
+        // class's own names, is never the peer's text as it was sent.
+        Ty::SingleValueString(_)
+        | Ty::StringHoles { .. }
+        | Ty::ClassRef(_)
+        | Ty::PropertyKey(_)
+        | Ty::PropertyPath(_) => false,
+        // Everything else is read through the one classifier: a `tainted`
+        // form and `mixed` carry the qualifier, and what a value holds is
+        // asked again one level down.
+        _ => match crate::expr::quals::text_class(declared, interner) {
+            crate::expr::quals::TextClass::Clean => true,
+            crate::expr::quals::TextClass::Tainted | crate::expr::quals::TextClass::NoText => false,
+            crate::expr::quals::TextClass::Holds(children) => children
+                .iter()
+                .any(|&child| unqualified_text(child, interner)),
+        },
     }
 }
 
