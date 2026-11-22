@@ -140,12 +140,21 @@ use crate::ids::ValueId;
 use crate::ir::{Function, Inst, InstKind, Slot, Terminator, UserCode};
 use crate::ty::Ty;
 
+#[cfg(any(test, debug_assertions))]
+mod borrows;
 mod lent;
+
+#[cfg(any(test, debug_assertions))]
+pub use borrows::{Refusal, verify as verify_borrows};
 
 /// Decides every move and every lend in `functions`, appends the lent body
 /// of each function and parameter a call lends a slot to, and returns every
 /// copy it keeps ([`crate::copies`]). Each copy it can count gets an
 /// [`InstKind::CopyCount`] with its row's id (`count_copies`).
+///
+/// In a test or debug build it then runs the borrow verifier
+/// ([`verify_borrows`]) on every function, and panics with the first
+/// refusal.
 pub fn run(functions: &mut Vec<Function>) -> Vec<KeptCopy> {
     let summaries = Summaries::of(functions);
     let ignore = ignore_effects();
@@ -165,6 +174,12 @@ pub fn run(functions: &mut Vec<Function>) -> Vec<KeptCopy> {
         .chain(lent_rows)
         .collect();
     count_copies(functions, &rows);
+    #[cfg(any(test, debug_assertions))]
+    for f in functions.iter() {
+        if let Err(refusal) = verify_borrows(f) {
+            panic!("the borrow verifier refused a function: {refusal}");
+        }
+    }
     rows.into_iter().map(|(copy, _)| copy).collect()
 }
 

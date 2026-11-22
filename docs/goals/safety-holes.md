@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-ir/src/effects.rs, crates/nvs-ir/src/ownership/lent.rs]
   - id: 3
     title: a test build refuses a function whose borrowed value outlives the move of its owner
-    status: open
+    status: done
     context: [crates/nvs-ir/src/ownership.rs]
   - id: 4
     title: a class reached through a shape is held to the decode checks
@@ -288,13 +288,13 @@ or a clone. The session decides each row from that list.
 
 ### 3. a test build refuses a function whose borrowed value outlives the move of its owner
 
-- [ ] `crates/nvs-ir/src/ownership.rs:1997`: a verifier beside `releases_after`, behind
+- [x] `crates/nvs-ir/src/ownership.rs:1997`: a verifier beside `releases_after`, behind
   `cfg(any(test, debug_assertions))`, run after the pass on every function, as the standing decision
   gives it. Its module comment lists the borrowing instructions and says what a missing one costs.
-- [ ] `crates/nvs-codegen/tests/borrow_verifier.rs:1`: a hand-built function that reads a borrowed
+- [x] `crates/nvs-codegen/tests/borrow_verifier.rs:1`: a hand-built function that reads a borrowed
   element after its owner's move is refused, and the two programs of § *Why* pass after stages 1
   and 2. It runs once, by name.
-- [ ] `cargo build` and clippy are green. The gate stage is where every suite meets the verifier.
+- [x] `cargo build` and clippy are green. The gate stage is where every suite meets the verifier.
 
 ### 4. a class reached through a shape is held to the decode checks
 
@@ -366,36 +366,38 @@ that takes an object operand, one line each. The table's rows come from that lis
 ### State
 
 Stage 1 is done. `later_can_free` (`crates/nvs-ir/src/lower/operand.rs`) holds a read rooted at a
-local when a later operand that is not inert names the local, by a scan of its source text
-(`names_local`). The program of § *Why* 1 and its `Core` variant print the whole element.
-`cargo test --test operand_moves` passed once, 28 matrix cases and the reported program. The new
-conformance case passed once. The nightly Miri timeout of
-`granularity::tests::both_walks_agree_on_every_window` was a slow test, not undefined behaviour; it
-now walks a reach of 1 over six texts under Miri.
+local when a later operand that is not inert names the local. `cargo test --test operand_moves`
+passed once.
 
-Stage 2 is done. `Helper::ToStringOrNull` is `true`, and every `false` row of `may_run_user_code`
-(`crates/nvs-ir/src/ir.rs`) names its runtime function. The checker records each call argument that
-is an array holding no object (`ExprTypeTable::is_plain_array`), the lowering turns it into
-`CoreCall::plain`, and `effects::object_operands` counts every other array argument of a `Core` call.
-`effects::may_park` makes a `Core` call outside `Str`, `Math`, `Arr` and `Regex` "anything".
-`cargo test --test helper_effects` passed once, four cases. The new conformance case passed once. The
-acceptance sweep's Miri failure ran on a commit before `709a1947b2`, which already fixed it.
+Stage 2 is done. `Helper::ToStringOrNull` is `true`, `CoreCall::plain` marks an array of no object,
+and `effects::may_park` makes a `Core` call outside `Str`, `Math`, `Arr` and `Regex` "anything".
+`cargo test --test helper_effects` passed once. The nightly Miri timeout in `nvs-stdlib 2/12` ran on
+`7e97fa8444`, before `709a1947b2` fixed it.
 
-Sessions per stage: stage 1, one; stage 2, one.
+Stage 3 is done. `crates/nvs-ir/src/ownership/borrows.rs` is the borrow verifier, compiled under
+`cfg(any(test, debug_assertions))`. `ownership::run` runs it on every function after the pass and
+panics with the first refusal: a read of an unretained element or property after its owner is
+released, moved or consumed. `cargo test --test borrow_verifier` passed once, three cases. No other
+suite has met the verifier yet.
+
+Sessions per stage: stage 1, one; stage 2, one; stage 3, one.
 
 ### Next
 
-Stage 3 from its first item: the borrow verifier beside `releases_after`
-(`crates/nvs-ir/src/ownership.rs:2008`), behind `cfg(any(test, debug_assertions))`, as the standing
-decision says. Then `crates/nvs-codegen/tests/borrow_verifier.rs` with a hand-built function.
+Stage 4 from its first item, in `crates/nvs-types` alone: one walk for a decode target that steps
+through a shape's fields, an array's element and a nullable, at any depth (`derive.rs:2439`, and the
+shape branch of a decode site at `expr/args.rs:2350`), as the standing decision on hole 3 says. Then
+`crates/nvs-types/tests/decode_through_shape.rs`.
 
 Tests expected to go red at the gate: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` that
 hold an expression where a later operand passes on the local an earlier operand read. Each gains a
 `retain` and `release` pair and is accepted. Snapshots and ownership unit tests that lend a slot to a
 `Core` call given an array of non-scalars, or to a callee that calls a `Core` member outside `Str`,
 `Math`, `Arr` and `Regex`, now keep the retain; each is accepted where the array may hold an object or
-the callee may park. Neither conformance case has a `// covers:` marker yet; stage 6 adds them with
-the change entries.
+the callee may park. A suite whose program the borrow verifier refuses panics with "the borrow
+verifier refused a function". A real borrow after a move is fixed where the read is lowered. A refusal
+that is not one follows the standing decision *What stops it*. Neither conformance case has a
+`// covers:` marker yet; stage 6 adds them with the change entries.
 
 ### Backlog
 
