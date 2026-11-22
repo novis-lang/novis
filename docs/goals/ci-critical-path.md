@@ -271,6 +271,10 @@ Every stage is done, one session each and stage 4 in two. The goal is reached.
 - Nightly 44894790665 ran `7e97fa8444`, which does not hold the Miri fix `156f11a7ca`
   (`git merge-base --is-ancestor`). Push 2's Miri jobs are green.
 - `website/src/data/roadmap.json` lists `ci-critical-path` and `windows-rust-lld` as `internal`.
+- The first DONE was refused: `layout-green` was red because stages 4 to 6 were never pushed.
+  `bun nv ci --check` and `bun nv ci --push` pushed `90ddac8b1`. Its CI run 44987257192 and Website
+  run 44987257202 are green, and `bun nv ci --green` exits 0. This handoff commit touches only
+  `docs/goals/`, so `--green` still reads `90ddac8b1` as the built commit.
 
 ### Next
 
