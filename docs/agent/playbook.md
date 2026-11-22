@@ -271,6 +271,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   See `benches/members/README.md` and `benches/members/core/Session/get.scale.nvs`.
 
 ## Running things
+- **`bun nv verify` stops at its first red step, so a full gate that only reruns it finds one
+  failure per run.** A gate spent three runs on `render --check`, `rules --render --check` and
+  `layout --check` in turn. After a red doc step, run the rest of `DOC_CHECKS` by hand before the
+  next run: `bun nv render --check`, `rules --render --check`, `links`, `layout --check`,
+  `release --check`. See `tools/nv/cmd/verify.ts` `DOC_CHECKS`.
 - **Miri does not run on the Windows host.** `cargo +nightly miri test` stops at `cargo uses an
   argfile to invoke rustc, which is not supported by cargo-miri`, after minutes of building into
   `target/miri`. A Miri timeout cannot be timed here: cut the `cfg!(miri)` input by a wide margin,

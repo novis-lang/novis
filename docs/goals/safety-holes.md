@@ -371,34 +371,37 @@ that takes an object operand, one line each. The table's rows come from that lis
 
 ### State
 
-Stages 1 to 6 are done. Stage 6 wrote the two `website/src/data/changes.json` entries (see the
-standing decision on their kind), the use-form list in the revocable texts (`details.md`, both
-`about.md`, `syntax/classes/revocable-objects.mdx`), and one sentence in each typed decoder's
-`about.md`. Both `Core\Json` decoders' `about.md` were trimmed under 200 words. The newcomer review of
-stage 7's first item ran over all 12 texts, its findings were fixed and each is stamped.
-`site --check stale changes review` and `proofs --gate --goal safety-holes` are green. The Miri
-failure the sweep reported, run 44894790665, ran on `7e97fa8444` and stalled in
-`granularity::tests::both_walks_agree_on_every_window`; `709a1947b2`, which follows it, fixed it.
-Stage 7's `looper verify` is running. An earlier splice had left a second copy of the decisions,
-the stages and the stage 5 handoff after `### Backlog`; that copy is removed.
+Stages 1 to 6 are done, with `site --check` and `proofs --gate` green. The Miri failure of run
+44894790665 ran on `7e97fa8444`; `709a1947b2` fixed it. Stage 7's gate is green through `test`
+(9484 Rust tests). `47509b6150` removed two costs stages 1 and 2 added: a local store receiver is
+held only when a later operand writes it (`site_can_free`, `lower/operand.rs`), and a variadic tail
+of scalars is `plain` (`lower_args_as_judged_array`, `lower/call.rs`).
 
-Sessions per stage: stage 1, one; stage 2, one; stage 3, one; stage 4, one; stage 5, one; stage 6, one.
+Red: `conformance`, the 20 `in-place/property-chain-fn-reads-*` cases. The borrow verifier refuses
+each `<script>`: "ValueId(4) is borrowed from ValueId(1) … read after ValueId(1) was given up". The
+shape is `$box->inner->text = Lib::add($box, $box->inner->text, "c")`. Not known yet: a real borrow
+after a move, or a verifier miss. `47509b6150` does not reach it (the receiver is a property).
+
+Sessions per stage: stage 1, one; stage 2, one; stage 3, one; stage 4, one; stage 5, one; stage 6,
+one; stage 7, one.
 
 ### Next
 
-Stage 7 from its second item: the check the pack names for this stage, then `bun nv close --goal
-safety-holes`. Before `DONE`, move each decision only this file holds to its rule, then delete it.
+Stage 7, its third item. Run one failing case alone:
+`target/debug/nvs.exe test tests/conformance/in-place/property-chain-fn-reads-before-straight-string.nvst`,
+print its `<script>` IR with the pass on, and find which instruction gives up ValueId(1) and which
+reads ValueId(4) after it (`crates/nvs-ir/src/ownership/borrows.rs`, the verifier; the property-chain
+store at `crates/nvs-ir/src/lower/stmt.rs:2229`). A real borrow after a move is fixed where the read
+is lowered, then every case of the 20 passes. A refusal that is not one follows the standing decision
+*What stops it*: stage 3 is declined, its items go to `### Backlog` with the count of refused
+functions, and the `borrow-verifier` check is deleted. Then `looper verify` once more, and the
+goal-end gates: `bun nv close --goal safety-holes`, `bun nv verify --doc`, `bun nv ci --check`. Before
+`DONE`, move each decision only this file holds to its rule, then delete the file.
 
-Tests expected to go red: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` where a later
-operand passes on a local an earlier one read gain a `retain` and `release` pair, and are accepted.
-Snapshots and ownership unit tests that lend a slot to a `Core` call on an array of non-scalars, or to
-a callee that calls a `Core` member outside `Str`, `Math`, `Arr` and `Regex`, keep the retain, and
-are accepted where that is right. A suite whose program the borrow verifier refuses panics with "the
-borrow verifier refused a function". A real borrow after a move is fixed where the read is lowered,
-and any other refusal follows *What stops it*. A suite program that decodes a class with a plain
-`string` property through a shape gets `E0810`, fixed with `tainted`. A suite program that uses a
-revoked object in one of the new forms throws `RevokedObjectError`. IR snapshots of a program with a
-revocable class gain `check_revoked` at those sites and are accepted.
+Tests expected to go red: the steps after `conformance` have not run in this gate (`reference`,
+`soundness`, `clippy`, `extension`). A suite program that decodes a class with a plain `string`
+property through a shape gets `E0810`, fixed with `tainted`. A suite program that uses a revoked
+object in one of the new forms throws `RevokedObjectError`.
 
 ### Backlog
 
