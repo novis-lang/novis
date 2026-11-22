@@ -92,6 +92,14 @@
     }
   ],
   "unseen": {
+    "Novis\\Pdf\\Pages::of": {
+      "hash": "008f5bb2e70cb465",
+      "why": "A test now declares the merged PDF as `tainted bytes`, because `Core\\IO::readBytes` returns tainted bytes. What `Pages::of` does is unchanged."
+    },
+    "Novis\\Pdf\\Reader::open": {
+      "hash": "4f9ad0f01b5e351f",
+      "why": "A test now declares the merged PDF as `tainted bytes`, because `Core\\IO::readBytes` returns tainted bytes. What `Reader::open` does is unchanged."
+    },
     "tools:cli/nvs-code": {
       "hash": "9c7b5f35fa50d9c2",
       "why": "A test sets its files' modification time to an hour ago, so it gives the same result under load. What `nvs code` does is unchanged."

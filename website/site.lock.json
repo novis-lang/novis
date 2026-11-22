@@ -4146,7 +4146,7 @@
     "Novis\\Pdf\\Pages::merge": "c247a82789174fc4"
   },
   "docs/examples/novis/Pdf-Pages/of/about.md": {
-    "Novis\\Pdf\\Pages::of": "25388a592122ff9d"
+    "Novis\\Pdf\\Pages::of": "11cd022388e0d67a"
   },
   "docs/examples/novis/Pdf-Reader/attachments/about.md": {
     "Novis\\Pdf\\Reader::attachments": "ab7635a74955d858"
@@ -4155,7 +4155,7 @@
     "Novis\\Pdf\\Reader::invoiceXml": "a9fb0570b49ba6ca"
   },
   "docs/examples/novis/Pdf-Reader/open/about.md": {
-    "Novis\\Pdf\\Reader::open": "3760a9b66334671e"
+    "Novis\\Pdf\\Reader::open": "3e62b5f376b9b0ec"
   },
   "docs/examples/novis/Pdf-Reader/text/about.md": {
     "Novis\\Pdf\\Reader::text": "c00d71eeac92dc09"
@@ -8943,7 +8943,7 @@
     "Novis\\Pdf\\Pages::merge": "4f5bfff0584aa643"
   },
   "help:Novis\\Pdf\\Pages::of": {
-    "Novis\\Pdf\\Pages::of": "0bfc31c52e81f014"
+    "Novis\\Pdf\\Pages::of": "edb800b9944d3061"
   },
   "help:Novis\\Pdf\\Reader::attachments": {
     "Novis\\Pdf\\Reader::attachments": "44eb7b4ff465ba9f"
@@ -8952,7 +8952,7 @@
     "Novis\\Pdf\\Reader::invoiceXml": "85a9b708fec3fcab"
   },
   "help:Novis\\Pdf\\Reader::open": {
-    "Novis\\Pdf\\Reader::open": "7d4866e7f6fa0bb1"
+    "Novis\\Pdf\\Reader::open": "c2bbe69f1fb1291a"
   },
   "help:Novis\\Pdf\\Reader::text": {
     "Novis\\Pdf\\Reader::text": "ba8673ebde173754"
