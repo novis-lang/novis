@@ -365,32 +365,20 @@ that takes an object operand, one line each. The table's rows come from that lis
 
 ### State
 
-Stages 1 and 2 are done: `later_can_free` (`crates/nvs-ir/src/lower/operand.rs`) and
-`effects::may_park`; `operand_moves` and `helper_effects` each passed once. Stage 3 is done. `crates/nvs-ir/src/ownership/borrows.rs` is the borrow verifier, compiled under
-`cfg(any(test, debug_assertions))`. `ownership::run` runs it on every function after the pass and
-panics with the first refusal: a read of an unretained element or property after its owner is
-released, moved or consumed. `cargo test --test borrow_verifier` passed once, three cases. No other
-suite has met the verifier yet.
+Stages 1 to 4 are done: `later_can_free` (`lower/operand.rs`), `effects::may_park`, the borrow
+verifier (`ownership/borrows.rs`, test and debug builds only, met by no suite beyond its own yet) and
+`derive::classes_reached`, the one walk through shapes for `E0810`, `E0820` and codec membership.
+`operand_moves`, `helper_effects`, `borrow_verifier` and `decode_through_shape` each passed once. The
+Miri failure the sweep reports, run 44894790665, ran on `7e97fa8444`; `709a1947b2` fixed it.
 
-Stage 4 is done. `derive::classes_reached` is the one walk: a decode site's shape records a
-`DecodeSite` and a `JsonSite` for each class it reaches (`expr/args.rs`, the shape branch of
-`written_class_of`), and `check_decode_sites` and `check_json_sites` walk each field's declared type
-with it, so a class's shape property is reached too. `codec_class_label` is deleted. A row decoder
-records no class through a shape. `cargo test --test decode_through_shape` passed once, four tests over
-six decoders and eight depths, and failed three of four on the tree before the fix.
-`tests/hostile/core/Request/jsonAs/03-a-plain-string-under-a-shape.nvs` is the attack, refused with
-`E0810`. The nightly Miri failure in `nvs-stdlib 2/12` ran on `7e97fa8444`; `709a1947b2` fixed it,
-and the acceptance sweep's report of run 44894790665 is that same run.
-
-Stage 5 is done. `emit_revoked_check` now runs before `.=` on a property, an `inout` property argument
-and its write-back (`check_written_back_object`, `lower/mod.rs`), a method reference's thunk call,
+Stage 5 is done. `emit_revoked_check` runs before `.=` on a property, an `inout` property argument
+and its write-back (`check_written_back_object`, `lower/mod.rs`), a method reference's call,
 `toString()` in a conversion, `compareTo` in an ordering, every `emit_iface_call`, a static method
-called through the object, and `isinit`. `delegation_forward` (`lower/call.rs`) checks the delegate
-wherever the program has a revocable class, and `dispatch::call_method` checks as the erased entry
-does. `revocable.rs`'s `USES` and `NO_OBJECT` cover every `ExprKind` and `StmtKind`, read from
-`ast.rs` at test time; `revoked-uses` passed once. Four conformance cases under
-`tests/conformance/class/revocable-*` passed once, each with a `// covers:` marker. No `USES` row
-reaches `call_method` from a stdlib caller.
+called through the object, and `isinit`. `delegation_forward` checks the delegate wherever the
+program has a revocable class, and `dispatch::call_method` checks as the erased entry does.
+`revocable.rs`'s `USES` and `NO_OBJECT` cover every `ExprKind` and `StmtKind` of `ast.rs`;
+`revoked-uses` passed once, and so did the four `tests/conformance/class/revocable-*` cases it added.
+No `USES` row reaches `call_method` from a stdlib caller.
 
 Sessions per stage: stage 1, one; stage 2, one; stage 3, one; stage 4, one; stage 5, one.
 
