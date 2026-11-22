@@ -6,7 +6,7 @@ context: [docs/rules/types/a-replaced-value-is-changed-in-place.md]
 stages:
   - id: 1
     title: an earlier operand keeps its value when a later operand moves the same local
-    status: open
+    status: done
     context: [docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md, crates/nvs-ir/src/lower/operand.rs]
   - id: 2
     title: "every helper's effect row matches what its runtime body runs"
@@ -223,21 +223,27 @@ in order. Stage 4 touches `crates/nvs-types` alone and may run as a side goal. T
 **Split:** an `Explore` subagent lists every site in `crates/nvs-ir/src/lower/` that leaves a read of
 an element or a property unretained, as `file.rs:NN` and whether it calls `later_can_free`.
 
-- [ ] `crates/nvs-ir/src/lower/operand.rs:441`: `later_can_free` answers `true` for
+- [x] `crates/nvs-ir/src/lower/operand.rs:441`: `later_can_free` answers `true` for
   `ReadRoot::Local` when a later operand is not inert and names the local.
   `rule:expressions/an-operand-keeps-its-value-while-later-operands-run`
-- [ ] `crates/nvs-ir/src/lower/expr.rs:3417`: each site the subagent listed that does not ask
+- [x] `crates/nvs-ir/src/lower/expr.rs:3417`: each site the subagent listed that does not ask
   `later_can_free` asks it. `emit_concat`'s leading piece at `:3462` is one.
-- [ ] `crates/nvs-codegen/tests/operand_moves.rs:1`: the program of § *Why* 1, then one case per
+  - [x] `emit_concat`'s leading piece is judged by `hold_borrowed` at `expr.rs:3417`, so the new
+    answer reaches it with no change there.
+  - [x] The four sites that do not ask need no hold: the switch subject (`control.rs:652`) is always
+    retained when borrowed; the slot append's suffix (`stmt.rs:843`) and the carrier self-append
+    (`stmt.rs:1472`) read a bare local whose own value stays live, so the ownership pass cannot move
+    it; the `??` left side (`expr.rs:1586`) is consumed before its right side runs.
+- [x] `crates/nvs-codegen/tests/operand_moves.rs:1`: the program of § *Why* 1, then one case per
   operand site (concatenation, binary operator, call argument, `Core` call argument) times the move
   (a known Novis callee, an owning `Core` member, a spread) times the value read (array element,
   object in an array then its property, string property). Each runs with in-place on and off and
   asserts the `retain`. It runs once, by name.
-- [ ] `tests/conformance/in-place/an-operand-read-before-a-moved-local-is-read-whole.nvst:1`: the
+- [x] `tests/conformance/in-place/an-operand-read-before-a-moved-local-is-read-whole.nvst:1`: the
   first program, with its output.
-- [ ] `docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:18`: the moved
+- [x] `docs/rules/expressions/an-operand-keeps-its-value-while-later-operands-run.md:18`: the moved
   local, with the reason and the Declined line of the standing decision.
-- [ ] `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
+- [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
 
 ### 2. every helper's effect row matches what its runtime body runs
 
@@ -340,18 +346,27 @@ that takes an object operand, one line each. The table's rows come from that lis
 
 ### State
 
-Nothing is built. The four programs of § *Why* were run on a release binary built from a commit
-inside `v0.0.5`, and each gave the output written there.
+Stage 1 is done. `later_can_free` (`crates/nvs-ir/src/lower/operand.rs`) holds a read rooted at a
+local when a later operand that is not inert names the local, by a scan of its source text
+(`names_local`). The program of § *Why* 1 and its `Core` variant print the whole element.
+`cargo test --test operand_moves` passed once, 28 matrix cases and the reported program. The new
+conformance case passed once. The nightly Miri timeout of
+`granularity::tests::both_walks_agree_on_every_window` was a slow test, not undefined behaviour; it
+now walks a reach of 1 over six texts under Miri.
 
-Sessions per stage: none yet.
+Sessions per stage: stage 1, one.
 
 ### Next
 
-Stage 1 from its first item, at `crates/nvs-ir/src/lower/operand.rs:441` (`later_can_free`). Start the
-`Explore` subagent of the stage's split first, then change the `ReadRoot::Local` arm, then write
-`crates/nvs-codegen/tests/operand_moves.rs:1` from the first program of § *Why*. `nvs run --dump-ir`
-on that program shows the missing `retain` before the fix and the `retain` after it. Tests expected to
-go red: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` that hold an expression where a later
-operand passes the local an earlier one read. Each gains a `retain` and `release` pair and is accepted.
+Stage 2 from its first item: read the body of every helper in the `false` arm of
+`may_run_user_code` (`crates/nvs-ir/src/ir.rs:4629`), starting with `Helper::ToStringOrNull`, whose
+body calls `convert_to_string` (`crates/nvs-runtime/src/helpers.rs:2398`). Then `takes_an_object`
+(`crates/nvs-ir/src/effects.rs:256`) for array element types, then the scheduler question of the
+standing decision. Write `crates/nvs-codegen/tests/helper_effects.rs` from the program of § *Why* 2.
+
+Tests expected to go red at the gate: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` that
+hold an expression where a later operand passes on the local an earlier operand read. Each gains a
+`retain` and `release` pair and is accepted. The conformance case has no `// covers:` marker yet;
+stage 6 adds it with the change entry.
 
 ### Backlog
