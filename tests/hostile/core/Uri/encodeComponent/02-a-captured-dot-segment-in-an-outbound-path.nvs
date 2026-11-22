@@ -1,0 +1,62 @@
+<?nvs
+// Attack: a visitor sends `..` as a part of the path. The program encodes that part
+// and puts it in the path of an address it calls. Every encode of `.` or `..` should throw an error.
+
+class Proxy
+{
+    #[Core\Route(path: '/files/{name}', method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $name): string
+    {
+        return 'one file';
+    }
+
+    // Encodes one part of a path for the address `https://api.example.com/files/`.
+    // An error is caught, so the next step still runs.
+    public static function address(tainted string $part): string
+    {
+        try {
+            return 'https://api.example.com/files/' . Core\Uri::encodeComponent($part);
+        } catch (LogicError $e) {
+            return 'error';
+        }
+    }
+}
+
+// 1. The visitor writes `..` as `%2E%2E`. The router decodes it, so the part is `..`.
+// The encode throws an error, so this prints `error`.
+?Core\Router\Match $match = Core\Router::match(Core\Http\Method::Get, '/files/%2E%2E');
+if ($match == null) {
+    echo 'no route', "\n";
+} else {
+    tainted string $part = $match->param('name') as string;
+    echo Proxy::address($part), "\n";
+}
+
+// 2. The same with one dot. This prints `error`.
+?Core\Router\Match $dot = Core\Router::match(Core\Http\Method::Get, '/files/%2E');
+if ($dot == null) {
+    echo 'no route', "\n";
+} else {
+    tainted string $one = $dot->param('name') as string;
+    echo Proxy::address($one), "\n";
+}
+
+// 3. Both parts given directly. Each line prints `error`.
+echo Proxy::address('..'), "\n";
+echo Proxy::address('.'), "\n";
+
+// 4. Three dots and a dot inside a name are normal names. These print the addresses.
+echo Proxy::address('...'), "\n";
+echo Proxy::address('a..b'), "\n";
+
+// 5. Many encodes of `..` in a loop, each caught. This prints 100000.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 100000) {
+    if (Proxy::address('..') == 'error') {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo $refused, "\n";
