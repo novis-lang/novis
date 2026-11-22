@@ -984,7 +984,7 @@ mod tests {
     }
 
     /// The window `slice` reads, against the walk that counted the whole
-    /// subject first, for every offset and length from -12 to 12 (-2 to 2
+    /// subject first, for every offset and length from -12 to 12 (-1 to 1
     /// under Miri) on texts with combining marks, emoji, flags and a CRLF.
     #[test]
     fn both_walks_agree_on_every_window() {
@@ -1019,9 +1019,17 @@ mod tests {
             "\u{1f1e9}\u{1f1ea}\u{1f1eb}\u{1f1f7}\u{1f1ee}",
             "Gru\u{308}\u{df}e \u{1f44b}\u{1f3fd}\n",
         ];
-        // Under Miri the reach is 2, still past both ends of `""` and `"a"`:
-        // 12 and then 4 each took over 300 s there.
-        let reach: i64 = if cfg!(miri) { 2 } else { 12 };
+        // Under Miri the reach is 1, still past both ends of `""` and `"a"`,
+        // and the two texts whose kinds the others already have are left out:
+        // a reach of 12, then 4, then 2 over every text each took over 300 s.
+        let reach: i64 = if cfg!(miri) { 1 } else { 12 };
+        let texts = texts.into_iter().filter(|text| {
+            !cfg!(miri)
+                || !matches!(
+                    *text,
+                    "ascii text" | "Gru\u{308}\u{df}e \u{1f44b}\u{1f3fd}\n"
+                )
+        });
         for subject in texts {
             for offset in -reach..=reach {
                 for length in (-reach..=reach).map(Some).chain([None]) {
