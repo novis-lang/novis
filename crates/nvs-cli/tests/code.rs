@@ -64,6 +64,28 @@ fn project(name: &str, extra: &[(&str, &str)]) -> nvs_repo::Scratch {
     dir
 }
 
+/// Sets the modification time of every file `project` wrote in `dir` to an
+/// hour ago. An analysis records a file's size and time only when the file
+/// changed more than two seconds before it started, so with old files the
+/// first call records them, and a later call has nothing to add.
+fn age(dir: &Path) {
+    let hour_ago = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+    for path in [
+        "nvs.toml",
+        "public/index.nvs",
+        "src/Priced.nvs",
+        "src/Cart.nvs",
+        "src/GiftCart.nvs",
+        "src/Wishlist.nvs",
+    ] {
+        fs::File::options()
+            .write(true)
+            .open(dir.join(path))
+            .and_then(|file| file.set_modified(hour_ago))
+            .expect("a scratch file takes a modification time");
+    }
+}
+
 /// `nvs code <args...>` run in `cwd`, as `(stdout, stderr, success)`.
 fn code(cwd: &Path, args: &[&str]) -> (String, String, bool) {
     run(cwd, "code", args)
@@ -138,6 +160,7 @@ fn index_files(data: &Path) -> Vec<std::path::PathBuf> {
 #[test]
 fn the_first_call_saves_the_index_in_the_data_folder() {
     let dir = project("index-saved", &[]);
+    age(&dir);
     let data = dir.join(".nvsdata");
     assert!(index_files(&data).is_empty());
     let (first, err, ok) = code(&dir, &["refs", r"Shop\Cart::addItem"]);
