@@ -22,7 +22,7 @@ stages:
     context: [docs/rules/security/derived-codec-qualifiers.md, crates/nvs-types/src/derive.rs]
   - id: 5
     title: every use form of a revoked object throws
-    status: open
+    status: done
     context: [docs/rules/classes/revocable-objects.md, crates/nvs-codegen/tests/revocable.rs]
   - id: 6
     title: "the features that moved have their proofs, their pages and their change entries"
@@ -320,26 +320,26 @@ or a clone. The session decides each row from that list.
 **Split:** an `Explore` subagent lists every `ExprKind` and `StmtKind` of `crates/nvs-syntax/src/ast.rs`
 that takes an object operand, one line each. The table's rows come from that list.
 
-- [ ] `crates/nvs-ir/src/lower/stmt.rs:657`: `lower_slot_append` checks before it touches the slot.
+- [x] `crates/nvs-ir/src/lower/stmt.rs:657`: `lower_slot_append` checks before it touches the slot.
   `rule:classes/revocable-objects`
-- [ ] `crates/nvs-ir/src/lower/call.rs:1452`: an `inout` property argument checks, and so does the
+- [x] `crates/nvs-ir/src/lower/call.rs:1452`: an `inout` property argument checks, and so does the
   union arm at `:1405` and the write back at `crates/nvs-ir/src/lower/mod.rs:4588`.
-- [ ] `crates/nvs-ir/src/lower/anon_fn.rs:753`: a method reference checks when it is called, here and
+- [x] `crates/nvs-ir/src/lower/anon_fn.rs:753`: a method reference checks when it is called, here and
   at `:977`.
-- [ ] `crates/nvs-ir/src/lower/expr.rs:1305`: string conversion checks before `toString()`, and
+- [x] `crates/nvs-ir/src/lower/expr.rs:1305`: string conversion checks before `toString()`, and
   `crates/nvs-ir/src/lower/operator.rs:237` before `compareTo`.
-- [ ] `crates/nvs-ir/src/lower/control.rs:1751`: `emit_iface_call` checks, so a `foreach` over a
+- [x] `crates/nvs-ir/src/lower/control.rs:1751`: `emit_iface_call` checks, so a `foreach` over a
   revoked iterable throws. The delegation forward at `crates/nvs-ir/src/lower/call.rs:1665` and the
   static call through an instance at `crates/nvs-ir/src/lower/expr.rs:5130` check too.
-- [ ] `crates/nvs-runtime/src/dispatch.rs:93`: `call_method` checks, so `call_compare_to` at `:831`
+- [x] `crates/nvs-runtime/src/dispatch.rs:93`: `call_method` checks, so `call_compare_to` at `:831`
   and every stdlib caller does.
-- [ ] `crates/nvs-codegen/tests/revocable.rs:1`: the table of the standing decision, one row per kind
+- [x] `crates/nvs-codegen/tests/revocable.rs:1`: the table of the standing decision, one row per kind
   the subagent listed, each compiled and run. A kind with no row fails the test by name. It runs once,
   by name.
-- [ ] `tests/conformance/class/`: one case each for `.=`, an `inout` property, a method reference and
+- [x] `tests/conformance/class/`: one case each for `.=`, an `inout` property, a method reference and
   string conversion, named like their siblings there.
-- [ ] `docs/rules/classes/revocable-objects.md:1`: the uses that throw, as the table has them.
-- [ ] `cargo build` and clippy are green.
+- [x] `docs/rules/classes/revocable-objects.md:1`: the uses that throw, as the table has them.
+- [x] `cargo build` and clippy are green.
 
 ### 6. the features that moved have their proofs, their pages and their change entries
 
@@ -379,19 +379,29 @@ with it, so a class's shape property is reached too. `codec_class_label` is dele
 records no class through a shape. `cargo test --test decode_through_shape` passed once, four tests over
 six decoders and eight depths, and failed three of four on the tree before the fix.
 `tests/hostile/core/Request/jsonAs/03-a-plain-string-under-a-shape.nvs` is the attack, refused with
-`E0810`. The nightly Miri failure in `nvs-stdlib 2/12` ran on `7e97fa8444`; `709a1947b2` fixed it.
+`E0810`. The nightly Miri failure in `nvs-stdlib 2/12` ran on `7e97fa8444`; `709a1947b2` fixed it,
+and the acceptance sweep's report of run 44894790665 is that same run.
 
-Sessions per stage: stage 1, one; stage 2, one; stage 3, one; stage 4, one.
+Stage 5 is done. `emit_revoked_check` now runs before `.=` on a property, an `inout` property argument
+and its write-back (`check_written_back_object`, `lower/mod.rs`), a method reference's thunk call,
+`toString()` in a conversion, `compareTo` in an ordering, every `emit_iface_call`, a static method
+called through the object, and `isinit`. `delegation_forward` (`lower/call.rs`) checks the delegate
+wherever the program has a revocable class, and `dispatch::call_method` checks as the erased entry
+does. `revocable.rs`'s `USES` and `NO_OBJECT` cover every `ExprKind` and `StmtKind`, read from
+`ast.rs` at test time; `revoked-uses` passed once. Four conformance cases under
+`tests/conformance/class/revocable-*` passed once, each with a `// covers:` marker. No `USES` row
+reaches `call_method` from a stdlib caller.
+
+Sessions per stage: stage 1, one; stage 2, one; stage 3, one; stage 4, one; stage 5, one.
 
 ### Next
 
-Stage 5 from its first item: the table of use forms in `crates/nvs-codegen/tests/revocable.rs`, written
-from `nvs-syntax`'s expression and statement kinds, then each check: `lower_slot_append`
-(`crates/nvs-ir/src/lower/stmt.rs:657`), an `inout` property argument (`lower/call.rs:1452`), a method
-reference when called (`lower/anon_fn.rs:753`), string conversion (`lower/expr.rs:1305`),
-`emit_iface_call` (`lower/control.rs:1751`) and `call_method` (`crates/nvs-runtime/src/dispatch.rs:93`).
-Stage 6 owes the `about.md` of each typed decoder a sentence that a class at any depth is checked, and
-a `changes.json` entry for `rule:security/derived-codec-qualifiers`'s features.
+Stage 6 from its first item: `website/src/data/changes.json`, a `changed` entry for
+`lang:classes/revocable-objects` (every use form throws, the list in its rule fragment) and one for
+each typed decoder stage 4 touched. Then `docs/examples/lang/classes/revocable-objects/details.md`
+and `docs/examples/types/Revocable/about.md` against the rule's new list, the `about.md` of each typed
+decoder (a class at any depth is checked), `bun nv proofs --owed --goal safety-holes`, and
+`bun nv site --check stale`, `changes` and `review`.
 
 Tests expected to go red at the gate: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` that
 hold an expression where a later operand passes on the local an earlier operand read. Each gains a
@@ -403,7 +413,10 @@ verifier refused a function". A real borrow after a move is fixed where the read
 that is not one follows the standing decision *What stops it*. Neither conformance case has a
 `// covers:` marker yet; stage 6 adds them with the change entries. A program in a suite that decodes
 a class with a plain `string` property through a shape now gets `E0810`; each is fixed by writing
-`tainted` on the property.
+`tainted` on the property. A suite program that uses a revoked object through `.=`, an `inout`
+property, a method reference, a conversion, an ordering, a `foreach`, a delegated method, a static
+call through the object or `isinit` now throws `RevokedObjectError`. IR snapshots of a program with a
+revocable class gain a `check_revoked` at those sites and are accepted.
 
 ### Backlog
 
