@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/uri.rs",
-  "title": "`Core\\Uri::encodeComponent` answers an empty component for an empty argument, so a path a program builds from two encoded segments can start with `//` and name a host.",
-  "text": "`\"/\" . Core\\Uri::encodeComponent($a) . \"/\" . Core\\Uri::encodeComponent($b)` with an empty `$a` and `$b` of `evil.example` is `//evil.example`, which a browser reads as another host. One empty segment changes no structure on its own: the hole needs the empty segment first in the path and a second segment the attacker chose. Throwing on an empty argument would close it and would break every query value and fragment a program encodes by hand when it is empty, which is common, so `launderer_matrix.rs` keeps the empty cell safe and this record holds the question. The root fix is the per-sink carrier `rule:security/launderer-answers-a-carrier` declined: a path segment type whose join refuses an empty first segment. That is the user's to decide.",
-  "goal": "taint-fail-closed"
-}

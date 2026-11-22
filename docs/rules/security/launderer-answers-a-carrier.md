@@ -40,3 +40,14 @@ anyway, so a carrier answer removes the second escape rather than adding a wrapp
 - **A carrier for every non-idempotent launderer**, such as a URI component, a database identifier and
   a regex pattern type. It forces a builder API onto four classes whose values are normally assembled
   by concatenation, against a hazard that takes a visible second call to reach.
+- **A carrier per sink, so a launderer's answer cannot reach a path sink.** Three launderers answer
+  a plain `string` that a path reads as a step: `Core\Cli::escape` keeps `.`, `..`, `/` and `\`,
+  `Core\Regex::quote` keeps `/` and writes `\.`, and `Core\Uri::encodeFormValue` keeps `.` and `..`.
+  Each answer is safe at its own sink. And `Core\Uri::encodeComponent('')` answers an empty
+  component, so `"/" . encodeComponent($a) . "/" . encodeComponent($b)` with an empty `$a` is
+  `//host`. Throwing on an empty argument would break every empty query value and fragment. These
+  are documented limits: a path sink's launderer is `Core\IO::within`, and a URL path is built with
+  `Core\Uri`'s methods, never by joining encoded text. A carrier for each would put a type on every
+  launderer's answer for a hazard that takes a launderer used at the wrong sink.
+  `launderer_matrix.rs`'s `CROSS_SINK` lists the three, so a fourth fails the test until it is
+  added here.

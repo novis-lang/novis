@@ -212,17 +212,18 @@ Reason: `rule:security/launderers-are-sink-named` puts a sink's launderer on the
 the roster already says it. A per-parameter sink kind would rewrite every `Qual::Sink` row for the
 same answer. It costs nothing until a diagnostic is built.
 
-**A launderer used at another sink is not this goal's to close.** The terminal escape's answer for
-`..` is `..`, and a path sink takes it. The root fix is an answer type for each sink, which
-`rule:security/launderer-answers-a-carrier` declined. Stage 5 writes a gap record for each cell of the
-matrix that is only a hole at another sink. It names that carrier design as the fix, for the user to
-decide.
+**A launderer used at another sink is a documented limit (the user's answer to `d14`, option 1).**
+The terminal escape's answer for `..` is `..`, and a path sink takes it. So do `Core\Regex::quote`
+and `Core\Uri::encodeFormValue`. The carrier per sink stays declined: the four cases are in
+`rule:security/launderer-answers-a-carrier`'s Declined list, their gap records are deleted, and a
+path sink keeps `Core\IO::within` as its launderer. `CROSS_SINK` in `launderer_matrix.rs` lists each
+with what its answer keeps.
 
 **`encodeComponent` of an empty string stays an empty component.** One empty segment changes no
 structure. The hole needs it first in a path and a second segment the attacker chose after it,
 which gives `//host`. Throwing on it would break every empty query value and fragment a program
 encodes by hand, at run time, which is common. So the matrix counts the empty cell as safe, and
-`gap:nvs-stdlib/uri-empty-component-opens-an-authority` names the path-segment carrier as the fix.
+`rule:security/launderer-answers-a-carrier`'s Declined list records it.
 
 **The HTML template's blind spot stays out.** A hole in `href=` or `<script>` is escaped as element
 text, and `rule:core-classes/html-template` records that and its Declined list. Closing it reverses a
@@ -440,22 +441,22 @@ or `bytes`, one line each.
 
 ### 6. the features that moved have their proofs, their pages and their change entries
 
-- [ ] `website/src/data/changes.json:1`: `changed` for `Core\Uri::encodeComponent`, for each row
+- [x] `website/src/data/changes.json:1`: `changed` for `Core\Uri::encodeComponent`, for each row
   stage 3 moved from plain to tainted, and for `Core\Issue` and `Throwable::$message` if stage 4
   changed them. Stage 3 moved six: `Core\Process\Result::stdout` and `::stderr`,
   `Core\Process\Handle::readStdout` and `::readStderr`, `Core\Db\Connection::serverVersion` and
   `Core\Ldap\Connection::whoami`. Each one's `about.md` says its text is `tainted`, and how to keep
   it (`tainted bytes` on the variable, a checked conversion, or the sink's launderer).
-- [ ] The `about.md` and help of each: reread against what was built and stamped with
+- [x] The `about.md` and help of each: reread against what was built and stamped with
   `bun nv site --stamp`. The page on `tainted` says in one sentence that text from a `Core` member is
   tainted unless the member says otherwise.
-- [ ] Every `Core\Taint::assertTrusted` and `assertTrustedBytes` call in `docs/examples/`,
+- [x] Every `Core\Taint::assertTrusted` and `assertTrustedBytes` call in `docs/examples/`,
   `tests/hostile/`, `benches/members/` and `website/snippets/` is read. **Split:** an `Explore`
   subagent lists them, one line each. A call that a launderer, a checked conversion or a `Clean` row
   can replace is replaced. A call that stays has a reason naming a case with no launderer. The count
   before and after goes under `### State`.
 - [ ] `bun nv proofs --owed --goal taint-fail-closed`, and every proof it names is paid.
-- [ ] `bun nv site --check stale`, `changes` and `review` are green.
+- [x] `bun nv site --check stale`, `changes` and `review` are green.
 
 ### 7. the goal is verified once, and every failure is fixed
 
@@ -472,49 +473,37 @@ or `bytes`, one line each.
 ### State
 
 The against base is in `.agent-tmp/against/base/`, from `1ec4cda0d4`, and stays until stage 7.
-Last `bun nv against`: the IR differs only in two programs that compile in neither build,
-`05-tainted-text-as-a-pattern` (the new help line; its `.out` is updated) and
-`06-a-secret-in-an-error-message` (known wording). `assertTrusted` 48 and 48, median ratio 1.011.
+Last `bun nv against`: 172 programs' IR differs only in source positions (the image component's
+source gained a line), with no instruction changed. Ten compile only in the new build, because they
+write `tainted bytes`, and two in neither (wording). Median check-time ratio 1.005.
 
-Stages 1 to 5 are done. 38 sink classes have no launderer, so their help names `assertTrusted`.
+`assertTrusted`: 44 calls (`against` counts 48, with comments), none replaced. 18 show the method
+itself. The rest read the program's own text back through a decoder (Passkey challenge,
+`Core\Serialize`, a signed cookie or link), which no launderer covers. The three in
+`tests/hostile/core/Json/encode/02-...` stay, since `Core\Response\Stream::write` does not take
+tainted text.
 
-The extension-shape gap is closed and its record deleted: `args.rs` `carries_contagion` and the
-`Admitted::everywhere` admission, `quals.rs` `untainted_toward`, `signatures.rs`
-`reads_whole_arguments`. `Image::encode`, `raw` (its `Raw::pixels`), `variants` and
-`Pages::merge` answer `tainted bytes`; `Font::fromBytes` takes it. About 95 programs and 5
-conformance cases now write `tainted bytes` (a `Core\Bytes::join([...])` literal moved into an
-`array<tainted bytes> $parts` line). Every program that uses the image or PDF component checks with
-the debug build, and the 38 image and PDF cases plus the new
-`image-an-upload-gives-tainted-bytes.nvst` pass. `extensions.rs`
-`a_tainted_field_of_a_shape_argument_taints_an_extension_result` passes. No `bun nv against` ran
-after it, since that needs a release build.
+`changes.json` has six entries and 70 `unseen` records (tests that only gained a `tainted` type).
+238 stale texts are reread and stamped, and the newcomer review of 36 changed texts is done.
+`site --check stale`, `changes` and `review` are green. Decision `d14` is closed (option 1).
 
-`close` stays red only on decision `d14`: the four launderer records under `data/gaps/nvs-stdlib/`
-name this goal (built on option 1: keep the carrier declined).
+Perf: stage 3 made 1062 features perf-stale. `--record-perf` ran on them (`.agent-tmp/perf.txt`).
 
 Sessions per stage: 1: one. 2: one. 3: two. 4: two. 5: two. 6: one.
 
 ### Next
 
-1. **Decision `d14`.** When the user answers, option 1: delete the four records under
-   `data/gaps/nvs-stdlib/` and add each case to `rule:security/launderer-answers-a-carrier`'s
-   Declined list, and remove `CROSS_SINK`'s gap paths in `launderer_matrix.rs` (keep each row with
-   the rule's reason). Option 2: move them to the goal the user names. Then `looper decision close
-   d14` and record the answer under `## Standing decisions`.
-2. `bun nv relink --build`, then `bun nv against`: the IR must still be byte-identical except for
-   programs that now compile in neither build. Record the figures above.
-3. Stage 6's items. `changes.json` owes entries for: `Core\Uri::encodeComponent`'s `LogicError`,
-   `Throwable::$message`, `Core\Ldap\Filter`/`Dn`, the six `Source` rows, the sink help under
-   `lang:types/qualifiers-tainted-and-secret`, `Novis\Image\Image::encode`/`raw`/`variants` and
-   `Novis\Pdf\Pages::merge` (breaking: write `tainted bytes` on the variable), `Font::fromBytes`,
-   `Core\Bytes::at` and `Core\Bytes::join`. `Pages::merge`, `Core\Bytes::at` and `join` have no test
-   with a `// covers:` line yet, so `site --check changes` will refuse their entries until one is
-   added (a `.nvst` each). The `about.md` of each image terminal and of `Pages::merge` says the result
-   is `tainted bytes`. Then the `assertTrusted` read, `proofs --owed`, and the site checks.
+1. **Perf.** `bun nv proofs --gate --limit 0 --nvs target/release/nvs.exe`, grep `perf: stale`,
+   and record what is left with `xargs -d '\n' -a <list> bun nv proofs --record-perf --nvs
+   target/release/nvs.exe --only`. A `calibration did not measure anything` line means the machine
+   was busy, so rerun that class alone. Then tick stage 6's `proofs --owed` item, and set stage 6 to
+   `done` once `bun nv proofs --gate --goal taint-fail-closed` is green.
+2. Stage 7. Its newcomer review is done for every text stage 6 wrote (36 keys, stamped). Then
+   `latency.rs` by name, `bun nv against` once more and delete `.agent-tmp/against/`, and the close.
 
 Tests expected red: a test outside `tests/conformance` that pins the exact text of an `E0401` at a
-`Core` sink, and any Rust test that pins `Core\Bytes::at` as `Contagious` (none found by grep).
-A `.out` of an image or PDF program is unchanged, since only types moved.
+`Core` sink, and a test that pins the help text of a process output, `serverVersion`, `whoami` or
+`Image::raw` (none found by grep).
 
 ### Backlog
 
@@ -524,6 +513,13 @@ A `.out` of an image or PDF program is unchanged, since only types moved.
   inferred against the declared `array<string>` before the admission clears the bit
   (`args.rs` `check_arg_admitting_quals`). Widening the expectation risks typing a plain literal as
   tainted, so it needs its own look.
+- **A help card's signature shows the registry's type, not the checked one.** The card of
+  `Core\Process\Result::stdout` prints `bytes` in its signature, while the checker types the result
+  `tainted bytes` (an `Unmarked` or `Source` row gets `tainted` in `core_lib`'s `return_of`). Each
+  card's `ret` line now says `tainted`. The signature line needs the same answer as `return_of`.
+- **`Core\Process::run`: `PATH` or not.** Its `about.md` says a name such as `git` is looked up in
+  the folders of `PATH`, and its help says `PATH` is not searched. One of the two is wrong. It is not
+  this goal's, since no taint moved.
 - **`shape as string` compiles.** `(await $h) as string` has no diagnostic, though a shape has no
   `Stringable` and the conversion always throws when it runs. It is a type-check gap, not a taint
   hole, since no text is ever produced. `require_stringable_object` in

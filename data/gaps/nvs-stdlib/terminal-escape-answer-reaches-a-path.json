@@ -1,6 +1,0 @@
-{
-  "module": "crates/nvs-stdlib/src/cli.rs",
-  "title": "`Core\\Cli::escape` answers a plain `string` that keeps `.`, `..`, `/` and `\\`, so a path sink takes the answer and reads it as a step to another folder.",
-  "text": "The terminal escape is safe at its own sink: `launderer_matrix.rs` shows no control byte survives it. Its answer is a plain `string`, and a plain `string` carries no sink, so `Core\\IO::read($dir . \"/\" . Core\\Cli::escape($name))` compiles with a request's `..` in it. The root fix is an answer type for each sink, which `rule:security/launderer-answers-a-carrier` declined for every launderer whose sink does not escape on its own. Reversing that is the user's to decide. `CROSS_SINK` in `crates/nvs-stdlib/tests/launderer_matrix.rs` lists this record.",
-  "goal": "taint-fail-closed"
-}

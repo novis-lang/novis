@@ -3247,8 +3247,8 @@ nvs_runtime::nvs_helper! {
     /// other common use, and `withQueryParameter` and `buildQuery` take any
     /// value there, so the message names them. It costs one length test per
     /// call. An empty argument still answers an empty component:
-    /// `gap:nvs-stdlib/uri-empty-component-opens-an-authority` records the
-    /// one place that is a hole.
+    /// `rule:security/launderer-answers-a-carrier`'s Declined list records the
+    /// one place that is a hole, a path that starts with an empty segment.
     fn nvs_core_uri_encode_component(_ctx, args: [1]) -> Value, owns NvsStr {
         let text = text_of(args, "encodeComponent")?;
         if text == "." || text == ".." {

@@ -10,7 +10,8 @@
 //! A launderer that answers a plain `string` can reach a sink it was not written for, because a
 //! `string` carries no sink. Where that answer is a dot segment or a separator, a path sink takes
 //! it and reads it as a step to another folder. Each such launderer is listed in [`CROSS_SINK`] with
-//! the gap record that names the fix, a carrier per sink, which the user has not decided.
+//! what its answer keeps, and `rule:security/launderer-answers-a-carrier`'s Declined list records
+//! each as a documented limit: a path sink's launderer is `Core\IO::within`.
 
 use std::collections::BTreeSet;
 use std::path::{Component, Path};
@@ -66,19 +67,20 @@ const EXEMPT: &[(&str, &str)] = &[
 ];
 
 /// The launderers whose plain `string` answer is a dot segment or a separator for some input, so a
-/// path sink reads it as a step, and the gap record under `data/gaps/` that names the fix.
+/// path sink reads it as a step, each with what its answer keeps.
+/// `rule:security/launderer-answers-a-carrier` declines a carrier for them.
 const CROSS_SINK: &[(&str, &str)] = &[
     (
         r"Core\Cli::escape",
-        "data/gaps/nvs-stdlib/terminal-escape-answer-reaches-a-path.json",
+        "a terminal shows `.`, `..`, `/` and `\\` as text, so the escape keeps them",
     ),
     (
         r"Core\Regex::quote",
-        "data/gaps/nvs-stdlib/regex-quote-answer-reaches-a-path.json",
+        "a pattern matches `/` as itself, and `\\.` matches only a dot",
     ),
     (
         r"Core\Uri::encodeFormValue",
-        "data/gaps/nvs-stdlib/form-value-answer-reaches-a-path.json",
+        "a dot is unreserved in a form value, and a query value of `..` is legitimate",
     ),
 ];
 
@@ -734,12 +736,10 @@ fn a_plain_answer_a_path_reads_as_a_step_has_a_gap_record() {
     let recorded: BTreeSet<&str> = CROSS_SINK.iter().map(|(member, _)| *member).collect();
     assert_eq!(
         found, recorded,
-        "a launderer whose plain answer a path reads as a step is listed in `CROSS_SINK`"
+        "a launderer whose plain answer a path reads as a step is listed in `CROSS_SINK`, and \
+         `rule:security/launderer-answers-a-carrier`'s Declined list names it"
     );
-    for (member, record) in CROSS_SINK {
-        assert!(
-            nvs_repo::path(record).is_file(),
-            "{member}'s gap record {record} is missing"
-        );
+    for (member, keeps) in CROSS_SINK {
+        assert!(!keeps.is_empty(), "{member} says what its answer keeps");
     }
 }
