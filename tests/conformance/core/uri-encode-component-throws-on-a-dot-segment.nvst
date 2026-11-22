@@ -1,0 +1,23 @@
+--TEST--
+Core\Uri::encodeComponent throws a LogicError on `.` and `..`, because a path reads both as a step to another folder, and encodes a longer run of dots and an empty string as they are
+--FILE--
+<?nvs
+// `.` and `..` would come back unchanged, and a path reads them as a step.
+// So `encodeComponent` throws a `LogicError` for both.
+try {
+    Core\Uri::encodeComponent(".");
+} catch (LogicError $one) {
+    echo $one->message, "\n";
+}
+try {
+    Core\Uri::encodeComponent("..");
+} catch (LogicError $two) {
+    echo $two->message, "\n";
+}
+
+// Three dots and an empty string are not steps, so the result is the same text.
+echo "[", Core\Uri::encodeComponent("..."), "] [", Core\Uri::encodeComponent(""), "]\n";
+--EXPECT--
+Core\Uri::encodeComponent() cannot encode ".": in a path it is a dot segment, which moves to another folder. For a query value, use $uri->withQueryParameter or Core\Uri::buildQuery
+Core\Uri::encodeComponent() cannot encode "..": in a path it is a dot segment, which moves to another folder. For a query value, use $uri->withQueryParameter or Core\Uri::buildQuery
+[...] []
