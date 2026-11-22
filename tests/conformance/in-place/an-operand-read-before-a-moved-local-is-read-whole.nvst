@@ -1,0 +1,26 @@
+--TEST--
+An element read before a later operand passes its array to a function, or to an owning `Core` call, is read whole after that function frees the array — `rule:expressions/an-operand-keeps-its-value-while-later-operands-run`
+--FILE--
+<?nvs
+class Shop {
+    public static function len(array<string> $x): string {
+        $x = [];
+        array<string> $fill = [];
+        for (int $i = 0; $i < 64; $i++) { $fill[] = Core\Str::repeat("y", 64); }
+        return "n";
+    }
+    public static function main(): void {
+        array<string> $a = ["k" => Core\Str::repeat("x", 8)];
+        // `$a["k"]` is read first. `Shop::len` then gets `$a` and frees it.
+        // This prints `v=`, eight `x` and `n`.
+        echo "v=" . $a["k"] . Shop::len($a), "\n";
+        array<string> $b = [Core\Str::repeat("x", 8), "z"];
+        // `Core\Arr::withoutFirst` gets `$b` after `$b[0]` is read.
+        // This prints `w=`, eight `x` and `1`.
+        echo "w=" . $b[0] . Core\Arr::count(Core\Arr::withoutFirst($b)), "\n";
+    }
+}
+Shop::main();
+--EXPECT--
+v=xxxxxxxxn
+w=xxxxxxxx1

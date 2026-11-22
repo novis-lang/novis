@@ -16,8 +16,13 @@ compile until it is judged.
   destructor can replace it. It is held when any later operand is something other than a literal or a
   bare local read.
 - **A read of a bare local, or of an element chain rooted at a local with no property in it,** is
-  storage only this frame writes. It is held only when a later operand writes that local: an
+  storage only this frame writes. It is held when a later operand writes that local: an
   assignment, a compound assignment, `++` or `--`, a destructuring target, or an `inout` argument.
+  It is held too when a later operand that is not a literal or a bare local read names the local
+  anywhere inside it. The ownership pass moves a local passed by value, spread, joined or handed to
+  a `Core` member when nothing reads it again, so the callee can free the array the earlier operand
+  read from: `"v=" . $a["k"] . f($a)` holds `$a["k"]`. The scan reads the source text, so a closure
+  that captures the local and an interpolated hole count too.
 
 **A store is the same rule, with its target's parts as the earlier operands.** For `$a->b->c = e`,
 `$o->s .= e`, `$o->arr[k] = e`, `$o->arr[] = e` and `$m[$o->key] = e`, the receiver of the slot
@@ -49,7 +54,7 @@ the root property again and releases the held array, so it writes into the array
 once the guard returns, and an unchanged array is not copied. A covariant check runs no program
 code and needs no hold.
 
-So `$this->a . $this->b` and `$s . f($x)` cost nothing more. Where a form might write a local in a
+So `$this->a . $this->b` and `$s[0] . f($x)` cost nothing more. Where a form might write a local in a
 way the scan cannot see, the local is judged as shared storage, at one more pair per operand.
 
 **What it spends:** one non-atomic increment and one decrement per held operand, per evaluation, on
@@ -58,12 +63,16 @@ every normal exit and every landing block already releases. A `Core` member that
 by the same hold, because the caller's hold lasts until the member returns. A join pays one pair per
 borrowed piece before an `object` or union piece. A rendered format pays one pair per borrowed
 argument where a later one can free it. A guarded element store pays one pair on its root and one
-field load.
+field load. An element read pays one pair when a later operand passes its local on.
 
 **Declined:**
 - **Retaining every property read.** It pays the pair on every `$this->x` operand, the most common
   operand in a method body, to cover the rare one followed by code that replaces it.
 - **A fix written consumer by consumer.** Each consumer judging its own operands is how the gap
   opened, and it leaves the next consumer open.
+- **Teaching the ownership pass which instructions borrow from which value, and refusing the move.**
+  Every instruction added later would have to be listed there, and a missing row is a use after
+  free. The lowering already asks one question at every operand site, so the moved local is judged
+  there.
 - **Holding a guarded element store's root alone,** which writes into an array the guard replaced,
   and **keeping the hold through the write,** which copies the array on every guarded store.

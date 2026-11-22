@@ -438,12 +438,39 @@ impl Lowering<'_> {
     }
 
     /// Whether an expression in `later` can free the storage `e` reads.
+    ///
+    /// A read rooted at a local is freed by a later operand that writes the
+    /// local, and by one that is not inert and names it. The second is a move:
+    /// the ownership pass moves a local passed by value, spread, joined or
+    /// handed to a `Core` member when nothing reads it again, and the callee
+    /// may free the array the earlier read borrowed from.
     fn later_can_free(&self, e: &Expr, later: &[&Expr]) -> bool {
         match self.read_root(e) {
             ReadRoot::Shared => later.iter().any(|x| !self.is_inert(x)),
-            ReadRoot::Local(name) => later.iter().any(|x| self.writes_local(x, &name)),
+            ReadRoot::Local(name) => later.iter().any(|x| {
+                self.writes_local(x, &name) || (!self.is_inert(x) && self.names_local(x, &name))
+            }),
             ReadRoot::Frame => false,
         }
+    }
+
+    /// Whether the source of `x` names the local `name` anywhere inside it,
+    /// an anonymous function's capture and an interpolated hole included.
+    ///
+    /// It scans the text, so a `$name` inside a single-quoted string also
+    /// counts. That only adds a retain, and the scan needs no list of
+    /// expression kinds that a new kind could miss.
+    fn names_local(&self, x: &Expr, name: &str) -> bool {
+        let text = span_text(self.src, x.span).as_bytes();
+        let name = name.as_bytes();
+        let ident = |b: u8| b == b'_' || b.is_ascii_alphanumeric() || b >= 0x80;
+        text.iter().enumerate().any(|(i, &b)| {
+            b == b'$'
+                && text[i + 1..].starts_with(name)
+                && text
+                    .get(i + 1 + name.len())
+                    .is_none_or(|&next| !ident(next))
+        })
     }
 
     fn read_root(&self, e: &Expr) -> ReadRoot {
