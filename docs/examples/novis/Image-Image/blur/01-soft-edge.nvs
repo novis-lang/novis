@@ -11,7 +11,7 @@ Image $edge = Image::create(20, 10, Color::hex('#000000'))
 // This prints the red value in row 9: 0 before the blur and 102 after it.
 array<Image> $versions = [$edge, $edge->blur(2.0)];
 foreach ($versions as Image $version) {
-    bytes $row = Core\Bytes::slice($version->raw()->pixels, 9 * 20 * 4, 4);
+    tainted bytes $row = Core\Bytes::slice($version->raw()->pixels, 9 * 20 * 4, 4);
     array<mixed> $pixel = Core\Bytes::unpack($row, 'C4');
     echo $pixel[0], "\n";
 }

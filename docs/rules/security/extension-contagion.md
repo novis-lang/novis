@@ -22,8 +22,14 @@ engine is no exception, so a component's own source types what an upload's recor
 `tainted`: the cells `Novis\Spreadsheet\Reader` reads from a `tainted bytes` workbook are
 (`tests/conformance/novis/spreadsheet-a-cell-read-from-an-upload-is-tainted.nvst`).
 
-**Not on disk.** An argument's taint is not read inside a shape, so an image opened from a `tainted
-bytes` upload encodes to plain `bytes` (gap:nvs-types/extension-shape-argument-drops-taint).
+**An argument's taint is read at every depth.** An extension's native code builds its result from
+everything it was handed, so a contagious argument counts when any field of a shape, any property of
+an object or any `mixed` in it may carry outside text, and the argument is admitted with that reach.
+A `Core` row reads an argument only as far as its row says. So an image opened from a `tainted
+bytes` upload encodes to `tainted bytes`. The image component's plan types its source as
+`Core\Bytes::Source`, which has an upload arm, so every image terminal answers `tainted bytes`,
+even for an image the program drew itself. That over-taint is accepted: a response body, storage
+and a file all take `tainted bytes` (`tests/conformance/novis/image-an-upload-gives-tainted-bytes.nvst`).
 
 **Declined:**
 - **Stripping qualifiers at the boundary.** Nothing to design and nothing to freeze into the extension

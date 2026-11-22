@@ -387,6 +387,21 @@ impl MethodSig {
         self.param_quals.get(index).copied().flatten()
     }
 
+    /// Whether a `tainted` argument reaches this call's result from anywhere
+    /// inside it: a shape's field, an object's property or `mixed`
+    /// (`rule:security/extension-contagion`). That is an extension method
+    /// whose result has text in it, the one signature that writes its own
+    /// [`Self::contagious_return`] and is not a `Core` row. Its native code
+    /// builds the result from everything it was handed, so a contagious
+    /// argument is read with the classifier's full answer
+    /// (`crate::expr::args`' `carries_contagion`), and admitted with the same
+    /// reach (`crate::expr::quals::untainted_toward`). A `Core` row reads
+    /// an argument only as far as its own row says.
+    #[must_use]
+    pub fn reads_whole_arguments(&self) -> bool {
+        self.core_class.is_none() && self.contagious_return.is_some()
+    }
+
     /// What the text of the parameter filled by argument position `index`
     /// names — [`Self::param_text`]'s entry, with a variadic tail answering for
     /// every position from its own onward, and [`ParamText::Plain`] wherever

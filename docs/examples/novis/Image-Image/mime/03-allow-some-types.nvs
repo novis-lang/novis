@@ -6,7 +6,7 @@ use Novis\Image\Image;
 
 class Upload
 {
-    public static function accepted(bytes $upload): bool
+    public static function accepted(tainted bytes $upload): bool
     {
         string $type = Image::mime(Image::info($upload)->format);
         // The site accepts JPEG and WebP photos. Every other type returns false.

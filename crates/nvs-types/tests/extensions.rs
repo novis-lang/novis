@@ -345,3 +345,48 @@ fn a_tainted_argument_taints_every_string_in_an_extension_shape_result() {
         "a result with no text has nowhere to carry `tainted`, so the argument is refused"
     );
 }
+
+/// A manifest whose method takes its input inside a shape, as the image component's plan does.
+fn thumbs() -> Manifest {
+    let json = br#"{
+      "manifest": 1, "world": "1.0.0", "class": "Shop\\Thumbs", "interface": "shop:thumbs/api",
+      "methods": [
+        {"name": "render", "params": [{"name": "plan", "type": "{source: bytes, width: int}"}],
+         "returns": "bytes", "help": "A smaller copy of `source`."}
+      ]
+    }"#;
+    Manifest::parse(json).expect("the manifest reads")
+}
+
+#[test]
+fn a_tainted_field_of_a_shape_argument_taints_an_extension_result() {
+    let laundered = check(
+        "tainted bytes $t = \"a\" as bytes;\n\
+         var $p = {source: $t, width: 4};\n\
+         bytes $out = Shop\\Thumbs::render($p);",
+        &[thumbs()],
+    );
+    assert!(
+        laundered.has_errors(),
+        "a tainted field of the plan makes the result tainted, so it is not plain `bytes`"
+    );
+    let admitted = check(
+        "tainted bytes $t = \"a\" as bytes;\n\
+         var $p = {source: $t, width: 4};\n\
+         tainted bytes $out = Shop\\Thumbs::render($p);",
+        &[thumbs()],
+    );
+    assert!(
+        !admitted.has_errors(),
+        "the plan's tainted field is admitted, and the result is tainted: {admitted:?}"
+    );
+    let plain = check(
+        "var $p = {source: \"a\" as bytes, width: 4};\n\
+         bytes $out = Shop\\Thumbs::render($p);",
+        &[thumbs()],
+    );
+    assert!(
+        !plain.has_errors(),
+        "a plan with no outside text gives a plain result: {plain:?}"
+    );
+}

@@ -14,5 +14,5 @@ try {
 }
 
 // After `format`, every entry has a format. This prints 1.
-array<bytes> $files = $photo->format(Format::Jpeg)->variants([{ width: 100, quality: 60 }]);
+array<tainted bytes> $files = $photo->format(Format::Jpeg)->variants([{ width: 100, quality: 60 }]);
 echo Core\Arr::count($files), "\n";

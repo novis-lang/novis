@@ -13,7 +13,7 @@ use Novis\Pdf\Rendered;
 final class Tickets
 {
     // Returns the file for the buyer: the summary of the order, then one page for each ticket.
-    public static function order(): bytes
+    public static function order(): tainted bytes
     {
         var $order = Sample::order();
         array<Pages> $parts = [Pages::of(Tickets::summary()->bytes)];

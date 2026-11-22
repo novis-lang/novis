@@ -5,15 +5,16 @@ use Novis\Image\Format;
 use Novis\Image\Image;
 
 // A JPEG with an EXIF block replaces a photo from a phone. The block has orientation 6.
-bytes $jpeg = Image::create(400, 200, Color::hex('#336699'))->format(Format::Jpeg)->encode();
+tainted bytes $jpeg = Image::create(400, 200, Color::hex('#336699'))->format(Format::Jpeg)->encode();
 bytes $exif = Core\Encoding::fromHex('ffe1002245786966000049492a0008000000010012010300010000000600000000000000');
-bytes $photo = Core\Bytes::join([Core\Bytes::slice($jpeg, 0, 2), $exif, Core\Bytes::slice($jpeg, 2)]);
+array<tainted bytes> $parts = [Core\Bytes::slice($jpeg, 0, 2), $exif, Core\Bytes::slice($jpeg, 2)];
+tainted bytes $photo = Core\Bytes::join($parts);
 
 Image $kept = Image::open($photo, { autoOrient: false })->metadata({ keep: true });
-array<bytes> $files = $kept->variants([{ width: 200 }, { width: 100 }]);
+array<tainted bytes> $files = $kept->variants([{ width: 200 }, { width: 100 }]);
 
 // Both smaller files still have orientation 6. This prints 200 6 and 100 6.
-foreach ($files as bytes $file) {
+foreach ($files as tainted bytes $file) {
     var $info = Image::info($file);
     echo $info->width, ' ', $info->orientation, "\n";
 }

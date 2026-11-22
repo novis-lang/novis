@@ -14,7 +14,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             Color $tint = Color::rgba(255, ($total + $i) % 256, 153);
-            bytes $pixels = $photo->tint($tint)->raw()->pixels;
+            tainted bytes $pixels = $photo->tint($tint)->raw()->pixels;
             $total = $total + Core\Bytes::length($pixels);
             $i = $i + 1;
         }

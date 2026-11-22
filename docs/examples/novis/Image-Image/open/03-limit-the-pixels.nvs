@@ -5,7 +5,7 @@ use Novis\Image\Format;
 use Novis\Image\Image;
 
 // A 3000 by 2000 PNG has 6 million pixels.
-bytes $upload = Image::create(3000, 2000, Color::hex('#336699'))->format(Format::Png)->encode();
+tainted bytes $upload = Image::create(3000, 2000, Color::hex('#336699'))->format(Format::Png)->encode();
 
 // `maxPixels` allows at most 2 million pixels. `raw` throws an error before it decodes a pixel.
 try {

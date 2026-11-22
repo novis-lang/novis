@@ -15,8 +15,9 @@ try {
 
 // 2. A real GIF file with a PHP script added after its last byte.
 try {
-    bytes $gif = Image::create(4, 4, Color::hex('#ff0000'))->format(Format::Gif)->encode();
-    bytes $mixed = Core\Bytes::join([$gif, '<?php echo 1; ?>' as bytes], '' as bytes);
+    tainted bytes $gif = Image::create(4, 4, Color::hex('#ff0000'))->format(Format::Gif)->encode();
+    array<tainted bytes> $parts = [$gif, '<?php echo 1; ?>' as bytes];
+    tainted bytes $mixed = Core\Bytes::join($parts, '' as bytes);
     echo 'step 2 ran upload.', Image::extension(Image::info($mixed)->format), "\n";
 } catch (Throwable $e) {
     echo "step 2 stopped\n";

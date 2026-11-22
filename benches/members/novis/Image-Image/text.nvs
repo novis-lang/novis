@@ -29,7 +29,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            bytes $png = $badge->text($labels[$total % 3], $font, { size: 10.0, color: $white })->encode();
+            tainted bytes $png = $badge->text($labels[$total % 3], $font, { size: 10.0, color: $white })->encode();
             $total = $total + Core\Bytes::length($png);
             $i = $i + 1;
         }

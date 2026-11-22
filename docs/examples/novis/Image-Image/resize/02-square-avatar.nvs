@@ -9,7 +9,7 @@ Image $photo = Image::create(600, 400, Color::hex('#cc6633'));
 // `Cover` and `Contain` both return 128x128. `Inside` keeps the shape and returns 128x85.
 array<Image::Fit> $fits = [Image::Fit::Cover, Image::Fit::Contain, Image::Fit::Inside];
 foreach ($fits as Image::Fit $fit) {
-    bytes $avatar = $photo->resize({ width: 128, height: 128, fit: $fit })->format(Format::Png)->encode();
+    tainted bytes $avatar = $photo->resize({ width: 128, height: 128, fit: $fit })->format(Format::Png)->encode();
     var $info = Image::info($avatar);
     string $name = match ($fit) {
         Image::Fit::Cover => 'Cover',

@@ -40,7 +40,7 @@ try {
 
 // 5. Every length of a real WebP file, from 0 bytes to the whole file.
 try {
-    bytes $webp = Image::create(8, 8, Color::hex('#ff0000'))->format(Format::Webp)->encode();
+    tainted bytes $webp = Image::create(8, 8, Color::hex('#ff0000'))->format(Format::Webp)->encode();
     int $length = 0;
     uint $read = 0;
     while ($length <= Core\Bytes::length($webp)) {

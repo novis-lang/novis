@@ -19,8 +19,9 @@ final class Pages
     }
 
     /// `Pages::merge` returns one PDF file with the chosen pages of each part, in order.
+    /// The result is `tainted bytes`, because a part may be an uploaded file.
     /// A page number past the end of its file throws a `LogicError`. A file that is encrypted or does not parse throws a `ParseError`.
-    public static function merge(array<Pages> $parts): bytes
+    public static function merge(array<Pages> $parts): tainted bytes
     {
         array<{ data: Core\Bytes::Source, pages: ?array<uint> }> $sources = [];
         foreach ($parts as Pages $part) {

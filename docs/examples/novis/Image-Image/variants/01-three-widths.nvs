@@ -5,13 +5,13 @@ use Novis\Image\Format;
 use Novis\Image\Image;
 
 // These JPEG bytes replace a photo that a user uploaded.
-bytes $upload = Image::create(800, 600, Color::hex('#336699'))->format(Format::Jpeg)->encode();
+tainted bytes $upload = Image::create(800, 600, Color::hex('#336699'))->format(Format::Jpeg)->encode();
 
 // One call decodes the photo once and writes three files.
-array<bytes> $files = Image::open($upload)->variants([{ width: 400 }, { width: 200 }, { width: 100 }]);
+array<tainted bytes> $files = Image::open($upload)->variants([{ width: 400 }, { width: 200 }, { width: 100 }]);
 
 // This prints 400x300, 200x150 and 100x75.
-foreach ($files as bytes $file) {
+foreach ($files as tainted bytes $file) {
     var $info = Image::info($file);
     echo $info->width, 'x', $info->height, "\n";
 }

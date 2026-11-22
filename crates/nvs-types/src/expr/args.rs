@@ -149,6 +149,7 @@ fn check_arg_list(
                 tainted: admits_tainted_argument_at(&sig, index, env.interner),
                 secret: admits_secret_argument(sig.qual_at(index)),
                 core: !sig.param_quals.is_empty(),
+                everywhere: sig.reads_whole_arguments(),
             },
             // A `...` hands over a subject's entries rather than the subject,
             // so the qualifier is on the array and not on what fills the
@@ -216,7 +217,9 @@ fn check_arg_list(
                 Some(want) if admitted.any(want, env) => {
                     check_arg_admitting_quals(&arg.value, want, admitted, live, scope, ctx, env)
                 }
-                Some(want) if sink_site(&sig, slot).is_some() || carrier_help(want, env).is_some() => {
+                Some(want)
+                    if sink_site(&sig, slot).is_some() || carrier_help(want, env).is_some() =>
+                {
                     let site = sink_site(&sig, slot);
                     check_carrier_arg(&arg.value, want, site, live, scope, ctx, env)
                 }
@@ -774,6 +777,9 @@ struct Admitted {
     /// The parameter is a `Core` row's, the one kind of signature that
     /// fills [`MethodSig::param_quals`], so [`reads_any_walk`] may widen it.
     core: bool,
+    /// The call reads every argument whole ([`MethodSig::reads_whole_arguments`]),
+    /// so `tainted` is admitted at every depth of it.
+    everywhere: bool,
 }
 
 impl Admitted {
@@ -782,6 +788,7 @@ impl Admitted {
         tainted: false,
         secret: false,
         core: false,
+        everywhere: false,
     };
 
     /// Whether the narrowed comparison is worth making at all: a qualifier
@@ -830,8 +837,12 @@ fn check_arg_admitting_quals(
     }
     let mut compared = actual;
     if admitted.tainted {
-        compared = untainted_entries(compared, expected, env.interner);
+        compared = match admitted.everywhere {
+            true => super::quals::untainted_toward(compared, expected, env.interner),
+            false => untainted_entries(compared, expected, env.interner),
+        };
     }
+
     if admitted.secret {
         compared = unsecret(compared, env.interner);
     }
@@ -939,18 +950,31 @@ fn walk_params(declared: TypeId, env: &Env<'_>) -> Vec<TypeId> {
 /// because [`check_arg_admitting_quals`] admitted it with [`untainted`]'s
 /// reach: an argument admitted as a union or an array whose taint the atom
 /// question cannot see would be laundered by the call that took it.
+///
+/// **An extension's argument is asked with the classifier's full answer**,
+/// [`super::quals::may_carry_outside_text`], which steps into a shape, an
+/// object's properties and `mixed` (`rule:security/extension-contagion`). An
+/// extension's result is a new value its native code builds from everything
+/// it was handed, so a shape argument such as the image component's plan,
+/// whose `Core\Bytes::Source` may be an upload, makes the result tainted. A
+/// `Core` row keeps [`carries_tainted`], because no row writes a shape
+/// argument's text into its result ([`MethodSig::reads_whole_arguments`]).
 pub(crate) fn carries_contagion(
     sig: &MethodSig,
     slots: &[ArgSlot],
     arg_types: &[TypeId],
     interner: &TypeInterner,
 ) -> bool {
+    let carries = match sig.reads_whole_arguments() {
+        true => super::quals::may_carry_outside_text,
+        false => carries_tainted,
+    };
     slots.iter().zip(arg_types).any(|(slot, &ty)| {
         matches!(
             slot,
             ArgSlot::Param(index)
                 if matches!(sig.qual_at(*index), Some(Qual::Contagious | Qual::Reveal))
-        ) && carries_tainted(ty, interner)
+        ) && carries(ty, interner)
     })
 }
 
@@ -2001,6 +2025,7 @@ pub(crate) fn check_generic_args(
                 tainted: admits_tainted_argument_at(&sig, param, env.interner),
                 secret: admits_secret_argument(sig.qual_at(param)),
                 core: !sig.param_quals.is_empty(),
+                everywhere: sig.reads_whole_arguments(),
             },
             _ => Admitted::NONE,
         };

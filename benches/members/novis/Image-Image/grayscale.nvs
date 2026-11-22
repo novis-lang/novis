@@ -13,7 +13,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             Image $photo = Image::create(4, 4, Color::rgba(($total + $i) % 256, 102, 153));
-            bytes $pixels = $photo->grayscale()->raw()->pixels;
+            tainted bytes $pixels = $photo->grayscale()->raw()->pixels;
             $total = $total + Core\Bytes::length($pixels);
             $i = $i + 1;
         }

@@ -31,7 +31,7 @@ class Row {
         string $out = "";
         int $x = 0;
         while ($x < 24) {
-            bytes $red = Core\Bytes::slice($raw->pixels, (360 + $x) * 4, 1);
+            tainted bytes $red = Core\Bytes::slice($raw->pixels, (360 + $x) * 4, 1);
             $out = $out . (Core\Encoding::toHex($red) == "ff" ? "." : "#");
             $x = $x + 1;
         }

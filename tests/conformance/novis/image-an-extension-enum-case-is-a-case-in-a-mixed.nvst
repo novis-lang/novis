@@ -7,8 +7,8 @@ use Novis\Image\Format;
 use Novis\Image\Image;
 
 // `Jpeg` is the first case of `Format`, so its number is `0`.
-bytes $jpeg = Image::create(1, 1)->format(Format::Jpeg)->encode();
-bytes $png = Image::create(1, 1)->encode();
+tainted bytes $jpeg = Image::create(1, 1)->format(Format::Jpeg)->encode();
+tainted bytes $png = Image::create(1, 1)->encode();
 array<Format> $formats = [Image::info($jpeg)->format, Image::info($png)->format];
 
 // `Core\Arr::map` calls the function, which checks that each element is a `Format`.

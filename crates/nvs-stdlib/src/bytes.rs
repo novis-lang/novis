@@ -208,7 +208,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         CoreMethod {
             name: "at",
             names: &["b", "index"],
-            params: &[CoreTy::Blob(Qual::Contagious), CoreTy::Int],
+            // `Neutral`, as `length` is: the answer is a number, and a number
+            // has no `tainted` form, so the byte of an upload it reads can
+            // be an instruction nowhere.
+            params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Int],
             defaults: &[],
             return_ty: CoreTy::Uint,
             text: TextOrigin::Unmarked,
@@ -307,7 +310,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "join",
             names: &["parts", "separator"],
             params: &[
-                CoreTy::Array(&CoreTy::Bytes),
+                CoreTy::Array(&CoreTy::Blob(Qual::Contagious)),
                 CoreTy::Blob(Qual::Contagious),
             ],
             defaults: &[Const::Bytes(b"")],

@@ -7,6 +7,6 @@ use Novis\Image\Image;
 Image $photo = Image::create(800, 600, Color::hex('#cc6633'));
 
 // This prints image/jpeg 160x120.
-bytes $jpeg = $photo->resize({ width: 160 })->grayscale()->format(Format::Jpeg, { quality: 70 })->encode();
+tainted bytes $jpeg = $photo->resize({ width: 160 })->grayscale()->format(Format::Jpeg, { quality: 70 })->encode();
 var $info = Image::info($jpeg);
 echo Image::mime($info->format), ' ', $info->width, 'x', $info->height, "\n";

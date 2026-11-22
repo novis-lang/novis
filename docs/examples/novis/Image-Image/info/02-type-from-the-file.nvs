@@ -5,7 +5,7 @@ use Novis\Image\Format;
 use Novis\Image\Image;
 
 // The file is a WebP image, even if the user named it "photo.png".
-bytes $upload = Image::create(32, 32, Color::hex('#336699'))->format(Format::Webp)->encode();
+tainted bytes $upload = Image::create(32, 32, Color::hex('#336699'))->format(Format::Webp)->encode();
 
 // This prints image/webp and webp.
 var $info = Image::info($upload);

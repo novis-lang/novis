@@ -5,7 +5,7 @@ use Novis\Image\Format;
 use Novis\Image\Image;
 
 // These PNG bytes replace a file that a user uploaded.
-bytes $upload = Image::create(40, 20, Color::hex('#336699'))->format(Format::Png)->encode();
+tainted bytes $upload = Image::create(40, 20, Color::hex('#336699'))->format(Format::Png)->encode();
 
 // `Image::info` reads the format. This prints Content-Type: image/png.
 var $info = Image::info($upload);

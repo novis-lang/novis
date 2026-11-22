@@ -5,7 +5,7 @@ use Novis\Image\Format;
 use Novis\Image\Image;
 
 // A canvas has no format of its own, so `format` chooses PNG.
-bytes $file = Image::create(120, 80, Color::hex('#cccccc'))->format(Format::Png)->encode();
+tainted bytes $file = Image::create(120, 80, Color::hex('#cccccc'))->format(Format::Png)->encode();
 
 // This prints image/png 120x80.
 var $info = Image::info($file);

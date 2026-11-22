@@ -19,7 +19,7 @@ string $saved = Core\Encoding::toHex(Image::hash($photo->encode(), Image::HashKi
 echo 'saved: ', $saved, "\n";
 
 // Later, the same photo is uploaded again as a JPEG file at half the size.
-bytes $upload = $photo->resize({ width: 32, height: 32 })->format(Format::Jpeg)->encode();
+tainted bytes $upload = $photo->resize({ width: 32, height: 32 })->format(Format::Jpeg)->encode();
 bytes $hash = Image::hash($upload, Image::HashKind::Perceptual);
 
 // The distance is small, so this prints "already on the blog".

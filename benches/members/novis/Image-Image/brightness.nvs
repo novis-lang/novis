@@ -14,7 +14,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             float $amount = 1.0 + ((($total + $i) % 4) as float) / 10.0;
-            bytes $pixels = $photo->brightness($amount)->raw()->pixels;
+            tainted bytes $pixels = $photo->brightness($amount)->raw()->pixels;
             $total = $total + Core\Bytes::length($pixels);
             $i = $i + 1;
         }

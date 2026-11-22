@@ -12,8 +12,8 @@ try {
 
 // 2. A real PNG file cut off after its first 40 bytes.
 try {
-    bytes $png = Image::create(64, 64)->encode();
-    bytes $half = Core\Bytes::slice($png, 0, 40);
+    tainted bytes $png = Image::create(64, 64)->encode();
+    tainted bytes $half = Core\Bytes::slice($png, 0, 40);
     echo 'step 2 ran ', Image::placeholder($half, Image::PlaceholderKind::ThumbHash), "\n";
 } catch (Throwable $e) {
     echo "step 2 stopped\n";
@@ -21,7 +21,7 @@ try {
 
 // 3. A one-pixel image.
 try {
-    bytes $dot = Image::create(1, 1)->encode();
+    tainted bytes $dot = Image::create(1, 1)->encode();
     echo 'step 3 ran ', Core\Str::length(Image::placeholder($dot, Image::PlaceholderKind::BlurHash)), "\n";
     echo 'step 3 ran ', Core\Str::length(Image::placeholder($dot, Image::PlaceholderKind::ThumbHash)), "\n";
 } catch (Throwable $e) {
@@ -30,7 +30,7 @@ try {
 
 // 4. An image of 4000 by 1 pixels, which is very wide and very flat.
 try {
-    bytes $line = Image::create(4000, 1)->encode();
+    tainted bytes $line = Image::create(4000, 1)->encode();
     echo 'step 4 ran ', Core\Str::length(Image::placeholder($line, Image::PlaceholderKind::BlurHash)), "\n";
     echo 'step 4 ran ', Core\Str::length(Image::placeholder($line, Image::PlaceholderKind::ThumbHash)), "\n";
 } catch (Throwable $e) {

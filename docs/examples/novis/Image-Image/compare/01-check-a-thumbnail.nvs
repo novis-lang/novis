@@ -16,7 +16,7 @@ Image $photo = Image::fromRaw({
 })->resize({ width: 64, height: 64 });
 
 // JPEG changes some pixels a little, so the images are not identical.
-bytes $jpeg = $photo->format(Format::Jpeg, { quality: 90 })->encode();
+tainted bytes $jpeg = $photo->format(Format::Jpeg, { quality: 90 })->encode();
 var $diff = Image::compare($photo, $jpeg);
 
 echo 'identical: ', $diff->identical ? 'yes' : 'no', "\n";

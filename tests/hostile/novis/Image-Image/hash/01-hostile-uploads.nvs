@@ -12,8 +12,8 @@ try {
 
 // 2. A real PNG file cut off after its first 40 bytes.
 try {
-    bytes $png = Image::create(64, 64)->encode();
-    bytes $half = Core\Bytes::slice($png, 0, 40);
+    tainted bytes $png = Image::create(64, 64)->encode();
+    tainted bytes $half = Core\Bytes::slice($png, 0, 40);
     echo 'step 2 ran ', Core\Bytes::length(Image::hash($half, Image::HashKind::Difference)), "\n";
 } catch (Throwable $e) {
     echo "step 2 stopped\n";
@@ -31,7 +31,7 @@ try {
 
 // 4. A one-pixel image, which is smaller than any hash grid.
 try {
-    bytes $dot = Image::create(1, 1)->encode();
+    tainted bytes $dot = Image::create(1, 1)->encode();
     echo 'step 4 ran ', Core\Bytes::length(Image::hash($dot, Image::HashKind::Perceptual)), "\n";
 } catch (Throwable $e) {
     echo "step 4 stopped\n";

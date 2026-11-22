@@ -4,7 +4,7 @@ use Novis\Image\Format;
 // Shows how to use the size of an uploaded image to choose the box.
 use Novis\Image\Image;
 
-bytes $upload = Image::create(600, 400, Color::hex('#cc6633'))->format(Format::Png)->encode();
+tainted bytes $upload = Image::create(600, 400, Color::hex('#cc6633'))->format(Format::Png)->encode();
 
 // `Image::info` reads the size without decoding the pixels.
 // The box is the square at the right edge of the image.

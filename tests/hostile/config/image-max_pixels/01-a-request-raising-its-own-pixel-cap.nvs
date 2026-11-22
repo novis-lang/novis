@@ -39,7 +39,7 @@ uint $round = 0;
 while ($round < 2000) {
     try {
         uint $huge = 18446744073709551615 - ($round as uint);
-        bytes $png = Image::open($bomb, { maxPixels: $huge })->encode();
+        tainted bytes $png = Image::open($bomb, { maxPixels: $huge })->encode();
     } catch (RuntimeError $tooBig) {
         $refused = $refused + 1;
     }
@@ -51,7 +51,7 @@ echo 'refused: ', $refused, "\n";
 $round = 0;
 while ($round < 2000) {
     try {
-        bytes $again = Image::open($bomb)->encode();
+        tainted bytes $again = Image::open($bomb)->encode();
     } catch (RuntimeError $tooBig) {
         $refused = $refused + 1;
     }

@@ -10,7 +10,7 @@ use Novis\Image\Format;
 class Pixel
 {
     /// The first pixel of `$image`, as hex.
-    public static function first(Image $image): string
+    public static function first(Image $image): tainted string
     {
         return Core\Encoding::toHex(Core\Bytes::slice($image->raw()->pixels, 0, 4));
     }
@@ -52,12 +52,12 @@ bytes $png = Core\Encoding::fromHex(
 var $kept = Image::info(Image::open($png)->metadata({keep: true})->encode());
 echo "metadata ", Image::extension($kept->format), " ", $kept->width, "x", $kept->height, "\n";
 
-array<bytes> $files = Image::open($png)->variants([
+array<tainted bytes> $files = Image::open($png)->variants([
     {width: 2, format: Format::Jpeg, quality: 80},
     {format: Format::Webp},
     {},
 ]);
-foreach ($files as bytes $file) {
+foreach ($files as tainted bytes $file) {
     var $info = Image::info($file);
     echo "variant ", Image::extension($info->format), " ", $info->width, "x", $info->height, "\n";
 }

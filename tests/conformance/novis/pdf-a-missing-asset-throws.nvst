@@ -3,7 +3,6 @@ A render reads only its assets and `data:` URIs: a name the asset map lacks, a `
 --FILE--
 <?nvs
 // covers: Novis\Pdf\Document::asset
-use Novis\Image\Image;
 use Novis\Pdf\Document;
 
 // Each of these images is not in the asset map, so each render throws an error.
@@ -16,8 +15,8 @@ foreach ($sources as string $src) {
     }
 }
 
-// With `logo.png` added as an asset, the same HTML renders.
-bytes $logo = Image::create(4, 4, Novis\Image\Color::rgba(0, 0, 255))->encode();
+// With `logo.png` added as an asset, the same HTML renders. The logo is a PNG file of one pixel.
+bytes $logo = Core\Encoding::fromBase64('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==');
 var $rendered = Document::fromHtml("<img src=\"logo.png\">")->asset("logo.png", $logo)->render();
 echo $rendered->pageCount, " page\n";
 --EXPECT--

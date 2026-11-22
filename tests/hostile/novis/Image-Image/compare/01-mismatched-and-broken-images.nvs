@@ -4,7 +4,7 @@
 use Novis\Image\Color;
 use Novis\Image\Image;
 
-bytes $photo = Image::create(64, 64, Color::hex('#336699'))->encode();
+tainted bytes $photo = Image::create(64, 64, Color::hex('#336699'))->encode();
 
 // 1. No bytes at all on one side.
 try {

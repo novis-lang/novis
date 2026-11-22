@@ -15,7 +15,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             uint $width = 1 + ($total + $i) % 2;
-            array<bytes> $files = $photo->variants([{ width: $width }, { width: $width + 2 }]);
+            array<tainted bytes> $files = $photo->variants([{ width: $width }, { width: $width + 2 }]);
             $total = $total + Core\Bytes::length($files[1]) % 5;
             $i = $i + 1;
         }

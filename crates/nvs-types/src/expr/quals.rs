@@ -791,6 +791,85 @@ pub(crate) fn untainted(ty: TypeId, interner: &mut TypeInterner) -> TypeId {
     }
 }
 
+/// [`untainted`] at every depth of `ty` where `expected` declares the plain
+/// form: through a union, an array's element and a shape's fields.
+///
+/// The admission at an extension's contagious parameter
+/// ([`MethodSig::reads_whole_arguments`]). The manifest cannot write `tainted`
+/// in a type, so the image component's plan declares its pixels as `bytes`,
+/// and the pixels a program read back from `raw()` are `tainted bytes`. The
+/// call reads the bit back out with [`may_carry_outside_text`], which reaches
+/// everything this clears, so the result is `tainted` and nothing is
+/// laundered.
+///
+/// It follows `expected` because a shape's fields are compared invariantly
+/// (`crate::expr::assign`'s `shape_satisfied`). A field the declaration
+/// already types `tainted`, such as a `Core\Bytes::Source`, keeps its bit,
+/// and a shape arm of a union is paired with the declared arm that has the
+/// same keys.
+pub(crate) fn untainted_toward(
+    ty: TypeId,
+    expected: TypeId,
+    interner: &mut TypeInterner,
+) -> TypeId {
+    if ty == expected {
+        return ty;
+    }
+    match (interner.get(ty).clone(), interner.get(expected).clone()) {
+        (Ty::Array(elem), Ty::Array(want)) => {
+            let elem = untainted_toward(elem, want, interner);
+            interner.array(elem)
+        }
+        (Ty::Shape(fields), Ty::Shape(want)) => {
+            let fields = fields
+                .into_iter()
+                .map(|field| {
+                    let ty = match want.iter().find(|wanted| wanted.name == field.name) {
+                        Some(wanted) => untainted_toward(field.ty, wanted.ty, interner),
+                        None => field.ty,
+                    };
+                    crate::ty::ShapeField { ty, ..field }
+                })
+                .collect();
+            interner.shape(fields)
+        }
+        (Ty::Union(members), _) => {
+            let members: Vec<TypeId> = members
+                .iter()
+                .map(|&member| untainted_toward(member, expected, interner))
+                .collect();
+            interner.make_union(members)
+        }
+        (_, Ty::Union(arms)) if arms.contains(&ty) => ty,
+        (Ty::Shape(fields), Ty::Union(arms)) => {
+            let same_keys = arms.iter().copied().find(|&arm| match interner.get(arm) {
+                Ty::Shape(want) => {
+                    want.len() == fields.len()
+                        && want
+                            .iter()
+                            .all(|wanted| fields.iter().any(|field| field.name == wanted.name))
+                }
+                _ => false,
+            });
+            match same_keys {
+                Some(arm) => untainted_toward(ty, arm, interner),
+                None => ty,
+            }
+        }
+        (Ty::Array(_), Ty::Union(arms)) => {
+            let array = arms
+                .iter()
+                .copied()
+                .find(|&arm| matches!(interner.get(arm), Ty::Array(_)));
+            match array {
+                Some(arm) => untainted_toward(ty, arm, interner),
+                None => ty,
+            }
+        }
+        _ => untainted(ty, interner),
+    }
+}
+
 /// [`untainted`], reaching through `array<…>` exactly as deep as `expected` is
 /// an array, and nowhere else.
 ///

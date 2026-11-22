@@ -4,7 +4,7 @@ use Novis\Image\Color;
 use Novis\Image\Image;
 
 // An orange image of 120 by 80 pixels, encoded as PNG.
-bytes $photo = Image::create(120, 80, Color::hex('#f97316'))->encode();
+tainted bytes $photo = Image::create(120, 80, Color::hex('#f97316'))->encode();
 
 string $blur = Image::placeholder($photo, Image::PlaceholderKind::BlurHash);
 string $thumb = Image::placeholder($photo, Image::PlaceholderKind::ThumbHash);

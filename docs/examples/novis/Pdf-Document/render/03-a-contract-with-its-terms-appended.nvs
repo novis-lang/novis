@@ -14,7 +14,7 @@ bytes $contract = Document::fromHtml(html`<h1>Contract</h1><p>Shop rents a stand
     ->render()->bytes;
 
 // `Pages::merge` puts every page of both files into one file, in order.
-bytes $file = Pages::merge([Pages::of($contract), Pages::of($terms)]);
+tainted bytes $file = Pages::merge([Pages::of($contract), Pages::of($terms)]);
 
 // This prints the first line of each page.
 var $reader = Reader::open($file);

@@ -19,7 +19,7 @@ bytes $bomb = Core\Encoding::fromHex(
 var $uploads = ['avatar.png' => $avatar, 'bomb.png' => $bomb];
 foreach ($uploads as string $name => bytes $data) {
     try {
-        bytes $png = Image::open($data)->encode();
+        tainted bytes $png = Image::open($data)->encode();
         echo $name, ": decoded\n";
     } catch (RuntimeError $tooBig) {
         // The cap in `nvs.toml` is 1K, so this image is refused.

@@ -15,9 +15,9 @@ Image $photo = Image::fromRaw({
 })->resize({ width: 64, height: 64 });
 
 // The copy is the same image at 40 by 40 pixels. The other image is the photo mirrored.
-bytes $original = $photo->encode();
-bytes $copy = $photo->resize({ width: 40, height: 40 })->encode();
-bytes $other = $photo->flip(Image::Axis::Horizontal)->encode();
+tainted bytes $original = $photo->encode();
+tainted bytes $copy = $photo->resize({ width: 40, height: 40 })->encode();
+tainted bytes $other = $photo->flip(Image::Axis::Horizontal)->encode();
 
 array<Image::HashKind> $kinds = [Image::HashKind::Perceptual, Image::HashKind::Difference, Image::HashKind::Average];
 

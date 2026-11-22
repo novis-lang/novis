@@ -25,17 +25,17 @@ final class Image
         contrast?: float,
         gamma?: float,
         tint?: Rgba,
-        text?: { text: string, font: bytes, size: float, color: Rgba, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align },
+        text?: { text: string, font: tainted bytes, size: float, color: Rgba, gravity: ?Gravity, x: ?int, y: ?int, maxWidth: ?uint, align: ?Align },
         format?: Encoding,
         metadata?: { keep: bool },
     };
     type Origin = { data: Core\Bytes::Source, autoOrient: bool, toSrgb: bool, maxPixels?: uint, page?: uint, dpi?: float }
         |{ width: uint, height: uint, fill: Rgba }
-        |{ width: uint, height: uint, pixels: bytes }
-        |{ text: string, font: bytes, size: float, maxWidth: ?uint, align: ?Align };
+        |{ width: uint, height: uint, pixels: tainted bytes }
+        |{ text: string, font: tainted bytes, size: float, maxWidth: ?uint, align: ?Align };
     type Layer = { source: Origin, steps: array<Step> };
     type Plan = { steps: array<Step>, overlays: array<Layer>, output: Output };
-    type Raw = { width: uint, height: uint, pixels: bytes };
+    type Raw = { width: uint, height: uint, pixels: tainted bytes };
     type Info = {
         format: Format,
         width: uint,
@@ -268,7 +268,7 @@ final class Image
     public static function measureText(string $text, Font $font, { size: float, maxWidth?: uint, align?: Align } $options): Size
     {
         Origin $source = { text: $text, font: $font->data, size: $options->size, maxWidth: $options->maxWidth ?? null, align: $options->align ?? null };
-        bytes $result = Codec::run($source, { steps: [], overlays: [], output: Output::Size });
+        tainted bytes $result = Codec::run($source, { steps: [], overlays: [], output: Output::Size });
         array<mixed> $size = Core\Bytes::unpack($result, 'JJ');
         return { width: $size[0] as uint, height: $size[1] as uint };
     }
@@ -292,22 +292,25 @@ final class Image
     }
 
     /// `encode` runs every step and returns the encoded file.
-    public function encode(): bytes
+    /// The result is `tainted bytes`, because the image may come from an uploaded file.
+    public function encode(): tainted bytes
     {
         return Codec::run($this->source, { steps: $this->steps, overlays: $this->overlays, output: Output::Encoded });
     }
 
     /// `raw` runs every step and returns the pixels as RGBA8 rows, four bytes per pixel.
+    /// The pixels are `tainted bytes`, because the image may come from an uploaded file.
     public function raw(): Raw
     {
-        bytes $result = Codec::run($this->source, { steps: $this->steps, overlays: $this->overlays, output: Output::Raw });
+        tainted bytes $result = Codec::run($this->source, { steps: $this->steps, overlays: $this->overlays, output: Output::Raw });
         array<mixed> $size = Core\Bytes::unpack(Core\Bytes::slice($result, 0, 16), 'JJ');
         return { width: $size[0] as uint, height: $size[1] as uint, pixels: Core\Bytes::slice($result, 16) };
     }
 
     /// `variants` decodes the image once and returns one encoded file per entry, in the same order.
+    /// Each file is `tainted bytes`, because the image may come from an uploaded file.
     /// An entry may resize the image and choose its own format and quality.
-    public function variants(array<Variant> $set): array<bytes>
+    public function variants(array<Variant> $set): array<tainted bytes>
     {
         array<Plan> $plans = [];
         foreach ($set as Variant $variant) {

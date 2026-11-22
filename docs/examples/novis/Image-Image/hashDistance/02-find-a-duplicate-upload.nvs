@@ -16,14 +16,14 @@ Image $photo = Image::fromRaw({
 bytes $saved = Image::hash($photo->encode(), Image::HashKind::Perceptual);
 
 // The first upload is the same photo at a smaller size. The second is a grey image.
-array<bytes> $uploads = [
+array<tainted bytes> $uploads = [
     $photo->resize({ width: 32, height: 32 })->encode(),
     Image::create(64, 64)->grayscale()->encode(),
 ];
 
 // A distance of 10 or less out of 64 bits counts as the same photo.
 // This prints "duplicate" and then "new photo".
-foreach ($uploads as bytes $upload) {
+foreach ($uploads as tainted bytes $upload) {
     uint $distance = Image::hashDistance($saved, Image::hash($upload, Image::HashKind::Perceptual));
     echo $distance <= 10 ? 'duplicate' : 'new photo', "\n";
 }

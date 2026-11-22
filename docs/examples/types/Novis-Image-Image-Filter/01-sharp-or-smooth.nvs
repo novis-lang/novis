@@ -6,7 +6,7 @@ class Row
 {
     public static function reds(Image $image): string
     {
-        bytes $pixels = $image->raw()->pixels;
+        tainted bytes $pixels = $image->raw()->pixels;
         array<string> $out = [];
         uint $x = 0;
         while ($x < 4) {

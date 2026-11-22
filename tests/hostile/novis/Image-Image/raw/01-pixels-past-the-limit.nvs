@@ -25,7 +25,7 @@ try {
 
 // 3. The pixels of a PNG file that is cut off after 40 bytes.
 try {
-    bytes $png = $small->format(Format::Png)->encode();
+    tainted bytes $png = $small->format(Format::Png)->encode();
     Image::open(Core\Bytes::slice($png, 0, 40))->raw();
     echo "step 3 ran\n";
 } catch (Throwable $e) {
@@ -47,7 +47,7 @@ try {
 
 // 5. A slice of the pixels that starts past the end.
 try {
-    bytes $pixels = $small->raw()->pixels;
+    tainted bytes $pixels = $small->raw()->pixels;
     echo 'step 5 ran ', Core\Bytes::length(Core\Bytes::slice($pixels, 100000, 4)), "\n";
 } catch (Throwable $e) {
     echo "step 5 stopped\n";

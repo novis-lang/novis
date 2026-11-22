@@ -3,7 +3,7 @@
 use Novis\Image\Image;
 
 // A pattern of 4 by 4 grey pixels, made 64 by 64 pixels wide.
-bytes $photo = Image::fromRaw({
+tainted bytes $photo = Image::fromRaw({
     width: 4,
     height: 4,
     pixels: Core\Encoding::fromHex(

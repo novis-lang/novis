@@ -1,0 +1,37 @@
+--TEST--
+An image opened from an upload gives `tainted bytes` at every terminal: `encode`, the pixels of `raw` and each file of `variants` go only where `tainted bytes` may, and a plain `bytes` variable does not compile. `Font::fromBytes` takes an uploaded font: rule:security/extension-contagion
+--FILE--
+<?nvs
+// covers: Novis\Image\Image::encode
+// covers: Novis\Image\Image::raw
+// covers: Novis\Image\Image::variants
+// covers: Novis\Image\Font::fromBytes
+use Novis\Image\Font;
+use Novis\Image\Image;
+
+final class Upload
+{
+    public static function thumbnails(tainted bytes $upload, tainted bytes $fontFile): void
+    {
+        Image $image = Image::open($upload);
+        tainted bytes $kept = $image->encode();
+        bytes $file = $image->encode();
+        bytes $pixels = $image->raw()->pixels;
+        array<bytes> $sizes = $image->variants([{ width: 64 }]);
+        Font $font = Font::fromBytes($fontFile);
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `bytes`, found `tainted bytes`
+   --> case.nvs:15:23
+%A
+error[E0401]: expected `bytes`, found `tainted bytes`
+   --> case.nvs:16:25
+%A
+error[E0401]: expected `array<bytes>`, found `array<tainted bytes>`
+   --> case.nvs:17:31
+%A
+error: aborting due to 3 errors
+To read what a code means and how to fix it, run `nvs agent show <code>`.
