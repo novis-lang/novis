@@ -2357,10 +2357,11 @@ pub(crate) fn written_class_of(
     // declaration further down the file to find a deriving attribute on, no
     // property list to look a column type up in later, and no constructor a
     // contract could fill less than all of — `crate::derive::shape_codec` gives
-    // a shape one parameter per field. It therefore records none of the
-    // deferred sites; the qualifier question a decode site exists to defer is
-    // answered here instead, against the fields in hand. What it does record is
-    // the contract itself, read straight off the type.
+    // a shape one parameter per field. The qualifier question for its own
+    // fields is answered here, against the fields in hand. A class one of its
+    // fields reaches is a declaration like any other, so that class records
+    // the deferred sites below. What the shape records itself is the contract,
+    // read straight off the type.
     if let Ty::Shape(fields) = env.interner.get(element) {
         let names: Vec<String> = fields.iter().map(|field| field.name.clone()).collect();
         let label = crate::derive::shape_class_label(&names);
@@ -2378,6 +2379,29 @@ pub(crate) fn written_class_of(
                 env.interner,
                 env.diags,
             );
+        }
+        // A class a shape's field reaches, through another shape, an array or
+        // a nullable at any depth, is built out of the same document, so it
+        // records the sites a class at the root records
+        // (`rule:security/derived-codec-qualifiers`). A row has no column for
+        // a class, and that is refused by the column map, so only a document
+        // decoder records them.
+        if !row && !crate::derive::stands_in_for_a_class(&owner_name) {
+            let mut reached = Vec::new();
+            crate::derive::classes_reached(element, env.interner, &mut reached);
+            let member = format!("{owner}::{method}");
+            for class in reached {
+                if outside {
+                    env.decode_sites.push(crate::derive::DecodeSite::new(
+                        member.clone(),
+                        class.clone(),
+                        crate::derive::Format::Json,
+                        span,
+                    ));
+                }
+                env.json_sites
+                    .push(crate::derive::JsonSite::new(member.clone(), class, span));
+            }
         }
         if let Some(codec) = crate::derive::shape_codec(element, env.interner, env.enums) {
             env.exprs.record_shape_codec(span, codec);

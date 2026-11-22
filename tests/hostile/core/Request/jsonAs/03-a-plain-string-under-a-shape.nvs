@@ -1,0 +1,21 @@
+<?nvs
+// Attack: a request sends SQL in a JSON body. The program reads the body into a shape
+// that contains a class, and the class has a plain `string` property. The property
+// gets text from the request, so the program should not compile.
+// hostile: expect-refusal
+
+#[Core\Json\Derive]
+class Post
+{
+    public string $sql;
+
+    public function constructor(string $sql)
+    {
+        $this->sql = $sql;
+    }
+}
+
+// 1. The body arrives as `{"blog": {"post": {"sql": "DROP TABLE users"}}}`.
+var $body = Core\Request::jsonAs<{ blog: { post: Post } }>();
+var $db = Core\Db::connect('main');
+$db->execute($body->blog->post->sql, []);

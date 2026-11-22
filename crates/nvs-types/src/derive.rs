@@ -2009,8 +2009,10 @@ impl JsonSite {
 /// **The reachable set, not the written class's own fields**, which is
 /// [`check_decode_sites`]' walk for the same reason: a field typed as another
 /// deriving class is built by the same decode, so its constructor has to be
-/// fillable too. `seen` is what stops the walk on a class holding a field of
-/// its own type, which `rule:core-classes/derive-property-list` admits.
+/// fillable too. A field's declared type is walked by [`classes_reached`], so a
+/// class under a shape, an array or a nullable is reached as well. `seen` is
+/// what stops the walk on a class holding a field of its own type, which
+/// `rule:core-classes/derive-property-list` admits.
 ///
 /// **Two conditions, two codes**, which is where this parts company with
 /// [`check_row_sites`]' one. The written class participating at all is asked
@@ -2022,7 +2024,9 @@ impl JsonSite {
 /// conditions are all one edit at the call.
 pub(crate) fn check_json_sites(
     sites: &[JsonSite],
+    fields: &[CodecFieldSite],
     signatures: &crate::signatures::SignatureTable,
+    interner: &crate::ty::TypeInterner,
     exprs: &crate::expr_table::ExprTypeTable,
     diags: &mut Diagnostics,
 ) {
@@ -2048,6 +2052,16 @@ pub(crate) fn check_json_sites(
             for nested in codec.fields.iter().filter_map(|field| field.class.as_ref()) {
                 pending.push(nested.clone());
             }
+            // The erasure above keeps no class under a shape, so the declared
+            // types are walked too.
+            let mut nested = Vec::new();
+            for field in fields
+                .iter()
+                .filter(|field| field.format == Format::Json && field.class == class)
+            {
+                classes_reached(field.declared, interner, &mut nested);
+            }
+            pending.extend(nested.iter().map(ToString::to_string));
             let filled: std::collections::BTreeSet<usize> = codec
                 .fields
                 .iter()
@@ -2180,8 +2194,10 @@ impl DecodeSite {
 ///
 /// **The reachable set, not the written class's own fields.** A field typed as
 /// another deriving class is filled from the same document, so its text fields
-/// receive the same octets; `seen` is what stops the walk on a class holding a
-/// field of its own type, which `rule:core-classes/derive-property-list` admits.
+/// receive the same octets. [`classes_reached`] finds that class through a
+/// shape, an array and a nullable at any depth. `seen` is what stops the walk
+/// on a class holding a field of its own type, which
+/// `rule:core-classes/derive-property-list` admits.
 ///
 /// One report per property however many sites decode into it: the fix is one
 /// `tainted` on one declaration, and repeating it once per call would report
@@ -2204,9 +2220,9 @@ pub(crate) fn check_decode_sites(
                 .iter()
                 .filter(|field| field.format == site.format && field.class == class)
             {
-                if let Some(nested) = codec_class_label(field.declared, interner) {
-                    pending.push(nested);
-                }
+                let mut nested = Vec::new();
+                classes_reached(field.declared, interner, &mut nested);
+                pending.extend(nested.iter().map(ToString::to_string));
                 // A row field no column reads back is already refused at its
                 // declaration and at the call, and its fix is another type.
                 let unmapped = site.format == Format::Db && !db_reachable(field.declared, interner);
@@ -2345,8 +2361,14 @@ pub(crate) fn check_encode_sites(
 }
 
 /// Every class label a value of `ty` can hold: the class itself, an array's
-/// elements, a shape's fields, and each arm of a union.
-fn classes_reached(ty: TypeId, interner: &crate::ty::TypeInterner, out: &mut Vec<QName>) {
+/// elements, a shape's fields, and each arm of a union, at any depth. The
+/// decode checks and the encode check walk a type with this one function, so
+/// a class under a shape is held to the same checks as a class at the root.
+pub(crate) fn classes_reached(
+    ty: TypeId,
+    interner: &crate::ty::TypeInterner,
+    out: &mut Vec<QName>,
+) {
     match interner.get(ty) {
         Ty::Class(name, _) => out.push(name.clone()),
         Ty::Array(element) => classes_reached(*element, interner, out),
@@ -2430,17 +2452,6 @@ pub(crate) fn check_shape_decode_site(
                  of the shape `tainted`",
             ),
         );
-    }
-}
-
-/// The class label [`check_decode_sites`] walks into next, for a field typed as
-/// a class or as an array of one — [`DerivedField::class`]'s question asked of
-/// the declared type rather than of the erasure, which drops the element's.
-fn codec_class_label(declared: TypeId, interner: &crate::ty::TypeInterner) -> Option<String> {
-    match interner.get(declared) {
-        Ty::Class(name, _) => Some(name.to_string()),
-        Ty::Array(element) => codec_class_label(*element, interner),
-        _ => None,
     }
 }
 

@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-ir/src/ownership.rs]
   - id: 4
     title: a class reached through a shape is held to the decode checks
-    status: open
+    status: done
     context: [docs/rules/security/derived-codec-qualifiers.md, crates/nvs-types/src/derive.rs]
   - id: 5
     title: every use form of a revoked object throws
@@ -298,22 +298,22 @@ or a clone. The session decides each row from that list.
 
 ### 4. a class reached through a shape is held to the decode checks
 
-- [ ] `crates/nvs-types/src/expr/args.rs:2350`: a shape at a decode site records its deferred sites.
+- [x] `crates/nvs-types/src/expr/args.rs:2350`: a shape at a decode site records its deferred sites.
   `rule:security/derived-codec-qualifiers`
-- [ ] `crates/nvs-types/src/derive.rs:2439`: the taint walk steps through a shape, an array element
+- [x] `crates/nvs-types/src/derive.rs:2439`: the taint walk steps through a shape, an array element
   and a nullable (`check_decode_sites`, `check_shape_decode_site` at `:2405`, `codec_class_label` at
   `:2378`).
-- [ ] `crates/nvs-types/src/derive.rs:2048`: `check_json_sites` does the same for `E0820` and codec
+- [x] `crates/nvs-types/src/derive.rs:2048`: `check_json_sites` does the same for `E0820` and codec
   membership.
-- [ ] `crates/nvs-types/tests/decode_through_shape.rs:1`: for each typed decoder of the standing
+- [x] `crates/nvs-types/tests/decode_through_shape.rs:1`: for each typed decoder of the standing
   decision, a class at the root, under a shape, under a shape in a shape, in an array of shapes and in
   a class's shape property. Each plain `string` property is `E0810`, each `tainted string` one
   compiles, and a class that cannot be built is `E0820`. It runs once, by name.
-- [ ] `tests/hostile/`: one attack beside the typed decoders' existing one, `// Attack:` request text
+- [x] `tests/hostile/`: one attack beside the typed decoders' existing one, `// Attack:` request text
   that reaches a plain `string` through a shape. `bun nv proofs --id 'Core\Request::jsonAs'` names its
   folder.
-- [ ] `docs/rules/security/derived-codec-qualifiers.md:1`: the walk through a shape.
-- [ ] `cargo build` and clippy are green.
+- [x] `docs/rules/security/derived-codec-qualifiers.md:1`: the walk through a shape.
+- [x] `cargo build` and clippy are green.
 
 ### 5. every use form of a revoked object throws
 
@@ -365,29 +365,33 @@ that takes an object operand, one line each. The table's rows come from that lis
 
 ### State
 
-Stage 1 is done. `later_can_free` (`crates/nvs-ir/src/lower/operand.rs`) holds a read rooted at a
-local when a later operand that is not inert names the local. `cargo test --test operand_moves`
-passed once.
-
-Stage 2 is done. `Helper::ToStringOrNull` is `true`, `CoreCall::plain` marks an array of no object,
-and `effects::may_park` makes a `Core` call outside `Str`, `Math`, `Arr` and `Regex` "anything".
-`cargo test --test helper_effects` passed once. The nightly Miri timeout in `nvs-stdlib 2/12` ran on
-`7e97fa8444`, before `709a1947b2` fixed it.
-
-Stage 3 is done. `crates/nvs-ir/src/ownership/borrows.rs` is the borrow verifier, compiled under
+Stages 1 and 2 are done: `later_can_free` (`crates/nvs-ir/src/lower/operand.rs`) and
+`effects::may_park`; `operand_moves` and `helper_effects` each passed once. Stage 3 is done. `crates/nvs-ir/src/ownership/borrows.rs` is the borrow verifier, compiled under
 `cfg(any(test, debug_assertions))`. `ownership::run` runs it on every function after the pass and
 panics with the first refusal: a read of an unretained element or property after its owner is
 released, moved or consumed. `cargo test --test borrow_verifier` passed once, three cases. No other
 suite has met the verifier yet.
 
-Sessions per stage: stage 1, one; stage 2, one; stage 3, one.
+Stage 4 is done. `derive::classes_reached` is the one walk: a decode site's shape records a
+`DecodeSite` and a `JsonSite` for each class it reaches (`expr/args.rs`, the shape branch of
+`written_class_of`), and `check_decode_sites` and `check_json_sites` walk each field's declared type
+with it, so a class's shape property is reached too. `codec_class_label` is deleted. A row decoder
+records no class through a shape. `cargo test --test decode_through_shape` passed once, four tests over
+six decoders and eight depths, and failed three of four on the tree before the fix.
+`tests/hostile/core/Request/jsonAs/03-a-plain-string-under-a-shape.nvs` is the attack, refused with
+`E0810`. The nightly Miri failure in `nvs-stdlib 2/12` ran on `7e97fa8444`; `709a1947b2` fixed it.
+
+Sessions per stage: stage 1, one; stage 2, one; stage 3, one; stage 4, one.
 
 ### Next
 
-Stage 4 from its first item, in `crates/nvs-types` alone: one walk for a decode target that steps
-through a shape's fields, an array's element and a nullable, at any depth (`derive.rs:2439`, and the
-shape branch of a decode site at `expr/args.rs:2350`), as the standing decision on hole 3 says. Then
-`crates/nvs-types/tests/decode_through_shape.rs`.
+Stage 5 from its first item: the table of use forms in `crates/nvs-codegen/tests/revocable.rs`, written
+from `nvs-syntax`'s expression and statement kinds, then each check: `lower_slot_append`
+(`crates/nvs-ir/src/lower/stmt.rs:657`), an `inout` property argument (`lower/call.rs:1452`), a method
+reference when called (`lower/anon_fn.rs:753`), string conversion (`lower/expr.rs:1305`),
+`emit_iface_call` (`lower/control.rs:1751`) and `call_method` (`crates/nvs-runtime/src/dispatch.rs:93`).
+Stage 6 owes the `about.md` of each typed decoder a sentence that a class at any depth is checked, and
+a `changes.json` entry for `rule:security/derived-codec-qualifiers`'s features.
 
 Tests expected to go red at the gate: IR snapshots under `crates/nvs-ir/src/lower/snapshots/` that
 hold an expression where a later operand passes on the local an earlier operand read. Each gains a
@@ -397,7 +401,9 @@ hold an expression where a later operand passes on the local an earlier operand 
 the callee may park. A suite whose program the borrow verifier refuses panics with "the borrow
 verifier refused a function". A real borrow after a move is fixed where the read is lowered. A refusal
 that is not one follows the standing decision *What stops it*. Neither conformance case has a
-`// covers:` marker yet; stage 6 adds them with the change entries.
+`// covers:` marker yet; stage 6 adds them with the change entries. A program in a suite that decodes
+a class with a plain `string` property through a shape now gets `E0810`; each is fixed by writing
+`tainted` on the property.
 
 ### Backlog
 

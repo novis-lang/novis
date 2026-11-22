@@ -633,7 +633,7 @@ fn after_walk(
     // participates in the format at all, and a constructor the contract fills
     // less than all of, asked of it and of every deriving class its fields
     // reach.
-    crate::derive::check_json_sites(json_sites, signatures, exprs, diags);
+    crate::derive::check_json_sites(json_sites, codec_sites, signatures, interner, exprs, diags);
     // The same deferral for the other member that writes a class: the body a
     // `jsonAs<T>` decodes is a peer's, so `rule:security/derived-codec-qualifiers`
     // asks the fields receiving it to declare the qualifier they receive.
