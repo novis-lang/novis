@@ -472,40 +472,20 @@ or `bytes`, one line each.
 
 ### State
 
-Stage 7 is done. `cargo test --test latency` is green at its bound (2 passed). The final
-`bun nv against`, on a release binary relinked from the tree, against the base from `1ec4cda0d4`:
-172 programs' IR differs, each only in source positions, or in a program that compiles only in the
-new build (it writes `tainted bytes`), or in one of 29 programs edited since the base that both
-builds lower alike. No instruction changed. Two programs' diagnostics differ, both failing in both
-builds, in wording only (the new sink help line, and `tainted string` as a `Throwable` message's
-type). `assertTrusted` 48 in the base, 48 now. Median check-time ratio 1.005 (budget 1.03).
-`.agent-tmp/against/` is deleted.
+Every stage is done. `cargo test --test latency` is green at its bound. The final `bun nv
+against`, on a relinked release binary against the base from `1ec4cda0d4`, changed no
+instruction: 172 programs differ only in source positions, compile only in the new build (they
+write `tainted bytes`), or were edited since the base and lower alike. Two failing programs
+differ in wording only. `assertTrusted` is 48, as in the base. Median check-time ratio 1.005
+(budget 1.03). `.agent-tmp/against/` is deleted.
 
-`bun nv close --goal taint-fail-closed` is green. Its first run found what stage 6 left: rustfmt
-in `taint_every_form.rs`, `docs/rules/security.md` and `core.json` not rendered, the
-`Image-Image.md` chapter example and `apps/paperwork`'s `send` still writing plain `bytes` for an
-image or PDF result, 57 pages' search questions stale against the rendered data, two SQL `.err`
-snippets without the new help line, and six snippets with no `.tainted` for `$e->message`. Each
-is fixed, four search questions are added for the moved behaviour, and the tests this goal wrote
-(`text_class`, `taint_signatures`, `taint_every_form`, `launderer_matrix`, `against.test.ts`)
-pass by name.
+`bun nv close --goal taint-fail-closed` is green, and the tests this goal wrote pass by name. Its
+first run found rustfmt, two unrendered files, two programs still writing plain `bytes` for an
+image or PDF result, 57 stale search-question entries and eight snippets without the new help
+line or a `.tainted` for `$e->message`. Each is fixed in `afa2f4cc14`.
 
-`assertTrusted`: 44 calls (`against` counts 48, with comments), none replaced. 18 show the method
-itself. The rest read the program's own text back through a decoder (Passkey challenge,
-`Core\Serialize`, a signed cookie or link), which no launderer covers. The three in
-`tests/hostile/core/Json/encode/02-...` stay, since `Core\Response\Stream::write` does not take
-tainted text.
-
-`changes.json` has six entries and 70 `unseen` records (tests that only gained a `tainted` type).
-238 stale texts are reread and stamped, and the newcomer review of 36 changed texts is done.
-`site --check stale`, `changes` and `review` are green. Decision `d14` is closed (option 1).
-
-Perf: all 1062 perf-stale features are recorded. 67 `Core\Ldap` benches declared `calls 0` (or 2
-and 4 for `changes` and `search`), from a figure taken on 2026-10-08. Since `4beafef130` every `Core`
-call passes the call probes and counts as a call, so each declaration now states its measured count.
-The base build counts the same, so the change is not this goal's. Four growth failures
-(`BigInt::compareTo`, `IO\Metadata::modifiedAt`, `Test::assertSame`, `Session::get`) passed on a
-second run. `bun nv proofs --gate --limit 0` is green over the whole roster, and stage 6 is done.
+The 44 `assertTrusted` calls stay: each shows the method, or reads the program's own text back
+through a decoder no launderer covers. Decision `d14` is closed (option 1).
 
 Sessions per stage: 1: one. 2: one. 3: two. 4: two. 5: two. 6: two. 7: one.
 
