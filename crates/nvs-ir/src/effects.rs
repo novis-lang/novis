@@ -309,7 +309,7 @@ pub(crate) fn object_operands(kind: &InstKind, tys: &FxHashMap<ValueId, Ty>) -> 
 
 /// Whether a value of representation `ty` may be an object or hold one. An
 /// array counts unless it is `plain`. A value whose type is not known counts.
-fn may_be_an_object(ty: Option<&Ty>, plain: bool) -> bool {
+pub(crate) fn may_be_an_object(ty: Option<&Ty>, plain: bool) -> bool {
     match ty {
         Some(Ty::Array) => !plain,
         Some(

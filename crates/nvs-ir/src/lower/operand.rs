@@ -278,14 +278,28 @@ impl Lowering<'_> {
         later: &[&Expr],
         cur: BlockId,
     ) -> bool {
-        // The site names the consumer for the matrix test and for a reader of
-        // the IR; the judgment itself is the same at every one of them.
-        let _ = site;
-        if later.is_empty() || !self.later_can_free(e, later) {
+        if later.is_empty() || !self.site_can_free(site, e, later) {
             return true;
         }
         self.emit_retain(cur, v);
         false
+    }
+
+    /// Whether an expression in `later` can free the operand `e` read at
+    /// `site`. [`Self::later_can_free`] judges every site but a store's
+    /// receiver.
+    ///
+    /// A receiver rooted at a local is freed only by a later operand that
+    /// writes the local. A move cannot free it: the store reads the receiver
+    /// after `later` runs, so the ownership pass keeps it live across them.
+    /// So `$this->o = $this->o . $x` holds no extra reference to `$this`.
+    fn site_can_free(&self, site: OperandSite, e: &Expr, later: &[&Expr]) -> bool {
+        match (site, self.read_root(e)) {
+            (OperandSite::StoreReceiver | OperandSite::StoreBase, ReadRoot::Local(name)) => {
+                later.iter().any(|x| self.writes_local(x, &name))
+            }
+            _ => self.later_can_free(e, later),
+        }
     }
 
     /// The `aliasing` answer [`Self::account_for_arg`] takes for the argument
@@ -344,7 +358,7 @@ impl Lowering<'_> {
         if later.is_empty()
             || self.staged(object.span).is_some()
             || !self.aliasing_read(object)
-            || !self.later_can_free(object, later)
+            || !self.site_can_free(site, object, later)
         {
             return;
         }

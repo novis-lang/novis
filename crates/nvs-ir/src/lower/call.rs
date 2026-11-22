@@ -385,9 +385,26 @@ impl<'a> Lowering<'a> {
         out: &mut LoweredArgs,
     ) {
         let expected = sig.expectation(fixed, self.checked_types);
-        let array = self.lower_args_as_array(rest, expected, env, cur);
+        let (array, plain) = self.lower_args_as_judged_array(rest, expected, env, cur);
         self.account_for_arg(array, Ty::Array, ownership, false, *cur);
+        // A tail of scalars and plain arrays is itself plain, so a `Core` member
+        // such as `Core\Arr::append($a['k'], 1)` stays quiet and its subject is
+        // lent (`crate::effects::object_operands`).
+        if plain {
+            out.plain.push(array);
+        }
         out.values.push(array);
+    }
+
+    /// [`Self::lower_args_as_judged_array`]'s array alone.
+    fn lower_args_as_array(
+        &mut self,
+        rest: &[&nvs_syntax::ast::Arg],
+        expected: Option<Ty>,
+        env: &mut Env,
+        cur: &mut BlockId,
+    ) -> ValueId {
+        self.lower_args_as_judged_array(rest, expected, env, cur).0
     }
 
     /// A run of written arguments, built into one `array<T>` keyed `"0"`,
@@ -406,13 +423,18 @@ impl<'a> Lowering<'a> {
     /// nobody: each caller decides whether it is an argument
     /// ([`Self::account_for_arg`]) or its own temporary, and one of the two has
     /// to happen or the allocation leaks.
-    fn lower_args_as_array(
+    ///
+    /// The `bool` is whether no entry may be an object or hold one: every
+    /// written argument is a scalar or a plain array, and every spread subject
+    /// is a plain array.
+    fn lower_args_as_judged_array(
         &mut self,
         rest: &[&nvs_syntax::ast::Arg],
         expected: Option<Ty>,
         env: &mut Env,
         cur: &mut BlockId,
-    ) -> ValueId {
+    ) -> (ValueId, bool) {
+        let mut plain = true;
         // Every argument written out one by one is a prefix of the tail: a
         // positional argument cannot follow a `...` (`nvs_types`' E0488) and a
         // `name:` never reaches the variadic parameter at all, so the first
@@ -424,6 +446,10 @@ impl<'a> Lowering<'a> {
         let mut entries = Vec::with_capacity(spread_from);
         for (index, arg) in rest[..spread_from].iter().enumerate() {
             let (v, ty) = self.lower_expr(&arg.value, expected, env, cur);
+            plain &= !crate::effects::may_be_an_object(
+                Some(&ty),
+                self.exprs.is_plain_array(arg.value.span),
+            );
             if ty.is_refcounted() && self.sole_operand_borrowed(&arg.value) {
                 self.emit_retain(*cur, v);
             }
@@ -459,6 +485,7 @@ impl<'a> Lowering<'a> {
                 // The subject is *borrowed* by the copy, so a freshly-built one
                 // is this frame's to release on whichever edge the copy takes.
                 let (subject, subject_ty) = self.lower_expr(&arg.value, None, env, cur);
+                plain &= subject_ty == Ty::Array && self.exprs.is_plain_array(arg.value.span);
                 if subject_ty.is_refcounted() && !self.sole_operand_borrowed(&arg.value) {
                     self.own_temporary(subject);
                 }
@@ -481,7 +508,7 @@ impl<'a> Lowering<'a> {
             // no-spread one beside it is.
             self.forget_temporary(slot);
         }
-        array
+        (array, plain)
     }
 
     /// Which frame owes a release for one lowered argument, and whether it has
