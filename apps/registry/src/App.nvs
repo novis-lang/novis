@@ -1224,7 +1224,7 @@ final class App
         Response::html($page);
     }
 
-    private static function fail(uint $status, string $text): void
+    private static function fail(uint $status, tainted string $text): void
     {
         Response::setStatus($status);
         Response::json({ error: $text });

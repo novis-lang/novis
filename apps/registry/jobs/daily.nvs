@@ -11,7 +11,7 @@ new Registry\Activity($db)->remind(Registry\Notices::ofSite($db, $site));
 var $index = new Registry\Index($db, new Registry\NvsLog($site, Registry\Index::work($site)), $site);
 bool $indexed = $index->daily();
 // A count that fails does not stop the index work. That day is not counted.
-string $counted = '';
+tainted string $counted = '';
 if ($site->downloadLog != null) {
     try {
         int $yesterday = Registry\Downloads::dayOf(Core\Time::now()->toEpochSeconds()) - 1;

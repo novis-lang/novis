@@ -8,9 +8,9 @@ interface LogCheck
     // Checks every file of the log against its checkpoint, signed with the key of `logKey`.
     // It returns every entry, one JSON object per text, in the order of the log.
     // The position of an entry in the result is its number. If the log is not valid, the result is `null`.
-    public function entries(): ?array<string>;
+    public function entries(): ?array<tainted string>;
 
     // Returns the path of every file a log of `$size` entries has, such as `tile/0/000`,
     // without `checkpoint`. If the command fails, the result is `null`.
-    public function files(int $size): ?array<string>;
+    public function files(int $size): ?array<tainted string>;
 }

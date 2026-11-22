@@ -15,7 +15,7 @@ final class NvsBuilder implements Builder
         $this->site = $site;
     }
 
-    public function build(array<string> $arguments): string
+    public function build(array<string> $arguments): tainted string
     {
         array<string> $command = ['registry', 'build'];
         foreach ($arguments as string $argument) {

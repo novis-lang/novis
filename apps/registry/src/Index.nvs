@@ -7,6 +7,7 @@ use Core\Db\Row;
 use Core\Db\Transaction;
 use Core\IO;
 use Core\Json;
+use Core\Path;
 use Core\Str;
 use Core\Time;
 use RuntimeError;
@@ -26,6 +27,16 @@ final class Index
         $this->db = $db;
         $this->log = $log;
         $this->site = $site;
+    }
+
+    // Checks a path that a log command printed, such as `tile/0/000`, and returns it as `log/tile/0/000`.
+    // `IO::within` throws a `RuntimeError` when the path leads out of the folder `log` of `$work`.
+    public static function logPath(string $work, tainted string $path): string
+    {
+        IO::makeDir($work . '/log');
+        string $log = IO::within($work, 'log');
+        string $way = Path::relativeTo(IO::within($log, $path), $log) ?? '';
+        return 'log/' . Str::replace($way, Path::SEPARATOR, '/');
     }
 
     // Returns the work folder, where the public files are made and signed. It is made when it does not exist.
@@ -140,13 +151,13 @@ final class Index
             }
         }
         if ($lines != '') {
-            ?array<string> $written = $this->log->append($lines);
+            ?array<tainted string> $written = $this->log->append($lines);
             if ($written == null) {
                 // Nothing was added, so the numbers above are undone with the transaction.
                 throw new RuntimeError('the log did not add the entries');
             }
-            foreach ($written as string $path) {
-                $stores->queue('log/' . $path, $path == 'checkpoint' ? Stores::CHECKPOINT : Stores::LOG);
+            foreach ($written as tainted string $path) {
+                $stores->queue(Index::logPath($folder, $path), $path == 'checkpoint' ? Stores::CHECKPOINT : Stores::LOG);
             }
             $tx->execute('delete from events where id <= ? and (due is null or due <= ?)', [$last, $now]);
             $this->advised = Str::contains($lines, '"kind":"retract"')
@@ -207,12 +218,12 @@ final class Index
     // Memory: none here. The command reads every entry of the log.
     private function feed(Stores $stores): void
     {
-        ?array<string> $written = $this->log->advisories();
+        ?array<tainted string> $written = $this->log->advisories();
         if ($written == null) {
             throw new RuntimeError('the advisory feed could not be written');
         }
-        foreach ($written as string $path) {
-            $stores->queue('log/' . $path, Stores::INDEX);
+        foreach ($written as tainted string $path) {
+            $stores->queue(Index::logPath(Index::work($this->site), $path), Stores::INDEX);
         }
     }
 

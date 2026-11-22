@@ -35,7 +35,7 @@ final class NvsLog implements Log, LogCheck
     }
 
     // The command prints one line about the size of the log, then one line per file it wrote.
-    public function append(string $lines): ?array<string>
+    public function append(string $lines): ?array<tainted string>
     {
         try {
             var $child = Process::spawn(
@@ -48,8 +48,8 @@ final class NvsLog implements Log, LogCheck
             if ($done->exitCode() != 0) {
                 return null;
             }
-            array<string> $written = [];
-            foreach (Str::split(Str::trim($done->stdout() as string), "\n") as string $line) {
+            array<tainted string> $written = [];
+            foreach (Str::split(Str::trim($done->stdout() as string), "\n") as tainted string $line) {
                 $written[] = Str::trim($line);
             }
             return Core\Arr::slice($written, 1);
@@ -60,35 +60,35 @@ final class NvsLog implements Log, LogCheck
 
     // The command prints one line about the feed, then the file it wrote.
     // Memory: every entry of the log, one at a time.
-    public function advisories(): ?array<string>
+    public function advisories(): ?array<tainted string>
     {
-        ?array<string> $lines = $this->lines(['registry', 'log', 'advisories', $this->folder . '/log', '--key', $this->site->logKey]);
+        ?array<tainted string> $lines = $this->lines(['registry', 'log', 'advisories', $this->folder . '/log', '--key', $this->site->logKey]);
         return $lines == null ? null : Core\Arr::slice($lines, 1);
     }
 
     // The command checks the checkpoint with the public half of the key that signs the next one.
     // Memory: every entry of the log at once.
-    public function entries(): ?array<string>
+    public function entries(): ?array<tainted string>
     {
         return $this->lines(['registry', 'log', 'verify', $this->folder . '/log', '--key', $this->site->logKey, '--origin', $this->site->logName, '--entries']);
     }
 
-    public function files(int $size): ?array<string>
+    public function files(int $size): ?array<tainted string>
     {
         return $this->lines(['registry', 'log', 'files', $size . '']);
     }
 
     // Runs `nvs` with `$arguments` and returns each line it printed, without the empty lines.
     // If the command fails, the result is `null`.
-    private function lines(array<string> $arguments): ?array<string>
+    private function lines(array<string> $arguments): ?array<tainted string>
     {
         try {
             var $done = Process::run($this->site->nvs, $arguments, { cwd: '..' });
             if ($done->exitCode() != 0) {
                 return null;
             }
-            array<string> $lines = [];
-            foreach (Str::split($done->stdout() as string, "\n") as string $line) {
+            array<tainted string> $lines = [];
+            foreach (Str::split($done->stdout() as string, "\n") as tainted string $line) {
                 if (Str::trim($line) != '') {
                     $lines[] = Str::trim($line);
                 }

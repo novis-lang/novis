@@ -77,12 +77,12 @@ final class Restore
             }
             Backup::load($tx, $plain);
             if ($logged) {
-                ?array<string> $entries = $this->check->entries();
+                ?array<tainted string> $entries = $this->check->entries();
                 if ($entries == null) {
                     throw new RuntimeError('The log in ' . $this->work . '/log does not match its checkpoint. Nothing was restored.');
                 }
                 int $number = 0;
-                foreach ($entries as string $line) {
+                foreach ($entries as tainted string $line) {
                     var $entry = Json::decode($line) as array<mixed>;
                     string $kind = Restore::trusted($entry['kind']);
                     if ($kind == 'publish') {
@@ -118,15 +118,15 @@ final class Restore
         }
         // The second line of the checkpoint is the number of entries. `entries` checks the whole log later.
         array<string> $lines = Str::split(IO::read($checkpoint), "\n");
-        ?array<string> $files = $this->check->files(Restore::trusted($lines[1] ?? '0') as int);
+        ?array<tainted string> $files = $this->check->files(Restore::trusted($lines[1] ?? '0') as int);
         if ($files == null) {
             IO::remove($checkpoint);
             throw new RuntimeError('The list of the files of the log could not be made.');
         }
-        foreach ($files as string $path) {
-            string $target = Path::join($folder, $path);
+        foreach ($files as tainted string $path) {
+            string $target = IO::within($folder, $path);
             IO::makeDir(Path::dirname($target));
-            if (!$store->fetch('log/' . $path, $target)) {
+            if (!$store->fetch(Index::logPath($this->work, $path), $target)) {
                 IO::remove($checkpoint);
                 throw new RuntimeError('The store ' . $store->location . ' has no log/' . $path . '.');
             }

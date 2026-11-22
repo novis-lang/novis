@@ -7,5 +7,5 @@ interface Builder
 {
     // Runs the build with these arguments, such as the repository, the commit and `--version 1.0.0`.
     // It returns the JSON document the build prints, or an empty string when the build could not start.
-    public function build(array<string> $arguments): string;
+    public function build(array<string> $arguments): tainted string;
 }
