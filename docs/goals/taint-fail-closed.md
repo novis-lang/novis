@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-types/src/derive.rs]
   - id: 5
     title: "no launderer returns a value its own sink reads as an instruction"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/uri.rs, docs/rules/security/launderers-are-sink-named.md]
   - id: 6
     title: "the features that moved have their proofs, their pages and their change entries"
@@ -201,6 +201,16 @@ as the runtime's other argument errors do, on an argument that is exactly `.` or
 first use its doc names, and a dot segment changes a URI's structure there. Encoding the dots as `%2E`
 does not help, because a URL parser reads `%2e%2e` as `..`. It costs one length test per call. The
 same question is asked of every launderer in stage 5's matrix.
+
+**The help at a refused sink is read from where the sink is, not from a list beside the rows.** A
+`Core` row's signature carries its class (`MethodSig::core_class`), and the help is decided only
+once an argument is refused. A path parameter names `Core\IO::within`, whatever its class. SQL text
+in `Core\Db` names a bound parameter and `Core\Db::quoteIdentifier`, because `assertTrusted` there
+would push the wrong fix. Any other sink names the `Launder` rows of its own class, with a quick fix
+where one static launderer takes the value alone, and a class with none names `assertTrusted`.
+Reason: `rule:security/launderers-are-sink-named` puts a sink's launderer on the sink's class, so
+the roster already says it. A per-parameter sink kind would rewrite every `Qual::Sink` row for the
+same answer. It costs nothing until a diagnostic is built.
 
 **A launderer used at another sink is not this goal's to close.** The terminal escape's answer for
 `..` is `..`, and a path sink takes it. The root fix is an answer type for each sink, which
@@ -408,14 +418,14 @@ or `bytes`, one line each.
   is.
 - [x] Each cell that is unsafe only at another sink, such as the terminal escape's `..` at a path
   sink, gets one gap record under `data/gaps/` that names the carrier design as the fix.
-- [ ] `crates/nvs-types/src/expr/args.rs:815` (`check_arg_admitting_quals`): the `E0401` at a
+- [x] `crates/nvs-types/src/expr/args.rs:815` (`check_arg_admitting_quals`): the `E0401` at a
   `Sink` parameter has a help line that names that sink's launderer, read from the launderer roster.
   A sink with no launderer names `Core\Taint::assertTrusted`. *check first*: some sinks may name one
   already, so list which do not before writing it. One `.nvst` case under `tests/conformance/reject/`
   for a path sink and one for a regex pattern. `rule:security/launderers-are-sink-named`
-- [ ] `tests/hostile/`: one attack, a request whose route capture is `..`, encoded with
+- [x] `tests/hostile/`: one attack, a request whose route capture is `..`, encoded with
   `encodeComponent` into an outbound URL's path. The call throws.
-- [ ] `cargo build`, clippy, `bun nv relink --build` and `bun nv against`. No IR difference. Each
+- [x] `cargo build`, clippy, `bun nv relink --build` and `bun nv against`. No IR difference. Each
   program whose diagnostics differ is either a hole, named under `### State` with its source, or a
   wrong `Source` mark, fixed at the row. The `assertTrusted` count has not grown.
 
@@ -453,42 +463,33 @@ or `bytes`, one line each.
 ### State
 
 The against base is in `.agent-tmp/against/base/`, from `1ec4cda0d4`, and stays until stage 7.
-Last `bun nv against`: no IR difference but the wording of `06-a-secret-in-an-error-message`, which
-compiles in neither build. `assertTrusted` 48 and 48, median check-time ratio 1.000.
+Last `bun nv against`: the IR differs only in two programs that compile in neither build,
+`05-tainted-text-as-a-pattern` (the new help line; its `.out` is updated) and
+`06-a-secret-in-an-error-message` (known wording). `assertTrusted` 48 and 48, median ratio 1.011.
 
-Stages 1 to 4 are done. What moved, for stage 6: six `Source` rows (process output,
-`Core\Db\Connection::serverVersion`, `Core\Ldap\Connection::whoami`); `Core\Ldap\Filter` and
-`Dn` render as tainted (`registry.rs` `renders_tainted_text`); `Throwable::$message` is `tainted
-string`, because `Core\Json::decode`'s repeated-key message quotes the key (`json/reader.rs:392`).
-`Core\Issue`'s `path` and `message` stay plain. Every case, attack and app that kept a message in a
-plain `string` writes `tainted string` (`8f91d1af85`, `9636325f95`); conformance 4195 passed,
-`apps/registry` 113 passed, no `assertTrusted` added. `apps/registry` reads `nvs` output paths
-through `Core\IO::within` in `Index::logPath`.
+Stages 1 to 5 are done. What moved, for stage 6: six `Source` rows (process output,
+`Core\Db\Connection::serverVersion`, `Core\Ldap\Connection::whoami`); `Core\Ldap\Filter` and `Dn`
+render as tainted; `Throwable::$message` is `tainted string`; `encodeComponent` throws on `.` and
+`..`; the `E0401` at a `Core` sink has a help line (`args.rs` `sink_help`, `core_lib.rs`
+`sink_launderers`). 38 sink classes have no launderer, so their help names `assertTrusted`, among
+them `Core\Str::format`, `Core\Process::run`, `Core\Response::setHeader` and `Core\Storage`.
 
-`gap:nvs-types/extension-shape-argument-drops-taint` is owned by this goal, so `close` is red
-until it lands.
+`close` is red for two reasons. `gap:nvs-types/extension-shape-argument-drops-taint` is owned by
+this goal. The four launderer gap records under `data/gaps/nvs-stdlib/` name it too, until the
+user answers decision `d14` (built on option 1: keep the carrier declined).
 
-Stage 5's first four items are done (`168b75e096`). `launderer_matrix.rs` has a row for each of 21
-launderers and an `EXEMPT` reason for three (`assertTrusted`, `assertTrustedBytes`,
-`Core\Markdown\Live::push`). Its one red row was `encodeComponent`'s `.` and `..`, which now throw
-a `LogicError`. Four gap records under `data/gaps/nvs-stdlib/`: the terminal escape, `Regex::quote`
-and `encodeFormValue` answers at a path sink, and the empty component. They name this goal as their
-owner only because `owners` needs a chain goal, and the fix they name is the user's call.
-
-Sessions per stage: 1: one. 2: one. 3: two. 4: two. 5: one.
+Sessions per stage: 1: one. 2: one. 3: two. 4: two. 5: two.
 
 ### Next
 
-The rest of stage 5, then the gap.
+The gap, then stage 6.
 
-1. **The four new gaps' owner.** Before stage 7, each must name a goal that is not this one, or
-   `close` stays red. File `looper decision ask` with the carrier design (a per-sink answer type,
-   which `rule:security/launderer-answers-a-carrier` declined) and the recommendation to keep it
-   declined and accept the four as documented limits. Then move them to the goal the user names, or
-   delete them and add each case to that rule's Declined list.
-2. Stage 5's `E0401` help line at `crates/nvs-types/src/expr/args.rs:815`, then the attack under
-   `tests/hostile/`, then the stage's build and `bun nv against`.
-3. `gap:nvs-types/extension-shape-argument-drops-taint`, before stage 6, so its proofs and change
+1. **Decision `d14`.** When the user answers, option 1: delete the four records under
+   `data/gaps/nvs-stdlib/` and add each case to `rule:security/launderer-answers-a-carrier`'s
+   Declined list, and remove `CROSS_SINK`'s gap paths in `launderer_matrix.rs` (keep each row with
+   the rule's reason). Option 2: move them to the goal the user names. Then `looper decision close
+   d14` and record the answer under `## Standing decisions`. `close` stays red until then.
+2. `gap:nvs-types/extension-shape-argument-drops-taint`, before stage 6, so its proofs and change
    entries land there. The checker side: an extension call's contagion
    (`crates/nvs-types/src/ext_lib.rs` and `quals.rs` `contagious_result`, `:997`) asks
    `may_carry_outside_text` (`quals.rs:303`) of each argument, and a `Core` row keeps
@@ -500,10 +501,13 @@ The rest of stage 5, then the gap.
    image and requires a tainted result. Delete the gap record and the extension-contagion
    **Not on disk.** line in the same slice.
 
-Tests expected red: none now. Stage 6's first item also owes `Core\Uri::encodeComponent`'s new
-`LogicError` a `changes.json` entry and an `about.md` line, `Throwable::$message` a `changes.json`
-entry and `about.md` line, `Core\Ldap\Filter`/`Dn` one each, and the image and PDF terminals one each
-once the gap lands.
+Tests expected red: a test outside `tests/conformance` that pins the exact text of an `E0401` at a
+`Core` sink, since it now has a help line. The two in conformance that did are updated, and no
+Rust test pins one. Stage 6's first item also owes `Core\Uri::encodeComponent`'s new `LogicError` a
+`changes.json` entry and an `about.md` line, `Throwable::$message` a `changes.json` entry and
+`about.md` line, `Core\Ldap\Filter`/`Dn` one each, the image and PDF terminals one each once the gap
+lands, and the new sink help a `changes.json` entry under `lang:types/qualifiers-tainted-and-secret`
+(both new reject cases carry its `// covers:`).
 
 ### Backlog
 
