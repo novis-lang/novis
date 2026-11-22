@@ -3910,9 +3910,9 @@ nothing. `isRevoked()` returns `true` after `revoke()` was called.
 After `revoke()`, every `Core\ObjectMap`, `Core\ObjectSet` and `Core\Heap` removes the object
 immediately. Their `count()` is correct, and a running `foreach` skips it.
 
-A plain array, a property or a variable still contains the object. On a revoked object, reading a
-property, calling a method, `clone` and `Core\Json::encode` throw `RevokedObjectError`. The message
-names the class and the line of the first `revoke()`. `==`, `is` and `::class` do not throw.
+A plain array, a property or a variable still contains the object. Every use of a revoked object
+throws `RevokedObjectError`, such as a property read, a method call or a conversion to a string. The message
+names the class and the line of the first `revoke()`. `==`, `is`, `::class` and passing or storing the object do not throw.
 
 **Good to know:** only a class with no parent class can write `implements Revocable`. All its
 subclasses are then revocable too.
@@ -3925,10 +3925,22 @@ If a class has a parent class and writes `implements Revocable`, the compiler re
 An interface that extends `Revocable` is the error `E1002`. A class that declares its own `revoke()`
 or `isRevoked()` is the error `E1003`. An abstract class with no parent may implement `Revocable`.
 
-These uses of a revoked object throw `RevokedObjectError`: a property read or write, a method call,
-`clone`, `Core\Json::encode`, and a `Core\Reflect` read, call or write. These do not throw:
-`isRevoked()`, a second `revoke()`, passing or storing the object, `==`, the type test `is` and
-`::class`. `RevokedObjectError` is a `LogicError`.
+Every use of a revoked object throws `RevokedObjectError`. `RevokedObjectError` is a `LogicError`.
+These uses throw:
+
+- a property read or write, `.=`, `+=`, `++` and `--` on a property, and `isset`, `empty` and
+  `isinit` of a property;
+- an `inout` property argument, before the call and again when the value is written back;
+- a method call, `?->` included, and a `static` method that you call through the object;
+- a method that the class delegates to a property, and a call of a method reference;
+- a conversion to a string, such as a string with a hole, a concatenation or `echo`;
+- `<`, `<=`, `>`, `>=` and `<=>`, which call `compareTo`;
+- a `foreach` over the object;
+- `clone`, `Core\Json::encode`, and a `Core\Reflect` read, call or write.
+
+These do not throw: `isRevoked()`, a second `revoke()`, and passing, storing or returning the
+object. `yield`, creating a method reference, `==`, `match` and `switch` do not throw either. The
+type test `is`, `as` to a type the object has, and `::class` do not throw.
 
 The error message has this form: "This `Blog\Post` object was revoked in `src/Blog/Post.nvs` on line
 42. A revoked object cannot be used." A second `revoke()` does not change the line. A call of
