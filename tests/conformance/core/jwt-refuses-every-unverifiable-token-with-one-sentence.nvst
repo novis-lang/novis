@@ -33,7 +33,7 @@ string $altered = $parts[0] . "." . $parts[1] . "Z." . $parts[2];
 string $shapeless = "not-a-token";
 
 array<string> $attempts = [$stripped, $borrowed, $rs256, $altered, $shapeless, ""];
-string $first = "";
+tainted string $first = "";
 int $refusals = 0;
 int $agreed = 0;
 foreach ($attempts as string $attempt) {

@@ -24,7 +24,7 @@ string $stale = Core\Signature::sign($claims, {keys: $ring, until: $ago});
 
 // Both refusals are caught as the same class, so what distinguishes them is
 // the sentence and not the type a program has to catch.
-string $expired = "";
+tainted string $expired = "";
 try {
     array<tainted string> $none = Core\Signature::verify($stale, $ring);
     echo "an expired signature verified", "\n";
@@ -32,7 +32,7 @@ try {
     $expired = $past->message;
 }
 
-string $forged = "";
+tainted string $forged = "";
 try {
     array<tainted string> $nothing = Core\Signature::verify($live . "AAAA", $ring);
     echo "a tampered token verified", "\n";

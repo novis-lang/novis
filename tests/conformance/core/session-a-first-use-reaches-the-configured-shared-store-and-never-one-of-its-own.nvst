@@ -17,7 +17,7 @@ under=a-request
 // first does not already have. A member that had opened an address of its own
 // would have got past this line.
 uint $named = 0;
-string $said = "";
+tainted string $said = "";
 try {
     Core\Session::get("cart");
 } catch (RuntimeError $nowhere) {

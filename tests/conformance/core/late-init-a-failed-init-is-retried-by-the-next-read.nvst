@@ -44,7 +44,7 @@ final class Page implements LateInit {
 Log $log = new Log();
 Post $p = new Post($log);
 var $read = Core\Task::all({
-    first: fn (): string => {
+    first: fn (): tainted string => {
         try {
             return $p->author;
         } catch (RuntimeError $e) {

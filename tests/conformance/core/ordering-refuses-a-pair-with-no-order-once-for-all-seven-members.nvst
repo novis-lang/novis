@@ -24,7 +24,7 @@ final class Refusals {
              . 'of the objects.';
     }
 
-    public static function names(string $message, string $member): bool {
+    public static function names(tainted string $message, string $member): bool {
         return Core\Str::startsWith($message, $member . ' has no natural order for a `')
             && Core\Str::endsWith($message, Refusals::sharedTail());
     }

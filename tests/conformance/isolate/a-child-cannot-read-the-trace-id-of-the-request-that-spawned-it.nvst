@@ -11,7 +11,7 @@ spawn = true
 <?nvs
 // `traceId` is the one member of `Core\Server` that reads the request. A child
 // answers no request, so the call throws, and the message names the member.
-string $said = "";
+tainted string $said = "";
 try {
     echo Core\Server::traceId(), "\n";
 } catch (LogicError $none) {

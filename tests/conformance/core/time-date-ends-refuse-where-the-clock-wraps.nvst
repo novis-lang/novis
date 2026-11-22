@@ -9,7 +9,7 @@ The calendar has two ends and the clock has none — `Core\Time\Date::plus`/`min
 // a member that refused *near* the end, or wrapped a date the way it wraps a
 // reading, prints plausibly against either half alone.
 class Both {
-    public static function date(Core\Time\Date $d, int $count, Core\Unit $unit): string {
+    public static function date(Core\Time\Date $d, int $count, Core\Unit $unit): tainted string {
         try {
             return $d->plus($count, $unit)->format("yyyy-MM-dd");
         } catch (RuntimeError $refused) {
@@ -17,7 +17,7 @@ class Both {
         }
     }
 
-    public static function back(Core\Time\Date $d, int $count, Core\Unit $unit): string {
+    public static function back(Core\Time\Date $d, int $count, Core\Unit $unit): tainted string {
         try {
             return $d->minus($count, $unit)->format("yyyy-MM-dd");
         } catch (RuntimeError $refused) {
@@ -25,7 +25,7 @@ class Both {
         }
     }
 
-    public static function moved(string $answer): bool {
+    public static function moved(tainted string $answer): bool {
         return !Core\Str::contains($answer, "Core\\Time\\Date::");
     }
 

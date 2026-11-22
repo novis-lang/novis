@@ -52,14 +52,14 @@ echo $read->first, " ", $read->second, "\n";
 Log $drafts = new Log();
 Draft $d = new Draft($drafts);
 var $failed = Core\Task::all({
-    first: fn (): string => {
+    first: fn (): tainted string => {
         try {
             return $d->author;
         } catch (LogicError $e) {
             return $e->message;
         }
     },
-    second: fn (): string => {
+    second: fn (): tainted string => {
         try {
             return $d->author;
         } catch (LogicError $e) {

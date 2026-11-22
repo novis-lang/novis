@@ -35,7 +35,7 @@ try {
 // caller that can never present either. `[session] backend` is written in this
 // tree, so a child that got as far as the store question would say so in the
 // message, and the line below reads the message rather than the count.
-string $said = "";
+tainted string $said = "";
 try {
     Core\Session::get("cart");
 } catch (LogicError $nothing) {

@@ -10,7 +10,7 @@ A `Core\BigInt` grows past every scalar's bound and `toInt`, `toUint` and `toDec
 var $product = Core\BigInt::of(1);
 int $held = 0;
 int $refused = 0;
-string $firstRefusal = "";
+tainted string $firstRefusal = "";
 int $n = 1;
 while ($n <= 25) {
     $product = $product->mul(Core\BigInt::of($n));

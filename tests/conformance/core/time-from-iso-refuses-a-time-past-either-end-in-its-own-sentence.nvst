@@ -7,7 +7,7 @@
 // All four throw the same sentence, so the text is printed once and the
 // sentences are counted for agreement.
 array<string> $past = ["9999-12-30T22:00:01Z", "9999-12-31T23:59:59+01:00", "-009999-01-02T01:59:58Z", "-009999-01-01T00:00:00-01:00"];
-array<string> $sentences = [];
+array<tainted string> $sentences = [];
 foreach ($past as string $text) {
     try {
         var $at = Core\Time\Instant::fromIso($text);
@@ -18,7 +18,7 @@ foreach ($past as string $text) {
 }
 echo $sentences[0], "\n";
 int $same = 0;
-foreach ($sentences as string $sentence) {
+foreach ($sentences as tainted string $sentence) {
     if ($sentence == $sentences[0]) {
         $same = $same + 1;
     }

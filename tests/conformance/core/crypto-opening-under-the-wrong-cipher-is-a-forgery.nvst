@@ -13,7 +13,7 @@ secret bytes $key = Core\Crypto::generateKey();
 // line up is exactly what a single example would miss.
 array<uint> $lengths = [0, 1, 12, 16, 24, 28, 40, 64, 257];
 
-string $sentence = "";
+tainted string $sentence = "";
 int $tried = 0;
 int $refused = 0;
 int $sameSentence = 0;

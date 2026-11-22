@@ -107,7 +107,7 @@ final class Ran {
     // Threw and caught its own throw, so nothing is pending by the time the
     // body returns. This row is the one that separates "the body contains a
     // `throw`" from "the body threw".
-    public static function caught(): string {
+    public static function caught(): tainted string {
         try {
             Ran::parse();
         } catch (ParseError $swallowed) {
@@ -130,7 +130,7 @@ array<callable(): mixed> $returning = [
     fn (): int => { return Ran::seven(); },
     fn (): ?int => { return Ran::absent(); },
     fn (): array<string> => { return Ran::container(); },
-    fn (): string => { return Ran::caught(); },
+    fn (): tainted string => { return Ran::caught(); },
 ];
 
 // Every row of both tables asked both ways. `$partition` counts the rows where

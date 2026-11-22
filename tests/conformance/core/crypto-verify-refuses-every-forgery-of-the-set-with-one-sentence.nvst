@@ -41,7 +41,7 @@ array<string> $offered = [
 ];
 
 int $refused = 0;
-array<string> $said = [];
+array<tainted string> $said = [];
 foreach (Core\Arr::range(0, 6) as int $v) {
     Core\Crypto\KeyPair $pair = Core\Crypto\KeyPair::read(
         Core\Encoding::fromHex($pkcs8[$signer[$v]]),
@@ -60,7 +60,7 @@ foreach (Core\Arr::range(0, 6) as int $v) {
 echo "refused ", $refused, " of 7", "\n";
 
 int $oneSentence = 0;
-foreach ($said as string $sentence) {
+foreach ($said as tainted string $sentence) {
     if ($sentence == $said[0]) {
         $oneSentence += 1;
     }

@@ -20,7 +20,7 @@ final class Money implements Comparable {
 final class Loose {
     // Both parameters are `mixed`, so nothing below is a statically typed
     // comparison in disguise.
-    public static function order(mixed $a, mixed $b): string {
+    public static function order(mixed $a, mixed $b): tainted string {
         try {
             return ($a <=> $b) as string;
         } catch (Throwable $e) {

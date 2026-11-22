@@ -16,7 +16,7 @@
 // is naming the counts the empty subject then walks straight past.
 
 final class Rep {
-    public static function of(bytes $b, uint $times): string {
+    public static function of(bytes $b, uint $times): tainted string {
         try {
             return Core\Encoding::toHex(Core\Bytes::repeat($b, $times));
         } catch (Throwable $e) {

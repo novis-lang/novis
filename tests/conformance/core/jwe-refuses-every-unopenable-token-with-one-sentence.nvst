@@ -49,8 +49,8 @@ array<string> $refused = [
 ];
 
 int $verdicts = 0;
-string $sentence = "";
-array<string> $sentences = [];
+tainted string $sentence = "";
+array<tainted string> $sentences = [];
 foreach ($refused as string $slot => string $token) {
     try {
         tainted string $opened = Core\Jwe::decrypt($token, $ring);

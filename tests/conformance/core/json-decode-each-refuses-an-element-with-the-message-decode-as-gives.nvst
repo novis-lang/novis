@@ -19,7 +19,7 @@ Core\IO\File $out = Core\IO::open("points.json", Core\IO::FileMode::Write);
 $out->write('[{"x":1,"y":2},{"x":3,"y":"four"},{"x":5,"y":6}]');
 $out->close();
 
-string $eachMessage = "";
+tainted string $eachMessage = "";
 Core\IO\File $in = Core\IO::open("points.json", Core\IO::FileMode::Read);
 try {
     foreach (Core\Json::decodeEach<Point>($in) as Point $p) {
@@ -31,7 +31,7 @@ try {
 }
 $in->close();
 
-string $asMessage = "";
+tainted string $asMessage = "";
 try {
     var $one = Core\Json::decodeAs<Point>('{"x":3,"y":"four"}');
     echo "decodeAs accepted it\n";

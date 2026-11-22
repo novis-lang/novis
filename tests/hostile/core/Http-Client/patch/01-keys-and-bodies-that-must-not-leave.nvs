@@ -77,7 +77,7 @@ echo 'step 3: ', $tries, "\n";
 // 4. Every refused request is kept in a list with its key and its error message, and
 //    never freed. This step ends the program at its memory limit.
 echo "step 4\n";
-array<string> $kept = [];
+array<tainted string> $kept = [];
 uint $n = 0;
 while (true) {
     string $longKey = Core\Str::format('order-%d-', $n) . Core\Str::repeat('k', 10000);

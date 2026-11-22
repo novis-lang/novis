@@ -17,7 +17,7 @@ echo "the session reads back what it saved: ", Core\Session::get("visits"), "\n"
 // The session is open now, so `openWithIdentifier` throws. The message names the
 // method that opened it.
 uint $refused = 0;
-string $said = "";
+tainted string $said = "";
 try {
     Core\Session::openWithIdentifier("PmA5tKz1QvR3sYbNqLwXe2");
 } catch (LogicError $twice) {

@@ -6,7 +6,7 @@ Core\Random::int, float and token draw from a CSPRNG inside the bounds each one 
 // the draw rather than the draw itself. `Draw` exists because a `catch` does
 // not lower at file scope; the two throwing rows go through it.
 class Draw {
-    public static function inRange(int $min, int $max): string {
+    public static function inRange(int $min, int $max): tainted string {
         try {
             return Core\Random::int($min, $max) as string;
         } catch (Throwable $e) {
@@ -14,7 +14,7 @@ class Draw {
         }
     }
 
-    public static function tokenLength(uint $bytes): string {
+    public static function tokenLength(uint $bytes): tainted string {
         try {
             return Core\Str::length(Core\Random::token($bytes)) as string;
         } catch (Throwable $e) {

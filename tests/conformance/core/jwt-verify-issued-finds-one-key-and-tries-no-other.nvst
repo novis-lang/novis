@@ -36,7 +36,7 @@ string $unnamed = Core\Jwt::signObject($claims, 15m, $a);
 // question would still print a plausible sentence for each of these.
 int $verified = 0;
 int $refused = 0;
-string $says = "";
+tainted string $says = "";
 
 try {
     var $found = Core\Jwt::verifyIssued<

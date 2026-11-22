@@ -67,7 +67,7 @@ final class Branch {
     // Catching wide does not make the value wide: what the clause binds is
     // still the class that was thrown, so a handler can widen its `catch` and
     // narrow again inside it.
-    public static function keepsItsName(): string {
+    public static function keepsItsName(): tainted string {
         try {
             throw new IOError("the report file went away");
         } catch (RuntimeError $caught) {

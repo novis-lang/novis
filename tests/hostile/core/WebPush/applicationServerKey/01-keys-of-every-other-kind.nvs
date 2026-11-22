@@ -5,7 +5,7 @@
 // Returns `yes` when the text contains the private key as hex or as base64.
 class Leak
 {
-    public static function check(string $text, Core\Crypto\KeyPair $pair): string
+    public static function check(tainted string $text, Core\Crypto\KeyPair $pair): string
     {
         bytes $private = Core\Secret::revealBytes($pair->write(), 'the attack checks that no text contains the key');
         array<string> $forms = [

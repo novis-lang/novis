@@ -7,7 +7,7 @@ class Flag {
     // operand is tested against its own runtime tag, so a value that would
     // *convert* to `true` is still a miss: `1 as bool` is `true`, and `1` is
     // not `true`.
-    public static function only(mixed $raw): string {
+    public static function only(mixed $raw): tainted string {
         try {
             true $on = $raw as true;
             return "on " . ($on as string) . "|";
@@ -18,7 +18,7 @@ class Flag {
 
     // The other singleton, and the reason a case renders through `as string`
     // with a sentinel after it: `false as string` is the empty string.
-    public static function off(mixed $raw): string {
+    public static function off(mixed $raw): tainted string {
         try {
             false $flag = $raw as false;
             return "off " . ($flag as string) . "|";
@@ -31,7 +31,7 @@ class Flag {
     // same order the `int`/`string` sets already use, which is what makes a
     // truthy `int` a hit here where a `mixed` holding one is not. The miss
     // therefore names the *converted* value: `0` reaches the test as `false`.
-    public static function truthy(int $n): string {
+    public static function truthy(int $n): tainted string {
         try {
             true $on = $n as true;
             return "truthy " . ($on as string) . "|";

@@ -7,7 +7,7 @@ class Pick {
     // base type's tag and payload" has two bases to share and the target is
     // a tagged value. A statically typed operand is widened into one first
     // and compared afterwards, which is the same order every other set uses.
-    public static function either(string $raw): string {
+    public static function either(string $raw): tainted string {
         try {
             1|"alpha" $picked = $raw as 1|"alpha";
             return "picked " . ($picked as string) . "|";
@@ -19,7 +19,7 @@ class Pick {
     // The other member of the same set, reached from the other base. A tag
     // is part of the comparison, so this is a hit on `1` and never on the
     // string that renders the same way.
-    public static function counted(int $n): string {
+    public static function counted(int $n): tainted string {
         try {
             1|"alpha" $picked = $n as 1|"alpha";
             return "counted " . ($picked as string) . "|";

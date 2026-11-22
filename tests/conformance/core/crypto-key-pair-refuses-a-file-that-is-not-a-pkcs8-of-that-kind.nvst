@@ -33,7 +33,7 @@ array<Core\Crypto\KeyKind> $asKind = [
     Core\Crypto\KeyKind::Ed25519,
 ];
 
-array<string> $said = [];
+array<tainted string> $said = [];
 foreach ($notPairs as string $slot => string $hex) {
     try {
         Core\Crypto\KeyPair $no = Core\Crypto\KeyPair::read(
@@ -69,7 +69,7 @@ foreach ($armoured as string $block) {
 uint $expected = Core\Arr::count($notPairs) + Core\Arr::count($armoured);
 echo "refused ", Core\Arr::count($said), " of ", $expected, "\n";
 
-foreach ($said as string $message) {
+foreach ($said as tainted string $message) {
     echo $message, "\n";
 }
 

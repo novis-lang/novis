@@ -7,7 +7,7 @@ class Mode {
     // `rule:types/single-value-types`'s checked row: `mixed` into a closed set throws unless the value
     // equals one of the named values. It never *converts* to reach one —
     // an `int` operand is a miss even where the set names its digits.
-    public static function pick(mixed $raw): string {
+    public static function pick(mixed $raw): tainted string {
         try {
             "a"|"b"|"c" $mode = $raw as "a"|"b"|"c";
             return "picked " . $mode;
@@ -19,7 +19,7 @@ class Mode {
     // The same row over allowed `int` values, off a statically typed operand: the
     // same rule says the set is the only thing that costs anything, and it costs one
     // comparison per member either way.
-    public static function level(int $n): string {
+    public static function level(int $n): tainted string {
         try {
             1|2|3 $level = $n as 1|2|3;
             return "level " . $level;

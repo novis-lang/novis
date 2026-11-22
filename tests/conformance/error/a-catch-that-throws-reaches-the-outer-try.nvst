@@ -16,7 +16,7 @@ class Outer {
         throw new LogicError("deep");
     }
 
-    public static function quiet(): string {
+    public static function quiet(): tainted string {
         try {
             Outer::inner();
         } catch (LogicError $swallowed) {

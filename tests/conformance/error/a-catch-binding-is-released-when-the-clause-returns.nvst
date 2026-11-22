@@ -3,7 +3,7 @@ A `catch` clause that returns still runs the region's `finally`, and repeating t
 --FILE--
 <?nvs
 class Work {
-    public static function attempt(int $n): string {
+    public static function attempt(int $n): tainted string {
         try {
             if ($n % 3 == 0) {
                 throw new RuntimeError("multiple of three: " . $n);

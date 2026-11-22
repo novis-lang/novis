@@ -8,7 +8,7 @@ class Convert {
     // The `bytes as string` row: checked. A well-formed buffer becomes the string
     // over the same allocation; anything else throws, and is never
     // replaced, dropped or truncated.
-    public static function text(bytes $b): string {
+    public static function text(bytes $b): tainted string {
         try {
             return $b as string;
         } catch (Throwable $e) {

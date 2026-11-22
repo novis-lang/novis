@@ -92,8 +92,8 @@ array<Core\Crypto\PublicKey::Format> $unreadableFormats = [
     Core\Crypto\PublicKey::Format::Spki,
 ];
 int $verdicts = 0;
-string $sentence = "";
-array<string> $sentences = [];
+tainted string $sentence = "";
+array<tainted string> $sentences = [];
 foreach ($unreadable as string $slot => bytes $octets) {
     try {
         Core\Crypto\PublicKey $notAKey = Core\Crypto\PublicKey::read(

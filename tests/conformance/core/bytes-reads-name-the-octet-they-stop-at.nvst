@@ -13,7 +13,7 @@
 // `nvs_core_bytes_at` and `nvs_core_bytes_fill`.
 
 final class Buf {
-    public static function why(bytes $b, string $format): string {
+    public static function why(bytes $b, string $format): tainted string {
         try {
             Core\Bytes::unpack($b, $format);
             return "";
@@ -37,7 +37,7 @@ final class Buf {
         }
     }
 
-    public static function at(bytes $b, int $index): string {
+    public static function at(bytes $b, int $index): tainted string {
         try {
             return Core\Bytes::at($b, $index) as string;
         } catch (Throwable $e) {
@@ -45,7 +45,7 @@ final class Buf {
         }
     }
 
-    public static function fill(uint $length, uint $byte): string {
+    public static function fill(uint $length, uint $byte): tainted string {
         try {
             return Core\Encoding::toHex(Core\Bytes::fill($length, $byte));
         } catch (Throwable $e) {

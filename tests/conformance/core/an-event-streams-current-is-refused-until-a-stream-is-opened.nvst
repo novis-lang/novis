@@ -7,7 +7,7 @@
 // `LogicError` a program catches and names the member it called, because what
 // was wrong is the call and not the program: there is no arrangement under which
 // asking a program with no stream for its stream is the right thing to do.
-var $before = "";
+tainted string $before = "";
 try {
     Core\Sse::current();
 } catch (LogicError $refused) {

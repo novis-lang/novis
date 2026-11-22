@@ -65,7 +65,7 @@ array<callable> $filters = [
 ];
 
 var $marks = "";
-array<string> $said = [];
+array<tainted string> $said = [];
 foreach ($filters as callable $filter) {
     try {
         var $answer = Core\Out::capture(fn (): void => { echo "w"; }, {through: $filter});
@@ -81,7 +81,7 @@ echo $marks, "\n";
 // the one the argument carried. The row check's refusal names the class that
 // arrived. The refusals are in the order the sweep met them, so a message that
 // grew or lost a side fails here rather than passing a count.
-foreach ($said as string $line) {
+foreach ($said as tainted string $line) {
     echo $line, "\n";
 }
 

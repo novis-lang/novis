@@ -17,8 +17,8 @@ class Tally {
         return $sum;
     }
 
-    public static function handlerBody(int $n): string {
-        var $out = "";
+    public static function handlerBody(int $n): tainted string {
+        tainted string $out = "";
         int $i = 0;
         while ($i < $n) {
             try {

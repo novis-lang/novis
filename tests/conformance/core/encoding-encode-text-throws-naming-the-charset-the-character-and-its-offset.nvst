@@ -5,7 +5,7 @@ Core\Encoding::encodeText throws on the first character the charset cannot write
 final class Refusal {
     // Checks that the message names the method, the charset, the code point
     // and the offset.
-    public static function names(string $message, string $case, string $point, string $offset): string {
+    public static function names(tainted string $message, string $case, string $point, string $offset): string {
         bool $ok = Core\Str::startsWith($message, "Core\\Encoding::encodeText(): ")
             && Core\Str::contains($message, "Core\\Charset::" . $case)
             && Core\Str::contains($message, "(U+" . $point . ")")

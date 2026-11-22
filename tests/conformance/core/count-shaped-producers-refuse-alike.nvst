@@ -22,7 +22,7 @@ The eight count-shaped producers agree — each answers a size it can serve, and
 // member that grew its own wording as "other", so either one fails every
 // count below while still looking right beside its own arguments.
 final class Asked {
-    public static function of(string $member, string $message): string {
+    public static function of(string $member, tainted string $message): string {
         if (Core\Str::startsWith($message, $member)) {
             if (Core\Str::endsWith($message, ": the requested allocation is larger than any this process could hold")) {
                 return "seam";

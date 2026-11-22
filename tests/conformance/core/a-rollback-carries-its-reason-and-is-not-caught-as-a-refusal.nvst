@@ -68,7 +68,7 @@ final class Abandoned {
 
     // And the root admits it, which is what makes an outermost handler able to
     // report a rollback it was not written for.
-    public static function root(): string {
+    public static function root(): tainted string {
         try {
             throw new RolledBack("nothing was written");
         } catch (Throwable $anything) {

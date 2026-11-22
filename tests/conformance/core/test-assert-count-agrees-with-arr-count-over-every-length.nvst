@@ -30,7 +30,7 @@ final class Ask {
         return "held";
     }
 
-    public static function reported(array<string> $subject, uint $expected): string {
+    public static function reported(array<string> $subject, uint $expected): tainted string {
         try {
             Test::assertCount($subject, $expected);
         } catch (Core\Test\Failure $fromReport) {

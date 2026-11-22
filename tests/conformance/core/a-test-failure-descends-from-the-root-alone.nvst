@@ -27,7 +27,7 @@ final class Placement {
 
     // And by its own name, which is what a helper written around a failed check
     // uses — the rule makes catching one necessary rather than merely allowed.
-    public static function byName(): string {
+    public static function byName(): tainted string {
         try {
             throw new Failure("the record had three wrong fields");
         } catch (Failure $failed) {
@@ -51,7 +51,7 @@ final class Placement {
     // A frame between the throw and the caller that re-raises the same value
     // hands on the same message, which is what lets a wrapper report a failure
     // it decided not to handle.
-    public static function rethrown(): string {
+    public static function rethrown(): tainted string {
         try {
             try {
                 throw new Failure("the two amounts did not match");

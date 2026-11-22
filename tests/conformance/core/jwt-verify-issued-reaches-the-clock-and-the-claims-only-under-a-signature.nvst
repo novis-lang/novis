@@ -110,7 +110,7 @@ array<string> $addressed = [
 ];
 int $ours = 0;
 int $theirs = 0;
-string $said = "";
+tainted string $said = "";
 foreach ($addressed as string $claims) {
     try {
         var $mine = Core\Jwt::verifyIssued<tainted {iss: string, exp: int}>(

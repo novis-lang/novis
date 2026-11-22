@@ -4,7 +4,7 @@
 <?nvs
 // covers: Core\Time\Date::with, Core\Time\DateTime::with, Core\Time\TimeOfDay::with
 class Ask {
-    public static function date(uint $day): string {
+    public static function date(uint $day): tainted string {
         try {
             return Core\Time\Date::at(2024, 2, 29)->with({day: $day})->format("yyyy-MM-dd");
         } catch (RuntimeError $refused) {
@@ -12,7 +12,7 @@ class Ask {
         }
     }
 
-    public static function stamp(uint $month): string {
+    public static function stamp(uint $month): tainted string {
         try {
             return Core\Time\DateTime::fromIso("2024-02-29", 'UTC')->with({month: $month})->format("yyyy-MM-dd");
         } catch (RuntimeError $refused) {
@@ -20,7 +20,7 @@ class Ask {
         }
     }
 
-    public static function clock(uint $hour): string {
+    public static function clock(uint $hour): tainted string {
         try {
             return Core\Time\TimeOfDay::at(12, 0)->with({hour: $hour})->format("HH:mm");
         } catch (RuntimeError $refused) {

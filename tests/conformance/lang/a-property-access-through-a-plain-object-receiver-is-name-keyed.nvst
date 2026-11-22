@@ -28,7 +28,7 @@ class Erased {
     // The write's value is checked against the *concrete* field's declared
     // type, which is the one thing an erased write site cannot know for
     // itself.
-    public static function refuse(object $o): string {
+    public static function refuse(object $o): tainted string {
         try {
             $o->count = "not a number";
             return "not refused";
@@ -37,7 +37,7 @@ class Erased {
         }
     }
 
-    public static function missingRead(object $o): string {
+    public static function missingRead(object $o): tainted string {
         try {
             echo $o->nope, "\n";
             return "not refused";
@@ -46,7 +46,7 @@ class Erased {
         }
     }
 
-    public static function missingWrite(object $o): string {
+    public static function missingWrite(object $o): tainted string {
         try {
             $o->nope = 1;
             return "not refused";

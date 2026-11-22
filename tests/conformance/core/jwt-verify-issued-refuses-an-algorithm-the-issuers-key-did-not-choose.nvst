@@ -46,7 +46,7 @@ string $confused = Core\Jwt::sign($mac, 15m, $published);
 string $es256 = $segment("{\"alg\":\"ES256\",\"typ\":\"JWT\"}") . "." . $claims . "." . $signature;
 
 array<string> $attempts = [$stripped, $borrowed, $confused, $es256];
-string $first = "";
+tainted string $first = "";
 int $refusals = 0;
 int $agreed = 0;
 foreach ($attempts as string $attempt) {

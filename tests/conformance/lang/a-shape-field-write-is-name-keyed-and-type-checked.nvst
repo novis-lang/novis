@@ -25,7 +25,7 @@ class Move {
     // A class instance satisfies a shape whose field types are wider than its
     // properties, so `Count` satisfies `{n: int|string}`. A write through that
     // view is checked against the property's declared type, and it throws.
-    public static function widen({n: int|string} $p): string {
+    public static function widen({n: int|string} $p): tainted string {
         try {
             $p->n = "s";
             return "not refused";

@@ -39,7 +39,7 @@ foreach (Core\Arr::range(0, 4) as int $k) {
 // X25519 is a key for `agree`, so it is the one row with no signature in it.
 // An empty `bytes` stands in its slot, and the matrix below never offers it.
 array<bytes> $signed = [];
-array<string> $bugs = [];
+array<tainted string> $bugs = [];
 foreach (Core\Arr::range(0, 4) as int $k) {
     try {
         $signed = Core\Arr::append($signed, Core\Crypto::sign($message, $pairs[$k]));

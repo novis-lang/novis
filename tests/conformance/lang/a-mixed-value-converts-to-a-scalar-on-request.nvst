@@ -9,7 +9,7 @@ A `mixed` converts to a scalar only on request, and each row throws where it fai
 // runtime tag — `"42"` takes the `string -> int` row, `2.5` the `float -> int`
 // one — and a tag the table defines no row from is a conversion that failed.
 class Convert {
-    public static function toInt(mixed $m): string {
+    public static function toInt(mixed $m): tainted string {
         try {
             return ($m as int) as string;
         } catch (Throwable $e) {
@@ -17,7 +17,7 @@ class Convert {
         }
     }
 
-    public static function toUint(mixed $m): string {
+    public static function toUint(mixed $m): tainted string {
         try {
             return ($m as uint) as string;
         } catch (Throwable $e) {
@@ -25,7 +25,7 @@ class Convert {
         }
     }
 
-    public static function toFloat(mixed $m): string {
+    public static function toFloat(mixed $m): tainted string {
         try {
             return ($m as float) as string;
         } catch (Throwable $e) {

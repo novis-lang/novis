@@ -73,7 +73,7 @@ final class Device {
     }
 
     // The part of an error message after the member's name.
-    public static function why(Throwable $e): string {
+    public static function why(Throwable $e): tainted string {
         return Core\Str::after($e->message, "(): ") ?? $e->message;
     }
 }

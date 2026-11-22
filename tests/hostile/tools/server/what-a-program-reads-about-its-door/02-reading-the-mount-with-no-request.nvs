@@ -54,7 +54,7 @@ echo 'link: ', Core\Router::url(Files::show, ['name' => 'report']), "\n";
 
 // 3. Reads the mount 100000 times and keeps the message of every error.
 //    This step uses a lot of memory.
-array<string> $messages = [];
+array<tainted string> $messages = [];
 uint $i = 0;
 while ($i < 100000) {
     try {

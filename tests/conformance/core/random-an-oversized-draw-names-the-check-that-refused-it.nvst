@@ -12,7 +12,7 @@ Core\Random::bytes and ::token each name which of their two checks refused an ov
 // `Which` exists because a case's own helper has to be a method (`rule:classes/no-free-functions-or-constants`)
 // and every row below asks the same question of a different count.
 final class Which {
-    public static function bytes(uint $count): string {
+    public static function bytes(uint $count): tainted string {
         try {
             Core\Random::bytes($count);
             return "served";
@@ -21,7 +21,7 @@ final class Which {
         }
     }
 
-    public static function token(uint $count): string {
+    public static function token(uint $count): tainted string {
         try {
             Core\Random::token($count);
             return "served";
@@ -32,7 +32,7 @@ final class Which {
 
     // Which check answered, with the member's own name off the front, so the
     // two members' answers can be compared to each other.
-    public static function check(string $answer): string {
+    public static function check(tainted string $answer): string {
         if ($answer == "served") {
             return "served";
         }

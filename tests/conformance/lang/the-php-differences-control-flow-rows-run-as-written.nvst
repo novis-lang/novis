@@ -53,7 +53,7 @@ try {
 }
 
 // Two `catch` clauses, each with its own variable.
-string $caught = "";
+tainted string $caught = "";
 try {
     throw new NotFound("missing");
 } catch (LogicError $logic) {

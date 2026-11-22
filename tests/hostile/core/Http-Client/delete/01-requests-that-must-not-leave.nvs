@@ -74,7 +74,7 @@ echo 'step 3: ', $i, "\n";
 // 4. Every refused URL is kept in a list with its error message, and never freed.
 //    This step ends the program at its memory limit.
 echo "step 4\n";
-array<string> $kept = [];
+array<tainted string> $kept = [];
 uint $n = 0;
 while (true) {
     string $address = Core\Str::format('http://10.0.0.%d/', $n % 250) . Core\Str::repeat('b', 10000);

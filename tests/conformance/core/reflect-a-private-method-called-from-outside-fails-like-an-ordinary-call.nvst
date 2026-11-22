@@ -41,13 +41,13 @@ echo $described->call($vault, "open", []), " ", $erased->open(), "\n";
 // erased receiver: a `mixed` is outside every class by construction, which is
 // the premise this call site has too. Both refusals are caught as `LogicError`
 // and compared by their own sentence — the same check, not two that agree.
-var $reflectively = "not refused";
+tainted string $reflectively = "not refused";
 try {
     var $said = $described->call($vault, "sealed", []);
 } catch (LogicError $refused) {
     $reflectively = $refused->message;
 }
-var $ordinarily = "not refused";
+tainted string $ordinarily = "not refused";
 try {
     var $also = $erased->sealed();
 } catch (LogicError $met) {

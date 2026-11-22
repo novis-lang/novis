@@ -104,7 +104,7 @@ echo 'step 3: ', $j, "\n";
 // 4. Every refused request is kept in a list with its error message, and never freed.
 //    The method changes on each call. This step ends the program at its memory limit.
 echo "step 4\n";
-array<string> $kept = [];
+array<tainted string> $kept = [];
 uint $n = 0;
 while (true) {
     string $address = Core\Str::format('http://10.0.%d.1/', $n % 250) . Core\Str::repeat('e', 10000);

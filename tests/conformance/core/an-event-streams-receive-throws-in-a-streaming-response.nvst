@@ -7,7 +7,7 @@
 // events, so nothing published could reach it. `null` here would read as "the
 // stream is over" and end a loop for a reason that was never true, so the
 // wait is refused instead.
-var $refused = "";
+tainted string $refused = "";
 try {
     Core\Out::capture(fn (): void => {
         var $sse = Core\Sse::stream();

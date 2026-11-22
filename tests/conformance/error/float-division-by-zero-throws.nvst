@@ -16,7 +16,7 @@
 final class Ask {
     // Both operands are `float` where they are written, so this is the compiled
     // guard. `float $quotient` is the declaration the throw never reaches.
-    public static function statically(float $a, float $b): string {
+    public static function statically(float $a, float $b): tainted string {
         try {
             float $quotient = $a / $b;
             return $quotient as string;
@@ -29,7 +29,7 @@ final class Ask {
     // compared against, not to be re-pinned: `int / int` is `int|float` and the
     // union is absorbed by the declared `float`, as `rule:types/arithmetic` says
     // it is.
-    public static function integrally(int $a, int $b): string {
+    public static function integrally(int $a, int $b): tainted string {
         try {
             float $quotient = $a / $b;
             return $quotient as string;

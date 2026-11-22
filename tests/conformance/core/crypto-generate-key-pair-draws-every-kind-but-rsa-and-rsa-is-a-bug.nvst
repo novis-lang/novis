@@ -31,7 +31,7 @@ echo "drawn ", $pairs, " of ", Core\Arr::count($drawn), "\n";
 // its RSA key by whoever issued it. So this is a `LogicError` — a bug in the
 // call and not a verdict on anything — and its sentence names
 // `Core\Crypto\KeyPair::read`, which is the member that does take the file.
-array<string> $said = [];
+array<tainted string> $said = [];
 foreach (Core\Arr::range(0, 1) as int $slot) {
     try {
         Core\Crypto\KeyPair $never = Core\Crypto::generateKeyPair($issued[$slot]);
@@ -43,7 +43,7 @@ foreach (Core\Arr::range(0, 1) as int $slot) {
 echo "refused ", Core\Arr::count($said), " of ", Core\Arr::count($issued), "\n";
 
 int $oneSentence = 0;
-foreach ($said as string $message) {
+foreach ($said as tainted string $message) {
     if ($message == $said[0]) {
         $oneSentence += 1;
     }

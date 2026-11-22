@@ -15,7 +15,7 @@ class Opt {
 
     // The same field, the same value, no guard: absence is a checked,
     // catchable throw naming the field and the concrete class.
-    public static function unguarded({a?: string, b: int} $p): string {
+    public static function unguarded({a?: string, b: int} $p): tainted string {
         try {
             return $p->a;
         } catch (Throwable $e) {

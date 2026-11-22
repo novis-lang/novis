@@ -15,7 +15,7 @@ class Gate {
     // front of it, and that check is against every case of the *declaration*
     // rather than a subset named at the site. That is what keeps the enum a
     // closed set once a plain integer can reach it.
-    public static function of(int $n): string {
+    public static function of(int $n): tainted string {
         try {
             Mode $m = $n as Mode;
             return "case " . (($m as int) as string);

@@ -18,7 +18,7 @@ Integer `+`, `-`, `*` and unary `-` answer one step inside their type's bound an
 // `public static function` because a case is top-level statements and a
 // anonymous function holding the sweep would not lower (`rule:classes/no-free-functions-or-constants`).
 final class Edge {
-    public static function add(int $a, int $b): string {
+    public static function add(int $a, int $b): tainted string {
         try {
             int $sum = $a + $b;
             return $sum as string;
@@ -27,7 +27,7 @@ final class Edge {
         }
     }
 
-    public static function sub(int $a, int $b): string {
+    public static function sub(int $a, int $b): tainted string {
         try {
             int $difference = $a - $b;
             return $difference as string;
@@ -36,7 +36,7 @@ final class Edge {
         }
     }
 
-    public static function mul(int $a, int $b): string {
+    public static function mul(int $a, int $b): tainted string {
         try {
             int $product = $a * $b;
             return $product as string;
@@ -45,7 +45,7 @@ final class Edge {
         }
     }
 
-    public static function neg(int $a): string {
+    public static function neg(int $a): tainted string {
         try {
             int $negated = -$a;
             return $negated as string;
@@ -58,7 +58,7 @@ final class Edge {
     // the same one read differently: `uint` is exact over `0 … 2^64−1`, so it
     // overflows where `int` has room (`2^63`) and has room where `int`
     // overflows (`2^64−1`), while `0 - 1` and `-1` leave it altogether.
-    public static function uadd(uint $a, uint $b): string {
+    public static function uadd(uint $a, uint $b): tainted string {
         try {
             uint $sum = $a + $b;
             return $sum as string;
@@ -67,7 +67,7 @@ final class Edge {
         }
     }
 
-    public static function usub(uint $a, uint $b): string {
+    public static function usub(uint $a, uint $b): tainted string {
         try {
             uint $difference = $a - $b;
             return $difference as string;
@@ -76,7 +76,7 @@ final class Edge {
         }
     }
 
-    public static function umul(uint $a, uint $b): string {
+    public static function umul(uint $a, uint $b): tainted string {
         try {
             uint $product = $a * $b;
             return $product as string;
@@ -85,7 +85,7 @@ final class Edge {
         }
     }
 
-    public static function uneg(uint $a): string {
+    public static function uneg(uint $a): tainted string {
         try {
             uint $negated = -$a;
             return $negated as string;

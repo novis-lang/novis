@@ -10,7 +10,7 @@ final class Order {
     enum Status { Open, Paid = 5, Cancelled }
 
     // Inside its owner the target is the bare name.
-    public static function of(int $n): string {
+    public static function of(int $n): tainted string {
         try {
             Status $status = $n as Status;
             return "case " . (($status as int) as string);

@@ -41,7 +41,7 @@ int $checks = 0;
 int $verified = 0;
 int $refusedEarly = 0;
 int $refusedAsItTurned = 0;
-string $earlySays = "";
+tainted string $earlySays = "";
 while (Core\Time::now()->toEpochSeconds() < $exp) {
     $checks = $checks + 1;
     try {
@@ -68,7 +68,7 @@ if ($checks == $verified + $refusedAsItTurned && $refusedEarly == 0 && $verified
 while (Core\Time::now()->toEpochSeconds() < $exp) {
     Core\Time::sleep(5ms);
 }
-string $expiredSays = "";
+tainted string $expiredSays = "";
 if (Core\Time::now()->toEpochSeconds() == $exp) {
     try {
         array<tainted string> $late = Core\Jwt::verify($token, $key);
@@ -84,7 +84,7 @@ if (Core\Time::now()->toEpochSeconds() == $exp) {
 // wrong. Compared against the sentence a forgery gets — the module doc's
 // *verification returns claims or throws* section owns why exactly one of
 // these two is allowed to be specific.
-string $forgedSays = "";
+tainted string $forgedSays = "";
 try {
     array<tainted string> $forged = Core\Jwt::verify($token . "Z", $key);
     echo "an altered signature verified", "\n";

@@ -8,8 +8,8 @@ final class Ladder {
     // region's own `finally` runs before the new exception reaches the
     // enclosing `try`. A clause does not catch what its own body raises, so
     // the second exception is the outer clause's and not this list's.
-    public static function order(): string {
-        var $log = "";
+    public static function order(): tainted string {
+        tainted string $log = "";
         try {
             try {
                 throw new LogicError("one");
@@ -27,8 +27,8 @@ final class Ladder {
 
     // Re-raising the very same object takes the same path — the `finally`
     // runs once, and the object the outer clause binds is the one thrown.
-    public static function rethrown(): string {
-        var $log = "";
+    public static function rethrown(): tainted string {
+        tainted string $log = "";
         try {
             try {
                 throw new LogicError("same");
@@ -46,8 +46,8 @@ final class Ladder {
     // A clause that binds no name reaches it too: the exception it was
     // entered with has no slot to live in, which changes what is released
     // but not what runs.
-    public static function unbound(): string {
-        var $log = "";
+    public static function unbound(): tainted string {
+        tainted string $log = "";
         try {
             try {
                 throw new LogicError("x");
@@ -65,8 +65,8 @@ final class Ladder {
     // Nested regions run innermost first, exactly as they do for a throw out
     // of a `try` body — the clause body's exception leaves one region at a
     // time.
-    public static function nested(): string {
-        var $log = "";
+    public static function nested(): tainted string {
+        tainted string $log = "";
         try {
             try {
                 try {
@@ -88,7 +88,7 @@ final class Ladder {
     // The `finally` runs before the clause's exception leaves, so a `finally`
     // that throws on the way replaces it: "c" is what the outer clause binds,
     // never "b".
-    public static function replaced(): string {
+    public static function replaced(): tainted string {
         try {
             try {
                 throw new LogicError("a");
@@ -104,7 +104,7 @@ final class Ladder {
 
     // The region and the clause that catches its exception are one frame, so
     // the `finally` runs before the exception crosses into the caller's.
-    public static function acrossAFrame(): string {
+    public static function acrossAFrame(): tainted string {
         try {
             Ladder::wrapping();
         } catch (Throwable $crossed) {

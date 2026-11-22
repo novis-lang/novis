@@ -17,7 +17,7 @@ class ImportFailed extends RuntimeError {
 }
 
 class Runner {
-    public static function fromAll(): string {
+    public static function fromAll(): tainted string {
         try {
             Core\Task::all({
                 // Returns at once, so the group has a survivor to cancel and
@@ -36,7 +36,7 @@ class Runner {
         return "all: nothing propagated";
     }
 
-    public static function fromMap(): string {
+    public static function fromMap(): tainted string {
         try {
             Core\Task::map([31, 32], fn(int $n): int => {
                 throw new ImportFailed("no price", $n);

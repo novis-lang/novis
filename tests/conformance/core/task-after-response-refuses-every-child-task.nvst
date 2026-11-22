@@ -12,7 +12,7 @@ Only the request's own task may `Core\Task::afterResponse`: a `Core\Task::all` c
 // is that they *agree*: a member that grew a second answer for one of them
 // would still look right on that one's own line.
 var $fromGroup = Core\Task::all({
-    refusal: fn (): string => {
+    refusal: fn (): tainted string => {
         try {
             Core\Task::afterResponse(fn (): void => {
                 echo "never\n";

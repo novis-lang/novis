@@ -7,18 +7,18 @@ Every `Core\Session` member gives one answer to a program answering no request, 
 // refusal of its own still looks right on its own line, and fails here. Each
 // message has its own member name taken out first, which is the only part
 // allowed to differ.
-string $fromGet = "";
-string $fromSetShort = "";
-string $fromSetLong = "";
-string $fromRemove = "";
-string $fromClearShort = "";
-string $fromClearLong = "";
-string $fromClearAll = "";
-string $fromRegenerate = "";
-string $fromSetShortSecret = "";
-string $fromSetLongSecret = "";
-string $fromGetSecret = "";
-string $fromOpen = "";
+tainted string $fromGet = "";
+tainted string $fromSetShort = "";
+tainted string $fromSetLong = "";
+tainted string $fromRemove = "";
+tainted string $fromClearShort = "";
+tainted string $fromClearLong = "";
+tainted string $fromClearAll = "";
+tainted string $fromRegenerate = "";
+tainted string $fromSetShortSecret = "";
+tainted string $fromSetLongSecret = "";
+tainted string $fromGetSecret = "";
+tainted string $fromOpen = "";
 
 secret bytes $key = Core\Crypto::generateKey();
 array<secret bytes> $ring = [$key];
@@ -99,12 +99,12 @@ try {
     $fromOpen = Core\Str::replace($e->message, "::openWithIdentifier()", "::<member>()");
 }
 
-array<string> $answers = [
+array<tainted string> $answers = [
     $fromSetShort, $fromSetLong, $fromRemove, $fromClearShort, $fromClearLong, $fromClearAll,
     $fromRegenerate, $fromSetShortSecret, $fromSetLongSecret, $fromGetSecret, $fromOpen,
 ];
 uint $agreed = 0;
-foreach ($answers as string $answer) {
+foreach ($answers as tainted string $answer) {
     if ($answer == $fromGet) {
         $agreed = $agreed + 1;
     }

@@ -21,7 +21,7 @@ echo $refused, "\n";
 
 // 2. The text of one refusal is measured. The number has 302 digits and the
 //    message names every one of them, so this prints 1.
-string $message = '';
+tainted string $message = '';
 try {
     $wide->toInt();
 } catch (ArithmeticError $tooLarge) {

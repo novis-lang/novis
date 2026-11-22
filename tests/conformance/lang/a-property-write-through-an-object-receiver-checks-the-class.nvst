@@ -23,7 +23,7 @@ class Holder {
 
     public function constructor() { $this->circle = new Circle(); }
 
-    public static function write(object $o, string $field, Value $value): string {
+    public static function write(object $o, string $field, Value $value): tainted string {
         try {
             if ($field == "shape") { $o->shape = $value; }
             if ($field == "circle") { $o->circle = $value; }

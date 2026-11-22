@@ -13,7 +13,7 @@ Core\Random's four count-shaped refusals agree — each answers one step inside 
 // and nothing wider, so a refusal raised in another class leaves the case with
 // an uncaught throw instead of an answer.
 final class Refused {
-    public static function int(int $min, int $max): string {
+    public static function int(int $min, int $max): tainted string {
         try {
             Core\Random::int($min, $max);
             return "served";
@@ -22,7 +22,7 @@ final class Refused {
         }
     }
 
-    public static function bytes(uint $count): string {
+    public static function bytes(uint $count): tainted string {
         try {
             Core\Random::bytes($count);
             return "served";
@@ -31,7 +31,7 @@ final class Refused {
         }
     }
 
-    public static function token(uint $count): string {
+    public static function token(uint $count): tainted string {
         try {
             Core\Random::token($count);
             return "served";
@@ -40,7 +40,7 @@ final class Refused {
         }
     }
 
-    public static function sample(array<string> $subject, uint $count): string {
+    public static function sample(array<string> $subject, uint $count): tainted string {
         try {
             Core\Random::sample($subject, $count);
             return "served";
@@ -56,7 +56,7 @@ array<string> $one = ["only"];
 // The last call each member answers. `int` is inclusive at both ends, so a
 // one-point range is a draw and not an empty one; `bytes` and `token` draw at
 // one unit of entropy; `sample` draws every entry an array holds.
-array<string> $accepted = [
+array<tainted string> $accepted = [
     Refused::int(4, 4),
     Refused::bytes(1),
     Refused::token(1),
@@ -66,7 +66,7 @@ array<string> $accepted = [
 // The first call each one does not, one step further out in the single
 // argument that decides it — a lower bound above the upper, a draw of nothing,
 // a sample wider than the array.
-array<string> $refusals = [
+array<tainted string> $refusals = [
     Refused::int(4, 3),
     Refused::bytes(0),
     Refused::token(0),
@@ -74,7 +74,7 @@ array<string> $refusals = [
 ];
 
 int $served = 0;
-foreach ($accepted as string $answer) {
+foreach ($accepted as tainted string $answer) {
     if ($answer == "served") {
         $served = $served + 1;
     }
@@ -82,7 +82,7 @@ foreach ($accepted as string $answer) {
 echo "answered one step inside the bound: ", $served, " of ", Core\Arr::count($accepted), "\n";
 
 int $named = 0;
-foreach ($refusals as string $refusal) {
+foreach ($refusals as tainted string $refusal) {
     if (Core\Str::startsWith($refusal, 'Core\Random::')) {
         $named = $named + 1;
     }
@@ -92,8 +92,8 @@ echo "refused one step outside it, each naming the member: ", $named, " of ", Co
 // Four sentences and not one refusal spelled four times: a message is equal to
 // itself and to nothing else, so the diagonal is the whole of it.
 int $same = 0;
-foreach ($refusals as string $left) {
-    foreach ($refusals as string $right) {
+foreach ($refusals as tainted string $left) {
+    foreach ($refusals as tainted string $right) {
         if ($left == $right) {
             $same = $same + 1;
         }

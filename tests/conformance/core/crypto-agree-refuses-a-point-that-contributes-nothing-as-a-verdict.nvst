@@ -22,7 +22,7 @@ array<string> $contributeNothing = [
     "0100000000000000000000000000000000000000000000000000000000000000",
 ];
 
-array<string> $said = [];
+array<tainted string> $said = [];
 foreach ($contributeNothing as string $point) {
     // The read accepts it: this is a public key, and the refusal is not here.
     Core\Crypto\PublicKey $small = Core\Crypto\PublicKey::read(
@@ -40,7 +40,7 @@ foreach ($contributeNothing as string $point) {
 echo "refused ", Core\Arr::count($said), " of ", Core\Arr::count($contributeNothing), "\n";
 
 int $oneSentence = 0;
-foreach ($said as string $message) {
+foreach ($said as tainted string $message) {
     if ($message == $said[0]) {
         $oneSentence += 1;
     }

@@ -4,7 +4,7 @@
 <?nvs
 // covers: ArithmeticError
 class Ladder {
-    public static function of(int $n): string {
+    public static function of(int $n): tainted string {
         try {
             if ($n == 0) {
                 throw new IOError("io");

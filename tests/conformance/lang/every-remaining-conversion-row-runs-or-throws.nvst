@@ -64,7 +64,7 @@ class Row {
 
     // The throw carries the operand's own type and value, which is what tells
     // a lossy conversion apart from a pair the grid never had a row for.
-    public static function message(int $i): string {
+    public static function message(int $i): tainted string {
         try {
             return ($i as uint) as string;
         } catch (Throwable $e) {

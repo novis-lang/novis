@@ -71,7 +71,7 @@ Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
     // The first answer is pinned as well as compared: two identical wrong
     // answers agree exactly as well as two right ones, and a `status` that was
     // always 0 would be perfectly self-consistent.
-    string $message = "no error";
+    tainted string $message = "no error";
     if ($error != null) {
         $message = $error->message;
     }

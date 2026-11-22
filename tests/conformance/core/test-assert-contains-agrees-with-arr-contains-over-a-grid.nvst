@@ -21,7 +21,7 @@ final class Ask {
         return "held";
     }
 
-    public static function reported(array<string> $subject, string $needle): string {
+    public static function reported(array<string> $subject, string $needle): tainted string {
         try {
             Core\Test::assertContains($subject, $needle);
         } catch (Core\Test\Failure $fromReport) {

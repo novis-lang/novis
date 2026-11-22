@@ -10,7 +10,7 @@ class Key {
     // operand or a subscript base does. `rule:types/arrays` is what the tag is
     // read against, and the kinds it refuses throw here rather than at the
     // site, because the site could not see them.
-    public static function read(array<string> $t, mixed $k): string {
+    public static function read(array<string> $t, mixed $k): tainted string {
         try {
             return $t[$k];
         } catch (Throwable $e) {

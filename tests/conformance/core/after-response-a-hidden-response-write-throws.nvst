@@ -17,7 +17,7 @@ var $work = fn(): void => {
     }
     // A task the work starts also runs after the response was sent.
     var $done = Core\Task::all({
-        header: fn(): string => {
+        header: fn(): tainted string => {
             try {
                 Core\Response::setHeader("X-Shop", "1");
                 return "set";

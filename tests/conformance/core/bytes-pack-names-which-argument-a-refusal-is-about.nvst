@@ -18,7 +18,7 @@ final class Pack {
     // The message a refused call reports, or "" when the call is an answer.
     // Each `catch` binds its own name: a binding belongs to the function, so
     // two clauses in one class body cannot share one.
-    public static function none(string $format): string {
+    public static function none(string $format): tainted string {
         try {
             Core\Bytes::pack($format);
             return "";
@@ -27,7 +27,7 @@ final class Pack {
         }
     }
 
-    public static function one(string $format, mixed $a): string {
+    public static function one(string $format, mixed $a): tainted string {
         try {
             Core\Bytes::pack($format, $a);
             return "";
@@ -36,7 +36,7 @@ final class Pack {
         }
     }
 
-    public static function two(string $format, mixed $a, mixed $c): string {
+    public static function two(string $format, mixed $a, mixed $c): tainted string {
         try {
             Core\Bytes::pack($format, $a, $c);
             return "";

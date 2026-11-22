@@ -46,7 +46,7 @@ array<string> $refused = [
 ];
 
 int $verdicts = 0;
-array<string> $sentences = [];
+array<tainted string> $sentences = [];
 array<string> $tails = [];
 foreach ($refused as string $slot => string $token) {
     array<string> $parts = Core\Str::split($token, ".");

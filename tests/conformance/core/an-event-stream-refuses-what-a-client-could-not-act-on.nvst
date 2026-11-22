@@ -8,7 +8,7 @@
 
 // A client dispatches nothing for an empty data buffer, so an empty payload is
 // an event that provably could not arrive.
-var $empty = "";
+tainted string $empty = "";
 try {
     Core\Out::capture(fn (): void => {
         var $sse = Core\Sse::stream();
@@ -21,7 +21,7 @@ echo $empty, "\n";
 
 // Stripping the line break would change the name an application dispatches on,
 // which is the silent wrong answer a refusal exists instead of.
-var $named = "";
+tainted string $named = "";
 try {
     Core\Out::capture(fn (): void => {
         var $sse = Core\Sse::stream();
@@ -35,7 +35,7 @@ echo $named, "\n";
 // A NUL is refused with the two line breaks because its effect is the same: a
 // client discards an id containing one outright, so what the application wrote
 // is not what the peer acts on.
-var $identified = "";
+tainted string $identified = "";
 try {
     Core\Out::capture(fn (): void => {
         var $sse = Core\Sse::stream();
@@ -49,7 +49,7 @@ echo $identified, "\n";
 // `Core\Response::stream` takes any status; this refusal is the event stream's
 // alone. An event stream is `200` by protocol, so a program that set a status
 // and then opened one said two things about one response.
-var $contradicted = "";
+tainted string $contradicted = "";
 try {
     Core\Out::capture(fn (): void => {
         Core\Response::setStatus(404);
@@ -63,7 +63,7 @@ echo $contradicted, "\n";
 // A payload that is not a `string` goes through the encoder `Core\Json::encode`
 // is, so a value that encoder has no document for is refused here in the same
 // sentence it would be refused there.
-var $unencodable = "";
+tainted string $unencodable = "";
 try {
     Core\Out::capture(fn (): void => {
         var $sse = Core\Sse::stream();

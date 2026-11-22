@@ -12,7 +12,7 @@
 // `Refused` exists because a case's own helper has to be a method
 // (`rule:classes/no-free-functions-or-constants`).
 final class Refused {
-    public static function int(Core\Random\Seeded $g, int $min, int $max): string {
+    public static function int(Core\Random\Seeded $g, int $min, int $max): tainted string {
         try {
             $g->int($min, $max);
             return "served";
@@ -21,7 +21,7 @@ final class Refused {
         }
     }
 
-    public static function bytes(Core\Random\Seeded $g, uint $count): string {
+    public static function bytes(Core\Random\Seeded $g, uint $count): tainted string {
         try {
             $g->bytes($count);
             return "served";
@@ -30,7 +30,7 @@ final class Refused {
         }
     }
 
-    public static function token(Core\Random\Seeded $g, uint $count): string {
+    public static function token(Core\Random\Seeded $g, uint $count): tainted string {
         try {
             $g->token($count);
             return "served";
@@ -39,7 +39,7 @@ final class Refused {
         }
     }
 
-    public static function sample(Core\Random\Seeded $g, array<int> $a, uint $count): string {
+    public static function sample(Core\Random\Seeded $g, array<int> $a, uint $count): tainted string {
         try {
             $g->sample($a, $count);
             return "served";

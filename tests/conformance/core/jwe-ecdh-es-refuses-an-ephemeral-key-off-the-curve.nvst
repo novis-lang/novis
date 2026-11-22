@@ -27,7 +27,7 @@ tainted string $card = Core\Jwe::decrypt(
 echo $card == "{\"card\":\"4111 1111 1111 1111\"}" ? "a point on the curve opens" : "opened wrong", "\n";
 
 int $verdicts = 0;
-array<string> $sentences = [];
+array<tainted string> $sentences = [];
 
 // The same token with two octets of the `epk`'s `y` transposed: both
 // coordinates are still field elements and the pair is on nothing. A member

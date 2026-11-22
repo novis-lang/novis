@@ -36,7 +36,7 @@ array<string> $carried = [
 
 int $honoured = 0;
 int $refused = 0;
-string $says = "";
+tainted string $says = "";
 foreach ($carried as string $parameter) {
     string $header = "{\"alg\":\"EdDSA\"," . $parameter . ",\"typ\":\"JWT\"}";
     string $token = $signed($segment($header) . "." . $segment($payload), $issuer);

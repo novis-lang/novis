@@ -35,7 +35,7 @@ final class Tree {
         }
     }
 
-    public static function message(): string {
+    public static function message(): tainted string {
         try {
             throw new DbError("the server said no");
         } catch (DbError $refused) {

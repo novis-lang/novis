@@ -56,12 +56,12 @@ try { Core\Test::assertSame($padded, $money); } catch (Throwable $scaled) { $ref
 // digits under two different tags render the same string. A member that let
 // the tag reach the rendering -- a suffix, a width, a sign it only prints for
 // one of them -- fails here while both of its own lines still look right.
-string $intMsg = "";
-string $uintMsg = "";
+tainted string $intMsg = "";
+tainted string $uintMsg = "";
 try { Core\Test::assertSame($big, $neg); } catch (Throwable $keptInt) { $intMsg = $keptInt->message; }
 try { Core\Test::assertSame($same, $past); } catch (Throwable $keptUint) { $uintMsg = $keptUint->message; }
-string $intShown = Core\Str::before(Core\Str::after($intMsg, "is ") ?? "", ",") ?? "";
-string $uintShown = Core\Str::before(Core\Str::after($uintMsg, "is ") ?? "", ",") ?? "";
+tainted string $intShown = Core\Str::before(Core\Str::after($intMsg, "is ") ?? "", ",") ?? "";
+tainted string $uintShown = Core\Str::before(Core\Str::after($uintMsg, "is ") ?? "", ",") ?? "";
 int $agreed = 0;
 try { Core\Test::assertSame($intShown, $uintShown); $agreed = $agreed + 1; } catch (Throwable $disagreed) { echo $disagreed->message, "\n"; }
 echo "shown=", $intShown, "\n";

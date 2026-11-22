@@ -19,7 +19,7 @@ class Kennel {
 
     public function constructor() { $this->home = {pet: new Dog()}; }
 
-    public static function write(mixed $m, string $field, Value $value): string {
+    public static function write(mixed $m, string $field, Value $value): tainted string {
         try {
             if ($field == "dogs") { $m->dogs = $value; }
             if ($field == "home") { $m->home = $value; }

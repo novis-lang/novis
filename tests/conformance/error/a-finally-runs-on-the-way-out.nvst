@@ -11,7 +11,7 @@ class Guarded {
         }
     }
 
-    public static function caught(int $n): string {
+    public static function caught(int $n): tainted string {
         try {
             try {
                 throw new RuntimeError("boom " . ($n as string));

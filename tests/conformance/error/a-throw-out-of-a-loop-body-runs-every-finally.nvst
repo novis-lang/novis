@@ -3,8 +3,8 @@ A throw from inside two nested protected regions in a loop body runs both `final
 --FILE--
 <?nvs
 class Scan {
-    public static function upTo(int $stopAt): string {
-        var $log = "";
+    public static function upTo(int $stopAt): tainted string {
+        tainted string $log = "";
         try {
             array<int> $rows = [1, 2, 3, 4];
             foreach ($rows as string $k => int $row) {

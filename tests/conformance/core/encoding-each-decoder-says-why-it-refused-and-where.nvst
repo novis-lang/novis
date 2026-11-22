@@ -10,7 +10,7 @@
 // four sites and the two `why_not_*` helpers behind them.
 
 final class Say {
-    public static function b64(string $s): string {
+    public static function b64(string $s): tainted string {
         try {
             return Core\Encoding::toHex(Core\Encoding::fromBase64($s));
         } catch (Throwable $e) {
@@ -18,7 +18,7 @@ final class Say {
         }
     }
 
-    public static function url(string $s): string {
+    public static function url(string $s): tainted string {
         try {
             return Core\Encoding::toHex(Core\Encoding::fromBase64Url($s));
         } catch (Throwable $e) {
@@ -26,7 +26,7 @@ final class Say {
         }
     }
 
-    public static function b32(string $s): string {
+    public static function b32(string $s): tainted string {
         try {
             return Core\Encoding::toHex(Core\Encoding::fromBase32($s));
         } catch (Throwable $e) {
@@ -34,7 +34,7 @@ final class Say {
         }
     }
 
-    public static function hex(string $s): string {
+    public static function hex(string $s): tainted string {
         try {
             return Core\Encoding::toHex(Core\Encoding::fromHex($s));
         } catch (Throwable $e) {

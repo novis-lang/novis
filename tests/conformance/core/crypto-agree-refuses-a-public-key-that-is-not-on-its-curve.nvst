@@ -34,7 +34,7 @@ array<string> $notOnP256 = [
 // sentences are both asserted, because a refusal naming which check failed
 // tells a forger which half of the point to fix.
 int $refusedAtRead = 0;
-array<string> $readSentences = [];
+array<tainted string> $readSentences = [];
 foreach ($notOnP256 as string $point) {
     try {
         Core\Crypto\PublicKey $never = Core\Crypto\PublicKey::read(
@@ -61,7 +61,7 @@ array<string> $contributeNothing = [
 ];
 int $readBack = 0;
 int $refusedAtAgree = 0;
-array<string> $agreeSentences = [];
+array<tainted string> $agreeSentences = [];
 foreach ($contributeNothing as string $point) {
     Core\Crypto\PublicKey $small = Core\Crypto\PublicKey::read(
         Core\Encoding::fromHex($point),

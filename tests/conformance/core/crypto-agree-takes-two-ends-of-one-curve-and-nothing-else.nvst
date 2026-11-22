@@ -34,7 +34,7 @@ foreach (Core\Arr::range(0, 4) as int $kind) {
 // so there is nobody a verdict could be about.
 int $cells = 0;
 int $secrets = 0;
-array<string> $said = [];
+array<tainted string> $said = [];
 foreach (Core\Arr::range(0, 4) as int $mine) {
     foreach (Core\Arr::range(0, 4) as int $theirs) {
         $cells += 1;
@@ -55,7 +55,7 @@ echo "agreed ", $secrets, " of 2", "\n";
 echo "refused ", Core\Arr::count($said), " of ", $cells - 2, "\n";
 
 int $oneSentence = 0;
-foreach ($said as string $message) {
+foreach ($said as tainted string $message) {
     if ($message == $said[0]) {
         $oneSentence += 1;
     }

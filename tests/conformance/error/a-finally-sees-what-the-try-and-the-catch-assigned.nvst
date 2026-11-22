@@ -3,8 +3,8 @@ A `finally` runs in the enclosing scope, so it observes every assignment the `tr
 --FILE--
 <?nvs
 class F {
-    public static function trace(bool $fail): string {
-        var $out = "";
+    public static function trace(bool $fail): tainted string {
+        tainted string $out = "";
         try {
             $out = $out . "t";
             if ($fail) {

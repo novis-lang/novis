@@ -4,7 +4,7 @@ Core\Encoding::decodeText throws on the first byte sequence the charset cannot r
 <?nvs
 final class Refusal {
     // Checks that the message names the method, the charset and the offset.
-    public static function names(string $message, string $case, string $offset): string {
+    public static function names(tainted string $message, string $case, string $offset): string {
         bool $ok = Core\Str::contains($message, "Core\\Encoding::decodeText()")
             && Core\Str::contains($message, "Core\\Charset::" . $case)
             && Core\Str::contains($message, "at offset " . $offset);

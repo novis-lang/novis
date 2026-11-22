@@ -10,7 +10,7 @@ An ordering whose operand the checker could not type is decided by that operand'
 final class Ask {
     // One place where both operands are `mixed`, so every row below is the
     // tag-dispatched one and not a statically typed comparison in disguise.
-    public static function lt(mixed $a, mixed $b): string {
+    public static function lt(mixed $a, mixed $b): tainted string {
         try {
             if ($a < $b) {
                 return "lt";

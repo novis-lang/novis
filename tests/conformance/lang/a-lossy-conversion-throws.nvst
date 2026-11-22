@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 class Convert {
-    public static function toInt(float $f): string {
+    public static function toInt(float $f): tainted string {
         try {
             return ($f as int) as string;
         } catch (Throwable $e) {

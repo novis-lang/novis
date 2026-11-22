@@ -24,7 +24,7 @@ array<string> $tokens = [
 
 int $opened = 0;
 int $refused = 0;
-array<string> $sentences = [];
+array<tainted string> $sentences = [];
 foreach ($tokens as string $slot => string $token) {
     // Built inside the loop because a ring is consumed by the call, and each
     // row of the grid asks the same three questions of a different token.

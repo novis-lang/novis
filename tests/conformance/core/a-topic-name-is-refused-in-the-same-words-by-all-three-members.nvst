@@ -11,21 +11,21 @@ All three `Core\Topic` members refuse an empty name, and they agree on the sente
 // here.
 var $tail = " needs a topic name and was given an empty one";
 
-var $fromSubscribe = "";
+tainted string $fromSubscribe = "";
 try {
     Core\Topic::subscribe("");
 } catch (LogicError $refused) {
     $fromSubscribe = $refused->message;
 }
 
-var $fromPublish = "";
+tainted string $fromPublish = "";
 try {
     Core\Topic::publish("", "anything");
 } catch (LogicError $refused) {
     $fromPublish = $refused->message;
 }
 
-var $fromUnsubscribe = "";
+tainted string $fromUnsubscribe = "";
 try {
     Core\Topic::unsubscribe("");
 } catch (LogicError $refused) {

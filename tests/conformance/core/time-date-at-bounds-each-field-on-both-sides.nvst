@@ -15,7 +15,7 @@ class Cal {
     // The rendering, or the refusal, as one string. Both halves of every bound
     // below go through this, so an accepted value and a refused one are told
     // apart by what came back and never by which line printed.
-    public static function at(int $year, int $month, int $day): string {
+    public static function at(int $year, int $month, int $day): tainted string {
         try {
             return Core\Time\Date::at($year, $month as uint, $day as uint)->format("yyyy-MM-dd");
         } catch (RuntimeError $refused) {
@@ -89,7 +89,7 @@ array<int> $lasts = [29, 28, 29, 28, 30, 31];
 int $row = 0;
 int $lastAccepted = 0;
 int $nextRefused = 0;
-string $ceilings = "";
+tainted string $ceilings = "";
 for (; $row < 6; $row = $row + 1) {
     int $year = $years[$row as string];
     int $month = $months[$row as string];

@@ -4,7 +4,7 @@
 <?nvs
 final class Refusal {
     // Returns `1` when the message starts with the name of `$member`.
-    public static function of(string $message, string $member): string {
+    public static function of(tainted string $message, string $member): string {
         return Core\Str::startsWith($message, $member . "(): ") as string;
     }
 }

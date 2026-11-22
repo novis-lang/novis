@@ -7,7 +7,7 @@
 // All four throw the same sentence, so the text is printed once and the
 // sentences are counted for agreement.
 array<int> $past = [253402207201, 0 - 377705023202, 9223372036854775807, 0 - 9223372036854775807];
-array<string> $sentences = [];
+array<tainted string> $sentences = [];
 foreach ($past as int $seconds) {
     try {
         var $at = Core\Time\Instant::fromEpoch($seconds);
@@ -18,7 +18,7 @@ foreach ($past as int $seconds) {
 }
 echo $sentences[0], "\n";
 int $same = 0;
-foreach ($sentences as string $sentence) {
+foreach ($sentences as tainted string $sentence) {
     if ($sentence == $sentences[0]) {
         $same = $same + 1;
     }

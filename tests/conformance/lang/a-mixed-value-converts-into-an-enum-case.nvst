@@ -14,7 +14,7 @@ class Gate {
     // conversion table's own rows *before* the membership chain runs, which is
     // why the string "1" reaches `Mode::Read`: a request parameter, a string at
     // run time, converts into a case whose value is an integer.
-    public static function toMode(mixed $m): string {
+    public static function toMode(mixed $m): tainted string {
         try {
             Mode $mode = $m as Mode;
             return "mode " . (($mode as int) as string);
@@ -25,7 +25,7 @@ class Gate {
 
     // `rule:types/enum-case-type`'s named subset, over the same untyped operand: the same
     // conversion first, then a chain naming only the cases written at the site.
-    public static function narrow(mixed $m): string {
+    public static function narrow(mixed $m): tainted string {
         try {
             Mode::Read|Mode::Write $allowed = $m as Mode::Read|Mode::Write;
             return "allowed " . (($allowed as int) as string);

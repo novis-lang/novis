@@ -45,7 +45,7 @@ echo "1a parsed in ", $accepted, " radixes, first ", $first, "\n";
 // refuses it — the separator is an integer *literal*'s spelling.
 array<string> $bad = ["", "12.5", " 7", "1_000", "0x1f", "-"];
 int $refusals = 0;
-string $firstRefusal = "";
+tainted string $firstRefusal = "";
 foreach ($bad as string $text) {
     try {
         Core\BigInt::parse($text);

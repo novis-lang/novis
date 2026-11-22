@@ -16,7 +16,7 @@ class Layer {
         }
     }
 
-    public static function top(int $n): string {
+    public static function top(int $n): tainted string {
         try {
             return "ok " . Layer::middle($n);
         } catch (RuntimeError $e) {

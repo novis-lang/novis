@@ -13,7 +13,7 @@ class Wire {
     // operand that is not already one goes through `rule:types/conversion`'s own
     // checked row first and takes the enum's tag afterwards. Two steps, and
     // whichever one fails names the conversion that actually failed.
-    public static function decode(string $text): string {
+    public static function decode(string $text): tainted string {
         try {
             Signal $s = $text as Signal;
             return "signal " . (($s as uint) as string);

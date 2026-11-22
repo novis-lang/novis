@@ -44,7 +44,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // throws at byte 8, so `FF` arrived as itself.
     var $chunksFf = Core\Test::request(Core\Http\Method::Get, "/chunks-ff");
     echo Core\Encoding::toHex($chunksFf->bytes()), "\n";
-    string $streamed = "";
+    tainted string $streamed = "";
     try {
         $chunksFf->body();
     } catch (RuntimeError $notText) {
@@ -59,7 +59,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // stream that dropped, reordered or padded a chunk fails here while each
     // half still reads correctly alone.
     var $wholeFf = Core\Test::request(Core\Http\Method::Get, "/whole-ff");
-    string $whole = "";
+    tainted string $whole = "";
     try {
         $wholeFf->body();
     } catch (RuntimeError $wholeNotText) {

@@ -17,7 +17,7 @@ echo "--\n";
 
 // The body that was opened is untouched by the refusal: what is refused is the
 // handle, not the response.
-var $refused = "";
+tainted string $refused = "";
 try {
     Core\Sse::current();
 } catch (LogicError $caught) {

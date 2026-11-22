@@ -22,7 +22,7 @@ class Box {
 
     // `mixed` takes the same row, and a failed test is the `RuntimeError` a
     // failed `as ClassName` throws.
-    public static function wide(mixed $m): string {
+    public static function wide(mixed $m): tainted string {
         try {
             Width $s = $m as Width;
             return "w=" . ($s->w as string);

@@ -18,7 +18,7 @@ backend = "shared"
 // script, a job worker and a test all run with nothing inbound, and a session
 // belongs to the client a request came from, so there is none to open.
 uint $refused = 0;
-string $said = "";
+tainted string $said = "";
 try {
     Core\Session::get("cart");
 } catch (LogicError $refusal) {

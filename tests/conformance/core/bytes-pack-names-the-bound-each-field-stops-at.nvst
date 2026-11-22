@@ -21,7 +21,7 @@ final class Field {
         }
     }
 
-    public static function why(string $format, mixed $a): string {
+    public static function why(string $format, mixed $a): tainted string {
         try {
             Core\Bytes::pack($format, $a);
             return "";

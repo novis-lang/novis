@@ -18,7 +18,7 @@ final class Verdict {
     // refusals are `Fault::thrown` and so an ordinary `Throwable`, which is
     // what lets this case print thirteen verdicts instead of ending at the
     // first one.
-    public static function of(string $base, string $reference): string {
+    public static function of(string $base, string $reference): tainted string {
         try {
             return "= " . Core\Uri::parse($base)->resolve($reference)->toString();
         } catch (Throwable $refused) {
@@ -29,8 +29,8 @@ final class Verdict {
 
 // Pinned once, byte for byte, and then compared against rather than retyped:
 // the point below is that every refusal in the sweep is *one of these two*.
-string $relative = Verdict::of("/relative/base", "g");
-string $opaque = Verdict::of("mailto:a@b", "g");
+tainted string $relative = Verdict::of("/relative/base", "g");
+tainted string $opaque = Verdict::of("mailto:a@b", "g");
 echo $relative, "\n", $opaque, "\n";
 
 array<string> $bases = [
@@ -58,7 +58,7 @@ int $asRelative = 0;
 int $asOpaque = 0;
 int $other = 0;
 foreach ($bases as string $base) {
-    string $verdict = Verdict::of($base, "g");
+    tainted string $verdict = Verdict::of($base, "g");
     if ($verdict == $relative) {
         $asRelative = $asRelative + 1;
     } else if ($verdict == $opaque) {

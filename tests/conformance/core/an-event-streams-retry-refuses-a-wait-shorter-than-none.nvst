@@ -7,7 +7,7 @@
 // would answer a question the program did not ask, which is the silent wrong
 // answer a refusal exists instead of. A `LogicError` and not a diagnostic: the
 // wait can be computed, so what was wrong is the value and not the call.
-var $refused = "";
+tainted string $refused = "";
 try {
     Core\Out::capture(fn (): void => {
         var $sse = Core\Sse::stream();

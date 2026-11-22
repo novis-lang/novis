@@ -26,7 +26,7 @@ The last count `nvs_runtime::affordable` accepts is answered by the allocator an
 // partition, so a member that borrows a sibling's noun still fails here while
 // reading plausibly on its own line.
 final class Bound {
-    public static function noun(string $member, string $message): string {
+    public static function noun(string $member, tainted string $message): string {
         if (Core\Str::startsWith($message, $member) == false) {
             return "unnamed";
         }

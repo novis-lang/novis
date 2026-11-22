@@ -3,7 +3,7 @@
 --FILE--
 <?nvs
 class Build {
-    public static function one(uint $point): string {
+    public static function one(uint $point): tainted string {
         try {
             return Core\Str::fromCodePoint($point);
         } catch (Throwable $e) {
@@ -11,7 +11,7 @@ class Build {
         }
     }
 
-    public static function many(array<uint> $points): string {
+    public static function many(array<uint> $points): tainted string {
         try {
             return Core\Str::fromCodePoints($points);
         } catch (Throwable $e) {

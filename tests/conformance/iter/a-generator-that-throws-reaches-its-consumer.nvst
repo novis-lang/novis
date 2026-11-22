@@ -14,8 +14,8 @@ class Feed {
         }
     }
 
-    public static function drained(int $n): string {
-        var $out = "";
+    public static function drained(int $n): tainted string {
+        tainted string $out = "";
         try {
             foreach (Feed::upTo($n) as int $v) {
                 $out = $out . $v . ";";

@@ -6,7 +6,7 @@ Core\Random::pick, sample and shuffle draw over array<T> — every element survi
 // the draw rather than the draw itself. `Draw` exists because a `catch` does
 // not lower at file scope.
 class Draw {
-    public static function sampleCount(array<int> $a, uint $count): string {
+    public static function sampleCount(array<int> $a, uint $count): tainted string {
         try {
             return Core\Arr::count(Core\Random::sample($a, $count)) as string;
         } catch (Throwable $e) {
