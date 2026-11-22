@@ -14,7 +14,7 @@ stages:
     context: [docs/agent/commands.md]
   - id: 3
     title: "rust-lld links every Windows build, and nothing it links behaves differently"
-    status: open
+    status: done
     context: [.github/workflows/ci.yml, crates/nvs-host/src/scheduler.rs]
   - id: 4
     title: "the change is pushed, its run is green, and the Windows build times are recorded"
@@ -148,17 +148,17 @@ names `--times`.
 
 Only when stage 2 adopted rust-lld.
 
-- [ ] `.cargo/config.toml:1`: the linker for `x86_64-pc-windows-msvc`, with the comment the standing
+- [x] `.cargo/config.toml:1`: the linker for `x86_64-pc-windows-msvc`, with the comment the standing
   decision names.
-- [ ] `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
-- [ ] A panic still names its file and line: `cargo test --test panic_location` if such a test exists,
+- [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
+- [x] A panic still names its file and line: `cargo test --test panic_location` if such a test exists,
   else one written in `crates/nvs-cli/tests/` that runs `nvs` on a program that panics in the
   runtime and reads the location from stderr. It runs once, by name.
-- [ ] `cargo test --profile proof --test forced_unwind` passes (`crates/nvs-host/src/scheduler.rs`,
+- [x] `cargo test --profile proof --test forced_unwind` passes (`crates/nvs-host/src/scheduler.rs`,
   `Task::force_unwind`).
-- [ ] `cargo build --release --bin nvs`, then `bun nv pe-flags --bin target/release/nvs.exe` passes,
+- [x] `cargo build --release --bin nvs`, then `bun nv pe-flags --bin target/release/nvs.exe` passes,
   and the file properties still show the version resource.
-- [ ] `nvs-ext` builds its guest crates with a child cargo (`crates/nvs-ext/build.rs:80`). The
+- [x] `nvs-ext` builds its guest crates with a child cargo (`crates/nvs-ext/build.rs:80`). The
   extension tests that build a guest run once by name and pass.
 
 ### 4. the change is pushed, its run is green, and the Windows build times are recorded
@@ -180,30 +180,26 @@ Only when stage 2 adopted rust-lld.
 
 ### State
 
-Stage 1 is done: `bun nv pe-flags` and its `build.yml` step, which first runs in stage 4's push.
-Stage 2 is done, and rust-lld is adopted. Each measured build was a touch of
-`crates/nvs-runtime/src/lib.rs`, then `cargo build --workspace --all-targets`:
-
-| Build | Linker | Wall time | Binaries linked |
-|---|---|---|---|
-| a | link.exe | 127.4 s | 305 |
-| b | rust-lld.exe | 106.8 s | 305 |
-| a | link.exe | 132.7 s | 305 |
-| b | rust-lld.exe | 73.3 s | 305 |
-
-The `a` runs differ by 5.3 s, and `b` is faster by 20.6 s and 59.4 s. The probe is deleted.
-Linux links with rust-lld already: WSL's rustc 1.99.1 gives `x86_64-unknown-linux-gnu` the flavor
-`gnu-lld-cc` with a self-contained linker, the default since 1.90.0. No backlog line is needed.
+Stages 1 to 3 are done. rust-lld is adopted: stage 2's figures are in `.cargo/config.toml`'s comment,
+which names `rust-lld.exe` for every Windows profile. rustc finds it in the toolchain's sysroot, not
+on PATH. Linux links with rust-lld already (rustc 1.99.1's default for `x86_64-unknown-linux-gnu`).
 Nightly Miri run 44894790665 tested 7e97fa8444, older than its fix 156f11a7ca; the next one proves it.
 
-Sessions per stage: stage 1, one. Stage 2, one. Stage 3, none yet.
+Under rust-lld, each once: `cargo build` and clippy green. The new
+`crates/nvs-cli/tests/panic_location.rs` passed; its doc says why it panics its own child, not `nvs`.
+`forced_unwind` on the proof profile, 5 passed. `builtin` and `image_guest`, 9 and 5 passed.
+`bun nv pe-flags --bin target/release/nvs.exe` green, and the file properties show `Novis 0.0.5`.
+Integration tests link with `/DEBUG:NONE` (`tools/build/tests_without_pdb.rs`), so a backtrace was
+checked by hand with `NVS_TEST_PDB=1`: rust-lld's PDB names `tests\panic_location.rs:29`.
+No safe default was needed.
+
+Sessions per stage: stage 1, one. Stage 2, one. Stage 3, one. Stage 4, none yet.
 
 ### Next
 
-Stage 3 from its first item, at `docs/goals/windows-rust-lld.md` § *3. rust-lld links every Windows
-build*. Create `.cargo/config.toml` with `[target.x86_64-pc-windows-msvc] linker = "rust-lld.exe"`
-and the comment the standing decision names, using the figures above. The first `cargo build` after
-it relinks every binary. A test that fails only under rust-lld is investigated once, then gets the
-safe default. No test is expected to go red.
+Stage 4 from its first item, at `docs/goals/windows-rust-lld.md` § *4. the change is pushed*:
+`bun nv ci --check`, then `bun nv ci --push`, then `bun nv ci --watch --next` in the background. The
+first run's Windows legs may start on a cold Rust cache, because the linker changed. Expected red:
+none. A red Windows job that names a link error is the safe default's case.
 
 ### Backlog

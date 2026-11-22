@@ -1,0 +1,19 @@
+# Windows links with rust-lld, the LLVM linker that ships with the pinned toolchain, in every profile:
+# dev, test, proof, bench and release. One linker everywhere, so the binary CI tests is linked like the
+# one users get.
+#
+# Why: it links the workspace faster than link.exe. Measured on Windows with rustc 1.99.1, a touch of
+# `crates/nvs-runtime/src/lib.rs` then `cargo build --workspace --all-targets`, 305 binaries each time:
+# link.exe 127.4 s and 132.7 s, rust-lld 106.8 s and 73.3 s. The two link.exe runs differ by 5.3 s, and
+# rust-lld won both pairs by more than that.
+#
+# The binary keeps its protections: `bun nv pe-flags` checks ASLR, high-entropy addresses, NX, the
+# 8 MiB stack and the version resource on every Windows build.
+#
+# What would undo it: a release binary that fails `bun nv pe-flags`, or a test that fails only under
+# rust-lld. Then the release leg of `build.yml` sets `CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=link.exe`.
+#
+# Linux already links with rust-lld (the toolchain's default since 1.90.0), and macOS keeps its own
+# linker; only Windows is named here.
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
