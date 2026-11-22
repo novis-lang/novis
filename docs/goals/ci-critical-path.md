@@ -252,30 +252,32 @@ session builds once they end and runs the changed programs by name.
 
 ### State
 
-Stages 1 to 3 are done, one session each. Stage 4, session 1: `bun nv ci --push` pushed main at
-`4fa7a9fcc` with the stage 3 layout (push 1), and `bun nv ci --watch --next` is watching its run.
+Stages 1 to 3 are done, one session each. Stage 4 is on its second session.
 
-- Windows nextest per slice, runs 44945274371 / 44940832132 / 44892963091: slice 1 6.8 / 11.1 / 8.4,
-  slice 2 6.0 / 7.7 / 5.2, slice 3 7.1 / 7.2 / 8.0. Slice 2 now runs the benches and doc tests and
-  saves the cache: `(matrix.shard || 2) == 2`, so a leg with no shard still runs them.
-- `proofs` has Windows rows `part: 1` and `part: 2`. Part 2 skips the forced unwind test and the
-  stale guard and saves no cache. `Feature proofs` passes `--part k/2` on Windows, writes
-  `NVS_PROOF_TIMES` off macOS, and `Keep the proof times` uploads `proof-times-<name>-<part or 1>`.
-- `build` has `needs: [tested, nvs-debug]`. Its last leg would end at 28.1, 29.4 and 46.9 min in the
-  three runs, before their last jobs at 54.4, 45.9 and 83.1.
+- Push 1, `4fa7a9fcc`, run 44957146195: red in one job, `test / macos-aarch64 (tests)`. Its `cargo
+  test` step failed `nvs-host` `net::tests::a_short_read_that_came_with_a_hang_up_reads_once_more`: the
+  test waited for the bytes, and the peer's FIN reached the socket after them. Not the layout. Fixed
+  by `67ad97ac87`, which waits on a second poll for the hang-up itself; green on Windows and WSL.
+- Push 2 carries that fix and this handoff. Its run's verdict is not written here yet.
+- The layout's times, push 1 against the baseline 44940832132 (end minute, new / baseline): the run
+  ended at 39.3 / 45.9. `proofs / windows-x86_64` 30.7 (part 1/2, run 30.6) and 24.8 (part 2/2, run
+  24.7) / 45.9 in one part. `test / windows-x86_64 (tests 2/3)` 26.9 / 30.4, `(tests 1/3)` 34.1 /
+  40.6, `(tests 3/3)` 29.8 / 30.4. `test / macos-aarch64 (tests)` 34.0, waited 0.1 / 43.8, waited
+  6.7. `test / macos-aarch64 (conformance)` 37.5 / 16.2. `proofs / macos-aarch64` 39.3, last / 40.0.
+  `proofs / linux-x86_64` 34.2 / 31.6. Build legs: macos 26.8 (waited 10.3) / 20.1, windows 24.5 /
+  21.1, linux-x86_64 20.1 / 11.5, linux-aarch64 17.4 / 9.3. Every build leg ends before the last job.
+- The two Windows proofs parts differ by 5.9 minutes, over the 3 the `--part` decision allows. Its
+  safe default holds: the split is left as it is, and the figures are here.
+- `miri units (nvs-stdlib 2/12)` on nightly 44894790665 was a timeout, fixed by `156f11a7ca`, which
+  is on `origin/main`. Push runs since then are green in that job.
 - `website/src/data/roadmap.json` lists `ci-critical-path` and `windows-rust-lld` as `internal`.
-- `miri units (nvs-stdlib 2/12)` on nightly 44894790665 was a timeout, fixed by `156f11a7ca`.
-
-In run 44945274371 `proofs / linux-x86_64` ended last at 54.4 min, with Feature proofs 41.6 min.
-In 44940832132 that step took 22.4. Stage 5 reads its proof times artifact to see why.
 
 ### Next
 
-Stage 4 goes on. If no verdict of push 1's run is written here, run `bun nv ci --watch` on it with
-`run_in_background` and a timeout of 7200000, and end the turn. Jobs to watch first: `proofs /
-windows-x86_64 (part 1/2)` and `(part 2/2)` (`ci.yml` `proofs:`), `test / windows-x86_64 (tests 2/3)`
-(it now runs the benches and doc tests), and `build` (`ci.yml` `build:`, now after `nvs-debug`). Then
-`bun nv ci --times` on the run, and the table in `### State` with the baseline's end beside each job
-(baseline: 44940832132). No test is expected to go red.
+Stage 4 goes on. If push 2's verdict is not written here, run `bun nv ci --watch` on its run with
+`run_in_background` and a timeout of 7200000, and end the turn. When it is green, `bun nv ci --green`,
+then `bun nv ci --times` on it: refresh the figures above, tick stage 4's items and set its status to
+done. A red job: one fix, one push, as `ci-green`'s decisions say. Then stage 5, which reads that
+run's `proof-times-*` artifacts. No test is expected to go red.
 
 ### Backlog
