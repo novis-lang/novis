@@ -7,6 +7,10 @@ every other character as a `%` and two hex digits. `Core\Uri::encodeComponent("r
 returns `red%20shoes%20%26%20bags`. Letters, digits and `-_.~` are not changed. A character such as
 `é` is two bytes, so it becomes two escapes.
 
+A text that is exactly `.` or `..` throws a `LogicError`. In a path, such a segment changes which
+resource the link names. For a query value, use `Core\Uri::withQueryParameter` or
+`Core\Uri::buildQuery`.
+
 `Core\Uri::decodeComponent` reads the text back. For a value in a form, use
 `Core\Uri::encodeFormValue`, which writes a space as `+`.
 

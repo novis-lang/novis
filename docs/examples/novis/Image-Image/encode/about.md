@@ -8,6 +8,9 @@ The output has the format that `format` chose. Without `format`, it has the form
 opened, and a canvas or raw pixels are written as PNG. The output has no EXIF data unless you called
 `metadata({ keep: true })`.
 
+The result is `tainted bytes`, because the image may be an upload. Write `tainted bytes` on the
+variable that keeps it. A response body, a file and storage all take `tainted bytes`.
+
 `encode` throws an error when the input is not an image, when a step cannot run, for example a `crop`
 box outside the image, or when the image has more pixels than the limit.
 

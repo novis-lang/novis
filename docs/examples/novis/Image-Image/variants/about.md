@@ -9,6 +9,8 @@ The argument is an array of entries. Each entry may have these keys:
 - `quality` is the quality of this entry, from 1 to 100. It needs a `format`, from the entry or from
   an earlier `format` call. Without one, `variants` throws a `LogicError`.
 
+Each file is `tainted bytes`, like the result of `encode`, so the result is `array<tainted bytes>`.
+
 Every entry first runs the steps of the image, and then its own resize and format. `variants` returns
 one encoded file per entry, in the same order. An empty array returns an empty array.
 

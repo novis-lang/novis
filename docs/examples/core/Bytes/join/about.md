@@ -9,5 +9,7 @@ A list with one buffer returns that buffer's content, and an empty list returns 
 in it. A buffer with nothing in it still counts as one part, so the separators around it are
 written. Nothing is converted here: every element is already a `bytes` value.
 
+The list may be an `array<tainted bytes>`. The result is then `tainted bytes`.
+
 **Good to know:** this is how a program puts the chunks of a body back together, or builds one
 message out of the pieces it collected.

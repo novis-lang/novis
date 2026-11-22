@@ -8,6 +8,9 @@ A page number past the end of its file throws a `LogicError`. A file that is enc
 not a PDF file, throws a `ParseError`. A part of a file that unpacks to more than the server's
 `[limits]` allow also throws a `ParseError`. An empty list of parts also throws an error.
 
+The result is `tainted bytes`, because a PDF file may be an upload. Write `tainted bytes` on the
+variable that keeps it.
+
 **Good to know:** two merges of the same parts give the same bytes. A test can compare the new file
 with a saved copy.
 

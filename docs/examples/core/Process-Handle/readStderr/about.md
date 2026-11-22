@@ -5,7 +5,7 @@ error. Each call waits until the program writes something there, and returns it 
 
 It works like `readStdout`. The two outputs are separate, so an error message never appears in
 what `readStdout` returns. Call `readStderr()` in a loop to read everything. At the end of the
-error output the result is `null`.
+error output the result is `null`. Each part is `tainted bytes`, as in `readStdout`.
 
 **The examples below** read every warning a program writes, keep a result apart from a note
 about it, and show why a job failed.

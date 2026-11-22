@@ -2,8 +2,12 @@
 text from outside your program, such as a form field. `secret string` is a confidential value, such
 as a password or an API key.
 
-A string built from such a value with `.` or interpolation is tainted or secret too. The compiler
-checks both words, so they do not make the program slower.
+A string built from such a value with `.` or interpolation is tainted or secret too. Text that a
+`Core` method returns is tainted, unless the method's documentation says where the text comes from.
+The compiler checks both words, so they do not make the program slower.
+
+When a tainted value reaches a place that does not take it, the error names the method that makes
+the value safe for that place. For a path, that is `Core\IO::within`.
 
 A tainted string cannot be a regular expression, a format template or a date pattern. It cannot be
 assigned to a plain `string` either. A secret value does not compile with `echo`, in an error

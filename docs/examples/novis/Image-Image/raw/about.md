@@ -8,6 +8,8 @@ To read one pixel, take its four bytes with `Core\Bytes::slice` and read them wi
 `Core\Bytes::unpack` and the format `"C4"`. The pixel at column `x` and row `y` starts at byte
 `(y * width + x) * 4`.
 
+`pixels` is `tainted bytes`, like the result of `encode`.
+
 `raw` throws the same errors as `encode`. `Image::fromRaw` starts a new image from the shape that
 `raw` returns.
 

@@ -8,5 +8,8 @@ the result is `null`. Other requests keep running while one request waits.
 
 If you only need the whole output at the end, `Core\Process::run` is simpler.
 
+Each part is `tainted bytes`, because another program wrote it. Write `tainted bytes` on the
+variable that keeps it.
+
 **The examples below** read a whole output part by part, read from a program that prints
 nothing, and pass a program's output on to your own output while the program runs.

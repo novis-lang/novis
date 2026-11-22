@@ -9,6 +9,9 @@ The database reports its version while the connection is opening, and the connec
 text. Reading it therefore costs no statement, and the result is the same every time. Even a walk
 over rows can read it, and a walk holds the connection so that no statement can run.
 
+The result is `tainted string`, because the server sends this text. Write `tainted string` on the
+variable that keeps it.
+
 The text is never empty, and Novis never changes it. A version such as `14.10 (Debian 14.10-1)`
 keeps the part in brackets, because that is what the other side sent. A closed connection throws a
 `LogicError`.

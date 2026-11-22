@@ -1,6 +1,7 @@
 Makes a `Font` from the bytes of a font file, so that `Image::text` and `Image::measureText` can use it.
 
-`Font::fromBytes` takes the bytes of a TrueType (`.ttf`) or OpenType (`.otf`) file. There are no
+`Font::fromBytes` takes the bytes of a TrueType (`.ttf`) or OpenType (`.otf`) file. The bytes may be
+`tainted bytes`, such as an uploaded font. There are no
 system fonts, so your program loads the file itself. Make the `Font` once and use it for many images.
 
 `Font::fromBytes` checks only that the bytes are at least 12 bytes long and start like a font file.

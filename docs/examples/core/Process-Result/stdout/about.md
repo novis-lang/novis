@@ -2,9 +2,13 @@ Returns everything a program wrote to its standard output. The standard output i
 prints its normal results. Error messages go to the standard error instead, and `stderr` returns
 those.
 
-The result is `bytes`, not `string`. A program can write any data, for example an image or a
+The result is `tainted bytes`, not `string`. A program can write any data, for example an image or a
 compressed file, and that data is often not valid text. When you know the output is text, use
 `as string` to convert it. That conversion throws an error if the output is not valid UTF-8.
+
+The output is `tainted` because another program wrote it, and it may contain text from outside your
+program. Write `tainted bytes` or `tainted string` on the variable that keeps it. A response body,
+a log and a file all take tainted text.
 
 The program has already ended when you have a `Core\Process\Result`, so the whole output is there.
 `stdout` never throws an error, and it returns the same output every time you call it.

@@ -23,12 +23,358 @@
       "breaking": true,
       "instead": "Write `tainted string` on each string property of a class that a request decoder reads.",
       "security": true
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Uri::encodeComponent"
+      ],
+      "text": "`Core\\Uri::encodeComponent` throws a `LogicError` when its argument is exactly `.` or `..`. In a path, such a segment changes which resource the URI names.",
+      "breaking": true,
+      "instead": "Check the value before you encode it. For a query value, use `Core\\Uri::withQueryParameter` or `Core\\Uri::buildQuery`.",
+      "security": true
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Process\\Result::stdout",
+        "Core\\Process\\Result::stderr",
+        "Core\\Process\\Handle::readStdout",
+        "Core\\Process\\Handle::readStderr",
+        "Core\\Db\\Connection::serverVersion",
+        "Core\\Ldap\\Connection::whoami"
+      ],
+      "text": "The output of a child process is `tainted bytes`. The version text of a database server and the name an LDAP server returns are `tainted string`. Another program or a server writes this text, so it may contain input from outside.",
+      "breaking": true,
+      "instead": "Write `tainted` on the variable that keeps the value. Before a sink, use a checked conversion or the sink's own method that makes text safe.",
+      "security": true
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Throwable",
+        "Core\\Ldap\\Filter::toString",
+        "Core\\Ldap\\Dn::toString"
+      ],
+      "text": "`Throwable::$message` is `tainted string`, because some error messages contain input text. The text of a `Core\\Ldap\\Filter` and of a `Core\\Ldap\\Dn` is `tainted string` too.",
+      "breaking": true,
+      "instead": "Write `tainted string` on a variable that keeps an error message or the text of a filter or a DN.",
+      "security": true
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Novis\\Image\\Image::encode",
+        "Novis\\Image\\Image::raw",
+        "Novis\\Image\\Image::variants",
+        "Novis\\Pdf\\Pages::merge",
+        "Novis\\Image\\Font::fromBytes"
+      ],
+      "text": "`Image::encode`, the pixels of `Image::raw`, each file of `Image::variants` and the result of `Pages::merge` are `tainted bytes`. An image or a PDF file may be an upload. `Font::fromBytes` takes `tainted bytes`.",
+      "breaking": true,
+      "instead": "Write `tainted bytes` on the variable that keeps the result. A response body, a file and storage all take `tainted bytes`.",
+      "security": true
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Bytes::at",
+        "Core\\Bytes::join"
+      ],
+      "text": "`Core\\Bytes::at` takes `tainted bytes` and returns a plain `uint`. `Core\\Bytes::join` takes an `array<tainted bytes>`, and the result is then `tainted bytes`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "lang:types/qualifiers-tainted-and-secret"
+      ],
+      "text": "Text from a `Core` method is `tainted` unless the method says where the text comes from. When a `tainted` value reaches a parameter that does not take it, the error names the method that makes the value safe for that parameter."
     }
   ],
   "unseen": {
     "tools:cli/nvs-code": {
       "hash": "9c7b5f35fa50d9c2",
       "why": "A test sets its files' modification time to an hour ago, so it gives the same result under load. What `nvs code` does is unchanged."
+    },
+    "Core\\BigInt::add": {
+      "hash": "c59f47ef753e030b",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\BigInt::add` does is unchanged."
+    },
+    "Core\\BigInt::mul": {
+      "hash": "f9f835d9d6575363",
+      "why": "Only the note on where its returned text comes from changed. What `Core\\BigInt::mul` does is unchanged."
+    },
+    "Core\\Json::encodeEach": {
+      "hash": "1dd848b1b1e6a9d5",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Json::encodeEach` does is unchanged."
+    },
+    "Core\\Process::run": {
+      "hash": "bd02aa2d24d6e29c",
+      "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process::run` does is unchanged."
+    },
+    "Core\\Process::spawn": {
+      "hash": "5fd3dd89559931ec",
+      "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process::spawn` does is unchanged."
+    },
+    "Core\\Process\\Result::exitCode": {
+      "hash": "fc444bc52efd41a3",
+      "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process\\Result::exitCode` does is unchanged."
+    },
+    "Core\\Process\\Handle::writeStdin": {
+      "hash": "e1586fe6b7462c0a",
+      "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process\\Handle::writeStdin` does is unchanged."
+    },
+    "Core\\Process\\Handle::wait": {
+      "hash": "14bf7f54fa876f64",
+      "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process\\Handle::wait` does is unchanged."
+    },
+    "Core\\Process\\Handle::kill": {
+      "hash": "1ea546690adc096b",
+      "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process\\Handle::kill` does is unchanged."
+    },
+    "Core\\Time\\Instant::fromEpoch": {
+      "hash": "b0c3bcf7f6b61df4",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Time\\Instant::fromEpoch` does is unchanged."
+    },
+    "Core\\Time\\Instant::fromIso": {
+      "hash": "c5c20307b0a1a0a8",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Time\\Instant::fromIso` does is unchanged."
+    },
+    "Core\\Time\\DateTime::with": {
+      "hash": "d2c973f6c6772755",
+      "why": "Only the note on where its returned text comes from changed. What `Core\\Time\\DateTime::with` does is unchanged."
+    },
+    "Core\\Time\\Date::with": {
+      "hash": "7ed4f0ce4cc488f4",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Time\\Date::with` does is unchanged."
+    },
+    "Core\\Time\\TimeOfDay::with": {
+      "hash": "631950014c5f803b",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Time\\TimeOfDay::with` does is unchanged."
+    },
+    "Core\\Random\\Seeded::int": {
+      "hash": "3eaa28d4fcee8957",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Random\\Seeded::int` does is unchanged."
+    },
+    "Core\\Random\\Seeded::bytes": {
+      "hash": "55f5964721b19b09",
+      "why": "Only the note on where its returned text comes from changed. What `Core\\Random\\Seeded::bytes` does is unchanged."
+    },
+    "Core\\Random\\Seeded::token": {
+      "hash": "17ab836cb5af9ed5",
+      "why": "Only the note on where its returned text comes from changed. What `Core\\Random\\Seeded::token` does is unchanged."
+    },
+    "Core\\Random\\Seeded::pick": {
+      "hash": "457cf34ba990a768",
+      "why": "Only the note on where its returned text comes from changed. What `Core\\Random\\Seeded::pick` does is unchanged."
+    },
+    "Core\\Random\\Seeded::sample": {
+      "hash": "6177da7a46f6a66d",
+      "why": "Only the note on where its returned text comes from changed. What `Core\\Random\\Seeded::sample` does is unchanged."
+    },
+    "Core\\Random\\Seeded::shuffle": {
+      "hash": "7dbf10c5d2a5148d",
+      "why": "Only the note on where its returned text comes from changed. What `Core\\Random\\Seeded::shuffle` does is unchanged."
+    },
+    "Core\\Uri::sign": {
+      "hash": "50ebad7e7b32864e",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Uri::sign` does is unchanged."
+    },
+    "Core\\Uri::verifySignature": {
+      "hash": "50ebad7e7b32864e",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Uri::verifySignature` does is unchanged."
+    },
+    "Core\\Script\\ExitReport::reason": {
+      "hash": "521b22ab06f924ba",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Script\\ExitReport::reason` does is unchanged."
+    },
+    "Core\\Script\\ExitReport::status": {
+      "hash": "f51f44318d4337a3",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Script\\ExitReport::status` does is unchanged."
+    },
+    "Core\\Script\\ExitReport::error": {
+      "hash": "87d568f28e9f6dea",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Script\\ExitReport::error` does is unchanged."
+    },
+    "Core\\Response\\Stream::write": {
+      "hash": "afcaf61d6b0cd7b2",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Response\\Stream::write` does is unchanged."
+    },
+    "Core\\Sse::receive": {
+      "hash": "dcf18e12c4c315ac",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Sse::receive` does is unchanged."
+    },
+    "Core\\Passkey::registerOptions": {
+      "hash": "7a62ab9d5588f270",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Passkey::registerOptions` does is unchanged."
+    },
+    "Core\\Passkey::verifyRegistration": {
+      "hash": "7a62ab9d5588f270",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Passkey::verifyRegistration` does is unchanged."
+    },
+    "Core\\Passkey::signInOptions": {
+      "hash": "c9dd3a3cd4f653be",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Passkey::signInOptions` does is unchanged."
+    },
+    "Core\\Passkey::verifySignIn": {
+      "hash": "c9dd3a3cd4f653be",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Passkey::verifySignIn` does is unchanged."
+    },
+    "Core\\Ldap\\Connection::authenticate": {
+      "hash": "6759e1657cff07e8",
+      "why": "A test writes `tainted string` on the result of `whoami`, which an entry covers. What `Core\\Ldap\\Connection::authenticate` does is unchanged."
+    },
+    "Novis\\Image\\Color::rgba": {
+      "hash": "f7dd9e0f1b27f379",
+      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Color::rgba` does is unchanged."
+    },
+    "Novis\\Image\\Image::trim": {
+      "hash": "f653431d6e8da0d2",
+      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::trim` does is unchanged."
+    },
+    "Novis\\Image\\Image::composite": {
+      "hash": "6fba75a66d5f2809",
+      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::composite` does is unchanged."
+    },
+    "Novis\\Image\\Image::flatten": {
+      "hash": "f653431d6e8da0d2",
+      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::flatten` does is unchanged."
+    },
+    "Novis\\Image\\Image::sharpen": {
+      "hash": "f653431d6e8da0d2",
+      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::sharpen` does is unchanged."
+    },
+    "Novis\\Image\\Image::blur": {
+      "hash": "f653431d6e8da0d2",
+      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::blur` does is unchanged."
+    },
+    "Novis\\Image\\Image::brightness": {
+      "hash": "f653431d6e8da0d2",
+      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::brightness` does is unchanged."
+    },
+    "Novis\\Image\\Image::contrast": {
+      "hash": "f653431d6e8da0d2",
+      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::contrast` does is unchanged."
+    },
+    "Novis\\Image\\Image::gamma": {
+      "hash": "f653431d6e8da0d2",
+      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::gamma` does is unchanged."
+    },
+    "Novis\\Image\\Image::tint": {
+      "hash": "f653431d6e8da0d2",
+      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::tint` does is unchanged."
+    },
+    "Novis\\Image\\Image::metadata": {
+      "hash": "b7fe1b86c6d3266f",
+      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::metadata` does is unchanged."
+    },
+    "Novis\\Pdf\\Document::asset": {
+      "hash": "756376458c3c07fe",
+      "why": "A test builds its logo from a fixed PNG file. What `Novis\\Pdf\\Document::asset` does is unchanged."
+    },
+    "RuntimeError": {
+      "hash": "98ee06d03efb6a86",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `RuntimeError` does is unchanged."
+    },
+    "ArithmeticError": {
+      "hash": "3f5c248e48178ac4",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `ArithmeticError` does is unchanged."
+    },
+    "Core\\Test\\Failure": {
+      "hash": "8aba6ecf77a9936a",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Test\\Failure` does is unchanged."
+    },
+    "Core\\Db\\DbError": {
+      "hash": "10c7b37c9d6f452d",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Db\\DbError` does is unchanged."
+    },
+    "Core\\Db\\RolledBack": {
+      "hash": "310c5b0870c7bc8a",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Db\\RolledBack` does is unchanged."
+    },
+    "Core\\Ldap\\LdapError": {
+      "hash": "f5f4af59ccd268a4",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Ldap\\LdapError` does is unchanged."
+    },
+    "Core\\Crypto\\KeyKind": {
+      "hash": "ad82812c6318c7a4",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Crypto\\KeyKind` does is unchanged."
+    },
+    "Core\\Ldap\\LdapError::Kind": {
+      "hash": "f5f4af59ccd268a4",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Ldap\\LdapError::Kind` does is unchanged."
+    },
+    "Novis\\Image\\Format": {
+      "hash": "ff11e22e7a11992c",
+      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Format` does is unchanged."
+    },
+    "Novis\\Image\\Image::Align": {
+      "hash": "0b870f834f671ca2",
+      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::Align` does is unchanged."
+    },
+    "LateInit": {
+      "hash": "b7f5edd19602d07c",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `LateInit` does is unchanged."
+    },
+    "lang:types/numbers-bool-int-uint-float-decimal": {
+      "hash": "36c2e0987278c5e7",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/numbers-bool-int-uint-float-decimal` does is unchanged."
+    },
+    "lang:types/text-string-and-bytes": {
+      "hash": "831c660bd2016db8",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/text-string-and-bytes` does is unchanged."
+    },
+    "lang:types/mixed": {
+      "hash": "71e89ac64e850859",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/mixed` does is unchanged."
+    },
+    "lang:types/nullable-union-single-value-and-enum-case-types": {
+      "hash": "2ff829c24ec42cae",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/nullable-union-single-value-and-enum-case-types` does is unchanged."
+    },
+    "lang:types/the-conversion-operator-as": {
+      "hash": "6fea1368cb2c2af3",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/the-conversion-operator-as` does is unchanged."
+    },
+    "lang:expressions/anonymous-functions": {
+      "hash": "7343228949789310",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:expressions/anonymous-functions` does is unchanged."
+    },
+    "lang:classes/lateinit": {
+      "hash": "3634d97326fd4cd5",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:classes/lateinit` does is unchanged."
+    },
+    "lang:classes/comparable": {
+      "hash": "75fce7858c332e3b",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:classes/comparable` does is unchanged."
+    },
+    "lang:classes/object-the-top-of-every-class-type": {
+      "hash": "422dea47f91494b3",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:classes/object-the-top-of-every-class-type` does is unchanged."
+    },
+    "lang:enums/from-an-integer-back-to-a-case": {
+      "hash": "95f7f7dcef38f7b7",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:enums/from-an-integer-back-to-a-case` does is unchanged."
+    },
+    "lang:errors/the-throwable-tree": {
+      "hash": "df7773b7c8af4f38",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:errors/the-throwable-tree` does is unchanged."
+    },
+    "lang:errors/try-catch-finally": {
+      "hash": "a34d7ede5c4dceed",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:errors/try-catch-finally` does is unchanged."
+    },
+    "lang:errors/rethrowing": {
+      "hash": "f95a87e984774370",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:errors/rethrowing` does is unchanged."
+    },
+    "lang:concurrency/a-child-s-throw": {
+      "hash": "73cf4ce34507a5c5",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:concurrency/a-child-s-throw` does is unchanged."
+    },
+    "tools:php-differences/the-short-list": {
+      "hash": "7cb576dbbb950406",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `tools:php-differences/the-short-list` does is unchanged."
     }
   }
 }
