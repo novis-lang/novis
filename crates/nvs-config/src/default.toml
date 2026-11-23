@@ -62,9 +62,9 @@
 # ----------------------------------------------------------------------------------------------
 
 [limits]
-# `Runtime` — the keys a request may set narrower at runtime, and wider up to the matching
-# `[limits.hard]` ceiling: the heap a request starts with, its CPU time, its wall time, and the bytes
-# it may write to the response. Every run holds at most 128M unless `memory` says otherwise. A
+# The heap a request starts with, its CPU time, its wall time, and the bytes it may write to the
+# response. A request may change each one with `Core\Config::set`: lower, or higher up to its
+# `[limits.hard]` ceiling. Every run holds at most 128M unless `memory` says otherwise. A
 # request, a connection, a scheduled run and a queued job may use 30s of CPU time. `nvs run` and
 # `nvs test` have no CPU limit unless `cpu_time` is written. `false` removes a limit. A missing
 # `wall_time` or `max_output` is no limit. A duration or a size takes a suffix or a bare number of
@@ -73,25 +73,30 @@
 #cpu_time = "30s"                     # default: 30s for server work, none under nvs run and nvs test
 #wall_time = "60s"                    # default: no cap
 #max_output = "32M"                   # default: no cap
-# `Runtime` — the two limits on a request body. `request_body` is the most a request may read into
+# A request may change this with `Core\Config::set`, up to its `[limits.hard]` ceiling.
+# The two limits on a request body. `request_body` is the most a request may read into
 # memory: `Core\Request::body()`, a JSON or form body, and the text fields of a multipart form.
 # `upload_total` is the most bytes a whole body may have, including the parts a program skips. A
 # body larger than `upload_total` gets a `413` answer.
 #request_body = "8M"                  # default
 #upload_total = "256M"                # default
-# `Runtime` — how many parts a multipart form body may have. Text fields count as parts too. When
+# A request may change this with `Core\Config::set`, up to its `[limits.hard]` ceiling.
+# How many parts a multipart form body may have. Text fields count as parts too. When
 # a body has more parts, the call that reads the form throws an error
 # (`rule:errors/multipart-part-count`).
 #max_multipart_parts = 1000           # default
-# `Runtime` — how many child scripts one request may have running at once. The request itself does
+# A request may change this with `Core\Config::set`, up to its `[limits.hard]` ceiling.
+# How many child scripts one request may have running at once. The request itself does
 # not count. A spawn past this number stops the request with a limit error
 # (`rule:security/isolate-budget-is-the-trees`).
 #max_tasks = 16                       # default: no cap
-# `Runtime` — how many backtracking steps the regex engine may spend on one subject before it throws
+# A request may change this with `Core\Config::set`, up to its `[limits.hard]` ceiling.
+# How many backtracking steps the regex engine may spend on one subject before it throws
 # (`rule:core-classes/regex-two-tiers`). The linear tier runs under none, so this bounds only the
 # patterns the linear engine cannot express.
 #max_regex_steps = 1000000            # default
-# `System` — the bytes and the CPU time carved out of `memory` and `cpu_time` at request start and
+# Only `nvs.toml` sets this. A request may not change it.
+# The bytes and the CPU time carved out of `memory` and `cpu_time` at request start and
 # kept back for the tier-1 fatal handler, which is the one thing that may still allocate once the
 # rest of the ceiling is gone (`rule:errors/on-limit`). A request may not set either one, and
 # neither has a `[limits.hard]` ceiling, because there is no request-set value for a ceiling to
@@ -100,33 +105,38 @@
 # reserved.
 #fatal_reserve_memory = "1M"          # default
 #fatal_reserve_time = "50ms"          # default
-# `System` — how deep a chain of `spawn script` may nest before the next one is refused. `false`
+# Only `nvs.toml` sets this. A request may not change it.
+# How deep a chain of `spawn script` may nest before the next one is refused. `false`
 # removes the ceiling, which is the one value that lets a recursion end as an exhausted heap rather
 # than as a depth.
 #max_script_depth = 64                # default
-# `System` — the two halves of the decompression bound (`rule:core-classes/decompression-bound`): the
+# Only `nvs.toml` sets this. A request may not change it.
+# The two halves of the decompression bound (`rule:core-classes/decompression-bound`): the
 # most any one `Core\Compress` or `Core\Zip` call may produce, and the most output per octet of
 # input. A bomb is small on the wire, so the byte ceiling alone is one a small request still reaches.
 # `false` does not remove either — an unbounded value reads as the default, so no configuration
 # spells an unbounded decompression.
 #max_decompressed = "64M"             # default
 #max_decompression_ratio = 1000       # default
-# `System` — a share of `memory`, between 0 and 1. A request whose memory peak reaches it writes one
+# Only `nvs.toml` sets this. A request may not change it.
+# A share of `memory`, between 0 and 1. A request whose memory peak reaches it writes one
 # `Warn` to the log when it ends, naming the peak, the ceiling and the route
 # (`rule:observability/memory-high-water-writes-a-warn`). A request with `memory = false` has no
 # cap and is never warned about.
 #memory_high_water = 0.8              # default: off
-# `System` — what happens to a request whose client goes away before its response is sent. A
+# Only `nvs.toml` sets this. A request may not change it.
+# What happens to a request whose client goes away before its response is sent. A
 # request runs to its end and its response is thrown away, unless its method is listed here; a
 # listed method is cancelled at once. Methods are matched exactly, so `GET` and `get` differ.
 #cancel_on_disconnect = ["GET", "HEAD"] # default: []
-# `System` — how long a request with no `wall_time` may run after its client went away. A request
+# Only `nvs.toml` sets this. A request may not change it.
+# How long a request with no `wall_time` may run after its client went away. A request
 # with a `wall_time` has only that limit. `false` and `0` are refused: there is no way to say
 # "forever".
 #disconnect_grace = "30s"             # default
 
 [limits.hard]
-# The ceiling a request may not raise itself past, for the `Runtime` keys that have one. A key that
+# The ceiling a request may not raise itself past, for the `[limits]` keys a request may change. A key that
 # is not written here is the value the run started with in `[limits]`, so a program can lower its
 # limit and cannot raise it. Where that value is not written and has no default, there is no
 # ceiling. `nvs run` and `nvs test` have no `memory` ceiling unless it is written here. `false`
@@ -336,7 +346,8 @@
 # ----------------------------------------------------------------------------------------------
 
 [regex]
-# `System` — a pattern with lookaround or a backreference needs the backtracking engine.
+# Only `nvs.toml` sets this. A request may not change it.
+# A pattern with lookaround or a backreference needs the backtracking engine.
 # `allow` compiles such a pattern. `warn` compiles a pattern literal with a warning.
 # `deny` stops a pattern literal from compiling, and a pattern built while the program runs throws a
 # `RuntimeError`. The mode does not change this setting.
@@ -389,7 +400,7 @@
 #inline = false                       # default: false in production, true in development
 
 # `true` and the end-of-script sweep logs each path it would have deleted instead of deleting it, so
-# that absent cleanup is deliberate and visible rather than a silent leak. `System` and reloadable,
+# that absent cleanup is deliberate and visible rather than a silent leak. Only `nvs.toml` sets it, and it reloads,
 # which is what lets an operator flip it on around one problematic request and off again; there is
 # deliberately no in-language setter, because a program that could exempt its own files from cleanup
 # is a program that can be made to hoard them.
@@ -849,7 +860,7 @@
 [cache.memory]
 # What the entries of the one map every core of this process reads may hold together — a size, or
 # `false` for no ceiling at all. Exceeding it forgets the oldest entries rather than failing a
-# write, so it is never a reason a `put` throws. `System`-class, and read by the next write.
+# write, so it is never a reason a `put` throws. Only `nvs.toml` sets it, and the next write reads it.
 #max_size = "32M"                     # default
 
 # How long a caller waits for the one filler in this process before it throws `TimeoutError`, and
@@ -888,7 +899,7 @@
 
 # ----------------------------------------------------------------------------------------------
 # [queue] — the durable job queue, which is a table in a database an operator names
-# (`rule:core-classes/queue-storage-is-a-table`). Every key is `System`: only the operator may move
+# (`rule:core-classes/queue-storage-is-a-table`). Only `nvs.toml` sets these keys: only the operator may move
 # the queue, because work a request could redirect is work it could redirect into a database it was
 # never granted. Every key reloads, and a new `connection` or `workers` starts or stops workers once
 # each has finished its current job. A block with no key written is the off switch — nothing is
@@ -917,15 +928,17 @@
 # ----------------------------------------------------------------------------------------------
 
 [deferred]
-# `System` — request trees per core kept alive for deferred work. Past the cap, `afterResponse`
+# Only `nvs.toml` sets this. A request may not change it.
+# Request trees per core kept alive for deferred work. Past the cap, `afterResponse`
 # throws rather than queueing, so the pressure is visible in the request that caused it.
 #max_concurrent = 256                 # default
-# `Runtime` — the deadline a call inherits when it names none.
+# A request may change this with `Core\Config::set`.
+# The deadline a call inherits when it names none.
 #deadline = "30s"                     # default: none
 
 
 # ----------------------------------------------------------------------------------------------
-# [[schedule]] — cron work as a configuration block, every key `System`
+# [[schedule]] — cron work as a configuration block. Only `nvs.toml` sets its keys
 # (`rule:config/scheduled-work-is-a-config-block`). Its `limits` and `grants` are the same keys as
 # `[limits.hard]` and `[capabilities.*]`, written per entry.
 # ----------------------------------------------------------------------------------------------
@@ -1031,7 +1044,7 @@
 
 
 # ----------------------------------------------------------------------------------------------
-# [metrics] and [trace] — `System` blocks (`rule:observability/metrics-and-trace-blocks-are-system`).
+# [metrics] and [trace] — only `nvs.toml` sets them (`rule:observability/metrics-and-trace-blocks-are-system`).
 # ----------------------------------------------------------------------------------------------
 
 [metrics]
@@ -1069,7 +1082,7 @@
 
 # ----------------------------------------------------------------------------------------------
 # [opcache] — when a source file is re-checked, and the on-disk artifact cache
-# (`rule:config/opcache-revalidation-is-system-class`). Every key is `System`.
+# (`rule:config/opcache-revalidation-is-system-class`). Only `nvs.toml` sets these keys.
 # ----------------------------------------------------------------------------------------------
 
 [opcache]

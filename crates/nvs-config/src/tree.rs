@@ -194,43 +194,43 @@ pub struct App {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Limits {
-    /// `Runtime` — the heap a request starts with.
+    /// On [`SETTABLE`](crate::settable::SETTABLE) — the heap a request starts with.
     pub memory: Option<Setting>,
-    /// `Runtime` — CPU time.
+    /// On [`SETTABLE`](crate::settable::SETTABLE) — CPU time.
     pub cpu_time: Option<Setting>,
-    /// `Runtime` — wall time.
+    /// On [`SETTABLE`](crate::settable::SETTABLE) — wall time.
     pub wall_time: Option<Setting>,
-    /// `Runtime` — how many child isolates the request's tree may run at once
+    /// On [`SETTABLE`](crate::settable::SETTABLE) — how many child isolates the request's tree may run at once
     /// (`rule:security/isolate-budget-is-the-trees`). `nvs_runtime::Ctx::claim_task` reads it.
     pub max_tasks: Option<Setting>,
-    /// `Runtime` — bytes written to the response.
+    /// On [`SETTABLE`](crate::settable::SETTABLE) — bytes written to the response.
     pub max_output: Option<Setting>,
-    /// `Runtime` — the bytes of a request body parsed into memory
+    /// On [`SETTABLE`](crate::settable::SETTABLE) — the bytes of a request body parsed into memory
     /// (`rule:http-server/request-body-and-upload-total-are-two-caps`).
     pub request_body: Option<Setting>,
-    /// `Runtime` — the total bytes of a streamed request body, consumed and drained alike
+    /// On [`SETTABLE`](crate::settable::SETTABLE) — the total bytes of a streamed request body, consumed and drained alike
     /// (`rule:http-server/request-body-and-upload-total-are-two-caps`).
     pub upload_total: Option<Setting>,
-    /// `Runtime` — how many parts a multipart body may hold, field parts included
+    /// On [`SETTABLE`](crate::settable::SETTABLE) — how many parts a multipart body may hold, field parts included
     /// (`rule:errors/multipart-part-count`).
     pub max_multipart_parts: Option<Setting>,
-    /// `Runtime` — how many steps `rule:core-classes/regex-two-tiers`'s backtracking tier may spend
+    /// On [`SETTABLE`](crate::settable::SETTABLE) — how many steps `rule:core-classes/regex-two-tiers`'s backtracking tier may spend
     /// on one subject before it throws. Unset, the budget `crates/nvs-stdlib/src/regex.rs` states,
     /// which is the figure that engine's own adversarial-pattern tests are written against. The
     /// linear tier reads nothing here, because it runs under no budget at all, so this bounds only
     /// the patterns the linear engine cannot express.
     pub max_regex_steps: Option<Setting>,
-    /// `System` — `rule:errors/on-limit`'s reserved slice: the bytes carved out of [`memory`](Self::memory)
+    /// Operator only, not on [`SETTABLE`](crate::settable::SETTABLE) — `rule:errors/on-limit`'s reserved slice: the bytes carved out of [`memory`](Self::memory)
     /// at request start and left for the tier-1 handler, which is the one thing that may still
     /// allocate once the rest of the ceiling is gone. `System` rather than `Runtime` because it is
     /// the request's own safety net, and it is not under `[limits.hard]` for the same reason —
     /// there is no request-set value for a ceiling to bound.
     pub fatal_reserve_memory: Option<Setting>,
-    /// `System` — the other half of `rule:errors/on-limit`'s reserved slice: the CPU time carved out of
+    /// Operator only, not on [`SETTABLE`](crate::settable::SETTABLE) — the other half of `rule:errors/on-limit`'s reserved slice: the CPU time carved out of
     /// [`cpu_time`](Self::cpu_time) and left for the same handler, for the same reason and under the
     /// same class. A duration where its sibling is a size; neither is under `[limits.hard]`.
     pub fatal_reserve_time: Option<Setting>,
-    /// `System` — how deep a chain of `spawn script` may nest before the next one is refused.
+    /// Operator only, not on [`SETTABLE`](crate::settable::SETTABLE) — how deep a chain of `spawn script` may nest before the next one is refused.
     /// `System` on the reserve's grounds, which is why it sits beside them: a script choosing its
     /// own recursion ceiling is the case that class exists for. Not under `[limits.hard]` either,
     /// and for the reserve's reason — no request may set it, so there is no value for a ceiling to
@@ -238,7 +238,7 @@ pub struct Limits {
     /// does not run forever, it exhausts the tree's heap, and `rule:security/isolate-budget-is-the-trees` asks for that spawn
     /// to be stopped as a depth rather than reported as an out-of-memory.
     pub max_script_depth: Option<Setting>,
-    /// `System` — the most any one `Core\Compress` or `Core\Zip` decompression may produce
+    /// Operator only, not on [`SETTABLE`](crate::settable::SETTABLE) — the most any one `Core\Compress` or `Core\Zip` decompression may produce
     /// (`rule:core-classes/decompression-bound`). `System` on the reserve's grounds and beside it
     /// for the same reason: a call chooses how much *less* than this it wants through its own
     /// argument, and a program raising the ceiling it decompresses hostile input under is exactly
@@ -247,24 +247,24 @@ pub struct Limits {
     /// does not remove it: `crates/nvs-stdlib/src/compress.rs`'s `Bound` reads an unbounded value
     /// as the shipped default, so no configuration spells an unbounded decompression.
     pub max_decompressed: Option<Setting>,
-    /// `System` — the other half of the same bound: the most output per octet of input. A bomb is
+    /// Operator only, not on [`SETTABLE`](crate::settable::SETTABLE) — the other half of the same bound: the most output per octet of input. A bomb is
     /// small on the wire, so a byte ceiling alone is one a small request still reaches.
     pub max_decompression_ratio: Option<Setting>,
-    /// `System` — `rule:observability/memory-high-water-writes-a-warn`'s fraction of the memory
+    /// Operator only, not on [`SETTABLE`](crate::settable::SETTABLE) — `rule:observability/memory-high-water-writes-a-warn`'s fraction of the memory
     /// ceiling past which a request's peak writes one `Warn` at the end of the request. Unwritten
     /// is off. `System` because the warning is the operator's to ask for, and a program that could
     /// raise it could silence the one report about itself. A fraction rather than a size, so an
     /// `[app.limits]` block that narrows `memory` keeps the same meaning; not under
     /// `[limits.hard]`, because there is no request-set value for a ceiling to bound.
     pub memory_high_water: Option<Setting>,
-    /// `System` — the request methods whose requests are cancelled when their client goes away
+    /// Operator only, not on [`SETTABLE`](crate::settable::SETTABLE) — the request methods whose requests are cancelled when their client goes away
     /// (`rule:http-server/a-request-outlives-a-client-that-goes-away`). Unwritten is `[]`, and
     /// every other method's request runs to its end. A list of exact method names, read and
     /// refused by [`crate::app::disconnect_for`]. `System` because a request choosing whether its
     /// own abandonment stops it is a runtime switch that rule says there is none of; not under
     /// `[limits.hard]`, because there is no request-set value for a ceiling to bound.
     pub cancel_on_disconnect: Option<Setting>,
-    /// `System` — how long a request with no `wall_time` may run after its client went away, read
+    /// Operator only, not on [`SETTABLE`](crate::settable::SETTABLE) — how long a request with no `wall_time` may run after its client went away, read
     /// by [`crate::app::disconnect_for`] with its finite default. `false` and `0` are refused, as
     /// `[server]`'s waits refuse them (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`).
     /// Not under `[limits.hard]` for `cancel_on_disconnect`'s reason.
@@ -305,9 +305,9 @@ pub struct LimitSet {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Mode {
-    /// `Runtime` — the mode an application starts in.
+    /// On [`SETTABLE`](crate::settable::SETTABLE) — the mode an application starts in.
     pub default: Option<String>,
-    /// `System` — the most permissive mode any code may select. Unset means the mode the server
+    /// Operator only, not on [`SETTABLE`](crate::settable::SETTABLE) — the most permissive mode any code may select. Unset means the mode the server
     /// started in, which is what makes a production host unreachable from code with nothing written.
     pub ceiling: Option<String>,
 }
@@ -1220,10 +1220,10 @@ pub struct DatabasePool {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Deferred {
-    /// `System` — request trees per core kept alive for deferred work. Past the cap
+    /// Operator only, not on [`SETTABLE`](crate::settable::SETTABLE) — request trees per core kept alive for deferred work. Past the cap
     /// `afterResponse` throws rather than queueing.
     pub max_concurrent: Option<u64>,
-    /// `Runtime` — the default a call inherits when it names none.
+    /// On [`SETTABLE`](crate::settable::SETTABLE) — the default a call inherits when it names none.
     pub deadline: Option<String>,
 }
 
