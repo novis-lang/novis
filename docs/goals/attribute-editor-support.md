@@ -29,7 +29,7 @@ stages:
     status: done
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: proofs
@@ -138,6 +138,11 @@ so `tools:editor/the-vs-code-extension` and `tools:cli/nvs-code` did not move. T
 entry. Teaching the proofs tool to read TypeScript markers would change what counts as a Rust proof,
 a wider change than this goal.
 
+**An ISO year has one syntax: four digits, with `-` before a negative year.** The full gate found
+that `Instant::toIso` wrote the earliest instant as `-009999-…`, which `fromIso` rejects since
+review-hardening. The writer now writes `-9999-…`, so `fromIso(toIso())` always gives the same
+value. Reason: one way to write a year is simpler, and the reader stays strict.
+
 **Lanes.** Stages 1 and 2 touch disjoint files and may run as side goals. Stages 3, 4 and 5 all edit
 `crates/nvs-lsp/src/completion.rs` or `server.rs` and run in order. Stage 6 follows them all.
 
@@ -244,39 +249,41 @@ a wider change than this goal.
 
 ### 7. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of [prose.md](../agent/prose.md) § *A newcomer reads it* over the texts
+- [x] The newcomer review of [prose.md](../agent/prose.md) § *A newcomer reads it* over the texts
   stage 6 wrote.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 6 are done. Stage 6 added `## Attribute declarations` to
-`website/src/content/docs/tools/editor/index.mdx` (after *Quick fixes and generated code*) and eight
-entries at the top of `website/src/data/changes.json`, all naming `tools:editor/nvs-lsp` (see the
-standing decision *The change entries name `tools:editor/nvs-lsp`*). To move that feature's
-behaviour hash, `crates/nvs-lsp/tests/completion_edits.rs`
-`an_attribute_declaration_word_writes_the_whole_declaration` now carries `// covers:
-tools:editor/nvs-lsp`. Its `about.md` and help card were reread, still true, and restamped. The
-page and `changes.json` got the newcomer review and are stamped in `data/proofs/reviewed.json`.
-`bun nv proofs --gate --goal attribute-editor-support`, `bun nv site --check stale changes review
-prose` and `cargo build` are green.
+All seven stages are done. The full gate ran `looper verify` three times. The first two runs were
+red, and the third was green over everything since the last full gate. It covered
+taint-fail-closed, windows-rust-lld, review-hardening and csrf-cookieless-visitor too.
 
-Stage 4 left field navigation with its safe default: a read on a retrieval's result is not linked,
-so rename refuses where an indexed file writes `->field` the index holds no use for.
+What the gate fixed, in four commits:
 
-Possibly red at the gate: the `.lspt` coverage matrix, which has a new `signatureHelp` row; a
-`lens/` or workspace-symbol case over a file with an attribute declaration, since each field is now
-a declaration (a grep found none). The uncommitted `docs/rules/tooling.md` hunk is not this goal's.
+- `test(lsp)`: `signatureHelp` is in the render fixtures, the cursor split
+  (`crates/nvs-lsp/src/case.rs`) and the completion source table (`declaration_words`). 41 new
+  `.lspt` cases fill the coverage matrix's `signatureHelp` row and five `ShapeType` cells.
+- `test`: tests that earlier goals left behind their own deliberate changes. These were the string
+  half-capacity copy, no session row from a CSRF token alone, the write-back script's long-clock
+  ceiling, a package restriction naming only its own code, and the epoch readers rounding down.
+  Each test now pins the shipped behaviour. No library code changed.
+- `fix(stdlib)`: `Instant::toIso` and the JSON, db and io writers wrote the first instant as
+  `-009999-…`, which `fromIso` rejects. They now write `-9999-…`, and JSON reads with `fromIso`'s
+  grammar (standing decision *An ISO year has one syntax*). The cases, 33 hostile programs, the
+  rule and the `toIso` and `fromIso` pages say so, and `changes.json` has a breaking `fixed` entry.
+- `docs(site)`: the editor page's example is the snippet `tools/editor/attribute-declaration.nvs`.
+  The roadmap gives `exact-invalidation` a theme, and the question entries are restamped.
+
+`bun nv proofs --record-perf` re-measured the seven `Core\Time` groups, because `time.rs` changed.
+The uncommitted `docs/rules/tooling.md` hunk is not this goal's.
 
 ### Next
 
-Stage 7: the newcomer review of the stage 6 texts is done and stamped, so tick it after a reread
-of `index.mdx` § *Attribute declarations*. Then run the check the pack names (a close: build,
-clippy, this goal's tests by name, `bun nv close --goal attribute-editor-support`; a full gate:
-`looper verify`).
+The goal is reached. The next goal on the chain is `exact-invalidation`.
 
 ### Backlog
 
@@ -290,3 +297,6 @@ stay visible. Neither is this goal's work.
 - A class constant's initializer, `public const int N = Framework\Base::LIMIT;`, is folded in the
   signatures pass and records no `ExprInfo`, so a restricted constant there is probably not checked.
   Not reproduced.
+- A shape type's own field name, `note` in `{owner: Customer, note?: string}`, gets no definition and
+  no highlight, and prepareRename refuses it. An attribute declaration's fields have both. Found while
+  writing the `ShapeType` coverage cases. No case pins it.
