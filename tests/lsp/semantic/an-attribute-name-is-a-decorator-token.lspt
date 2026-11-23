@@ -1,5 +1,5 @@
 --TEST--
-an attribute's name is coloured as a decorator, at its declaration and at each use — a use carries `defaultLibrary` for a `Core` attribute and nothing for a program's own declaration — and the payload is coloured as the expressions it holds, `rule:attributes/attach-sites-and-forms`
+an attribute's name is coloured as a decorator, at its declaration and at each use — a use carries `defaultLibrary` for a `Core` attribute and nothing for a program's own declaration — a declared field is a property, as the key that sets it is, and the payload is coloured as the expressions it holds, `rule:attributes/attach-sites-and-forms`
 --FILE--
 <?nvs
 attribute Tagged on method { tag: string }
@@ -19,6 +19,7 @@ class Blog
 semanticTokens types=decorator,type,enum,enumMember,property
 --EXPECT--
 2:11+6 decorator
+2:30+3 property
 6:7+10 decorator defaultLibrary
 6:18+4 property
 6:29+6 property
@@ -27,3 +28,4 @@ semanticTokens types=decorator,type,enum,enumMember,property
 7:7+6 decorator
 7:14+3 property
 13:26+6 decorator
+13:45+7 property

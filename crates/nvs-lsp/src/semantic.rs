@@ -144,9 +144,9 @@ use lsp_types::{SemanticToken, SemanticTokenModifier, SemanticTokenType};
 use nvs_diagnostics::{PositionEncoding, SourceFile, Span};
 use nvs_stdlib::registry;
 use nvs_syntax::ast::{
-    AttributeGroup, CallArgs, ClassMember, ClassMemberKind, DestructureElement, DestructureTarget,
-    DocTagKind, EnumDecl, Expr, ExprKind, MemberName, Name, NewTarget, Param, Stmt, StmtKind,
-    StringPart, Type,
+    AttributeDecl, AttributeGroup, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
+    DestructureTarget, DocTagKind, EnumDecl, Expr, ExprKind, MemberName, Name, NewTarget, Param,
+    Stmt, StmtKind, StringPart, Type,
 };
 use nvs_types::expr::quals::{is_secret, is_tainted};
 use nvs_types::{ExprInfo, TypeId};
@@ -577,6 +577,19 @@ impl Named<'_> {
         }
     }
 
+    /// Records an attribute declaration's name and the names of its fields.
+    ///
+    /// A field is a `property`, as a class property's declaration is, so a
+    /// field reads the same here and as a key in `#[Name(key: …)]`. Its type
+    /// gets no token, for the reason a property's type gets none. The site
+    /// words after `on` get none either: the grammar colours them.
+    fn attribute_decl(&mut self, decl: &AttributeDecl) {
+        self.name(&decl.name, Kind::Decorator);
+        for field in &decl.fields {
+            self.push(field.name, Kind::Property);
+        }
+    }
+
     /// Walks every attribute in `groups`: the attribute's name as a
     /// decorator, carrying `defaultLibrary` where the checker resolved it to
     /// one of `Core`'s, each field's name as a property and each value as the
@@ -736,7 +749,7 @@ impl Walk for Named<'_> {
                 }
             }
             StmtKind::TypeAliasDecl(decl) => self.name(&decl.name, Kind::Type),
-            StmtKind::AttributeDecl(decl) => self.name(&decl.name, Kind::Decorator),
+            StmtKind::AttributeDecl(decl) => self.attribute_decl(decl),
             StmtKind::NamespaceDecl(decl) => {
                 self.opt_name(decl.name.as_ref(), Kind::Namespace);
             }
@@ -788,7 +801,7 @@ impl Walk for Named<'_> {
             // colour is for.
             ClassMemberKind::TypeAlias(alias) => self.name(&alias.name, Kind::Type),
             // An attribute a body owns is coloured as the file-scope form is.
-            ClassMemberKind::Attribute(decl) => self.name(&decl.name, Kind::Decorator),
+            ClassMemberKind::Attribute(decl) => self.attribute_decl(decl),
             ClassMemberKind::Method(method) => {
                 self.attributes(&method.attributes);
                 // The `$name` after `@param` is a parameter position, as
