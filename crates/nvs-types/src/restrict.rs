@@ -680,6 +680,7 @@ impl Restricted<'_> {
                 .packages
                 .and_then(|packages| packages.of(file))
                 .map(nvs_config::package::Package::name),
+            graph: env.graph,
         };
         allows_at(&self.entries[at], &site)
     }
@@ -697,6 +698,9 @@ pub struct Site<'s> {
     pub method: Option<&'s str>,
     /// The name of the package the use's file is in, by layout ([`crate::package`]).
     pub package: Option<&'s str>,
+    /// The program's classes. An allowed name that is a class allows that class alone, and
+    /// never a namespace that has the same name.
+    pub graph: &'s ClassGraph,
 }
 
 /// Whether `entry` allows a use at `site`: the check behind every [`code::E_RESTRICTED_USE`],
@@ -712,10 +716,14 @@ pub fn allows_at(entry: &Restriction, site: &Site<'_>) -> bool {
         namespace,
         class,
         method,
+        graph,
         ..
     } = *site;
+    let names = |name: &str| {
+        class == Some(name) || (namespace == name && graph.get(&QName::parse(name)).is_none())
+    };
     let matches = |target: &Target| match target {
-        Target::Name(name) => namespace == name || class == Some(name.as_str()),
+        Target::Name(name) => names(name),
         Target::Subtree(root) => under(namespace, root),
         Target::Member {
             class: owner,
@@ -723,7 +731,7 @@ pub fn allows_at(entry: &Restriction, site: &Site<'_>) -> bool {
         } => class == Some(owner.as_str()) && method == Some(member.as_str()),
     };
     let own = match entry.target() {
-        Target::Name(name) => namespace == name || class == Some(name.as_str()),
+        Target::Name(name) => names(name),
         Target::Subtree(root) => under(namespace, root),
         Target::Member { class: owner, .. } => class == Some(owner.as_str()),
     };

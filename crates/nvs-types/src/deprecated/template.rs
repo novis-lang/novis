@@ -30,7 +30,7 @@ use nvs_syntax::ast::{
 
 use super::{CONSTRUCT, Decl, Member, REPLACE};
 use crate::expr::{class_of_ctx, infer, is_assignable};
-use crate::expr_table::ExprInfo;
+use crate::expr_table::{ExprInfo, ResolvedCall};
 use crate::locals::{Live, LocalScope};
 use crate::lower::lower_optional_type;
 use crate::signatures::{
@@ -658,6 +658,15 @@ pub(crate) fn resolved(info: &ExprInfo, env: &Env<'_>) -> Vec<(QName, Member, Vi
             out.push((owner, Member::Method(name.to_owned()), sig.visibility));
         }
     };
+    let construct = |class: &QName, ctor: Option<&ResolvedCall>, out: &mut Vec<_>| {
+        out.push((class.clone(), Member::Type, Visibility::Public));
+        if let Some(ctor) = ctor {
+            method(&ctor.class, "constructor", out);
+        }
+    };
+    // Every variant is named, with no `_` arm, so a variant added later does
+    // not compile until somebody judges which declarations it uses. Restriction,
+    // deprecation and the test code check all read this one function.
     {
         match info {
             ExprInfo::Call(call) | ExprInfo::CallableRef(call) | ExprInfo::ClassRefCall(call) => {
@@ -666,15 +675,71 @@ pub(crate) fn resolved(info: &ExprInfo, env: &Env<'_>) -> Vec<(QName, Member, Vi
                 }
                 method(&call.class, &call.method, &mut out);
             }
+            // A route fold is recorded over the call it replaces on the same
+            // span, so the call is still a use of the method it names.
+            ExprInfo::RouteLink { call, .. } | ExprInfo::RouteIs { call, .. } => {
+                if call.is_static {
+                    out.push((call.class.clone(), Member::Type, Visibility::Public));
+                }
+                method(&call.class, &call.method, &mut out);
+            }
+            // A receiver whose type is a union uses the member on every class
+            // of the union, and each arm is the record that class alone makes.
+            ExprInfo::UnionMember { arms } => {
+                for (_, arm) in arms {
+                    out.extend(resolved(arm, env));
+                }
+            }
+            // The enumeration is an array literal of `new` expressions, so it
+            // constructs every class it lists.
+            ExprInfo::ProgramInstances { classes, ctors }
+            | ExprInfo::ProgramInstancesWith { classes, ctors, .. }
+            | ExprInfo::ProgramConstructors { classes, ctors, .. } => {
+                for (class, ctor) in classes.iter().zip(ctors) {
+                    construct(class, ctor.as_ref(), &mut out);
+                }
+            }
+            // `static::NAME` reads the constant the declaring class has; a
+            // redeclaration below it is reached only at run time.
+            ExprInfo::ClassConstLate { class, name, .. } => {
+                out.push((class.clone(), Member::Type, Visibility::Public));
+                out.push((class.clone(), Member::Const(name.clone()), Visibility::Public));
+            }
+            // The receiver's class is known only at run time: `record_acts`
+            // lists these sites and the lowering checks them when they run.
+            ExprInfo::ErasedCall { .. } | ExprInfo::ShapeProperty { .. } => {}
+            // A keyed access uses every public property of its key's class,
+            // and `crate::restrict::check_uses` judges it from the entry itself.
+            ExprInfo::KeyedProperty { .. } => {}
+            // A type, a type test and a key set name a class the way a type
+            // position does, which uses no declaration.
+            ExprInfo::TypeTest { .. }
+            | ExprInfo::ClassRefTest { .. }
+            | ExprInfo::SettledTypeTest { .. }
+            | ExprInfo::ShapeConversion { .. }
+            | ExprInfo::PropertyKey { .. }
+            | ExprInfo::PropertyPath { .. }
+            | ExprInfo::StringHoles { .. } => {}
+            // A folded value, `static::class` and `$obj::class` carry no name
+            // of a declaration they read.
+            ExprInfo::CoreConst { .. } | ExprInfo::ClassNameOf => {}
+            // A call through a `callable`, its rebinding and an anonymous
+            // function's own name reach a body no declaration names here; the
+            // anonymous function's body records its own uses.
+            ExprInfo::AnonFnSelf
+            | ExprInfo::AnonFn { .. }
+            | ExprInfo::CallThroughSignature { .. }
+            | ExprInfo::CallableRebind { .. } => {}
+            // A local read, an element read and an operator name nothing.
+            ExprInfo::Index { .. }
+            | ExprInfo::NarrowedRead { .. }
+            | ExprInfo::Coalesce { .. }
+            | ExprInfo::SecretEquality
+            | ExprInfo::CarrierComposition { .. } => {}
             ExprInfo::New { class, ctor, .. }
             | ExprInfo::NewDynamic {
                 bound: class, ctor, ..
-            } => {
-                out.push((class.clone(), Member::Type, Visibility::Public));
-                if let Some(ctor) = ctor {
-                    method(&ctor.class, "constructor", &mut out);
-                }
-            }
+            } => construct(class, ctor.as_ref(), &mut out),
             ExprInfo::StaticProperty { class, name, .. } => {
                 out.push((class.clone(), Member::Type, Visibility::Public));
                 let owner = resolve_property_owned(class, name, env.signatures, env.graph)
@@ -703,7 +768,6 @@ pub(crate) fn resolved(info: &ExprInfo, env: &Env<'_>) -> Vec<(QName, Member, Vi
                     Visibility::Public,
                 ));
             }
-            _ => {}
         }
     }
     out

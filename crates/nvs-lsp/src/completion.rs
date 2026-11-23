@@ -4418,6 +4418,7 @@ fn restricted_here(cursor: &Cursor<'_>, class: &QName, member: &Member) -> Optio
         class: around.as_deref(),
         method: None,
         package: None,
+        graph: &analysed.module.graph,
     };
     let refused: Vec<String> = nvs_types::restrict::entries_on(&analysed.restrictions, class, name)
         .into_iter()
