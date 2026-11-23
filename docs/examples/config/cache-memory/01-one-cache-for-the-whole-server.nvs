@@ -21,5 +21,7 @@ echo 'wait:     ', Core\Config::get('cache.memory.fill_wait') ?? '(no value)', "
 
 // Only the person who runs the server may change these settings.
 // `Core\Config::set` returns `false` both times, so both lines print `no`.
-echo 'raise:    ', Core\Config::set('cache.memory.max_size', '1G') ? 'yes' : 'no', "\n";
-echo 'hurry:    ', Core\Config::set('cache.memory.fill_wait', '1s') ? 'yes' : 'no', "\n";
+string $maxSize = 'cache.memory.max_size';
+string $fillWait = 'cache.memory.fill_wait';
+echo 'raise:    ', Core\Config::set($maxSize, '1G') ? 'yes' : 'no', "\n";
+echo 'hurry:    ', Core\Config::set($fillWait, '1s') ? 'yes' : 'no', "\n";

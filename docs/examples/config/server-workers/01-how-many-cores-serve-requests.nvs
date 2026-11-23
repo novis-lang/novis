@@ -8,7 +8,9 @@
 // differs on each machine, so this compares it with `Core\Os::cpuCount` and prints `yes`.
 echo 'one per core:   ', (Core\Config::get('server.workers') as ?int) == Core\Os::cpuCount() ? 'yes' : 'no', "\n";
 
-// A program cannot change this setting, so this prints `refused`.
-echo 'use 64 workers: ', Core\Config::set('server.workers', '64') ? 'accepted' : 'refused', "\n";
+// A program cannot change this setting. A name written in the call does not compile.
+// This name is in a variable, so the call runs and returns `false`. This prints `refused`.
+string $name = 'server.workers';
+echo 'use 64 workers: ', Core\Config::set($name, '64') ? 'accepted' : 'refused', "\n";
 
 // The server creates its workers when it starts. A new value takes effect after a restart.

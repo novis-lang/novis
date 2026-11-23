@@ -4,4 +4,6 @@
 echo 'listen:     ', Core\Config::get('debug.listen') ?? '(no value)', "\n";
 
 // A program cannot change this setting, so this prints `no`.
-echo 'change it:  ', Core\Config::set('debug.listen', '0.0.0.0:8137') ? 'yes' : 'no', "\n";
+// A name written directly in the call does not compile. This name is in a variable, so the call runs.
+string $name = 'debug.listen';
+echo 'change it:  ', Core\Config::set($name, '0.0.0.0:8137') ? 'yes' : 'no', "\n";

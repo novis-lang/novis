@@ -33,6 +33,7 @@ foreach ($names as string $key) {
 
 // Tries many values on the real key: whole numbers, values that are not whole
 // numbers, and `0` and `false`, which mean "no limit". Every write should fail.
+string $depth = 'limits.max_script_depth';
 array<string> $values = [
     '0',
     'false',
@@ -55,9 +56,9 @@ array<string> $values = [
     '',
 ];
 foreach ($values as string $value) {
-    Core\Config::set('limits.max_script_depth', $value);
+    Core\Config::set($depth, $value);
 }
-Core\Config::restore('limits.max_script_depth');
+Core\Config::restore($depth);
 
 // Prints the limit, then starts the endless chain from the other file. The
 // chain should stop at the limit, and this prints `yes`.

@@ -13,9 +13,12 @@ Core\Config::restore(Core\Str::repeat('.', 100000));
 
 // 2. A name with a zero byte in it, an empty name, and the name of a whole
 // group of settings.
-Core\Config::restore("limits.\u{0}memory");
-Core\Config::restore('');
-Core\Config::restore('limits');
+string $zeroByte = "limits.\u{0}memory";
+Core\Config::restore($zeroByte);
+string $empty = '';
+Core\Config::restore($empty);
+string $group = 'limits';
+Core\Config::restore($group);
 
 // 3. The same name a hundred thousand times, with nothing to undo. This must
 // not hold memory and must not get slower.

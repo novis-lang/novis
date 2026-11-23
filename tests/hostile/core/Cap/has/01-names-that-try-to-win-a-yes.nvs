@@ -6,7 +6,8 @@
 
 // 1. The program gives itself the right to write files and then checks. Only the
 //    person who runs the server may grant a capability, so both lines say no.
-bool $gaveItself = Core\Config::set('capabilities.fs.write', 'true');
+string $grant = 'capabilities.fs.write';
+bool $gaveItself = Core\Config::set($grant, 'true');
 echo 'step 1 gave itself ', $gaveItself ? 'yes' : 'no', "\n";
 echo 'step 1 has it ', Core\Cap::has('fs.write') ? 'yes' : 'no', "\n";
 

@@ -4,4 +4,6 @@
 echo 'tls_cert_file: ', Core\Config::get('debug.tls_cert_file') ?? '(not set)', "\n";
 
 // A program cannot change this setting, so this prints `no`.
-echo 'change it:     ', Core\Config::set('debug.tls_cert_file', '/etc/novis/debug.crt') ? 'yes' : 'no', "\n";
+// A name written directly in the call does not compile. This name is in a variable, so the call runs.
+string $name = 'debug.tls_cert_file';
+echo 'change it:     ', Core\Config::set($name, '/etc/novis/debug.crt') ? 'yes' : 'no', "\n";

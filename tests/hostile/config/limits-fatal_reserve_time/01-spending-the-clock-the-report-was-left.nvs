@@ -38,6 +38,8 @@ foreach ($names as string $key) {
 
 // 2. Tries durations in many units, and values that are not durations at all.
 //    Every write should fail.
+string $reserveTime = 'limits.fatal_reserve_time';
+string $reserveMemory = 'limits.fatal_reserve_memory';
 array<string> $values = [
     '0',
     '0s',
@@ -59,20 +61,20 @@ array<string> $values = [
     'NaN',
 ];
 foreach ($values as string $value) {
-    Core\Config::set('limits.fatal_reserve_time', $value);
+    Core\Config::set($reserveTime, $value);
 }
-Core\Config::restore('limits.fatal_reserve_time');
+Core\Config::restore($reserveTime);
 
 // 3. Changes `limits.cpu_time` 1,000 times while it tries to set both reserves.
 //    Every write to a reserve should fail.
 uint $round = 0;
 while ($round < 1000) {
     Core\Config::set('limits.cpu_time', '10s');
-    Core\Config::set('limits.fatal_reserve_time', '1h');
-    Core\Config::set('limits.fatal_reserve_memory', '4G');
+    Core\Config::set($reserveTime, '1h');
+    Core\Config::set($reserveMemory, '4G');
     Core\Config::set('limits.cpu_time', '30s');
-    Core\Config::restore('limits.fatal_reserve_time');
-    Core\Config::restore('limits.fatal_reserve_memory');
+    Core\Config::restore($reserveTime);
+    Core\Config::restore($reserveMemory);
     Core\Config::restore('limits.cpu_time');
     $round = $round + 1;
 }

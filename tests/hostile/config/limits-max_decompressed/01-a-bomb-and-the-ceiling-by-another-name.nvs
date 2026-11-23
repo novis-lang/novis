@@ -34,6 +34,7 @@ foreach ($names as string $key) {
 
 // 2. Tries many values on the real key, including `false` and `0`. Every write
 //    should fail.
+string $ceiling = 'limits.max_decompressed';
 array<string> $values = [
     'false',
     'true',
@@ -52,9 +53,9 @@ array<string> $values = [
     'inf',
 ];
 foreach ($values as string $value) {
-    Core\Config::set('limits.max_decompressed', $value);
+    Core\Config::set($ceiling, $value);
 }
-Core\Config::restore('limits.max_decompressed');
+Core\Config::restore($ceiling);
 
 // 3. Passes limits from `0` to the largest `uint`. A call always gets the smaller
 //    of its own limit and the configured one.

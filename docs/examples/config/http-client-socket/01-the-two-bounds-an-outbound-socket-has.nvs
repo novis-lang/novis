@@ -13,8 +13,10 @@ echo 'now in force:     ', Core\Config::get('http.client.socket.max_message') ??
 
 // A program cannot change the pool or the proxy, so both lines print `no`. The pool uses
 // memory after this request ends, and the proxy affects every outbound call.
-echo 'resize the pool:  ', Core\Config::set('http.client.pool_idle', '512') ? 'yes' : 'no', "\n";
-echo 'name a proxy:     ', Core\Config::set('http.client.proxy.url', 'http://somewhere-else.test:8080') ? 'yes' : 'no', "\n";
+string $pool = 'http.client.pool_idle';
+string $proxy = 'http.client.proxy.url';
+echo 'resize the pool:  ', Core\Config::set($pool, '512') ? 'yes' : 'no', "\n";
+echo 'name a proxy:     ', Core\Config::set($proxy, 'http://somewhere-else.test:8080') ? 'yes' : 'no', "\n";
 
 // `Core\Config::restore` deletes the value this program set, so the default applies again.
 // The configuration file cannot remove a limit either: `false` and `0` are not allowed.

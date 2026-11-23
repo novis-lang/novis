@@ -23,5 +23,6 @@ echo 'at its own ceiling:              ', Core\Bytes::length(Core\Compress::deco
 
 // A call that sets a higher limit still gets the configured limit. A program
 // cannot change `limits.max_decompressed`, so this returns `false`.
-echo 'raise the ceiling from here:     ', Core\Config::set('limits.max_decompressed', '4G') ? 'accepted' : 'refused', "\n";
+string $name = 'limits.max_decompressed';
+echo 'raise the ceiling from here:     ', Core\Config::set($name, '4G') ? 'accepted' : 'refused', "\n";
 echo 'still:                           ', Core\Config::get('limits.max_decompressed') ?? '(unset)', "\n";

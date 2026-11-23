@@ -25,6 +25,7 @@ foreach ($names as string $key) {
 }
 
 // 2. Tries no limit, zero, negative counts and counts too large to store.
+string $keep = 'log.keep';
 array<string> $counts = [
     'false',
     'true',
@@ -38,8 +39,8 @@ array<string> $counts = [
     Core\Str::repeat('9', 1048576),
 ];
 foreach ($counts as string $count) {
-    Core\Config::set('log.keep', $count);
+    Core\Config::set($keep, $count);
 }
-Core\Config::restore('log.keep');
+Core\Config::restore($keep);
 
 echo 'keep: ', Core\Config::get('log.keep') ?? '(no value)', "\n";

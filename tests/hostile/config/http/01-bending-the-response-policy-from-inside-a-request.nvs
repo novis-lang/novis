@@ -65,16 +65,18 @@ Core\Config::restore('http.headers.referrer_policy');
 Core\Config::restore('http.headers.content_security_policy');
 
 // 4. Set unsafe values, such as any origin with credentials. The server does not start with these in its file.
+string $corsMaxAge = 'http.cors.max_age';
+string $errorsDetail = 'http.errors.detail';
 Core\Config::set('http.cookies.same_site', 'None');
 Core\Config::set('http.cookies.secure', 'false');
 Core\Config::set('http.cors.origins', '*');
 Core\Config::set('http.cors.credentials', 'true');
-Core\Config::set('http.cors.max_age', '99999999999999999999h');
+Core\Config::set($corsMaxAge,'99999999999999999999h');
 Core\Config::set('http.headers.hsts', '0');
 Core\Config::set('http.headers.hsts', '-1');
 Core\Config::set('http.headers.content_type_options', 'false');
-Core\Config::set('http.errors.detail', 'full');
-Core\Config::set('http.errors.detail', 'everything');
+Core\Config::set($errorsDetail,'full');
+Core\Config::set($errorsDetail,'everything');
 
 // 5. Set keys that are almost the real keys, and a key with 10,000 parts.
 array<string> $nearby = [

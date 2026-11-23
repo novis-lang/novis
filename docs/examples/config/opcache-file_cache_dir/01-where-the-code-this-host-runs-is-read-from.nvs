@@ -10,12 +10,16 @@ echo 'artifact cache: ', Core\Path::basename(Core\Config::get('opcache.file_cach
 echo 'cache in use:   ', Core\Config::get('opcache.file_cache') ?? '(no value)', "\n";
 echo 'size limit:     ', Core\Config::get('opcache.file_cache_max_size') ?? '(no value)', "\n";
 
+// A name written in the call does not compile. These names are in variables, so each call runs.
+string $cacheDir = 'opcache.file_cache_dir';
+string $cache = 'opcache.file_cache';
+
 // A program cannot move this directory, so the call returns `false`. The server
 // runs the compiled code it reads from there.
-echo 'read my code from /tmp:  ', Core\Config::set('opcache.file_cache_dir', '/tmp/mine') ? 'accepted' : 'refused', "\n";
+echo 'read my code from /tmp:  ', Core\Config::set($cacheDir, '/tmp/mine') ? 'accepted' : 'refused', "\n";
 
 // A program cannot turn the cache off either. This call also returns `false`.
-echo 'turn the cache off:      ', Core\Config::set('opcache.file_cache', 'false') ? 'accepted' : 'refused', "\n";
+echo 'turn the cache off:      ', Core\Config::set($cache, 'false') ? 'accepted' : 'refused', "\n";
 
 // `[cache]` is a different block. It is the data cache your code reads and
 // writes, and it has no `dir` key.

@@ -3,6 +3,11 @@
 // so that every account on the machine may connect. Every attempt below should fail.
 // hostile: timeout-ms 20000
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs.
+string $socketMode = 'server.socket_mode';
+string $appSocketMode = 'app.0.server.socket_mode';
+
 // 1. Try permissive values, and values that are not permissions at all.
 array<string> $modes = [
     '0666',
@@ -20,9 +25,9 @@ array<string> $modes = [
     Core\Str::repeat('7', 100000),
 ];
 foreach ($modes as string $mode) {
-    Core\Config::set('server.socket_mode', $mode);
-    Core\Config::set('app.0.server.socket_mode', $mode);
-    Core\Config::restore('server.socket_mode');
+    Core\Config::set($socketMode, $mode);
+    Core\Config::set($appSocketMode, $mode);
+    Core\Config::restore($socketMode);
 }
 
 // 2. Try other ways to write the name of the setting, and the address beside it.
@@ -38,8 +43,8 @@ uint $changes = 0;
 string $standing = Core\Config::get('server.socket_mode') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
-    Core\Config::set('server.socket_mode', '0777');
-    Core\Config::restore('server.socket_mode');
+    Core\Config::set($socketMode, '0777');
+    Core\Config::restore($socketMode);
     if ((Core\Config::get('server.socket_mode') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }

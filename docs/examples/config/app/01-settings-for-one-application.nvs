@@ -17,4 +17,5 @@ echo 'memory: ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
 
 // A program cannot change the `[[app]]` blocks. Only the person who deploys the
 // application may do that, so `Core\Config::set` returns `false` and this prints `no`.
-echo 'reroot: ', Core\Config::set('app.0.root', '/') ? 'yes' : 'no', "\n";
+string $root = 'app.0.root';
+echo 'reroot: ', Core\Config::set($root, '/') ? 'yes' : 'no', "\n";

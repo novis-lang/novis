@@ -4,6 +4,14 @@
 // attempt below should fail and the settings should stay as they were.
 // hostile: timeout-ms 20000
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs and returns false.
+string $validate = 'opcache.validate';
+string $indexed = 'app.0.opcache.validate';
+string $freq = 'opcache.revalidate_freq';
+string $settle = 'opcache.settle';
+string $fileCache = 'opcache.file_cache';
+
 // 1. The program tries to set `validate` to many values that could mean
 //    "stop checking", including near misses and a very long string.
 array<string> $policies = [
@@ -25,9 +33,9 @@ array<string> $policies = [
     Core\Str::repeat('never', 65536),
 ];
 foreach ($policies as string $policy) {
-    Core\Config::set('opcache.validate', $policy);
-    Core\Config::set('app.0.opcache.validate', $policy);
-    Core\Config::restore('opcache.validate');
+    Core\Config::set($validate, $policy);
+    Core\Config::set($indexed, $policy);
+    Core\Config::restore($validate);
 }
 
 // 2. The program tries very long and very short times for `revalidate_freq` and `settle`.
@@ -47,11 +55,11 @@ array<string> $intervals = [
     Core\Str::repeat('9', 100000) . 's',
 ];
 foreach ($intervals as string $interval) {
-    Core\Config::set('opcache.revalidate_freq', $interval);
-    Core\Config::set('opcache.settle', $interval);
-    Core\Config::set('opcache.file_cache', $interval);
-    Core\Config::restore('opcache.revalidate_freq');
-    Core\Config::restore('opcache.settle');
+    Core\Config::set($freq, $interval);
+    Core\Config::set($settle, $interval);
+    Core\Config::set($fileCache, $interval);
+    Core\Config::restore($freq);
+    Core\Config::restore($settle);
 }
 
 // 3. The program writes the settings many times and reads `validate` back each time.
@@ -60,12 +68,12 @@ uint $changes = 0;
 string $standing = Core\Config::get('opcache.validate') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
-    Core\Config::set('opcache.validate', 'never');
-    Core\Config::set('opcache.revalidate_freq', '100000s');
-    Core\Config::set('opcache.settle', '100000s');
-    Core\Config::restore('opcache.validate');
-    Core\Config::restore('opcache.revalidate_freq');
-    Core\Config::restore('opcache.settle');
+    Core\Config::set($validate, 'never');
+    Core\Config::set($freq, '100000s');
+    Core\Config::set($settle, '100000s');
+    Core\Config::restore($validate);
+    Core\Config::restore($freq);
+    Core\Config::restore($settle);
     if ((Core\Config::get('opcache.validate') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }

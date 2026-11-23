@@ -14,7 +14,8 @@ echo 'so a 16-core host holds:   ', 16 * 16, "\n";
 
 // The right number depends on the size of the machine, so a program cannot change it.
 // `Core\Config::set` returns `false`, so this prints `no`.
-echo 'raise it from code:        ', Core\Config::set('http.client.pool_idle', '512') ? 'yes' : 'no', "\n";
+string $name = 'http.client.pool_idle';
+echo 'raise it from code:        ', Core\Config::set($name, '512') ? 'yes' : 'no', "\n";
 
 // A program may change the settings in this block that affect only its own call.
 // `http.client.deadline` is one of them, so this prints `yes` and then `2s`.

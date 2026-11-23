@@ -4,6 +4,11 @@
 // stops. Every write should fail, and the value should stay the configured one.
 // hostile: timeout-ms 20000
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs and returns false.
+string $name = 'queue.visibility';
+string $indexed = 'app.0.queue.visibility';
+
 // 1. Tries durations in many forms, and values that are not durations. In
 //    `[limits]`, `false` means "no limit", so it is tried too.
 array<string> $leases = [
@@ -38,9 +43,9 @@ array<string> $leases = [
     '0.' . Core\Str::repeat('0', 100000) . '1s',
 ];
 foreach ($leases as string $lease) {
-    Core\Config::set('queue.visibility', $lease);
-    Core\Config::set('app.0.queue.visibility', $lease);
-    Core\Config::restore('queue.visibility');
+    Core\Config::set($name, $lease);
+    Core\Config::set($indexed, $lease);
+    Core\Config::restore($name);
 }
 
 // 2. Tries keys that are almost `queue.visibility`, such as `visibility_timeout`.
@@ -67,9 +72,9 @@ uint $changes = 0;
 string $standing = Core\Config::get('queue.visibility') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
-    Core\Config::set('queue.visibility', '1ms');
-    Core\Config::set('queue.visibility', '0s');
-    Core\Config::restore('queue.visibility');
+    Core\Config::set($name, '1ms');
+    Core\Config::set($name, '0s');
+    Core\Config::restore($name);
     if ((Core\Config::get('queue.visibility') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }

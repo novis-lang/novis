@@ -4,6 +4,11 @@
 // all queue work. Every write should fail, and the value should not change.
 // hostile: timeout-ms 20000
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs.
+string $workers = 'queue.workers';
+string $appWorkers = 'app.0.queue.workers';
+
 // 1. Tries numbers written in many ways, from `0` to numbers too large to store,
 //    and values that are not numbers. Every write should fail.
 array<string> $counts = [
@@ -31,9 +36,9 @@ array<string> $counts = [
     '-' . Core\Str::repeat('9', 100000),
 ];
 foreach ($counts as string $count) {
-    Core\Config::set('queue.workers', $count);
-    Core\Config::set('app.0.queue.workers', $count);
-    Core\Config::restore('queue.workers');
+    Core\Config::set($workers, $count);
+    Core\Config::set($appWorkers, $count);
+    Core\Config::restore($workers);
 }
 
 // 2. Tries `queue.workers`, `queue.connection` and keys that are almost the same.
@@ -51,9 +56,9 @@ uint $changes = 0;
 string $standing = Core\Config::get('queue.workers') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
-    Core\Config::set('queue.workers', '64');
-    Core\Config::set('queue.workers', '0');
-    Core\Config::restore('queue.workers');
+    Core\Config::set($workers, '64');
+    Core\Config::set($workers, '0');
+    Core\Config::restore($workers);
     if ((Core\Config::get('queue.workers') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }

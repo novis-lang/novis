@@ -6,4 +6,5 @@ echo 'index_age: ', Core\Config::get('debug.index_age') ?? '(no value)', "\n";
 
 // A program cannot change this setting, so this prints `no`.
 // The records contain request data, so only the person who runs the server decides how long they stay.
-echo 'change it: ', Core\Config::set('debug.index_age', '1d') ? 'yes' : 'no', "\n";
+string $name = 'debug.index_age';
+echo 'change it: ', Core\Config::set($name, '1d') ? 'yes' : 'no', "\n";

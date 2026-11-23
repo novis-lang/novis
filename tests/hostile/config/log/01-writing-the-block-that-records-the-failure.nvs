@@ -65,12 +65,13 @@ Core\Config::restore('log.level');
 
 // 3. Changes the mode and both keys 5,000 times. A mode change sets these keys
 //    too. The request's memory should not grow with the number of writes.
+string $mode = 'mode';
 uint $round = 0;
 while ($round < 5000) {
-    Core\Config::set('mode', 'development');
+    Core\Config::set($mode, 'development');
     Core\Config::set('log.level', 'Debug');
     Core\Config::set('log.format', 'text');
-    Core\Config::restore('mode');
+    Core\Config::restore($mode);
     Core\Config::restore('log.level');
     Core\Config::restore('log.format');
     $round = $round + 1;

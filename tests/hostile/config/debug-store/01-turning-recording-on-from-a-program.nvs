@@ -11,13 +11,14 @@ foreach ($values as string $value) {
 Core\Config::restore('debug.store');
 
 // 2. Change the run mode to development. Each change should fail.
+string $modeKey = 'mode';
 array<string> $modes = ['development', 'Development', 'DEVELOPMENT', ' development', 'dev', 'debug'];
 foreach ($modes as string $mode) {
     Core\Config::set('mode.default', $mode);
-    Core\Config::set('mode', $mode);
+    Core\Config::set($modeKey, $mode);
 }
 Core\Config::restore('mode.default');
-Core\Config::restore('mode');
+Core\Config::restore($modeKey);
 
 // 3. Set keys that are almost the real key: extra dots, capital letters and other names.
 array<string> $nearby = [

@@ -79,11 +79,12 @@ foreach ($nearby as string $key) {
 }
 
 // 4. Try the same change 100,000 times with no restore. A failed change should use no memory.
+string $proxyUrl = 'http.client.proxy.url';
 uint $i = 0;
 while ($i < 100000) {
-    Core\Config::set('http.client.proxy.url', 'http://attacker.test:8080');
+    Core\Config::set($proxyUrl, 'http://attacker.test:8080');
     $i = $i + 1;
 }
-Core\Config::restore('http.client.proxy.url');
+Core\Config::restore($proxyUrl);
 
 echo 'proxy: ', Core\Config::get('http.client.proxy.url') ?? '(nothing)', "\n";

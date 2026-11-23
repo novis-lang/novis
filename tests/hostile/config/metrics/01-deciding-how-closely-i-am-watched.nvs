@@ -5,6 +5,15 @@
 // hostile: timeout-ms 20000
 // hostile: ends-early 4 FATAL
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs and returns false.
+string $exporter = 'metrics.exporter';
+string $listen = 'metrics.listen';
+string $endpoint = 'metrics.endpoint';
+string $traceEndpoint = 'trace.endpoint';
+string $maxSeries = 'metrics.max_series';
+string $sample = 'trace.sample';
+
 // 1. Tries the `[metrics]` and `[trace]` keys and keys that are almost the same.
 array<string> $names = [
     'metrics',
@@ -57,10 +66,10 @@ array<string> $destinations = [
     'https://' . Core\Str::repeat('a.', 32768) . 'test/v1',
 ];
 foreach ($destinations as string $destination) {
-    Core\Config::set('metrics.exporter', $destination);
-    Core\Config::set('metrics.listen', $destination);
-    Core\Config::set('metrics.endpoint', $destination);
-    Core\Config::set('trace.endpoint', $destination);
+    Core\Config::set($exporter, $destination);
+    Core\Config::set($listen, $destination);
+    Core\Config::set($endpoint, $destination);
+    Core\Config::set($traceEndpoint, $destination);
 }
 
 // 3. Tries very small, very large and invalid values for `metrics.max_series`
@@ -80,11 +89,11 @@ array<string> $bounds = [
     '  10000  ',
 ];
 foreach ($bounds as string $bound) {
-    Core\Config::set('metrics.max_series', $bound);
-    Core\Config::set('trace.sample', $bound);
+    Core\Config::set($maxSeries, $bound);
+    Core\Config::set($sample, $bound);
 }
-Core\Config::restore('metrics.max_series');
-Core\Config::restore('metrics.exporter');
+Core\Config::restore($maxSeries);
+Core\Config::restore($exporter);
 
 echo 'exporter on duty: ', Core\Config::get('metrics.exporter') ?? '(no value)', "\n";
 

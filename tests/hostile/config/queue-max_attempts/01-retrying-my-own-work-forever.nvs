@@ -4,6 +4,11 @@
 // should fail, and the value should stay the configured one.
 // hostile: timeout-ms 20000
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs and returns false.
+string $name = 'queue.max_attempts';
+string $indexed = 'app.0.queue.max_attempts';
+
 // 1. Tries many numbers, from `0` and negative values to numbers too large to
 //    store, and values that are not numbers. Every write should fail.
 array<string> $attempts = [
@@ -33,9 +38,9 @@ array<string> $attempts = [
     '-' . Core\Str::repeat('9', 100000),
 ];
 foreach ($attempts as string $attempt) {
-    Core\Config::set('queue.max_attempts', $attempt);
-    Core\Config::set('app.0.queue.max_attempts', $attempt);
-    Core\Config::restore('queue.max_attempts');
+    Core\Config::set($name, $attempt);
+    Core\Config::set($indexed, $attempt);
+    Core\Config::restore($name);
 }
 
 // 2. Tries this key, `queue.visibility` and keys that are almost the same. The
@@ -61,9 +66,9 @@ uint $changes = 0;
 string $standing = Core\Config::get('queue.max_attempts') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
-    Core\Config::set('queue.max_attempts', '1000000');
-    Core\Config::set('queue.max_attempts', '0');
-    Core\Config::restore('queue.max_attempts');
+    Core\Config::set($name, '1000000');
+    Core\Config::set($name, '0');
+    Core\Config::restore($name);
     if ((Core\Config::get('queue.max_attempts') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }

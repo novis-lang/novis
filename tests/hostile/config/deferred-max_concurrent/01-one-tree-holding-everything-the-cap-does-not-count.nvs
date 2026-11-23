@@ -5,6 +5,10 @@
 // The server should run all the work and keep running.
 // hostile: timeout-ms 40000
 
+// A name written directly in the call does not compile. The name here is in a
+// variable, so every call runs and returns false.
+string $maxConcurrent = 'deferred.max_concurrent';
+
 // 1. Raise the limit, or set values that could mean "no limit". Each change should fail.
 array<string> $caps = [
     '4096',
@@ -21,11 +25,11 @@ array<string> $caps = [
     "256\u{0000}4096",
 ];
 foreach ($caps as string $cap) {
-    Core\Config::set('deferred.max_concurrent', $cap);
+    Core\Config::set($maxConcurrent, $cap);
     Core\Config::get('deferred.max_concurrent');
 }
-Core\Config::restore('deferred.max_concurrent');
-Core\Config::restore('deferred.max_concurrent');
+Core\Config::restore($maxConcurrent);
+Core\Config::restore($maxConcurrent);
 
 // 2. Set keys that are almost the real key, and a key with 10,000 parts.
 array<string> $nearby = [

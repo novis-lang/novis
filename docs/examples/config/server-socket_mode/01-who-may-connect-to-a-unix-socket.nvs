@@ -8,8 +8,9 @@
 // When the file does not set it, the value is `0660`.
 echo 'socket mode:          ', Core\Config::get('server.socket_mode') ?? '(no value)', "\n";
 
-// Every account that may write to the socket may connect to the server.
-// A program cannot change this setting, so this prints `refused`.
-echo 'let everyone connect: ', Core\Config::set('server.socket_mode', '0666') ? 'accepted' : 'refused', "\n";
+// Every account that may write to the socket may connect to the server. A program cannot change this setting.
+// A name written in the call does not compile. This name is in a variable, so the call runs and prints `refused`.
+string $name = 'server.socket_mode';
+echo 'let everyone connect: ', Core\Config::set($name, '0666') ? 'accepted' : 'refused', "\n";
 
 // The server uses this value when it creates a socket. A new value takes effect after a restart.

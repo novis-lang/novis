@@ -41,8 +41,10 @@ string $relative = 'granted';
 Attack::trace('step 5', $relative . '/calls.jsonl');
 
 // 6. Tries to add a trace folder from code, then writes into it.
+//    A name written directly in the call does not compile. The name is in a variable, so the call runs.
+string $grant = 'capabilities.debug.trace';
 try {
-    echo 'step 6: set returned ', Core\Config::set('capabilities.debug.trace', $dir) ? 'true' : 'false', "\n";
+    echo 'step 6: set returned ', Core\Config::set($grant, $dir) ? 'true' : 'false', "\n";
 } catch (Throwable $error) {
     echo 'step 6: ', $error->message, "\n";
 }

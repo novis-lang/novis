@@ -58,18 +58,19 @@ foreach ($nearby as string $key) {
 }
 
 // 3. Set a path that is 1 MB long. The change should fail quickly.
+string $extensionPath = 'extension.0.path';
 string $flood = '/' . Core\Str::repeat('a/', 500000) . 'image.nvsx';
-Core\Config::set('extension.0.path', $flood);
+Core\Config::set($extensionPath, $flood);
 Core\Config::get('extension.0.path');
-Core\Config::restore('extension.0.path');
+Core\Config::restore($extensionPath);
 
 // 4. Set the path 50,000 times with no restore. A failed change should use no memory.
 uint $i = 0;
 while ($i < 50000) {
-    Core\Config::set('extension.0.path', '/tmp/' . $i . '.nvsx');
+    Core\Config::set($extensionPath, '/tmp/' . $i . '.nvsx');
     $i = $i + 1;
 }
-Core\Config::restore('extension.0.path');
+Core\Config::restore($extensionPath);
 
 // 5. The identity of the program and the extension list should not have changed.
 echo 'identity still ', Core\Str::length(Core\Program::id()), " characters\n";

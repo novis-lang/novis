@@ -7,11 +7,12 @@ echo 'nesting allowed:     ', Core\Config::get('limits.max_script_depth') ?? '(n
 // `limits.memory` is in the same block. A program may change it for itself.
 echo 'ask for less memory: ', Core\Config::set('limits.memory', '64M') ? 'accepted' : 'refused', "\n";
 
-// A program cannot change the depth. A higher value, a lower value and `false`
-// (no limit) all return `false`.
+// A program cannot change the depth. A name written in the call does not compile.
+// This name is in a variable, so each call runs and returns `false`.
+string $name = 'limits.max_script_depth';
 array<string> $asks = ['1024', '8', 'false'];
 foreach ($asks as string $ask) {
-    echo 'set the depth to ', $ask, ': ', Core\Config::set('limits.max_script_depth', $ask) ? 'accepted' : 'refused', "\n";
+    echo 'set the depth to ', $ask, ': ', Core\Config::set($name, $ask) ? 'accepted' : 'refused', "\n";
 }
 
 // The depth is still the configured value, `64`.

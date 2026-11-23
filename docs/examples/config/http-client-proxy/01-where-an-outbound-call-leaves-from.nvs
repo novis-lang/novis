@@ -8,8 +8,10 @@ echo 'reached direct: ', Core\Config::get('http.client.proxy.bypass') ?? '(nothi
 
 // A program cannot set a proxy, so both lines print `no`. Novis checks the address
 // of every outbound call, and a proxy chosen by a program could avoid that check.
-echo 'point it at me: ', Core\Config::set('http.client.proxy.url', 'http://somewhere-else.test:8080') ? 'yes' : 'no', "\n";
-echo 'let it resolve: ', Core\Config::set('http.client.proxy.resolve', 'proxy') ? 'yes' : 'no', "\n";
+string $url = 'http.client.proxy.url';
+string $resolve = 'http.client.proxy.resolve';
+echo 'point it at me: ', Core\Config::set($url, 'http://somewhere-else.test:8080') ? 'yes' : 'no', "\n";
+echo 'let it resolve: ', Core\Config::set($resolve, 'proxy') ? 'yes' : 'no', "\n";
 
 // Novis does not read proxy settings from environment variables such as `HTTPS_PROXY`.
 // Every request shares them, and no configuration file records them.

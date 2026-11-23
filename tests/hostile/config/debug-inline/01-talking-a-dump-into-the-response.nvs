@@ -11,11 +11,12 @@ foreach ($values as string $value) {
 Core\Config::restore('debug.inline');
 
 // 2. Change the run mode. Development mode shows dumps in the page, so each change should fail.
+string $modeKey = 'mode';
 array<string> $modes = ['development', 'Development', 'DEVELOPMENT', ' development', 'development ', 'dev', 'debug', 'production'];
 foreach ($modes as string $mode) {
-    Core\Config::set('mode', $mode);
+    Core\Config::set($modeKey, $mode);
 }
-Core\Config::restore('mode');
+Core\Config::restore($modeKey);
 
 // 3. Set keys that are almost the real key: extra dots, capital letters and other names.
 array<string> $nearby = [

@@ -66,16 +66,17 @@ Core\Config::restore('limits.memory');
 
 // 3. Mixes writes and restores 1,000 times. The ceiling should never go up,
 //    and `restore` should always return to the configured value.
+string $hard = 'limits.hard.memory';
 uint $round = 0;
 while ($round < 1000) {
     Core\Config::set('limits.memory', '64M');
-    Core\Config::set('limits.hard.memory', '4G');
+    Core\Config::set($hard, '4G');
     Core\Config::set('limits.memory', '1G');
-    Core\Config::restore('limits.hard.memory');
+    Core\Config::restore($hard);
     Core\Config::set('limits.memory', '1G');
     Core\Config::restore('limits.memory');
-    Core\Config::restore('limits.hard.memory');
-    Core\Config::set('limits.hard.memory', '4G');
+    Core\Config::restore($hard);
+    Core\Config::set($hard, '4G');
     Core\Config::set('limits.memory', '512M');
     Core\Config::restore('limits.memory');
     $round = $round + 1;

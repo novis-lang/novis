@@ -4,6 +4,15 @@
 // all three should still be the configured values at the end.
 // hostile: timeout-ms 20000
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs.
+string $backend = 'session.backend';
+string $appBackend = 'app.0.session.backend';
+string $cookieKey = 'session.cookie';
+string $appCookie = 'app.0.session.cookie';
+string $shortLived = 'session.short_lived';
+string $appShortLived = 'app.0.session.short_lived';
+
 // 1. Tries many stores, including `memory` and stores from other languages. Only
 //    `shared` and `db` are valid, and a program may not set either.
 array<string> $stores = [
@@ -25,9 +34,9 @@ array<string> $stores = [
     Core\Str::repeat('shared', 100000),
 ];
 foreach ($stores as string $store) {
-    Core\Config::set('session.backend', $store);
-    Core\Config::set('app.0.session.backend', $store);
-    Core\Config::restore('session.backend');
+    Core\Config::set($backend, $store);
+    Core\Config::set($appBackend, $store);
+    Core\Config::restore($backend);
 }
 
 // 2. Tries cookie names with `;`, `=` or a line break. Such a name could add a
@@ -50,9 +59,9 @@ array<string> $cookies = [
     Core\Str::repeat('c', 100000),
 ];
 foreach ($cookies as string $cookie) {
-    Core\Config::set('session.cookie', $cookie);
-    Core\Config::set('app.0.session.cookie', $cookie);
-    Core\Config::restore('session.cookie');
+    Core\Config::set($cookieKey, $cookie);
+    Core\Config::set($appCookie, $cookie);
+    Core\Config::restore($cookieKey);
 }
 
 // 3. Tries very long and very short lifetimes. A year keeps a stolen session
@@ -74,9 +83,9 @@ array<string> $lifetimes = [
     Core\Str::repeat('9', 100000) . 'h',
 ];
 foreach ($lifetimes as string $lifetime) {
-    Core\Config::set('session.short_lived', $lifetime);
-    Core\Config::set('app.0.session.short_lived', $lifetime);
-    Core\Config::restore('session.short_lived');
+    Core\Config::set($shortLived, $lifetime);
+    Core\Config::set($appShortLived, $lifetime);
+    Core\Config::restore($shortLived);
 }
 
 // 4. Writes all three keys 200,000 times and reads the store back each time.
@@ -85,10 +94,10 @@ uint $changes = 0;
 string $standing = Core\Config::get('session.backend') ?? '(nothing written)';
 uint $i = 0;
 while ($i < 200000) {
-    Core\Config::set('session.backend', 'memory');
-    Core\Config::set('session.short_lived', '8760h');
-    Core\Config::set('session.cookie', "nvs_session\r\nSet-Cookie: admin=1");
-    Core\Config::restore('session.backend');
+    Core\Config::set($backend, 'memory');
+    Core\Config::set($shortLived, '8760h');
+    Core\Config::set($cookieKey, "nvs_session\r\nSet-Cookie: admin=1");
+    Core\Config::restore($backend);
     if ((Core\Config::get('session.backend') ?? '(nothing written)') != $standing) {
         $changes = $changes + 1;
     }

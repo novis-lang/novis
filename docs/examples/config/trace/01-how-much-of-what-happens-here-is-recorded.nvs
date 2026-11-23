@@ -12,13 +12,17 @@ echo 'propagate: ', Core\Config::get('trace.propagate') ?? '(no value)', "\n";
 // `exporter` and `sample` are separate settings. `sample` starts at `0`, so you
 // must set both before any trace is sent.
 
-// Only the person who runs the server may change `[trace]`. A program cannot
-// trace more of its own requests, so this call returns `false`.
-echo 'record every request of mine: ', Core\Config::set('trace.sample', '1.0') ? 'accepted' : 'refused', "\n";
+// Only the person who runs the server may change `[trace]`. A name written directly
+// in the call does not compile. These names are in variables, so each call runs and returns `false`.
+string $sample = 'trace.sample';
+string $propagate = 'trace.propagate';
+
+// A program cannot trace more of its own requests, so this call returns `false`.
+echo 'record every request of mine: ', Core\Config::set($sample, '1.0') ? 'accepted' : 'refused', "\n";
 
 // A program cannot trace fewer of its requests either. This call also returns `false`.
-echo 'record none of them:          ', Core\Config::set('trace.sample', '0.0') ? 'accepted' : 'refused', "\n";
+echo 'record none of them:          ', Core\Config::set($sample, '0.0') ? 'accepted' : 'refused', "\n";
 
 // A program cannot stop sending the trace header on outgoing calls. This call
 // returns `false` too.
-echo 'leave the trace behind:       ', Core\Config::set('trace.propagate', 'false') ? 'accepted' : 'refused', "\n";
+echo 'leave the trace behind:       ', Core\Config::set($propagate, 'false') ? 'accepted' : 'refused', "\n";

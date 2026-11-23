@@ -33,6 +33,7 @@ foreach ($names as string $key) {
 
 // 2. Tries targets that are a device, a directory, a path outside the project,
 //    or an empty `file:`. Every write to `log.target` should fail.
+string $target = 'log.target';
 array<string> $destinations = [
     '',
     ' ',
@@ -56,11 +57,11 @@ array<string> $destinations = [
     'file:' . Core\Str::repeat('x', 1048576),
 ];
 foreach ($destinations as string $destination) {
-    Core\Config::set('log.target', $destination);
+    Core\Config::set($target, $destination);
     Core\Config::set('log.format', 'html');
     Core\Config::set('log.level', 'Critical');
 }
-Core\Config::restore('log.target');
+Core\Config::restore($target);
 Core\Config::restore('log.format');
 Core\Config::restore('log.level');
 

@@ -67,12 +67,17 @@ foreach ($neighbours as string $key) {
     Core\Config::get($key);
     Core\Config::restore($key);
 }
-Core\Config::set('http.client.pool_idle', '1048576');
-Core\Config::set('http.client.tls.roots', '[]');
-Core\Config::set('http.client.proxy.url', 'http://attacker.test:8080');
-Core\Config::restore('http.client.pool_idle');
-Core\Config::restore('http.client.tls.roots');
-Core\Config::restore('http.client.proxy.url');
+// A name written directly in the call does not compile. These names are in
+// variables, so every call runs and returns false.
+string $poolIdle = 'http.client.pool_idle';
+string $roots = 'http.client.tls.roots';
+string $proxyUrl = 'http.client.proxy.url';
+Core\Config::set($poolIdle, '1048576');
+Core\Config::set($roots, '[]');
+Core\Config::set($proxyUrl, 'http://attacker.test:8080');
+Core\Config::restore($poolIdle);
+Core\Config::restore($roots);
+Core\Config::restore($proxyUrl);
 
 // 4. Set an allowed value 200,000 times with no restore. Only the last value should use memory.
 uint $i = 0;

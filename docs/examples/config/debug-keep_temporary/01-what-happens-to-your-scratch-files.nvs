@@ -15,7 +15,8 @@ echo 'made under:       ', Core\Path::basename(Core\Config::get('io.temp_root') 
 
 // A program cannot change `keep_temporary`, so this prints `no`. Otherwise a program
 // could keep every file it makes until the disk is full.
-echo 'a program may:    ', Core\Config::set('debug.keep_temporary', 'true') ? 'yes' : 'no', "\n";
+string $name = 'debug.keep_temporary';
+echo 'a program may:    ', Core\Config::set($name, 'true') ? 'yes' : 'no', "\n";
 
 // You can turn the setting on in `nvs.toml` while the server runs. A restart is not needed.
 // While it is on, nothing deletes the files. Turn it off again when you are done.

@@ -3,7 +3,11 @@
 // It also tries to set the time to zero, so other records are deleted at once.
 // Every change should fail, and the setting should keep the value from the file.
 
-// 1. Set `debug.index_age` to very long times, to zero and to negative times. Each change should fail.
+// A name written directly in the call does not compile. The name here is in a
+// variable, so every call runs and returns false.
+string $setting = 'debug.index_age';
+
+// 1.Set `debug.index_age` to very long times, to zero and to negative times. Each change should fail.
 array<string> $times = [
     '3650d',
     '99999999999999999999d',
@@ -17,16 +21,16 @@ array<string> $times = [
     '7d',
 ];
 foreach ($times as string $time) {
-    Core\Config::set('debug.index_age', $time);
+    Core\Config::set($setting, $time);
 }
-Core\Config::restore('debug.index_age');
+Core\Config::restore($setting);
 
 // 2. Set values that are not times. Each change should fail.
 array<string> $words = ['', ' ', 'forever', 'never', 'NaN', 'inf', '1e30d', '7', "7d\n3650d", '7d 3650d'];
 foreach ($words as string $word) {
-    Core\Config::set('debug.index_age', $word);
+    Core\Config::set($setting, $word);
 }
-Core\Config::restore('debug.index_age');
+Core\Config::restore($setting);
 
 // 3. Set keys that are almost the real key: extra dots, capital letters and other names.
 array<string> $nearby = [
@@ -57,8 +61,8 @@ Core\Config::restore($deep);
 // 5. Try the same change 50,000 times. Each try should fail and leave nothing behind.
 uint $i = 0;
 while ($i < 50000) {
-    Core\Config::set('debug.index_age', '3650d');
-    Core\Config::restore('debug.index_age');
+    Core\Config::set($setting, '3650d');
+    Core\Config::restore($setting);
     $i = $i + 1;
 }
 

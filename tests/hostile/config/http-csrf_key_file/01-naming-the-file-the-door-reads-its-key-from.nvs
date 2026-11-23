@@ -4,6 +4,11 @@
 // and both keys together. Every change should fail.
 // hostile: timeout-ms 30000
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs and returns false.
+string $csrfKey = 'http.csrf_key';
+string $csrfKeyFile = 'http.csrf_key_file';
+
 // 1. Set the path to files the attacker controls, devices, directories and invalid paths.
 array<string> $paths = [
     '/tmp/attacker.key',
@@ -31,12 +36,12 @@ array<string> $paths = [
     Core\Str::repeat('/', 100000),
 ];
 foreach ($paths as string $value) {
-    Core\Config::set('http.csrf_key_file', $value);
+    Core\Config::set($csrfKeyFile, $value);
     // The change failed, so these reads should not return the attacker's path.
     Core\Config::get('http.csrf_key_file');
     Core\Config::get('http.csrf_key');
 }
-Core\Config::restore('http.csrf_key_file');
+Core\Config::restore($csrfKeyFile);
 
 // 2. Set keys that are almost this key, and a key with 20,000 parts.
 array<string> $spellings = [
@@ -58,20 +63,20 @@ foreach ($spellings as string $key) {
 }
 
 // 3. Set both keys, in both orders. Each change should fail on its own.
-Core\Config::set('http.csrf_key_file', '/tmp/attacker.key');
-Core\Config::set('http.csrf_key', 'attacker-chosen-key');
+Core\Config::set($csrfKeyFile, '/tmp/attacker.key');
+Core\Config::set($csrfKey, 'attacker-chosen-key');
 Core\Config::get('http.csrf_key');
-Core\Config::restore('http.csrf_key');
-Core\Config::set('http.csrf_key', 'attacker-chosen-key');
-Core\Config::set('http.csrf_key_file', '/tmp/attacker.key');
+Core\Config::restore($csrfKey);
+Core\Config::set($csrfKey, 'attacker-chosen-key');
+Core\Config::set($csrfKeyFile, '/tmp/attacker.key');
 Core\Config::get('http.csrf_key_file');
-Core\Config::restore('http.csrf_key_file');
+Core\Config::restore($csrfKeyFile);
 
 // 4. Restore a key that was never set. Then try one change 100,000 times with no restore.
-Core\Config::restore('http.csrf_key_file');
+Core\Config::restore($csrfKeyFile);
 uint $i = 0;
 while ($i < 100000) {
-    Core\Config::set('http.csrf_key_file', '/tmp/attacker.key');
+    Core\Config::set($csrfKeyFile, '/tmp/attacker.key');
     $i = $i + 1;
 }
 echo Core\Config::get('http.csrf_key_file') ?? '(nothing)', "\n";

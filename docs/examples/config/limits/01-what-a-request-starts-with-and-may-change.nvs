@@ -16,8 +16,10 @@ echo 'ask for 400M:         ', Core\Config::set('limits.memory', '400M') ? 'acce
 echo 'ask for 1G:           ', Core\Config::set('limits.memory', '1G') ? 'accepted' : 'refused', "\n";
 echo 'in force now:         ', Core\Config::get('limits.memory'), "\n";
 
-// No program can change the ceiling itself, so this call returns `false`.
-echo 'raise the ceiling:    ', Core\Config::set('limits.hard.memory', '1G') ? 'accepted' : 'refused', "\n";
+// No program can change the ceiling itself. A name written directly in the call
+// does not compile. This name is in a variable, so the call runs and returns `false`.
+string $ceiling = 'limits.hard.memory';
+echo 'raise the ceiling:    ', Core\Config::set($ceiling, '1G') ? 'accepted' : 'refused', "\n";
 
 // `limits.cpu_time` is not set here, so it is `null`. Under `nvs run` there is
 // then no CPU time limit. A program can still set one for itself.

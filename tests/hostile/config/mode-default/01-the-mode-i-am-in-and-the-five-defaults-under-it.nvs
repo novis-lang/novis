@@ -21,6 +21,8 @@ foreach ($derived as string $key) {
 
 // 2. Tries values that look like a mode: other names, hidden characters, a list
 //    and a very long string. None of them is a valid mode.
+string $bare = 'mode';
+string $indexed = 'app.0.mode.default';
 array<string> $modes = [
     '',
     'production',
@@ -40,8 +42,8 @@ array<string> $modes = [
 ];
 foreach ($modes as string $mode) {
     Core\Config::set('mode.default', $mode);
-    Core\Config::set('mode', $mode);
-    Core\Config::set('app.0.mode.default', $mode);
+    Core\Config::set($bare, $mode);
+    Core\Config::set($indexed, $mode);
     Core\Config::restore('mode.default');
 }
 

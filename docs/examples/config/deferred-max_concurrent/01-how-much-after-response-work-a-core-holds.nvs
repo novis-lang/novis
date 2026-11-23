@@ -14,7 +14,8 @@ echo 'each may hold up to:    ', Core\Config::get('limits.hard.memory') ?? '(not
 
 // The right limit depends on the size of the machine. A program may read it but not
 // change it. `Core\Config::set` returns `false`, so this prints `no`.
-echo 'raise it from code:     ', Core\Config::set('deferred.max_concurrent', '4096') ? 'yes' : 'no', "\n";
+string $name = 'deferred.max_concurrent';
+echo 'raise it from code:     ', Core\Config::set($name, '4096') ? 'yes' : 'no', "\n";
 
 // `Core\Task::afterResponse` runs this anonymous function after the response is sent.
 // Over the limit, it throws an error while the request still runs, so the work can run at once.

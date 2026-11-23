@@ -21,5 +21,6 @@ echo 'and in milliseconds:  ', $window->toMilliseconds(), "\n";
 
 // Many requests use these connections, so a program cannot change either setting.
 // `Core\Config::set` returns `false`, and the timeout is still `30s`.
-echo 'hold them longer:     ', Core\Config::set('http.client.pool_idle_timeout', '24h') ? 'yes' : 'no', "\n";
+string $name = 'http.client.pool_idle_timeout';
+echo 'hold them longer:     ', Core\Config::set($name, '24h') ? 'yes' : 'no', "\n";
 echo 'still in force:       ', Core\Config::get('http.client.pool_idle_timeout') ?? '(nothing)', "\n";

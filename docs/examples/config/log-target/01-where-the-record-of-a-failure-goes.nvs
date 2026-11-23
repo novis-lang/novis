@@ -4,11 +4,12 @@
 
 echo 'records go to: ', Core\Config::get('log.target') ?? '(nothing written — stderr, which is the floor default)', "\n";
 
-// A target can be `stderr`, a file or `syslog`. A program cannot change it,
-// so every call returns `false`.
+// A target can be `stderr`, a file or `syslog`. A program cannot change it.
+// A name written in the call does not compile. This name is in a variable, so every call runs and returns `false`.
+string $name = 'log.target';
 array<string> $destinations = ['stderr', 'file:/var/log/nvs.log', 'syslog'];
 foreach ($destinations as string $destination) {
-    echo 'send them to ', $destination, ': ', Core\Config::set('log.target', $destination) ? 'accepted' : 'refused', "\n";
+    echo 'send them to ', $destination, ': ', Core\Config::set($name, $destination) ? 'accepted' : 'refused', "\n";
 }
 
 // A program may change `log.format` and `log.level` for one request.

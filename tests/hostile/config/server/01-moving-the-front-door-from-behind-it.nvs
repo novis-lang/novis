@@ -4,6 +4,14 @@
 // should still be the configured one at the end.
 // hostile: timeout-ms 20000
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs.
+string $listen = 'server.listen';
+string $listenFirst = 'server.listen.0';
+string $appListen = 'app.0.server.listen';
+string $trusted = 'server.trusted_proxies';
+string $trustedFirst = 'server.trusted_proxies.0';
+
 // 1. Tries many ways to write "every network address", such as `0.0.0.0:80`.
 //    These are valid addresses, but a program still may not set them.
 array<string> $addresses = [
@@ -25,10 +33,10 @@ array<string> $addresses = [
     Core\Str::repeat('0.0.0.0:80,', 100000),
 ];
 foreach ($addresses as string $address) {
-    Core\Config::set('server.listen', $address);
-    Core\Config::set('server.listen.0', $address);
-    Core\Config::set('app.0.server.listen', $address);
-    Core\Config::restore('server.listen');
+    Core\Config::set($listen, $address);
+    Core\Config::set($listenFirst, $address);
+    Core\Config::set($appListen, $address);
+    Core\Config::restore($listen);
 }
 
 // 2. Tries to add proxies. A trusted proxy makes the server believe the client
@@ -44,9 +52,9 @@ array<string> $proxies = [
     Core\Str::repeat('0.0.0.0/0,', 100000),
 ];
 foreach ($proxies as string $proxy) {
-    Core\Config::set('server.trusted_proxies', $proxy);
-    Core\Config::set('server.trusted_proxies.0', $proxy);
-    Core\Config::restore('server.trusted_proxies');
+    Core\Config::set($trusted, $proxy);
+    Core\Config::set($trustedFirst, $proxy);
+    Core\Config::restore($trusted);
 }
 
 // 3. Tries to remove or raise the timeouts, `max_in_flight` and the other
@@ -82,9 +90,9 @@ uint $changes = 0;
 string $standing = Core\Config::get('server.listen') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
-    Core\Config::set('server.listen', '0.0.0.0:80');
-    Core\Config::set('server.trusted_proxies', '0.0.0.0/0');
-    Core\Config::restore('server.listen');
+    Core\Config::set($listen, '0.0.0.0:80');
+    Core\Config::set($trusted, '0.0.0.0/0');
+    Core\Config::restore($listen);
     if ((Core\Config::get('server.listen') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }

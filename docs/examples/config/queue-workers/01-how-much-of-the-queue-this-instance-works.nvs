@@ -9,9 +9,12 @@ echo 'claiming from: ', Core\Config::get('queue.connection') ?? '(nothing writte
 // takes the jobs and runs them. Here the value is `1`, so this prints `no`.
 echo 'enqueue-only:  ', (Core\Config::get('queue.workers') ?? '4') == '0' ? 'yes' : 'no', "\n";
 
+// A name written in the call does not compile. This name is in a variable, so each call runs.
+string $name = 'queue.workers';
+
 // A program cannot add workers, so the call returns `false`. More workers would
 // take CPU time from the other requests on the same server.
-echo 'hire eight more:        ', Core\Config::set('queue.workers', '8') ? 'accepted' : 'refused', "\n";
+echo 'hire eight more:        ', Core\Config::set($name, '8') ? 'accepted' : 'refused', "\n";
 
 // A program cannot set the workers to `0` either. This call also returns `false`.
-echo 'stop working the queue: ', Core\Config::set('queue.workers', '0') ? 'accepted' : 'refused', "\n";
+echo 'stop working the queue: ', Core\Config::set($name, '0') ? 'accepted' : 'refused', "\n";

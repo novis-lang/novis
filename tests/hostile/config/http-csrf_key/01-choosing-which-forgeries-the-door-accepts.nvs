@@ -4,6 +4,11 @@
 // change to this key should fail.
 // hostile: timeout-ms 30000
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs and returns false.
+string $csrfKey = 'http.csrf_key';
+string $csrfKeyFile = 'http.csrf_key_file';
+
 // 1. Set the key to a value the attacker knows, to empty values and to very long values.
 array<string> $keys = [
     'attacker-chosen-key',
@@ -19,10 +24,10 @@ array<string> $keys = [
     "key\ncsrf_key = \"\"",
 ];
 foreach ($keys as string $value) {
-    Core\Config::set('http.csrf_key', $value);
+    Core\Config::set($csrfKey, $value);
     Core\Config::get('http.csrf_key');
 }
-Core\Config::restore('http.csrf_key');
+Core\Config::restore($csrfKey);
 
 // 2. Set `csrf_key_file` to a file the attacker controls, a device or an invalid path.
 array<string> $files = [
@@ -35,17 +40,17 @@ array<string> $files = [
     Core\Str::repeat('../', 20000) . 'tmp/attacker.key',
 ];
 foreach ($files as string $value) {
-    Core\Config::set('http.csrf_key_file', $value);
+    Core\Config::set($csrfKeyFile, $value);
     Core\Config::get('http.csrf_key_file');
 }
-Core\Config::restore('http.csrf_key_file');
+Core\Config::restore($csrfKeyFile);
 
 // 3. Set both keys, one after the other. Each change should fail on its own.
-Core\Config::set('http.csrf_key', 'inline');
-Core\Config::set('http.csrf_key_file', '/tmp/attacker.key');
+Core\Config::set($csrfKey, 'inline');
+Core\Config::set($csrfKeyFile, '/tmp/attacker.key');
 Core\Config::get('http.csrf_key');
-Core\Config::restore('http.csrf_key');
-Core\Config::restore('http.csrf_key_file');
+Core\Config::restore($csrfKey);
+Core\Config::restore($csrfKeyFile);
 
 // 4. Set keys that are almost the real keys, and a key with 20,000 parts.
 array<string> $spellings = [
@@ -70,8 +75,8 @@ foreach ($spellings as string $key) {
 // 5. Try both changes 100,000 times with no restore. A failed change should use no memory.
 uint $i = 0;
 while ($i < 100000) {
-    Core\Config::set('http.csrf_key', 'attacker-chosen-key');
-    Core\Config::set('http.csrf_key_file', '/tmp/attacker.key');
+    Core\Config::set($csrfKey, 'attacker-chosen-key');
+    Core\Config::set($csrfKeyFile, '/tmp/attacker.key');
     $i = $i + 1;
 }
 echo Core\Config::get('http.csrf_key') == null ? '(nothing)' : '(a key is set)', "\n";

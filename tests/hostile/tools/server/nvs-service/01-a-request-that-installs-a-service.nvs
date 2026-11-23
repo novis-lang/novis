@@ -53,7 +53,9 @@ foreach ($names as string $name) {
 }
 
 // 5. Change the log file that an installed service writes to.
-echo 'move the log:    ', Core\Config::set('log.target', 'file:/tmp/attacker.log') ? 'accepted' : 'refused', "\n";
+//    A name written directly in the call does not compile. The name is in a variable, so the call runs.
+string $logTarget = 'log.target';
+echo 'move the log:    ', Core\Config::set($logTarget, 'file:/tmp/attacker.log') ? 'accepted' : 'refused', "\n";
 
 // 6. Start the installer 10000 times, under a different service name each time.
 uint $started = 0;

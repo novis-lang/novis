@@ -44,6 +44,7 @@ foreach ($names as string $key) {
 
 // 2. Tries values of zero, invalid values and values bigger than the request's
 //    memory. Every write should fail.
+string $reserve = 'limits.fatal_reserve_memory';
 array<string> $values = [
     '0',
     '0B',
@@ -63,18 +64,18 @@ array<string> $values = [
     '1 M',
 ];
 foreach ($values as string $value) {
-    Core\Config::set('limits.fatal_reserve_memory', $value);
+    Core\Config::set($reserve, $value);
 }
-Core\Config::restore('limits.fatal_reserve_memory');
+Core\Config::restore($reserve);
 
 // 3. Lowers and raises `limits.memory` 1,000 times. The reserve is at most a
 //    quarter of it, and the two must still agree after every change.
 uint $round = 0;
 while ($round < 1000) {
     Core\Config::set('limits.memory', '4M');
-    Core\Config::set('limits.fatal_reserve_memory', '4G');
+    Core\Config::set($reserve, '4G');
     Core\Config::set('limits.memory', '256M');
-    Core\Config::restore('limits.fatal_reserve_memory');
+    Core\Config::restore($reserve);
     Core\Config::set('limits.memory', '4M');
     Core\Config::restore('limits.memory');
     $round = $round + 1;

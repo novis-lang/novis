@@ -3,7 +3,11 @@
 // address or port. Anybody who reaches that address could then read the recorded requests.
 // Every change should fail, and the address should keep its default value.
 
-// 1. Set addresses on every network, on low ports and on other hosts. Each change should fail.
+// A name written directly in the call does not compile. The name here is in a
+// variable, so every call runs and returns false.
+string $setting = 'debug.listen';
+
+// 1.Set addresses on every network, on low ports and on other hosts. Each change should fail.
 array<string> $addresses = [
     '0.0.0.0:8137',
     '0.0.0.0:80',
@@ -20,9 +24,9 @@ array<string> $addresses = [
     'example.com:443',
 ];
 foreach ($addresses as string $address) {
-    Core\Config::set('debug.listen', $address);
+    Core\Config::set($setting, $address);
 }
-Core\Config::restore('debug.listen');
+Core\Config::restore($setting);
 
 // 2. Set values that are not addresses. Each change should fail.
 array<string> $words = [
@@ -39,14 +43,14 @@ array<string> $words = [
     'http://0.0.0.0:80/',
 ];
 foreach ($words as string $word) {
-    Core\Config::set('debug.listen', $word);
+    Core\Config::set($setting, $word);
 }
-Core\Config::restore('debug.listen');
+Core\Config::restore($setting);
 
 // 3. Set a very long address. A slow parse or a crash would show here.
 string $long = Core\Str::repeat('1', 100000) . ':8137';
-Core\Config::set('debug.listen', $long);
-Core\Config::restore('debug.listen');
+Core\Config::set($setting, $long);
+Core\Config::restore($setting);
 
 // 4. Set keys that are almost the real key: extra dots, capital letters and other names.
 array<string> $nearby = [
@@ -71,8 +75,8 @@ foreach ($nearby as string $key) {
 // 5. Try the same change 50,000 times. Each try should fail and leave nothing behind.
 uint $i = 0;
 while ($i < 50000) {
-    Core\Config::set('debug.listen', '0.0.0.0:80');
-    Core\Config::restore('debug.listen');
+    Core\Config::set($setting, '0.0.0.0:80');
+    Core\Config::restore($setting);
     $i = $i + 1;
 }
 

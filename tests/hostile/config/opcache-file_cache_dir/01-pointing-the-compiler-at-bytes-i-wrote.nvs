@@ -4,6 +4,10 @@
 // wrote. Every write should fail, and the directory should not change.
 // hostile: timeout-ms 20000
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs and returns false.
+string $dir = 'opcache.file_cache_dir';
+
 // 1. Tries `..` paths, a root, a device, a network share, null bytes and a very
 //    long path. Every write should fail.
 array<string> $paths = [
@@ -28,8 +32,8 @@ array<string> $paths = [
     '/' . Core\Str::repeat('a/', 100000),
 ];
 foreach ($paths as string $path) {
-    Core\Config::set('opcache.file_cache_dir', $path);
-    Core\Config::restore('opcache.file_cache_dir');
+    Core\Config::set($dir, $path);
+    Core\Config::restore($dir);
 }
 
 // 2. Tries other keys that might name the same directory, including keys under
@@ -60,11 +64,16 @@ foreach ($names as string $name) {
 // 3. Tries to turn the cache off, set its size to `0`, or clear it on every
 //    compile. Every write should fail.
 array<string> $bounds = ['false', 'true', '0', '1', '-1', '18446744073709551615'];
+array<string> $knobs = [
+    'opcache.file_cache',
+    'opcache.file_cache_max_size',
+    'opcache.file_cache_gc_probability',
+    'opcache.file_cache_gc_divisor',
+];
 foreach ($bounds as string $bound) {
-    Core\Config::set('opcache.file_cache', $bound);
-    Core\Config::set('opcache.file_cache_max_size', $bound);
-    Core\Config::set('opcache.file_cache_gc_probability', $bound);
-    Core\Config::set('opcache.file_cache_gc_divisor', $bound);
+    foreach ($knobs as string $knob) {
+        Core\Config::set($knob, $bound);
+    }
 }
 
 // 4. Writes and reads the directory 200,000 times. The value should never
@@ -73,8 +82,8 @@ uint $changes = 0;
 string $standing = Core\Config::get('opcache.file_cache_dir') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
-    Core\Config::set('opcache.file_cache_dir', '/tmp/mine');
-    Core\Config::restore('opcache.file_cache_dir');
+    Core\Config::set($dir, '/tmp/mine');
+    Core\Config::restore($dir);
     if ((Core\Config::get('opcache.file_cache_dir') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }

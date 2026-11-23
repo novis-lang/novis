@@ -22,8 +22,10 @@ echo 'timeout:  ', Core\Config::get('cache.shared.timeout') ?? '(no value)', "\n
 
 // Only the person who runs the server chooses the store.
 // A program cannot move it or shorten its timeout.
-echo 'move:     ', Core\Config::set('cache.shared.url', 'redis://elsewhere:6379') ? 'yes' : 'no', "\n";
-echo 'hurry:    ', Core\Config::set('cache.shared.timeout', '5ms') ? 'yes' : 'no', "\n";
+string $url = 'cache.shared.url';
+string $timeout = 'cache.shared.timeout';
+echo 'move:     ', Core\Config::set($url, 'redis://elsewhere:6379') ? 'yes' : 'no', "\n";
+echo 'hurry:    ', Core\Config::set($timeout, '5ms') ? 'yes' : 'no', "\n";
 
 // The person who runs the server can change this block while it runs.
 // The next request then uses the new store. No restart is needed.

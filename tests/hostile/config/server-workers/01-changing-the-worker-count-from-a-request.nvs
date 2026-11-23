@@ -3,6 +3,11 @@
 // use more of the machine, and zero stops the server. Every attempt below should fail.
 // hostile: timeout-ms 20000
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs.
+string $workers = 'server.workers';
+string $appWorkers = 'app.0.server.workers';
+
 // 1. Try very large counts, zero, negative counts and values that are not numbers.
 array<string> $counts = [
     '0',
@@ -22,9 +27,9 @@ array<string> $counts = [
     Core\Str::repeat('9', 100000),
 ];
 foreach ($counts as string $count) {
-    Core\Config::set('server.workers', $count);
-    Core\Config::set('app.0.server.workers', $count);
-    Core\Config::restore('server.workers');
+    Core\Config::set($workers, $count);
+    Core\Config::set($appWorkers, $count);
+    Core\Config::restore($workers);
 }
 
 // 2. Try other ways to write the name of the setting.
@@ -40,8 +45,8 @@ uint $changes = 0;
 string $standing = Core\Config::get('server.workers') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
-    Core\Config::set('server.workers', '1024');
-    Core\Config::restore('server.workers');
+    Core\Config::set($workers, '1024');
+    Core\Config::restore($workers);
     if ((Core\Config::get('server.workers') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }

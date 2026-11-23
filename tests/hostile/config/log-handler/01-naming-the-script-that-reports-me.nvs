@@ -34,6 +34,9 @@ foreach ($names as string $key) {
 
 // 2. Tries paths to a device, a directory, this file, a URL and paths outside
 //    the project. It also sets both reserves to `0`. Every write should fail.
+string $handler = 'log.handler';
+string $reserveMemory = 'log.handler_reserve_memory';
+string $reserveTime = 'log.handler_reserve_time';
 array<string> $paths = [
     '',
     ' ',
@@ -52,11 +55,11 @@ array<string> $paths = [
     Core\Str::repeat('a/', 16384) . 'on-error.nvs',
 ];
 foreach ($paths as string $path) {
-    Core\Config::set('log.handler', $path);
-    Core\Config::set('log.handler_reserve_memory', '0');
-    Core\Config::set('log.handler_reserve_time', '0');
+    Core\Config::set($handler, $path);
+    Core\Config::set($reserveMemory, '0');
+    Core\Config::set($reserveTime, '0');
 }
-Core\Config::restore('log.handler');
+Core\Config::restore($handler);
 
 // 3. Registers the program's own handler, which a program may do. This handler
 //    throws an error, so the `log.handler` script must report the failure.

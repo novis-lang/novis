@@ -11,6 +11,9 @@ echo 'scheme: ', $scheme, "\n";
 
 // 2. Tries to trust every address, the address of the client, and values that are
 //    not addresses. Each call returns `false`.
+string $trusted = 'server.trusted_proxies';
+string $trustedFirst = 'server.trusted_proxies.0';
+string $trustedApp = 'app.0.server.trusted_proxies';
 array<string> $lists = [
     '0.0.0.0/0',
     '::/0',
@@ -28,20 +31,20 @@ array<string> $lists = [
 ];
 uint $accepted = 0;
 foreach ($lists as string $list) {
-    if (Core\Config::set('server.trusted_proxies', $list)) {
+    if (Core\Config::set($trusted, $list)) {
         $accepted = $accepted + 1;
     }
-    if (Core\Config::set('server.trusted_proxies.0', $list)) {
+    if (Core\Config::set($trustedFirst, $list)) {
         $accepted = $accepted + 1;
     }
-    if (Core\Config::set('app.0.server.trusted_proxies', $list)) {
+    if (Core\Config::set($trustedApp, $list)) {
         $accepted = $accepted + 1;
     }
 }
 
 // 3. Tries the forged header itself as the list. This call returns `false` too.
 tainted string $forged = Core\Request::header('x-forwarded-for') ?? '';
-if (Core\Config::set('server.trusted_proxies', $forged)) {
+if (Core\Config::set($trusted, $forged)) {
     $accepted = $accepted + 1;
 }
 echo 'accepted: ', $accepted, "\n";
@@ -50,7 +53,7 @@ echo 'accepted: ', $accepted, "\n";
 uint $changes = 0;
 uint $i = 0;
 while ($i < 100000) {
-    Core\Config::set('server.trusted_proxies', '0.0.0.0/0');
+    Core\Config::set($trusted, '0.0.0.0/0');
     if (Core\Request::clientIp() != $address || Core\Request::scheme() != $scheme) {
         $changes = $changes + 1;
     }

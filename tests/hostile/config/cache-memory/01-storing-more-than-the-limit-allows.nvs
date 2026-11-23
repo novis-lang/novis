@@ -60,13 +60,16 @@ var $answers = fn(): Core\Cache\SecretEntry => Core\Cache\SecretEntry::of('t0ken
 $store->getSecret('token', $ring, { fill: $answers });
 
 // 6. Change both settings of the block, to larger values and to `0` and `false`.
+string $maxSize = 'cache.memory.max_size';
+string $fillWait = 'cache.memory.fill_wait';
+string $block = 'cache.memory';
 array<string> $values = ['1G', '1024G', '0', 'false', '-1', '', '9999h'];
 foreach ($values as string $value) {
-    Core\Config::set('cache.memory.max_size', $value);
-    Core\Config::set('cache.memory.fill_wait', $value);
-    Core\Config::set('cache.memory', $value);
+    Core\Config::set($maxSize, $value);
+    Core\Config::set($fillWait, $value);
+    Core\Config::set($block, $value);
 }
-Core\Config::restore('cache.memory.fill_wait');
+Core\Config::restore($fillWait);
 
 // Both settings should still have the values they started with.
 echo 'cap:  ', Core\Config::get('cache.memory.max_size') ?? '(no value)', "\n";

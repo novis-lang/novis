@@ -9,10 +9,13 @@ echo 'queued in:           ', Core\Config::get('queue.connection') ?? '(nothing 
 // After the last attempt, the job is not deleted. It stays in the dead-letter
 // table until somebody reads it.
 
+// A name written in the call does not compile. This name is in a variable, so each call runs.
+string $name = 'queue.max_attempts';
+
 // A program cannot raise this number, so the call returns `false`. Too many
 // retries slow down every other job in the same queue.
-echo 'try mine a thousand times: ', Core\Config::set('queue.max_attempts', '1000') ? 'accepted' : 'refused', "\n";
+echo 'try mine a thousand times: ', Core\Config::set($name, '1000') ? 'accepted' : 'refused', "\n";
 
 // A program cannot lower it either, so this call also returns `false`.
 // A job that is not retried may never be done.
-echo 'or give mine one try:      ', Core\Config::set('queue.max_attempts', '1') ? 'accepted' : 'refused', "\n";
+echo 'or give mine one try:      ', Core\Config::set($name, '1') ? 'accepted' : 'refused', "\n";

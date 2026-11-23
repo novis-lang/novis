@@ -15,7 +15,8 @@ echo 'now in force:  ', Core\Config::get('deferred.deadline') ?? '(nothing)', "\
 
 // `max_concurrent` is how many requests each core keeps open for this work at one time.
 // It depends on the size of the machine, so a program cannot change it. This prints `no`.
-echo 'raise the cap: ', Core\Config::set('deferred.max_concurrent', '4096') ? 'yes' : 'no', "\n";
+string $cap = 'deferred.max_concurrent';
+echo 'raise the cap: ', Core\Config::set($cap, '4096') ? 'yes' : 'no', "\n";
 
 // `Core\Config::restore` deletes the value this program set. `get` then returns the value
 // from the configuration file. This file sets nothing, so `get` returns `null`.

@@ -35,10 +35,11 @@ foreach ($names as string $key) {
 }
 
 // 2. The extension still answers after every write.
+string $currency = 'ext.ledger.currency';
 uint $round = 0;
 int $sum = 0;
 while ($round < 2000) {
-    if (!Core\Config::set('ext.ledger.currency', 'GBP')) {
+    if (!Core\Config::set($currency, 'GBP')) {
         $failed = $failed + 1;
     }
     $sum = $sum + Ledger::echoInt(1);

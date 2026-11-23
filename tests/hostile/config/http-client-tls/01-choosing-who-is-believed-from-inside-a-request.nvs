@@ -4,6 +4,12 @@
 // Every change should fail.
 // hostile: timeout-ms 30000
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs and returns false.
+string $rootsKey = 'http.client.tls.roots';
+string $minVersion = 'http.client.tls.min_version';
+string $keylog = 'http.client.tls.keylog';
+
 // 1. Set the trusted certificates to the attacker's file, to an empty list and to invalid values.
 array<string> $roots = [
     '["/tmp/attacker.pem"]',
@@ -20,10 +26,10 @@ array<string> $roots = [
     Core\Str::repeat('["/tmp/a.pem"]', 50000),
 ];
 foreach ($roots as string $value) {
-    Core\Config::set('http.client.tls.roots', $value);
+    Core\Config::set($rootsKey, $value);
     Core\Config::get('http.client.tls.roots');
 }
-Core\Config::restore('http.client.tls.roots');
+Core\Config::restore($rootsKey);
 
 // 2. Set the oldest TLS version to older versions and to invalid values.
 array<string> $versions = [
@@ -39,10 +45,10 @@ array<string> $versions = [
     Core\Str::repeat('1', 100000) . '.2',
 ];
 foreach ($versions as string $value) {
-    Core\Config::set('http.client.tls.min_version', $value);
+    Core\Config::set($minVersion, $value);
     Core\Config::get('http.client.tls.min_version');
 }
-Core\Config::restore('http.client.tls.min_version');
+Core\Config::restore($minVersion);
 
 // 3. Set the file for session secrets. With them, an attacker could read all outbound traffic.
 array<string> $keylogs = [
@@ -56,14 +62,14 @@ array<string> $keylogs = [
     Core\Str::repeat('a/', 50000) . 'keys.log',
 ];
 foreach ($keylogs as string $value) {
-    Core\Config::set('http.client.tls.keylog', $value);
+    Core\Config::set($keylog, $value);
     Core\Config::get('http.client.tls.keylog');
 }
-Core\Config::restore('http.client.tls.keylog');
+Core\Config::restore($keylog);
 
 // 4. Switch to development mode first, and then set the secrets file. This should still fail.
 Core\Config::set('mode.default', 'development');
-Core\Config::set('http.client.tls.keylog', '/tmp/keys.log');
+Core\Config::set($keylog, '/tmp/keys.log');
 Core\Config::get('http.client.tls.keylog');
 Core\Config::restore('mode.default');
 
@@ -91,8 +97,8 @@ foreach ($keys as string $key) {
 // 6. Try two changes 100,000 times with no restore. A failed change should use no memory.
 uint $i = 0;
 while ($i < 100000) {
-    Core\Config::set('http.client.tls.roots', '["/tmp/attacker.pem"]');
-    Core\Config::set('http.client.tls.keylog', '/tmp/keys.log');
+    Core\Config::set($rootsKey, '["/tmp/attacker.pem"]');
+    Core\Config::set($keylog, '/tmp/keys.log');
     $i = $i + 1;
 }
 echo Core\Config::get('http.client.tls.min_version') ?? '(nothing)', "\n";

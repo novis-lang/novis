@@ -11,5 +11,7 @@ echo 'requests at one time:   ', Core\Config::get('server.max_in_flight') ?? '(n
 // The file does not set `drain_timeout`, so the result is the default, `30s`.
 echo 'drain timeout:          ', Core\Config::get('server.drain_timeout') ?? '(no value)', "\n";
 
-// A program cannot change a setting in this block. `Core\Config::set` returns `false`.
-echo 'changed by the program: ', Core\Config::set('server.max_in_flight', '100000') ? 'yes' : 'no', "\n";
+// A program cannot change a setting in this block. A name written directly in the
+// call does not compile. This name is in a variable, so the call runs and returns `false`.
+string $name = 'server.max_in_flight';
+echo 'changed by the program: ', Core\Config::set($name, '100000') ? 'yes' : 'no', "\n";

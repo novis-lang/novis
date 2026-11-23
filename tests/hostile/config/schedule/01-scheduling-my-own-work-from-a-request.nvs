@@ -4,6 +4,16 @@
 // and a program should not be able to read the schedule.
 // hostile: timeout-ms 20000
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs.
+string $scheduleKey = 'schedule';
+string $scriptKey = 'schedule.0.script';
+string $scriptNoIndex = 'schedule.script';
+string $scopeKey = 'schedule.0.scope';
+string $overlapKey = 'schedule.0.overlap';
+string $timezoneKey = 'schedule.0.timezone';
+string $cronKey = 'schedule.0.cron';
+
 // 1. Tries every key of an entry, with an index like `schedule.0.script` and
 //    without one. Every write should fail.
 array<string> $keys = [
@@ -46,9 +56,9 @@ array<string> $scripts = [
     Core\Str::repeat('a/', 100000) . 'mine.nvs',
 ];
 foreach ($scripts as string $script) {
-    Core\Config::set('schedule.0.script', $script);
-    Core\Config::set('schedule.script', $script);
-    Core\Config::restore('schedule.0.script');
+    Core\Config::set($scriptKey, $script);
+    Core\Config::set($scriptNoIndex, $script);
+    Core\Config::restore($scriptKey);
 }
 
 // 3. Tries values for `scope`, `overlap` and `timezone`. These change where,
@@ -68,10 +78,10 @@ array<string> $words = [
     '',
 ];
 foreach ($words as string $word) {
-    Core\Config::set('schedule.0.scope', $word);
-    Core\Config::set('schedule.0.overlap', $word);
-    Core\Config::set('schedule.0.timezone', $word);
-    Core\Config::restore('schedule.0.scope');
+    Core\Config::set($scopeKey, $word);
+    Core\Config::set($overlapKey, $word);
+    Core\Config::set($timezoneKey, $word);
+    Core\Config::restore($scopeKey);
 }
 
 // 4. Tries cron expressions that run a job every minute or every second.
@@ -86,8 +96,8 @@ array<string> $crons = [
     Core\Str::repeat('*/1,', 100000) . '* * * *',
 ];
 foreach ($crons as string $cron) {
-    Core\Config::set('schedule.0.cron', $cron);
-    Core\Config::restore('schedule.0.cron');
+    Core\Config::set($cronKey, $cron);
+    Core\Config::restore($cronKey);
 }
 
 // 5. Writes and reads the schedule 200,000 times. Every read should return
@@ -95,9 +105,9 @@ foreach ($crons as string $cron) {
 uint $visible = 0;
 uint $i = 0;
 while ($i < 200000) {
-    Core\Config::set('schedule', 'jobs/mine.nvs');
-    Core\Config::set('schedule.0.script', 'jobs/mine.nvs');
-    Core\Config::restore('schedule');
+    Core\Config::set($scheduleKey, 'jobs/mine.nvs');
+    Core\Config::set($scriptKey, 'jobs/mine.nvs');
+    Core\Config::restore($scheduleKey);
     if (Core\Config::get('schedule') != null) {
         $visible = $visible + 1;
     }

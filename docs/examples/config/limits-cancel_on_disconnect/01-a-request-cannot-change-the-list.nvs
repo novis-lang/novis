@@ -1,10 +1,12 @@
 <?nvs
 // Shows that a request cannot change `limits.cancel_on_disconnect`.
 
-// Each change returns `false`, so this prints `refused` three times.
+// A name written directly in the call does not compile. This name is in a variable,
+// so each call runs. Each change returns `false`, so this prints `refused` three times.
+string $name = 'limits.cancel_on_disconnect';
 array<string> $lists = ['[]', '["POST"]', '["GET", "HEAD", "POST"]'];
 foreach ($lists as string $list) {
-    echo 'set to ', $list, ': ', Core\Config::set('limits.cancel_on_disconnect', $list) ? 'accepted' : 'refused', "\n";
+    echo 'set to ', $list, ': ', Core\Config::set($name, $list) ? 'accepted' : 'refused', "\n";
 }
 
 // `limits.memory` is in the same block, and a request may lower it. This prints `accepted`.

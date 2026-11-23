@@ -4,17 +4,23 @@
 // hostile: ends-early 4 FATAL
 
 // 1. Remove or raise the highest limit itself. Each call should return `false`.
+// A name written directly in the call does not compile. Those names are in variables, so every call runs.
+string $hardMemory = 'limits.hard.memory';
 array<string> $ceilings = ['false', '1G', '0', ''];
 foreach ($ceilings as string $value) {
-    echo Core\Config::set('limits.hard.memory', $value) ? 'yes' : 'no', "\n";
+    echo Core\Config::set($hardMemory, $value) ? 'yes' : 'no', "\n";
 }
-echo Core\Config::set('limits.hard', 'false') ? 'yes' : 'no', "\n";
+string $hard = 'limits.hard';
+echo Core\Config::set($hard, 'false') ? 'yes' : 'no', "\n";
 
 // 2. Raise the limits that cannot be raised. Each call should return `false`.
-echo Core\Config::set('max_script_depth', '1000000') ? 'yes' : 'no', "\n";
-echo Core\Config::set('max_decompressed', 'false') ? 'yes' : 'no', "\n";
-echo Core\Config::set('max_decompressed', '1G') ? 'yes' : 'no', "\n";
-echo Core\Config::set('fatal_reserve_memory', '31M') ? 'yes' : 'no', "\n";
+string $depth = 'max_script_depth';
+echo Core\Config::set($depth, '1000000') ? 'yes' : 'no', "\n";
+string $decompressed = 'max_decompressed';
+echo Core\Config::set($decompressed, 'false') ? 'yes' : 'no', "\n";
+echo Core\Config::set($decompressed, '1G') ? 'yes' : 'no', "\n";
+string $reserve = 'fatal_reserve_memory';
+echo Core\Config::set($reserve, '31M') ? 'yes' : 'no', "\n";
 
 // 3. Set the memory limit to the highest limit, then to one byte more.
 // The first call returns `true`. The other two should return `false`.

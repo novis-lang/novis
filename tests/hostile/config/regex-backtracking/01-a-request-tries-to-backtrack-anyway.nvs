@@ -21,6 +21,8 @@ final class Build
 }
 
 // 1. The request sets `regex.backtracking` to `allow` in several ways. Each call should return `false`.
+// A name written directly in the call does not compile. The name is in a variable, so every call runs.
+string $backtracking = 'regex.backtracking';
 array<string> $values = [
     'allow',
     'ALLOW',
@@ -32,7 +34,7 @@ array<string> $values = [
 ];
 uint $refused = 0;
 foreach ($values as string $value) {
-    if (!Core\Config::set('regex.backtracking', $value)) {
+    if (!Core\Config::set($backtracking, $value)) {
         $refused = $refused + 1;
     }
 }

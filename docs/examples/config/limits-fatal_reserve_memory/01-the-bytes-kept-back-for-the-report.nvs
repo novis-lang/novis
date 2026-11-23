@@ -14,8 +14,9 @@ Core\Fatal::onLimit(fn(): void => {
 
 // Only the person who runs the server may set the reserve. A program cannot
 // make it bigger or set it to `0`, so both calls return `false`.
-echo 'ask for a bigger net:           ', Core\Config::set('limits.fatal_reserve_memory', '64M') ? 'accepted' : 'refused', "\n";
-echo 'ask for no net:                 ', Core\Config::set('limits.fatal_reserve_memory', '0') ? 'accepted' : 'refused', "\n";
+string $reserve = 'limits.fatal_reserve_memory';
+echo 'ask for a bigger net:           ', Core\Config::set($reserve, '64M') ? 'accepted' : 'refused', "\n";
+echo 'ask for no net:                 ', Core\Config::set($reserve, '0') ? 'accepted' : 'refused', "\n";
 echo 'still:                          ', Core\Config::get('limits.fatal_reserve_memory') ?? '(unset)', "\n";
 
 // A program may change `limits.memory` for itself. The reserve is then taken

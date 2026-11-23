@@ -12,9 +12,12 @@ echo 'trust anchors:    ', Core\Config::get('http.client.tls.roots') ?? '(a list
 
 // Every request in this process uses the same TLS client, so a program cannot change
 // these three settings. `Core\Config::set` returns `false`, and each line prints `no`.
-echo 'trust one more:   ', Core\Config::set('http.client.tls.roots', '["/tmp/mine.pem"]') ? 'yes' : 'no', "\n";
-echo 'speak older TLS:  ', Core\Config::set('http.client.tls.min_version', '1.2') ? 'yes' : 'no', "\n";
-echo 'write secrets:    ', Core\Config::set('http.client.tls.keylog', '/tmp/keys.log') ? 'yes' : 'no', "\n";
+string $roots = 'http.client.tls.roots';
+string $minVersion = 'http.client.tls.min_version';
+string $keylog = 'http.client.tls.keylog';
+echo 'trust one more:   ', Core\Config::set($roots, '["/tmp/mine.pem"]') ? 'yes' : 'no', "\n";
+echo 'speak older TLS:  ', Core\Config::set($minVersion, '1.2') ? 'yes' : 'no', "\n";
+echo 'write secrets:    ', Core\Config::set($keylog, '/tmp/keys.log') ? 'yes' : 'no', "\n";
 
 // The failed calls changed nothing, so the oldest version is still `1.2`.
 echo 'still in force:   ', Core\Config::get('http.client.tls.min_version') ?? '(nothing)', "\n";

@@ -4,6 +4,10 @@
 // Every change should fail.
 // hostile: timeout-ms 30000
 
+// A name written directly in the call does not compile. The name here is in a
+// variable, so every call runs and returns false.
+string $poolIdle = 'http.client.pool_idle';
+
 // 1. Set the limit to huge, negative, empty and invalid values, and to `false`.
 array<string> $values = [
     '18446744073709551615',
@@ -22,10 +26,10 @@ array<string> $values = [
     Core\Str::repeat('9', 100000),
 ];
 foreach ($values as string $value) {
-    Core\Config::set('http.client.pool_idle', $value);
+    Core\Config::set($poolIdle, $value);
     Core\Config::get('http.client.pool_idle');
 }
-Core\Config::restore('http.client.pool_idle');
+Core\Config::restore($poolIdle);
 
 // 2. Set new keys under `pool_idle`. A request may set other keys in this block, but not these.
 array<string> $beneath = [
@@ -66,9 +70,9 @@ foreach ($sideways as string $key) {
 // 4. Try the same change 200,000 times with no restore. A failed change should use no memory.
 uint $i = 0;
 while ($i < 200000) {
-    Core\Config::set('http.client.pool_idle', '1048576');
+    Core\Config::set($poolIdle, '1048576');
     $i = $i + 1;
 }
-Core\Config::restore('http.client.pool_idle');
+Core\Config::restore($poolIdle);
 
 echo 'pool_idle: ', Core\Config::get('http.client.pool_idle') ?? '(nothing)', "\n";

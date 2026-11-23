@@ -60,10 +60,11 @@ Core\Config::get($deep);
 Core\Config::restore($deep);
 
 // 4. Try the same change 100,000 times. Each try should fail and leave nothing behind.
+string $fsWrite = 'capabilities.fs.write';
 uint $i = 0;
 while ($i < 100000) {
-    Core\Config::set('capabilities.fs.write', 'true');
-    Core\Config::restore('capabilities.fs.write');
+    Core\Config::set($fsWrite, 'true');
+    Core\Config::restore($fsWrite);
     $i = $i + 1;
 }
 

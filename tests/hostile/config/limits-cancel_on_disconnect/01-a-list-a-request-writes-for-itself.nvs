@@ -3,6 +3,7 @@
 // after its client went away. Every write below should fail.
 
 // 1. Write lists of many shapes: empty, very long, and not a list at all.
+string $setting = 'limits.cancel_on_disconnect';
 array<string> $lists = [
     '[]',
     '["get"]',
@@ -14,7 +15,7 @@ array<string> $lists = [
 ];
 uint $accepted = 0;
 foreach ($lists as string $list) {
-    if (Core\Config::set('limits.cancel_on_disconnect', $list)) {
+    if (Core\Config::set($setting, $list)) {
         $accepted = $accepted + 1;
     }
 }

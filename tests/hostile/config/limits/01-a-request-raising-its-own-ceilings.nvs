@@ -4,6 +4,10 @@
 // and the limits should end at the configured values.
 // hostile: timeout-ms 30000
 
+// A name that no request may change does not compile when it is written in the
+// call. This name is in a variable, so those calls run and return false.
+string $hard = 'limits.hard.memory';
+
 // 1. Sets every key above its ceiling. Some values write the same size in other
 //    ways, like `700 M` or `700MiB`. Every write should fail.
 array<string> $overshoot = [
@@ -66,11 +70,11 @@ array<string> $nonsense = [
 foreach ($nonsense as string $value) {
     Core\Config::set('limits.memory', $value);
     Core\Config::get('limits.memory');
-    Core\Config::set('limits.hard.memory', $value);
+    Core\Config::set($hard, $value);
     Core\Config::get('limits.hard.memory');
 }
 Core\Config::restore('limits.memory');
-Core\Config::restore('limits.hard.memory');
+Core\Config::restore($hard);
 
 // 3. Tries the keys that only the person who runs the server may set: the
 //    ceilings, the reserves, the script depth and the decompression limits.
@@ -119,7 +123,7 @@ foreach ($spellings as string $key) {
 uint $i = 0;
 while ($i < 100000) {
     Core\Config::set('limits.memory', '200M');
-    Core\Config::set('limits.hard.memory', '1G');
+    Core\Config::set($hard, '1G');
     $i = $i + 1;
 }
 Core\Config::restore('limits.memory');

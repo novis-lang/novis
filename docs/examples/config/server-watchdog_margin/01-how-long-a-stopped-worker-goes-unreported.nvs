@@ -7,7 +7,9 @@
 // This file does not set it, so this prints the default, `5s`.
 echo 'watchdog margin: ', Core\Config::get('server.watchdog_margin') ?? '(no value)', "\n";
 
-// A program cannot change this setting, so this prints `refused`.
-echo 'use 1 second:    ', Core\Config::set('server.watchdog_margin', '1s') ? 'accepted' : 'refused', "\n";
+// A program cannot change this setting. A name written in the call does not compile.
+// This name is in a variable, so the call runs and returns `false`. This prints `refused`.
+string $name = 'server.watchdog_margin';
+echo 'use 1 second:    ', Core\Config::set($name, '1s') ? 'accepted' : 'refused', "\n";
 
 // The server reads this setting when it starts. A new value takes effect after a restart.

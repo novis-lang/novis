@@ -31,6 +31,8 @@ foreach ($names as string $key) {
 
 // 2. Tries `development` with other letter case, spaces or hidden characters,
 //    and names that are not a mode. Every write should fail.
+string $ceiling = 'mode.ceiling';
+string $indexed = 'app.0.mode.ceiling';
 array<string> $modes = [
     '',
     ' ',
@@ -51,11 +53,11 @@ array<string> $modes = [
     Core\Str::repeat('development', 65536),
 ];
 foreach ($modes as string $mode) {
-    Core\Config::set('mode.ceiling', $mode);
+    Core\Config::set($ceiling, $mode);
     Core\Config::set('mode.default', $mode);
-    Core\Config::set('app.0.mode.ceiling', $mode);
+    Core\Config::set($indexed, $mode);
 }
-Core\Config::restore('mode.ceiling');
+Core\Config::restore($ceiling);
 Core\Config::restore('mode.default');
 
 // 3. Tries to switch to `development` 200,000 times. Every try should fail, so

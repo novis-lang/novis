@@ -16,13 +16,16 @@ echo 'listening on:   ', Core\Config::get('server.listen') ?? '(a list: loopback
 echo 'header wait:    ', Core\Config::get('server.header_timeout') ?? '(no value)', "\n";
 echo 'believed proxy: ', Core\Config::get('server.trusted_proxies') ?? '(nothing written — no forwarding header is believed)', "\n";
 
-// A program cannot change any setting in this block. `Core\Config::set`
-// returns `false`, so each line below prints `refused`.
-echo 'listen somewhere else:  ', Core\Config::set('server.listen', '0.0.0.0:80') ? 'accepted' : 'refused', "\n";
+// A program cannot change any setting in this block. A name written in the call does not compile.
+// Each name below is in a variable, so the call runs and prints `refused`.
+string $listen = 'server.listen';
+echo 'listen somewhere else:  ', Core\Config::set($listen, '0.0.0.0:80') ? 'accepted' : 'refused', "\n";
 
 // A trusted proxy decides which client address the logs and rate limits use.
 // With an empty list, the server trusts no forwarding header.
-echo 'believe my proxy:       ', Core\Config::set('server.trusted_proxies', '0.0.0.0/0') ? 'accepted' : 'refused', "\n";
+string $trustedProxies = 'server.trusted_proxies';
+echo 'believe my proxy:       ', Core\Config::set($trustedProxies, '0.0.0.0/0') ? 'accepted' : 'refused', "\n";
 
 // The header timeout closes a connection that sends its headers too slowly.
-echo 'wait all day for me:    ', Core\Config::set('server.header_timeout', '86400s') ? 'accepted' : 'refused', "\n";
+string $headerTimeout = 'server.header_timeout';
+echo 'wait all day for me:    ', Core\Config::set($headerTimeout, '86400s') ? 'accepted' : 'refused', "\n";

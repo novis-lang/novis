@@ -17,11 +17,13 @@ echo 'now in force:    ', Core\Config::get('http.cookies.same_site') ?? '(nothin
 
 // The error page is shown before the program starts, so a program cannot change it.
 // This prints `no`.
-echo 'say more:        ', Core\Config::set('http.errors.detail', 'full') ? 'yes' : 'no', "\n";
+string $detail = 'http.errors.detail';
+echo 'say more:        ', Core\Config::set($detail, 'full') ? 'yes' : 'no', "\n";
 
 // A program cannot change `http.csrf_key`, the secret key that signs cross-site request
 // tokens. With that key, a request could sign its own tokens. This prints `no`.
-echo 'choose the key:  ', Core\Config::set('http.csrf_key', 'whatever-i-like') ? 'yes' : 'no', "\n";
+string $key = 'http.csrf_key';
+echo 'choose the key:  ', Core\Config::set($key, 'whatever-i-like') ? 'yes' : 'no', "\n";
 
 // `Core\Config::restore` deletes the value this program set. The file does not set
 // this value, so `get` returns the default again. This prints `Lax`.

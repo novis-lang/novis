@@ -41,10 +41,11 @@ Core\Config::get($deep);
 Core\Config::restore($deep);
 
 // 4. Try the same change 50,000 times. Each try should fail and leave nothing behind.
+string $keepTemporary = 'debug.keep_temporary';
 uint $i = 0;
 while ($i < 50000) {
-    Core\Config::set('debug.keep_temporary', 'true');
-    Core\Config::restore('debug.keep_temporary');
+    Core\Config::set($keepTemporary, 'true');
+    Core\Config::restore($keepTemporary);
     $i = $i + 1;
 }
 

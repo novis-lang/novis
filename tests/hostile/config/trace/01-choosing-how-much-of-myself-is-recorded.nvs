@@ -4,6 +4,14 @@
 // keys should still be the configured values at the end.
 // hostile: timeout-ms 20000
 
+// A name written directly in the call does not compile. Each name here is in a
+// variable, so every call runs.
+string $sample = 'trace.sample';
+string $appSample = 'app.0.trace.sample';
+string $propagate = 'trace.propagate';
+string $exporter = 'trace.exporter';
+string $endpoint = 'trace.endpoint';
+
 // 1. Tries numbers written in many ways, including `nan`, `inf`, `50%` and very
 //    long numbers. Every write should fail.
 array<string> $fractions = [
@@ -32,19 +40,19 @@ array<string> $fractions = [
     Core\Str::repeat('1', 100000) . '.0',
 ];
 foreach ($fractions as string $fraction) {
-    Core\Config::set('trace.sample', $fraction);
-    Core\Config::set('app.0.trace.sample', $fraction);
-    Core\Config::restore('trace.sample');
+    Core\Config::set($sample, $fraction);
+    Core\Config::set($appSample, $fraction);
+    Core\Config::restore($sample);
 }
 
 // 2. Tries to turn off the trace header on outgoing calls, and to change the
 //    exporter and endpoint. Every write should fail.
 array<string> $flags = ['false', 'FALSE', 'False', '0', 'no', 'off', 'null', '', 'true', '2'];
 foreach ($flags as string $flag) {
-    Core\Config::set('trace.propagate', $flag);
-    Core\Config::set('trace.exporter', $flag);
-    Core\Config::set('trace.endpoint', 'http://127.0.0.1:1/' . $flag);
-    Core\Config::restore('trace.propagate');
+    Core\Config::set($propagate, $flag);
+    Core\Config::set($exporter, $flag);
+    Core\Config::set($endpoint, 'http://127.0.0.1:1/' . $flag);
+    Core\Config::restore($propagate);
 }
 
 // 3. Writes all four keys 200,000 times and reads the sample back each time.
@@ -53,11 +61,11 @@ uint $changes = 0;
 string $standing = Core\Config::get('trace.sample') ?? '(no value)';
 uint $i = 0;
 while ($i < 200000) {
-    Core\Config::set('trace.sample', '1.0');
-    Core\Config::set('trace.propagate', 'false');
-    Core\Config::set('trace.exporter', 'otlp');
-    Core\Config::set('trace.endpoint', 'https://collector.mine/v1');
-    Core\Config::restore('trace.sample');
+    Core\Config::set($sample, '1.0');
+    Core\Config::set($propagate, 'false');
+    Core\Config::set($exporter, 'otlp');
+    Core\Config::set($endpoint, 'https://collector.mine/v1');
+    Core\Config::restore($sample);
     if ((Core\Config::get('trace.sample') ?? '(no value)') != $standing) {
         $changes = $changes + 1;
     }

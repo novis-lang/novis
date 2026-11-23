@@ -9,8 +9,10 @@ echo 'read from file: ', Core\Config::get('http.csrf_key_file') ?? '(nothing)', 
 
 // The server checks every request against this one key, so a program cannot set it.
 // A program that could set it could make forged requests pass. Both lines print `no`.
-echo 'name one here:  ', Core\Config::set('http.csrf_key', 'a-key-of-my-own') ? 'yes' : 'no', "\n";
-echo 'or name a file: ', Core\Config::set('http.csrf_key_file', '/tmp/csrf.key') ? 'yes' : 'no', "\n";
+string $key = 'http.csrf_key';
+string $file = 'http.csrf_key_file';
+echo 'name one here:  ', Core\Config::set($key, 'a-key-of-my-own') ? 'yes' : 'no', "\n";
+echo 'or name a file: ', Core\Config::set($file, '/tmp/csrf.key') ? 'yes' : 'no', "\n";
 
 // Without the key, the server still rejects a browser request whose `Origin` header names
 // another site. A request with no `Origin` header is checked only when the key is set.

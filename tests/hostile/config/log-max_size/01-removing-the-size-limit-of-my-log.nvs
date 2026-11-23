@@ -25,6 +25,8 @@ foreach ($names as string $key) {
 }
 
 // 2. Tries no limit, a size of zero, negative sizes and sizes too large to store.
+string $maxSize = 'log.max_size';
+string $keep = 'log.keep';
 array<string> $sizes = [
     'false',
     '0',
@@ -39,11 +41,11 @@ array<string> $sizes = [
     Core\Str::repeat('9', 1048576),
 ];
 foreach ($sizes as string $size) {
-    Core\Config::set('log.max_size', $size);
-    Core\Config::set('log.keep', $size);
+    Core\Config::set($maxSize, $size);
+    Core\Config::set($keep, $size);
 }
-Core\Config::restore('log.max_size');
-Core\Config::restore('log.keep');
+Core\Config::restore($maxSize);
+Core\Config::restore($keep);
 
 // 3. Writes log records after the attempts. They go to the configured target.
 foreach ($sizes as string $size) {

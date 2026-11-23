@@ -68,12 +68,15 @@ foreach ($values as tainted string $value) {
 echo 'wrong links: ', $wrong, ', errors: ', $refused, "\n";
 
 // 5. Tries to change the prefix of the mount to each capture. Each call returns `false`.
+//    A name written directly in the call does not compile. Each name here is in a variable, so every call runs.
+string $prefixKey = 'server.mount.0.prefix';
+string $scanKey = 'server.mount.0.scan';
 uint $accepted = 0;
 foreach ($values as tainted string $value) {
-    if (Core\Config::set('server.mount.0.prefix', $value)) {
+    if (Core\Config::set($prefixKey, $value)) {
         $accepted = $accepted + 1;
     }
-    if (Core\Config::set('server.mount.0.scan', $value)) {
+    if (Core\Config::set($scanKey, $value)) {
         $accepted = $accepted + 1;
     }
 }

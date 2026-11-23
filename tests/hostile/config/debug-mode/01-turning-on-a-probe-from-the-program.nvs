@@ -3,7 +3,11 @@
 // A trace records every call, so a request could use it to fill memory.
 // Only the configuration file may turn a probe on, so every change below should fail.
 
-// 1. Set `debug.mode` to each probe name, and to lists of names. Each change should fail.
+// A name written directly in the call does not compile. The name here is in a
+// variable, so every call runs and returns false.
+string $setting = 'debug.mode';
+
+// 1.Set `debug.mode` to each probe name, and to lists of names. Each change should fail.
 array<string> $values = [
     'coverage',
     'branch',
@@ -22,11 +26,11 @@ array<string> $values = [
 ];
 uint $accepted = 0;
 foreach ($values as string $value) {
-    if (Core\Config::set('debug.mode', $value)) {
+    if (Core\Config::set($setting, $value)) {
         $accepted = $accepted + 1;
     }
 }
-Core\Config::restore('debug.mode');
+Core\Config::restore($setting);
 echo 'changes accepted: ', $accepted, "\n";
 
 // 2. Set keys that are almost the real key: extra dots, capital letters and other names.
@@ -57,14 +61,14 @@ Core\Config::get($deep);
 Core\Config::restore($deep);
 
 // 4. Set a value of 1 MB that names the trace probe 200,000 times.
-Core\Config::set('debug.mode', Core\Str::repeat('trace,', 200000));
-Core\Config::restore('debug.mode');
+Core\Config::set($setting, Core\Str::repeat('trace,', 200000));
+Core\Config::restore($setting);
 
 // 5. Try the same change 50,000 times. Each try should fail and leave nothing behind.
 uint $i = 0;
 while ($i < 50000) {
-    Core\Config::set('debug.mode', 'trace');
-    Core\Config::restore('debug.mode');
+    Core\Config::set($setting, 'trace');
+    Core\Config::restore($setting);
     $i = $i + 1;
 }
 

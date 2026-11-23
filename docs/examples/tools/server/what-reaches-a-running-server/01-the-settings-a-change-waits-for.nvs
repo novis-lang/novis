@@ -9,6 +9,7 @@ echo 'check the files every: ', Core\Config::get('opcache.revalidate_freq') ?? '
 // `1s` in production and `100ms` in development. This program runs in production.
 echo 'wait for no change:    ', Core\Config::get('opcache.settle') ?? '(no value)', "\n";
 
-// A program can read these settings, but it cannot change them.
-// `Core\Config::set` returns `false` here.
-echo 'change the wait:       ', Core\Config::set('opcache.settle', '0ms') ? 'yes' : 'no', "\n";
+// A program can read these settings, but it cannot change them. A name written in the
+// call does not compile. This name is in a variable, so the call runs and returns `false`.
+string $name = 'opcache.settle';
+echo 'change the wait:       ', Core\Config::set($name, '0ms') ? 'yes' : 'no', "\n";

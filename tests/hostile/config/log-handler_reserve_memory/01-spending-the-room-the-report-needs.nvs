@@ -31,6 +31,8 @@ foreach ($names as string $key) {
 
 // Tries many sizes on the real key, including `0` and `1`. With no memory, the
 // report could not be written. Every write should fail.
+string $reserveMemory = 'log.handler_reserve_memory';
+string $reserveTime = 'log.handler_reserve_time';
 array<string> $sizes = [
     '0',
     '0B',
@@ -49,11 +51,11 @@ array<string> $sizes = [
     'lots',
 ];
 foreach ($sizes as string $size) {
-    Core\Config::set('log.handler_reserve_memory', $size);
-    Core\Config::set('log.handler_reserve_time', $size);
+    Core\Config::set($reserveMemory, $size);
+    Core\Config::set($reserveTime, $size);
 }
-Core\Config::restore('log.handler_reserve_memory');
-Core\Config::restore('log.handler_reserve_time');
+Core\Config::restore($reserveMemory);
+Core\Config::restore($reserveTime);
 
 echo 'the allotment reads: ', Core\Config::get('log.handler_reserve_memory') ?? '(nothing)', "\n";
 

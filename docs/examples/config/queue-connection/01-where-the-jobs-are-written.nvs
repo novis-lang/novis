@@ -8,11 +8,13 @@ echo 'workers here:       ', Core\Config::get('queue.workers') ?? '(nothing writ
 // Use the application's own database. Then a job is added in the same transaction
 // as the work that caused it, and a rolled-back transaction creates no job.
 
-// A program cannot change this setting. `Core\Config::set` returns `false`, so this prints `refused`.
-echo 'store them elsewhere:      ', Core\Config::set('queue.connection', 'somewhere-else') ? 'accepted' : 'refused', "\n";
+// A program cannot change this setting. A name written in the call does not compile.
+// This name is in a variable, so the call runs and returns `false`. This prints `refused`.
+string $name = 'queue.connection';
+echo 'store them elsewhere:      ', Core\Config::set($name, 'somewhere-else') ? 'accepted' : 'refused', "\n";
 
 // The same is true for the value that is already set.
-echo 'write the same one back:   ', Core\Config::set('queue.connection', Core\Config::get('queue.connection') ?? 'main') ? 'accepted' : 'refused', "\n";
+echo 'write the same one back:   ', Core\Config::set($name, Core\Config::get('queue.connection') ?? 'main') ? 'accepted' : 'refused', "\n";
 
 // The server applies a new value in the file while it runs. Workers on the old
 // connection put their current job back, and new workers use the new connection.

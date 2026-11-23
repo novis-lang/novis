@@ -33,6 +33,7 @@ foreach ($names as string $key) {
 
 // 2. Tries many values on the real key. In `[limits]`, `false` means "no limit",
 //    so it is tried too. Every write should fail.
+string $ratio = 'limits.max_decompression_ratio';
 array<string> $values = [
     'false',
     'true',
@@ -51,9 +52,9 @@ array<string> $values = [
     'inf',
 ];
 foreach ($values as string $value) {
-    Core\Config::set('limits.max_decompression_ratio', $value);
+    Core\Config::set($ratio, $value);
 }
-Core\Config::restore('limits.max_decompression_ratio');
+Core\Config::restore($ratio);
 
 // 3. Compresses longer and longer runs of `A`, so the ratio grows. The small
 //    inputs unpack, and the large ones should throw a `ParseError`.

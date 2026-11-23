@@ -10,10 +10,11 @@ echo 'memory beside it:     ', Core\Config::get('log.handler_reserve_memory') ??
 echo 'the request-side time: ', Core\Config::get('limits.fatal_reserve_time') ?? '(nothing written)', "\n";
 echo 'the request-side heap: ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing written)', "\n";
 
-// A program cannot change this time. A longer and a shorter value both return
-// `false`. A report that is stopped early never arrives.
-echo 'give it an hour:  ', Core\Config::set('log.handler_reserve_time', '1h') ? 'accepted' : 'refused', "\n";
-echo 'give it a moment: ', Core\Config::set('log.handler_reserve_time', '1ms') ? 'accepted' : 'refused', "\n";
+// A program cannot change this time. A report that is stopped early never arrives.
+// A name written in the call does not compile. This name is in a variable, so each call runs and returns `false`.
+string $name = 'log.handler_reserve_time';
+echo 'give it an hour:  ', Core\Config::set($name, '1h') ? 'accepted' : 'refused', "\n";
+echo 'give it a moment: ', Core\Config::set($name, '1ms') ? 'accepted' : 'refused', "\n";
 
 // A program may lower its own `limits.cpu_time`. The time for the report stays `5s`.
 echo 'bound my own run:  ', Core\Config::set('limits.cpu_time', '2s') ? 'accepted' : 'refused', "\n";

@@ -51,10 +51,13 @@ array<string> $malformed = [
     "redis://127.0.0.1\u{0000}:16379",
     $enormous,
 ];
+// A name written directly in the call does not compile. The name is in a variable,
+// so every call runs and returns false.
+string $sharedUrl = 'cache.shared.url';
 uint $i = 0;
 while ($i < 20000) {
     foreach ($malformed as string $value) {
-        Core\Config::set('cache.shared.url', $value);
+        Core\Config::set($sharedUrl, $value);
     }
     $i = $i + 1;
 }

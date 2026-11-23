@@ -4,7 +4,9 @@
 // This file does not set `log.client_ip`, so this prints the default, `true`.
 echo 'client_ip: ', Core\Config::get('log.client_ip') ?? '(no value)', "\n";
 
-// `Core\Config::set` returns `false` here. Only `nvs.toml` can set `log.client_ip`.
-echo 'turn it off: ', Core\Config::set('log.client_ip', 'false') ? 'accepted' : 'not allowed', "\n";
+// Only `nvs.toml` can set `log.client_ip`. A name written in the call does not compile.
+// This name is in a variable, so the call runs and returns `false`.
+string $name = 'log.client_ip';
+echo 'turn it off: ', Core\Config::set($name, 'false') ? 'accepted' : 'not allowed', "\n";
 
 echo 'client_ip now: ', Core\Config::get('log.client_ip') ?? '(no value)', "\n";

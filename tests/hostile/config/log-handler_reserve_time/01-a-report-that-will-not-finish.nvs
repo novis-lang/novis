@@ -31,6 +31,7 @@ foreach ($names as string $key) {
 
 // Tries durations in many units on the real key, including `0` and `false`.
 // Every write should fail.
+string $reserve = 'log.handler_reserve_time';
 array<string> $durations = [
     '0',
     '0s',
@@ -50,9 +51,9 @@ array<string> $durations = [
     'soon',
 ];
 foreach ($durations as string $duration) {
-    Core\Config::set('log.handler_reserve_time', $duration);
+    Core\Config::set($reserve, $duration);
 }
-Core\Config::restore('log.handler_reserve_time');
+Core\Config::restore($reserve);
 
 echo 'the clock reads: ', Core\Config::get('log.handler_reserve_time') ?? '(nothing)', "\n";
 

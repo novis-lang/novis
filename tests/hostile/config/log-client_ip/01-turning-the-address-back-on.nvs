@@ -26,6 +26,7 @@ foreach ($names as string $key) {
 }
 
 // 2. Tries values that are not `true` or `false`.
+string $clientIp = 'log.client_ip';
 array<string> $values = [
     'true',
     'false',
@@ -37,8 +38,8 @@ array<string> $values = [
     Core\Str::repeat('t', 1048576),
 ];
 foreach ($values as string $value) {
-    Core\Config::set('log.client_ip', $value);
+    Core\Config::set($clientIp, $value);
 }
-Core\Config::restore('log.client_ip');
+Core\Config::restore($clientIp);
 
 echo 'client_ip: ', Core\Config::get('log.client_ip') ?? '(no value)', "\n";

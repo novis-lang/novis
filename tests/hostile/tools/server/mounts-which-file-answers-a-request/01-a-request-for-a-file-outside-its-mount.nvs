@@ -59,11 +59,14 @@ foreach ($keys as string $key) {
 echo 'accepted: ', $accepted, "\n";
 
 // 4. Repeats the attempt 100000 times and reads the path and the prefix each time.
+//    A name written directly in the call does not compile. Each name is in a variable, so every call runs.
+string $root = 'server.root';
+string $dispatch = 'server.dispatch';
 uint $changes = 0;
 uint $i = 0;
 while ($i < 100000) {
-    Core\Config::set('server.root', '/');
-    Core\Config::set('server.dispatch', 'path');
+    Core\Config::set($root, '/');
+    Core\Config::set($dispatch, 'path');
     if (Core\Request::path() != $path || Core\Request::mount()->prefix() != $prefix) {
         $changes = $changes + 1;
     }

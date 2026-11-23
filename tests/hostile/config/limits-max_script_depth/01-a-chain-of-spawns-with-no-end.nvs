@@ -6,6 +6,7 @@
 
 // Tries values that would remove the limit, at every level. `false` and `0` both
 // mean "no limit", so both must fail.
+string $depth = 'limits.max_script_depth';
 array<string> $asks = [
     'false',
     '0',
@@ -17,8 +18,8 @@ array<string> $asks = [
     '',
 ];
 foreach ($asks as string $ask) {
-    Core\Config::set('limits.max_script_depth', $ask);
-    Core\Config::restore('limits.max_script_depth');
+    Core\Config::set($depth, $ask);
+    Core\Config::restore($depth);
 }
 
 // `Here::path` returns its argument as a full path. A relative path written in quotes
