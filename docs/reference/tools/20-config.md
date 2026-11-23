@@ -568,22 +568,22 @@ them.
 
 `Core\Config::get`, `set`, `restore` and `all` are the program's view of the configuration.
 
-- A name is the dotted path the file writes: `limits.hard.memory`, `log.level`, `mode.default`. A
-  **bare limit name** — `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output` — is the
-  `[limits]` entry.
-- `get` returns the value in force as text. A value the file writes is spelled the way the file
-  spelled it. A key the file does not write gives its built-in default, spelled the way the shipped
-  `nvs.toml` shows it: `128M`, `30s`. `get` returns `null` for a key with no default, such as
-  `wall_time`, for an unwritten `[log] target`, and for a name that holds a table or a list (a
-  capability grant, an `[[app]]` block).
-- `set` writes an overlay **for this request only**. It is gone when the request ends and is
-  invisible to every other request, including a script this one spawns. It returns `false` and
-  changes nothing — it never throws — for a `System` directive (only the file may set it), a name no
-  directive governs, a value that does not parse in the name's unit, and a value above the
-  `[limits.hard]` ceiling. Every directive's class is in the table below.
-- `restore` removes the overlay for one name, so the file's value or the default is in force again.
-  `all` returns every value in force, keyed by dotted name in name order. That is the built-in
-  defaults, then the file, then the overlay. The example below prints three of them.
+- A name is the dotted path the file writes: `limits.hard.memory`, `log.level`, `mode.default`.
+  A limit's name alone, such as `memory`, `cpu_time` or `wall_time`, is the setting in `[limits]`.
+- `get` returns the current value of a setting as text. A value from the file is written exactly
+  as the file writes it. A setting the file does not write gives its built-in default, written as
+  the shipped `nvs.toml` shows it: `128M`, `30s`.
+- `get` returns `null` in three cases: a setting with no default, such as `wall_time`; a setting
+  that is not written, such as `[log] target`; and a name whose value is a table or a list.
+- `set` changes a setting **for this request only**. The change ends with the request. No other
+  request sees it, and a script this request starts does not see it either.
+- `set` returns `false` and changes nothing for a setting a request may not change, for an unknown
+  name, for a value that is not valid for the setting, and for a value above its `[limits.hard]`
+  ceiling. `set` never throws an error.
+- `restore` deletes this request's change to one setting. The setting has the file's value or its
+  default again.
+- `all` returns every current value as an array, with the dotted names as keys, in name order. The
+  example below prints three of them.
 
 ```toml file=nvs.toml
 [limits]
@@ -599,14 +599,14 @@ level = "info"
 <?nvs
 use Core\Config;
 
-echo '256M: ', Config::set('memory', '256M') ? 'ok' : 'refused', "\n";
-echo '1G: ', Config::set('memory', '1G') ? 'ok' : 'refused', "\n";
-// A name written directly in `set` that a program may not change does not compile.
-// These names are in variables, so each call runs and returns `false`.
+echo '256M: ', Config::set('memory', '256M') ? 'ok' : 'not allowed', "\n";
+echo '1G: ', Config::set('memory', '1G') ? 'ok' : 'not allowed', "\n";
+// The compiler checks a setting name written as text in `set`. These two names would not
+// compile there. Here they are in variables, so each call runs and returns `false`.
 string $cache = 'opcache.file_cache_dir';
 string $unknown = 'no.such.key';
-echo 'file_cache_dir: ', Config::set($cache, '/tmp/nvs') ? 'ok' : 'refused', "\n";
-echo 'unknown: ', Config::set($unknown, '1') ? 'ok' : 'refused', "\n";
+echo 'file_cache_dir: ', Config::set($cache, '/tmp/nvs') ? 'ok' : 'not allowed', "\n";
+echo 'unknown: ', Config::set($unknown, '1') ? 'ok' : 'not allowed', "\n";
 Config::set('log.level', 'debug');
 
 foreach (Config::all() as string $name => string $value) {
@@ -620,9 +620,9 @@ echo 'restored: ', Config::get('memory'), "\n";
 ```
 ```output
 256M: ok
-1G: refused
-file_cache_dir: refused
-unknown: refused
+1G: not allowed
+file_cache_dir: not allowed
+unknown: not allowed
 limits.memory = 256M
 log.level = debug
 session.short_lived = 2h
@@ -631,7 +631,8 @@ restored: 128M
 
 The file gives the value each request starts with. A request may change only the keys in the
 second table below, and each row says how. `Core\Config::set` returns `false` for every other key.
-A name written in the call that is not in the table does not compile.
+The compiler checks a name written as text in the call. If the name is not in the table, the
+program does not compile.
 
 The `apply` column says whether a running server applies a change to the file by itself, or only
 at its next start. Only `[server] listen`, `socket_mode`, `workers` and `watchdog_margin` wait for

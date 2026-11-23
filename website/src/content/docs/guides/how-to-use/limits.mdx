@@ -117,7 +117,7 @@ The request stops at once. This is not an exception, so no `catch` block runs. T
 - Do set a maximum in `[limits.hard]` when a request needs to raise its own limit.
 - Do raise a limit in the one request that needs it, with `Core\Config::set`.
 - Don't raise the starting value for every request because one page needs more. Each request then
-  holds more memory, and fewer requests run at the same time.
+  uses more memory, and fewer requests run at the same time.
 - Don't catch a limit as an error. Make the work smaller, or raise the limit before you start it.
 
 Read more in [Syntax: limits](/syntax/errors/limits/) and

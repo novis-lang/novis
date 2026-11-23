@@ -1137,31 +1137,32 @@ are `null` while telemetry is off.
 
     nvs meta --json [entry.nvs]
 
-Prints the `Core` registry as one JSON object — the same data Part B of this reference is
-generated from. `--json` is required. Its seven top-level keys:
+Prints the built-in `Core` classes as one JSON object. The `Core` reference on this website is
+made from the same data. `--json` is required. The object has eight top-level keys:
 
-- `classes`: one object per `Core` class, with `name` and `members`. A member has `name`, `kind`
-  (`static` or `instance`), `signature` (the full spelling, `length(string $s): uint`), `params`
-  (each with `name`, `type` and `qualifier` — `neutral`, or the taint or secret admission), `names`,
-  `returns`, and `doc` (`short`, a `params` list with a `desc` per parameter, `return`, and `errors`
-  where the member throws). A class with constants has a `constants` list.
+- `classes`: one object per `Core` class, with `name` and `members`. A method has `name`, `kind`
+  (`static` or `instance`), `signature` (the whole declaration, such as `length(string $s): uint`),
+  `params`, `names`, `returns` and `doc`. Each parameter has `name`, `type` and `qualifier`. The
+  qualifier is `neutral`, or the tainted or secret value the parameter accepts. `doc` has `short`,
+  a `params` list with a `desc` per parameter, `return`, and `errors` where the method throws. A
+  class with constants has a `constants` list.
 - `enums`: `name` plus `doc` with `short` and one `cases` entry per case.
-- `exceptions`: the throwable tree — `name`, `parent`, and the `properties` a class adds.
+- `exceptions`: every error class, with `name`, `parent`, and the `properties` a class adds.
 - `interfaces`: the global interfaces, with `typeParams` where they have any.
 - `attributes`: the compiler-recognized attribute names.
 - `directives`: every `nvs.toml` directive with its `key` and when a change applies (`Reload` or
   `Boot`).
 - `settable`: every key a request may change with `Core\Config::set`, with its `key` and `how`
   (`up-to-ceiling`, or `off-only` for a key a request may only set to `false`).
-- `capabilities`: one row per gated `Core` member — `class`, `member` and `capability`. It is a
-  roster of its own rather than a field on a member, so a renderer that wants a capability beside a
-  card joins the two on `(class, member)`; a member absent from it is ungated.
+- `capabilities`: one row for each `Core` method that needs a capability, with `class`, `member`
+  and `capability`. To show a method's capability, find its row by `class` and `member`. A method
+  with no row needs no capability.
 
-Given an entry point, the command also parses and resolves that program, and adds an eighth key,
-`program`, holding its own `classes`, `enums` and `types` (its `type` aliases) in the same shape, and `schemas` when a class's JSON schema refers to another class. A declaration's `doc` is the
-`///` comment above it: its prose as `short`, and its `@see` and `@example` tags as lists. The
-seven registry keys are byte for byte the same as without the entry point. For a file declaring
-one documented class:
+With an entry file, the command also reads that program and adds a ninth key, `program`. It has
+the program's own `classes`, `enums` and `types` (its `type` aliases) in the same form. It also has
+`schemas` when a class's JSON schema refers to another class. A declaration's `doc` is the `///`
+comment above it: its text as `short`, and its `@see` and `@example` tags as lists. The other
+eight keys are exactly the same as without the entry file. For a file with one documented class:
 
 ```text
 $ nvs meta --json cart.nvs

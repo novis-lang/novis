@@ -68,9 +68,9 @@
       "features": [
         "tools:packages/grants-what-each-namespace-may-do"
       ],
-      "text": "In a package, a name you write in `Core\\Config::set` or `Core\\Config::restore` that is not in `[limits]` gives the error `E0667`.",
+      "text": "Code in a package (a library your program installs) may change only `[limits]` settings. In a package, a setting name written as text in `CoreConfig::set` or `CoreConfig::restore` outside `[limits]` gives the error `E0667`.",
       "breaking": true,
-      "instead": "Remove the call. In a package, it returned `false` and changed nothing."
+      "instead": "Remove the call. Before this change, the call returned `false` in a package and changed nothing."
     },
     {
       "kind": "new",

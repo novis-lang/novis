@@ -220,11 +220,12 @@ const SET_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "name",
-            desc: "The name of the setting, in the same form that `get` uses. A request may \
-                   change only some settings. They are in `[mode]`, `[limits]`, `[log]`, \
-                   `[errors]`, `[deferred]`, `[debug]` and `[http]`. The editor offers each \
-                   one, and the page of `Core\\Config::set` lists them. A name you write in the \
-                   call that a request may never change does not compile.",
+            desc: "The dotted name of the setting, such as `limits.memory`, as `get` takes it. \
+                   A request may change only some settings. They are in `[mode]`, `[limits]`, \
+                   `[log]`, `[errors]`, `[deferred]`, `[debug]` and `[http]`. The editor offers \
+                   each one, and the page of `Core\\Config::set` lists them. The compiler checks \
+                   a name written as text in the call. If a request may never change that \
+                   setting, the program does not compile.",
             shape: &[],
         },
         ParamDoc {
@@ -234,24 +235,25 @@ const SET_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "`true` when the change was made. `false` when it is not allowed, and the previous value \
-          stays in place. It is not allowed for a setting a request may not change. It is not \
-          allowed for a value that is not a valid size, duration or count. It is not allowed \
-          for a value above the limit's ceiling. The ceiling is `[limits.hard]`, or the value \
-          the program started with when `[limits.hard]` does not set that limit. \
-          `debug.inline` and `debug.store` take only `false`. `set` never throws an error.",
+    ret: "`true` when the change was made. `false` when the change is not allowed, and the old \
+          value stays. A change is not allowed for a setting a request may not change. It is \
+          not allowed for a value that is not a valid size, duration or count. A limit has a \
+          ceiling, the highest value a request may set. A value above it is not allowed. The \
+          ceiling is the limit's value in `[limits.hard]`. Without one, the ceiling is the \
+          value the program started with. `debug.inline` and `debug.store` take only `false`. \
+          `set` never throws an error.",
     errors: &[],
 };
 
 /// `Core\Config::restore`'s reference card — `rule:core-api/reference-card`.
 const RESTORE_DOC: MethodDoc = MethodDoc {
-    short: "Deletes this request's change to one setting. The value from the configuration file \
-            is in force again, or the built-in default when the file does not write the \
-            setting.",
+    short: "Deletes this request's change to one setting. The setting has the value from the \
+            configuration file again. If the file does not set it, it has the built-in default.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The name of the setting, in the same form that `get` uses. A name you write \
-               in the call that `set` may never change does not compile.",
+        desc: "The dotted name of the setting, such as `limits.memory`, as `get` takes it. \
+               The compiler checks a name written as text in the call. If `set` may never \
+               change that setting, the program does not compile.",
         shape: &[],
     }],
     ret: "Nothing. A name this request never changed is not an error. There is nothing to undo.",

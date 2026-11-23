@@ -20,12 +20,14 @@ A request may change only these settings:
 - `[http.client]`: `connect_timeout`, `deadline`, `max_redirects`, `idle`, `max_duration`
 - `[http.client.socket]`: `max_message`, `send_timeout`
 
-A name you write in the call that is not in this list does not compile.
+The compiler checks a name written as text in the call. If that name is not in this list, the
+program does not compile.
 
-A limit goes up only to its ceiling in `[limits.hard]`. Without it, the ceiling is the starting
-value. `mode.default` takes `development` only when `[mode] ceiling` allows it. `debug.inline` and
+A limit has a ceiling: the highest value a request may set. The ceiling is the limit's value in
+`[limits.hard]`. If `[limits.hard]` does not set the limit, the ceiling is its starting value.
+`mode.default` takes `development` only when `[mode] ceiling` allows it. `debug.inline` and
 `debug.store` take only `false`.
 
-Code in a package may only lower a `[limits]` setting.
+Code in a package (a library your program installs) may only lower a `[limits]` setting.
 
 **Good to know:** `Core\Config::restore` puts back the value from the configuration file.
