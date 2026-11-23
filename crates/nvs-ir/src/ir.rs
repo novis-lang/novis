@@ -54,6 +54,9 @@ pub struct Program {
     /// Every second call of a reading `Core` member that does the first
     /// one's work again, in the order of each file ([`crate::rereads::find`]).
     pub rereads: Vec<crate::rereads::Reread>,
+    /// Every prefix or suffix cut written by hand, in the order of each file
+    /// ([`crate::hand_cuts::find`]).
+    pub hand_cuts: Vec<crate::hand_cuts::HandCut>,
 }
 
 impl Program {

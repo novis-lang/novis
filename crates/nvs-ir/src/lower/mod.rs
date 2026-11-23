@@ -1590,6 +1590,7 @@ fn lower_program_as(
     // The same value read twice is a warning alone, so it is found on the
     // written tree and changes nothing that is compiled.
     let rereads = crate::rereads::find(files, exprs, checked_types);
+    let hand_cuts = crate::hand_cuts::find(files, exprs);
     // The lowering decides no move; the ownership pass decides every one, and
     // the off switch skips it whole.
     let copies = if in_place_on() {
@@ -1609,6 +1610,7 @@ fn lower_program_as(
         copies,
         forms,
         rereads,
+        hand_cuts,
     }
 }
 

@@ -378,7 +378,17 @@ codes! {
          facts about one file path, call `Core\\IO::stat` once. For several query parameters, \
          call `Core\\Uri::parseQuery` once.",
     );
-    // `W1036` is held for a warning that is not written yet.
+    /// A `Core\Str::slice` that cuts off a prefix or a suffix the code has
+    /// just tested with `Core\Str::startsWith` or `endsWith`
+    /// (`rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`).
+    /// `nvs_ir::hand_cuts::warnings` raises it from the written tree, for
+    /// `nvs check` and for the editor, with a fix for one exact shape.
+    pub const W_HAND_CUT: Code = Code::new("W1036").card(
+        "This code tests a string with `Core\\Str::startsWith` or `Core\\Str::endsWith`. Then it \
+         cuts the same prefix or suffix off with `Core\\Str::slice`. `Core\\Str::afterPrefix` and \
+         `Core\\Str::beforeSuffix` do both in one call. They return the rest of the string, or \
+         `null` when the string does not match.",
+    );
     /// A `Core\Config::set` or `restore` whose name is a string template that no key on
     /// `nvs_config::settable::SETTABLE` can fit, whatever its holes contain
     /// (`rule:config/set-changes-only-listed-keys`). Each hole fits one or more characters that

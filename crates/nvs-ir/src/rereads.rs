@@ -564,7 +564,7 @@ fn in_core(class: &str) -> bool {
 }
 
 /// Whether `arg` is written positionally, once, and by value.
-fn plain(arg: &Arg) -> bool {
+pub(crate) fn plain(arg: &Arg) -> bool {
     arg.name.is_none() && !arg.spread && !arg.inout
 }
 
@@ -630,7 +630,7 @@ fn heads(stmt: &Stmt) -> Vec<&Expr> {
 }
 
 /// One thing a statement contains.
-enum Part<'a> {
+pub(crate) enum Part<'a> {
     /// An expression of the statement itself.
     Expr(&'a Expr),
     /// A nested statement.
@@ -642,7 +642,7 @@ enum Part<'a> {
 /// Pushes what `stmt` runs onto `out`. A declaration runs nothing, and its
 /// bodies are reached by [`blocks_of`]. False for a statement this walk does
 /// not know.
-fn stmt_parts<'a>(stmt: &'a Stmt, out: &mut Vec<Part<'a>>) -> bool {
+pub(crate) fn stmt_parts<'a>(stmt: &'a Stmt, out: &mut Vec<Part<'a>>) -> bool {
     match &stmt.kind {
         StmtKind::Expr(e) => out.push(Part::Expr(e)),
         StmtKind::Return(value) | StmtKind::Break(value) | StmtKind::Continue(value) => {
@@ -739,7 +739,7 @@ fn destructure_keys<'a>(target: &'a DestructureTarget, out: &mut Vec<Part<'a>>) 
 /// Pushes the expressions `e` contains directly. An anonymous function's
 /// body and an anonymous class's members are bodies of their own and are not
 /// among them. False for an expression this walk does not know.
-fn children<'a>(e: &'a Expr, out: &mut Vec<&'a Expr>) -> bool {
+pub(crate) fn children<'a>(e: &'a Expr, out: &mut Vec<&'a Expr>) -> bool {
     match &e.kind {
         ExprKind::Null
         | ExprKind::Bool(_)
@@ -885,7 +885,7 @@ fn member_name<'a>(name: &'a MemberName, out: &mut Vec<&'a Expr>) {
 
 /// Pushes every statement list under `stmts`, `stmts` included: each nested
 /// block, each method, hook and anonymous function body.
-fn blocks_of<'a>(stmts: &'a [Stmt], out: &mut Vec<&'a [Stmt]>) {
+pub(crate) fn blocks_of<'a>(stmts: &'a [Stmt], out: &mut Vec<&'a [Stmt]>) {
     out.push(stmts);
     for stmt in stmts {
         blocks_in_stmt(stmt, out);

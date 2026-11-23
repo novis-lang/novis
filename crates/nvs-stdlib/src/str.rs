@@ -6229,7 +6229,10 @@ mod tests {
         let suffix = |subject: &str, needle: &str| -> Option<String> {
             cut(super::nvs_core_str_before_suffix, subject, needle)
         };
-        assert_eq!(prefix("openingHours-12", "openingHours-").as_deref(), Some("12"));
+        assert_eq!(
+            prefix("openingHours-12", "openingHours-").as_deref(),
+            Some("12")
+        );
         assert_eq!(suffix("report.csv", ".csv").as_deref(), Some("report"));
         assert_eq!(prefix("report.csv", "csv"), None);
         assert_eq!(suffix("report.csv", "report"), None);

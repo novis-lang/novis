@@ -7099,6 +7099,165 @@ final class Shop {
     assert!(warnings[3].message.contains("`$p`"), "{warnings:#?}");
 }
 
+/// The line and message of each `W1036` of `src`.
+fn hand_cuts_of(src: &str) -> Vec<(usize, String)> {
+    let program = lower_whole_file_with_src(src).0;
+    crate::hand_cuts::warnings(&program.hand_cuts)
+        .iter()
+        .map(|w| {
+            assert_eq!(w.code, Some(nvs_diagnostics::code::W_HAND_CUT));
+            let span = w.primary_span().expect("a primary label");
+            (
+                src[..span.start as usize].lines().count(),
+                w.message.clone(),
+            )
+        })
+        .collect()
+}
+
+/// A cut written by hand is a `W1036` on the cut in each shape the pass
+/// knows: inside the test's `if`, after an early exit, a suffix cut with
+/// `-N` and with `length(S) - N`, and a literal `N`.
+#[test]
+fn hand_cuts_warn_in_each_shape() {
+    let src = "<?nvs
+final class Shop {
+  public static function then(string $s): string {
+    if (Core\\Str::startsWith($s, 'ab')) {
+      echo 'x';
+      return Core\\Str::slice($s, Core\\Str::length('ab') as int);
+    }
+    return $s;
+  }
+  public static function early(string $s, string $p): string {
+    if (!Core\\Str::startsWith($s, $p)) {
+      return '';
+    }
+    return Core\\Str::slice($s, Core\\Str::length($p) as int);
+  }
+  public static function negative(array<string> $l): void {
+    foreach ($l as string $s) {
+      if (!Core\\Str::endsWith($s, '.nvs') || $s == '') {
+        continue;
+      }
+      echo Core\\Str::slice($s, 0, -4);
+    }
+  }
+  public static function minus(string $s, string $p): string {
+    if (Core\\Str::endsWith($s, $p) && $p != '') {
+      return Core\\Str::slice($s, 0, (Core\\Str::length($s) as int) - (Core\\Str::length($p) as int));
+    }
+    return $s;
+  }
+  public static function literal(string $s): string {
+    if (Core\\Str::startsWith($s, 'max=')) {
+      return Core\\Str::slice($s, 4);
+    }
+    return $s;
+  }
+}
+";
+    let found = hand_cuts_of(src);
+    let lines: Vec<usize> = found.iter().map(|(line, _)| *line).collect();
+    assert_eq!(lines, vec![6, 14, 21, 26, 32], "{found:#?}");
+    assert_eq!(
+        found[0].1,
+        "`Core\\Str::afterPrefix($s, 'ab')` does this test and this cut in one call"
+    );
+    assert!(
+        found[2].1.contains("beforeSuffix($s, '.nvs')"),
+        "{found:#?}"
+    );
+    assert!(found[3].1.contains("beforeSuffix($s, $p)"), "{found:#?}");
+}
+
+/// The pass says nothing where it is unsure: the subject written between
+/// the test and the cut, a length that is not the prefix's, an early exit
+/// with an `else`, and a prefix that is a call.
+#[test]
+fn hand_cuts_are_silent_where_unsure() {
+    let src = "<?nvs
+final class Shop {
+  public static function assigned(string $s): string {
+    string $t = $s;
+    if (Core\\Str::startsWith($t, 'ab')) {
+      $t = 'other';
+      return Core\\Str::slice($t, 2);
+    }
+    return $t;
+  }
+  public static function wrong(string $s): string {
+    if (Core\\Str::startsWith($s, 'ab')) {
+      return Core\\Str::slice($s, 3);
+    }
+    return $s;
+  }
+  public static function otherwise(string $s): string {
+    if (!Core\\Str::startsWith($s, 'ab')) {
+      echo 'no';
+    } else {
+      echo 'yes';
+    }
+    return Core\\Str::slice($s, 2);
+  }
+  public static function called(string $s): string {
+    if (Core\\Str::startsWith($s, Core\\Str::lower('AB'))) {
+      return Core\\Str::slice($s, 2);
+    }
+    return $s;
+  }
+}
+";
+    assert_eq!(hand_cuts_of(src), Vec::new());
+}
+
+/// The exact shape gets one fix, an alternative: the declaration moves
+/// before the `if` as one `afterPrefix` call, and the condition tests it
+/// for `null`. The fixed program compiles and has no `W1036`. Any other
+/// shape warns with no fix.
+#[test]
+fn hand_cuts_fix_only_the_exact_shape() {
+    let src = "<?nvs
+final class Shop {
+  public static function m(string $s): string {
+    if (Core\\Str::startsWith($s, 'ab')) {
+      string $rest = Core\\Str::slice($s, 2);
+      return $rest;
+    }
+    return $s;
+  }
+  public static function n(string $s): string {
+    if (Core\\Str::startsWith($s, 'ab')) {
+      echo 'x';
+      return Core\\Str::slice($s, 2);
+    }
+    return $s;
+  }
+}
+";
+    let program = lower_whole_file_with_src(src).0;
+    let warnings = crate::hand_cuts::warnings(&program.hand_cuts);
+    assert_eq!(warnings.len(), 2, "{warnings:#?}");
+    assert!(warnings[1].suggestions.is_empty(), "{warnings:#?}");
+    let [fix] = warnings[0].suggestions.as_slice() else {
+        panic!("one fix: {warnings:#?}");
+    };
+    let fixed = format!(
+        "{}{}{}",
+        &src[..fix.span.start as usize],
+        fix.replacement,
+        &src[fix.span.end as usize..]
+    );
+    assert!(
+        fixed.contains(
+            "    ?string $rest = Core\\Str::afterPrefix($s, 'ab');\n    if ($rest != null) {\n      return $rest;\n    }\n"
+        ),
+        "{fixed}"
+    );
+    let refixed = lower_whole_file_with_src(&fixed).0;
+    assert_eq!(refixed.hand_cuts.len(), 1, "only `n` is left: {fixed}");
+}
+
 /// A recorded form is a `W1034` over the written form. Its message names the
 /// member to use, and its one fix is the fast form's text, marked an
 /// alternative so no batch applies it.

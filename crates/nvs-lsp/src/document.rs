@@ -1404,6 +1404,7 @@ fn copy_warnings(
     let mut warnings = nvs_ir::copies::warnings(&program.copies, map);
     warnings.extend(nvs_ir::forms::warnings(&program.forms));
     warnings.extend(nvs_ir::rereads::warnings(&program.rereads));
+    warnings.extend(nvs_ir::hand_cuts::warnings(&program.hand_cuts));
     warnings
         .into_iter()
         .filter(|warning| {

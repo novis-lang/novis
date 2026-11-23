@@ -1520,6 +1520,7 @@ fn front_end_in(
         let mut copies = nvs_ir::copies::warnings(&program.copies, &map);
         copies.extend(nvs_ir::forms::warnings(&program.forms));
         copies.extend(nvs_ir::rereads::warnings(&program.rereads));
+        copies.extend(nvs_ir::hand_cuts::warnings(&program.hand_cuts));
         drop(files);
         diags.extend(copies.into_iter().filter(|warning| {
             warning
