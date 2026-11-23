@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/src/str.rs, docs/examples/core/Str/after/about.md, benches/members/core/Str/after.nvs, tests/hostile/core/Str/after/01-long-searches-and-repeated-separators.nvs]
   - id: 3
     title: "W1036 names a prefix or suffix cut written by hand"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/rereads.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-ir/src/ir.rs, crates/nvs-diagnostics/src/code/warnings.rs, crates/nvs-cli/src/main.rs, crates/nvs-lsp/src/document.rs]
   - id: 4
     title: "the rules, the examples, the proofs and the website"
@@ -150,7 +150,19 @@ The user's calls on 2026-11-23: every `Str` member keeps to graphemes, not only 
   `?string $v = Str::afterPrefix(S, P);` before the `if`, the condition `$v != null`, and the block
   without its first statement. Every other match warns with no fix, as `W1035` does. *Why:* any wider fix
   must pick a variable name or move a declaration across code the author wrote.
-- **The tree's own hand-written cuts move to the new members** in stage 3, so the tree has no `W1036`.
+- **The tree's own hand-written cuts move to the new members** in stage 3, so the tree has no `W1036`
+  but one: `benches/members/core/Str/afterPrefix.twin.nvs`, which is the hand-written cut on purpose
+  and keeps its warning. *Why:* Novis has no annotation that silences a warning
+  (`rule:core-api/casing-has-no-suppression` declines the first one), nothing in the tree fails on a
+  warning, and a bench twin exists to be the form the warning names. The prefix ternaries
+  `startsWith(S, P) ? slice(S, N) : S` moved too, as `afterPrefix(S, P) ?? S`, though `W1036` does
+  not name a ternary.
+- **`W1036`'s match is wider than its two table rows in one way:** the test may be one operand of a
+  chain of `&&` in the `if` (the `then` shape), or a negated operand of a chain of `||` (the early-exit
+  shape), because either still means the cut runs only where the test held. The fix needs the test
+  alone. A cut that writes its own subject (`$s = Str::slice($s, 1)`) is not named, because the walk
+  stops at the first statement that writes `S` or `P`. An anonymous function between the test and the
+  cut stops it too.
 - **Measured before it is written down:** the bench pair of stage 2 records the per-op counts of the
   hand-written cut and of `afterPrefix`. The `W1036` rule fragment states that figure. The warning is
   built whatever the ratio, because its reason is simplicity and not the cheaper-forms 2x bound.
@@ -240,21 +252,21 @@ the tree's own cuts to the new members.
 **Split:** the list of hand-written cuts in the tree's `.nvs` files goes to an `Explore` subagent
 (`Str::startsWith` or `endsWith` followed by `Str::slice` of the same variable, answer `file:line`).
 
-- [ ] `crates/nvs-diagnostics/src/code/warnings.rs:381`: `W_HAND_CUT = Code::new("W1036")` with a card
+- [x] `crates/nvs-diagnostics/src/code/warnings.rs:381`: `W_HAND_CUT = Code::new("W1036")` with a card
   in user words, after `W_REPEATED_READ`.
-- [ ] `crates/nvs-ir/src/hand_cuts.rs:1`: `find(files, exprs, checked_types)` over the written tree for
+- [x] `crates/nvs-ir/src/hand_cuts.rs:1`: `find(files, exprs, checked_types)` over the written tree for
   the two shapes of *Standing decisions*, and `warnings(&[HandCut])` raising `W1036` with the fix where
   the exact shape holds. The module doc states the shapes, the fix rule and *What it spends*: one walk of
   each body while checking, nothing at run time.
-- [ ] `crates/nvs-ir/src/ir.rs:56`: `Program::hand_cuts`, beside `rereads`.
+- [x] `crates/nvs-ir/src/ir.rs:56`: `Program::hand_cuts`, beside `rereads`.
   `crates/nvs-ir/src/lower/mod.rs:1577`: call `hand_cuts::find` beside `rereads::find`.
-- [ ] `crates/nvs-cli/src/main.rs:1522` and `crates/nvs-lsp/src/document.rs:1405`: extend the
+- [x] `crates/nvs-cli/src/main.rs:1522` and `crates/nvs-lsp/src/document.rs:1405`: extend the
   warnings with `nvs_ir::hand_cuts::warnings(&program.hand_cuts)`.
-- [ ] `crates/nvs-ir/src/hand_cuts.rs`, its test module: one test per shape that warns (`then` block,
+- [x] `crates/nvs-ir/src/hand_cuts.rs`, its test module: one test per shape that warns (`then` block,
   early return, suffix with `-N`, suffix with `length(S) - N`, literal `N`), the fix text for the exact
   shape, and one silent test per clause that fails (`S` assigned between, `N` not the prefix's length,
   an `else`, a `P` that is a call). Run the check `warning` once.
-- [ ] The tree's cuts from the subagent's list, `apps/registry/src/App.nvs:1039` and
+- [x] The tree's cuts from the subagent's list, `apps/registry/src/App.nvs:1039` and
   `apps/registry/src/ActivityTest.nvs:154` among them, use `afterPrefix` or `beforeSuffix`. Then
   `cargo build` and `nvs check` on each changed app give no `W1036`.
 
@@ -295,34 +307,45 @@ the change entries.
 
 ### State
 
-Stages 1 and 2 are done. `Core\Str::afterPrefix` and `beforeSuffix` are registered (`str.rs:377`,
-symbols in `address` at `str.rs:1832`), cut with `Cut::window` after `startsWith`/`endsWith`'s own
-test, and have cards, the unit test `after_prefix_and_before_suffix_cut_one_end_or_return_null`, the
-conformance case, two `about.md` with three examples each, benches with growth, one attack each, and
-every proof reviewed and stamped. The checks `members` and `members-conformance` are green, and
-`bun nv proofs --id` owes nothing for either. A new member's symbol must also be added to `str.rs`'s
-`address` match, or every program panics at registry build (3410 suite cases red at once).
+Stages 1, 2 and 3 are done. `W1036` is `code::W_HAND_CUT`
+(`crates/nvs-diagnostics/src/code/warnings.rs:381`), raised by `crates/nvs-ir/src/hand_cuts.rs` from
+`Program::hand_cuts`, beside `W1035` in `nvs check` (`crates/nvs-cli/src/main.rs:1523`) and the editor
+(`crates/nvs-lsp/src/document.rs:1407`). It reuses `rereads.rs`'s walkers (`blocks_of`,
+`stmt_parts`, `children`, `plain`, now `pub(crate)`). Its three tests are in
+`crates/nvs-ir/src/lower/tests.rs` beside the `W1035` test, not in `hand_cuts.rs`, because the
+lowering fixture `lower_whole_file_with_src` is private to `lower::tests`. Their names start with
+`hand_cuts_`, so the check `warning` (`cargo test --lib hand_cuts`) runs them, and it is green. The fix
+test applies the fix and lowers the result again, so the fixed text is known to compile.
 
-The hand-written cut is `benches/members/core/Str/afterPrefix.twin.nvs` (the project's twin
-convention, `benches/members/README.md`), not a second `#[Bench]`. Per op, on the same input:
-`afterPrefix` 6.00 statements, 1.00 calls, 0.50 allocations, 24.75 bytes; the twin 9.00 statements,
-2.00 calls, 0.50 allocations, 24.75 bytes (counted by `nvs run --count`; the ledger keeps the twin's
-clock only, ratio 1.29x). Stage 4's `W1036` fragment states these. No test is expected red.
-Stage 3 will warn on `afterPrefix.twin.nvs` itself: it is the hand-written cut on purpose, so it
-needs the warning's allow, not a rewrite.
+The tree's cuts moved to `afterPrefix` (commit `bc419e2aaa`): the registry app, the image and
+spreadsheet extensions, five examples and two attacks. Each changed example and attack prints what it
+printed before (`bun nv proofs --run --id` per feature, and a before/after diff of each attack).
+`afterPrefix.twin.nvs` keeps its warning on purpose (*Standing decisions*). `Feeds.nvs:62` stays: it
+cuts a longer prefix than it tests. Per op, the twin is 9.00 statements and 2.00 calls, and
+`afterPrefix` is 6.00 statements and 1.00 calls, with the same 0.50 allocations and 24.75 bytes
+(`nvs run --count`; the ledger's twin ratio is 1.29x). Stage 4's `W1036` fragment states these.
+
+The acceptance sweep's nightly CI jobs (`unsafe audit` and `miri units (nvs-stdlib 1/12 … 12/12)`)
+were `cancelled` because a push started a newer CI run (`45170425507`) 24 minutes in. They did not fail.
+That push run's one red, `docs`, was a stale `docs/rules/tooling.md`, and `bun nv rules --render
+--check` is green at this tree. No test is expected red.
 
 ### Next
 
-Stage 3, `W1036` (`crates/nvs-ir`, diagnostics, CLI, LSP), split as the stage's `**Split:**` line says.
+Stage 4, split as its `**Split:**` line says. The session writes the rules and change entries.
 
-- [ ] `crates/nvs-diagnostics/src/code/warnings.rs:375`: `W_HAND_CUT` after `W_REPEATED_READ`.
-- [ ] `crates/nvs-ir/src/hand_cuts.rs:1`, modelled on `crates/nvs-ir/src/rereads.rs`.
-- [ ] `crates/nvs-ir/src/ir.rs:56` `Program::hand_cuts`; `crates/nvs-ir/src/lower/mod.rs:1592` the
-  `find` call.
-- [ ] `crates/nvs-cli/src/main.rs:1522` and `crates/nvs-lsp/src/document.rs:1406`: the warnings.
-- [ ] `crates/nvs-ir/src/hand_cuts.rs:1`, its test module, then the check `warning`.
-- [ ] `apps/registry/src/App.nvs:1039` and the rest of the Explore subagent's list of the tree's
-  hand-written cuts, with `benches/members/core/Str/afterPrefix.twin.nvs:1` kept.
+- [ ] `docs/rules/types/string-is-utf8.md:1`: the six members match and cut on grapheme
+  boundaries, the trim set rule, `lines`' exception.
+- [ ] `docs/rules/expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named.md:1` is the
+  neighbour: a new fragment beside it for `W1036`, cited from `crates/nvs-ir/src/hand_cuts.rs:1`
+  (which cites the cheaper-forms rule now). State the shapes, the
+  `&&`/`||` widening and the twin's warning from *Standing decisions*, the counts above, and the
+  Declined list. Then `bun nv rules --render`.
+- [ ] `docs/rules/core-api/symmetric-names.md:2`: `afterPrefix`/`beforeSuffix`.
+- [ ] `docs/examples/core/Str/startsWith/about.md:1` and the `endsWith`, `replaceAll` and `trim`
+  pages beside it: the four rewrites go to one writing subagent with `docs/agent/prose.md` in its brief.
+- [ ] `website/src/data/changes.json:1` entries, then `bun nv site --check stale`, reread and
+  `bun nv site --stamp`. Then `bun nv proofs --owed --goal whole-grapheme-cuts`.
 
 ### Backlog
 

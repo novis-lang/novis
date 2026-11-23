@@ -282,6 +282,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
   See `benches/members/README.md` and `benches/members/core/Session/get.scale.nvs`.
 
 ## Running things
+- **`nvs check <directory>` of loose example scripts reports none of a new warning that `nvs check
+  <file>` reports in each one.** A sweep for a new `W1xxx` over `docs/examples/` or `tests/hostile/`
+  checks each file on its own; only an app with an entry (`apps/registry/public/index.nvs`) is checked
+  whole. From Git Bash the binary is `target/debug/nvs.exe`, because `nvs` without `.exe` is refused
+  as an exec format error. See `crates/nvs-cli/src/main.rs`.
 - **A goal that makes a type stricter can be closed without a gate, and `ci --check` is green while
   CI is red.** taint-fail-closed made an error's message and several `Core` answers tainted and was
   retired in a chain. `ci --check` does not run the Rust tests, the conformance tree or the hostile
