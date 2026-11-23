@@ -1,0 +1,27 @@
+--TEST--
+`Core\Str::afterPrefix` and `Core\Str::beforeSuffix` keep flags, joined emoji and multi-byte letters whole: half a flag or one person of a family emoji is no match, a whole one cuts, and the rest counts whole graphemes
+--FILE--
+<?nvs
+// Two flags. Each flag is two regional indicator code points and one grapheme.
+string $flags = "\u{1F1E6}\u{1F1F9}\u{1F1E9}\u{1F1EA}";
+echo Core\Str::afterPrefix($flags, "\u{1F1E6}\u{1F1F9}") ?? "<null>", " ";
+echo Core\Str::afterPrefix($flags, "\u{1F1E6}") ?? "<null>", " ";
+echo Core\Str::beforeSuffix($flags, "\u{1F1EA}") ?? "<null>", " ";
+echo Core\Str::beforeSuffix($flags, "\u{1F1E9}\u{1F1EA}") ?? "<null>", "\n";
+
+// A family emoji is three people joined into one grapheme. One person is no match.
+string $family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}!";
+echo Core\Str::afterPrefix($family, "\u{1F468}") ?? "<null>", " ";
+echo Core\Str::afterPrefix($family, "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}") ?? "<null>", "\n";
+
+// A letter of two bytes cuts like any other letter.
+echo Core\Str::afterPrefix("\u{fc}ber", "\u{fc}") ?? "<null>", " ";
+echo Core\Str::beforeSuffix("gr\u{fc}n", "\u{fc}n") ?? "<null>", "\n";
+
+// The rest after one flag is one grapheme long.
+echo Core\Str::length(Core\Str::afterPrefix($flags, "\u{1F1E6}\u{1F1F9}") ?? ""), "\n";
+--EXPECT--
+🇩🇪 <null> <null> 🇦🇹
+<null> !
+ber gr
+1

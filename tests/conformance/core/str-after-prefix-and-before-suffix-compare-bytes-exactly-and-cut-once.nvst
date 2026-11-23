@@ -1,0 +1,30 @@
+--TEST--
+`Core\Str::afterPrefix` and `Core\Str::beforeSuffix` compare the text byte for byte and cut it once: case and normal form must match, a repeated prefix loses one copy, a text longer than the string is no match, and named arguments give the same result
+--FILE--
+<?nvs
+// The comparison is case-sensitive, so a different case gives `null`.
+echo Core\Str::afterPrefix("ID-42", "id-") ?? "<null>", " ";
+echo Core\Str::beforeSuffix("photo.JPG", ".jpg") ?? "<null>", "\n";
+
+// `é` written as one code point and as `e` plus an accent are different bytes.
+echo Core\Str::afterPrefix("\u{e9}t\u{e9}", "e\u{301}") ?? "<null>", " ";
+echo Core\Str::afterPrefix("\u{e9}t\u{e9}", "\u{e9}") ?? "<null>", "\n";
+
+// Only one copy of the text is cut.
+echo Core\Str::afterPrefix("aaab", "a") ?? "<null>", " ";
+echo Core\Str::beforeSuffix("backup.tar.gz", ".gz") ?? "<null>", "\n";
+
+// A text longer than the string is no match. Two empty strings match.
+echo Core\Str::afterPrefix("ab", "abc") ?? "<null>", " ";
+echo Core\Str::beforeSuffix("ab", "xab") ?? "<null>", " ";
+echo "[", Core\Str::beforeSuffix("", "") ?? "<null>", "]\n";
+
+// Named arguments give the same result.
+echo Core\Str::afterPrefix(s: "v2.1", prefix: "v") ?? "<null>", " ";
+echo Core\Str::beforeSuffix(s: "v2.1", suffix: ".1") ?? "<null>", "\n";
+--EXPECT--
+<null> <null>
+<null> té
+aab backup.tar
+<null> <null> []
+2.1 v2
