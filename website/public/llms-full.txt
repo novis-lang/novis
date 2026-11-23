@@ -32122,14 +32122,16 @@ Every function and constant in Novis is a member of a class under the reserved `
 <a id="core-core-str"></a>
 ### `Core\Str`
 
-Keywords: string, text, grapheme, unicode, length, substring, slice, search, index of, contains, starts with, ends with, count occurrences, compare, natural order, case-insensitive, split, join, replace, trim, pad, repeat, reverse, word wrap, lowercase, uppercase, capitalize, case conversion, normalize, character code, printf-style formatting, length, at, isEmpty, contains, startsWith, endsWith, slice, indexOf, lastIndexOf, countOf, compare, before, after, join, split, parts, chunk, lines, graphemes, codePoints, replace, replaceAll, replaceRange, padStart, padEnd, trim, trimStart, trimEnd, repeat, reverse, wrap, lower, upper, upperFirst, lowerFirst, fold, normalize, fromCodePoint, fromCodePoints, format
+Keywords: string, text, grapheme, unicode, length, substring, slice, search, index of, contains, starts with, ends with, count occurrences, compare, natural order, case-insensitive, split, join, replace, trim, pad, repeat, reverse, word wrap, lowercase, uppercase, capitalize, case conversion, normalize, character code, printf-style formatting, length, at, isEmpty, contains, startsWith, endsWith, slice, indexOf, lastIndexOf, countOf, compare, before, after, afterPrefix, beforeSuffix, join, split, parts, chunk, lines, graphemes, codePoints, replace, replaceAll, replaceRange, padStart, padEnd, trim, trimStart, trimEnd, repeat, reverse, wrap, lower, upper, upperFirst, lowerFirst, fold, normalize, fromCodePoint, fromCodePoints, format
 
 Every member of `Core\Str` is a static function over a `string` that answers a new value; none
 changes its argument. Every position, length and count is in **graphemes** — user-perceived
 characters — so `length("👍🏽")` is `1`, no `slice` or `chunk` ever splits a character, and a byte
 count is `Core\Bytes::length`. A string has no `$s[0]` and no `<`/`>`: `Core\Str::at`,
 `Core\Str::slice` and `Core\Str::compare` are those spellings. A position or a cut that does not
-exist is `null` — `indexOf`, `lastIndexOf`, `before`, `after` — never `false`.
+exist is `null` — `indexOf`, `lastIndexOf`, `before`, `after` — never `false`. In the same way,
+`afterPrefix` and `beforeSuffix` remove a given start or end and return the rest, or `null` when the
+string does not start or end with it.
 
 ```nvs
 <?nvs
@@ -32172,6 +32174,8 @@ id    |003.1|ff
 | [`Core\Str::compare`](#core-core-str-compare) | `compare(string $a, string $b, { caseInsensitive?: bool, natural?: bool }): int` |
 | [`Core\Str::before`](#core-core-str-before) | `before(string $s, string $needle, { last?: bool }): ?string` |
 | [`Core\Str::after`](#core-core-str-after) | `after(string $s, string $needle, { last?: bool }): ?string` |
+| [`Core\Str::afterPrefix`](#core-core-str-afterprefix) | `afterPrefix(string $s, string $prefix): ?string` |
+| [`Core\Str::beforeSuffix`](#core-core-str-beforesuffix) | `beforeSuffix(string $s, string $suffix): ?string` |
 | [`Core\Str::join`](#core-core-str-join) | `join(array<string> $parts, string $separator = ""): string` |
 | [`Core\Str::split`](#core-core-str-split) | `split(string $s, string $separator, { limit?: int }): array<string>` |
 | [`Core\Str::parts`](#core-core-str-parts) | `parts(string<K> $text): array<string\|K>` |
@@ -32276,7 +32280,7 @@ Checks whether `$s` starts with `$prefix`.
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` (neutral) | The string to check. |
-| `$prefix` | `string` (neutral) | The text `$s` must start with. The check is case-sensitive. |
+| `$prefix` | `string` (neutral) | The text `$s` must start with. The check is case-sensitive. `$prefix` must end after a whole character: `"e"` does not match the start of `"e\u{301}"`. |
 
 **Returns** `bool` — `true` when `$s` starts with `$prefix`, otherwise `false`. An empty `$prefix` is at the start of every string, so the result is `true`.
 
@@ -32292,7 +32296,7 @@ Checks whether `$s` ends with `$suffix`.
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` (neutral) | The string to check. |
-| `$suffix` | `string` (neutral) | The text `$s` must end with. The check is case-sensitive. |
+| `$suffix` | `string` (neutral) | The text `$s` must end with. The check is case-sensitive. `$suffix` must start at a whole character: `"\n"` does not match the end of `"a\r\n"`. |
 
 **Returns** `bool` — `true` when `$s` ends with `$suffix`, otherwise `false`. An empty `$suffix` is at the end of every string, so the result is `true`.
 
@@ -32418,6 +32422,38 @@ Returns the part of `$s` after the first `$needle`, without the needle. With `{ 
 | `{ last: … }` | `bool` (default `false`) | When `true`, cuts at the last needle. The default is `false`, which cuts at the first one. |
 
 **Returns** `?string` — The text after the needle. If the needle is not in `$s`, the result is `null`. If the needle is at the end, the result is an empty string.
+
+<a id="core-core-str-afterprefix"></a>
+#### `Core\Str::afterPrefix`
+
+```nvs skip
+Core\Str::afterPrefix(string $s, string $prefix): ?string
+```
+
+Returns `$s` without `$prefix` at its start. If `$s` does not start with `$prefix`, the result is `null`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$s` | `string` | The string to cut. |
+| `$prefix` | `string` | The text to remove from the start of `$s`. The check is case-sensitive. `$prefix` must end after a whole character: `"e"` does not match the start of `"e\u{301}"`. |
+
+**Returns** `?string` — The rest of `$s` after `$prefix`. If `$s` does not start with `$prefix`, the result is `null`. An empty `$prefix` gives `$s`, and a `$prefix` equal to `$s` gives an empty string.
+
+<a id="core-core-str-beforesuffix"></a>
+#### `Core\Str::beforeSuffix`
+
+```nvs skip
+Core\Str::beforeSuffix(string $s, string $suffix): ?string
+```
+
+Returns `$s` without `$suffix` at its end. If `$s` does not end with `$suffix`, the result is `null`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$s` | `string` | The string to cut. |
+| `$suffix` | `string` | The text to remove from the end of `$s`. The check is case-sensitive. `$suffix` must start at a whole character: `"\u{301}"` does not match the end of `"e\u{301}"`. |
+
+**Returns** `?string` — The part of `$s` before `$suffix`. If `$s` does not end with `$suffix`, the result is `null`. An empty `$suffix` gives `$s`, and a `$suffix` equal to `$s` gives an empty string.
 
 <a id="core-core-str-join"></a>
 #### `Core\Str::join`
@@ -32563,7 +32599,7 @@ Replaces several texts in `$s` in one call. Each key of `$pairs` is a text to fi
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to change. |
-| `$pairs` | `array<string>` | The replacements. Each key is the text to find, and its value is the text that replaces it. An empty key is ignored. |
+| `$pairs` | `array<string>` | The replacements. Each key is the text to find, and its value is the text that replaces it. An empty key is ignored. A key matches only where it does not split a character, so `"\r"` does not match inside `"\r\n"`. |
 | `{ caseInsensitive: … }` | `bool` (default `false`) | If `true`, upper-case and lower-case letters match each other. If two keys then match the same text, the key written first is used. The default is `false`. |
 
 **Returns** `string` — The changed string. If `$pairs` is empty or nothing matched, the result is `$s` unchanged.
@@ -32636,7 +32672,7 @@ Removes the given characters from both ends of `$s`.
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to trim. |
-| `{ characters: … }` | `string` (default `" \t\n\r\u0000\u000b"`) | The characters to remove, in any order. `a..z` is the three characters `a`, `.` and `z`. The default is space, tab, newline, carriage return, NUL and vertical tab. |
+| `{ characters: … }` | `string` (default `" \t\n\r\u0000\u000b"`) | The characters to remove, in any order. `a..z` is the three characters `a`, `.` and `z`. The default is space, tab, newline, carriage return, NUL and vertical tab. A character made of several code points, such as `e` with an accent mark, is removed only when all of its code points are in this set. |
 
 **Returns** `string` — `$s` without those characters at its start and its end. The middle of `$s` is not changed.
 
@@ -32652,7 +32688,7 @@ Removes the given characters from the start of `$s`.
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to trim. |
-| `{ characters: … }` | `string` (default `" \t\n\r\u0000\u000b"`) | The characters to remove, in any order. `a..z` is the three characters `a`, `.` and `z`. The default is space, tab, newline, carriage return, NUL and vertical tab. |
+| `{ characters: … }` | `string` (default `" \t\n\r\u0000\u000b"`) | The characters to remove, in any order. `a..z` is the three characters `a`, `.` and `z`. The default is space, tab, newline, carriage return, NUL and vertical tab. A character made of several code points, such as `e` with an accent mark, is removed only when all of its code points are in this set. |
 
 **Returns** `string` — `$s` without those characters at its start. The rest of `$s` is not changed.
 
@@ -32668,7 +32704,7 @@ Removes the given characters from the end of `$s`.
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$s` | `string` | The string to trim. |
-| `{ characters: … }` | `string` (default `" \t\n\r\u0000\u000b"`) | The characters to remove, in any order. `a..z` is the three characters `a`, `.` and `z`. The default is space, tab, newline, carriage return, NUL and vertical tab. |
+| `{ characters: … }` | `string` (default `" \t\n\r\u0000\u000b"`) | The characters to remove, in any order. `a..z` is the three characters `a`, `.` and `z`. The default is space, tab, newline, carriage return, NUL and vertical tab. A character made of several code points, such as `e` with an accent mark, is removed only when all of its code points are in this set. |
 
 **Returns** `string` — `$s` without those characters at its end. The rest of `$s` is not changed.
 

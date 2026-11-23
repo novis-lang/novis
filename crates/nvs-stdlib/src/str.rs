@@ -790,7 +790,9 @@ const STARTS_WITH_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "prefix",
-            desc: "The text `$s` must start with. The check is case-sensitive.",
+            desc: "The text `$s` must start with. The check is case-sensitive. `$prefix` must \
+                   end after a whole character: `\"e\"` does not match the start of \
+                   `\"e\\u{301}\"`.",
             shape: &[],
         },
     ],
@@ -810,7 +812,8 @@ const ENDS_WITH_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "suffix",
-            desc: "The text `$s` must end with. The check is case-sensitive.",
+            desc: "The text `$s` must end with. The check is case-sensitive. `$suffix` must \
+                   start at a whole character: `\"\\n\"` does not match the end of `\"a\\r\\n\"`.",
             shape: &[],
         },
     ],
@@ -1262,7 +1265,8 @@ const REPLACE_ALL_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "pairs",
             desc: "The replacements. Each key is the text to find, and its value is the text \
-                   that replaces it. An empty key is ignored.",
+                   that replaces it. An empty key is ignored. A key matches only where it \
+                   does not split a character, so `\"\\r\"` does not match inside `\"\\r\\n\"`.",
             shape: &[],
         },
         ParamDoc {

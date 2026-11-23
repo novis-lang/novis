@@ -1,6 +1,43 @@
 {
   "entries": [
     {
+      "kind": "new",
+      "features": [
+        "Core\\Str::afterPrefix",
+        "Core\\Str::beforeSuffix"
+      ],
+      "text": "`Core\\Str::afterPrefix` checks that a string starts with a prefix and returns the rest of the string. `Core\\Str::beforeSuffix` does the same at the end. Both return `null` when the string does not match."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "The warning `W1036` shows a `Core\\Str::slice` that cuts off a prefix or a suffix after `Core\\Str::startsWith` or `Core\\Str::endsWith` tested it. It names `Core\\Str::afterPrefix` or `Core\\Str::beforeSuffix`, which do both in one call. For one common shape, the editor offers a fix."
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Str::startsWith",
+        "Core\\Str::endsWith",
+        "Core\\Str::replaceAll"
+      ],
+      "text": "`Core\\Str::startsWith`, `Core\\Str::endsWith` and `Core\\Str::replaceAll` find a match only where it does not split a character. So `Core\\Str::startsWith(\"e\\u{301}\", \"e\")` is `false`, because the accent belongs to the `e`. The pair `\"\\r\\n\"` is one character, so `\"\\r\"` alone does not match inside it.",
+      "breaking": true,
+      "instead": "To change Windows line ends with `Core\\Str::replaceAll`, put the pair first: `[\"\\r\\n\" => \"\\n\", \"\\r\" => \"\"]`. To check for a line end, check for `\"\\r\\n\"` too."
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Str::trim",
+        "Core\\Str::trimStart",
+        "Core\\Str::trimEnd"
+      ],
+      "text": "`Core\\Str::trim`, `Core\\Str::trimStart` and `Core\\Str::trimEnd` remove whole characters. A character at the end is removed only when the `characters` option has every code point of it. So `Core\\Str::trim(\"e\\u{301}\", { characters: \"\\u{301}\" })` returns the text unchanged, because the accent belongs to the `e`.",
+      "breaking": true,
+      "instead": "To remove a letter with its accent, put every code point of it in `characters`, such as `\"e\\u{301}\"`."
+    },
+    {
       "kind": "changed",
       "features": [
         "lang:types/callable-classes-object-shapes",
@@ -778,6 +815,66 @@
     "Core\\Time\\Instant::plus": {
       "hash": "3880aa57a108d209",
       "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\Instant::plus` does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Cell::constructor": {
+      "hash": "e63bb92935c928e9",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Cell::constructor` does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Export::bytes": {
+      "hash": "e1d08c38b2776124",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Export::bytes` does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Export::constructor": {
+      "hash": "74854aea78b6ba5a",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Export::constructor` does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Export::download": {
+      "hash": "a55c77891f536e6d",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Export::download` does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Export::save": {
+      "hash": "c78aa65706676c1c",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Export::save` does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Export::to": {
+      "hash": "eabf99daf1bbfcb1",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Export::to` does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Sheet::add": {
+      "hash": "9fb5b9640e036595",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Sheet::add` does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Workbook::createForDownload": {
+      "hash": "ebd54212851ebf87",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Workbook::createForDownload` does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Workbook::createForFile": {
+      "hash": "44d313b48c8f1699",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Workbook::createForFile` does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Workbook::createInMemory": {
+      "hash": "e08538a79093d014",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Workbook::createInMemory` does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Workbook::finish": {
+      "hash": "f678215fbfcb5982",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Workbook::finish` does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Workbook::fromRows": {
+      "hash": "ac8e23235462c26d",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Workbook::fromRows` does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Workbook::sheet": {
+      "hash": "93e329c943adf6c7",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Workbook::sheet` does is unchanged."
+    },
+    "Core\\Csv::format": {
+      "hash": "18c77ce35714f5bc",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Core\\Csv::format` does is unchanged."
+    },
+    "Core\\Str::contains": {
+      "hash": "a14d0a50721e40d4",
+      "why": "A test now declares a returned message as `tainted string`. What `Core\\Str::contains` does is unchanged."
     }
   }
 }

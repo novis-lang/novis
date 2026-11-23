@@ -723,7 +723,7 @@
     "Core\\Csrf::verify": "fc2b304c5c0a1661"
   },
   "docs/examples/core/Csv/format/about.md": {
-    "Core\\Csv::format": "da0f945cc74d4966"
+    "Core\\Csv::format": "3a25106dc021868a"
   },
   "docs/examples/core/Csv/parse/about.md": {
     "Core\\Csv::parse": "1681a952eab26b46"
@@ -1362,10 +1362,10 @@
     "Core\\Jwt::signObject": "fada78966d2f92dd"
   },
   "docs/examples/core/Jwt/verify/about.md": {
-    "Core\\Jwt::verify": "545690f545cb7b57"
+    "Core\\Jwt::verify": "712a51e5183855f7"
   },
   "docs/examples/core/Jwt/verifyIssued/about.md": {
-    "Core\\Jwt::verifyIssued": "446ae62efa4335f1"
+    "Core\\Jwt::verifyIssued": "aa4a8c4ecdb2c87a"
   },
   "docs/examples/core/Jwt-KeySet/read/about.md": {
     "Core\\Jwt\\KeySet::read": "829df21eb5c4839c"
@@ -2637,7 +2637,7 @@
     "Core\\Socket\\Message::bytes": "ca1261b4e29a36a4"
   },
   "docs/examples/core/Socket-Message/text/about.md": {
-    "Core\\Socket\\Message::text": "ead4661d72f60f04"
+    "Core\\Socket\\Message::text": "e1364579bd508447"
   },
   "docs/examples/core/Socket-Message/topic/about.md": {
     "Core\\Socket\\Message::topic": "52650c1fd9e41d71"
@@ -2684,11 +2684,17 @@
   "docs/examples/core/Str/after/about.md": {
     "Core\\Str::after": "f33a6a4efd0ac9ba"
   },
+  "docs/examples/core/Str/afterPrefix/about.md": {
+    "Core\\Str::afterPrefix": "ae184b1b99a20337"
+  },
   "docs/examples/core/Str/at/about.md": {
     "Core\\Str::at": "414292b32491150a"
   },
   "docs/examples/core/Str/before/about.md": {
     "Core\\Str::before": "3ad400ad09ca38c5"
+  },
+  "docs/examples/core/Str/beforeSuffix/about.md": {
+    "Core\\Str::beforeSuffix": "37e4a2026018dbf7"
   },
   "docs/examples/core/Str/chunk/about.md": {
     "Core\\Str::chunk": "063afa8a54b0eb4c"
@@ -2700,13 +2706,13 @@
     "Core\\Str::compare": "0abbaf767e222de4"
   },
   "docs/examples/core/Str/contains/about.md": {
-    "Core\\Str::contains": "99f565e327ce83af"
+    "Core\\Str::contains": "31e94ad690cd7a68"
   },
   "docs/examples/core/Str/countOf/about.md": {
     "Core\\Str::countOf": "65c77c8af0ce2a8a"
   },
   "docs/examples/core/Str/endsWith/about.md": {
-    "Core\\Str::endsWith": "d96399cdb431b4a7"
+    "Core\\Str::endsWith": "cb5adcc1b5ac9cda"
   },
   "docs/examples/core/Str/fold/about.md": {
     "Core\\Str::fold": "8a1e0e2103963276"
@@ -2766,7 +2772,7 @@
     "Core\\Str::replace": "5cc57c8c6b1e771b"
   },
   "docs/examples/core/Str/replaceAll/about.md": {
-    "Core\\Str::replaceAll": "5aeb05e36e3361fd"
+    "Core\\Str::replaceAll": "d9ff3cdaa09607ad"
   },
   "docs/examples/core/Str/replaceRange/about.md": {
     "Core\\Str::replaceRange": "2d82b8dcbcfa1579"
@@ -2781,16 +2787,16 @@
     "Core\\Str::split": "76c4c20914d5a043"
   },
   "docs/examples/core/Str/startsWith/about.md": {
-    "Core\\Str::startsWith": "72ebc33acb294e53"
+    "Core\\Str::startsWith": "36a32f467a63317f"
   },
   "docs/examples/core/Str/trim/about.md": {
-    "Core\\Str::trim": "a01e5293df102d8a"
+    "Core\\Str::trim": "3c5eb278f7b7a8ed"
   },
   "docs/examples/core/Str/trimEnd/about.md": {
-    "Core\\Str::trimEnd": "55b7527d7af47a73"
+    "Core\\Str::trimEnd": "0db437f5b2e4b764"
   },
   "docs/examples/core/Str/trimStart/about.md": {
-    "Core\\Str::trimStart": "272d82e0dfb4a276"
+    "Core\\Str::trimStart": "38997792378b2fc9"
   },
   "docs/examples/core/Str/upper/about.md": {
     "Core\\Str::upper": "5314da0cbd32547d"
@@ -3189,7 +3195,7 @@
     "Core\\Time\\Duration::plus": "b1f12f9c0bc372da"
   },
   "docs/examples/core/Time-Duration/seconds/about.md": {
-    "Core\\Time\\Duration::seconds": "ac7e217d9f266d3a"
+    "Core\\Time\\Duration::seconds": "27c222cd8f36d985"
   },
   "docs/examples/core/Time-Duration/toMicroseconds/about.md": {
     "Core\\Time\\Duration::toMicroseconds": "4b0ca3f783fe1095"
@@ -4164,7 +4170,7 @@
     "Novis\\Pdf\\Rendered::constructor": "3231da937a3c415e"
   },
   "docs/examples/novis/Spreadsheet-Cell/constructor/about.md": {
-    "Novis\\Spreadsheet\\Cell::constructor": "9a7c93bed823a5a3"
+    "Novis\\Spreadsheet\\Cell::constructor": "0a39c6398980fa23"
   },
   "docs/examples/novis/Spreadsheet-Cell/of/about.md": {
     "Novis\\Spreadsheet\\Cell::of": "dfb84eff8655887c"
@@ -4203,19 +4209,19 @@
     "Novis\\Spreadsheet\\Chart::series": "f3129e4d957ecb32"
   },
   "docs/examples/novis/Spreadsheet-Export/bytes/about.md": {
-    "Novis\\Spreadsheet\\Export::bytes": "64cf6a6f770ea4f0"
+    "Novis\\Spreadsheet\\Export::bytes": "e838a14e5c4e38a0"
   },
   "docs/examples/novis/Spreadsheet-Export/constructor/about.md": {
-    "Novis\\Spreadsheet\\Export::constructor": "861c52e772298f49"
+    "Novis\\Spreadsheet\\Export::constructor": "5f74a7bb34b69309"
   },
   "docs/examples/novis/Spreadsheet-Export/download/about.md": {
-    "Novis\\Spreadsheet\\Export::download": "0c15128c111aa8c3"
+    "Novis\\Spreadsheet\\Export::download": "140ed7d61f547d3c"
   },
   "docs/examples/novis/Spreadsheet-Export/save/about.md": {
-    "Novis\\Spreadsheet\\Export::save": "340eedd3be67b91f"
+    "Novis\\Spreadsheet\\Export::save": "350e22eb10f09273"
   },
   "docs/examples/novis/Spreadsheet-Export/to/about.md": {
-    "Novis\\Spreadsheet\\Export::to": "b5c3bdd02918ae29"
+    "Novis\\Spreadsheet\\Export::to": "4747dbf14b07030d"
   },
   "docs/examples/novis/Spreadsheet-Formula/constructor/about.md": {
     "Novis\\Spreadsheet\\Formula::constructor": "4a76821dba613f1a"
@@ -4263,7 +4269,7 @@
     "Novis\\Spreadsheet\\Row::constructor": "792452c43ac77150"
   },
   "docs/examples/novis/Spreadsheet-Sheet/add/about.md": {
-    "Novis\\Spreadsheet\\Sheet::add": "d91a1436c5eccb68"
+    "Novis\\Spreadsheet\\Sheet::add": "7028d7f781b0e78f"
   },
   "docs/examples/novis/Spreadsheet-Sheet/addAll/about.md": {
     "Novis\\Spreadsheet\\Sheet::addAll": "e4ca9045d1e94b06"
@@ -4326,28 +4332,28 @@
     "Novis\\Spreadsheet\\Template::set": "f5ebd4d95bf84f5e"
   },
   "docs/examples/novis/Spreadsheet-Workbook/createForDownload/about.md": {
-    "Novis\\Spreadsheet\\Workbook::createForDownload": "3ac979d7f03a8266"
+    "Novis\\Spreadsheet\\Workbook::createForDownload": "e0df6ece117a87c1"
   },
   "docs/examples/novis/Spreadsheet-Workbook/createForFile/about.md": {
-    "Novis\\Spreadsheet\\Workbook::createForFile": "80a0579f1069f812"
+    "Novis\\Spreadsheet\\Workbook::createForFile": "f5aa50d39430dca1"
   },
   "docs/examples/novis/Spreadsheet-Workbook/createForStream/about.md": {
     "Novis\\Spreadsheet\\Workbook::createForStream": "37cbd9a82437d9fc"
   },
   "docs/examples/novis/Spreadsheet-Workbook/createInMemory/about.md": {
-    "Novis\\Spreadsheet\\Workbook::createInMemory": "0088afa17cb41dc0"
+    "Novis\\Spreadsheet\\Workbook::createInMemory": "a878ec6a4b5877c0"
   },
   "docs/examples/novis/Spreadsheet-Workbook/define/about.md": {
     "Novis\\Spreadsheet\\Workbook::define": "41658b819224e4c2"
   },
   "docs/examples/novis/Spreadsheet-Workbook/finish/about.md": {
-    "Novis\\Spreadsheet\\Workbook::finish": "9d00c5ef84a82bdd"
+    "Novis\\Spreadsheet\\Workbook::finish": "e364d07d4833657b"
   },
   "docs/examples/novis/Spreadsheet-Workbook/fromRows/about.md": {
-    "Novis\\Spreadsheet\\Workbook::fromRows": "5f3b049a571c0e03"
+    "Novis\\Spreadsheet\\Workbook::fromRows": "365e30756546e828"
   },
   "docs/examples/novis/Spreadsheet-Workbook/sheet/about.md": {
-    "Novis\\Spreadsheet\\Workbook::sheet": "42c2692d68e34282"
+    "Novis\\Spreadsheet\\Workbook::sheet": "7070fb94a7c2ccd8"
   },
   "docs/examples/novis/Spreadsheet-Written/constructor/about.md": {
     "Novis\\Spreadsheet\\Written::constructor": "dbb528a1c1d540c2"
@@ -4560,7 +4566,7 @@
     "tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor": "4ddf9fe835fc904b"
   },
   "docs/examples/tools/packages/nvs-pkg-login-and-nvs-pkg-whoami/about.md": {
-    "tools:packages/nvs-pkg-login-and-nvs-pkg-whoami": "6f72e4383ae458d8"
+    "tools:packages/nvs-pkg-login-and-nvs-pkg-whoami": "7cf792f57408f279"
   },
   "docs/examples/tools/packages/nvs-pkg-pack/about.md": {
     "tools:packages/nvs-pkg-pack": "6102a10682177bac"
@@ -5529,7 +5535,7 @@
     "Core\\Csrf::verify": "464c985c765d00c2"
   },
   "help:Core\\Csv::format": {
-    "Core\\Csv::format": "7f753696edeee76e"
+    "Core\\Csv::format": "3c513c9d59a8ec52"
   },
   "help:Core\\Csv::parse": {
     "Core\\Csv::parse": "dcc814691a02742a"
@@ -6213,10 +6219,10 @@
     "Core\\Jwt::signObject": "4893549262ed3243"
   },
   "help:Core\\Jwt::verify": {
-    "Core\\Jwt::verify": "961ad830d305b594"
+    "Core\\Jwt::verify": "ac82f3701efec298"
   },
   "help:Core\\Jwt::verifyIssued": {
-    "Core\\Jwt::verifyIssued": "f0b23835260f73ef"
+    "Core\\Jwt::verifyIssued": "206f108621548345"
   },
   "help:Core\\Jwt\\KeySet::read": {
     "Core\\Jwt\\KeySet::read": "f875e1db0a1c929b"
@@ -7542,7 +7548,7 @@
     "Core\\Socket\\Message::bytes": "68542f1188654a50"
   },
   "help:Core\\Socket\\Message::text": {
-    "Core\\Socket\\Message::text": "1f01b97539c83b9f"
+    "Core\\Socket\\Message::text": "bfa694d891ddfbc6"
   },
   "help:Core\\Socket\\Message::topic": {
     "Core\\Socket\\Message::topic": "14f8aed339e39e6a"
@@ -7589,11 +7595,17 @@
   "help:Core\\Str::after": {
     "Core\\Str::after": "135e7656a3ae73d0"
   },
+  "help:Core\\Str::afterPrefix": {
+    "Core\\Str::afterPrefix": "7ed51dba93a0ca93"
+  },
   "help:Core\\Str::at": {
     "Core\\Str::at": "3523acce1f37b074"
   },
   "help:Core\\Str::before": {
     "Core\\Str::before": "91c6480a22b5a42f"
+  },
+  "help:Core\\Str::beforeSuffix": {
+    "Core\\Str::beforeSuffix": "d0d613fc6ba9044e"
   },
   "help:Core\\Str::chunk": {
     "Core\\Str::chunk": "90e6577c22f18bd5"
@@ -7605,13 +7617,13 @@
     "Core\\Str::compare": "baf69b72629313c5"
   },
   "help:Core\\Str::contains": {
-    "Core\\Str::contains": "717ba3bcf0e949b5"
+    "Core\\Str::contains": "11e53d9511ffae57"
   },
   "help:Core\\Str::countOf": {
     "Core\\Str::countOf": "77adc2f99d720848"
   },
   "help:Core\\Str::endsWith": {
-    "Core\\Str::endsWith": "262295239b8f0935"
+    "Core\\Str::endsWith": "fe1aef39b708fbf0"
   },
   "help:Core\\Str::fold": {
     "Core\\Str::fold": "78a6c4d2cf3b35dd"
@@ -7674,7 +7686,7 @@
     "Core\\Str::replace": "c76ea94aec2173c0"
   },
   "help:Core\\Str::replaceAll": {
-    "Core\\Str::replaceAll": "ec1de5f914638ed8"
+    "Core\\Str::replaceAll": "664ae6508f6cebe7"
   },
   "help:Core\\Str::replaceRange": {
     "Core\\Str::replaceRange": "301b04cbc17e8b90"
@@ -7689,16 +7701,16 @@
     "Core\\Str::split": "3f74fdb14260f8cd"
   },
   "help:Core\\Str::startsWith": {
-    "Core\\Str::startsWith": "d4c29633e71ec5f5"
+    "Core\\Str::startsWith": "291627336a246605"
   },
   "help:Core\\Str::trim": {
-    "Core\\Str::trim": "4df508a75ac1c9e3"
+    "Core\\Str::trim": "1d3f31d05f7d6397"
   },
   "help:Core\\Str::trimEnd": {
-    "Core\\Str::trimEnd": "f7548e55645f43be"
+    "Core\\Str::trimEnd": "8f56c4401377759a"
   },
   "help:Core\\Str::trimStart": {
-    "Core\\Str::trimStart": "ab17dc7555ded765"
+    "Core\\Str::trimStart": "bfc288e78a9be4db"
   },
   "help:Core\\Str::upper": {
     "Core\\Str::upper": "321dff70f9743e0e"
@@ -8100,7 +8112,7 @@
     "Core\\Time\\Duration::plus": "e2a12f0d04ebf84a"
   },
   "help:Core\\Time\\Duration::seconds": {
-    "Core\\Time\\Duration::seconds": "440c7dcde94c807b"
+    "Core\\Time\\Duration::seconds": "6f007696f35ae37a"
   },
   "help:Core\\Time\\Duration::toMicroseconds": {
     "Core\\Time\\Duration::toMicroseconds": "c5c2bf9fa537cd70"
@@ -8982,7 +8994,7 @@
     "Novis\\Rest\\Token": "b3186c5000ce6ee3"
   },
   "help:Novis\\Spreadsheet\\Cell::constructor": {
-    "Novis\\Spreadsheet\\Cell::constructor": "d23aa5706eea4309"
+    "Novis\\Spreadsheet\\Cell::constructor": "d8ff04cee4838b0b"
   },
   "help:Novis\\Spreadsheet\\Cell::of": {
     "Novis\\Spreadsheet\\Cell::of": "d70a083172cdc082"
@@ -9027,19 +9039,19 @@
     "Novis\\Spreadsheet\\Chart::series": "9d06768c8dcd397b"
   },
   "help:Novis\\Spreadsheet\\Export::bytes": {
-    "Novis\\Spreadsheet\\Export::bytes": "7e92ffe0a8e7e506"
+    "Novis\\Spreadsheet\\Export::bytes": "1bfb36a707923d77"
   },
   "help:Novis\\Spreadsheet\\Export::constructor": {
-    "Novis\\Spreadsheet\\Export::constructor": "55015d7a9df255da"
+    "Novis\\Spreadsheet\\Export::constructor": "ae6dcf4f848618b1"
   },
   "help:Novis\\Spreadsheet\\Export::download": {
-    "Novis\\Spreadsheet\\Export::download": "add1df5353156a09"
+    "Novis\\Spreadsheet\\Export::download": "9c49363d86223297"
   },
   "help:Novis\\Spreadsheet\\Export::save": {
-    "Novis\\Spreadsheet\\Export::save": "310de5c0cdb7bada"
+    "Novis\\Spreadsheet\\Export::save": "1d378fb16463f5e2"
   },
   "help:Novis\\Spreadsheet\\Export::to": {
-    "Novis\\Spreadsheet\\Export::to": "023af8691a9c00a6"
+    "Novis\\Spreadsheet\\Export::to": "58b2df6a6e001c72"
   },
   "help:Novis\\Spreadsheet\\Formula::constructor": {
     "Novis\\Spreadsheet\\Formula::constructor": "1c0e27e79b56e8c4"
@@ -9093,7 +9105,7 @@
     "Novis\\Spreadsheet\\Row::constructor": "19bdbe7d57bfecab"
   },
   "help:Novis\\Spreadsheet\\Sheet::add": {
-    "Novis\\Spreadsheet\\Sheet::add": "a79324436e168bf5"
+    "Novis\\Spreadsheet\\Sheet::add": "a77aa7ea3e7bad9f"
   },
   "help:Novis\\Spreadsheet\\Sheet::addAll": {
     "Novis\\Spreadsheet\\Sheet::addAll": "34dad2c5bcb12b0b"
@@ -9168,28 +9180,28 @@
     "Novis\\Spreadsheet\\Template::set": "b7b5fd796a0aad81"
   },
   "help:Novis\\Spreadsheet\\Workbook::createForDownload": {
-    "Novis\\Spreadsheet\\Workbook::createForDownload": "d9c577a91e3c66fe"
+    "Novis\\Spreadsheet\\Workbook::createForDownload": "ebc775e53be73257"
   },
   "help:Novis\\Spreadsheet\\Workbook::createForFile": {
-    "Novis\\Spreadsheet\\Workbook::createForFile": "74529949fdf8dada"
+    "Novis\\Spreadsheet\\Workbook::createForFile": "7ec8e3a1096d91e8"
   },
   "help:Novis\\Spreadsheet\\Workbook::createForStream": {
     "Novis\\Spreadsheet\\Workbook::createForStream": "ab6483acdd298aa9"
   },
   "help:Novis\\Spreadsheet\\Workbook::createInMemory": {
-    "Novis\\Spreadsheet\\Workbook::createInMemory": "c8972451fcc1abf6"
+    "Novis\\Spreadsheet\\Workbook::createInMemory": "b512ff54910c5cac"
   },
   "help:Novis\\Spreadsheet\\Workbook::define": {
     "Novis\\Spreadsheet\\Workbook::define": "4663ae4005b409dc"
   },
   "help:Novis\\Spreadsheet\\Workbook::finish": {
-    "Novis\\Spreadsheet\\Workbook::finish": "95f9046733dd93e0"
+    "Novis\\Spreadsheet\\Workbook::finish": "cb176d3175667d55"
   },
   "help:Novis\\Spreadsheet\\Workbook::fromRows": {
-    "Novis\\Spreadsheet\\Workbook::fromRows": "7532cd766538469d"
+    "Novis\\Spreadsheet\\Workbook::fromRows": "eff62193dff6de2e"
   },
   "help:Novis\\Spreadsheet\\Workbook::sheet": {
-    "Novis\\Spreadsheet\\Workbook::sheet": "73a73da0798bfdd0"
+    "Novis\\Spreadsheet\\Workbook::sheet": "7c50486c5fd0943f"
   },
   "help:Novis\\Spreadsheet\\Written::constructor": {
     "Novis\\Spreadsheet\\Written::constructor": "af627e5684f3fbd9"
@@ -9414,7 +9426,7 @@
     "tools:packages/nvs-pkg-fetch-and-nvs-pkg-vendor": "def32e6d7d35ba00"
   },
   "help:tools:packages/nvs-pkg-login-and-nvs-pkg-whoami": {
-    "tools:packages/nvs-pkg-login-and-nvs-pkg-whoami": "e3a372d88337a633"
+    "tools:packages/nvs-pkg-login-and-nvs-pkg-whoami": "a7667a05d9400ee0"
   },
   "help:tools:packages/nvs-pkg-pack": {
     "tools:packages/nvs-pkg-pack": "8f96e35e8ff792ba"

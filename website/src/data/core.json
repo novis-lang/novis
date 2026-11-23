@@ -44852,7 +44852,7 @@
               },
               {
                 "name": "prefix",
-                "descHtml": "The text <code>$s</code> must start with. The check is case-sensitive."
+                "descHtml": "The text <code>$s</code> must start with. The check is case-sensitive. <code>$prefix</code> must end after a whole character: <code>&quot;e&quot;</code> does not match the start of <code>&quot;e\\u{301}&quot;</code>."
               }
             ],
             "returnHtml": "<code>true</code> when <code>$s</code> starts with <code>$prefix</code>, otherwise <code>false</code>. An empty <code>$prefix</code> is at the start of every string, so the result is <code>true</code>."
@@ -44897,7 +44897,7 @@
               },
               {
                 "name": "suffix",
-                "descHtml": "The text <code>$s</code> must end with. The check is case-sensitive."
+                "descHtml": "The text <code>$s</code> must end with. The check is case-sensitive. <code>$suffix</code> must start at a whole character: <code>&quot;\\n&quot;</code> does not match the end of <code>&quot;a\\r\\n&quot;</code>."
               }
             ],
             "returnHtml": "<code>true</code> when <code>$s</code> ends with <code>$suffix</code>, otherwise <code>false</code>. An empty <code>$suffix</code> is at the end of every string, so the result is <code>true</code>."
@@ -45309,6 +45309,96 @@
           "examples": "core/Str/after"
         },
         {
+          "id": "Str.afterPrefix",
+          "name": "afterPrefix",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "afterPrefix(string $s, string $prefix): ?string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "s",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "prefix",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns <code>$s</code> without <code>$prefix</code> at its start. If <code>$s</code> does not start with <code>$prefix</code>, the result is <code>null</code>.",
+            "params": [
+              {
+                "name": "s",
+                "descHtml": "The string to cut."
+              },
+              {
+                "name": "prefix",
+                "descHtml": "The text to remove from the start of <code>$s</code>. The check is case-sensitive. <code>$prefix</code> must end after a whole character: <code>&quot;e&quot;</code> does not match the start of <code>&quot;e\\u{301}&quot;</code>."
+              }
+            ],
+            "returnHtml": "The rest of <code>$s</code> after <code>$prefix</code>. If <code>$s</code> does not start with <code>$prefix</code>, the result is <code>null</code>. An empty <code>$prefix</code> gives <code>$s</code>, and a <code>$prefix</code> equal to <code>$s</code> gives an empty string."
+          },
+          "slug": "afterprefix",
+          "url": "/reference/core/str/afterprefix/",
+          "examples": "core/Str/afterPrefix"
+        },
+        {
+          "id": "Str.beforeSuffix",
+          "name": "beforeSuffix",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "beforeSuffix(string $s, string $suffix): ?string",
+          "params": [
+            {
+              "kind": "param",
+              "name": "s",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "suffix",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "?string",
+          "doc": {
+            "shortHtml": "Returns <code>$s</code> without <code>$suffix</code> at its end. If <code>$s</code> does not end with <code>$suffix</code>, the result is <code>null</code>.",
+            "params": [
+              {
+                "name": "s",
+                "descHtml": "The string to cut."
+              },
+              {
+                "name": "suffix",
+                "descHtml": "The text to remove from the end of <code>$s</code>. The check is case-sensitive. <code>$suffix</code> must start at a whole character: <code>&quot;\\u{301}&quot;</code> does not match the end of <code>&quot;e\\u{301}&quot;</code>."
+              }
+            ],
+            "returnHtml": "The part of <code>$s</code> before <code>$suffix</code>. If <code>$s</code> does not end with <code>$suffix</code>, the result is <code>null</code>. An empty <code>$suffix</code> gives <code>$s</code>, and a <code>$suffix</code> equal to <code>$s</code> gives an empty string."
+          },
+          "slug": "beforesuffix",
+          "url": "/reference/core/str/beforesuffix/",
+          "examples": "core/Str/beforeSuffix"
+        },
+        {
           "id": "Str.join",
           "name": "join",
           "static": true,
@@ -45711,7 +45801,7 @@
               },
               {
                 "name": "pairs",
-                "descHtml": "The replacements. Each key is the text to find, and its value is the text that replaces it. An empty key is ignored."
+                "descHtml": "The replacements. Each key is the text to find, and its value is the text that replaces it. An empty key is ignored. A key matches only where it does not split a character, so <code>&quot;\\r&quot;</code> does not match inside <code>&quot;\\r\\n&quot;</code>."
               },
               {
                 "name": "caseInsensitive",
@@ -45952,7 +46042,7 @@
               },
               {
                 "name": "characters",
-                "descHtml": "The characters to remove, in any order. <code>a..z</code> is the three characters <code>a</code>, <code>.</code> and <code>z</code>. The default is space, tab, newline, carriage return, NUL and vertical tab."
+                "descHtml": "The characters to remove, in any order. <code>a..z</code> is the three characters <code>a</code>, <code>.</code> and <code>z</code>. The default is space, tab, newline, carriage return, NUL and vertical tab. A character made of several code points, such as <code>e</code> with an accent mark, is removed only when all of its code points are in this set."
               }
             ],
             "returnHtml": "<code>$s</code> without those characters at its start and its end. The middle of <code>$s</code> is not changed."
@@ -45994,7 +46084,7 @@
               },
               {
                 "name": "characters",
-                "descHtml": "The characters to remove, in any order. <code>a..z</code> is the three characters <code>a</code>, <code>.</code> and <code>z</code>. The default is space, tab, newline, carriage return, NUL and vertical tab."
+                "descHtml": "The characters to remove, in any order. <code>a..z</code> is the three characters <code>a</code>, <code>.</code> and <code>z</code>. The default is space, tab, newline, carriage return, NUL and vertical tab. A character made of several code points, such as <code>e</code> with an accent mark, is removed only when all of its code points are in this set."
               }
             ],
             "returnHtml": "<code>$s</code> without those characters at its start. The rest of <code>$s</code> is not changed."
@@ -46036,7 +46126,7 @@
               },
               {
                 "name": "characters",
-                "descHtml": "The characters to remove, in any order. <code>a..z</code> is the three characters <code>a</code>, <code>.</code> and <code>z</code>. The default is space, tab, newline, carriage return, NUL and vertical tab."
+                "descHtml": "The characters to remove, in any order. <code>a..z</code> is the three characters <code>a</code>, <code>.</code> and <code>z</code>. The default is space, tab, newline, carriage return, NUL and vertical tab. A character made of several code points, such as <code>e</code> with an accent mark, is removed only when all of its code points are in this set."
               }
             ],
             "returnHtml": "<code>$s</code> without those characters at its end. The rest of <code>$s</code> is not changed."
@@ -46545,7 +46635,7 @@
       "url": "/reference/core/str/",
       "summaryBlocks": [
         {
-          "html": "<p>Functions for text: measure it, search it, cut it, change its case and build new strings. Every position and length counts characters the way a person sees them, so an accented letter or an emoji counts as one.</p>\n<p>Every member of <code>Core\\Str</code> is a static function over a <code>string</code> that answers a new value; none changes its argument. Every position, length and count is in <strong>graphemes</strong> — user-perceived characters — so <code>length(&quot;👍🏽&quot;)</code> is <code>1</code>, no <code>slice</code> or <code>chunk</code> ever splits a character, and a byte count is <code>Core\\Bytes::length</code>. A string has no <code>$s[0]</code> and no <code>&lt;</code>/<code>&gt;</code>: <code>Core\\Str::at</code>, <code>Core\\Str::slice</code> and <code>Core\\Str::compare</code> are those spellings. A position or a cut that does not exist is <code>null</code> — <code>indexOf</code>, <code>lastIndexOf</code>, <code>before</code>, <code>after</code> — never <code>false</code>.</p>"
+          "html": "<p>Functions for text: measure it, search it, cut it, change its case and build new strings. Every position and length counts characters the way a person sees them, so an accented letter or an emoji counts as one.</p>\n<p>Every member of <code>Core\\Str</code> is a static function over a <code>string</code> that answers a new value; none changes its argument. Every position, length and count is in <strong>graphemes</strong> — user-perceived characters — so <code>length(&quot;👍🏽&quot;)</code> is <code>1</code>, no <code>slice</code> or <code>chunk</code> ever splits a character, and a byte count is <code>Core\\Bytes::length</code>. A string has no <code>$s[0]</code> and no <code>&lt;</code>/<code>&gt;</code>: <code>Core\\Str::at</code>, <code>Core\\Str::slice</code> and <code>Core\\Str::compare</code> are those spellings. A position or a cut that does not exist is <code>null</code> — <code>indexOf</code>, <code>lastIndexOf</code>, <code>before</code>, <code>after</code> — never <code>false</code>. In the same way, <code>afterPrefix</code> and <code>beforeSuffix</code> remove a given start or end and return the rest, or <code>null</code> when the string does not start or end with it.</p>"
         },
         {
           "code": "<?nvs\nstring $s = Core\\Str::trim('  Grüße aus Köln  ');\necho Core\\Str::length($s), ' ', Core\\Str::upper($s), \"\\n\";\necho Core\\Str::slice($s, 0, 5), '|', Core\\Str::at($s, 2), '|', Core\\Str::reverse('café'), \"\\n\";\necho Core\\Str::indexOf($s, 'aus') ?? 'none', ' ', Core\\Str::indexOf($s, 'Bonn') ?? 'none', \"\\n\";\necho Core\\Str::contains($s, 'Köln') ? 'yes' : 'no', ' ', Core\\Str::countOf($s, 'ü'), \"\\n\";\narray<string> $words = Core\\Str::split($s, ' ');\necho Core\\Arr::count($words), ' ', Core\\Str::join(Core\\Arr::reverse($words), '-'), \"\\n\";\necho Core\\Str::replace($s, 'Köln', 'Bonn'), '|', Core\\Str::before($s, ' ') ?? 'none', \"\\n\";\necho Core\\Str::padStart('7', 3, '0'), ' ', Core\\Str::repeat('ab', 3), ' ', Core\\Str::upperFirst('ßig'), \"\\n\";\necho Core\\Str::format('%-6s|%05.1f|%x', 'id', 3.14159, 255), \"\\n\";\necho Core\\Str::compare('img10', 'img9'), ' ', Core\\Str::compare('img10', 'img9', { natural: true }), \"\\n\";",
