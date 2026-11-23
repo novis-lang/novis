@@ -6,9 +6,11 @@ array<string> $headers = ['max-age=3600', 'max-age=86400', 'no-store'];
 // `max-age` is a number of seconds. This prints 1h, 1d and 0s.
 foreach ($headers as string $header) {
     Core\Time\Duration $keep = 0s;
-    if (Core\Str::startsWith($header, 'max-age=')) {
-        // `as ?int` converts the text after `=` to a whole number. If that is not possible, the result is `null`.
-        ?int $count = Core\Str::slice($header, 8) as ?int;
+    // `Core\Str::afterPrefix` returns the text after `max-age=`. For `no-store`, the result is `null`.
+    ?string $value = Core\Str::afterPrefix($header, 'max-age=');
+    if ($value != null) {
+        // `as ?int` converts the text to a whole number. If that is not possible, the result is `null`.
+        ?int $count = $value as ?int;
         if ($count != null) {
             $keep = Core\Time\Duration::seconds($count);
         }

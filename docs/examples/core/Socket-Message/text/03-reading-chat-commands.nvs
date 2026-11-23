@@ -15,9 +15,10 @@ while ($message != null) {
         $conn->send('goodbye, ' . $name);
         break;
     }
-    if (Core\Str::startsWith($text, '/name ')) {
-        // The new name is everything after the first 6 characters, `/name `.
-        $name = Core\Str::slice($text, 6);
+    // `Core\Str::afterPrefix` returns the text after `/name `. For any other text, the result is `null`.
+    ?tainted string $newName = Core\Str::afterPrefix($text, '/name ');
+    if ($newName != null) {
+        $name = $newName;
         $conn->send('you are now ' . $name);
     } else {
         $conn->send($name . ': ' . $text);

@@ -528,10 +528,7 @@ final class Reader
         while ($cut < 4 && $cut <= $length) {
             try {
                 tainted string $text = Core\Encoding::decodeText(Core\Bytes::slice($part, 0, $length - $cut), $charset);
-                if (Core\Str::startsWith($text, "\u{FEFF}")) {
-                    return Core\Str::slice($text, 1);
-                }
-                return $text;
+                return Core\Str::afterPrefix($text, "\u{FEFF}") ?? $text;
             } catch (RuntimeError $e) {
             }
             $cut = $cut + 1;

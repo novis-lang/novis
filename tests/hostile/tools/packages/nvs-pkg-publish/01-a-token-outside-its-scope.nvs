@@ -89,17 +89,19 @@ class Registry
     public static function checkRepository(string $url): void
     {
         string $characters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~:/?#[]@!$&'()*+,;=%";
-        if (!Core\Str::startsWith($url, 'https://') || Core\Str::length($url) < 9) {
+        ?string $rest = Core\Str::afterPrefix($url, 'https://');
+        if ($rest == null || $rest == '') {
             throw new RuntimeError('400, the repository must be an `https://` URL');
         }
         if (Core\Str::trim($url, { characters: $characters }) != '') {
             throw new RuntimeError('400, the URL has a character that a URL cannot have');
         }
-        string $authority = Core\Str::split(Core\Str::slice($url, 8), '/')[0];
+        string $authority = Core\Str::split($rest, '/')[0];
         $authority = Core\Str::after($authority, '@', { last: true }) ?? $authority;
         string $host = Core\Str::lower(Core\Str::split($authority, ':')[0]);
-        if (Core\Str::startsWith($authority, '[')) {
-            $host = Core\Str::lower(Core\Str::before(Core\Str::slice($authority, 1), ']') ?? '');
+        ?string $bracketed = Core\Str::afterPrefix($authority, '[');
+        if ($bracketed != null) {
+            $host = Core\Str::lower(Core\Str::before($bracketed, ']') ?? '');
         }
         if ($host == '' || $host == 'localhost' || Core\Str::endsWith($host, '.localhost')) {
             throw new RuntimeError('the host `' . $host . '` is this computer');

@@ -341,7 +341,7 @@ final class Releases
     {
         foreach ($db->query('select digest from releases where package = ? and version = ?', [$key, $version]) as Row $row) {
             string $digest = Releases::trusted($row->string('digest'));
-            return 'archive/' . (Str::startsWith($digest, 'blake3:') ? Str::slice($digest, 7) : $digest) . '.tar';
+            return 'archive/' . (Str::afterPrefix($digest, 'blake3:') ?? $digest) . '.tar';
         }
         throw new RuntimeError('The package ' . $key . ' has no version ' . $version . '.');
     }

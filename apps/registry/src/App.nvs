@@ -1036,11 +1036,8 @@ final class App
     private static function advisoryOf(tainted string $text, string $key): ?string
     {
         string $prefix = Index::slug($key) . '-';
-        if (!Str::startsWith($text, $prefix)) {
-            return null;
-        }
-        tainted string $number = Str::slice($text, Str::length($prefix) as int);
-        if ($number == '' || Str::length($number) > 9 || Str::startsWith($number, '0') || Str::trim($number, { characters: '0123456789' }) != '') {
+        ?tainted string $number = Str::afterPrefix($text, $prefix);
+        if ($number == null || $number == '' || Str::length($number) > 9 || Str::startsWith($number, '0') || Str::trim($number, { characters: '0123456789' }) != '') {
             return null;
         }
         return $prefix . (Core\Taint::assertTrusted($number, 'an advisory number is up to nine digits') as int);

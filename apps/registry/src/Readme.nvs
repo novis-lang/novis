@@ -80,8 +80,9 @@ final class Readme
         if ($url == '' || Regex::matches($url, '^[A-Za-z][A-Za-z0-9+.-]*:') || Str::startsWith($url, '//')) {
             return $url;
         }
-        if (Str::startsWith($url, '#')) {
-            return '#md-' . Str::slice($url, 1);
+        ?string $anchor = Str::afterPrefix($url, '#');
+        if ($anchor != null) {
+            return '#md-' . $anchor;
         }
         string $path = Regex::replace($url, '[?#][\s\S]*$', '');
         string $rest = Regex::replace($url, '^[^?#]*', '');

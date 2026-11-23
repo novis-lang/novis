@@ -22,7 +22,7 @@ final class Formula
     /// `cached` is the result the file has for a program that does not calculate. Excel calculates every formula again when it opens the file.
     public static function of(string $text, ?{ cached?: string|int|float } $options = null): Formula
     {
-        string $plain = Core\Str::startsWith($text, '=') ? Core\Str::slice($text, 1) : $text;
+        string $plain = Core\Str::afterPrefix($text, '=') ?? $text;
         if ($plain == '') {
             throw new LogicError("A formula needs text, such as `'SUM(C2:C9)'`.");
         }

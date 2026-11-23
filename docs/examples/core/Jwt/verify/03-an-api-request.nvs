@@ -8,10 +8,11 @@ class Auth
     public static function userId(string $header, secret bytes $key): ?tainted string
     {
         // The header is `Bearer ` and then the token.
-        if (!Core\Str::startsWith($header, 'Bearer ')) {
+        // `Core\Str::afterPrefix` returns the token, or `null` when the header does not start with `Bearer `.
+        ?string $token = Core\Str::afterPrefix($header, 'Bearer ');
+        if ($token == null) {
             return null;
         }
-        string $token = Core\Str::slice($header, 7);
         try {
             array<tainted string> $claims = Core\Jwt::verify($token, $key);
             return $claims['sub'] as string;

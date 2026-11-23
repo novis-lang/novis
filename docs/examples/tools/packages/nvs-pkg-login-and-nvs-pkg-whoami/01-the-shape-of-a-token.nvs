@@ -7,10 +7,10 @@ class Token
     // A publish token is `nvsreg_` and then 64 digits from `0` to `9` and `a` to `f`.
     public static function looksValid(string $text): bool
     {
-        if (!Core\Str::startsWith($text, 'nvsreg_')) {
+        ?string $digits = Core\Str::afterPrefix($text, 'nvsreg_');
+        if ($digits == null) {
             return false;
         }
-        string $digits = Core\Str::slice($text, 7);
         if (Core\Str::length($digits) != 64) {
             return false;
         }

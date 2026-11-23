@@ -33,10 +33,10 @@ class Login
     // `nvs pkg login` checks this before it connects: `nvsreg_`, then 64 characters from 0 to 9 and a to f.
     public static function checkForm(string $text): void
     {
-        if (!Core\Str::startsWith($text, 'nvsreg_')) {
+        ?string $hex = Core\Str::afterPrefix($text, 'nvsreg_');
+        if ($hex == null) {
             throw new RuntimeError('a token starts with `nvsreg_`');
         }
-        string $hex = Core\Str::slice($text, 7);
         if (Core\Str::length($hex) != 64) {
             throw new RuntimeError('a token has 64 characters after `nvsreg_`, this one has ' . Core\Str::length($hex));
         }

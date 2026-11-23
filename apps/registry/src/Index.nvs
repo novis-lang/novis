@@ -344,7 +344,7 @@ final class Index
     // The digest as 64 hex characters, without the `blake3:` that the build writes.
     private static function hexOf(string $digest): string
     {
-        return Str::startsWith($digest, 'blake3:') ? Str::slice($digest, 7) : $digest;
+        return Str::afterPrefix($digest, 'blake3:') ?? $digest;
     }
 
     // JSON text from the database as a value. An empty map stays a JSON object.

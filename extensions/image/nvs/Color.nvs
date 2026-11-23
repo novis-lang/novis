@@ -36,7 +36,7 @@ final class Color
     /// The `#` is optional. Any other text throws a `LogicError`.
     public static function hex(string $hex): Color
     {
-        string $digits = Core\Str::startsWith($hex, '#') ? Core\Str::slice($hex, 1) : $hex;
+        string $digits = Core\Str::afterPrefix($hex, '#') ?? $hex;
         if (Core\Str::length($digits) == 3 || Core\Str::length($digits) == 4) {
             array<string> $doubled = [];
             foreach (Core\Str::chunk($digits, 1) as string $digit) {

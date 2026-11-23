@@ -22,12 +22,13 @@ class Auth
 {
     public static function userId(string $header, Core\Jwt\KeySet $keys): ?tainted string
     {
-        if (!Core\Str::startsWith($header, 'Bearer ')) {
+        ?string $token = Core\Str::afterPrefix($header, 'Bearer ');
+        if ($token == null) {
             return null;
         }
         try {
             var $claims = Core\Jwt::verifyIssued<tainted { sub: string }>(
-                Core\Str::slice($header, 7),
+                $token,
                 $keys,
                 'https://login.example.com',
                 'shop',

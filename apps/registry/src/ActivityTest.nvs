@@ -151,7 +151,8 @@ final class ActivityTest
         var $body = Json::decode($request->body() as string) as array<mixed>;
         Test::assertSame($body['type'] as string, 'reminder');
         tainted string $link = $body['link'] as tainted string;
-        Test::assertTrue(Str::startsWith($link, ActivityTest::ORIGIN . '/here/'));
-        return Str::slice($link, Str::length(ActivityTest::ORIGIN . '/here/') as int);
+        ?tainted string $code = Str::afterPrefix($link, ActivityTest::ORIGIN . '/here/');
+        Test::assertTrue($code != null);
+        return $code ?? '';
     }
 }
