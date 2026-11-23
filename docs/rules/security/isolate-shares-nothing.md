@@ -40,6 +40,11 @@ and run on its task's: `Ctx::leave_this_stack` gives the creator back what it ha
 `Ctx::arm_on_this_stack` arms the context's own on the stack that runs it. The live balance is still
 the thread's, and a request is charged its difference since its context was made.
 
+**A `Core\Task` child is its request for every limit.** `Ctx::child` copies the `grants:` narrowing
+and arms the request's memory ceiling as it is made, so the task's stack is armed with it and an
+allocation past it is refused before it is made. A narrowing or a ceiling a task escapes is not one.
+It costs one `Arc` clone and one arm per spawn, and nothing per allocation.
+
 - **Memory:** per in-flight isolate, one context, one pooled task stack and the values the child
   allocates, held until it ends and charged to the root's budget. Concurrent isolates each hold their
   own arena, so a tree's peak is the sum over its live isolates, under the root's cap. A finished

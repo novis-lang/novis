@@ -438,6 +438,10 @@ impl Ctx {
         // The effective configuration, overlay included — see the doc above for
         // why the copy goes this way round and not through the snapshot alone.
         child.config = self.config.clone();
+        // And the `grants:` narrowing laid over it: a task is part of its
+        // request, so it may ask for no capability the request gave up.
+        // **Cost:** one `Arc` clone per spawn.
+        child.grant_filter = self.grant_filter.clone();
         // The copy site table is the program's, so the task shares it. The task counts nothing:
         // only the request's own context writes a `copies` record, so counts kept here would be
         // read by nobody.
@@ -454,12 +458,19 @@ impl Ctx {
         // The memory reading and its ceiling the same way: a task allocates on
         // the core's balance its request is measured on, so it reads that
         // balance from the request's zero point and is stopped at the request's
-        // ceiling, which is the one the allocator already has armed. A task with
-        // a zero point of its own would read only what it allocated, under no
-        // ceiling at all.
+        // ceiling. A task with a zero point of its own would read only what it
+        // allocated, under no ceiling at all.
         child.memory_base = self.memory_base;
         child.memory_limit = self.memory_limit;
         child.fatal_reserve = self.fatal_reserve;
+        // **Armed here, after the safepoint word above**, because the allocator
+        // refuses only what is armed. [`Self::sharing`] armed nothing on this
+        // stack, and the scheduler's `leave_this_stack` and
+        // `arm_on_this_stack` carry whatever the context armed onto the task's
+        // stack. Without this line, that is nothing, and a task's allocation is
+        // refused by no ceiling and only seen at the next poll, after it was
+        // made. **Cost:** one arm per spawn, nothing per allocation.
+        child.arm_memory_ceiling();
         // The response ceiling by the same reasoning: a task's writes are
         // counted on the core's total the request reads from its own zero
         // point, so a task polls the request's reading against the request's

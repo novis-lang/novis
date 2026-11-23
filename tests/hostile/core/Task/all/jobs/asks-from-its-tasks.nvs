@@ -1,0 +1,54 @@
+<?nvs
+// This script was started with `grants: ['fs.read']`. Its tasks try to connect to the network.
+
+class Ask
+{
+    // `Core\Http::allowUrl` needs `net.connect`. This returns `refused` when that right is missing.
+    public static function url(): string
+    {
+        try {
+            var $target = Core\Http::allowUrl('http://127.0.0.1/status');
+            return 'allowed';
+        } catch (RuntimeError $refused) {
+            return 'refused';
+        }
+    }
+
+    // A group inside a task. Each level runs one more group, `$depth` levels deep.
+    public static function nested(uint $depth): string
+    {
+        if ($depth == 0) {
+            return Ask::url();
+        }
+        var $inner = Core\Task::all({
+            next: fn(): string => Ask::nested($depth - 1),
+        });
+        return $inner->next;
+    }
+
+    // A task tries to start a script with every right. Starting a script needs
+    // `script.spawn`, which this script does not have.
+    public static function widen(): string
+    {
+        try {
+            var $run = spawn script "asks-from-its-tasks.nvs" with(grants: ['net.connect', 'script.spawn']);
+            return 'allowed';
+        } catch (RuntimeError $refused) {
+            return 'refused';
+        }
+    }
+}
+
+echo 'script: ', Ask::url(), "\n";
+
+var $group = Core\Task::all({
+    first: fn(): string => Ask::url(),
+    second: fn(): string => Ask::url(),
+});
+echo 'task: ', $group->first, ' ', $group->second, "\n";
+echo 'nested 50 deep: ', Ask::nested(50), "\n";
+
+var $wider = Core\Task::all({
+    spawn: fn(): string => Ask::widen(),
+});
+echo 'task starts a script: ', $wider->spawn, "\n";
