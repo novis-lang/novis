@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-lsp/src/document.rs, crates/nvs-types/src/partial.rs, crates/nvs-lsp/tests/incremental.rs]
   - id: 4
     title: "an edit queues only the entries that own a file it reaches"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/disk_index.rs, crates/nvs-lsp/src/progress.rs, crates/nvs-lsp/tests/incremental.rs]
   - id: 5
     title: "the rule, the measurement and the change entry"
@@ -365,7 +365,7 @@ subagent once `refresh` lands. The session builds once it ends.
   - [x] `FORMAT` is 4; rows go through `Rows::from_rows`, which checks their order.
 - [x] `crates/nvs-lsp/src/index.rs:664`: the start's load compares rows, not one hash, for a file that
   changed on disk, and queues as `refresh` does.
-- [ ] `crates/nvs-lsp/tests/reach.rs:1`: the generated tree and the eleven tests the check `reach` names.
+- [x] `crates/nvs-lsp/tests/reach.rs:1`: the generated tree and the eleven tests the check `reach` names.
 
 ### 5. the rule, the measurement and the change entry
 
@@ -395,35 +395,30 @@ subagent once `refresh` lands. The session builds once it ends.
 
 ### State
 
-Stages 1 to 3 are done, and stage 4's code landed; only its tests remain. `SymbolIndex::reached_entries`
-(`crates/nvs-lsp/src/index.rs:1485`) diffs a file's old and new rows and gives the readers that own a
-reached file, each with those files, mirroring `file_key.rs` `Surfaces::key`: a member `C::m` reaches
-`by_used[C::m]`; a header `by_used[C]`, `by_used_on[C]`, `by_missed[C]` and `by_missed_on[R]` for R in
-C and its descendants; cases `by_used[C]`; properties `by_used[C::$]`; an added or removed member
-`by_missed[::m]` and `by_missed[R::m]`; every change the files declaring a class below C (`below`). A
-graph row, an attribute, a graph move, no old record or a reader owning a file with `uses: None`: whole.
+Stages 1 to 4 are done. `crates/nvs-lsp/tests/reach.rs` generates a 9-class library and 200 programs
+in ten roles, and its eleven counted tests plus the generator's own test are green
+(`cargo test --test reach`, 12 passed). The generator test opens one file of each kind and asserts
+no error, so every count is about the reach alone. `reached_entries` (`crates/nvs-lsp/src/index.rs:1485`)
+needed no change: every count matched the reach table on the first run. The oracle's enum case and
+private-property-under-`decodeAs` edits landed in 92c0f392ca.
 
-`refresh` queues through `queue_part`/`queue_whole`, kept in `partial` beside `pending`. A turn
-(`settle_one`, `turns`, `file_parts`) calls `drop_for_turn`, which drops only the reached files of a
-partial entry, and `send` puts only those in a worker's parts. `after_turn` queues every reader of its
-files whole when a partial turn's reads moved. The start's load (`loaded`) uses `reached_entries` too,
-and queues each reached entry whole. `a_surface_edit_read_by_every_program_checks_each_file_once` now
-asserts `1 + callers` on workers too, and it and the oracle are green. No other test ran; none is
-expected to go red, though `tests/index.rs`'s counted refresh tests are the likeliest if one does.
-The nightly `cancelled` jobs of run 45166887327 ran on c6c8111, before the CI fix 301e05b33d.
+No test outside `reach` and the oracle ran since stage 4's code landed. None is expected to go red,
+though `tests/index.rs`'s counted refresh tests are the likeliest if one does. The nightly `cancelled`
+jobs of run 45166887327 ran on c6c8111, before the CI fix 301e05b33d; nothing in the tree to fix.
 
 ### Next
 
-Stage 4's last item, then stage 5.
+Stage 5, one session, in its items' order.
 
-- [ ] `crates/nvs-lsp/tests/reach.rs:1`: one writing subagent (the stage's **Split**) generates the
-  200-entry tree as `tests/incremental.rs:84` `tree` does (library `lib/Framework/` with a base class, a
-  subclass, an interface, an implementer, an enum and a class with private, protected and public
-  members; a `decodeAs` site), and writes the eleven tests the check `reach` names. Each makes one edit
-  and asserts the exact checked count and the exact `pending()` set. The session builds and runs
-  `cargo test --test reach` once it ends. A wrong count is a reach bug in `reached_entries`, and the
-  oracle decides which side is wrong.
-- [ ] `crates/nvs-lsp/tests/incremental.rs:693` the oracle's tree gains an enum case edit and a private
-  property edit under a `decodeAs`, since only the reach tree has those sites.
+- [ ] `docs/rules/ide/the-index-is-incremental-and-persistent.md:44`: rewrite the surface bullet
+  (rows, the reach table as `reached_entries` implements it) and the check-output bullet (the per-file
+  key of `crates/nvs-lsp/src/file_key.rs`). Remove the Declined "A per-file dependency set in the check
+  output's key", add "a key per body" with its reason, then `bun nv rules --render`.
+- [ ] `tools/nv/cmd/lsp-start.ts:1`: `--edits <kind>` for `member`, `private`, `public`, `comment`;
+  measure `checked` per kind on `--copies 12`, before (checkout of 3bf80195dd^) and after, into the
+  rule's measured line. Needs `bun nv relink --build` first.
+- [ ] `crates/nvs-lsp/src/session.rs:1` module doc § *What it costs*: the memory before and after.
+- [ ] `website/src/data/changes.json:1`: the `changed` entry for `tools:editor`, then reread and stamp
+  `website/src/content/docs/tools/editor/index.mdx` (`bun nv site --stamp`).
 
 ### Backlog

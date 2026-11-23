@@ -16,7 +16,7 @@
 
 use std::collections::BTreeSet;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use nvs_diagnostics::canonical_key;
 use nvs_lsp::{CheckScope, Documents, SymbolIndex, Work, uri_of};
@@ -63,8 +63,10 @@ const LIBRARY: [(&str, &str); 9] = [
     ),
     (
         "Order",
-        "#[Core\\Json\\Derive]\nclass Order\n{\n    public int $id = 0;\n    \
-         private int $total = 0;\n}\n",
+        "#[Core\\Json\\Derive]\nclass Order\n{\n    public int $id;\n    \
+         private int $total;\n\n    \
+         public function constructor(int $id, int $total)\n    {\n        \
+         $this->id = $id;\n        $this->total = $total;\n    }\n}\n",
     ),
     (
         "Page",
@@ -119,7 +121,9 @@ fn program_text(body: &str) -> String {
 /// What a program of `role` runs.
 fn body(role: usize) -> &'static str {
     match role {
-        GREET => "use Framework\\Base;\n\nBase $base = new Base();\necho $base->greet(), \"\\n\";\n",
+        GREET => {
+            "use Framework\\Base;\n\nBase $base = new Base();\necho $base->greet(), \"\\n\";\n"
+        }
         STATUS => {
             "use Framework\\Status;\n\nStatus $status = Status::Draft;\n\
              echo $status == Status::Live ? 'live' : 'draft', \"\\n\";\n"
@@ -147,7 +151,10 @@ fn body(role: usize) -> &'static str {
 fn tree(name: &str) -> TempDir {
     let dir = TempDir::new(nvs_repo::scratch(&format!("lsp-reach-{name}")));
     for (name, text) in LIBRARY {
-        dir.write(&class(name), &format!("<?nvs\nnamespace Framework;\n\n{text}"));
+        dir.write(
+            &class(name),
+            &format!("<?nvs\nnamespace Framework;\n\n{text}"),
+        );
     }
     for p in 0..PROGRAMS {
         dir.write(&program(p), &program_text(body(role(p))));
@@ -193,7 +200,10 @@ fn reach(
     documents.resurvey(&path);
     index.refresh(&documents, &path);
     index.settle(&documents);
-    assert!(index.pending().is_empty(), "opening the file queued nothing");
+    assert!(
+        index.pending().is_empty(),
+        "opening the file queued nothing"
+    );
     index.take_work();
 
     let changed = edit(&text);
@@ -213,7 +223,12 @@ fn replace(text: &str, from: &str, to: &str) -> String {
 }
 
 /// Asserts that an edit queued exactly `expected` and checked `checked` files.
-fn assert_reached(queued: &BTreeSet<PathBuf>, work: Work, expected: &BTreeSet<PathBuf>, checked: usize) {
+fn assert_reached(
+    queued: &BTreeSet<PathBuf>,
+    work: Work,
+    expected: &BTreeSet<PathBuf>,
+    checked: usize,
+) {
     assert_eq!(
         queued,
         expected,
@@ -242,9 +257,34 @@ fn the_generated_tree_has_the_library_and_the_programs() {
         LIBRARY.len() + PROGRAMS,
         "the index holds every file of the tree"
     );
-    let broken: Vec<&Path> = index.files().filter(|_| false).collect();
-    assert!(broken.is_empty());
-    assert_eq!(index.files_with_errors(), 0, "a generated file has an error");
+    let mut errors = Vec::new();
+    let files = LIBRARY
+        .iter()
+        .map(|(name, _)| class(name))
+        .chain((0..ROLES).map(program));
+    for relative in files {
+        let path = dir.at(&relative);
+        let uri = uri_of(&path).expect("a temp path is UTF-8");
+        let text = fs::read_to_string(&path).expect("a generated file");
+        documents.open(uri.clone(), 1, text);
+        let analysed = nvs_lsp::analyse(&documents, &uri).expect("an open document");
+        errors.extend(
+            analysed
+                .diags
+                .iter()
+                .filter(|diag| diag.severity == nvs_diagnostics::Severity::Error)
+                .map(|diag| format!("{relative}: {:?} {}", diag.code, diag.message)),
+        );
+    }
+    assert!(
+        errors.is_empty(),
+        "a generated file has an error: {errors:#?}"
+    );
+    assert_eq!(
+        index.files_with_errors(),
+        0,
+        "a generated file has an error"
+    );
     for role in 0..ROLES {
         assert_eq!(
             programs(&dir, &[role]).len(),
@@ -366,7 +406,7 @@ fn a_public_member_edit_reaches_only_its_users() {
 fn a_private_property_edit_reaches_the_files_that_decode_into_the_class() {
     let dir = tree("private-property");
     let (queued, work) = reach(&dir, "Order", |text| {
-        replace(text, "private int $total = 0;", "private float $total = 0.0;")
+        replace(text, "private int $total;", "private ?int $total;")
     });
     let expected = programs(&dir, &[DECODE]);
     assert_reached(&queued, work, &expected, 1 + expected.len());
