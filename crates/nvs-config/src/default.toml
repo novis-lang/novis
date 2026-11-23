@@ -106,7 +106,8 @@
 # Neither this key nor `fatal_reserve_time` has a `[limits.hard]` limit, because a request cannot set them.
 #fatal_reserve_memory = "1M"          # default
 # Only `nvs.toml` sets this. A request may not change it.
-# The CPU time kept for the same handler. Novis takes it from `cpu_time` when the request starts.
+# The CPU time kept for the handler that `Core\Fatal::onLimit` sets. Novis takes it from
+# `cpu_time` when the request starts.
 # It is at most a quarter of `cpu_time`. When there is no CPU time limit, nothing is kept.
 # This is the case when `cpu_time` is `false`, and under `nvs run` when `cpu_time` is not written.
 #fatal_reserve_time = "50ms"          # default
@@ -319,7 +320,8 @@
 # and run.
 #handler_reserve_memory = "16M"       # default
 # The CPU time for the `handler` script. Like `handler_reserve_memory`, it does not come from the
-# request that failed. It is larger than `[limits] fatal_reserve_time` for the same reason.
+# request that failed. It is larger than `[limits] fatal_reserve_time`, because the script must be
+# compiled and run.
 #handler_reserve_time = "5s"          # default
 # Where Novis writes log records: `stderr`, `file:<path>` or `syslog`. This log is always written.
 # `syslog` works on Linux, macOS and other Unix systems. Windows does not have it.
@@ -350,7 +352,7 @@
 [errors]
 # `ignore` runs the deprecated code unchanged. `log` writes one warning record for each place the
 # request uses it. `throw` throws `Core\DeprecatedError`. The default is
-# the same in both modes of `[mode] default`.
+# the same in `production` and in `development`.
 #deprecated = "ignore"               # default
 
 
@@ -364,7 +366,7 @@
 # A pattern with lookaround or a backreference needs the backtracking engine.
 # `allow` compiles such a pattern. `warn` compiles a pattern literal with a warning.
 # `deny` stops a pattern literal from compiling, and a pattern built while the program runs throws a
-# `RuntimeError`. The default is the same in both modes of `[mode] default`.
+# `RuntimeError`. The default is the same in `production` and in `development`.
 #backtracking = "allow"              # default
 
 
@@ -403,8 +405,9 @@
 [debug]
 # The probes that `nvs run` and `nvs test` turn on. A probe records what a program does while it
 # runs, such as which lines run. `[]` turns all probes off. Otherwise, write any of `coverage`,
-# `branch`, `trace` and `profile`. A server in `development` mode may use `coverage` only. It then
-# counts the lines each request runs. Any other value stops the start with an error.
+# `branch`, `trace` and `profile`. A server in `development` mode may use `coverage` only. With
+# `coverage`, the server counts the lines each request runs. With any other value, the server does
+# not start and prints an error.
 # A request cannot turn a probe on.
 #mode = ["coverage"]                  # example
 
@@ -427,8 +430,9 @@
 # yourself. A request can turn its own recording off and cannot turn it on.
 #store = false                        # default
 
-# The most disk space that the spool files of one process may use. When they use more, the oldest
-# files are deleted.
+# A spool file is a file in `debug/spool` with the debug records of one request. `nvs debug` has
+# not read it into the index yet. This setting is the most disk space that the spool files of one
+# process may use. When they use more, Novis deletes the oldest files.
 #spool_max = "256M"                   # default
 
 # `nvs debug` deletes a request's records from the index once they are this old.
@@ -445,10 +449,10 @@
 
 # The viewer always needs a token. `nvs debug` creates one in `debug/` in the data folder, and the
 # link it prints contains the token. Open that link in your browser. With `listen` on an address
-# that is not loopback, `nvs debug` uses HTTPS. It also creates a certificate and a key there.
-# You can use your own files instead, with `tls_cert_file`, `tls_key_file` and `token_file`.
-# If a file you name does not exist, `nvs debug` prints a warning and uses the file it created.
-# This key is the path of your own certificate file for HTTPS.
+# that is not loopback, `nvs debug` uses HTTPS. It also creates a certificate and a private key in
+# `debug/`. You can use your own files instead, with `tls_cert_file`, `tls_key_file` and
+# `token_file`. If a file you name does not exist, `nvs debug` prints a warning and uses the file it
+# created. This setting is the path of your own certificate file for HTTPS.
 #tls_cert_file = "/etc/novis/debug.crt" # example; restart required
 # The path of your own private key file for HTTPS.
 #tls_key_file = "/etc/novis/debug.key"  # example; restart required
@@ -631,8 +635,8 @@
 # loopback.
 #listen = ["127.0.0.1:8000"]          # default; restart required
 # The file mode of each Unix socket in `listen`. This mode is the only check of who may connect.
-# A connection over a Unix socket gives its own client address, so the server cannot check it
-# (`rule:config/ownership-is-the-trust-boundary`). The default `0660` allows the account that owns
+# A connection over a Unix socket has no client IP address, so the server cannot check the client
+# by its address (`rule:config/ownership-is-the-trust-boundary`). The default `0660` allows the account that owns
 # the socket and the group of the socket. A user you add to that group may connect too.
 #socket_mode = "0660"                 # default; restart required
 
@@ -673,8 +677,8 @@
 #drain_timeout = "30s"                # default
 # How long a worker may stay past the deadline of its oldest request before the server reports
 # that the worker has stopped. A late request is stopped by its own deadline, so this margin is
-# only for a worker that no longer runs at all. Write it like the waits above, so `"5s"` and `5`
-# are the same.
+# only for a worker that no longer runs at all. A number without a unit is seconds, so `"5s"` and
+# `5` are the same.
 #watchdog_margin = "5s"               # default; restart required
 
 [server.connection]
@@ -1129,8 +1133,8 @@
 #settle = "1s"                        # default: "1s" in production, "100ms" in development
 # Whether Novis saves compiled code to files on disk, so a later start can use it again.
 #file_cache = true                    # default
-# The folder for the compiled code files. Only this key sets that folder. The `[cache]` block
-# above is for `Core\Cache`, and it does not set this folder. A change to this key takes effect
+# The folder for the compiled code files. Only this setting sets that folder. The `[cache]` block
+# is for `Core\Cache`, and it does not set this folder. A change to this key takes effect
 # when the server starts again, not when it reloads. The folder must be owned by the account that
 # compiles the code. No other account may write to it.
 #file_cache_dir = "/var/cache/novis"  # default: `cache` in the data folder

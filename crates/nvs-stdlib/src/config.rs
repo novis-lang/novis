@@ -221,11 +221,10 @@ const SET_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "name",
             desc: "The dotted name of the setting, such as `limits.memory`, as `get` takes it. \
-                   A request may change only some settings. They are in `[mode]`, `[limits]`, \
-                   `[log]`, `[errors]`, `[deferred]`, `[debug]` and `[http]`. The editor offers \
-                   each one, and the page of `Core\\Config::set` lists them. The compiler checks \
-                   a name written as text in the call. If a request may never change that \
-                   setting, the program does not compile.",
+                   A request may change only some settings of `[mode]`, `[limits]`, `[log]`, \
+                   `[errors]`, `[deferred]`, `[debug]` and `[http]`. Your editor offers each \
+                   one, and the page of `Core\\Config::set` lists them. If you write a name in \
+                   the call that a request may never change, the program does not compile.",
             shape: &[],
         },
         ParamDoc {
@@ -240,7 +239,7 @@ const SET_DOC: MethodDoc = MethodDoc {
           not allowed for a value that is not a valid size, duration or count. A limit has a \
           ceiling, the highest value a request may set. A value above it is not allowed. The \
           ceiling is the limit's value in `[limits.hard]`. Without one, the ceiling is the \
-          value the program started with. `debug.inline` and `debug.store` take only `false`. \
+          limit's value in `nvs.toml`. `debug.inline` and `debug.store` take only `false`. \
           `set` never throws an error.",
     errors: &[],
 };

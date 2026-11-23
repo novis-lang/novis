@@ -20,11 +20,10 @@ A request may change only these settings:
 - `[http.client]`: `connect_timeout`, `deadline`, `max_redirects`, `idle`, `max_duration`
 - `[http.client.socket]`: `max_message`, `send_timeout`
 
-The compiler checks a name written as text in the call. If that name is not in this list, the
-program does not compile.
+If you write a name in the call that is not in this list, the program does not compile.
 
 A limit has a ceiling: the highest value a request may set. The ceiling is the limit's value in
-`[limits.hard]`. If `[limits.hard]` does not set the limit, the ceiling is its starting value.
+`[limits.hard]`. If `[limits.hard]` does not set the limit, the ceiling is its value in `nvs.toml`.
 `mode.default` takes `development` only when `[mode] ceiling` allows it. `debug.inline` and
 `debug.store` take only `false`.
 
