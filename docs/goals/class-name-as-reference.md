@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-types/src/expr/mod.rs, crates/nvs-types/src/expr/assign.rs, crates/nvs-types/src/expr/args.rs, crates/nvs-types/src/defaults.rs, crates/nvs-types/src/expr_table.rs, crates/nvs-types/tests/classes.rs]
   - id: 2
     title: "a written ::class at a class<T> lowers to the descriptor, with no name string"
-    status: open
+    status: done
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-ir/tests/class_reference.rs, tests/conformance/class/a-class-reference-instantiates-the-subclass-it-names.nvst]
   - id: 3
     title: "the rules, the examples, the proofs and the website"
@@ -119,9 +119,16 @@ class<Storable>`.
 - **A parameter default and a property default may be a written `Foo::class`** at a `class<T>`
   declaration. It folds to `ConstArg::ClassRef` (`defaults::class_reference_default`) and lowers to
   the same descriptor constant. `static::class` and `$obj::class` are not constants and stay refused
-  there (`E0451`). The parameter default landed in stage 1. The property default lands in stage 2,
-  because a property's default is written into a slot by the run time and `nvs_runtime::FieldDefault`
-  has no descriptor variant yet. Until then the checker refuses it, so no default is silently lost.
+  there (`E0451` at a parameter, `E_PROPERTY_DEFAULT_NOT_LITERAL` at a property). An instance or
+  `static` property default lowers to `nvs_ir::ir::PropertyDefault::Class(label)`. `nvs-codegen`'s
+  `Classes::link_default` resolves it to `nvs_runtime::FieldDefault::Class(ClassAddr)` once every
+  descriptor exists, the way `link_codecs` resolves a codec's nested class. *Why a label in the IR and
+  an address at run time:* no descriptor exists while lowering, and a run-time lookup by name on every
+  `new` would cost a hash per instance. *What it spends:* one word per class-defaulted property per
+  class, once per process. An instance pays one slot write.
+- **`public class<T> $p` parses as a property.** In a class body, `class` followed by `<` is a type
+  (`at_class_reference`), not a nested declaration. Before this goal no class body could declare a
+  `class<T>` property after a modifier.
 - **An enum is refused by the shared test on both paths.** `admit_class_reference`
   (`operators.rs`) refuses an enum even where it implements `T`, so `Status::class as class<HasLabel>`
   is `E0708` too. *Why:* an enum has no class descriptor (`rule:enums/no-class-machinery`), so the
@@ -173,18 +180,18 @@ conformance case.
   `InstKind::ClassDescConst`, and `ClassRefOf` to `self.lsb()` or `InstKind::ClassDescOf`, with no
   `Helper::ClassDescName` call. Landed with stage 1, so the tree never compiled a program it could
   not lower; no test pins it yet.
-- [ ] The parameter default lowers `ConstArg::ClassRef` to `InstKind::ClassDescConst`
-  (`crates/nvs-ir/src/lower/call.rs` `emit_const_arg`, landed). The property default is still open:
-  - [ ] `crates/nvs-types/src/defaults.rs` `eval_property_default`: call `class_reference_default`
+- [x] The parameter default lowers `ConstArg::ClassRef` to `InstKind::ClassDescConst`
+  (`crates/nvs-ir/src/lower/call.rs` `emit_const_arg`, landed). The property default:
+  - [x] `crates/nvs-types/src/defaults.rs` `eval_property_default`: call `class_reference_default`
     for an `ExprKind::ClassNameConst` the way `eval_param_default` does.
-  - [ ] `crates/nvs-runtime/src/object.rs:1043` `FieldDefault`: a variant carrying the class, resolved
+  - [x] `crates/nvs-runtime/src/object.rs:1043` `FieldDefault`: a variant carrying the class, resolved
     to its descriptor where the class image is built. Say what it spends in its doc comment.
-  - [ ] `crates/nvs-ir/src/lower/mod.rs:375` `field_default`: map `ConstArg::ClassRef` to it.
-  - [ ] A test in `crates/nvs-types/tests/classes.rs` beside `a_parameter_default_may_be_a_written_class_name`
+  - [x] `crates/nvs-ir/src/lower/mod.rs:375` `field_default`: map `ConstArg::ClassRef` to it.
+  - [x] A test in `crates/nvs-types/tests/classes.rs` beside `a_parameter_default_may_be_a_written_class_name`
     for the property default, and a line in the conformance case below that reads one.
-- [ ] `crates/nvs-ir/tests/class_reference.rs:70`: the two tests the check `lowering` names, next to
+- [x] `crates/nvs-ir/tests/class_reference.rs:70`: the two tests the check `lowering` names, next to
   `a_folded_class_constant_lowers_to_a_descriptor_constant`.
-- [ ] `tests/conformance/class/a-written-class-name-is-a-class-reference-where-one-is-expected.nvst:1`:
+- [x] `tests/conformance/class/a-written-class-name-is-a-class-reference-where-one-is-expected.nvst:1`:
   `Foo::class`, `static::class` from an inherited method, and `$obj::class` each passed to a
   `class<Base>` parameter; the function calls `new $cls()` and prints the class each one built. Run the
   check `conformance` once.
@@ -237,34 +244,39 @@ entry.
 
 ### State
 
-Stage 1 is done (`7b5a2d70a4`). The checker places the five forms at a `class<T>` place
-(`members::check_class_name_const`, `class_reference_targets`, `place_class_reference`), both paths
-share `operators::admit_class_reference`, a `string` mismatch at `class<T>` names `as class<T>` in its
-help (`assign::string_at_class_reference_help`), and a parameter may default to `Foo::class`
-(`ConstArg::ClassRef`). The seven `checker` tests pass. The lowering arms for `ClassRefConst`,
-`ClassRefOf` and `ConstArg::ClassRef` also landed, untested.
+Stages 1 and 2 are done. Stage 2 pinned the lowering with the two `lowering` tests
+(`crates/nvs-ir/tests/class_reference.rs`). It also made a property default, instance or `static`, take a
+written `Foo::class`: `defaults::eval_property_default` → `ir::PropertyDefault::Class` →
+`nvs-codegen`'s `Classes::link_default` → `nvs_runtime::FieldDefault::Class(ClassAddr)`. The parser now
+reads `public class<T> $p` as a property (`parser/decl.rs`, test
+`a_class_reference_property_in_a_class_body_parses`). The new checker test is
+`a_property_default_may_be_a_written_class_name`. The `conformance` check is green, and so are a build
+and clippy.
 
-No test is expected to go red. A search of `tests/conformance/` found no case pinning a mismatch for a
-written `::class` at `class<T>`. The one behaviour change outside the goal's table: `Status::class as
-class<I>` for an enum implementing `I` is now `E0708` (*Standing decisions*, enum bullet).
+No test is expected to go red. `FieldDefault` gained a variant, and every match on it outside the
+runtime's `materialize` is a constructor, so none broke.
 
-The nightly CI run `45166887327` was cancelled by the 12:01 push's concurrency group, not by a failure.
-The push run's `docs` red (`bun nv rules --render --check`) is green at HEAD.
+The nightly CI run `45166887327` was cancelled by a push's concurrency group, not by a failure.
 
 ### Next
 
-Stage 2, the lowering (`crates/nvs-ir/src/lower/expr.rs:596`, `crates/nvs-ir/tests/class_reference.rs`,
-`tests/conformance/class/`).
+Stage 3, the rules, the examples and the website (`docs/rules/types/class-reference.md:1`,
+`docs/rules/types/class-constant.md:1`, the examples list in stage 3).
 
-- [ ] `crates/nvs-ir/tests/class_reference.rs:70`: the two tests the check `lowering` names, over the
-  arms that already landed.
-- [ ] `crates/nvs-types/src/defaults.rs:429` `eval_property_default`, then
-  `crates/nvs-runtime/src/object.rs:1043` `FieldDefault` and `crates/nvs-ir/src/lower/mod.rs:375`
-  `field_default`: the property default (stage 2's checkpoints).
-- [ ] `tests/conformance/class/a-written-class-name-is-a-class-reference-where-one-is-expected.nvst:1`:
-  the case stage 2 names, and run the check `conformance` once.
+- [ ] `docs/rules/types/class-reference.md:1`: the two sources, the table, the parameter and property
+  default (with the parser bullet and *What it spends* from *Standing decisions*), and the two Declined
+  bullets. Then `docs/rules/types/class-constant.md:1`'s one sentence, and `bun nv rules --render`.
+- [ ] `docs/examples/lang/classes/inheritance/03-a-class-the-program-picks-while-it-runs.nvs:1` and the
+  other eight examples stage 3 lists, plus the new `class<Storable>` example: one writing subagent with
+  `docs/agent/prose.md` in its brief.
+- [ ] `docs/examples/lang/types/callable-classes-object-shapes/about.md:1` and the other pages stage 3
+  lists, the `website/src/data/changes.json:1` entry, `bun nv site --check stale`, and
+  `bun nv proofs --owed --goal class-name-as-reference`.
 
 ### Backlog
 
 - Hover on a `Foo::class` at a `class<T>` place shows `class<Foo>` (`docs/rules/ide.md`).
 - `Core` parameters marked `CoreTy::ClassName` could take `class<T>` (`docs/rules/core-api/`).
+- The help of `E_PARAM_DEFAULT_NOT_LITERAL` and `E_PROPERTY_DEFAULT_NOT_LITERAL`
+  (`crates/nvs-types/src/defaults.rs`) lists the constants a default may be, and does not yet name a
+  written `Foo::class`.
