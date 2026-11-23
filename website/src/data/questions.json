@@ -6877,7 +6877,7 @@
   },
   "/reference/core/jwt/verify/": {
     "feature": "Core\\Jwt::verify",
-    "hash": "755e80f9e6b71d68",
+    "hash": "2943d97bfee95972",
     "questions": [
       "How do I check a JWT my program created?",
       "Validate a token and read its claims",
@@ -6888,7 +6888,7 @@
   },
   "/reference/core/jwt/verifyissued/": {
     "feature": "Core\\Jwt::verifyIssued",
-    "hash": "9648751bc2f45af5",
+    "hash": "14e29624276f02cc",
     "questions": [
       "How do I check a token from a login provider?",
       "Validate an access token from another service",
@@ -13955,7 +13955,7 @@
   },
   "/reference/core/socket-message/text/": {
     "feature": "Core\\Socket\\Message::text",
-    "hash": "c4b9579051ea347e",
+    "hash": "b79b59f94f8274de",
     "questions": [
       "How do I read what the client typed?",
       "Get the text content of an incoming message",
@@ -14141,7 +14141,7 @@
   },
   "/reference/core/str/": {
     "feature": "Core\\Str",
-    "hash": "92a8bc409b5d0350",
+    "hash": "1dd00935c62d4888",
     "questions": [
       "How do I work with text and strings?",
       "Search, cut and change the case of text",
@@ -14159,6 +14159,17 @@
       "Get the file extension from a file name",
       "Read the value after the colon in a line",
       "Substring after the first occurrence of a text"
+    ]
+  },
+  "/reference/core/str/afterprefix/": {
+    "feature": "Core\\Str::afterPrefix",
+    "hash": "4b6027764ed86ea3",
+    "questions": [
+      "How do I remove a prefix from a string?",
+      "Check a string's start and get the rest in one call",
+      "Read the token after Bearer in an Authorization header",
+      "Strip a known prefix from a form field name",
+      "Get null when a string does not start with a text"
     ]
   },
   "/reference/core/str/at/": {
@@ -14181,6 +14192,17 @@
       "Remove the file extension from a file name",
       "Get the user name before the @ in an email address",
       "Substring before the first occurrence of a text"
+    ]
+  },
+  "/reference/core/str/beforesuffix/": {
+    "feature": "Core\\Str::beforeSuffix",
+    "hash": "958305ecbe6a8c5a",
+    "questions": [
+      "How do I remove a suffix from a string?",
+      "Get a file name without its extension",
+      "Remove a trailing slash from a path",
+      "Check a string's end and get the text before it in one call",
+      "Get null when a string does not end with a text"
     ]
   },
   "/reference/core/str/chunk/": {
@@ -14239,12 +14261,13 @@
   },
   "/reference/core/str/endswith/": {
     "feature": "Core\\Str::endsWith",
-    "hash": "36b24c591a71b4ec",
+    "hash": "e3ea73ba3231c9a2",
     "questions": [
       "How do I check if a string ends with some text?",
       "Does a text end with a suffix?",
       "Check the file extension at the end of a name",
-      "Test the ending of a string"
+      "Test the ending of a string",
+      "Why does endsWith not find \\n at the end of a Windows line?"
     ]
   },
   "/reference/core/str/fold/": {
@@ -14448,13 +14471,14 @@
   },
   "/reference/core/str/replaceall/": {
     "feature": "Core\\Str::replaceAll",
-    "hash": "f9ec8c84d799d93e",
+    "hash": "fd9ac66031f857d0",
     "questions": [
       "How do I replace several different words at once?",
       "Replace many texts in one call with a map",
       "Fill placeholders like {name} in a template",
       "Swap two words in a string",
-      "Find and replace with a list of pairs"
+      "Find and replace with a list of pairs",
+      "Change Windows line endings to \\n"
     ]
   },
   "/reference/core/str/replacerange/": {
@@ -14501,17 +14525,18 @@
   },
   "/reference/core/str/startswith/": {
     "feature": "Core\\Str::startsWith",
-    "hash": "4146ac9d6f7576ff",
+    "hash": "1763ba6d0a7b73c2",
     "questions": [
       "How do I check if a string starts with some text?",
       "Does a text begin with a prefix?",
       "Check the beginning of a string",
-      "Test if a URL starts with https"
+      "Test if a URL starts with https",
+      "Check a prefix and get the rest of the string"
     ]
   },
   "/reference/core/str/trim/": {
     "feature": "Core\\Str::trim",
-    "hash": "66b620cfbf1a9871",
+    "hash": "3e0a50a497743b4e",
     "questions": [
       "How do I remove spaces at both ends of a string?",
       "Trim whitespace from the start and end of a text",
@@ -14522,7 +14547,7 @@
   },
   "/reference/core/str/trimend/": {
     "feature": "Core\\Str::trimEnd",
-    "hash": "5db569ae510f0395",
+    "hash": "82b30cac703a2c09",
     "questions": [
       "How do I remove trailing spaces from a string?",
       "Remove the line break at the end of a line",
@@ -14533,7 +14558,7 @@
   },
   "/reference/core/str/trimstart/": {
     "feature": "Core\\Str::trimStart",
-    "hash": "b50e00c40ef41cd0",
+    "hash": "8bd01e5930d21d58",
     "questions": [
       "How do I remove leading spaces from a string?",
       "Remove whitespace at the start of a text only",
@@ -16074,7 +16099,7 @@
   },
   "/reference/core/time-duration/seconds/": {
     "feature": "Core\\Time\\Duration::seconds",
-    "hash": "a66aa5e05547802b",
+    "hash": "6b86277e88c41ff7",
     "questions": [
       "How do I make a duration from a number of seconds?",
       "Create a cache lifetime from seconds in a setting",
