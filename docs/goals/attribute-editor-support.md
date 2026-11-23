@@ -279,6 +279,12 @@ What the gate fixed, in four commits:
   The roadmap gives `exact-invalidation` a theme, and the question entries are restamped.
 
 `bun nv proofs --record-perf` re-measured the seven `Core\Time` groups, because `time.rs` changed.
+The first DONE was refused: `floor-debt` found two `Novis-Rest-Session` examples red. They called
+`Core\Test::answerHttp` beside a `.nvsr`, and review-hardening made it throw in a request.
+`fix(examples)` builds the token directly in `01-*` and makes `03-*` a `proof: test` program whose
+`Core\Test::request` fakes the reply. `bun nv proofs --run --only 'Novis\Rest\Session'` is green
+(3 examples), and the feature's `about.md` and help are restamped. No test is expected to go red.
+
 The uncommitted `docs/rules/tooling.md` hunk is not this goal's.
 
 ### Next
