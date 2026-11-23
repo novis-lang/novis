@@ -54,5 +54,9 @@ the statements it guards. At run time, nothing.
   the author wrote.
 - **A row of the cheaper-forms table.** That table compiles a faster form silently and is held to 2x.
   This warning is about one call instead of three and the prefix written once, and 1.29x is not 2x.
+- **`S` unchanged when there is no match.** The caller would then need a second `startsWith` to know
+  whether it matched. `null` says it, and `afterPrefix(S, P) ?? S` gives `S` back where that is wanted.
+- **The name `withoutPrefix`.** `Arr::withoutFirst` and `Path`'s `withoutExtension` never return
+  `null`. `before` and `after` do, so the pair takes their `after…`/`before…` names.
 - **Naming a ternary.** `afterPrefix(S, P) ?? S` is no shorter to read, and the ternary already
   writes the prefix where the reader sees both halves.
