@@ -744,6 +744,38 @@ fn secret_into_mixed_help(
     )
 }
 
+/// The help for a `string` where one `class<T>` is expected: the conversion
+/// that makes a class reference from a name (`rule:types/class-reference`).
+/// A written `::class` is placed there without `as`
+/// ([`super::members::check_class_name_const`]), so this is reached by a
+/// string literal, a class constant, a concatenation and a variable, which
+/// are data and need `as`.
+fn string_at_class_reference_help(
+    expected: TypeId,
+    actual: TypeId,
+    env: &Env<'_>,
+) -> Option<String> {
+    let is_string = matches!(
+        env.interner.get(actual),
+        Ty::String
+            | Ty::TaintedString
+            | Ty::SecretString
+            | Ty::SecretTaintedString
+            | Ty::SingleValueString(_)
+    );
+    if !is_string {
+        return None;
+    }
+    let [target] = super::members::class_reference_targets(expected, env)?
+        .try_into()
+        .ok()?;
+    Some(format!(
+        "a `string` is a class name, not a class reference. Convert it with \
+         `$name as class<{target}>`. The conversion throws an error when the name is not a \
+         `{target}`"
+    ))
+}
+
 pub(crate) fn report_mismatch(span: Span, expected: TypeId, actual: TypeId, env: &mut Env<'_>) {
     if let Some(diag) = mismatch(span, expected, actual, env) {
         env.diags.report(diag);
@@ -803,6 +835,9 @@ pub(crate) fn mismatch(
         super::quals::ErasingPosition::Widening,
         env,
     ) {
+        return Some(diag.with_help(help));
+    }
+    if let Some(help) = string_at_class_reference_help(expected, actual, env) {
         return Some(diag.with_help(help));
     }
     Some(

@@ -1189,6 +1189,26 @@ pub enum ExprInfo {
     /// name a class the compiler resolves, so `rule:classes/no-free-functions-or-constants`'s "inlined at every use
     /// site" still holds for them and they stay [`Self::CoreConst`].
     ClassNameOf,
+    /// `Foo::class`, `self::class` or `parent::class` written where a
+    /// `class<T>` is expected — `rule:types/class-reference`'s placement. The
+    /// expression is the class's descriptor, not its name, and the checker
+    /// has already tested `class` against `T`.
+    ///
+    /// `nvs-ir` lowers it to the same descriptor constant `Foo::class as
+    /// class<T>` folds to, with no name string built.
+    ClassRefConst {
+        /// The class the side names, resolved against the file's namespace
+        /// and imports.
+        class: QName,
+    },
+    /// `static::class` or `$obj::class` written where a `class<T>` is
+    /// expected: the frame's late-static-binding class or the receiver's own
+    /// class, as a descriptor. Which of the two is read off the class side's
+    /// shape, for [`Self::ClassNameOf`]'s reason. The checker tested the
+    /// enclosing class or the receiver's declared class against `T`, and the
+    /// run-time class is that class or a subclass, so nothing is tested at
+    /// run time.
+    ClassRefOf,
     /// `as property<T>` / `as ?property<T>` over an operand that is **not** a
     /// written-out string —
     /// `rule:types/property-key`'s `string` and `property<U>` rows, with `T`'s

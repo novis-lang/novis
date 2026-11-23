@@ -217,21 +217,54 @@ fn reject_impossible_class_reference_conversion(
         }
         _ => return,
     };
-    if from_q == target_q || nvs_hir::hierarchy::implements_interface(&from_q, &target_q, env.graph)
+    admit_class_reference(&from_q, &target_q, span, "converted here", env);
+}
+
+/// Whether the class `from` is a `class<target>`, reporting
+/// [`code::E_NO_CONVERSION`] at `span` when it is not.
+///
+/// The one hierarchy test a class named while compiling takes, shared by the
+/// `as class<T>` path ([`reject_impossible_class_reference_conversion`]) and by
+/// a written `::class` placed at a `class<T>`
+/// ([`super::members::check_class_name_const`]), so the two never word the
+/// mistake differently. `label` is the primary label, which names the position.
+///
+/// An enum is never a class reference, whatever interface it implements: `T`
+/// names a class or an interface (`E0795`), and an enum has no class descriptor
+/// to carry (`rule:enums/no-class-machinery`).
+pub(crate) fn admit_class_reference(
+    from: &QName,
+    target: &QName,
+    span: Span,
+    label: &str,
+    env: &mut Env<'_>,
+) -> bool {
+    let is_enum = super::members::names_an_enum(from, env);
+    if !is_enum
+        && (from == target || nvs_hir::hierarchy::implements_interface(from, target, env.graph))
     {
-        return;
+        return true;
     }
+    let help = if is_enum {
+        format!(
+            "`{from}` is an enum, and an enum is never a class reference. Write a class that \
+             extends or implements `{target}`"
+        )
+    } else {
+        format!(
+            "make `{from}` extend or implement `{target}`. Or write a class in `class<…>` \
+             that `{from}` already extends"
+        )
+    };
     env.diags.report(
         Diagnostic::error(
             code::E_NO_CONVERSION,
-            format!("`{from_q}` is not a `{target_q}`, so this can never be a `class<{target_q}>`"),
+            format!("`{from}` is not a `{target}`, so this can never be a `class<{target}>`"),
         )
-        .with_primary(span, "converted here")
-        .with_help(format!(
-            "make `{from_q}` extend or implement `{target_q}`. Or write a class in `class<…>` \
-             that `{from_q}` already extends"
-        )),
+        .with_primary(span, label.to_owned())
+        .with_help(help),
     );
+    false
 }
 
 /// The class a string literal under `as class<T>` names, or `None` after

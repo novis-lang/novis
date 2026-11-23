@@ -391,6 +391,10 @@ fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault>
         ConstArg::EmptyArray => Some(FieldDefault::EmptyArray),
         ConstArg::Null => Some(FieldDefault::Null),
         ConstArg::Bytes(_)
+        // A property default takes no class reference: `nvs_types::defaults`
+        // accepts one at a parameter only, because a slot has no descriptor
+        // variant.
+        | ConstArg::ClassRef(_)
         // Not a value at all, and a `Core` bag's omission fill besides — a
         // property slot already starts in this state without a default.
         | ConstArg::NeverWritten

@@ -781,8 +781,9 @@ fn infer_kind(
         // side is never *checked* as a value (that would be `E0319`/`E0321` on
         // every `Foo::` in the program), it is resolved the same way a static
         // call's is. A class side that is not statically known is `E0702`.
+        // Where `expected` is a `class<T>`, it is a class reference instead.
         ExprKind::ClassNameConst { class } => {
-            members::check_class_name_const(expr, class, live, scope, ctx, env)
+            members::check_class_name_const(expr, class, expected, live, scope, ctx, env)
         }
         // `nvs-ir` needs the element's declared type to lower an eventual
         // indexed read/write instruction — see `crate::expr_table`'s own

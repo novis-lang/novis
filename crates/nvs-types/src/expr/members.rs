@@ -1852,9 +1852,23 @@ pub(crate) fn reject_dynamic_class_name(headline: &str, span: Span, env: &mut En
 /// `($e)::class` — and is [`code::E_CLASS_NAME_CONST_NOT_STATIC`]: an object
 /// carries no name a program can read back. The type stays `string` either
 /// way, so a refused site does not then also mismatch its binding.
+///
+/// **At a `class<T>` place the expression is a class reference**
+/// (`rule:types/class-reference`). Where `expected` is `class<T>`, `?class<T>`
+/// or a union of `class<…>` members with no `string` among them
+/// ([`class_reference_targets`]), the type is `class<C>` for the class `C` the
+/// side names, and covariance carries it to `class<T>`. `Foo::class`,
+/// `self::class` and `parent::class` record [`ExprInfo::ClassRefConst`];
+/// `static::class` is checked against the enclosing class and `$obj::class`
+/// against the receiver's declared class, and both record
+/// [`ExprInfo::ClassRefOf`]. A side outside a single expected `T` is
+/// [`code::E_NO_CONVERSION`], worded by the same
+/// [`super::operators::admit_class_reference`] the `as class<T>` path calls.
+/// Everywhere else the expression stays the `string` it always was.
 pub(crate) fn check_class_name_const(
     expr: &Expr,
     class: &Expr,
+    expected: Option<TypeId>,
     live: &mut Live,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
@@ -1871,10 +1885,19 @@ pub(crate) fn check_class_name_const(
     // Whether `static` has a class at all is not this function's question:
     // `resolve_class_expr` answers `None` outside one, and the arm below
     // reports it with the same code every other unresolvable side takes.
-    if matches!(class.kind, ExprKind::StaticExpr) && ctx.current_class.is_some() {
+    let targets = expected.and_then(|expected| class_reference_targets(expected, env));
+    if matches!(class.kind, ExprKind::StaticExpr)
+        && let Some(current) = ctx.current_class
+    {
         // The frame has to be the method's own: inside an anonymous function's body there is
         // no called class to read, and `E0834` says so where it is written.
         super::report_class_keyword_outside_class("static", class.span, ctx, env);
+        // The run-time class is the enclosing class or a subclass of it, so
+        // the enclosing class decides the place while compiling.
+        if let Some(targets) = &targets {
+            env.exprs.record(expr.span, ExprInfo::ClassRefOf);
+            return place_class_reference(current, targets, expr.span, env);
+        }
         env.exprs.record(expr.span, ExprInfo::ClassNameOf);
         return env.interner.string();
     }
@@ -1891,6 +1914,10 @@ pub(crate) fn check_class_name_const(
     if matches!(class.kind, ExprKind::ClassConstAccess { .. })
         && let Some(qname) = resolve_class_expr(class, ctx, env)
     {
+        // An enum, so at a `class<T>` place it is the enum refusal.
+        if let Some(targets) = &targets {
+            return place_class_reference(&qname, targets, expr.span, env);
+        }
         let value = crate::defaults::ConstArg::Str(qname.to_string());
         env.exprs.record(expr.span, ExprInfo::CoreConst { value });
         return env.interner.string();
@@ -1900,7 +1927,7 @@ pub(crate) fn check_class_name_const(
         ExprKind::SelfExpr | ExprKind::StaticExpr | ExprKind::ParentExpr | ExprKind::ConstFetch(_)
     ) {
         let recv_ty = check_expr(class, None, live, scope, ctx, env);
-        return check_dynamic_class_name_const(class, expr, recv_ty, env);
+        return check_dynamic_class_name_const(class, expr, recv_ty, targets.as_deref(), env);
     }
     match resolve_class_expr(class, ctx, env) {
         Some(qname) => {
@@ -1920,11 +1947,12 @@ pub(crate) fn check_class_name_const(
                     env.uses.missed_class(&qname);
                 }
             }
-            if matches!(class.kind, ExprKind::ConstFetch(_))
+            let undeclared = matches!(class.kind, ExprKind::ConstFetch(_))
                 && env.symbols.get(&qname).is_none()
                 && !qname.is_core()
                 && !qname.is_reserved_global_class()
-                && !qname.is_reserved_global_interface()
+                && !qname.is_reserved_global_interface();
+            if undeclared
                 && let Some(diagnostic) = nvs_hir::undeclared_name(
                     nvs_hir::Undeclared {
                         qname: &qname,
@@ -1940,6 +1968,20 @@ pub(crate) fn check_class_name_const(
                 )
             {
                 env.diags.report(diagnostic);
+            }
+            if let Some(targets) = &targets {
+                // A name that resolves to nothing reported above, and a
+                // mismatch on top would be the same mistake again.
+                if undeclared {
+                    return env.interner.error();
+                }
+                env.exprs.record(
+                    expr.span,
+                    ExprInfo::ClassRefConst {
+                        class: qname.clone(),
+                    },
+                );
+                return place_class_reference(&qname, targets, expr.span, env);
             }
             let value = crate::defaults::ConstArg::Str(qname.to_string());
             env.exprs.record(expr.span, ExprInfo::CoreConst { value });
@@ -1963,7 +2005,70 @@ pub(crate) fn check_class_name_const(
             );
         }
     }
+    // Only the refused side reaches here with `targets`, and a mismatch on top
+    // would report it twice.
+    if targets.is_some() {
+        return env.interner.error();
+    }
     env.interner.string()
+}
+
+/// The classes a written `::class` is placed against, or `None` where it stays
+/// a `string`: `rule:types/class-reference`'s placement, which reads the
+/// position the way `rule:types/numeric-literal-placement` does.
+///
+/// `class<T>` and `?class<T>` give one target. A union gives one target per
+/// `class<…>` member. A union with a `string` member, a `mixed` and every
+/// other type give `None`, so the expression keeps the type it has always had.
+pub(crate) fn class_reference_targets(expected: TypeId, env: &Env<'_>) -> Option<Vec<QName>> {
+    let mut targets = Vec::new();
+    for member in env.interner.union_members(expected) {
+        match env.interner.get(member) {
+            Ty::ClassRef(arg) => {
+                if let Ty::Class(target, _) = env.interner.get(*arg) {
+                    targets.push(target.clone());
+                }
+            }
+            Ty::Null => {}
+            _ => return None,
+        }
+    }
+    (!targets.is_empty()).then_some(targets)
+}
+
+/// `class<from>` for a written `::class` at a `class<…>` place, or the error
+/// type once its refusal is reported.
+///
+/// One expected class is the hierarchy test of
+/// [`super::operators::admit_class_reference`], with its `E0708`. Several
+/// leave the choice to assignability, which reports the ordinary mismatch when
+/// no member fits. An enum is never `class<…>` (`rule:enums/no-class-machinery`),
+/// so among several targets it stays a `string` and mismatches.
+fn place_class_reference(from: &QName, targets: &[QName], span: Span, env: &mut Env<'_>) -> TypeId {
+    match targets {
+        [target] => {
+            if !super::operators::admit_class_reference(
+                from,
+                target,
+                span,
+                "a `class<…>` is expected here",
+                env,
+            ) {
+                return env.interner.error();
+            }
+        }
+        _ if names_an_enum(from, env) => return env.interner.string(),
+        _ => {}
+    }
+    let class = env.interner.class(from.clone());
+    env.interner.class_ref(class)
+}
+
+/// Whether `qname` names an enum: a declared one, a `Core` one or an
+/// extension's, which all share [`crate::enums`]'s table.
+pub(crate) fn names_an_enum(qname: &QName, env: &Env<'_>) -> bool {
+    matches!(env.symbols.get(qname), Some(sym) if sym.kind == SymbolKind::Enum)
+        || env.enums.get(qname).is_some()
 }
 
 /// `$obj::class` and every other class side that is an expression rather than
@@ -1990,10 +2095,16 @@ pub(crate) fn check_class_name_const(
 ///   `Core\Reflect::forObject`, which is the member whose whole job is the
 ///   erased receiver (`rule:classes/no-free-functions-or-constants`).
 /// * anything else never holds an object at all.
+///
+/// At a `class<…>` place (`targets`), a receiver declared as a class `U` is
+/// `class<U>`, checked against `T` while compiling. The run-time class is `U`
+/// or a subclass of it, so no run-time check is needed. A plain `object` names
+/// no class, so it stays a `string` and mismatches.
 fn check_dynamic_class_name_const(
     class: &Expr,
     expr: &Expr,
     recv_ty: TypeId,
+    targets: Option<&[QName]>,
     env: &mut Env<'_>,
 ) -> TypeId {
     // A `?Foo` reaches the same refusal a `mixed` does, and deliberately: the
@@ -2006,6 +2117,11 @@ fn check_dynamic_class_name_const(
         // The receiver already reported its mistake
         // (`rule:types/one-mistake-reports-once`).
         Ty::Error => return env.interner.error(),
+        Ty::Class(declared, _) if !erased && let Some(targets) = targets => {
+            let declared = declared.clone();
+            env.exprs.record(expr.span, ExprInfo::ClassRefOf);
+            return place_class_reference(&declared, targets, expr.span, env);
+        }
         Ty::Class(..) | Ty::Object if !erased => {
             env.exprs.record(expr.span, ExprInfo::ClassNameOf);
             return env.interner.string();
@@ -2043,6 +2159,10 @@ fn check_dynamic_class_name_const(
         )
         .with_help(help),
     );
+    // At a `class<…>` place a `string` would mismatch on top of this refusal.
+    if targets.is_some() {
+        return env.interner.error();
+    }
     env.interner.string()
 }
 

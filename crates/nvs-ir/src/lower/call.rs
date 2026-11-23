@@ -771,6 +771,14 @@ impl<'a> Lowering<'a> {
             ),
             nvs_types::ConstArg::Str(s) => (Ty::Str, InstKind::ConstStr(s.clone())),
             nvs_types::ConstArg::Bytes(b) => (Ty::Bytes, InstKind::ConstBytes(b.clone())),
+            // `= Foo::class` at a `class<T>` parameter: the descriptor constant
+            // `Foo::class as class<T>` folds to, with no name string built.
+            nvs_types::ConstArg::ClassRef(class) => (
+                Ty::ClassDesc,
+                InstKind::ClassDescConst {
+                    class: class.to_string(),
+                },
+            ),
             // The same instruction a written `[]` lowers to — an empty
             // `ArrayNew` is already the fixed-shape array literal's own zero case
             // (`InstKind::ArrayNew`'s doc comment), so an omitted `array<T>`

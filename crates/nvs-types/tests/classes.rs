@@ -1546,3 +1546,196 @@ fn a_shape_target_records_its_field_walk_only_where_the_operand_needs_one() {
         declared.folded_at("$p as {top: float}")
     );
 }
+
+/// The classes the written-`::class` placement tests share: `Dog` is an
+/// `Animal`, `Rock` is not, and `T` has a method that takes a `class<Animal>`.
+const PLACED: &str = "<?nvs\n\
+     class Animal {}\n\
+     class Dog extends Animal {}\n\
+     class Rock {}\n\
+     enum Status { Active, Closed }\n\
+     class T {\n\
+     \x20 function take(class<Animal> $c): void {}\n\
+     \x20 function maybe(?class<Animal> $c): void {}\n\
+     \x20 function either(class<Animal>|class<Rock> $c): void {}\n\
+     \x20 function name(string $n): void {}\n\
+     \x20 function nameOrClass(string|class<Animal> $c): void {}\n\
+     }\n";
+
+/// `rule:types/class-reference`: a written `Foo::class`, `self::class` and
+/// `parent::class` is a `class<T>` wherever one is expected, with no `as`: an
+/// argument, a `?class<T>`, a union of class references and a local. It is
+/// recorded as the class itself, which `nvs-ir` lowers to the descriptor.
+#[test]
+fn a_written_class_name_is_a_class_reference_where_one_is_expected() {
+    let src = format!(
+        "{PLACED}\
+         class Puppy extends Dog {{\n\
+         \x20 function m(T $t): void {{\n\
+         \x20   $t->take(Dog::class);\n\
+         \x20   $t->take(self::class);\n\
+         \x20   $t->take(parent::class);\n\
+         \x20   $t->maybe(Dog::class);\n\
+         \x20   $t->either(Rock::class);\n\
+         \x20   class<Animal> $local = Puppy::class;\n\
+         \x20   ?class<Animal> $nullable = Animal::class;\n\
+         \x20 }}\n\
+         }}\n"
+    );
+    let (diags, declared) = check_src_declared(&src);
+    assert!(!diags.has_errors(), "{diags:?}");
+    for (written, class) in [
+        ("Dog::class", "Dog"),
+        ("Puppy::class", "Puppy"),
+        ("Rock::class", "Rock"),
+    ] {
+        let info = declared.folded_at(written);
+        assert!(
+            matches!(info, Some(ExprInfo::ClassRefConst { class: q }) if q.to_string() == class),
+            "`{written}` recorded {info:?}"
+        );
+    }
+}
+
+/// `rule:types/class-reference`: a written class outside `T` is the `E0708`
+/// that `as class<T>` gives, decided while compiling, and only that: no
+/// second mismatch is reported. An enum is never a class reference.
+#[test]
+fn a_written_class_name_outside_the_bound_is_e0708_without_as() {
+    for written in ["Rock::class", "Status::class"] {
+        let src = format!(
+            "{PLACED}\
+             class U {{ function m(T $t): void {{ $t->take({written}); }} }}\n"
+        );
+        let diags = check_src(&src);
+        let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+        assert_eq!(codes, vec![code::E_NO_CONVERSION], "`{written}`: {diags:?}");
+        assert!(
+            diags.iter().any(|d| d.message.contains("class<Animal>")),
+            "`{written}`: {diags:?}"
+        );
+    }
+}
+
+/// `rule:types/class-reference`: `static::class` in a method of `C` is a
+/// `class<C>`. The run-time class is `C` or a subclass of it, so `C` decides
+/// the place while compiling, and the class is read from the frame.
+#[test]
+fn static_class_is_a_class_reference_when_the_enclosing_class_is_in_the_bound() {
+    let src = format!(
+        "{PLACED}\
+         class Cat extends Animal {{ function m(T $t): void {{ $t->take(static::class); }} }}\n"
+    );
+    let (diags, declared) = check_src_declared(&src);
+    assert!(!diags.has_errors(), "{diags:?}");
+    let info = declared.folded_at("static::class");
+    assert!(matches!(info, Some(ExprInfo::ClassRefOf)), "{info:?}");
+
+    let outside = check_src(&format!(
+        "{PLACED}\
+         class Stone {{ function m(T $t): void {{ $t->take(static::class); }} }}\n"
+    ));
+    let codes: Vec<_> = outside.iter().filter_map(|d| d.code).collect();
+    assert_eq!(codes, vec![code::E_NO_CONVERSION], "{outside:?}");
+}
+
+/// `rule:types/class-reference`: `$obj::class` on a receiver declared as a
+/// class `U` is a `class<U>`, checked against `T` while compiling. A `?U`
+/// receiver stays `E0702` alone, with no mismatch on top.
+#[test]
+fn an_objects_class_is_a_class_reference_of_its_declared_type() {
+    let src = format!(
+        "{PLACED}\
+         class U {{ function m(T $t, Dog $d): void {{ $t->take($d::class); }} }}\n"
+    );
+    let (diags, declared) = check_src_declared(&src);
+    assert!(!diags.has_errors(), "{diags:?}");
+    let info = declared.folded_at("$d::class");
+    assert!(matches!(info, Some(ExprInfo::ClassRefOf)), "{info:?}");
+
+    for (receiver, want) in [
+        ("Rock", code::E_NO_CONVERSION),
+        ("?Dog", code::E_CLASS_NAME_CONST_NOT_STATIC),
+    ] {
+        let diags = check_src(&format!(
+            "{PLACED}\
+             class U {{ function m(T $t, {receiver} $r): void {{ $t->take($r::class); }} }}\n"
+        ));
+        let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+        assert_eq!(codes, vec![want], "`{receiver}`: {diags:?}");
+    }
+}
+
+/// `rule:types/class-reference`: a string literal and a `string` variable are
+/// data, so each still needs `as`. The mismatch's help names the conversion.
+#[test]
+fn a_string_literal_and_a_string_variable_still_need_as() {
+    for argument in ["'Dog'", "$s"] {
+        let diags = check_src(&format!(
+            "{PLACED}\
+             class U {{ function m(T $t, string $s): void {{ $t->take({argument}); }} }}\n"
+        ));
+        let mismatch = diags
+            .iter()
+            .find(|d| d.code == Some(code::E_TYPE_MISMATCH))
+            .unwrap_or_else(|| panic!("`{argument}`: {diags:?}"));
+        assert!(
+            mismatch
+                .notes
+                .iter()
+                .any(|n| n.contains("$name as class<Animal>")),
+            "`{argument}`: {mismatch:?}"
+        );
+    }
+}
+
+/// `rule:types/class-constant`: everywhere a `class<T>` is not expected, a
+/// written `::class` stays the class's name as a `string`, and a union with a
+/// `string` member keeps the string.
+#[test]
+fn a_written_class_name_stays_a_string_where_a_string_is_expected() {
+    let src = format!(
+        "{PLACED}\
+         class U {{\n\
+         \x20 function m(T $t): void {{\n\
+         \x20   $t->name(Dog::class);\n\
+         \x20   $t->nameOrClass(Rock::class);\n\
+         \x20   string $n = Animal::class;\n\
+         \x20   mixed $m = U::class;\n\
+         \x20 }}\n\
+         }}\n"
+    );
+    let (diags, declared) = check_src_declared(&src);
+    assert!(!diags.has_errors(), "{diags:?}");
+    for written in ["Dog::class", "Rock::class", "Animal::class", "U::class"] {
+        let info = declared.folded_at(written);
+        assert!(
+            matches!(info, Some(ExprInfo::CoreConst { .. })),
+            "`{written}` recorded {info:?}"
+        );
+    }
+}
+
+/// `rule:types/class-reference`: a parameter declared `class<T>` may default
+/// to a written `Foo::class`, tested against `T` while compiling.
+/// `static::class` is read while the call runs, so it is no default.
+#[test]
+fn a_parameter_default_may_be_a_written_class_name() {
+    let accepted = check_src(&format!(
+        "{PLACED}\
+         class U {{ function m(class<Animal> $c = Dog::class, ?class<Animal> $n = Animal::class): void {{}} }}\n"
+    ));
+    assert!(!accepted.has_errors(), "{accepted:?}");
+
+    for (default, want) in [
+        ("Rock::class", code::E_NO_CONVERSION),
+        ("static::class", code::E_PARAM_DEFAULT_NOT_LITERAL),
+    ] {
+        let diags = check_src(&format!(
+            "{PLACED}\
+             class Cat extends Animal {{ function m(class<Animal> $c = {default}): void {{}} }}\n"
+        ));
+        let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+        assert_eq!(codes, vec![want], "`{default}`: {diags:?}");
+    }
+}

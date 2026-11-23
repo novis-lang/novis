@@ -628,6 +628,22 @@ impl<'a> Lowering<'a> {
                         env,
                     )
                 }
+                // A written `::class` at a `class<T>` place is the descriptor
+                // itself (`rule:types/class-reference`). The checker tested the
+                // class against `T`, so nothing is tested here and no name
+                // string is built.
+                Some(ExprInfo::ClassRefConst { class }) => {
+                    let class = class.to_string();
+                    self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescConst { class })
+                }
+                Some(ExprInfo::ClassRefOf) => {
+                    if matches!(class.kind, ExprKind::StaticExpr) {
+                        (self.lsb(), Ty::ClassDesc)
+                    } else {
+                        let (object, _) = self.lower_expr(class, None, env, cur);
+                        self.emit(*cur, Ty::ClassDesc, InstKind::ClassDescOf { object })
+                    }
+                }
                 // Only reachable in a compilation that has already aborted:
                 // the checker records one of the two entries above for every
                 // `::class` it accepts and reports `E0702` for every side it

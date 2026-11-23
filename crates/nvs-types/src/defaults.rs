@@ -158,6 +158,10 @@ pub enum ConstArg {
     /// other string literal in the program goes through, so a default is never
     /// a second escape grammar.
     Str(String),
+    /// A class reference: `= Foo::class` at a parameter declared `class<T>`
+    /// (`rule:types/class-reference`). The class is already tested against `T`,
+    /// and the call site emits its descriptor constant, with no name string.
+    ClassRef(nvs_hir::QName),
     /// `bytes`, as the octets themselves.
     ///
     /// Produced only by [`crate::core_lib`], from
@@ -298,6 +302,8 @@ pub(crate) fn eval_param_default(
     let mut reported = false;
     let value = if matches!(&expr.kind, ExprKind::ClassConstAccess { .. }) {
         const_reference_default(expr, declared, ctx, Some(&mut reported), env)
+    } else if matches!(&expr.kind, ExprKind::ClassNameConst { .. }) {
+        class_reference_default(expr, declared, ctx, Some(&mut reported), env)
     } else {
         literal_default(expr, declared, env)
     };
@@ -332,9 +338,73 @@ pub(crate) fn quiet_param_default(
 ) -> Option<ConstArg> {
     if matches!(&expr.kind, ExprKind::ClassConstAccess { .. }) {
         const_reference_default(expr, declared, ctx, None, env)
+    } else if matches!(&expr.kind, ExprKind::ClassNameConst { .. }) {
+        class_reference_default(expr, declared, ctx, None, env)
     } else {
         literal_default(expr, declared, env)
     }
+}
+
+/// `= Foo::class` at a parameter declared `class<T>` or `?class<T>`
+/// (`rule:types/class-reference`): the class reference, tested against `T`
+/// while compiling as the same expression is in a call's argument.
+///
+/// `Foo::class`, `self::class` and `parent::class` name a class the compiler
+/// resolves. `static::class` and `$obj::class` are read while the call runs, so
+/// they are no constant and give `None`, which the caller reports as a default
+/// that is not a constant. A class outside a single `T` is
+/// [`code::E_NO_CONVERSION`] and sets `reported`. `None` for `reported` reports
+/// nothing, for [`quiet_param_default`]'s reason.
+///
+/// A property default takes no class reference yet: a property's default is
+/// written into a slot by the run time, and that slot has no descriptor
+/// variant ([`eval_property_default`]).
+fn class_reference_default(
+    expr: &Expr,
+    declared: TypeId,
+    ctx: &Ctx<'_>,
+    reported: Option<&mut bool>,
+    env: &mut Env<'_>,
+) -> Option<ConstArg> {
+    let ExprKind::ClassNameConst { class } = &expr.kind else {
+        return None;
+    };
+    if !matches!(
+        class.kind,
+        ExprKind::ConstFetch(_) | ExprKind::SelfExpr | ExprKind::ParentExpr
+    ) {
+        return None;
+    }
+    let targets = crate::expr::members::class_reference_targets(declared, env)?;
+    let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
+    let declared_class = env.symbols.get(&qname).is_some()
+        || qname.is_core()
+        || qname.is_reserved_global_class()
+        || qname.is_reserved_global_interface();
+    if !declared_class {
+        return None;
+    }
+    let admitted = match (targets.as_slice(), reported) {
+        ([target], Some(reported)) => {
+            let admitted = crate::expr::operators::admit_class_reference(
+                &qname,
+                target,
+                expr.span,
+                "a `class<…>` is expected here",
+                env,
+            );
+            *reported = !admitted;
+            admitted
+        }
+        (targets, _) => {
+            !crate::expr::members::names_an_enum(&qname, env)
+                && targets.iter().any(|target| {
+                    qname == *target
+                        || nvs_hir::hierarchy::implements_interface(&qname, target, env.graph)
+                })
+        }
+    };
+    admitted.then_some(ConstArg::ClassRef(qname))
 }
 
 /// Evaluates a written `= expr` **property** default against the property's

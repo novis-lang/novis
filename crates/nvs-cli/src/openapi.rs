@@ -754,7 +754,10 @@ fn example_value(value: &ConstArg) -> Option<Value> {
         // absent by leaving it out of `required`, which is what an omitted
         // nullable option already is.
         | ConstArg::NeverWritten
-        | ConstArg::Built { .. } => return None,
+        | ConstArg::Built { .. }
+        // A parameter default only, and an example is folded with no
+        // declared type, so no `class<T>` places one.
+        | ConstArg::ClassRef(_) => return None,
     })
 }
 
