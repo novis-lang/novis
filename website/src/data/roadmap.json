@@ -10,6 +10,13 @@
       "goals": [
         "attribute-editor-support"
       ]
+    },
+    {
+      "title": "Faster checks in the editor after an edit",
+      "text": "After you edit a file, the editor checks again only the files that use what you changed. An edit inside a method body checks no other file.",
+      "goals": [
+        "exact-invalidation"
+      ]
     }
   ]
 }

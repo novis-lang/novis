@@ -16176,7 +16176,7 @@
   },
   "/reference/core/time-instant/fromiso/": {
     "feature": "Core\\Time\\Instant::fromIso",
-    "hash": "a818f94181c8d9a8",
+    "hash": "a3e07ea58a299fc8",
     "questions": [
       "How do I read an ISO 8601 timestamp?",
       "Convert text like 2024-03-01T12:00:00Z into a time",
@@ -16257,12 +16257,13 @@
   },
   "/reference/core/time-instant/toiso/": {
     "feature": "Core\\Time\\Instant::toIso",
-    "hash": "a5cce873411b799e",
+    "hash": "d6378ae624b25103",
     "questions": [
       "How do I format a timestamp as an ISO 8601 string?",
       "Convert a moment to RFC 3339 text in UTC",
       "Output a date for a JSON API",
-      "Write a timestamp like 2024-03-01T12:00:00Z"
+      "Write a timestamp like 2024-03-01T12:00:00Z",
+      "How is a year before year 1 written in ISO text?"
     ]
   },
   "/reference/core/time-timeofday/": {
@@ -19269,14 +19270,14 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "b7dc9d12d62da58a",
+    "hash": "e7f6b5e24b3f4c4e",
     "questions": [
       "Install the Novis extension from the Marketplace, Open VSX or a .vsix file",
-      "Why is nvs code faster once the editor has opened my project?",
       "Which quick fixes and code actions does the editor offer?",
       "How can I see which routes and tests use a method?",
       "How do I change a colour of the Novis Dark theme?",
-      "Which files does the editor read, and does it skip folders in .gitignore?"
+      "Which files does the editor read, and does it skip folders in .gitignore?",
+      "Can I rename a field of an attribute declaration in every place it is used?"
     ]
   },
   "/tools/formatter/": {

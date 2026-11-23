@@ -166,11 +166,12 @@
   "docs/examples/core/Test/tlsSession/about.md": "788fe2257737bc9e",
   "docs/examples/core/Time-Date/at/about.md": "6a6f8fbb34316ce7",
   "docs/examples/core/Time-Date/fromIso/about.md": "a6e811f7b588a3e8",
-  "docs/examples/core/Time-Instant/fromIso/about.md": "0d72600e75180e12",
+  "docs/examples/core/Time-Instant/fromIso/about.md": "eabdc47d9eb15f28",
   "docs/examples/core/Time-Instant/toEpochMicros/about.md": "197714e067ad9eff",
   "docs/examples/core/Time-Instant/toEpochMillis/about.md": "b6cbdb497c503303",
   "docs/examples/core/Time-Instant/toEpochSeconds/02-the-part-below-a-second-is-dropped.nvs": "025d5c06f8db511e",
   "docs/examples/core/Time-Instant/toEpochSeconds/about.md": "dc5f37209183b58c",
+  "docs/examples/core/Time-Instant/toIso/about.md": "fbd92962a61359b4",
   "docs/examples/core/Time-Zone/of/about.md": "3a0cc06de5e961c9",
   "docs/examples/core/Time/sleep/about.md": "4b50fd00f6a2ce34",
   "docs/examples/core/Uri/encodeComponent/about.md": "4b1035dca8e3ab44",
@@ -349,6 +350,8 @@
   "tests/hostile/core/Test/logs/01-many-huge-and-odd-records.nvs": "e3b926c19980d77b",
   "tests/hostile/core/Test/run/01-runs-that-nest-flood-and-crash.nvs": "e903d485b6e04c5e",
   "tests/hostile/core/Test/sentMail/01-tests-that-try-to-send-real-mail.nvs": "bcec5d679b25a07e",
+  "tests/hostile/core/Time-DateTime/toInstant/01-every-zone-at-the-ends-of-time.nvs": "8e8dc8f22f217b63",
+  "tests/hostile/core/Time-Instant/toIso/01-the-ends-of-the-range.nvs": "af4af10693cd11b4",
   "tests/hostile/core/Uri/encodeComponent/02-a-captured-dot-segment-in-an-outbound-path.nvs": "b5d3c7a216e0537a",
   "tests/hostile/lang/attributes/an-attribute-is-declared-with-the-places-it-may-be-used/01-a-payload-as-large-as-a-file-can-make-it.nvs": "423539227023ec89",
   "tests/hostile/lang/attributes/an-attribute-is-declared-with-the-places-it-may-be-used/02-an-attribute-outside-its-owner-and-its-places.nvs": "368fa6505ae19f0b",
@@ -386,7 +389,7 @@
   "website/src/content/docs/syntax/control-flow/iterators.mdx": "bb7f40ac15471ee7",
   "website/src/content/docs/syntax/errors/error-types.mdx": "c441d0499b122fc6",
   "website/src/content/docs/syntax/testing/writing-tests.mdx": "663309b50d56941f",
-  "website/src/content/docs/tools/editor/index.mdx": "cc8946c85e4d1298",
+  "website/src/content/docs/tools/editor/index.mdx": "f21fc5d31b73a7fd",
   "website/src/content/docs/tools/test-runner/index.mdx": "45d778040ee466bb",
-  "website/src/data/changes.json": "65ab10d63e70da39"
+  "website/src/data/changes.json": "de57e21f8c3bb027"
 }

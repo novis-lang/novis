@@ -81,17 +81,9 @@ editor supports snippets, `attribute` writes a whole declaration. You then type 
 the site and write the fields.
 
 A field and each key that uses it have the same name. Go to definition, find references and rename
-work on both. If you rename `path` below, the key `path:` in `#[Route(path: "/cart")]` changes too.
+work on both. If you rename `path` below, the key `path:` in `#[Route(path: '/cart')]` changes too.
 
-```nvs
-attribute Route on method { path: string, verb?: string }
-
-class Shop
-{
-    #[Route(path: "/cart")]
-    public function cart(): string { return "cart"; }
-}
-```
+<Snippet src="tools/editor/attribute-declaration.nvs" />
 
 Inside `#[Route(`, the editor shows the fields as signature help: `Route(path: string, verb?:
 string)`. The field you are writing is highlighted. Before you write a key, the first required field
@@ -99,8 +91,8 @@ that is missing is highlighted.
 
 An attribute that nothing declares has an error. The quick fix **Declare the attribute** writes a
 declaration in the same file. If you used the attribute on a method, the declaration says `on method`.
-Each key you wrote becomes a field. The fix is not offered in a file that `autoload` loads, because that file may declare
-only one name.
+Each key you wrote becomes a field. The fix is not offered in a file that `autoload` loads, because
+that file may declare only one name.
 
 **Order class members** and `nvs code order` move an attribute declaration in a class to the top of
 the class. It goes with the `enum` and `type` declarations.

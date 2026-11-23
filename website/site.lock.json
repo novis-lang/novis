@@ -3072,19 +3072,19 @@
     "Core\\Time\\Date::year": "dfb3939e8a42e12a"
   },
   "docs/examples/core/Time-DateTime/at/about.md": {
-    "Core\\Time\\DateTime::at": "c11d9f2715ebdb82"
+    "Core\\Time\\DateTime::at": "7bd5f164bb81af91"
   },
   "docs/examples/core/Time-DateTime/date/about.md": {
-    "Core\\Time\\DateTime::date": "b2de09c42a22d307"
+    "Core\\Time\\DateTime::date": "ccdd42867b944707"
   },
   "docs/examples/core/Time-DateTime/day/about.md": {
-    "Core\\Time\\DateTime::day": "423f08b00f707a72"
+    "Core\\Time\\DateTime::day": "2ee7b3f33f1dc94b"
   },
   "docs/examples/core/Time-DateTime/dayOfYear/about.md": {
-    "Core\\Time\\DateTime::dayOfYear": "906b86271cf2e16f"
+    "Core\\Time\\DateTime::dayOfYear": "a615f393fc83dfe8"
   },
   "docs/examples/core/Time-DateTime/difference/about.md": {
-    "Core\\Time\\DateTime::difference": "1646c6c3d9a97ce6"
+    "Core\\Time\\DateTime::difference": "00cc5d769f7da3db"
   },
   "docs/examples/core/Time-DateTime/endOf/about.md": {
     "Core\\Time\\DateTime::endOf": "e6df9191ef198d0d"
@@ -3096,22 +3096,22 @@
     "Core\\Time\\DateTime::fromIso": "c1ac4ebfc4dad4b3"
   },
   "docs/examples/core/Time-DateTime/hour/about.md": {
-    "Core\\Time\\DateTime::hour": "aa3888693bd0401f"
+    "Core\\Time\\DateTime::hour": "d0946996f87428d4"
   },
   "docs/examples/core/Time-DateTime/isLeapYear/about.md": {
-    "Core\\Time\\DateTime::isLeapYear": "a694006dc069ca01"
+    "Core\\Time\\DateTime::isLeapYear": "78c3a559f7ca8c80"
   },
   "docs/examples/core/Time-DateTime/minus/about.md": {
     "Core\\Time\\DateTime::minus": "452833fce3f31932"
   },
   "docs/examples/core/Time-DateTime/minute/about.md": {
-    "Core\\Time\\DateTime::minute": "6b80d31af8d75d7a"
+    "Core\\Time\\DateTime::minute": "1b9c674077c9f416"
   },
   "docs/examples/core/Time-DateTime/month/about.md": {
-    "Core\\Time\\DateTime::month": "845d2df8cbf33bbc"
+    "Core\\Time\\DateTime::month": "73740af5e6ae24af"
   },
   "docs/examples/core/Time-DateTime/nanos/about.md": {
-    "Core\\Time\\DateTime::nanos": "b067ceb3be1190c9"
+    "Core\\Time\\DateTime::nanos": "0fbf415e6967e241"
   },
   "docs/examples/core/Time-DateTime/next/about.md": {
     "Core\\Time\\DateTime::next": "cae3360abbfde8ec"
@@ -3126,19 +3126,19 @@
     "Core\\Time\\DateTime::previous": "f3aa7f12836caaca"
   },
   "docs/examples/core/Time-DateTime/second/about.md": {
-    "Core\\Time\\DateTime::second": "52c40dcc3036b07d"
+    "Core\\Time\\DateTime::second": "c560ea4447c1da93"
   },
   "docs/examples/core/Time-DateTime/startOf/about.md": {
     "Core\\Time\\DateTime::startOf": "d6ef1efd957388ed"
   },
   "docs/examples/core/Time-DateTime/timeOfDay/about.md": {
-    "Core\\Time\\DateTime::timeOfDay": "bc7bc8f3a8f33282"
+    "Core\\Time\\DateTime::timeOfDay": "ef59ad9db3d92f61"
   },
   "docs/examples/core/Time-DateTime/toInstant/about.md": {
-    "Core\\Time\\DateTime::toInstant": "0f1609cef8e65b42"
+    "Core\\Time\\DateTime::toInstant": "0b42539e95c3fe8f"
   },
   "docs/examples/core/Time-DateTime/weekday/about.md": {
-    "Core\\Time\\DateTime::weekday": "ca518b67f818488a"
+    "Core\\Time\\DateTime::weekday": "793d8cc03ef7a525"
   },
   "docs/examples/core/Time-DateTime/with/about.md": {
     "Core\\Time\\DateTime::with": "c987831abbd94fe5"
@@ -3147,10 +3147,10 @@
     "Core\\Time\\DateTime::withTime": "26531f0f13659f56"
   },
   "docs/examples/core/Time-DateTime/year/about.md": {
-    "Core\\Time\\DateTime::year": "8bdefa2cfce30ae9"
+    "Core\\Time\\DateTime::year": "3409b1eeecb2e5b8"
   },
   "docs/examples/core/Time-DateTime/zone/about.md": {
-    "Core\\Time\\DateTime::zone": "842c1ac2534a2be7"
+    "Core\\Time\\DateTime::zone": "7e2d51a2ca52c90f"
   },
   "docs/examples/core/Time-Duration/compareTo/about.md": {
     "Core\\Time\\Duration::compareTo": "ed2237e3e7cf8b4a"
@@ -3213,34 +3213,34 @@
     "Core\\Time\\Instant::compareTo": "e714452d0cae63d7"
   },
   "docs/examples/core/Time-Instant/fromEpoch/about.md": {
-    "Core\\Time\\Instant::fromEpoch": "980c29d6ab8ed7e2"
+    "Core\\Time\\Instant::fromEpoch": "0721b95a911fefc5"
   },
   "docs/examples/core/Time-Instant/fromIso/about.md": {
-    "Core\\Time\\Instant::fromIso": "f444e4fbf740cf1d"
+    "Core\\Time\\Instant::fromIso": "6ef200093860d379"
   },
   "docs/examples/core/Time-Instant/in/about.md": {
-    "Core\\Time\\Instant::in": "7e0a299e4db727d0"
+    "Core\\Time\\Instant::in": "17178cacf5457e05"
   },
   "docs/examples/core/Time-Instant/minus/about.md": {
-    "Core\\Time\\Instant::minus": "29e17ca093020068"
+    "Core\\Time\\Instant::minus": "384ca102919da663"
   },
   "docs/examples/core/Time-Instant/plus/about.md": {
-    "Core\\Time\\Instant::plus": "d07ee60780f89bbb"
+    "Core\\Time\\Instant::plus": "1ff8fcf41f9e64df"
   },
   "docs/examples/core/Time-Instant/since/about.md": {
     "Core\\Time\\Instant::since": "dd7519f8b3ba073c"
   },
   "docs/examples/core/Time-Instant/toEpochMicros/about.md": {
-    "Core\\Time\\Instant::toEpochMicros": "ab3150718f57aa0f"
+    "Core\\Time\\Instant::toEpochMicros": "8e100fe77d1ddae7"
   },
   "docs/examples/core/Time-Instant/toEpochMillis/about.md": {
-    "Core\\Time\\Instant::toEpochMillis": "7320da99e91852cf"
+    "Core\\Time\\Instant::toEpochMillis": "e342ceae0e651dbe"
   },
   "docs/examples/core/Time-Instant/toEpochSeconds/about.md": {
-    "Core\\Time\\Instant::toEpochSeconds": "e58b7b0b9c30d260"
+    "Core\\Time\\Instant::toEpochSeconds": "e88c73e567f10b5b"
   },
   "docs/examples/core/Time-Instant/toIso/about.md": {
-    "Core\\Time\\Instant::toIso": "62199774198f1659"
+    "Core\\Time\\Instant::toIso": "0fe502b5f01ac324"
   },
   "docs/examples/core/Time-TimeOfDay/at/about.md": {
     "Core\\Time\\TimeOfDay::at": "71cc07d7bc3ae0b1"
@@ -4581,7 +4581,7 @@
     "tools:packages/package-toml": "5b6760e417747bb7"
   },
   "docs/examples/tools/packages/restrictions-where-a-class-or-method-may-be-used/about.md": {
-    "tools:packages/restrictions-where-a-class-or-method-may-be-used": "d35eb4c09b942676"
+    "tools:packages/restrictions-where-a-class-or-method-may-be-used": "c8796cebbfeff401"
   },
   "docs/examples/tools/packages/the-registry-website/about.md": {
     "tools:packages/the-registry-website": "e8484defeafb48f6"
@@ -7983,19 +7983,19 @@
     "Core\\Time\\Date::year": "d68381c146daee52"
   },
   "help:Core\\Time\\DateTime::at": {
-    "Core\\Time\\DateTime::at": "45f44a23a2b23dcb"
+    "Core\\Time\\DateTime::at": "a4a4070d2e329b8b"
   },
   "help:Core\\Time\\DateTime::date": {
-    "Core\\Time\\DateTime::date": "c3c88add04021585"
+    "Core\\Time\\DateTime::date": "118b05e0c89dc26a"
   },
   "help:Core\\Time\\DateTime::day": {
-    "Core\\Time\\DateTime::day": "e57647d18cae98ab"
+    "Core\\Time\\DateTime::day": "1ac51c44e8f103ba"
   },
   "help:Core\\Time\\DateTime::dayOfYear": {
-    "Core\\Time\\DateTime::dayOfYear": "8ae44e3211341047"
+    "Core\\Time\\DateTime::dayOfYear": "db5700ecb1f5a48e"
   },
   "help:Core\\Time\\DateTime::difference": {
-    "Core\\Time\\DateTime::difference": "ecdd10e8c5c9ff0b"
+    "Core\\Time\\DateTime::difference": "45cb24fa8cd03284"
   },
   "help:Core\\Time\\DateTime::endOf": {
     "Core\\Time\\DateTime::endOf": "ba52c32f83ab0955"
@@ -8007,22 +8007,22 @@
     "Core\\Time\\DateTime::fromIso": "a14abf730af35250"
   },
   "help:Core\\Time\\DateTime::hour": {
-    "Core\\Time\\DateTime::hour": "d763844922f3753d"
+    "Core\\Time\\DateTime::hour": "bd40418941dea56d"
   },
   "help:Core\\Time\\DateTime::isLeapYear": {
-    "Core\\Time\\DateTime::isLeapYear": "e71dd129329ce180"
+    "Core\\Time\\DateTime::isLeapYear": "350e89c9a7ea8362"
   },
   "help:Core\\Time\\DateTime::minus": {
     "Core\\Time\\DateTime::minus": "3f0da5de0024380c"
   },
   "help:Core\\Time\\DateTime::minute": {
-    "Core\\Time\\DateTime::minute": "b62ef16f8c98582c"
+    "Core\\Time\\DateTime::minute": "4a4a24cf683667b7"
   },
   "help:Core\\Time\\DateTime::month": {
-    "Core\\Time\\DateTime::month": "f4211a6f925f3028"
+    "Core\\Time\\DateTime::month": "4fdb578a454b6d5e"
   },
   "help:Core\\Time\\DateTime::nanos": {
-    "Core\\Time\\DateTime::nanos": "32a5e4632b3d9d01"
+    "Core\\Time\\DateTime::nanos": "debfb91a0284351a"
   },
   "help:Core\\Time\\DateTime::next": {
     "Core\\Time\\DateTime::next": "061dd0ac999ddd37"
@@ -8037,19 +8037,19 @@
     "Core\\Time\\DateTime::previous": "f120fbe08d47d4ab"
   },
   "help:Core\\Time\\DateTime::second": {
-    "Core\\Time\\DateTime::second": "0325126f8ec6afa8"
+    "Core\\Time\\DateTime::second": "0b105b203f078c7e"
   },
   "help:Core\\Time\\DateTime::startOf": {
     "Core\\Time\\DateTime::startOf": "0a5dc0fff7acf8f9"
   },
   "help:Core\\Time\\DateTime::timeOfDay": {
-    "Core\\Time\\DateTime::timeOfDay": "6c870ae4ed035aef"
+    "Core\\Time\\DateTime::timeOfDay": "15ab36b0f7f5b7af"
   },
   "help:Core\\Time\\DateTime::toInstant": {
-    "Core\\Time\\DateTime::toInstant": "5fa39bca90b5567f"
+    "Core\\Time\\DateTime::toInstant": "88ce824753960609"
   },
   "help:Core\\Time\\DateTime::weekday": {
-    "Core\\Time\\DateTime::weekday": "3fd2ce06d4e2202b"
+    "Core\\Time\\DateTime::weekday": "3b90bc49d2250f06"
   },
   "help:Core\\Time\\DateTime::with": {
     "Core\\Time\\DateTime::with": "b0c138b521de373f"
@@ -8058,10 +8058,10 @@
     "Core\\Time\\DateTime::withTime": "638c71ac5c32abb0"
   },
   "help:Core\\Time\\DateTime::year": {
-    "Core\\Time\\DateTime::year": "3477b977e68b3957"
+    "Core\\Time\\DateTime::year": "419b2728598fd4d4"
   },
   "help:Core\\Time\\DateTime::zone": {
-    "Core\\Time\\DateTime::zone": "383ffe260c33f4f7"
+    "Core\\Time\\DateTime::zone": "9af2820b2c84d477"
   },
   "help:Core\\Time\\Duration::compareTo": {
     "Core\\Time\\Duration::compareTo": "be0fe32411c8aaed"
@@ -8124,34 +8124,34 @@
     "Core\\Time\\Instant::compareTo": "719bf7524e483a30"
   },
   "help:Core\\Time\\Instant::fromEpoch": {
-    "Core\\Time\\Instant::fromEpoch": "b8dd7f31636c0836"
+    "Core\\Time\\Instant::fromEpoch": "092a10597dba94bc"
   },
   "help:Core\\Time\\Instant::fromIso": {
-    "Core\\Time\\Instant::fromIso": "5913c382545c5367"
+    "Core\\Time\\Instant::fromIso": "cb3f7e343403a916"
   },
   "help:Core\\Time\\Instant::in": {
-    "Core\\Time\\Instant::in": "bf722fd3c673d676"
+    "Core\\Time\\Instant::in": "84246fbdf6802142"
   },
   "help:Core\\Time\\Instant::minus": {
-    "Core\\Time\\Instant::minus": "84f2774bd08e84e0"
+    "Core\\Time\\Instant::minus": "1e84120e005e293d"
   },
   "help:Core\\Time\\Instant::plus": {
-    "Core\\Time\\Instant::plus": "d7e81706dc8244c5"
+    "Core\\Time\\Instant::plus": "4b8e8c0a16b43975"
   },
   "help:Core\\Time\\Instant::since": {
     "Core\\Time\\Instant::since": "621257199f683696"
   },
   "help:Core\\Time\\Instant::toEpochMicros": {
-    "Core\\Time\\Instant::toEpochMicros": "2aa4130bc542765d"
+    "Core\\Time\\Instant::toEpochMicros": "facaeb237b9b5287"
   },
   "help:Core\\Time\\Instant::toEpochMillis": {
-    "Core\\Time\\Instant::toEpochMillis": "cc55da283e8f051b"
+    "Core\\Time\\Instant::toEpochMillis": "f28a023ea2c07c0e"
   },
   "help:Core\\Time\\Instant::toEpochSeconds": {
-    "Core\\Time\\Instant::toEpochSeconds": "e8f936fd838e0c93"
+    "Core\\Time\\Instant::toEpochSeconds": "b139149780094f44"
   },
   "help:Core\\Time\\Instant::toIso": {
-    "Core\\Time\\Instant::toIso": "74b5612e6b6b3f7a"
+    "Core\\Time\\Instant::toIso": "fd02a21eab5dc1b0"
   },
   "help:Core\\Time\\TimeOfDay::at": {
     "Core\\Time\\TimeOfDay::at": "51acfbb88452449b"
@@ -9435,7 +9435,7 @@
     "tools:packages/package-toml": "37a64b5479f4bf18"
   },
   "help:tools:packages/restrictions-where-a-class-or-method-may-be-used": {
-    "tools:packages/restrictions-where-a-class-or-method-may-be-used": "d351390792fcd508"
+    "tools:packages/restrictions-where-a-class-or-method-may-be-used": "d9e571a29498dfe7"
   },
   "help:tools:packages/the-registry-website": {
     "tools:packages/the-registry-website": "85b72c06df93c885"

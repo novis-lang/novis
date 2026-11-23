@@ -1,0 +1,13 @@
+<?nvs
+attribute Route on method { path: string, verb?: string }
+
+class Shop
+{
+    #[Route(path: '/cart')]
+    public function cart(): string
+    {
+        return 'cart';
+    }
+}
+
+echo (new Shop())->cart(), "\n";
