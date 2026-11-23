@@ -719,8 +719,10 @@ impl SymbolIndex {
                 }
                 Freshness::Changed(surface) => {
                     stale.insert(indexed.entry.clone());
-                    if surface.map(|rows| rows.digest()) != Some(indexed.rows.digest()) {
-                        moved.push(key.clone());
+                    if surface.as_ref().map(crate::surface::Rows::digest)
+                        != Some(indexed.rows.digest())
+                    {
+                        moved.push((key.clone(), indexed.rows.clone(), surface));
                     }
                 }
                 Freshness::Gone => {
@@ -734,7 +736,14 @@ impl SymbolIndex {
             index.post(&key, &indexed);
             index.files.insert(key, indexed);
         }
-        for key in moved.iter().chain(&gone) {
+        // A file whose rows moved queues the readers that own a file its
+        // edit reaches, as a refresh does. Every file is posted by now, so
+        // the reach sees the whole saved tree.
+        for (key, old, new) in &moved {
+            let readers = index.readers_of(key);
+            stale.extend(index.reached_entries(key, old, new.as_ref(), &readers));
+        }
+        for key in &gone {
             stale.extend(index.readers_of(key));
         }
         // An entry point that is gone re-indexes nothing, so the files it
@@ -835,7 +844,9 @@ impl SymbolIndex {
     /// moved. The open document's own analysis re-indexes it. A body that
     /// names a class no file of the graph named before loads that class's
     /// file, which every reader's graph then reads too, so that edit queues
-    /// the readers.
+    /// the readers. Where the hash differs, only the readers that own a file
+    /// the changed rows reach wait ([`reached_entries`](Self::reached_entries)):
+    /// an entry whose files used nothing that moved keeps its records.
     ///
     /// The dropped set is the answer the test asks for and the one a caller
     /// wants anyway: it is exactly the files whose declarations and
@@ -890,7 +901,7 @@ impl SymbolIndex {
         if !reindexed {
             self.pending.extend(held.iter().cloned());
         }
-        let before = self.files.get(&key).map(|indexed| indexed.rows.digest());
+        let before = self.files.get(&key).map(|indexed| indexed.rows.clone());
         let read_before = self.read_set(&key);
 
         let mut dropped = self.drop_owned(&now);
@@ -915,13 +926,19 @@ impl SymbolIndex {
             }
         }
         if reindexed {
-            let after = self.files.get(&key).map(|indexed| indexed.rows.digest());
             // An entry that owned no file kept no reads, so a graph it did not
             // record is taken to be the same. The `didOpen` before every edit
             // records one.
             let graph_moved = read_before.is_some() && read_before != self.read_set(&key);
-            if before.is_none() || before != after || graph_moved {
-                self.pending.extend(held);
+            let after = self.files.get(&key).map(|indexed| &indexed.rows);
+            match before {
+                Some(before) if !graph_moved => {
+                    if Some(before.digest()) != after.map(crate::surface::Rows::digest) {
+                        let reached = self.reached_entries(&key, &before, after, &held);
+                        self.pending.extend(reached);
+                    }
+                }
+                _ => self.pending.extend(held),
             }
         }
         Refreshed { dropped, analysed }
@@ -1428,6 +1445,124 @@ impl SymbolIndex {
             .filter(|(_, reads)| reads.iter().any(|read| read == key))
             .map(|(entry, _)| entry.clone())
             .collect()
+    }
+
+    /// The entries among `readers` that own a file which an edit of `key`
+    /// from `old` to `new` rows reaches, in path order.
+    ///
+    /// A file is reached when its check output's key reads a row the edit
+    /// moved (`crate::file_key`): a name it used, a name it failed to find
+    /// that may now be found, or a row of a class above a class it declares.
+    /// A graph row or an attribute that moved, and no new rows, reach every
+    /// reader: routes, commands, links and the graph are read across the
+    /// whole graph. A reader that owns a file with no recorded uses is
+    /// always queued. `readers` is in path order.
+    fn reached_entries(
+        &self,
+        key: &Path,
+        old: &crate::surface::Rows,
+        new: Option<&crate::surface::Rows>,
+        readers: &[PathBuf],
+    ) -> Vec<PathBuf> {
+        use crate::surface::{How, Kind};
+        let Some(new) = new else {
+            return readers.to_vec();
+        };
+        let changes = crate::surface::diff(old, new);
+        if changes
+            .iter()
+            .any(|change| matches!(change.kind, Kind::Graph | Kind::Attributes))
+        {
+            return readers.to_vec();
+        }
+        let mut files: BTreeSet<&Path> = BTreeSet::new();
+        for change in &changes {
+            let member = !matches!(change.kind, Kind::Header | Kind::Cases | Kind::Properties);
+            let class = if member {
+                owner_of(&change.symbol).unwrap_or(&change.symbol)
+            } else {
+                change.symbol.as_str()
+            };
+            let (below, declaring) = self.below(class);
+            files.extend(declaring);
+            match change.kind {
+                Kind::Header => {
+                    self.posted_files(&self.by_used, class, &mut files);
+                    self.posted_files(&self.by_used_on, class, &mut files);
+                    self.posted_files(&self.by_missed, class, &mut files);
+                    for receiver in std::iter::once(class).chain(below.iter().map(String::as_str)) {
+                        self.posted_files(&self.by_missed_on, receiver, &mut files);
+                    }
+                }
+                Kind::Cases => self.posted_files(&self.by_used, class, &mut files),
+                Kind::Properties => self.posted_files(&self.by_used, &format!("{class}::$"), &mut files),
+                _ => {
+                    self.posted_files(&self.by_used, &change.symbol, &mut files);
+                    if change.how != How::Changed
+                        && let Some((_, name)) = change.symbol.split_once("::")
+                    {
+                        self.posted_files(&self.by_missed, &format!("::{name}"), &mut files);
+                        for receiver in
+                            std::iter::once(class).chain(below.iter().map(String::as_str))
+                        {
+                            self.posted_files(&self.by_missed, &format!("{receiver}::{name}"), &mut files);
+                        }
+                    }
+                }
+            }
+        }
+        files.remove(key);
+        let mut entries: BTreeSet<&Path> = files
+            .iter()
+            .filter_map(|file| self.files.get(*file))
+            .map(|indexed| indexed.entry.as_path())
+            .collect();
+        for reader in readers {
+            if self
+                .owned_by(reader)
+                .iter()
+                .any(|file| self.files.get(file).is_some_and(|indexed| indexed.uses.is_none()))
+            {
+                entries.insert(reader);
+            }
+        }
+        readers
+            .iter()
+            .filter(|reader| entries.contains(reader.as_path()))
+            .cloned()
+            .collect()
+    }
+
+    /// Adds to `files` every indexed file `postings` has under `name`.
+    fn posted_files<'a>(&'a self, postings: &Postings, name: &str, files: &mut BTreeSet<&'a Path>) {
+        for (path, _) in postings.get(name).into_iter().flatten() {
+            if let Some((stored, _)) = self.files.get_key_value(&**path) {
+                files.insert(stored.as_path());
+            }
+        }
+    }
+
+    /// Every class below `class` at any depth, each once, and the files that
+    /// declare them, through [`by_supertype`](Self::by_supertype).
+    fn below(&self, class: &str) -> (BTreeSet<String>, BTreeSet<&Path>) {
+        let mut classes = BTreeSet::new();
+        let mut files = BTreeSet::new();
+        let mut queue = vec![class.to_owned()];
+        while let Some(above) = queue.pop() {
+            for (path, at) in self.by_supertype.get(&above).into_iter().flatten() {
+                let Some((stored, indexed)) = self.files.get_key_value(&**path) else {
+                    continue;
+                };
+                files.insert(stored.as_path());
+                if let Some(declared) = indexed.decls.get(*at)
+                    && declared.symbol != class
+                    && classes.insert(declared.symbol.clone())
+                {
+                    queue.push(declared.symbol.clone());
+                }
+            }
+        }
+        (classes, files)
     }
 
     /// The private declarations in `path` that nothing anywhere in the index
