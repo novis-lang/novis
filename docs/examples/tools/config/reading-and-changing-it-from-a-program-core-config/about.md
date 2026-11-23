@@ -10,6 +10,9 @@ with no default, a table or a list.
 it. `set` never throws. It returns `false` and changes nothing when the change is not allowed.
 `restore` removes the change for one name. `all` returns every value, sorted by name.
 
-**Good to know:** a program may raise a `Runtime` setting up to its ceiling in `[limits.hard]`. It
-may only make a `RuntimeTighten` setting stricter. Only the file sets a `System` setting. Without a
-ceiling, a program cannot raise a limit. A command-line program may raise `memory`, unless `[limits.hard]` sets it.
+`set` changes only the settings in the table on the page of `Core\Config::set`. Only the file sets
+every other setting. A name you write in the call that `set` may never change does not compile.
+
+**Good to know:** a program may raise a limit up to its ceiling in `[limits.hard]`. Without a
+ceiling, a program cannot raise a limit. A command-line program may raise `memory`, unless
+`[limits.hard]` sets it.

@@ -15,7 +15,7 @@ With `deny`, a pattern written directly in `Core\Regex::compile` does not compil
 while the program runs throws a `RuntimeError` at the call that uses it. Patterns without lookaround
 and backreferences run as usual with every value.
 
-A program cannot change this setting. `Core\Config::set('regex.backtracking', 'allow')` returns
-`false`.
+A program cannot change this setting. `Core\Config::set('regex.backtracking', 'allow')` does not
+compile. When the name is in a variable, `set` returns `false`.
 
 **The example below** runs a simple pattern, then catches the error from a pattern with lookaround.

@@ -220,7 +220,11 @@ const SET_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "name",
-            desc: "The name of the setting, in the same form that `get` uses.",
+            desc: "The name of the setting, in the same form that `get` uses. A request may \
+                   change only some settings. They are in `[mode]`, `[limits]`, `[log]`, \
+                   `[errors]`, `[deferred]`, `[debug]` and `[http]`. The editor offers each \
+                   one, and the page of `Core\\Config::set` lists them. A name you write in the \
+                   call that a request may never change does not compile.",
             shape: &[],
         },
         ParamDoc {
@@ -231,11 +235,11 @@ const SET_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "`true` when the change was made. `false` when it is not allowed, and the previous value \
-          stays in place. It is not allowed for a setting that only `nvs.toml` may set, or for a \
-          name that is not a setting. It is not allowed for a value that is not a valid size, \
-          duration or count. It is not allowed for a value above the limit's ceiling. The \
-          ceiling is `[limits.hard]`, or the value the program started with when \
-          `[limits.hard]` does not set that limit. `set` never throws an error.",
+          stays in place. It is not allowed for a setting a request may not change. It is not \
+          allowed for a value that is not a valid size, duration or count. It is not allowed \
+          for a value above the limit's ceiling. The ceiling is `[limits.hard]`, or the value \
+          the program started with when `[limits.hard]` does not set that limit. \
+          `debug.inline` and `debug.store` take only `false`. `set` never throws an error.",
     errors: &[],
 };
 
@@ -246,7 +250,8 @@ const RESTORE_DOC: MethodDoc = MethodDoc {
             setting.",
     params: &[ParamDoc {
         name: "name",
-        desc: "The name of the setting, in the same form that `get` uses.",
+        desc: "The name of the setting, in the same form that `get` uses. A name you write \
+               in the call that `set` may never change does not compile.",
         shape: &[],
     }],
     ret: "Nothing. A name this request never changed is not an error. There is nothing to undo.",
@@ -1003,5 +1008,34 @@ mod tests {
             "a request raised its CPU time past the default with no ceiling written"
         );
         assert!(set(&mut request, "cpu_time", "10s"), "lowering is allowed");
+    }
+
+    /// The `set` page's table and the card's list of blocks follow
+    /// `nvs_config::settable::SETTABLE`. The table names every listed key and
+    /// no other, and the card names every block a listed key is in, so
+    /// neither text drifts from the list `set` reads.
+    // covers: Core\Config::set
+    #[test]
+    fn the_set_page_and_card_name_every_settable_key() {
+        let page = include_str!("../../../docs/examples/core/Config/set/about.md");
+        let table: std::collections::BTreeSet<&str> = page
+            .lines()
+            .filter_map(|line| line.strip_prefix("| `"))
+            .filter_map(|rest| rest.split_once('`').map(|(key, _)| key))
+            .collect();
+        let listed: std::collections::BTreeSet<&str> = nvs_config::settable::SETTABLE
+            .iter()
+            .map(|row| row.key)
+            .collect();
+        assert_eq!(table, listed, "the `set` page's table is not SETTABLE");
+
+        let name = super::SET_DOC.params[0].desc;
+        for row in nvs_config::settable::SETTABLE {
+            let block = row.key.split('.').next().unwrap_or(row.key);
+            assert!(
+                name.contains(&format!("`[{block}]`")),
+                "the `set` card's name does not name the block `[{block}]`"
+            );
+        }
     }
 }
