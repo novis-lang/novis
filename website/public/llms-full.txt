@@ -44639,10 +44639,10 @@ Changes a setting for this request only. Other requests do not see the change, a
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The name of the setting, in the same form that `get` uses. A request may change only some settings. They are in `[mode]`, `[limits]`, `[log]`, `[errors]`, `[deferred]`, `[debug]` and `[http]`. The editor offers each one, and the page of `Core\Config::set` lists them. A name you write in the call that a request may never change does not compile. |
+| `$name` | `string` (neutral) | The dotted name of the setting, such as `limits.memory`, as `get` takes it. A request may change only some settings. They are in `[mode]`, `[limits]`, `[log]`, `[errors]`, `[deferred]`, `[debug]` and `[http]`. The editor offers each one, and the page of `Core\Config::set` lists them. The compiler checks a name written as text in the call. If a request may never change that setting, the program does not compile. |
 | `$value` | `string` (neutral) | The value, written the way the configuration file writes it, such as `512M`, `30s` or `64`. |
 
-**Returns** `bool` — `true` when the change was made. `false` when it is not allowed, and the previous value stays in place. It is not allowed for a setting a request may not change. It is not allowed for a value that is not a valid size, duration or count. It is not allowed for a value above the limit's ceiling. The ceiling is `[limits.hard]`, or the value the program started with when `[limits.hard]` does not set that limit. `debug.inline` and `debug.store` take only `false`. `set` never throws an error.
+**Returns** `bool` — `true` when the change was made. `false` when the change is not allowed, and the old value stays. A change is not allowed for a setting a request may not change. It is not allowed for a value that is not a valid size, duration or count. A limit has a ceiling, the highest value a request may set. A value above it is not allowed. The ceiling is the limit's value in `[limits.hard]`. Without one, the ceiling is the value the program started with. `debug.inline` and `debug.store` take only `false`. `set` never throws an error.
 
 <a id="core-core-config-restore"></a>
 #### `Core\Config::restore`
@@ -44651,11 +44651,11 @@ Changes a setting for this request only. Other requests do not see the change, a
 Core\Config::restore(string $name): void
 ```
 
-Deletes this request's change to one setting. The value from the configuration file is in force again, or the built-in default when the file does not write the setting.
+Deletes this request's change to one setting. The setting has the value from the configuration file again. If the file does not set it, it has the built-in default.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The name of the setting, in the same form that `get` uses. A name you write in the call that `set` may never change does not compile. |
+| `$name` | `string` (neutral) | The dotted name of the setting, such as `limits.memory`, as `get` takes it. The compiler checks a name written as text in the call. If `set` may never change that setting, the program does not compile. |
 
 **Returns** `void` — Nothing. A name this request never changed is not an error. There is nothing to undo.
 
@@ -61224,31 +61224,32 @@ are `null` while telemetry is off.
 
     nvs meta --json [entry.nvs]
 
-Prints the `Core` registry as one JSON object — the same data Part B of this reference is
-generated from. `--json` is required. Its seven top-level keys:
+Prints the built-in `Core` classes as one JSON object. The `Core` reference on this website is
+made from the same data. `--json` is required. The object has eight top-level keys:
 
-- `classes`: one object per `Core` class, with `name` and `members`. A member has `name`, `kind`
-  (`static` or `instance`), `signature` (the full spelling, `length(string $s): uint`), `params`
-  (each with `name`, `type` and `qualifier` — `neutral`, or the taint or secret admission), `names`,
-  `returns`, and `doc` (`short`, a `params` list with a `desc` per parameter, `return`, and `errors`
-  where the member throws). A class with constants has a `constants` list.
+- `classes`: one object per `Core` class, with `name` and `members`. A method has `name`, `kind`
+  (`static` or `instance`), `signature` (the whole declaration, such as `length(string $s): uint`),
+  `params`, `names`, `returns` and `doc`. Each parameter has `name`, `type` and `qualifier`. The
+  qualifier is `neutral`, or the tainted or secret value the parameter accepts. `doc` has `short`,
+  a `params` list with a `desc` per parameter, `return`, and `errors` where the method throws. A
+  class with constants has a `constants` list.
 - `enums`: `name` plus `doc` with `short` and one `cases` entry per case.
-- `exceptions`: the throwable tree — `name`, `parent`, and the `properties` a class adds.
+- `exceptions`: every error class, with `name`, `parent`, and the `properties` a class adds.
 - `interfaces`: the global interfaces, with `typeParams` where they have any.
 - `attributes`: the compiler-recognized attribute names.
 - `directives`: every `nvs.toml` directive with its `key` and when a change applies (`Reload` or
   `Boot`).
 - `settable`: every key a request may change with `Core\Config::set`, with its `key` and `how`
   (`up-to-ceiling`, or `off-only` for a key a request may only set to `false`).
-- `capabilities`: one row per gated `Core` member — `class`, `member` and `capability`. It is a
-  roster of its own rather than a field on a member, so a renderer that wants a capability beside a
-  card joins the two on `(class, member)`; a member absent from it is ungated.
+- `capabilities`: one row for each `Core` method that needs a capability, with `class`, `member`
+  and `capability`. To show a method's capability, find its row by `class` and `member`. A method
+  with no row needs no capability.
 
-Given an entry point, the command also parses and resolves that program, and adds an eighth key,
-`program`, holding its own `classes`, `enums` and `types` (its `type` aliases) in the same shape, and `schemas` when a class's JSON schema refers to another class. A declaration's `doc` is the
-`///` comment above it: its prose as `short`, and its `@see` and `@example` tags as lists. The
-seven registry keys are byte for byte the same as without the entry point. For a file declaring
-one documented class:
+With an entry file, the command also reads that program and adds a ninth key, `program`. It has
+the program's own `classes`, `enums` and `types` (its `type` aliases) in the same form. It also has
+`schemas` when a class's JSON schema refers to another class. A declaration's `doc` is the `///`
+comment above it: its text as `short`, and its `@see` and `@example` tags as lists. The other
+eight keys are exactly the same as without the entry file. For a file with one documented class:
 
 ```text
 $ nvs meta --json cart.nvs
@@ -62457,22 +62458,22 @@ them.
 
 `Core\Config::get`, `set`, `restore` and `all` are the program's view of the configuration.
 
-- A name is the dotted path the file writes: `limits.hard.memory`, `log.level`, `mode.default`. A
-  **bare limit name** — `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output` — is the
-  `[limits]` entry.
-- `get` returns the value in force as text. A value the file writes is spelled the way the file
-  spelled it. A key the file does not write gives its built-in default, spelled the way the shipped
-  `nvs.toml` shows it: `128M`, `30s`. `get` returns `null` for a key with no default, such as
-  `wall_time`, for an unwritten `[log] target`, and for a name that holds a table or a list (a
-  capability grant, an `[[app]]` block).
-- `set` writes an overlay **for this request only**. It is gone when the request ends and is
-  invisible to every other request, including a script this one spawns. It returns `false` and
-  changes nothing — it never throws — for a `System` directive (only the file may set it), a name no
-  directive governs, a value that does not parse in the name's unit, and a value above the
-  `[limits.hard]` ceiling. Every directive's class is in the table below.
-- `restore` removes the overlay for one name, so the file's value or the default is in force again.
-  `all` returns every value in force, keyed by dotted name in name order. That is the built-in
-  defaults, then the file, then the overlay. The example below prints three of them.
+- A name is the dotted path the file writes: `limits.hard.memory`, `log.level`, `mode.default`.
+  A limit's name alone, such as `memory`, `cpu_time` or `wall_time`, is the setting in `[limits]`.
+- `get` returns the current value of a setting as text. A value from the file is written exactly
+  as the file writes it. A setting the file does not write gives its built-in default, written as
+  the shipped `nvs.toml` shows it: `128M`, `30s`.
+- `get` returns `null` in three cases: a setting with no default, such as `wall_time`; a setting
+  that is not written, such as `[log] target`; and a name whose value is a table or a list.
+- `set` changes a setting **for this request only**. The change ends with the request. No other
+  request sees it, and a script this request starts does not see it either.
+- `set` returns `false` and changes nothing for a setting a request may not change, for an unknown
+  name, for a value that is not valid for the setting, and for a value above its `[limits.hard]`
+  ceiling. `set` never throws an error.
+- `restore` deletes this request's change to one setting. The setting has the file's value or its
+  default again.
+- `all` returns every current value as an array, with the dotted names as keys, in name order. The
+  example below prints three of them.
 
 ```toml file=nvs.toml
 [limits]
@@ -62488,14 +62489,14 @@ level = "info"
 <?nvs
 use Core\Config;
 
-echo '256M: ', Config::set('memory', '256M') ? 'ok' : 'refused', "\n";
-echo '1G: ', Config::set('memory', '1G') ? 'ok' : 'refused', "\n";
-// A name written directly in `set` that a program may not change does not compile.
-// These names are in variables, so each call runs and returns `false`.
+echo '256M: ', Config::set('memory', '256M') ? 'ok' : 'not allowed', "\n";
+echo '1G: ', Config::set('memory', '1G') ? 'ok' : 'not allowed', "\n";
+// The compiler checks a setting name written as text in `set`. These two names would not
+// compile there. Here they are in variables, so each call runs and returns `false`.
 string $cache = 'opcache.file_cache_dir';
 string $unknown = 'no.such.key';
-echo 'file_cache_dir: ', Config::set($cache, '/tmp/nvs') ? 'ok' : 'refused', "\n";
-echo 'unknown: ', Config::set($unknown, '1') ? 'ok' : 'refused', "\n";
+echo 'file_cache_dir: ', Config::set($cache, '/tmp/nvs') ? 'ok' : 'not allowed', "\n";
+echo 'unknown: ', Config::set($unknown, '1') ? 'ok' : 'not allowed', "\n";
 Config::set('log.level', 'debug');
 
 foreach (Config::all() as string $name => string $value) {
@@ -62509,9 +62510,9 @@ echo 'restored: ', Config::get('memory'), "\n";
 ```
 ```output
 256M: ok
-1G: refused
-file_cache_dir: refused
-unknown: refused
+1G: not allowed
+file_cache_dir: not allowed
+unknown: not allowed
 limits.memory = 256M
 log.level = debug
 session.short_lived = 2h
@@ -62520,7 +62521,8 @@ restored: 128M
 
 The file gives the value each request starts with. A request may change only the keys in the
 second table below, and each row says how. `Core\Config::set` returns `false` for every other key.
-A name written in the call that is not in the table does not compile.
+The compiler checks a name written as text in the call. If the name is not in the table, the
+program does not compile.
 
 The `apply` column says whether a running server applies a change to the file by itself, or only
 at its next start. Only `[server] listen`, `socket_mode`, `workers` and `watchdog_margin` wait for
@@ -64624,7 +64626,7 @@ anything else, because nothing else is offered.
 | `textDocument/publishDiagnostics` | every diagnostic for the open document, with the phase gate below applied. A notification, sent on open, on every edit, and once more with nothing in it when the document is closed |
 | `textDocument/hover` | the `///` run attached to the declaration the name resolves to, handed over as Markdown; a `Core` member's registry row; or, where neither exists, the declared type of what the cursor is on — in that order. Inside the prefix of an `autoload` line, the hover shows the namespace it maps and the folders a class in it is looked for in, in order, and says which folder does not exist. A `{..}` part of the prefix shows the folder name it stands for. Inside the string of `'App\User' as class<Model>`, the hover is the one the class name `App\User` has, and the same is true for a class name you pass to `Core\Reflect::forClass` or `Core\Test::assertThrows`. Inside a path you pass to a function that reads or writes a file, such as `Core\IO::read('data/x.json')`, the hover shows the full path and says whether a file or a folder is there. Inside the name you pass to `Core\Config::set` or `Core\Config::restore`, the hover says how a request may change that setting |
 | `textDocument/definition` | the declaring span, anywhere in the `require` graph the analysis loaded. The name is resolved by the type checker and read back here, so an imported name lands where the compiler says it does. Inside the string of `'App\User' as class<Model>`, it is the declaration of the class the string names. The string must be the whole class name: `use` lines and the current namespace do not apply, the same as when the program runs |
-| `textDocument/completion` | the members reachable off a receiver whose class was resolved, the static members and constants reached through a class name, an enum's cases after `Type::`, and — at a bare position — the keywords that may be written there with the variables in scope. A row reads like the declaration: `name(params)` with the return type at the right, `NAME = value` for a constant, a class with its namespace in brackets. Accepting a method writes its parentheses and opens signature help. Inside the path of a `require`, an `autoload` root or an `autoload discover` glob, the list is the folders and `.nvs` files in the folder the path reaches so far, relative to the file you are editing. An `autoload` path offers folders only. Typing the opening quote or a `/` opens this list, and accepting a folder opens it again for the next part of the path. Inside the prefix of an `autoload` line, the list is the namespaces your code declares. Inside the string of `'App\User' as class<Model>`, the list is the classes your program declares that are a `Model`. Inside a class name you pass to `Core\Reflect::forClass`, the list is every class your program declares, and for `Core\Test::assertThrows` it is the error classes. These lists give whole names, such as `App\Blog`. Inside a path you pass to a function that reads or writes a file, the list is every file and folder in the folder the path reaches, relative to the file you are editing. This is true for a `Core` function such as `Core\IO::read` and for your own function whose parameter has `#[Core\Path]`. A path that starts at a root, such as `/srv/data/`, lists that folder. Inside the name you pass to `Core\Config::set` or `Core\Config::restore`, the list is the settings a request may change, one part of the dotted name at a time |
+| `textDocument/completion` | the members reachable off a receiver whose class was resolved, the static members and constants reached through a class name, an enum's cases after `Type::`, and — at a bare position — the keywords that may be written there with the variables in scope. A row reads like the declaration: `name(params)` with the return type at the right, `NAME = value` for a constant, a class with its namespace in brackets. Accepting a method writes its parentheses and opens signature help. Inside the path of a `require`, an `autoload` root or an `autoload discover` glob, the list is the folders and `.nvs` files in the folder the path reaches so far, relative to the file you are editing. An `autoload` path offers folders only. Typing the opening quote or a `/` opens this list, and accepting a folder opens it again for the next part of the path. Inside the prefix of an `autoload` line, the list is the namespaces your code declares. Inside the string of `'App\User' as class<Model>`, the list is the classes your program declares that are a `Model`. Inside a class name you pass to `Core\Reflect::forClass`, the list is every class your program declares, and for `Core\Test::assertThrows` it is the error classes. These lists give whole names, such as `App\Blog`. Inside a path you pass to a function that reads or writes a file, the list is every file and folder in the folder the path reaches, relative to the file you are editing. This is true for a `Core` function such as `Core\IO::read` and for your own function whose parameter has `#[Core\Path]`. A path that starts at a root, such as `/srv/data/`, lists that folder. Inside the name you pass to `Core\Config::set` or `Core\Config::restore`, the list is the settings a request may change. It gives one part of the name at a time, such as `limits` and then `memory` |
 | `completionItem/resolve` | the description of the one row the editor is showing — a `Core` member's reference card, a class's or enum's own line, a `///` comment above your own declaration — read only when the editor asks, so the list itself stays small. In VS Code, press Ctrl+Space a second time while the list is open to show that panel, and it stays open from then on |
 | `textDocument/semanticTokens/full` | what every name in the document *is*, for the colour a regular expression cannot choose |
 | `textDocument/documentSymbol` | the outline of the entry file: every declaration it writes, as a tree |

@@ -1,12 +1,10 @@
-How long work handed off to run after the response has been sent may take, when the call names no
-time of its own.
+`[deferred] deadline` is the time limit of work that runs after the response is sent.
 
-Sending an invoice, warming a cache, writing an audit row: work like that can be deferred so the
-person waiting gets their answer first. The deadline is what stops a piece of it running forever and
-holding on to everything its request was using. A call may name its own, and this is the default the
-rest of them inherit.
+`Core\Task::afterResponse` runs a function after the response has been sent. Sending an email or
+writing an audit record is work of this kind. A call to `afterResponse` may give its own deadline.
+A call that does not give one gets the value of this key. When this key is not written, such a
+call has no deadline.
 
-A program may set it for itself, for the run it is in the middle of, which makes it one of the few
-settings that is a program's business at all. The number of requests each core keeps alive for
-deferred work is the other half of the same block, and that one belongs to whoever sized the
-machine — so a program can shorten its own deadline but can never ask the host to hold more work.
+A request may change this key for itself with `Core\Config::set`. `[deferred] max_concurrent`
+is in the same block, and only `nvs.toml` sets it. So a program can change its own deadline, but
+it cannot keep more work running.
