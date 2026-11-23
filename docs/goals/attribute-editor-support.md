@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/src/rename.rs, crates/nvs-lsp/src/hover.rs]
   - id: 5
     title: "signature help in #[Name( and the quick fix that declares an attribute"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/actions.rs, crates/nvs-lsp/src/generate.rs, crates/nvs-types/src/attributes.rs]
   - id: 6
     title: "the feature's proofs, pages and change entries"
@@ -120,6 +120,12 @@ the `namespace` and `use` lines. The site is the one the use is on. Each field i
 typed as its value's type, and `string` for a value whose type the checker does not record
 (`rule:ide/a-code-action-writes-only-what-is-already-determined`). It is not offered in an autoloaded
 file, where a second declaration is `E0317`, and not for a qualified or member-form name.
+As built: the checker records no type for a payload value of an undeclared attribute, so the type is
+read off the value's syntax (`bool`, `int`, `float`, `string`, `array<T>`). "An autoloaded file" is a
+file with the autoloaded shape (`nvs_hir::autoload::sole_declaration`): a second declaration breaks
+that shape whether or not a program autoloads it today. Only `class`, `method`, `property` and
+`parameter` uses are offered, since any other site is `E1004` in a declaration. The edit is analysed
+first, as every generator's is.
 
 **No quick fix adds a missing required field.** The value is not determined, so the rule above does not
 allow writing one. Key completion and signature help show what is missing.
@@ -206,13 +212,13 @@ allow writing one. Key completion and signature help show what is missing.
 
 **Does:** the two code-writing aids for using an attribute.
 
-- [ ] `crates/nvs-lsp/src/server.rs:2938`: inside `#[Name(`, signature help answers the declaration as the
+- [x] `crates/nvs-lsp/src/server.rs:2938`: inside `#[Name(`, signature help answers the declaration as the
   standing decision says. A `Core` attribute answers from its recorded declaration.
-- [ ] Find the code the checker reports for a `#[Name]` that nothing declares (the lookup ends at
+- [x] Find the code the checker reports for a `#[Name]` that nothing declares (the lookup ends at
   `crates/nvs-types/src/attributes.rs:464`). The quick fix *Declare the attribute* is offered on it, written
   as `generate.rs`'s *Declare the method you called* is.
-- [ ] `rule:ide/a-code-action-writes-only-what-is-already-determined` lists the new action and what it writes.
-- [ ] `.lspt` cases: signature help with no key written, at a key and after the last key; the quick
+- [x] `rule:ide/a-code-action-writes-only-what-is-already-determined` lists the new action and what it writes.
+- [x] `.lspt` cases: signature help with no key written, at a key and after the last key; the quick
   fix in a script file, its absence in an autoloaded file, and its field types.
 
 ### 6. the feature's proofs, pages and change entries
@@ -239,33 +245,29 @@ allow writing one. Key completion and signature help show what is missing.
 
 ### State
 
-Stages 1 to 4 are done. Stage 4's finding: a read of a field on a retrieval's result records only
-`ExprInfo::ShapeProperty` (`crates/nvs-types/src/expr_table.rs:833`), typed against the fields as
-an interned shape that two declarations can share, so no read links back. The safe default holds:
-references and highlight list the field and its keys; rename refuses when an indexed file writes
-`->field` where the index holds no use (`rename.rs` `unresolved_reads`).
+Stages 1 to 5 are done. Stage 5 built signature help in `#[Name(` (`attribute_decls.rs`
+`signature_help`, reached from `hover::help_at` when no call is at the cursor) and *Declare the
+attribute* (`generate.rs` `declare_attribute`) on `E0303`. The `.lspt` suite gained a
+`signatureHelp` request, with cases under `tests/lsp/signature/`, and three action cases are
+`tests/lsp/actions/an-undeclared-attribute-*`. All ran by name and are green.
 
-Built: `attribute_decls.rs` `FieldName`, `declared_fields`, `written_keys`, `field_at`,
-`Declared::field_span`; the index's `DeclKind::Field` under `Name::field` (disk tag 9,
-`disk_index::FORMAT` 3); definition from a key; hover on a field in the body (`hover.rs`
-`declared_field`). Seven new `.lspt` cases named `*attribute*field*` under `definition/`,
-`references/`, `highlight/`, `rename/` and `hover/` ran by name and are green.
+Stage 4 left field navigation with its safe default: a read on a retrieval's result is not linked,
+so rename refuses where an indexed file writes `->field` the index holds no use for.
 
-Possibly red at the gate: a `lens/` or workspace-symbol case, or a `crates/nvs-lsp/tests/` test,
-over a file with an attribute declaration: each field is now a declaration. A grep found none.
+Possibly red at the gate: the `.lspt` coverage matrix, which has a new `signatureHelp` row; a
+`lens/` or workspace-symbol case over a file with an attribute declaration, since each field is now
+a declaration (a grep found none).
 
 Stage 6 owes the editor page and `changes.json` entries for the colours, the badge, the outline,
-the order, the keyword completion and field navigation. The uncommitted hunks in `index.rs`,
-`parse_cache.rs` and `surface.rs` (the surface hash) are an ended interactive session's, not this
-goal's; only this session's own `index.rs` hunks were committed.
+the order, the keyword completion, field navigation, signature help and the quick fix. The
+uncommitted `docs/rules/tooling.md` hunk is not this goal's.
 
 ### Next
 
-Stage 5, its first item: `crates/nvs-lsp/src/server.rs:2939` `signature_help` and
-`crates/nvs-lsp/src/hover.rs:301` `help_at`. Inside `#[Name(`, answer the declaration as one
-signature from `crate::attribute_decls::of_attribute` and `Declared::keys`; the active field is the
-key at the cursor (`attribute_decls::key_before` reads a key off the text). Then the quick fix:
-find the code for a `#[Name]` nothing declares (`crates/nvs-types/src/attributes.rs:464`).
+Stage 6, its first item: `website/src/content/docs/tools/editor/index.mdx`, then the
+`website/src/data/changes.json` entries, then `bun nv proofs --owed --goal attribute-editor-support`
+and `bun nv site --check stale changes review`. Every text there follows AGENTS.md § *Text an end
+user reads*.
 
 ### Backlog
 
