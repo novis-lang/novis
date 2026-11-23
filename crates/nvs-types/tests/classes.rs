@@ -1739,3 +1739,26 @@ fn a_parameter_default_may_be_a_written_class_name() {
         assert_eq!(codes, vec![want], "`{default}`: {diags:?}");
     }
 }
+
+/// `rule:types/class-reference`: a property declared `class<T>`, instance or
+/// `static`, may default to a written `Foo::class` on the parameter's terms.
+#[test]
+fn a_property_default_may_be_a_written_class_name() {
+    let accepted = check_src(&format!(
+        "{PLACED}\
+         class U {{ public class<Animal> $c = Dog::class; public static ?class<Animal> $s = Animal::class; }}\n"
+    ));
+    assert!(!accepted.has_errors(), "{accepted:?}");
+
+    for (default, want) in [
+        ("Rock::class", code::E_NO_CONVERSION),
+        ("static::class", code::E_PROPERTY_DEFAULT_NOT_LITERAL),
+    ] {
+        let diags = check_src(&format!(
+            "{PLACED}\
+             class Cat extends Animal {{ public class<Animal> $c = {default}; }}\n"
+        ));
+        let codes: Vec<_> = diags.iter().filter_map(|d| d.code).collect();
+        assert_eq!(codes, vec![want], "`{default}`: {diags:?}");
+    }
+}

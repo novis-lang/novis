@@ -346,7 +346,7 @@ pub use identity::{
 /// does not read the configuration can carry one.
 pub use nvs_config::mount::Links as ModuleLinks;
 pub use object::{
-    AllowedValues, AttributeDesc, COMPARE_TO, CONSTRUCTOR, ClassDesc, ClassId, ClassTable,
+    AllowedValues, AttributeDesc, COMPARE_TO, ClassAddr, CONSTRUCTOR, ClassDesc, ClassId, ClassTable,
     CodecElement, CodecField, CodecTy, ConstantDesc, ConstantValue, Constructor, Door, EnumCases,
     EnumDesc, FIELD_STRIDE, FIELDS_OFFSET, FieldDefault, FreeState, HookRow, KeysPrivate,
     MethodRow, NvsObj, OBJ_ALIGN, OBJ_CLASS_OFFSET, OBJ_REFCOUNT_OFFSET, ObjHeader, Refusal, Rekey,

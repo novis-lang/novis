@@ -1080,6 +1080,32 @@ pub enum FieldDefault {
     /// a default nor a `lateinit` property still walks an empty list. What it
     /// materializes is [`Value::unset`], which owns nothing.
     Unset,
+    /// A class reference, written `class<Animal> $kind = Dog::class;`
+    /// (`rule:types/class-reference`): the descriptor of the class the default
+    /// names.
+    ///
+    /// Only `nvs-codegen` makes one, in the pass that links a unit's classes,
+    /// because only that pass has every descriptor's address. **Cost:** one
+    /// word per class-defaulted property per class, once per process. An
+    /// instance pays one slot write and allocates nothing, because a
+    /// descriptor is not counted.
+    Class(ClassAddr),
+}
+
+/// A class descriptor's address, carried as plain data so a
+/// [`FieldDefault`] still crosses a core boundary with no `unsafe impl`.
+///
+/// The descriptor belongs to the same unit as the default that names it, so
+/// it lives as long as every instance and every static slot that reads it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ClassAddr(usize);
+
+impl ClassAddr {
+    /// The address of `desc`, a descriptor of the unit whose default this is.
+    #[must_use]
+    pub fn of(desc: *const ClassDesc) -> Self {
+        Self(desc.expose_provenance())
+    }
 }
 
 impl FieldDefault {
@@ -1111,6 +1137,9 @@ impl FieldDefault {
             Self::EmptyArray => Value::array(crate::NvsArray::new()),
             Self::Null => Value::null(),
             Self::Unset => Value::unset(),
+            Self::Class(addr) => {
+                Value::class_desc(std::ptr::with_exposed_provenance::<ClassDesc>(addr.0))
+            }
         }
     }
 }

@@ -320,10 +320,11 @@ fn property_defaults(
     label: &str,
     layout: &nvs_types::ClassLayout,
     exprs: &ExprTypeTable,
-) -> Vec<(usize, nvs_types::FieldDefault)> {
+) -> Vec<(usize, crate::ir::PropertyDefault)> {
+    use crate::ir::PropertyDefault;
     use nvs_types::FieldDefault;
 
-    let mut image: Vec<Option<FieldDefault>> = vec![None; layout.fields.len()];
+    let mut image: Vec<Option<PropertyDefault>> = vec![None; layout.fields.len()];
     let chain = std::iter::once(label).chain(layout.conforms.iter().map(String::as_str));
     for owner in chain {
         for (property, value) in exprs.property_defaults(owner) {
@@ -342,7 +343,7 @@ fn property_defaults(
             if image[slot].is_some() {
                 continue;
             }
-            image[slot] = Some(FieldDefault::Unset);
+            image[slot] = Some(PropertyDefault::Value(FieldDefault::Unset));
         }
     }
     // The slots a constructor of this class may leave unset while an
@@ -353,7 +354,7 @@ fn property_defaults(
         if let Some(slot) = layout.slot_of(property)
             && image[slot].is_none()
         {
-            image[slot] = Some(FieldDefault::Unset);
+            image[slot] = Some(PropertyDefault::Value(FieldDefault::Unset));
         }
     }
     image
@@ -371,8 +372,19 @@ fn property_defaults(
 /// an absent key with `null` (`rule:core-api/required-optional-and-nullable`).
 /// Every `None` arm is a constant `nvs_types::defaults` does not accept as a
 /// written property default, which the comments on the arms below name one by
-/// one.
-fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault> {
+/// one. A class reference keeps its class's label, which `nvs-codegen` links
+/// to the descriptor ([`crate::ir::PropertyDefault`]).
+fn field_default(value: &nvs_types::ConstArg) -> Option<crate::ir::PropertyDefault> {
+    use crate::ir::PropertyDefault;
+
+    if let nvs_types::ConstArg::ClassRef(class) = value {
+        return Some(PropertyDefault::Class(class.to_string()));
+    }
+    value_default(value).map(PropertyDefault::Value)
+}
+
+/// [`field_default`] for every constant but a class reference.
+fn value_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault> {
     use nvs_types::{ConstArg, FieldDefault};
 
     match value {
@@ -391,9 +403,7 @@ fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault>
         ConstArg::EmptyArray => Some(FieldDefault::EmptyArray),
         ConstArg::Null => Some(FieldDefault::Null),
         ConstArg::Bytes(_)
-        // A property default takes no class reference: `nvs_types::defaults`
-        // accepts one at a parameter only, because a slot has no descriptor
-        // variant.
+        // Handled by `field_default`, before this is called.
         | ConstArg::ClassRef(_)
         // Not a value at all, and a `Core` bag's omission fill besides — a
         // property slot already starts in this state without a default.
@@ -526,8 +536,9 @@ fn codec_fields(
                     // And the constant that default evaluates to, in the
                     // runtime's own vocabulary: the door
                     // `nvs_runtime::CodecField::default` opens is a decoder
-                    // with no call site to emit it from.
-                    default: field.default.as_ref().and_then(field_default),
+                    // with no call site to emit it from. A `class<T>` field is
+                    // no wire type, so no class reference reaches it.
+                    default: field.default.as_ref().and_then(value_default),
                 })
             })
             .collect()

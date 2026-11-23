@@ -1,0 +1,45 @@
+--TEST--
+A written `::class` passed to a `class<T>` parameter or used as a `class<T>` property default needs no `as`, and `new` builds the class it names (`rule:types/class-reference`)
+--FILE--
+<?nvs
+class Animal {
+    // `static::class` is the class the call was made on, so a `Dog` returns `Dog`.
+    public function kind(): class<Animal> {
+        return static::class;
+    }
+}
+
+class Dog extends Animal {}
+
+class Cat extends Animal {}
+
+class Puppy extends Dog {}
+
+class Zoo {
+    // A property default may be a written class name.
+    public class<Animal> $favourite = Puppy::class;
+    public static class<Animal> $first = Cat::class;
+
+    public static function make(class<Animal> $cls): string {
+        Animal $pet = new $cls();
+        return $pet::class;
+    }
+}
+
+echo Zoo::make(Dog::class), "\n";
+
+Animal $cat = new Cat();
+echo Zoo::make($cat->kind()), "\n";
+
+Animal $other = new Dog();
+echo Zoo::make($other::class), "\n";
+
+Zoo $zoo = new Zoo();
+echo Zoo::make($zoo->favourite), "\n";
+echo Zoo::make(Zoo::$first), "\n";
+--EXPECT--
+Dog
+Cat
+Dog
+Puppy
+Cat

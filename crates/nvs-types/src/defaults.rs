@@ -356,9 +356,9 @@ pub(crate) fn quiet_param_default(
 /// [`code::E_NO_CONVERSION`] and sets `reported`. `None` for `reported` reports
 /// nothing, for [`quiet_param_default`]'s reason.
 ///
-/// A property default takes no class reference yet: a property's default is
-/// written into a slot by the run time, and that slot has no descriptor
-/// variant ([`eval_property_default`]).
+/// A property default takes the same class reference
+/// ([`eval_property_default`]). The run time writes it into the slot as the
+/// descriptor, `nvs_runtime::FieldDefault::Class`.
 fn class_reference_default(
     expr: &Expr,
     declared: TypeId,
@@ -425,7 +425,8 @@ fn class_reference_default(
 /// instance's slot by `nvs_runtime::NvsObj::new`, which is why an array
 /// constant is reachable here at all. A folded enum case reaches the slot as
 /// `nvs_runtime::FieldDefault::EnumInt` or `EnumUint`, under the enum tag a
-/// written case carries.
+/// written case carries. A written `Foo::class` at a `class<T>` property is
+/// [`class_reference_default`]'s, as it is at a parameter.
 pub(crate) fn eval_property_default(
     expr: &Expr,
     declared: TypeId,
@@ -444,6 +445,8 @@ pub(crate) fn eval_property_default(
         Some(ConstArg::EmptyArray)
     } else if matches!(&expr.kind, ExprKind::ClassConstAccess { .. }) {
         const_reference_default(expr, declared, ctx, Some(&mut reported), env)
+    } else if matches!(&expr.kind, ExprKind::ClassNameConst { .. }) {
+        class_reference_default(expr, declared, ctx, Some(&mut reported), env)
     } else {
         literal_default(expr, declared, env)
     };

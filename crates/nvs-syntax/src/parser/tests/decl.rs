@@ -1385,6 +1385,27 @@ fn a_class_or_interface_in_a_class_body_is_one_diagnostic() {
     }
 }
 
+/// `rule:types/class-reference`: `class<` after a modifier starts a property's
+/// type. It is not a nested class declaration.
+#[test]
+fn a_class_reference_property_in_a_class_body_parses() {
+    let s = parse_stmt_ok(
+        "class Zoo { public class<Animal> $kind = Dog::class; private static ?class<Animal> $last = null; }",
+    );
+    let StmtKind::ClassDecl(class) = s.kind else {
+        panic!("expected a class decl: {s:?}");
+    };
+    assert_eq!(class.members.len(), 2, "{:?}", class.members);
+    assert!(
+        class
+            .members
+            .iter()
+            .all(|member| matches!(member.kind, ClassMemberKind::Property(_))),
+        "{:?}",
+        class.members
+    );
+}
+
 #[test]
 fn an_enum_in_an_enum_body_is_one_diagnostic() {
     let (s, diags) = parse_stmt_with_diags("enum Status { Open, enum Reason { Late } Paid }");

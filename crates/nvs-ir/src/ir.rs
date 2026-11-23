@@ -304,7 +304,23 @@ pub struct StaticProp {
     /// The declared initializer, or `None` for a nullable or `lateinit`
     /// static `rule:classes/definite-property-initialization` required no default of, whose slot starts each
     /// request at `null`.
-    pub default_value: Option<nvs_types::FieldDefault>,
+    pub default_value: Option<PropertyDefault>,
+}
+
+/// One property default as this crate hands it to `nvs-codegen`: a run-time
+/// recipe ready as it is, or a class reference still to be linked.
+///
+/// A class reference is apart because its value is a descriptor's address, and
+/// no descriptor exists until `nvs-codegen` builds the unit's classes. That
+/// pass resolves [`Self::Class`] to `nvs_runtime::FieldDefault::Class`, so the
+/// run time never sees a class by name.
+#[derive(Clone, Debug)]
+pub enum PropertyDefault {
+    /// Every default but a class reference.
+    Value(nvs_types::FieldDefault),
+    /// `= Dog::class` at a `class<T>` property: the label of the class it
+    /// names, checked against `T` while compiling.
+    Class(String),
 }
 
 /// One class's or interface's runtime shape: what an instance's field slots
@@ -548,7 +564,7 @@ pub struct Class {
     /// [`InstKind::NewDynamic`] and `rule:core-classes/derive-attribute`'s native decoder alike — see
     /// `nvs_types::defaults`, which owns why an initializer cannot be spliced
     /// between allocation and construction.
-    pub defaults: Vec<(usize, nvs_types::FieldDefault)>,
+    pub defaults: Vec<(usize, PropertyDefault)>,
     /// How many parameters this class's `constructor` declares — see
     /// `nvs_runtime::ClassDesc::ctor_arity`, which is where it ends up and
     /// which owns why it is carried beside the field list rather than derived

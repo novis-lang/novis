@@ -1570,15 +1570,20 @@ impl Descriptors {
                 )
             })
             .collect();
+        let statics = program
+            .statics
+            .iter()
+            .map(|prop| {
+                prop.default_value
+                    .as_ref()
+                    .and_then(|default| classes.link_default(default))
+            })
+            .collect();
         Self {
             classes,
             by_symbol,
             functions,
-            statics: program
-                .statics
-                .iter()
-                .map(|prop| prop.default_value.clone())
-                .collect(),
+            statics,
             extension_classes: extension_classes(program),
             copies: program.copies.clone().into_boxed_slice(),
         }
@@ -1988,6 +1993,11 @@ impl Classes {
         // is a pass of its own at all.
         out.define_shape_codecs(shapes);
         out.link_codecs(classes);
+        // A class reference default names a class by label, and that class
+        // may be defined after the one holding it, or be the same class. So
+        // the defaults are joined once every descriptor exists, as the codecs
+        // above are.
+        out.link_defaults(classes);
         // Beside the descriptors rather than among them: `rule:enums/reflection`
         // is the one reader of this roster, and nothing it holds is relocated
         // against: an enum case at run time is its backing integer under an
@@ -2065,6 +2075,51 @@ impl Classes {
                 let nested = self.nested_descs(&class.db_codec);
                 self.table
                     .set_db_codec(id, class.db_codec.clone(), class.ctor_arity, nested);
+            }
+        }
+    }
+
+    /// Fills in every class's property defaults, each class reference linked
+    /// to its descriptor by [`Self::link_default`].
+    fn link_defaults(&mut self, classes: &[nvs_ir::ir::Class]) {
+        for class in classes {
+            let Some(id) = self.ids.get(&class.label).copied() else {
+                continue;
+            };
+            if class.defaults.is_empty() {
+                continue;
+            }
+            let defaults = class
+                .defaults
+                .iter()
+                .filter_map(|(slot, default)| Some((*slot, self.link_default(default)?)))
+                .collect();
+            self.table.set_defaults(id, defaults);
+        }
+    }
+
+    /// `default` as the run time reads it: a recipe as it is, and a class
+    /// reference as the address of the descriptor it names.
+    ///
+    /// A class this unit declares resolves to its own descriptor, and a `Core`
+    /// class to the one `nvs_stdlib` publishes. `None` for a label naming
+    /// neither, which the checker does not let through: it admits a class
+    /// reference default only for a class it resolved.
+    fn link_default(
+        &self,
+        default: &nvs_ir::ir::PropertyDefault,
+    ) -> Option<nvs_runtime::FieldDefault> {
+        match default {
+            nvs_ir::ir::PropertyDefault::Value(value) => Some(value.clone()),
+            nvs_ir::ir::PropertyDefault::Class(label) => {
+                let desc = self.desc(label).or_else(|| {
+                    nvs_stdlib::class_descriptors()
+                        .into_iter()
+                        .find_map(|(core, desc)| (core == label).then_some(desc))
+                })?;
+                Some(nvs_runtime::FieldDefault::Class(
+                    nvs_runtime::ClassAddr::of(desc),
+                ))
             }
         }
     }
@@ -2226,9 +2281,7 @@ impl Classes {
         {
             self.table.set_responder(id);
         }
-        if !class.defaults.is_empty() {
-            self.table.set_defaults(id, class.defaults.clone());
-        }
+
         // `rule:types/erased-member-access`'s write check, at the one granularity the runtime can
         // hold: a representation with no single tag — `Ty::Tagged`, `Ty::Void`
         // — becomes `None`, which `nvs_runtime::nvs_object_slot_set` reads as
@@ -2958,7 +3011,11 @@ impl<M: Backend> UnitBuilder<M> {
                 .map_err(|_| emit::internal("a unit declaring more than 2^32 statics"))?;
             self.statics
                 .insert((prop.class.clone(), prop.name.clone()), slot);
-            self.static_defaults.push(prop.default_value.clone());
+            let default = prop
+                .default_value
+                .as_ref()
+                .and_then(|default| self.classes.link_default(default));
+            self.static_defaults.push(default);
         }
         for (index, function) in program.functions.iter().enumerate() {
             let symbol = function_symbol(index, &function.name);

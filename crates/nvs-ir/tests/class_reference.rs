@@ -11,7 +11,7 @@
 //! `ClassDescIn` for the dynamic one.
 
 use nvs_diagnostics::{Diagnostics, SourceMap};
-use nvs_ir::ir::{InstKind, Program};
+use nvs_ir::ir::{Helper, InstKind, Program};
 
 /// Parse, resolve, check, lower — `nvs-cli`'s own `front_end` order, panicking
 /// on the first phase that reports, since every fixture here is meant to
@@ -78,6 +78,63 @@ fn a_folded_class_constant_lowers_to_a_descriptor_constant() {
     // up holding is baked and nothing is compared at run time. A `Dog` here
     // with a walk beside it would mean the fold ran and was not trusted.
     assert_eq!(descriptor_sources(&program), vec!["const Dog".to_owned()]);
+}
+
+/// Every instruction in the functions whose name contains `within` that makes
+/// or reads a class descriptor, rendered, with each call that builds a class's
+/// name string from one.
+fn descriptor_reads(program: &Program, within: &str) -> Vec<String> {
+    program
+        .functions
+        .iter()
+        .filter(|function| function.name.contains(within))
+        .flat_map(|function| &function.blocks)
+        .flat_map(|block| &block.insts)
+        .filter_map(|inst| match &inst.kind {
+            InstKind::ClassDescConst { class } => Some(format!("const {class}")),
+            InstKind::ClassDescIn { base, .. } => Some(format!("in {base}")),
+            InstKind::ClassDescOf { .. } => Some("of".to_owned()),
+            InstKind::HelperCall {
+                helper: Helper::ClassDescName,
+                ..
+            } => Some("name".to_owned()),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_written_class_name_at_a_class_reference_lowers_to_a_descriptor_constant() {
+    let program = compile(&format!(
+        "{DECLARATIONS}class Zoo {{
+    public static function make(class<Animal> $cls): Animal {{ return new $cls(); }}
+}}
+Animal $pet = Zoo::make(Dog::class);
+"
+    ));
+    // `Zoo` is the class the static call is made on. `Dog` is the argument:
+    // the same one instruction the `as` form folds to. No name string is built
+    // and no walk runs, because the checker already tested `Dog` against
+    // `Animal`.
+    assert_eq!(
+        descriptor_reads(&program, ""),
+        vec!["const Zoo".to_owned(), "const Dog".to_owned()]
+    );
+}
+
+#[test]
+fn static_class_at_a_class_reference_reads_the_frame_descriptor_without_a_name() {
+    let program = compile(
+        "<?nvs
+class Animal {
+    public function kind(): class<Animal> { return static::class; }
+}
+class Dog extends Animal {}
+",
+    );
+    // One read of the receiver's descriptor, which is the class the call was
+    // made on. No name string is built and nothing is compared.
+    assert_eq!(descriptor_reads(&program, "kind"), vec!["of".to_owned()]);
 }
 
 #[test]

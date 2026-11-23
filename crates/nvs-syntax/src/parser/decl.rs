@@ -1408,8 +1408,12 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
         // A class or interface stays a file-scope declaration
         // (`rule:classes/a-type-is-declared-at-file-scope`). It is parsed whole so
-        // the refusal is one diagnostic, and nothing of it is kept.
-        if self.at_keyword(Keyword::Class) || self.at_keyword(Keyword::Interface) {
+        // the refusal is one diagnostic, and nothing of it is kept. A `class<`
+        // is a property's type (`rule:types/class-reference`), not a
+        // declaration.
+        if (self.at_keyword(Keyword::Class) && !self.at_class_reference())
+            || self.at_keyword(Keyword::Interface)
+        {
             let decl = if self.at_keyword(Keyword::Class) {
                 self.finish_class_decl(start, attributes)
             } else {
