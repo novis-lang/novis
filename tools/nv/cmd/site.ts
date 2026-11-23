@@ -325,7 +325,7 @@
 // `bun nv ci --check` run `code` (`rule:testing/every-code-block-on-the-website-is-checked`).
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { createServer } from "node:net";
 import { availableParallelism } from "node:os";
@@ -2281,15 +2281,36 @@ export function appFileProblem(app: string, file: string, status: number, body: 
   return null;
 }
 
-/** Runs `body` with the app's directory, and then deletes every file the run left there that was not
- * there before (the app's database). */
+/** Runs `body` with the app's directory as a fresh clone has it, and then puts the directory back.
+ * Every file git does not track there (a database, builds and stores a local `nvs serve` left) is
+ * moved under `.agent-tmp/` first, so a database that grew over many local runs cannot fail a check
+ * that CI passes. After the run, every file it left is deleted and the moved files go back. */
 async function inApp<T>(root: string, app: string, body: (cwd: string) => Promise<T>): Promise<T> {
+  const aside = join(root, ".agent-tmp", `site-apps-aside-${process.pid}`);
+  const moved = untracked(root, app);
+  for (const f of moved) {
+    mkdirSync(dirname(join(aside, f)), { recursive: true });
+    renameSync(join(root, f), join(aside, f));
+  }
   const before = new Set(filesUnder(root, app));
   try {
     return await body(join(root, app));
   } finally {
     for (const f of filesUnder(root, app)) if (!before.has(f)) rmSync(join(root, f), { force: true });
+    for (const f of moved) {
+      mkdirSync(dirname(join(root, f)), { recursive: true });
+      renameSync(join(aside, f), join(root, f));
+    }
+    rmSync(aside, { recursive: true, force: true });
   }
+}
+
+/** Every file under `dir` that git does not track, ignored or not, repo-relative. Empty outside a
+ * git checkout. */
+function untracked(root: string, dir: string): string[] {
+  const ls = Bun.spawnSync(["git", "-C", root, "ls-files", "-z", "--others", "--", dir], { stdout: "pipe", stderr: "pipe" });
+  if (ls.exitCode !== 0) return [];
+  return ls.stdout.toString().split("\0").filter((f) => f !== "");
 }
 
 /**

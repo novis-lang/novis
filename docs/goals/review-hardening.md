@@ -531,6 +531,11 @@ The CSRF gap record is owned by the new goal `csrf-cookieless-visitor`, before `
 internal on the roadmap. Every standing decision is stated in its rule or module doc
 (`dbf0d6a4db`).
 
+The first DONE was refused: `close`'s website stale guard was red on `apps/registry`'s two backup
+tests. The cause was a local `registry.sqlite` of 113 MB left by earlier runs, not this goal's code.
+`site --check apps` now runs each app without its untracked files and puts them back, and `close`
+exits 0.
+
 ### Next
 
 Nothing: the goal is reached, and the driver retires this file. The next goal is

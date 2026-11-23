@@ -27,6 +27,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **An example app's ignored files grow across local runs, and `site --check apps` once read them.**
+  `apps/registry/registry.sqlite` reached 113 MB, so the backup tests' dump passed the memory
+  ceiling and `close` went red where CI was green. `inApp` now moves every untracked file under the
+  app to `.agent-tmp/` for the run and puts it back. See `tools/nv/cmd/site.ts` `inApp`.
 - **`cargo test --lib -- <filter>` never runs `nvs-cli`'s unit tests, because they live in the
   `nvs` binary.** A run filtered on `reload_cmd` printed only other crates' results. Run
   `cargo test --bin nvs -- <filter>` for a test under `crates/nvs-cli/src/`. See
