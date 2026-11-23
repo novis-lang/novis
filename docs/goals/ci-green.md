@@ -160,19 +160,18 @@ of this file; push 3's runs on `33d4a8eb1` were green.
    - Windows proofs 2/2 only: the `sendFile/01` attack passed its `timeout-ms 30000`, the first
      time in five runs. Alone it takes 15 to 17 s in release here: 100,000 calls, each walking
      every folder above the file (`isFile` about 120 µs a call). Treated as load.
-3. Push 5, `9996071ef`: being watched.
+3. Push 5, `9996071ef`: CI and Website **green**, and `bun nv ci --green` exits 0. The
+   `sendFile` attack passed on Windows.
 
 `LogRecord` and `SentMail` readers have a `perf` skip: their values exist only under `nvs test`.
 
 ### Next
 
-Read push 5's verdict with `bun nv ci --status` (CI and Website on `9996071ef`). Pass
-`--past "publish the VS Code extension"` to `--watch`: that is the old v0.0.4 `Promote release
-images` dispatch, which this goal never reruns. Green means `bun nv ci --green` exits 0 and the goal
-is `DONE`. If the `sendFile` attack times out on Windows a second time, it is not load: fix the
-per-call cost (`crates/nvs-stdlib/src/response.rs` `nvs_core_response_send_file` resolves the path
-in `metadata` and again in `readable`, and walks every folder above it) rather than the bound. No
-test is expected to go red.
+The goal is reached: the driver's acceptance check `main-tip-is-green` runs `bun nv ci --green`,
+and then the goal is retired. If the `sendFile` attack times out on Windows a second time in a later
+run, it is not load: fix the per-call cost (`crates/nvs-stdlib/src/response.rs`
+`nvs_core_response_send_file` resolves the path in `metadata` and again in `readable`, and walks
+every folder above it) rather than the bound. No test is expected to go red.
 
 ### Backlog
 
