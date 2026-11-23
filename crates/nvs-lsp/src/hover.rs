@@ -297,15 +297,22 @@ fn route(
 /// overload set to choose between and `active_signature` is always the one
 /// entry — which is `rule:statements/nothing-gets-a-second-name`'s consequence
 /// here rather than a simplification.
+///
+/// Inside the parentheses of `#[Name(`, where no call can be written, the
+/// row is the attribute's declaration
+/// ([`crate::attribute_decls::signature_help`]).
 #[must_use]
 pub fn help_at(analysed: &Analysed, offset: BytePos) -> Option<SignatureHelp> {
-    let (call, node) =
+    let Some((call, node)) =
         analysed.index.at(offset).nodes().iter().find_map(|node| {
             match target_of(analysed.exprs.lookup(node.span)?)? {
                 Target::Method(call) => Some((call, *node)),
                 _ => None,
             }
-        })?;
+        })
+    else {
+        return crate::attribute_decls::signature_help(analysed, offset);
+    };
     let (label, params) = signature(&call.class.to_string(), call, &analysed.interner);
     let active = active_parameter(analysed, node, offset, call);
     let sentences = parameter_sentences(analysed, call);
@@ -468,7 +475,7 @@ fn registry_row(call: &ResolvedCall) -> Option<&'static CoreMethod> {
 /// settles positions in a *document*, and an offset into a signature label is
 /// an offset into a string this server has just built. LSP fixes those at
 /// UTF-16 and there is nothing about them to negotiate.
-fn utf16_len(text: &str) -> u32 {
+pub(crate) fn utf16_len(text: &str) -> u32 {
     u32::try_from(text.chars().map(char::len_utf16).sum::<usize>()).unwrap_or(u32::MAX)
 }
 

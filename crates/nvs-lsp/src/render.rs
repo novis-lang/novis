@@ -32,8 +32,9 @@
 use std::fmt;
 
 use lsp_types::{
-    CompletionItem, Diagnostic, DocumentSymbol, FoldingRange, Hover, HoverContents, InlayHint,
-    InlayHintLabel, MarkedString, Position, Range, SelectionRange, SemanticToken, SymbolKind,
+    CompletionItem, Diagnostic, DocumentSymbol, Documentation, FoldingRange, Hover, HoverContents,
+    InlayHint, InlayHintLabel, MarkedString, ParameterInformation, ParameterLabel, Position, Range,
+    SelectionRange, SemanticToken, SignatureHelp, SymbolKind,
 };
 
 use crate::case::Request;
@@ -295,6 +296,8 @@ pub enum Response {
     Regions(Vec<Region>),
     /// `workspace/symbol`, sorted by place on [`Response::References`]' terms.
     WorkspaceSymbol(Vec<Found>),
+    /// `textDocument/signatureHelp`.
+    SignatureHelp(Option<SignatureHelp>),
 }
 
 impl Response {
@@ -322,6 +325,7 @@ impl Response {
             Self::Redactions(_) => Request::Redactions,
             Self::Regions(_) => Request::Regions,
             Self::WorkspaceSymbol(_) => Request::WorkspaceSymbol,
+            Self::SignatureHelp(_) => Request::SignatureHelp,
         }
     }
 
@@ -368,8 +372,60 @@ impl Response {
             Self::Redactions(items) => lines(items.iter().map(redaction).collect()),
             Self::Regions(items) => lines(items.iter().map(region).collect()),
             Self::WorkspaceSymbol(items) => lines(sorted(items.iter().map(found))),
+            Self::SignatureHelp(answer) => {
+                lines(answer.as_ref().map_or_else(Vec::new, signature_help))
+            }
         }
     }
+}
+
+/// The active signature's label, then `active` and the active parameter's
+/// label, then one `param` row per parameter with its doc, then `doc` and the
+/// signature's doc. A doc is joined onto one line, and a missing one is `-`.
+fn signature_help(answer: &SignatureHelp) -> Vec<String> {
+    let at = answer.active_signature.unwrap_or(0) as usize;
+    let Some(signature) = answer.signatures.get(at) else {
+        return Vec::new();
+    };
+    let label = |parameter: &ParameterInformation| match &parameter.label {
+        ParameterLabel::Simple(text) => text.clone(),
+        ParameterLabel::LabelOffsets([start, end]) => {
+            let units: Vec<u16> = signature
+                .label
+                .encode_utf16()
+                .skip(*start as usize)
+                .take(end.saturating_sub(*start) as usize)
+                .collect();
+            String::from_utf16_lossy(&units)
+        }
+    };
+    let doc = |documentation: Option<&Documentation>| {
+        let text = match documentation {
+            Some(Documentation::String(text)) => text.clone(),
+            Some(Documentation::MarkupContent(markup)) => markup.value.clone(),
+            None => String::new(),
+        };
+        let joined = text.split_whitespace().collect::<Vec<_>>().join(" ");
+        if joined.is_empty() {
+            "-".to_owned()
+        } else {
+            joined
+        }
+    };
+    let parameters = signature.parameters.as_deref().unwrap_or_default();
+    let active = signature
+        .active_parameter
+        .or(answer.active_parameter)
+        .and_then(|index| parameters.get(index as usize))
+        .map_or_else(|| "-".to_owned(), label);
+    let mut out = vec![signature.label.clone(), format!("active {active}")];
+    out.extend(
+        parameters
+            .iter()
+            .map(|parameter| format!("param {} | {}", label(parameter), doc(parameter.documentation.as_ref()))),
+    );
+    out.push(format!("doc {}", doc(signature.documentation.as_ref())));
+    out
 }
 
 /// `file:L:C kind name`, then `in container` where there is one, keyed by the

@@ -323,6 +323,7 @@ pub(crate) fn answer(case: &Case, root: &Path) -> Result<Answered, String> {
         Request::Redactions => redactions(&analysed),
         Request::Regions => regions(&analysed),
         Request::WorkspaceSymbol => workspace_symbol(&documents, &files, case),
+        Request::SignatureHelp => Response::SignatureHelp(hover::help_at(&analysed, at(case))),
     };
     let covered = coverage::of(&analysed, cursor(case), &response, COLUMNS);
     Ok(Answered { response, covered })

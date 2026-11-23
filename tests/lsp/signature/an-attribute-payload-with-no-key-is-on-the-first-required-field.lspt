@@ -1,0 +1,22 @@
+--TEST--
+signature help inside an attribute's parentheses shows its declaration as one signature, and with no key written the first required field is active, `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+/// Adds a database index over one or more columns.
+attribute Index on class {
+    /// Whether two rows may share values.
+    unique?: bool,
+    /// The column names, separated by commas.
+    columns: string,
+}
+
+#[Index(<|>)]
+class Order {}
+--REQUEST--
+signatureHelp
+--EXPECT--
+Index(unique?: bool, columns: string)
+active columns: string
+param unique?: bool | Whether two rows may share values.
+param columns: string | The column names, separated by commas.
+doc Adds a database index over one or more columns.

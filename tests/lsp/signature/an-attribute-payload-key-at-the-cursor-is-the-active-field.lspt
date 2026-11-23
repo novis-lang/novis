@@ -1,0 +1,22 @@
+--TEST--
+signature help on a key in an attribute's payload makes that key's field the active one, `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+/// Adds a database index over one or more columns.
+attribute Index on class {
+    /// The column names, separated by commas.
+    columns: string,
+    /// Whether two rows may share values.
+    unique?: bool,
+}
+
+#[Index(columns: "email", uni<|>que: true)]
+class Order {}
+--REQUEST--
+signatureHelp
+--EXPECT--
+Index(columns: string, unique?: bool)
+active unique?: bool
+param columns: string | The column names, separated by commas.
+param unique?: bool | Whether two rows may share values.
+doc Adds a database index over one or more columns.

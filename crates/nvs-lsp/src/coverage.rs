@@ -150,7 +150,8 @@ fn named(response: &Response) -> Vec<Position> {
         | Response::References(_)
         | Response::DocumentHighlight(_)
         | Response::PrepareRename(_)
-        | Response::Rename(_) => Vec::new(),
+        | Response::Rename(_)
+        | Response::SignatureHelp(_) => Vec::new(),
         // A search is asked of no cursor, so it covers each declaration it
         // finds in the case's own document.
         Response::WorkspaceSymbol(items) => items

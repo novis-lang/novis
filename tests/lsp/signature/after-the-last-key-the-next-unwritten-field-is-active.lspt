@@ -1,0 +1,23 @@
+--TEST--
+signature help after the last key of an attribute's payload makes the first field not yet written the active one, `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+attribute Job on method {
+    queue: string,
+    retries?: int,
+    delay?: int,
+}
+
+class Mailer {
+    #[Job(queue: "mail", <|>)]
+    public function send(): void {}
+}
+--REQUEST--
+signatureHelp
+--EXPECT--
+Job(queue: string, retries?: int, delay?: int)
+active retries?: int
+param queue: string | -
+param retries?: int | -
+param delay?: int | -
+doc -

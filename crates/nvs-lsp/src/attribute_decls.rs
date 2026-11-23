@@ -20,6 +20,10 @@
 //! What this module costs is one walk over a declaring file's statements per
 //! declaration asked about, in the editor only.
 
+use lsp_types::{
+    Documentation, MarkupContent, MarkupKind, ParameterInformation, ParameterLabel, SignatureHelp,
+    SignatureInformation,
+};
 use nvs_diagnostics::{BytePos, SourceFile, SourceId, Span};
 use nvs_hir::{AttributeDef, QName};
 use nvs_syntax::ast::{AttributeDecl, AttributeSite, ClassMemberKind, DocComment, Stmt, StmtKind};
@@ -411,6 +415,134 @@ impl Declared<'_> {
             .find(|field| slice(file, field.name) == name)
             .map(|field| field.name)
     }
+}
+
+/// Signature help inside the parentheses of `#[Name(`: the declaration as one
+/// signature, `Name(field: T, opt?: T)`, with each field's doc as its
+/// parameter's doc and the declaration's doc as the signature's.
+///
+/// The active field is the key the cursor is on: the key of the value it is
+/// in, or a key followed by its `:`. Where the cursor is on no key yet, it is
+/// the first field not yet written whose name starts with what is typed, and
+/// with nothing typed the first required field not yet written. With none
+/// left, no field is active, which is an index past the last.
+pub(crate) fn signature_help(analysed: &Analysed, offset: BytePos) -> Option<SignatureHelp> {
+    let path = analysed.index.at(offset);
+    let attribute = *path
+        .nodes()
+        .iter()
+        .find(|node| node.kind == "Attribute")?;
+    let source = analysed.map.file(analysed.entry);
+    let text = source.text();
+    let written = text.get(attribute.span.range())?;
+    let open = attribute.span.start + BytePos::try_from(written.find('(')?).ok()?;
+    if offset <= open {
+        return None;
+    }
+    let closed = written.trim_end();
+    if closed.ends_with(')') {
+        let close = attribute.span.start + BytePos::try_from(closed.len() - 1).ok()?;
+        if offset > close {
+            return None;
+        }
+    }
+    let declared = of_attribute(analysed, attribute.span)?;
+    let keys = declared.keys();
+    let values: Vec<Span> = analysed
+        .index
+        .children_of(attribute)
+        .into_iter()
+        .map(|child| child.span)
+        .collect();
+    let pairs: Vec<(Span, Span)> = values
+        .iter()
+        .filter_map(|value| Some((key_before(source, open, value.start)?, *value)))
+        .collect();
+    let active = active_key(source, open, offset, &values, &pairs, &keys);
+    let mut label = format!("{}(", declared.short_name());
+    let mut parameters = Vec::with_capacity(keys.len());
+    for (index, key) in keys.iter().enumerate() {
+        if index > 0 {
+            label.push_str(", ");
+        }
+        let start = crate::hover::utf16_len(&label);
+        let optional = if key.required { "" } else { "?" };
+        label.push_str(&format!("{}{optional}: {}", key.name, key.ty));
+        parameters.push(ParameterInformation {
+            label: ParameterLabel::LabelOffsets([start, crate::hover::utf16_len(&label)]),
+            documentation: key.doc.clone().map(markdown),
+        });
+    }
+    label.push(')');
+    let active = active
+        .and_then(|name| keys.iter().position(|key| key.name == name))
+        .unwrap_or(keys.len());
+    let active = u32::try_from(active).unwrap_or(u32::MAX);
+    Some(SignatureHelp {
+        signatures: vec![SignatureInformation {
+            label,
+            documentation: declared.doc().map(markdown),
+            parameters: Some(parameters),
+            active_parameter: Some(active),
+        }],
+        active_signature: Some(0),
+        active_parameter: Some(active),
+    })
+}
+
+/// The name of the key the cursor at `offset` is on, inside a payload whose
+/// `(` is at `open`. `values` are the payload's values and `pairs` each value
+/// with the key written before it.
+fn active_key<'k>(
+    source: &'k SourceFile,
+    open: BytePos,
+    offset: BytePos,
+    values: &[Span],
+    pairs: &[(Span, Span)],
+    keys: &'k [Key],
+) -> Option<&'k str> {
+    if let Some((key, _)) = pairs
+        .iter()
+        .find(|(key, value)| key.start <= offset && offset <= value.end)
+    {
+        return Some(slice(source, *key));
+    }
+    let from = values
+        .iter()
+        .map(|value| value.end)
+        .filter(|end| *end <= offset)
+        .max()
+        .unwrap_or(open + 1);
+    let gap = source.text().get(from as usize..offset as usize)?;
+    let part = gap.rsplit(',').next().unwrap_or(gap).trim_start();
+    if let Some(named) = part.trim_end().strip_suffix(':') {
+        let named = named.trim_end();
+        return keys
+            .iter()
+            .find(|key| key.name == named)
+            .map(|key| key.name.as_str());
+    }
+    if part.chars().any(|ch| !(ch.is_ascii_alphanumeric() || ch == '_')) {
+        return None;
+    }
+    let done: Vec<&str> = pairs.iter().map(|(key, _)| slice(source, *key)).collect();
+    let open_keys = || {
+        keys.iter()
+            .filter(|key| !done.contains(&key.name.as_str()))
+            .filter(|key| key.name.starts_with(part))
+    };
+    open_keys()
+        .find(|key| key.required || !part.is_empty())
+        .or_else(|| open_keys().next())
+        .map(|key| key.name.as_str())
+}
+
+/// `value` as Markdown documentation.
+fn markdown(value: String) -> Documentation {
+    Documentation::MarkupContent(MarkupContent {
+        kind: MarkupKind::Markdown,
+        value,
+    })
 }
 
 /// The text `span` covers in `file`.

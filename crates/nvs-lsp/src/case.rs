@@ -105,6 +105,8 @@ pub enum Request {
     /// every declaration without one. It is asked of the workspace, and the
     /// case's own document is one file in it.
     WorkspaceSymbol,
+    /// `textDocument/signatureHelp`.
+    SignatureHelp,
 }
 
 impl Request {
@@ -130,6 +132,7 @@ impl Request {
         Self::Redactions,
         Self::Regions,
         Self::WorkspaceSymbol,
+        Self::SignatureHelp,
     ];
 
     /// How a `--REQUEST--` line writes it.
@@ -156,6 +159,7 @@ impl Request {
             Self::Redactions => "redactions",
             Self::Regions => "regions",
             Self::WorkspaceSymbol => "workspaceSymbol",
+            Self::SignatureHelp => "signatureHelp",
         }
     }
 
@@ -194,6 +198,7 @@ impl Request {
                 | Self::DocumentHighlight
                 | Self::PrepareRename
                 | Self::Rename
+                | Self::SignatureHelp
         )
     }
 }
