@@ -1534,9 +1534,8 @@ fn snapshot_of(written: &str) -> Arc<Snapshot> {
 /// `rule:security/script-spawn-capability`: a child cannot widen a capability its parent narrowed.
 ///
 /// A capability is narrowed by the operator and never by the request — `nvs_config::Request::set`
-/// refuses the `capabilities` block whichever way it is asked, because that row is
-/// `Class::RuntimeTighten` and a grant is a list with no quantity to narrow *by*
-/// (`crates/nvs-config/src/request.rs:106`). So the grant in force where the spawn happened is the
+/// refuses the `capabilities` block whichever way it is asked, because no key in it is on
+/// `nvs_config::settable::SETTABLE`. So the grant in force where the spawn happened is the
 /// whole of what a child has, and this case asks the ways a child could have got more.
 ///
 /// **By inheriting a default.** The grant crosses in the cloned snapshot (`Ctx::isolate`,

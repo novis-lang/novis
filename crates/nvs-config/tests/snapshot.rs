@@ -1138,12 +1138,12 @@ fn settle_defaults_to_one_second_in_production_and_100ms_in_development() {
 /// new value, including the startup row of a mode the same reload changed
 /// (`rule:config/opcache-revalidation-is-system-class`, `rule:config/reloadability-is-its-own-field`).
 #[test]
-fn settle_is_system_class_and_reloadable() {
-    use nvs_config::directive::{Apply, Class, lookup};
+fn settle_is_not_settable_and_reloadable() {
+    use nvs_config::directive::{Apply, lookup};
 
     let row = lookup("opcache.settle").expect("`opcache.settle` has a registry row");
-    assert_eq!((row.class, row.apply), (Class::System, Apply::Reload));
-    assert!(!row.class.settable_by_a_request());
+    assert_eq!(row.apply, Apply::Reload);
+    assert_eq!(nvs_config::settable::how("opcache.settle"), None);
 
     let before = Fake::with(&[("nvs.toml", "[opcache]\nsettle = \"2s\"\n")]);
     let after = Fake::with(&[("nvs.toml", "[opcache]\nsettle = \"500ms\"\n")]);

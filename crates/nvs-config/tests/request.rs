@@ -9,7 +9,8 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 
 use nvs_config::capability::{Cap, Scope};
-use nvs_config::directive::{Class, DIRECTIVES};
+use nvs_config::directive::DIRECTIVES;
+use nvs_config::settable::{How, SETTABLE};
 use nvs_config::resolve::{Files, Roots, resolve};
 use nvs_config::snapshot::Snapshot;
 use nvs_config::trust::Untrusted;
@@ -155,10 +156,10 @@ fn restore_drops_only_what_this_request_set() {
     assert_eq!(request.get("wall_time"), None);
 }
 
-/// A `System` directive is refused whatever its value: `rule:config/three-changeability-classes`'s class answers *who may set it*
-/// before any ceiling is consulted, so the ceiling of the ceiling is not a question.
+/// A key `SETTABLE` does not list is refused whatever its value (`rule:config/three-changeability-classes`): the allowlist
+/// answers *who may set it* before any ceiling is consulted, so the ceiling of the ceiling is not a question.
 #[test]
-fn a_system_directive_is_not_settable_by_a_request() {
+fn an_unlisted_key_is_not_settable_by_a_request() {
     let mut request = Request::new(snapshot_of(BOUNDED));
 
     assert!(!request.set("limits.hard.memory", "16M"));
@@ -185,13 +186,13 @@ fn a_value_that_is_not_a_quantity_is_refused() {
 /// flag off until `restore`.
 #[test]
 fn a_tightening_flag_takes_false_and_never_true() {
-    for key in nvs_config::request::TIGHTEN_FLAGS {
-        let row = nvs_config::directive::lookup(key).expect("each flag has a row");
-        assert_eq!(
-            row.class,
-            nvs_config::directive::Class::RuntimeTighten,
-            "`{key}`"
-        );
+    let flags: Vec<&str> = SETTABLE
+        .iter()
+        .filter(|row| row.how == How::OffOnly)
+        .map(|row| row.key)
+        .collect();
+    assert_eq!(flags, ["debug.inline", "debug.store"]);
+    for key in flags {
         let (block, leaf) = key.split_once('.').expect("a dotted key");
         let mut request = Request::new(snapshot_of(&format!("[{block}]\n{leaf} = true\n")));
 
@@ -394,36 +395,39 @@ fn the_same_two_refusals_come_from_config_set_as_from_the_boot() {
     );
 }
 
-/// `rule:config/three-changeability-classes`, adversarially: **every** `System` row is refused, counted over the registry
+/// `rule:config/three-changeability-classes`, adversarially: **every** unlisted row is refused, counted over the registry
 /// rather than asked of one key.
 ///
-/// `a_system_directive_is_not_settable_by_a_request` above pins the class rule on the keys it
-/// names, which is what the rule means. What this adds is that no row escapes it: a directive
-/// landing in [`DIRECTIVES`] as `System` is swept the day it lands, and a `set` that grew a
-/// special case for one block fails here while still passing every case above it. Both spellings
-/// of a row are asked — the key itself and a key beneath it — because `lookup` is longest-prefix
-/// and a block row answers for everything inside it.
+/// `an_unlisted_key_is_not_settable_by_a_request` above pins the allowlist on the keys it names.
+/// What this adds is that no row escapes it: every [`DIRECTIVES`] row whose key `SETTABLE` does
+/// not list is swept, with several values, and a `set` that grew a special case for one block
+/// fails here while still passing every case above it. Both spellings of a row are asked — the
+/// key itself and a key beneath it — because a block row names every key inside it.
 #[test]
-fn a_script_attempting_to_set_a_system_directive_fails() {
+fn a_script_attempting_to_set_an_unlisted_key_fails() {
     let mut request = Request::new(snapshot_of(BOUNDED));
     let before = request.all();
 
-    let system: Vec<&'static str> = DIRECTIVES
+    let unlisted: Vec<&'static str> = DIRECTIVES
         .iter()
-        .filter(|row| row.class == Class::System)
         .map(|row| row.key)
+        .filter(|key| nvs_config::settable::how(key).is_none())
         .collect();
-    // A floor, not a census: `tests/directives.rs` owns which row is which class. What it buys here
-    // is that a sweep which found nothing to sweep cannot pass as a sweep that refused everything.
+    // A floor, not a census. What it buys here is that a sweep which found nothing to sweep cannot
+    // pass as a sweep that refused everything.
     assert!(
-        system.len() > 10,
-        "the sweep is the registry's `System` rows and there are {}",
-        system.len(),
+        unlisted.len() > 10,
+        "the sweep is the registry's unlisted rows and there are {}",
+        unlisted.len(),
     );
 
     let mut accepted: Vec<String> = Vec::new();
-    for key in &system {
+    for key in &unlisted {
         for spelling in [(*key).to_string(), format!("{key}.memory")] {
+            // `limits` + `.memory` is the listed `limits.memory`, which is not this sweep's question.
+            if nvs_config::settable::how(&spelling).is_some() {
+                continue;
+            }
             for value in ["1G", "true", "/"] {
                 if request.set(&spelling, value) {
                     accepted.push(format!("{spelling} = {value}"));
@@ -434,7 +438,7 @@ fn a_script_attempting_to_set_a_system_directive_fails() {
 
     assert!(
         accepted.is_empty(),
-        "a request set a `System` directive: {accepted:?}",
+        "a request set a key `SETTABLE` does not list: {accepted:?}",
     );
     // Not one of them left anything behind either — a `set` that returned `false` after writing the
     // overlay would pass every assertion above.
@@ -444,19 +448,18 @@ fn a_script_attempting_to_set_a_system_directive_fails() {
         "a refused `set` changes nothing about what is in force (`rule:config/three-changeability-classes`)",
     );
 
-    // The control: the `Runtime` row sitting beside them takes the same value. Without it a `set`
+    // The control: a listed key beside them takes the same value. Without it a `set`
     // that refused everything would pass this case having tested nothing.
     assert!(request.set("memory", "512M"));
 }
 
-/// `rule:config/three-changeability-classes`'s `RuntimeTighten` half, adversarially: a request cannot widen **any** capability, asked
+/// `rule:config/three-changeability-classes`, adversarially: a request cannot widen **any** capability, asked
 /// once per row of [`Cap::ALL`] rather than of the one grant this tree happens to hold.
 ///
-/// Two reasons refuse, and the fixture holds both. `capabilities.fs.read` has a grant in force and
-/// is refused because a list cannot be shown to narrow — `request.rs`'s module doc owns why that is
-/// the safe direction — while every other row has nothing in force and is refused for having
-/// nothing to narrow *from*. Neither reason is the value's: `log.level` is the same unquantifiable
-/// shape under `Runtime` and is accepted, so what refuses above is the class, which is the claim.
+/// No `capabilities` key is on `SETTABLE`, so each is refused whether a grant is in force
+/// (`capabilities.fs.read` in the fixture) or not. The refusal is not the value's: `log.level` is
+/// the same unquantifiable shape, is listed, and is accepted, so what refuses above is the
+/// allowlist, which is the claim.
 #[test]
 fn a_script_attempting_to_widen_a_capability_fails() {
     const GRANTED: &str = "\
@@ -542,8 +545,8 @@ fn the_mode_table_is_exactly_the_five_directives_the_rule_lists() {
     }
 }
 
-/// Each of those five rows is a **directive**, and `nvs_config::directive` is where a directive says
-/// who may set it and what applying it costs.
+/// Each of those five rows is a **directive**: `nvs_config::directive` says what applying it costs,
+/// and `nvs_config::settable` whether a request may set it.
 ///
 /// A mode selects a *default*, so a row whose key the registry does not hold is a default for a
 /// directive nobody spelled: a flip would write the key into the same overlay `Core\Config::set`
@@ -553,12 +556,15 @@ fn the_mode_table_is_exactly_the_five_directives_the_rule_lists() {
 #[test]
 fn every_derived_default_names_a_directive_the_registry_holds() {
     for row in nvs_config::mode::DERIVED {
-        let held = nvs_config::directive::lookup(row.key)
+        nvs_config::directive::lookup(row.key)
             .unwrap_or_else(|| panic!("`{}` is a default for a directive nobody spelled", row.key));
+        // `http.errors.detail` is the one derived key a request may not set: it shapes only the
+        // page of a request that never got a frame, so no program runs to set it, and a flip
+        // derives it for `get` alone.
         assert!(
-            held.class.settable_by_a_request(),
-            "`{}` is derived per request, so a `System` row would make the mode's own default \
-             unreachable",
+            nvs_config::settable::how(row.key).is_some() || row.key == "http.errors.detail",
+            "`{}` is derived per request, so a key no request may set would make the mode's own \
+             default unreachable",
             row.key
         );
     }
@@ -664,21 +670,19 @@ fn errors_deprecated_refuses_a_value_not_in_its_list() {
     assert_eq!(Deprecated::in_force(&request), Deprecated::Throw);
 }
 
-/// `Runtime` and `Reload`: a request turns the check on for itself, the next request on the same
+/// Settable and `Reload`: a request turns the check on for itself, the next request on the same
 /// snapshot does not see it, and the row names the key and not the block.
 #[test]
-fn errors_deprecated_is_runtime_class() {
+fn errors_deprecated_is_settable_and_reloads() {
     use nvs_config::directive::{Apply, lookup};
     use nvs_config::errors::{Deprecated, KEY};
 
     let row = lookup(KEY).unwrap_or_else(|| panic!("no directive governs `{KEY}`"));
-    assert_eq!(
-        (row.key, row.class, row.apply),
-        (KEY, Class::Runtime, Apply::Reload)
-    );
+    assert_eq!((row.key, row.apply), (KEY, Apply::Reload));
+    assert_eq!(nvs_config::settable::how(KEY), Some(How::UpToCeiling));
     assert!(
         lookup("errors").is_none() && lookup("errors.other").is_none(),
-        "a row blankets `[errors]`, so a second key there would inherit this one's class",
+        "a row blankets `[errors]`, so a second key there would have no row of its own",
     );
 
     let published = snapshot_of("");
@@ -749,18 +753,16 @@ fn regex_backtracking_refuses_a_value_not_in_its_list() {
     }
 }
 
-/// `System` and `Reload`: no request may set the key, so a request under `deny` cannot turn the
-/// policy off for itself, and the value in force is the file's.
+/// Not settable and `Reload`: no request may set the key, so a request under `deny` cannot turn
+/// the policy off for itself, and the value in force is the file's.
 #[test]
-fn regex_backtracking_is_system_class() {
+fn regex_backtracking_is_not_settable_and_reloads() {
     use nvs_config::directive::{Apply, lookup};
     use nvs_config::regex::{Backtracking, KEY};
 
     let row = lookup(KEY).unwrap_or_else(|| panic!("no directive governs `{KEY}`"));
-    assert_eq!(
-        (row.key, row.class, row.apply),
-        (KEY, Class::System, Apply::Reload)
-    );
+    assert_eq!((row.key, row.apply), (KEY, Apply::Reload));
+    assert_eq!(nvs_config::settable::how(KEY), None);
 
     let mut request = Request::new(snapshot_of("[regex]\nbacktracking = \"deny\"\n"));
     for value in ["allow", "warn", "deny"] {
@@ -944,4 +946,60 @@ fn a_flip_to_development_does_not_open_loopback() {
         flipped.authority().address_refused(loopback).is_some(),
         "a flip opened loopback"
     );
+}
+
+/// A value each listed key accepts under [`ALLOWLIST_FIXTURE`]: a limit lower than its default,
+/// and for every other key a value of its own type.
+fn a_valid_value(key: &str) -> &'static str {
+    match key {
+        "mode.default" => "production",
+        "limits.memory" => "16M",
+        "limits.cpu_time" | "limits.wall_time" | "deferred.deadline" => "1s",
+        "limits.max_output" | "limits.request_body" | "limits.upload_total" => "1M",
+        "limits.max_multipart_parts" | "limits.max_tasks" | "http.client.max_redirects" => "2",
+        "limits.max_regex_steps" => "1000",
+        "log.format" => "text",
+        "log.level" => "Warn",
+        "log.access" => "true",
+        "errors.deprecated" => "throw",
+        "http.headers.frame_ancestors" => "https://c.example",
+        "http.headers.referrer_policy" => "no-referrer",
+        "http.headers.content_security_policy" => "default-src https:",
+        "http.headers.permissions_policy" => "usb=(self)",
+        "http.cors.origins" => "https://a.example",
+        "http.cors.expose" => "X-Probe",
+        "http.cookies.same_site" => "Strict",
+        "http.cookies.path" => "/app",
+        "http.client.socket.max_message" => "1M",
+        key if key.starts_with("http.client.") => "2s",
+        "http.headers.hsts_subdomains" | "http.cors.credentials" => "true",
+        _ => "false",
+    }
+}
+
+/// A tree that names one CORS origin, so `http.cors.credentials = true` is a meaningful pair.
+const ALLOWLIST_FIXTURE: &str = "[http.cors]\norigins = [\"https://b.example\"]\n";
+
+/// `rule:config/three-changeability-classes`: `set` accepts a key exactly when `SETTABLE` lists it.
+/// Every leaf key the default file writes is asked once, on a fresh request, with a value that key
+/// accepts when it is listed. A listed key that returns `false` is a row nothing can use, and an
+/// unlisted one that returns `true` is a key the allowlist does not decide.
+#[test]
+fn set_accepts_only_the_keys_on_the_allowlist() {
+    let snapshot = snapshot_of(ALLOWLIST_FIXTURE);
+    let keys = nvs_config::request::keys();
+    let mut wrong = Vec::new();
+    for key in keys {
+        let mut request = Request::new(Arc::clone(&snapshot));
+        let value = a_valid_value(key);
+        let listed = nvs_config::settable::how(key).is_some();
+        if request.set(key, value) != listed {
+            wrong.push(format!("`{key}` = `{value}`: listed {listed}, `set` says {}", !listed));
+        }
+    }
+    assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    // Every row names a key the file writes, so no row is a key nothing could ever set.
+    for row in SETTABLE {
+        assert!(keys.contains(row.key), "`{}` is listed and the default file does not write it", row.key);
+    }
 }

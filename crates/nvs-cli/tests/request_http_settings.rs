@@ -1,7 +1,7 @@
 //! `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`, from outside the
 //! process: every `http.*` key a request may set through `Core\Config::set` changes that request's
-//! own response, and `set` returns `false` for every other one
-//! (`rule:config/three-changeability-classes`).
+//! own response, and `set` returns `false` for every key `nvs_config::settable::SETTABLE` does not
+//! list (`rule:config/three-changeability-classes`).
 //!
 //! The keys come from [`nvs_config::request::keys`], the roster `set` itself reads, so a key added
 //! to the configuration is walked here with no edit to this file. A key `set` accepts must have a
@@ -240,11 +240,9 @@ fn every_http_setting_a_request_may_set_reaches_its_response() {
         .iter()
         .filter(|key| key.starts_with("http."))
         .map(|key| {
-            let row = nvs_config::directive::lookup(key)
-                .unwrap_or_else(|| panic!("`{key}` is a key no directive row governs"));
             let (value, expect) = if let Some((value, check)) = response_probe(key) {
                 (value, Expect::Response(check))
-            } else if key.starts_with("http.client.") && row.class.settable_by_a_request() {
+            } else if key.starts_with("http.client.") && nvs_config::settable::how(key).is_some() {
                 (outbound_value(key), Expect::Outbound)
             } else {
                 ("x", Expect::Refused)

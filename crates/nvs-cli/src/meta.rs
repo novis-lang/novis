@@ -63,7 +63,8 @@
 //! [`nvs_stdlib::registry::CONTRACTS`] with their cards, the contracts each
 //! `extends` and their `members` in a class member's shape), `attributes`
 //! ([`nvs_types::derive::ATTRIBUTES`]), `directives`
-//! ([`nvs_config::DIRECTIVES`]) and `capabilities`
+//! ([`nvs_config::DIRECTIVES`]), `settable`
+//! ([`nvs_config::settable::SETTABLE`]) and `capabilities`
 //! ([`nvs_stdlib::registry::CAPABILITIES`]). Each is a table already, so this
 //! is one `map` per roster and no second home for any of them.
 //!
@@ -239,6 +240,7 @@ pub(crate) fn document() -> Value {
             .collect::<Vec<_>>(),
         "attributes": nvs_types::derive::ATTRIBUTES.iter().map(|name| Value::from(*name)).collect::<Vec<_>>(),
         "directives": nvs_config::DIRECTIVES.iter().map(directive_json).collect::<Vec<_>>(),
+        "settable": nvs_config::settable::SETTABLE.iter().map(|row| json!({ "key": row.key, "how": row.how.name() })).collect::<Vec<_>>(),
         "capabilities": CAPABILITIES.iter().map(capability_json).collect::<Vec<_>>(),
         "constructs": CONSTRUCT_CAPABILITIES.iter().map(construct_json).collect::<Vec<_>>(),
         "needsNone": NEEDS_NONE.iter().map(|(class, reason)| json!({ "class": class, "reason": reason })).collect::<Vec<_>>(),
@@ -365,11 +367,11 @@ fn interface_json(row: &(&str, &[&str])) -> Value {
     Value::Object(out)
 }
 
-/// One `nvs.toml` directive: its key, its class and when a change applies.
+/// One `nvs.toml` directive: its key and when a change applies. Whether a request may change it
+/// is the `settable` roster's.
 fn directive_json(directive: &nvs_config::Directive) -> Value {
     json!({
         "key": directive.key,
-        "class": format!("{:?}", directive.class),
         "apply": format!("{:?}", directive.apply),
     })
 }
@@ -1724,7 +1726,7 @@ mod tests {
                 assert!(member["returns"].is_string(), "{member}");
             }
         }
-        for roster in ["exceptions", "interfaces", "attributes", "directives"] {
+        for roster in ["exceptions", "interfaces", "attributes", "directives", "settable"] {
             assert!(
                 !document[roster].as_array().expect("an array").is_empty(),
                 "{roster} is empty"

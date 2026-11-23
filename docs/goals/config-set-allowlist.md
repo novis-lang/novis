@@ -195,18 +195,18 @@ rewrites the tests that read the class, and proves each listed key has an effect
 (about 50) goes to one writing subagent once `settable.rs` builds, with this stage's decisions in its
 brief. The session writes the module, `request.rs` and the two new tests.
 
-- [ ] `crates/nvs-config/src/settable.rs:1`: `SETTABLE`, `Settable`, `How` and `how`, with the 38 rows
+- [x] `crates/nvs-config/src/settable.rs:1`: `SETTABLE`, `Settable`, `How` and `how`, with the 38 rows
   of *Why* and each row's reason moved from `directive.rs`. Export from `crates/nvs-config/src/lib.rs`.
-- [ ] `crates/nvs-config/src/request.rs:367-432` `set_checked`: `settable::how` first. Delete
+- [x] `crates/nvs-config/src/request.rs:367-432` `set_checked`: `settable::how` first. Delete
   `UNREAD_BY_A_REQUEST` (`:81`), `TIGHTEN_FLAGS` (`:90`) and the `Class` match; `OffOnly` takes the old
   flag path. Rewrite the module doc's refusal paragraph (`:17-41`) as "a key `SETTABLE` does not list,
   then the value checks".
-- [ ] `crates/nvs-config/src/directive.rs:24-48`: delete `Class` and `settable_by_a_request`; drop
+- [x] `crates/nvs-config/src/directive.rs:24-48`: delete `Class` and `settable_by_a_request`; drop
   `class` from every row (`:91-332`). The module doc says who may set a key is `settable.rs`'s.
-- [ ] `crates/nvs-config/tests/request.rs:161`, `:188`, `:413`, `:559`, `:677`, `:762`,
+- [x] `crates/nvs-config/tests/request.rs:161`, `:188`, `:413`, `:559`, `:677`, `:762`,
   `crates/nvs-config/tests/snapshot.rs:1145`, `crates/nvs-host/tests/limits.rs:1538` and
   `crates/nvs-cli/tests/request_http_settings.rs:239-247`: read `settable::how`.
-- [ ] `crates/nvs-config/tests/request.rs`: `set_accepts_only_the_keys_on_the_allowlist` walks
+- [x] `crates/nvs-config/tests/request.rs`: `set_accepts_only_the_keys_on_the_allowlist` walks
   `request::keys()` and checks `set` with a valid value is `true` only for a listed key. Run the check
   `allowlist` once.
 - [ ] `crates/nvs-cli/tests/request_http_settings.rs`: `every_settable_key_changes_what_a_request_does`,
@@ -281,20 +281,42 @@ goes to one writing subagent once the fragment is renamed. The session writes th
 
 ### State
 
-The goal is written and nothing is built. Stage 1 turns every test that reads `row.class` red until
-the same stage rewrites it.
+Stage 1 is built except its effect test. `SETTABLE` (`crates/nvs-config/src/settable.rs`) is the
+one allowlist, and `set_checked` asks `settable::how` first. `Class`, `UNREAD_BY_A_REQUEST` and
+`TIGHTEN_FLAGS` are gone, and the `directive.rs` row comments no longer name a class. `nvs meta`
+already emits the `settable` roster and no directive `class` (stage 4's `meta.rs` item is done).
+Every reader of the class compiles against `settable::how`. `cargo build` and `cargo clippy
+--all-targets -- -D warnings` are green, and the `allowlist` check ran once, green.
+
+The nightly CI run the acceptance sweep reported (`45166887327`) was cancelled by hand (its
+annotation: "The run was canceled by" the repository owner). No job failed, and the geiger
+warnings also appear on the last green nightly, so nothing in the tree needs a fix.
+
+Tests expected to go red until fixed:
+
+- `crates/nvs-config/tests/directives.rs`: a subagent rewrote about 47 tests against
+  `settable::how` and the new helper `governs_a_settable_key`, and renamed 11 of them. None of them
+  has run yet. Expect some red where a picked leaf key or a census does not hold.
+- `tools/nv/cmd/reference.ts:365-369` and `tools/nv/renderers/website-reference.ts:97` still read a
+  directive's `class` from `nvs meta`, which no longer has it. Stage 4 rewrites them.
 
 ### Next
 
-Stage 1, one allowlist decides what set changes (`crates/nvs-config/src/`). No gate: it starts when
-`exact-invalidation` is reached.
+Stage 1's last item, then stages 2 and 3, which may run side by side.
 
-- [ ] `crates/nvs-config/src/settable.rs:1`: `SETTABLE` with the 38 rows.
-- [ ] `crates/nvs-config/src/request.rs:367`: `set_checked` reads it first; the refuse lists go.
-- [ ] `crates/nvs-config/src/directive.rs:24`: `Class` goes.
-- [ ] `crates/nvs-config/tests/directives.rs:28`: the subagent rewrites the `row.class` assertions.
-- [ ] `crates/nvs-config/tests/request.rs:161`: `set_accepts_only_the_keys_on_the_allowlist`.
-- [ ] `crates/nvs-cli/tests/request_http_settings.rs:239`: `every_settable_key_changes_what_a_request_does`.
+- [ ] `crates/nvs-cli/tests/request_http_settings.rs:237`: `every_settable_key_changes_what_a_request_does`.
+  One probe per `SETTABLE` row. The 14 `[http]` response probes (`response_probe`, `:71`) can be
+  reused. The others need a program effect: a limit set low, then work that passes the limit; a
+  `log.*` key and the server's log output; `errors.deprecated = throw` and a call to deprecated code;
+  `mode.default` and `Core\Env::mode`; and an outbound call for `http.client.*`. Drop a key that
+  shows no effect, per *Standing decisions*. Run the `effect` check once.
+- [ ] Run `cargo test --test directives` once by name, and fix what the rewrite got wrong.
+- [ ] Comments that still name the old classes, all text only: `crates/nvs-config/src/debug.rs:18`,
+  `crates/nvs-config/src/tree.rs:316`, `:544`, `:565`, `crates/nvs-config/src/default.toml:387`,
+  `crates/nvs-stdlib/src/debug.rs:54`, `:463`, `crates/nvs-runtime/src/ctx/isolate.rs:369`, and
+  `tests/conformance/config/debug-store-and-its-bounds-are-read-and-a-program-cannot-set-them.nvst:8`,
+  `tests/conformance/isolate/a-child-inherits-a-narrowed-capability-and-cannot-widen-it.nvst:56`.
+  The rule files and pages are stage 4's.
 
 ### Backlog
 

@@ -2845,8 +2845,8 @@ mod tests {
     /// `rule:security/process-exec-capability`, held at the row rather than at the door: starting a
     /// program is a capability, it is the one `nvs.toml` spells `process.exec`,
     /// a host that configured nothing has granted it to nobody, and a request
-    /// cannot widen it because the whole `capabilities` block is
-    /// [`nvs_config::Class::RuntimeTighten`].
+    /// cannot widen it because no `capabilities` key is on
+    /// [`nvs_config::settable::SETTABLE`].
     ///
     /// Enforcement is `nvs_runtime::capability::require`, inside the door — the
     /// table this reads is audit data and grants nothing, which
@@ -2878,14 +2878,16 @@ mod tests {
              default is the absence of a setting, not a setting that says no"
         );
 
-        let block = nvs_config::DIRECTIVES
-            .iter()
-            .find(|directive| directive.key == "capabilities")
-            .expect("the capability block is a directive, so a reload knows what it takes");
+        assert!(
+            nvs_config::DIRECTIVES
+                .iter()
+                .any(|directive| directive.key == "capabilities"),
+            "the capability block is a directive, so a reload knows what it takes"
+        );
         assert_eq!(
-            block.class,
-            nvs_config::Class::RuntimeTighten,
-            "and a request may narrow the grant it was started under, never widen it"
+            nvs_config::settable::how("capabilities.process.exec"),
+            None,
+            "and a request cannot change the grant it was started under"
         );
     }
 

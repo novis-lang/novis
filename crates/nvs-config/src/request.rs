@@ -14,32 +14,26 @@
 //! not a second rule: it is the empty block [`value::unit_of`] already answers for, made into the
 //! one place that decides it.
 //!
-//! **What `set` refuses, it refuses by returning `false`** (`rule:config/three-changeability-classes` and `rule:config/ini-set-is-core-config-set`): a
-//! name no [`Directive`](crate::directive::Directive) row governs, a name a row governs that is not
-//! a leaf key the file may write (`log`, `log.x`), a key in [`UNREAD_BY_A_REQUEST`] that nothing
-//! reads while a request runs, a `System` one, a value that
-//! does not spell its unit, a value above its ceiling (`[limits.hard]`, or where that is not
-//! written the `[limits]` value the run started with, except `memory` on a CLI run), a
-//! [`RuntimeTighten`](Class::RuntimeTighten) one that does not narrow, an assignment that would
-//! leave this request holding one of `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`'s meaningless `[http]` pairs, and a mode
-//! outside `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`'s ceiling — a name that is not one of the two modes being outside every
-//! ceiling. Nothing on this path throws, so a program cannot catch a refusal and cannot tell one
-//! from another — which is the API `rule:config/ini-set-is-core-config-set` states and not an omission.
+//! **What `set` refuses, it refuses by returning `false`** (`rule:config/three-changeability-classes` and `rule:config/ini-set-is-core-config-set`).
+//! First a key [`SETTABLE`](crate::settable::SETTABLE) does not list, whatever its value. Then the
+//! value checks: a value that does not spell its unit, a value above its ceiling
+//! (`[limits.hard]`, or where that is not written the `[limits]` value the run started with,
+//! except `memory` on a CLI run), an [`OffOnly`](How::OffOnly) key set to anything but `false`,
+//! an assignment that would leave this request holding one of
+//! `rule:http-server/cors-is-closed-until-origins-are-named` and
+//! `rule:http-server/cookies-are-secure-httponly-and-lax`'s meaningless `[http]` pairs, and a mode
+//! outside `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`'s ceiling — a name that
+//! is not one of the two modes being outside every ceiling. Nothing on this path throws, so a
+//! program cannot catch a refusal and cannot tell one from another — which is the API
+//! `rule:config/ini-set-is-core-config-set` states and not an omission.
 //!
-//! **A `RuntimeTighten` flag takes `false` and nothing else.** [`TIGHTEN_FLAGS`] are the
-//! `[debug]` switches a request may turn off for itself (`rule:errors/debug-dump`,
-//! `rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`). `false` is off whatever is in
-//! force, so it always narrows. Every other value, `true` included, is refused, so no request turns
-//! one on, not even back on after turning it off; `restore` is what does that.
+//! **An `OffOnly` key takes `false` and nothing else.** Those are the `[debug]` switches a request
+//! may turn off for itself (`rule:errors/debug-dump`,
+//! `rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`). Every other value, `true`
+//! included, is refused, so no request turns one on, not even back on after turning it off;
+//! `restore` is what does that.
 //!
-//! **Any other `RuntimeTighten` directive that is not a quantity cannot be set at all**, and that
-//! is deliberate. Narrowing is `[value] within [what is in force]`, which
-//! [`value::within_ceiling`] answers for a size, a duration, a count or a ratio and for nothing
-//! else; `[capabilities]` and `[debug] mode` are such rows, and each is a list. Refusing is the
-//! safe direction — a request that cannot drop a capability is inconvenient, one that silently
-//! widens one is the failure `rule:config/three-changeability-classes` exists to prevent.
-//!
-//! Cost of the flag path: one comparison against two keys per `set` that reaches it.
+//! Cost of the allowlist: one scan of [`SETTABLE`](crate::settable::SETTABLE)'s rows per `set`.
 //!
 //! **A package sets `[limits]` keys alone, and restores only what a package set**
 //! (`rule:security/package-authority-is-granted-one-line-at-a-time`).
@@ -63,31 +57,11 @@ use std::sync::{Arc, OnceLock};
 
 use crate::capability::{Authority, Run};
 use crate::defaults;
-use crate::directive::{Class, lookup};
 use crate::mode;
+use crate::settable::{self, How};
 use crate::snapshot::{Snapshot, value_at};
 use crate::tree::Setting;
 use crate::value::{self, unit_of};
-
-/// The `[http]` keys under a `Runtime` row that nothing reads while a request runs, so `set`
-/// returns `false` for each (`rule:config/three-changeability-classes`).
-///
-/// `http.cors.methods`, `headers` and `max_age` shape only a preflight, which is answered before
-/// any program runs. `http.errors.detail` shapes the page of a request that never got a frame, so
-/// no program ran to set it. A mode flip still derives `http.errors.detail` into the overlay, since
-/// `get` answers the mode's default from there.
-///
-/// Cost: one scan of four keys per `set` naming a key the default file writes.
-pub const UNREAD_BY_A_REQUEST: [&str; 4] = [
-    "http.cors.methods",
-    "http.cors.headers",
-    "http.cors.max_age",
-    "http.errors.detail",
-];
-
-/// The `RuntimeTighten` rows that are a `true`/`false` switch, which a request may set to `false`
-/// and to nothing else (the module doc's flag paragraph).
-pub const TIGHTEN_FLAGS: [&str; 2] = ["debug.inline", crate::limits::STORE];
 
 /// One request's view of the configuration: the snapshot it cloned at start, and what it has set
 /// for itself since.
@@ -272,15 +246,15 @@ impl Request {
             .unwrap_or_default()
     }
 
-    /// `[log] target` and its bounds for this request ([`Snapshot::log_sink`]). The keys are
-    /// `System`, so no overlay holds them.
+    /// `[log] target` and its bounds for this request ([`Snapshot::log_sink`]). None of
+    /// these keys is settable, so no overlay holds them.
     #[must_use]
     pub fn log_sink(&self) -> Option<&crate::limits::LogSink> {
         self.base.log_sink()
     }
 
     /// `[log] level` in force for this request, or `None` where none is written and the mode has
-    /// no default. The key is `Runtime`, so a request whose overlay holds it or flips the mode
+    /// no default. The key is settable, so a request whose overlay holds it or flips the mode
     /// reads it through `get`, as [`deprecated`](Self::deprecated) does.
     #[must_use]
     pub fn log_level(&self) -> Option<nvs_render::Level> {
@@ -304,8 +278,8 @@ impl Request {
     }
 
     /// `[regex] backtracking` in force for this request: what the file wrote, then
-    /// [`Backtracking::Allow`](crate::regex::Backtracking::Allow). The key is `System`, so no
-    /// overlay holds it, and this reads the snapshot's tree and allocates nothing.
+    /// [`Backtracking::Allow`](crate::regex::Backtracking::Allow). The key is not settable, so
+    /// no overlay holds it, and this reads the snapshot's tree and allocates nothing.
     #[must_use]
     pub fn backtracking(&self) -> crate::regex::Backtracking {
         crate::regex::Backtracking::of_config(&self.base.config)
@@ -313,7 +287,7 @@ impl Request {
 
     /// Whether `[debug] store` is in force for this request
     /// (`rule:testing/writing-a-debug-record-to-disk-is-its-own-gate`). The key is
-    /// `RuntimeTighten`, so an overlay can only have turned it off, and a request whose overlay does
+    /// [`OffOnly`](How::OffOnly), so an overlay can only have turned it off, and a request whose overlay does
     /// not hold it reads the resolved table, which allocates nothing.
     #[must_use]
     pub fn debug_store(&self) -> bool {
@@ -325,8 +299,8 @@ impl Request {
     }
 
     /// `[debug] spool_max` in bytes, the cap on this process's spool
-    /// (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`). `System`, so no
-    /// overlay holds it, and it is read off the resolved table.
+    /// (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`). Not
+    /// settable, so no overlay holds it, and it is read off the resolved table.
     #[must_use]
     pub fn debug_spool_max(&self) -> u64 {
         crate::limits::resolved(&self.base).spool_max
@@ -366,26 +340,18 @@ impl Request {
     /// [`set_as_package`](Self::set_as_package) run.
     fn set_checked(&mut self, name: &str, value: &str) -> bool {
         let key = canonical(name);
-        // A name under a settable block that is not one of its keys — `log`, `log.x`,
-        // `limits..memory` — is still governed by that block's row, but no reader ever asks for it,
-        // so a set of it would change nothing and say `true`.
-        if !is_key(key) || UNREAD_BY_A_REQUEST.contains(&key) {
-            return false;
-        }
-        let Some(row) = lookup(key) else {
+        // The allowlist comes first: a key it does not list is refused whatever the value.
+        let Some(how) = settable::how(key) else {
             return false;
         };
-        if !row.class.settable_by_a_request() {
-            return false;
-        }
-        // `rule:config/a-program-may-read-and-flip-its-mode`'s flip is a `Runtime` set with a bound of its own — `[mode] ceiling` and not
-        // `[limits.hard]` — and an effect beyond its own key, so it leaves the quantity path here
-        // rather than threading two more conditions through it.
+        // `rule:config/a-program-may-read-and-flip-its-mode`'s flip has a bound of its own —
+        // `[mode] ceiling` and not `[limits.hard]` — and an effect beyond its own key, so it leaves
+        // the quantity path here rather than threading two more conditions through it.
         if key == mode::KEY {
             return self.flip_mode(value);
         }
-        // The module doc's flag paragraph: `false` narrows whatever is in force.
-        if TIGHTEN_FLAGS.contains(&key) {
+        // The module doc's `OffOnly` paragraph: `false` is off whatever is in force.
+        if how == How::OffOnly {
             if value != "false" {
                 return false;
             }
@@ -393,26 +359,12 @@ impl Request {
             return true;
         }
         let asked = Setting::Text(value.to_string());
-        let bound = match row.class {
-            // Up to the ceiling the operator kept, and freely below it (`rule:config/three-changeability-classes`).
-            Class::Runtime => self.ceiling(key),
-            // Narrowing only: what is in force *is* the ceiling, so the same comparison answers
-            // both classes and a directive with nothing in force has nothing to narrow from.
-            Class::RuntimeTighten => match self.in_force(key) {
-                Some(current) => Some(current),
-                None => return false,
-            },
-            Class::System => return false,
-        };
-        match bound {
+        // Up to the ceiling the operator kept, and freely below it.
+        match self.ceiling(key) {
             Some(bound) => match value::within_ceiling(key, &asked, &bound) {
-                Ok(Some(true)) => {}
-                // `Ok(None)` is a directive with no quantity to compare. A `Runtime` one is then
-                // unbounded and accepted; a `RuntimeTighten` one cannot be shown to narrow, which
-                // the module doc's paragraph on a `RuntimeTighten` directive that is not a quantity
-                // owns.
-                Ok(None) if row.class == Class::Runtime => {}
-                Ok(Some(false) | None) | Err(_) => return false,
+                // `Ok(None)` is a key with no quantity to compare, which is then unbounded.
+                Ok(Some(true) | None) => {}
+                Ok(Some(false)) | Err(_) => return false,
             },
             // No ceiling stated. The value still has to spell its own unit, or `get` would answer
             // with something the boot path would have refused from the file.
@@ -708,8 +660,8 @@ impl Request {
     fn ceiling(&self, key: &str) -> Option<Setting> {
         let leaf = key.strip_prefix("limits.")?;
         if leaf.contains('.') {
-            // `limits.hard.*` is `System` and never reaches here; anything else under `limits`
-            // that is not one of them has no ceiling to find.
+            // `limits.hard.*` is not settable and never reaches here; anything else under
+            // `limits` that is not one of them has no ceiling to find.
             return None;
         }
         let unwritten = crate::tree::LimitSet::default();
@@ -742,7 +694,7 @@ impl Request {
 /// The dotted key a `Core\Config` name resolves to — the module doc's *A bare name is a limit's
 /// name*, in the one place both `get` and `set` reach it. A bare limit's key is the static one
 /// [`value::LIMITS`] spells, so resolving a name never allocates.
-fn canonical(name: &str) -> &str {
+pub(crate) fn canonical(name: &str) -> &str {
     if !name.contains('.')
         && let Some((_, row)) = value::limit(name)
     {
@@ -751,22 +703,12 @@ fn canonical(name: &str) -> &str {
     name
 }
 
-/// Whether `key` is a leaf key an `nvs.toml` may write: one of the setting lines of the shipped
-/// default file, which `bun nv directives --check-template` holds to the typed tree key for key.
+/// Every leaf key an `nvs.toml` may write, read off the shipped default file, which
+/// `bun nv directives --check-template` holds to the typed tree key for key. A test walks it to
+/// check that `set` accepts exactly the keys [`SETTABLE`](crate::settable::SETTABLE) lists. The
+/// keys it writes under an example name — `db.main.path` — are in the set too.
 ///
-/// That file is the one roster of leaf keys this crate carries, so reading it here keeps no second
-/// list in step. The keys it writes under an example name — `db.main.path` — are in the set too,
-/// and no request-settable row governs one.
-///
-/// Cost: the set is built once per process, on the first `set`, and is a few kilobytes.
-fn is_key(key: &str) -> bool {
-    keys().contains(key)
-}
-
-/// Every leaf key an `nvs.toml` may write, read off the shipped default file: the roster [`is_key`]
-/// asks, for a test that walks the keys `set` may accept.
-///
-/// Cost: as [`is_key`]'s, the one set built once per process.
+/// Cost: the set is built once per process, on the first call, and is a few kilobytes.
 #[must_use]
 pub fn keys() -> &'static BTreeSet<String> {
     static KEYS: OnceLock<BTreeSet<String>> = OnceLock::new();

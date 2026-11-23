@@ -1,12 +1,14 @@
-//! The registry's two fields are two fields — `rule:config/reloadability-is-its-own-field` against `rule:config/three-changeability-classes` — plus the lookup rule
-//! the module doc states.
+//! The registry's `apply` field is its own field, independent of who may set a key
+//! (`rule:config/reloadability-is-its-own-field` against `rule:config/three-changeability-classes`),
+//! plus the lookup rule the module doc states.
 
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::Path;
 
 use nvs_config::Config;
-use nvs_config::directive::{Apply, Class, DIRECTIVES, Directive, lookup};
+use nvs_config::directive::{Apply, DIRECTIVES, Directive, lookup};
+use nvs_config::settable::{self, How, SETTABLE};
 use nvs_config::value::{Unit, unit_of};
 use nvs_diagnostics::{Code, SourceMap, code};
 
@@ -16,45 +18,60 @@ fn governing(key: &str) -> &'static Directive {
     lookup(key).unwrap_or_else(|| panic!("no directive governs `{key}`"))
 }
 
-/// `rule:config/reloadability-is-its-own-field`: reloadability answers *what applying a change requires* and the changeability
-/// class answers *who may set it*. The two are independent, and the failure this pins is a registry
-/// that reads one off the other — which typechecks, looks right row by row, and re-creates the very
-/// reading ("`System` means read once at boot") that rule refuses.
+/// Whether `row` governs at least one key on [`SETTABLE`], so a request may change something the
+/// row governs.
+fn governs_a_settable_key(row: &Directive) -> bool {
+    SETTABLE
+        .iter()
+        .any(|settable| lookup(settable.key).is_some_and(|governor| governor.key == row.key))
+}
+
+/// `rule:config/reloadability-is-its-own-field`: reloadability says *what applying a change requires*,
+/// and `settable::SETTABLE` (`rule:config/three-changeability-classes`) says *who may set it*. The two
+/// are independent, and the failure this pins is a registry that reads one off the other: "not
+/// settable" read as "read once at boot".
 #[test]
 fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
-    let census = |class: Class, apply: Apply| {
+    let census = |settable: bool, apply: Apply| {
         DIRECTIVES
             .iter()
-            .filter(|row| row.class == class && row.apply == apply)
+            .filter(|row| governs_a_settable_key(row) == settable && row.apply == apply)
             .count()
     };
 
-    // `System` holds both values, so neither field is a function of the other: knowing a directive
-    // is `System` says nothing about whether applying it takes a restart.
+    // The rows that govern no settable key hold both values, so neither is a function of the
+    // other: knowing a request may not set a key says nothing about whether applying it takes a
+    // restart.
     assert!(
-        census(Class::System, Apply::Reload) > 0,
-        "no `System` directive reloads, so `System` is being read as \"boot-only\" \
+        census(false, Apply::Reload) > 0,
+        "no row a request may not set reloads, so \"not settable\" is being read as \"boot-only\" \
          (`rule:config/reloadability-is-its-own-field` names `[limits.hard]` and a capability grant as the counter-examples)",
     );
     assert!(
-        census(Class::System, Apply::Boot) > 0,
-        "no `System` directive is `Boot`, so the registry has lost `rule:config/reloadability-is-its-own-field`'s narrow set",
+        census(false, Apply::Boot) > 0,
+        "no row a request may not set is `Boot`, so the registry has lost `rule:config/reloadability-is-its-own-field`'s narrow set",
     );
 
-    // The one direction that *is* determined, and by construction rather than by policy: a
-    // `Runtime` or `RuntimeTighten` directive is a value read out of the snapshot, so a new
-    // snapshot is all applying it can require.
+    // The one direction that *is* determined, by construction: a key a request may set is a value
+    // read out of the snapshot, so a new snapshot is all applying it can require.
     for row in DIRECTIVES {
-        if row.class.settable_by_a_request() {
+        if governs_a_settable_key(row) {
             assert_eq!(
                 row.apply,
                 Apply::Reload,
-                "`{}` is {:?} and `Boot`, which `rule:config/reloadability-is-its-own-field` says cannot happen: a directive a \
-                 request can set is one the snapshot already holds",
+                "`{}` governs a settable key and is `Boot`, which `rule:config/reloadability-is-its-own-field` says cannot \
+                 happen: a key a request can set is one the snapshot already holds",
                 row.key,
-                row.class,
             );
         }
+    }
+    for entry in SETTABLE {
+        assert_eq!(
+            governing(entry.key).apply,
+            Apply::Reload,
+            "`{}` is settable, so its row reloads",
+            entry.key,
+        );
     }
 
     // `rule:config/reloadability-is-its-own-field`'s own lists, key by key. `Boot` first — the narrow set.
@@ -74,8 +91,8 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
             "`{key}` is one of `rule:config/reloadability-is-its-own-field`'s `Boot` set"
         );
     }
-    // Then the ones it names as reloading *despite* being `System`, which is the pairing the field
-    // exists to make expressible.
+    // Then the ones it names as reloading although no request may set them, which is the pairing
+    // the field exists to make expressible.
     for key in [
         "limits.hard.memory",
         "extension.sha256",
@@ -114,9 +131,9 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
     ] {
         let row = governing(key);
         assert_eq!(
-            row.class,
-            Class::System,
-            "`{key}` is `System` (`rule:config/three-changeability-classes`)"
+            settable::how(key),
+            None,
+            "`{key}` is not settable (`rule:config/three-changeability-classes`)"
         );
         assert_eq!(
             row.apply,
@@ -127,18 +144,21 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
 }
 
 /// The longest-prefix rule, and the pair it exists for: `[limits]` and `[limits.hard]` spell the
-/// same key names under two different classes (`rule:config/three-changeability-classes`), so a registry keyed on the last
-/// segment would answer `Runtime` for a ceiling.
+/// same key names, and a request may set the first and not the second
+/// (`rule:config/three-changeability-classes`), so a registry keyed on the last segment would give
+/// a ceiling the row of the limit.
 #[test]
 fn a_more_specific_row_wins_and_a_prefix_must_end_on_a_dot() {
-    assert_eq!(governing("limits.memory").class, Class::Runtime);
-    assert_eq!(governing("limits.hard.memory").class, Class::System);
-    assert_eq!(governing("mode.ceiling").class, Class::System);
-    assert_eq!(governing("mode.default").class, Class::Runtime);
-    assert_eq!(
-        governing("capabilities.script.spawn").class,
-        Class::RuntimeTighten
-    );
+    assert_eq!(governing("limits.memory").key, "limits");
+    assert_eq!(governing("limits.hard.memory").key, "limits.hard");
+    assert_eq!(governing("mode.ceiling").key, "mode.ceiling");
+    assert_eq!(governing("mode.default").key, "mode.default");
+    assert_eq!(governing("capabilities.script.spawn").key, "capabilities");
+    assert_eq!(settable::how("limits.memory"), Some(How::UpToCeiling));
+    assert_eq!(settable::how("limits.hard.memory"), None);
+    assert_eq!(settable::how("mode.ceiling"), None);
+    assert_eq!(settable::how("mode.default"), Some(How::UpToCeiling));
+    assert_eq!(settable::how("capabilities.script.spawn"), None);
 
     assert!(
         lookup("limitshard").is_none(),
@@ -562,22 +582,21 @@ fn every_directive_has_a_live_apply_proof_or_a_restart_proof() {
     }
 }
 
-/// `rule:errors/on-limit`: the tier-1 handler's reserved slice is `System`, "not `Runtime`" — and it is
-/// written inside a block whose own row is `Runtime`, so the longest-prefix rule is the only thing
-/// holding it there. Losing the row would not fail to compile, would not fail any census above, and
-/// would quietly let a script set the size of the safety net it is about to need.
+/// `rule:errors/on-limit`: no request may set the tier-1 handler's reserved slice, and it is written
+/// inside `[limits]`, whose `limits.memory` a request may set. It has a row of its own, and
+/// `SETTABLE` does not list it. Adding it there would let a script set the size of the safety net
+/// it is about to need.
 #[test]
-fn the_fatal_reserve_is_system_class_inside_a_runtime_block() {
-    assert_eq!(governing("limits.memory").class, Class::Runtime);
+fn the_fatal_reserve_is_not_settable_inside_a_settable_block() {
+    assert_eq!(settable::how("limits.memory"), Some(How::UpToCeiling));
     assert_eq!(
-        governing("limits.fatal_reserve_memory").class,
-        Class::System,
-        "a request may not set its own reserved slice (`rule:errors/on-limit`)",
+        governing("limits.fatal_reserve_memory").key,
+        "limits.fatal_reserve_memory"
     );
-    assert!(
-        !governing("limits.fatal_reserve_memory")
-            .class
-            .settable_by_a_request()
+    assert_eq!(
+        settable::how("limits.fatal_reserve_memory"),
+        None,
+        "a request may not set its own reserved slice (`rule:errors/on-limit`)",
     );
 }
 
@@ -631,23 +650,23 @@ fn keys_listed(text: &str) -> Vec<String> {
     keys
 }
 
-/// `[[app]]` is the roster of applications, so every key of a block is `System` and applying a
-/// change to one is a `Reload`.
+/// `[[app]]` is the roster of applications, so no request may set any key of a block, and applying
+/// a change to one is a `Reload`.
 ///
 /// Both halves are the security content rather than bookkeeping. A block states what one
 /// application may do, so a request able to set any key of one would be choosing its own grants —
-/// and, since the roster is an array, another application's by index. The apply class is `Reload`
+/// and, since the roster is an array, another application's by index. The apply is `Reload`
 /// because a block is folded onto the global tree by `Snapshot::build` while the snapshot is being
 /// built, so a changed block reaches the next request by that fold running again and re-creates
 /// nothing.
 ///
 /// Asked of every key `[[app]]` accepts and of the nested spellings beneath them, because the
 /// claim holds only through the module doc's longest-prefix rule: a row added under `app`, or a
-/// `limits` row somehow reached from `app.0.limits.memory`, would take a key back out of `System`
+/// `limits` row somehow reached from `app.0.limits.memory`, would take a key out of the `app` row
 /// with every other assertion in this file still passing.
 // covers: directive:app
 #[test]
-fn every_key_of_an_app_block_is_system_class_applied_at_reload() {
+fn every_key_of_an_app_block_is_not_settable_and_applied_at_reload() {
     let keys = keys_listed("[[app]]\nnvs_no_such_key = true\n");
     assert_eq!(
         keys.iter().map(String::as_str).collect::<Vec<_>>(),
@@ -680,19 +699,14 @@ fn every_key_of_an_app_block_is_system_class_applied_at_reload() {
         assert_eq!(
             row.key, "app",
             "`{key}` resolves through `{}` rather than through the one `app` row, so what a \
-             block may say is no longer one class",
+             block may say is no longer one row",
             row.key,
         );
         assert_eq!(
-            row.class,
-            Class::System,
+            settable::how(&key),
+            None,
             "`{key}` is part of what an operator granted one application, and a request that \
              could set it would be choosing its own capabilities (`rule:config/three-changeability-classes`)",
-        );
-        assert!(
-            !row.class.settable_by_a_request(),
-            "`Core\\Config::set(\"{key}\", …)` has to refuse: the class says who may set a \
-             directive, and this is the one class that answers nobody",
         );
         assert_eq!(
             row.apply,
@@ -703,27 +717,24 @@ fn every_key_of_an_app_block_is_system_class_applied_at_reload() {
     }
 }
 
-/// `rule:config/three-changeability-classes`: the grants are the one row a request may write at
-/// all, and only ever downwards.
+/// `rule:config/three-changeability-classes`: one row governs every grant, and `SETTABLE` lists
+/// none of them, so no request may set a grant through `Core\Config::set`.
 ///
-/// `RuntimeTighten` because `rule:security/isolate-shares-nothing` gives the block a direction
-/// rather than a ceiling — a script may drop a right it holds and can never add one it does not —
-/// so the class is neither `System`, which answers nobody, nor `Runtime`, which answers "freely, up
-/// to what the operator kept" for a value that has no quantity to be under. `Reload` because a
-/// changed grant is folded onto the tree while the next snapshot is built and re-creates nothing.
+/// `rule:security/isolate-shares-nothing` gives a script no way to add a right it does not hold.
+/// `Reload` because a changed grant is folded onto the tree while the next snapshot is built and
+/// re-creates nothing.
 ///
 /// Asked of every grant the block accepts rather than of the ones somebody listed, and of the
 /// families as well as their keys, because one row governs all of them through the longest-prefix
-/// rule: a row added under `capabilities` would take a whole family back out of the class with
-/// every other assertion in this file still passing.
+/// rule: a row added under `capabilities` would split a family off with every other assertion in
+/// this file still passing.
 ///
 /// The last assertion is the boundary this block shares with `[[app]]`. The same grant written
-/// inside an application's block is the `app` row's and therefore `System`, because a request able
-/// to write `app.0.capabilities.fs.read` would be choosing an application's grants rather than
-/// narrowing its own — two questions that look like one key.
+/// inside an application's block is the `app` row's, because `app.0.capabilities.fs.read` is an
+/// application's grant and not the request's own.
 // covers: directive:capabilities
 #[test]
-fn every_grant_is_the_one_tightening_row_and_the_same_grant_under_an_app_block_is_not() {
+fn every_grant_is_governed_by_one_row_and_the_same_grant_under_an_app_block_is_not() {
     let families = keys_in("capabilities");
     assert_eq!(
         families.iter().map(String::as_str).collect::<Vec<_>>(),
@@ -753,19 +764,14 @@ fn every_grant_is_the_one_tightening_row_and_the_same_grant_under_an_app_block_i
         assert_eq!(
             row.key, "capabilities",
             "`{key}` resolves through `{}` rather than through the one grants row, so what a \
-             script may give up is no longer one class",
+             script holds is no longer one row",
             row.key,
         );
         assert_eq!(
-            row.class,
-            Class::RuntimeTighten,
-            "`{key}` is a right a script may drop and never add \
-             (`rule:security/isolate-shares-nothing`), which is the one class that says so",
-        );
-        assert!(
-            row.class.settable_by_a_request(),
-            "`{key}` is writable by a request in principle — the direction is what bounds it, and \
-             a class answering nobody would be `System` and a different decision",
+            settable::how(key),
+            None,
+            "`{key}` is a grant, and a request may not set a grant through `Core\\Config::set` \
+             (`rule:security/isolate-shares-nothing`)",
         );
         assert_eq!(
             row.apply,
@@ -795,10 +801,10 @@ fn every_grant_is_the_one_tightening_row_and_the_same_grant_under_an_app_block_i
             row.key,
         );
         assert_eq!(
-            row.class,
-            Class::System,
-            "`{key}` answers who may grant rather than who may give one up, and a request able to \
-             write it would be choosing an application's capabilities by index",
+            settable::how(key),
+            None,
+            "`{key}` is an application's grant, and a request able to write it would be choosing \
+             an application's capabilities by index",
         );
     }
 }
@@ -813,11 +819,11 @@ fn every_grant_is_the_one_tightening_row_and_the_same_grant_under_an_app_block_i
 ///
 /// The last assertion is the one that would fail first if the block were ever stated as a single
 /// `cache` row: there is none, so a tier nobody wrote a row for is ungoverned rather than
-/// silently inheriting a class. The registry states rules, not the list of legal keys —
-/// `deny_unknown_fields` is what refuses a third tier.
+/// silently inheriting another row's `apply`. The registry states rules, not the list of legal
+/// keys — `deny_unknown_fields` is what refuses a third tier.
 // covers: directive:cache.memory
 #[test]
-fn both_memory_tier_keys_are_system_at_reload_and_no_blanket_cache_row_answers_for_them() {
+fn both_memory_tier_keys_are_not_settable_at_reload_and_no_blanket_cache_row_answers_for_them() {
     let keys = keys_in("cache.memory");
     assert_eq!(
         keys.iter().map(String::as_str).collect::<Vec<_>>(),
@@ -834,15 +840,12 @@ fn both_memory_tier_keys_are_system_at_reload_and_no_blanket_cache_row_answers_f
             row.key,
         );
         assert_eq!(
-            row.class,
-            Class::System,
+            settable::how(key),
+            None,
             "`{key}` bounds what one process spends on behalf of every request on it, which is \
-             not a request's call (`rule:concurrency/the-memory-tier-is-one-store-per-process`)",
-        );
-        assert!(
-            !row.class.settable_by_a_request(),
-            "`Core\\Config::set(\"{key}\", …)` has to refuse: a request that shortened the wait \
-             would be deciding for the callers queued behind the one fill",
+             not a request's call (`rule:concurrency/the-memory-tier-is-one-store-per-process`): \
+             a request that shortened the wait would be deciding for the callers queued behind \
+             the one fill",
         );
         assert_eq!(
             row.apply,
@@ -856,26 +859,26 @@ fn both_memory_tier_keys_are_system_at_reload_and_no_blanket_cache_row_answers_f
     assert_eq!(
         governing("cache.shared.url").key,
         "cache.shared",
-        "the two tiers are two rows: one answering for both would be a single class for a map \
+        "the two tiers are two rows: one answering for both would be a single rule for a map \
          this process holds and a store a fleet dials",
     );
     assert!(
         lookup("cache").is_none() && lookup("cache.nvs_no_such_tier.max_size").is_none(),
-        "a blanket `cache` row would hand every future tier whichever class it happened to carry",
+        "a blanket `cache` row would hand every future tier whichever `apply` it happened to carry",
     );
 }
 
 /// `rule:core-api/two-cache-tiers`: the coherent tier is a *store* rather than a map, and every key
 /// naming or reaching it is the operator's and applies at reload.
 ///
-/// `System` because where a fleet's coherent state lives is not a decision one request may make for
-/// the rest — and because four of the five keys are how that store is *reached*, so a request able
-/// to write them would be re-pointing a credential as well as an address. `Reload` because a
+/// Not settable because where a fleet's coherent state lives is not a decision one request may make
+/// for the rest — and because four of the five keys are how that store is *reached*, so a request
+/// able to write them would be re-pointing a credential as well as an address. `Reload` because a
 /// request dials the store its own snapshot names, and the schedule ticker opens its fleet lease
 /// again when the block moves (`rule:config/reloadability-is-its-own-field`).
 // covers: directive:cache.shared
 #[test]
-fn every_shared_tier_key_is_system_class_and_applied_at_reload() {
+fn every_shared_tier_key_is_not_settable_and_applied_at_reload() {
     let keys = keys_in("cache.shared");
     assert_eq!(
         keys.iter().map(String::as_str).collect::<Vec<_>>(),
@@ -892,15 +895,11 @@ fn every_shared_tier_key_is_system_class_and_applied_at_reload() {
             row.key,
         );
         assert_eq!(
-            row.class,
-            Class::System,
+            settable::how(&key),
+            None,
             "`{key}` is part of naming and reaching the store a deployment shares, which is the \
-             operator's decision and not a request's (`rule:core-api/two-cache-tiers`)",
-        );
-        assert!(
-            !row.class.settable_by_a_request(),
-            "`Core\\Config::set(\"{key}\", …)` has to refuse: a request that could write any of \
-             these would be pointing every other core at a store it chose",
+             operator's decision and not a request's (`rule:core-api/two-cache-tiers`): a request \
+             that could write any of these would be pointing every other core at a store it chose",
         );
         assert_eq!(
             row.apply,
@@ -915,14 +914,14 @@ fn every_shared_tier_key_is_system_class_and_applied_at_reload() {
 /// `rule:core-classes/temporary-dir-sweep`: the one switch that stops the end-of-script sweep belongs to the
 /// operator, and it is read again by the next script that ends.
 ///
-/// `System` because the rule gives the key to the operator alone: a request able to write it would
+/// Not settable because the rule gives the key to the operator alone: a request able to write it would
 /// be exempting its own files from the sweep, and a program that can do that can be talked into
 /// hoarding until the disk is full — which is why the rule states that there is no in-language
 /// setter at all, leaving this row as the only thing that has to hold. `Reload` because what reads
 /// it is the next script to end rather than anything created at boot, so a flip re-creates nothing;
 /// that is what makes "on around one problematic request and off again" a thing an operator can do.
 ///
-/// `io.temp_root` beside it has the same class and the same apply. Both keys are the operator's
+/// `io.temp_root` beside it is not settable either, and has the same apply. Both keys are the operator's
 /// and neither is a request's: the root is read when the next temporary directory is made, and
 /// what to keep is read when the next script ends.
 // covers: directive:debug.keep_temporary
@@ -957,15 +956,11 @@ fn keeping_a_temporary_directory_and_its_root_are_the_operators_and_both_reload(
         row.key,
     );
     assert_eq!(
-        row.class,
-        Class::System,
-        "a request that could keep its own temporary directories would be exempting its own files \
-         from the sweep, which is the hoarding `rule:core-classes/temporary-dir-sweep` refuses",
-    );
-    assert!(
-        !row.class.settable_by_a_request(),
-        "`Core\\Config::set(\"debug.keep_temporary\", true)` has to refuse: the rule gives this key \
-         no in-language setter, and this row is the whole of what enforces that",
+        settable::how("debug.keep_temporary"),
+        None,
+        "`Core\\Config::set(\"debug.keep_temporary\", true)` has to refuse: a request that could \
+         keep its own temporary directories would be exempting its own files from the sweep, which \
+         is the hoarding `rule:core-classes/temporary-dir-sweep` refuses",
     );
     assert_eq!(
         row.apply,
@@ -976,41 +971,32 @@ fn keeping_a_temporary_directory_and_its_root_are_the_operators_and_both_reload(
 
     let root = governing("io.temp_root");
     assert_eq!(
-        (root.class, root.apply),
-        (Class::System, Apply::Reload),
+        (settable::how("io.temp_root"), root.apply),
+        (None, Apply::Reload),
         "the root is read from the request's snapshot when a temporary directory is made, so a \
          reload moves it for the next one, and a request still cannot",
-    );
-    assert_eq!(
-        row.class, root.class,
-        "both keys are the operator's, and a difference in class here would mean one of them had \
-         become a decision a served request may make",
     );
 
     assert!(
         lookup("debug").is_none(),
         "a blanket `debug` row would hand `debug.mode` — the one key of this block no row governs — \
-         `System`/`Reload` without anybody deciding that is what it is",
+         a `Reload` without anybody deciding that is what it is",
     );
 }
 
-/// `rule:errors/debug-dump`: the key deciding whether a dump reaches the page is the one key of
-/// `[debug]` a request may name at all, and it may only ever be narrowed.
+/// `rule:errors/debug-dump`: the key deciding whether a dump reaches the page is one of the two keys
+/// of `[debug]` a request may set, with `debug.store`, and a request may only set it to `false`.
 ///
-/// `RuntimeTighten` rather than `Runtime` is the rule's security half stated as a class: a request
-/// that could raise this key would be putting its own dump in the response it is writing, so the
-/// only direction the registry leaves open is the one that discloses less, and the run mode's
-/// default is the only thing that turns it on. What reaches a request is narrower still — a
-/// `RuntimeTighten` row that is not a quantity cannot be set in either direction, which
-/// `nvs_config::request`'s module doc owns — but that is the overlay's answer *over* this row, and
-/// a `Runtime` row here would leave the overlay as the only thing in the way.
+/// `How::OffOnly` is the rule's security half: a request that could turn this key on would be
+/// putting its own dump in the response it is writing, so the only value a request may set is the
+/// one that discloses less, and the run mode's default is the only thing that turns it on.
 ///
 /// `Reload` because every dump a request makes reads it in force, so a changed value reaches the
 /// next one with nothing re-created.
 ///
-/// The census claim is the pairing inside one block: `[debug]`'s other governed key is `System`, so
-/// a case reading this row alone would pass against a registry that had quietly made both of them
-/// the same class.
+/// The census claim is the pairing inside one block: `[debug]`'s `keep_temporary` is not settable,
+/// so a case reading this key alone would pass against a list that had quietly made both of them
+/// the same.
 // covers: directive:debug.inline
 #[test]
 fn an_inline_dump_is_the_one_debug_key_a_request_may_name_and_only_downwards() {
@@ -1022,16 +1008,11 @@ fn an_inline_dump_is_the_one_debug_key_a_request_may_name_and_only_downwards() {
         row.key,
     );
     assert_eq!(
-        row.class,
-        Class::RuntimeTighten,
-        "`Runtime` here would let a request raise the key and write its own dump into the response, \
-         which is the disclosure `rule:errors/debug-dump` exists to close",
-    );
-    assert!(
-        row.class.settable_by_a_request(),
-        "the tightening direction is open at the registry, and what refuses a value nothing can \
-         compare is the overlay in `nvs_config::request` — a `System` row here would be a second \
-         answer to a question that already has one",
+        settable::how("debug.inline"),
+        Some(How::OffOnly),
+        "a request may only set `debug.inline` to `false`: one that could turn it on would write \
+         its own dump into the response, which is the disclosure `rule:errors/debug-dump` exists \
+         to close",
     );
     assert_eq!(
         row.apply,
@@ -1040,12 +1021,11 @@ fn an_inline_dump_is_the_one_debug_key_a_request_may_name_and_only_downwards() {
          snapshot being rebuilt (`rule:config/reloadability-is-its-own-field`)",
     );
 
-    let sibling = governing("debug.keep_temporary");
     assert_eq!(
-        sibling.class,
-        Class::System,
-        "`[debug]` is not one class with a spelling per key: the sweep's switch is the operator's \
-         and this one is not, and a census reading either row alone cannot see that",
+        settable::how("debug.keep_temporary"),
+        None,
+        "`[debug]` is not one rule with a spelling per key: the sweep's switch is the operator's \
+         and this one is not, and a census reading either key alone cannot see that",
     );
 
     let derived = nvs_config::mode::DERIVED
@@ -1059,8 +1039,8 @@ fn an_inline_dump_is_the_one_debug_key_a_request_may_name_and_only_downwards() {
     );
 }
 
-/// `rule:concurrency/deferred-is-bounded-by-two-directives`: the two keys of `[deferred]` are two
-/// classes, and the rule is explicit that they are.
+/// `rule:concurrency/deferred-is-bounded-by-two-directives`: a request may set one key of
+/// `[deferred]` and not the other, and the rule is explicit about it.
 ///
 /// The cap counts request trees a core keeps alive after their responses are on the wire, so it is
 /// what the rule prices a host against — `max_concurrent × [limits.hard]` memory on top of the
@@ -1070,9 +1050,9 @@ fn an_inline_dump_is_the_one_debug_key_a_request_may_name_and_only_downwards() {
 ///
 /// Both are `Reload`: neither is anything a boot created, and a changed value reaches the next
 /// deferred tree by the snapshot being rebuilt. So the block is a pairing that only
-/// `rule:config/reloadability-is-its-own-field`'s two fields can state — one apply class, two
-/// changeability classes — and a case reading either row alone would pass against a registry that
-/// had made both of them the cap's.
+/// `rule:config/reloadability-is-its-own-field` can state — one `apply`, one key settable and one
+/// not — and a case reading either key alone would pass against a list that had made both of them
+/// the cap's.
 // covers: directive:deferred.deadline
 #[test]
 fn a_deferred_deadline_is_a_requests_to_set_while_the_cap_beside_it_is_the_hosts() {
@@ -1092,34 +1072,25 @@ fn a_deferred_deadline_is_a_requests_to_set_while_the_cap_beside_it_is_the_hosts
         deadline.key,
     );
     assert_eq!(
-        deadline.class,
-        Class::Runtime,
+        settable::how("deferred.deadline"),
+        Some(How::UpToCeiling),
         "a call may name its own deadline, so the default it inherits is an ordinary per-request \
-         one rather than a decision the operator keeps",
-    );
-    assert!(
-        deadline.class.settable_by_a_request(),
-        "`Core\\Config::set(\"deferred.deadline\", \"5s\")` is the call the rule describes, and a \
-         class that refused it would leave the per-call value as the only way to shorten anything",
+         one rather than a decision the operator keeps: `Core\\Config::set(\"deferred.deadline\", \
+         \"5s\")` is the call the rule describes",
     );
 
     let cap = governing("deferred.max_concurrent");
     assert_eq!(
-        cap.class,
-        Class::System,
-        "the cap is what the rule prices a host's memory against, so a request that could raise it \
-         would be sizing the machine every other request is running on",
-    );
-    assert!(
-        !cap.class.settable_by_a_request(),
-        "`Core\\Config::set(\"deferred.max_concurrent\", …)` has to refuse: past the cap \
-         `afterResponse` throws, and a request that could move it would be choosing how much of \
-         the core's memory the deferred trees may hold",
+        settable::how("deferred.max_concurrent"),
+        None,
+        "`Core\\Config::set(\"deferred.max_concurrent\", …)` has to refuse: the cap is what the \
+         rule prices a host's memory against, so a request that could raise it would be sizing \
+         the machine every other request is running on",
     );
     assert_ne!(
-        deadline.class, cap.class,
+        deadline.key, cap.key,
         "`[deferred]` is the block `rule:concurrency/deferred-is-bounded-by-two-directives` writes \
-         as two classes, and a registry that had quietly made it one would still answer plausibly \
+         as two rows, and a registry that had quietly made it one would still answer plausibly \
          for either key on its own",
     );
 
@@ -1127,12 +1098,12 @@ fn a_deferred_deadline_is_a_requests_to_set_while_the_cap_beside_it_is_the_hosts
         (deadline.apply, cap.apply),
         (Apply::Reload, Apply::Reload),
         "neither key is anything a boot created, so a changed value reaches the next deferred tree \
-         by the snapshot being rebuilt — one apply class across a block whose changeability splits",
+         by the snapshot being rebuilt — one `apply` across a block whose settability splits",
     );
 
     assert!(
         lookup("deferred").is_none(),
-        "a blanket `deferred` row would govern both halves at once, which is exactly the one class \
+        "a blanket `deferred` row would govern both halves at once, which is exactly the one rule \
          this case exists to say the block does not have",
     );
 }
@@ -1142,8 +1113,8 @@ fn a_deferred_deadline_is_a_requests_to_set_while_the_cap_beside_it_is_the_hosts
 /// product is bounded only while both of its factors are. So this reads the cap against the other
 /// factor rather than against the sibling key beside it, which the case above already pins.
 ///
-/// `[limits]` is `Runtime`, because a request lowering its own ceiling is its own business, and
-/// `[limits.hard]` is the `System` row above it that no request can move. A registry that let go of
+/// A request may set `[limits]`, because a request lowering its own ceiling is its own business,
+/// and `[limits.hard]` is the row above it that no request can move. A registry that let go of
 /// either factor would leave an operator's arithmetic true of nothing: the cap would go on refusing
 /// to be raised while every tree it counts grew underneath it.
 ///
@@ -1160,8 +1131,6 @@ fn a_deferred_deadline_is_a_requests_to_set_while_the_cap_beside_it_is_the_hosts
 fn the_deferred_cap_is_priced_against_a_ceiling_no_request_can_move() {
     let cap = governing("deferred.max_concurrent");
     let ceiling = governing("limits.hard.memory");
-    let per_request = governing("limits.memory");
-
     assert_eq!(
         (cap.key, ceiling.key),
         ("deferred.max_concurrent", "limits.hard"),
@@ -1169,22 +1138,21 @@ fn the_deferred_cap_is_priced_against_a_ceiling_no_request_can_move() {
          other one would mean the ceiling being multiplied is not the ceiling an operator wrote",
     );
     assert_eq!(
-        (cap.class, ceiling.class),
-        (Class::System, Class::System),
-        "both factors of `max_concurrent × [limits.hard]` are the operator's, and a registry that \
+        (
+            settable::how("deferred.max_concurrent"),
+            settable::how("limits.hard.memory")
+        ),
+        (None, None),
+        "both factors of `max_concurrent × [limits.hard]` are the operator's, and a list that \
          let go of either would leave the cap refusing to be raised while every tree it counts \
          grew underneath it",
     );
     assert_eq!(
-        per_request.class,
-        Class::Runtime,
+        settable::how("limits.memory"),
+        Some(How::UpToCeiling),
         "the ceiling a request may move is the soft one, which is the whole reason the product is \
-         written against the hard row and not against `[limits]`",
-    );
-    assert!(
-        per_request.class.settable_by_a_request() && !ceiling.class.settable_by_a_request(),
-        "a request may lower what it is allowed to hold and may not raise what anything else is \
-         allowed to hold — the two halves of `[limits]` that make the cap's arithmetic an operator's",
+         written against the hard row and not against `[limits]` — the two halves of `[limits]` \
+         that make the cap's arithmetic an operator's",
     );
 
     // The units, which is what the multiplication means at all: a count of trees times a size.
@@ -1239,8 +1207,8 @@ fn the_deferred_cap_is_priced_against_a_ceiling_no_request_can_move() {
 }
 
 /// `rule:packaging/extension-loading-is-root-controlled`: an extension is loaded from an
-/// `[[extension]]` entry in the root-owned file and from nowhere else, so the row is `System` — the
-/// class that answers nobody — down to every key of every entry.
+/// `[[extension]]` entry in the root-owned file and from nowhere else, so no request may set any
+/// key of any entry.
 ///
 /// **`Reload` is the half the rule states outright**, and it is not bookkeeping: `Boot` here would
 /// mean an operator could not add, replace or drop an extension without dropping every request in
@@ -1275,20 +1243,16 @@ fn an_extension_entry_carries_its_pin_and_no_part_of_it_is_a_programs() {
         assert_eq!(
             row.key, "extension",
             "`{key}` resolves through `{}` rather than through the one `extension` row, so which \
-             binaries this host loads is no longer one class",
+             binaries this host loads is no longer one row",
             row.key,
         );
         assert_eq!(
-            row.class,
-            Class::System,
-            "`{key}` decides what native code runs inside every request on this host, so it is \
-             the class that answers nobody",
-        );
-        assert!(
-            !row.class.settable_by_a_request(),
-            "`Core\\Config::set(\"{key}\", …)` has to refuse: a project that could cause code to \
-             be loaded is the one thing this rule exists to refuse, and a pin it could write is a \
-             pin it could write to match whatever it put on disk",
+            settable::how(&key),
+            None,
+            "`Core\\Config::set(\"{key}\", …)` has to refuse: `{key}` decides what native code runs \
+             inside every request on this host, a project that could cause code to be loaded is \
+             the one thing this rule exists to refuse, and a pin it could write is a pin it could \
+             write to match whatever it put on disk",
         );
         assert_eq!(
             row.apply,
@@ -1300,9 +1264,9 @@ fn an_extension_entry_carries_its_pin_and_no_part_of_it_is_a_programs() {
 }
 
 /// The one `http` row, read as the *default* answer for the whole `[http.*]` tree rather than as
-/// one more row: `rule:config/three-changeability-classes` names a response header as its
-/// counter-example to `System`, so a request may shape its own response because it could already
-/// have written the header by hand.
+/// one more row: `rule:config/three-changeability-classes` names a response header as a key a
+/// request may set, because the request could already have written the header by hand. The
+/// settable key this case picks is `http.headers.hsts`, a header the blanket row governs.
 ///
 /// What that leaves worth asserting is the **exceptions**, and that they have exactly two grounds.
 /// A key is taken back out of the blanket when it is a secret every request's door reads — the CSRF
@@ -1311,14 +1275,15 @@ fn an_extension_entry_carries_its_pin_and_no_part_of_it_is_a_programs() {
 /// process-wide TLS configuration and proxy. Neither ground is about `[http]` being outbound or
 /// inbound, which is why `[http.client]`'s per-call bounds are still the blanket's.
 ///
-/// So the census runs the other way round from a list of exceptions. Every row under `http` is read
-/// out of the registry and each has to be one of those, and `[http.client]`'s own keys are read out
+/// So the census runs the other way round from a list of exceptions. Every row under `http` that
+/// governs no settable key is read out of the registry and each has to be one of those, and
+/// `[http.client]`'s own keys are read out
 /// of the block: one added to it joins this case in the commit that adds it, and lands either on an
 /// exception or on a bound over the single call the request is making.
 ///
 /// `http.client.socket` is the row that makes this worth asserting at all. It carries a row and
-/// restates the blanket's own answer, so a census reading "a row under `http` means `System`" would
-/// pass against a registry that had quietly made it one.
+/// governs settable keys, as the blanket does, so a census reading "a row under `http` means not
+/// settable" would pass against a list that had quietly made it so.
 // covers: directive:http
 #[test]
 fn the_one_http_row_answers_for_a_response_and_its_exceptions_are_shared_or_secret() {
@@ -1330,8 +1295,13 @@ fn the_one_http_row_answers_for_a_response_and_its_exceptions_are_shared_or_secr
         blanket.key,
     );
     assert_eq!(
-        (blanket.class, blanket.apply),
-        (Class::Runtime, Apply::Reload),
+        governing("http.headers.hsts").key,
+        "http",
+        "the settable key this case picks resolves through the blanket row",
+    );
+    assert_eq!(
+        (settable::how("http.headers.hsts"), blanket.apply),
+        (Some(How::UpToCeiling), Apply::Reload),
         "a handler that wanted another policy could write the header itself, so shaping its own \
          response buys it nothing — and a changed block reaches the next request by the snapshot \
          being rebuilt",
@@ -1339,7 +1309,7 @@ fn the_one_http_row_answers_for_a_response_and_its_exceptions_are_shared_or_secr
 
     let mut carved: Vec<&str> = DIRECTIVES
         .iter()
-        .filter(|row| row.key.starts_with("http.") && row.class != blanket.class)
+        .filter(|row| row.key.starts_with("http.") && !governs_a_settable_key(row))
         .map(|row| row.key)
         .collect();
     carved.sort_unstable();
@@ -1359,10 +1329,9 @@ fn the_one_http_row_answers_for_a_response_and_its_exceptions_are_shared_or_secr
     );
     for key in &carved {
         assert_eq!(
-            governing(key).class,
-            Class::System,
-            "`{key}` is not this request's to choose, and the class that answers nobody is the \
-             only one that says so",
+            settable::how(key),
+            None,
+            "`{key}` is not this request's to choose",
         );
     }
 
@@ -1394,11 +1363,14 @@ fn the_one_http_row_answers_for_a_response_and_its_exceptions_are_shared_or_secr
 
     let socket = governing("http.client.socket");
     assert_eq!(
-        (socket.key, socket.class),
-        ("http.client.socket", Class::Runtime),
-        "the one row under `[http.client]` that is not an exception restates the blanket's answer, \
-         and a census reading a row there as `System` would pass against a registry that had made \
-         it one",
+        (
+            socket.key,
+            settable::how("http.client.socket.max_message")
+        ),
+        ("http.client.socket", Some(How::UpToCeiling)),
+        "the one row under `[http.client]` that is not an exception governs a settable key, as the \
+         blanket does, and a census reading a row there as not settable would pass against a list \
+         that had made it so",
     );
 }
 
@@ -1410,10 +1382,10 @@ fn the_one_http_row_answers_for_a_response_and_its_exceptions_are_shared_or_secr
 /// **The contrast is one segment wide**, which is why the case asserts both sides of it. `[http]` is
 /// the block a request may write — a handler that wanted another policy could write the header itself
 /// — so a lookup that failed to reach this row would not fail loudly. It would land on the blanket
-/// and quietly answer `Runtime` for the key the whole check rests on.
+/// and quietly give the key the whole check rests on the `[http]` block's `apply`.
 ///
 /// **`Reload` rather than `Boot`** because the door reads the standing tree per request, so a rotated
-/// key governs the next request. The pair is asserted together with the class for
+/// key governs the next request. The pair is asserted together with settability for
 /// `rule:config/reloadability-is-its-own-field`'s reason: `Boot` here would read as the cautious
 /// answer for a secret and would mean a deployment that rotated a leaked key went on accepting
 /// tokens minted under it until somebody restarted the server.
@@ -1422,36 +1394,30 @@ fn the_one_http_row_answers_for_a_response_and_its_exceptions_are_shared_or_secr
 fn the_door_key_is_carved_out_of_a_block_a_request_may_otherwise_write() {
     let row = governing("http.csrf_key");
     assert_eq!(
-        (row.key, row.class, row.apply),
-        ("http.csrf_key", Class::System, Apply::Reload),
-        "`http.csrf_key` resolves through `{}` to {:?}/{:?}, and each half of that would be wrong its \
-         own way: `Runtime` hands a request the key every other request is checked against, and \
-         `Boot` leaves a rotated key out of force until a restart",
+        (row.key, row.apply),
+        ("http.csrf_key", Apply::Reload),
+        "`http.csrf_key` resolves through `{}` to {:?}, and `Boot` would leave a rotated key out \
+         of force until a restart",
         row.key,
-        row.class,
         row.apply,
     );
-    assert!(
-        !row.class.settable_by_a_request(),
+    assert_eq!(
+        settable::how("http.csrf_key"),
+        None,
         "`Core\\Config::set(\"http.csrf_key\", …)` has to refuse, in both directions: naming a key \
          mints tokens the door believes and clearing one disarms the check for every co-resident \
          request",
     );
 
     // The blanket the row is carved out of, asserted beside it because the two answers are one
-    // segment apart and the near miss lands on this one rather than on nothing.
-    let blanket = governing("http.cookies.samesite");
+    // segment apart and the near miss lands on this one rather than on nothing. Its settable key
+    // here is `http.cookies.same_site`.
+    let blanket = governing("http.cookies.same_site");
     assert_eq!(
-        (blanket.key, blanket.class),
-        ("http", Class::Runtime),
-        "the block the key sits in is the request's own, so the carve-out is the whole of what keeps \
-         it out of reach — a lookup that missed it would answer {:?} instead of failing",
-        blanket.class,
-    );
-    assert!(
-        blanket.class.settable_by_a_request(),
-        "`[http]` is settable by design (`rule:config/three-changeability-classes`), which is what \
-         makes the row above load-bearing rather than a restatement",
+        (blanket.key, settable::how("http.cookies.same_site")),
+        ("http", Some(How::UpToCeiling)),
+        "the block the key sits in is the request's own (`rule:config/three-changeability-classes`), \
+         so the carve-out is the whole of what keeps it out of reach",
     );
 
     // A key written *beneath* the carve-out stays inside it, and a key that merely begins with its
@@ -1476,8 +1442,8 @@ fn the_door_key_is_carved_out_of_a_block_a_request_may_otherwise_write() {
 /// The `_file` spelling of the key above, and the one thing this case exists to pin: two spellings of
 /// one value answer the same way. `rule:config/a-secret-is-a-file-whose-content-is-the-value` makes
 /// the file half the spelling an audited deployment writes, and exactly one of the pair may be set —
-/// so a registry that answered `Runtime` for this one would hand a request the door's key through the
-/// half an operator was told to prefer.
+/// so a list that made this one settable would hand a request the door's key through the half an
+/// operator was told to prefer.
 ///
 /// It carries a **row of its own** rather than inheriting the inline one's, because a prefix is
 /// segments and not text: `http.csrf_key_file` is not beneath `http.csrf_key`, and without the row it
@@ -1494,31 +1460,31 @@ fn the_file_half_of_the_door_key_answers_exactly_as_the_inline_half_does() {
     let inline = governing("http.csrf_key");
     let file = governing("http.csrf_key_file");
     assert_eq!(
-        (file.key, file.class, file.apply),
-        ("http.csrf_key_file", Class::System, Apply::Reload),
+        (file.key, settable::how(file.key), file.apply),
+        ("http.csrf_key_file", None, Apply::Reload),
         "`http.csrf_key_file` resolves through `{}`, and a row of its own is what it needs: the \
          inline key is not a prefix of it, so nothing else would keep it out of `[http]`",
         file.key,
     );
 
-    let mut siblings: Vec<(&str, Class, Apply)> = DIRECTIVES
+    let mut siblings: Vec<(&str, Option<How>, Apply)> = DIRECTIVES
         .iter()
         .filter(|row| row.key.ends_with("_file"))
-        .map(|row| (row.key, row.class, row.apply))
+        .map(|row| (row.key, settable::how(row.key), row.apply))
         .collect();
     siblings.sort_unstable_by_key(|(key, _, _)| *key);
     assert_eq!(
         siblings,
         [
-            ("debug.tls_cert_file", Class::System, Apply::Boot),
-            ("debug.tls_key_file", Class::System, Apply::Boot),
-            ("debug.token_file", Class::System, Apply::Boot),
-            ("http.csrf_key_file", Class::System, Apply::Reload),
+            ("debug.tls_cert_file", None, Apply::Boot),
+            ("debug.tls_key_file", None, Apply::Boot),
+            ("debug.token_file", None, Apply::Boot),
+            ("http.csrf_key_file", None, Apply::Reload),
         ],
         "a `_file` row added to the registry joins this census in the commit that adds it, and the \
          one it has to match is its own inline half",
     );
-    for (key, class, apply) in siblings {
+    for (key, how, apply) in siblings {
         let stem = lookup(key.trim_end_matches("_file"));
         if key.starts_with("debug.") {
             assert!(
@@ -1529,8 +1495,8 @@ fn the_file_half_of_the_door_key_answers_exactly_as_the_inline_half_does() {
         }
         let stem = governing(key.trim_end_matches("_file"));
         assert_eq!(
-            (class, apply),
-            (stem.class, stem.apply),
+            (how, apply),
+            (settable::how(stem.key), stem.apply),
             "`{key}` and `{}` are two spellings of one value, so a difference here is a second \
              answer to who may write it — and the file half is the one an audited deployment was \
              told to use",
@@ -1538,14 +1504,14 @@ fn the_file_half_of_the_door_key_answers_exactly_as_the_inline_half_does() {
         );
     }
     assert!(
-        !file.class.settable_by_a_request() && !inline.class.settable_by_a_request(),
+        settable::how(file.key).is_none() && settable::how(inline.key).is_none(),
         "neither spelling is a request's, and asserting the pair together is the point: one of them \
          settable is the whole refusal gone",
     );
 }
 
 /// `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`'s first cap, read
-/// for its **ground** rather than for its class: the pool is per core, so the count bounds a core's
+/// for its **ground** rather than for its settability: the pool is per core, so the count bounds a core's
 /// memory and not a request's, and that is the only reason it is not the blanket row's.
 ///
 /// The case is written as a contrast inside one block, because the wrong ground is the one a reader
@@ -1555,8 +1521,8 @@ fn the_file_half_of_the_door_key_answers_exactly_as_the_inline_half_does() {
 /// them — each bounds the single call that request is making and spends nothing anyone else then
 /// goes without. So the census asserts both sides of the line at once.
 ///
-/// **A near miss under the cap is the half that would go unnoticed.** The blanket row is `Runtime`,
-/// so a lookup that did not reach `http.client.pool_idle` from a key written beneath it would not
+/// **A near miss under the cap is the half that would go unnoticed.** The blanket row governs
+/// settable keys, so a lookup that did not reach `http.client.pool_idle` from a key written beneath it would not
 /// fall through to nothing and fail loudly — it would land on `http` and quietly become a spelling
 /// a request may set, next door to a cap on memory it shares with every co-resident request.
 // covers: directive:http.client.pool_idle
@@ -1564,14 +1530,15 @@ fn the_file_half_of_the_door_key_answers_exactly_as_the_inline_half_does() {
 fn the_outbound_pools_count_is_the_operators_because_a_core_holds_it_not_a_request() {
     let cap = governing("http.client.pool_idle");
     assert_eq!(
-        (cap.key, cap.class, cap.apply),
-        ("http.client.pool_idle", Class::System, Apply::Reload),
+        (cap.key, cap.apply),
+        ("http.client.pool_idle", Apply::Reload),
         "the count of idle connections one core keeps is carved out of the `http` blanket by a row \
          of its own, and `Reload` because the caps are read when a call asks the pool for a \
          connection, so a changed value bounds the next one",
     );
-    assert!(
-        !cap.class.settable_by_a_request(),
+    assert_eq!(
+        settable::how("http.client.pool_idle"),
+        None,
         "`Core\\Config::set(\"http.client.pool_idle\", …)` has to refuse: the connections are the \
          core's and outlive the request that opened them, so a request raising the count would be \
          spending memory every co-resident request then goes without",
@@ -1590,16 +1557,16 @@ fn the_outbound_pools_count_is_the_operators_because_a_core_holds_it_not_a_reque
         let dotted = format!("http.client.{per_call}");
         let row = governing(&dotted);
         assert_eq!(
-            (row.key, row.class),
-            ("http", Class::Runtime),
-            "`{dotted}` resolves through `{}` to {:?}, and it bounds the single call this request \
-             is making — the ground for the pool's caps is whose memory is held, not which block \
-             the key is written in",
             row.key,
-            row.class,
+            "http",
+            "`{dotted}` resolves through `{}`, and it bounds the single call this request is \
+             making — the ground for the pool's caps is whose memory is held, not which block the \
+             key is written in",
+            row.key,
         );
-        assert!(
-            row.class.settable_by_a_request(),
+        assert_eq!(
+            settable::how(&dotted),
+            Some(How::UpToCeiling),
             "a program that knows its own upstream names `{dotted}` at the call site, so a \
              registry refusing it would refuse nothing and cost the caller the one spelling that \
              is genuinely theirs",
@@ -1607,7 +1574,7 @@ fn the_outbound_pools_count_is_the_operators_because_a_core_holds_it_not_a_reque
     }
 
     // A key invented beneath the cap. `deferred.max_concurrent`'s case asks this against a block
-    // with no blanket row at all, where a miss reaches nothing; here a miss reaches `Runtime`.
+    // with no blanket row at all, where a miss reaches nothing; here a miss reaches `http`.
     for beneath in [
         "http.client.pool_idle.max",
         "http.client.pool_idle.default",
@@ -1615,21 +1582,20 @@ fn the_outbound_pools_count_is_the_operators_because_a_core_holds_it_not_a_reque
     ] {
         let row = governing(beneath);
         assert_eq!(
-            (row.key, row.class),
-            ("http.client.pool_idle", Class::System),
-            "`{beneath}` resolves through `{}` to {:?} — a spelling nobody audited fell through to \
-             the blanket row, so a cap on a core's memory has a request-settable name sitting \
+            (row.key, settable::how(beneath)),
+            ("http.client.pool_idle", None),
+            "`{beneath}` resolves through `{}` — a spelling nobody audited fell through to the \
+             blanket row, so a cap on a core's memory has a request-settable name sitting \
              underneath it",
             row.key,
-            row.class,
         );
     }
 }
 
 /// The pool's other cap, and the case is that it is a **second row** rather than the first one's
 /// suffix. `http.client.pool_idle` is a plain string prefix of `http.client.pool_idle_timeout`, so
-/// a registry that resolved by text rather than on dot boundaries would answer `System` for the
-/// timeout with no row for it at all — the right answer for the wrong reason, which no other
+/// a registry that resolved by text rather than on dot boundaries would give the timeout the
+/// count's row with no row for it at all — the right answer for the wrong reason, which no other
 /// assertion in this file would notice.
 ///
 /// What the second row buys is what deleting it would cost:
@@ -1637,7 +1603,7 @@ fn the_outbound_pools_count_is_the_operators_because_a_core_holds_it_not_a_reque
 /// with a count *and* a duration because neither is a bound on its own — under the count alone a
 /// connection the far end retired hours ago is still one of the sixteen a core holds, and a request
 /// able to move the duration would hold every one of them open for as long as it liked. The
-/// registry's half of that is one class for both halves, and the dot-boundary lookup is what keeps
+/// registry's half of that is that a request may set neither half, and the dot-boundary lookup is what keeps
 /// the second half from inheriting its answer.
 // covers: directive:http.client.pool_idle_timeout
 #[test]
@@ -1645,18 +1611,15 @@ fn the_pools_timeout_is_its_own_row_and_not_the_counts_suffix() {
     let cap = governing("http.client.pool_idle");
     let timeout = governing("http.client.pool_idle_timeout");
     assert_eq!(
-        (timeout.key, timeout.class, timeout.apply),
-        (
-            "http.client.pool_idle_timeout",
-            Class::System,
-            Apply::Reload
-        ),
+        (timeout.key, timeout.apply),
+        ("http.client.pool_idle_timeout", Apply::Reload),
         "the timeout resolves through `{}`, so how long a core may hold a dead connection open is \
          answered by a row that is not about it",
         timeout.key,
     );
-    assert!(
-        !timeout.class.settable_by_a_request(),
+    assert_eq!(
+        settable::how("http.client.pool_idle_timeout"),
+        None,
         "a request that could raise the timeout would keep every idle connection this core holds \
          open for as long as it liked, which is the count's memory spent over a window the count \
          says nothing about",
@@ -1668,12 +1631,12 @@ fn the_pools_timeout_is_its_own_row_and_not_the_counts_suffix() {
     // load-bearing rather than a longer spelling of the first.
     let near_miss = governing("http.client.pool_idlex");
     assert_eq!(
-        (near_miss.key, near_miss.class),
-        ("http", Class::Runtime),
+        near_miss.key,
+        "http",
         "`http.client.pool_idlex` resolves through `{}`, so the registry matches a row by text \
          rather than on dot boundaries — under which the count would govern the timeout, the \
          second row could be deleted with nothing failing, and a key nobody wrote would inherit a \
-         cap's class",
+         cap's row",
         near_miss.key,
     );
 
@@ -1707,7 +1670,7 @@ fn the_pools_timeout_is_its_own_row_and_not_the_counts_suffix() {
 }
 
 /// `rule:security/one-tls-client`: there is one TLS client in the process and `[http.client.tls]` is
-/// what settles it, so every key of the block is `System` — a request writing one would be choosing
+/// what settles it, so no key of the block is settable — a request writing one would be choosing
 /// whose certificates every co-resident request believes.
 ///
 /// The block is `Reload`: a reload builds the new client before it publishes and installs it after
@@ -1719,7 +1682,7 @@ fn the_pools_timeout_is_its_own_row_and_not_the_counts_suffix() {
 ///
 /// The keys are read back out of the block rather than listed, so one added to `[http.client.tls]`
 /// joins this census in the commit that adds it — and `keylog` is in it, which matters: the file it
-/// names decrypts everything this deployment sends, and `Runtime` for that one key would put the
+/// names decrypts everything this deployment sends, and making that one key settable would put the
 /// whole of it inside a request's reach.
 // covers: directive:http.client.tls
 #[test]
@@ -1737,17 +1700,16 @@ fn every_key_of_the_tls_block_is_the_deployments_and_reaches_the_next_connection
     for key in asked {
         let row = governing(&key);
         assert_eq!(
-            (row.key, row.class, row.apply),
-            ("http.client.tls", Class::System, Apply::Reload),
-            "`{key}` resolves through `{}` to {:?}/{:?}, and one of those two being wrong is a \
-             different failure: `Runtime` would hand a request the trust list, and `Boot` would \
-             hold a changed anchor set back until a restart the client does not need",
+            (row.key, row.apply),
+            ("http.client.tls", Apply::Reload),
+            "`{key}` resolves through `{}` to {:?}, and `Boot` would hold a changed anchor set back \
+             until a restart the client does not need",
             row.key,
-            row.class,
             row.apply,
         );
-        assert!(
-            !row.class.settable_by_a_request(),
+        assert_eq!(
+            settable::how(&key),
+            None,
             "`Core\\Config::set(\"{key}\", …)` has to refuse, and there is no code-side spelling to \
              refuse it in favour of: `rule:security/one-tls-client` leaves whose certificates are \
              believed to the deployment alone",
@@ -1770,21 +1732,21 @@ fn every_key_of_the_tls_block_is_the_deployments_and_reaches_the_next_connection
 }
 
 /// `rule:http-server/an-outbound-proxy-is-operator-configured`: a call leaves through a forward
-/// proxy when an operator wrote `[http.client.proxy]` and never otherwise, so the block is `System`
-/// down to every key of it.
+/// proxy when an operator wrote `[http.client.proxy]` and never otherwise, so no key of the block
+/// is settable.
 ///
 /// **The ground is not the pool's**, which is what makes this worth a case beside the two above.
-/// The caps are `System` because they bound a core's memory; this block is `System` because where
+/// The caps are not settable because they bound a core's memory; this block is not because where
 /// every outbound byte goes is a deployment's decision, and a per-call spelling would be a per-call
 /// way to narrow `rule:security/net-address-policy` — the widening that rule exists to refuse. A
 /// registry reading one ground off the other would be right today and wrong the moment a key
 /// arrives that costs no memory at all: `bypass` and `resolve` hold nothing per core.
 ///
-/// **`Reload`, as the block beside it is.** `[http.client.tls]` is the other `System` exception
-/// under `[http.client]`, and both reach the next call by the same means: the next call reads the
-/// block or the client built from it, and the pool's key carries the proxy and the client, so
-/// nothing the old value made can serve one. The pair is asserted together because they share the
-/// class and the apply for two different reasons.
+/// **`Reload`, as the block beside it is.** `[http.client.tls]` is the other exception under
+/// `[http.client]` that no request may set, and both reach the next call by the same means: the
+/// next call reads the block or the client built from it, and the pool's key carries the proxy and
+/// the client, so nothing the old value made can serve one. The pair is asserted together because
+/// they share settability and the apply for two different reasons.
 ///
 /// The keys are read back out of the block rather than listed, so one added to `[http.client.proxy]`
 /// joins this census in the commit that adds it — including a secret's `_file` sibling, which is the
@@ -1814,30 +1776,31 @@ fn every_key_of_the_proxy_block_is_the_deployments_and_reaches_the_next_call() {
     for key in asked {
         let row = governing(&key);
         assert_eq!(
-            (row.key, row.class, row.apply),
-            ("http.client.proxy", Class::System, Apply::Reload),
-            "`{key}` resolves through `{}` to {:?}/{:?}, and every key of this block answers one \
+            (row.key, row.apply),
+            ("http.client.proxy", Apply::Reload),
+            "`{key}` resolves through `{}` to {:?}, and every key of this block answers one \
              question — where this deployment's outbound bytes go — so a key answering it a second \
              way is a second place a call could be steered from",
             row.key,
-            row.class,
             row.apply,
         );
-        assert!(
-            !row.class.settable_by_a_request(),
+        assert_eq!(
+            settable::how(&key),
+            None,
             "`Core\\Config::set(\"{key}\", …)` has to refuse: a per-call proxy is a per-call way \
              to choose who resolves the destination, which is a per-call way to narrow \
              `rule:security/net-address-policy`",
         );
     }
 
-    // The block beside it, which shares the class and the apply.
+    // The block beside it, which shares settability and the apply.
     let tls = governing("http.client.tls.roots");
     assert_eq!(
-        (tls.key, tls.class, tls.apply),
-        ("http.client.tls", Class::System, Apply::Reload),
+        (tls.key, settable::how("http.client.tls.roots"), tls.apply),
+        ("http.client.tls", None, Apply::Reload),
         "`[http.client.tls]` settles the one client the process shares, and a reload installs a new \
-         one — the proxy is the same class for a different reason and reaches the next call too",
+         one — the proxy is not settable either, for a different reason, and reaches the next call \
+         too",
     );
 }
 
@@ -1846,10 +1809,9 @@ fn every_key_of_the_proxy_block_is_the_deployments_and_reaches_the_next_call() {
 /// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap` puts
 /// `max_message` and `send_timeout` on `[http.client] deadline`'s footing: each bounds one call, a
 /// program that knows its own peer names its own value at the call site, and neither is a resource
-/// one request could spend on another's behalf. The `http` blanket already answers `Runtime` for
-/// them, so the row restates an answer the registry would give anyway — which is the point. It sits
-/// after three `System` blocks, and a block in that position is where the next reader assumes the
-/// exception carries on.
+/// one request could spend on another's behalf, so `SETTABLE` lists both. The row has the same
+/// `apply` as the `http` blanket — which is the point. It sits after three blocks no request may
+/// set, and a block in that position is where the next reader assumes the exception carries on.
 ///
 /// So the sweep is over `[http.client]`'s sub-blocks rather than over this one alone: of the three
 /// that carry a row, exactly one is settable by a request, and the case reads that out of the
@@ -1870,18 +1832,19 @@ fn the_socket_block_is_the_one_under_http_client_a_request_may_still_set() {
         let dotted = format!("http.client.socket.{key}");
         let row = governing(&dotted);
         assert_eq!(
-            (row.key, row.class, row.apply),
-            ("http.client.socket", Class::Runtime, Apply::Reload),
-            "`{dotted}` resolves through `{}` to {:?}, and a bound over one call is that call's to \
-             name — a row here reading `System` would refuse a program the one spelling the rule \
-             gives it, `maxMessage` and `sendTimeout` at the call site",
+            (row.key, row.apply),
+            ("http.client.socket", Apply::Reload),
+            "`{dotted}` resolves through `{}` to {:?}",
             row.key,
-            row.class,
+            row.apply,
         );
-        assert!(
-            row.class.settable_by_a_request(),
-            "`{dotted}` is what a program that knows its own peer writes for itself, and neither \
-             value is held past the socket it was written for",
+        assert_eq!(
+            settable::how(&dotted),
+            Some(How::UpToCeiling),
+            "a bound over one call is that call's to name — `{dotted}` not settable would refuse a \
+             program the one spelling the rule gives it, `maxMessage` and `sendTimeout` at the call \
+             site: `{dotted}` is what a program that knows its own peer writes for itself, and \
+             neither value is held past the socket it was written for",
         );
     }
 
@@ -1891,7 +1854,7 @@ fn the_socket_block_is_the_one_under_http_client_a_request_may_still_set() {
     let mut carved: Vec<(&str, bool)> = DIRECTIVES
         .iter()
         .filter(|row| row.key.starts_with("http.client."))
-        .map(|row| (row.key, row.class.settable_by_a_request()))
+        .map(|row| (row.key, governs_a_settable_key(row)))
         .collect();
     carved.sort_unstable();
     assert_eq!(
@@ -1904,35 +1867,43 @@ fn the_socket_block_is_the_one_under_http_client_a_request_may_still_set() {
             ("http.client.tls", false),
         ],
         "of the rows carved under `[http.client]`, exactly one is still the request's — and it is \
-         the last of them, which is why it carries a row restating an answer the blanket already \
-         gives rather than letting a reader carry four exceptions on to a fifth",
+         the last of them, which is why it carries a row of its own rather than letting a reader \
+         carry four exceptions on to a fifth",
     );
 }
 
-/// `rule:config/three-changeability-classes` names a response header as its counter-example to `System`, and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s policy
-/// blocks are what that names: a request may set any of them for itself, because it could already
-/// write the header directly. The registry states that as the one `http` row covering the whole
-/// block, so the claim holds only through the longest-prefix rule — a later, more specific row
-/// under `[http]` would take a key back out of `Runtime` without failing anything else here.
+/// `rule:config/three-changeability-classes` names a response header as a key a request may set,
+/// and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s policy blocks are what that
+/// names: a request may set any of them for itself, because it could already write the header
+/// directly. `SETTABLE` lists each of them. The exceptions are `[http.cors]`'s `methods`, `headers`
+/// and `max_age`: they shape only a preflight, which is answered before any program runs, so no
+/// request may set them.
 ///
-/// The keys come from `keys_in`, so this asserts the class **every** key of those blocks resolves
-/// to rather than the class of the ones somebody listed.
+/// The keys come from `keys_in`, so this asserts **every** key of those blocks rather than the ones
+/// somebody listed, and a key added to one of the blocks needs a decision here.
 #[test]
-fn every_http_response_directive_is_runtime_class() {
+fn every_http_response_directive_is_settable_and_the_preflight_ones_are_not() {
     // `rule:http-server/secure-headers-with-nothing-written`, `rule:http-server/cors-is-closed-until-origins-are-named` and `rule:http-server/cookies-are-secure-httponly-and-lax`, the blocks a *response* reads. `[http.client]` (`rule:http-server/no-spelling-for-an-unbounded-wait`) is the outbound
     // half and `[http.errors]` is `rule:errors/compile-failure`'s, so neither is this case's question.
     for block in ["http.headers", "http.cors", "http.cookies"] {
         for key in keys_in(block) {
             let dotted = format!("{block}.{key}");
             let row = governing(&dotted);
+            let preflight =
+                block == "http.cors" && ["methods", "headers", "max_age"].contains(&key.as_str());
+            let expected = if preflight {
+                None
+            } else {
+                Some(How::UpToCeiling)
+            };
             assert_eq!(
-                row.class,
-                Class::Runtime,
-                "`{dotted}` resolves through `{}` to {:?}, and `rule:config/three-changeability-classes` makes a response policy \
-                 directive `Runtime`: refusing it would refuse nothing, because the request can \
-                 write the header itself",
+                settable::how(&dotted),
+                expected,
+                "`{dotted}` resolves through `{}`, and `rule:config/three-changeability-classes` \
+                 makes a response policy directive settable: refusing it would refuse nothing, \
+                 because the request can write the header itself. A preflight key is the \
+                 exception, because no program runs before the preflight is answered",
                 row.key,
-                row.class,
             );
             assert_eq!(
                 row.apply,
@@ -1961,31 +1932,30 @@ fn socket_refusal(written: &str) -> Option<Code> {
 }
 
 /// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap`: the one
-/// block inside `[http.client]` that is not a `System` exception, and the one whose keys have no
-/// spelling for removing themselves.
+/// block inside `[http.client]` that a request may set, and the one whose keys have no spelling
+/// for removing themselves.
 ///
-/// Both halves in one case because either alone reads as the whole claim and is not. A `Runtime`
+/// Both halves in one case because either alone reads as the whole claim and is not. A settable
 /// key an operator may write as `false` hands a *request* a bound with nothing in it, which is
 /// `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` reached the long way round; a
-/// bounded key that resolved to `System` is a program that cannot name the message size it knows
-/// its own peer sends, which is the whole reason the block is not in `[http.client.tls]`'s company.
+/// bounded key that was not settable is a program that cannot name the message size it knows its
+/// own peer sends, which is the whole reason the block is not in `[http.client.tls]`'s company.
 ///
-/// The keys come from `keys_in`, so the class half is asserted of **every** key the block accepts,
-/// and the bounds half is counted rather than read off a line: a check that grew a hole still
-/// answers plausibly for every value that is not in it.
+/// The keys come from `keys_in`, so the settable half is asserted of **every** key the block
+/// accepts, and the bounds half is counted rather than read off a line: a check that grew a hole
+/// still answers plausibly for every value that is not in it.
 #[test]
-fn http_client_socket_max_message_and_send_timeout_are_bounded_and_runtime_class() {
+fn http_client_socket_max_message_and_send_timeout_are_bounded_and_settable() {
     for key in keys_in("http.client.socket") {
         let dotted = format!("http.client.socket.{key}");
         let row = governing(&dotted);
         assert_eq!(
-            row.class,
-            Class::Runtime,
-            "`{dotted}` resolves through `{}` to {:?}, and each of this block's keys bounds one \
-             call the way `[http.client] deadline` does — a program that knows its own peer names \
-             its own value at the call site, and spends nothing another request then goes without",
+            settable::how(&dotted),
+            Some(How::UpToCeiling),
+            "`{dotted}` resolves through `{}`, and each of this block's keys bounds one call the \
+             way `[http.client] deadline` does — a program that knows its own peer names its own \
+             value at the call site, and spends nothing another request then goes without",
             row.key,
-            row.class,
         );
         assert_eq!(
             row.apply,
@@ -2079,12 +2049,13 @@ fn every_queue_key_reloads() {
     }
 }
 
-/// `rule:core-classes/queue-storage-is-a-table` puts the jobs in a connection the operator names, so every key of the block is
-/// `System`: work a request could redirect is work a request could redirect into a database it was
-/// never granted. Asked of the *rows* rather than of a list of keys, so a fifth row added under
-/// `[queue]` at any class fails here as well.
+/// `rule:core-classes/queue-storage-is-a-table` puts the jobs in a connection the operator names, so
+/// no key of the block is settable: work a request could redirect is work a request could redirect
+/// into a database it was never granted. Asked of the *rows* rather than of a list of keys, so a
+/// fifth row added under `[queue]` fails here as well, and of `SETTABLE`, so a `queue` key added
+/// there fails too.
 #[test]
-fn every_queue_row_is_system_class() {
+fn every_queue_row_is_not_settable() {
     let rows: Vec<&Directive> = DIRECTIVES
         .iter()
         .filter(|row| row.key == "queue" || row.key.starts_with("queue."))
@@ -2096,14 +2067,13 @@ fn every_queue_row_is_system_class() {
     );
 
     for row in rows {
-        assert_eq!(
-            row.class,
-            Class::System,
-            "`{}` is `System` — only the operator may move the queue \
+        assert!(
+            !governs_a_settable_key(row),
+            "`{}` is not settable — only the operator may move the queue \
              (`rule:core-classes/queue-storage-is-a-table`)",
             row.key,
         );
-        assert!(!row.class.settable_by_a_request());
+        assert_eq!(settable::how(row.key), None);
     }
 }
 
@@ -2497,14 +2467,14 @@ fn no_key_with_a_reader_still_claims_to_be_unread() {
 
 /// `rule:config/include-takes-a-path-or-a-dir` gives an entry its key set, and
 /// `rule:config/any-file-in-the-tree-may-set-any-directive` lets an included file say anything the
-/// root file can — so the whole array of tables is one `System` row and every key of an entry has
-/// to resolve through it. The failure this stands in the way of is a `path` or a `dir` that
+/// root file can — so the whole array of tables is one row no request may set, and every key of an
+/// entry has to resolve through it. The failure this stands in the way of is a `path` or a `dir` that
 /// `Core\Config::set` answers for want of a row: a request naming a file the server reads its
 /// directives out of has chosen every capability grant and every ceiling in it, out of a file no
 /// account ever had to own in order to write.
 // covers: directive:include
 #[test]
-fn every_key_of_an_include_entry_resolves_through_the_one_system_row() {
+fn every_key_of_an_include_entry_resolves_through_the_one_include_row() {
     let keys = keys_listed("[[include]]\nnvs_no_such_key = true\n");
     assert_eq!(
         keys.iter().map(String::as_str).collect::<Vec<_>>(),
@@ -2518,15 +2488,16 @@ fn every_key_of_an_include_entry_resolves_through_the_one_system_row() {
     for key in asked {
         let row = governing(&key);
         assert_eq!(
-            (row.key, row.class, row.apply),
-            ("include", Class::System, Apply::Reload),
+            (row.key, row.apply),
+            ("include", Apply::Reload),
             "`{key}` resolves through `{}`, and the `include` row is the only one that may answer \
-             for it: `Runtime` would hand a request the whole configuration, and `Boot` would say \
-             a file dropped into a `dir` entry needs a restart when the next reload reads it",
+             for it: `Boot` would say a file dropped into a `dir` entry needs a restart when the \
+             next reload reads it",
             row.key,
         );
-        assert!(
-            !row.class.settable_by_a_request(),
+        assert_eq!(
+            settable::how(&key),
+            None,
             "`Core\\Config::set(\"{key}\", …)` has to refuse — an include is trusted because \
              whoever wrote it cleared `rule:config/ownership-is-the-trust-boundary`, and a request \
              clears nothing",
@@ -2535,25 +2506,24 @@ fn every_key_of_an_include_entry_resolves_through_the_one_system_row() {
 }
 
 /// `rule:core-classes/temporary-dir-sweep` rests the whole safety of its two sweeps on the runtime
-/// owning the temporary root outright, so the root is the operator's (`System`). A new one reloads
+/// owning the temporary root outright, so the root is the operator's (not settable). A new one reloads
 /// (`Reload`): the next temporary directory is made under it, and a directory made under the old
 /// one is deleted by path when its script ends. Asserted beside `[debug] keep_temporary`, which is
 /// the other way to the same place: a program able to exempt its own directories from the sweep
 /// can be made to hoard them. The block carries exactly one row, so the second half of this is
 /// that nothing blankets `[io]`: a key added there is refused for want of a row rather than
-/// inheriting this one's class.
+/// inheriting this one's `apply`.
 // covers: directive:io.temp_root
 #[test]
 fn the_temporary_root_is_the_operators_and_a_new_one_applies_to_the_next_directory() {
     let root = governing("io.temp_root");
     assert_eq!(
-        (root.key, root.class, root.apply),
-        ("io.temp_root", Class::System, Apply::Reload),
-        "`io.temp_root` resolves through `{}` to {:?}/{:?}, and each half being wrong is its own \
-         failure: `Runtime` would let a request choose where every other request's scratch files \
-         land, and `Boot` would keep a root the operator moved",
+        (root.key, settable::how("io.temp_root"), root.apply),
+        ("io.temp_root", None, Apply::Reload),
+        "`io.temp_root` resolves through `{}` to {:?}, and each half being wrong is its own \
+         failure: a settable root would let a request choose where every other request's scratch \
+         files land, and `Boot` would keep a root the operator moved",
         root.key,
-        root.class,
         root.apply,
     );
 
@@ -2561,22 +2531,23 @@ fn the_temporary_root_is_the_operators_and_a_new_one_applies_to_the_next_directo
         assert!(
             lookup(absent).is_none(),
             "`{absent}` is governed by a row, so something blankets `[io]` — a second key in that \
-             block has to be refused for want of a row rather than inheriting the root's class",
+             block has to be refused for want of a row rather than inheriting the root's",
         );
     }
 
     let keep = governing("debug.keep_temporary");
     assert_eq!(
-        (keep.key, keep.class),
-        ("debug.keep_temporary", Class::System),
-        "`{}` governs the key that turns the per-script sweep off, and it is the same class as the \
-         root for the same reason — both are the operator deciding what happens to scratch files \
-         that are not the program's to decide about",
+        keep.key,
+        "debug.keep_temporary",
+        "`{}` governs the key that turns the per-script sweep off, and it is not settable, as the \
+         root is not, for the same reason — both are the operator deciding what happens to scratch \
+         files that are not the program's to decide about",
         keep.key,
     );
     for row in [root, keep] {
-        assert!(
-            !row.class.settable_by_a_request(),
+        assert_eq!(
+            settable::how(row.key),
+            None,
             "`Core\\Config::set(\"{}\", …)` has to refuse: `rule:core-classes/temporary-dir-sweep` \
              says there is no in-language setter for either half of this, because a program that \
              can exempt its own files can be made to hoard them",
@@ -2586,44 +2557,48 @@ fn the_temporary_root_is_the_operators_and_a_new_one_applies_to_the_next_directo
 }
 
 /// `rule:config/three-changeability-classes`: `[limits]` is the block a request *may* write, and the
-/// whole of its safety is that `[limits.hard]` holds the same key names under a different class.
-/// Pinned as the pair, because either row alone still reads right — a `[limits]` gone `System` takes
-/// away the per-request default the block exists to be, and a `[limits.hard]` gone `Runtime` lets a
+/// whole of its safety is that `[limits.hard]` has the same key names and no request may set them.
+/// Pinned as the pair, because either alone still reads right — a `[limits]` no request may set
+/// takes away the per-request default the block exists to be, and a settable `[limits.hard]` lets a
 /// request raise the ceiling it is being bounded by. The sweep underneath is what a new key lands
-/// on: every key of the block that no row carves out has to reach the `Runtime` row, and every row
-/// that does carve one out has to be a class a request cannot write.
+/// on: every key of the block that no row carves out has to reach the `limits` row and be
+/// settable, and every row that does carve one out has to govern no settable key.
 // covers: directive:limits
 #[test]
 fn the_default_limits_are_the_requests_and_everything_carved_out_of_them_is_not() {
     let soft = governing("limits.memory");
     assert_eq!(
-        (soft.key, soft.class, soft.apply),
-        ("limits", Class::Runtime, Apply::Reload),
-        "`limits.memory` resolves through `{}`, and it has to be the `limits` row at `Runtime`: \
-         this block is the per-request default a program lowers for itself, which is the one thing \
+        (soft.key, soft.apply),
+        ("limits", Apply::Reload),
+        "`limits.memory` resolves through `{}`, and it has to be the `limits` row: this block is \
+         the per-request default a program lowers for itself, which is the one thing \
          `rule:config/three-changeability-classes` names it as",
         soft.key,
     );
     let hard = governing("limits.hard.memory");
     assert_eq!(
-        (hard.key, hard.class, hard.apply),
-        ("limits.hard", Class::System, Apply::Reload),
+        (hard.key, hard.apply),
+        ("limits.hard", Apply::Reload),
         "`limits.hard.memory` resolves through `{}`, and the longest-row lookup is the only thing \
-         keeping it off the `Runtime` row above — a request that reached that row would be raising \
-         the ceiling it is bounded by, one key name apart from lowering its own default",
+         keeping it off the `limits` row above",
         hard.key,
     );
-    assert!(
-        soft.class.settable_by_a_request() && !hard.class.settable_by_a_request(),
+    assert_eq!(
+        (
+            settable::how("limits.memory"),
+            settable::how("limits.hard.memory")
+        ),
+        (Some(How::UpToCeiling), None),
         "the pair answers the same way to `Core\\Config::set`, so the two halves of `[limits]` have \
-         collapsed into one class and the block is either a ceiling nobody can use or a ceiling \
-         anybody can move",
+         collapsed into one and the block is either a ceiling nobody can use or a ceiling anybody \
+         can move: a request that could set the hard key would be raising the ceiling it is \
+         bounded by",
     );
 
-    let carved: BTreeMap<&str, Class> = DIRECTIVES
+    let carved: BTreeMap<&str, bool> = DIRECTIVES
         .iter()
         .filter(|row| row.key.starts_with("limits."))
-        .map(|row| (row.key, row.class))
+        .map(|row| (row.key, governs_a_settable_key(row)))
         .collect();
     assert!(
         carved.len() > 1,
@@ -2631,11 +2606,11 @@ fn the_default_limits_are_the_requests_and_everything_carved_out_of_them_is_not(
          `rule:errors/on-limit` puts in the operator's hands have gone back to being a request's",
         carved.keys().collect::<Vec<_>>(),
     );
-    for (key, class) in &carved {
+    for (key, governs_settable) in &carved {
         assert!(
-            !class.settable_by_a_request(),
-            "`{key}` is carved out of `[limits]` at {class:?}, which a request can write — a row \
-             here exists to take a key *away* from the block's `Runtime` blanket, so a settable \
+            !governs_settable,
+            "`{key}` is carved out of `[limits]` and governs a key a request can write — a row \
+             here exists to take a key *away* from the block's settable defaults, so a settable \
              one is a longer row that changed nothing but the registry's line count",
         );
     }
@@ -2647,11 +2622,11 @@ fn the_default_limits_are_the_requests_and_everything_carved_out_of_them_is_not(
         }
         let row = governing(&dotted);
         assert_eq!(
-            (row.key, row.class),
-            ("limits", Class::Runtime),
+            (row.key, settable::how(&dotted)),
+            ("limits", Some(How::UpToCeiling)),
             "`{dotted}` is a key of `[limits]` that no row carves out, so it has to land on the \
-             block's own row and did not — a key added here is a per-request default until \
-             somebody decides otherwise, and `{}` is not that decision",
+             block's own row and be settable, and did not — a key added here is a per-request \
+             default until somebody decides otherwise, and `{}` is not that decision",
             row.key,
         );
     }
@@ -2668,14 +2643,17 @@ fn the_default_limits_are_the_requests_and_everything_carved_out_of_them_is_not(
 fn every_budget_with_a_ceiling_answers_the_request_and_the_operator_differently() {
     let ceiling = governing("limits.hard");
     assert_eq!(
-        (ceiling.key, ceiling.class, ceiling.apply),
-        ("limits.hard", Class::System, Apply::Reload),
-        "`limits.hard` resolves through `{}` to {:?}/{:?}: `Runtime` would be a request raising \
-         the ceiling that bounds it, and `Boot` would tell an operator that lowering a ceiling \
-         under a running server takes a restart when the next request reads the new snapshot",
+        (ceiling.key, ceiling.apply),
+        ("limits.hard", Apply::Reload),
+        "`limits.hard` resolves through `{}` to {:?}: `Boot` would tell an operator that lowering \
+         a ceiling under a running server takes a restart when the next request reads the new \
+         snapshot",
         ceiling.key,
-        ceiling.class,
         ceiling.apply,
+    );
+    assert!(
+        !governs_a_settable_key(ceiling),
+        "a settable key under `limits.hard` would be a request raising the ceiling that bounds it",
     );
 
     // A ceiling exists for exactly the budgets a request may set, and for nothing else: the keys
@@ -2703,11 +2681,11 @@ fn every_budget_with_a_ceiling_answers_the_request_and_the_operator_differently(
         let under = format!("limits.hard.{key}");
         let row = governing(&under);
         assert_eq!(
-            (row.key, row.class),
-            ("limits.hard", Class::System),
-            "`{under}` lands on `{}` rather than on the ceiling row, so this budget's ceiling is \
-             something a request can reach — one key name away from the default it is supposed to \
-             be bounding",
+            (row.key, settable::how(&under)),
+            ("limits.hard", None),
+            "`{under}` lands on `{}` rather than on the ceiling row, or is settable, so this \
+             budget's ceiling is something a request can reach — one key name away from the \
+             default it is supposed to be bounding",
             row.key,
         );
 
@@ -2716,7 +2694,7 @@ fn every_budget_with_a_ceiling_answers_the_request_and_the_operator_differently(
             continue;
         }
         assert!(
-            governing(&twin).class.settable_by_a_request() && !row.class.settable_by_a_request(),
+            settable::how(&twin).is_some() && settable::how(&under).is_none(),
             "`{twin}` and `{under}` answer `Core\\Config::set` the same way, so this budget has no \
              ceiling worth the name: either the program cannot lower its own or it can raise the \
              operator's",
@@ -2731,7 +2709,7 @@ fn every_budget_with_a_ceiling_answers_the_request_and_the_operator_differently(
 }
 
 /// `rule:errors/on-limit`'s reserved slice, asserted as the carve-out it is. The memory half is
-/// written inside `[limits]`, whose blanket row is `Runtime`, so the only thing keeping a script
+/// written inside `[limits]`, whose blanket row governs settable keys, so the only thing keeping a script
 /// from sizing its own safety net is a longer row — and the only thing keeping it in the operator's
 /// hands afterwards is that nothing in `[limits.hard]` bounds it, which is an absence rather than an
 /// omission: a ceiling exists to bound a value a request can move, and this is not one.
@@ -2745,20 +2723,18 @@ fn every_budget_with_a_ceiling_answers_the_request_and_the_operator_differently(
 fn the_reserved_slice_is_carved_out_of_the_block_and_has_no_ceiling_of_its_own() {
     let reserve = governing("limits.fatal_reserve_memory");
     assert_eq!(
-        (reserve.key, reserve.class, reserve.apply),
-        ("limits.fatal_reserve_memory", Class::System, Apply::Reload),
-        "`limits.fatal_reserve_memory` resolves through `{}`: the blanket row above it is \
-         `Runtime`, so a slice that lands there is a script choosing how much room the handler \
-         reporting its exhausted heap gets — and `Boot` would tell an operator that resizing the \
-         net takes a restart, when the next request reads the new snapshot",
+        (reserve.key, reserve.apply),
+        ("limits.fatal_reserve_memory", Apply::Reload),
+        "`limits.fatal_reserve_memory` resolves through `{}`: `Boot` would tell an operator that \
+         resizing the net takes a restart, when the next request reads the new snapshot",
         reserve.key,
     );
     assert!(
-        governing("limits.memory").class.settable_by_a_request()
-            && !reserve.class.settable_by_a_request(),
+        settable::how("limits.memory").is_some()
+            && settable::how("limits.fatal_reserve_memory").is_none(),
         "the slice and the budget it is carved out of answer `Core\\Config::set` the same way, so \
          either a program can no longer lower its own heap or it can set the size of its own \
-         safety net",
+         safety net — how much room the handler reporting its exhausted heap gets",
     );
 
     assert!(
@@ -2796,21 +2772,21 @@ fn the_time_half_of_the_reserve_answers_exactly_as_the_memory_half_does() {
     let time = governing("limits.fatal_reserve_time");
     let memory = governing("limits.fatal_reserve_memory");
     assert_eq!(
-        (time.key, time.class, time.apply),
-        ("limits.fatal_reserve_time", Class::System, Apply::Reload),
+        (time.key, time.apply),
+        ("limits.fatal_reserve_time", Apply::Reload),
         "`limits.fatal_reserve_time` resolves through `{}`, and a row of its own is what it needs: \
          the memory half is not a prefix of it, so nothing else would keep it out of `[limits]`' \
-         `Runtime` blanket",
+         blanket row",
         time.key,
     );
     assert_eq!(
-        (time.class, time.apply),
-        (memory.class, memory.apply),
+        (settable::how(time.key), time.apply),
+        (settable::how(memory.key), memory.apply),
         "the two halves of one net answer differently, so `rule:errors/on-limit`'s decision has \
          been made twice and the halves have stopped being the same slice",
     );
     assert!(
-        !time.class.settable_by_a_request() && !memory.class.settable_by_a_request(),
+        settable::how(time.key).is_none() && settable::how(memory.key).is_none(),
         "one half of the reserve is a request's to set, which is the whole of the refusal gone: a \
          handler with no clock and a handler with no heap are the same handler",
     );
@@ -2839,8 +2815,8 @@ fn the_time_half_of_the_reserve_answers_exactly_as_the_memory_half_does() {
 }
 
 /// The nesting ceiling, asserted as the pair of claims it is: who may write it, and what it is
-/// counted in. The first is `[limits]`' `Runtime` blanket again — no other row is a prefix of this
-/// key, so without one of its own the block answers for it — and the ground is the one the reserves
+/// counted in. The first is `[limits]`' blanket row again — no other row is a prefix of this key,
+/// so without one of its own the block answers for it — and the ground is the one the reserves
 /// do not share: *both* directions are refused here. A chain able to raise the bound it is about to
 /// cross has no bound, and the two values that remove the ceiling outright are reachable from the
 /// same `set`.
@@ -2854,10 +2830,10 @@ fn the_time_half_of_the_reserve_answers_exactly_as_the_memory_half_does() {
 fn the_nesting_ceiling_is_the_operators_in_both_directions_and_is_counted_in_levels() {
     let depth = governing("limits.max_script_depth");
     assert_eq!(
-        (depth.key, depth.class, depth.apply),
-        ("limits.max_script_depth", Class::System, Apply::Reload),
+        (depth.key, depth.apply),
+        ("limits.max_script_depth", Apply::Reload),
         "`limits.max_script_depth` resolves through `{}`, and a row of its own is what it needs: \
-         nothing else here is a prefix of it, so `[limits]`' `Runtime` blanket is what would answer",
+         nothing else here is a prefix of it, so `[limits]`' blanket row is what would answer",
         depth.key,
     );
     assert!(
@@ -2871,13 +2847,12 @@ fn the_nesting_ceiling_is_the_operators_in_both_directions_and_is_counted_in_lev
         "app.0.limits.max_script_depth",
         "limits.hard.max_script_depth",
     ] {
-        let row = governing(written);
-        assert!(
-            !row.class.settable_by_a_request(),
-            "`{written}` lands on `{}` at {:?}, which a request may write — one spelling of this \
-             ceiling a program can reach is the ceiling gone, whichever block it is written in",
-            row.key,
-            row.class,
+        assert_eq!(
+            settable::how(written),
+            None,
+            "`{written}` lands on `{}` and a request may write it — one spelling of this ceiling a \
+             program can reach is the ceiling gone, whichever block it is written in",
+            governing(written).key,
         );
     }
     assert!(
@@ -2917,23 +2892,23 @@ fn the_nesting_ceiling_is_the_operators_in_both_directions_and_is_counted_in_lev
 }
 
 /// `rule:core-classes/decompression-bound`'s absolute half, asserted through the spellings that
-/// would take it back. The key is one `[limits]` itself accepts, so the block's `Runtime` blanket
-/// would answer for it with no row of its own — and `[[app]]`'s copy of the block is the second way
+/// would take it back. The key is one `[limits]` itself accepts, so the block's blanket row would
+/// answer for it with no row of its own — and `[[app]]`'s copy of the block is the second way
 /// in, since `[app.limits]` is read key for key as `[limits]` is. An application handed a looser
 /// decompression bound than the deployment's is the same hole one scope down.
 ///
 /// The ground is worth stating because the wrong one has the same answer here: this is not the
 /// operator's because `[limits]` is — half that block is a request's. It is the operator's because
 /// a call already lowers what it decompresses through its own argument, so a request-set ceiling
-/// would be a second spelling for the ask, and the only direction a `Runtime` row could be moved in
+/// would be a second spelling for the ask, and the only direction a settable key could be moved in
 /// is the direction the rule forbids.
 // covers: directive:limits.max_decompressed
 #[test]
 fn the_decompression_ceiling_is_the_operators_under_every_block_that_states_it() {
     let ceiling = governing("limits.max_decompressed");
     assert_eq!(
-        (ceiling.key, ceiling.class, ceiling.apply),
-        ("limits.max_decompressed", Class::System, Apply::Reload),
+        (ceiling.key, ceiling.apply),
+        ("limits.max_decompressed", Apply::Reload),
         "`limits.max_decompressed` resolves through `{}`: on the `limits` row it is a value a \
          request raises to whatever the archive it was handed asks for, and at `Boot` it is a \
          ceiling an operator cannot lower under a running server",
@@ -2950,14 +2925,12 @@ fn the_decompression_ceiling_is_the_operators_under_every_block_that_states_it()
         "app.0.limits.max_decompressed",
         "limits.hard.max_decompressed",
     ] {
-        let row = governing(written);
-        assert!(
-            !row.class.settable_by_a_request(),
-            "`{written}` lands on `{}` at {:?}, which a request may write — one spelling of this \
-             bound that a program can reach is the whole bound gone, whichever block it is written \
-             in",
-            row.key,
-            row.class,
+        assert_eq!(
+            settable::how(written),
+            None,
+            "`{written}` lands on `{}` and a request may write it — one spelling of this bound \
+             that a program can reach is the whole bound gone, whichever block it is written in",
+            governing(written).key,
         );
     }
 
@@ -2969,27 +2942,25 @@ fn the_decompression_ceiling_is_the_operators_under_every_block_that_states_it()
     );
 }
 
-/// `rule:core-classes/image-pixel-cap`'s `[image]` block is the operator's and reloads. `System`
-/// on the decompression bound's grounds: a call lowers the cap through its own argument, so the
+/// `rule:core-classes/image-pixel-cap`'s `[image]` block is the operator's and reloads. Not
+/// settable on the decompression bound's grounds: a call lowers the cap through its own argument, so the
 /// only thing a request-set value could add is a higher cap, and a higher cap is the bomb the key
 /// stops. `Reload` because the caller reads it out of the snapshot its request cloned.
 ///
 /// The row names the key, not the block, so the second half is that nothing blankets `[image]`:
-/// a key added there has no class until a rule argues one, and the cap is the only key the block
+/// a key added there has no row until a rule argues one, and the cap is the only key the block
 /// takes.
 #[test]
-fn the_image_block_is_a_system_block_that_reloads() {
+fn the_image_block_is_not_settable_and_reloads() {
     let cap = governing("image.max_pixels");
     assert_eq!(
-        (cap.key, cap.class, cap.apply),
-        ("image.max_pixels", Class::System, Apply::Reload),
-        "`image.max_pixels` resolves through `{}` to {:?}/{:?}: `Runtime` lets a request raise \
+        (cap.key, settable::how("image.max_pixels"), cap.apply),
+        ("image.max_pixels", None, Apply::Reload),
+        "`image.max_pixels` resolves through `{}` to {:?}: a settable cap lets a request raise \
          the cap it decodes hostile uploads under, and `Boot` keeps a cap the operator lowered",
         cap.key,
-        cap.class,
         cap.apply,
     );
-    assert!(!cap.class.settable_by_a_request());
     for absent in ["image", "image.formats", "image.max_pixel"] {
         assert!(
             lookup(absent).is_none(),
@@ -3019,25 +2990,21 @@ fn both_halves_of_the_decompression_bound_answer_the_same_way_in_two_different_q
     let ratio = governing("limits.max_decompression_ratio");
     let ceiling = governing("limits.max_decompressed");
     assert_eq!(
-        (ratio.key, ratio.class, ratio.apply),
-        (
-            "limits.max_decompression_ratio",
-            Class::System,
-            Apply::Reload
-        ),
+        (ratio.key, ratio.apply),
+        ("limits.max_decompression_ratio", Apply::Reload),
         "`limits.max_decompression_ratio` resolves through `{}`, and a row of its own is what it \
          needs: the absolute half is not a prefix of it, so nothing else keeps it out of the \
-         `Runtime` blanket `[limits]` states",
+         blanket row `[limits]` states",
         ratio.key,
     );
     assert_eq!(
-        (ratio.class, ratio.apply),
-        (ceiling.class, ceiling.apply),
+        (settable::how(ratio.key), ratio.apply),
+        (settable::how(ceiling.key), ceiling.apply),
         "the two halves of one bound answer differently, so a deployment can state one of them and \
          a request the other — and what a decode is compared against is the smaller of the two",
     );
     assert!(
-        !ratio.class.settable_by_a_request() && !ceiling.class.settable_by_a_request(),
+        settable::how(ratio.key).is_none() && settable::how(ceiling.key).is_none(),
         "one half of the bound is a request's to set, which is the bound gone: a program that \
          raises the ratio buys the same output a program that raises the ceiling does",
     );
@@ -3055,44 +3022,39 @@ fn both_halves_of_the_decompression_bound_answer_the_same_way_in_two_different_q
 }
 
 /// The block the escalation ladder is configured in, and the one row of this group a request may
-/// write. What is asserted is where the line between the two halves falls rather than the class of
-/// any single key: `rule:config/a-mode-is-five-defaults`'s mode table holds three of these keys —
-/// `format`, `level` and `access` — and no row in that table is `System`, so a program that wants
-/// its own run traced turns its own level down — while a program able to send the record of its
-/// own failure somewhere nobody reads is what every other key here is `System` to prevent.
+/// write. What is asserted is where the line between the two halves falls rather than the
+/// settability of any single key: `rule:config/a-mode-is-five-defaults`'s mode table holds three of
+/// these keys — `format`, `level` and `access` — and every key in that table is settable, so a
+/// program that wants its own run traced turns its own level down — while a program able to send
+/// the record of its own failure somewhere nobody reads is what every other key here is not
+/// settable to prevent. The block's settable key this case picks is `log.level`.
 ///
 /// Counted rather than read off a line, because a blanket row is exactly where a registry answers
-/// plausibly key by key and wrongly overall: a carve-out nobody wrote inherits `Runtime` from the
-/// block and looks like an ordinary row from every angle but this one.
+/// plausibly key by key and wrongly overall: a key added to `SETTABLE` by mistake looks like an
+/// ordinary row from every angle but this one.
 // covers: directive:log
 #[test]
 fn the_log_blanket_is_a_requests_and_exactly_the_mode_tables_rows_stay_that_way() {
     let block = governing("log");
     assert_eq!(
-        (block.key, block.class, block.apply),
-        ("log", Class::Runtime, Apply::Reload),
+        (block.key, settable::how("log.level"), block.apply),
+        ("log", Some(How::UpToCeiling), Apply::Reload),
         "`[log]` resolves through `{}`: the block's own row is what answers for `format`, `level` \
-         and `access`, which are `rule:config/a-mode-is-five-defaults`'s rows and so are nobody's \
-         to make `System`",
+         and `access`, which are `rule:config/a-mode-is-five-defaults`'s rows and so are a \
+         request's to set",
         block.key,
     );
     for written in ["log.format", "log.level", "log.access"] {
         assert_eq!(
             governing(written).key,
             "log",
-            "`{written}` has grown a row of its own, so the blanket is no longer what makes it a \
-             request's — and a mode table row with a class written twice is a class written once \
-             in each of two places that can disagree",
+            "`{written}` has grown a row of its own, so the blanket is no longer what governs it",
         );
     }
 
     let mut movable: Vec<String> = keys_in("log")
         .into_iter()
-        .filter(|key| {
-            governing(&format!("log.{key}"))
-                .class
-                .settable_by_a_request()
-        })
+        .filter(|key| settable::how(&format!("log.{key}")).is_some())
         .collect();
     movable.sort();
     assert_eq!(
@@ -3102,7 +3064,7 @@ fn the_log_blanket_is_a_requests_and_exactly_the_mode_tables_rows_stay_that_way(
             "format".to_string(),
             "level".to_string()
         ],
-        "the blanket answers for a key that is not one of the mode table's three, so a rung of the \
+        "a key of `[log]` that is not one of the mode table's three is settable, so a rung of the \
          ladder is a request's to move: every other key in this block names the script run when a \
          request fails, what is held back for that script, or where the record itself goes",
     );
@@ -3115,31 +3077,31 @@ fn the_log_blanket_is_a_requests_and_exactly_the_mode_tables_rows_stay_that_way(
     );
 }
 
-/// The tier-3 handler: the row in `[log]` whose class had to be written down, because the block
-/// answers `Runtime` for everything that does not write one. `rule:errors/handler-script` names a script to *run*, so the
+/// The tier-3 handler: a key in `[log]` no request may set, beside the block's settable `log.level`.
+/// `rule:errors/handler-script` names a script to *run*, so the
 /// ground is `limits.fatal_reserve_memory`'s one rung along — a program naming who reports its own
 /// failure is the case where the choice most needs to be made by somebody else.
 ///
 /// The second half is the boundary this block is looked up on, and this row is where a wrong one
 /// would show. `log.handler` is a character prefix of `log.handler_reserve_memory` and not a dotted
 /// one, so a lookup matching on spelling would hand both reserves this row — and would hand
-/// `log.handlerx`, which nobody wrote, a class it has no claim to.
+/// `log.handlerx`, which nobody wrote, a row it has no claim to.
 // covers: directive:log.handler
 #[test]
 fn the_tier_three_handler_is_the_operators_and_its_row_ends_at_the_dot() {
     let handler = governing("log.handler");
     assert_eq!(
-        (handler.key, handler.class, handler.apply),
-        ("log.handler", Class::System, Apply::Reload),
-        "`log.handler` resolves through `{}`: with no row of its own the `[log]` blanket answers \
-         `Runtime` for it, and the script that reports a failure becomes the failing program's to \
-         name",
+        (handler.key, handler.apply),
+        ("log.handler", Apply::Reload),
+        "`log.handler` resolves through `{}`, and it needs a row of its own",
         handler.key,
     );
     assert!(
-        !handler.class.settable_by_a_request() && governing("log").class.settable_by_a_request(),
-        "the handler and the block around it are on the same side of `rule:config/three-changeability-classes`'s line, so one \
-         of the two is written for a reason that has stopped holding",
+        settable::how("log.handler").is_none() && settable::how("log.level").is_some(),
+        "the handler and the block around it are on the same side of \
+         `rule:config/three-changeability-classes`'s line, so one of the two is written for a \
+         reason that has stopped holding: a settable handler makes the script that reports a \
+         failure the failing program's to name",
     );
     assert_eq!(
         handler.apply,
@@ -3169,8 +3131,8 @@ fn the_tier_three_handler_is_the_operators_and_its_row_ends_at_the_dot() {
         unit_of("log.handler"),
         None,
         "the handler is read as a measurement, so a path is being compared against a ceiling — \
-         this row's class is the whole of what stands between a program and the script that \
-         reports it",
+         this key not being settable is the whole of what stands between a program and the \
+         script that reports it",
     );
     assert!(
         keys_in("log").contains(&"handler".to_string()),
@@ -3180,17 +3142,17 @@ fn the_tier_three_handler_is_the_operators_and_its_row_ends_at_the_dot() {
 }
 
 /// `rule:http-server/a-log-line-can-leave-out-the-client-address`: whether the server's records name
-/// the client address is the operator's promise, so the key has a `System` row of its own inside the
-/// `Runtime` `[log]` block. Without the row the blanket answers for it, and a request could turn the
+/// the client address is the operator's promise, so the key has a row of its own inside the
+/// `[log]` block, and `SETTABLE` does not list it. A settable key would let a request turn the
 /// address back on for its own lines.
 // covers: directive:log.client_ip
 #[test]
 fn the_client_address_setting_is_the_operators_and_reloads() {
     let row = governing("log.client_ip");
     assert_eq!(
-        (row.key, row.class, row.apply),
-        ("log.client_ip", Class::System, Apply::Reload),
-        "`log.client_ip` resolves through `{}`, so a request may set it for itself",
+        (row.key, settable::how("log.client_ip"), row.apply),
+        ("log.client_ip", None, Apply::Reload),
+        "`log.client_ip` resolves through `{}`, or a request may set it for itself",
         row.key,
     );
     assert!(
@@ -3204,12 +3166,13 @@ fn the_client_address_setting_is_the_operators_and_reloads() {
     );
 }
 
-/// The room that script runs in. Its class is the handler's for the handler's reason at one remove —
+/// The room that script runs in. It is not settable, as the handler is not, for the handler's
+/// reason at one remove —
 /// a program able to shrink the room its own report is written in has made the report fail rather
 /// than named who writes it — and `rule:errors/handler-script` is where the allotment being the engine's rather than
 /// the failing request's is decided.
 ///
-/// What this asserts past the class is that the two reserves are two: `[limits]
+/// What this asserts past settability is that the two reserves are two: `[limits]
 /// fatal_reserve_memory` is carved out of the request's own heap for a callable it already holds,
 /// and this one is the engine's for a script that has yet to be compiled. They are the same size
 /// twice in a registry that lost one of the rows, and every deployment that wrote either would then
@@ -3219,10 +3182,14 @@ fn the_client_address_setting_is_the_operators_and_reloads() {
 fn the_handlers_room_is_a_second_reserve_and_not_the_one_carved_out_of_the_request() {
     let room = governing("log.handler_reserve_memory");
     assert_eq!(
-        (room.key, room.class, room.apply),
-        ("log.handler_reserve_memory", Class::System, Apply::Reload),
-        "`log.handler_reserve_memory` resolves through `{}`: with no row of its own the `[log]` \
-         blanket answers `Runtime`, and the program being reported on sizes the report",
+        (
+            room.key,
+            settable::how("log.handler_reserve_memory"),
+            room.apply
+        ),
+        ("log.handler_reserve_memory", None, Apply::Reload),
+        "`log.handler_reserve_memory` resolves through `{}`, or a request may set it, and the \
+         program being reported on sizes the report",
         room.key,
     );
     assert_ne!(
@@ -3243,8 +3210,8 @@ fn the_handlers_room_is_a_second_reserve_and_not_the_one_carved_out_of_the_reque
         None,
         "`value::unit_of`'s table has grown a `[log]` key. It is the limits blocks' table and \
          nothing else on purpose: a bare name it answers for is rewritten to `limits.<name>`, so a \
-         row added here would give this allotment a spelling that lands in `[limits]`, where the \
-         blanket is `Runtime`. The bytes reading lives at the one caller that knows it is bytes, \
+         row added here would give this allotment a spelling that lands in `[limits]`, whose \
+         keys a request may set. The bytes reading lives at the one caller that knows it is bytes, \
          `nvs_runtime::Ctx::configured_handler_reserve`",
     );
 }
@@ -3263,15 +3230,15 @@ fn the_handlers_clock_answers_as_its_memory_half_does_and_stays_a_row_of_its_own
     let clock = governing("log.handler_reserve_time");
     let room = governing("log.handler_reserve_memory");
     assert_eq!(
-        (clock.key, clock.class, clock.apply),
-        ("log.handler_reserve_time", Class::System, Apply::Reload),
+        (clock.key, clock.apply),
+        ("log.handler_reserve_time", Apply::Reload),
         "`log.handler_reserve_time` resolves through `{}`, and a row of its own is what it needs: \
          the memory half is not a dotted prefix of it, so the `[log]` blanket is what would answer",
         clock.key,
     );
     assert_eq!(
-        (clock.class, clock.apply),
-        (room.class, room.apply),
+        (settable::how(clock.key), clock.apply),
+        (settable::how(room.key), room.apply),
         "the two halves of one allotment answer differently, so a deployment can state one of them \
          and the program being reported on the other",
     );
@@ -3293,8 +3260,9 @@ fn the_handlers_clock_answers_as_its_memory_half_does_and_stays_a_row_of_its_own
          to size apart",
     );
     for key in reserves {
-        assert!(
-            !governing(key).class.settable_by_a_request(),
+        assert_eq!(
+            settable::how(key),
+            None,
             "`{key}` is a request's to set, and a request that sizes any of the four has sized the \
              room its own failure is reported in",
         );
@@ -3330,10 +3298,9 @@ fn target_refusal(written: &str) -> Option<Code> {
 /// `rule:errors/engine-floor`'s destination, asserted as the two claims its page makes: who may
 /// move it, and when a value naming no destination is refused.
 ///
-/// The first needs a row of its own, and that is the failure worth pinning here rather than the
-/// class in isolation — `[log]`'s blanket is `Runtime` and every other key in the block resolves
-/// through it, so this row deleted is not a compile error or a missing key but a request that can
-/// send the record of its own failure somewhere nobody reads. Asserted over every spelling that
+/// The first needs a row of its own and no `SETTABLE` entry, and that is the failure worth pinning
+/// here — a `SETTABLE` entry added for it is not a compile error or a missing key but a request
+/// that can send the record of its own failure somewhere nobody reads. Asserted over every spelling that
 /// reaches the same destination, because the per-application copy of the block is a second way in
 /// and lands on a different row.
 ///
@@ -3347,11 +3314,10 @@ fn target_refusal(written: &str) -> Option<Code> {
 fn the_floors_destination_is_the_operators_and_a_value_naming_none_refuses_the_tree() {
     let target = governing("log.target");
     assert_eq!(
-        (target.key, target.class, target.apply),
-        ("log.target", Class::System, Apply::Reload),
-        "`log.target` resolves through `{}`: without a row of its own the `[log]` blanket answers \
-         for it at `Runtime`, and `rule:errors/engine-floor`'s sink is then the failing program's \
-         to move",
+        (target.key, settable::how("log.target"), target.apply),
+        ("log.target", None, Apply::Reload),
+        "`log.target` resolves through `{}`, or a request may set it, and \
+         `rule:errors/engine-floor`'s sink is then the failing program's to move",
         target.key,
     );
     assert!(
@@ -3360,14 +3326,13 @@ fn the_floors_destination_is_the_operators_and_a_value_naming_none_refuses_the_t
          deployment writes its floor records wherever the engine defaults to",
     );
     for written in ["log.target", "app.log.target", "app.0.log.target"] {
-        let row = governing(written);
-        assert!(
-            !row.class.settable_by_a_request(),
-            "`{written}` lands on `{}` at {:?}, which a request may write — one spelling of this \
+        assert_eq!(
+            settable::how(written),
+            None,
+            "`{written}` lands on `{}` and a request may write it — one spelling of this \
              destination a program can reach is the report of its own failure redirected, \
              whichever block it is written in",
-            row.key,
-            row.class,
+            governing(written).key,
         );
     }
 
@@ -3410,13 +3375,12 @@ fn the_log_files_bound_is_the_operators_and_a_value_that_bounds_nothing_refuses_
             format!("app.log.{key}"),
             format!("app.0.log.{key}"),
         ] {
-            let row = governing(&written);
-            assert!(
-                !row.class.settable_by_a_request(),
-                "`{written}` lands on `{}` at {:?}: a request that could raise it could fill the \
-                 disk the log is written to",
-                row.key,
-                row.class,
+            assert_eq!(
+                settable::how(&written),
+                None,
+                "`{written}` lands on `{}` and is settable: a request that could raise it could \
+                 fill the disk the log is written to",
+                governing(&written).key,
             );
         }
     }
@@ -3465,7 +3429,7 @@ fn export_refusal(block: &str, body: &str) -> Option<Code> {
 /// `rule:observability/metrics-and-trace-blocks-are-system`'s first block, asserted as the two
 /// claims its page makes: who may write it, and which protocols it names.
 ///
-/// The class is counted over every key the block accepts rather than read off the `exporter` row,
+/// Settability is counted over every key the block accepts rather than read off the `exporter` key,
 /// because a blanket is exactly where a registry answers plausibly key by key and wrongly overall:
 /// a carve-out nobody wrote inherits nothing from the block, and a key that became a request's is
 /// a program deciding how closely it is watched — which produces *silence*, and silence is
@@ -3481,11 +3445,15 @@ fn export_refusal(block: &str, body: &str) -> Option<Code> {
 fn every_key_of_the_metrics_block_is_the_operators_and_only_it_may_be_scraped() {
     let block = governing("metrics");
     assert_eq!(
-        (block.key, block.class, block.apply),
-        ("metrics", Class::System, Apply::Reload),
+        (block.key, block.apply),
+        ("metrics", Apply::Reload),
         "`[metrics]` resolves through `{}`, and the block's own row is what answers for every key \
          in it — none of them has one of its own",
         block.key,
+    );
+    assert!(
+        !governs_a_settable_key(block),
+        "a key under `[metrics]` is settable, so a program may choose how closely it is watched",
     );
 
     let keys = keys_in("metrics");
@@ -3498,13 +3466,12 @@ fn every_key_of_the_metrics_block_is_the_operators_and_only_it_may_be_scraped() 
     }
     for key in &keys {
         let written = format!("metrics.{key}");
-        let row = governing(&written);
-        assert!(
-            !row.class.settable_by_a_request(),
-            "`{written}` lands on `{}` at {:?}, which a request may write — a program that sizes \
-             or redirects its own measurement has chosen how closely it is watched",
-            row.key,
-            row.class,
+        assert_eq!(
+            settable::how(&written),
+            None,
+            "`{written}` lands on `{}` and a request may write it — a program that sizes or \
+             redirects its own measurement has chosen how closely it is watched",
+            governing(&written).key,
         );
     }
 
@@ -3542,12 +3509,12 @@ fn every_key_of_the_metrics_block_is_the_operators_and_only_it_may_be_scraped() 
 }
 
 /// `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`'s line, asserted beside the key
-/// it bounds rather than on its own. `[mode]` is two keys of two different classes, and that split
+/// it bounds rather than on its own. `[mode]` is two keys, one settable and one not, and that split
 /// *is* the feature: the mode an application starts in is a request's to flip, and how far it may
 /// flip is not. Either row read alone looks like an ordinary directive, and the pair is the claim.
 ///
 /// The second half is that the block carries no blanket, which is what makes the split enforceable.
-/// Every other block here has a row over the whole name, so a key added later inherits a class
+/// Every other block here has a row over the whole name, so a key added later inherits an `apply`
 /// nobody chose for it; a third key under `[mode]` would inherit nothing instead, and is asserted
 /// over the keys the block *accepts* rather than over the two this case could have named — a
 /// carve-out added without a row is exactly the edit that passes a named check.
@@ -3556,35 +3523,34 @@ fn every_key_of_the_metrics_block_is_the_operators_and_only_it_may_be_scraped() 
 fn the_mode_ceiling_is_the_operators_half_of_a_block_with_no_blanket_over_it() {
     let ceiling = governing("mode.ceiling");
     assert_eq!(
-        (ceiling.key, ceiling.class, ceiling.apply),
-        ("mode.ceiling", Class::System, Apply::Reload),
+        (ceiling.key, settable::how("mode.ceiling"), ceiling.apply),
+        ("mode.ceiling", None, Apply::Reload),
         "`mode.ceiling` resolves through `{}`: a request that reaches this key raises the bound on \
          its own next flip, and `Boot` would make an operator restart a host to lower it",
         ceiling.key,
     );
     assert_eq!(
-        governing("mode.default").class,
-        Class::Runtime,
+        settable::how("mode.default"),
+        Some(How::UpToCeiling),
         "`mode.default` is no longer a request's to set, so the ceiling bounds a flip that can no \
          longer happen and `rule:config/a-program-may-read-and-flip-its-mode` has nothing left to \
          bound",
     );
     for written in ["mode.ceiling", "app.mode.ceiling", "app.0.mode.ceiling"] {
-        let row = governing(written);
-        assert!(
-            !row.class.settable_by_a_request(),
-            "`{written}` lands on `{}` at {:?}, which a request may write — one spelling of this \
-             line a program can reach is the line gone, and the flip it refuses is a call away",
-            row.key,
-            row.class,
+        assert_eq!(
+            settable::how(written),
+            None,
+            "`{written}` lands on `{}` and a request may write it — one spelling of this line a \
+             program can reach is the line gone, and the flip it refuses is a call away",
+            governing(written).key,
         );
     }
 
     assert!(
         lookup("mode").is_none(),
-        "`[mode]` has grown a blanket row, so a key added to the block inherits that row's class \
-         instead of being named: the two halves here are two classes, and there is no third one a \
-         blanket could be right about",
+        "`[mode]` has grown a blanket row, so a key added to the block inherits that row \
+         instead of being named: the two halves here answer differently, and there is no one \
+         answer a blanket could be right about",
     );
     let keys = keys_in("mode");
     assert!(
@@ -3621,13 +3587,13 @@ fn a_mode_change_applies_whole_because_every_default_it_selects_reloads() {
         (
             nvs_config::mode::KEY,
             default.key,
-            default.class,
+            settable::how(default.key),
             default.apply
         ),
         (
             "mode.default",
             "mode.default",
-            Class::Runtime,
+            Some(How::UpToCeiling),
             Apply::Reload
         ),
         "the key the mode is read and written at \
@@ -3650,13 +3616,13 @@ fn a_mode_change_applies_whole_because_every_default_it_selects_reloads() {
 /// `rule:observability/metrics-and-trace-blocks-are-system`'s second block, asserted as the two
 /// things only this one has: a fraction, and a header an outbound call carries.
 ///
-/// The class is counted over the keys the block accepts rather than read off `exporter`, for the
+/// Settability is counted over the keys the block accepts rather than read off `exporter`, for the
 /// reason the `[metrics]` case beside this one gives — but the consequence here is the sharper of
 /// the two. A program that could move `sample` selects which requests are worth recording, and one
 /// that could drop `propagate` leaves its own hop out of somebody else's story, both of which are
 /// the reconnaissance channel `rule:testing/debug-mode-directive` already refuses.
 ///
-/// `Reload` beside `System` is not decoration: `export::head_sample` reads the fraction per request
+/// `Reload` beside "not settable" is not decoration: `export::head_sample` reads the fraction per request
 /// off the published snapshot, so an operator turning recording down on a host under load reaches
 /// the next request rather than the next boot.
 ///
@@ -3668,11 +3634,16 @@ fn a_mode_change_applies_whole_because_every_default_it_selects_reloads() {
 fn every_key_of_the_trace_block_is_the_operators_and_an_exporter_alone_records_nothing() {
     let block = governing("trace");
     assert_eq!(
-        (block.key, block.class, block.apply),
-        ("trace", Class::System, Apply::Reload),
+        (block.key, block.apply),
+        ("trace", Apply::Reload),
         "`[trace]` resolves through `{}`: the fraction is read off the standing snapshot per \
          request, and `Boot` would make an operator restart a host to stop recording it",
         block.key,
+    );
+    assert!(
+        !governs_a_settable_key(block),
+        "a key under `[trace]` is settable, so a program may choose which of its requests are \
+         recorded",
     );
 
     let keys = keys_in("trace");
@@ -3691,13 +3662,12 @@ fn every_key_of_the_trace_block_is_the_operators_and_an_exporter_alone_records_n
     }
     for key in &keys {
         let written = format!("trace.{key}");
-        let row = governing(&written);
-        assert!(
-            !row.class.settable_by_a_request(),
-            "`{written}` lands on `{}` at {:?}, which a request may write — a program that picks \
-             its own sample has chosen which of its requests anybody gets to read about",
-            row.key,
-            row.class,
+        assert_eq!(
+            settable::how(&written),
+            None,
+            "`{written}` lands on `{}` and a request may write it — a program that picks its own \
+             sample has chosen which of its requests anybody gets to read about",
+            governing(&written).key,
         );
     }
 
@@ -3723,26 +3693,27 @@ fn every_key_of_the_trace_block_is_the_operators_and_an_exporter_alone_records_n
 }
 
 /// `rule:config/opcache-revalidation-is-system-class` and
-/// `rule:config/opcache-file-cache-directives-are-system` are one class over one block, and this is
-/// the class rather than either rule's semantics — `the_opcache_block_is_read_into_a_revalidation_policy`
-/// and `validate_defaults_to_mtime_in_production_and_development` own what the keys mean.
+/// `rule:config/opcache-file-cache-directives-are-system` say no request may set any key of one
+/// block, and this is that claim rather than either rule's semantics —
+/// `the_opcache_block_is_read_into_a_revalidation_policy` and
+/// `validate_defaults_to_mtime_in_production_and_development` own what the keys mean.
 ///
-/// `Class::System` exactly, and not merely a class no request may set: `RuntimeTighten` is the one
-/// that reads plausibly here and is the mistake this case exists to catch. Every other key a request
-/// may only tighten has a safe direction — a dump turned off, a grant dropped — and this block has
-/// none, because "check my sources *more* often" is a `stat` storm on a hot file and "read my code
-/// from a smaller cache" is still a program choosing how its own code is loaded.
+/// Not settable at all, not even to `false` only: `How::OffOnly` is the one that reads plausibly
+/// here and is the mistake this case exists to catch. Every key a request may only set to `false`
+/// has a safe direction — a dump turned off, a recording stopped — and this block has none, because
+/// "check my sources *more* often" is a `stat` storm on a hot file and "read my code from a smaller
+/// cache" is still a program choosing how its own code is loaded.
 ///
 /// Counted over the keys the block accepts rather than over the seven the two rules name, for the
 /// reason the blocks above are: an eighth key added to the file inherits the blanket, and a
 /// carve-out written beside it inherits nothing at all.
 // covers: directive:opcache
 #[test]
-fn every_key_of_the_opcache_block_is_system_class_because_it_has_no_safe_direction() {
+fn every_key_of_the_opcache_block_is_not_settable_because_it_has_no_safe_direction() {
     let block = governing("opcache");
     assert_eq!(
-        (block.key, block.class, block.apply),
-        ("opcache", Class::System, Apply::Reload),
+        (block.key, block.apply),
+        ("opcache", Apply::Reload),
         "`[opcache]` resolves through `{}`: what the block decides is read by the next compile, and \
          `Boot` would make an operator restart a host to re-check a file sooner",
         block.key,
@@ -3767,23 +3738,21 @@ fn every_key_of_the_opcache_block_is_system_class_because_it_has_no_safe_directi
     }
     for key in &keys {
         let written = format!("opcache.{key}");
-        let row = governing(&written);
         assert_eq!(
-            row.class,
-            Class::System,
-            "`{written}` lands on `{}` at {:?} — a request that may tighten this block is a request \
-             that may pin the code it likes or choose the cache its code is read from, and neither \
-             direction of either key is safe",
-            row.key,
-            row.class,
+            settable::how(&written),
+            None,
+            "`{written}` lands on `{}` and is settable — a request that may set this block, even \
+             only to `false`, is a request that may pin the code it likes or choose the cache its \
+             code is read from, and neither direction of either key is safe",
+            governing(&written).key,
         );
     }
 }
 
 /// The one key of that block with a row of its own, asserted beside the sibling whose name it is a
 /// prefix of. The row exists so a reload can name the key when a refused directory keeps the
-/// running one (`rule:config/a-reload-names-what-it-could-not-apply`), and it has the block's class
-/// and apply. `file_cache` and `file_cache_dir` are two keys one `starts_with` apart, and a registry
+/// running one (`rule:config/a-reload-names-what-it-could-not-apply`), and like the block it is not
+/// settable and has the block's apply. `file_cache` and `file_cache_dir` are two keys one `starts_with` apart, and a registry
 /// that governed the first through the second would give turning the cache off the directory's row.
 ///
 /// The second half is `rule:config/opcache-file-cache-directives-are-system`'s *only spelling*
@@ -3796,8 +3765,12 @@ fn every_key_of_the_opcache_block_is_system_class_because_it_has_no_safe_directi
 fn the_artifact_directory_is_one_reload_row_in_its_block_and_has_no_second_spelling() {
     let directory = governing("opcache.file_cache_dir");
     assert_eq!(
-        (directory.key, directory.class, directory.apply),
-        ("opcache.file_cache_dir", Class::System, Apply::Reload),
+        (
+            directory.key,
+            settable::how(directory.key),
+            directory.apply
+        ),
+        ("opcache.file_cache_dir", None, Apply::Reload),
         "`opcache.file_cache_dir` resolves through `{}`: the next compile reads and writes the \
          directory a reload publishes, and a reload that cannot use it has to name this key",
         directory.key,
@@ -3842,7 +3815,7 @@ fn in_force(written: &str, key: &str) -> Option<String> {
 
 /// `rule:http-server/request-body-and-upload-total-are-two-caps`'s table, read through the
 /// defaults a request sees: the two `[limits]` rows and their two `[limits.hard]` ceilings, each
-/// a `Runtime` key under the `System` ceiling block.
+/// a settable key under the ceiling block no request may set.
 #[test]
 fn request_body_and_upload_total_resolve_to_their_defaults() {
     for (key, default) in [
@@ -3858,10 +3831,16 @@ fn request_body_and_upload_total_resolve_to_their_defaults() {
         );
         assert_eq!(unit_of(key), Some(Unit::Bytes), "`{key}` is a size");
     }
-    assert_eq!(governing("limits.request_body").class, Class::Runtime);
-    assert_eq!(governing("limits.upload_total").class, Class::Runtime);
-    assert_eq!(governing("limits.hard.request_body").class, Class::System);
-    assert_eq!(governing("limits.hard.upload_total").class, Class::System);
+    assert_eq!(
+        settable::how("limits.request_body"),
+        Some(How::UpToCeiling)
+    );
+    assert_eq!(
+        settable::how("limits.upload_total"),
+        Some(How::UpToCeiling)
+    );
+    assert_eq!(settable::how("limits.hard.request_body"), None);
+    assert_eq!(settable::how("limits.hard.upload_total"), None);
     // A written ceiling does not move the value it bounds.
     assert_eq!(
         in_force(

@@ -100,6 +100,7 @@ pub mod schedule;
 pub mod secret;
 pub mod server;
 pub mod session;
+pub mod settable;
 pub mod settings;
 pub mod snapshot;
 pub mod store;
@@ -108,7 +109,7 @@ pub mod trust;
 pub mod value;
 
 pub use capability::{Cap, Scope};
-pub use directive::{Apply, Class, DIRECTIVES, Directive};
+pub use directive::{Apply, DIRECTIVES, Directive};
 pub use export::{DEFAULT_MAX_SERIES, Exporter, Metering, Tracing};
 pub use limits::Reading;
 pub use request::Request;
