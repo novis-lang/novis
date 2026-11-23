@@ -239,6 +239,9 @@ ignore file above the folder you opened. So every computer finds the same files.
 `nvs check`, `nvs fmt` and `nvs code` skip the same files. The editor and `nvs code` also share one
 index of the project. When the editor has indexed a project, `nvs code` is faster.
 
+When you edit a file, the editor checks that file again. It also checks the files that use what you
+changed, and no other files. A change inside a method body or a comment checks only the file you edit.
+
 ### A file in a skipped folder
 
 A class file usually has no `autoload` lines. The editor searches for the program that loads it, and

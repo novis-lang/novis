@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-lsp/src/disk_index.rs, crates/nvs-lsp/src/progress.rs, crates/nvs-lsp/tests/incremental.rs]
   - id: 5
     title: "the rule, the measurement and the change entry"
-    status: open
+    status: done
     context: [tools/nv/cmd/lsp-start.ts, website/src/content/docs/tools/editor/index.mdx, website/src/data/changes.json]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
@@ -373,15 +373,15 @@ subagent once `refresh` lands. The session builds once it ends.
 
 **Split:** none, one session.
 
-- [ ] `docs/rules/ide/the-index-is-incremental-and-persistent.md:44`: the surface bullet describes rows
+- [x] `docs/rules/ide/the-index-is-incremental-and-persistent.md:44`: the surface bullet describes rows
   and the reach table. The check-output bullet gives the per-file key. The Declined entry "A per-file
   dependency set in the check output's key" is removed, and "a key per body" is added with its reason.
   `bun nv rules --render`.
-- [ ] `tools/nv/cmd/lsp-start.ts:1`: `--edits` takes a kind (`member`, `private`, `public`, `comment`)
+- [x] `tools/nv/cmd/lsp-start.ts:1`: `--edits` takes a kind (`member`, `private`, `public`, `comment`)
   so each case's `checked` count can be measured. The before and after counts for each kind on
   `--copies 12` go into the rule's measured line.
-- [ ] The memory figures before and after go into the `crates/nvs-lsp/src/session.rs` module doc.
-- [ ] `website/src/data/changes.json`: one `changed` entry for `tools:editor`: "An edit in the editor
+- [x] The memory figures before and after go into the `crates/nvs-lsp/src/session.rs` module doc.
+- [x] `website/src/data/changes.json`: one `changed` entry for `tools:editor`: "An edit in the editor
   checks again only the files that use what changed." `website/src/content/docs/tools/editor/index.mdx`
   is reread and stamped (`bun nv site --stamp`). No other page or `about.md` changes.
 
@@ -395,30 +395,40 @@ subagent once `refresh` lands. The session builds once it ends.
 
 ### State
 
-Stages 1 to 4 are done. `crates/nvs-lsp/tests/reach.rs` generates a 9-class library and 200 programs
-in ten roles, and its eleven counted tests plus the generator's own test are green
-(`cargo test --test reach`, 12 passed). The generator test opens one file of each kind and asserts
-no error, so every count is about the reach alone. `reached_entries` (`crates/nvs-lsp/src/index.rs:1485`)
-needed no change: every count matched the reach table on the first run. The oracle's enum case and
-private-property-under-`decodeAs` edits landed in 92c0f392ca.
+Stages 1 to 5 are done. The rule has the rows, the reach table and the measured line, and its
+Declined list has "a key per body" (the per-file dependency set entry was already gone). `bun nv
+lsp-start` takes `--kind member|private|public|comment` beside `--edits <m>` (a separate flag keeps
+`--edits <m>`'s callers working) and `--exe <path>` for a build of another commit. An edit that
+reaches no other file begins no indexing run, so the tool sends a second `documentSymbol` and waits
+for the run's work line only when a run began before that answer. It prints the files the edits' runs
+checked.
+
+Measured on `--copies 12 --cold --edits 5`, with a build of 5e7fe82409 (before stage 1, not
+3bf80195dd^: the memory of the rows and uses came in stages 1 to 4) and one of the tree: `member`,
+`private` and `public` checked 4861 files before, and 0, 0 and 11 after; `comment` 0 on both. The
+memory after a cold index went from about 460 MB private / 900 MB peak paged to about 550 / 1015 MB.
+The figures are in the rule and in `crates/nvs-lsp/src/session.rs`'s § *What it costs*.
+
+The editor page has one new paragraph (`website/src/content/docs/tools/editor/index.mdx`, § *Which
+files the editor reads*), and `changes.json` has the `changed` entry for `tools:editor/nvs-lsp`. `site
+--check stale changes` is green. `review` is red for these two texts until the newcomer review,
+which is stage 6's first item.
 
 No test outside `reach` and the oracle ran since stage 4's code landed. None is expected to go red,
-though `tests/index.rs`'s counted refresh tests are the likeliest if one does. The nightly `cancelled`
-jobs of run 45166887327 ran on c6c8111, before the CI fix 301e05b33d; nothing in the tree to fix.
+though `tests/index.rs`'s counted refresh tests are the likeliest if one does.
 
 ### Next
 
-Stage 5, one session, in its items' order.
+Stage 6, one session.
 
-- [ ] `docs/rules/ide/the-index-is-incremental-and-persistent.md:44`: rewrite the surface bullet
-  (rows, the reach table as `reached_entries` implements it) and the check-output bullet (the per-file
-  key of `crates/nvs-lsp/src/file_key.rs`). Remove the Declined "A per-file dependency set in the check
-  output's key", add "a key per body" with its reason, then `bun nv rules --render`.
-- [ ] `tools/nv/cmd/lsp-start.ts:1`: `--edits <kind>` for `member`, `private`, `public`, `comment`;
-  measure `checked` per kind on `--copies 12`, before (checkout of 3bf80195dd^) and after, into the
-  rule's measured line. Needs `bun nv relink --build` first.
-- [ ] `crates/nvs-lsp/src/session.rs:1` module doc § *What it costs*: the memory before and after.
-- [ ] `website/src/data/changes.json:1`: the `changed` entry for `tools:editor`, then reread and stamp
-  `website/src/content/docs/tools/editor/index.mdx` (`bun nv site --stamp`).
+- [ ] `website/src/content/docs/tools/editor/index.mdx:240` and `website/src/data/changes.json:3`: the
+  newcomer review, with `bun nv site --review --brief <both keys>` to a `reader`, then `bun nv site
+  --review --stamp` for each key.
+- [ ] `crates/nvs-lsp/tests/reach.rs:1`: the pack's check for this stage (a close, unless the pack
+  names a full gate): `cargo build`,
+  `cargo clippy --all-targets -- -D warnings`, `cargo test --test reach`, `cargo test --test
+  incremental`, then `bun nv close --goal exact-invalidation`, each red fixed.
+- [ ] `docs/goals/exact-invalidation.md:94`: before the file is deleted, the standing decisions that only
+  its prose holds go to the rule or to the module docs of `surface.rs`, `file_key.rs` and `index.rs`.
 
 ### Backlog
