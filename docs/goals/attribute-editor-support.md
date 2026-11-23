@@ -6,7 +6,7 @@ context: [crates/nvs-lsp/src/attribute_decls.rs, docs/rules/attributes/an-attrib
 stages:
   - id: 1
     title: "the site words and fields are coloured, and a one-attribute file shows A"
-    status: open
+    status: done
     context: [editors/vscode/syntaxes/nvs.tmLanguage.json, crates/nvs-lsp/src/semantic.rs, crates/nvs-lsp/src/file_kinds.rs, editors/vscode/src/kinds.ts, docs/rules/ide/a-file-shows-what-it-declares.md]
   - id: 2
     title: "the outline, folding, member order and fmt know a declaration"
@@ -81,9 +81,10 @@ so they get no colour (`rule:ide/rejected-syntax-gets-no-colour`). A body field'
 the same field reads the same at its declaration and at its use. The grammar change is re-rendered into
 `website/config/novis.tmLanguage.json` by the site's sync, never edited there.
 
-**The server colours a body field as a `property` with the `declaration` modifier**, as a class
-property's declaration is, and a field's type the way a property's type is. Site words get no server
-token: the grammar is their one home.
+**The server colours a body field as a `property`**, as a class property's declaration is, and gives
+its type no token, as a property's type gets none. The legend has no `declaration` modifier, and a
+class property's declaration carries none. Site words get no server token: the grammar is their one
+home.
 
 **The Explorer letter is `A`.** The wire word is `attribute`, the tooltip "This file declares an
 attribute." An older client ignores the word (`isKind`, `editors/vscode/src/kinds.ts:57`), so the
@@ -109,7 +110,7 @@ Stage 4's first item finds what the checker records for that read. **Safe defaul
 recorded and cannot be found from the expression table, rename refuses a field that has such a read,
 and references lists the declaration and the uses. A partial rename is worse than none.
 
-**Signature help shows the declaration as one signature**, `Name(field: T, opt?: T = v)`, with each
+**Signature help shows the declaration as one signature**, `Name(field: T, opt?: T)`, with each
 field's `///` doc as the parameter doc. The active field is the key at the cursor, and before any key
 is written, the first required field not yet written.
 
@@ -134,19 +135,19 @@ allow writing one. Key completion and signature help show what is missing.
 
 **Split:** none; the files are few and each change is small.
 
-- [ ] `editors/vscode/syntaxes/nvs.tmLanguage.json:304`: the header rule colours the four site words
+- [x] `editors/vscode/syntaxes/nvs.tmLanguage.json:304`: the header rule colours the four site words
   and the commas between them, and a body field's name, per the standing decision. The rule's comment
   says what it colours now.
-- [ ] `editors/vscode/test/grammar/fixtures/attributes.nvs:14` gains a declaration with two site words, a
-  multi-line body and an optional field with a default. `editors/vscode/test/grammar/comments.test.ts:150`
+- [x] `editors/vscode/test/grammar/fixtures/attributes.nvs:14` gains a declaration with two site words, a
+  multi-line body and an optional field. `editors/vscode/test/grammar/comments.test.ts:150`
   asserts each scope, and that `hook` after `on` gets none.
-- [ ] `crates/nvs-lsp/src/semantic.rs:739` and `:791`: a body field is a `property` with
-  `declaration`, and its type is coloured as a property's. `tests/lsp/semantic/an-attribute-name-is-a-decorator-token.lspt:1`
+- [x] `crates/nvs-lsp/src/semantic.rs:739` and `:791`: a body field is a `property`, and its type gets
+  no token, as a property's. `tests/lsp/semantic/an-attribute-name-is-a-decorator-token.lspt:1`
   expects the new tokens.
-- [ ] `crates/nvs-lsp/src/file_kinds.rs:109`: `DeclKind::Attribute` answers `attribute`; its doc comment
+- [x] `crates/nvs-lsp/src/file_kinds.rs:109`: `DeclKind::Attribute` answers `attribute`; its doc comment
   says so. `editors/vscode/src/kinds.ts:23` and `:42` add the kind and the `A` badge, and
   `editors/vscode/test/client/kinds.test.ts:1` covers it.
-- [ ] `rule:ide/a-file-shows-what-it-declares` and `rule:programs/one-declaration-per-autoloaded-file`
+- [x] `rule:ide/a-file-shows-what-it-declares` and `rule:programs/one-declaration-per-autoloaded-file`
   list an attribute declaration among the kinds.
 
 ### 2. the outline, folding, member order and fmt know a declaration
@@ -238,13 +239,29 @@ allow writing one. Key completion and signature help show what is missing.
 
 ### State
 
-The goal is written; no stage has started. The screenshot that started it showed the published 0.0.5
-leaving a whole declaration line uncoloured. The 0.0.5 grammar and server both colour that line in a
-clean file, so that picture was not reproduced. Only the uncoloured site words are this goal's.
+Stage 1 is done, in three commits. The grammar's `#attribute-declaration` is now a region: the header,
+then `#attribute-sites` (the four site words take `keyword.other.nvs` up to the `{` or the end of the
+line; the commas keep the text colour, since the allowlist has no separator scope), then the body
+through `#shape-type`. `#shape-type` now includes `#comments` and colours an optional field's name
+(`name?:`), which also fixes both in an ordinary inline shape. The website grammar was re-rendered with
+`bun nv render`. The semantic layer gives a field `property` (`Named::attribute_decl`,
+`crates/nvs-lsp/src/semantic.rs:588`); the legend has no `declaration` modifier, so the standing
+decision was corrected. `nvs/fileKinds` answers `attribute`, and the client draws `A`.
+
+A field has no default (`rule:attributes/an-attribute-is-declared-with-its-sites`), so the fixture's
+optional field has none, and the signature-help decision no longer writes `= v`. The `## Why`
+paragraph at line 51 still writes `opt?: T = v`; it is history and left as written.
+
+Tests run by name and green: the grammar suite (129 passing), `kinds.test.ts` (13 passing),
+`autoload::a_file_that_declares_one_type_is_listed_with_its_kind`, and the `.lspt` case. None is
+expected to go red. Stage 6 owes the editor page's mention of `A` and a `changes.json` entry for the
+colours and the badge.
 
 ### Next
 
-Stage 1, its first item: the grammar's header rule.
+Stage 2, its first item: `crates/nvs-lsp/src/symbols.rs:135` and `:233`, a declaration as a document
+symbol. Then folding (`crates/nvs-lsp/src/folding.rs:258`), member order
+(`crates/nvs-lsp/src/order.rs:445`) and the fmt case.
 
 ### Backlog
 
