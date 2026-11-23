@@ -175,6 +175,23 @@ an enum's set of cases becomes part of its header row.
 (`crates/nvs-lsp/src/index.rs:374`) already records `::name` for an unresolved call. The new record covers
 every lookup kind. Without it, a new member could not reach the file that showed "unknown method".
 
+**A member is missed on the class it was looked up on, and on no other** (stage 2,
+`crates/nvs-hir/src/uses.rs`). A member found on a parent is a use of the parent's member and a miss on
+the receiver, because a member added between the two would be found first. So stage 4 matches an added
+`P::m` against every miss `R::m` where R is P or a subclass of P, through the class graph. Recording a
+miss on every class between them instead would walk the graph at each lookup.
+
+**The names are strings while a check runs, and stage 3 interns them** (stage 2). `nvs_hir::Uses` keeps
+`Box<str>` names, because nvs-hir and nvs-types both record and neither holds the session. Stage 3 turns
+each walked file's names into the session's symbol ids when it stores the output. Until then a
+`FileOutput` keeps one string per distinct name. A whole check records nothing.
+
+**The signature table records every lookup made through it during a file's walk** (stage 2,
+`SignatureTable::record_lookups`). The six member wrappers have about 120 callers in 25 files, and a
+parameter threaded through each would be easy to miss at one. Every `SignatureTable::get` of a class
+during the walk is a use of that class's header, the safe default. The cost is one `RefCell` test per
+lookup when nothing records.
+
 **The unit of re-checking is the file.** A file whose uses meet the diff has all its bodies checked again.
 A file's walk is one synthesized frame, and the anonymous-function count threads from file to file
 (`crates/nvs-types/src/check.rs:316`, `:489`), so a body-level key would need a second numbering. A
@@ -240,17 +257,23 @@ checked.
 **Split:** none, one session. The sites are listed below. If the session nears 120k, the `nvs-hir`
 member resolver item is the one to hand to the next session.
 
-- [ ] `crates/nvs-types/src/partial.rs:61` `FileOutput`: `uses` and `missed`, sets of interned symbols.
-  The symbol interner lives beside the type interner in `crates/nvs-lsp/src/session.rs`, and `nvs check`
-  passes none, so it pays nothing.
-- [ ] Type names: `lower_type` (`crates/nvs-types/src/lower.rs:1195`, failure `:1228`) records the class
-  header symbol or the missed name. So do `new` (`expr/calls.rs:2976`), static and constant receivers
-  (`expr/members.rs:1911`, `:2947`) and attribute names (`attributes.rs:469`, `:493`).
-- [ ] Members: each wrapper in `crates/nvs-types/src/signatures.rs` records the declaring owner's
-  member. On failure it records `Class::member` for the receiver's class. The wrappers: `resolve_method` (`:2682`),
-  `resolve_method_ref` (`:2695`), `resolve_property` (`:2222`), `resolve_property_owned` (`:2242`),
-  `resolve_const` (`:2283`), `resolve_const_owned` (`:2300`). A failure with no known receiver records
-  `::member`, as `UnresolvedCall` (`expr_table.rs:1654`) does now. Enum cases at `expr/members.rs:125`.
+- [x] `crates/nvs-types/src/partial.rs` `FileOutput::uses`, an `nvs_hir::Uses` (used and missed names,
+  `crates/nvs-hir/src/uses.rs`). A partial check records; a whole check keeps it off.
+  - [x] `nvs_hir::Uses` and its two unit tests.
+  - [x] `FileOutput`, `Env::uses` and the three `Env` construction sites.
+  - [x] The declaration pass records per file into `SignatureTable::uses`, and a walked file takes its set.
+- [x] Type names: `lower_type` records the class or alias, the miss, and a bare name inside a class body
+  as a miss on that class. So do `new` (`expr/calls.rs`) and static receivers (`expr/members.rs`).
+- [ ] Attribute names (`crates/nvs-types/src/attributes.rs:469`, `:493`) record the attribute's class
+  or the miss.
+- [x] Members: the signature table records every lookup through `resolve_method_ref`,
+  `resolve_property_owned` and `resolve_const_owned` (the other three wrap them) while a file is walked,
+  and every `SignatureTable::get` as a use of that class. Enum cases at `expr/members.rs` record too.
+- [ ] A member looked up on a value of unknown type records `::member`: find where a `->name` on
+  `mixed` or an error type gives up in `crates/nvs-types/src/expr/calls.rs` and `expr/members.rs`.
+- [ ] A constant read through another constant records both (*Standing decisions*):
+  `crate::consts::ConstTable` (`crates/nvs-types/src/consts.rs`) keeps, per constant, the constants its
+  value read, and the read site records them.
 - [ ] The `nvs-hir` member resolver records the same way: `MemberResolver::check`
   (`crates/nvs-hir/src/members.rs:412`), `member_declared` (`:2240`), failure `E_UNDEFINED_MEMBER`
   (`:2120`), and the missing enum member (`:2101`).
@@ -260,10 +283,10 @@ member resolver item is the one to hand to the next session.
   names they resolve or miss.
 - [ ] Codec sites: `classes_reached` (`crates/nvs-types/src/derive.rs:2367`) puts every class a site
   reaches into the site file's uses, as a header use plus each property, private ones included.
-- [ ] Rust tests in `crates/nvs-types/src/partial.rs`: a fixture file's `uses` and `missed` are exactly the
-  expected sets. One test each: a resolved call, an unknown class, an unknown member on a known type, an
-  unknown member on an unknown type. Then a type annotation, an enum case, a subclass and a
-  `decodeAs<T>`.
+- [ ] Rust tests in `crates/nvs-types/tests/uses.rs`, which has the program fixture the unit tests lack.
+  - [x] A resolved call, an unknown class, an unknown member on a known class, a member found on a
+    parent, a type annotation, an enum case, and every walked file records.
+  - [ ] An unknown member on an unknown type, a subclass's file (hir), a `decodeAs<T>`, and an attribute.
 
 ### 3. a file's checked output is keyed on what it used
 
@@ -327,27 +350,34 @@ subagent once `refresh` lands. The session builds once it ends.
 
 ### State
 
-Stage 1 is done. `crates/nvs-lsp/src/surface.rs` cuts a parse into `Rows` (one `Row` per symbol and
-`Kind`: `Graph`, `Header`, `Cases`, `Properties`, `Method`, `AbstractMethod`, `Property`, `Constant`,
-`Case`), each with its visibility, a text hash and an attributes hash. `of` is the hash of all rows, so
-every caller of the old hash still works. `diff(&old, &new) -> Vec<Change>` gives symbol, kind (or
-`Attributes`), the wider visibility and `How` (`Added`, `Removed`, `Changed`). A cut is written as a
-gap, so adding an attribute or a member leaves the other rows as they were. The parse cache keeps an
-`Arc<Rows>` per entry, and `ParseCache::hashes` returns `(Digest, &Rows)`. Thirteen unit tests at the
-end of `surface.rs` (`cargo test --lib surface::tests`) and the five surface-hash tests in
-`tests/incremental.rs` pass. No test is expected to go red. The two new rows and the constant-reads-a-
-constant case are recorded under *Standing decisions*.
+Stage 1 is done (`crates/nvs-lsp/src/surface.rs`: `Rows`, `of`, `diff`). Stage 2 is half done: the types
+walk records. `nvs_hir::Uses` (`crates/nvs-hir/src/uses.rs`) holds one file's used and missed names, and
+`FileOutput::uses()` gives it. A partial check turns it on for each walked file. The signature table
+records every member lookup and every `get` during a file's walk (`SignatureTable::record_lookups`,
+`take_lookups`), and the declaration pass records per file into `SignatureTable::uses`. `lower_type`,
+`new`, static receivers and enum cases record class names. Seven tests in
+`crates/nvs-types/tests/uses.rs` (`cargo test --test uses`) and two unit tests in `uses.rs` pass. No test
+is expected to go red. Two new standing decisions: the names are strings until stage 3 interns them,
+and a member is missed on its receiver.
+
+Before stage 2 the session fixed the nightly finding: `bun nv ci --push` cancelled the scheduled run
+and its miri jobs. `superseded` (`tools/nv/cmd/ci.ts`) now cancels push runs only
+(`rule:testing/one-run-on-main`).
 
 ### Next
 
-Stage 2, the checker records what each file used and failed to find (`crates/nvs-types/src/partial.rs`,
-`check.rs`, `signatures.rs`, `crates/nvs-hir/src/members.rs`). It does not touch `nvs-lsp`.
+The rest of stage 2. The hir items record into a per-file map: `Module` (`crates/nvs-hir/src/resolve.rs:41`)
+gains `uses: FxHashMap<SourceId, Uses>`, on when `resolve_program` gets a `Parses` (the server's path,
+`crates/nvs-hir/src/requires.rs:367`), keyed by the source of the span each record is about.
 
-- [ ] `crates/nvs-types/src/partial.rs:61` `FileOutput`: `uses` and `missed`.
-- [ ] Type names at `crates/nvs-types/src/lower.rs:1195`, members in `signatures.rs` (wrappers at
-  `:2222`, `:2242`, `:2283`, `:2300`, `:2682`, `:2695`), and a constant's value read through another
-  constant (*Standing decisions*).
-- [ ] `crates/nvs-hir/src/members.rs:412` and `crates/nvs-hir/src/hierarchy.rs:827`.
-- [ ] Codec sites at `crates/nvs-types/src/derive.rs:2367`, and the Rust tests in `partial.rs`.
+- [ ] `crates/nvs-hir/src/members.rs:412` `MemberResolver::check`, `member_declared` and its failures.
+- [ ] `crates/nvs-hir/src/hierarchy.rs:438`, `:456` `resolve_supertype`: the parent and each interface
+  into the subclass's file, and the miss.
+- [ ] Doc tags at `crates/nvs-hir/src/members.rs:1022` `check_throws` and `:1223` `check_see`.
+- [ ] Attribute names at `crates/nvs-types/src/attributes.rs:469`, `:493`, and `::member` for an unknown
+  receiver type.
+- [ ] A constant through a constant, at `crates/nvs-types/src/consts.rs:141` `ConstTable::get`.
+- [ ] Codec sites at `crates/nvs-types/src/derive.rs:2367` `classes_reached`, and the remaining tests in
+  `crates/nvs-types/tests/uses.rs`.
 
 ### Backlog
