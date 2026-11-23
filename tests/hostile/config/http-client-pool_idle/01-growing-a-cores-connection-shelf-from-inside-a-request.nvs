@@ -4,8 +4,8 @@
 // Every change should fail.
 // hostile: timeout-ms 30000
 
-// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `http.client.pool_idle`,
-// so that call does not compile. Here the name is in a variable, so every call runs and returns `false`.
+// `Core\Config::set('http.client.pool_idle', ...)` does not compile, because a program may not change `http.client.pool_idle`.
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
 string $poolIdle = 'http.client.pool_idle';
 
 // 1. Set the limit to huge, negative, empty and invalid values, and to `false`.

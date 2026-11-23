@@ -5,8 +5,8 @@
 echo 'time for the report:  ', Core\Config::get('log.handler_reserve_time') ?? '(nothing written)', "\n";
 echo 'memory beside it:     ', Core\Config::get('log.handler_reserve_memory') ?? '(nothing written)', "\n";
 
-// `limits.fatal_reserve_time` and `limits.fatal_reserve_memory` are different settings.
-// They are part of the request's own limits, and they run the program's own handler function.
+// `limits.fatal_reserve_time` and `limits.fatal_reserve_memory` are part of the request's own limits.
+// They are the extra time and memory that the program's own handler function gets.
 echo 'the request-side time: ', Core\Config::get('limits.fatal_reserve_time') ?? '(nothing written)', "\n";
 echo 'the request-side heap: ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing written)', "\n";
 

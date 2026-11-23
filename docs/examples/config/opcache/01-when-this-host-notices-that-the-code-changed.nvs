@@ -10,8 +10,12 @@ echo 'validate:        ', Core\Config::get('opcache.validate') ?? '(no value)', 
 echo 'revalidate_freq: ', Core\Config::get('opcache.revalidate_freq') ?? '(no value)', "\n";
 echo 'settle:          ', Core\Config::get('opcache.settle') ?? '(no value)', "\n";
 
-// Only the person who runs the server may change these settings. The compiler checks a setting name written as text,
-// so `Core\Config::set('opcache.validate', ...)` does not compile. Here each name is in a variable, so each call runs and returns `false`.
+// Only the person who runs the server may change these settings.
+
+// `Core\Config::set('opcache.validate', ...)` does not compile,
+// because a program may not change `opcache.validate`.
+
+// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
 string $validate = 'opcache.validate';
 string $revalidateFreq = 'opcache.revalidate_freq';
 string $settle = 'opcache.settle';

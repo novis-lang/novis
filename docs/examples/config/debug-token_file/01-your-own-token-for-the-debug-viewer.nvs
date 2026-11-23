@@ -3,7 +3,10 @@
 // This file does not set it, so `nvs debug` creates its own token, and this prints `(not set)`.
 echo 'token_file: ', Core\Config::get('debug.token_file') ?? '(not set)', "\n";
 
-// A program cannot change this setting, so this prints `no`. The compiler checks a setting name written as text,
-// so `Core\Config::set('debug.token_file', ...)` does not compile. Here the name is in a variable, so the call runs.
+// `Core\Config::set('debug.token_file', ...)` does not compile,
+// because a program may not change `debug.token_file`.
+
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This prints `no`.
 string $name = 'debug.token_file';
 echo 'change it:  ', Core\Config::set($name, '/etc/novis/debug.token') ? 'yes' : 'no', "\n";

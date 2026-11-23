@@ -78,7 +78,7 @@ Core\Config::set('http.headers.content_type_options', 'false');
 Core\Config::set($errorsDetail,'full');
 Core\Config::set($errorsDetail,'everything');
 
-// 5. Set keys that are almost the real keys, and a key with 10,000 parts.
+// 5. Set names that are almost the real names, and a name with 10,000 parts separated by dots.
 array<string> $nearby = [
     'http.',
     '.http',

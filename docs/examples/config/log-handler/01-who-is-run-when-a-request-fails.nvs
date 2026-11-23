@@ -12,8 +12,10 @@ Core\Fatal::onLimit(fn(): void => {
     echo "the program's own handler ran\n";
 });
 
-// A program cannot change `log.handler`. The compiler checks a setting name written as text,
-// so `Core\Config::set('log.handler', ...)` does not compile. Here the name is in a variable, so both calls run and return `false`.
+// `Core\Config::set('log.handler', ...)` does not compile,
+// because a program may not change `log.handler`.
+
+// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
 string $handler = 'log.handler';
 echo 'point it at my script: ', Core\Config::set($handler, 'scripts/mine.nvs') ? 'accepted' : 'refused', "\n";
 echo 'or take it off:        ', Core\Config::set($handler, '') ? 'accepted' : 'refused', "\n";

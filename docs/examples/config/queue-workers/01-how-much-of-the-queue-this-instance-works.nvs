@@ -5,12 +5,15 @@
 echo 'workers here:  ', Core\Config::get('queue.workers') ?? '(no value)', "\n";
 echo 'claiming from: ', Core\Config::get('queue.connection') ?? '(nothing written)', "\n";
 
-// With `workers = 0`, this server still adds jobs to the queue. Another server
-// takes the jobs and runs them. Here the value is `1`, so this prints `no`.
+// With `workers = 0`, this server only adds jobs to the queue. Another server runs them.
+
+// This example's `nvs.toml` sets `workers = 1`, so this prints `no`.
 echo 'enqueue-only:  ', (Core\Config::get('queue.workers') ?? '4') == '0' ? 'yes' : 'no', "\n";
 
-// The compiler checks a setting name written as text in `Core\Config::set`, so
-// `Core\Config::set('queue.workers', ...)` does not compile. Here the name is in a variable, so each call runs.
+// `Core\Config::set('queue.workers', ...)` does not compile,
+// because a program may not change `queue.workers`.
+
+// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
 string $name = 'queue.workers';
 
 // A program cannot add workers, so the call returns `false`. More workers would

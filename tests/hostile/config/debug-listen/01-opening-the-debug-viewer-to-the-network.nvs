@@ -3,8 +3,8 @@
 // address or port. Anybody who reaches that address could then read the recorded requests.
 // Every change should fail, and the address should keep its default value.
 
-// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `debug.listen`,
-// so that call does not compile. Here the name is in a variable, so every call runs and returns `false`.
+// `Core\Config::set('debug.listen', ...)` does not compile, because a program may not change `debug.listen`.
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
 string $setting = 'debug.listen';
 
 // 1. Set addresses on every network, on low ports and on other hosts. Each change should fail.
@@ -72,7 +72,7 @@ foreach ($nearby as string $key) {
     Core\Config::restore($key);
 }
 
-// 5. Try the same change 50,000 times, and restore the setting after each try. Each try should fail.
+// 5. Try the same change 50,000 times, and call `Core\Config::restore` after each try. Each try should fail.
 uint $i = 0;
 while ($i < 50000) {
     Core\Config::set($setting, '0.0.0.0:80');

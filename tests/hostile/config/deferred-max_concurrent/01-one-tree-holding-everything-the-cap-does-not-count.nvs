@@ -5,8 +5,8 @@
 // The server should run all the work and keep running.
 // hostile: timeout-ms 40000
 
-// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `deferred.max_concurrent`,
-// so that call does not compile. Here the name is in a variable, so every call runs and returns `false`.
+// `Core\Config::set('deferred.max_concurrent', ...)` does not compile, because a program may not change `deferred.max_concurrent`.
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
 string $maxConcurrent = 'deferred.max_concurrent';
 
 // 1. Raise the limit, or set values that could mean "no limit". Each change should fail.
@@ -31,7 +31,7 @@ foreach ($caps as string $cap) {
 Core\Config::restore($maxConcurrent);
 Core\Config::restore($maxConcurrent);
 
-// 2. Set keys that are almost the real key, and a key with 10,000 parts.
+// 2. Set names that are almost the real name, and a name with 10,000 parts separated by dots.
 array<string> $nearby = [
     'deferred.max_concurrent.',
     '.deferred.max_concurrent',

@@ -4,8 +4,8 @@
 // include, so every write below should fail and every read should return `null`.
 // hostile: timeout-ms 30000
 
-// The compiler checks a setting name written as text, so `Core\Config::set('include', ...)` does not compile.
-// Here each name is in a variable, so every call runs and returns `false`.
+// `Core\Config::set('include', ...)` does not compile, because a program may not change `include`.
+// Names in variables are checked only when the program runs. Then `set` returns `false`.
 string $include = 'include';
 string $includePath = 'include.path';
 string $includeDir = 'include.dir';

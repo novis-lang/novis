@@ -1,5 +1,6 @@
 <?nvs
-// `[mode] ceiling` is the most open mode any code on this server may select.
+// `[mode] ceiling` is the highest mode any code on this server may select.
+// `development` allows more than `production`, so `development` is the higher mode.
 // A program may change its own mode, but not past the ceiling.
 
 // This file does not write a ceiling, so the ceiling is the mode the server started in.
@@ -15,7 +16,11 @@ echo 'select production:  ', Core\Config::set('mode.default', 'production') ? 'a
 echo 'select development: ', Core\Config::set('mode.default', 'development') ? 'accepted' : 'refused', "\n";
 echo 'still running in:   ', Core\Env::mode() == Core\Env::Mode::Development ? 'development' : 'production', "\n";
 
-// Only the person who runs the server may change the ceiling. The compiler checks a setting name written as text,
-// so `Core\Config::set('mode.ceiling', ...)` does not compile. Here the name is in a variable, so the call runs and returns `false`.
+// Only the person who runs the server may change the ceiling.
+
+// `Core\Config::set('mode.ceiling', ...)` does not compile,
+// because a program may not change `mode.ceiling`.
+
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
 string $ceiling = 'mode.ceiling';
 echo 'raise the ceiling:  ', Core\Config::set($ceiling, 'development') ? 'accepted' : 'refused', "\n";

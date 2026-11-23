@@ -4,8 +4,8 @@
 // write should fail, and the connection should still be the configured one.
 // hostile: timeout-ms 20000
 
-// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `queue.connection`,
-// so that call does not compile. Here each name is in a variable, so every call runs and returns `false`.
+// `Core\Config::set('queue.connection', ...)` does not compile, because a program may not change `queue.connection`.
+// Names in variables are checked only when the program runs. Then `set` returns `false`.
 string $setting = 'queue.connection';
 string $indexed = 'app.0.queue.connection';
 

@@ -5,8 +5,10 @@
 // The full path differs on each machine, so this prints only the last folder, `tmp`.
 echo 'root folder:     ', Core\Path::basename(Core\Config::get('io.temp_root') ?? ''), "\n";
 
-// A program cannot change the root. The compiler checks a setting name written as text,
-// so `Core\Config::set('io.temp_root', ...)` does not compile. Here the name is in a variable, so the call runs and returns `false`.
+// `Core\Config::set('io.temp_root', ...)` does not compile,
+// because a program may not change `io.temp_root`.
+
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
 string $root = 'io.temp_root';
 echo 'move it:         ', Core\Config::set($root, '/tmp/somewhere-of-mine') ? 'yes' : 'no', "\n";
 

@@ -9,8 +9,9 @@ queue.
 The value must be at least 1, and there is no value that means "no limit". A server with `0` here
 does not start.
 
-Only the person who runs the server sets this key. A program cannot raise it or lower it. A change
-applies to the next job that a worker takes, and the server does not need a restart.
+Only the person who runs the server sets this key. A program cannot raise it or lower it. A worker
+is the part of the server that takes jobs from the queue and runs them. A change to this key in
+`nvs.toml` applies to the next job that a worker takes. The server does not need a restart.
 
 The example prints the number of attempts and tries to change it. `Core\Config::set` returns
 `false`.

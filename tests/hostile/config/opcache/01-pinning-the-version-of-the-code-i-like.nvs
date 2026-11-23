@@ -4,8 +4,8 @@
 // attempt below should fail and the settings should stay as they were.
 // hostile: timeout-ms 20000
 
-// The compiler checks a setting name written as text, so `Core\Config::set('opcache.validate', ...)` does not compile.
-// Here each name is in a variable, so every call runs and returns `false`.
+// `Core\Config::set('opcache.validate', ...)` does not compile, because a program may not change `opcache.validate`.
+// Names in variables are checked only when the program runs. Then `set` returns `false`.
 string $validate = 'opcache.validate';
 string $indexed = 'app.0.opcache.validate';
 string $freq = 'opcache.revalidate_freq';

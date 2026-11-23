@@ -4,8 +4,8 @@
 // stops. Every write should fail, and the value should stay the configured one.
 // hostile: timeout-ms 20000
 
-// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `queue.visibility`,
-// so that call does not compile. Here each name is in a variable, so every call runs and returns `false`.
+// `Core\Config::set('queue.visibility', ...)` does not compile, because a program may not change `queue.visibility`.
+// Names in variables are checked only when the program runs. Then `set` returns `false`.
 string $name = 'queue.visibility';
 string $indexed = 'app.0.queue.visibility';
 

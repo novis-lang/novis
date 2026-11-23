@@ -2,8 +2,8 @@
 // Attack: a request on a production server tries to switch itself to development mode.
 // Only the person who runs the server may allow that, so every attempt should fail.
 
-// The compiler checks a setting name written as text in `Core\Config::set`, so
-// `Core\Config::set('mode.ceiling', ...)` does not compile. Below, such names are in variables, so every call runs.
+// `Core\Config::set('mode.ceiling', ...)` does not compile. A program may not change it.
+// Names in variables are checked only when the program runs. Then `set` returns `false`.
 
 // 1. Switch the mode directly, with other spellings, and with no key at all.
 // Each call should return `false`.

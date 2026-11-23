@@ -1,11 +1,15 @@
 <?nvs
-// This program prints how many old log files Novis keeps and shows that a program cannot change it.
+// This program shows how many old log files Novis keeps.
 
 // This file does not set `log.keep`, so this prints the default, `5`.
 echo 'keep: ', Core\Config::get('log.keep') ?? '(no value)', "\n";
 
-// Only `nvs.toml` can set `log.keep`. The compiler checks a setting name written as text,
-// so `Core\Config::set('log.keep', ...)` does not compile. Here the name is in a variable, so each call runs and returns `false`.
+// Only `nvs.toml` can set `log.keep`.
+
+// `Core\Config::set('log.keep', ...)` does not compile,
+// because a program may not change `log.keep`.
+
+// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
 string $name = 'log.keep';
 echo 'keep 1000 files: ', Core\Config::set($name, '1000') ? 'accepted' : 'not allowed', "\n";
 echo 'keep 0 files: ', Core\Config::set($name, '0') ? 'accepted' : 'not allowed', "\n";

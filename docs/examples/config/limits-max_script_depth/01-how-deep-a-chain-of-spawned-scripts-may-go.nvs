@@ -7,8 +7,10 @@ echo 'nesting allowed:     ', Core\Config::get('limits.max_script_depth') ?? '(n
 // `limits.memory` is in the same block. A program may change it for itself.
 echo 'ask for less memory: ', Core\Config::set('limits.memory', '64M') ? 'accepted' : 'refused', "\n";
 
-// A program cannot change the depth. The compiler checks a setting name written as text,
-// so `Core\Config::set('limits.max_script_depth', ...)` does not compile. Here the name is in a variable, so each call runs and returns `false`.
+// `Core\Config::set('limits.max_script_depth', ...)` does not compile,
+// because a program may not change `limits.max_script_depth`.
+
+// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
 string $name = 'limits.max_script_depth';
 array<string> $asks = ['1024', '8', 'false'];
 foreach ($asks as string $ask) {

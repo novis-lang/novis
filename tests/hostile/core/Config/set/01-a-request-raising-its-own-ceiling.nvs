@@ -1,20 +1,20 @@
 <?nvs
 // Attack: a request tries to give itself more memory than the server allows,
-// and then takes all its memory away. Every attempt above the ceiling should be
-// refused. The last step should stop the program with an error.
+// and then takes all its memory away. Every attempt above the ceiling should fail.
+// The last step should stop the program with an error.
 // hostile: ends-early 5 FATAL
 
-// 1. A memory limit far above any machine. The server keeps a ceiling, so this
-// must be refused.
+// 1. The request sets a memory limit far above any machine. The server has a
+// ceiling, so `set` returns `false`.
 echo '999999T: ', Core\Config::set('memory', '999999T') ? 'changed' : 'refused', "\n";
 
-// 2. A name one million characters long, and a value one million characters
-// long.
+// 2. The request sets a name of one million characters, and then a value of one
+// million characters. Each call returns `false`.
 echo 'long name: ', Core\Config::set(Core\Str::repeat('a', 1000000), '1') ? 'changed' : 'refused', "\n";
 echo 'long value: ', Core\Config::set('memory', Core\Str::repeat('9', 1000000)) ? 'changed' : 'refused', "\n";
 
-// 3. A setting only the person who runs the server may set.
-// `Core\Config::set('opcache.file_cache_dir', ...)` with the name as text does not compile, so here the name is in a variable.
+// 3. A program may not change `opcache.file_cache_dir`, so `set` with that name as text does not compile.
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
 string $serverOwn = 'opcache.file_cache_dir';
 echo "the server's own: ", Core\Config::set($serverOwn, '/tmp/nvs') ? 'changed' : 'refused', "\n";
 

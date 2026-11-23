@@ -2,22 +2,23 @@
 // Attack: a program tries to switch itself into development mode, where errors show
 // more details. Nothing here allows that, so the mode must stay `Production`.
 
-// The compiler checks a setting name written as text in `Core\Config::set`, so
-// `Core\Config::set('mode', 'development')` does not compile. Below, the name is in a variable, so every call runs.
+// `Core\Config::set('mode', ...)` does not compile, because a program may not change `mode`.
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
 
-// 1. The program asks for development mode. The mode cannot go past its ceiling,
-// so the change is not allowed.
+// 1. The program tries to set development mode. The mode cannot go past its ceiling,
+// so `set` returns `false`.
 string $key = 'mode';
 echo 'development allowed: ', Core\Config::set($key, 'development') ? 'yes' : 'no', "\n";
 
-// 2. The program asks for modes that do not exist, and for a name of one million
-// characters. None of them is a mode, so each change is not allowed.
+// 2. The program tries modes that do not exist, and a name of one million characters.
+// None of them is a mode, so each call returns `false`.
 array<string> $names = ['staging', 'DEVELOPMENT', ' development', "development\0", Core\Str::repeat('d', 1000000)];
 foreach ($names as string $name) {
     echo 'strange mode allowed: ', Core\Config::set($key, $name) ? 'yes' : 'no', "\n";
 }
 
-// 3. The mode is read one million times. Every answer must be `Production`.
+// 3. The loop checks the mode one million times. Each result must be `Production`,
+// so the last line prints `0`.
 uint $development = 0;
 uint $round = 0;
 while ($round < 1000000) {

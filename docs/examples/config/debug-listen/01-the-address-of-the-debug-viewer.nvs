@@ -3,7 +3,10 @@
 // This file does not set it, so the default is used, and this prints `127.0.0.1:8137`.
 echo 'listen:     ', Core\Config::get('debug.listen') ?? '(no value)', "\n";
 
-// A program cannot change this setting, so this prints `no`. The compiler checks a setting name written as text,
-// so `Core\Config::set('debug.listen', ...)` does not compile. Here the name is in a variable, so the call runs.
+// `Core\Config::set('debug.listen', ...)` does not compile,
+// because a program may not change `debug.listen`.
+
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This prints `no`.
 string $name = 'debug.listen';
 echo 'change it:  ', Core\Config::set($name, '0.0.0.0:8137') ? 'yes' : 'no', "\n";

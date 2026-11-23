@@ -2,7 +2,8 @@
 
 The block has two keys. `default` is the mode that an application starts in. `ceiling` is the
 highest mode that code may select, and `development` is higher than `production`. When `ceiling`
-is not set, it is the same as `default`. The mode gives the defaults of the logger and of the HTTP
+is not set, it is the same as `default`. Then code cannot switch to a higher mode than the one
+the application started in. The mode gives the defaults of the logger and of the HTTP
 error pages.
 
 A program reads the mode with `Core\Config::get("mode.default")`.

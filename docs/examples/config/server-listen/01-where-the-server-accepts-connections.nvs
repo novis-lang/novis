@@ -7,8 +7,11 @@
 // When the file does not set it, the server listens on 127.0.0.1, port 8000.
 echo 'listening on:            ', Core\Config::get('server.listen') ?? '127.0.0.1:8000 (the default)', "\n";
 
-// A program cannot change this setting. The compiler checks a setting name written as text,
-// so `Core\Config::set('server.listen', ...)` does not compile. Here the name is in a variable, so the call runs and returns `false`. This prints `refused`.
+// `Core\Config::set('server.listen', ...)` does not compile,
+// because a program may not change `server.listen`.
+
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This prints `refused`.
 string $name = 'server.listen';
 echo 'listen on every address: ', Core\Config::set($name, '0.0.0.0:80') ? 'accepted' : 'refused', "\n";
 

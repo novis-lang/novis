@@ -10,8 +10,11 @@ echo 'socket mode:          ', Core\Config::get('server.socket_mode') ?? '(no va
 
 // Every account that may write to the socket may connect to the server. A program cannot change this setting.
 
-// The compiler checks a setting name written as text, so `Core\Config::set('server.socket_mode', ...)` does not compile.
-// Here the name is in a variable, so the call runs and prints `refused`.
+// `Core\Config::set('server.socket_mode', ...)` does not compile,
+// because a program may not change `server.socket_mode`.
+
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This prints `refused`.
 string $name = 'server.socket_mode';
 echo 'let everyone connect: ', Core\Config::set($name, '0666') ? 'accepted' : 'refused', "\n";
 

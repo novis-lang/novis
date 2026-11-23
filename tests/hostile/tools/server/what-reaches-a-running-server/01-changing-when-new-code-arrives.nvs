@@ -3,8 +3,8 @@
 // keys need a restart. Only the person who runs the server may set these, so
 // every attempt below should fail.
 
-// The compiler checks a setting name written as text in `Core\Config::set`, so
-// `Core\Config::set('opcache.settle', ...)` does not compile. Below, each name is in a variable, so every call runs.
+// `Core\Config::set('opcache.settle', ...)` does not compile. A program may not change it.
+// Names in variables are checked only when the program runs. Then `set` returns `false`.
 
 // 1. Compile the program again after every file that a deploy writes.
 string $settle = 'opcache.settle';

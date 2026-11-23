@@ -12,8 +12,10 @@
 // The server runs that script at those times. It is kept apart from everything
 // else, the same way a request is.
 
-// A program cannot add a schedule at runtime. The compiler checks a setting name written as text,
-// so `Core\Config::set('schedule', ...)` does not compile. Here the name is in a variable, so the call runs and returns `false`.
+// `Core\Config::set('schedule', ...)` does not compile,
+// because a program may not change `schedule`.
+
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
 string $name = 'schedule';
 echo 'schedule myself: ', Core\Config::set($name, '* * * * *') ? 'yes' : 'no', "\n";
 

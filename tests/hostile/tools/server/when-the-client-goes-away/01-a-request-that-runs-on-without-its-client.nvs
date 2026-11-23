@@ -2,8 +2,8 @@
 // Attack: a request tries to keep running for ever after its client went away.
 // Only the person who runs the server may set these limits, so every change below should fail.
 
-// The compiler checks a setting name written as text in `Core\Config::set`, so
-// `Core\Config::set('limits.disconnect_grace', ...)` does not compile. Below, each name is in a variable, so every call runs.
+// `Core\Config::set('limits.disconnect_grace', ...)` does not compile. A program may not change it.
+// Names in variables are checked only when the program runs. Then `set` returns `false`.
 
 // 1. Raise the time after the client went away to 100000 hours.
 string $grace = 'limits.disconnect_grace';

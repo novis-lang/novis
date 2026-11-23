@@ -8,7 +8,7 @@ echo 'time for it:           ', Core\Config::get('log.handler_reserve_time') ?? 
 echo 'the script it runs:    ', Core\Config::get('log.handler') ?? '(none — the floor writes the record itself)', "\n";
 
 // `limits.fatal_reserve_memory` is a different reserve. It is part of the request's
-// memory, and it runs the program's own handler function.
+// memory. It is the extra memory that the program's own handler function gets.
 echo 'the request-side slice: ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing written)', "\n";
 
 // A program cannot change this reserve. The compiler checks a setting name written as text,

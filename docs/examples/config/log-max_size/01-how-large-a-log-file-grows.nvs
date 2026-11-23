@@ -4,8 +4,12 @@
 // This file does not set `log.max_size`, so this prints the default, `10M`.
 echo 'max_size: ', Core\Config::get('log.max_size') ?? '(no value)', "\n";
 
-// Only `nvs.toml` can set `log.max_size`. The compiler checks a setting name written as text,
-// so `Core\Config::set('log.max_size', ...)` does not compile. Here the name is in a variable, so each call runs and returns `false`.
+// Only `nvs.toml` can set `log.max_size`.
+
+// `Core\Config::set('log.max_size', ...)` does not compile,
+// because a program may not change `log.max_size`.
+
+// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
 string $name = 'log.max_size';
 echo 'set it to 1G: ', Core\Config::set($name, '1G') ? 'accepted' : 'not allowed', "\n";
 echo 'remove the limit: ', Core\Config::set($name, 'false') ? 'accepted' : 'not allowed', "\n";

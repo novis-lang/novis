@@ -2,8 +2,8 @@
 // Attack: a request tries to change how long its server keeps connections open after a stop.
 // Only the person who runs the server may set `drain_timeout`, so every attempt below should fail.
 
-// The compiler checks a setting name written as text in `Core\Config::set`, so
-// `Core\Config::set('server.drain_timeout', ...)` does not compile. Below, the name is in a variable, so every call runs.
+// `Core\Config::set('server.drain_timeout', ...)` does not compile. A program may not change it.
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
 
 // 1. Raise the time limit to 100000 hours.
 string $drain = 'server.drain_timeout';

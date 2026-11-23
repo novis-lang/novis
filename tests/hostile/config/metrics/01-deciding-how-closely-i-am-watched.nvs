@@ -5,8 +5,8 @@
 // hostile: timeout-ms 20000
 // hostile: ends-early 4 FATAL
 
-// The compiler checks a setting name written as text, so `Core\Config::set('metrics.exporter', ...)` does not compile.
-// Here each name is in a variable, so every call runs and returns `false`.
+// `Core\Config::set('metrics.exporter', ...)` does not compile, because a program may not change `metrics.exporter`.
+// Names in variables are checked only when the program runs. Then `set` returns `false`.
 string $exporter = 'metrics.exporter';
 string $listen = 'metrics.listen';
 string $endpoint = 'metrics.endpoint';

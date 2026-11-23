@@ -8,8 +8,11 @@ echo 'workers here:       ', Core\Config::get('queue.workers') ?? '(nothing writ
 // Use the application's own database. Then a job is added in the same transaction
 // as the work that caused it, and a rolled-back transaction creates no job.
 
-// A program cannot change this setting. The compiler checks a setting name written as text,
-// so `Core\Config::set('queue.connection', ...)` does not compile. Here the name is in a variable, so the call runs and returns `false`. This prints `refused`.
+// `Core\Config::set('queue.connection', ...)` does not compile,
+// because a program may not change `queue.connection`.
+
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This prints `refused`.
 string $name = 'queue.connection';
 echo 'store them elsewhere:      ', Core\Config::set($name, 'somewhere-else') ? 'accepted' : 'refused', "\n";
 

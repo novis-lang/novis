@@ -9,8 +9,10 @@ echo 'queued in:           ', Core\Config::get('queue.connection') ?? '(nothing 
 // After the last attempt, the job is not deleted. It stays in the dead-letter
 // table until somebody reads it.
 
-// The compiler checks a setting name written as text in `Core\Config::set`, so
-// `Core\Config::set('queue.max_attempts', ...)` does not compile. Here the name is in a variable, so each call runs.
+// `Core\Config::set('queue.max_attempts', ...)` does not compile,
+// because a program may not change `queue.max_attempts`.
+
+// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
 string $name = 'queue.max_attempts';
 
 // A program cannot raise this number, so the call returns `false`. Too many

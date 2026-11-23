@@ -67,8 +67,8 @@ foreach ($neighbours as string $key) {
     Core\Config::get($key);
     Core\Config::restore($key);
 }
-// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change these settings,
-// so such a call does not compile. Here the names are in variables, so every call runs and returns `false`.
+// `Core\Config::set('http.client.pool_idle', ...)` does not compile, because a program may not change `http.client.pool_idle`.
+// Names in variables are checked only when the program runs. Then `set` returns `false`.
 string $poolIdle = 'http.client.pool_idle';
 string $roots = 'http.client.tls.roots';
 string $proxyUrl = 'http.client.proxy.url';

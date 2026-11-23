@@ -4,8 +4,11 @@
 // The `nvs.toml` beside this file sets it, so this prints `10s`.
 echo 'grace: ', Core\Config::get('limits.disconnect_grace') ?? 'not set', "\n";
 
-// The compiler checks a setting name written as text, so `Core\Config::set('limits.disconnect_grace', ...)` does not compile.
-// Here the name is in a variable, so each call runs. Each call returns `false`, so this prints `refused` three times.
+// `Core\Config::set('limits.disconnect_grace', ...)` does not compile,
+// because a program may not change `limits.disconnect_grace`.
+
+// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
+// This prints `refused` three times.
 string $name = 'limits.disconnect_grace';
 array<string> $values = ['1h', '1s', 'false'];
 foreach ($values as string $value) {

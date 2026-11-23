@@ -10,8 +10,10 @@ echo 'artifact cache: ', Core\Path::basename(Core\Config::get('opcache.file_cach
 echo 'cache in use:   ', Core\Config::get('opcache.file_cache') ?? '(no value)', "\n";
 echo 'size limit:     ', Core\Config::get('opcache.file_cache_max_size') ?? '(no value)', "\n";
 
-// The compiler checks a setting name written as text in `Core\Config::set`, so
-// `Core\Config::set('opcache.file_cache_dir', ...)` does not compile. Here the names are in variables, so each call runs.
+// `Core\Config::set('opcache.file_cache_dir', ...)` does not compile,
+// because a program may not change `opcache.file_cache_dir`.
+
+// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
 string $cacheDir = 'opcache.file_cache_dir';
 string $cache = 'opcache.file_cache';
 

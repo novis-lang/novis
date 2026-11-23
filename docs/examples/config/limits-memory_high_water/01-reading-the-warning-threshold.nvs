@@ -1,11 +1,16 @@
 <?nvs
-// `limits.memory_high_water` writes a warning to the log when a request uses most of its memory limit.
+// When a request uses this part of its memory limit, Novis writes a warning to the log.
+// `limits.memory_high_water` sets that part.
 
 echo 'memory limit:    ', Core\Config::get('limits.memory'), "\n";
 echo 'warning at:      ', Core\Config::get('limits.memory_high_water') ?? '(unset)', "\n";
 
-// Only the person who runs the server may set the warning. The compiler checks a setting name written as text,
-// so `Core\Config::set('limits.memory_high_water', ...)` does not compile. Here the name is in a variable, so both calls run and return `false`.
+// Only the person who runs the server may set the warning.
+
+// `Core\Config::set('limits.memory_high_water', ...)` does not compile,
+// because a program may not change `limits.memory_high_water`.
+
+// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
 string $name = 'limits.memory_high_water';
 echo 'warn at half:    ', Core\Config::set($name, '0.5') ? 'accepted' : 'refused', "\n";
 echo 'warn always:     ', Core\Config::set($name, '0') ? 'accepted' : 'refused', "\n";

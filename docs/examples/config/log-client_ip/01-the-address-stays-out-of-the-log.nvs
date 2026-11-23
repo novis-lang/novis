@@ -1,11 +1,15 @@
 <?nvs
-// This program prints whether the server's log lines contain the client address, and shows that a program cannot change it.
+// This program shows whether the server's log lines contain the client address.
 
 // This file does not set `log.client_ip`, so this prints the default, `true`.
 echo 'client_ip: ', Core\Config::get('log.client_ip') ?? '(no value)', "\n";
 
-// Only `nvs.toml` can set `log.client_ip`. The compiler checks a setting name written as text,
-// so `Core\Config::set('log.client_ip', ...)` does not compile. Here the name is in a variable, so the call runs and returns `false`.
+// Only `nvs.toml` can set `log.client_ip`.
+
+// `Core\Config::set('log.client_ip', ...)` does not compile,
+// because a program may not change `log.client_ip`.
+
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
 string $name = 'log.client_ip';
 echo 'turn it off: ', Core\Config::set($name, 'false') ? 'accepted' : 'not allowed', "\n";
 

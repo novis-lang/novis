@@ -8,8 +8,10 @@
 //
 // This file lists none. A program cannot add an extension, so this prints `no`.
 
-// The compiler checks a setting name written as text in `Core\Config::set`,
-// so `Core\Config::set('extension', ...)` does not compile. Here the name is in a variable, so the call runs.
+// `Core\Config::set('extension', ...)` does not compile,
+// because a program may not change `extension`.
+
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
 string $name = 'extension';
 echo 'add one from code: ', Core\Config::set($name, '/tmp/anything.nvsx') ? 'yes' : 'no', "\n";
 

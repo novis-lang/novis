@@ -4,13 +4,18 @@
 // The program reads its settings from `nvs.toml`. This prints `128M`.
 echo Core\Config::get('memory'), "\n";
 
-// `Core\Config::set` changes a setting for this program only. The file stays the same.
+// `Core\Config::set` changes a setting for this request only. The file stays the same.
 // This prints `yes` and then `64M`.
 echo Core\Config::set('memory', '64M') ? 'yes' : 'no', "\n";
 echo Core\Config::get('memory'), "\n";
 
-// A program cannot give itself a new right. The compiler checks a setting name written as text,
-// so `Core\Config::set('capabilities.fs.write', ...)` does not compile. Here the name is in a variable, so the call runs and returns `false`. This prints `no`.
+// A program cannot give itself a new right.
+
+// `Core\Config::set('capabilities.fs.write', ...)` does not compile,
+// because a program may not change `capabilities.fs.write`.
+
+// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This prints `no`.
 string $right = 'capabilities.fs.write';
 echo Core\Config::set($right, '.') ? 'yes' : 'no', "\n";
 
