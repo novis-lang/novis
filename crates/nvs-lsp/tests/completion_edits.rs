@@ -1259,6 +1259,7 @@ fn an_at_sign_is_answered_only_where_it_opens_a_doc_tag() {
     }
 }
 
+// covers: tools:editor/nvs-lsp
 #[test]
 fn an_attribute_declaration_word_writes_the_whole_declaration() {
     let header = "attribute ${1:Name} on ${2|class,method,property,parameter|} { $0 }";

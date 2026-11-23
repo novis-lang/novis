@@ -4512,7 +4512,7 @@
     "tools:editor/nvs-dap": "4b30f2306df7e608"
   },
   "docs/examples/tools/editor/nvs-lsp/about.md": {
-    "tools:editor/nvs-lsp": "8a05350db2a1a8fe"
+    "tools:editor/nvs-lsp": "0e4dfd7717a675f0"
   },
   "docs/examples/tools/editor/nvs-lsp-test/about.md": {
     "tools:editor/nvs-lsp-test": "df416dc062c9527f"
@@ -9366,7 +9366,7 @@
     "tools:editor/nvs-dap": "b5dc0d14f31c3914"
   },
   "help:tools:editor/nvs-lsp": {
-    "tools:editor/nvs-lsp": "14e779cbbc245818"
+    "tools:editor/nvs-lsp": "f36090553fe4c36e"
   },
   "help:tools:editor/nvs-lsp-test": {
     "tools:editor/nvs-lsp-test": "cdbb8253b23e08ce"
@@ -9876,7 +9876,7 @@
     "tools:editor/nvs-dap": "e7529dc767e5836e"
   },
   "tools/editor/index.mdx": {
-    "tools:editor/nvs-lsp": "93a2f3ec6c7f735a",
+    "tools:editor/nvs-lsp": "00f732b3f17b31fb",
     "tools:editor/the-vs-code-extension": "4a8700ac5275da6b"
   },
   "tools/formatter/index.mdx": {

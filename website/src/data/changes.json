@@ -1,6 +1,62 @@
 {
   "entries": [
     {
+      "kind": "new",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "In the VS Code Explorer, a file that declares one attribute shows the letter `A`. Its tooltip is \"This file declares an attribute.\""
+    },
+    {
+      "kind": "new",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "Inside `#[Name(`, the editor shows the fields of the attribute declaration as signature help. Each field shows its doc comment."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "An attribute that nothing declares has the quick fix **Declare the attribute**. It writes an `attribute` declaration in the same file, with a field for each key you wrote."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "The editor colours the words `class`, `method`, `property` and `parameter` after `on` in an attribute declaration. Each field name has the colour of a property name."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "The outline lists each attribute declaration and its fields. The body of an attribute declaration folds."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "The editor completes `attribute` and `repeatable` at file level and in a class or interface body. It also completes the type of each field in an attribute declaration."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "Go to definition, find references, highlight and rename work on the fields of an attribute declaration. They also work on each key in a `#[Name(key: …)]` use."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "`nvs code order` now moves an attribute declaration in a class to the top of the class, with the `enum` and `type` declarations. **Order class members** in the editor does the same."
+    },
+    {
       "kind": "changed",
       "features": [
         "Core\\Csrf::token"
