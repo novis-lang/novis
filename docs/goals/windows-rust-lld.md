@@ -22,7 +22,7 @@ stages:
     context: [docs/goals/ci-green.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: pe-flags
@@ -173,14 +173,19 @@ Only when stage 2 adopted rust-lld.
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. rust-lld links every Windows profile (`.cargo/config.toml`), and no safe
+Every stage is done, and the goal is reached. Stage 5 closed it without the full gate: `cargo
+build`, `cargo clippy --all-targets -- -D warnings`, `cargo test --test panic_location` (2 pass),
+`bun test tools/nv/test/pe-flags.test.ts` (6 pass) and `bun nv close --goal windows-rust-lld` are
+all green, with nothing to fix. The goal joins the chain's `ungated:` list.
+
+rust-lld links every Windows profile (`.cargo/config.toml`), and no safe
 default was needed. Push run 45080779341 on c6c8111e4 is green, Website too, and `bun nv ci --green`
 exits 0. The first push run's reds all came from taint-fail-closed, none from the linker; they are
 fixed in fa4bc3f965, a47f3eb473, 3d4b3d4408 and c6c8111e4a.
@@ -197,13 +202,12 @@ Windows build steps, warm run 45084959508 against link.exe run 44940832132, in m
 
 The proofs job was split in two between the runs, so its row is not like for like.
 
-Sessions per stage: stage 1, one. Stage 2, one. Stage 3, one. Stage 4, one.
+Sessions per stage: stage 1, one. Stage 2, one. Stage 3, one. Stage 4, one. Stage 5, one.
 
 ### Next
 
-Stage 5, at `docs/goals/windows-rust-lld.md` § *5. the goal is verified once*: the pack names whether
-this goal takes the full gate or only closes. A close is a build, clippy, `cargo test --test
-panic_location`, `bun test tools/nv/test/pe-flags.test.ts`, then `bun nv close --goal
-windows-rust-lld`. Expected red: none.
+None: the goal is reached. Its decisions live in `.cargo/config.toml`'s comment and the header of
+`tools/nv/cmd/pe-flags.ts`, so the file can be deleted. The next goal on the chain is
+`review-hardening`. Expected red: none.
 
 ### Backlog
