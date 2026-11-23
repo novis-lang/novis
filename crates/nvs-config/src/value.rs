@@ -28,9 +28,9 @@
 //! compare must refuse on security grounds, and the only way to reach that case is a caller
 //! that parsed the two sides under different units.
 //!
-//! What this module does **not** do is decide who may set a directive: that is
-//! [`Class`](crate::Class), asked before the value is looked at, and a value within its ceiling set
-//! by a request that may not set it at all is still refused.
+//! What this module does **not** do is decide whether a request may set a directive: that is
+//! [`settable::how`](crate::settable::how), asked before the value is looked at, so a value within
+//! its ceiling for a key [`SETTABLE`](crate::settable::SETTABLE) does not list is still refused.
 //!
 //! Cost: no allocation on a value that parses, one `String` per refusal. It runs at boot, on each
 //! reload, and once per `Core\Config::set` — never on a read of a limit already in the snapshot.

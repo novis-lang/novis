@@ -374,7 +374,10 @@ fn interface_json(row: &(&str, &[&str])) -> Value {
 fn directive_json(directive: &nvs_config::Directive, cards: &FxHashMap<String, String>) -> Value {
     let mut out = Map::new();
     out.insert("key".into(), Value::from(directive.key));
-    out.insert("apply".into(), Value::from(format!("{:?}", directive.apply)));
+    out.insert(
+        "apply".into(),
+        Value::from(format!("{:?}", directive.apply)),
+    );
     if let Some(help) = cards.get(directive.key) {
         out.insert("help".into(), Value::from(help.as_str()));
     }

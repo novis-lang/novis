@@ -264,7 +264,7 @@
   },
   "/guides/how-to-use/configuration/": {
     "feature": "guides/how-to-use/configuration.mdx",
-    "hash": "ead42072bc288aa5",
+    "hash": "a86f7e392b615f19",
     "questions": [
       "Override a few settings without editing nvs.toml",
       "How do I create a new configuration file with every setting?",
@@ -286,7 +286,7 @@
   },
   "/guides/how-to-use/limits/": {
     "feature": "guides/how-to-use/limits.mdx",
-    "hash": "22fcdd68223967ed",
+    "hash": "00e745b8172cb5a4",
     "questions": [
       "How do I give one large report more memory than other pages?",
       "Difference between processor time and total request time",
@@ -921,7 +921,7 @@
   },
   "/in-depth/concepts/limits/": {
     "feature": "in-depth/concepts/limits.mdx",
-    "hash": "4cd35a24fa153158",
+    "hash": "6e63f2e00c24e20d",
     "questions": [
       "Why does every request have a memory and time limit?",
       "What happens when a request uses too much memory?",
@@ -1395,7 +1395,7 @@
   },
   "/reference/cli/nvs-lsp/": {
     "feature": "tools:editor/nvs-lsp",
-    "hash": "7aeebd4ae5d1e270",
+    "hash": "70f266e1301492d2",
     "questions": [
       "How do I get error highlighting and autocomplete in my editor?",
       "Why does the editor command hang with no output in my terminal?",
@@ -1419,7 +1419,7 @@
   },
   "/reference/cli/nvs-meta-json/": {
     "feature": "tools:cli/nvs-meta-json",
-    "hash": "414f41b6d8591d36",
+    "hash": "86fe51b730f84deb",
     "questions": [
       "Export the standard library documentation as JSON",
       "Get a machine-readable list of every Core class and method",
@@ -1467,7 +1467,7 @@
   },
   "/reference/cli/nvs-service/": {
     "feature": "tools:server/nvs-service",
-    "hash": "0010465748aaea8b",
+    "hash": "01f51ce2e110199c",
     "questions": [
       "Start my web server automatically when the machine boots",
       "Install my app as a systemd unit on Linux",
@@ -1587,7 +1587,7 @@
   },
   "/reference/config/app/": {
     "feature": "tools:config/app-per-application-blocks",
-    "hash": "c2ef81bd77aeb0e5",
+    "hash": "e7c61be26639b9cf",
     "questions": [
       "How do I give one program different settings than the rest?",
       "Run several applications on one server with separate limits",
@@ -1611,7 +1611,7 @@
   },
   "/reference/config/cache/": {
     "feature": "directive:cache.shared",
-    "hash": "13b06e11bdeffde8",
+    "hash": "1bee4452026ff007",
     "questions": [
       "How do I connect the cache to a Redis server?",
       "Share cached data across every server in a deployment",
@@ -1623,7 +1623,7 @@
   },
   "/reference/config/capabilities/": {
     "feature": "tools:config/capabilities",
-    "hash": "7f6601052e5181f2",
+    "hash": "c191e3359593470b",
     "questions": [
       "How do I allow a program to read files from a folder?",
       "Why does writing a file throw a RuntimeError about a capability?",
@@ -1635,7 +1635,7 @@
   },
   "/reference/config/debug/": {
     "feature": "directive:debug.keep_temporary",
-    "hash": "7ba4d82d9f8da2bb",
+    "hash": "bce7789ac0632524",
     "questions": [
       "Keep temporary files after a script fails so I can inspect them",
       "Use my own token file for the debug viewer",
@@ -1647,7 +1647,7 @@
   },
   "/reference/config/deferred/": {
     "feature": "directive:deferred.max_concurrent",
-    "hash": "47fa98057ac53202",
+    "hash": "9ec86b23a723fc1e",
     "questions": [
       "How long can background work run after the response is sent?",
       "Set a time limit for tasks that run after replying",
@@ -1658,7 +1658,7 @@
   },
   "/reference/config/errors/": {
     "feature": "directive:errors.deprecated",
-    "hash": "811bf398c572edaf",
+    "hash": "00409e4e88919ace",
     "questions": [
       "How do I find calls to deprecated code at runtime?",
       "Make tests fail when old functions are still used",
@@ -1669,7 +1669,7 @@
   },
   "/reference/config/ext/": {
     "feature": "directive:ext",
-    "hash": "469ec36d11048663",
+    "hash": "339ad5e74105073d",
     "questions": [
       "How do I configure options for a loaded extension?",
       "Pass settings to an extension from the configuration file",
@@ -1680,7 +1680,7 @@
   },
   "/reference/config/extension/": {
     "feature": "directive:extension",
-    "hash": "dbac4b2fa59ad7ef",
+    "hash": "1ccb8bbb6c0a2a95",
     "questions": [
       "How do I install a native extension on the server?",
       "Load a compiled library that adds new classes",
@@ -1703,7 +1703,7 @@
   },
   "/reference/config/http/": {
     "feature": "directive:http",
-    "hash": "ce5d7d02797274dc",
+    "hash": "c569c7bb3d7c70cf",
     "questions": [
       "How do I set security headers on every response?",
       "Allow cross-origin requests from another website",
@@ -1715,7 +1715,7 @@
   },
   "/reference/config/image/": {
     "feature": "directive:image.max_pixels",
-    "hash": "e29777f85416572a",
+    "hash": "03ea725a9b87155c",
     "questions": [
       "How do I stop huge images from crashing the server?",
       "Protect against decompression bomb image uploads",
@@ -1725,7 +1725,7 @@
   },
   "/reference/config/include/": {
     "feature": "tools:config/include-a-tree-of-files",
-    "hash": "5330bebfb3355850",
+    "hash": "143b4657d01898f3",
     "questions": [
       "How do I split configuration across several files?",
       "Load every settings file from a conf.d directory",
@@ -1737,7 +1737,7 @@
   },
   "/reference/config/io/": {
     "feature": "directive:io.temp_root",
-    "hash": "e44a9a626ef0a9f2",
+    "hash": "4acc80fe4a4744ef",
     "questions": [
       "Where are temporary files and directories created?",
       "Store temporary files on a faster disk",
@@ -1747,7 +1747,7 @@
   },
   "/reference/config/limits/": {
     "feature": "tools:config/limits-and-limits-hard",
-    "hash": "7c8321925f6e9cca",
+    "hash": "4c521bb0cb9479bd",
     "questions": [
       "How do I limit how much memory a request can use?",
       "Stop a slow request after a few seconds",
@@ -1759,7 +1759,7 @@
   },
   "/reference/config/log/": {
     "feature": "directive:log",
-    "hash": "3cfe7c31f99ac840",
+    "hash": "5d03f0df301f7c11",
     "questions": [
       "How do I write log records as JSON or plain text?",
       "Turn on debug logging for one request",
@@ -1771,7 +1771,7 @@
   },
   "/reference/config/metrics/": {
     "feature": "directive:metrics",
-    "hash": "f386148f5ff26534",
+    "hash": "4efeabd55f57c950",
     "questions": [
       "How do I expose a scrape endpoint for server metrics?",
       "Push server statistics to a metrics collector",
@@ -1781,7 +1781,7 @@
   },
   "/reference/config/mode/": {
     "feature": "tools:config/mode",
-    "hash": "7b55977cda3bf148",
+    "hash": "3195222b7b7c7488",
     "questions": [
       "Run the server with safe settings for a live website",
       "How do I show full error details while developing?",
@@ -1805,7 +1805,7 @@
   },
   "/reference/config/opcache/": {
     "feature": "directive:opcache",
-    "hash": "18764751fde830ed",
+    "hash": "22f8a07bd6575067",
     "questions": [
       "Why does my code change not show up without a restart?",
       "How often does the server check for changed source files?",
@@ -1816,7 +1816,7 @@
   },
   "/reference/config/queue/": {
     "feature": "directive:queue.connection",
-    "hash": "dca3a689e174d4c4",
+    "hash": "35e9b7ac0411d30a",
     "questions": [
       "How do I run background jobs?",
       "Which database stores my queued jobs?",
@@ -1828,7 +1828,7 @@
   },
   "/reference/config/reading-and-changing-it-from-a-program-core-config/": {
     "feature": "tools:config/reading-and-changing-it-from-a-program-core-config",
-    "hash": "e34163e0307a7636",
+    "hash": "47f0c704e7267f07",
     "questions": [
       "How do I read a setting from my program?",
       "Change a setting for the current request only",
@@ -1840,7 +1840,7 @@
   },
   "/reference/config/regex/": {
     "feature": "directive:regex.backtracking",
-    "hash": "9588a664f74aca11",
+    "hash": "74e090bb30a2bdc9",
     "questions": [
       "How do I stop slow regular expressions on my server?",
       "Forbid lookaround and backreferences in regex patterns",
@@ -1851,7 +1851,7 @@
   },
   "/reference/config/schedule/": {
     "feature": "directive:schedule",
-    "hash": "52924dff7854cb4e",
+    "hash": "c165825c6f332695",
     "questions": [
       "Run a job every night",
       "How do I run a script at fixed times like cron?",
@@ -1874,7 +1874,7 @@
   },
   "/reference/config/server/": {
     "feature": "tools:server/the-server-block",
-    "hash": "f05b38081cda183e",
+    "hash": "64d9be7adaf52fd2",
     "questions": [
       "Change the port the web server listens on",
       "Listen on a Unix socket behind nginx",
@@ -1886,7 +1886,7 @@
   },
   "/reference/config/session/": {
     "feature": "directive:session",
-    "hash": "5af2013a3c6e71a2",
+    "hash": "df5db4ddb0314b86",
     "questions": [
       "Where are user sessions stored?",
       "Keep users logged in across several servers",
@@ -1921,7 +1921,7 @@
   },
   "/reference/config/trace/": {
     "feature": "directive:trace",
-    "hash": "7f9f080ad6d6bb25",
+    "hash": "fc4de594e4489048",
     "questions": [
       "How do I trace a request across several services?",
       "Send request traces to a tracing collector",
@@ -1931,7 +1931,7 @@
   },
   "/reference/config/trust/": {
     "feature": "tools:config/trust",
-    "hash": "426ed92e6c96ed9a",
+    "hash": "d27577ca66520da2",
     "questions": [
       "Why does the server not start after I changed file permissions?",
       "Which file permissions should the config folder have?",
@@ -3800,7 +3800,7 @@
   },
   "/reference/core/config/restore/": {
     "feature": "Core\\Config::restore",
-    "hash": "ad8d681539354804",
+    "hash": "22aba3d266228a80",
     "questions": [
       "How do I undo a setting change I made?",
       "Reset a setting back to the config file value",
@@ -3823,7 +3823,7 @@
   },
   "/reference/core/config/set/": {
     "feature": "Core\\Config::set",
-    "hash": "1a91563e01f2c1dc",
+    "hash": "7d3ea8c444db20fe",
     "questions": [
       "How do I change a configuration setting at runtime?",
       "Raise the memory limit for one request",
