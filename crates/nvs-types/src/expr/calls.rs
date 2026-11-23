@@ -3232,6 +3232,9 @@ pub(crate) fn check_anon_fn(
         in_anon_fn: true,
         in_test_code: ctx.in_test_code,
     };
+    // An attribute on a parameter is checked as one on a method's parameter is
+    // (`rule:attributes/attach-sites-and-forms`).
+    crate::attributes::check_params(&f.params, &inner_ctx, env);
     // An anonymous function's body is its own function: an enclosing loop's `break`
     // targets are not reachable from inside it, so the two counters
     // `nvs_types::locals` keeps start again at zero and are put back

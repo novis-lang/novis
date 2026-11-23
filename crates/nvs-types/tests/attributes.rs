@@ -181,3 +181,35 @@ class Row {
         "a computed member name resolves nothing, and this recorded {folded:?}"
     );
 }
+
+#[test]
+fn an_anonymous_function_parameter_attribute_is_checked_like_a_method_parameter_attribute() {
+    // `Column` is declared for a property, so it does not fit a parameter.
+    let (diags, _) = check_src_declared(
+        "<?nvs
+attribute Column on property { column: string }
+callable $f = fn(#[Column(column: \"n\")] int $n): int => $n;
+echo $f(2);
+",
+    );
+    assert!(reported(&diags, code::E_ATTRIBUTE_WRONG_SITE), "{diags:?}");
+
+    // The payload is checked against the declared fields.
+    let (diags, _) = check_src_declared(
+        "<?nvs
+attribute Max on parameter { max: int }
+callable $f = fn(#[Max(max: \"three\")] int $n): int => $n;
+echo $f(2);
+",
+    );
+    assert!(diags.has_errors(), "{diags:?}");
+
+    let (diags, _) = check_src_declared(
+        "<?nvs
+attribute Max on parameter { max: int }
+callable $f = fn(#[Max(max: 3)] int $n): int => $n;
+echo $f(2);
+",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}

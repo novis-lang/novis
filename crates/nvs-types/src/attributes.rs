@@ -362,7 +362,9 @@ fn count_fits(
 }
 
 /// Every attribute on one parameter list — `rule:attributes/attach-sites-and-forms`'s parameter attach site.
-fn check_params(params: &[Param], ctx: &Ctx<'_>, env: &mut Env<'_>) {
+/// A method's list is checked by [`check_declaration`]'s walk, and an anonymous function's by
+/// [`crate::expr::calls::check_anon_fn`], with the function's own [`Ctx`].
+pub(crate) fn check_params(params: &[Param], ctx: &Ctx<'_>, env: &mut Env<'_>) {
     for param in params {
         let site = if param.is_promoted() {
             UseSite::Promoted
@@ -844,7 +846,27 @@ fn alias_as_attribute(
     Some((Span::new(attr.span.file, from, to), replacement))
 }
 
+/// One attribute, read inside a [`crate::deprecated::window`] as a body is, so a constant or a
+/// case its payload names is a use for the restriction, deprecation and test code checks. Its
+/// place is the class the attribute is on. An anonymous function's parameter is inside its
+/// body's window already, and a second window would report each use twice.
 fn check_attribute(
+    attr: &Attribute,
+    site: UseSite,
+    used: &mut Vec<(nvs_hir::QName, Span)>,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if ctx.in_anon_fn {
+        check_attribute_in_window(attr, site, used, ctx, env);
+    } else {
+        crate::deprecated::window(ctx.namespace, ctx.current_class, None, env, |env| {
+            check_attribute_in_window(attr, site, used, ctx, env);
+        });
+    }
+}
+
+fn check_attribute_in_window(
     attr: &Attribute,
     site: UseSite,
     used: &mut Vec<(nvs_hir::QName, Span)>,
@@ -974,23 +996,18 @@ fn check_attribute(
     // it, so `'clear'` at `'clear'|'keep'` is that single-value type, the check
     // a retrieval makes, and a payload accepted here is the payload
     // `Core\Attributes::get<Name>` finds.
-    // The payload is read inside a window, as a body is, so a constant or a case it names is a
-    // use for the restriction, deprecation and test code checks. Its place is the class the
-    // attribute is on.
-    let actual = crate::deprecated::window(ctx.namespace, ctx.current_class, None, env, |env| {
-        let mut live = Live::default();
-        let scope = LocalScope::new();
-        let actual = check_anon_object(attr.span, &attr.fields, None, &mut live, &scope, ctx, env);
-        crate::retrieval::with_requested_literals(
-            &attr.fields,
-            actual,
-            shape,
-            &mut live,
-            &scope,
-            ctx,
-            env,
-        )
-    });
+    let mut live = Live::default();
+    let scope = LocalScope::new();
+    let actual = check_anon_object(attr.span, &attr.fields, None, &mut live, &scope, ctx, env);
+    let actual = crate::retrieval::with_requested_literals(
+        &attr.fields,
+        actual,
+        shape,
+        &mut live,
+        &scope,
+        ctx,
+        env,
+    );
     // A written name at a `property<C>` field is checked once, here, at the
     // literal (`rule:attributes/a-declaration-names-its-class-with-static`).
     if let Ty::Shape(requested) = env.interner.get(shape).clone() {
