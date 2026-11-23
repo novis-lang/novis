@@ -406,7 +406,7 @@ fn a_request_with_a_non_ascii_host_is_a_400() {
 
 /// `rule:http-server/a-development-server-answers-the-hosts-it-knows`: a
 /// development server answers a request from this machine whose `Host` it does
-/// not know with `421`, and its log names the host and the key. A host the key
+/// not know with `421`, and its body and its log name the host and the key. A host the key
 /// lists is answered, and so is `localhost`.
 #[test]
 fn a_development_server_answers_an_unknown_host_from_this_machine_with_a_logged_421() {
@@ -427,8 +427,8 @@ fn a_development_server_answers_an_unknown_host_from_this_machine_with_a_logged_
         "an unknown host: {answer}"
     );
     assert!(
-        answer.ends_with("\r\n\r\n"),
-        "the 421 has no body: {answer}"
+        answer.contains("development_hosts") && answer.contains("\"app.example.com\""),
+        "the 421's body names the key and the host: {answer}"
     );
     for host in ["proxy.test", "PROXY.test:8080", "localhost"] {
         assert_eq!(

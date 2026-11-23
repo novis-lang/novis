@@ -279,12 +279,22 @@ impl Trusted {
 /// decided who was allowed to state them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Origin {
+    peer: Option<IpAddr>,
     client: Option<IpAddr>,
     scheme: Scheme,
     ignored_address_header: bool,
 }
 
 impl Origin {
+    /// The socket peer's own address, whatever the walk decided the client
+    /// is, and `None` over a Unix socket. The development host guard reads
+    /// this one: a browser on this machine reaches the server through a local
+    /// proxy too (`rule:http-server/a-development-server-answers-the-hosts-it-knows`).
+    #[must_use]
+    pub fn peer(self) -> Option<IpAddr> {
+        self.peer
+    }
+
     /// The client address, and `None` for the ways a request can have none:
     /// a Unix-domain peer that forwarded nothing, and a trusted hop that
     /// withheld it.
@@ -346,6 +356,7 @@ pub fn walk(arrival: Arrival, trusted: &Trusted, headers: &HeaderMap) -> Result<
     // the point — the second must not become a refusal.
     if trusted.is_empty() || !arrival.may_speak(trusted) {
         return Ok(Origin {
+            peer,
             client: peer,
             scheme: Scheme::Http,
             ignored_address_header: false,
@@ -360,6 +371,7 @@ pub fn walk(arrival: Arrival, trusted: &Trusted, headers: &HeaderMap) -> Result<
         (untrusted_in(&chain, trusted)?, asserted(headers))
     };
     Ok(Origin {
+        peer,
         client,
         scheme,
         ignored_address_header: chain.is_empty() && named_elsewhere(headers),
@@ -550,6 +562,7 @@ mod tests {
             assert_eq!(
                 untouched,
                 Origin {
+                    peer: Some(ip(peer)),
                     client: Some(ip(peer)),
                     scheme: Scheme::Http,
                     ignored_address_header: false,
@@ -564,6 +577,7 @@ mod tests {
         assert_eq!(
             unread,
             Origin {
+                peer: None,
                 client: None,
                 scheme: Scheme::Http,
                 ignored_address_header: false,
@@ -580,6 +594,7 @@ mod tests {
         assert_eq!(
             ignored,
             Origin {
+                peer: Some(ip("198.51.100.4")),
                 client: Some(ip("198.51.100.4")),
                 scheme: Scheme::Http,
                 ignored_address_header: false,
@@ -599,6 +614,7 @@ mod tests {
             assert_eq!(
                 asserted,
                 Origin {
+                    peer: Some(ip(peer)),
                     client: Some(ip("203.0.113.9")),
                     scheme: Scheme::Https,
                     ignored_address_header: false,
@@ -613,6 +629,7 @@ mod tests {
         assert_eq!(
             silent,
             Origin {
+                peer: Some(ip("10.0.0.7")),
                 client: Some(ip("10.0.0.7")),
                 scheme: Scheme::Http,
                 ignored_address_header: false,
@@ -625,6 +642,7 @@ mod tests {
         assert_eq!(
             over_a_socket,
             Origin {
+                peer: None,
                 client: Some(ip("203.0.113.9")),
                 scheme: Scheme::Https,
                 ignored_address_header: false,

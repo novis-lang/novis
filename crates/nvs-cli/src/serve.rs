@@ -1184,14 +1184,15 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             // because the door replaces the record before it calls this.
             let standing = record.host();
             let table = tables.table(record.generation(), record.published());
-            // The client address decides the development rebinding guard: a
-            // request from this machine names this machine in its `Host`
+            // The socket peer decides the development rebinding guard, whatever
+            // a forwarded header says the client is: a request from this
+            // machine names this machine in its `Host`
             // (`nvs_server::Table::local_hosts_only`).
             // The disk this request's lookup and its static file share, so a
             // plain `GET` for a file looks it up, opens it and reads its first
             // chunk in one blocking job (`nvs_server::statics::Prefetch`).
             let disk = nvs_server::statics::Prefetch::new(request.method(), request.headers());
-            let selected = match table.select(&request, origin.client(), &disk) {
+            let selected = match table.select(&request, origin.peer(), &disk) {
                 // Step 0, ahead of every mount: the probe of
                 // `rule:http-server/health-path-is-off-and-checks-nothing` says the process is
                 // alive, which is a fact this loop holds and no program is asked

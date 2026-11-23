@@ -606,10 +606,11 @@
 # Fail-closed: with nothing here, no forwarding header is believed, and a proxy's `X-Forwarded-For`
 # is read as the untrusted text it is.
 #trusted_proxies = ["10.0.0.1"]       # example
-# Development only. A request from this machine must name this machine in `Host`: `localhost`, a
-# name under `.localhost`, a loopback address, or a mount's `host`. Any other host gets `421`, which
-# stops a web page that makes its own name point at `127.0.0.1`. List here each extra host a local
-# proxy sends, without a port. Production does not check `Host` this way.
+# Development only. A request whose socket peer is this machine must name this machine in `Host`:
+# `localhost`, a name under `.localhost`, a loopback address, or a mount's `host`. This holds for a
+# local proxy too, whatever `X-Forwarded-For` it sends. Any other host gets `421` with a body that
+# names this key, which stops a web page that makes its own name point at `127.0.0.1`. List here
+# each extra host a local proxy sends, without a port. Production does not check `Host` this way.
 #development_hosts = ["app.test"]     # example
 # Off when empty — a path answered without entering the application at all.
 #health_path = "/healthz"             # default: off

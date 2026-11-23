@@ -848,19 +848,33 @@ impl Reply {
 
     /// A request a development server's host guard turned away
     /// ([`crate::mount::Resolved::Misdirected`]): `421 Misdirected Request`,
-    /// bodiless, carrying `host` for the access line, which names it and is
-    /// written at `Warn` (`rule:http-server/a-development-server-answers-the-hosts-it-knows`).
+    /// carrying `host` for the access line, which names it and is written at
+    /// `Warn` (`rule:http-server/a-development-server-answers-the-hosts-it-knows`).
+    ///
+    /// The body is one line of `text/plain` that names `[server]
+    /// development_hosts` and the host to add, so the person at the browser
+    /// can fix the setup. The guard runs only in development, and the host is
+    /// the one the request sent, so the body tells a rebinding page nothing it
+    /// did not have. Control characters in the host are written escaped.
     ///
     /// `421` and not the table's `404`: RFC 9110 § 15.5.20 is "this server
     /// does not answer for this host", and a `404` reads as a mount that does
     /// not exist.
     #[must_use]
     pub fn misdirected(host: Box<str>) -> Self {
-        let mut reply = Self::status(StatusCode::MISDIRECTED_REQUEST);
-        if let Self::Done(response) = &mut reply {
-            response.extensions_mut().insert(MisdirectedHost(host));
-        }
-        reply
+        let shown = host.escape_default();
+        let text = format!(
+            "421 Misdirected Request: this development server does not answer for the host \"{shown}\".\n\
+             Add \"{shown}\" to development_hosts in the [server] block of nvs.toml to allow it.\n"
+        );
+        let mut response = Response::new(Answer::new(text));
+        *response.status_mut() = StatusCode::MISDIRECTED_REQUEST;
+        response.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("text/plain; charset=utf-8"),
+        );
+        response.extensions_mut().insert(MisdirectedHost(host));
+        Self::Done(response)
     }
 
     /// The verb the peer wrote is outside the eight `Core\Http\Method` names, so
@@ -1974,12 +1988,10 @@ where
             let probe = is_probe(response);
             let misdirected = misdirected_host(response);
             // Read only where it decides something: the probe writes nothing,
-            // and a `5xx` other than `501` and a misdirected request are
-            // written whatever it says.
-            let on = !probe
-                && misdirected.is_none()
-                && (status < 500 || status == 501)
-                && crate::trace::access_on(under);
+            // and a `5xx` other than `501` is written whatever it says. A
+            // misdirected request's first line in a minute is a `Warn` written
+            // whatever it says, and a repeat is an ordinary access line.
+            let on = !probe && (status < 500 || status == 501) && crate::trace::access_on(under);
             // An answer the door wrote before any program ran on this
             // connection finds a context nobody configured, whose log has no
             // `[log] target` to read. It is given the snapshot the request

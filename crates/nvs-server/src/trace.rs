@@ -459,18 +459,27 @@ pub struct Access<'a> {
 /// written whatever `on` says, with a `host` field and a message that names
 /// `[server] development_hosts`
 /// (`rule:http-server/a-development-server-answers-the-hosts-it-knows`): its
-/// `421` is a setup mistake to fix, and the line is where it is found.
+/// `421` is a setup mistake to fix, and the line is where it is found. The
+/// `Warn` is written once per host per minute ([`first_this_minute`]), so a
+/// page that retries cannot fill the log; a repeat is an ordinary access line,
+/// written when `on` says so. The host is written escaped in the message.
 pub fn access(ctx: &mut nvs_runtime::Ctx, on: bool, line: &Access<'_>) {
     use nvs_render::{Level, Node, Scalar};
     use nvs_runtime::floor;
 
     let failed = line.status >= 500 && line.status != 501;
-    if line.probe || (!on && !failed && line.misdirected.is_none()) {
+    if line.probe {
+        return;
+    }
+    let warned = line
+        .misdirected
+        .filter(|host| !failed && first_this_minute(host, std::time::Instant::now()));
+    if !on && !failed && warned.is_none() {
         return;
     }
     let level = if failed {
         Level::Error
-    } else if line.misdirected.is_some() {
+    } else if warned.is_some() {
         Level::Warn
     } else {
         Level::Info
@@ -478,11 +487,14 @@ pub fn access(ctx: &mut nvs_runtime::Ctx, on: bool, line: &Access<'_>) {
     if !ctx.log_writes(level) {
         return;
     }
-    let message = match line.misdirected {
+    let message = match warned {
         Some(host) => format!(
             "{} {} {}: in development, a request from this machine must use one of its own \
-             host names. Add \"{host}\" to [server] development_hosts to allow this host",
-            line.method, line.path, line.status
+             host names. Add \"{}\" to [server] development_hosts to allow this host",
+            line.method,
+            line.path,
+            line.status,
+            host.escape_default()
         ),
         None => format!("{} {} {}", line.method, line.path, line.status),
     };
@@ -524,6 +536,37 @@ pub fn access(ctx: &mut nvs_runtime::Ctx, on: bool, line: &Access<'_>) {
     }
     // A sink that has gone is ignored, for `floor::report`'s reason.
     let _ = ctx.write_log_record(&record);
+}
+
+/// The most hosts [`first_this_minute`] remembers. Past it the list is
+/// emptied, so the memory is bounded and a flood of names costs at most one
+/// line per request, which is no worse than having no list.
+const WARNED_HOSTS: usize = 64;
+
+/// How long a host's `Warn` line stands for its repeats.
+const WARNED_FOR: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Each host the guard refused, with when its `Warn` line was written.
+/// Process-wide, because the guard's line is about the setup, not about one
+/// connection. At most [`WARNED_HOSTS`] entries, so a few kilobytes at most.
+static WARNED: std::sync::Mutex<Vec<(Box<str>, std::time::Instant)>> =
+    std::sync::Mutex::new(Vec::new());
+
+/// Whether a refused `host` gets its `Warn` line at `now`: true when no line
+/// for it was written in the last minute, and then it is remembered.
+fn first_this_minute(host: &str, now: std::time::Instant) -> bool {
+    let mut warned = WARNED
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    warned.retain(|(_, at)| now.saturating_duration_since(*at) < WARNED_FOR);
+    if warned.iter().any(|(seen, _)| &**seen == host) {
+        return false;
+    }
+    if warned.len() >= WARNED_HOSTS {
+        warned.clear();
+    }
+    warned.push((host.into(), now));
+    true
 }
 
 /// A span id for a derived span, drawn like the root's: all-zero is the value
@@ -1157,6 +1200,25 @@ mod tests {
             line.contains("\"level\":\"warn\"") || line.contains("\"level\":\"Warn\""),
             "a misdirected request is `Warn`: {line}"
         );
+    }
+
+    /// The guard's `Warn` is written once per host per minute: a repeat
+    /// within the minute is not, another host is, and the same host is again
+    /// once the minute has passed.
+    #[test]
+    fn a_refused_host_is_warned_once_a_minute() {
+        let start = std::time::Instant::now();
+        let host = "once-a-minute.example";
+        assert!(super::first_this_minute(host, start));
+        assert!(!super::first_this_minute(
+            host,
+            start + std::time::Duration::from_secs(59)
+        ));
+        assert!(super::first_this_minute("another.example", start));
+        assert!(super::first_this_minute(
+            host,
+            start + std::time::Duration::from_secs(61)
+        ));
     }
 
     /// `rule:http-server/the-access-log-is-a-mode-default`: one line per
