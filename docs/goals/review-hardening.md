@@ -512,17 +512,7 @@ Stages 1 to 8 are done, each with its acceptance test passing. `Live::adopt` and
 `static` item were not found. Stage 7 is summarised in its commits (`in_place_results`); the queue
 loop measured 66, 60 and 66 ms at 5,000, 10,000 and 20,000 rounds.
 
-Stage 8 landed in one session (`time_text`, five cases, passed):
-
-- `parse_offset` reads one sign, then digits only. The `toEpoch*` readers floor (`epoch_count`).
-  `-0000` throws. `Zone::of` and `written_zone` store the database's name (`database_name`).
-- *Check first* was shown by a probe: `23:59:60Z`, a lower-case `t` or `z`, a comma and `+0100` were
-  all read. `iso_instant` now uses the `DateTime::fromIso` readers, then `Z` or `±HH:MM`.
-- `Date::at` names `year`, `month`, `day`. `Move` gained `help` (`Move::removed`, no fix) for
-  `Core\Session::start`, `set`, `setSecret` and `clear`; `destroy` and `DateTime::Weekday` are
-  renames. `E0763` on a `Core` attribute says only "Delete one of the two."
-
-Stage 9 landed its code in one session (three commits):
+Stage 8 is summarised in its commits (`time_text`). Stage 9 landed its code in one session (three commits):
 
 - *Check first* (decode) was shown by a probe: 1,000,000 bad elements filled the 256 MB limit with
   issues. `gather` and `MAX_ISSUES` in `json.rs` now bound every frame. The 65th issue ends the list
