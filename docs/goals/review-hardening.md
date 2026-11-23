@@ -46,11 +46,11 @@ stages:
     context: [crates/nvs-lsp/src/workers.rs]
   - id: 11
     title: a release refuses a tip that holds shipped code its build did not have
-    status: open
+    status: done
     context: [tools/nv/cmd/release.ts]
   - id: 12
     title: "the features that moved have their proofs, their pages and their change entries"
-    status: open
+    status: done
     context: [website/src/data/changes.json]
   - id: 13
     title: "the goal is verified once, and every failure is fixed"
@@ -494,18 +494,18 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
   made on.
 - [x] `.github/workflows/release-promote.yml:207`: `--signer-workflow` on the attestation check.
 - [x] `tools/nv/test/release-fixes-built.test.ts:1`. It runs once, by name.
-- [ ] `bun nv ci --check` is green.
+- [x] `bun nv ci --check` is green.
 
 ### 12. the features that moved have their proofs, their pages and their change entries
 
-- [ ] `website/src/data/changes.json:1`: `changed` for `Core\Time\Instant::toEpochSeconds`,
+- [x] `website/src/data/changes.json:1`: `changed` for `Core\Time\Instant::toEpochSeconds`,
   `toEpochMillis` and `toEpochMicros`, `Core\Time\Date::at`, `nvs reload`, `[server]
   development_hosts`, `Core\Serialize::decode`, `Core\Test::answerHttp` and its three siblings, and
   `[[restrict]]`.
-- [ ] The `about.md` and help of each: reread against what was built and stamped with
+- [x] The `about.md` and help of each: reread against what was built and stamped with
   `bun nv site --stamp`. The reload page says what exit 1 means.
-- [ ] `bun nv proofs --owed --goal review-hardening`, and every proof it names is paid.
-- [ ] `bun nv site --check stale`, `changes` and `review` are green.
+- [x] `bun nv proofs --owed --goal review-hardening`, and every proof it names is paid.
+- [x] `bun nv site --check stale`, `changes` and `review` are green.
 
 ### 13. the goal is verified once, and every failure is fixed
 
@@ -528,38 +528,31 @@ Stages 10 and 11 are summarised in their commits. Stage 11's *check first*: `pub
 `--fixes-built` now fails on any commit in `SHA..HEAD` that changes a path in `SHIPPED`.
 `release-fixes-built.test.ts` passes (3 tests, one in a scratch repository with a merge).
 
-`bun nv ci --check` is red, and every red is stage 12's: stale pages, help and questions of stages
-1 to 9's features, `core.json` and `llms-full.txt` not rendered, and stale perf proofs. None names
-a file stage 11 touched, so its last item stays open until stage 12 makes it green.
-
-Sessions per stage: one each, except stages 2, 3, 4, 6 and 9, which took two.
+Stage 12 is done, and stage 11 with it: `bun nv ci --check` exits 0,
+`bun nv proofs --gate --goal review-hardening` owes nothing, and `site --check stale changes review
+questions` is green. Every feature stages 1 to 10 moved is reread, reviewed and stamped, and has a
+`changes.json` entry (the last 19). Seven features had moved only through Rust tests, so
+`tests/conformance/core/time-an-epoch-reader-rounds-down-and-a-zone-keeps-its-database-name.nvst`
+is new and `arr-append-keeps-the-counter-a-removed-key-left.nvst` gained `// covers:`. Both pass,
+run once by name. The example `Time-Instant/toEpochSeconds/02-...` prints `-1` now, and its `.out`
+says so. The rule is now `a-session-store-answers-six-operations`, with every citation. 240 perf
+records are new; `Core\Test::assertSame` is recorded with `--no-callgrind` as `growth: unclear`,
+because its callgrind ramp read startup noise as slope 1.86 twice (the playbook's known case).
 
 Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, two; stage 5, one; stage 6,
-two; stage 7, one; stage 8, one; stage 9, two; stage 10, one; stage 11, one.
+two; stage 7, one; stage 8, one; stage 9, two; stage 10, one; stage 11, one; stage 12, one.
 
 ### Next
 
-Stage 12 (`website/src/data/changes.json`, the cards and pages listed below), then stage 13.
-Stage 11 changed only the release tool and two workflows, so it owes no feature proof. Stage 12
-works from the reds `bun nv ci --check` names (its last report listed 35 stale pages and help, 11
-page questions, `bun nv render --website` for `core.json` and `llms-full.txt`, and the stale perf
-proofs of `Core\Arr::count`, `filter`, `map`, `mapKeys`, the `Core\Test\Response` and `SentRequest`
-methods and the `Core\Session` methods). When it is green, tick stage 11's last item and set stage
-11 to done.
+Stage 13: the newcomer review is already done over every text stage 12 wrote (two reviewers, each
+finding fixed and stamped), so tick that item after one look at `git show cfc321bd7f c64711704c`.
+Then the pack's check for this stage, and `bun nv close --goal review-hardening`. Its `owners` must
+give the CSRF gap record `data/gaps/nvs-stdlib/csrf-token-makes-a-session-per-visitor.json` another
+owner before this goal's file is deleted, and each standing decision only this file holds moves to
+a rule or a module doc first.
 
-Stage 13's `owners` must give the CSRF gap record another owner before this goal's file is deleted.
-The rule id `a-session-store-answers-five-operations` and `docs/ground-rules.md:991` still say five
-operations; its text now lists six. Rename it in stage 12 or 13 with every citation.
-
-Stage 12 owes `tools:cli/nvs-test` its change entry and page reread for the `--since` change, and
-`Core\Arr::append` its change entry, its reference card reread and `website/src/data/core.json`
-regenerated for the counter change and the new help text. From stage 8 it owes change entries and
-card rereads for `Core\Time\Instant::toEpochSeconds`, `toEpochMillis`, `toEpochMicros`, `fromIso`,
-`Core\Time\Date::at` (parameter names; `core.json:49544` still says `$y, $m, $d`),
-`Core\Time\Date::fromIso` and `Core\Time\Zone::of`, and the example
-`docs/examples/core/Time-Date/at/01-building-a-date.nvs` reread.
-
-Tests that may go red: a transport test whose pooled fake connection reports bytes waiting, or a
+Tests that may go red: a conformance or example that printed `0` for `toEpochSeconds` half a second
+before 1970. Also: a transport test whose pooled fake connection reports bytes waiting, or a
 chunked reply case whose source ends after `0
 ` with more octets after the trailer (it is no longer
 pooled); an LSP case that expected a worker panic to be analysed on the server's thread. Also any `session.rs` or `sqlite.rs` test that reads the SAVE script's arguments
