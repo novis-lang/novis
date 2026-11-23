@@ -810,6 +810,10 @@ fn issue_challenge(ctx: &mut Ctx, key: &str, member: &str) -> Result<[u8; CHALLE
 /// The challenge saved under `key`, taken out of the session: the first thing a verification
 /// does, so the challenge is gone whatever the checks after it find.
 ///
+/// The session's store deletes it at once ([`crate::session::take_bytes`]), so of two
+/// verifications that loaded the same session in parallel, only one finds the challenge. The
+/// other throws the "no challenge" error. What it spends: one store round trip per verification.
+///
 /// # Errors
 ///
 /// A thrown `RuntimeError` for a session with no challenge waiting or one older than

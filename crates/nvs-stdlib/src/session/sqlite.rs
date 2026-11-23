@@ -1,7 +1,7 @@
 //! The `db` session store: one SQLite file in the data folder, in WAL mode
 //! (`rule:http-server/no-session-block-means-the-data-folder-store`).
 //!
-//! It answers `rule:http-server/a-session-store-answers-five-operations`'s five operations over two
+//! It answers `rule:http-server/a-session-store-answers-five-operations`'s operations over two
 //! tables keyed by the application and the identifier: `nvs_session_heads`, one row per session
 //! with its expiry as milliseconds since the epoch, and `nvs_session_entries`, one row per key with
 //! its encoded value. The application is the innermost `[[app]]` block's path, the one
@@ -427,8 +427,10 @@ pub(crate) fn issue(path: &Path, app: &[u8], id: &str, whole: &Whole<'_>) -> io:
 /// `save`: one request's `changes` applied to the session under `id`, and whether the session was
 /// still live.
 ///
-/// One transaction. It first moves a live head's clocks forward and writes the token it is given,
-/// and a head that is gone or expired changes no row: the transaction rolls back and answers
+/// One transaction. It first sets a live head's clocks and writes the token it is given. The short
+/// clock becomes now plus `[session] short_lived`. The long clock moves forward to the one sent,
+/// and never past now plus `[session] long_lived`, so a clock stored far ahead comes down to its
+/// lifetime. A head that is gone or expired changes no row: the transaction rolls back and answers
 /// `false`, so the session stays absent — another request destroyed it, or it expired
 /// (`rule:http-server/a-session-is-loaded-once-and-written-back-per-key`). Then, in order: every
 /// entry of a cleared lifetime deleted, the removed keys deleted, the changed keys upserted, and
@@ -447,11 +449,12 @@ pub(crate) fn save(path: &Path, app: &[u8], id: &str, changes: &Changes<'_>) -> 
             head.push(SqliteValue::Int(clocks.short_until));
             head.push(SqliteValue::Int(clocks.long_until));
             head.push(SqliteValue::Int(now));
+            head.push(SqliteValue::Int(clocks.long_ceiling));
             let live = conn
                 .query(
                     "UPDATE nvs_session_heads SET short_token = coalesce(?3, short_token), \
-                         short_expires_at = max(short_expires_at, ?4), \
-                         long_expires_at = max(long_expires_at, ?5) \
+                         short_expires_at = ?4, \
+                         long_expires_at = min(max(long_expires_at, ?5), ?7) \
                      WHERE app = ?1 AND id = ?2 AND expires_at > ?6",
                     head,
                 )?
@@ -570,6 +573,40 @@ pub(crate) fn destroy(path: &Path, app: &[u8], id: &str) -> io::Result<bool> {
     })
 }
 
+/// `take`: `key` deleted from the live session under `id` where it still holds `value`, and
+/// whether a row was deleted.
+///
+/// One `DELETE`, so two requests that take the same key cannot both delete it. An expired or gone
+/// head, a key another request took, and a key written again since this request loaded it all
+/// delete nothing and answer `false`. The head and its expiry are left as they are.
+///
+/// # Errors
+///
+/// As [`load`].
+pub(crate) fn take(
+    path: &Path,
+    app: &[u8],
+    id: &str,
+    key: &[u8],
+    value: &[u8],
+) -> io::Result<bool> {
+    let now = crate::queue::now_millis();
+    with(path, |held| {
+        let mut row = named(app, id);
+        row.push(SqliteValue::Blob(key.to_vec()));
+        row.push(SqliteValue::Blob(value.to_vec()));
+        row.push(SqliteValue::Int(now));
+        let rows = held.conn.query(
+            "DELETE FROM nvs_session_entries \
+             WHERE app = ?1 AND id = ?2 AND key = ?3 AND value = ?4 \
+               AND EXISTS (SELECT 1 FROM nvs_session_heads \
+                           WHERE app = ?1 AND id = ?2 AND expires_at > ?5)",
+            row,
+        )?;
+        Ok(rows.affected() > 0)
+    })
+}
+
 /// Deletes every session whose expiry is at or before `now`, its entries first and then its head,
 /// and returns how many heads it deleted.
 ///
@@ -645,6 +682,7 @@ mod tests {
             now,
             short_until: now + i64::try_from(lifetime.as_millis()).expect("a short lifetime"),
             long_until: 0,
+            long_ceiling: 0,
         }
     }
 

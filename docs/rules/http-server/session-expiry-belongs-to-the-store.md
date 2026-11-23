@@ -14,9 +14,12 @@ for a sweep.
 
 **A write-back always moves the short clock.** The long clock moves only where the identifier
 cookie is sent with it, so the store and the browser forget the record together: at the first
-long-lived write, at a long-lived write past half of its time, and by the half rule below. Each
-clock only moves forward, so a request that loaded an older record never shortens one another
-request refreshed. **A read refreshes a clock when less than half of its time is
+long-lived write, at a long-lived write past half of its time, and by the half rule below. A save
+moves the long clock forward only, so a request that loaded an older record never shortens one
+another request refreshed. **A save also holds each clock to now plus its lifetime**: the short
+clock becomes now plus `short_lived`, and the long clock is never left past now plus `long_lived`.
+A clock stored far ahead, by a host whose clock ran fast or a lifetime later made shorter, comes down
+at the next save rather than keeping the record past its lifetime. **A read refreshes a clock when less than half of its time is
 left**, and then the session counts as changed, so the end of the request writes it back. A signed-in
 user who only reads stays signed in while they keep reading. The half rule costs at most one write per
 clock per half-lifetime of an active session, and a request that reads a fresh session still makes one

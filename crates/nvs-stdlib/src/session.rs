@@ -3,9 +3,9 @@
 //! where that store is and how long a session survives.
 //!
 //! **What is on disk is the store `rule:http-server/a-session-store-answers-five-operations` names
-//! and all twelve members of `rule:core-api/session-roster`.** The five operations a backend
-//! answers are here — [`issue`], [`load`], [`save`], [`relocate`] (the rule's `move`) and
-//! [`destroy`], with [`mint`] and the key they share — over the shared tier's wire, one hash per
+//! and all twelve members of `rule:core-api/session-roster`.** The six operations a backend
+//! answers are here — [`issue`], [`load`], [`save`], [`take`], [`relocate`] (the rule's `move`)
+//! and [`destroy`], with [`mint`] and the key they share — over the shared tier's wire, one hash per
 //! session, and [`sqlite`]'s over the data folder's SQLite file. `issue` is the only write that
 //! creates a session, and `save` and `move` change only a session that still exists, so a
 //! destroyed session stays destroyed. [`opened`] picks one as a [`Store`], and [`first_use`] is
@@ -167,7 +167,7 @@ const KEY: CoreTy = CoreTy::Text(Qual::Neutral);
 /// One class and no instance side: a session is the request's, not an object a program holds, so
 /// there is nothing for a handle to be and nothing to hand back. Every member is static for that
 /// reason. [`crate::session`]'s own module doc owns which of
-/// `rule:http-server/a-session-store-answers-five-operations`'s five operations are on disk, why
+/// `rule:http-server/a-session-store-answers-five-operations`'s six operations are on disk, why
 /// the local tier is unreachable from there rather than merely unselected, and why a presented
 /// identifier this store cannot have issued is *absent* rather than a second question about
 /// validity.
@@ -753,11 +753,11 @@ return {1}";
 /// the session lives.
 ///
 /// `KEYS[1]` is the session's hash. `ARGV[1]` to `ARGV[3]` are now and the two clocks, as
-/// [`ISSUE`] takes them, and `ARGV[4]` the short token or empty. `ARGV[5]` names the lifetimes the
-/// request cleared: `s`, `l`, both or neither. `ARGV[6]` is the size ceiling, `ARGV[7]` the key
-/// ceiling, and `ARGV[8]` how many
-/// removed keys follow, each bare. Every pair after those is a changed field, with its lifetime's
-/// prefix, and its value.
+/// [`ISSUE`] takes them, `ARGV[4]` the long clock's ceiling, now plus `[session] long_lived`, and
+/// `ARGV[5]` the short token or empty. `ARGV[6]` names the lifetimes the request cleared: `s`, `l`,
+/// both or neither. `ARGV[7]` is the size ceiling, `ARGV[8]` the key ceiling, and `ARGV[9]` how
+/// many removed keys follow, each bare. Every pair after those is a changed field, with its
+/// lifetime's prefix, and its value.
 ///
 /// It answers `{0}` for a session that is gone and writes nothing. Then it counts the new size: `m`,
 /// less each old field it replaces or removes under either prefix, plus each new one, each field as
@@ -766,16 +766,20 @@ return {1}";
 /// field of a cleared lifetime, deletes both fields of each removed or changed key, sets the
 /// changed ones and `m`, and answers `{1, size}`.
 ///
-/// Each clock moves forward only, so a request that loaded an older record never shortens one
-/// another request refreshed. The token is written when one is given. The expiry is the long
-/// clock's end where a long-lived field remains, and the short clock's end otherwise. Each step
-/// reads the hash as it is then, so a second run leaves the same hash.
+/// Each clock moves forward and is then held to its ceiling: the stored short clock becomes
+/// `ARGV[2]`, which is now plus `[session] short_lived`, and the stored long clock the later of
+/// itself and `ARGV[3]`, but never past `ARGV[4]`. So a request that loaded an older record never
+/// shortens a clock another request refreshed by more than the time between the two, and a clock
+/// stored far ahead comes down to its lifetime. The token is written when one is given. The expiry
+/// is the long clock's end where a long-lived field remains, and the short clock's end otherwise.
+/// Each step reads the hash as it is then, so a second run leaves the same hash.
 const SAVE: &str = "\
 local key = KEYS[1]
 if redis.call('EXISTS', key) == 0 then return {0} end
 local now, x, y = tonumber(ARGV[1]), tonumber(ARGV[2]), tonumber(ARGV[3])
-local clear = ARGV[5]
-local first = 9 + tonumber(ARGV[8])
+local ceiling = tonumber(ARGV[4])
+local clear = ARGV[6]
+local first = 10 + tonumber(ARGV[9])
 local size = tonumber(redis.call('HGET', key, 'm')) or 0
 local count = redis.call('HLEN', key)
 for _, own in ipairs({'m', 'x', 'y', 't'}) do count = count - redis.call('HEXISTS', key, own) end
@@ -798,27 +802,27 @@ local function replaced(field)
     count = count - 1
   end
 end
-for i = 9, first - 1 do replaced('s:' .. ARGV[i]); replaced('l:' .. ARGV[i]) end
+for i = 10, first - 1 do replaced('s:' .. ARGV[i]); replaced('l:' .. ARGV[i]) end
 for i = first, #ARGV, 2 do
   local bare = string.sub(ARGV[i], 3)
   replaced('s:' .. bare); replaced('l:' .. bare)
   size = size + #ARGV[i] + #ARGV[i + 1] + 32
   count = count + 1
 end
-if size > tonumber(ARGV[6]) or count > tonumber(ARGV[7]) then return {-1, size} end
+if size > tonumber(ARGV[7]) or count > tonumber(ARGV[8]) then return {-1, size} end
 for _, field in ipairs(gone) do redis.call('HDEL', key, field) end
-for i = 9, first - 1 do redis.call('HDEL', key, 's:' .. ARGV[i], 'l:' .. ARGV[i]) end
+for i = 10, first - 1 do redis.call('HDEL', key, 's:' .. ARGV[i], 'l:' .. ARGV[i]) end
 for i = first, #ARGV, 2 do
   local bare = string.sub(ARGV[i], 3)
   redis.call('HDEL', key, 's:' .. bare, 'l:' .. bare)
   redis.call('HSET', key, ARGV[i], ARGV[i + 1])
 end
 redis.call('HSET', key, 'm', size)
-local held = tonumber(redis.call('HGET', key, 'x')) or 0
-if x > held then redis.call('HSET', key, 'x', ARGV[2]) else x = held end
-held = tonumber(redis.call('HGET', key, 'y')) or 0
-if y > held then redis.call('HSET', key, 'y', ARGV[3]) else y = held end
-if ARGV[4] ~= '' then redis.call('HSET', key, 't', ARGV[4]) end
+redis.call('HSET', key, 'x', ARGV[2])
+local held = tonumber(redis.call('HGET', key, 'y')) or 0
+y = math.min(math.max(held, y), ceiling)
+if y ~= held then redis.call('HSET', key, 'y', y) end
+if ARGV[5] ~= '' then redis.call('HSET', key, 't', ARGV[5]) end
 local expires = x
 if y > x then
   for _, field in ipairs(redis.call('HKEYS', key)) do
@@ -827,6 +831,25 @@ if y > x then
 end
 redis.call('PEXPIRE', key, math.max(expires - now, 1))
 return {1, size}";
+
+/// `rule:http-server/a-session-store-answers-five-operations`'s `take` on the shared store, run
+/// where the session lives.
+///
+/// `KEYS[1]` is the session's hash, `ARGV[1]` the bare key and `ARGV[2]` the value the request
+/// loaded under it. The field of either lifetime that still holds exactly that value is deleted,
+/// `m` is lowered by its counted size, and the script answers `{1}`. Where no field holds it,
+/// because the session is gone, another request took the key or wrote it again, it answers `{0}`
+/// and writes nothing. The expiry is left as it is.
+const TAKE: &str = "\
+local key = KEYS[1]
+for _, field in ipairs({'s:' .. ARGV[1], 'l:' .. ARGV[1]}) do
+  if redis.call('HGET', key, field) == ARGV[2] then
+    redis.call('HDEL', key, field)
+    redis.call('HINCRBY', key, 'm', -(#field + #ARGV[2] + 32))
+    return {1}
+  end
+end
+return {0}";
 
 /// The two clocks a write sends, in milliseconds since the epoch, and the time it was taken.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
@@ -838,6 +861,10 @@ pub(crate) struct Clocks {
     pub(crate) short_until: i64,
     /// When the long clock ends, or `0` while the record has never held a long-lived value.
     pub(crate) long_until: i64,
+    /// The latest a save leaves the stored long clock at: now plus `[session] long_lived`. A
+    /// save holds the long clock to it, as it holds the short clock to `short_until`. `issue`
+    /// does not read it.
+    pub(crate) long_ceiling: i64,
 }
 
 impl Clocks {
@@ -901,7 +928,7 @@ pub(crate) struct Changes<'a> {
     pub(crate) changed: Vec<(&'a [u8], &'a [u8], bool)>,
     /// The short token to keep, where the request has one. `None` leaves the stored one.
     pub(crate) token: Option<&'a str>,
-    /// The two clocks. Each moves forward only.
+    /// The two clocks. Each moves forward, and never past now plus its lifetime.
     pub(crate) clocks: Clocks,
 }
 
@@ -1023,7 +1050,7 @@ pub(crate) enum Store {
     File(std::path::PathBuf),
 }
 
-/// The store this deployment's sessions live in, ready for one of the five operations.
+/// The store this deployment's sessions live in, ready for one of the six operations.
 ///
 /// `shared` opens this core's connection, so a store that is unconfigured or not granted throws
 /// here. `db`, which is also the store a tree that writes no `backend` gets, is the data folder's
@@ -1147,6 +1174,25 @@ fn forgot(store: &Store, app: &[u8], member: &str, id: &str) -> Result<bool, Fau
     match store {
         Store::Shared => on_shared(NAME, member, |open| destroy(open, app, id)),
         Store::File(path) => on_file(member, sqlite::destroy(path, app, id)),
+    }
+}
+
+/// `take` on `store`, as [`fetched`]: whether `key` was deleted from the session under `id`,
+/// which it is only while the store still has `value` under it.
+///
+/// # Errors
+///
+/// As [`fetched`].
+fn took(
+    store: &Store,
+    app: &[u8],
+    member: &str,
+    id: &str,
+    (key, value): (&[u8], &[u8]),
+) -> Result<bool, Fault> {
+    match store {
+        Store::Shared => on_shared(NAME, member, |open| take(open, app, id, key, value)),
+        Store::File(path) => on_file(member, sqlite::take(path, app, id, key, value)),
     }
 }
 
@@ -1364,18 +1410,20 @@ pub(crate) fn save(
         .map(|(key, _, long)| field_of(key, *long))
         .collect();
     let clocks = changes.clocks;
-    let (now, short, long) = (
+    let (now, short, long, long_ceiling) = (
         decimal(clocks.now),
         decimal(clocks.short_until),
         decimal(clocks.long_until),
+        decimal(clocks.long_ceiling),
     );
     let ceiling = decimal(SIZE_CEILING);
     let keys = decimal(KEY_CEILING);
     let count = decimal(changes.removed.len());
-    let mut argv: Vec<&[u8]> = Vec::with_capacity(8 + changes.removed.len() + 2 * changed.len());
+    let mut argv: Vec<&[u8]> = Vec::with_capacity(9 + changes.removed.len() + 2 * changed.len());
     argv.push(&now);
     argv.push(&short);
     argv.push(&long);
+    argv.push(&long_ceiling);
     argv.push(changes.token.unwrap_or_default().as_bytes());
     argv.push(match (changes.cleared_short, changes.cleared_long) {
         (true, true) => b"sl".as_slice(),
@@ -1397,6 +1445,30 @@ pub(crate) fn save(
         [0] => Ok(Saved::Gone),
         [-1, size] => Ok(Saved::TooLarge(*size)),
         other => Err(format!("the save script answered {other:?}")),
+    }
+}
+
+/// `rule:http-server/a-session-store-answers-five-operations`'s `take` — `key` deleted from the
+/// session under `id` where it still holds `value`, and whether it did. One `EVAL` of [`TAKE`].
+///
+/// A lost reply is not replayed past a request that reached the store: a replay would find the
+/// key its own first run deleted, and answer `false` about it.
+///
+/// # Errors
+///
+/// As [`load`].
+pub(crate) fn take(
+    open: &mut Connection,
+    app: &[u8],
+    id: &str,
+    key: &[u8],
+    value: &[u8],
+) -> Result<bool, String> {
+    let answer = open.eval(TAKE, &key_of(app, id), &[key, value], Replay::OnlyIfUnsent)?;
+    match answer.as_slice() {
+        [1] => Ok(true),
+        [0] => Ok(false),
+        other => Err(format!("the take script answered {other:?}")),
     }
 }
 
@@ -2105,30 +2177,72 @@ pub(crate) fn put_bytes(
 /// The `bytes` saved under `key` in this request's session, taken out of it: [`put_bytes`]'s other
 /// half, and what makes `Core\Passkey`'s challenge single-use.
 ///
-/// The key is removed whatever it held, so a value that is not `bytes` is `None` and is gone
-/// too. A key the session does not have is `None` and writes nothing, as
-/// [`nvs_core_session_remove`] writes nothing.
+/// **The store deletes the key at once**, with
+/// `rule:http-server/a-session-store-answers-five-operations`'s `take`, and the bytes are returned
+/// only when the store still had the value this request loaded.
+/// So of two requests that loaded the same session in parallel, one gets the bytes and the other
+/// gets `None`. A key this request wrote itself, and a session the store does not have yet, have
+/// nothing in a store to take, and are taken from the request's copy alone.
+///
+/// The key is removed from the request's copy in every case, whatever it held, so a value that is
+/// not `bytes` is `None` and is gone too. A key the session does not have is `None` and writes
+/// nothing, as [`nvs_core_session_remove`] writes nothing. What it spends: one store round trip
+/// for a key the store has.
 ///
 /// # Errors
 ///
-/// [`first_use`]'s, [`read`]'s and [`write`]'s.
+/// [`first_use`]'s, [`opened`]'s, [`read`]'s, [`took`]'s and [`write`]'s.
 pub(crate) fn take_bytes(
     ctx: &mut Ctx,
     who: &'static str,
     key: &str,
 ) -> Result<Option<Vec<u8>>, Fault> {
     first_use(ctx, who)?;
-    let held = ctx
-        .session()
-        .ok_or_else(|| unstarted("remove"))?
-        .entries
-        .contains_key(key.as_bytes());
-    if !held {
+    let key = key.as_bytes();
+    let open = ctx.session().ok_or_else(|| unstarted("remove"))?;
+    if !open.entries.contains_key(key) {
         return Ok(None);
     }
-    let taken = read_bytes(ctx, "remove", key.as_bytes())?;
-    write(ctx, "remove", key.as_bytes(), None, Lifetime::Short)?;
-    Ok(taken)
+    let in_store = open.stored && !open.id.is_empty() && !open.touched.contains(key);
+    let store = if in_store {
+        Some(opened(
+            ctx,
+            &format!("{who}()"),
+            ", which is where this session's record lives",
+        )?)
+    } else {
+        None
+    };
+    taken_from(ctx, store.as_ref(), key)
+}
+
+/// [`take_bytes`] of `key`, which the request's copy has, with the store's `take` on `store`
+/// where there is one: the bytes, when the key held `bytes` and `store` still had the value.
+///
+/// Once the store has taken the key, the write-back owes it nothing for that key, so the key is
+/// not left marked as changed. A short-lived key leaves the record's changed flag as it was. A
+/// long-lived one leaves it set, because the lifetimes the record has changed with it.
+///
+/// # Errors
+///
+/// [`read`]'s, [`took`]'s and [`write`]'s.
+fn taken_from(ctx: &mut Ctx, store: Option<&Store>, key: &[u8]) -> Result<Option<Vec<u8>>, Fault> {
+    let taken = read_bytes(ctx, "remove", key)?;
+    let app = crate::cache::application(ctx);
+    let open = ctx.session().ok_or_else(|| unstarted("remove"))?;
+    let (was_dirty, long) = (open.dirty, open.long.contains(key));
+    let removed = match (store, open.entries.get(key)) {
+        (Some(store), Some(value)) => took(store, app, "remove", &open.id, (key, value))?,
+        _ => true,
+    };
+    write(ctx, "remove", key, None, Lifetime::Short)?;
+    if store.is_some()
+        && let Some(open) = ctx.session_mut()
+    {
+        open.touched.remove(key);
+        open.dirty = was_dirty || long;
+    }
+    Ok(taken.filter(|_| removed))
 }
 
 nvs_runtime::nvs_helper! {
@@ -2730,7 +2844,8 @@ fn sent_to(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
         return Ok(());
     };
     // The short clock moves with every write-back. The long clock moves only where the identifier
-    // cookie was sent with it, which a member did already, so it is sent as it is.
+    // cookie was sent with it, which a member did already, so it is sent as it is. A save holds
+    // each stored clock to now plus its lifetime.
     let clocks = Clocks {
         now,
         short_until: now.saturating_add(short_lived),
@@ -2739,6 +2854,7 @@ fn sent_to(ctx: &mut Ctx, store: &Store) -> Result<(), Fault> {
         } else {
             now.saturating_add(long_lived)
         },
+        long_ceiling: now.saturating_add(long_lived),
     };
     if open.stored {
         match saved(
@@ -2869,7 +2985,8 @@ mod tests {
     static SHORT_ONLY: LongKeys = LongKeys::new();
 
     /// The clocks every write a case makes directly sends: taken once per test process, with the
-    /// shipped short clock and no long one, so a hash a case expects has the same `x`.
+    /// shipped short clock and no long one, so a hash a case expects has the same `x`. The long
+    /// ceiling is the shipped long lifetime.
     fn clocks() -> Clocks {
         static TAKEN: std::sync::OnceLock<Clocks> = std::sync::OnceLock::new();
         *TAKEN.get_or_init(|| {
@@ -2879,6 +2996,8 @@ mod tests {
                 short_until: now
                     + i64::try_from(super::DEFAULT_SHORT_LIVED.as_millis()).expect("two hours"),
                 long_until: 0,
+                long_ceiling: now
+                    + i64::try_from(super::DEFAULT_LONG_LIVED.as_millis()).expect("180 days"),
             }
         })
     }
@@ -2998,8 +3117,8 @@ mod tests {
         /// The keys whose expiry has passed. The store still has them until a command names one,
         /// and then deletes it first, as a real store expires a key when it is read.
         lapsed: Arc<Mutex<HashSet<Vec<u8>>>>,
-        /// How many `EVAL` commands the store received, which are its only writes: one per
-        /// `issue` and one per `save`, written or not.
+        /// How many `EVAL` commands the store received, which are its only writes but `DEL`: one
+        /// per `issue`, `save` and `take`, written or not.
         writes: Arc<AtomicUsize>,
         /// How many commands of any kind the store received, reads included.
         commands: Arc<AtomicUsize>,
@@ -3047,9 +3166,10 @@ mod tests {
 
     /// [`Serving`]'s accept loop, which joins each connection's thread once `stop` is set.
     ///
-    /// `HGETALL`, `RENAMENX`, `DEL`, and `EVAL` of [`super::ISSUE`] or [`super::SAVE`] only,
-    /// because those are the commands [`load`], [`super::relocate`], [`destroy`], [`issue`] and
-    /// [`super::save`] send. Each script is run as the same steps in Rust, over the same hash.
+    /// `HGETALL`, `RENAMENX`, `DEL`, and `EVAL` of [`super::ISSUE`], [`super::SAVE`] or
+    /// [`super::TAKE`] only, because those are the commands [`load`], [`super::relocate`],
+    /// [`destroy`], [`issue`], [`super::save`] and [`super::take`] send. Each script is run as
+    /// the same steps in Rust, over the same hash.
     /// Any other command or script is a panic rather than a silent `+OK`, so one added upstream
     /// fails here instead of passing untested. A key in `lapsed` is deleted before any command
     /// that names it runs. Each `EVAL` adds one to `writes`, and every command adds one to
@@ -3121,14 +3241,18 @@ mod tests {
                             writes.fetch_add(1, Ordering::SeqCst);
                             assert_eq!(parts[2], b"1", "every script names one key");
                             let (key, argv) = (&parts[3], &parts[4..]);
+                            let writes_clocks = parts[1] == super::ISSUE.as_bytes()
+                                || parts[1] == super::SAVE.as_bytes();
                             assert!(
-                                number(&argv[0]) > 0,
+                                !writes_clocks || number(&argv[0]) > 0,
                                 "a session is always written with an expiry"
                             );
                             let answer = if parts[1] == super::ISSUE.as_bytes() {
                                 issued_in(&mut store, key, argv)
                             } else if parts[1] == super::SAVE.as_bytes() {
                                 saved_in(&mut store, key, argv)
+                            } else if parts[1] == super::TAKE.as_bytes() {
+                                taken_in(&mut store, key, argv)
                             } else {
                                 panic!(
                                     "the session store sends no script {:?}",
@@ -3211,13 +3335,13 @@ mod tests {
         let Some(hash) = store.get_mut(key) else {
             return vec![0];
         };
-        let clear = argv[4].clone();
+        let clear = argv[5].clone();
         let dropped = |field: &[u8]| {
             (field.starts_with(b"s:") && clear.contains(&b's'))
                 || (field.starts_with(b"l:") && clear.contains(&b'l'))
         };
-        let first = 8 + usize::try_from(number(&argv[7])).expect("a count");
-        let (removed, changed) = (&argv[8..first], &argv[first..]);
+        let first = 9 + usize::try_from(number(&argv[8])).expect("a count");
+        let (removed, changed) = (&argv[9..first], &argv[first..]);
         assert!(
             changed.len().is_multiple_of(2),
             "each changed field has a value"
@@ -3248,7 +3372,7 @@ mod tests {
             size += cost(&pair[0], &pair[1]);
             count += 1;
         }
-        if size > number(&argv[5]) || count > number(&argv[6]) {
+        if size > number(&argv[6]) || count > number(&argv[7]) {
             return vec![-1, size];
         }
         hash.retain(|field, _| !dropped(field));
@@ -3264,16 +3388,35 @@ mod tests {
             hash.insert(pair[0].clone(), pair[1].clone());
         }
         hash.insert(b"m".to_vec(), size.to_string().into_bytes());
-        for (field, clock) in [(b"x", &argv[1]), (b"y", &argv[2])] {
-            let held = hash.get(field.as_slice()).map_or(0, |held| number(held));
-            if number(clock) > held {
-                hash.insert(field.to_vec(), clock.clone());
-            }
+        hash.insert(b"x".to_vec(), argv[1].clone());
+        let held = hash.get(b"y".as_slice()).map_or(0, |held| number(held));
+        let long = held.max(number(&argv[2])).min(number(&argv[3]));
+        if long != held {
+            hash.insert(b"y".to_vec(), long.to_string().into_bytes());
         }
-        if !argv[3].is_empty() {
-            hash.insert(b"t".to_vec(), argv[3].clone());
+        if !argv[4].is_empty() {
+            hash.insert(b"t".to_vec(), argv[4].clone());
         }
         vec![1, size]
+    }
+
+    /// [`super::TAKE`]'s steps over `store`: `{1}` once the field of either lifetime that holds
+    /// exactly the given value is deleted and `m` lowered by its counted size, and `{0}` where no
+    /// field holds it.
+    fn taken_in(store: &mut HashMap<Vec<u8>, Hash>, key: &[u8], argv: &[Vec<u8>]) -> Vec<i64> {
+        let Some(hash) = store.get_mut(key) else {
+            return vec![0];
+        };
+        for field in both_fields(&argv[0]) {
+            if hash.get(&field) == Some(&argv[1]) {
+                let size = hash.get(b"m".as_slice()).map_or(0, |held| number(held));
+                let lowered = size - cost(&field, &argv[1]);
+                hash.remove(&field);
+                hash.insert(b"m".to_vec(), lowered.to_string().into_bytes());
+                return vec![1];
+            }
+        }
+        vec![0]
     }
 
     /// `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`, as the roster and as the write.
@@ -5388,6 +5531,7 @@ mod tests {
             now: crate::queue::now_millis(),
             short_until,
             long_until,
+            long_ceiling: 0,
         };
         let whole = Whole {
             entries,
@@ -5755,6 +5899,117 @@ mod tests {
                     "{word}: with {left}% of the long clock left, the read moves it: {refreshed}"
                 );
             }
+        }
+    }
+
+    /// `rule:http-server/session-expiry-belongs-to-the-store`: a save holds each stored clock to
+    /// now plus its lifetime. A session whose two clocks were stored ten long lifetimes ahead is
+    /// saved once, and on every store both clocks come down to their lifetimes.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn a_save_brings_a_clock_stored_far_ahead_down_to_its_lifetime_on_any_store() {
+        let (short_lived, long_lived) = lifetimes();
+        for (word, backend) in BACKENDS {
+            let mut server = Ctx::buffered();
+            let (store, _kept) = a_store(&mut server, "session-clock-ceiling", *backend);
+            let far = crate::queue::now_millis() + 10 * long_lived;
+            stored_with(
+                &store,
+                LIVE,
+                &ints(&[("cart", 1), ("consent", 1)]),
+                &longs(&["consent"]),
+                Some(SHORT_TOKEN),
+                (far, far),
+            );
+
+            let mut ctx = returning(&store, LIVE, Some(SHORT_TOKEN), false);
+            set_with(&mut ctx, super::nvs_core_session_set_short_lived, "cart", 2);
+            ended(ctx, &store);
+            let after = crate::queue::now_millis();
+
+            let record = record_under(&store, LIVE).expect("the session is kept");
+            assert_eq!(
+                record.entries,
+                ints(&[("cart", 2), ("consent", 1)]),
+                "{word}: the save is written"
+            );
+            assert!(
+                record.short_until > 0 && record.short_until <= after + short_lived,
+                "{word}: the short clock is at most now plus its lifetime: {} > {}",
+                record.short_until,
+                after + short_lived
+            );
+            assert!(
+                record.long_until > 0 && record.long_until <= after + long_lived,
+                "{word}: the long clock is at most now plus its lifetime: {} > {}",
+                record.long_until,
+                after + long_lived
+            );
+        }
+    }
+
+    /// `rule:http-server/a-session-store-answers-five-operations`'s `take`: two requests load the
+    /// same session and each takes the same key, as two parallel passkey verifications take one
+    /// challenge. On every store exactly one gets the bytes, the other gets `None`, and the store
+    /// keeps the other key with its counted size lowered.
+    #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
+    #[test]
+    fn two_requests_that_take_one_key_get_its_bytes_once_on_any_store() {
+        for (word, backend) in BACKENDS {
+            let mut server = Ctx::buffered();
+            let (store, kept) = a_store(&mut server, "session-take-once", *backend);
+            let challenge =
+                encoded(Value::bytes(NvsStr::new(b"challenge")), "set").expect("bytes encode");
+            let mut entries = ints(&[("user", 4)]);
+            entries.insert(b"challenge".to_vec(), challenge);
+            assert!(
+                issued(&store, NO_APP, "a case", ID, &whole(&entries)).expect("the row is issued")
+            );
+
+            let mut first = a_request(&store);
+            let mut second = a_request(&store);
+            let one = super::taken_from(&mut first, Some(&store), b"challenge")
+                .expect("the first request takes the key");
+            let two = super::taken_from(&mut second, Some(&store), b"challenge")
+                .expect("the second request takes the key");
+            assert_eq!(
+                one.as_deref(),
+                Some(b"challenge".as_slice()),
+                "{word}: the first request gets the bytes"
+            );
+            assert_eq!(two, None, "{word}: and the second gets nothing");
+            for ctx in [&first, &second] {
+                let open = ctx.session().expect("the session is open");
+                assert!(
+                    !open.entries.contains_key(b"challenge".as_slice()),
+                    "{word}: each request's copy has lost the key"
+                );
+                assert!(
+                    !open.dirty && open.touched.is_empty(),
+                    "{word}: and owes the store no write for it"
+                );
+            }
+            let left = ints(&[("user", 4)]);
+            assert_eq!(
+                stored_under(&store, ID),
+                Some(left.clone()),
+                "{word}: the store keeps the other key"
+            );
+            if let Kept::Shared(_, held) = &kept {
+                let size = held
+                    .lock()
+                    .expect("the store")
+                    .get(&key_of(NO_APP, ID))
+                    .and_then(|hash| hash.get(b"m".as_slice()).cloned());
+                assert_eq!(
+                    size,
+                    Some(counted(&left).to_string().into_bytes()),
+                    "{word}: with its counted size lowered"
+                );
+            }
+            ended(first, &store);
+            ended(second, &store);
+            assert_eq!(stored_under(&store, ID), Some(left), "{word}");
         }
     }
 
