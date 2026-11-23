@@ -22,7 +22,7 @@ stages:
     context: [docs/rules/config/a-reload-command-checks-now-and-waits.md, crates/nvs-cli/src/reload_cmd.rs, crates/nvs-cli/src/reload_endpoint.rs]
   - id: 5
     title: the development host check asks about the socket peer and tells the browser what to do
-    status: open
+    status: done
     context: [docs/rules/http-server/a-development-server-answers-the-hosts-it-knows.md]
   - id: 6
     title: "a test request on the wire is armed like every other, and --since never runs fewer tests than the change reaches"
@@ -379,15 +379,15 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### 5. the development host check asks about the socket peer and tells the browser what to do
 
-- [ ] `crates/nvs-cli/src/serve.rs:1194`: `table.select` gets the socket peer for the host check, and
+- [x] `crates/nvs-cli/src/serve.rs:1194`: `table.select` gets the socket peer for the host check, and
   `refuses_host` (`crates/nvs-server/src/mount.rs:438`) reads it.
   `rule:http-server/a-development-server-answers-the-hosts-it-knows` *read.*
-- [ ] `crates/nvs-server/src/serve.rs:849`: the 421 body in development.
-- [ ] `crates/nvs-server/src/trace.rs:468`: the line once per host per minute, with the host escaped.
-- [ ] `crates/nvs-cli/tests/rebinding_guard.rs:1`: loopback in `trusted_proxies`, an unknown host and
+- [x] `crates/nvs-server/src/serve.rs:849`: the 421 body in development.
+- [x] `crates/nvs-server/src/trace.rs:468`: the line once per host per minute, with the host escaped.
+- [x] `crates/nvs-cli/tests/rebinding_guard.rs:1`: loopback in `trusted_proxies`, an unknown host and
   `X-Forwarded-For: 203.0.113.9` is a 421 with the body. It runs once, by name.
-- [ ] The rule's "Who is asked" paragraph, and `crates/nvs-config/src/default.toml:608`.
-- [ ] `cargo build` and clippy are green.
+- [x] The rule's "Who is asked" paragraph, and `crates/nvs-config/src/default.toml:608`.
+- [x] `cargo build` and clippy are green.
 
 ### 6. a test request on the wire is armed like every other, and --since never runs fewer tests than the change reaches
 
@@ -496,41 +496,37 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### State
 
-Stages 1, 2 and 3 are done (tests `task_child_limits`, `hidden_slot`, `restrict_use_forms`, and
-`a_package_use_outside_its_own_name_or_core_is_an_error` in `crates/nvs-config/tests/restrict.rs`,
-`an_anonymous_function_parameter_attribute_is_checked_like_a_method_parameter_attribute` in
-`crates/nvs-types/tests/attributes.rs`). `Live::adopt` and the retrieval `static` item were not
-found.
+Stages 1 to 4 are done, each with its acceptance test passing (`task_child_limits`,
+`hidden_slot`, `restrict_use_forms`, `reload_outcomes`). `Live::adopt` and the retrieval `static`
+item were not found. Stage 4 also made a grant over the data folder's `cache/` and `run/` throw
+(`data_folder_refusal` in `crates/nvs-runtime/src/capability.rs`) and the cache shard private.
 
-Stage 4 is done. A draining server replies `reload_endpoint::STOPPING`, and a panicked check
-replies `PANICKED` (a refusal of kind `server`). A silent or unreachable server exits 1 before 2 is
-considered. `nvs_host::endpoint` has `Breaker` and `pid_of`, and Windows `connect` checks
-`GetNamedPipeServerProcessId`. `reload_outcomes` passed on Windows and in WSL.
-`capability::refusal` (`crates/nvs-runtime/src/capability.rs`) and `allow` now call
-`data_folder_refusal`: a granted path that resolves under the data folder's `cache/` or `run/`
-throws. The folders are resolved once per process (`reserved_folders`). Test
-`a_grant_over_the_data_folder_does_not_reach_the_endpoint` in `reload_command.rs` passed on
-Windows, reading the path in capitals. The cache item was found in WSL (shard `0755`):
-`publish` now uses `create_private_root`, and `write_temp` opens `create_new` with `0600`. Test
-`cache::tests::a_shard_and_its_artifact_are_private` passed in WSL. `bun nv rules --render`
-also rewrote `classes.md`, `security.md` and `packaging.md`, which earlier sessions left stale.
+Stage 5 is done. `nvs_server::Origin` has `peer()`, the socket peer whatever the walk decided,
+and the door passes it to `table.select`. `Reply::misdirected` gives a one-line `text/plain` body
+naming `development_hosts` and the host, escaped. `trace::first_this_minute` (a process-wide list
+of at most 64 hosts) lets the `Warn` line through once per host per minute, and a repeat is an
+ordinary access line. Tests `rebinding_guard` and `trace::tests::a_refused_host_is_warned_once_a_minute`
+passed, and the updated `request.rs` 421 case passed. The rule's Declined list now declines the
+bodiless `421` and asking the client after the forwarded walk.
 
-Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, two.
+Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, two; stage 5, one.
 
 ### Next
 
-Stage 5, the development host check:
+Stage 6, the test request on the wire and `--since`:
 
-- `crates/nvs-cli/src/serve.rs:1194`: `table.select` gets the socket peer, and `refuses_host`
-  (`crates/nvs-server/src/mount.rs:438`) reads it, whatever `X-Forwarded-For` gives.
-  Read `rule:http-server/a-development-server-answers-the-hosts-it-knows` first.
-- `crates/nvs-server/src/serve.rs:849`: the 421 text body in development, naming
-  `[server] development_hosts` and the host to add.
-- `crates/nvs-server/src/trace.rs:468`: the log line once per host per minute, host escaped.
-- `crates/nvs-cli/tests/rebinding_guard.rs`: new, the acceptance check `rebinding-guard`.
-- The rule's "Who is asked" paragraph and `crates/nvs-config/src/default.toml:608`.
+- `crates/nvs-cli/src/runner.rs:4583`: one function arms a test context, with four callers
+  (`:1697`, `:1793`, `:3963`, `:4583`). Read it first.
+- `crates/nvs-stdlib/src/test.rs:2654`: `answerHttp`, `answerSocket`, `tlsSession` and
+  `scriptAnswers` throw outside a test. *check first.*
+- `crates/nvs-ir/src/lower/expr.rs:5233` and `:5488`: a double keeps an interface's default
+  method virtual. *check first.*
+- `crates/nvs-stdlib/src/test.rs:3442`: a `sendFile` body is read within the request's memory limit.
+- `crates/nvs-cli/src/runner/reach.rs:499` and `:458`, `crates/nvs-cli/src/runner/since.rs:134`
+  and `:151`: the `--since` selection.
+- New tests `wire_request_is_armed.rs` and `since_selection.rs` under `crates/nvs-cli/tests/`.
 
-Stages 6, 8, 9, 10 and 11 touch disjoint files, so another session may take one of them beside it.
+Stages 8, 9, 10 and 11 touch disjoint files, so another session may take one of them beside it.
 
 Tests that may go red: a `reload_command.rs` case that expected exit 2 with only an unreachable
 server now gets 1. Its `state` for a closed connection is `silent`, no longer `stopped`. A
@@ -541,7 +537,8 @@ one that does not fit a parameter, now fails to compile. An editor completion or
 relied on a class's allowed name matching a namespace of the same name. Stage 1's arming may move
 where a task's allocation over the ceiling stops in a conformance or group test. A dump of a
 revocable object no longer prints a `#revocable` line. A test or example whose program is granted
-a folder above the data folder and reads or writes under its `cache/` or `run/` now throws.
+a folder above the data folder and reads or writes under its `cache/` or `run/` now throws. A
+test that expects a bodiless `421`, or a `421` from a loopback proxy to pass through, now fails.
 
 ### Backlog
 
