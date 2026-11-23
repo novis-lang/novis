@@ -94,8 +94,8 @@ pub const MOVES: &[Move] = &[
     Move::removed(
         r"Core\Session::start",
         r"Core\Session::get",
-        "`Core\\Session::start` was removed. The first call of any `Core\\Session` method opens \
-         the session, so delete this call",
+        "`Core\\Session::start` was removed. The first call of any `Core\\Session` method, such \
+         as `Core\\Session::get`, opens the session, so delete this call",
     ),
     Move::removed(
         r"Core\Session::set",
@@ -149,20 +149,29 @@ mod tests {
                 row.old
             );
             if let Some((class, member)) = row.member() {
-                // A class-scoped type moved out of its class names a type.
+                // A class-scoped type moved out of its class names a type, and
+                // its old name is gone from the types. It is not compared with
+                // the class's members: `DateTime::Weekday` and the method
+                // `weekday` differ only in case, and the checker reads a row
+                // only for a name that did not resolve.
                 match row.new.split_once("::") {
-                    Some((new_class, new_member)) => assert!(
-                        has_member(new_class, new_member),
-                        "`{}` is not a `Core` member",
-                        row.new
-                    ),
-                    None => assert!(has(row.new), "`{}` is not a `Core` type", row.new),
+                    Some((new_class, new_member)) => {
+                        assert!(
+                            has_member(new_class, new_member),
+                            "`{}` is not a `Core` member",
+                            row.new
+                        );
+                        assert!(
+                            !has_member(class, member),
+                            "`{}` is still a `Core` member",
+                            row.old
+                        );
+                    }
+                    None => {
+                        assert!(has(row.new), "`{}` is not a `Core` type", row.new);
+                        assert!(!has(row.old), "`{}` is still a `Core` type", row.old);
+                    }
                 }
-                assert!(
-                    !has_member(class, member),
-                    "`{}` is still a `Core` member",
-                    row.old
-                );
                 if let Some(call) = row.call {
                     assert!(
                         call.starts_with(row.new),
