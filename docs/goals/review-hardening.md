@@ -307,15 +307,15 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### 2. a decoded payload and a refused write leave no membership that points nowhere
 
-- [ ] `crates/nvs-runtime/src/graph.rs:1159`: `decode` reads no node for the hidden slot, and `encode`
+- [x] `crates/nvs-runtime/src/graph.rs:1159`: `decode` reads no node for the hidden slot, and `encode`
   at `:870` writes none. `rule:classes/serialize-is-a-closed-format` *read.*
-- [ ] `crates/nvs-stdlib/src/objmap.rs:540`: the link follows a write that landed. *check first.*
-- [ ] `crates/nvs-stdlib/src/objmap.rs:613`: `remove_entry` compares the value's identity.
+- [x] `crates/nvs-stdlib/src/objmap.rs:540`: the link follows a write that landed. *check first.*
+- [x] `crates/nvs-stdlib/src/objmap.rs:613`: `remove_entry` compares the value's identity.
 - [ ] `crates/nvs-runtime/src/graph.rs:595`: a live copy that adopts a collection unlinks the source's
   members. *check first*: find the syntax that reaches `copy_graph_to` at `:718` with one holder.
-- [ ] `crates/nvs-runtime/src/record.rs:408`: a dump of a revocable object starts after the hidden
+- [x] `crates/nvs-runtime/src/record.rs:408`: a dump of a revocable object starts after the hidden
   slot.
-- [ ] `crates/nvs-codegen/tests/hidden_slot.rs:1`: a payload built by the test with a value node at
+- [x] `crates/nvs-codegen/tests/hidden_slot.rs:1`: a payload built by the test with a value node at
   the hidden slot is refused, a round trip of a revocable object in a map works, and a `set` at the
   ceiling followed by a revoke touches no freed collection. It runs once, by name.
 - [ ] `cargo build` and clippy are green.
@@ -481,29 +481,37 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### State
 
-Stage 1 is done. `Ctx::child` copies `grant_filter` and arms the copied memory ceiling as it is made
-(`crates/nvs-runtime/src/ctx/isolate.rs`). The cause of the escaped ceiling: `Ctx::sharing` arms
-nothing, and `Ctx::child` copied `memory_limit` without arming it, so `leave_this_stack` saved
-nothing and `arm_on_this_stack` armed nothing on the task's stack. A 400 MB string in a task under a
-64 MB ceiling was made and caught only at the next poll. Now the allocator refuses it, and the error
-names the refused size. Both defects were reproduced on the pre-fix release binary first.
+Stage 1 is done (`Ctx::child` in `crates/nvs-runtime/src/ctx/isolate.rs`, test
+`crates/nvs-cli/tests/task_child_limits.rs`). Stage 2 has one item open: the live copy that adopts a collection (`graph.rs:595`). The rest landed
+in one commit. `Carrier::SKIPS_HIDDEN` makes the encoder skip the hidden slot, and `written_slots`
+(`crates/nvs-runtime/src/graph.rs`) is the slot list both `encode` and `decode` use. A forged payload
+with an `int` node for the slot decoded before the fix, and its eight bytes were read as the
+memberships pointer. The rule fragment has a paragraph on the hidden slot. The objmap *check first* reproduced: under a 400-byte ceiling (after `rebase_memory`) the map's write
+was refused, the post was linked anyway, `put` freed the map, and the revoke read the freed map and
+aborted on a refcount underflow (`array.rs:3049`). `Core\ObjectMap::set` now retains the old value
+across the write, checks with `held_under` that the write landed, and only then unlinks and links.
+`remove_entry` takes `only`, and a revoke's map-value entry is removed only when the value is the
+revoked object. Only `Core\ObjectMap` was fixed: `ObjectSet`, `Heap` and the other collections'
+`link` calls were not read for the same pattern. `crates/nvs-codegen/tests/hidden_slot.rs` ran by name, green. Its ceiling case scans ceilings from 8
+to 4096 bytes and fails unless at least one refuses the write and still reaches the revoke.
 
-The test is `crates/nvs-cli/tests/task_child_limits.rs`, not `nvs-host`: both cases are Novis
-programs, and only `nvs-cli`'s tests have the binary. It ran once by name, green, on the debug binary.
-The debug binary shows the refusal too, so no release run is needed. The attacks are
-`tests/hostile/core/Task/all/04-…` and `05-…`, with the spawned script in `jobs/`. The paragraph
-*A `Core\Task` child is its request for every limit* is in `rule:security/isolate-shares-nothing`.
-
-Sessions per stage: stage 1, one.
+Sessions per stage: stage 1, one; stage 2, one.
 
 ### Next
 
-Stage 2 from its first item, at `crates/nvs-runtime/src/graph.rs:1159` (`decode`) and `:870`
-(`encode`). Then `crates/nvs-stdlib/src/objmap.rs:540` (*check first*, one attempt) and `:613`
-(`remove_entry`). No test is expected to go red. Stage 1's arming may move where a task's
-allocation over the ceiling stops in a conformance or group test: a case whose expected error had no
-"was refused" clause for a task's allocation now has one. No conformance case expects a memory error
-and uses a task, and no suite was run.
+Stage 2's last item, `crates/nvs-runtime/src/graph.rs:595` (`Live::adopt`), *check first*: find the
+syntax that reaches `copy_graph_to` (`:727`) with a collection at refcount 1 whose revocable member is
+also held elsewhere. The candidates are a `Core\Task` spawn's argument and return value, and the
+`upgrade` members. The walk writes `null` into an adopted object's hidden slot (`:448`), so an adopted
+member's memberships box is leaked until the request ends, and a member that is copied keeps
+memberships that name the adopted collection. Then read `ObjectSet`'s and `Heap`'s `link` calls for
+the refused-write pattern fixed in `objmap.rs`; a defect found there is fixed in the same way and
+gets a row in `hidden_slot.rs`. Then the build, clippy, and stage 2 is done.
+
+No test is expected to go red. Stage 1's arming may move where a task's allocation over the ceiling
+stops in a conformance or group test: a case whose expected error had no "was refused" clause for a
+task's allocation now has one. A dump of a revocable object no longer prints a `#revocable` line;
+no expected output in the tree had one.
 
 ### Backlog
 
