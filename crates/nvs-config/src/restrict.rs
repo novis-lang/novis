@@ -369,6 +369,24 @@ pub(crate) fn parse(
             .get(..entry.target.span().start)
             .map_or(1, |before| before.matches('\n').count() + 1);
         let target = read_target(id, &entry.target)?;
+        // A package restricts its own code and `Core`'s, which it may wrap. Another package's
+        // code and the application's are not its to restrict.
+        if let Some(owner) = package
+            && !target.is_under(owner)
+            && !target.is_under("Core")
+        {
+            return Err(bad(
+                id,
+                &entry.target,
+                format!(
+                    "`{}` is not inside the package `{owner}`",
+                    entry.target.get_ref()
+                ),
+                &format!(
+                    "a package's restriction can name only its own code, under `{owner}`, or `Core`"
+                ),
+            ));
+        }
         let mut allow = Vec::with_capacity(entry.allow.get_ref().len());
         for written in entry.allow.get_ref() {
             let place = read_target(id, written)?;
