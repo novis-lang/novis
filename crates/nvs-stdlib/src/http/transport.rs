@@ -492,6 +492,11 @@ pub(crate) trait Connection: Read + Write {
     /// opened as: past the box, plaintext and TLS are the same `Read` and
     /// `Write`, and a pooled connection arrives with no scheme beside it at all.
     fn tls(&self) -> Option<Session>;
+
+    /// Whether a read now would not wait: bytes are waiting, the peer closed
+    /// the connection, or it failed. A pooled connection must have nothing to
+    /// read, so [`pool::take`] closes one where this is `true`.
+    fn has_waiting(&mut self) -> bool;
 }
 
 impl Connection for NvsTcp {
@@ -502,6 +507,10 @@ impl Connection for NvsTcp {
     fn tls(&self) -> Option<Session> {
         None
     }
+
+    fn has_waiting(&mut self) -> bool {
+        NvsTcp::has_waiting(self)
+    }
 }
 
 impl Connection for NvsTls<NvsTcp> {
@@ -511,6 +520,10 @@ impl Connection for NvsTls<NvsTcp> {
 
     fn tls(&self) -> Option<Session> {
         Some(self.session())
+    }
+
+    fn has_waiting(&mut self) -> bool {
+        NvsTls::has_waiting(self)
     }
 }
 
@@ -733,6 +746,10 @@ struct Framed {
     /// streamed call its whole body. So its attack is the Rust test
     /// `a_chunk_header_past_any_reply_fails_without_a_panic`.
     chunk_left: u64,
+    /// Whether the last chunk has arrived, so the next lines are the trailer.
+    /// The body ends at the trailer's empty line, and only then is the
+    /// connection free for another request.
+    in_trailer: bool,
     /// What delimits this body.
     frame: Frame,
     /// Whether the framing has said there is no more.
@@ -815,6 +832,7 @@ impl Framed {
             held: Pending::default(),
             raw,
             chunk_left: 0,
+            in_trailer: false,
             frame,
             ended: false,
             idle,
@@ -848,6 +866,7 @@ impl Framed {
             held: Pending::from(held),
             raw: Vec::new(),
             chunk_left: 0,
+            in_trailer: false,
             frame: Frame::UntilClose,
             ended: true,
             idle: Duration::ZERO,
@@ -863,12 +882,17 @@ impl Framed {
     ///
     /// `reuse` is `None` for every reply [`reusable`] refused, and the
     /// connection is dropped instead — as it is for a body nobody read to the
-    /// end, since this runs only where the framing said there is no more.
+    /// end, since this runs only where the framing said there is no more. It
+    /// is dropped too when octets arrived after the body's end: those are no
+    /// reply to anything this client sent.
     fn finished(&mut self) {
         self.ended = true;
         let Some(connection) = self.source.take() else {
             return;
         };
+        if !self.raw.is_empty() {
+            return;
+        }
         if let Some(reuse) = self.reuse.take() {
             pool::release(reuse.key, connection, reuse.caps, Instant::now());
         }
@@ -934,7 +958,9 @@ impl Framed {
             match read {
                 Ok(0) => {
                     self.ended = true;
-                    if matches!(self.frame, Frame::Chunked) {
+                    // A close inside the trailer ends a body that is whole, and
+                    // the connection is not pooled.
+                    if matches!(self.frame, Frame::Chunked) && !self.in_trailer {
                         return Err(malformed(
                             &self.member,
                             "a chunk is shorter than its own header said",
@@ -1005,15 +1031,33 @@ impl Framed {
     }
 
     /// Every chunk octet [`Framed::raw`] holds, moved across, leaving only a
-    /// chunk header that has not reached its line end.
+    /// chunk header or a trailer line that has not reached its line end.
+    ///
+    /// The body ends at the empty line after the last chunk's trailer, which
+    /// may arrive in a later read than the last chunk. Each trailer line is
+    /// read and dropped.
     ///
     /// # Errors
     ///
     /// A `RuntimeError` for a chunk header that is not text, not a length, or
-    /// longer than [`LINE_CEILING`] without a line end.
+    /// longer than [`LINE_CEILING`] without a line end, and for a trailer line
+    /// longer than [`LINE_CEILING`].
     fn dechunk(&mut self) -> Result<bool, Fault> {
         let mut from = 0_usize;
         let ended = loop {
+            if self.in_trailer {
+                let Some(end) = find(&self.raw[from..], b"\r\n") else {
+                    if self.raw.len() - from > LINE_CEILING {
+                        return Err(malformed(&self.member, "a trailer line has no line end"));
+                    }
+                    break false;
+                };
+                from += end + 2;
+                if end == 0 {
+                    break true;
+                }
+                continue;
+            }
             if self.chunk_left > 0 {
                 let rest = self.raw.len() - from;
                 let take = usize::try_from(self.chunk_left).map_or(rest, |left| left.min(rest));
@@ -1041,10 +1085,8 @@ impl Framed {
                 })?;
             from += end + 2;
             if size == 0 {
-                // Whatever trailer follows the last chunk is not body, and the
-                // connection is about to be dropped with it.
-                from = self.raw.len();
-                break true;
+                self.in_trailer = true;
+                continue;
             }
             self.chunk_left = size.checked_add(2).ok_or_else(|| {
                 malformed(&self.member, "a chunk header is not a hexadecimal length")
@@ -4339,6 +4381,10 @@ pub(crate) mod tests {
         fn tls(&self) -> Option<nvs_host::tls::Session> {
             None
         }
+
+        fn has_waiting(&mut self) -> bool {
+            false
+        }
     }
 
     /// A whole reply read the way a socket delivers one — the head off the
@@ -5711,6 +5757,128 @@ pub(crate) mod tests {
         ));
     }
 
+    /// A connection that gives one segment per read, as a socket gives what
+    /// arrived in one packet. Something is waiting while a segment is left.
+    struct Segments(std::collections::VecDeque<Vec<u8>>);
+
+    impl Read for Segments {
+        fn read(&mut self, into: &mut [u8]) -> std::io::Result<usize> {
+            let Some(mut segment) = self.0.pop_front() else {
+                return Ok(0);
+            };
+            let take = segment.len().min(into.len());
+            into[..take].copy_from_slice(&segment[..take]);
+            if take < segment.len() {
+                segment.drain(..take);
+                self.0.push_front(segment);
+            }
+            Ok(take)
+        }
+    }
+
+    impl Write for Segments {
+        fn write(&mut self, from: &[u8]) -> std::io::Result<usize> {
+            Ok(from.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    impl super::Connection for Segments {
+        fn bound_by(&mut self, _at: Option<Instant>) {}
+
+        fn tls(&self) -> Option<nvs_host::tls::Session> {
+            None
+        }
+
+        fn has_waiting(&mut self) -> bool {
+            !self.0.is_empty()
+        }
+    }
+
+    /// The pool's caps for the two cases below: room for one connection.
+    fn one_idle() -> super::pool::Caps {
+        super::pool::Caps {
+            idle: 1,
+            timeout: Duration::from_secs(60),
+        }
+    }
+
+    /// A chunked body read to its end over `segments`, where `first` arrived
+    /// with the head, and filed under `key` when the framing ends it.
+    fn chunked_over(key: &str, first: &[u8], segments: &[&[u8]]) -> Vec<u8> {
+        let source = Segments(segments.iter().map(|s| s.to_vec()).collect());
+        let mut framed = super::Framed::over(
+            Box::new(source),
+            first.to_vec(),
+            super::Frame::Chunked,
+            Duration::from_secs(5),
+            Instant::now() + Duration::from_secs(5),
+            "test",
+            Some(super::Reuse {
+                key: key.to_owned(),
+                caps: one_idle(),
+            }),
+        )
+        .expect("a chunked body");
+        let mut body = Vec::new();
+        framed.read_to_end(&mut body).expect("the whole body");
+        body
+    }
+
+    /// Acceptance `chunked-end`: the last chunk arrives in one segment and the
+    /// trailer's empty line in the next. The body ends after the empty line,
+    /// so the pooled connection has nothing left for the next call to read.
+    #[test]
+    fn a_reply_whose_last_chunk_and_trailer_arrive_in_two_segments_leaves_nothing_on_its_connection()
+     {
+        let body = chunked_over("two-segments", b"2\r\nok\r\n0\r\n", &[b"\r\n"]);
+        assert_eq!(body, b"ok");
+        let mut pooled = super::pool::take("two-segments", Instant::now())
+            .expect("the connection went back once its reply was read");
+        assert!(
+            !pooled.has_waiting(),
+            "the trailer's empty line was read before the connection was pooled"
+        );
+
+        // A trailer with fields, each line in a segment of its own.
+        let body = chunked_over(
+            "trailer-lines",
+            b"2\r\nok\r\n0\r\nX-One: 1\r\n",
+            &[b"X-Two: 2\r\n", b"\r\n"],
+        );
+        assert_eq!(body, b"ok");
+        let mut pooled = super::pool::take("trailer-lines", Instant::now())
+            .expect("the connection went back once its trailer was read");
+        assert!(!pooled.has_waiting(), "every trailer line was read");
+    }
+
+    /// Acceptance `chunked-end`: a pooled connection with bytes waiting is
+    /// closed when it is taken, and so is one with octets after its body.
+    #[test]
+    fn a_pooled_connection_with_bytes_waiting_is_closed_when_it_is_taken() {
+        let waiting = Segments(std::iter::once(b"\r\n".to_vec()).collect());
+        super::pool::release(
+            "waiting".to_owned(),
+            Box::new(waiting),
+            one_idle(),
+            Instant::now(),
+        );
+        assert!(
+            super::pool::take("waiting", Instant::now()).is_none(),
+            "a connection with bytes waiting is never handed to a call"
+        );
+
+        let body = chunked_over("left-over", b"2\r\nok\r\n0\r\n\r\nHTTP/1.1", &[]);
+        assert_eq!(body, b"ok");
+        assert!(
+            super::pool::take("left-over", Instant::now()).is_none(),
+            "octets after the body's end keep the connection out of the pool"
+        );
+    }
+
     /// A connection whose far end has gone: every write fails, as a socket the
     /// other end retired does once the kernel has seen the reset.
     struct Retired;
@@ -5736,6 +5904,11 @@ pub(crate) mod tests {
 
         fn tls(&self) -> Option<nvs_host::tls::Session> {
             None
+        }
+
+        /// `false`, so the pool hands it out and the case reaches the retry.
+        fn has_waiting(&mut self) -> bool {
+            false
         }
     }
 

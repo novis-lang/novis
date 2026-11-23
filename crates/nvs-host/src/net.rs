@@ -548,6 +548,18 @@ impl NvsStream<mio::net::TcpStream> {
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
         self.inner.peer_addr()
     }
+
+    /// Whether a read now would not wait: bytes are on the socket, the peer
+    /// closed it, or it failed.
+    ///
+    /// Asked of a connection that sat idle, which must have nothing to read.
+    /// It never waits, because the socket is non-blocking: a peek with nothing
+    /// there gives `WouldBlock`, and only that is `false`.
+    #[must_use]
+    pub fn has_waiting(&self) -> bool {
+        let mut one = [0_u8; 1];
+        !matches!(self.inner.peek(&mut one), Err(err) if err.kind() == io::ErrorKind::WouldBlock)
+    }
 }
 
 /// The accepting half: a listening socket whose accept parks the task instead

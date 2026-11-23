@@ -73,11 +73,21 @@ thread_local! {
 /// connection to a host nobody calls again for as long as the process runs. The
 /// most recently released match is the one handed back, since it is the one
 /// whose far end has had least time to give up on it.
+///
+/// A match with bytes waiting, or one its peer closed, is closed too, and the
+/// next match is tried. An idle connection has nothing to read, so a byte there
+/// would be read as the start of the next call's reply. It costs one peek per
+/// connection taken.
 pub(crate) fn take(key: &str, now: Instant) -> Option<Box<dyn Connection>> {
     IDLE.with_borrow_mut(|store| {
         store.retain(|held| held.expires > now);
-        let at = store.iter().rposition(|held| held.key == key)?;
-        Some(store.remove(at).connection)
+        loop {
+            let at = store.iter().rposition(|held| held.key == key)?;
+            let mut connection = store.remove(at).connection;
+            if !connection.has_waiting() {
+                return Some(connection);
+            }
+        }
     })
 }
 
@@ -138,6 +148,10 @@ mod tests {
 
         fn tls(&self) -> Option<nvs_host::tls::Session> {
             None
+        }
+
+        fn has_waiting(&mut self) -> bool {
+            false
         }
     }
 

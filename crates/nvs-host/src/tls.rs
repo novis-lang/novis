@@ -883,6 +883,21 @@ impl NvsTls<NvsTcp> {
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
         self.inner.sock.peer_addr()
     }
+
+    /// Whether a read now would not wait: records are on the socket, the
+    /// session holds plaintext or records it has not read, or the peer closed.
+    ///
+    /// Asked of a connection that sat idle, which must have nothing to read.
+    #[must_use]
+    pub fn has_waiting(&mut self) -> bool {
+        if self.inner.sock.has_waiting() {
+            return true;
+        }
+        match self.inner.conn.process_new_packets() {
+            Ok(state) => state.plaintext_bytes_to_read() > 0 || state.peer_has_closed(),
+            Err(_) => true,
+        }
+    }
 }
 
 /// The socket's clock, reached through however many wrappers are between this
