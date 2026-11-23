@@ -51,7 +51,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 - **`site --check changes` counts a feature as moved only through tests that carry `// covers:
   <feature>`.** A new `.nvst` case for `Core\Html::later` had no marker, so its `changes.json`
   entry was refused as "has not moved". Add the marker under `<?nvs` in the case, not a
-  `highlight`. See `tools/nv/lib/texts.ts` `behaviour`.
+  `highlight`. See `tools/nv/lib/texts.ts` `behaviour`. Only `.nvst` cases, Rust tests and
+  package `.nvs` tests are read: an `.lspt` case or an extension TypeScript test never moves an
+  editor feature, so put the marker on a Rust test that pins the change (`MARKER_ROOTS`,
+  `tools/nv/proofs/markers.ts`).
 - **A new `#` heading in a reference chapter adds a feature to the roster, and that feature owes
   every proof.** `# nvs test --since` in `docs/reference/tools/10-cli.md` made
   `tools:cli/nvs-test-since`, and `site --check changes` and `--check stale` went red. Write a
