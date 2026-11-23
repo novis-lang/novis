@@ -1,7 +1,9 @@
 `::class` answers the class the value **is**. Three sides are folded because the compiler already
 knows the answer — `Foo::class`, `self::class` and `parent::class` resolve against the file's
 namespace and imports and are inlined at every use site, which is what makes `Bogus::class` an `E0303`
-rather than a string: there is no later place for the typo to be caught.
+rather than a string: there is no later place for the typo to be caught. Each of the five forms is a
+`string` except where a `class<T>` is expected: there it is a `class<C>` for the class it names, and
+lowers to the descriptor with no name string (`rule:types/class-reference`).
 
 The two run-time sides read the name off a class descriptor:
 

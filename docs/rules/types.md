@@ -3029,9 +3029,46 @@ class descriptor — the same word a `new static(...)` already allocates from, c
 name, parent chain, interface set and method table. `T` names one class or one interface; anything
 else is `E0795` where it is written, and a `T` resolving to nothing is `E0303`.
 
-**There is no other way to obtain one.** `Foo::class` is a `string` and stays one
-([`types/class-constant`](types.md#types-class-constant)), so no program acquires a class reference by accident. `as` is the only
-source, and its rows sit in the one conversion grid ([`types/conversion`](types.md#types-conversion)): a `string` must name
+**There are two sources, and no third.** A written `::class` at a place whose expected type is
+`class<T>` is one, and `as` is the other. Everywhere else `Foo::class` is a `string` and stays one
+([`types/class-constant`](types.md#types-class-constant)), so no program acquires a class reference by accident.
+
+A written `::class` takes the type its target expects, as a numeric literal takes its place's type
+([`types/numeric-literal-placement`](types.md#types-numeric-literal-placement)). Where the expected type is `class<T>` or `?class<T>`, the
+expression is a `class<C>` for the class `C` it names, and covariance
+([`types/class-reference-variance`](types.md#types-class-reference-variance)) carries it to `class<T>`. There is no new conversion row and
+no second check: the hierarchy test `as` runs is the one that runs here.
+
+| Written | Type at a `class<T>` place | Checked |
+|---|---|---|
+| `Foo::class`, `self::class`, `parent::class` | `class<Foo>`, or the class it folds to | while compiling: `E0303` for nothing, `E0708` outside `T`, as under `as` |
+| `static::class` in a method of `C` | `class<C>` | while compiling, against `C`. The run-time class is `C` or a subclass, so nothing runs |
+| `$obj::class` where `$obj` is a `U` | `class<U>` | while compiling, against `U`. A `?U` or `mixed` receiver stays `E0702` |
+
+An enum's `::class` is not a class reference: an enum has no class descriptor
+([`enums/no-class-machinery`](enums.md#enums-no-class-machinery)), so the shared hierarchy test refuses it on both paths, even where
+the enum implements `T`. Where the expected type has a `string` member, as in `string|class<T>`, the
+expression stays a `string`; with `class<…>` members and no `string`, assignability picks the member.
+`E0708` with its help is given where exactly one `class<T>` is expected, and a union of several gives
+the ordinary mismatch. A `string` at a `class<T>` place stays the ordinary mismatch, and its help
+names `as class<T>`, which is where a program that writes a variable learns the conversion exists. An
+existing `Foo::class as class<T>` keeps compiling with no warning.
+
+A parameter default and a property default, instance or `static`, may be a written `Foo::class` at a
+`class<T>` declaration; `static::class` and `$obj::class` are not constants and stay refused there
+(`E0451` at a parameter, `E_PROPERTY_DEFAULT_NOT_LITERAL` at a property). In a class body `class`
+followed by `<` is a type, so `public class<T> $p` declares a property. A property default carries
+the class's label through the IR and is linked to the descriptor once every descriptor exists, as a
+codec's nested class is.
+
+- **What it spends:** the folded forms lower to the descriptor constant, `static::class` to the
+  frame's late-static-binding descriptor, and `$obj::class` to one load off the object. None builds
+  the name string or walks the hierarchy, so each saves one string allocation and one walk against
+  `static::class as class<T>`. A class-defaulted property costs one word per property per class, once
+  per process, and an instance pays one slot write.
+
+`as` is the source for everything that is data, and its rows sit in the one conversion grid
+([`types/conversion`](types.md#types-conversion)): a `string` must name
 `T` or a class that is one, or it throws; a `class<U>` narrows against the descriptor at run time; and
 `class<T> → string` is total. A name that resolves to nothing and a name outside `T`'s hierarchy are
 the same failure and throw the same way, with the class named in the message. `as ?class<T>` yields
@@ -3108,6 +3145,11 @@ and ordering one is refused with the other unordered types ([`types/ordering`](t
   apply.
 - **A diagnostic code of its own for the literal.** Its mistakes are the ones `::class` already
   reports, and one code per mistake keeps `nvs agent show` to one page.
+- **A string literal or a `string` variable accepted at a `class<T>` place without `as`.** Those are
+  data: the literal looks like text, and a `string` variable may hold request input. Tracking where a
+  variable's string came from would make the rule hard to predict, so the visible `as` stays.
+- **A warning on an `as` that is no longer needed.** The `as` is harmless, and a warning would make
+  every existing program noisy for no gain.
 
 <sub>See also [`types/class-reference-variance`](types.md#types-class-reference-variance), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`types/class-constant`](types.md#types-class-constant), [`types/conversion`](types.md#types-conversion).</sub>
 
@@ -3195,7 +3237,9 @@ member" ([`types/property-key-access`](types.md#types-property-key-access)).
 `::class` answers the class the value **is**. Three sides are folded because the compiler already
 knows the answer — `Foo::class`, `self::class` and `parent::class` resolve against the file's
 namespace and imports and are inlined at every use site, which is what makes `Bogus::class` an `E0303`
-rather than a string: there is no later place for the typo to be caught.
+rather than a string: there is no later place for the typo to be caught. Each of the five forms is a
+`string` except where a `class<T>` is expected: there it is a `class<C>` for the class it names, and
+lowers to the descriptor with no name string ([`types/class-reference`](types.md#types-class-reference)).
 
 The two run-time sides read the name off a class descriptor:
 
