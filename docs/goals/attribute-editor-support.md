@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-lsp/src/symbols.rs, crates/nvs-lsp/src/folding.rs, crates/nvs-lsp/src/order.rs, docs/rules/tooling/class-members-have-one-order.md]
   - id: 3
     title: "attribute, repeatable and a field's type are completed"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/completion.rs, docs/rules/ide/keywords-are-offered-where-the-compiler-accepts-them.md]
   - id: 4
     title: "a field key reaches its declared field"
@@ -176,13 +176,13 @@ allow writing one. Key completion and signature help show what is missing.
 
 **Does:** completion offers the declaration's keywords and the types inside its body.
 
-- [ ] `crates/nvs-lsp/src/completion.rs:2793` and `:2896`: `attribute` and `repeatable` are offered at
+- [x] `crates/nvs-lsp/src/completion.rs:2793` and `:2896`: `attribute` and `repeatable` are offered at
   file scope and in a class or interface body, with the snippet the standing decision gives. Not in an
   enum body (`CASE_WORDS`, `:2915`).
-- [ ] Inside a declaration's `{ … }`, after `name:` or `name?:`, completion offers the list a property's
+- [x] Inside a declaration's `{ … }`, after `name:` or `name?:`, completion offers the list a property's
   type position gets.
-- [ ] `rule:ide/keywords-are-offered-where-the-compiler-accepts-them` names the two words and where each is offered.
-- [ ] `.lspt` cases under `tests/lsp/completion/`: the keywords at file scope and in a class, none in an
+- [x] `rule:ide/keywords-are-offered-where-the-compiler-accepts-them` names the two words and where each is offered.
+- [x] `.lspt` cases under `tests/lsp/completion/`: the keywords at file scope and in a class, none in an
   enum, the snippet form and the plain form, and a field type.
 
 ### 4. a field key reaches its declared field
@@ -239,29 +239,34 @@ allow writing one. Key completion and signature help show what is missing.
 
 ### State
 
-Stages 1 and 2 are done. Stage 2: a declaration is a `struct` document symbol at file scope and as a
-class member, its fields `field` children (`fields`, `crates/nvs-lsp/src/symbols.rs`). It folds over
-its own span (`crates/nvs-lsp/src/folding.rs`), and `order.rs`'s `key` puts it in group one; the
-rule's step 1 says so. `nvs fmt` already formatted every form, so the fmt pair only pins it.
+Stages 1, 2 and 3 are done. Stage 3, all in `crates/nvs-lsp/src/completion.rs`. `DECLARATION_WORDS` holds `attribute` and
+`repeatable` beside the reserved lists, because both are contextual; the module's test now asserts the
+lexer does not reserve them. `declaration_words` writes the standing decision's snippet, its site
+choice built from `PROGRAM_SITES`, and the bare word without snippets. `position` offers them at a
+statement start with no function body around it; `member` offers them where no modifier keyword is
+written. `after_repeatable` offers `attribute` alone after `repeatable`, never in an enum body or a
+function body. `field_at` reads the tokens back to the innermost unmatched `{` whose header
+`attribute_header` (split out of `on_list_at`) reads: after `{` or a field's `,` it offers nothing,
+anywhere else `in_reach`, the property type list. The rule fragment names all of it.
 
-The sweep found two real gaps, both fixed. `surface.rs` left a file-scope declaration out of the
-surface hash, so an edit to its fields did not re-check the files that use it. The `///` tag
-completion read a declaration's doc and its fields' docs as `Unknown` and offered `@param`; it now
-reads them as `Other`. Every other wildcard arm sees no expression, call, method, parameter or member
-in a declaration (`walk.rs`, `rename.rs:1113`, `locals.rs`, `narrow.rs`, `typed_parameter.rs`,
-`definition.rs`'s `body_of`, `supertype_names` and `class_name_at`, `order.rs`'s `collect`), so it
-needs no arm. `completion.rs:4126` and the member rows after `Owner::` leave a declaration out on
-purpose: `Owner::Name` names one only after `#[`, which is stage 3's.
+Tests run by name and green: `completion_edits::an_attribute_declaration_word_writes_the_whole_declaration`
+(snippet and plain, at file scope and in a class), `completion::tests::every_word_offered_is_one_the_lexer_reserves`,
+and the `.lspt` cases `a-file-offers-the-words-that-open-an-attribute-declaration`,
+`after-repeatable-the-one-word-is-attribute`, `an-attribute-fields-type-offers-the-types`,
+`an-attribute-fields-name-offers-nothing`. Three existing cases changed on purpose and pass:
+`a-class-body-offers-the-words-that-open-a-member` and its interface twin now list `attribute` and
+`repeatable`, and `an-import-is-a-statement-position` lists `attribute`. None is expected to go red;
+any other completion case that lists every statement word with no prefix would, and a grep found none.
 
-Tests run by name and green: `incremental::an_attribute_declaration_edit_changes_the_surface_hash`,
-the fmt `fixtures` suite (4), and the three new `.lspt` cases. None is expected to go red. Stage 6
-owes the editor page's mention of `A`, the outline and folding, and `changes.json` entries for the
-colours, the badge, the outline and the order.
+Stage 6 owes: the editor page's mention of `A`, the outline, folding and the two keywords, and
+`changes.json` entries for the colours, the badge, the outline, the order and the keyword completion.
 
 ### Next
 
-Stage 3, its first item: `crates/nvs-lsp/src/completion.rs:2793` and `:2896`, `attribute` and
-`repeatable` offered where the parser accepts them, with the snippet the standing decision gives.
+Stage 4, its first item: find what the checker records for a read of a field on a retrieval's result
+(`Core\Router\Match::attribute<T>` and `Core\Program::implementingWith`), then
+`crates/nvs-lsp/src/definition.rs:561` from a key in `#[Name(key: …)]` to the declared field. The
+standing decision's safe default holds if the read is not recorded.
 
 ### Backlog
 
