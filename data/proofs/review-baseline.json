@@ -9508,7 +9508,6 @@
   "help:tools:config/trust": "1c231c934114e872",
   "help:tools:config/values-and-units": "369e76aada0dcbab",
   "help:tools:editor/nvs-dap": "8387b79de4131df4",
-  "help:tools:editor/nvs-lsp": "ff4dc347e584b154",
   "help:tools:editor/nvs-lsp-test": "61e991b0578d3f04",
   "help:tools:editor/the-vs-code-extension": "cef2f5db53d7f019",
   "help:tools:install/linux-and-macos": "88de53d11b644190",

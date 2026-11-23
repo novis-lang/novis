@@ -64605,42 +64605,42 @@ Keywords: nvs lsp, language server, @param, @return, @throws, doc comment tags, 
 
     nvs lsp
 
-The language server. It is started by an editor and not by a person: it reads Language Server
-Protocol 3.17 frames on standard input and writes them on standard output, so a terminal that runs
-it sees nothing and appears to hang. Nothing else in the process writes to standard output — a
-stray line there would be read as a protocol frame and end the session.
+The language server. Your editor starts it, not you. It reads Language Server Protocol 3.17
+messages on standard input and writes them on standard output. If you run it in a terminal, it
+prints nothing and seems to hang. No other part of `nvs lsp` writes to standard output. Any other
+line there would be read as a protocol message, and the session would end.
 
-It takes no arguments. Everything configurable arrives in `initialize`, because the editor owns
-those settings and a flag here would be a second, staler copy of them.
+It takes no arguments. The editor sends every setting in the `initialize` request. The editor owns
+these settings, so a flag here would be a second copy that could be out of date.
 
-One server answers every editor. There is no per-editor logic in it: a client is a shell that
-starts the process, forwards requests and renders answers, so what this section describes is what
-every editor gets.
+One server works with every editor, and it has no code for one editor alone. An editor's extension
+starts the process, sends the requests and shows the results. So every editor gets what this
+section describes.
 
 #### What it answers
 
-The list is closed. Every capability below is declared at `initialize`, and a client never asks for
-anything else, because nothing else is offered.
+At `initialize`, the server lists the requests below as the ones it supports. A client sends only
+these requests.
 
-| Request | What comes back |
+| Request | What the server returns |
 |---|---|
-| `textDocument/publishDiagnostics` | every diagnostic for the open document, with the phase gate below applied. A notification, sent on open, on every edit, and once more with nothing in it when the document is closed |
-| `textDocument/hover` | the `///` run attached to the declaration the name resolves to, handed over as Markdown; a `Core` member's registry row; or, where neither exists, the declared type of what the cursor is on — in that order. Inside the prefix of an `autoload` line, the hover shows the namespace it maps and the folders a class in it is looked for in, in order, and says which folder does not exist. A `{..}` part of the prefix shows the folder name it stands for. Inside the string of `'App\User' as class<Model>`, the hover is the one the class name `App\User` has, and the same is true for a class name you pass to `Core\Reflect::forClass` or `Core\Test::assertThrows`. Inside a path you pass to a function that reads or writes a file, such as `Core\IO::read('data/x.json')`, the hover shows the full path and says whether a file or a folder is there. Inside the name you pass to `Core\Config::set` or `Core\Config::restore`, the hover says how a request may change that setting |
-| `textDocument/definition` | the declaring span, anywhere in the `require` graph the analysis loaded. The name is resolved by the type checker and read back here, so an imported name lands where the compiler says it does. Inside the string of `'App\User' as class<Model>`, it is the declaration of the class the string names. The string must be the whole class name: `use` lines and the current namespace do not apply, the same as when the program runs |
-| `textDocument/completion` | the members reachable off a receiver whose class was resolved, the static members and constants reached through a class name, an enum's cases after `Type::`, and — at a bare position — the keywords that may be written there with the variables in scope. A row reads like the declaration: `name(params)` with the return type at the right, `NAME = value` for a constant, a class with its namespace in brackets. Accepting a method writes its parentheses and opens signature help. Inside the path of a `require`, an `autoload` root or an `autoload discover` glob, the list is the folders and `.nvs` files in the folder the path reaches so far, relative to the file you are editing. An `autoload` path offers folders only. Typing the opening quote or a `/` opens this list, and accepting a folder opens it again for the next part of the path. Inside the prefix of an `autoload` line, the list is the namespaces your code declares. Inside the string of `'App\User' as class<Model>`, the list is the classes your program declares that are a `Model`. Inside a class name you pass to `Core\Reflect::forClass`, the list is every class your program declares, and for `Core\Test::assertThrows` it is the error classes. These lists give whole names, such as `App\Blog`. Inside a path you pass to a function that reads or writes a file, the list is every file and folder in the folder the path reaches, relative to the file you are editing. This is true for a `Core` function such as `Core\IO::read` and for your own function whose parameter has `#[Core\Path]`. A path that starts at a root, such as `/srv/data/`, lists that folder. Inside the name you pass to `Core\Config::set` or `Core\Config::restore`, the list is the settings a request may change. It gives one part of the name at a time, such as `limits` and then `memory` |
-| `completionItem/resolve` | the description of the one row the editor is showing — a `Core` member's reference card, a class's or enum's own line, a `///` comment above your own declaration — read only when the editor asks, so the list itself stays small. In VS Code, press Ctrl+Space a second time while the list is open to show that panel, and it stays open from then on |
-| `textDocument/semanticTokens/full` | what every name in the document *is*, for the colour a regular expression cannot choose |
-| `textDocument/documentSymbol` | the outline of the entry file: every declaration it writes, as a tree |
-| `textDocument/selectionRange` | the chain of nodes the cursor is inside, innermost first, so expand-selection walks the tree |
-| `textDocument/foldingRange` | every construct written over three lines or more, plus the comment blocks |
-| `textDocument/documentLink` | each `require`'s path, with the file it reached, and each `autoload` root and `discover` glob, with the folder it names. A glob links to the folder before its `*`. A root that does not exist has no link. The prefix of an `autoload` line links to the first of its folders that exists. A path you pass to a function that reads or writes a file links to that file or folder, if it exists. In VS Code, Ctrl+click on a folder link shows that folder in the Explorer |
+| `textDocument/publishDiagnostics` | every diagnostic for the open document, filtered as the section *Diagnostics, and the phase gate* below describes. This is a notification. The server sends it when a document opens and after every edit. When the document closes, it sends one more with no diagnostics |
+| `textDocument/hover` | the `///` comment above the declaration of the name, as Markdown. For a `Core` method, the hover shows its reference card. If there is neither, it shows the declared type of the value under the cursor. Inside the prefix of an `autoload` line, the hover shows the namespace it maps. It also lists, in order, the folders where a class of that namespace is looked for, and says which folder does not exist. A `{..}` part of the prefix shows the folder name it replaces. Inside the string of `'App\User' as class<Model>`, the hover is the same as for the class name `App\User`. The same is true for a class name you pass to `Core\Reflect::forClass` or `Core\Test::assertThrows`. Inside a path you pass to a function that reads or writes a file, such as `Core\IO::read('data/x.json')`, the hover shows the full path. It also says whether a file or a folder is there. Inside the name you pass to `Core\Config::set` or `Core\Config::restore`, the hover says how a request may change that setting |
+| `textDocument/definition` | the place where the name is declared, in any file that the `require` lines load. The type checker finds the declaration, and the server uses its result. So an imported name goes to the same place the compiler uses. Inside the string of `'App\User' as class<Model>`, it is the declaration of the class the string names. The string must be the whole class name. `use` lines and the current namespace do not apply, the same as when the program runs |
+| `textDocument/completion` | the methods of a value whose class is known, and the static methods and constants of a class name. After `Type::`, the list has the cases of an enum. Where nothing is written before the cursor, the list has the keywords that are allowed there and the variables in scope. A row looks like the declaration. A method is `name(params)` with the return type on the right, a constant is `NAME = value`, and a class shows its namespace in brackets. When you accept a method, the editor writes its parentheses and opens signature help. Inside the path of a `require`, an `autoload` root or an `autoload discover` glob, the list has folders and files. They are the folders and `.nvs` files in the folder the path names so far. The path is relative to the file you are editing. An `autoload` path offers folders only. The list opens when you type the opening quote or a `/`. When you accept a folder, it opens again for the next part of the path. Inside the prefix of an `autoload` line, the list has the namespaces your code declares. Inside the string of `'App\User' as class<Model>`, the list has the classes your program declares that are a `Model`. Inside a class name you pass to `Core\Reflect::forClass`, the list has every class your program declares. For `Core\Test::assertThrows`, it has the error classes. These lists give whole names, such as `App\Blog`. Inside a path you pass to a function that reads or writes a file, the list has the files and folders of that folder. The path is relative to the file you are editing. This works for a `Core` function such as `Core\IO::read`, and for your own function whose parameter has `#[Core\Path]`. A path that starts at a root, such as `/srv/data/`, lists that folder. Inside the name you pass to `Core\Config::set` or `Core\Config::restore`, the list has the settings a request may change. It gives one part of the name at a time, such as `limits` and then `memory` |
+| `completionItem/resolve` | the description of the one row the editor shows. It is the reference card of a `Core` method, the line of a class or enum, or the `///` comment above your own declaration. The server reads it only when the editor needs it, so the list stays small. In VS Code, press Ctrl+Space a second time while the list is open to show this description. It stays open after that |
+| `textDocument/semanticTokens/full` | what each name in the document is, such as a class, a method or a variable. The editor uses it for colours that a regular expression cannot choose |
+| `textDocument/documentSymbol` | the outline of the entry file: every declaration in it, as a tree |
+| `textDocument/selectionRange` | the syntax nodes around the cursor, innermost first. Expand selection uses it to select the next larger node |
+| `textDocument/foldingRange` | every construct that is three lines or longer, and the comment blocks |
+| `textDocument/documentLink` | a link for each `require` path, to the file it loads. A link for each `autoload` root and `discover` glob, to the folder it names. A glob links to the folder before its `*`. A root that does not exist has no link. The prefix of an `autoload` line links to the first of its folders that exists. A path you pass to a function that reads or writes a file links to that file or folder, if it exists. In VS Code, Ctrl+click on a folder link shows that folder in the Explorer |
 | `textDocument/codeAction` | the quick fixes, the refactor and the source action below |
-| `nvs/redactions` | the byte ranges the editor must conceal. Novis's own request; the protocol has no shape for it |
+| `nvs/redactions` | the byte ranges the editor must hide. This request is Novis's own, because the protocol has no request for it |
 
-Every quick fix is a fix that the diagnostic which reported the problem already contains. Examples
-are the rename that corrects an identifier's casing, and the rewrite of a legacy cast to `expr as T`.
-A fix the compiler would have to compute for itself is not offered. The fixes are `quickfix` actions.
-They are also grouped under `source.fixAll.nvs`, so an editor can run them on save.
+Every quick fix comes from the diagnostic that reported the problem. Examples are the rename that
+corrects the case of an identifier, and the rewrite of an old cast to `expr as T`. The server
+offers no fix that the compiler would have to work out separately. The fixes are `quickfix`
+actions. They are also grouped under `source.fixAll.nvs`, so an editor can run them on save.
 
 One action is not a fix: **Convert to html template**, of kind `refactor.rewrite.htmlTemplate`. Put
 the cursor on a string, or select it, and the action rewrites the string as an
@@ -64667,13 +64667,14 @@ the preview before you apply it. It is offered for a double-quoted or single-quo
 not offered for a heredoc or nowdoc, for an array key, a `case` or `match` condition, a constant, or
 the path of a `require` or `use`.
 
-**Order class members** is a source action, of kind `source.orderMembers.nvs`. It puts the members of
-every class and interface in the file in one order. Types come first, then constants, then
-properties, then methods. In each group, `static` members come before the others. Then `public` comes
-before `protected`, and `protected` before `private`. The constructor is the first method after the
-`static` methods. Members that are equal in this order keep the order you wrote them in.
+**Order class members** is a source action, of kind `source.orderMembers.nvs`. It sorts the
+declarations of every class and interface in the file into one order. Types come first, then
+constants, then properties, then methods. In each group, `static` declarations come before the
+others. Then `public` comes before `protected`, and `protected` before `private`. The constructor is
+the first method after the `static` methods. Declarations that are equal in this order keep the
+order you wrote them in.
 
-A member moves with its comments and its attributes. Enum cases and constructor parameters do not
+A declaration moves with its comments and its attributes. Enum cases and constructor parameters do not
 move. The file is formatted as `nvs fmt` formats it. The action is offered when you ask for it, and
 never on save. If the action changes the JSON key order of a class with `#[Core\Json\Derive]`, you see
 the change in the edit. A class with `#[Core\Json\KeepKeyOrder]` keeps its properties in the order you
@@ -64703,66 +64704,73 @@ and its errors with `@throws`. The editor uses these tags in the following place
 
 #### Diagnostics, and the phase gate
 
-What is published is what `nvs check` reports, filtered: **a file whose parse failed publishes the
-parse error alone**. A broken tree makes name resolution and the type check say things about a
-program nobody wrote, and mid-edit every document is a broken tree, so the diagnostics from the
-phases that read the tree are held back for that file until it parses.
+The editor shows what `nvs check` reports, with one filter. **When a file does not parse, the
+editor shows only the parse error.** Name resolution and the type check read the syntax tree. When
+the file does not parse, their errors are about code that nobody wrote. While you type, a file is
+often incomplete. So the errors of those phases are not shown for that file until it parses again.
 
-The filter is by code. `E00xx` (the lexer) and `E01xx` (the parser) are the two phases that build
-the tree; an error in either suppresses `E03xx` (name resolution) and `E04xx`, `E07xx` and `E08xx`
-(the type check) for the same file. Nothing is rewritten and nothing is re-analysed: the walk runs
-in full and the editor is shown a subset of it.
+The filter uses the error code. `E00xx` (the lexer) and `E01xx` (the parser) are the phases that
+build the tree. An error from either hides `E03xx` (name resolution) and `E04xx`, `E07xx` and
+`E08xx` (the type check) for the same file. This filter is the phase gate. The server still runs
+every phase on the whole file. It does not change any diagnostic. It only leaves some of them out.
 
-Diagnostics are published for open documents. A document that requires another is re-analysed when
-that other file changes, so fixing a class in one buffer clears the error in the buffer that used
-it.
+The server publishes diagnostics for open documents. When a file changes, every document that
+requires it is checked again. So when you fix a class in one file, the error goes away in the file
+that uses the class.
 
 #### Positions, encodings and document sync
 
-A Novis span is a byte offset, and LSP positions are line and character. The two encodings the
-protocol allows are negotiated at `initialize`: **`utf-8` is taken whenever the client offers it**,
-and `utf-16` — the protocol's own default — is what a client that offers nothing gets. Every
-column is converted for that client and for no other, so a multi-byte line reports the same place
-to both.
+Novis counts a position in bytes from the start of the file. LSP gives a position as a line number
+and a character number in that line. The protocol allows
+two encodings for the character, and the client and the server choose one at `initialize`. **The
+server takes `utf-8` when the client offers it.** A client that offers nothing gets `utf-16`, the
+protocol's default. The server converts each column to the encoding of that client. So a line with
+characters of several bytes gives the same place in both encodings.
 
-The document is synchronized in full, not by range. Each analysis reparses the whole document
-anyway, so applying a range edit here would buy nothing and add a second place a document's text
-could be wrong.
+The editor sends the whole document after each change, not only the changed part. The server parses
+the whole document again for each check. So sending only the changed part would not make it
+faster. It would also add one more place where the copy of the text could be wrong.
 
 #### Semantic tokens
 
-Colour is two layers, and this is the second one. A TextMate grammar in the editor colours what a
-regular expression can see — a keyword, a string, a type position — and the server colours what
-only a parse can answer, staying silent wherever saying would mean guessing.
+The colours come from two layers, and this is the second. A TextMate grammar in the editor colours
+what a regular expression can find: a keyword, a string, a type. The server colours what only the
+parser can tell. Where the server would have to guess, it gives no colour.
 
-The legend it declares, in the order that **is** the wire encoding:
+This is the legend the server declares. The order is part of the protocol's encoding:
 
 ```text
 namespace  class  interface  enum  enumMember  type
 method  property  parameter  variable  typeParameter
 ```
 
-with three modifiers: `defaultLibrary`, which marks a `Core` class so the standard library is
-visibly not your code, and `tainted` and `secret`, which carry the two value qualifiers to every
-use site. The last two are Novis's own, so an editor has to map them to a colour itself; the
-others are the protocol's own names and every theme already styles them.
+It has three modifiers. `defaultLibrary` is on every `Core` class, so you can see which code is the
+standard library. `tainted` is on every use of a value from outside the program, such as request
+data. `secret` is on every use of a password or a key. These two modifiers are Novis's own, so an
+editor needs its own colour for them. The other names come from the protocol, and every theme
+already has colours for them.
 
 #### Concealed secrets
 
-`nvs/redactions` takes a document and answers one list of ranges, each with its kind. The
-`secretLiteral` ranges are the ones an editor must not show — the values written directly in the
-code, and the interpolation slots, that flow into a `secret` binding. The `taintedDeclaration` ranges are the opposite instruction: the
-name of each declaration whose type carries `tainted`, marked with a glyph and never concealed, and
-only where `nvs.taint.mark` asks for it. A credential on a shared screen is an incident; a tainted
-value on one is not, and the marker is teaching rather than a default. The server decides both,
-never the client: a client that matched `password` against a variable name would be a second, weaker
-definition of what a secret is.
+`nvs/redactions` takes a document and returns a list of ranges, each with its kind. The editor must
+hide each `secretLiteral` range. Such a range is a value written in the code that is assigned to a
+`secret` variable. When a string assigned to such a variable inserts a value, the inserted part is
+hidden too.
 
-A value is concealed because of where it is *written to*, not because of what it looks like. A
-value written directly in the code has no qualifier of its own. The binding it is assigned into
-carries `secret`, and this request checks that binding for every such value in the file. It is deliberately not the semantic
-token channel with a modifier on it — that channel degrades to the plain token type when a client
-does not understand a modifier, and the failure mode here would be the value becoming visible.
+A `taintedDeclaration` range is the name of a declaration whose type is `tainted`. The editor never
+hides it. It shows a symbol next to it. The server sends these ranges only when the setting
+`nvs.taint.mark` is not `off`, and `off` is the default. A password on a shared screen is a
+security problem. A tainted value on a shared screen is not, so the symbol only helps you learn.
+
+The server chooses both kinds of range. The client does not. A client that hid every variable named
+`password` would have a second and weaker definition of a secret.
+
+A value is hidden only when it is assigned to a `secret` variable. What the value looks like does
+not matter. A value written in the code has no type qualifier such as `secret`. So the server
+checks the variable that each such value in the file is assigned to.
+
+Semantic tokens with a modifier are not used for this. A client that does not know a modifier shows
+the plain token. Here, that would make the secret visible.
 
 #### Call hierarchy
 
@@ -64789,10 +64797,10 @@ lens shows `(static)`. A count that starts with `at least` may be too low. A cal
 Hover a `#[Route]` attribute, or the name of the method it is on, to see the program's grants. The
 first line names the `nvs.toml` file that the grants come from. Each grant has one line with its
 scope, for example the folders `fs.read` allows or the hosts `net.connect` allows. A grant that the
-file does not write shows its default, marked `(default)`.
+file does not write shows its default, followed by `(default)`.
 
 The grants belong to the whole program. Every route of the program has the same grants. The editor
-reads `nvs.toml` again for each hover, so a change to the file shows at once. If there is no
+reads `nvs.toml` again for each hover, so the next hover shows a change to the file. If there is no
 `nvs.toml`, the hover says so and lists the default policy.
 
 #### Restricted classes and methods
@@ -64833,13 +64841,13 @@ times`. A statement that repeats is often a query inside a loop. One query for t
 usually much faster.
 
 Click the lens to open that request in the debug viewer. The lens shows only records of the text
-you see. After you edit the file, the lens comes back when a request runs the new text. The editor
+you see. After you edit the file, the lens appears again when a request runs the new text. The editor
 reads the records and changes nothing in them.
 
 #### What it does not answer
 
-The server has no formatter. `nvs fmt` formats a file. It also does not answer go to declaration,
-because a Novis name is declared where it is defined. Go to definition goes to the same place.
+The server has no formatter. `nvs fmt` formats a file. It also has no go to declaration. A Novis
+name is declared in the same place where it is defined, so go to definition goes there.
 
 ### nvs lsp-test
 

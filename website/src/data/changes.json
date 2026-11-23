@@ -8,7 +8,7 @@
       ],
       "text": "`Core\\Config::set` changes only the settings on one list, and the page of `Core\\Config::set` shows the list. A name you write in the call that is not on the list gives the error `E0667`. A template string that no name on the list fits gives the warning `W1037`.",
       "breaking": true,
-      "instead": "Remove a call that sets a name not on the list. It returned `false` and changed nothing.",
+      "instead": "Remove each call that sets a name not on the list. Such a call cannot change anything.",
       "security": true
     },
     {
@@ -68,9 +68,9 @@
       "features": [
         "tools:packages/grants-what-each-namespace-may-do"
       ],
-      "text": "Code in a package (a library your program installs) may change only `[limits]` settings. Code in a package may write a setting name outside `[limits]` in a call to `Core\\Config::set` or `Core\\Config::restore`. That call gives the error `E0667`.",
+      "text": "Code in a package (a library your program installs) may change only `[limits]` settings. If code in a package writes another setting name in a call to `Core\\Config::set` or `Core\\Config::restore`, the call gives the error `E0667`.",
       "breaking": true,
-      "instead": "Remove the call. Before this change, the call returned `false` in a package and changed nothing."
+      "instead": "Remove the call. In a package, it cannot change anything."
     },
     {
       "kind": "new",
@@ -84,7 +84,7 @@
       "features": [
         "tools:editor/nvs-lsp"
       ],
-      "text": "After an edit, the editor checks fewer files again. A change inside a method body or a comment checks only the file you edit. A change to a `public` method checks the files that call it and the subclasses, and a `private` method only the subclasses."
+      "text": "After an edit, the editor checks fewer files. A change inside a method body or a comment checks only the file you edit. A change to a method also checks the subclasses, and for a `public` method the files that call it."
     },
     {
       "kind": "fixed",
@@ -149,7 +149,7 @@
       "features": [
         "tools:editor/nvs-lsp"
       ],
-      "text": "`nvs code order` now moves an attribute declaration in a class to the top of the class, with the `enum` and `type` declarations. **Order class members** in the editor does the same."
+      "text": "`nvs code order` moves an attribute declaration in a class to the top of the class, with the `enum` and `type` declarations. **Order class members** in the editor does the same."
     },
     {
       "kind": "changed",
@@ -164,7 +164,7 @@
         "lang:classes/revocable-objects",
         "RevokedObjectError"
       ],
-      "text": "Every use of a revoked object now throws `RevokedObjectError`. This includes `.=` on a property, an `inout` property argument, a call of a method reference and `isinit`. It also includes a conversion to a string, a comparison, a `foreach`, a delegated method and a `static` call through the object.",
+      "text": "Every use of a revoked object (an object after a call to its `revoke()` method) throws `RevokedObjectError`. This includes `.=` on a property, an `inout` property argument, a call of a method reference and `isinit`. It also includes a conversion to a string, a comparison, a `foreach`, a delegated method and a `static` call through the object.",
       "security": true
     },
     {
@@ -177,7 +177,7 @@
         "Core\\Json::decodeEach",
         "Core\\Arr::shapeAs"
       ],
-      "text": "`Core\\Json::decodeAs`, `Core\\Request::jsonAs` and the other decoders that take a type check a class inside a shape or an array, however deep it is. `Core\\Request::jsonAs`, `queryAs` and `postAs` give the error `E0810` when such a class has a plain `string` property.",
+      "text": "Some decoders take a type, such as `Core\\Json::decodeAs` and `Core\\Request::jsonAs`. They check every class inside a shape or an array of that type, at any depth. `Core\\Request::jsonAs`, `queryAs` and `postAs` give the error `E0810` when such a class has a plain `string` property.",
       "breaking": true,
       "instead": "Write `tainted string` on each string property of a class that a request decoder reads.",
       "security": true
@@ -246,7 +246,7 @@
       "features": [
         "lang:types/qualifiers-tainted-and-secret"
       ],
-      "text": "Text from a `Core` method is `tainted` unless the method says where the text comes from. When a `tainted` value reaches a parameter that does not take it, the error names the method that makes the value safe for that parameter."
+      "text": "Text from a `Core` method is `tainted` unless the method says where the text comes from. A `tainted` value may reach a parameter that does not take it. The error then names the method that makes the value safe for that parameter."
     },
     {
       "kind": "fixed",
@@ -261,7 +261,7 @@
       "features": [
         "Core\\Serialize::decode"
       ],
-      "text": "`Core\\Serialize::decode` gives a revocable object that is in no collection. Encoded data that tries to set the hidden internal value of a revocable object throws a `ParseError`.",
+      "text": "`Core\\Serialize::decode` gives a revocable object that is in no collection. Encoded data cannot change which collections contain a revocable object. Data that tries throws a `ParseError`.",
       "breaking": true,
       "instead": "Encode the objects again with `Core\\Serialize::encode`.",
       "security": true
@@ -271,14 +271,14 @@
       "features": [
         "lang:classes/revocable-objects"
       ],
-      "text": "When the memory limit stops a `set`, `add` or `push`, the revocable object is not added, and a later `revoke()` works as usual. `Core\\Debug::dump` no longer prints a `#revocable` line."
+      "text": "When the memory limit stops a `set`, `add` or `push`, the revocable object is not added, and a later `revoke()` works as usual. `Core\\Debug::dump` does not print a `#revocable` line."
     },
     {
       "kind": "fixed",
       "features": [
         "tools:packages/restrictions-where-a-class-or-method-may-be-used"
       ],
-      "text": "A restriction now covers every way to use a declaration. This includes a union type, `static::NAME`, a default value, an attribute argument and a route link. A package can restrict only its own code and the code in `Core`, and any other `use` gives the error `E0665`.",
+      "text": "A `[[restrict]]` rule covers every use of a class or method: a union type, `static::NAME`, a default value, an attribute argument and a route link. A package can restrict only its own code and the code in `Core`. A rule for any other code gives the error `E0665`.",
       "breaking": true,
       "instead": "Move a restriction on another package's code into that package, or into your application's `package.toml`.",
       "security": true
@@ -309,7 +309,7 @@
         "Core\\Test::tlsSession",
         "Core\\Test::scriptAnswers"
       ],
-      "text": "These methods throw a `LogicError` in a request, a connection, a scheduled task and a queued job. A test can call them, and so can a request or a program that the test starts. A command-line program can call them too.",
+      "text": "The methods this entry names throw a `LogicError` in a request, a connection, a scheduled task and a queued job. They work in a test, and in a request or a program that a test starts. They also work in a command-line program.",
       "breaking": true,
       "instead": "Call these methods only in a test or in a command-line program.",
       "security": true
@@ -350,7 +350,7 @@
         "Core\\Time\\Instant::toEpochMillis",
         "Core\\Time\\Instant::toEpochMicros"
       ],
-      "text": "The three epoch methods round down to the earlier whole unit. Half a second before 1970 gives `-1` seconds. `Instant::fromEpoch` with the result and the remaining part gives the same instant.",
+      "text": "The three epoch methods round down to the earlier whole unit. For example, the instant half a second before 1970 gives `-1` seconds. `Instant::fromEpoch` with the result and the remaining part gives the same instant.",
       "breaking": true,
       "instead": "Before 1970, add one to the result when the instant has a part of a unit left."
     },

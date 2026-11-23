@@ -4512,7 +4512,7 @@
     "tools:editor/nvs-dap": "4b30f2306df7e608"
   },
   "docs/examples/tools/editor/nvs-lsp/about.md": {
-    "tools:editor/nvs-lsp": "b17cbc937adef8c7"
+    "tools:editor/nvs-lsp": "d519f2b126c9a53c"
   },
   "docs/examples/tools/editor/nvs-lsp-test/about.md": {
     "tools:editor/nvs-lsp-test": "df416dc062c9527f"
@@ -9876,7 +9876,7 @@
     "tools:editor/nvs-dap": "e7529dc767e5836e"
   },
   "tools/editor/index.mdx": {
-    "tools:editor/nvs-lsp": "c0b3304222f1a8be",
+    "tools:editor/nvs-lsp": "a79c3e197d1741a4",
     "tools:editor/the-vs-code-extension": "4a8700ac5275da6b"
   },
   "tools/formatter/index.mdx": {
