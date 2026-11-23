@@ -40,15 +40,20 @@ certificates, leaf first, each over a fresh P-256 key, because a real server sen
 intermediate and a `peerChain()` example should show that order. A prefix row whose URL names no
 scheme is not checked for `http://`.
 
-Neither member refuses a call outside a test, for the reason `answerHttp` already gives: nothing
-trusts what they build, a reply that reports the session came from the program's own table, which has
-already taken it off the network, and no request input reaches the certificate issuer.
+`answerHttp`, `tlsSession`, `answerSocket` and `Core\Test::scriptAnswers` throw a `LogicError` in work
+a server runs: a request, a connection, a scheduled fire and a job, outside `nvs test`. A test left in a
+served program would otherwise give it replies no host sent. A test, a request or run a test makes, and
+a CLI program may call them, because every example and attack that calls a host runs under `nvs run`
+and answers itself from this table.
 
 - **Memory:** one copy of a described chain, about 1 KB, per registered answer that names a session,
   for the life of the test's context, and a fresh `Core\Http\TlsInfo` per reply that answer serves,
   released with the reply. A program outside a test pays nothing.
 
 **Declined:**
+- **Refusing the four members everywhere outside `nvs test`.** Every example, attack and bench that
+  calls a host would need a test class around it, and a CLI program that fakes its own calls harms
+  nobody but itself.
 - **Skipping the Novis proofs for `Core\Http\TlsInfo`.** Rust tests alone leave seven public members
   with no example a reader can learn from, and the audit test above still could not be written.
 - **A local TLS test server beside `Core\Test::serverUrl`.** A real handshake would need a certificate

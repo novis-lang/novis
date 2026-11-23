@@ -1385,7 +1385,11 @@ const SCRIPT_ANSWERS_DOC: MethodDoc = MethodDoc {
     }],
     ret: "Nothing. A second call adds its answers after the ones still waiting. When no answer \
           is left, a prompt returns its `default` or throws `Core\\Cli\\NotInteractive`.",
-    errors: &[],
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The call runs in a server: in a request, a connection, a scheduled task or a \
+               queued job. A test and a command-line program may call it.",
+    }],
 };
 
 /// `Core\Test::request`'s reference card — `rule:core-api/reference-card`.
@@ -1720,7 +1724,8 @@ const ANSWER_HTTP_DOC: MethodDoc = MethodDoc {
         error: "LogicError",
         desc: "The call gives both `json` and `body`, which are two ways to write one body. Or \
                the status is not from `100` to `999`. Or the call gives a `tls` session for an \
-               `http://` URL, which has no TLS.",
+               `http://` URL, which has no TLS. Or the call runs in a server: in a request, a \
+               connection, a scheduled task or a queued job.",
     }],
 };
 
@@ -1774,7 +1779,9 @@ const TLS_SESSION_DOC: MethodDoc = MethodDoc {
         error: "LogicError",
         desc: "The version is not `TLSv1.3` or `TLSv1.2`. Or the cipher is not one this build \
                supports for that version. Or a subject or issuer is not written as `KEY=value` \
-               pairs with the keys above. Or the expiry is before 1950 or after 9999.",
+               pairs with the keys above. Or the expiry is before 1950 or after 9999. Or the \
+               call runs in a server: in a request, a connection, a scheduled task or a queued \
+               job.",
     }],
 };
 
@@ -1824,7 +1831,11 @@ const ANSWER_SOCKET_DOC: MethodDoc = MethodDoc {
           opens. An exact URL wins over a prefix, and the longest prefix wins among prefixes. \
           Two sockets opened to one URL read that peer's frames separately. Each socket keeps \
           its own place in the list.",
-    errors: &[],
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The call runs in a server: in a request, a connection, a scheduled task or a \
+               queued job. A test and a command-line program may call it.",
+    }],
 };
 
 /// `Core\Test::sentSocket`'s reference card — `rule:core-api/reference-card`.
@@ -2588,13 +2599,10 @@ nvs_runtime::nvs_helper! {
     /// fixed clock, and `rule:testing/isolate-per-test`'s per-test isolate is what scopes it —
     /// that field's docs are the home of both decisions.
     ///
-    /// **No refusal for a call outside a test**, which is where this differs
-    /// from `Core\Test::advance`. `advance` has a precondition it can check —
-    /// a clock something else fixed — while a queue nothing drains is simply a
-    /// queue nothing drains: there is nothing to be wrong about, and the honest
-    /// answer to "who else could reach this" is the class name it is spelled
-    /// under.
+    /// **A call in work a server runs throws** ([`not_in_a_server`]). A test
+    /// and a CLI program may call it.
     fn nvs_core_test_script_answers(ctx, args: [1]) {
+        not_in_a_server(ctx, "Core\\Test::scriptAnswers")?;
         ctx.script_answers(lines_of(args[0])?);
         Ok(Value::null())
     }
@@ -2625,6 +2633,41 @@ nvs_runtime::nvs_helper! {
             None => Ok(Value::null()),
         }
     }
+}
+
+/// The check `scriptAnswers`, `answerHttp`, `tlsSession` and `answerSocket`
+/// run first. Each replaces something the outside world gives a program, so
+/// each throws in work a server runs: a request, a connection, a scheduled
+/// fire and a job. A test left in a served program then cannot fake the
+/// replies of a payment provider in production.
+///
+/// A context `nvs test` armed with its records
+/// (`nvs_runtime::Ctx::test_records`) passes whatever its kind, so a test's
+/// own request may call them. A CLI program passes too: every example and
+/// attack that calls a host runs under `nvs run` and answers itself from the
+/// table. **What it spends:** one pointer test and one load per call, on
+/// members no request path calls.
+///
+/// # Errors
+///
+/// A `LogicError` naming `member`, in a request, a connection, a scheduled
+/// fire or a job outside `nvs test`.
+fn not_in_a_server(ctx: &nvs_runtime::Ctx, member: &str) -> Result<(), Fault> {
+    use nvs_runtime::RunKind;
+    if ctx.test_records().is_some()
+        || matches!(
+            ctx.run_kind(),
+            RunKind::Command | RunKind::Isolate | RunKind::Test
+        )
+    {
+        return Ok(());
+    }
+    Err(Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "`{member}` works only in a test or a command-line program. A server does not run it."
+        ),
+    ))
 }
 
 /// The widest status a status line can carry, and the narrowest.
@@ -2710,12 +2753,10 @@ nvs_runtime::nvs_helper! {
     /// call that matches no row does, and a table with no rows in it would then
     /// make every outbound call in the test a refusal it never asked for.
     ///
-    /// **No refusal for a call outside a test**, which is
-    /// `Core\Test::scriptAnswers`'s reason one member up: a table nothing
-    /// consults is a table nothing consults. What is worth naming is that this
-    /// door only ever *narrows* what the program can reach — a call answered
-    /// from here opens no socket, resolves no name and asks no capability,
-    /// because there is nothing for a capability to be asked about.
+    /// **A call in work a server runs throws** ([`not_in_a_server`]). A call
+    /// answered from here opens no socket, resolves no name and asks no
+    /// capability, so in a served program the table would give replies no host
+    /// sent. A test and a CLI program, such as an example, may call it.
     ///
     /// **`{ json: null }` is an answer whose body is the JSON document `null`**,
     /// and omitting `json` is no body at all: the option admits `null`, so it
@@ -2724,6 +2765,7 @@ nvs_runtime::nvs_helper! {
     /// under different tags rather than as one argument.
     fn nvs_core_test_answer_http(ctx, args: [6]) {
         let member = "Core\\Test::answerHttp";
+        not_in_a_server(ctx, member)?;
         let url = args[0].as_text().ok_or_else(|| {
             // Unreachable from source: the row's first parameter is
             // `CoreTy::Text`, so `E0401` refuses anything else a phase earlier.
@@ -2816,14 +2858,16 @@ nvs_runtime::nvs_helper! {
     /// the test's own clock, so a `#[Test(at: …)]` gets the same expiry every
     /// run.
     ///
-    /// **No refusal outside a test**, for `answerHttp`'s reason: the session
-    /// is one the program built itself, and nothing trusts it.
+    /// **A call in work a server runs throws** ([`not_in_a_server`]): a
+    /// `TlsInfo` a served program can forge is one a log or a check might
+    /// trust.
     ///
     /// # Errors
     ///
-    /// A `LogicError` carrying `described`'s sentence.
+    /// A `LogicError` carrying `described`'s sentence, or [`not_in_a_server`]'s.
     fn nvs_core_test_tls_session(ctx, args: [6]) {
         let member = "Core\\Test::tlsSession";
+        not_in_a_server(ctx, member)?;
         let now = crate::time::wall_clock(ctx).ok_or_else(|| {
             // Unreachable from source: `Core\Test::advance` refuses to store a
             // reading outside the representable range.
@@ -2918,6 +2962,7 @@ nvs_runtime::nvs_helper! {
     /// armed for one half only would let the other half reach a host.
     fn nvs_core_test_answer_socket(ctx, args: [3]) {
         let member = "Core\\Test::answerSocket";
+        not_in_a_server(ctx, member)?;
         let url = args[0].as_text().ok_or_else(|| {
             // Unreachable from source: the row's first parameter is
             // `CoreTy::Text`, so `E0401` refuses anything else a phase earlier.
@@ -6176,6 +6221,58 @@ mod tests {
             assert_eq!(row.body, b"ok");
         }
         assert!(ctx.faked_http_mut().is_armed());
+    }
+
+    /// The four members that replace the outside world throw in a served
+    /// request and arm nothing there, and a test's own request may call them.
+    // covers: Core\Test::answerHttp, Core\Test::answerSocket, Core\Test::tlsSession, Core\Test::scriptAnswers
+    #[test]
+    fn the_members_that_replace_the_outside_world_throw_in_a_served_request() {
+        fn refused(ctx: &mut Ctx, member: nvs_runtime::NvsFn, args: &[Value]) -> Option<String> {
+            let answered = nvs_runtime::call(member, ctx, args);
+            match answered {
+                Ok(value) => {
+                    dropped(value);
+                    None
+                }
+                Err(_) => Some(ctx.take_pending().expect("a refusal says why").into_owned()),
+            }
+        }
+        let mut served = Ctx::buffered();
+        served.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
+        let url = Value::text("https://api.example.com/");
+        let none = Value::array(nvs_runtime::NvsArray::new());
+        let http = [
+            url,
+            Value::uint(200),
+            Value::unset(),
+            Value::text("ok"),
+            none,
+            Value::null(),
+        ];
+        let socket = [url, none, Value::unset()];
+        let tls = [Value::unset(); 6];
+        let script = [none];
+        let calls: [(&str, nvs_runtime::NvsFn, &[Value]); 4] = [
+            ("answerHttp", nvs_core_test_answer_http, &http),
+            ("answerSocket", nvs_core_test_answer_socket, &socket),
+            ("tlsSession", nvs_core_test_tls_session, &tls),
+            ("scriptAnswers", nvs_core_test_script_answers, &script),
+        ];
+        for (name, member, args) in calls {
+            let why = refused(&mut served, member, args)
+                .unwrap_or_else(|| panic!("`{name}` throws in a served request"));
+            assert!(why.contains(&format!("Core\\Test::{name}")), "{why}");
+            assert!(why.contains("A server does not run it."), "{why}");
+        }
+        assert!(!served.faked_http_mut().is_armed(), "a refused call arms nothing");
+
+        served.set_test_records(nvs_runtime::test_records::TestRecords::new());
+        assert_eq!(refused(&mut served, nvs_core_test_answer_http, &http), None);
+        assert!(served.faked_http_mut().is_armed(), "a test's request arms the table");
+        for arg in [url, none] {
+            dropped(arg);
+        }
     }
 
     /// `answerSocket`'s frames keep the kind each element was written as and
