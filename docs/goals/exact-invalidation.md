@@ -219,7 +219,15 @@ a class alone does not bring the properties row, so an added private property re
 
 **The uses stay strings in the session for now** (stage 3). Interning them into symbol ids buys memory
 alone, which is last in the ordering, and stage 4 puts the uses into `Indexed` and the index file,
-where one id scheme serves both. Stage 4 interns them there, or records why not.
+where one id scheme serves both. **Stage 4 kept them strings** in `Indexed` (`LookedUp`) and the index
+file: an id would buy memory alone, and would need a table beside the postings, which already keep one
+string per distinct name, as `by_use` does for occurrences. Reopen only if `bun nv lsp-start` shows the
+uses over a tenth of the index's bytes.
+
+**A closed file's refresh still queues every reader** (stage 4). Its new rows are not parsed until an
+entry analyses it, and a body edit there that loads a new file moves every reader's graph, which only
+those readers' analyses see. An editor's edit is an open document's, which takes the diff. A start's
+load diffs the rows of a file changed on disk.
 
 **An edit queues the entries that own a reached file**, not every reader. An entry that owns no reached
 file keeps its records. Its files' text did not change, and nothing they used changed either. The
@@ -347,9 +355,12 @@ subagent once `refresh` lands. The session builds once it ends.
 - [ ] `crates/nvs-lsp/src/index.rs:807` `refresh`: takes the diff of the old and new rows. From the
   uses, missed names and subtypes it works out the reached files. It queues the entry that owns each.
   `readers_of` (`index.rs:1376`) is kept for the rows marked "every reader".
-- [ ] `crates/nvs-lsp/src/index.rs:360` `Indexed`: carries the file's uses and missed names. The index
+- [x] `crates/nvs-lsp/src/index.rs:360` `Indexed`: carries the file's uses and missed names. The index
   keeps postings from a symbol to the files that use or missed it, so a lookup is not a scan.
-- [ ] `crates/nvs-lsp/src/disk_index.rs:76`: `FORMAT` raised, and the uses written and read.
+  - [x] `Indexed::rows` (the surface rows) replaces `surface`, and `Indexed::uses` is `Option<LookedUp>`.
+  - [x] `by_used`, `by_used_on`, `by_missed`, `by_missed_on` posted and unposted.
+- [x] `crates/nvs-lsp/src/disk_index.rs:76`: `FORMAT` raised, and the uses written and read.
+  - [x] `FORMAT` is 4; rows go through `Rows::from_rows`, which checks their order.
 - [ ] `crates/nvs-lsp/src/index.rs:664`: the start's load compares rows, not one hash, for a file that
   changed on disk, and queues as `refresh` does.
 - [ ] `crates/nvs-lsp/tests/reach.rs:1`: the generated tree and the eleven tests the check `reach` names.
@@ -382,26 +393,21 @@ subagent once `refresh` lands. The session builds once it ends.
 
 ### State
 
-Stages 1 to 3 are done. A file's checked output is keyed on what it used: `crates/nvs-lsp/src/file_key.rs`
-`Surfaces::key`, called from `Session::check` (`crates/nvs-lsp/src/session.rs`), which replaced
-`keys`/`store`/`check_parts`. `graph_key` in `document.rs` is now `shared_key`, the extension and
-restriction digests alone. The graph's file list and the borrowed maps left the key, so a file read by
-many entries has one key, and an output one entry stored is current for another. A codec site records
-`Owner::$` (`Uses::properties`, `crates/nvs-hir/src/uses.rs`) for the properties row.
+Stages 1 to 3 are done, and stage 4's data slice landed. Each `Indexed` (`crates/nvs-lsp/src/index.rs`)
+keeps its file's surface rows (`rows`, which replaced the one `surface` hash; `rows.digest()` is that
+hash) and what its check looked up (`uses: Option<LookedUp>`, sorted strings, taken in `analyse_entry`
+from the session's `FileOutput::uses`; `None` where no output recorded). `post`/`unpost` keep four
+postings: `by_used` and `by_missed` by the exact name, `by_used_on` and `by_missed_on` by a member's class
+(`owner_of`), each `(file, position in the list)`. Nothing reads them yet. The index file is `FORMAT` 4
+and writes both (`crates/nvs-lsp/src/disk_index.rs`, `Rows::from_rows` in `surface.rs` checks a read
+row list's order). Build and clippy are green; no test ran, and none is expected to go red.
 
-The oracle (`crates/nvs-lsp/tests/incremental.rs:820`) runs 24 reach edits (`reach_edits`, `:694`)
-with a subclass `Child` in another file. It used to run every edit after the file-scope closure edit,
-whose `E0317` stopped the type phase, so those edits checked nothing. The reach edits now run first, and
-a closure-removed edit follows the closure. Probed: with the uses dropped from the key, the oracle fails
-on the first reach edit. With the key, a public-member edit checks 3 files on the server's thread where
-it checked 44. All 33 tests of `cargo test --test incremental` pass, and no test is expected to go red.
-
-Two counted tests moved. `a_surface_edit_read_by_every_program_checks_each_file_once` (`:1470`) is the
-class and its callers on the server's thread, and still `FILES` on workers (the standing decision "a
-queued entry's analysis checks only the reached files it owns" says why and what stage 4 does).
-`a_cold_index_checks_each_body_once` (`:1585`) is exact on the server's thread and a range on workers:
-the extension's pathless class gets a fresh id per program map, and a worker reuses an output stored
-under the same id and text.
+**The reach to build is exactly the files whose key a diff moves** (`crates/nvs-lsp/src/file_key.rs`
+`Surfaces::key`: a member brings its class's header row, a class its header and cases rows, `Owner::$`
+the properties row, a miss whether the name exists now, a declared class every ancestor's rows).
+`a_surface_edit_read_by_every_program_checks_each_file_once` (`crates/nvs-lsp/tests/incremental.rs:1470`)
+still counts `FILES` on workers until the partial item below lands. The nightly cancellations of run
+45166887327 ran on c6c8111, before 301e05b33d.
 
 The rule fragment's check-output bullet describes the new key, and its Declined entry "A per-file
 dependency set" is gone. The nightly `cancelled` jobs of run 45166887327 predate the fix in 301e05b33d.
@@ -410,17 +416,30 @@ dependency set" is gone. The nightly `cancelled` jobs of run 45166887327 predate
 
 Stage 4: an edit queues only the entries that own a file it reaches.
 
-- [ ] `crates/nvs-lsp/src/index.rs:807` `refresh`: the diff of the old and new rows
-  (`crate::surface::diff`) gives the reached files through the uses, the misses and the subclasses. It
-  queues the entry that owns each. `readers_of` (`index.rs:1376`) stays for the graph and attribute rows.
+- [ ] `crates/nvs-lsp/src/index.rs:856` `refresh`: in the `reindexed` branch, where
+  `before != after` today queues every `held` reader, take the old `Indexed::rows` (read it before
+  `files.remove(&key)`) and the new one, and `crate::surface::diff` them. `Graph` or `Attributes` in the
+  diff, a graph move, or no old record: every reader, as now. Otherwise, per change `S`, the reached
+  files are, mirroring the key: a member `C::m`, `by_used[S]`; a `Header`, `by_used[C]` and
+  `by_used_on[C]`; `Cases`, `by_used[C]`; `Properties`, `by_used[C::$]`. Plus, for every change, the
+  files declaring any class below `C` (walk `by_supertype` transitively). Plus, for an `Added` or
+  `Removed` member, `by_missed[R::m]` for R in C and its descendants and `by_missed[::m]`; for a header,
+  `by_missed[C]` and `by_missed_on[R]` over C and its descendants. Plus every file whose `uses` is `None`
+  and whose entry reads the changed file. Queue each reached file's `Indexed::entry`, minus `now`.
+- [ ] `crates/nvs-lsp/src/index.rs:946` `settle_one`: a queued entry redoes only its reached files. A new `partial: BTreeMap<PathBuf, BTreeSet<PathBuf>>`
+  beside `pending`, which every whole queueing (`pending.insert`/`extend` elsewhere) clears for that
+  entry. `settle_one` and `file_parts` drop only those files instead of `drop_owned(entry)`, `skips`
+  does not skip a partial entry, and `send` builds `free` from the not-indexed files only, so a worker's
+  part (`crates/nvs-lsp/src/workers.rs:120` `Task::Part`) records them alone and the rest stay as they
+  were. If a partial entry's new reads differ from its old ones, queue every reader of its files whole.
+  Then `a_surface_edit_read_by_every_program_checks_each_file_once` asserts `1 + callers` on both.
 - [ ] `crates/nvs-lsp/src/workers.rs:120` `Task::Part`: the queued entry's part checks only its
   reached files and leaves out the rest (standing decision),
   so the workers' count matches the server thread's. Then `a_surface_edit_read_by_every_program_checks_each_file_once`
   asserts `1 + callers` on both.
-- [ ] `crates/nvs-lsp/src/index.rs:360` `Indexed`: the file's uses and missed names, with postings from
-  a symbol to the files. Intern the names here (standing decision "the uses stay strings").
-- [ ] `crates/nvs-lsp/src/disk_index.rs:76` `FORMAT` raised, and the uses written and read.
-- [ ] `crates/nvs-lsp/src/index.rs:664`: a start's load compares rows for a file changed on disk.
+- [ ] `crates/nvs-lsp/src/index.rs:671` `loaded`: `Freshness::Changed` already gives the
+  new `Rows`. Where `moved` queues `readers_of`, queue the owners of the reached files the same way
+  `refresh` does, through one shared function.
 - [ ] `crates/nvs-lsp/tests/incremental.rs:96`: the 200-entry tree goes in a new `tests/reach.rs`, with and the eleven tests. It has an enum and a
   codec site, which the oracle's tree lacks: add an enum case edit and a private property edit under a
   `decodeAs` to the oracle too.
