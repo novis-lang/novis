@@ -8,8 +8,8 @@ final class Tuner
     // Each `Core\Config::set` returns `true` if the setting changed.
     public static function weakenCookies(): string
     {
-        // A setting name written in the call does not compile here.
-        // The variables test the check that runs while the program runs.
+        // In a package, a setting name written in the call does not compile.
+        // With a variable, the setting is checked while the program runs.
         string $httpOnlyKey = 'http.cookies.http_only';
         string $secureKey = 'http.cookies.secure';
         bool $httpOnly = Core\Config::set($httpOnlyKey, 'false');

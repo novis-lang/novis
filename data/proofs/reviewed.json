@@ -560,6 +560,7 @@
   "tests/hostile/tools/config/limits-and-limits-hard/01-going-above-the-highest-limit.nvs": "abe67c6f8bec43ff",
   "tests/hostile/tools/config/mode/01-switching-a-production-request-to-development.nvs": "c94da617a2a85e48",
   "tests/hostile/tools/install/the-layout/01-moving-the-log-and-the-cache-into-the-configuration-folder.nvs": "ab6a2944cf32fb52",
+  "tests/hostile/tools/packages/grants-what-each-namespace-may-do/vendor/acme/limits/src/Tuner.nvs": "1e95469f287f2b3d",
   "tests/hostile/tools/server/mounts-which-file-answers-a-request/01-a-request-for-a-file-outside-its-mount.nvs": "9cc4a8815b965afb",
   "tests/hostile/tools/server/nvs-reload/01-a-request-tries-to-reload-its-own-server.nvs": "b60d96e538780d2d",
   "tests/hostile/tools/server/nvs-service/01-a-request-that-installs-a-service.nvs": "abce0dd07d65ee47",
