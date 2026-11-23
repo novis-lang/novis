@@ -1,3 +1,4 @@
-new token: yes
-expired: no
-refresh token: yes
+  RefreshTest
+    ✓ anExpiredTokenIsReplaced
+
+  0 failed, 1 passed, 0 skipped, 0 flaky

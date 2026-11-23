@@ -1,6 +1,0 @@
---METHOD--
-GET
---PATH--
-/account
---HEADERS--
-host: example.com

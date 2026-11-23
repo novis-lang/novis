@@ -643,6 +643,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   their own outbound calls that way, so a goal item to make them throw "outside a test" broke them
   all. They throw only in work a server runs. Grep `docs/examples`, `tests/hostile` and `benches`
   before narrowing a `Core\Test` member. See `not_in_a_server` in `crates/nvs-stdlib/src/test.rs`.
+- **A proof with a `.nvsr` beside it is a request, so `Core\Test::answerHttp` throws there.** Two
+  `Novis-Rest-Session` examples went red only in `floor-debt`, after the goal's DONE. Build the value
+  the call would return, or make the program `// proof: test` and fake the reply inside the request a
+  `Core\Test::request` sends. See `docs/examples/package/Novis-Rest-Session/03-*.nvs`.
 - **In a namespaced file, `Iterator<int>` names `<Namespace>\Iterator`, and `\Iterator<int>` is
   E0240.** A generator written into `apps/registry/src/App.nvs` failed E0441 and E0303 twice before
   it reached the compiler. Add `use Iterator;` under the `namespace` line, as
