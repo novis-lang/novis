@@ -18,11 +18,11 @@ stages:
     context: [crates/nvs-lsp/src/arguments.rs, crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/tests/completion_file_values.rs]
   - id: 4
     title: "the reference card, the examples, the rule and the website list the keys"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/config.rs, docs/examples/core/Config/set/about.md, crates/nvs-cli/src/meta.rs, tools/nv/renderers/website-reference.ts, website/src/lib/reference.ts, docs/agent/prose.md, website/src/data/changes.json]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: allowlist
@@ -291,59 +291,47 @@ goes to one writing subagent once the fragment is renamed. The session writes th
 - [x] `website/src/data/changes.json`: `changed`, `breaking: true` for `Core\Config::set` and
   `restore`, with an `instead`; `new` for `E0667` and `W1037`. Every page `bun nv site --check stale`
   names is reread and stamped.
-- [ ] `bun nv proofs --owed --goal config-set-allowlist` names nothing.
+- [x] `bun nv proofs --owed --goal config-set-allowlist` names nothing.
   - [x] every proof but `reviewed` is paid
   - [x] the third review round: 9 briefs read, findings fixed, 166 texts stamped
-  - [ ] `nvs lsp`'s help rewritten to the prose rules, reviewed and stamped
-  - [ ] `website/src/data/changes.json` reviewed and stamped
+  - [x] `nvs lsp`'s help rewritten to the prose rules, reviewed and stamped
+  - [x] `website/src/data/changes.json` reviewed and stamped
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of `about.md`, the two diagnostic cards and the change entries
+- [x] The newcomer review of `about.md`, the two diagnostic cards and the change entries
   ([prose.md](../agent/prose.md) § *A newcomer reads it*).
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 3 are done, and stage 4 but two texts of its review. `SETTABLE`
-(`crates/nvs-config/src/settable.rs`) is the one allowlist; `E0667` and `W1037` are in
-`crates/nvs-types/src/capability.rs`; the editor offers the keys (`crates/nvs-lsp/src/arguments.rs`).
+Every stage is done, and the goal is reached. `SETTABLE` (`crates/nvs-config/src/settable.rs`) is
+the one allowlist. `E0667` and `W1037` are in `crates/nvs-types/src/capability.rs`, and the editor
+offers the keys (`crates/nvs-lsp/src/arguments.rs`).
 
-The third review round's fixes and 166 stamps are committed: the "name in a variable" sentence in 75
-files, `not allowed` in the 25 reviewed examples and their `.out` files, nine `default.toml` cards,
-the long sentences of two chapter sections, three `about.md` pages under 200 words, and the
-`log-client_ip` example renamed.
+The last texts are reviewed and stamped: `# nvs lsp` in `docs/reference/tools/40-editor.md` is
+rewritten to the prose rules, and the flagged `changes.json` entries are rewritten in place. A
+`reader` read each, and its findings are fixed.
 
-`bun nv site --check stale changes` is green. `site --check review` and `proofs --gate` name only
-`help:tools:editor/nvs-lsp` and `website/src/data/changes.json`.
+The close ran: clippy, the four acceptance tests and the conformance case by name, all green. Its
+first `bun nv close` was red on rustfmt (`meta.rs`), one rustdoc link to the removed `Class`
+(`crates/nvs-config/src/value.rs:32`), and 33 pages' search questions. Each set of questions was
+reread and still holds, and they are stamped. The second `bun nv close` is green.
 
-No test is expected to go red. `the_set_page_and_card_name_every_settable_key` ran green after the
-page trim, and `bun nv directives --check-template` is green.
-
-The acceptance sweep's cancelled nightly jobs are run `45166887327`, cancelled by hand; nothing to do.
+No test is expected to go red. The acceptance sweep's cancelled nightly jobs are run `45166887327`,
+cancelled by hand, so nothing was owed.
 
 ### Next
 
-- [ ] `docs/reference/tools/40-editor.md:8`: `# nvs lsp` (about 240 lines) is `help:tools:editor/nvs-lsp`,
-  and the proofs gate needs it reviewed. The third round found dashes joining sentences, sentences
-  over 25 words (the hover, completion, resolve and documentLink rows, the phase gate and semantic
-  tokens paragraphs, the redactions paragraphs), the words `member`, `registry`, `answers`, `asks`,
-  `binding`, `marked`, `rather than`, and idioms ("would buy nothing", "the walk runs in full").
-  Rewrite it to AGENTS.md § *Text an end user reads* with the same facts, one writing subagent per
-  half if it does not fit. Check that `nvs help lsp` and `bun nv render --website` still build from it,
-  send the new text to one `reader` (`site --review --brief help:tools:editor/nvs-lsp`), fix, stamp.
-- [ ] `website/src/data/changes.json:1`: one review. The third round flagged entries of other goals
-  for "now", "no longer", "Before this change", "hidden internal value" and three sentences over 25
-  words (the `decodeAs` one, the `tainted` parameter one). Rewrite those sentences in place, keeping
-  each entry's facts, then one `reader` and the stamp.
-- [ ] `docs/goals/config-set-allowlist.md:298`: stage 5 once `bun nv proofs --gate --goal
-  config-set-allowlist` and `bun nv site --check review` are green: the check the pack names.
+Nothing: the goal is reached. The full gate runs at a later goal of the chain.
 
 ### Backlog
 
+- `crates/nvs-cli/src/lsp.rs`: the long help `nvs help lsp` prints is clap's doc comment, not the
+  chapter, and it is not yet in the prose rules' words ("language smarts", dashes, "rather than").
 - `nvs config dump` could mark each key a request may change.
 - About 560 files outside this goal's reviewed set print or say `refused` (mostly attacks of file,
   crypto and HTTP features). A sweep to `not allowed` changes each `.out` with it.
