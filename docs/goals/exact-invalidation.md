@@ -6,7 +6,7 @@ context: [crates/nvs-lsp/src/surface.rs, crates/nvs-lsp/src/index.rs, crates/nvs
 stages:
   - id: 1
     title: "one hash per declaration, and the diff of two parses"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/parse_cache.rs, crates/nvs-lsp/src/disk_index.rs, crates/nvs-syntax/src/ast.rs]
   - id: 2
     title: "the checker records what each file used and failed to find"
@@ -126,6 +126,24 @@ interface checks land in the subclass's file. **Safe default:** where stage 2 fi
 result depends on something this table does not list, that thing counts as part of the class header.
 Too wide costs time, too narrow gives a wrong answer.
 
+**Two rows the table did not name, and what each reaches** (stage 1, `crates/nvs-lsp/src/surface.rs`
+module doc). A **properties row** per class is the names of its properties, promoted ones included, in
+order, at private visibility: the derived codecs read every property in declaration order, so an added,
+removed or moved property of any visibility reaches the codec files and the subclasses through it, and
+an added public property reaches its codec files although "an added member" does not list them. A
+**cases row** per enum is its case names in order, at public visibility: stage 4 gives it the reach of
+"an added member" (the failed lookups and the subclasses) unless stage 2 finds a check that reads the
+set. A case without a value has the last written value and its distance from it in its row, so an
+inserted case changes the rows of every case whose value moved. A member's attributes are a second hash
+on its row, and the diff reports them as kind `Attributes`; a class's own attributes are the same, so
+they reach every reader too. A method that gains or loses a body changes kind (`Method`,
+`AbstractMethod`), which the diff gives as one removal and one addition: a superset of a change's reach.
+
+**A constant read through another constant is a use of both** (for stage 2). A class constant or a
+case value is inlined at each use, and `B = self::A + 1` is inlined with A's value in it, but B's row
+holds only B's text. So the file that reads B must record A as a use too, or an edit to A leaves its
+cached output stale. Stage 2 records the constants a constant's value reads, transitively, at each use.
+
 **Private stays private except where another file's check reads it.** A read of the checker on
 2026-11-23 found these, and the table's two private rows follow from them:
 
@@ -202,15 +220,15 @@ added, removed or changed, each with its visibility and kind.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-lsp/src/surface.rs:1`: `rows(stmts, trivia, text) -> Rows`, one row per declaration as
+- [x] `crates/nvs-lsp/src/surface.rs:1`: `rows(stmts, trivia, text) -> Rows`, one row per declaration as
   the standing decision says, plus the class header rows and the graph row. `of` becomes the hash of all
   rows. The module doc describes rows, and the whitespace text from `1117cd5bbc` stays.
-- [ ] `crates/nvs-lsp/src/surface.rs`: `diff(old: &Rows, new: &Rows) -> Diff`, giving each added,
+- [x] `crates/nvs-lsp/src/surface.rs`: `diff(old: &Rows, new: &Rows) -> Diff`, giving each added,
   removed or changed symbol with its visibility and its kind (member, header, enum cases, attributes,
   graph).
-- [ ] `crates/nvs-lsp/src/parse_cache.rs:331`: the cache entry keeps the `Rows` beside the hash.
+- [x] `crates/nvs-lsp/src/parse_cache.rs:331`: the cache entry keeps the `Rows` beside the hash.
   `hashes` (`parse_cache.rs:296`) gives them too.
-- [ ] Unit tests in `crates/nvs-lsp/src/surface.rs`: one per row of the standing decision's table, each
+- [x] Unit tests in `crates/nvs-lsp/src/surface.rs`: one per row of the standing decision's table, each
   asserting the diff's symbol, visibility and kind. Also: a whitespace or comment edit gives an empty diff,
   and a property's visibility, a property's type and a constant's value are each in their row.
 
@@ -309,19 +327,27 @@ subagent once `refresh` lands. The session builds once it ends.
 
 ### State
 
-Nothing built yet. `1117cd5bbc` took whitespace and plain comments out of the surface hash. The
-probe that measured the problem is described under *Why*. Rerun it with `bun nv lsp-start --copies 12
---edits 3` once stage 5 adds edit kinds.
+Stage 1 is done. `crates/nvs-lsp/src/surface.rs` cuts a parse into `Rows` (one `Row` per symbol and
+`Kind`: `Graph`, `Header`, `Cases`, `Properties`, `Method`, `AbstractMethod`, `Property`, `Constant`,
+`Case`), each with its visibility, a text hash and an attributes hash. `of` is the hash of all rows, so
+every caller of the old hash still works. `diff(&old, &new) -> Vec<Change>` gives symbol, kind (or
+`Attributes`), the wider visibility and `How` (`Added`, `Removed`, `Changed`). A cut is written as a
+gap, so adding an attribute or a member leaves the other rows as they were. The parse cache keeps an
+`Arc<Rows>` per entry, and `ParseCache::hashes` returns `(Digest, &Rows)`. Thirteen unit tests at the
+end of `surface.rs` (`cargo test --lib surface::tests`) and the five surface-hash tests in
+`tests/incremental.rs` pass. No test is expected to go red. The two new rows and the constant-reads-a-
+constant case are recorded under *Standing decisions*.
 
 ### Next
 
-Stage 1, one hash per declaration (`crates/nvs-lsp/src/surface.rs`, `parse_cache.rs`). It needs nothing
-from another goal.
+Stage 2, the checker records what each file used and failed to find (`crates/nvs-types/src/partial.rs`,
+`check.rs`, `signatures.rs`, `crates/nvs-hir/src/members.rs`). It does not touch `nvs-lsp`.
 
-- [ ] `crates/nvs-lsp/src/surface.rs:1`: `rows` and `of` as the hash of all rows
-  (`rule:ide/the-index-is-incremental-and-persistent`).
-- [ ] `crates/nvs-lsp/src/surface.rs:80`: `diff` beside `of_source`, with visibility and kind.
-- [ ] `crates/nvs-lsp/src/parse_cache.rs:331`: the entry keeps the rows; `hashes` at `:296` gives them.
-- [ ] Unit tests at the end of `crates/nvs-lsp/src/surface.rs:1`, one per row of the reach table.
+- [ ] `crates/nvs-types/src/partial.rs:61` `FileOutput`: `uses` and `missed`.
+- [ ] Type names at `crates/nvs-types/src/lower.rs:1195`, members in `signatures.rs` (wrappers at
+  `:2222`, `:2242`, `:2283`, `:2300`, `:2682`, `:2695`), and a constant's value read through another
+  constant (*Standing decisions*).
+- [ ] `crates/nvs-hir/src/members.rs:412` and `crates/nvs-hir/src/hierarchy.rs:827`.
+- [ ] Codec sites at `crates/nvs-types/src/derive.rs:2367`, and the Rust tests in `partial.rs`.
 
 ### Backlog
