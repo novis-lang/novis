@@ -53,7 +53,7 @@ foreach ($names as string $name) {
 }
 
 // 5. Change the log file that an installed service writes to.
-//    A name written directly in the call does not compile. The name is in a variable, so the call runs.
+//    `Core\Config::set('log.target', ...)` with the name as text does not compile, so here the name is in a variable.
 string $logTarget = 'log.target';
 echo 'move the log:    ', Core\Config::set($logTarget, 'file:/tmp/attacker.log') ? 'accepted' : 'refused', "\n";
 

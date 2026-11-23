@@ -51,8 +51,8 @@ array<string> $malformed = [
     "redis://127.0.0.1\u{0000}:16379",
     $enormous,
 ];
-// A name written directly in the call does not compile. The name is in a variable,
-// so every call runs and returns false.
+// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `cache.shared.url`,
+// so that call does not compile. Here the name is in a variable, so every call runs and returns `false`.
 string $sharedUrl = 'cache.shared.url';
 uint $i = 0;
 while ($i < 20000) {

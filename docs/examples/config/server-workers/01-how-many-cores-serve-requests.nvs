@@ -8,8 +8,8 @@
 // differs on each machine, so this compares it with `Core\Os::cpuCount` and prints `yes`.
 echo 'one per core:   ', (Core\Config::get('server.workers') as ?int) == Core\Os::cpuCount() ? 'yes' : 'no', "\n";
 
-// A program cannot change this setting. A name written in the call does not compile.
-// This name is in a variable, so the call runs and returns `false`. This prints `refused`.
+// A program cannot change this setting. The compiler checks a setting name written as text,
+// so `Core\Config::set('server.workers', ...)` does not compile. Here the name is in a variable, so the call runs and returns `false`. This prints `refused`.
 string $name = 'server.workers';
 echo 'use 64 workers: ', Core\Config::set($name, '64') ? 'accepted' : 'refused', "\n";
 

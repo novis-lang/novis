@@ -4,8 +4,8 @@
 // change to this key should fail.
 // hostile: timeout-ms 30000
 
-// A name written directly in the call does not compile. Each name here is in a
-// variable, so every call runs and returns false.
+// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change these settings,
+// so such a call does not compile. Here each name is in a variable, so every call runs and returns `false`.
 string $csrfKey = 'http.csrf_key';
 string $csrfKeyFile = 'http.csrf_key_file';
 

@@ -5,7 +5,7 @@
 ?string $log = Core\Config::get('log.target');
 echo 'log target:             ', $log ?? 'not set', "\n";
 
-// A program can read this setting, but it cannot change it. A name written directly
-// in the call does not compile. This name is in a variable, so the call runs and returns `false`.
+// A program can read this setting, but it cannot change it, so `Core\Config::set('log.target', ...)`
+// does not compile. Here the name is in a variable, so the call runs and returns `false`.
 string $name = 'log.target';
 echo 'changed by the program: ', Core\Config::set($name, 'file:/tmp/other.log') ? 'yes' : 'no', "\n";

@@ -4,8 +4,8 @@
 // write should fail, and the connection should still be the configured one.
 // hostile: timeout-ms 20000
 
-// A name written directly in the call does not compile. Each name here is in a
-// variable, so every call runs and returns false.
+// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `queue.connection`,
+// so that call does not compile. Here each name is in a variable, so every call runs and returns `false`.
 string $setting = 'queue.connection';
 string $indexed = 'app.0.queue.connection';
 
@@ -74,7 +74,7 @@ while ($i < 200000) {
     $i = $i + 1;
 }
 
-// 4. Builds 20,000 job strings, as a real request would. The settings should
+// 4. Builds 20,000 job strings. The settings should
 //    still be the configured values after this work.
 array<string> $payloads = [];
 uint $j = 0;

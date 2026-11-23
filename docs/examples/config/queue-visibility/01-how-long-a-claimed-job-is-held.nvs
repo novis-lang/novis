@@ -9,7 +9,8 @@ echo 'tries per job:       ', Core\Config::get('queue.max_attempts') ?? '(no val
 // If a worker stops in the middle of a job, the time runs out. The job is then
 // visible again, and another worker takes it.
 
-// A name written in the call does not compile. This name is in a variable, so each call runs.
+// The compiler checks a setting name written as text in `Core\Config::set`, so
+// `Core\Config::set('queue.visibility', ...)` does not compile. Here the name is in a variable, so each call runs.
 string $name = 'queue.visibility';
 
 // A program cannot shorten this time, so the call returns `false`. A shorter time

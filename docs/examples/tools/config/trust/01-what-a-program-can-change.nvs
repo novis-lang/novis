@@ -9,8 +9,8 @@ echo Core\Config::get('memory'), "\n";
 echo Core\Config::set('memory', '64M') ? 'yes' : 'no', "\n";
 echo Core\Config::get('memory'), "\n";
 
-// A program cannot give itself a new right. A name written directly in the call does not compile.
-// This name is in a variable, so the call runs and returns `false`. This prints `no`.
+// A program cannot give itself a new right. The compiler checks a setting name written as text,
+// so `Core\Config::set('capabilities.fs.write', ...)` does not compile. Here the name is in a variable, so the call runs and returns `false`. This prints `no`.
 string $right = 'capabilities.fs.write';
 echo Core\Config::set($right, '.') ? 'yes' : 'no', "\n";
 

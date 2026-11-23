@@ -4,16 +4,16 @@
 // attempt below should fail and the settings should stay as they were.
 // hostile: timeout-ms 20000
 
-// A name written directly in the call does not compile. Each name here is in a
-// variable, so every call runs and returns false.
+// The compiler checks a setting name written as text, so `Core\Config::set('opcache.validate', ...)` does not compile.
+// Here each name is in a variable, so every call runs and returns `false`.
 string $validate = 'opcache.validate';
 string $indexed = 'app.0.opcache.validate';
 string $freq = 'opcache.revalidate_freq';
 string $settle = 'opcache.settle';
 string $fileCache = 'opcache.file_cache';
 
-// 1. The program tries to set `validate` to many values that could mean
-//    "stop checking", including near misses and a very long string.
+// 1. The program tries to set `validate` to many values that could mean "stop checking".
+//    Some of these values are almost the same, and one is a very long string.
 array<string> $policies = [
     'never',
     'Never',

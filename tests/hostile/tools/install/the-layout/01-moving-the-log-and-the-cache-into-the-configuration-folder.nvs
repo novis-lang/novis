@@ -16,7 +16,7 @@ string $dir = Here::path('.');
 string $config = $dir . '/config/limits.toml';
 
 // 1. Make the configuration file the log file. Each call should return `false`.
-//    A name written directly in the call does not compile. The name is in a variable, so every call runs.
+//    `Core\Config::set('log.target', ...)` with the name as text does not compile, so here the name is in a variable.
 string $logTarget = 'log.target';
 array<string> $targets = [
     'file:' . $config,

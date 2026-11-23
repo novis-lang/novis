@@ -4,8 +4,8 @@
 // runs the server may set it, so every write below should fail.
 // hostile: timeout-ms 30000
 
-// A name written directly in the call does not compile. Each name here is in a
-// variable, so every call runs and returns false.
+// The compiler checks a setting name written as text, so `Core\Config::set('io.temp_root', ...)` does not compile.
+// Here each name is in a variable, so every call runs and returns `false`.
 string $tempRoot = 'io.temp_root';
 string $keepTemporary = 'debug.keep_temporary';
 

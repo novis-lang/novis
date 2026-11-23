@@ -12,8 +12,8 @@ echo 'propagate: ', Core\Config::get('trace.propagate') ?? '(no value)', "\n";
 // `exporter` and `sample` are separate settings. `sample` starts at `0`, so you
 // must set both before any trace is sent.
 
-// Only the person who runs the server may change `[trace]`. A name written directly
-// in the call does not compile. These names are in variables, so each call runs and returns `false`.
+// Only the person who runs the server may change `[trace]`, so `Core\Config::set('trace.sample', ...)`
+// does not compile. Here the names are in variables, so each call runs and returns `false`.
 string $sample = 'trace.sample';
 string $propagate = 'trace.propagate';
 

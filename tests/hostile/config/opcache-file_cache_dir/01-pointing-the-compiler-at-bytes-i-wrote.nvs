@@ -4,8 +4,8 @@
 // wrote. Every write should fail, and the directory should not change.
 // hostile: timeout-ms 20000
 
-// A name written directly in the call does not compile. Each name here is in a
-// variable, so every call runs and returns false.
+// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `opcache.file_cache_dir`,
+// so that call does not compile. Here the name is in a variable, so every call runs and returns `false`.
 string $dir = 'opcache.file_cache_dir';
 
 // 1. Tries `..` paths, a root, a device, a network share, null bytes and a very

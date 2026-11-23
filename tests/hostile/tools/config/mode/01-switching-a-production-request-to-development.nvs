@@ -1,7 +1,9 @@
 <?nvs
 // Attack: a request on a production server tries to switch itself to development mode.
 // Only the person who runs the server may allow that, so every attempt should fail.
-// A name written directly in the call does not compile. Those names are in variables, so every call runs.
+
+// The compiler checks a setting name written as text in `Core\Config::set`, so
+// `Core\Config::set('mode.ceiling', ...)` does not compile. Below, such names are in variables, so every call runs.
 
 // 1. Switch the mode directly, with other spellings, and with no key at all.
 // Each call should return `false`.

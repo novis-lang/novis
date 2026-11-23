@@ -14,7 +14,7 @@ echo 'long name: ', Core\Config::set(Core\Str::repeat('a', 1000000), '1') ? 'cha
 echo 'long value: ', Core\Config::set('memory', Core\Str::repeat('9', 1000000)) ? 'changed' : 'refused', "\n";
 
 // 3. A setting only the person who runs the server may set.
-// A name written directly in the call does not compile. The name is in a variable, so the call runs.
+// `Core\Config::set('opcache.file_cache_dir', ...)` with the name as text does not compile, so here the name is in a variable.
 string $serverOwn = 'opcache.file_cache_dir';
 echo "the server's own: ", Core\Config::set($serverOwn, '/tmp/nvs') ? 'changed' : 'refused', "\n";
 

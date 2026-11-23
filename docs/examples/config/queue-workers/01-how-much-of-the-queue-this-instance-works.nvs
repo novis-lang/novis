@@ -9,7 +9,8 @@ echo 'claiming from: ', Core\Config::get('queue.connection') ?? '(nothing writte
 // takes the jobs and runs them. Here the value is `1`, so this prints `no`.
 echo 'enqueue-only:  ', (Core\Config::get('queue.workers') ?? '4') == '0' ? 'yes' : 'no', "\n";
 
-// A name written in the call does not compile. This name is in a variable, so each call runs.
+// The compiler checks a setting name written as text in `Core\Config::set`, so
+// `Core\Config::set('queue.workers', ...)` does not compile. Here the name is in a variable, so each call runs.
 string $name = 'queue.workers';
 
 // A program cannot add workers, so the call returns `false`. More workers would

@@ -4,8 +4,8 @@
 // It also tries to raise `max_concurrent`, which only the person who runs the server may change.
 // Nothing should crash, and every change to `max_concurrent` should fail.
 
-// A name written directly in the call does not compile. The name `max_concurrent`
-// is in a variable, so every call to change it runs and returns false.
+// The compiler checks a setting name written as text, so `Core\Config::set('deferred.max_concurrent', ...)` does not compile.
+// Here the name is in a variable, so every call to change it runs and returns `false`.
 string $maxConcurrent = 'deferred.max_concurrent';
 
 // 1. Raise `max_concurrent`, or set values that could mean "no limit". Each change should fail.

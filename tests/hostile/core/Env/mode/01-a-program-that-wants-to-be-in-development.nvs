@@ -1,7 +1,9 @@
 <?nvs
 // Attack: a program tries to switch itself into development mode, where errors show
 // more details. Nothing here allows that, so the mode must stay `Production`.
-// A name written directly in the call does not compile. The name is in a variable, so every call runs.
+
+// The compiler checks a setting name written as text in `Core\Config::set`, so
+// `Core\Config::set('mode', 'development')` does not compile. Below, the name is in a variable, so every call runs.
 
 // 1. The program asks for development mode. The mode cannot go past its ceiling,
 // so the change is not allowed.

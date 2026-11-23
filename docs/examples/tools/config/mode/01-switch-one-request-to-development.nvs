@@ -11,7 +11,7 @@ echo Core\Config::get('mode.ceiling'), "\n";
 echo Core\Config::set('mode.default', 'development') ? 'yes' : 'no', "\n";
 echo Core\Config::get('mode.default'), "\n";
 
-// Only the person who runs the server may change the ceiling. A name written in the call does not compile.
-// This name is in a variable, so the call runs and returns `false`. This prints `no`.
+// Only the person who runs the server may change the ceiling. The compiler checks a setting name written as text,
+// so `Core\Config::set('mode.ceiling', ...)` does not compile. Here the name is in a variable, so the call runs and returns `false`. This prints `no`.
 string $ceiling = 'mode.ceiling';
 echo Core\Config::set($ceiling, 'production') ? 'yes' : 'no', "\n";

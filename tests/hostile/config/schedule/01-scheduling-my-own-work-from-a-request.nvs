@@ -4,8 +4,8 @@
 // and a program should not be able to read the schedule.
 // hostile: timeout-ms 20000
 
-// A name written directly in the call does not compile. Each name here is in a
-// variable, so every call runs.
+// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `schedule`,
+// so that call does not compile. Here each name is in a variable, so every call runs.
 string $scheduleKey = 'schedule';
 string $scriptKey = 'schedule.0.script';
 string $scriptNoIndex = 'schedule.script';
@@ -114,7 +114,7 @@ while ($i < 200000) {
     $i = $i + 1;
 }
 
-// 6. Builds 20,000 strings, as a real request would. The schedule should still
+// 6. Builds 20,000 strings. The schedule should still
 //    be hidden after this work.
 array<string> $entries = [];
 uint $j = 0;

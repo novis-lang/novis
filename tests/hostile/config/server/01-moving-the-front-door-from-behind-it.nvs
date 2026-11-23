@@ -4,8 +4,8 @@
 // should still be the configured one at the end.
 // hostile: timeout-ms 20000
 
-// A name written directly in the call does not compile. Each name here is in a
-// variable, so every call runs.
+// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `[server]`,
+// so such a call does not compile. Here each name is in a variable, so every call runs.
 string $listen = 'server.listen';
 string $listenFirst = 'server.listen.0';
 string $appListen = 'app.0.server.listen';
@@ -99,7 +99,7 @@ while ($i < 200000) {
     $i = $i + 1;
 }
 
-// 5. Builds 20,000 strings, as a real request would. The settings should still
+// 5. Builds 20,000 strings. The settings should still
 //    be the configured values after this work.
 array<string> $connections = [];
 uint $j = 0;

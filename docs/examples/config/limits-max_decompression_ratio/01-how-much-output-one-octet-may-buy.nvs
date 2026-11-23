@@ -20,7 +20,7 @@ try {
 }
 echo 'at the deployment\'s ratio: ', Core\Bytes::length(Core\Compress::decompress($frame, Core\Compress::Codec::Gzip)), " octets\n";
 
-// A program cannot change the configured ratio. A name written directly in the call
-// does not compile. This name is in a variable, so the call runs and returns `false`.
+// A program cannot change the configured ratio. The compiler checks a setting name written as text,
+// so `Core\Config::set('limits.max_decompression_ratio', ...)` does not compile. Here the name is in a variable, so the call runs and returns `false`.
 string $name = 'limits.max_decompression_ratio';
 echo 'loosen it from here:       ', Core\Config::set($name, '1000000') ? 'accepted' : 'refused', "\n";

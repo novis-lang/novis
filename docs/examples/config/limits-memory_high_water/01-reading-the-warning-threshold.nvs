@@ -4,8 +4,8 @@
 echo 'memory limit:    ', Core\Config::get('limits.memory'), "\n";
 echo 'warning at:      ', Core\Config::get('limits.memory_high_water') ?? '(unset)', "\n";
 
-// Only the person who runs the server may set the warning. A name written in the call does not compile.
-// This name is in a variable, so both calls run and return `false`.
+// Only the person who runs the server may set the warning. The compiler checks a setting name written as text,
+// so `Core\Config::set('limits.memory_high_water', ...)` does not compile. Here the name is in a variable, so both calls run and return `false`.
 string $name = 'limits.memory_high_water';
 echo 'warn at half:    ', Core\Config::set($name, '0.5') ? 'accepted' : 'refused', "\n";
 echo 'warn always:     ', Core\Config::set($name, '0') ? 'accepted' : 'refused', "\n";

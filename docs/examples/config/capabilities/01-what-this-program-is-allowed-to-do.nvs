@@ -15,8 +15,8 @@ echo 'run scripts: ', Core\Config::get('capabilities.script.spawn') ?? '(nothing
 // Some rights are lists, such as the directories a program may read.
 // `Core\Config::get` cannot read a list. Run `nvs config dump` to see them.
 
-// A program can never give itself a right. A name written directly in the call does not
-// compile. This name is in a variable, so the call runs and returns `false`.
+// A program can never give itself a right. The compiler checks a setting name written as text,
+// so `Core\Config::set('capabilities.db.connect', ...)` does not compile. Here the name is in a variable, so the call runs and returns `false`.
 string $grant = 'capabilities.db.connect';
 echo 'grant a db:  ', Core\Config::set($grant, 'main') ? 'yes' : 'no', "\n";
 

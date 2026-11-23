@@ -3,8 +3,8 @@
 // use more of the machine, and zero stops the server. Every attempt below should fail.
 // hostile: timeout-ms 20000
 
-// A name written directly in the call does not compile. Each name here is in a
-// variable, so every call runs.
+// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `server.workers`,
+// so that call does not compile. Here each name is in a variable, so every call runs.
 string $workers = 'server.workers';
 string $appWorkers = 'app.0.server.workers';
 

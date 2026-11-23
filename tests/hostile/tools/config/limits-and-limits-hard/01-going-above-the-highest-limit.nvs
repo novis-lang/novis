@@ -4,7 +4,7 @@
 // hostile: ends-early 4 FATAL
 
 // 1. Remove or raise the highest limit itself. Each call should return `false`.
-// A name written directly in the call does not compile. Those names are in variables, so every call runs.
+// `Core\Config::set('limits.hard.memory', ...)` with the name as text does not compile, so here each name is in a variable.
 string $hardMemory = 'limits.hard.memory';
 array<string> $ceilings = ['false', '1G', '0', ''];
 foreach ($ceilings as string $value) {

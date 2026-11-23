@@ -3,8 +3,8 @@
 // person who runs the server may set them, so every attempt below should fail.
 // hostile: timeout-ms 20000
 
-// A name written directly in the call does not compile. Each name here is in a
-// variable, so every call runs.
+// The compiler checks a setting name written as text, so `Core\Config::set('server.listen', ...)` does not compile.
+// Here each name is in a variable, so every call runs.
 string $listen = 'server.listen';
 string $listenFirst = 'server.listen.0';
 string $appListen = 'app.0.server.listen';

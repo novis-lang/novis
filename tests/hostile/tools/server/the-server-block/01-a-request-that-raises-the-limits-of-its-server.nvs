@@ -1,7 +1,9 @@
 <?nvs
 // Attack: a request tries to raise the limits in the `[server]` block of its own server.
 // Only the person who runs the server may set them, so every attempt below should fail.
-// A name written directly in the call does not compile. Each name here is in a variable, so every call runs.
+
+// The compiler checks a setting name written as text in `Core\Config::set`, so
+// `Core\Config::set('server.workers', ...)` does not compile. Below, each name is in a variable, so every call runs.
 
 // 1. Raise the number of requests that run at one time, and the number of workers.
 string $inFlight = 'server.max_in_flight';

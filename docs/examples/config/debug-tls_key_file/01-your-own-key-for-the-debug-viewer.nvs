@@ -3,7 +3,7 @@
 // This file does not set it, so `nvs debug` creates its own key, and this prints `(not set)`.
 echo 'tls_key_file: ', Core\Config::get('debug.tls_key_file') ?? '(not set)', "\n";
 
-// A program cannot change this setting, so this prints `no`.
-// A name written directly in the call does not compile. This name is in a variable, so the call runs.
+// A program cannot change this setting, so this prints `no`. The compiler checks a setting name written as text,
+// so `Core\Config::set('debug.tls_key_file', ...)` does not compile. Here the name is in a variable, so the call runs.
 string $name = 'debug.tls_key_file';
 echo 'change it:    ', Core\Config::set($name, '/etc/novis/debug.key') ? 'yes' : 'no', "\n";

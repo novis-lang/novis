@@ -4,8 +4,8 @@
 // Every change should fail.
 // hostile: timeout-ms 30000
 
-// A name written directly in the call does not compile. Each name here is in a
-// variable, so every call runs and returns false.
+// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change these settings,
+// so such a call does not compile. Here each name is in a variable, so every call runs and returns `false`.
 string $rootsKey = 'http.client.tls.roots';
 string $minVersion = 'http.client.tls.min_version';
 string $keylog = 'http.client.tls.keylog';

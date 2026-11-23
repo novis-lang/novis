@@ -9,8 +9,8 @@ echo 'scrape at:  ', Core\Config::get('metrics.listen') ?? '(nothing written)', 
 echo 'push to:    ', Core\Config::get('metrics.endpoint') ?? '(nothing written)', "\n";
 echo 'series cap: ', Core\Config::get('metrics.max_series') ?? '(no value)', "\n";
 
-// Only the person who runs the server may change `[metrics]`. A name written in the call does not compile.
-// Each name below is in a variable, so the call runs and returns `false`.
+// Only the person who runs the server may change `[metrics]`. The compiler checks a setting name written as text,
+// so `Core\Config::set('metrics.exporter', ...)` does not compile. Here each name is in a variable, so each call runs and returns `false`.
 string $exporter = 'metrics.exporter';
 string $endpoint = 'metrics.endpoint';
 string $maxSeries = 'metrics.max_series';

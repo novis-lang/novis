@@ -1,10 +1,10 @@
 <?nvs
 // Shows what a change that is not allowed looks like. `Core\Config::set`
-// returns `false` and leaves the old value in force. It throws no error, so a
-// program that needs to know reads the result.
+// returns `false`, and the setting keeps its old value. It throws no error,
+// so check the result.
 
-// Only the person who runs the server may set this one. A name written directly in
-// the call does not compile. This name is in a variable, so the call runs and returns `false`.
+// Only the person who runs the server may set this one, so `Core\Config::set('opcache.file_cache_dir', ...)`
+// does not compile. Here the name is in a variable, so the call runs and returns `false`.
 string $operatorOnly = 'opcache.file_cache_dir';
 echo Core\Config::set($operatorOnly, '/tmp/nvs') ? 'changed' : 'not allowed', "\n";
 

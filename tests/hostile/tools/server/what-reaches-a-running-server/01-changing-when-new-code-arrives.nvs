@@ -2,7 +2,9 @@
 // Attack: a request tries to change when the server uses new code, and which
 // keys need a restart. Only the person who runs the server may set these, so
 // every attempt below should fail.
-// A name written directly in the call does not compile. Each name here is in a variable, so every call runs.
+
+// The compiler checks a setting name written as text in `Core\Config::set`, so
+// `Core\Config::set('opcache.settle', ...)` does not compile. Below, each name is in a variable, so every call runs.
 
 // 1. Compile the program again after every file that a deploy writes.
 string $settle = 'opcache.settle';

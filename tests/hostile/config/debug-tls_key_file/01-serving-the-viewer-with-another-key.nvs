@@ -3,11 +3,11 @@
 // that the program knows. It also tries paths outside the folder and paths that are not files.
 // Every change should fail, and the setting should stay unset.
 
-// A name written directly in the call does not compile. The name here is in a
-// variable, so every call runs and returns false.
+// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `debug.tls_key_file`,
+// so that call does not compile. Here the name is in a variable, so every call runs and returns `false`.
 string $setting = 'debug.tls_key_file';
 
-// 1.Set paths to other keys. Each change should fail.
+// 1. Set paths to other keys. Each change should fail.
 array<string> $paths = [
     '/etc/novis/debug.key',
     '/tmp/debug.key',
@@ -58,7 +58,7 @@ foreach ($nearby as string $key) {
     Core\Config::restore($key);
 }
 
-// 5. Try the same change 50,000 times. Each try should fail and leave nothing behind.
+// 5. Try the same change 50,000 times, and restore the setting after each try. Each try should fail.
 uint $i = 0;
 while ($i < 50000) {
     Core\Config::set($setting, '/tmp/debug.key');

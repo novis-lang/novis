@@ -5,8 +5,8 @@
 // The server should run all the work and keep running.
 // hostile: timeout-ms 40000
 
-// A name written directly in the call does not compile. The name here is in a
-// variable, so every call runs and returns false.
+// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `deferred.max_concurrent`,
+// so that call does not compile. Here the name is in a variable, so every call runs and returns `false`.
 string $maxConcurrent = 'deferred.max_concurrent';
 
 // 1. Raise the limit, or set values that could mean "no limit". Each change should fail.

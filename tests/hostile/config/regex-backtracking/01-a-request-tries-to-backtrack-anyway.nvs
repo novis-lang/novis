@@ -21,7 +21,7 @@ final class Build
 }
 
 // 1. The request sets `regex.backtracking` to `allow` in several ways. Each call should return `false`.
-// A name written directly in the call does not compile. The name is in a variable, so every call runs.
+//    `Core\Config::set('regex.backtracking', ...)` with the name as text does not compile, so here the name is in a variable.
 string $backtracking = 'regex.backtracking';
 array<string> $values = [
     'allow',

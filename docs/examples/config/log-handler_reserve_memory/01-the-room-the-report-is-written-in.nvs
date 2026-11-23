@@ -11,8 +11,8 @@ echo 'the script it runs:    ', Core\Config::get('log.handler') ?? '(none — th
 // memory, and it runs the program's own handler function.
 echo 'the request-side slice: ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing written)', "\n";
 
-// A program cannot change this reserve. A name written in the call does not compile.
-// This name is in a variable, so each call runs and returns `false`.
+// A program cannot change this reserve. The compiler checks a setting name written as text,
+// so `Core\Config::set('log.handler_reserve_memory', ...)` does not compile. Here the name is in a variable, so each call runs and returns `false`.
 string $name = 'log.handler_reserve_memory';
 echo 'widen it:  ', Core\Config::set($name, '1G') ? 'accepted' : 'refused', "\n";
 echo 'narrow it: ', Core\Config::set($name, '64K') ? 'accepted' : 'refused', "\n";

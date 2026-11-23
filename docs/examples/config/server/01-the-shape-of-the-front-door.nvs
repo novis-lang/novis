@@ -16,8 +16,8 @@ echo 'listening on:   ', Core\Config::get('server.listen') ?? '(a list: loopback
 echo 'header wait:    ', Core\Config::get('server.header_timeout') ?? '(no value)', "\n";
 echo 'believed proxy: ', Core\Config::get('server.trusted_proxies') ?? '(nothing written — no forwarding header is believed)', "\n";
 
-// A program cannot change any setting in this block. A name written in the call does not compile.
-// Each name below is in a variable, so the call runs and prints `refused`.
+// A program cannot change any setting in this block. The compiler checks a setting name written as text,
+// so `Core\Config::set('server.listen', ...)` does not compile. Here each name is in a variable, so each call runs and prints `refused`.
 string $listen = 'server.listen';
 echo 'listen somewhere else:  ', Core\Config::set($listen, '0.0.0.0:80') ? 'accepted' : 'refused', "\n";
 

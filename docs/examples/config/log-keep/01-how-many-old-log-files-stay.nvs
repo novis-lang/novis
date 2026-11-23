@@ -4,8 +4,8 @@
 // This file does not set `log.keep`, so this prints the default, `5`.
 echo 'keep: ', Core\Config::get('log.keep') ?? '(no value)', "\n";
 
-// Only `nvs.toml` can set `log.keep`. A name written in the call does not compile.
-// This name is in a variable, so each call runs and returns `false`.
+// Only `nvs.toml` can set `log.keep`. The compiler checks a setting name written as text,
+// so `Core\Config::set('log.keep', ...)` does not compile. Here the name is in a variable, so each call runs and returns `false`.
 string $name = 'log.keep';
 echo 'keep 1000 files: ', Core\Config::set($name, '1000') ? 'accepted' : 'not allowed', "\n";
 echo 'keep 0 files: ', Core\Config::set($name, '0') ? 'accepted' : 'not allowed', "\n";

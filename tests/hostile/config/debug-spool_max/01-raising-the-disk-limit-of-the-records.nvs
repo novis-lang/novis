@@ -3,11 +3,11 @@
 // It uses huge sizes, sizes that are not numbers and keys that are almost the real key.
 // Every change should fail, and the limit should keep the value from the file.
 
-// A name written directly in the call does not compile. The name here is in a
-// variable, so every call runs and returns false.
+// The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `debug.spool_max`,
+// so that call does not compile. Here the name is in a variable, so every call runs and returns `false`.
 string $setting = 'debug.spool_max';
 
-// 1.Set `debug.spool_max` to huge sizes, to zero and to negative sizes. Each change should fail.
+// 1. Set `debug.spool_max` to huge sizes, to zero and to negative sizes. Each change should fail.
 array<string> $sizes = [
     '1T',
     '100G',
@@ -59,7 +59,7 @@ Core\Config::set($deep, '1T');
 Core\Config::get($deep);
 Core\Config::restore($deep);
 
-// 5. Try the same change 50,000 times. Each try should fail and leave nothing behind.
+// 5. Try the same change 50,000 times, and restore the setting after each try. Each try should fail.
 uint $i = 0;
 while ($i < 50000) {
     Core\Config::set($setting, '1T');

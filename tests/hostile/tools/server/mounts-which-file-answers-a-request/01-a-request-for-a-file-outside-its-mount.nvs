@@ -59,7 +59,7 @@ foreach ($keys as string $key) {
 echo 'accepted: ', $accepted, "\n";
 
 // 4. Repeats the attempt 100000 times and reads the path and the prefix each time.
-//    A name written directly in the call does not compile. Each name is in a variable, so every call runs.
+//    `Core\Config::set('server.root', ...)` with the name as text does not compile, so here each name is in a variable.
 string $root = 'server.root';
 string $dispatch = 'server.dispatch';
 uint $changes = 0;

@@ -11,7 +11,9 @@ echo 'the request-side time: ', Core\Config::get('limits.fatal_reserve_time') ??
 echo 'the request-side heap: ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing written)', "\n";
 
 // A program cannot change this time. A report that is stopped early never arrives.
-// A name written in the call does not compile. This name is in a variable, so each call runs and returns `false`.
+
+// The compiler checks a setting name written as text, so `Core\Config::set('log.handler_reserve_time', ...)` does not compile.
+// Here the name is in a variable, so each call runs and returns `false`.
 string $name = 'log.handler_reserve_time';
 echo 'give it an hour:  ', Core\Config::set($name, '1h') ? 'accepted' : 'refused', "\n";
 echo 'give it a moment: ', Core\Config::set($name, '1ms') ? 'accepted' : 'refused', "\n";

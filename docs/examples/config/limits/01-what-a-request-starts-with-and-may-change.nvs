@@ -16,8 +16,8 @@ echo 'ask for 400M:         ', Core\Config::set('limits.memory', '400M') ? 'acce
 echo 'ask for 1G:           ', Core\Config::set('limits.memory', '1G') ? 'accepted' : 'refused', "\n";
 echo 'in force now:         ', Core\Config::get('limits.memory'), "\n";
 
-// No program can change the ceiling itself. A name written directly in the call
-// does not compile. This name is in a variable, so the call runs and returns `false`.
+// No program can change the ceiling itself. The compiler checks a setting name written as text,
+// so `Core\Config::set('limits.hard.memory', ...)` does not compile. Here the name is in a variable, so the call runs and returns `false`.
 string $ceiling = 'limits.hard.memory';
 echo 'raise the ceiling:    ', Core\Config::set($ceiling, '1G') ? 'accepted' : 'refused', "\n";
 

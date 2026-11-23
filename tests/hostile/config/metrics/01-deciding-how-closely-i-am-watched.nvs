@@ -5,8 +5,8 @@
 // hostile: timeout-ms 20000
 // hostile: ends-early 4 FATAL
 
-// A name written directly in the call does not compile. Each name here is in a
-// variable, so every call runs and returns false.
+// The compiler checks a setting name written as text, so `Core\Config::set('metrics.exporter', ...)` does not compile.
+// Here each name is in a variable, so every call runs and returns `false`.
 string $exporter = 'metrics.exporter';
 string $listen = 'metrics.listen';
 string $endpoint = 'metrics.endpoint';
