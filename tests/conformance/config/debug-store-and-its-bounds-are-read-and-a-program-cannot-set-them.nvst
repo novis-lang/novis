@@ -5,13 +5,13 @@
 // covers: directive:debug.store, directive:debug.spool_max, directive:debug.index_age, directive:debug.index_max
 // The file does not write `store`, so its default reads back.
 echo 'store=', Core\Config::get('debug.store') ?? 'null', "\n";
-// `RuntimeTighten`: `false` narrows and is taken, and `true` is refused, even after it.
+// `OffOnly`: `false` narrows and is taken, and `true` is refused, even after it.
 echo Core\Config::set('debug.store', 'true') ? 'set' : 'refused', "\n";
 echo Core\Config::set('debug.store', 'false') ? 'set' : 'refused', "\n";
 echo Core\Config::set('debug.store', 'true') ? 'set' : 'refused', "\n";
 echo 'store=', Core\Config::get('debug.store') ?? 'null', "\n";
 Core\Config::restore('debug.store');
-// The three bounds are `System`: every program write is refused, above or below the file's value.
+// The three bounds are not on the list `set` reads: every program write is refused, above or below the file's value.
 array<string> $keys = ['debug.spool_max', 'debug.index_age', 'debug.index_max'];
 array<string> $up = ['1T', '3650d', '1T'];
 array<string> $down = ['1M', '1s', '1M'];

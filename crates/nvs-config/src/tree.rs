@@ -312,8 +312,8 @@ pub struct Mode {
     pub ceiling: Option<String>,
 }
 
-/// `[capabilities]`, `[app.capabilities]` and a `[[schedule]]`'s `grants` — deny-by-default,
-/// `RuntimeTighten`, and dotted.
+/// `[capabilities]`, `[app.capabilities]` and a `[[schedule]]`'s `grants` — deny-by-default, not
+/// on [`crate::settable::SETTABLE`], and dotted.
 ///
 /// A capability's name is dotted and a dotted TOML key *is* table nesting (`rule:config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`), so
 /// `script.spawn = [...]` under `[capabilities]` and a `[capabilities.script]` block with a `spawn`
@@ -541,8 +541,8 @@ pub struct Debug {
     /// `rule:errors/debug-dump` — `true` and a `Core\Debug::dump` made while a request writes an
     /// HTML body is appended to that body as a collapsible block as well as written as a record;
     /// `false` and the record is all there is. A JSON body is never modified either way, in either
-    /// mode. `RuntimeTighten`, so a request may turn its own inline output off and can never turn
-    /// it on, which leaves the run mode's default (`crate::mode::DERIVED`, whose first row this is)
+    /// mode. [`crate::settable::SETTABLE`] lists it as `OffOnly`, so a request may turn its own
+    /// inline output off and can never turn it on, which leaves the run mode's default (`crate::mode::DERIVED`, whose first row this is)
     /// as the only thing that enables it — and a host that wrote no configuration starts in
     /// `production`, where it is off.
     ///
@@ -554,7 +554,7 @@ pub struct Debug {
     pub inline: Option<bool>,
     /// `rule:core-classes/temporary-dir-sweep` — `true` and the end-of-script sweep logs each path it would have deleted
     /// instead of deleting it, so the absence of cleanup is deliberate and visible rather than a
-    /// silent leak. `System` and reloadable per `crate::directive`, which is what lets an operator
+    /// silent leak. Not on [`crate::settable::SETTABLE`], and reloadable per `crate::directive`, which is what lets an operator
     /// flip it on around one problematic request and off again; there is deliberately no
     /// in-language setter and no per-call persist, because a program that could exempt its own
     /// files from cleanup is a program that can be made to hoard them.
@@ -562,10 +562,10 @@ pub struct Debug {
     /// `rule:testing/writing-a-debug-record-to-disk-is-its-own-gate` — `true` and each request's
     /// debug records are appended to the spool in the data folder
     /// (`rule:testing/the-debug-stream-reaches-the-service-through-the-disk`). Off by default and
-    /// `RuntimeTighten`, so a request may turn its own recording off and no code can turn it on.
+    /// `OffOnly` on [`crate::settable::SETTABLE`], so a request may turn its own recording off and no code can turn it on.
     pub store: Option<bool>,
     /// The most disk one process's spool may take, split evenly between its writers, each deleting
-    /// its own oldest sealed file past its share. `System`.
+    /// its own oldest sealed file past its share. A request cannot change it.
     pub spool_max: Option<Setting>,
     /// The oldest record `nvs debug` keeps in its index
     /// (`rule:testing/the-debug-index-holds-what-the-viewer-reads-for-a-bounded-time`). `System`.

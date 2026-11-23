@@ -365,8 +365,8 @@ impl Ctx {
     /// table calls the overlay "derived, never shared: a copy of the parent's
     /// *effective* config, which the spawn may narrow", so a child starts from
     /// the values in force where it was spawned rather than from the file. The
-    /// direction is what matters and it is a security one — `[capabilities]` is
-    /// a `RuntimeTighten` directive, [`crate::capability::granted`] reads this
+    /// direction is what matters and it is a security one — a capability is
+    /// narrowed and never widened, [`crate::capability::granted`] reads this
     /// field, and a child re-reading the snapshot alone would hand back a
     /// capability its parent had dropped. A `Core\Config::set` the *child* makes
     /// is the child's own, because the copy is a copy: nothing in

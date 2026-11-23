@@ -384,8 +384,8 @@
 
 # `true` and a `Core\Debug::dump` made while a request writes an HTML body is appended to that body
 # as a collapsible block as well as written as a record. A JSON body is never modified either way.
-# `RuntimeTighten`, so a request may turn its own inline output off and can never turn it on: the run
-# mode's default is the only thing that enables it, and `mode = "development"` is what sets it.
+# A request may set it to `false` for itself and can never set it to `true`. Only the run mode's
+# default turns it on, and `mode = "development"` is what sets it.
 #inline = false                       # default: false in production, true in development
 
 # `true` and the end-of-script sweep logs each path it would have deleted instead of deleting it, so

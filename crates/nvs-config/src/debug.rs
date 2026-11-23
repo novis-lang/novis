@@ -15,8 +15,8 @@
 //! of its own, which the debug viewer draws over the source. Whether a server counts is fixed at its
 //! boot, so a reload that changes it is refused ([`refuse_switch`]).
 //!
-//! **A request cannot set the key.** `RuntimeTighten` in `crate::directive`, but a list is not a
-//! quantity `Core\Config::set` takes (`crate::request`), so no request-side call changes it.
+//! **A request cannot set the key.** [`crate::settable::SETTABLE`] does not list `debug.mode`, so
+//! `Core\Config::set` returns `false` for it and no request-side call changes it.
 //!
 //! Cost: one scan of the written list per tree at boot and at reload, and one per context the
 //! configuration is handed to. Nothing per request on a server, whose tree names nothing.

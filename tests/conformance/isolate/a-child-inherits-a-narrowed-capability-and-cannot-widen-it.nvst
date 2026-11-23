@@ -53,10 +53,8 @@ try {
     echo "child: ", $denied->message, "\n";
 }
 
-// The other way to ask. `[capabilities]` is a `RuntimeTighten` directive and a
-// grant is a list rather than a quantity, so `set` cannot narrow it and will
-// not widen it: `crates/nvs-config/src/request.rs`'s module doc owns why
-// refusing outright is the safe direction. `false`, never a throw.
+// The other way to ask. `[capabilities]` is not on the list of keys `set` may
+// change, so `set` neither narrows nor widens it. `false`, never a throw.
 echo "child set = ", Core\Config::set('capabilities.fs.read', '.') ? "true" : "false", "\n";
 
 // And the refusal left the grant exactly where it was.

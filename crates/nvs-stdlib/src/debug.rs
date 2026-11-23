@@ -51,7 +51,7 @@
 //! holds it until the request finishes and appends it there, and owns why the
 //! two questions that placement turns on are answerable only at the end. The
 //! record is written in both modes; the block is the whole of what the
-//! directive buys. It is `RuntimeTighten` (`nvs_config::directive`), so a
+//! directive buys. It is `OffOnly` on `nvs_config::settable::SETTABLE`, so a
 //! request may turn its own inline output off and can never turn it on, which
 //! leaves the run mode's default as the only thing that enables it — and a host
 //! that wrote no configuration starts in `production`, where it is off.
@@ -459,8 +459,8 @@ nvs_runtime::nvs_helper! {
 /// rows, and the only input to this module that is not a value being dumped.
 ///
 /// Read **in force** rather than off the snapshot, unlike `[debug]
-/// keep_temporary` beside it in `nvs_runtime::sweep`: that key is `System` and
-/// has no in-language setter, while this one is `RuntimeTighten`, so a request
+/// keep_temporary` beside it in `nvs_runtime::sweep`: that key is not on
+/// `nvs_config::settable::SETTABLE`, while this one is listed `OffOnly`, so a request
 /// that turned its own inline output off has written an overlay entry that only
 /// `nvs_config::Request::get` sees. A context carrying no configuration at all
 /// — every `.nvst` case, every unit test — answers `false`, which is the
