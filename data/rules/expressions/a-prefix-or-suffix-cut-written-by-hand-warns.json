@@ -1,0 +1,14 @@
+{
+  "title": "A prefix or suffix cut written as a test and a slice warns W1036 and names the one call that does both",
+  "status": "shipped",
+  "seeAlso": [
+    "expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named",
+    "ide/a-quick-fix-is-a-diagnostics-own-suggestion",
+    "core-api/symmetric-names",
+    "types/string-is-utf8"
+  ],
+  "guardedBy": [
+    "crates/nvs-ir/src/hand_cuts.rs",
+    "crates/nvs-ir/src/lower/tests.rs"
+  ]
+}

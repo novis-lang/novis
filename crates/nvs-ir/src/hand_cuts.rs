@@ -1,5 +1,5 @@
 //! A prefix or suffix cut written by hand
-//! (`rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`).
+//! (`rule:expressions/a-prefix-or-suffix-cut-written-by-hand-warns`).
 //!
 //! `Core\Str::afterPrefix(S, P)` tests that `S` starts with `P` and cuts it
 //! off in one call, and `Core\Str::beforeSuffix(S, P)` does the same at the

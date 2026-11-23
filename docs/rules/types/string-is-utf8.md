@@ -43,6 +43,25 @@ a byte offset; on any other string, `Core\Str::at` and the members that take a p
 clusters to it on every call. Normalization (NFC/NFD) is out of scope: grapheme awareness says
 nothing about whether two visually identical strings compare equal.
 
+**Every `Core\Str` member that matches or cuts does so on grapheme boundaries.** A match is found only
+where it starts and ends between two clusters, and a cut never leaves half of one. That holds for the
+search family: `indexOf`, `contains`, `replace`, `before`, `after` and the rest. It holds for the six
+members that match at an end too: `startsWith`, `endsWith`, `replaceAll`, `trim`, `trimStart` and
+`trimEnd`. So `startsWith("e\u{301}", "e")` is `false`, and agrees with `after`. An empty prefix or
+suffix is still found in every string. `\r` or `\n` alone does not match inside a `\r\n` pair, because
+the pair is one cluster. So `replaceAll($s, ["\r" => ""])` leaves CRLF text as it is, and a program
+names the pair: `["\r\n" => "\n", "\r" => ""]`. `Core\Str::afterPrefix` and `beforeSuffix` cut at the
+same boundary. **A trim removes whole clusters.** Its `characters` set stays a set of code points. A
+cluster at the trimmed end is removed when the set has every code point of it. So
+`trim("e\u{301}", { characters: "\u{301}" })` keeps both, and the default set still removes a `\r\n`
+pair, whose two code points are both in it. Reading the set as clusters would make the default's
+`"\n\r"` one unit, and it would stop trimming `\r\n`. **Not covered:** `lines` splits on ASCII line
+ends and takes `\r\n` whole. `compare` cuts nothing. `upperFirst` and `lowerFirst` map the first code
+point, the base of the first cluster. `codePoints` works on code points by name. `Core\Regex` names
+code points in its patterns, and `Core\Bytes` is bytes. **What it spends:** one boundary test per
+match found. Text that is ASCII around the match never reaches the segmenter, so there it costs two
+byte compares. A trim walks only the clusters it removes, plus one.
+
 **A string can drop its front without moving the rest.** The header carries a start word: how many
 bytes before the first live one a cut dropped. A string with one owner is cut by moving the start
 or shortening the length, so no byte it keeps moves, and a prepend writes into the dropped front

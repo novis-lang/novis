@@ -1,6 +1,6 @@
 A symmetric operation gets a symmetric name: `encode`/`decode`, `split`/`join`, `pack`/`unpack`,
 `escape`/`unescape`, `trimStart`/`trimEnd`, `startsWith`/`endsWith`, `indexOf`/`lastIndexOf`,
-`first`/`last`. If one half exists, the other half's spelling is decided by rule rather than chosen.
+`first`/`last`, `before`/`after`, `afterPrefix`/`beforeSuffix`. If one half exists, the other half's spelling is decided by rule rather than chosen.
 
 Which *pair* to reach for is also a rule: `encode`/`decode` when the other side is a machine format —
 JSON, serialization, base64 — and `parse`/`format` when a human writes or reads it, as with time, CSV and

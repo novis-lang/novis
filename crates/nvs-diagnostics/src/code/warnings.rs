@@ -380,7 +380,7 @@ codes! {
     );
     /// A `Core\Str::slice` that cuts off a prefix or a suffix the code has
     /// just tested with `Core\Str::startsWith` or `endsWith`
-    /// (`rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`).
+    /// (`rule:expressions/a-prefix-or-suffix-cut-written-by-hand-warns`).
     /// `nvs_ir::hand_cuts::warnings` raises it from the written tree, for
     /// `nvs check` and for the editor, with a fix for one exact shape.
     pub const W_HAND_CUT: Code = Code::new("W1036").card(

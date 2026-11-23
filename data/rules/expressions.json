@@ -36,6 +36,7 @@
     "expressions/catch-lowers-to-block-form",
     "expressions/method-reference",
     "expressions/no-partial-application",
-    "expressions/an-operand-keeps-its-value-while-later-operands-run"
+    "expressions/an-operand-keeps-its-value-while-later-operands-run",
+    "expressions/a-prefix-or-suffix-cut-written-by-hand-warns"
   ]
 }
