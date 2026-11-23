@@ -626,6 +626,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 ## Splitting a file
 
 ## Writing Novis
+- **The published corpus calls `Core\Test::answerHttp`, `answerSocket`, `tlsSession` and
+  `scriptAnswers` at the top of `nvs run` programs.** Hundreds of examples, attacks and benches answer
+  their own outbound calls that way, so a goal item to make them throw "outside a test" broke them
+  all. They throw only in work a server runs. Grep `docs/examples`, `tests/hostile` and `benches`
+  before narrowing a `Core\Test` member. See `not_in_a_server` in `crates/nvs-stdlib/src/test.rs`.
 - **In a namespaced file, `Iterator<int>` names `<Namespace>\Iterator`, and `\Iterator<int>` is
   E0240.** A generator written into `apps/registry/src/App.nvs` failed E0441 and E0303 twice before
   it reached the compiler. Add `use Iterator;` under the `namespace` line, as

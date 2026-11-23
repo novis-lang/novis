@@ -231,10 +231,15 @@ stored map says reached it. A rename is read as a delete and an add (`git diff -
 changed path outside the program folder, or one that cannot be resolved, runs every test. A run that
 skipped tests keeps the stored hash of every function only those tests reached.
 
-**The members of `Core\Test` that answer for the outside world throw outside `nvs test`.**
-`answerHttp`, `answerSocket`, `tlsSession` and `scriptAnswers` throw a `LogicError` in a context no
-test owns. A call that makes a double keeps calls to an interface's default method virtual
-(`crates/nvs-ir/src/lower/expr.rs:5233`, and the `static::` path at `:5488`).
+**The members of `Core\Test` that answer for the outside world throw in work a server runs.**
+`answerHttp`, `answerSocket`, `tlsSession` and `scriptAnswers` throw a `LogicError` in a request, a
+connection, a scheduled fire and a job outside `nvs test` (`not_in_a_server` in
+`crates/nvs-stdlib/src/test.rs`). A test, a request or run a test makes, and a CLI program may call
+them. Reason: refusing them everywhere outside `nvs test` would break hundreds of examples, attacks
+and benches that answer their own calls under `nvs run`, and a CLI program that fakes its own calls
+harms only itself. The rule's Declined list says so. A public, non-static default method of an
+interface is always marked overridden (`crates/nvs-types/src/signatures.rs`), so a double's body for
+it runs. It costs one method lookup per call to an interface's default method.
 
 **The built array is the reference for the in-place one.** After any member, the next appended key is
 the one the build path gives, whatever the storage. `crates/nvs-fuzz-checks/src/in_place.rs` gains a
@@ -391,11 +396,11 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### 6. a test request on the wire is armed like every other, and --since never runs fewer tests than the change reaches
 
-- [ ] `crates/nvs-cli/src/runner.rs:4583`: the one arming function and its four callers. *read.*
-- [ ] `crates/nvs-stdlib/src/test.rs:2654`: the four members throw outside a test. *check first.*
-- [ ] `crates/nvs-ir/src/lower/expr.rs:5233`: `late_bound` holds for a program that makes classes at
+- [x] `crates/nvs-cli/src/runner.rs:4583`: the one arming function and its four callers. *read.*
+- [x] `crates/nvs-stdlib/src/test.rs:2654`: the four members throw outside a test. *check first.*
+- [x] `crates/nvs-ir/src/lower/expr.rs:5233`: `late_bound` holds for a program that makes classes at
   run time. *check first*, with a double that gives an interface's default method.
-- [ ] `crates/nvs-stdlib/src/test.rs:3442`: a `sendFile` body is read within the request's memory
+- [x] `crates/nvs-stdlib/src/test.rs:3442`: a `sendFile` body is read within the request's memory
   limit (`crates/nvs-runtime/src/host.rs:744`).
 - [ ] `crates/nvs-cli/src/runner/reach.rs:499`: a deleted file and a missing function select their
   tests, and `record` at `:458` keeps the hashes of what unrun tests reached.
@@ -496,39 +501,42 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### State
 
-Stages 1 to 4 are done, each with its acceptance test passing (`task_child_limits`,
-`hidden_slot`, `restrict_use_forms`, `reload_outcomes`). `Live::adopt` and the retrieval `static`
-item were not found. Stage 4 also made a grant over the data folder's `cache/` and `run/` throw
-(`data_folder_refusal` in `crates/nvs-runtime/src/capability.rs`) and the cache shard private.
+Stages 1 to 5 are done, each with its acceptance test passing. `Live::adopt` and the retrieval
+`static` item were not found.
 
-Stage 5 is done. `nvs_server::Origin` has `peer()`, the socket peer whatever the walk decided,
-and the door passes it to `table.select`. `Reply::misdirected` gives a one-line `text/plain` body
-naming `development_hosts` and the host, escaped. `trace::first_this_minute` (a process-wide list
-of at most 64 hosts) lets the `Warn` line through once per host per minute, and a repeat is an
-ordinary access line. Tests `rebinding_guard` and `trace::tests::a_refused_host_is_warned_once_a_minute`
-passed, and the updated `request.rs` 421 case passed. The rule's Declined list now declines the
-bodiless `421` and asking the client after the forwarded walk.
+Stage 6 has four of its items landed, each in its own commit, and its `--since` half open.
 
-Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, two; stage 5, one.
+- `Armed` in `crates/nvs-cli/src/runner.rs` arms every test context, including a request off the
+  wire, which reads weak handles from an `Owner` the isolate fills. `wire_request_is_armed` passed.
+- The four `Core\Test` members and the double each reproduced first. The members now throw in work
+  a server runs (standing decision). The double fix is in `signatures.rs`, with the conformance case
+  `a-double-replaces-an-interfaces-default-method.nvst`. Both unit tests passed.
+- `Completion::read_file_body` reads through a `ByteWriter`; its unit test passed.
+
+Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, two; stage 5, one; stage 6,
+one so far.
 
 ### Next
 
-Stage 6, the test request on the wire and `--since`:
+Stage 6, the `--since` half (the stage's second and last session):
 
-- `crates/nvs-cli/src/runner.rs:4583`: one function arms a test context, with four callers
-  (`:1697`, `:1793`, `:3963`, `:4583`). Read it first.
-- `crates/nvs-stdlib/src/test.rs:2654`: `answerHttp`, `answerSocket`, `tlsSession` and
-  `scriptAnswers` throw outside a test. *check first.*
-- `crates/nvs-ir/src/lower/expr.rs:5233` and `:5488`: a double keeps an interface's default
-  method virtual. *check first.*
-- `crates/nvs-stdlib/src/test.rs:3442`: a `sendFile` body is read within the request's memory limit.
-- `crates/nvs-cli/src/runner/reach.rs:499` and `:458`, `crates/nvs-cli/src/runner/since.rs:134`
-  and `:151`: the `--since` selection.
-- New tests `wire_request_is_armed.rs` and `since_selection.rs` under `crates/nvs-cli/tests/`.
+- `crates/nvs-cli/src/runner/reach.rs:499`: a deleted file and a missing function select the
+  tests the stored map says reached them. `record` at `:458` keeps the stored hash of every
+  function only unrun tests reached.
+- `crates/nvs-cli/src/runner/since.rs:134`: add `--no-renames` to the `git diff` call, and at
+  `:151` a changed path outside the program folder, or one that does not resolve, runs every test.
+- New test `crates/nvs-cli/tests/since_selection.rs`: a deleted file, a renamed file and a file
+  outside the folder each select the tests that reached them. `crates/nvs-cli/tests/test_reach.rs`
+  and its `fixtures/reach/` show how a test drives `nvs test` from a fixture folder.
+- Then `cargo build` and clippy, and the stage is done.
 
 Stages 8, 9, 10 and 11 touch disjoint files, so another session may take one of them beside it.
 
-Tests that may go red: a `reload_command.rs` case that expected exit 2 with only an unreachable
+Tests that may go red: a program served by `nvs serve`, or a job or schedule, that calls
+`Core\Test::answerHttp`, `answerSocket`, `tlsSession` or `scriptAnswers` now throws. A
+`Core\Test::request` of a route that sends a file larger than the test's memory limit now ends on
+that limit. A count of virtual calls, or a bench, over an interface's default method may move. A
+`reload_command.rs` case that expected exit 2 with only an unreachable
 server now gets 1. Its `state` for a closed connection is `silent`, no longer `stopped`. A
 deprecation or `E0889` case whose program reads a deprecated or test-code
 constant in a property default, a parameter default or an attribute payload now warns or fails
