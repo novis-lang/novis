@@ -10,6 +10,27 @@
       "goals": [
         "exact-invalidation"
       ]
+    },
+    {
+      "title": "Settings a program may change",
+      "text": "`Core\\Config::set` changes only the settings on one list. Every page and every compiler error names the settings on it.",
+      "goals": [
+        "config-set-allowlist"
+      ]
+    },
+    {
+      "title": "`::class` names a class",
+      "text": "`User::class` is a reference to the class `User` wherever a class is expected.",
+      "goals": [
+        "class-name-as-reference"
+      ]
+    },
+    {
+      "title": "Text cut on whole characters",
+      "text": "Every `Core\\Str` method finds and cuts text on whole graphemes (what a person counts as one character). Cutting a prefix or a suffix from a string is one call.",
+      "goals": [
+        "whole-grapheme-cuts"
+      ]
     }
   ]
 }

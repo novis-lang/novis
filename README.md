@@ -131,6 +131,9 @@ This section shows what comes next for Novis. There are no dates. The
 The work is in the order it is planned. The order can change.
 
 1. **Faster checks in the editor after an edit.** *Working on it now.* After you edit a file, the editor checks again only the files that use what you changed. An edit inside a method body checks no other file.
+2. **Settings a program may change.** `Core\Config::set` changes only the settings on one list. Every page and every compiler error names the settings on it.
+3. **`::class` names a class.** `User::class` is a reference to the class `User` wherever a class is expected.
+4. **Text cut on whole characters.** Every `Core\Str` method finds and cuts text on whole graphemes (what a person counts as one character). Cutting a prefix or a suffix from a string is one call.
 <!-- roadmap:end -->
 
 ## Contributing
