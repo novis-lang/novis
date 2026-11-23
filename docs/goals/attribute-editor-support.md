@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-lsp/src/completion.rs, docs/rules/ide/keywords-are-offered-where-the-compiler-accepts-them.md]
   - id: 4
     title: "a field key reaches its declared field"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/src/rename.rs, crates/nvs-lsp/src/hover.rs]
   - id: 5
     title: "signature help in #[Name( and the quick fix that declares an attribute"
@@ -189,18 +189,18 @@ allow writing one. Key completion and signature help show what is missing.
 
 **Does:** definition, references, highlight and rename work on a field as they do on the name.
 
-- [ ] Find what the checker records for a read of a field on a retrieval's result
+- [x] Find what the checker records for a read of a field on a retrieval's result
   (`Core\Attributes::get` and the others, `crates/nvs-types/src/attributes.rs`). Write the finding and
   the decision it leads to under `### State`.
-- [ ] `crates/nvs-lsp/src/definition.rs:561`: from a key in `#[Name(key: …)]`, and from a recorded read,
+- [x] `crates/nvs-lsp/src/definition.rs:561`: from a key in `#[Name(key: …)]`, and from a recorded read,
   go to definition reaches the declared field.
-- [ ] References and document highlight on a declared field list the field, every key and every
+- [x] References and document highlight on a declared field list the field, every key and every
   recorded read.
-- [ ] `crates/nvs-lsp/src/rename.rs`: rename of a field changes all three, or refuses as the standing
+- [x] `crates/nvs-lsp/src/rename.rs`: rename of a field changes all three, or refuses as the standing
   decision says. A `Core` attribute's field is refused, as its name is.
-- [ ] Hover on a field in the declaration's body shows its type and `///` doc, as hover on a key in a
+- [x] Hover on a field in the declaration's body shows its type and `///` doc, as hover on a key in a
   use already does (`crates/nvs-lsp/src/hover.rs:858`).
-- [ ] `.lspt` cases under `tests/lsp/definition/`, `references/`, `highlight/`, `rename/` and `hover/`, one each.
+- [x] `.lspt` cases under `tests/lsp/definition/`, `references/`, `highlight/`, `rename/` and `hover/`, one each.
 
 ### 5. signature help in #[Name( and the quick fix that declares an attribute
 
@@ -239,34 +239,33 @@ allow writing one. Key completion and signature help show what is missing.
 
 ### State
 
-Stages 1, 2 and 3 are done. Stage 3, all in `crates/nvs-lsp/src/completion.rs`. `DECLARATION_WORDS` holds `attribute` and
-`repeatable` beside the reserved lists, because both are contextual; the module's test now asserts the
-lexer does not reserve them. `declaration_words` writes the standing decision's snippet, its site
-choice built from `PROGRAM_SITES`, and the bare word without snippets. `position` offers them at a
-statement start with no function body around it; `member` offers them where no modifier keyword is
-written. `after_repeatable` offers `attribute` alone after `repeatable`, never in an enum body or a
-function body. `field_at` reads the tokens back to the innermost unmatched `{` whose header
-`attribute_header` (split out of `on_list_at`) reads: after `{` or a field's `,` it offers nothing,
-anywhere else `in_reach`, the property type list. The rule fragment names all of it.
+Stages 1 to 4 are done. Stage 4's finding: a read of a field on a retrieval's result records only
+`ExprInfo::ShapeProperty` (`crates/nvs-types/src/expr_table.rs:833`), typed against the fields as
+an interned shape that two declarations can share, so no read links back. The safe default holds:
+references and highlight list the field and its keys; rename refuses when an indexed file writes
+`->field` where the index holds no use (`rename.rs` `unresolved_reads`).
 
-Tests run by name and green: `completion_edits::an_attribute_declaration_word_writes_the_whole_declaration`
-(snippet and plain, at file scope and in a class), `completion::tests::every_word_offered_is_one_the_lexer_reserves`,
-and the `.lspt` cases `a-file-offers-the-words-that-open-an-attribute-declaration`,
-`after-repeatable-the-one-word-is-attribute`, `an-attribute-fields-type-offers-the-types`,
-`an-attribute-fields-name-offers-nothing`. Three existing cases changed on purpose and pass:
-`a-class-body-offers-the-words-that-open-a-member` and its interface twin now list `attribute` and
-`repeatable`, and `an-import-is-a-statement-position` lists `attribute`. None is expected to go red;
-any other completion case that lists every statement word with no prefix would, and a grep found none.
+Built: `attribute_decls.rs` `FieldName`, `declared_fields`, `written_keys`, `field_at`,
+`Declared::field_span`; the index's `DeclKind::Field` under `Name::field` (disk tag 9,
+`disk_index::FORMAT` 3); definition from a key; hover on a field in the body (`hover.rs`
+`declared_field`). Seven new `.lspt` cases named `*attribute*field*` under `definition/`,
+`references/`, `highlight/`, `rename/` and `hover/` ran by name and are green.
 
-Stage 6 owes: the editor page's mention of `A`, the outline, folding and the two keywords, and
-`changes.json` entries for the colours, the badge, the outline, the order and the keyword completion.
+Possibly red at the gate: a `lens/` or workspace-symbol case, or a `crates/nvs-lsp/tests/` test,
+over a file with an attribute declaration: each field is now a declaration. A grep found none.
+
+Stage 6 owes the editor page and `changes.json` entries for the colours, the badge, the outline,
+the order, the keyword completion and field navigation. The uncommitted hunks in `index.rs`,
+`parse_cache.rs` and `surface.rs` (the surface hash) are an ended interactive session's, not this
+goal's; only this session's own `index.rs` hunks were committed.
 
 ### Next
 
-Stage 4, its first item: find what the checker records for a read of a field on a retrieval's result
-(`Core\Router\Match::attribute<T>` and `Core\Program::implementingWith`), then
-`crates/nvs-lsp/src/definition.rs:561` from a key in `#[Name(key: …)]` to the declared field. The
-standing decision's safe default holds if the read is not recorded.
+Stage 5, its first item: `crates/nvs-lsp/src/server.rs:2939` `signature_help` and
+`crates/nvs-lsp/src/hover.rs:301` `help_at`. Inside `#[Name(`, answer the declaration as one
+signature from `crate::attribute_decls::of_attribute` and `Declared::keys`; the active field is the
+key at the cursor (`attribute_decls::key_before` reads a key off the text). Then the quick fix:
+find the code for a `#[Name]` nothing declares (`crates/nvs-types/src/attributes.rs:464`).
 
 ### Backlog
 
