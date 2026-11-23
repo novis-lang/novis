@@ -1,0 +1,29 @@
+--TEST--
+A double that gives a default method of its interface answers with its own callable, also when no class in the program overrides that method — `rule:testing/doubles`
+--FILE--
+<?nvs
+// covers: Core\Test::double
+interface Greets {
+    public function name(): string;
+
+    public function greet(): string {
+        return "Hello, " . $this->name();
+    }
+}
+
+// The double gives `greet`, so a call to `greet` runs the double's callable.
+Greets $double = Core\Test::double<Greets>({
+    name: fn(): string => "Ada",
+    greet: fn(): string => "from the double",
+});
+echo $double->greet(), "\n";
+
+// This double does not give `greet`, so the interface's default body runs.
+// It calls the double's `name`.
+Greets $plain = Core\Test::double<Greets>({
+    name: fn(): string => "Ada",
+});
+echo $plain->greet(), "\n";
+--EXPECT--
+from the double
+Hello, Ada

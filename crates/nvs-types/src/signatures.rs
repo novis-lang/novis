@@ -1667,6 +1667,18 @@ fn collect_members(
                         .final_methods
                         .insert(name.clone());
                 }
+                // A `Core\Test::double` of this interface, or of one that extends it, may give
+                // its own body for a public default method (`rule:testing/doubles`). The
+                // double's class is made at run time, so no declaration in the graph says so,
+                // and [`mark_overridden_methods`] cannot see it. A call that resolves to the
+                // default body therefore always looks at the receiver's class. **What it
+                // spends:** one method lookup per call to an interface's default method.
+                if is_interface && m.body.is_some() && !interface_private && !is_static {
+                    table
+                        .entry(qname.clone())
+                        .overridden_methods
+                        .insert(name.clone());
+                }
                 if name == "constructor" {
                     for p in m.params.iter().filter(|p| p.covariant) {
                         if !p.is_promoted() {
@@ -2933,6 +2945,7 @@ mod tests {
         let (table, _module, _interner, _diags) = build(
             "<?nvs
              interface Shape { function area(): int; function label(): string { return \"s\"; } }
+             interface Named { function name(): string { return \"n\"; } static function make(): int { return 1; } }
              class Root { function kind(): string { return \"root\"; }              function alone(): int { return 1; } }
              class Middle extends Root {}
              class Leaf extends Middle { function kind(): string { return \"leaf\"; } }
@@ -2949,6 +2962,10 @@ mod tests {
         // `area` is bodiless, so it already dispatches; marking it would say
         // nothing a caller does not already know.
         assert!(!table.is_overridden(&QName::parse("Shape"), "area"));
+        // No class overrides `Named::name`, and a double made at run time still may.
+        // A double replaces no static method.
+        assert!(table.is_overridden(&QName::parse("Named"), "name"));
+        assert!(!table.is_overridden(&QName::parse("Named"), "make"));
     }
 
     #[test]
