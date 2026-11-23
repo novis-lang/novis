@@ -14,7 +14,7 @@ stages:
     context: [docs/rules/classes/serialize-is-a-closed-format.md, crates/nvs-runtime/src/revoke.rs]
   - id: 3
     title: a restriction holds every use form the checker records
-    status: open
+    status: done
     context: [docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md, crates/nvs-types/src/restrict.rs]
   - id: 4
     title: "the reload command says what each server did, and only the server it names answers it"
@@ -335,27 +335,30 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
   decision gives it. `rule:packaging/a-restriction-limits-where-a-declaration-is-used` *read.*
 - [x] `crates/nvs-types/src/program.rs:106`: the three `Core\Program` members record the classes they
   construct. *check first.* Shown: an enumeration of a restricted class compiled. Fixed in `resolved`.
-- [ ] `crates/nvs-types/src/defaults.rs:430`: a property default, a parameter default at `:556` and an
+- [x] `crates/nvs-types/src/defaults.rs:430`: a property default, a parameter default at `:556` and an
   attribute payload (`crates/nvs-types/src/attributes.rs:979`) are read inside a window. *check first.*
-- [ ] `crates/nvs-types/src/attributes.rs:147`: an attribute on an anonymous function's parameter is
+  Shown: each of the three compiled with a restricted constant. Fixed by `record_default_use` and a
+  window around each attribute.
+- [x] `crates/nvs-types/src/attributes.rs:147`: an attribute on an anonymous function's parameter is
   checked like a method parameter's. `fn(#[NoSuchThing(x: 1)] int $n): int => $n` compiles today.
   *run.*
-- [ ] `crates/nvs-config/src/restrict.rs:371`: a package's `use` target is its own or `Core`'s.
+- [x] `crates/nvs-config/src/restrict.rs:371`: a package's `use` target is its own or `Core`'s.
   - [x] the check is in `parse`
-  - [ ] a row in `crates/nvs-config/tests/restrict.rs`: a package naming `Shop\Cart` is E0665, one
+  - [x] a row in `crates/nvs-config/tests/restrict.rs`: a package naming `Shop\Cart` is E0665, one
     naming `Core\Str::upper` is not
 - [x] `crates/nvs-types/src/restrict.rs:718`: an allowed place that is a class does not allow a
   namespace of the same name. *check first.* Shown by a row, and fixed with `Site::graph`.
-- [ ] `crates/nvs-types/src/retrieval.rs:452`: a retrieval binds `static` to the method's owner.
-  *check first.*
-- [ ] `crates/nvs-cli/tests/restrict_use_forms.rs:1`: one row per variant the subagent listed, in a
+- [x] `crates/nvs-types/src/retrieval.rs:452`: a retrieval binds `static` to the method's owner.
+  *check first.* Not found: through a subclass the fields are `property<Sub>`, and every key valid
+  for the declaring class is valid for the subclass.
+- [x] `crates/nvs-cli/tests/restrict_use_forms.rs:1`: one row per variant the subagent listed, in a
   two-package fixture named `Shop` and `Framework`. It runs once, by name. It is in `nvs-cli`
   because a row runs `nvs check` over a folder with a `package.toml`.
   - [x] a union receiver, an enumeration, `static::NAME`, a class that is not a namespace
-  - [ ] a route link, and the rows the defaults, attribute and retrieval items add
-- [ ] `docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md:57`: the use forms as
+  - [x] a route link, and the rows the defaults, attribute and retrieval items add
+- [x] `docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md:57`: the use forms as
   the table has them, and the sentence on ancestors.
-- [ ] `cargo build` and clippy are green.
+- [x] `cargo build` and clippy are green.
 
 ### 4. the reload command says what each server did, and only the server it names answers it
 
@@ -493,46 +496,41 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### State
 
-Stages 1 and 2 are done (tests `task_child_limits`, `hidden_slot`). `Live::adopt` was not found:
-only a task's returned collection at the await is adopted, and no code reads its membership after.
+Stages 1, 2 and 3 are done (tests `task_child_limits`, `hidden_slot`, `restrict_use_forms`, and
+`a_package_use_outside_its_own_name_or_core_is_an_error` in `crates/nvs-config/tests/restrict.rs`,
+`an_anonymous_function_parameter_attribute_is_checked_like_a_method_parameter_attribute` in
+`crates/nvs-types/tests/attributes.rs`). `Live::adopt` was not found.
 
-Stage 3 is half done. `resolved` (`crates/nvs-types/src/deprecated/template.rs:654`) names all 38
-`ExprInfo` variants with no `_` arm. Before, 28 of them used nothing. New uses: `UnionMember` (each
-arm), `ProgramInstances`/`With`/`Constructors` (each class and its constructor), `ClassConstLate`
-(the declaring class's constant), and `RouteLink`/`RouteIs` (the call they are recorded over).
-`Site` (`crates/nvs-types/src/restrict.rs:691`) now carries the class graph: an allowed name that is
-a class matches only that class. A package's `use` target must lie under its own name or `Core`
-(`crates/nvs-config/src/restrict.rs`, `parse`). This narrows the standing decision, because the
-feature's documented example is a package restricting `Core\Router::urlSigned`.
-`crates/nvs-cli/tests/restrict_use_forms.rs` has 4 rows. They ran once by name and passed, and all 4
-fail with the checker change reverted.
+Stage 3: `resolved` (`crates/nvs-types/src/deprecated/template.rs:654`) names all 38 `ExprInfo`
+variants with no `_` arm. A property default and a parameter default are recorded in the member's
+window by `record_default_use` (`crates/nvs-types/src/defaults.rs`), as a body's read of the same
+constant or case is. Every attribute is checked inside a window (`check_attribute`,
+`crates/nvs-types/src/attributes.rs`), except on an anonymous function's parameter, which is inside
+its body's window already. `check_anon_fn` now calls `attributes::check_params`. A package's `use`
+target must lie under its own name or `Core`. `restrict_use_forms.rs` has 8 rows, each with an
+unrestricted control, and all passed once by name. The retrieval `static` item was not found: one
+probe read an inherited method's attribute through a subclass, and the result typed
+`property<Sub>`, which holds every key of the declaring class. The rule fragment lists every use
+form, the ancestor sentence, the class-not-namespace match and a package's `use` target.
 
-Not yet looked at: the defaults window (`defaults.rs:430`). A default is folded from the syntax and
-records no `ExprInfo`, so a restricted constant in a property default is probably not checked. One
-attempt still owed. Also owed: the anonymous function's parameter attribute (`attributes.rs:147`),
-the retrieval `static` binding (`retrieval.rs:452`), the rule text, and the package-target test row.
-
-Sessions per stage: stage 1, one; stage 2, two; stage 3, one.
+Sessions per stage: stage 1, one; stage 2, two; stage 3, two.
 
 ### Next
 
-Stage 3's open items, in this order. (1) Add a row to `crates/nvs-config/tests/restrict.rs`: a
-package naming `Shop\Cart` gives E0665, and one naming `Core\Str::upper` passes. (2) Make one attempt
-at the defaults item: add a row to `restrict_use_forms.rs` with `public int $n = Framework\Base::LIMIT;`
-in `Shop`. If it compiles, check a default's const references in the body's restriction window.
-(3) Fix the anonymous function's parameter attribute: find where `check_anon_fn`
-(`crates/nvs-types/src/expr/calls.rs`) checks parameters and call `attributes::check_params`.
-(4) Make one attempt at the `retrieval.rs:452` item. (5) Update the rule fragment
-(`docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md:57`): the use forms, the
-sentence on ancestors, the class-not-namespace match, and a package's `use` target. Stages 4, 5, 6,
-8, 9, 10 and 11 touch disjoint files.
+Stage 4, the reload command (`crates/nvs-cli/src/reload_cmd.rs`, `reload_endpoint.rs`), in its
+items' order: no reply is a failure (`reload_cmd.rs:103`, `exit_code` at `:208`), the endpoint's
+panic reply, drain line, accept loop and deadline (`reload_endpoint.rs:292`, `:133`, `:169`), the
+bounded read and escaped text, then the three *check first* items (`windows.rs:127`, `cache.rs:1447`,
+`capability.rs:102`), the test `reload_outcomes.rs` and the rule's exit table. Stages 5, 6, 8, 9, 10
+and 11 touch disjoint files, so another session may take one of them beside it.
 
-Tests that may go red: an existing package fixture whose `use` names another package's code (none
-found). Also an editor completion or `E0664` case that relied on a class's allowed name matching a
-namespace with the same name. Stage 1's arming may move where a task's allocation over the ceiling
-stops in a conformance or group test: a case whose expected error had no "was refused" clause for a
-task's allocation now has one. A dump of a revocable object no longer prints a `#revocable` line;
-no expected output in the tree had one.
+Tests that may go red: a deprecation or `E0889` case whose program reads a deprecated or test-code
+constant in a property default, a parameter default or an attribute payload now warns or fails
+there. An attribute on an anonymous function's parameter that names no attribute declaration, or
+one that does not fit a parameter, now fails to compile. An editor completion or `E0664` case that
+relied on a class's allowed name matching a namespace of the same name. Stage 1's arming may move
+where a task's allocation over the ceiling stops in a conformance or group test. A dump of a
+revocable object no longer prints a `#revocable` line.
 
 ### Backlog
 
@@ -541,3 +539,6 @@ no expected output in the tree had one.
   program code (`rule:types/a-replaced-value-is-changed-in-place` § *What a quiet call is*), so a
   lend may cross a release that runs a `finally` which writes the lent slot. Found by
   `safety-holes`' stage 2 reader; not reproduced.
+- A class constant's initializer, `public const int N = Framework\Base::LIMIT;`, is folded in the
+  signatures pass and records no `ExprInfo`, so a restricted constant there is probably not checked.
+  It is the same shape as stage 3's defaults item and was not part of it. Not reproduced.
