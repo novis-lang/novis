@@ -108,9 +108,6 @@ const fn word(kind: DeclKind) -> Option<&'static str> {
         DeclKind::Enum => Some("enum"),
         DeclKind::TypeAlias => Some("type"),
         DeclKind::Attribute => Some("attribute"),
-        DeclKind::Method
-        | DeclKind::Property
-        | DeclKind::Const
-        | DeclKind::EnumCase => None,
+        DeclKind::Method | DeclKind::Property | DeclKind::Const | DeclKind::EnumCase => None,
     }
 }

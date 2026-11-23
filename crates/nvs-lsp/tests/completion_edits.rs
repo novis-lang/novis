@@ -1258,3 +1258,35 @@ fn an_at_sign_is_answered_only_where_it_opens_a_doc_tag() {
         assert!(!triggered(source), "`{source}`");
     }
 }
+
+#[test]
+fn an_attribute_declaration_word_writes_the_whole_declaration() {
+    let header = "attribute ${1:Name} on ${2|class,method,property,parameter|} { $0 }";
+    for source in ["<?nvs\n", "<?nvs\nclass Storable {\n    <|>\n}"] {
+        let items = offered_to(EDITOR, source);
+        assert_eq!(
+            accepting(&items, "attribute"),
+            (header.to_owned(), None),
+            "{source}"
+        );
+        assert_eq!(
+            accepting(&items, "repeatable"),
+            (format!("repeatable {header}"), None),
+            "{source}"
+        );
+        assert_eq!(
+            named(&items, "attribute").insert_text_format,
+            Some(InsertTextFormat::SNIPPET)
+        );
+        let plain = offered(source);
+        assert_eq!(
+            accepting(&plain, "attribute"),
+            ("attribute".to_owned(), None),
+            "a client without snippets gets the word"
+        );
+        assert_eq!(
+            accepting(&plain, "repeatable"),
+            ("repeatable".to_owned(), None)
+        );
+    }
+}

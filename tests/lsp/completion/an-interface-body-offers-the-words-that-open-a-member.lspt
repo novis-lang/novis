@@ -11,6 +11,7 @@ interface Greets
 completion
 --EXPECT--
 abstract keyword
+attribute keyword
 const   keyword
 final   keyword
 function keyword
@@ -19,4 +20,5 @@ private keyword
 protected keyword
 public  keyword
 readonly keyword
+repeatable keyword
 static  keyword

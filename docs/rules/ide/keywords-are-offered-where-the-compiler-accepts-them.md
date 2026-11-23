@@ -15,6 +15,17 @@ enum; `yield` needs a function body; and the words that open a declaration — `
 `abstract`, `final`, `namespace`, `use`, `autoload` — need there to be no function body around them, since
 a type declared inside one is `E0233`.
 
+**`attribute` and `repeatable` open an attribute declaration**
+(`rule:attributes/an-attribute-is-declared-with-its-sites`). Both are contextual words, so they are a
+list of their own beside the reserved ones, and a test holds them out of the lexer's. They are offered
+where a statement starts with no function body around it, and in a class or an interface body where a
+member starts with no modifier before it. An enum body never offers them, because a declaration there
+is `E0142`. After `repeatable`, `attribute` is the one word offered. With a client that takes snippets,
+`attribute` writes `attribute ${1:Name} on ${2|class,method,property,parameter|} { $0 }`, and
+`repeatable` writes the same after `repeatable `; the site choice is the four words a program may list.
+Without snippets, each writes its word. Inside the declaration's `{ … }`, a field's type is offered the
+types a property's type is, and a field's name, after the `{` or a field's `,`, is offered nothing.
+
 The lists stay what they were: spellings read out of the grammar's two dispatches, held to the lexer's
 reserved words by a test. What this adds is when each is offered. It errs toward offering: after a `:` a
 ternary's last operand and a `case` arm's first statement are one position, and both lists are offered

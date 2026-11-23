@@ -1,0 +1,9 @@
+--TEST--
+after a field's `,` in an attribute declaration's body the next field's name is written, and that name is the developer's own, so the list is empty, `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+attribute Job on method { queue: string, <|> }
+--REQUEST--
+completion
+--EXPECT--
+none

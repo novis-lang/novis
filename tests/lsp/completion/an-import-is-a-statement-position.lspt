@@ -9,4 +9,5 @@ var $u = new User();
 completion prefix=a
 --EXPECT--
 abstract keyword
+attribute keyword
 autoload keyword

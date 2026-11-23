@@ -1,0 +1,13 @@
+--TEST--
+after `name:` in an attribute declaration's body a field's type is written, so the list offers the types a property's type is offered, `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+namespace Shop;
+
+class Money {}
+
+attribute Price on property { amount: Mon<|> }
+--REQUEST--
+completion prefix=Mon
+--EXPECT--
+Money [Shop] class

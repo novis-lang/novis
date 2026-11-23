@@ -1,0 +1,13 @@
+--TEST--
+at the top of a file a statement may start, so the list offers `attribute` and `repeatable` beside the statement words, `rule:ide/keywords-are-offered-where-the-compiler-accepts-them`
+--FILE--
+<?nvs
+namespace Shop;
+
+re<|>
+--REQUEST--
+completion prefix=re
+--EXPECT--
+repeatable keyword
+require keyword
+return  keyword

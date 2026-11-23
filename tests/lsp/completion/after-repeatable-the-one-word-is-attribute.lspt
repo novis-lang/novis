@@ -1,0 +1,9 @@
+--TEST--
+`repeatable` is followed by `attribute` and nothing else, so after it the list offers that one word, `rule:ide/keywords-are-offered-where-the-compiler-accepts-them`
+--FILE--
+<?nvs
+repeatable <|>
+--REQUEST--
+completion
+--EXPECT--
+attribute keyword

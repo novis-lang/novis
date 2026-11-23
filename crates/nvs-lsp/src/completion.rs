@@ -32,7 +32,10 @@
 //! properties, with `static` bound to the class the attribute is used on
 //! ([`payload_value_type`]). After `#[`, the attribute declarations whose sites
 //! and owner fit the declaration below ([`attributes_that_fit`]), and after
-//! `on` in an attribute declaration, the site words ([`on_list_at`]).
+//! `on` in an attribute declaration, the site words ([`on_list_at`]). Inside
+//! that declaration's `{ … }`, a field's type is offered the types and its
+//! name nothing ([`field_at`]), and where a declaration may start,
+//! `attribute` and `repeatable` write a whole one ([`declaration_words`]).
 //!
 //! **`->` and `::` are one walk and two lookups.** Both are an access whose
 //! first child is its receiver, so which of the two the cursor is in decides
@@ -366,8 +369,8 @@ use nvs_stdlib::registry::{
     self, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, ParamText,
 };
 use nvs_syntax::ast::{
-    AttributeDecl, AttributeSite, AutoloadKind, ClassMember, ClassMemberKind, DocComment, DocTagKind, EnumCase,
-    MethodMember, Modifier, PropertyMember, StmtKind, Visibility,
+    AttributeDecl, AttributeSite, AutoloadKind, ClassMember, ClassMemberKind, DocComment,
+    DocTagKind, EnumCase, MethodMember, Modifier, PropertyMember, StmtKind, Visibility,
 };
 use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, tokenize};
 use nvs_types::deprecated::Member;
@@ -1716,10 +1719,17 @@ fn on_list_at(analysed: &Analysed, offset: BytePos) -> Option<Vec<String>> {
         .take_while(|token| token.span.end as usize <= stem)
         .filter(|token| token.kind != TokenKind::Eof)
         .collect();
+    attribute_header(text, &before, before.len())
+}
+
+/// The site words of the `attribute Name on …` header that ends just before
+/// `before[end]`, or `None` where the tokens there are no such header.
+///
+/// The list is read backwards: a word after each `,`, and then the `on`.
+fn attribute_header(text: &str, before: &[&Token], end: usize) -> Option<Vec<String>> {
     let word = |token: &Token| text.get(token.span.range()).unwrap_or_default();
     let mut written = Vec::new();
-    let mut at = before.len();
-    // The list itself, read backwards: a word after each `,`, and the `on`.
+    let mut at = end;
     loop {
         let token = before.get(at.checked_sub(1)?)?;
         match token.kind {
@@ -1735,6 +1745,118 @@ fn on_list_at(analysed: &Analysed, offset: BytePos) -> Option<Vec<String>> {
     let name = before.get(at.checked_sub(2)?)?;
     let opener = before.get(at.checked_sub(3)?)?;
     (name.kind == TokenKind::Ident && word(opener) == "attribute").then_some(written)
+}
+
+/// What the cursor writes inside an attribute declaration's `{ … }`, and
+/// `None` outside one. A nested shape's braces are inside it too.
+///
+/// Read off the lexer's tokens, as [`on_list_at`] reads the header, because a
+/// field whose type is not written yet does not parse. Right after the `{` or
+/// after a `,` that ends a field, a field's name is written, and the list is
+/// empty: the name is the developer's own. Anywhere else, after `name:`,
+/// `name?:`, a `?`, a `|` or a `<`, a type is written.
+fn field_at(cursor: &Cursor<'_>) -> Option<Field> {
+    let file = cursor.analysed.map.file(cursor.analysed.entry);
+    let text = file.text();
+    let upto = cursor.upto();
+    let stem = upto.len() - name_run(upto).len();
+    let tokens = tokenize(file, &mut Diagnostics::new());
+    let before: Vec<&Token> = tokens
+        .iter()
+        .take_while(|token| token.span.end as usize <= stem)
+        .filter(|token| token.kind != TokenKind::Eof)
+        .collect();
+    let mut closed = 0usize;
+    let body = (0..before.len()).rev().find(|&at| match before[at].kind {
+        TokenKind::RBrace => {
+            closed += 1;
+            false
+        }
+        TokenKind::LBrace if closed > 0 => {
+            closed -= 1;
+            false
+        }
+        TokenKind::LBrace => attribute_header(text, &before, at).is_some(),
+        _ => false,
+    })?;
+    let kinds: Vec<TokenKind> = before[body..].iter().map(|token| token.kind).collect();
+    let name = match kinds.last() {
+        Some(TokenKind::LBrace) => true,
+        Some(TokenKind::Comma) => placed(&kinds) != Written::TypeName,
+        _ => false,
+    };
+    Some(if name { Field::Name } else { Field::Type })
+}
+
+/// Which half of a field in an attribute declaration's body the cursor writes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Field {
+    /// The field's name, which is the developer's own.
+    Name,
+    /// The field's type, which takes the list a property's type does.
+    Type,
+}
+
+/// The contextual words that open an attribute declaration
+/// (`rule:attributes/an-attribute-is-declared-with-its-sites`). The lexer reads
+/// both as names, so they are a list of their own beside the reserved words.
+const DECLARATION_WORDS: &[&str] = &["attribute", "repeatable"];
+
+/// `offered`, each written as a whole declaration where the client takes
+/// snippets: the name to type, a choice of the site words, and the cursor in
+/// the body. A client without snippets gets the word.
+fn declaration_words(cursor: &Cursor<'_>, offered: &[&str]) -> Vec<CompletionItem> {
+    let sites: Vec<&str> = PROGRAM_SITES.iter().map(|site| site.word()).collect();
+    let header = format!(
+        "attribute ${{1:Name}} on ${{2|{}|}} {{ $0 }}",
+        sites.join(",")
+    );
+    offered
+        .iter()
+        .map(|word| {
+            let plain = item(
+                (*word).to_owned(),
+                CompletionItemKind::KEYWORD,
+                String::new(),
+            );
+            let offered = if cursor.client.snippets {
+                let insert = if *word == "attribute" {
+                    header.clone()
+                } else {
+                    format!("{word} {header}")
+                };
+                CompletionItem {
+                    insert_text: Some(insert),
+                    insert_text_format: Some(InsertTextFormat::SNIPPET),
+                    ..plain
+                }
+            } else {
+                plain
+            };
+            Tier::Keyword.ranks(offered)
+        })
+        .collect()
+}
+
+/// Whether the name being written follows a `repeatable` that starts a
+/// declaration, where `attribute` is the one word that may come next.
+fn after_repeatable(cursor: &Cursor<'_>) -> bool {
+    let file = cursor.analysed.map.file(cursor.analysed.entry);
+    let upto = cursor.upto();
+    let stem = upto.len() - name_run(upto).len();
+    let tokens = tokenize(file, &mut Diagnostics::new());
+    let before: Vec<&Token> = tokens
+        .iter()
+        .take_while(|token| token.span.end as usize <= stem)
+        .filter(|token| token.kind != TokenKind::Eof)
+        .collect();
+    let Some((last, earlier)) = before.split_last() else {
+        return false;
+    };
+    let earlier: Vec<TokenKind> = earlier.iter().map(|token| token.kind).collect();
+    last.kind == TokenKind::Ident
+        && file.text().get(last.span.range()) == Some("repeatable")
+        && placed(&earlier) == Written::Statement
 }
 
 /// The site words a program's declaration may list and has not listed yet.
@@ -2989,6 +3111,16 @@ fn after_autoload(cursor: &Cursor<'_>) -> Option<&'static [&'static str]> {
 fn position(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
     let path = cursor.path;
     match path.innermost() {
+        _ if let Some(field) = field_at(cursor) => match field {
+            Field::Name => Vec::new(),
+            Field::Type => in_reach(cursor, Spelled::Shortest),
+        },
+        node if node.is_none_or(|node| node.kind != "EnumDecl")
+            && Within::NoBody.holds(path)
+            && after_repeatable(cursor) =>
+        {
+            declaration_words(cursor, &["attribute"])
+        }
         Some(node) if matches!(node.kind, "ClassDecl" | "InterfaceDecl") => member(cursor),
         Some(node) if node.kind == "EnumDecl" => words(CASE_WORDS),
         Some(node) if node.kind == "Property" && before_its_variable(cursor, node) => {
@@ -3018,6 +3150,9 @@ fn position(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
             }
             placed @ (Written::Statement | Written::Expression | Written::Other) => {
                 let mut items = statement_words(cursor, placed);
+                if placed == Written::Statement && Within::NoBody.holds(path) {
+                    items.extend(declaration_words(cursor, DECLARATION_WORDS));
+                }
                 if crate::arguments::route_argument_at(cursor.analysed, path, cursor.offset) {
                     items.extend(routed_methods(cursor));
                 }
@@ -3071,7 +3206,14 @@ fn member(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
             items.extend(in_reach(cursor, Spelled::Shortest));
             items
         }
-        _ => words(MEMBER_WORDS),
+        _ => {
+            let mut items = words(MEMBER_WORDS);
+            // A declaration takes no modifier, so it opens a member only.
+            if !matches!(before.last(), Some(T::Keyword(_))) {
+                items.extend(declaration_words(cursor, DECLARATION_WORDS));
+            }
+            items
+        }
     }
 }
 
@@ -4783,7 +4925,7 @@ fn member_key(owner: &str, member: &str) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use super::{CASE_WORDS, MEMBER_WORDS, STATEMENT_WORDS};
+    use super::{CASE_WORDS, DECLARATION_WORDS, MEMBER_WORDS, STATEMENT_WORDS};
     use nvs_syntax::Keyword;
 
     /// The three lists above are spellings copied out of a grammar that owns
@@ -4801,6 +4943,14 @@ mod tests {
             assert!(
                 Keyword::from_lowercase(word).is_some(),
                 "`{word}` is offered by completion and is not a reserved word"
+            );
+        }
+        // The declaration words are contextual, so a program may still name a
+        // variable or a function `attribute`, and they stay out of the lists.
+        for word in DECLARATION_WORDS {
+            assert!(
+                Keyword::from_lowercase(word).is_none(),
+                "`{word}` is reserved, so it belongs in a list above"
             );
         }
     }
