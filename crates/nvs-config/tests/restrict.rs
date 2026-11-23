@@ -225,6 +225,40 @@ fn a_package_allow_outside_its_own_name_is_an_error() {
 
 // covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
+fn a_package_use_outside_its_own_name_or_core_is_an_error() {
+    for outside in ["Shop\\Cart", "Shop\\Cart::total", "Framework\\Corel", "Shop\\*"] {
+        let text = format!(
+            "[package]\nname = 'Framework\\Core'\n\n[[restrict]]\nuse = '{outside}'\nallow = []\n"
+        );
+        let refusal = package(&text).expect_err(outside);
+        assert_eq!(refusal.code, Some(code::E_BAD_RESTRICTION), "{outside}");
+        assert!(
+            refusal
+                .message
+                .contains("is not inside the package `Framework\\Core`"),
+            "{}",
+            refusal.message
+        );
+    }
+    for inside in [
+        "Core\\Str::upper",
+        "Core\\Router",
+        "Framework\\Core\\Db\\*",
+        "Framework\\Core\\Url::signed",
+    ] {
+        let text = format!(
+            "[package]\nname = 'Framework\\Core'\n\n[[restrict]]\nuse = '{inside}'\nallow = []\n"
+        );
+        assert!(package(&text).is_ok(), "{inside}");
+    }
+    assert!(
+        application("[[restrict]]\nuse = 'Shop\\Cart'\nallow = []\n").is_ok(),
+        "the application's own entries may name any declaration"
+    );
+}
+
+// covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
+#[test]
 fn an_unknown_restrict_field_is_an_error() {
     let refusal = refused("[[restrict]]\nuse = 'Core\\Router'\nallow = []\nallowed = []\n");
     assert_eq!(refusal.code, Some(code::E_BAD_RESTRICTION));
