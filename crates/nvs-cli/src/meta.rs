@@ -229,6 +229,7 @@ pub(crate) fn document() -> Value {
     nvs_footprint::every_class();
     nvs_footprint::every_card();
     let (builtin_classes, builtin_enums) = builtin_json();
+    let cards = crate::agent::config_cards();
     json!({
         "classes": CLASSES.iter().map(class_json).chain(builtin_classes).collect::<Vec<_>>(),
         "enums": ENUMS.iter().map(enum_json).chain(builtin_enums).collect::<Vec<_>>(),
@@ -239,7 +240,7 @@ pub(crate) fn document() -> Value {
             .chain(nvs_stdlib::registry::CONTRACTS.iter().map(contract_json))
             .collect::<Vec<_>>(),
         "attributes": nvs_types::derive::ATTRIBUTES.iter().map(|name| Value::from(*name)).collect::<Vec<_>>(),
-        "directives": nvs_config::DIRECTIVES.iter().map(directive_json).collect::<Vec<_>>(),
+        "directives": nvs_config::DIRECTIVES.iter().map(|row| directive_json(row, &cards)).collect::<Vec<_>>(),
         "settable": nvs_config::settable::SETTABLE.iter().map(|row| json!({ "key": row.key, "how": row.how.name() })).collect::<Vec<_>>(),
         "capabilities": CAPABILITIES.iter().map(capability_json).collect::<Vec<_>>(),
         "constructs": CONSTRUCT_CAPABILITIES.iter().map(construct_json).collect::<Vec<_>>(),
@@ -367,13 +368,17 @@ fn interface_json(row: &(&str, &[&str])) -> Value {
     Value::Object(out)
 }
 
-/// One `nvs.toml` directive: its key and when a change applies. Whether a request may change it
-/// is the `settable` roster's.
-fn directive_json(directive: &nvs_config::Directive) -> Value {
-    json!({
-        "key": directive.key,
-        "apply": format!("{:?}", directive.apply),
-    })
+/// One `nvs.toml` directive: its key, when a change applies, and its `help`, the card
+/// `nvs agent show` prints for the key. A row whose key is a whole block has no card and no
+/// `help` key. Whether a request may change it is the `settable` roster's.
+fn directive_json(directive: &nvs_config::Directive, cards: &FxHashMap<String, String>) -> Value {
+    let mut out = Map::new();
+    out.insert("key".into(), Value::from(directive.key));
+    out.insert("apply".into(), Value::from(format!("{:?}", directive.apply)));
+    if let Some(help) = cards.get(directive.key) {
+        out.insert("help".into(), Value::from(help.as_str()));
+    }
+    Value::Object(out)
 }
 
 /// One capability declaration: the class, the member, and the capability that

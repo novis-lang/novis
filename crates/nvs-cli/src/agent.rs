@@ -843,11 +843,7 @@ fn generated(roster: &str, document: &Value) -> String {
                 } else {
                     "at boot only"
                 };
-                format!(
-                    "- `{}`: `{}`, {applies}",
-                    text(row, "key"),
-                    text(row, "class")
-                )
+                format!("- `{}`: {applies}", text(row, "key"))
             }
             _ => continue,
         };
@@ -1185,6 +1181,22 @@ pub(crate) fn show(symbol: &str, json: bool) -> ExitCode {
         }
     }
     ExitCode::FAILURE
+}
+
+/// Each `nvs.toml` key's card as [`show`] prints it, keyed by its dotted name.
+/// `nvs meta --json` carries it as the `help` of the directive row with the same
+/// key, so a reader of that document reads what an operator reads in the
+/// shipped file. A row whose key is a whole block, `limits`, has no card here.
+/// *What it spends:* one walk of the shipped file per call, at build of the
+/// document, and nothing at run time.
+pub(crate) fn config_cards() -> rustc_hash::FxHashMap<String, String> {
+    names::config_keys()
+        .into_iter()
+        .map(|entry| {
+            let key = entry.also.clone().unwrap_or_else(|| entry.symbol.clone());
+            (key, render_card(&Value::Object(card(&Value::Null, &entry))))
+        })
+        .collect()
 }
 
 /// Whether [`show`] has a card for `symbol`. `nvs code show` asks this before

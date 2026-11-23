@@ -349,6 +349,8 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
     }
   }
 
+  // A directive's card is its `help`, the card `nvs agent show` prints for the key, so a review stamp
+  // goes stale when that prose changes. A row with no `help` is a whole block, and it has no card.
   for (const d of doc.directives ?? []) {
     const key = isObject(d) ? String(d.key) : pyStr(d);
     out.push({
@@ -357,9 +359,9 @@ export async function roster(nvs: string, doc?: Meta): Promise<Entry[]> {
       group: "config:directives",
       path: `config/${key.replaceAll(".", "-")}`,
       anchor: tables.directive!.get(key) ?? "",
-      summary: isObject(d) ? `${pyStr(d.class)} directive, applied at ${pyStr(d.apply)}` : "",
+      summary: isObject(d) ? `directive, applied at ${pyStr(d.apply)}` : "",
       help: "",
-      card: JSON.stringify(d),
+      card: isObject(d) && typeof d.help === "string" ? d.help : "null",
     });
   }
 

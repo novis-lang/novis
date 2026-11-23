@@ -134,9 +134,11 @@ export function card(root: string, entry: Entry, meta: Meta): string {
     case "interface":
       found = named(meta.interfaces, "name", entry.id);
       break;
-    case "directive":
-      found = named(meta.directives, "key", entry.id.slice("directive:".length));
-      break;
+    case "directive": {
+      // A directive's card is its prose `help`, as the roster reads it; a whole block has none.
+      const row = named(meta.directives, "key", entry.id.slice("directive:".length)) as { help?: unknown } | undefined;
+      return typeof row?.help === "string" ? row.help : "null";
+    }
     case "lang":
       // Its chapter section is generated from the files the hashes already read.
       return "";
