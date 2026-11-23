@@ -362,19 +362,19 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### 4. the reload command says what each server did, and only the server it names answers it
 
-- [ ] `crates/nvs-cli/src/reload_cmd.rs:103`: no reply is a failure, and `exit_code` at `:208` counts
+- [x] `crates/nvs-cli/src/reload_cmd.rs:103`: no reply is a failure, and `exit_code` at `:208` counts
   it. `rule:config/a-reload-command-checks-now-and-waits` *read.*
-- [ ] `crates/nvs-cli/src/reload_endpoint.rs:292`: a check panic is a reply, a drain writes its line,
+- [x] `crates/nvs-cli/src/reload_endpoint.rs:292`: a check panic is a reply, a drain writes its line,
   the accept loop at `:133` goes on after an error, and `answer` at `:169` holds the one deadline.
-- [ ] `crates/nvs-cli/src/reload_cmd.rs:102`: the bounded read, and escaped text at `:270`.
-- [ ] `crates/nvs-host/src/endpoint/windows.rs:127`: the server process check. *check first.*
+- [x] `crates/nvs-cli/src/reload_cmd.rs:102`: the bounded read, and escaped text at `:270`.
+- [x] `crates/nvs-host/src/endpoint/windows.rs:127`: the server process check. *check first.*
 - [ ] `crates/nvs-cli/src/cache.rs:1447`: a private shard folder, and a private artifact at `:1584`.
   *check first*, in WSL with `bun nv linux-test`.
 - [ ] `crates/nvs-runtime/src/capability.rs:102`: `require_as` refuses a path under the data folder's
   `cache/` and `run/`. *check first.*
-- [ ] `crates/nvs-cli/tests/reload_outcomes.rs:1`: the check's three cases and a reply of 1 MiB. It
+- [x] `crates/nvs-cli/tests/reload_outcomes.rs:1`: the check's three cases and a reply of 1 MiB. It
   runs once, by name, and in WSL with `bun nv linux-test`.
-- [ ] `docs/rules/config/a-reload-command-checks-now-and-waits.md:45`: the exit table.
+- [x] `docs/rules/config/a-reload-command-checks-now-and-waits.md:45`: the exit table.
 - [ ] `cargo build` and clippy are green.
 
 ### 5. the development host check asks about the socket peer and tells the browser what to do
@@ -499,32 +499,39 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 Stages 1, 2 and 3 are done (tests `task_child_limits`, `hidden_slot`, `restrict_use_forms`, and
 `a_package_use_outside_its_own_name_or_core_is_an_error` in `crates/nvs-config/tests/restrict.rs`,
 `an_anonymous_function_parameter_attribute_is_checked_like_a_method_parameter_attribute` in
-`crates/nvs-types/tests/attributes.rs`). `Live::adopt` was not found.
+`crates/nvs-types/tests/attributes.rs`). `Live::adopt` and the retrieval `static` item were not
+found.
 
-Stage 3: `resolved` (`crates/nvs-types/src/deprecated/template.rs:654`) names all 38 `ExprInfo`
-variants with no `_` arm. A property default and a parameter default are recorded in the member's
-window by `record_default_use` (`crates/nvs-types/src/defaults.rs`), as a body's read of the same
-constant or case is. Every attribute is checked inside a window (`check_attribute`,
-`crates/nvs-types/src/attributes.rs`), except on an anonymous function's parameter, which is inside
-its body's window already. `check_anon_fn` now calls `attributes::check_params`. A package's `use`
-target must lie under its own name or `Core`. `restrict_use_forms.rs` has 8 rows, each with an
-unrestricted control, and all passed once by name. The retrieval `static` item was not found: one
-probe read an inherited method's attribute through a subclass, and the result typed
-`property<Sub>`, which holds every key of the declaring class. The rule fragment lists every use
-form, the ancestor sentence, the class-not-namespace match and a package's `use` target.
+Stage 4: the reload items, the Windows check, the test and the exit table are in. A draining
+server replies `reload_endpoint::STOPPING`, and a panicked check replies `PANICKED` (a refusal of
+kind `server`). A silent or unreachable server exits 1 before 2 is considered. `nvs_host::endpoint`
+has `Breaker` (Unix shutdown, Windows `CancelIoEx`) and `pid_of`. `Deadline` gives 5 s for the
+request and 5 s for the reply, paused during the check. Windows `connect` checks
+`GetNamedPipeServerProcessId`. `reload_outcomes` passed on Windows (4) and in WSL (3).
+The `require_as` item was found: with `[capabilities.fs] read` on the data folder, `nvs run` read
+a file under `<data>/run/`. The cache item was not tried yet.
 
-Sessions per stage: stage 1, one; stage 2, two; stage 3, two.
+Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, one.
 
 ### Next
 
-Stage 4, the reload command (`crates/nvs-cli/src/reload_cmd.rs`, `reload_endpoint.rs`), in its
-items' order: no reply is a failure (`reload_cmd.rs:103`, `exit_code` at `:208`), the endpoint's
-panic reply, drain line, accept loop and deadline (`reload_endpoint.rs:292`, `:133`, `:169`), the
-bounded read and escaped text, then the three *check first* items (`windows.rs:127`, `cache.rs:1447`,
-`capability.rs:102`), the test `reload_outcomes.rs` and the rule's exit table. Stages 5, 6, 8, 9, 10
-and 11 touch disjoint files, so another session may take one of them beside it.
+Stage 4's last two items, then tick `cargo build` and clippy and set the stage done:
 
-Tests that may go red: a deprecation or `E0889` case whose program reads a deprecated or test-code
+- `crates/nvs-runtime/src/capability.rs:102` (`require_as`): refuse a `Scope::Path` under
+  `nvs_config::data::current()`'s `cache/` and `run/`, beside `relative_refusal`. Compare the
+  path the way the grant check compares a prefix, so case and separators on Windows cannot get
+  around it. Add a test in the shape of `a_request_cannot_reach_the_endpoint`
+  (`crates/nvs-cli/tests/reload_command.rs:530`), with a grant that covers the data folder.
+- `crates/nvs-cli/src/cache.rs:1447` (`publish`): one attempt in WSL first. With a configured
+  `file_cache_dir` outside the data folder, `fs::create_dir_all(shard)` follows the umask (0755)
+  and `File::create` in `write_temp` (`:1584`) gives 0644. The fix is
+  `nvs_config::data::create_private_root(shard)` and a `0600` open on Unix.
+
+Stages 5, 6, 8, 9, 10 and 11 touch disjoint files, so another session may take one of them beside it.
+
+Tests that may go red: a `reload_command.rs` case that expected exit 2 with only an unreachable
+server now gets 1. Its `state` for a closed connection is `silent`, no longer `stopped`. A
+deprecation or `E0889` case whose program reads a deprecated or test-code
 constant in a property default, a parameter default or an attribute payload now warns or fails
 there. An attribute on an anonymous function's parameter that names no attribute declaration, or
 one that does not fit a parameter, now fails to compile. An editor completion or `E0664` case that

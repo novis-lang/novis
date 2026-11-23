@@ -27,6 +27,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **`cargo test --lib -- <filter>` never runs `nvs-cli`'s unit tests, because they live in the
+  `nvs` binary.** A run filtered on `reload_cmd` printed only other crates' results. Run
+  `cargo test --bin nvs -- <filter>` for a test under `crates/nvs-cli/src/`. See
+  `crates/nvs-cli/Cargo.toml`'s `[[bin]]`.
 - **`bun nv splice` edits a file another live session claims, and only `git add` refuses it.** The
   edit guard checks Edit and Write, not a shell tool. A loop session spliced its goal file while an
   interactive session still claimed it, and then could not commit its handoff. Run `looper claims`
