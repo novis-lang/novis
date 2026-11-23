@@ -1,0 +1,22 @@
+--TEST--
+the declaration an undeclared attribute is offered goes after the namespace and use lines, and a use on a parameter declares a parameter attribute, `rule:ide/a-code-action-writes-only-what-is-already-determined`
+--FILE--
+<?nvs
+namespace Shop;
+
+use Core\Str;
+
+class Search
+{
+    public function find(#[<|>Trimmed(max: 40)] string $query): uint
+    {
+        return Str::length($query);
+    }
+}
+
+echo new Search()->find("shoes");
+--REQUEST--
+codeAction
+--EXPECT--
+4:14-4:14 quickfix Declare the attribute -> "\n\nattribute Trimmed on parameter { max: int }"
+8:25-8:60 refactor.rewrite Put on separate lines -> "(\n        #[Trimmed(max: 40)] string $query,\n    )"

@@ -1,5 +1,5 @@
-//! *Implement the missing methods*, *Override a method* and *Declare the
-//! method you called*, the three generators
+//! *Implement the missing methods*, *Override a method*, *Declare the method
+//! you called* and *Declare the attribute*, the four generators
 //! `rule:ide/a-code-action-writes-only-what-is-already-determined` names that
 //! write a declaration.
 //!
@@ -16,6 +16,23 @@
 //! keyed by the diagnostic's span. It writes that
 //! method after the last member of the receiver's class, when the entry
 //! document declares that class, with a body that throws a `LogicError`.
+//! Declare the attribute is a quick fix on the `E0303` of a `#[Name]` that
+//! nothing declares, and writes `attribute Name on <site> { … }` at file scope.
+//!
+//! # Decision: what declare the attribute writes
+//!
+//! One declaration, after the `namespace` and `use` lines in force where the
+//! attribute is used, so its name resolves to the one the use writes. Its site
+//! is the declaration the use is on: `class`, `method`, `property` or
+//! `parameter`, and a use anywhere else gets nothing, since no retrieval reads
+//! another site. Each field is a key the use writes, typed from its value as
+//! written: `bool`, `int`, `float`, `string`, and `array<T>` for a list whose
+//! values all have type `T`. Any other value is typed `string`. The edit is
+//! checked like the others, so a field typed wrongly that way leaves the
+//! action out. A qualified name and the member form `Owner::Name` get
+//! nothing, and so does a file with the shape an autoloaded file has
+//! (`nvs_hir::autoload::sole_declaration`), where a second declaration is
+//! `E0317`.
 //!
 //! # Decision: what declare writes
 //!
@@ -66,7 +83,10 @@
 
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span, code};
 use nvs_hir::QName;
-use nvs_syntax::ast::{ClassDecl, ClassMemberKind, MethodMember, Modifier, Stmt, StmtKind};
+use nvs_syntax::ast::{
+    Attribute, AttributeGroup, AttributeSite, ClassDecl, ClassMember, ClassMemberKind, Expr,
+    ExprKind, MethodMember, Modifier, Stmt, StmtKind,
+};
 use rustc_hash::FxHashSet;
 
 use crate::completion::lineage;
@@ -79,6 +99,9 @@ use crate::render::{Action, Edit};
 
 /// The title of the quick fix that writes every missing method.
 pub const IMPLEMENT: &str = "Implement the missing methods";
+
+/// The title of the quick fix that declares an attribute nothing declares.
+pub const DECLARE_ATTRIBUTE: &str = "Declare the attribute";
 
 /// The parameter name an argument with no name of its own is given, before
 /// its position counted from 1.
@@ -120,6 +143,7 @@ pub fn at(
     let mut offered: Vec<Offer> = implement(analysed, documents, start, end)
         .into_iter()
         .chain(declare(analysed, documents, start, end))
+        .chain(declare_attribute(analysed, documents, start, end))
         .collect();
     if analysed.diags.error_count() == 0 {
         offered.extend(overrides(analysed, documents, start));
@@ -251,6 +275,138 @@ fn declare(
         title: format!("Declare `{method}` in `{short}`"),
         kind: QUICK_FIX,
         edits,
+    })
+}
+
+/// *Declare the attribute*, where the `E0303` of an attribute's name meets the
+/// range. The module doc says what it writes.
+fn declare_attribute(
+    analysed: &Analysed,
+    documents: &Documents,
+    start: BytePos,
+    end: BytePos,
+) -> Option<Offer> {
+    let entry = analysed.map.file(analysed.entry);
+    let stmts = crate::imports::entry_stmts(analysed)?;
+    if nvs_hir::autoload::sole_declaration(stmts, entry).is_some() {
+        return None;
+    }
+    let (attribute, site) = phase_gated(&analysed.diags)
+        .into_iter()
+        .filter(|diagnostic| diagnostic.code == Some(code::E_UNDEFINED_CLASS))
+        .filter_map(|diagnostic| diagnostic.primary_span())
+        .filter(|span| span.file == analysed.entry && span.start <= end && start <= span.end)
+        .find_map(|span| used_at(stmts, span))?;
+    let name = text_of(entry, attribute.name.as_ref()?.span);
+    if name.contains('\\') {
+        return None;
+    }
+    let fields: Vec<String> = attribute
+        .fields
+        .iter()
+        .map(|field| {
+            let ty = value_type(&field.value).unwrap_or_else(|| "string".to_owned());
+            format!("{}: {ty}", text_of(entry, field.name))
+        })
+        .collect();
+    let body = if fields.is_empty() {
+        "{}".to_owned()
+    } else {
+        format!("{{ {} }}", fields.join(", "))
+    };
+    let site_word = site.word();
+    let place = nvs_hir::import_site(stmts, entry, attribute.span.start)?;
+    let after = entry.text().get(place.at as usize..)?;
+    let rest = after
+        .strip_prefix("\r\n")
+        .or_else(|| after.strip_prefix('\n'))
+        .unwrap_or(after);
+    let tail = if rest.lines().next().is_none_or(|line| line.trim().is_empty()) {
+        ""
+    } else {
+        "\n"
+    };
+    let edits = vec![(
+        place.span(analysed.entry),
+        format!("\n\nattribute {name} on {site_word} {body}{tail}"),
+    )];
+    compiles(analysed, documents, &edits)?;
+    Some(Offer {
+        title: DECLARE_ATTRIBUTE.to_owned(),
+        kind: QUICK_FIX,
+        edits,
+    })
+}
+
+/// The attribute among `stmts` whose plain name is written at `name`, and the
+/// site it is used on, where that site is one a program's declaration may
+/// list.
+fn used_at(stmts: &[Stmt], name: Span) -> Option<(&Attribute, AttributeSite)> {
+    stmts.iter().find_map(|stmt| match &stmt.kind {
+        StmtKind::NamespaceDecl(namespace) => used_at(&namespace.body.as_ref()?.stmts, name),
+        StmtKind::ClassDecl(decl) => named(&decl.attributes, name)
+            .map(|attribute| (attribute, AttributeSite::Class))
+            .or_else(|| used_in_members(&decl.members, name)),
+        StmtKind::InterfaceDecl(decl) => used_in_members(&decl.members, name),
+        StmtKind::EnumDecl(decl) => used_in_members(&decl.members, name),
+        _ => None,
+    })
+}
+
+/// [`used_at`] over the members of a class, interface or enum body.
+fn used_in_members(members: &[ClassMember], name: Span) -> Option<(&Attribute, AttributeSite)> {
+    members.iter().find_map(|member| match &member.kind {
+        ClassMemberKind::Property(property) => named(&property.attributes, name)
+            .map(|attribute| (attribute, AttributeSite::Property)),
+        ClassMemberKind::Method(method) => named(&method.attributes, name)
+            .map(|attribute| (attribute, AttributeSite::Method))
+            .or_else(|| {
+                method.params.iter().find_map(|param| {
+                    named(&param.attributes, name)
+                        .map(|attribute| (attribute, AttributeSite::Parameter))
+                })
+            }),
+        ClassMemberKind::Enum(decl) => used_in_members(&decl.members, name),
+        _ => None,
+    })
+}
+
+/// The attribute in `groups` whose plain name is written at `name`.
+fn named(groups: &[AttributeGroup], name: Span) -> Option<&Attribute> {
+    groups
+        .iter()
+        .flat_map(|group| &group.attributes)
+        .find(|attribute| {
+            attribute.member.is_none()
+                && attribute
+                    .name
+                    .as_ref()
+                    .is_some_and(|written| written.span == name)
+        })
+}
+
+/// The type a payload value has as written, or `None` for a value whose type
+/// is not read off its syntax alone.
+fn value_type(value: &Expr) -> Option<String> {
+    Some(match &value.kind {
+        ExprKind::Bool(_) => "bool".to_owned(),
+        ExprKind::Int(_) => "int".to_owned(),
+        ExprKind::Float(_) => "float".to_owned(),
+        ExprKind::Str(_) | ExprKind::Interpolated(_) => "string".to_owned(),
+        ExprKind::ArrayLiteral(items) => {
+            let mut types = items.iter().map(|item| {
+                if item.key.is_some() || item.spread {
+                    return None;
+                }
+                value_type(&item.value)
+            });
+            let first = types.next()??;
+            if !types.all(|ty| ty.as_deref() == Some(first.as_str())) {
+                return None;
+            }
+            format!("array<{first}>")
+        }
+        _ => return None,
     })
 }
 

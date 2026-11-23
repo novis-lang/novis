@@ -1,0 +1,15 @@
+--TEST--
+an attribute nothing declares is offered a declaration at file scope, on the site it is used on, with a field for each key the use writes, typed from its value, `rule:ide/a-code-action-writes-only-what-is-already-determined`
+--FILE--
+<?nvs
+class Mailer
+{
+    #[<|>Job(queue: "mail", retries: 3, delay: 1.5, tags: ["a", "b"], urgent: true)]
+    public function send(): void {}
+}
+
+new Mailer()->send();
+--REQUEST--
+codeAction
+--EXPECT--
+1:6-1:6 quickfix Declare the attribute -> "\n\nattribute Job on method { queue: string, retries: int, delay: float, tags: array<string>, urgent: bool }\n"

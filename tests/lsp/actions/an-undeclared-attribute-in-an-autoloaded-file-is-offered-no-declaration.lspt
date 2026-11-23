@@ -1,0 +1,12 @@
+--TEST--
+an attribute nothing declares, used in a file with the one-declaration shape an autoloaded file has, is offered no declaration, since a second declaration there is an error, `rule:ide/a-code-action-writes-only-what-is-already-determined`
+--FILE--
+<?nvs
+namespace Shop;
+
+#[<|>Entity(table: "orders")]
+class Order {}
+--REQUEST--
+codeAction
+--EXPECT--
+none

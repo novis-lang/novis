@@ -1131,19 +1131,21 @@ spelling — a list of name pairs and a text edit — and are held by a Rust tes
 
 `rule:ide/a-code-action-writes-only-what-is-already-determined`
 
-Five code actions **write** rather than fix, and one bound governs all of them: an action may write only
+Six code actions **write** rather than fix, and one bound governs all of them: an action may write only
 text the type system has already fully determined. It never invents a body, never names a parameter from a
 heuristic, and never picks between two possible signatures. Anything needing a choice is a refactoring
 the user drives, not an action a light bulb offers.
 
-The five: **implement missing members** — on a class that does not satisfy an interface or abstract
+The six: **implement missing members** — on a class that does not satisfy an interface or abstract
 base, insert every missing method with the signature copied from the declaration,
 [`statements/inout-is-the-by-reference-spelling`](statements.md#statements-inout-is-the-by-reference-spelling) markers and qualifiers intact, and a body that
 throws; **override a method** — one action per overridable member of the hierarchy, inserting that
 signature with a call to the base; **declare the method you just called** — on the
 unresolved-call diagnostic, insert a method on the receiver's class, since Novis has no free function
 (`E0215`, `E0320`), whose parameter types are the argument types at the call and whose return type is the
-one the context requires, both already computed to produce the diagnostic;
+one the context requires, both already computed to produce the diagnostic; **declare the attribute** —
+on the undeclared-name diagnostic of a `#[Name]`, insert `attribute Name on <site> { … }` whose site is
+the one the use is on and whose fields are the keys the use writes;
 **narrow an `array<mixed>` to its literal's type**
 ([`ide/narrow-an-annotation-to-its-literal`](ide.md#ide-narrow-an-annotation-to-its-literal)), which writes an annotation rather than a declaration
 under the same bound; and **write the type every caller passes** into a parameter declared bare
@@ -1180,6 +1182,19 @@ argument, and `$argN` otherwise. With no expectation, the return type is `void` 
 statement and `mixed` elsewhere. The body throws a `LogicError`, and the text is analysed before it is
 offered. A static call and a `...` spread get nothing. Applied once, the call resolves, so a second
 application finds no diagnostic.
+
+Declare the attribute is a `quickfix` on the `E0303` of a `#[Name]` that nothing declares
+(`crates/nvs-lsp/src/generate.rs`). It writes one declaration at file scope, after the `namespace` and
+`use` lines in force where the attribute is used, so the name resolves to the one the use writes. The
+site is the declaration the use is on: `class`, `method`, `property` or `parameter`; a use on any other
+site gets nothing, since no retrieval reads it. Each field is a key the use writes, typed from its value
+as written — `bool`, `int`, `float`, `string`, and `array<T>` for a list whose values all have type `T` —
+and `string` for any other value. A qualified name, the member form `Owner::Name`, and a file with the
+shape an autoloaded file has (`nvs_hir::autoload::sole_declaration`, where a second declaration is
+`E0317`) get nothing. The text is analysed before it is offered, so a field `string` does not fit leaves
+the action out. Applied once, the name resolves, so a second application finds no diagnostic. No action
+adds a missing required field to a use: its value is not determined, and key completion and signature
+help show what is missing.
 
 Narrow an `array<mixed>` is a `refactor.rewrite` at the annotation (`crates/nvs-lsp/src/narrow.rs`). The
 type it writes is the one the checker recorded for the literal, and the document with the edit applied
@@ -1237,6 +1252,13 @@ Rename of a type alias or an enum a class, an interface or an enum declares
 owner's body, and the rename changes the name after `::` at each. A built-in type name, a name the
 owner already gives a constant, an enum case, an enum or an alias, and a name the owner's file
 already writes are refused, and nothing moves.
+Rename of a field of an `attribute` declaration: the index declares it as `Name::field` and records
+each key a payload writes for it, and the rename changes the field and every key. A name another field
+of the declaration has is refused. A read of the field on a retrieval's result, `$index->columns`, is
+typed against the declaration's fields, which are a shape, and the checker records no link from it to
+the declaration. So a file the index holds that writes `->columns` where the index holds no use refuses
+the rename: a rename that changed the keys and missed that read would break the program. A `Core`
+attribute's field is refused, as its name is.
 Organize imports, a `source.organizeImports` code action (`crates/nvs-lsp/src/organize.rs`): it deletes
 each `use` line the `W1026` warning reports, with that warning's own edit, and sorts the rest with
 `nvs fmt`'s sort, so a format after it moves nothing. Cross-file symbol search: `workspace/symbol`
@@ -1643,6 +1665,14 @@ type phase's record of each body's bindings, the record rename reads, through on
 it, so a `$markup` passed to a call answers the local and not the call, and the `$u` of `$u->name` answers
 `$u`. An anonymous function that declares the name again has a variable of its own, and its sites are left
 out. This holds nothing and costs one tokenize and one tree walk of the open document per request.
+
+A field of an `attribute` declaration is a name the index holds, `Shop\Job::queue`, and each key a
+payload writes for it is a use ([`attributes/an-attribute-is-declared-with-its-sites`](attributes.md#attributes-an-attribute-is-declared-with-its-sites)). A key is no
+node, so it is read off the text in front of its value, and the attribute off the name the checker
+recorded. Definition on a key reaches the field, and references and highlight on either list the keys.
+A read of the field on a retrieval's result is not listed: the checker types it against the fields as
+a shape, and two declarations with the same fields have one shape. This costs one name and one site
+per field and per key, for as long as the file is indexed.
 
 CodeLens above a declaration shows
 the reference count, a type's implementors, and the methods a method overrides and is overridden by; it is
@@ -2575,6 +2605,17 @@ no function body between it and the cursor; `self`, `parent` and `static` need a
 enum; `yield` needs a function body; and the words that open a declaration — `class`, `interface`, `enum`,
 `abstract`, `final`, `namespace`, `use`, `autoload` — need there to be no function body around them, since
 a type declared inside one is `E0233`.
+
+**`attribute` and `repeatable` open an attribute declaration**
+([`attributes/an-attribute-is-declared-with-its-sites`](attributes.md#attributes-an-attribute-is-declared-with-its-sites)). Both are contextual words, so they are a
+list of their own beside the reserved ones, and a test holds them out of the lexer's. They are offered
+where a statement starts with no function body around it, and in a class or an interface body where a
+member starts with no modifier before it. An enum body never offers them, because a declaration there
+is `E0142`. After `repeatable`, `attribute` is the one word offered. With a client that takes snippets,
+`attribute` writes `attribute ${1:Name} on ${2|class,method,property,parameter|} { $0 }`, and
+`repeatable` writes the same after `repeatable `; the site choice is the four words a program may list.
+Without snippets, each writes its word. Inside the declaration's `{ … }`, a field's type is offered the
+types a property's type is, and a field's name, after the `{` or a field's `,`, is offered nothing.
 
 The lists stay what they were: spellings read out of the grammar's two dispatches, held to the lexer's
 reserved words by a test. What this adds is when each is offered. It errs toward offering: after a `:` a
