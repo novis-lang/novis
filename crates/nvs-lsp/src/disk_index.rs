@@ -26,7 +26,10 @@
 //! in the path table, and referred to by its index, because one file's sites
 //! all name the same path. An entry carries the file's content hash, its size
 //! and modification time when they can be trusted ([`Stamp`]), its surface
-//! hash, and every field of the entry.
+//! rows (each a symbol, a kind byte, a visibility byte and two 32-byte
+//! hashes), the names its check used and missed when it recorded them, and
+//! every field of the entry. A load compares the rows of a file that changed
+//! on disk, and the names say which files a changed row reaches.
 //!
 //! An input is a path outside the `.nvs` files that the analyses read to find
 //! their configuration and extension set (`crate::tree_cache::inputs`):
@@ -65,15 +68,17 @@ use nvs_diagnostics::BytePos;
 use rustc_hash::FxHashMap;
 
 use crate::index::{
-    Construction, DeclKind, Declaration, Import, Indexed, Occurrence, Parameter, Site, Visibility,
+    Construction, DeclKind, Declaration, Import, Indexed, LookedUp, Occurrence, Parameter, Site,
+    Visibility,
 };
+use crate::surface::{Kind, Row, Rows};
 
 /// The first six bytes of every index file.
 const MAGIC: &[u8; 6] = b"NVSIDX";
 
 /// The layout's version. A change to what is written raises it, and a file of
 /// another version is discarded.
-pub(crate) const FORMAT: u32 = 3;
+pub(crate) const FORMAT: u32 = 4;
 
 /// The length of a digest on disk.
 const DIGEST: usize = 32;
@@ -447,11 +452,7 @@ impl Writer {
         self.str(&declared.symbol)?;
         self.u8(kind_tag(declared.kind));
         self.site(&declared.site)?;
-        self.u8(match declared.visibility {
-            Visibility::Public => 0,
-            Visibility::Protected => 1,
-            Visibility::Private => 2,
-        });
+        self.u8(visibility_tag(declared.visibility));
         self.strs(&declared.supertypes)?;
         match declared.construction {
             Some(construction) => {
@@ -494,7 +495,23 @@ impl Writer {
             }
             None => self.u8(0),
         }
-        self.digest(indexed.surface);
+        let rows: Vec<&Row> = indexed.rows.iter().collect();
+        self.len(rows.len())?;
+        for row in rows {
+            self.str(&row.symbol)?;
+            self.u8(row.kind as u8);
+            self.u8(visibility_tag(row.visibility));
+            self.digest(row.text);
+            self.digest(row.attributes);
+        }
+        match &indexed.uses {
+            Some(uses) => {
+                self.u8(1);
+                self.strs(&uses.used)?;
+                self.strs(&uses.missed)?;
+            }
+            None => self.u8(0),
+        }
         self.path(&indexed.entry)?;
         self.len(indexed.decls.len())?;
         for declared in &indexed.decls {
@@ -518,6 +535,39 @@ impl Writer {
         Some(())
     }
 }
+
+/// The byte a [`Visibility`] is written as.
+const fn visibility_tag(visibility: Visibility) -> u8 {
+    match visibility {
+        Visibility::Public => 0,
+        Visibility::Protected => 1,
+        Visibility::Private => 2,
+    }
+}
+
+/// The [`Visibility`] written as `tag`.
+const fn visibility_of(tag: u8) -> Option<Visibility> {
+    Some(match tag {
+        0 => Visibility::Public,
+        1 => Visibility::Protected,
+        2 => Visibility::Private,
+        _ => return None,
+    })
+}
+
+/// Every [`Kind`] a row can have, at the index of the byte it is written as,
+/// which is its discriminant.
+const ROW_KINDS: [Kind; 9] = [
+    Kind::Graph,
+    Kind::Header,
+    Kind::Cases,
+    Kind::Properties,
+    Kind::Method,
+    Kind::AbstractMethod,
+    Kind::Property,
+    Kind::Constant,
+    Kind::Case,
+];
 
 /// The byte a [`DeclKind`] is written as.
 const fn kind_tag(kind: DeclKind) -> u8 {
@@ -666,12 +716,7 @@ impl<'a> Reader<'a> {
         let symbol = self.string()?;
         let kind = kind_of(self.u8()?)?;
         let site = self.site()?;
-        let visibility = match self.u8()? {
-            0 => Visibility::Public,
-            1 => Visibility::Protected,
-            2 => Visibility::Private,
-            _ => return None,
-        };
+        let visibility = visibility_of(self.u8()?)?;
         let supertypes = self.strings()?;
         let construction = if self.present()? {
             let is_abstract = self.bool()?;
@@ -726,7 +771,29 @@ impl<'a> Reader<'a> {
         } else {
             None
         };
-        let surface = self.digest()?;
+        let n = self.count()?;
+        let mut rows = Vec::with_capacity(n);
+        for _ in 0..n {
+            rows.push(Row {
+                symbol: self.string()?,
+                kind: *ROW_KINDS.get(usize::from(self.u8()?))?,
+                visibility: visibility_of(self.u8()?)?,
+                text: self.digest()?,
+                attributes: self.digest()?,
+            });
+        }
+        let rows = Rows::from_rows(rows)?;
+        let uses = if self.present()? {
+            let used = self.strings()?;
+            let missed = self.strings()?;
+            let sorted = |names: &[String]| names.windows(2).all(|pair| pair[0] < pair[1]);
+            if !sorted(&used) || !sorted(&missed) {
+                return None;
+            }
+            Some(LookedUp { used, missed })
+        } else {
+            None
+        };
         let entry = self.path()?;
         let n = self.count()?;
         let mut decls = Vec::with_capacity(n);
@@ -763,7 +830,8 @@ impl<'a> Reader<'a> {
             sole,
             errors: self.bool()?,
             broken: self.bool()?,
-            surface,
+            rows,
+            uses,
             content,
             stamp,
             entry,

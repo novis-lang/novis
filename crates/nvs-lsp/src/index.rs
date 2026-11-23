@@ -388,10 +388,15 @@ pub(crate) struct Indexed {
     /// Whether one of those errors is the lexer's or the parser's, so this
     /// file's text did not parse and its declarations may be missing.
     pub(crate) broken: bool,
-    /// The hash of what other files can see of this file ([`crate::surface`]).
-    /// [`SymbolIndex::refresh`] queues the readers of an edited open file only
-    /// when its new analysis gives a different hash.
-    pub(crate) surface: Digest,
+    /// What other files can see of this file, one row per declaration
+    /// ([`crate::surface`]). [`SymbolIndex::refresh`] diffs an edited file's
+    /// old and new rows, and queues only the entries that own a file the
+    /// changed rows reach.
+    pub(crate) rows: crate::surface::Rows,
+    /// What the file's last check looked up, or `None` where the analysis
+    /// that built this record had no recording of it. A file with `None` is
+    /// reached by every surface edit to a file its entry read.
+    pub(crate) uses: Option<LookedUp>,
     /// The BLAKE3 hash of the text the analysis read. A load from disk
     /// compares it with the file's text now.
     pub(crate) content: Digest,
@@ -403,6 +408,41 @@ pub(crate) struct Indexed {
     /// this file costs, and whose reads in [`SymbolIndex::reads`] are the edge
     /// [`SymbolIndex::refresh`] follows.
     pub(crate) entry: PathBuf,
+}
+
+/// The names one file's check found and failed to find (`nvs_hir::Uses`),
+/// each list sorted.
+///
+/// They stay strings, written as a symbol is written everywhere in the index.
+/// Interning them would buy memory alone, the last item of the priority
+/// ordering, and would need a table beside the postings, which already keep
+/// one string per distinct name.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub(crate) struct LookedUp {
+    /// Each declaration a lookup found: `App\User`, `App\User::greet`, and
+    /// `App\User::$` for the class's property list, which a codec reads.
+    pub(crate) used: Vec<String>,
+    /// Each name a lookup did not find: `App\User`, `App\User::greet` on the
+    /// class it was looked up on, and `::greet` on a value of unknown type.
+    pub(crate) missed: Vec<String>,
+}
+
+impl LookedUp {
+    /// The names `uses` recorded, or `None` when it recorded nothing.
+    fn of(uses: &nvs_hir::Uses) -> Option<Self> {
+        uses.is_on().then(|| Self {
+            used: uses.used_sorted().into_iter().map(str::to_owned).collect(),
+            missed: uses.missed_sorted().into_iter().map(str::to_owned).collect(),
+        })
+    }
+}
+
+/// The class a member name is written on: `App\User` for `App\User::greet`,
+/// and `None` for a class name and for `::greet`.
+fn owner_of(name: &str) -> Option<&str> {
+    name.split_once("::")
+        .map(|(owner, _)| owner)
+        .filter(|owner| !owner.is_empty())
 }
 
 /// What one [`SymbolIndex::refresh`] did.
@@ -449,6 +489,15 @@ pub struct SymbolIndex {
     by_request: Postings,
     /// Every entry of an indexed file's `unfollowed`, by what it names.
     by_unfollowed: Postings,
+    /// Every name an indexed file's check used ([`LookedUp::used`]), by the
+    /// name, and a member's also by its class in `by_used_on`. A refresh reads
+    /// them to find the files an edit reaches.
+    by_used: Postings,
+    by_used_on: Postings,
+    /// Every name an indexed file's check missed ([`LookedUp::missed`]), by
+    /// the name, and a member's also by its receiver class in `by_missed_on`.
+    by_missed: Postings,
+    by_missed_on: Postings,
     /// The entry points whose analysis is waiting, in path order: the tree of
     /// a [`planned`](Self::planned) index, and each entry a
     /// [`refresh`](Self::refresh) found reading the changed file and did not
@@ -670,7 +719,7 @@ impl SymbolIndex {
                 }
                 Freshness::Changed(surface) => {
                     stale.insert(indexed.entry.clone());
-                    if surface != Some(indexed.surface) {
+                    if surface.map(|rows| rows.digest()) != Some(indexed.rows.digest()) {
                         moved.push(key.clone());
                     }
                 }
@@ -841,7 +890,7 @@ impl SymbolIndex {
         if !reindexed {
             self.pending.extend(held.iter().cloned());
         }
-        let before = self.files.get(&key).map(|indexed| indexed.surface);
+        let before = self.files.get(&key).map(|indexed| indexed.rows.digest());
         let read_before = self.read_set(&key);
 
         let mut dropped = self.drop_owned(&now);
@@ -866,7 +915,7 @@ impl SymbolIndex {
             }
         }
         if reindexed {
-            let after = self.files.get(&key).map(|indexed| indexed.surface);
+            let after = self.files.get(&key).map(|indexed| indexed.rows.digest());
             // An entry that owned no file kept no reads, so a graph it did not
             // record is taken to be the same. The `didOpen` before every edit
             // records one.
@@ -1758,6 +1807,18 @@ impl SymbolIndex {
         for (at, named) in indexed.unfollowed.iter().enumerate() {
             add(&mut self.by_unfollowed, named, (Arc::clone(&key), at));
         }
+        for (at, name) in indexed.uses.iter().flat_map(|uses| &uses.used).enumerate() {
+            add(&mut self.by_used, name, (Arc::clone(&key), at));
+            if let Some(owner) = owner_of(name) {
+                add(&mut self.by_used_on, owner, (Arc::clone(&key), at));
+            }
+        }
+        for (at, name) in indexed.uses.iter().flat_map(|uses| &uses.missed).enumerate() {
+            add(&mut self.by_missed, name, (Arc::clone(&key), at));
+            if let Some(owner) = owner_of(name) {
+                add(&mut self.by_missed_on, owner, (Arc::clone(&key), at));
+            }
+        }
     }
 
     /// Removes from the three maps what [`SymbolIndex::post`] added for
@@ -1780,6 +1841,20 @@ impl SymbolIndex {
         }
         for (at, named) in indexed.unfollowed.iter().enumerate() {
             remove(&mut self.by_unfollowed, named, &(Arc::clone(&key), at));
+        }
+        for (at, name) in indexed.uses.iter().flat_map(|uses| &uses.used).enumerate() {
+            let posting = (Arc::clone(&key), at);
+            remove(&mut self.by_used, name, &posting);
+            if let Some(owner) = owner_of(name) {
+                remove(&mut self.by_used_on, owner, &posting);
+            }
+        }
+        for (at, name) in indexed.uses.iter().flat_map(|uses| &uses.missed).enumerate() {
+            let posting = (Arc::clone(&key), at);
+            remove(&mut self.by_missed, name, &posting);
+            if let Some(owner) = owner_of(name) {
+                remove(&mut self.by_missed_on, owner, &posting);
+            }
         }
     }
 }
@@ -1888,14 +1963,21 @@ pub(crate) fn analyse_entry(
                 .ok()
                 .and_then(|metadata| Stamp::of(&metadata, text.len(), started))
         };
-        // The parse cache took the surface hash when it parsed this text, and
+        // The parse cache took the surface rows when it parsed this text, and
         // the analysis parsed through it, so it holds that parse now.
         let src = analysed.map.file(loaded.id);
-        let surface = session.parses.hashes(src).map_or_else(
-            || crate::surface::of_source(text),
-            |(_, rows)| rows.digest(),
+        let rows = session.parses.hashes(src).map_or_else(
+            || crate::surface::rows_of_source(text),
+            |(_, rows)| rows.clone(),
         );
-        let indexed = record(&analysed, loaded, &key, stamp, surface, entry.key);
+        // The file's checked output, current after the walk, has what its
+        // check looked up. A file the walk left out and that has no output
+        // has no recording.
+        let uses = session
+            .checks
+            .get(loaded.id)
+            .and_then(|output| LookedUp::of(output.uses()));
+        let indexed = record(&analysed, loaded, &key, stamp, (rows, uses), entry.key);
         records.push((key, indexed));
     }
     let reads = analysed
@@ -1953,14 +2035,14 @@ pub(crate) fn plan_entry(
     Some((graph, work))
 }
 
-/// The record of one file `analysed` loaded, under `key`, whose declaration
-/// surface hashes to `surface`.
+/// The record of one file `analysed` loaded, under `key`, with its surface
+/// rows and what its check looked up.
 fn record(
     analysed: &Analysed,
     loaded: &Loaded,
     key: &Path,
     stamp: Option<Stamp>,
-    surface: Digest,
+    (rows, looked_up): (crate::surface::Rows, Option<LookedUp>),
     entry: &Path,
 ) -> Indexed {
     let text = analysed.map.file(loaded.id).text();
@@ -1984,7 +2066,8 @@ fn record(
             .diags
             .iter()
             .any(|diag| crate::diagnostics::breaks_the_tree(diag) && in_file(diag)),
-        surface,
+        rows,
+        uses: looked_up,
         content: content_hash(text.as_bytes()),
         stamp,
         entry: entry.to_path_buf(),
@@ -2092,8 +2175,8 @@ enum Freshness {
     Same,
     /// The same, found by hashing the file, and this is its stamp now.
     Restamped(Option<Stamp>),
-    /// The text changed, and this is its surface hash, where it is UTF-8.
-    Changed(Option<Digest>),
+    /// The text changed, and these are its surface rows, where it is UTF-8.
+    Changed(Option<crate::surface::Rows>),
     /// The file is gone or cannot be read.
     Gone,
 }
@@ -2175,7 +2258,7 @@ fn freshness(key: &Path, indexed: &Indexed, started: SystemTime, check: Check) -
     Freshness::Changed(
         std::str::from_utf8(&bytes)
             .ok()
-            .map(crate::surface::of_source),
+            .map(crate::surface::rows_of_source),
     )
 }
 

@@ -174,6 +174,31 @@ impl Rows {
     pub fn iter(&self) -> impl Iterator<Item = &Row> {
         self.rows.iter()
     }
+
+    /// The rows `rows` and the hash of them all, or `None` when they are not
+    /// sorted by symbol and kind, each once, or one has [`Kind::Attributes`].
+    /// The index file reads its rows back through this.
+    #[must_use]
+    pub fn from_rows(rows: Vec<Row>) -> Option<Self> {
+        let sorted = rows.windows(2).all(|pair| pair[0].key() < pair[1].key());
+        let kinds = rows.iter().all(|row| row.kind != Kind::Attributes);
+        (sorted && kinds).then(|| Self::hashed(rows))
+    }
+
+    /// `rows`, which are sorted, and the hash of them all.
+    fn hashed(rows: Vec<Row>) -> Self {
+        let mut all = Vec::with_capacity(rows.len() * 80);
+        for row in &rows {
+            all.extend_from_slice(row.symbol.as_bytes());
+            all.extend([0, row.kind as u8, rank(row.visibility)]);
+            all.extend_from_slice(row.text.as_bytes());
+            all.extend_from_slice(row.attributes.as_bytes());
+        }
+        Self {
+            rows,
+            all: content_hash(&all),
+        }
+    }
 }
 
 /// Whether a symbol is new, gone or different.
@@ -225,17 +250,7 @@ pub fn rows(stmts: &[Stmt], trivia: &[Trivia], text: &str) -> Rows {
             attributes: content_hash(&buf.attributes),
         })
         .collect();
-    let mut all = Vec::with_capacity(rows.len() * 80);
-    for row in &rows {
-        all.extend_from_slice(row.symbol.as_bytes());
-        all.extend([0, row.kind as u8, rank(row.visibility)]);
-        all.extend_from_slice(row.text.as_bytes());
-        all.extend_from_slice(row.attributes.as_bytes());
-    }
-    Rows {
-        rows,
-        all: content_hash(&all),
-    }
+    Rows::hashed(rows)
 }
 
 /// The declaration-surface hash of `stmts`: the hash of all its [`rows`].
