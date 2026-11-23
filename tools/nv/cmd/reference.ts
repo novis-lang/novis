@@ -359,15 +359,19 @@ const TABLES: Record<string, (reg: Json) => string> = {
   },
   attributes: (reg) => reg.attributes.map((a: string) => `- \`#[${a}]\``).join("\n"),
   directives: (reg) => {
-    const meaning: Record<string, string> = {
-      System: "operator only — a request cannot change it",
-      Runtime: "a request may retune it, up to the `[limits.hard]` ceiling",
-      RuntimeTighten: "a request may only narrow it",
-    };
-    const lines = ["| Key | Class | Applies |", "|---|---|---|"];
+    const lines = ["| Key | Applies |", "|---|---|"];
     for (const d of reg.directives) {
-      lines.push(`| \`${d.key}\` | ${meaning[d.class] ?? d.class} | ${d.apply === "Reload" ? "at reload" : "at boot only"} |`);
+      lines.push(`| \`${d.key}\` | ${d.apply === "Reload" ? "at reload" : "at boot only"} |`);
     }
+    return lines.join("\n");
+  },
+  settable: (reg) => {
+    const meaning: Record<string, string> = {
+      "up-to-ceiling": "any value, up to the ceiling where the key has one",
+      "off-only": "only `false`",
+    };
+    const lines = ["| Key | A request may set |", "|---|---|"];
+    for (const s of reg.settable) lines.push(`| \`${s.key}\` | ${meaning[s.how] ?? s.how} |`);
     return lines.join("\n");
   },
 };

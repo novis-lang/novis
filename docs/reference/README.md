@@ -69,7 +69,8 @@ A chapter may place one of the generated tables where its prose wants it, on a l
 <!-- generated: exceptions -->     the exception tree: class, parent, own properties
 <!-- generated: interfaces -->     the global interfaces and their type parameters
 <!-- generated: attributes -->     the compiler-recognized `#[...]` names
-<!-- generated: directives -->     every `nvs.toml` directive, its class and when it applies
+<!-- generated: directives -->     every `nvs.toml` directive and when a change to it applies
+<!-- generated: settable -->       every key a request may change with `Core\Config::set`, and how
 ```
 
 A table no chapter places is appended at the end of the file, so nothing the binary declares is

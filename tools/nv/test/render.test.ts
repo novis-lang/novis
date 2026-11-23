@@ -186,6 +186,7 @@ describe("render", () => {
         entry("Core\\Str::length", "member", "core/Str/length"),
       ],
       [],
+      [],
     );
     expect(pages.map((p) => [p.area, p.group, p.url, p.intro?.examples])).toEqual([
       ["types", "Enums", "/reference/types/arr-order/", "types/Arr-Order"],

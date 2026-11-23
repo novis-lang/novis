@@ -16,7 +16,7 @@ import FeatureExamples from '~/components/FeatureExamples.astro'
 import MethodChangelog from '~/components/MethodChangelog.astro'
 import SeeAlso from '~/components/SeeAlso.astro'
 import { aboutFor, changesFor, configFor, examplesFor, inlineHtml, type About } from '~/lib/feature'
-import { APPLIED_AT, CHANGED_BY, pages, type RefPage } from '~/lib/reference'
+import { APPLIED_AT, changedBy, pages, type RefPage } from '~/lib/reference'
 
 const AREAS = {
   config: { title: 'Configuration', description: 'Every block of `nvs.toml`, and each of its keys.' },
@@ -63,7 +63,7 @@ if (page) {
     about: aboutFor(k),
     config: configFor(k),
     examples: examplesFor(k).length > 0,
-    notes: [CHANGED_BY[k.class], APPLIED_AT[k.apply]].filter(Boolean).map(inlineHtml),
+    notes: [changedBy(k), APPLIED_AT[k.apply]].filter(Boolean).map(inlineHtml),
     changes: changesFor(k.id).length > 0,
     feature: k,
   }))

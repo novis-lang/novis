@@ -17,7 +17,8 @@
           "title": "app",
           "examples": "config/app",
           "key": "app",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -35,7 +36,8 @@
           "title": "cache.shared",
           "examples": "config/cache-shared",
           "key": "cache.shared",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -43,7 +45,8 @@
           "title": "cache.memory",
           "examples": "config/cache-memory",
           "key": "cache.memory",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -65,7 +68,8 @@
           "title": "capabilities",
           "examples": "config/capabilities",
           "key": "capabilities",
-          "class": "RuntimeTighten",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -83,7 +87,8 @@
           "title": "debug.keep_temporary",
           "examples": "config/debug-keep_temporary",
           "key": "debug.keep_temporary",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -91,7 +96,8 @@
           "title": "debug.inline",
           "examples": "config/debug-inline",
           "key": "debug.inline",
-          "class": "RuntimeTighten",
+          "how": "off-only",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -99,7 +105,8 @@
           "title": "debug.mode",
           "examples": "config/debug-mode",
           "key": "debug.mode",
-          "class": "RuntimeTighten",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -107,7 +114,8 @@
           "title": "debug.store",
           "examples": "config/debug-store",
           "key": "debug.store",
-          "class": "RuntimeTighten",
+          "how": "off-only",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -115,7 +123,8 @@
           "title": "debug.spool_max",
           "examples": "config/debug-spool_max",
           "key": "debug.spool_max",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -123,7 +132,8 @@
           "title": "debug.index_age",
           "examples": "config/debug-index_age",
           "key": "debug.index_age",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -131,7 +141,8 @@
           "title": "debug.index_max",
           "examples": "config/debug-index_max",
           "key": "debug.index_max",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -139,7 +150,8 @@
           "title": "debug.listen",
           "examples": "config/debug-listen",
           "key": "debug.listen",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Boot"
         },
         {
@@ -147,7 +159,8 @@
           "title": "debug.tls_cert_file",
           "examples": "config/debug-tls_cert_file",
           "key": "debug.tls_cert_file",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Boot"
         },
         {
@@ -155,7 +168,8 @@
           "title": "debug.tls_key_file",
           "examples": "config/debug-tls_key_file",
           "key": "debug.tls_key_file",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Boot"
         },
         {
@@ -163,7 +177,8 @@
           "title": "debug.token_file",
           "examples": "config/debug-token_file",
           "key": "debug.token_file",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Boot"
         }
       ]
@@ -181,7 +196,8 @@
           "title": "deferred.max_concurrent",
           "examples": "config/deferred-max_concurrent",
           "key": "deferred.max_concurrent",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -189,7 +205,8 @@
           "title": "deferred.deadline",
           "examples": "config/deferred-deadline",
           "key": "deferred.deadline",
-          "class": "Runtime",
+          "how": "up-to-ceiling",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -207,7 +224,8 @@
           "title": "errors.deprecated",
           "examples": "config/errors-deprecated",
           "key": "errors.deprecated",
-          "class": "Runtime",
+          "how": "up-to-ceiling",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -225,7 +243,8 @@
           "title": "ext",
           "examples": "config/ext",
           "key": "ext",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -243,7 +262,8 @@
           "title": "extension",
           "examples": "config/extension",
           "key": "extension",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -261,7 +281,30 @@
           "title": "http",
           "examples": "config/http",
           "key": "http",
-          "class": "Runtime",
+          "how": "",
+          "settable": [
+            "headers.content_type_options",
+            "headers.frame_ancestors",
+            "headers.referrer_policy",
+            "headers.hsts",
+            "headers.hsts_subdomains",
+            "headers.content_security_policy",
+            "headers.permissions_policy",
+            "cors.origins",
+            "cors.expose",
+            "cors.credentials",
+            "cookies.secure",
+            "cookies.http_only",
+            "cookies.same_site",
+            "cookies.path",
+            "client.connect_timeout",
+            "client.deadline",
+            "client.max_redirects",
+            "client.idle",
+            "client.max_duration",
+            "client.socket.max_message",
+            "client.socket.send_timeout"
+          ],
           "apply": "Reload"
         },
         {
@@ -269,7 +312,8 @@
           "title": "http.csrf_key",
           "examples": "config/http-csrf_key",
           "key": "http.csrf_key",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -277,7 +321,8 @@
           "title": "http.csrf_key_file",
           "examples": "config/http-csrf_key_file",
           "key": "http.csrf_key_file",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -285,7 +330,8 @@
           "title": "http.client.pool_idle",
           "examples": "config/http-client-pool_idle",
           "key": "http.client.pool_idle",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -293,7 +339,8 @@
           "title": "http.client.pool_idle_timeout",
           "examples": "config/http-client-pool_idle_timeout",
           "key": "http.client.pool_idle_timeout",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -301,7 +348,8 @@
           "title": "http.client.tls",
           "examples": "config/http-client-tls",
           "key": "http.client.tls",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -309,7 +357,8 @@
           "title": "http.client.proxy",
           "examples": "config/http-client-proxy",
           "key": "http.client.proxy",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -317,7 +366,11 @@
           "title": "http.client.socket",
           "examples": "config/http-client-socket",
           "key": "http.client.socket",
-          "class": "Runtime",
+          "how": "",
+          "settable": [
+            "max_message",
+            "send_timeout"
+          ],
           "apply": "Reload"
         }
       ]
@@ -335,7 +388,8 @@
           "title": "image.max_pixels",
           "examples": "config/image-max_pixels",
           "key": "image.max_pixels",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -357,7 +411,8 @@
           "title": "include",
           "examples": "config/include",
           "key": "include",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -375,7 +430,8 @@
           "title": "io.temp_root",
           "examples": "config/io-temp_root",
           "key": "io.temp_root",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -397,7 +453,18 @@
           "title": "limits",
           "examples": "config/limits",
           "key": "limits",
-          "class": "Runtime",
+          "how": "",
+          "settable": [
+            "memory",
+            "cpu_time",
+            "wall_time",
+            "max_output",
+            "request_body",
+            "upload_total",
+            "max_multipart_parts",
+            "max_tasks",
+            "max_regex_steps"
+          ],
           "apply": "Reload"
         },
         {
@@ -405,7 +472,8 @@
           "title": "limits.hard",
           "examples": "config/limits-hard",
           "key": "limits.hard",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -413,7 +481,8 @@
           "title": "limits.fatal_reserve_memory",
           "examples": "config/limits-fatal_reserve_memory",
           "key": "limits.fatal_reserve_memory",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -421,7 +490,8 @@
           "title": "limits.fatal_reserve_time",
           "examples": "config/limits-fatal_reserve_time",
           "key": "limits.fatal_reserve_time",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -429,7 +499,8 @@
           "title": "limits.max_script_depth",
           "examples": "config/limits-max_script_depth",
           "key": "limits.max_script_depth",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -437,7 +508,8 @@
           "title": "limits.max_decompressed",
           "examples": "config/limits-max_decompressed",
           "key": "limits.max_decompressed",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -445,7 +517,8 @@
           "title": "limits.max_decompression_ratio",
           "examples": "config/limits-max_decompression_ratio",
           "key": "limits.max_decompression_ratio",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -453,7 +526,8 @@
           "title": "limits.memory_high_water",
           "examples": "config/limits-memory_high_water",
           "key": "limits.memory_high_water",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -461,7 +535,8 @@
           "title": "limits.cancel_on_disconnect",
           "examples": "config/limits-cancel_on_disconnect",
           "key": "limits.cancel_on_disconnect",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -469,7 +544,8 @@
           "title": "limits.disconnect_grace",
           "examples": "config/limits-disconnect_grace",
           "key": "limits.disconnect_grace",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -487,7 +563,11 @@
           "title": "log",
           "examples": "config/log",
           "key": "log",
-          "class": "Runtime",
+          "how": "",
+          "settable": [
+            "format",
+            "level"
+          ],
           "apply": "Reload"
         },
         {
@@ -495,7 +575,8 @@
           "title": "log.handler",
           "examples": "config/log-handler",
           "key": "log.handler",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -503,7 +584,8 @@
           "title": "log.handler_reserve_memory",
           "examples": "config/log-handler_reserve_memory",
           "key": "log.handler_reserve_memory",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -511,7 +593,8 @@
           "title": "log.handler_reserve_time",
           "examples": "config/log-handler_reserve_time",
           "key": "log.handler_reserve_time",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -519,7 +602,8 @@
           "title": "log.target",
           "examples": "config/log-target",
           "key": "log.target",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -527,7 +611,8 @@
           "title": "log.max_size",
           "examples": "config/log-max_size",
           "key": "log.max_size",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -535,7 +620,8 @@
           "title": "log.keep",
           "examples": "config/log-keep",
           "key": "log.keep",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -543,7 +629,8 @@
           "title": "log.client_ip",
           "examples": "config/log-client_ip",
           "key": "log.client_ip",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -561,7 +648,8 @@
           "title": "metrics",
           "examples": "config/metrics",
           "key": "metrics",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -583,7 +671,8 @@
           "title": "mode.default",
           "examples": "config/mode-default",
           "key": "mode.default",
-          "class": "Runtime",
+          "how": "up-to-ceiling",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -591,7 +680,8 @@
           "title": "mode.ceiling",
           "examples": "config/mode-ceiling",
           "key": "mode.ceiling",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -609,7 +699,8 @@
           "title": "opcache",
           "examples": "config/opcache",
           "key": "opcache",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -617,7 +708,8 @@
           "title": "opcache.file_cache_dir",
           "examples": "config/opcache-file_cache_dir",
           "key": "opcache.file_cache_dir",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -635,7 +727,8 @@
           "title": "queue.connection",
           "examples": "config/queue-connection",
           "key": "queue.connection",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -643,7 +736,8 @@
           "title": "queue.workers",
           "examples": "config/queue-workers",
           "key": "queue.workers",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -651,7 +745,8 @@
           "title": "queue.max_attempts",
           "examples": "config/queue-max_attempts",
           "key": "queue.max_attempts",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -659,7 +754,8 @@
           "title": "queue.visibility",
           "examples": "config/queue-visibility",
           "key": "queue.visibility",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -677,7 +773,8 @@
           "title": "regex.backtracking",
           "examples": "config/regex-backtracking",
           "key": "regex.backtracking",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -695,7 +792,8 @@
           "title": "schedule",
           "examples": "config/schedule",
           "key": "schedule",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -717,7 +815,8 @@
           "title": "server",
           "examples": "config/server",
           "key": "server",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         },
         {
@@ -725,7 +824,8 @@
           "title": "server.listen",
           "examples": "config/server-listen",
           "key": "server.listen",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Boot"
         },
         {
@@ -733,7 +833,8 @@
           "title": "server.socket_mode",
           "examples": "config/server-socket_mode",
           "key": "server.socket_mode",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Boot"
         },
         {
@@ -741,7 +842,8 @@
           "title": "server.workers",
           "examples": "config/server-workers",
           "key": "server.workers",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Boot"
         },
         {
@@ -749,7 +851,8 @@
           "title": "server.watchdog_margin",
           "examples": "config/server-watchdog_margin",
           "key": "server.watchdog_margin",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Boot"
         }
       ]
@@ -767,7 +870,8 @@
           "title": "session",
           "examples": "config/session",
           "key": "session",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]
@@ -785,7 +889,8 @@
           "title": "trace",
           "examples": "config/trace",
           "key": "trace",
-          "class": "System",
+          "how": "",
+          "settable": [],
           "apply": "Reload"
         }
       ]

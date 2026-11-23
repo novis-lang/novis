@@ -26,7 +26,11 @@ export interface Feature {
 /** A `directive:<key>` feature, with who may change it and what a change to it takes. */
 export interface Directive extends Feature {
   key: string;
-  class: string;
+  /** How a request may change this key, from the `settable` roster: `up-to-ceiling`, `off-only`,
+   * or empty when it may not. */
+  how: string;
+  /** The keys under this one a request may change, relative to it. */
+  settable: string[];
   apply: string;
 }
 
@@ -72,10 +76,19 @@ function blockNamed(title: string): { block: string; written: string } | null {
 
 const feature = (e: Entry, title: string): Feature => ({ id: e.id, title, examples: e.path });
 
-/** Every Configuration, CLI and Types page, from the roster and the binary's directive list. A slug
- * two pages share throws. */
-export function referenceData(entries: Entry[], directives: { key: string; class: string; apply: string }[]): Page[] {
+/** Every Configuration, CLI and Types page, from the roster, the binary's directive list and its
+ * `settable` roster. A key a request may change carries its `how`. A key that covers a block carries
+ * the keys under it a request may change, relative to it, in `settable`. A slug two pages share
+ * throws. */
+export function referenceData(
+  entries: Entry[],
+  directives: { key: string; apply: string }[],
+  settable: { key: string; how: string }[],
+): Page[] {
   const meta = new Map(directives.map((d) => [d.key, d]));
+  const how = new Map(settable.map((s) => [s.key, s.how]));
+  const under = (key: string): string[] =>
+    settable.filter((s) => s.key.startsWith(`${key}.`)).map((s) => s.key.slice(key.length + 1));
   const blocks = new Map<string, Page>();
   const topics: Page[] = [];
   const cli = new Map<string, Page[]>(CLI_CHAPTERS.map(([c]) => [c, []]));
@@ -94,7 +107,7 @@ export function referenceData(entries: Entry[], directives: { key: string; class
     if (e.kind === "directive") {
       const key = e.id.slice("directive:".length);
       const d = meta.get(key);
-      blockPage(key.split(".")[0]!).keys.push({ ...feature(e, key), key, class: d?.class ?? "", apply: d?.apply ?? "" });
+      blockPage(key.split(".")[0]!).keys.push({ ...feature(e, key), key, how: how.get(key) ?? "", settable: under(key), apply: d?.apply ?? "" });
       continue;
     }
     const kind = TYPE_KINDS.find(([k]) => k === e.kind);

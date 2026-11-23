@@ -66,7 +66,7 @@ interface Registry {
   /** `Core\Math::PI` to its one sentence. */
   constDocs: Map<string, string>;
   /** The whole of `nvs meta --json`, which the proofs roster reads. */
-  meta: Meta & { directives?: { key: string; class: string; apply: string }[] };
+  meta: Meta & { directives?: { key: string; apply: string }[]; settable?: { key: string; how: string }[] };
 }
 
 /** `NVS_BIN` when it is set, otherwise the most recently built of `target/debug` and `target/release`
@@ -547,7 +547,7 @@ export async function renderWebsiteCore(root: string): Promise<Output[]> {
   }
   attachReturnedBy(classes);
 
-  const pages = referenceData(await roster("", reg.meta), reg.meta.directives ?? []);
+  const pages = referenceData(await roster("", reg.meta), reg.meta.directives ?? [], reg.meta.settable ?? []);
   return [
     { path: DATA_FILE, text: `${JSON.stringify({ classes }, null, 2)}\n` },
     { path: REFERENCE_FILE, text: `${JSON.stringify({ pages }, null, 2)}\n` },

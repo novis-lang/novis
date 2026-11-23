@@ -15,7 +15,10 @@ export interface RefFeature {
 
 export interface RefDirective extends RefFeature {
   key: string
-  class: string
+  /** How a request may change this key: `up-to-ceiling`, `off-only`, or empty when it may not. */
+  how: string
+  /** The keys under this one a request may change, relative to it. */
+  settable: string[]
   apply: string
 }
 
@@ -33,10 +36,18 @@ export const pages = (data as { pages: RefPage[] }).pages
 for (const page of pages) page.url = withBase(page.url)
 
 /** Who may change a configuration key, in the words its page shows. */
-export const CHANGED_BY: Record<string, string> = {
-  System: 'Only `nvs.toml` sets this key. `Core\\Config::set` returns `false` for it.',
-  Runtime: '`nvs.toml` sets the value that each request starts with. A request may change its own value with `Core\\Config::set`, up to the ceiling in `[limits.hard]`.',
-  RuntimeTighten: '`nvs.toml` sets the value that each request starts with. A request may make its own value stricter with `Core\\Config::set`. A change that loosens it returns `false`.',
+export function changedBy(key: RefDirective): string {
+  if (key.how === 'up-to-ceiling') {
+    return '`nvs.toml` sets the value that each request starts with. A request may change its own value with `Core\\Config::set`, up to the ceiling where the key has one.'
+  }
+  if (key.how === 'off-only') {
+    return '`nvs.toml` sets the value that each request starts with. A request may set its own value to `false` with `Core\\Config::set`, and to nothing else.'
+  }
+  if (key.settable.length > 0) {
+    const names = key.settable.map((k) => `\`${k}\``).join(', ')
+    return `A request may change these keys in this block with \`Core\\Config::set\`: ${names}. Only \`nvs.toml\` sets the others.`
+  }
+  return 'Only `nvs.toml` sets this key. A request may not change it.'
 }
 
 /** What a change to a configuration key in the file needs before it is in force. */

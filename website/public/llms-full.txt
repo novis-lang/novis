@@ -44588,7 +44588,10 @@ echo 'now=', Core\Config::get('limits.memory') ?? 'unset', "\n";
 Core\Config::restore('memory');
 echo 'restored=', Core\Config::get('memory') ?? 'unset', "\n";
 
-echo Core\Config::set('no.such.directive', '1') ? 'set' : 'unknown name refused', "\n";
+// A name written directly in `set` that a program may not change does not compile.
+// This name is in a variable, so the call runs and returns `false`.
+string $unknown = 'no.such.directive';
+echo Core\Config::set($unknown, '1') ? 'set' : 'unknown name refused', "\n";
 ```
 ```output
 memory=256M
@@ -44636,10 +44639,10 @@ Changes a setting for this request only. Other requests do not see the change, a
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The name of the setting, in the same form that `get` uses. |
+| `$name` | `string` (neutral) | The name of the setting, in the same form that `get` uses. A request may change only some settings. They are in `[mode]`, `[limits]`, `[log]`, `[errors]`, `[deferred]`, `[debug]` and `[http]`. The editor offers each one, and the page of `Core\Config::set` lists them. A name you write in the call that a request may never change does not compile. |
 | `$value` | `string` (neutral) | The value, written the way the configuration file writes it, such as `512M`, `30s` or `64`. |
 
-**Returns** `bool` — `true` when the change was made. `false` when it is not allowed, and the previous value stays in place. It is not allowed for a setting that only `nvs.toml` may set, or for a name that is not a setting. It is not allowed for a value that is not a valid size, duration or count. It is not allowed for a value above the limit's ceiling. The ceiling is `[limits.hard]`, or the value the program started with when `[limits.hard]` does not set that limit. `set` never throws an error.
+**Returns** `bool` — `true` when the change was made. `false` when it is not allowed, and the previous value stays in place. It is not allowed for a setting a request may not change. It is not allowed for a value that is not a valid size, duration or count. It is not allowed for a value above the limit's ceiling. The ceiling is `[limits.hard]`, or the value the program started with when `[limits.hard]` does not set that limit. `debug.inline` and `debug.store` take only `false`. `set` never throws an error.
 
 <a id="core-core-config-restore"></a>
 #### `Core\Config::restore`
@@ -44652,7 +44655,7 @@ Deletes this request's change to one setting. The value from the configuration f
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The name of the setting, in the same form that `get` uses. |
+| `$name` | `string` (neutral) | The name of the setting, in the same form that `get` uses. A name you write in the call that `set` may never change does not compile. |
 
 **Returns** `void` — Nothing. A name this request never changed is not an error. There is nothing to undo.
 
@@ -61233,8 +61236,10 @@ generated from. `--json` is required. Its seven top-level keys:
 - `exceptions`: the throwable tree — `name`, `parent`, and the `properties` a class adds.
 - `interfaces`: the global interfaces, with `typeParams` where they have any.
 - `attributes`: the compiler-recognized attribute names.
-- `directives`: every `nvs.toml` directive with its `key`, its `class` (`Runtime`, `RuntimeTighten`,
-  `System`) and when a change applies (`Reload` or `Boot`).
+- `directives`: every `nvs.toml` directive with its `key` and when a change applies (`Reload` or
+  `Boot`).
+- `settable`: every key a request may change with `Core\Config::set`, with its `key` and `how`
+  (`up-to-ceiling`, or `off-only` for a key a request may only set to `false`).
 - `capabilities`: one row per gated `Core` member — `class`, `member` and `capability`. It is a
   roster of its own rather than a field on a member, so a renderer that wants a capability beside a
   card joins the two on `(class, member)`; a member absent from it is ungated.
@@ -62485,8 +62490,12 @@ use Core\Config;
 
 echo '256M: ', Config::set('memory', '256M') ? 'ok' : 'refused', "\n";
 echo '1G: ', Config::set('memory', '1G') ? 'ok' : 'refused', "\n";
-echo 'file_cache_dir: ', Config::set('opcache.file_cache_dir', '/tmp/nvs') ? 'ok' : 'refused', "\n";
-echo 'unknown: ', Config::set('no.such.key', '1') ? 'ok' : 'refused', "\n";
+// A name written directly in `set` that a program may not change does not compile.
+// These names are in variables, so each call runs and returns `false`.
+string $cache = 'opcache.file_cache_dir';
+string $unknown = 'no.such.key';
+echo 'file_cache_dir: ', Config::set($cache, '/tmp/nvs') ? 'ok' : 'refused', "\n";
+echo 'unknown: ', Config::set($unknown, '1') ? 'ok' : 'refused', "\n";
 Config::set('log.level', 'debug');
 
 foreach (Config::all() as string $name => string $value) {
@@ -62509,81 +62518,123 @@ session.short_lived = 2h
 restored: 128M
 ```
 
-Every directive has a **class** that says who may change it: `Runtime` (the file states a default
-and a request may move it up to its ceiling), `RuntimeTighten` (a request may only narrow it),
-`System` (the file alone). The `apply` column says whether a running server applies a change to
-the file by itself, or only at its next start. Only `[server] listen`, `socket_mode`, `workers` and
-`watchdog_margin` wait for the next start (the server chapter, § *What reaches a running server*).
+The file gives the value each request starts with. A request may change only the keys in the
+second table below, and each row says how. `Core\Config::set` returns `false` for every other key.
+A name written in the call that is not in the table does not compile.
 
-| Key | Class | Applies |
-|---|---|---|
-| `limits` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
-| `limits.hard` | operator only — a request cannot change it | at reload |
-| `limits.fatal_reserve_memory` | operator only — a request cannot change it | at reload |
-| `limits.fatal_reserve_time` | operator only — a request cannot change it | at reload |
-| `limits.max_script_depth` | operator only — a request cannot change it | at reload |
-| `limits.max_decompressed` | operator only — a request cannot change it | at reload |
-| `limits.max_decompression_ratio` | operator only — a request cannot change it | at reload |
-| `limits.memory_high_water` | operator only — a request cannot change it | at reload |
-| `limits.cancel_on_disconnect` | operator only — a request cannot change it | at reload |
-| `limits.disconnect_grace` | operator only — a request cannot change it | at reload |
-| `mode.default` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
-| `mode.ceiling` | operator only — a request cannot change it | at reload |
-| `capabilities` | a request may only narrow it | at reload |
-| `http` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
-| `http.csrf_key` | operator only — a request cannot change it | at reload |
-| `http.csrf_key_file` | operator only — a request cannot change it | at reload |
-| `http.client.pool_idle` | operator only — a request cannot change it | at reload |
-| `http.client.pool_idle_timeout` | operator only — a request cannot change it | at reload |
-| `http.client.tls` | operator only — a request cannot change it | at reload |
-| `http.client.proxy` | operator only — a request cannot change it | at reload |
-| `http.client.socket` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
-| `log` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
-| `errors.deprecated` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
-| `regex.backtracking` | operator only — a request cannot change it | at reload |
-| `log.handler` | operator only — a request cannot change it | at reload |
-| `log.handler_reserve_memory` | operator only — a request cannot change it | at reload |
-| `log.handler_reserve_time` | operator only — a request cannot change it | at reload |
-| `log.target` | operator only — a request cannot change it | at reload |
-| `log.max_size` | operator only — a request cannot change it | at reload |
-| `log.keep` | operator only — a request cannot change it | at reload |
-| `log.client_ip` | operator only — a request cannot change it | at reload |
-| `cache.shared` | operator only — a request cannot change it | at reload |
-| `cache.memory` | operator only — a request cannot change it | at reload |
-| `io.temp_root` | operator only — a request cannot change it | at reload |
-| `image.max_pixels` | operator only — a request cannot change it | at reload |
-| `debug.keep_temporary` | operator only — a request cannot change it | at reload |
-| `debug.inline` | a request may only narrow it | at reload |
-| `debug.mode` | a request may only narrow it | at reload |
-| `debug.store` | a request may only narrow it | at reload |
-| `debug.spool_max` | operator only — a request cannot change it | at reload |
-| `debug.index_age` | operator only — a request cannot change it | at reload |
-| `debug.index_max` | operator only — a request cannot change it | at reload |
-| `debug.listen` | operator only — a request cannot change it | at boot only |
-| `debug.tls_cert_file` | operator only — a request cannot change it | at boot only |
-| `debug.tls_key_file` | operator only — a request cannot change it | at boot only |
-| `debug.token_file` | operator only — a request cannot change it | at boot only |
-| `server` | operator only — a request cannot change it | at reload |
-| `server.listen` | operator only — a request cannot change it | at boot only |
-| `server.socket_mode` | operator only — a request cannot change it | at boot only |
-| `server.workers` | operator only — a request cannot change it | at boot only |
-| `server.watchdog_margin` | operator only — a request cannot change it | at boot only |
-| `opcache` | operator only — a request cannot change it | at reload |
-| `opcache.file_cache_dir` | operator only — a request cannot change it | at reload |
-| `session` | operator only — a request cannot change it | at reload |
-| `deferred.max_concurrent` | operator only — a request cannot change it | at reload |
-| `deferred.deadline` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
-| `extension` | operator only — a request cannot change it | at reload |
-| `ext` | operator only — a request cannot change it | at reload |
-| `schedule` | operator only — a request cannot change it | at reload |
-| `queue.connection` | operator only — a request cannot change it | at reload |
-| `queue.workers` | operator only — a request cannot change it | at reload |
-| `queue.max_attempts` | operator only — a request cannot change it | at reload |
-| `queue.visibility` | operator only — a request cannot change it | at reload |
-| `app` | operator only — a request cannot change it | at reload |
-| `include` | operator only — a request cannot change it | at reload |
-| `metrics` | operator only — a request cannot change it | at reload |
-| `trace` | operator only — a request cannot change it | at reload |
+The `apply` column says whether a running server applies a change to the file by itself, or only
+at its next start. Only `[server] listen`, `socket_mode`, `workers` and `watchdog_margin` wait for
+the next start (the server chapter, § *What reaches a running server*).
+
+| Key | Applies |
+|---|---|
+| `limits` | at reload |
+| `limits.hard` | at reload |
+| `limits.fatal_reserve_memory` | at reload |
+| `limits.fatal_reserve_time` | at reload |
+| `limits.max_script_depth` | at reload |
+| `limits.max_decompressed` | at reload |
+| `limits.max_decompression_ratio` | at reload |
+| `limits.memory_high_water` | at reload |
+| `limits.cancel_on_disconnect` | at reload |
+| `limits.disconnect_grace` | at reload |
+| `mode.default` | at reload |
+| `mode.ceiling` | at reload |
+| `capabilities` | at reload |
+| `http` | at reload |
+| `http.csrf_key` | at reload |
+| `http.csrf_key_file` | at reload |
+| `http.client.pool_idle` | at reload |
+| `http.client.pool_idle_timeout` | at reload |
+| `http.client.tls` | at reload |
+| `http.client.proxy` | at reload |
+| `http.client.socket` | at reload |
+| `log` | at reload |
+| `errors.deprecated` | at reload |
+| `regex.backtracking` | at reload |
+| `log.handler` | at reload |
+| `log.handler_reserve_memory` | at reload |
+| `log.handler_reserve_time` | at reload |
+| `log.target` | at reload |
+| `log.max_size` | at reload |
+| `log.keep` | at reload |
+| `log.client_ip` | at reload |
+| `cache.shared` | at reload |
+| `cache.memory` | at reload |
+| `io.temp_root` | at reload |
+| `image.max_pixels` | at reload |
+| `debug.keep_temporary` | at reload |
+| `debug.inline` | at reload |
+| `debug.mode` | at reload |
+| `debug.store` | at reload |
+| `debug.spool_max` | at reload |
+| `debug.index_age` | at reload |
+| `debug.index_max` | at reload |
+| `debug.listen` | at boot only |
+| `debug.tls_cert_file` | at boot only |
+| `debug.tls_key_file` | at boot only |
+| `debug.token_file` | at boot only |
+| `server` | at reload |
+| `server.listen` | at boot only |
+| `server.socket_mode` | at boot only |
+| `server.workers` | at boot only |
+| `server.watchdog_margin` | at boot only |
+| `opcache` | at reload |
+| `opcache.file_cache_dir` | at reload |
+| `session` | at reload |
+| `deferred.max_concurrent` | at reload |
+| `deferred.deadline` | at reload |
+| `extension` | at reload |
+| `ext` | at reload |
+| `schedule` | at reload |
+| `queue.connection` | at reload |
+| `queue.workers` | at reload |
+| `queue.max_attempts` | at reload |
+| `queue.visibility` | at reload |
+| `app` | at reload |
+| `include` | at reload |
+| `metrics` | at reload |
+| `trace` | at reload |
+
+| Key | A request may set |
+|---|---|
+| `mode.default` | any value, up to the ceiling where the key has one |
+| `limits.memory` | any value, up to the ceiling where the key has one |
+| `limits.cpu_time` | any value, up to the ceiling where the key has one |
+| `limits.wall_time` | any value, up to the ceiling where the key has one |
+| `limits.max_output` | any value, up to the ceiling where the key has one |
+| `limits.request_body` | any value, up to the ceiling where the key has one |
+| `limits.upload_total` | any value, up to the ceiling where the key has one |
+| `limits.max_multipart_parts` | any value, up to the ceiling where the key has one |
+| `limits.max_tasks` | any value, up to the ceiling where the key has one |
+| `limits.max_regex_steps` | any value, up to the ceiling where the key has one |
+| `log.format` | any value, up to the ceiling where the key has one |
+| `log.level` | any value, up to the ceiling where the key has one |
+| `errors.deprecated` | any value, up to the ceiling where the key has one |
+| `deferred.deadline` | any value, up to the ceiling where the key has one |
+| `debug.inline` | only `false` |
+| `debug.store` | only `false` |
+| `http.headers.content_type_options` | any value, up to the ceiling where the key has one |
+| `http.headers.frame_ancestors` | any value, up to the ceiling where the key has one |
+| `http.headers.referrer_policy` | any value, up to the ceiling where the key has one |
+| `http.headers.hsts` | any value, up to the ceiling where the key has one |
+| `http.headers.hsts_subdomains` | any value, up to the ceiling where the key has one |
+| `http.headers.content_security_policy` | any value, up to the ceiling where the key has one |
+| `http.headers.permissions_policy` | any value, up to the ceiling where the key has one |
+| `http.cors.origins` | any value, up to the ceiling where the key has one |
+| `http.cors.expose` | any value, up to the ceiling where the key has one |
+| `http.cors.credentials` | any value, up to the ceiling where the key has one |
+| `http.cookies.secure` | any value, up to the ceiling where the key has one |
+| `http.cookies.http_only` | any value, up to the ceiling where the key has one |
+| `http.cookies.same_site` | any value, up to the ceiling where the key has one |
+| `http.cookies.path` | any value, up to the ceiling where the key has one |
+| `http.client.connect_timeout` | any value, up to the ceiling where the key has one |
+| `http.client.deadline` | any value, up to the ceiling where the key has one |
+| `http.client.max_redirects` | any value, up to the ceiling where the key has one |
+| `http.client.idle` | any value, up to the ceiling where the key has one |
+| `http.client.max_duration` | any value, up to the ceiling where the key has one |
+| `http.client.socket.max_message` | any value, up to the ceiling where the key has one |
+| `http.client.socket.send_timeout` | any value, up to the ceiling where the key has one |
 
 ### Auditing a tree
 

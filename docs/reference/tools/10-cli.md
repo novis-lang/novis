@@ -1149,8 +1149,10 @@ generated from. `--json` is required. Its seven top-level keys:
 - `exceptions`: the throwable tree — `name`, `parent`, and the `properties` a class adds.
 - `interfaces`: the global interfaces, with `typeParams` where they have any.
 - `attributes`: the compiler-recognized attribute names.
-- `directives`: every `nvs.toml` directive with its `key`, its `class` (`Runtime`, `RuntimeTighten`,
-  `System`) and when a change applies (`Reload` or `Boot`).
+- `directives`: every `nvs.toml` directive with its `key` and when a change applies (`Reload` or
+  `Boot`).
+- `settable`: every key a request may change with `Core\Config::set`, with its `key` and `how`
+  (`up-to-ceiling`, or `off-only` for a key a request may only set to `false`).
 - `capabilities`: one row per gated `Core` member — `class`, `member` and `capability`. It is a
   roster of its own rather than a field on a member, so a renderer that wants a capability beside a
   card joins the two on `(class, member)`; a member absent from it is ungated.
