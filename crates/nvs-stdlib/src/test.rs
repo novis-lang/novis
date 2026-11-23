@@ -6275,11 +6275,17 @@ mod tests {
             assert!(why.contains(&format!("Core\\Test::{name}")), "{why}");
             assert!(why.contains("A server does not run it."), "{why}");
         }
-        assert!(!served.faked_http_mut().is_armed(), "a refused call arms nothing");
+        assert!(
+            !served.faked_http_mut().is_armed(),
+            "a refused call arms nothing"
+        );
 
         served.set_test_records(nvs_runtime::test_records::TestRecords::new());
         assert_eq!(refused(&mut served, nvs_core_test_answer_http, &http), None);
-        assert!(served.faked_http_mut().is_armed(), "a test's request arms the table");
+        assert!(
+            served.faked_http_mut().is_armed(),
+            "a test's request arms the table"
+        );
         for arg in [url, none] {
             dropped(arg);
         }

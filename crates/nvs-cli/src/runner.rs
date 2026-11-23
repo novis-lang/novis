@@ -3825,22 +3825,18 @@ fn run_the_test(
     let owner = wants_server(case).then(|| Rc::new(RefCell::new(Owner::default())));
     let served = match &owner {
         None => None,
-        Some(owner) => match TestServer::bind(
-            unit,
-            routes,
-            Door::of(ctx),
-            Tree::of(ctx),
-            Rc::clone(owner),
-        ) {
-            Ok(server) => Some(server),
-            Err(refused) => {
-                return Outcome::failed(format!(
-                    "`{class}::{}` declares `server: true`, and no listener could be bound for \
+        Some(owner) => {
+            match TestServer::bind(unit, routes, Door::of(ctx), Tree::of(ctx), Rc::clone(owner)) {
+                Ok(server) => Some(server),
+                Err(refused) => {
+                    return Outcome::failed(format!(
+                        "`{class}::{}` declares `server: true`, and no listener could be bound for \
                      it: {refused}",
-                    case.method
-                ));
+                        case.method
+                    ));
+                }
             }
-        },
+        }
     };
     let listening = served.as_ref().map(|server| server.url.clone());
     // `rule:testing/fixtures` and `rule:testing/data-rows`'s injection: one value per declared parameter, in the order the
