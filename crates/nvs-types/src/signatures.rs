@@ -784,6 +784,16 @@ pub struct ConstSig {
 #[derive(Debug, Default)]
 pub struct SignatureTable {
     base: Option<&'static crate::core_lib::Natives>,
+    /// What each file's declarations looked up while their types were
+    /// lowered, filled only when [`build_signatures`] records. A partial
+    /// check adds a walked file's set to its [`crate::FileOutput`].
+    pub(crate) uses: FxHashMap<nvs_diagnostics::SourceId, nvs_hir::Uses>,
+    /// The member lookups of the file a partial check is walking, while it
+    /// records. Every lookup goes through [`resolve_method_ref`],
+    /// [`resolve_property_owned`] or [`resolve_const_owned`], so recording
+    /// there sees every one without a caller passing anything. It is `None`
+    /// at every other time, and then a lookup pays one flag test.
+    lookups: std::cell::RefCell<Option<nvs_hir::Uses>>,
     by_class: FxHashMap<QName, ClassSignature>,
     property_default_types: Vec<(Span, TypeId)>,
     /// The name of every instance property some class declares `covariant`.
@@ -805,6 +815,29 @@ impl SignatureTable {
         Self::default()
     }
 
+    /// Starts recording member lookups, for the walk of one file.
+    pub(crate) fn record_lookups(&self) {
+        *self.lookups.borrow_mut() = Some(nvs_hir::Uses::recording());
+    }
+
+    /// Stops recording member lookups, and returns what was recorded since
+    /// [`Self::record_lookups`].
+    pub(crate) fn take_lookups(&self) -> Option<nvs_hir::Uses> {
+        self.lookups.borrow_mut().take()
+    }
+
+    /// Records a lookup of `member` on `receiver` that found it on `owner`,
+    /// or found nothing. `sigil` is `$` for a property and empty otherwise.
+    fn note_lookup(&self, receiver: &QName, owner: Option<&QName>, sigil: &str, member: &str) {
+        if let Some(uses) = self.lookups.borrow_mut().as_mut() {
+            let member = format!("{sigil}{}", member.trim_start_matches('$'));
+            match owner {
+                Some(owner) => uses.member_through(receiver, owner, &member),
+                None => uses.missed_member(Some(receiver), &member),
+            }
+        }
+    }
+
     /// One declaration's own signatures, if any were collected under this
     /// name.
     #[must_use]
@@ -814,6 +847,13 @@ impl SignatureTable {
         // name.
         if nvs_footprint::enabled() && qname.is_core() {
             nvs_stdlib::registry::record_signature(&qname.to_string());
+        }
+        // A walk that reads a class's signatures depends on its header, the
+        // safe default for any read the member lookups do not name.
+        if !qname.is_core()
+            && let Some(uses) = self.lookups.borrow_mut().as_mut()
+        {
+            uses.class(qname);
         }
         self.by_class
             .get(qname)
@@ -1069,12 +1109,17 @@ impl SignatureTable {
 /// produces exists: [`crate::Env`] borrows `interner`/`diags` mutably, and a
 /// `SignatureTable` under active construction can't also be borrowed
 /// immutably through the same `Env` at once.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "the check's whole-program tables, and whether a partial check records its lookups"
+)]
 pub fn build_signatures(
     files: &[crate::ProgramFile<'_>],
     module: &nvs_hir::Module,
     enums: &crate::enums::EnumTable,
     consts: &crate::consts::ConstTable,
     extensions: &[std::sync::Arc<nvs_ext::manifest::Manifest>],
+    record: bool,
     interner: &mut crate::ty::TypeInterner,
     diags: &mut Diagnostics,
 ) -> SignatureTable {
@@ -1124,6 +1169,11 @@ pub fn build_signatures(
     let empty_deprecations = crate::deprecated::Deprecations::default();
     let empty_test_code = crate::test_code::TestCode::default();
     for file in files {
+        let mut file_uses = if record {
+            nvs_hir::Uses::recording()
+        } else {
+            nvs_hir::Uses::off()
+        };
         let mut env = Env {
             symbols,
             aliases,
@@ -1155,6 +1205,7 @@ pub fn build_signatures(
             json_sites: &mut placeholder_json_sites,
             decode_sites: &mut placeholder_decode_sites,
             encode_sites: &mut placeholder_encode_sites,
+            uses: &mut file_uses,
             diags: &mut *diags,
             anon_fn_seq: 0,
             refused_exprs: 0,
@@ -1180,6 +1231,9 @@ pub fn build_signatures(
             in_attribute_body: false,
         };
         collect_stmts(file.stmts, &[], &FxHashMap::default(), &mut table, &mut env);
+        if record {
+            table.uses.insert(file.src.id(), file_uses);
+        }
     }
     mark_overridden_methods(&mut table, graph);
     mark_sole_bodies(&mut table, graph);
@@ -2245,11 +2299,13 @@ pub fn resolve_property_owned(
     table: &SignatureTable,
     graph: &ClassGraph,
 ) -> Option<(QName, TypeId)> {
-    nvs_hir::find_in_ancestors(qname, graph, |class| {
+    let found = nvs_hir::find_in_ancestors(qname, graph, |class| {
         let ty = *table.get(class)?.properties.get(name)?;
         Some((class, ty))
     })
-    .map(|(owner, ty)| (owner.clone(), ty))
+    .map(|(owner, ty)| (owner.clone(), ty));
+    table.note_lookup(qname, found.as_ref().map(|(owner, _)| owner), "$", name);
+    found
 }
 
 /// The type of a class constant whose declaration writes no annotation: the
@@ -2304,7 +2360,9 @@ pub fn resolve_const_owned<'t>(
     graph: &ClassGraph,
 ) -> Option<(QName, &'t ConstSig)> {
     let mut seen = FxHashSet::default();
-    resolve_const_rec(qname, name, table, graph, &mut seen)
+    let found = resolve_const_rec(qname, name, table, graph, &mut seen);
+    table.note_lookup(qname, found.as_ref().map(|(owner, _)| owner), "", name);
+    found
 }
 
 fn resolve_const_rec<'t>(
@@ -2698,9 +2756,11 @@ pub fn resolve_method_ref<'a>(
     table: &'a SignatureTable,
     graph: &'a ClassGraph,
 ) -> Option<(&'a QName, &'a MethodSig)> {
-    nvs_hir::find_in_ancestors(qname, graph, |class| {
+    let found = nvs_hir::find_in_ancestors(qname, graph, |class| {
         Some((class, table.get(class)?.methods.get(name)?))
-    })
+    });
+    table.note_lookup(qname, found.map(|(owner, _)| owner), "", name);
+    found
 }
 
 /// What a `foreach` over an instance of `qname` yields, and which of
@@ -2906,6 +2966,7 @@ mod tests {
             &enums,
             &consts,
             &[],
+            false,
             &mut interner,
             &mut diags,
         );

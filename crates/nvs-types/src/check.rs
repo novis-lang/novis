@@ -287,7 +287,16 @@ fn check_files(
     // enum table one line above: `build_signatures` interns every declared
     // annotation, and one of them may be a `Foo::CONST` type.
     let consts = crate::consts::build_const_table(files);
-    let signatures = build_signatures(files, module, &enums, &consts, extensions, interner, diags);
+    let signatures = build_signatures(
+        files,
+        module,
+        &enums,
+        &consts,
+        extensions,
+        partial.is_some(),
+        interner,
+        diags,
+    );
     // `rule:packaging/a-restriction-limits-where-a-declaration-is-used`'s index, built once the
     // signatures are known, since an entry's target is checked against them. `None` when the
     // program has no `[[restrict]]` entry, and then no body checks a restriction.
@@ -410,8 +419,20 @@ fn check_files(
             }
             None => {
                 let mut output = crate::FileOutput::empty(anon_fn_seq, exprs.part());
+                if partial.is_some() {
+                    output.uses = nvs_hir::Uses::recording();
+                    if let Some(declared) = signatures.uses.get(&id) {
+                        output.uses.absorb(declared.clone());
+                    }
+                }
                 let mut file_diags = Diagnostics::new();
+                if output.uses.is_on() {
+                    signatures.record_lookups();
+                }
                 let end_seq = walk_file(file, &shared, &mut output, interner, &mut file_diags);
+                if let Some(lookups) = signatures.take_lookups() {
+                    output.uses.absorb(lookups);
+                }
                 output.end_seq = end_seq;
                 output.diags = file_diags.take();
                 if let Some((_, _, cache)) = partial.as_mut() {
@@ -554,6 +575,7 @@ fn file_env<'a>(
         json_sites: &mut output.json_sites,
         decode_sites: &mut output.decode_sites,
         encode_sites: &mut output.encode_sites,
+        uses: &mut output.uses,
         diags,
         anon_fn_seq: output.start_seq,
         refused_exprs: 0,

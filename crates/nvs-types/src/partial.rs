@@ -73,6 +73,10 @@ pub struct FileOutput {
     pub(crate) json_sites: Vec<crate::derive::JsonSite>,
     pub(crate) decode_sites: Vec<crate::derive::DecodeSite>,
     pub(crate) encode_sites: Vec<crate::derive::EncodeSite>,
+    /// What the file's declarations and bodies looked up, and what they
+    /// failed to find. It records only in a partial check; see
+    /// [`nvs_hir::uses`].
+    pub(crate) uses: nvs_hir::Uses,
 }
 
 impl FileOutput {
@@ -92,6 +96,7 @@ impl FileOutput {
             json_sites: Vec::new(),
             decode_sites: Vec::new(),
             encode_sites: Vec::new(),
+            uses: nvs_hir::Uses::off(),
         }
     }
 
@@ -106,6 +111,12 @@ impl FileOutput {
     #[must_use]
     pub fn diagnostics(&self) -> &[Diagnostic] {
         &self.diags
+    }
+
+    /// What the file's declarations and bodies looked up and failed to find.
+    #[must_use]
+    pub const fn uses(&self) -> &nvs_hir::Uses {
+        &self.uses
     }
 }
 

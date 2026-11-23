@@ -132,7 +132,13 @@ pub(crate) fn infer_class_const(
             // name `nvs_hir::members` already reported as undeclared records
             // nothing.
             let case = span_text(env.src, name).to_owned();
-            if let Some(value) = env.enums.case(&qname, &case) {
+            let found = env.enums.case(&qname, &case);
+            if found.is_some() {
+                env.uses.member(&qname, &case);
+            } else {
+                env.uses.missed_member(Some(&qname), &case);
+            }
+            if let Some(value) = found {
                 env.exprs.record(
                     expr.span,
                     ExprInfo::EnumCase {
@@ -1907,6 +1913,13 @@ pub(crate) fn check_class_name_const(
             // mistake and the same code `new Undeclared()` already takes.
             // `self`/`static`/`parent` resolve through the enclosing
             // declaration and are real by construction.
+            if matches!(class.kind, ExprKind::ConstFetch(_)) && !qname.is_core() {
+                if env.symbols.get(&qname).is_some() {
+                    env.uses.class(&qname);
+                } else {
+                    env.uses.missed_class(&qname);
+                }
+            }
             if matches!(class.kind, ExprKind::ConstFetch(_))
                 && env.symbols.get(&qname).is_none()
                 && !qname.is_core()

@@ -2973,6 +2973,13 @@ pub(crate) fn check_new_target(
                 report_enum_has_no_constructor(&qname, name.span, env);
                 return env.interner.enum_(qname, backing);
             }
+            if !qname.is_core() {
+                if env.symbols.get(&qname).is_some() {
+                    env.uses.class(&qname);
+                } else {
+                    env.uses.missed_class(&qname);
+                }
+            }
             if env.symbols.get(&qname).is_some()
                 || (qname.is_core()
                     && (crate::core_lib::is_registered(&qname)

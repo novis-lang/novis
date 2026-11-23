@@ -579,6 +579,10 @@ pub(crate) struct Env<'a> {
     /// Every call that writes its argument as a JSON document, for
     /// [`Self::decode_sites`]' reason. See [`crate::derive::check_encode_sites`].
     pub encode_sites: &'a mut Vec<crate::derive::EncodeSite>,
+    /// What this file's declarations and bodies looked up and failed to find,
+    /// for the language server's reach (`nvs_hir::uses`). It is off in a whole
+    /// check, so every record costs one branch there.
+    pub uses: &'a mut nvs_hir::Uses,
     pub diags: &'a mut nvs_diagnostics::Diagnostics,
     /// How many `rule:types/anonymous-function` `fn` anonymous functions this run has checked so far —
     /// the suffix that makes each one's synthesized environment class label

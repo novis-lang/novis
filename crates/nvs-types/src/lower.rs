@@ -1183,22 +1183,36 @@ fn resolve_name_type(
     if let Some(owner) = ctx.current_class
         && let Some(alias_ty) = env.aliases.get_member(owner, text)
     {
+        if env.uses.is_on() {
+            env.uses.class(&nvs_hir::QName::member(owner, text));
+        }
         let alias_ty = alias_ty.clone();
         return lower_type_at_depth(&alias_ty, depth, ctx, env);
     }
+    // A bare name inside a class body would mean the class's own alias or
+    // enum first, so an alias or enum added to the class reaches this file.
+    if let Some(owner) = ctx.current_class
+        && !text.contains('\\')
+        && qname.as_member().is_none()
+    {
+        env.uses.missed_member(Some(owner), text);
+    }
 
     if let Some(alias_ty) = env.aliases.get(&qname) {
+        env.uses.class(&qname);
         let alias_ty = alias_ty.clone();
         return lower_type_at_depth(&alias_ty, depth, ctx, env);
     }
 
     match env.symbols.get(&qname) {
         Some(sym) if sym.kind == SymbolKind::Enum => {
+            env.uses.class(&qname);
             crate::deprecated::warn(name.span, &qname, crate::deprecated::Member::Type, env);
             let backing = env.enums.backing_of(&qname);
             env.interner.enum_(qname, backing)
         }
         Some(_) => {
+            env.uses.class(&qname);
             crate::deprecated::warn(name.span, &qname, crate::deprecated::Member::Type, env);
             env.interner.class(qname)
         }
@@ -1227,6 +1241,7 @@ fn resolve_name_type(
             env.interner.class(qname)
         }
         None => {
+            env.uses.missed_class(&qname);
             if let Some(diagnostic) = nvs_hir::undeclared_name(
                 nvs_hir::Undeclared {
                     qname: &qname,
@@ -1333,6 +1348,7 @@ mod tests {
             json_sites: &mut Vec::new(),
             decode_sites: &mut Vec::new(),
             encode_sites: &mut Vec::new(),
+            uses: &mut nvs_hir::Uses::off(),
             diags: &mut diags,
             anon_fn_seq: 0,
             refused_exprs: 0,

@@ -68,6 +68,7 @@ pub mod qname;
 pub mod requires;
 pub mod resolve;
 pub mod symbol;
+pub mod uses;
 
 pub use aliases::{AliasResolver, AliasSite, AliasTable, AttributeDef};
 pub use autoload::{AutoloadMap, Probe};
@@ -89,3 +90,4 @@ pub use resolve::{
     resolve_file_with_extensions,
 };
 pub use symbol::{ExtensionClass, ExtensionFile, Symbol, SymbolKind, SymbolTable};
+pub use uses::Uses;
