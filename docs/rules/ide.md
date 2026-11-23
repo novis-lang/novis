@@ -1832,6 +1832,16 @@ fixture's only property is its shape.
   written before the uses existed has, is analysed whole. A closed file changed on disk is diffed against
   its kept rows at a start's load, and a refresh of a closed file that no analysis parsed yet queues every
   reader. `crates/nvs-lsp/tests/reach.rs` counts each row on a generated tree of 200 entry points.
+  A private member reaches another file only where that file's check reads it: the derived codecs take
+  every property in order ([`core-classes/derive-property-list`](core-classes.md#core-classes-derive-property-list)), constructor initialisation reads
+  an ancestor's required properties, and a subclass's finality and redeclaration checks read the
+  parent's members. `property<T>` and `propertyPath<C>` read public names only. A check found later that
+  reads a private member from another file widens that member's row, and `crate::surface`'s module doc
+  lists it. A member is missed on the class it was looked up on alone, so an added `P::m` reaches every
+  miss `R::m` where R is P or a class below it. No check reads an enum's whole set of cases, so a case is
+  a member like any other; an exhaustiveness check would move the cases row to the header's reach.
+  `#[Core\Deprecated]` is an attribute, so it reaches every reader, a superset of the files whose
+  `W1003` it changes. The oracle test is the safety net: a disagreement is a bug in the reach.
   Measured with `bun nv lsp-start --copies 12 --cold --edits 5 --kind <kind>` (972 files), five edits'
   runs check, before this reach and after it: `member` 4861 and 0, `private` 4861 and 0, `public` 4861
   and 11, `comment` 0 and 0. The memory it spends is in `crates/nvs-lsp/src/session.rs`.
@@ -1905,6 +1915,12 @@ leaves the tree. `crates/nvs-lsp/src/session.rs` gives the measured bytes per fi
   from file to file, so a key per body would need a second numbering. A reached file is one file's check,
   a few milliseconds. Reopen only if `bun nv lsp-start` shows one file's check again over 20 ms on the
   972-file tree.
+- **Worker sessions kept between settles, with an entry pinned to its worker.** It spends one copy of the
+  tree's outputs for the whole session, and an edit still checks a file twice when its entry moves. A
+  queued entry checks the reached files it owns instead.
+- **The uses as interned ids in `Indexed` and the index file.** It buys memory alone, and needs a table
+  beside the postings, which keep one string per distinct name already. Reopen only if `bun nv
+  lsp-start` shows the uses over a tenth of the index's bytes.
 
 <sub>See also [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound), [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous), [`ide/one-grammar-one-tree`](ide.md#ide-one-grammar-one-tree), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`ide/dependencies-are-allowlisted`](ide.md#ide-dependencies-are-allowlisted).</sub>
 
