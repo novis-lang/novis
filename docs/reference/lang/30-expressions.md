@@ -2117,7 +2117,7 @@ array are empty, as the truth table says.
 ```nvs
 <?nvs
 // Shows how `$x is T` checks what kind of value you have right now. Inside
-// the branch where the check is true, the compiler knows the type. You can
+// the branch where the check is true, the value has that type. You can
 // read the value there without converting it first.
 
 interface Reading
@@ -2180,12 +2180,12 @@ echo Report::line(true), "\n";
 
 array<mixed> $readings = [new Temperature(21.5), new Humidity(40), new Temperature(19.0), 'warm'];
 
-// `as class<Reading>` converts a class name in a string to a class value.
+// `as class<Reading>` converts a class name in a string to a class reference.
 // It throws an error if the name is not a `Reading`.
 class<Reading> $kind = 'Temperature' as class<Reading>;
 echo Report::count($readings, $kind), ' ';
 
-// `Humidity::class` is already a class value, so you can pass it directly.
+// `Humidity::class` is already a class reference, so you can pass it directly.
 // The two calls print: 2 1
 echo Report::count($readings, Humidity::class), "\n";
 ```

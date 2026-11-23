@@ -30,7 +30,8 @@ A conversion between two types that has no rule is the error `E0708`, and the me
 types. An `array`, `bytes` and an enum case to `string` are three of them.
 
 A `mixed` value converts by the type of the value it contains. Text from a `mixed` value is
-tainted: `$value as string` gives a `tainted string`.
+tainted, which means it may come from outside the program: `$value as string` gives a
+`tainted string`.
 
 `array<T> as array<U>` checks each element. An element must already be a `U`, or be a number that
 widens to one, such as an `int` in an `array<float>`. The elements are not converted from text:

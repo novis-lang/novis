@@ -711,7 +711,7 @@ Where a `class<T>` is expected, write the class as `Invoice::class`. A class nam
 you use it: `$f(4) as int`.
 
 **The examples below** pass a pricing rule around, check a value against a shape, and pick a
-report class from a name. Then they get the class of an `object` back, show a shape without a name
+report class from a name. Then they read the class of an `object`, show a shape without a name
 as a compile error, and pass a class to a function.
 
 A string is never a `callable`. `callable $f = "strlen";` is the error `E0418`. Write a method
@@ -729,13 +729,14 @@ class in the variable is `T` or extends or implements it. A `class<Dog>` can be 
 There are two ways to get a class reference. Where a `class<T>` is expected, `Dog::class` is a class
 reference. That place can be a variable, a parameter, a return value or a default value.
 `self::class`, `parent::class`, `static::class` and `$obj::class` work the same way. The compiler
-checks the class, and a class outside the hierarchy of `T` is the error `E0708`. Everywhere else,
-`Dog::class` is a `string`, the class name.
+checks the class. A class that is not `T` and does not extend or implement `T` is the error
+`E0708`. Everywhere else, `Dog::class` is a `string`, the class name.
 
 The other way is `as class<T>`, for a class name in a string. A class name in quotes is checked when
 the program compiles. A name in a variable is checked when the program runs. A wrong name throws a
 `RuntimeError`, and `as ?class<T>` gives `null` for it. A `string` where a `class<T>` is expected
-does not compile, and the error message shows the `as`. `$cls as string` gives the class name.
+does not compile. The error message shows how to write the `as`. `$cls as string` gives the class
+name.
 
 Only three places take a class reference: `new $cls()`, `$cls::f()` and `$x is $cls`. A `string` in
 any of the three is the error `E0496`. Comparing a `string` with a `class<T>` is the error `E0466`.
@@ -984,7 +985,7 @@ class Invoice implements Storable
 
 class Store
 {
-    // `$c` is a class that implements `Storable`. `$c::table()` calls its static method.
+    // `$c` is a class, not an object. The class implements `Storable`. `$c::table()` calls its static method.
     public static function describe(class<Storable> $c): string
     {
         return 'rows go to the table ' . $c::table();
@@ -2605,7 +2606,8 @@ A conversion between two types that has no rule is the error `E0708`, and the me
 types. An `array`, `bytes` and an enum case to `string` are three of them.
 
 A `mixed` value converts by the type of the value it contains. Text from a `mixed` value is
-tainted: `$value as string` gives a `tainted string`.
+tainted, which means it may come from outside the program: `$value as string` gives a
+`tainted string`.
 
 `array<T> as array<U>` checks each element. An element must already be a `U`, or be a number that
 widens to one, such as an `int` in an `array<float>`. The elements are not converted from text:
@@ -2823,7 +2825,7 @@ class Dog extends Animal
 }
 
 // `Dog::class` is already a class reference, so it needs no `as`.
-// It is checked while the program compiles.
+// The compiler checks that `Dog` is an `Animal`.
 class<Animal> $folded = Dog::class;
 
 // A name in a variable is checked while the program runs.

@@ -261,7 +261,7 @@
       "features": [
         "Core\\Task::all"
       ],
-      "text": "Each task that `Core\\Task::all` runs has the same capabilities and the same memory limit as the code that calls it. A task that asks for more memory than the limit does not get it.",
+      "text": "Each task that `Core\\Task::all` runs has the same capabilities and the same memory limit as the code that calls it. A task that needs more memory than the limit does not get it.",
       "security": true
     },
     {

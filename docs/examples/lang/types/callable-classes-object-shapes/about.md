@@ -13,5 +13,5 @@ Where a `class<T>` is expected, write the class as `Invoice::class`. A class nam
 you use it: `$f(4) as int`.
 
 **The examples below** pass a pricing rule around, check a value against a shape, and pick a
-report class from a name. Then they get the class of an `object` back, show a shape without a name
+report class from a name. Then they read the class of an `object`, show a shape without a name
 as a compile error, and pass a class to a function.

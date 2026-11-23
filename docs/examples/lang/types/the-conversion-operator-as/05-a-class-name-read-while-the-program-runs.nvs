@@ -18,7 +18,7 @@ class Dog extends Animal
 }
 
 // `Dog::class` is already a class reference, so it needs no `as`.
-// It is checked while the program compiles.
+// The compiler checks that `Dog` is an `Animal`.
 class<Animal> $folded = Dog::class;
 
 // A name in a variable is checked while the program runs.

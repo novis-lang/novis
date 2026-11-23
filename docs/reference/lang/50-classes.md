@@ -1110,9 +1110,10 @@ before the call, and a second call runs the parent's constructor again. When the
 constructor, the subclass does not call one, and `parent::constructor()` is the error `E0309`. A
 subclass with no constructor uses the parent's constructor.
 
-A subclass reaches the parent's `public` and `protected` members. A `private` member is the error
-`E0471` in the subclass. `parent::` in a class with no parent is `E0303`. `parent::f()` runs the
-nearest version above the class, so it reaches a grandparent when the parent does not declare `f`.
+A subclass can use the parent's `public` and `protected` methods and properties. A `private` one
+is the error `E0471` in the subclass. `parent::` in a class with no parent is `E0303`.
+`parent::f()` runs the nearest version above the class. When the parent does not declare `f`, it
+calls the grandparent's method.
 A default parameter value comes from the declared type of the variable. Say `A::f(int $x = 1)` is
 replaced by `B::f(int $x = 2)`. A call on an `A` variable uses `1`, even when it contains a `B`.
 

@@ -16,7 +16,7 @@ class Invoice implements Storable
 
 class Store
 {
-    // `$c` is a class that implements `Storable`. `$c::table()` calls its static method.
+    // `$c` is a class, not an object. The class implements `Storable`. `$c::table()` calls its static method.
     public static function describe(class<Storable> $c): string
     {
         return 'rows go to the table ' . $c::table();
