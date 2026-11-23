@@ -449,19 +449,21 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### 9. a typed decode bounds its issue list, and a passkey challenge is taken once
 
-- [ ] `crates/nvs-stdlib/src/json.rs:5577`: the bound of 64 and the budget ask. *check first*, with a
+- [x] `crates/nvs-stdlib/src/json.rs:5577`: the bound of 64 and the budget ask. *check first*, with a
   list of 1,000,000 bad elements under the default limit.
-- [ ] `crates/nvs-stdlib/src/json.rs:820`: the `isValid` card and
+- [x] `crates/nvs-stdlib/src/json.rs:820`: the `isValid` card and
   `docs/examples/core/Json/isValid/about.md:1` say what `CHANGELOG.md` says.
-- [ ] `crates/nvs-stdlib/src/passkey.rs:804`: `take_challenge` removes in the store
+- [x] `crates/nvs-stdlib/src/passkey.rs:804`: `take_challenge` removes in the store
   (`take_bytes`, `crates/nvs-stdlib/src/session.rs:2101`). *check first*, with two parallel finishes.
-- [ ] `crates/nvs-stdlib/src/session.rs:803`: the clamp, in the script and in
+- [x] `crates/nvs-stdlib/src/session.rs:803`: the clamp, in the script and in
   `crates/nvs-stdlib/src/session/sqlite.rs:452`.
-- [ ] `data/gaps/`: the record for sessions a CSRF token makes (`sent_id`,
+- [x] `data/gaps/`: the record for sessions a CSRF token makes (`sent_id`,
   `crates/nvs-stdlib/src/session.rs:2047`), with the rows 1,000 requests with no cookie make.
-- [ ] `crates/nvs-config/src/tree.rs:1544`: the comment says what the code does.
+- [x] `crates/nvs-config/src/tree.rs:1544`: the comment says what the code does.
 - [ ] `crates/nvs-stdlib/tests/decode_and_passkey.rs:1`. It runs once, by name.
-- [ ] `cargo build` and clippy are green.
+  - [x] The decode half: `crates/nvs-codegen/tests/decode_and_passkey.rs`, two cases, passed.
+  - [ ] The passkey half reachable by the acceptance command `cargo test --test decode_and_passkey`.
+- [x] `cargo build` and clippy are green.
 
 ### 10. a chunked reply is pooled after its last byte, and a worker panic stays on the worker
 
@@ -520,15 +522,37 @@ Stage 8 landed in one session (`time_text`, five cases, passed):
   `Core\Session::start`, `set`, `setSecret` and `clear`; `destroy` and `DateTime::Weekday` are
   renames. `E0763` on a `Core` attribute says only "Delete one of the two."
 
+Stage 9 landed its code in one session (three commits):
+
+- *Check first* (decode) was shown by a probe: 1,000,000 bad elements filled the 256 MB limit with
+  issues. `gather` and `MAX_ISSUES` in `json.rs` now bound every frame. The 65th issue ends the list
+  with one issue at path `""`, and the message says "more than 64". The rule fragment
+  `derive-reports-every-field` records the bound.
+- *Check first* (passkey) was read from the code, not reproduced: `take_bytes` removed the key only
+  in the request's copy. A new store operation `take` (`TAKE` script, SQLite `take`) deletes the key
+  only when the store still has the bytes this request loaded. The SAVE script gained `ARGV[4]`, the
+  long ceiling, and each later index moved by one. Tests: `two_requests_that_take_one_key_get_its_
+  bytes_once_on_any_store` and `a_save_brings_a_clock_stored_far_ahead_down_to_its_lifetime_on_any_
+  store` in `session.rs`, passed; the 16 `on_any_store` cases passed.
+- The CSRF gap record is `data/gaps/nvs-stdlib/csrf-token-makes-a-session-per-visitor.json`, owned
+  by this goal. Its count, 1,000 heads, is read from the code. A probe under `nvs serve` returned 500
+  with no log reason, and was not followed.
+
 Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, two; stage 5, one; stage 6,
-two; stage 7, one; stage 8, one.
+two; stage 7, one; stage 8, one; stage 9, one.
 
 ### Next
 
-Stage 9: a typed decode bounds its issue list at 64, and a passkey challenge is taken once, per the
-standing decisions *A typed decode stops collecting issues at 64* and *A passkey challenge is
-removed in the store when it is taken*, with its test `decode_and_passkey`. Stages 10 and 11 touch
-disjoint files, so another session may take one of them beside it.
+Stage 9's last item: the acceptance `decode-and-passkey` runs `cargo test --test decode_and_passkey`
+(`crates/nvs-codegen/tests/decode_and_passkey.rs`), which has only the decode half. Its fixtures have
+no session store. Either add a passkey case there that drives two contexts over one stored session,
+or change the check's command to also run the unit test
+`two_requests_that_take_one_key_get_its_bytes_once_on_any_store` (pick the second if the first needs
+`pub` items in `nvs-stdlib`). Then set stage 9 done. Stages 10 and 11 touch disjoint files.
+
+Stage 13's `owners` must give the CSRF gap record another owner before this goal's file is deleted.
+The rule id `a-session-store-answers-five-operations` and `docs/ground-rules.md:991` still say five
+operations; its text now lists six. Rename it in stage 12 or 13 with every citation.
 
 Stage 12 owes `tools:cli/nvs-test` its change entry and page reread for the `--since` change, and
 `Core\Arr::append` its change entry, its reference card reread and `website/src/data/core.json`
@@ -538,7 +562,11 @@ card rereads for `Core\Time\Instant::toEpochSeconds`, `toEpochMillis`, `toEpochM
 `Core\Time\Date::fromIso` and `Core\Time\Zone::of`, and the example
 `docs/examples/core/Time-Date/at/01-building-a-date.nvs` reread.
 
-Tests that may go red: `crates/nvs-stdlib/src/moved.rs`'s
+Tests that may go red: any `session.rs` or `sqlite.rs` test that reads the SAVE script's arguments
+by index, or a stored clock past now plus its lifetime; a passkey or session case whose second
+request takes a key another request already took; a JSON case with more than 64 issues, whose
+message now says "more than 64"; the `Core\Json::decodeAs` and `isValid` cards' change. Also
+`crates/nvs-stdlib/src/moved.rs`'s
 `every_move_points_from_a_missing_name_to_a_registered_one` was not run; it checks the six new rows
 against the registry. A test or example that calls `Instant::fromIso` with a leap second, a
 lower-case `t` or `z`, a comma before the fraction, or a basic offset such as `+0100`, now throws. A
