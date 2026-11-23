@@ -806,7 +806,8 @@ const DECODE_AS_DOC: MethodDoc = MethodDoc {
                    for an `array<C>`. Fields that are missing or have the wrong type throw it too. \
                    Each failed field is one issue on the error, with its own path. The message \
                    gives the number of issues. A list stops at its first bad element, and each \
-                   path contains the position of that element.",
+                   path contains the position of that element. The error lists at most 64 \
+                   issues. When more values are wrong, a last issue with the path `\"\"` says so.",
         },
         ErrorDoc {
             error: "LogicError",
@@ -824,15 +825,17 @@ const DECODE_AS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Json::isValid`'s reference card — `rule:core-api/reference-card`.
 const IS_VALID_DOC: MethodDoc = MethodDoc {
-    short: "Checks whether `decode` accepts `$json` at the default depth of `512`. It parses the \
-            text to check it.",
+    short: "Checks whether `$json` is a valid JSON document at the default depth of `512`. It \
+            reads the text and builds no values, so it is faster than `decode` and uses less \
+            memory.",
     params: &[ParamDoc {
         name: "json",
         desc: "The JSON text to check.",
         shape: &[],
     }],
     ret: "`true` when `$json` parses. `false` for text that is not valid JSON, nesting deeper \
-          than `512`, or a whole number too large for `int`.",
+          than `512`, or a whole number too large for `int`. A valid document that is too large \
+          to decode under the memory limit still returns `true`.",
     errors: &[],
 };
 
@@ -4902,7 +4905,11 @@ unsafe fn decode_object<'a>(
         Ok(value) => Ok(value),
         Err(DecodeFailure::Fault(fault)) => Err(fault),
         Err(DecodeFailure::Issues(issues)) => {
-            let count = issues.len();
+            let count = if issues.last().is_some_and(|issue| issue.more) {
+                format!("more than {MAX_ISSUES}")
+            } else {
+                issues.len().to_string()
+            };
             // Each path is rendered once, here, with the list position this
             // object came from as its outermost segment.
             let rendered: Vec<(String, String)> = issues
@@ -5026,6 +5033,52 @@ struct Issue<'a> {
     path: Vec<Segment<'a>>,
     /// What failed.
     message: String,
+    /// This is the last line of a list [`gather`] ended: it says more issues
+    /// follow, and its path is always the root's.
+    more: bool,
+}
+
+/// The most issues one typed decode lists. A list of a million bad elements
+/// would otherwise hold a million issues, each a path and a message, which a
+/// body of a few megabytes buys. The 65th ends the list, so a decode holds at
+/// most `MAX_ISSUES` issues and one closing line per frame it is in.
+const MAX_ISSUES: usize = 64;
+
+/// What [`gather`] did with the issues it was given.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Gathered {
+    /// Every issue was kept, and the frame reads on.
+    Open,
+    /// The list is full or the budget refused an issue: the frame stops
+    /// reading and gives its issues to its caller.
+    Ended,
+}
+
+/// Adds `more` to `issues`, up to [`MAX_ISSUES`].
+///
+/// Each issue is asked from the request's budget before it is kept. A refusal
+/// has already recorded the breach, so the list ends there with nothing more
+/// allocated, and the request's next poll ends it. The first issue past the
+/// bound, or a closing line a nested frame already wrote, ends the list with
+/// one closing line of its own.
+fn gather<'a>(issues: &mut Vec<Issue<'a>>, more: impl IntoIterator<Item = Issue<'a>>) -> Gathered {
+    for issue in more {
+        if issue.more || issues.len() >= MAX_ISSUES {
+            if !nvs_runtime::budget::affords(size_of::<Issue<'_>>().saturating_mul(2)) {
+                return Gathered::Ended;
+            }
+            issues.push(Issue::more());
+            return Gathered::Ended;
+        }
+        let ask = size_of::<Issue<'_>>()
+            .saturating_add(issue.message.len())
+            .saturating_add(issue.path.len().saturating_mul(size_of::<Segment<'_>>()));
+        if !nvs_runtime::budget::affords(ask) {
+            return Gathered::Ended;
+        }
+        issues.push(issue);
+    }
+    Gathered::Open
 }
 
 impl<'a> Issue<'a> {
@@ -5034,12 +5087,27 @@ impl<'a> Issue<'a> {
         Self {
             path: Vec::new(),
             message,
+            more: false,
         }
     }
 
-    /// The same issue, one segment further out.
+    /// The line that ends a list [`gather`] stopped at [`MAX_ISSUES`].
+    fn more() -> Self {
+        Self {
+            path: Vec::new(),
+            message: format!(
+                "More values did not match. Only the first {MAX_ISSUES} problems are listed."
+            ),
+            more: true,
+        }
+    }
+
+    /// The same issue, one segment further out. The closing line keeps the
+    /// root's path.
     fn under(mut self, segment: Segment<'a>) -> Self {
-        self.path.push(segment);
+        if !self.more {
+            self.path.push(segment);
+        }
         self
     }
 
@@ -5280,8 +5348,9 @@ impl<'a> Fields<'a> {
     }
 
     /// The `index`th field's value written into the position it fills, or its
-    /// issues added to this object's. The error is a [`DecodeFailure::Fault`],
-    /// which ends the walk.
+    /// issues added to this object's. The error ends this object's read: a
+    /// [`DecodeFailure::Fault`] ends the walk, and [`DecodeFailure::Issues`] is
+    /// this object's list, which [`gather`] ended.
     fn place(
         &mut self,
         index: usize,
@@ -5326,9 +5395,14 @@ impl<'a> Fields<'a> {
             // segment out.
             Err(DecodeFailure::Issues(nested)) => {
                 let key = Segment::Key(field.key.as_str());
-                self.issues
-                    .extend(nested.into_iter().map(|issue| issue.under(key)));
-                Ok(())
+                match gather(
+                    &mut self.issues,
+                    nested.into_iter().map(|issue| issue.under(key)),
+                ) {
+                    Gathered::Open => Ok(()),
+                    // The list is full: the object reads no more fields.
+                    Gathered::Ended => Err(DecodeFailure::Issues(std::mem::take(&mut self.issues))),
+                }
             }
             Err(fault @ DecodeFailure::Fault(_)) => Err(fault),
         }
@@ -5647,21 +5721,27 @@ impl<'a> Positions<'a> {
                     // As [`decode_field`]'s tail: [`scalar`] answered with a
                     // reference of its own, and the document is released before
                     // the constructor runs.
-                    match converted {
+                    let issue = match converted {
                         Some(value) => match outside(field, value) {
-                            None => self.decoded.append(value),
-                            Some(miss) => {
-                                self.issues.push(Issue::here(miss).under(Segment::At(at)));
+                            None => {
+                                self.decoded.append(value);
+                                None
                             }
+                            Some(miss) => Some(Issue::here(miss)),
                         },
-                        None => self.issues.push(
-                            Issue::here(format!(
-                                "expected {}, found {}",
-                                wanted(self.element.ty),
-                                contract.describe(item)
-                            ))
-                            .under(Segment::At(at)),
-                        ),
+                        None => Some(Issue::here(format!(
+                            "expected {}, found {}",
+                            wanted(self.element.ty),
+                            contract.describe(item)
+                        ))),
+                    };
+                    if let Some(issue) = issue
+                        && gather(&mut self.issues, [issue.under(Segment::At(at))])
+                            == Gathered::Ended
+                    {
+                        return Step::Done(Err(DecodeFailure::Issues(std::mem::take(
+                            &mut self.issues,
+                        ))));
                     }
                 }
             }
@@ -5677,7 +5757,9 @@ impl<'a> Positions<'a> {
 
     /// A nested position's value appended, or its issues added to this
     /// array's under that position. The nested position is the one read last.
-    /// The error is a [`DecodeFailure::Fault`], which ends the walk.
+    /// The error ends this array's read: a [`DecodeFailure::Fault`] ends the
+    /// walk, and [`DecodeFailure::Issues`] is this array's list, which
+    /// [`gather`] ended.
     fn receive(
         &mut self,
         outcome: Result<Value, DecodeFailure<'a>>,
@@ -5686,8 +5768,13 @@ impl<'a> Positions<'a> {
             Ok(value) => self.decoded.append(value),
             Err(DecodeFailure::Issues(nested)) => {
                 let at = Segment::At(self.next.saturating_sub(1));
-                self.issues
-                    .extend(nested.into_iter().map(|issue| issue.under(at)));
+                if gather(
+                    &mut self.issues,
+                    nested.into_iter().map(|issue| issue.under(at)),
+                ) == Gathered::Ended
+                {
+                    return Err(DecodeFailure::Issues(std::mem::take(&mut self.issues)));
+                }
             }
             Err(fault @ DecodeFailure::Fault(_)) => return Err(fault),
         }

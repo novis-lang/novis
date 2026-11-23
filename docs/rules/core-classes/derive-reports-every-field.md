@@ -17,6 +17,11 @@ for the same question. `crates/nvs-stdlib/src/db/mod.rs`'s module doc owns why.
 
 - **Memory:** the accumulator is allocated only when the first issue is recorded, so the successful
   path — every request that is not an error — allocates nothing for it.
+- **The list stops at 64 issues.** The 65th ends it with one issue at path `""` that says more
+  follow, and the message says "more than 64". Each issue kept is asked from the request's budget
+  first. A list of a million bad elements otherwise holds a million paths and messages, which a body
+  of a few megabytes buys; 64 is more than a form shows its user at once. It costs at most 64 issues
+  and one closing line per open frame (`MAX_ISSUES` in `crates/nvs-stdlib/src/json.rs`).
 
 **Declined:**
 - **Reporting the first failed field only.** It suits a configuration file and fails a form, whose

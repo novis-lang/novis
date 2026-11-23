@@ -1,9 +1,13 @@
 Checks whether a text is valid JSON and returns `true` or `false`.
 
-`isValid` returns `true` exactly when `Core\Json::decode` would read the text with its default
-options. It returns `false` for text that is not JSON, for a document nested deeper than 512
-levels, and for a whole number too large or too small for `int`. It never throws an error, so you
-do not need a `try` block.
+`isValid` returns `true` when the text is a valid JSON document at the default depth of 512. It
+returns `false` for text that is not JSON, for a document nested deeper than 512 levels, and for a
+whole number too large or too small for `int`. It never throws an error, so you do not need a
+`try` block.
+
+`isValid` reads the text and builds no values. It is faster than `decode` and uses less memory. A
+valid document can be too large for `decode` under the memory limit. `isValid` still returns `true`
+for it.
 
 `isValid` does not return the value. When you need the value too, call `decode` and catch its
 `ParseError`. That reads the text once, not twice.
