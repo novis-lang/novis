@@ -746,7 +746,9 @@ fn a_shared_subject_builds_only_the_window_it_keeps() {
 enum TextRow {
     /// It changes the subject's own allocation and returns it. The subject is
     /// `subject` with `room` spare bytes behind it, `args` gives the arguments
-    /// after it, and `result` is what the member returns.
+    /// after it, and `result` is what the member returns. A cut's `result`
+    /// keeps at least half of the subject's bytes: a shorter cut is copied out
+    /// (`NvsStr::keep`).
     Keeps {
         subject: &'static str,
         room: usize,
@@ -783,40 +785,40 @@ const TEXT_ROWS: &[(&str, &str, TextRow)] = &[
         r"Core\Str",
         "at",
         TextRow::Keeps {
-            subject: "abcdef",
+            subject: "aé",
             room: 0,
-            args: || vec![Value::int(2)],
-            result: "c",
+            args: || vec![Value::int(1)],
+            result: "é",
         },
     ),
     (
         r"Core\Str",
         "before",
         TextRow::Keeps {
-            subject: "ab,cd",
+            subject: "abc,d",
             room: 0,
             args: || vec![text(","), Value::bool(false)],
-            result: "ab",
+            result: "abc",
         },
     ),
     (
         r"Core\Str",
         "after",
         TextRow::Keeps {
-            subject: "ab,cd",
+            subject: "a,bcd",
             room: 0,
             args: || vec![text(","), Value::bool(false)],
-            result: "cd",
+            result: "bcd",
         },
     ),
     (
         r"Core\Str",
         "trim",
         TextRow::Keeps {
-            subject: "  ab  ",
+            subject: " abc ",
             room: 0,
             args: || vec![text(" ")],
-            result: "ab",
+            result: "abc",
         },
     ),
     (

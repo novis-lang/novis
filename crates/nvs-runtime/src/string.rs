@@ -3907,23 +3907,27 @@ mod tests {
     /// A prepend writes into the dropped front where it fits, and an append
     /// moves the live bytes back to the start before it grows once the
     /// dropped front is half of `cap`, so a queue stays in one allocation.
+    ///
+    /// Every cut here keeps at least half of `cap`: a shorter one is copied
+    /// out ([`NvsStr::keep`]) and has no dropped front.
     #[test]
     fn an_append_reclaims_the_dropped_front_before_it_grows() {
         let s = NvsStr::new(b"abcdefgh");
         let at = s.as_bytes().as_ptr();
-        let s = s.drop_front(5, None);
+        let s = s.drop_front(3, None);
+        assert_eq!(s.as_bytes().as_ptr(), at.wrapping_add(3), "cut in place");
         let s = s.prepend(b"xy", None);
-        assert_eq!(s.as_bytes(), b"xyfgh");
+        assert_eq!(s.as_bytes(), b"xydefgh");
         assert_eq!(
             s.as_bytes().as_ptr(),
-            at.wrapping_add(3),
+            at.wrapping_add(1),
             "written into the front"
         );
 
-        // A dropped front of 3 is under half of the `cap` of 8, so an append
+        // A dropped front of 1 is under half of the `cap` of 8, so an append
         // that does not fit behind the live bytes grows.
         let s = s.append(b"12");
-        assert_eq!(s.as_bytes(), b"xyfgh12");
+        assert_eq!(s.as_bytes(), b"xydefgh12");
         assert!(
             s.capacity() > 8,
             "a front under half of cap is not reclaimed"
@@ -3945,23 +3949,23 @@ mod tests {
         // target itself from where its bytes moved to.
         #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
         unsafe {
-            let s = NvsStr::new(b"abcdefgh").drop_front(6, None).into_raw();
+            let s = NvsStr::new(b"abcdefgh").drop_front(4, None).into_raw();
             let doubled = nvs_str_append(s, s);
             assert_eq!(doubled, s, "the append was made in place");
-            assert_eq!(NvsStr::bytes_of(doubled), b"ghgh");
+            assert_eq!(NvsStr::bytes_of(doubled), b"efghefgh");
             nvs_str_release(doubled);
 
-            let s = NvsStr::new(b"abcdefgh").drop_front(6, None).into_raw();
+            let s = NvsStr::new(b"abcdefgh").drop_front(4, None).into_raw();
             let joined = nvs_str_concat(s, s);
             assert_eq!(joined, s, "the concatenation was made in place");
-            assert_eq!(NvsStr::bytes_of(joined), b"ghgh");
+            assert_eq!(NvsStr::bytes_of(joined), b"efghefgh");
             nvs_str_release(joined);
 
-            let s = NvsStr::new(b"abcdefgh").drop_front(5, None).into_raw();
+            let s = NvsStr::new(b"abcdefgh").drop_front(4, None).into_raw();
             let parts = [StrPart::int(42)];
             let written = nvs_str_append_parts(s, parts.as_ptr(), parts.len());
             assert_eq!(written, s, "the parts were written in place");
-            assert_eq!(NvsStr::bytes_of(written), b"fgh42");
+            assert_eq!(NvsStr::bytes_of(written), b"efgh42");
             nvs_str_release(written);
         }
 

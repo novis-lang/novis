@@ -3563,13 +3563,13 @@ nvs_runtime::nvs_helper! {
         // so the completion reads it (`Completion::read_file_body`).
         let file = match completion.read_file_body() {
             Some((path, bytes)) => {
-                // no case can reach this: a case never runs `Core\Test::request` against
-                // a unit, so a file gone between `sendFile` and this read is asserted by
-                // `a_response_that_sends_a_file_answers_with_its_bytes_and_its_media_type`.
                 // A file larger than the test may still hold stops the read before it is
                 // whole, and the test ends on its memory limit as any allocation would.
                 let bytes = bytes.map_err(|error| {
                     if error.kind() == std::io::ErrorKind::OutOfMemory {
+                        // no case can reach this: a read stopped on the ceiling has recorded the
+                        // breach, as `nvs-runtime`'s `a_file_body_is_read_within_the_memory_ceiling`
+                        // asserts, so the fatal below is only the fallback for a breach not recorded.
                         return ctx.memory_breach().unwrap_or_else(|| {
                             Fault::fatal(
                                 "Core\\Test::request: the file the response sent does not fit in \
@@ -3577,6 +3577,9 @@ nvs_runtime::nvs_helper! {
                             )
                         });
                     }
+                    // no case can reach this: a case never runs `Core\Test::request` against
+                    // a unit, so a file gone between `sendFile` and this read is asserted by
+                    // `a_response_that_sends_a_file_answers_with_its_bytes_and_its_media_type`.
                     Fault::thrown(format!(
                         "Core\\Test::request could not read the file the response sent, `{}`: \
                          {error}",

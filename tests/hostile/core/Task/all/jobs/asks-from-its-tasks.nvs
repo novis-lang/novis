@@ -34,7 +34,7 @@ class Ask
     public static function widen(): string
     {
         try {
-            var $run = spawn script "asks-from-its-tasks.nvs" with(grants: ['net.connect', 'script.spawn']);
+            var $run = spawn script 'asks-from-its-tasks.nvs' with(grants: ['net.connect', 'script.spawn']);
             return 'allowed';
         } catch (RuntimeError $refused) {
             return 'refused';

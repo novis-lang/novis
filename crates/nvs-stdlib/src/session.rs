@@ -4272,6 +4272,7 @@ mod tests {
 
         let changes = Changes {
             removed: vec![b"user".as_slice(), b"csrf".as_slice()],
+            clocks: clocks(),
             ..Changes::default()
         };
         assert_eq!(
@@ -4313,9 +4314,10 @@ mod tests {
         let now = crate::queue::now_millis();
         let (now_text, short_text) = (super::decimal(now), super::decimal(now + 60_000));
         let saved_with = |open: &mut Connection, value: &[u8]| {
-            let argv: [&[u8]; 10] = [
+            let argv: [&[u8]; 11] = [
                 &now_text,
                 &short_text,
+                b"0",
                 b"0",
                 b"",
                 b"0",
@@ -4467,38 +4469,55 @@ mod tests {
     }
 
     /// `rule:security/csrf-is-on-by-default`: a new visitor's first token draws the session's
-    /// identifier and sends its cookie, and the request's end creates the row once under that
-    /// identifier. A second token in the same request writes nothing more.
+    /// identifier and sends its cookie, and a second token in the same request draws nothing more.
+    /// No token writes a session row, so tokens alone leave the store empty. The same request with
+    /// one `Core\Session::set` creates the row once, under the identifier the cookie carries.
     #[test]
-    fn a_token_for_a_new_visitor_creates_the_row_once() {
-        let (mut ctx, serving, held) = tokened();
-        ctx.open_session(super::fresh_session());
-        token(&mut ctx);
-        token(&mut ctx);
-        let id = ctx.session().expect("the session is open").id.clone();
-        assert!(
-            super::issuable(&id),
-            "the first token drew an identifier: {id:?}"
-        );
-        let headers = ctx.take_headers();
-        assert!(
-            headers
-                .iter()
-                .any(|header| header.value.contains(id.as_str())),
-            "the cookie carries the drawn identifier: {headers:?}"
-        );
-        ctx.end_session();
-        assert_eq!(
-            serving.writes.load(Ordering::SeqCst),
-            1,
-            "one row is created"
-        );
-        assert!(
-            held.lock()
-                .expect("the store")
-                .contains_key(&key_of(NO_APP, &id)),
-            "the row is under the identifier the cookie carries"
-        );
+    fn a_token_for_a_new_visitor_creates_a_row_only_with_a_value() {
+        for changes in [false, true] {
+            let (mut ctx, serving, held) = tokened();
+            ctx.open_session(super::fresh_session());
+            token(&mut ctx);
+            token(&mut ctx);
+            let id = ctx.session().expect("the session is open").id.clone();
+            assert!(
+                super::issuable(&id),
+                "the first token drew an identifier: {id:?}"
+            );
+            let headers = ctx.take_headers();
+            assert!(
+                headers
+                    .iter()
+                    .any(|header| header.value.contains(id.as_str())),
+                "the cookie carries the drawn identifier: {headers:?}"
+            );
+            if changes {
+                let key = Value::text("cart");
+                let value = Value::text("17");
+                let site = Value::int(0);
+                nvs_runtime::call(
+                    super::nvs_core_session_set_short_lived,
+                    &mut ctx,
+                    &[key, value, site],
+                )
+                .expect("the value is saved");
+                dropped(key);
+                dropped(value);
+            }
+            ctx.end_session();
+            assert_eq!(
+                serving.writes.load(Ordering::SeqCst),
+                usize::from(changes),
+                "a token creates no row, and a set creates one (set called: {changes})"
+            );
+            assert_eq!(
+                held.lock()
+                    .expect("the store")
+                    .contains_key(&key_of(NO_APP, &id)),
+                changes,
+                "a row exists only after a set, under the identifier the cookie carries"
+            );
+        }
     }
 
     /// `ctx` under the one `[[app]]` block at `app`, with the store configuration it already had.

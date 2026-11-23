@@ -386,7 +386,10 @@ fn the_error_names_the_restricting_file_and_line() {
 fn a_target_that_names_nothing_warns_only_in_the_application_file() {
     let names_nothing = "[[restrict]]\nuse = 'Blog\\Missing'\nallow = []\n";
     let application = format!("{APPLICATION}\n{names_nothing}");
-    let framework = format!("{FRAMEWORK}\n{names_nothing}");
+    // A package's file may restrict only its own code or `Core`'s, so its target that names
+    // nothing lies under the package's own name.
+    let framework =
+        format!("{FRAMEWORK}\n[[restrict]]\nuse = 'Framework\\Core\\Missing'\nallow = []\n");
     let entry = module_entry(SIGN);
 
     let (_root, modules) = layout(&[
