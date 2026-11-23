@@ -26,7 +26,7 @@ stages:
     context: [docs/rules/http-server/a-development-server-answers-the-hosts-it-knows.md]
   - id: 6
     title: "a test request on the wire is armed like every other, and --since never runs fewer tests than the change reaches"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/runner/reach.rs, crates/nvs-cli/src/runner/since.rs]
   - id: 7
     title: "an in-place result equals the built one, and a cut frees what it no longer needs"
@@ -229,7 +229,12 @@ a request to a `#[Test(server: true)]` listener keeps its mail and reads the tes
 **`--since` runs more tests when it cannot tell, never fewer.** A deleted file selects every test the
 stored map says reached it. A rename is read as a delete and an add (`git diff --no-renames`). A
 changed path outside the program folder, or one that cannot be resolved, runs every test. A run that
-skipped tests keeps the stored hash of every function only those tests reached.
+skipped tests keeps the stored hash of every function any of those tests reached, of each of their
+classes, and of every file, and keeps a stored hash for what is gone. A function reached by both a
+run and a skipped test keeps the old hash too, so the run test runs once more. It costs at most one
+extra run of a test, and the map converges at the next `--since` run. A directory of programs has
+the folder it is in as its program folder (`app::folder` of the directory), so `ours` is wider for
+it, which runs more tests, never fewer.
 
 **The members of `Core\Test` that answer for the outside world throw in work a server runs.**
 `answerHttp`, `answerSocket`, `tlsSession` and `scriptAnswers` throw a `LogicError` in a request, a
@@ -402,13 +407,13 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
   run time. *check first*, with a double that gives an interface's default method.
 - [x] `crates/nvs-stdlib/src/test.rs:3442`: a `sendFile` body is read within the request's memory
   limit (`crates/nvs-runtime/src/host.rs:744`).
-- [ ] `crates/nvs-cli/src/runner/reach.rs:499`: a deleted file and a missing function select their
+- [x] `crates/nvs-cli/src/runner/reach.rs:499`: a deleted file and a missing function select their
   tests, and `record` at `:458` keeps the hashes of what unrun tests reached.
-- [ ] `crates/nvs-cli/src/runner/since.rs:134`: `--no-renames`, and a path outside the folder or one
+- [x] `crates/nvs-cli/src/runner/since.rs:134`: `--no-renames`, and a path outside the folder or one
   that does not resolve at `:151` runs every test.
-- [ ] `crates/nvs-cli/tests/wire_request_is_armed.rs:1` and
+- [x] `crates/nvs-cli/tests/wire_request_is_armed.rs:1` and
   `crates/nvs-cli/tests/since_selection.rs:1`. Each runs once, by name.
-- [ ] `cargo build` and clippy are green.
+- [x] `cargo build` and clippy are green.
 
 ### 7. an in-place result equals the built one, and a cut frees what it no longer needs
 
@@ -504,35 +509,38 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 Stages 1 to 5 are done, each with its acceptance test passing. `Live::adopt` and the retrieval
 `static` item were not found.
 
-Stage 6 has four of its items landed, each in its own commit, and its `--since` half open.
+Stage 6 is done. Its first session landed the arming, the `Core\Test` members, the double and the
+`sendFile` read (`wire_request_is_armed` passed). Its second landed `--since`:
 
-- `Armed` in `crates/nvs-cli/src/runner.rs` arms every test context, including a request off the
-  wire, which reads weak handles from an `Owner` the isolate fills. `wire_request_is_armed` passed.
-- The four `Core\Test` members and the double each reproduced first. The members now throw in work
-  a server runs (standing decision). The double fix is in `signatures.rs`, with the conformance case
-  `a-double-replaces-an-interfaces-default-method.nvst`. Both unit tests passed.
-- `Completion::read_file_body` reads through a `ByteWriter`; its unit test passed.
+- `reach::select` runs every test for an unresolved path or a non-program file outside the folder,
+  and a function the map has and the program lacks selects its tests. `reach::kept_hashes` keeps
+  the stored hashes skipped tests depend on. `since::changed` passes `--no-renames` and keeps
+  `Changed::unresolved`. The rule fragment `tags-and-shards-select-what-runs` says so.
+- `crates/nvs-cli/tests/since_selection.rs`: five cases, all passed, run as `nvs test .` over a
+  directory of programs at `lib/app/` in a scratch checkout.
 
 Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, two; stage 5, one; stage 6,
-one so far.
+two.
 
 ### Next
 
-Stage 6, the `--since` half (the stage's second and last session):
+Stage 7 (its gate, `crates/nvs-codegen/tests/operand_moves.rs`, exists):
 
-- `crates/nvs-cli/src/runner/reach.rs:499`: a deleted file and a missing function select the
-  tests the stored map says reached them. `record` at `:458` keeps the stored hash of every
-  function only unrun tests reached.
-- `crates/nvs-cli/src/runner/since.rs:134`: add `--no-renames` to the `git diff` call, and at
-  `:151` a changed path outside the program folder, or one that does not resolve, runs every test.
-- New test `crates/nvs-cli/tests/since_selection.rs`: a deleted file, a renamed file and a file
-  outside the folder each select the tests that reached them. `crates/nvs-cli/tests/test_reach.rs`
-  and its `fixtures/reach/` show how a test drives `nvs test` from a fixture folder.
-- Then `cargo build` and clippy, and the stage is done.
+- `crates/nvs-stdlib/src/arr.rs:3419` `kept_counter` and `crates/nvs-runtime/src/array.rs:1265`
+  `rekey`: the next appended key is the build path's.
+- `crates/nvs-runtime/src/string.rs:1456` `keep`: a cut under half its capacity is copied out.
+- `crates/nvs-runtime/src/array.rs:1037`: the append counter is kept with no walk; measure the
+  queue loop at 5,000, 10,000 and 20,000 rounds on the release binary.
+- `crates/nvs-runtime/src/array.rs:2639` (*check first*), `crates/nvs-fuzz-checks/src/in_place.rs`,
+  and the new `crates/nvs-codegen/tests/in_place_results.rs`.
 
 Stages 8, 9, 10 and 11 touch disjoint files, so another session may take one of them beside it.
+Stage 12 owes `tools:cli/nvs-test` its change entry and page reread for the `--since` change.
 
-Tests that may go red: a program served by `nvs serve`, or a job or schedule, that calls
+Tests that may go red: a `--since` case in `crates/nvs-cli/tests/test_command.rs` whose checkout
+holds a changed file outside the program's folder now runs every test. A filtered run beside
+`--since` now leaves the hashes of the tests it skipped as they were, so the next `--since` run may
+select more tests than before. A program served by `nvs serve`, or a job or schedule, that calls
 `Core\Test::answerHttp`, `answerSocket`, `tlsSession` or `scriptAnswers` now throws. A
 `Core\Test::request` of a route that sends a file larger than the test's memory limit now ends on
 that limit. A count of virtual calls, or a bench, over an interface's default method may move. A
