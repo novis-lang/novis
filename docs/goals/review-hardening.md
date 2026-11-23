@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/isolate.rs, crates/nvs-runtime/src/ctx/limits.rs]
   - id: 2
     title: a decoded payload and a refused write leave no membership that points nowhere
-    status: open
+    status: done
     context: [docs/rules/classes/serialize-is-a-closed-format.md, crates/nvs-runtime/src/revoke.rs]
   - id: 3
     title: a restriction holds every use form the checker records
@@ -311,14 +311,17 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
   at `:870` writes none. `rule:classes/serialize-is-a-closed-format` *read.*
 - [x] `crates/nvs-stdlib/src/objmap.rs:540`: the link follows a write that landed. *check first.*
 - [x] `crates/nvs-stdlib/src/objmap.rs:613`: `remove_entry` compares the value's identity.
-- [ ] `crates/nvs-runtime/src/graph.rs:595`: a live copy that adopts a collection unlinks the source's
+- [x] `crates/nvs-runtime/src/graph.rs:595`: a live copy that adopts a collection unlinks the source's
   members. *check first*: find the syntax that reaches `copy_graph_to` at `:718` with one holder.
+  Not found: see `### State`.
 - [x] `crates/nvs-runtime/src/record.rs:408`: a dump of a revocable object starts after the hidden
   slot.
 - [x] `crates/nvs-codegen/tests/hidden_slot.rs:1`: a payload built by the test with a value node at
   the hidden slot is refused, a round trip of a revocable object in a map works, and a `set` at the
   ceiling followed by a revoke touches no freed collection. It runs once, by name.
-- [ ] `cargo build` and clippy are green.
+- [x] `crates/nvs-stdlib/src/objset.rs:584` and `crates/nvs-stdlib/src/heap.rs:867`: `add` and `push`
+  link only a write that landed, with a row each in `hidden_slot.rs`.
+- [x] `cargo build` and clippy are green.
 
 ### 3. a restriction holds every use form the checker records
 
@@ -481,32 +484,36 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### State
 
-Stage 1 is done (`Ctx::child` in `crates/nvs-runtime/src/ctx/isolate.rs`, test
-`crates/nvs-cli/tests/task_child_limits.rs`). Stage 2 has one item open: the live copy that adopts a collection (`graph.rs:595`). The rest landed
-in one commit. `Carrier::SKIPS_HIDDEN` makes the encoder skip the hidden slot, and `written_slots`
-(`crates/nvs-runtime/src/graph.rs`) is the slot list both `encode` and `decode` use. A forged payload
-with an `int` node for the slot decoded before the fix, and its eight bytes were read as the
-memberships pointer. The rule fragment has a paragraph on the hidden slot. The objmap *check first* reproduced: under a 400-byte ceiling (after `rebase_memory`) the map's write
-was refused, the post was linked anyway, `put` freed the map, and the revoke read the freed map and
-aborted on a refcount underflow (`array.rs:3049`). `Core\ObjectMap::set` now retains the old value
-across the write, checks with `held_under` that the write landed, and only then unlinks and links.
-`remove_entry` takes `only`, and a revoke's map-value entry is removed only when the value is the
-revoked object. Only `Core\ObjectMap` was fixed: `ObjectSet`, `Heap` and the other collections'
-`link` calls were not read for the same pattern. `crates/nvs-codegen/tests/hidden_slot.rs` ran by name, green. Its ceiling case scans ceilings from 8
-to 4096 bytes and fails unless at least one refuses the write and still reaches the revoke.
+Stages 1 and 2 are done. Stage 1: `Ctx::child` in `crates/nvs-runtime/src/ctx/isolate.rs`, test
+`crates/nvs-cli/tests/task_child_limits.rs`. Stage 2: `Carrier::SKIPS_HIDDEN` and `written_slots`
+(`crates/nvs-runtime/src/graph.rs`) keep the hidden slot out of a payload. `Core\ObjectMap::set`,
+`Core\ObjectSet::add` and `Core\Heap::push` link a member only once a re-read shows the write
+landed. Without that, a write the ceiling refused still linked, the collection was freed, and the
+revoke read it: the map and the heap aborted on a refcount underflow (`array.rs:3049`), the set on
+`STATUS_HEAP_CORRUPTION`. `crates/nvs-codegen/tests/hidden_slot.rs` has one ceiling row per
+collection (`refused_write_links_nothing`), run by name, green, and each aborts with its fix
+reverted. The row's proof is the abort: `membership_walks` also counts the `unlink` a freed
+collection runs for a landed write, so it cannot tell the two apart.
 
-Sessions per stage: stage 1, one; stage 2, one.
+`Live::adopt` (`graph.rs:595`) was not found. Every array entry and object field is retained before
+the walk reaches it (`graph.rs:389`, `:462`), so only the top-level value of a crossing can be
+adopted. The `upgrade` members and the test fixtures retain that value too (`socket.rs:896`,
+`dispatch.rs:1334`), and a spawn's top level is its argument list. That leaves a task's returned
+collection at the await (`crates/nvs-host/src/isolate.rs:1634`). Its members are copied, and an
+original that the task still holds elsewhere keeps a membership that names the adopted collection.
+Only `revoke()` reads a membership, and no task code runs after the await's copy, so nothing reaches
+it. It is freed with the task's heap.
+
+Sessions per stage: stage 1, one; stage 2, two.
 
 ### Next
 
-Stage 2's last item, `crates/nvs-runtime/src/graph.rs:595` (`Live::adopt`), *check first*: find the
-syntax that reaches `copy_graph_to` (`:727`) with a collection at refcount 1 whose revocable member is
-also held elsewhere. The candidates are a `Core\Task` spawn's argument and return value, and the
-`upgrade` members. The walk writes `null` into an adopted object's hidden slot (`:448`), so an adopted
-member's memberships box is leaked until the request ends, and a member that is copied keeps
-memberships that name the adopted collection. Then read `ObjectSet`'s and `Heap`'s `link` calls for
-the refused-write pattern fixed in `objmap.rs`; a defect found there is fixed in the same way and
-gets a row in `hidden_slot.rs`. Then the build, clippy, and stage 2 is done.
+Stage 3, as its `**Split:**` line says: an `Explore` subagent lists every `ExprInfo` variant of
+`crates/nvs-types/src/expr_table.rs` and whether `resolved`
+(`crates/nvs-types/src/deprecated/template.rs:654`) has an arm for it. Then `resolved` loses its `_`
+arm, and the *check first* items at `program.rs:106`, `defaults.rs:430`, `restrict.rs:718` and
+`retrieval.rs:452` each get one attempt. Stages 4, 5, 6, 8, 9, 10 and 11 touch disjoint files and
+may be taken in any order.
 
 No test is expected to go red. Stage 1's arming may move where a task's allocation over the ceiling
 stops in a conformance or group test: a case whose expected error had no "was refused" clause for a
