@@ -285,8 +285,12 @@ entry until the file changes, and never analyses the entry again on its own thre
 
 **A release refuses a tip that holds shipped code its build did not have.** `--fixes-built` reads
 every commit between the built commit and the tip, whatever its type, and fails when one changes a
-path under `crates/`, `extensions/`, `vendor/`, `Cargo.toml` or `Cargo.lock`. The attestation check of
-`release-promote.yml` names `--signer-workflow`. This goal runs no release and changes no secret.
+path under `crates/`, `extensions/`, `vendor/`, `editors/vscode/`, `Cargo.toml`, `Cargo.lock` or
+`rust-toolchain.toml` (`SHIPPED` in `release.ts`). The extension and the toolchain pin are in it
+because the release ships the extension built at the same commit, and the pin decides the compiler.
+A merge is read as its diff against its first parent. The attestation check of `release-promote.yml`
+names `--signer-workflow` with `build.yml`, the reusable workflow that attests the extension. This
+goal runs no release and changes no secret.
 
 **What this goal does not take.** The sessions a CSRF token makes for visitors with no cookie get a
 gap record under `data/gaps/`, with the count stage 9 measures, because the fix is a design of its
@@ -485,11 +489,11 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### 11. a release refuses a tip that holds shipped code its build did not have
 
-- [ ] `tools/nv/cmd/release.ts:26`: `--fixes-built` as the standing decision gives it, at `:1099`.
+- [x] `tools/nv/cmd/release.ts:26`: `--fixes-built` as the standing decision gives it, at `:1099`.
   *check first*: read `.github/workflows/release.yml:269` and say under `### State` what the tag is
   made on.
-- [ ] `.github/workflows/release-promote.yml:207`: `--signer-workflow` on the attestation check.
-- [ ] `tools/nv/test/release-fixes-built.test.ts:1`. It runs once, by name.
+- [x] `.github/workflows/release-promote.yml:207`: `--signer-workflow` on the attestation check.
+- [x] `tools/nv/test/release-fixes-built.test.ts:1`. It runs once, by name.
 - [ ] `bun nv ci --check` is green.
 
 ### 12. the features that moved have their proofs, their pages and their change entries
@@ -519,27 +523,29 @@ Stage 7's queue loop measured 66, 60 and 66 ms at 5,000, 10,000 and 20,000 round
 `decode-and-passkey` and `chunked-end` run unit tests by name, as their helpers are private. The
 CSRF gap record `data/gaps/nvs-stdlib/csrf-token-makes-a-session-per-visitor.json` is this goal's.
 
-Stage 10, in one session:
+Stages 10 and 11 are summarised in their commits. Stage 11's *check first*: `publish` resets to
+`origin/main` and tags the release commit it adds there, while the binaries are `github.sha`'s.
+`--fixes-built` now fails on any commit in `SHA..HEAD` that changes a path in `SHIPPED`.
+`release-fixes-built.test.ts` passes (3 tests, one in a scratch repository with a merge).
 
-- *Check first* (chunked) was read from the code: `dechunk` ended the body at the `0` chunk header,
-  so a trailer in a later segment stayed on the pooled socket. It now reads the trailer to its empty
-  line (`in_trailer`). A close inside the trailer ends a whole body. `finished` pools nothing when
-  octets follow the body. `pool::take` closes a match where `Connection::has_waiting` is true (one
-  non-blocking peek; for TLS also the session's unread records). Its two unit tests in
-  `transport.rs` pass, and `chunked-end` runs them by name.
-- The worker panic: a job now sends `Found::Panicked`, with `adopt` and `take_made` inside the guard.
-  The index skips the entry in every turn until a refresh of its own file, which queues it again.
-  The server logs the path to stderr and as a `window/logMessage` error (`log_panicked` in
-  `server.rs`). `crates/nvs-lsp/tests/worker_panic.rs` passes, with the switch
-  `nvs_lsp::panic_on_worker`.
+`bun nv ci --check` is red, and every red is stage 12's: stale pages, help and questions of stages
+1 to 9's features, `core.json` and `llms-full.txt` not rendered, and stale perf proofs. None names
+a file stage 11 touched, so its last item stays open until stage 12 makes it green.
+
+Sessions per stage: one each, except stages 2, 3, 4, 6 and 9, which took two.
 
 Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, two; stage 5, one; stage 6,
-two; stage 7, one; stage 8, one; stage 9, two; stage 10, one.
+two; stage 7, one; stage 8, one; stage 9, two; stage 10, one; stage 11, one.
 
 ### Next
 
-Stage 11 (`tools/nv/cmd/release.ts:26`, `.github/workflows/release-promote.yml:207`, the bun test
-`tools/nv/test/release-fixes-built.test.ts`). Then stage 12 and stage 13.
+Stage 12 (`website/src/data/changes.json`, the cards and pages listed below), then stage 13.
+Stage 11 changed only the release tool and two workflows, so it owes no feature proof. Stage 12
+works from the reds `bun nv ci --check` names (its last report listed 35 stale pages and help, 11
+page questions, `bun nv render --website` for `core.json` and `llms-full.txt`, and the stale perf
+proofs of `Core\Arr::count`, `filter`, `map`, `mapKeys`, the `Core\Test\Response` and `SentRequest`
+methods and the `Core\Session` methods). When it is green, tick stage 11's last item and set stage
+11 to done.
 
 Stage 13's `owners` must give the CSRF gap record another owner before this goal's file is deleted.
 The rule id `a-session-store-answers-five-operations` and `docs/ground-rules.md:991` still say five
