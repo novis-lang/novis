@@ -1,7 +1,7 @@
 <?nvs
 // Attack: a request tries to change `trace.sample`, the share of requests that is
-// traced, and `trace.propagate`. Every write should fail, and all four `[trace]`
-// keys should still be the configured values at the end.
+// traced, and three other `[trace]` keys. Every write should fail. At the end,
+// `sample`, `propagate`, `exporter` and `endpoint` should still be the configured values.
 // hostile: timeout-ms 20000
 
 // The compiler checks a setting name written as text in `Core\Config::set`. A program may not change `[trace]`,

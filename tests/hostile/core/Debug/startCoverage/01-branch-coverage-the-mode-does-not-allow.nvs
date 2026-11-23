@@ -15,7 +15,7 @@ class Attack
         }
     }
 
-    // Each step catches its error, so the step after it still runs.
+    // This step tries to change `debug.mode` and prints what `Core\Config::set` returns.
     // `Core\Config::set('debug.mode', ...)` with the name as text does not compile, so here the name is in a variable.
     public static function set(string $step, string $value): void
     {

@@ -51,7 +51,8 @@ foreach ($nearby as string $key) {
     Core\Config::restore($key);
 }
 
-// 3. Add an anonymous function that runs first and tries to add more work while it runs. Each try should throw.
+// 3. Add an anonymous function that runs first and tries to add more work while it runs.
+// Each `Core\Task::afterResponse` call inside it should throw an error.
 Core\Task::afterResponse(fn(): void => {
     try {
         Core\Task::afterResponse(fn(): void => {});

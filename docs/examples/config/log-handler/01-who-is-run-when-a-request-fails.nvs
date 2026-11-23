@@ -6,8 +6,8 @@ echo 'the handler on duty: ', Core\Config::get('log.handler') ?? '(none written 
 echo 'memory held back:    ', Core\Config::get('log.handler_reserve_memory') ?? '(no value)', "\n";
 echo 'time held back:      ', Core\Config::get('log.handler_reserve_time') ?? '(no value)', "\n";
 
-// A program registers its own handler with `Core\Fatal::onLimit`. This function
-// runs inside the request that failed.
+// A program registers its own handler with `Core\Fatal::onLimit`. The function
+// you give it runs inside the request that failed.
 Core\Fatal::onLimit(fn(): void => {
     echo "the program's own handler ran\n";
 });

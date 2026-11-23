@@ -963,7 +963,7 @@ codes! {
     pub const E_NOT_SETTABLE: Code = Code::new("E0667").card(
         "A program cannot change this setting with `Core\\Config::set` or `Core\\Config::restore`. \
          Only `nvs.toml` sets it, so the call would change nothing every time. The help line \
-         lists the settings a program may change. Code in a package may change only the \
-         `limits` settings. To change this setting, change it in `nvs.toml`.",
+         lists the settings a program may change. Code in a package (a library your program \
+         installs) may only lower the `[limits]` settings. To change this setting, change it in `nvs.toml`.",
     );
 }

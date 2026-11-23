@@ -385,7 +385,7 @@ codes! {
     /// are not a dot. A warning, because the checker cannot see the value.
     pub const W_SET_NEVER_FITS: Code = Code::new("W1037").card(
         "This `Core\\Config::set` or `Core\\Config::restore` call builds the name of a setting \
-         from a string template. No setting that a program may change has a name of this form, \
+         from a string template, such as `\"db.{$name}.driver\"`. No setting that a program may change has a name of this form, \
          so the call changes nothing. Check the name. The help line lists the \
          settings a program may change.",
     );

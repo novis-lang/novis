@@ -22,7 +22,7 @@ echo Core\Config::set($decompressed, '1G') ? 'yes' : 'no', "\n";
 string $reserve = 'fatal_reserve_memory';
 echo Core\Config::set($reserve, '31M') ? 'yes' : 'no', "\n";
 
-// 3. Set the memory limit to the highest limit, then to one byte more.
+// 3. Set the memory limit to `48M`, the highest limit in this `nvs.toml`, then to one byte more.
 // The first call returns `true`. The other two should return `false`.
 echo Core\Config::set('memory', '48M') ? 'yes' : 'no', "\n";
 echo Core\Config::set('memory', '50331649') ? 'yes' : 'no', "\n";

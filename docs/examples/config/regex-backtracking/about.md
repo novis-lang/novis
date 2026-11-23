@@ -1,8 +1,9 @@
 Decides whether a regular expression may use the backtracking engine. You set it in `nvs.toml` as
 the key `backtracking` in the block `[regex]`.
 
-Most patterns run on a linear engine. Its time grows only with the length of the text. Lookaround,
-such as `(?<=a)`, and backreferences, such as `\1`, need the backtracking engine. On some input, that
+Most patterns run on a linear engine. Its time grows only with the length of the text. Lookaround
+checks the text before or after a position, such as `(?<=a)`. A backreference matches the same text
+as an earlier group, such as `\1`. Both need the backtracking engine. On some input, that
 engine can take a very long time.
 
 There are three values:
@@ -18,4 +19,4 @@ and backreferences run as usual with every value.
 A program cannot change this setting. `Core\Config::set('regex.backtracking', 'allow')` does not
 compile. When the name is in a variable, `set` returns `false`.
 
-**The example below** runs a simple pattern, then catches the error from a pattern with lookaround.
+The example runs a simple pattern, then catches the error from a pattern with lookaround.
