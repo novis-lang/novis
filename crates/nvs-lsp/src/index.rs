@@ -1888,7 +1888,14 @@ pub(crate) fn analyse_entry(
                 .ok()
                 .and_then(|metadata| Stamp::of(&metadata, text.len(), started))
         };
-        let indexed = record(&analysed, loaded, &key, stamp, entry.key);
+        // The parse cache took the surface hash when it parsed this text, and
+        // the analysis parsed through it, so it holds that parse now.
+        let src = analysed.map.file(loaded.id);
+        let surface = session
+            .parses
+            .hashes(src)
+            .map_or_else(|| crate::surface::of_source(text), |(_, surface)| surface);
+        let indexed = record(&analysed, loaded, &key, stamp, surface, entry.key);
         records.push((key, indexed));
     }
     let reads = analysed
@@ -1946,12 +1953,14 @@ pub(crate) fn plan_entry(
     Some((graph, work))
 }
 
-/// The record of one file `analysed` loaded, under `key`.
+/// The record of one file `analysed` loaded, under `key`, whose declaration
+/// surface hashes to `surface`.
 fn record(
     analysed: &Analysed,
     loaded: &Loaded,
     key: &Path,
     stamp: Option<Stamp>,
+    surface: Digest,
     entry: &Path,
 ) -> Indexed {
     let text = analysed.map.file(loaded.id).text();
@@ -1975,7 +1984,7 @@ fn record(
             .diags
             .iter()
             .any(|diag| crate::diagnostics::breaks_the_tree(diag) && in_file(diag)),
-        surface: crate::surface::of(&loaded.stmts, text),
+        surface,
         content: content_hash(text.as_bytes()),
         stamp,
         entry: entry.to_path_buf(),
