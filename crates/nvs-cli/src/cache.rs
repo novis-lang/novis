@@ -196,7 +196,7 @@
 //!
 
 use std::collections::BTreeMap;
-use std::fs::{self, File};
+use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -1444,7 +1444,9 @@ impl Cache {
         let shard = published
             .parent()
             .expect("a shard path always has the cache root above it");
-        fs::create_dir_all(shard)?;
+        // Private, as `run/` is: a configured `file_cache_dir` outside the data folder does not
+        // inherit its mode, and a compiled unit is code every program of this process runs.
+        nvs_config::data::create_private_root(shard)?;
 
         let temp = shard.join(format!(".tmp-{:032x}", rand::rng().random::<u128>()));
         if let Err(err) = self.write_temp(&temp, payload) {
@@ -1579,9 +1581,14 @@ impl Cache {
     }
 
     /// The temp file, header then payload, written and closed and never synced: the module doc's
-    /// write path says what a crash costs.
+    /// write path says what a crash costs. On Unix it is `0600` from the moment it exists, so the
+    /// umask cannot let another account read it; on Windows it inherits the shard's DACL.
     fn write_temp(&self, temp: &Path, payload: &[u8]) -> io::Result<()> {
-        let mut file = File::create(temp)?;
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let mut file = options.open(temp)?;
         file.write_all(&Header::for_payload(self.env, payload).encode())?;
         file.write_all(payload)
     }
@@ -1972,6 +1979,7 @@ mod tests {
     //! output and the wrong one for a module with no command in front of it yet.
 
     use std::collections::BTreeSet;
+    use std::fs::File;
     use std::time::{Duration, SystemTime};
 
     use nvs_config::Config;
@@ -2268,6 +2276,33 @@ mod tests {
 
     /// `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` and `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`: the address is the content, the layout is a two-character fan-out, and a
     /// published file is never rewritten in place.
+    /// A configured cache folder outside the data folder still gets private shards and artifacts:
+    /// each shard folder is `0700` and each artifact `0600`, whatever the umask lets through.
+    #[cfg(unix)]
+    #[test]
+    fn a_shard_and_its_artifact_are_private() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let dir = scratch("private");
+        let cache = Cache::new(dir.path(), env()).expect("a scratch directory of this test's own");
+        let payload = b"; a private unit".as_slice();
+        let key = artifact_key(content_hash(payload), cache.env());
+        assert_eq!(
+            cache.store(key, payload).expect("writable"),
+            Stored::Written
+        );
+        let artifact = cache.path(key);
+        let shard = artifact.parent().expect("an artifact has a shard");
+        let mode = |path: &Path| {
+            fs::metadata(path)
+                .expect("the path exists")
+                .permissions()
+                .mode()
+                & 0o777
+        };
+        assert_eq!(mode(shard), 0o700, "the shard folder's mode");
+        assert_eq!(mode(&artifact), 0o600, "the artifact's mode");
+    }
+
     // covers: tools:cli/the-compile-cache
     #[test]
     fn the_cache_is_a_fan_out_of_immutable_content_addressed_files() {
