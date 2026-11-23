@@ -1431,7 +1431,7 @@
   },
   "/reference/cli/nvs-reload/": {
     "feature": "tools:server/nvs-reload",
-    "hash": "8e209f8df289404e",
+    "hash": "5bd5a394eb31b58b",
     "questions": [
       "Make my running server use the new code at once",
       "How do I know if a deploy has a compile error?",
@@ -1491,7 +1491,7 @@
   },
   "/reference/cli/nvs-test/": {
     "feature": "tools:cli/nvs-test",
-    "hash": "ec48c717d592769f",
+    "hash": "68605b587758316d",
     "questions": [
       "Run only the tests whose name matches some text",
       "Skip the slow tests that have a tag",
@@ -6684,7 +6684,7 @@
   },
   "/reference/core/json/decodeas/": {
     "feature": "Core\\Json::decodeAs",
-    "hash": "5e0bd19a6be2dc67",
+    "hash": "2445544ef3fdc3c0",
     "questions": [
       "How do I read JSON straight into my own class?",
       "Fill an object from a JSON document",
@@ -14628,7 +14628,7 @@
   },
   "/reference/core/task/all/": {
     "feature": "Core\\Task::all",
-    "hash": "eff8aff8c6df6ad2",
+    "hash": "0405f0247bf9a65e",
     "questions": [
       "How do I call two web services at the same time?",
       "Load a database query and a cache lookup in parallel",
@@ -14704,7 +14704,7 @@
   },
   "/reference/core/test/answerhttp/": {
     "feature": "Core\\Test::answerHttp",
-    "hash": "a90800cfbd27dc66",
+    "hash": "faa1e9286e8ed02f",
     "questions": [
       "How do I fake an HTTP API reply in a test?",
       "Mock an external web service response",
@@ -14715,7 +14715,7 @@
   },
   "/reference/core/test/answersocket/": {
     "feature": "Core\\Test::answerSocket",
-    "hash": "5fe19c7416461731",
+    "hash": "1451684336baf767",
     "questions": [
       "How do I fake a WebSocket server in a test?",
       "Send scripted messages to my WebSocket client",
@@ -14896,7 +14896,7 @@
   },
   "/reference/core/test/request/": {
     "feature": "Core\\Test::request",
-    "hash": "95c5ae8f4ee950a1",
+    "hash": "e45eab2c2c3dca12",
     "questions": [
       "How do I test a route of my web app?",
       "Send a fake HTTP request to my own program",

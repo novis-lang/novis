@@ -6174,7 +6174,7 @@
     "Core\\Json::decode": "4009022567bc2f70"
   },
   "help:Core\\Json::decodeAs": {
-    "Core\\Json::decodeAs": "9d22e2fe3122ee6b"
+    "Core\\Json::decodeAs": "9f310787d0694a44"
   },
   "help:Core\\Json::decodeEach": {
     "Core\\Json::decodeEach": "b07a659510dbdc5e"
@@ -7719,7 +7719,7 @@
     "Core\\Task::afterResponse": "199303149acfe7b8"
   },
   "help:Core\\Task::all": {
-    "Core\\Task::all": "3942bef8d44f47dd"
+    "Core\\Task::all": "6a3056b56ee6e219"
   },
   "help:Core\\Task::map": {
     "Core\\Task::map": "8f4d42e8c055fb5c"
@@ -7734,10 +7734,10 @@
     "Core\\Test::advance": "afc67103fdb531f6"
   },
   "help:Core\\Test::answerHttp": {
-    "Core\\Test::answerHttp": "f1a4b83f50674a5f"
+    "Core\\Test::answerHttp": "c36fa3544613848f"
   },
   "help:Core\\Test::answerSocket": {
-    "Core\\Test::answerSocket": "d206c6b273abacce"
+    "Core\\Test::answerSocket": "5ed77efad6df1230"
   },
   "help:Core\\Test::assertCalled": {
     "Core\\Test::assertCalled": "b47c18c88bbd7f94"
@@ -7791,7 +7791,7 @@
     "Core\\Test::partial": "aad184cf17e5368b"
   },
   "help:Core\\Test::request": {
-    "Core\\Test::request": "65f657ea4483190f"
+    "Core\\Test::request": "9f1077d87920ed65"
   },
   "help:Core\\Test::run": {
     "Core\\Test::run": "0d96274e79359703"
@@ -9300,7 +9300,7 @@
     "tools:cli/nvs-telemetry": "496af1ec2f7fe8bb"
   },
   "help:tools:cli/nvs-test": {
-    "tools:cli/nvs-test": "d37e6d3aaf0d953b"
+    "tools:cli/nvs-test": "fbeda5271ad7cc9b"
   },
   "help:tools:cli/nvs-test-mutate": {
     "tools:cli/nvs-test-mutate": "a44e3b9b04aa9b93"
@@ -9453,7 +9453,7 @@
     "tools:php-differences/the-tools-you-do-not-install": "3a3585481eb92a1b"
   },
   "help:tools:server/behind-a-proxy-trusted-proxies": {
-    "tools:server/behind-a-proxy-trusted-proxies": "a55c14e1a383fb27"
+    "tools:server/behind-a-proxy-trusted-proxies": "63475dba602d9f5f"
   },
   "help:tools:server/links-between-modules": {
     "tools:server/links-between-modules": "82ee25711b74eaf0"
@@ -9462,7 +9462,7 @@
     "tools:server/mounts-which-file-answers-a-request": "641769e3c81982fa"
   },
   "help:tools:server/nvs-reload": {
-    "tools:server/nvs-reload": "125a012ab5d89391"
+    "tools:server/nvs-reload": "22a6c7f1a2a28238"
   },
   "help:tools:server/nvs-serve": {
     "tools:server/nvs-serve": "3082ff8d2a7a7d02"
@@ -9886,7 +9886,7 @@
     "tools:cli/profiling": "f9416f0b950726ae"
   },
   "tools/test-runner/coverage.mdx": {
-    "tools:cli/nvs-test": "45a58fbe4735cc40"
+    "tools:cli/nvs-test": "f90a19c00e0df14b"
   },
   "tools/test-runner/index.mdx": {
     "lang:testing/a-test-is-a-method-marked-test": "368f1a80f39ee11b",
@@ -9894,7 +9894,7 @@
     "lang:testing/core-test-property-generated-inputs": "ac1715e807062536",
     "lang:testing/running-tests-nvs-test": "35ed159cdab1d562",
     "lang:testing/test-options": "00bf91414a4976ef",
-    "tools:cli/nvs-test": "45a58fbe4735cc40",
+    "tools:cli/nvs-test": "f90a19c00e0df14b",
     "tools:cli/nvs-test-mutate": "d9ceecb30e34ccc7"
   }
 }
