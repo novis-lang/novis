@@ -392,7 +392,11 @@ pub(crate) fn field_at(analysed: &Analysed, offset: BytePos) -> Option<FieldName
     {
         return Some(field);
     }
-    let stmts = &analysed.loaded.iter().find(|loaded| loaded.id == file)?.stmts;
+    let stmts = &analysed
+        .loaded
+        .iter()
+        .find(|loaded| loaded.id == file)?
+        .stmts;
     written_keys(analysed, file, stmts)
         .into_iter()
         .find(|key| covers(key.span))
@@ -428,10 +432,7 @@ impl Declared<'_> {
 /// left, no field is active, which is an index past the last.
 pub(crate) fn signature_help(analysed: &Analysed, offset: BytePos) -> Option<SignatureHelp> {
     let path = analysed.index.at(offset);
-    let attribute = *path
-        .nodes()
-        .iter()
-        .find(|node| node.kind == "Attribute")?;
+    let attribute = *path.nodes().iter().find(|node| node.kind == "Attribute")?;
     let source = analysed.map.file(analysed.entry);
     let text = source.text();
     let written = text.get(attribute.span.range())?;
@@ -522,7 +523,10 @@ fn active_key<'k>(
             .find(|key| key.name == named)
             .map(|key| key.name.as_str());
     }
-    if part.chars().any(|ch| !(ch.is_ascii_alphanumeric() || ch == '_')) {
+    if part
+        .chars()
+        .any(|ch| !(ch.is_ascii_alphanumeric() || ch == '_'))
+    {
         return None;
     }
     let done: Vec<&str> = pairs.iter().map(|(key, _)| slice(source, *key)).collect();

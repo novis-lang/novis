@@ -569,7 +569,7 @@ fn sources() -> Vec<Source> {
 /// An `@param` target reads the parameters of the method the parser attached
 /// the comment to, and an `@throws` target the hierarchy walk the checker holds
 /// that tag to.
-const SOURCED: [(&str, &str); 51] = [
+const SOURCED: [(&str, &str); 52] = [
     ("tagged", "analysed.deprecated"),
     ("named_type", "..item("),
     ("type_row", "..named_type("),
@@ -601,6 +601,7 @@ const SOURCED: [(&str, &str); 51] = [
     ("member", "MEMBER_WORDS"),
     ("statement_words", "STATEMENT_WORDS"),
     ("site_words", "PROGRAM_SITES"),
+    ("declaration_words", "PROGRAM_SITES"),
     ("attributes_that_fit", "attribute_decls::every("),
     ("followed", "Classes::of(cursor.symbols)"),
     ("scoped", "..offered"),

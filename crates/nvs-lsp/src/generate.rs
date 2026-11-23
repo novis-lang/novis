@@ -321,7 +321,11 @@ fn declare_attribute(
         .strip_prefix("\r\n")
         .or_else(|| after.strip_prefix('\n'))
         .unwrap_or(after);
-    let tail = if rest.lines().next().is_none_or(|line| line.trim().is_empty()) {
+    let tail = if rest
+        .lines()
+        .next()
+        .is_none_or(|line| line.trim().is_empty())
+    {
         ""
     } else {
         "\n"
@@ -356,8 +360,9 @@ fn used_at(stmts: &[Stmt], name: Span) -> Option<(&Attribute, AttributeSite)> {
 /// [`used_at`] over the members of a class, interface or enum body.
 fn used_in_members(members: &[ClassMember], name: Span) -> Option<(&Attribute, AttributeSite)> {
     members.iter().find_map(|member| match &member.kind {
-        ClassMemberKind::Property(property) => named(&property.attributes, name)
-            .map(|attribute| (attribute, AttributeSite::Property)),
+        ClassMemberKind::Property(property) => {
+            named(&property.attributes, name).map(|attribute| (attribute, AttributeSite::Property))
+        }
         ClassMemberKind::Method(method) => named(&method.attributes, name)
             .map(|attribute| (attribute, AttributeSite::Method))
             .or_else(|| {

@@ -1,0 +1,18 @@
+--TEST--
+signature help in the empty parentheses of a static call shows the method's one signature with the first parameter active, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+class Counter
+{
+    public static function add(int $step, string $reason): void {}
+}
+
+Counter::add(<|>);
+--REQUEST--
+signatureHelp
+--EXPECT--
+Counter::add(int $step, string $reason): void
+active int $step
+param int $step | -
+param string $reason | -
+doc -

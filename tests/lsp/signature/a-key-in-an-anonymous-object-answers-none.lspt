@@ -1,0 +1,10 @@
+--TEST--
+signature help on a key in an anonymous object outside any attribute payload answers none, since no method call and no attribute payload encloses the cursor, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+var $point = {x: 1, y<|>: 2};
+echo $point->y, "\n";
+--REQUEST--
+signatureHelp
+--EXPECT--
+none

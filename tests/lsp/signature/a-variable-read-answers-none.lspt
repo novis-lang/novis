@@ -1,0 +1,10 @@
+--TEST--
+signature help on a variable read answers none, since no method call and no attribute payload encloses the cursor, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+var $total = 3;
+echo $to<|>tal;
+--REQUEST--
+signatureHelp
+--EXPECT--
+none

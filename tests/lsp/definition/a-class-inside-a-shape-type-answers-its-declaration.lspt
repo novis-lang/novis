@@ -1,0 +1,19 @@
+--TEST--
+a class written as a field's type inside a shape type opens the class's declaration, though the innermost node is the shape, `rule:types/shape-type`, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Customer
+{
+    public string $name = "";
+}
+
+class Shop
+{
+    public static function place({owner: Cus<|>tomer, note?: string} $order): void {}
+}
+
+Shop::place({owner: new Customer(), note: "gift"});
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:2:7

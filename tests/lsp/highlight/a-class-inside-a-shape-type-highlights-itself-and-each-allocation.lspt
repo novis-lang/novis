@@ -1,0 +1,20 @@
+--TEST--
+a class written as a field's type inside a shape type highlights that use and the allocation below, and not the declaration, `rule:types/shape-type`, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Customer
+{
+    public string $name = "";
+}
+
+class Shop
+{
+    public static function place({owner: Cus<|>tomer, note?: string} $order): void {}
+}
+
+Shop::place({owner: new Customer(), note: "gift"});
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:9:42
+case.nvs:12:25

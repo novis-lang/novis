@@ -419,11 +419,13 @@ fn signature_help(answer: &SignatureHelp) -> Vec<String> {
         .and_then(|index| parameters.get(index as usize))
         .map_or_else(|| "-".to_owned(), label);
     let mut out = vec![signature.label.clone(), format!("active {active}")];
-    out.extend(
-        parameters
-            .iter()
-            .map(|parameter| format!("param {} | {}", label(parameter), doc(parameter.documentation.as_ref()))),
-    );
+    out.extend(parameters.iter().map(|parameter| {
+        format!(
+            "param {} | {}",
+            label(parameter),
+            doc(parameter.documentation.as_ref())
+        )
+    }));
     out.push(format!("doc {}", doc(signature.documentation.as_ref())));
     out
 }
@@ -880,7 +882,7 @@ impl AsStr for lsp_types::SemanticTokenModifier {
 mod tests {
     use lsp_types::{
         CompletionItemKind, DiagnosticSeverity, FoldingRangeKind, InlayHintKind, MarkupContent,
-        MarkupKind, NumberOrString, SemanticTokenType, SymbolKind,
+        MarkupKind, NumberOrString, SemanticTokenType, SignatureInformation, SymbolKind,
     };
 
     use super::*;
@@ -1048,6 +1050,19 @@ mod tests {
                 name: "Order".to_owned(),
                 container: Some("Shop".to_owned()),
             }]),
+            Response::SignatureHelp(Some(SignatureHelp {
+                signatures: vec![SignatureInformation {
+                    label: "Route(path: string)".to_owned(),
+                    documentation: None,
+                    parameters: Some(vec![ParameterInformation {
+                        label: ParameterLabel::Simple("path: string".to_owned()),
+                        documentation: None,
+                    }]),
+                    active_parameter: None,
+                }],
+                active_signature: Some(0),
+                active_parameter: Some(0),
+            })),
         ]
     }
 
@@ -1099,6 +1114,7 @@ mod tests {
             Response::Redactions(Vec::new()),
             Response::Regions(Vec::new()),
             Response::WorkspaceSymbol(Vec::new()),
+            Response::SignatureHelp(None),
         ]
     }
 

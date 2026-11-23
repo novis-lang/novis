@@ -1,0 +1,20 @@
+--TEST--
+signature help after a comma in a method call's arguments shows the method's one signature with the second parameter active, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+class Order
+{
+    /// Sends the order to an address.
+    public function ship(string $city, int $days): void {}
+}
+
+var $order = new Order();
+$order->ship("Berlin", <|>);
+--REQUEST--
+signatureHelp
+--EXPECT--
+Order::ship(string $city, int $days): void
+active int $days
+param string $city | -
+param int $days | -
+doc Sends the order to an address.

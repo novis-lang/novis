@@ -1,0 +1,15 @@
+--TEST--
+signature help on a property access answers none, since no method call and no attribute payload encloses the cursor, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+class User
+{
+    public string $name = "";
+}
+
+var $u = new User();
+echo $u->na<|>me;
+--REQUEST--
+signatureHelp
+--EXPECT--
+none

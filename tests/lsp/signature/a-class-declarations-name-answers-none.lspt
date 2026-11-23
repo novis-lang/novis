@@ -1,0 +1,18 @@
+--TEST--
+signature help on a class declaration's own name answers none, since no method call and no attribute payload encloses the cursor, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+interface Box<T>
+{
+    public function get(): T;
+}
+
+class <|>Crate implements Box<int>
+{
+}
+
+echo "ready";
+--REQUEST--
+signatureHelp
+--EXPECT--
+none

@@ -1,0 +1,14 @@
+--TEST--
+signature help on the class name in front of a static call answers none, since no method call and no attribute payload encloses the cursor, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+class Cart
+{
+    public int $total = 0;
+}
+
+<|>Cart::add(2);
+--REQUEST--
+signatureHelp
+--EXPECT--
+none

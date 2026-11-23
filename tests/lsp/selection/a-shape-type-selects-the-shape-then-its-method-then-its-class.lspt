@@ -1,0 +1,21 @@
+--TEST--
+a cursor inside a shape type in a parameter selects the whole shape first, then the method, then the class, `rule:types/shape-type`
+--FILE--
+<?nvs
+class Customer
+{
+    public string $name = "";
+}
+
+class Shop
+{
+    public static function place({owner: Cus<|>tomer, note?: string} $order): void {}
+}
+
+Shop::place({owner: new Customer(), note: "gift"});
+--REQUEST--
+selectionRange
+--EXPECT--
+9:34-9:66
+9:5-9:83
+7:1-10:2

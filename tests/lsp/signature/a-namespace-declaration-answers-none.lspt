@@ -1,0 +1,9 @@
+--TEST--
+signature help on a namespace declaration answers none, since no method call and no attribute payload encloses the cursor, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+namespac<|>e App;
+--REQUEST--
+signatureHelp
+--EXPECT--
+none

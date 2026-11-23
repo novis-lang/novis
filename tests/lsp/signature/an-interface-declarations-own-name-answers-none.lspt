@@ -1,0 +1,12 @@
+--TEST--
+signature help on an interface declaration's own name answers none, since no method call and no attribute payload encloses the cursor, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+interface Gre<|>ets
+{
+    public function greet(): string;
+}
+--REQUEST--
+signatureHelp
+--EXPECT--
+none

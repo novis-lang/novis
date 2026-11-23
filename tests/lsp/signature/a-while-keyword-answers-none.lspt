@@ -1,0 +1,12 @@
+--TEST--
+signature help on a `while` keyword answers none, since no method call and no attribute payload encloses the cursor, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+int $count = 0;
+whil<|>e ($count < 3) {
+    $count = $count + 1;
+}
+--REQUEST--
+signatureHelp
+--EXPECT--
+none

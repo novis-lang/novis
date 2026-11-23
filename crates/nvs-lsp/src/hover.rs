@@ -303,14 +303,12 @@ fn route(
 /// ([`crate::attribute_decls::signature_help`]).
 #[must_use]
 pub fn help_at(analysed: &Analysed, offset: BytePos) -> Option<SignatureHelp> {
-    let Some((call, node)) =
-        analysed.index.at(offset).nodes().iter().find_map(|node| {
-            match target_of(analysed.exprs.lookup(node.span)?)? {
-                Target::Method(call) => Some((call, *node)),
-                _ => None,
-            }
-        })
-    else {
+    let Some((call, node)) = analysed.index.at(offset).nodes().iter().find_map(|node| {
+        match target_of(analysed.exprs.lookup(node.span)?)? {
+            Target::Method(call) => Some((call, *node)),
+            _ => None,
+        }
+    }) else {
         return crate::attribute_decls::signature_help(analysed, offset);
     };
     let (label, params) = signature(&call.class.to_string(), call, &analysed.interner);

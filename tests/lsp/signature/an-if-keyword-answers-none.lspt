@@ -1,0 +1,12 @@
+--TEST--
+signature help on an `if` keyword answers none, since no method call and no attribute payload encloses the cursor, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+int $code = 1;
+i<|>f ($code > 0) {
+    echo "positive";
+}
+--REQUEST--
+signatureHelp
+--EXPECT--
+none

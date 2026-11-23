@@ -1,0 +1,16 @@
+--TEST--
+signature help on a `switch` keyword answers none, since no method call and no attribute payload encloses the cursor, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+int $code = 1;
+switc<|>h ($code) {
+    case 1:
+        echo "one";
+        break;
+    default:
+        break;
+}
+--REQUEST--
+signatureHelp
+--EXPECT--
+none

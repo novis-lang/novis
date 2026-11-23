@@ -822,7 +822,8 @@ lib/user.nvs:2:36
                 "references",
                 "documentHighlight",
                 "prepareRename",
-                "rename"
+                "rename",
+                "signatureHelp"
             ]
         );
     }

@@ -1,0 +1,19 @@
+--TEST--
+a shape type written on one line is offered put on separate lines, one field per line, `rule:tooling/fmt-a-list-is-one-line-or-one-item-per-line`
+--FILE--
+<?nvs
+class Customer
+{
+    public string $name = "";
+}
+
+class Shop
+{
+    public static function place({owner: Cus<|>tomer, note?: string} $order): void {}
+}
+
+Shop::place({owner: new Customer(), note: "gift"});
+--REQUEST--
+codeAction
+--EXPECT--
+9:34-9:66 refactor.rewrite Put on separate lines -> "{\n        owner: Customer,\n        note?: string,\n    }"
