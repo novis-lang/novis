@@ -170,6 +170,15 @@ pub fn declaration<'a>(workspace: &'a Workspace, symbol: &str) -> Option<Card<'a
     let declared = workspace.index().declaration(symbol)?;
     let analysed = analyse_file(workspace.documents(), &declared.site.path, 0);
     let doc = analysed.and_then(|analysed| {
+        if declared.kind == DeclKind::Field {
+            let (attribute, field) = declared.symbol.rsplit_once("::")?;
+            let attribute = crate::attribute_decls::named(&analysed, &QName::parse(attribute))?;
+            return attribute
+                .keys()
+                .into_iter()
+                .find(|key| key.name == field)?
+                .doc;
+        }
         let (class, member) = site_key(declared);
         let site = site_of(&analysed, &QName::parse(class), member)?;
         let text = markdown(analysed.map.file(site.span.file).text(), site.doc?);
@@ -197,7 +206,8 @@ fn site_key(declared: &Declaration) -> (&str, Option<(&str, MemberKind)>) {
         | DeclKind::Interface
         | DeclKind::Enum
         | DeclKind::TypeAlias
-        | DeclKind::Attribute => None,
+        | DeclKind::Attribute
+        | DeclKind::Field => None,
     };
     split.unwrap_or((symbol, None))
 }

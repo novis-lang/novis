@@ -1,0 +1,18 @@
+--TEST--
+hovering a field in an attribute's declaration shows the field and the `///` doc above it, as hovering a key that names it does, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:types/shape-type`
+--FILE--
+<?nvs
+attribute Index on class {
+    /// The column names, separated by commas.
+    columns: string,
+    /// `true` means no two rows may have the same values in these columns.
+    uni<|>que?: bool,
+}
+--REQUEST--
+hover
+--EXPECT--
+```nvs
+unique?: bool
+```
+
+`true` means no two rows may have the same values in these columns.

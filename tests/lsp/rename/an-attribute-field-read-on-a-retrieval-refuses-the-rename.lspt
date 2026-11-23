@@ -1,0 +1,15 @@
+--TEST--
+a field that a retrieval's result is read by is refused, because the checker records no link from that read to the declaration, and a rename that missed it would break the program, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+attribute Index on class { col<|>umns: string }
+
+#[Index(columns: "email")]
+class Order {}
+
+$index = Core\Attributes::get<Index>(Order::constructor);
+echo $index?->columns ?? "";
+--REQUEST--
+rename to=fields
+--EXPECT--
+refused: `case.nvs` reads `->columns` on line 8. Rename cannot tell if that value comes from this attribute, so `Index::columns` cannot be renamed.

@@ -186,6 +186,7 @@ pub fn answer(
         .or_else(|| file_value(analysed, files, offset))
         .or_else(|| attribute_card(analysed, offset))
         .or_else(|| attribute_key(analysed, offset))
+        .or_else(|| declared_field(analysed, offset))
         .or_else(|| name(analysed, type_member_at(analysed, offset)?, offset))
         .or_else(|| name(analysed, type_name_at(analysed, offset)?, offset))
         .or_else(|| answer_in(analysed, &nodes, offset))
@@ -866,18 +867,37 @@ fn attribute_key(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)>
         let declared = crate::attribute_decls::of_attribute(analysed, attribute.span)?;
         declared.keys().into_iter().find(|key| key.name == word)?
     };
+    let span = Span::new(
+        attribute.span.file,
+        BytePos::try_from(start).ok()?,
+        BytePos::try_from(end).ok()?,
+    );
+    Some((key_card(key), span))
+}
+
+/// The card of a field under the cursor in the body of an `attribute`
+/// declaration: the field as a code block, then its `///` run, as a key that
+/// names it in a payload shows.
+fn declared_field(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    let field = crate::attribute_decls::declared_fields(analysed, analysed.entry)
+        .into_iter()
+        .find(|field| field.span.start <= offset && offset <= field.span.end)?;
+    let key = crate::attribute_decls::named(analysed, field.attribute)?
+        .keys()
+        .into_iter()
+        .find(|key| key.name == field.name)?;
+    Some((key_card(key), field.span))
+}
+
+/// A key's card: its declaration as a code block, then its doc.
+fn key_card(key: crate::attribute_decls::Key) -> String {
     let optional = if key.required { "" } else { "?" };
     let mut card = format!("```nvs\n{}{optional}: {}\n```", key.name, key.ty);
     if let Some(doc) = key.doc {
         card.push_str("\n\n");
         card.push_str(doc.trim_end());
     }
-    let span = Span::new(
-        attribute.span.file,
-        BytePos::try_from(start).ok()?,
-        BytePos::try_from(end).ok()?,
-    );
-    Some((card, span))
+    card
 }
 
 /// The field `word` of the shape the `{…}` `object` declares, as the key a

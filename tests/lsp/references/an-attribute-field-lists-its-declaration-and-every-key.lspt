@@ -1,0 +1,19 @@
+--TEST--
+a cursor on a field of an attribute's declaration answers the field and every key that names it in a payload, and not a key of another attribute with the same name, `rule:attributes/an-attribute-is-declared-with-its-sites`, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+attribute Index on class { col<|>umns: string }
+attribute Unique on class { columns: string }
+
+#[Index(columns: "email")]
+#[Unique(columns: "email")]
+class Order {}
+
+#[Index(columns: "name")]
+class Customer {}
+--REQUEST--
+references
+--EXPECT--
+case.nvs:2:28
+case.nvs:5:9
+case.nvs:9:9

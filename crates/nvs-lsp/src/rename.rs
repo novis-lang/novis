@@ -46,6 +46,11 @@
 //!   keeps its own parameter names, because a named argument binds to the
 //!   method the call resolved to.
 //!
+//! - **A field of an `attribute` declaration**, at its declaration and at
+//!   every key a payload writes for it. A read of the field on a retrieval's
+//!   result is not a site the index holds, so a file that writes `->field`
+//!   where the index holds no use refuses the rename ([`unresolved_reads`]).
+//!
 //! # What is refused, each with a message the editor shows
 //!
 //! A cursor on no symbol; `$this`; a type
@@ -190,6 +195,9 @@ pub fn rename(
         } => {
             if new == old {
                 return Err("The new name is the same as the old one.".to_owned());
+            }
+            if kind == DeclKind::Field {
+                unresolved_reads(documents, index, &family, &old)?;
             }
             members(documents, index, &family, kind, &old, new, &sites).map(|rewrites| Renamed {
                 rewrites,
@@ -724,6 +732,56 @@ fn members(
         });
     }
     Ok(rewrites)
+}
+
+/// An error when a file the index holds reads a member named `old` with `->`
+/// or `?->`, and the index holds no use there.
+///
+/// Such a read is on a value whose type has no class: an attribute's payload
+/// from a retrieval, or another shape. The checker records no link from that
+/// read to the attribute declaration, so a rename cannot tell whether the read
+/// is of the field being renamed. A read of a class property is a use the
+/// index holds, and it does not refuse.
+fn unresolved_reads(
+    documents: &Documents,
+    index: &SymbolIndex,
+    family: &[String],
+    old: &str,
+) -> Result<(), String> {
+    let symbol = family.first().map_or(old, String::as_str);
+    let mut texts = Texts::new(documents);
+    for path in index.files() {
+        let Some(file) = texts.file(path) else {
+            continue;
+        };
+        let held = index.occurrences_in(path);
+        let tokens = tokenize(file, &mut Diagnostics::new());
+        let read = tokens.windows(2).find(|pair| {
+            let [arrow, name] = pair else {
+                return false;
+            };
+            matches!(arrow.kind, TokenKind::Arrow | TokenKind::NullsafeArrow)
+                && name.kind == TokenKind::Ident
+                && text_of(file, name.span) == old
+                && !held.iter().any(|occurrence| {
+                    occurrence.site.start <= name.span.start && name.span.end <= occurrence.site.end
+                })
+        });
+        if let Some([_, name]) = read {
+            // `line_col` counts from 0, and an editor shows lines from 1.
+            let (line, _) = file.line_col(name.span.start);
+            return Err(format!(
+                "`{}` reads `->{old}` on line {}. Rename cannot tell if that value comes from \
+                 this attribute, so `{symbol}` cannot be renamed.",
+                path.file_name().map_or_else(
+                    || plain(path).display().to_string(),
+                    |name| name.to_string_lossy().into_owned()
+                ),
+                line + 1
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// The edits that rename the type `symbol` from `old` to `new`, after three

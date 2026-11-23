@@ -1,0 +1,15 @@
+--TEST--
+a rename on a key in an attribute's payload rewrites the declared field and every key that names it, and not a key of another attribute with the same name, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+attribute Index on class { columns: string }
+attribute Unique on class { columns: string }
+
+#[Index(col<|>umns: "email")]
+#[Unique(columns: "email")]
+class Order {}
+--REQUEST--
+rename to=fields
+--EXPECT--
+case.nvs:2:28 fields
+case.nvs:5:9 fields

@@ -1,0 +1,15 @@
+--TEST--
+a key in an attribute's payload jumps to the field of that name in the attribute's declaration, `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+attribute Index on class {
+    columns: string,
+    unique?: bool,
+}
+
+#[Index(columns: "email", uni<|>que: true)]
+class Order {}
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:4:5

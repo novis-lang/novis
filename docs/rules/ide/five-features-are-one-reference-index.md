@@ -14,6 +14,14 @@ it, so a `$markup` passed to a call answers the local and not the call, and the 
 `$u`. An anonymous function that declares the name again has a variable of its own, and its sites are left
 out. This holds nothing and costs one tokenize and one tree walk of the open document per request.
 
+A field of an `attribute` declaration is a name the index holds, `Shop\Job::queue`, and each key a
+payload writes for it is a use (`rule:attributes/an-attribute-is-declared-with-its-sites`). A key is no
+node, so it is read off the text in front of its value, and the attribute off the name the checker
+recorded. Definition on a key reaches the field, and references and highlight on either list the keys.
+A read of the field on a retrieval's result is not listed: the checker types it against the fields as
+a shape, and two declarations with the same fields have one shape. This costs one name and one site
+per field and per key, for as long as the file is indexed.
+
 CodeLens above a declaration shows
 the reference count, a type's implementors, and the methods a method overrides and is overridden by; it is
 gated on `nvs.codeLens.enable` (default `true`), because a lens is a request per visible declaration and a

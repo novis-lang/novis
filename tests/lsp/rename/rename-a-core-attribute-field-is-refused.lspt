@@ -1,0 +1,16 @@
+--TEST--
+a key of a `Core` attribute names a field declared outside the workspace, so renaming it is refused, as renaming the attribute is, `rule:ide/no-refactoring-introduces-an-alias`
+--FILE--
+<?nvs
+class Blog
+{
+    #[Core\Route(pa<|>th: "/", method: Core\Http\Method::Get)]
+    public static function index(): string
+    {
+        return "hello";
+    }
+}
+--REQUEST--
+rename to=url
+--EXPECT--
+refused: `Core\Route::path` is declared outside this workspace, so it cannot be renamed.

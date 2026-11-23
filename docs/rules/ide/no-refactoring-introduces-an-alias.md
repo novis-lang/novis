@@ -26,6 +26,13 @@ Rename of a type alias or an enum a class, an interface or an enum declares
 owner's body, and the rename changes the name after `::` at each. A built-in type name, a name the
 owner already gives a constant, an enum case, an enum or an alias, and a name the owner's file
 already writes are refused, and nothing moves.
+Rename of a field of an `attribute` declaration: the index declares it as `Name::field` and records
+each key a payload writes for it, and the rename changes the field and every key. A name another field
+of the declaration has is refused. A read of the field on a retrieval's result, `$index->columns`, is
+typed against the declaration's fields, which are a shape, and the checker records no link from it to
+the declaration. So a file the index holds that writes `->columns` where the index holds no use refuses
+the rename: a rename that changed the keys and missed that read would break the program. A `Core`
+attribute's field is refused, as its name is.
 Organize imports, a `source.organizeImports` code action (`crates/nvs-lsp/src/organize.rs`): it deletes
 each `use` line the `W1026` warning reports, with that warning's own edit, and sorts the rest with
 `nvs fmt`'s sort, so a format after it moves nothing. Cross-file symbol search: `workspace/symbol`

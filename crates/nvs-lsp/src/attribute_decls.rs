@@ -10,14 +10,20 @@
 //! a payload, hover and a completion item's card read one answer and never
 //! two.
 //!
+//! A field's name is written in two places: in the declaration's body
+//! ([`declared_fields`]) and as a key of a payload ([`written_keys`]). The
+//! index keeps both under one symbol, `Name::field` ([`FieldName::symbol`]),
+//! and a cursor on either is read by [`field_at`].
+//!
 //! The `///` runs are read off the declaration's own syntax tree, which the
 //! analysis already holds for every loaded file, so nothing is parsed again.
 //! What this module costs is one walk over a declaring file's statements per
 //! declaration asked about, in the editor only.
 
-use nvs_diagnostics::{SourceFile, Span};
+use nvs_diagnostics::{BytePos, SourceFile, SourceId, Span};
 use nvs_hir::{AttributeDef, QName};
 use nvs_syntax::ast::{AttributeDecl, AttributeSite, ClassMemberKind, DocComment, Stmt, StmtKind};
+use nvs_syntax::walk;
 use nvs_types::derive::{self, AttributeDoc};
 
 use crate::document::Analysed;
@@ -261,6 +267,150 @@ fn member(
         }
         _ => None,
     })
+}
+
+/// One field name written in a file: a field of a program's declaration, or a
+/// key of a payload that names a declared field.
+pub(crate) struct FieldName<'a> {
+    /// Where the field's name is written.
+    pub span: Span,
+    /// The declaration the field belongs to.
+    pub attribute: &'a QName,
+    /// The field's name.
+    pub name: &'a str,
+}
+
+impl FieldName<'_> {
+    /// The symbol the index keeps the field under: `Shop\Job::queue`, and
+    /// `Shop\Storable::Index::columns` for a declaration a body owns.
+    pub(crate) fn symbol(&self) -> String {
+        format!("{}::{}", self.attribute, self.name)
+    }
+}
+
+/// Every field of every program declaration `file` writes, in source order.
+pub(crate) fn declared_fields(analysed: &Analysed, file: SourceId) -> Vec<FieldName<'_>> {
+    let mut found: Vec<FieldName<'_>> = analysed
+        .module
+        .aliases
+        .attributes()
+        .filter(|def| def.name_span.file == file)
+        .filter_map(|def| match program(analysed, def) {
+            Declared::Program {
+                decl: Some(decl),
+                file: source,
+                ..
+            } => Some(decl.fields.iter().map(move |field| FieldName {
+                span: field.name,
+                attribute: &def.name,
+                name: slice(source, field.name),
+            })),
+            _ => None,
+        })
+        .flatten()
+        .filter(|field| !field.name.is_empty())
+        .collect();
+    found.sort_by_key(|field| field.span.start);
+    found
+}
+
+/// Every key the payloads in `stmts`, parsed from `file`, write for a field
+/// their declaration has, in source order. A `Core` attribute's keys are among
+/// them.
+///
+/// A key is no node, so its name is read off the text in front of its value:
+/// the name directly before the `:` the value follows.
+pub(crate) fn written_keys<'a>(
+    analysed: &'a Analysed,
+    file: SourceId,
+    stmts: &[Stmt],
+) -> Vec<FieldName<'a>> {
+    let source = analysed.map.file(file);
+    let mut found = Vec::new();
+    for root in walk::of_stmts(stmts) {
+        for node in std::iter::once(&root).chain(root.descendants()) {
+            if node.kind != "Attribute" || node.children.is_empty() {
+                continue;
+            }
+            let Some((_, attribute)) = analysed.exprs.attribute_names().find(|(span, _)| {
+                span.file == file && node.span.start <= span.start && span.end <= node.span.end
+            }) else {
+                continue;
+            };
+            let Some(declared) = named(analysed, attribute) else {
+                continue;
+            };
+            let keys = declared.keys();
+            for value in &node.children {
+                let Some(span) = key_before(source, node.span.start, value.span.start) else {
+                    continue;
+                };
+                let name = slice(source, span);
+                if keys.iter().any(|key| key.name == name) {
+                    found.push(FieldName {
+                        span,
+                        attribute,
+                        name,
+                    });
+                }
+            }
+        }
+    }
+    found
+}
+
+/// The name written directly before the `:` in front of a value that starts
+/// at `value`, no earlier than `from`.
+fn key_before(source: &SourceFile, from: BytePos, value: BytePos) -> Option<Span> {
+    let text = source.text().get(from as usize..value as usize)?;
+    let before = text.trim_end().strip_suffix(':')?;
+    if before.ends_with(':') {
+        return None;
+    }
+    let before = before.trim_end();
+    let name = before.trim_end_matches(|ch: char| ch.is_ascii_alphanumeric() || ch == '_');
+    if name.len() == before.len() {
+        return None;
+    }
+    let start = from + BytePos::try_from(name.len()).ok()?;
+    let end = from + BytePos::try_from(before.len()).ok()?;
+    Some(Span::new(source.id(), start, end))
+}
+
+/// The field of a program's declaration whose name is written at `offset` in
+/// `file`, or the key of a payload written there.
+pub(crate) fn field_at(analysed: &Analysed, offset: BytePos) -> Option<FieldName<'_>> {
+    let file = analysed.entry;
+    let covers = |span: Span| span.start <= offset && offset <= span.end;
+    if let Some(field) = declared_fields(analysed, file)
+        .into_iter()
+        .find(|field| covers(field.span))
+    {
+        return Some(field);
+    }
+    let stmts = &analysed.loaded.iter().find(|loaded| loaded.id == file)?.stmts;
+    written_keys(analysed, file, stmts)
+        .into_iter()
+        .find(|key| covers(key.span))
+}
+
+impl Declared<'_> {
+    /// Where the declaration writes the field `name`, for a program's
+    /// declaration whose file is loaded.
+    pub(crate) fn field_span(&self, name: &str) -> Option<Span> {
+        let Self::Program {
+            decl: Some(decl),
+            file,
+            ..
+        } = self
+        else {
+            return None;
+        };
+        decl.fields
+            .iter()
+            .find(|field| slice(file, field.name) == name)
+            .map(|field| field.name)
+    }
 }
 
 /// The text `span` covers in `file`.

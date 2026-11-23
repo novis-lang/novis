@@ -2078,6 +2078,7 @@ const fn symbol_kind(kind: DeclKind) -> SymbolKind {
         DeclKind::Property => SymbolKind::PROPERTY,
         DeclKind::Const => SymbolKind::CONSTANT,
         DeclKind::EnumCase => SymbolKind::ENUM_MEMBER,
+        DeclKind::Field => SymbolKind::FIELD,
     }
 }
 

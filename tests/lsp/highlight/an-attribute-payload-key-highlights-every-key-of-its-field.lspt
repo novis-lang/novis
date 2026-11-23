@@ -1,0 +1,18 @@
+--TEST--
+a key in an attribute's payload highlights each key that names the same declared field in the document, and not the declaration, like a member's use, `rule:ide/five-features-are-one-reference-index`, `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+attribute Index on class { columns: string }
+attribute Unique on class { columns: string }
+
+#[Index(col<|>umns: "email")]
+#[Unique(columns: "email")]
+class Order {}
+
+#[Index(columns: "name")]
+class Customer {}
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:5:9
+case.nvs:9:9

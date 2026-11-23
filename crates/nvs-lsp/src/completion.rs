@@ -2907,7 +2907,8 @@ fn namespace_kind(kind: DeclKind) -> Option<CompletionItemKind> {
         | DeclKind::Method
         | DeclKind::Property
         | DeclKind::Const
-        | DeclKind::EnumCase => None,
+        | DeclKind::EnumCase
+        | DeclKind::Field => None,
     }
 }
 

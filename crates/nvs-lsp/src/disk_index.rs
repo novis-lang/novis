@@ -73,7 +73,7 @@ const MAGIC: &[u8; 6] = b"NVSIDX";
 
 /// The layout's version. A change to what is written raises it, and a file of
 /// another version is discarded.
-pub(crate) const FORMAT: u32 = 2;
+pub(crate) const FORMAT: u32 = 3;
 
 /// The length of a digest on disk.
 const DIGEST: usize = 32;
@@ -531,6 +531,7 @@ const fn kind_tag(kind: DeclKind) -> u8 {
         DeclKind::Const => 6,
         DeclKind::EnumCase => 7,
         DeclKind::Attribute => 8,
+        DeclKind::Field => 9,
     }
 }
 
@@ -546,6 +547,7 @@ const fn kind_of(tag: u8) -> Option<DeclKind> {
         6 => DeclKind::Const,
         7 => DeclKind::EnumCase,
         8 => DeclKind::Attribute,
+        9 => DeclKind::Field,
         _ => return None,
     })
 }

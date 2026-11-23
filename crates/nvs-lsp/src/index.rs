@@ -15,6 +15,12 @@
 //! checker resolved, then the member as its own source writes it, `$` sigil
 //! included for a property because that is what tells it from a method of the
 //! same name (`class C { public int $x; public function x(): int … }` is legal).
+//! A field of an `attribute` declaration is `App\Job::queue`, after the
+//! declaration's own name, which is `App\Storable::Index` for one a body owns.
+//! A field's declaration is its name in the body, and each key a payload writes
+//! for it is a use. A read of the field on a retrieval's result is not a use:
+//! the checker types that read against the declaration's fields, which are a
+//! shape, and records no link back to the declaration.
 //!
 //! A string rather than an id because both sides of the index are read *back*
 //! from the checker: `crate::definition::target_of` is what turns one
@@ -166,6 +172,8 @@ pub enum DeclKind {
     Const,
     /// One `case` of an enum.
     EnumCase,
+    /// One field of an `attribute` declaration, spelled `Name::field`.
+    Field,
 }
 
 impl DeclKind {
@@ -195,6 +203,7 @@ impl DeclKind {
             Self::Property => "a property",
             Self::Const => "a constant",
             Self::EnumCase => "an enum case",
+            Self::Field => "a field",
         }
     }
 }
@@ -2018,6 +2027,9 @@ pub fn symbol_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
     if let Some((declared, _)) = declared_at(analysed, offset) {
         return Some(declared);
     }
+    if let Some(key) = crate::attribute_decls::field_at(analysed, offset) {
+        return Some(key.symbol());
+    }
     let (target, _) = named_at(analysed, offset)?;
     Some(symbol_of(&target))
 }
@@ -2035,6 +2047,12 @@ pub fn symbol_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
 /// The span is where the declaration writes the name, which is what a hover
 /// on it underlines.
 pub(crate) fn declared_at(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    if let Some(field) = crate::attribute_decls::declared_fields(analysed, analysed.entry)
+        .into_iter()
+        .find(|field| covers(field.span, offset))
+    {
+        return Some((field.symbol(), field.span));
+    }
     let scope = FileScope::of(analysed, analysed.entry);
     analysed.module.symbols.iter().find_map(|symbol| {
         if symbol.decl_span.file != analysed.entry {
@@ -2230,6 +2248,22 @@ fn declarations<'a>(
         if let Some(body) = declared_body(analysed, scope, &symbol.qname) {
             members(analysed, &body, &class, path, &mut found);
         }
+    }
+    // Each field of an `attribute` declaration is a name of its own, under
+    // `Name::field`, so a key a payload writes is a use of it.
+    for field in crate::attribute_decls::declared_fields(analysed, loaded.id) {
+        found.push(Declaration {
+            symbol: field.symbol(),
+            kind: DeclKind::Field,
+            site: site(path, field.span),
+            visibility: Visibility::Public,
+            supertypes: Vec::new(),
+            construction: None,
+            parameters: Vec::new(),
+            routes: Vec::new(),
+            test: false,
+            extent: None,
+        });
     }
 
     found.sort_by_key(|declared| (declared.site.start, declared.site.end));
@@ -2683,6 +2717,14 @@ fn occurrences<'a>(
             symbol: name.to_string(),
             site: site(path, span),
             caller: caller(span),
+        });
+    }
+    // Every key a payload writes is a use of the field it names.
+    for key in crate::attribute_decls::written_keys(analysed, loaded.id, &loaded.stmts) {
+        found.push(Occurrence {
+            symbol: key.symbol(),
+            site: site(path, key.span),
+            caller: caller(key.span),
         });
     }
 

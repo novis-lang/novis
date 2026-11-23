@@ -95,6 +95,12 @@
 //! is keyed `Owner::Index` ([`site_of`]). A compiler attribute answers its
 //! stub.
 //!
+//! **A key in a payload answers its declared field.** `#[Index(columns: …)]`
+//! reaches `columns` in the body of `attribute Index`
+//! ([`crate::attribute_decls::field_at`]). The key is read off the text in
+//! front of its value, and the attribute off the name the checker recorded. A
+//! `Core` attribute's field has no declaration to open and answers nothing.
+//!
 //! **A `use` line names a type too.** An import is a statement and no
 //! expression, so nothing above reaches it, and what it resolved to is already
 //! `nvs_hir::Import`'s: [`import_at`] answers the target of the import whose
@@ -168,6 +174,14 @@ pub fn at(
         return Some(Declared {
             path: file.path()?.to_path_buf(),
             range: range_at(file, local.binding.declared, encoding),
+        });
+    }
+    if let Some(key) = crate::attribute_decls::field_at(analysed, offset) {
+        let span = crate::attribute_decls::named(analysed, key.attribute)?.field_span(key.name)?;
+        let file = analysed.map.file(span.file);
+        return Some(Declared {
+            path: file.path()?.to_path_buf(),
+            range: range_at(file, span, encoding),
         });
     }
     if let Some((target, route, _, _)) = linked_at(analysed, offset) {
