@@ -15,5 +15,6 @@ for `"\r\n"`, or remove the line break with `Core\Str::trimEnd` first.
 `Core\Str::beforeSuffix` does the check and returns the text before the suffix in one call. It
 returns `null` when the string does not end with the text. `Core\Str::startsWith` does the same check
 at the start of a string.
+
 **The examples below** check a few endings, add a missing `/` to the end of a web address, and
 accept only uploads that are images.

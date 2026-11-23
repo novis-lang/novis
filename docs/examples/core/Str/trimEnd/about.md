@@ -10,8 +10,8 @@ does not matter. If every character is in the list, the result is an empty strin
 A trim removes whole characters, as a person counts them. Some characters have several code points
 (Unicode numbers). Such a character is removed only when all its code points are in the list. So
 `Core\Str::trimEnd("e\u{301}", { characters: "\u{301}" })` returns `"e\u{301}"` unchanged. The
-default list removes the `"\r\n"` that ends a line a program read, because both its code points are
-in it.
+default list removes the `"\r\n"` at the end of a line read from a file, because both its code
+points are in it.
 
 `Core\Str::trim` removes characters from both ends, and `Core\Str::trimStart` from the start only.
 

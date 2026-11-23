@@ -15,5 +15,6 @@ with a combining accent, and a person reads it as one character: "é". So
 `Core\Str::afterPrefix` does the check and returns the rest of the string in one call. It returns
 `null` when the string does not start with the text. `Core\Str::endsWith` does the same check at the
 end of a string.
+
 **The examples below** check a few beginnings, sort commands from plain text in a chat message, and
 send each request path to the right part of a web application.

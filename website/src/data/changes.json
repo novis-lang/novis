@@ -13,7 +13,7 @@
       "features": [
         "tools:editor/nvs-lsp"
       ],
-      "text": "The warning `W1036` shows a `Core\\Str::slice` that cuts off a prefix or a suffix after `Core\\Str::startsWith` or `Core\\Str::endsWith` tested it. It names `Core\\Str::afterPrefix` or `Core\\Str::beforeSuffix`, which do both in one call. For one common shape, the editor offers a fix."
+      "text": "The warning `W1036` shows a `Core\\Str::slice` that cuts off a prefix or a suffix after `Core\\Str::startsWith` or `Core\\Str::endsWith` tested it. It names `Core\\Str::afterPrefix` or `Core\\Str::beforeSuffix`, which do both in one call. When the cut is the first line inside the `if`, the editor offers a fix that writes the call for you."
     },
     {
       "kind": "fixed",
@@ -24,7 +24,7 @@
       ],
       "text": "`Core\\Str::startsWith`, `Core\\Str::endsWith` and `Core\\Str::replaceAll` find a match only where it does not split a character. So `Core\\Str::startsWith(\"e\\u{301}\", \"e\")` is `false`, because the accent belongs to the `e`. The pair `\"\\r\\n\"` is one character, so `\"\\r\"` alone does not match inside it.",
       "breaking": true,
-      "instead": "To change Windows line ends with `Core\\Str::replaceAll`, put the pair first: `[\"\\r\\n\" => \"\\n\", \"\\r\" => \"\"]`. To check for a line end, check for `\"\\r\\n\"` too."
+      "instead": "To change Windows line ends with `Core\\Str::replaceAll`, put the pair first: `[\"\\r\\n\" => \"\\n\", \"\\r\" => \"\"]`. To check whether a line ends with a line break, check for `\"\\r\\n\"` and for `\"\\n\"`."
     },
     {
       "kind": "fixed",

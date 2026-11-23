@@ -14261,7 +14261,7 @@
   },
   "/reference/core/str/endswith/": {
     "feature": "Core\\Str::endsWith",
-    "hash": "e3ea73ba3231c9a2",
+    "hash": "5581ad376a6ddb41",
     "questions": [
       "How do I check if a string ends with some text?",
       "Does a text end with a suffix?",
@@ -14525,7 +14525,7 @@
   },
   "/reference/core/str/startswith/": {
     "feature": "Core\\Str::startsWith",
-    "hash": "1763ba6d0a7b73c2",
+    "hash": "c6367a71a8a27bf0",
     "questions": [
       "How do I check if a string starts with some text?",
       "Does a text begin with a prefix?",
@@ -14536,7 +14536,7 @@
   },
   "/reference/core/str/trim/": {
     "feature": "Core\\Str::trim",
-    "hash": "3e0a50a497743b4e",
+    "hash": "ca7b3b1712902667",
     "questions": [
       "How do I remove spaces at both ends of a string?",
       "Trim whitespace from the start and end of a text",
@@ -14547,7 +14547,7 @@
   },
   "/reference/core/str/trimend/": {
     "feature": "Core\\Str::trimEnd",
-    "hash": "82b30cac703a2c09",
+    "hash": "441591a8faf0acbb",
     "questions": [
       "How do I remove trailing spaces from a string?",
       "Remove the line break at the end of a line",
@@ -16099,7 +16099,7 @@
   },
   "/reference/core/time-duration/seconds/": {
     "feature": "Core\\Time\\Duration::seconds",
-    "hash": "6b86277e88c41ff7",
+    "hash": "c94a710799962e17",
     "questions": [
       "How do I make a duration from a number of seconds?",
       "Create a cache lifetime from seconds in a setting",

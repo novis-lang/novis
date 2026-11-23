@@ -9,9 +9,8 @@ so `{ characters: "-" }` removes only `-`. Each character in the list counts on 
 does not matter. `"a..z"` is the three characters `a`, `.` and `z`. It is not a range of letters.
 
 A trim removes whole characters, as a person counts them. Some characters have several code points
-(Unicode numbers). Such a character is removed only when all its code
-points are in the list. So `Core\Str::trim("e\u{301}", { characters: "\u{301}" })` returns
-`"e\u{301}"` unchanged. The default list removes `"\r\n"`, because both its code points are in it.
+(Unicode numbers). Such a character is removed only when all its code points are in
+the list. So `Core\Str::trim("e\u{301}", { characters: "\u{301}" })` returns `"e\u{301}"` unchanged. The default list removes `"\r\n"`, because both its code points are in it.
 
 `Core\Str::trimStart` removes characters from the start only, and
 `Core\Str::trimEnd` from the end only.

@@ -3195,7 +3195,7 @@
     "Core\\Time\\Duration::plus": "b1f12f9c0bc372da"
   },
   "docs/examples/core/Time-Duration/seconds/about.md": {
-    "Core\\Time\\Duration::seconds": "27c222cd8f36d985"
+    "Core\\Time\\Duration::seconds": "b091a4c0afa12bee"
   },
   "docs/examples/core/Time-Duration/toMicroseconds/about.md": {
     "Core\\Time\\Duration::toMicroseconds": "4b0ca3f783fe1095"
@@ -7623,7 +7623,7 @@
     "Core\\Str::countOf": "77adc2f99d720848"
   },
   "help:Core\\Str::endsWith": {
-    "Core\\Str::endsWith": "fe1aef39b708fbf0"
+    "Core\\Str::endsWith": "ca9e447acd430f3f"
   },
   "help:Core\\Str::fold": {
     "Core\\Str::fold": "78a6c4d2cf3b35dd"
@@ -7701,13 +7701,13 @@
     "Core\\Str::split": "3f74fdb14260f8cd"
   },
   "help:Core\\Str::startsWith": {
-    "Core\\Str::startsWith": "291627336a246605"
+    "Core\\Str::startsWith": "59a6fea54995e458"
   },
   "help:Core\\Str::trim": {
-    "Core\\Str::trim": "1d3f31d05f7d6397"
+    "Core\\Str::trim": "10eb3d66861adceb"
   },
   "help:Core\\Str::trimEnd": {
-    "Core\\Str::trimEnd": "8f56c4401377759a"
+    "Core\\Str::trimEnd": "c82360ad939cc0be"
   },
   "help:Core\\Str::trimStart": {
     "Core\\Str::trimStart": "bfc288e78a9be4db"
@@ -8112,7 +8112,7 @@
     "Core\\Time\\Duration::plus": "e2a12f0d04ebf84a"
   },
   "help:Core\\Time\\Duration::seconds": {
-    "Core\\Time\\Duration::seconds": "6f007696f35ae37a"
+    "Core\\Time\\Duration::seconds": "a448570421a1d450"
   },
   "help:Core\\Time\\Duration::toMicroseconds": {
     "Core\\Time\\Duration::toMicroseconds": "c5c2bf9fa537cd70"
