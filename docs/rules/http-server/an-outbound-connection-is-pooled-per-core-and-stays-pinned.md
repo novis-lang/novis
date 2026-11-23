@@ -25,7 +25,7 @@ once **without spending an attempt**, a server closing an idle connection not be
 later failure is an attempt under `rule:http-server/retry-is-opt-in-jittered-and-closed`. The two caps
 are `[http.client] pool_idle`, the idle connections one core may hold, and `pool_idle_timeout`, how long
 one may sit idle before it is closed — both `System` class, because they bound a core's memory rather
-than a request's (`rule:config/three-changeability-classes`).
+than a request's (`rule:config/set-changes-only-listed-keys`).
 
 `pool_idle` ships at `16`, enough for a handful of upstream APIs per core without a footprint worth
 stating, and `0` keeps none. `pool_idle_timeout` ships at `30s`, under the idle timeout of every common

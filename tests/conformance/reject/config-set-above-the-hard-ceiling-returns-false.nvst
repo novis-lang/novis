@@ -1,8 +1,8 @@
 --TEST--
-`Core\Config::set` raises a limit as far as the operator's `[limits.hard]` ceiling and refuses above it as `false` with the previous value intact, throwing neither time — `rule:config/three-changeability-classes`
+`Core\Config::set` raises a limit as far as the operator's `[limits.hard]` ceiling and refuses above it as `false` with the previous value intact, throwing neither time — `rule:config/set-changes-only-listed-keys`
 --FILE--
 <?nvs
-// `rule:config/three-changeability-classes`: `[limits]` states the value a request starts at and `[limits.hard]`
+// `rule:config/set-changes-only-listed-keys`: `[limits]` states the value a request starts at and `[limits.hard]`
 // the ceiling it may raise itself to. `memory` is a bare limit name, which
 // `Core\Config` resolves to the `[limits]` entry of the tree below.
 echo Core\Config::get('memory'), "\n";

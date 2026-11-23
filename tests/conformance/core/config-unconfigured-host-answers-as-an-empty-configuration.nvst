@@ -1,5 +1,5 @@
 --TEST--
-`Core\Config`'s four members on a host with no configuration file at all — `rule:config/ini-set-is-core-config-set`, `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3, `rule:config/three-changeability-classes`
+`Core\Config`'s four members on a host with no configuration file at all — `rule:config/ini-set-is-core-config-set`, `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 3, `rule:config/set-changes-only-listed-keys`
 --FILE--
 <?nvs
 // A case runs in a working directory of its own with no `nvs.toml` in it, so
@@ -12,7 +12,7 @@
 // force, the way the shipped file writes it.
 echo "get=", Core\Config::get("memory") ?? "unset", "\n";
 
-// `rule:config/three-changeability-classes`: `[limits]` states the default and `[limits.hard]` the ceiling. A
+// `rule:config/set-changes-only-listed-keys`: `[limits]` states the default and `[limits.hard]` the ceiling. A
 // case is a CLI run, and a CLI run with no `[limits.hard] memory` written has no
 // memory ceiling (`rule:config/ceilings-are-their-own-directives`), so its own
 // code moves `memory` up past the 128M default as well as down.

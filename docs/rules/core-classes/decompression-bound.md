@@ -14,7 +14,7 @@ about 60:1, and a log of near-identical lines into the low hundreds, while publi
 around 10,000:1. Neither key is under `[limits.hard]`, which bounds a value a request sets for
 itself, and a request has no setting to lower them: the call's own arguments are that. **There is no spelling for an unbounded decompression**: not an
 argument, since the largest `uint` is still clamped and `0` is a bound of zero; and not a
-configuration, since `false` — which `rule:config/three-changeability-classes` reads as "no ceiling"
+configuration, since `false` — which `rule:config/set-changes-only-listed-keys` reads as "no ceiling"
 for the limits a request may raise — reads here as the shipped default, as a malformed value does. A
 configuration that spells an unbounded decompression would be written once for a debugging session
 and left in place.

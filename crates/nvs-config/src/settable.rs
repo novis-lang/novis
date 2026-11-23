@@ -1,4 +1,4 @@
-//! `rule:config/three-changeability-classes`: the one list of keys `Core\Config::set` may change.
+//! `rule:config/set-changes-only-listed-keys`: the one list of keys `Core\Config::set` may change.
 //!
 //! `nvs.toml` gives every key the value a request starts with. [`SETTABLE`] names the keys a
 //! request may then change for itself, one row per leaf key, and says how. A key it does not list

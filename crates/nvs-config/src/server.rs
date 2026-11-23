@@ -41,7 +41,7 @@
 //! is that there is one.
 //!
 //! **`false` and `0` are both refused**, under `E0619`. Everywhere else in this tree `false`
-//! removes a ceiling (`rule:config/three-changeability-classes`), and that spelling is exactly what
+//! removes a ceiling (`rule:config/set-changes-only-listed-keys`), and that spelling is exactly what
 //! `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect` has no version of: its
 //! headline is that there is no way to say "wait forever", and a `[server]` wait is the inbound
 //! half of it. Reading `false` as "keep the default" would be worse than refusing, because an
@@ -901,7 +901,7 @@ pub struct Capacity {
     /// The bytes one request may hold at its most: `[limits.hard] memory` where a ceiling is
     /// written, otherwise the `[limits] memory` a request starts with, and otherwise
     /// [`LIMITS_MEMORY`](crate::defaults::LIMITS_MEMORY). `None` where the side that wins is `false`
-    /// — `rule:config/three-changeability-classes`'s spelling for "no ceiling", which leaves
+    /// — `rule:config/set-changes-only-listed-keys`'s spelling for "no ceiling", which leaves
     /// admission no cap to make room for.
     pub per_request: Option<u64>,
     /// What this machine affords the process, as [`memory_budget`] read it.
@@ -1376,7 +1376,7 @@ mod tests {
             "the cap a request can raise itself to did not win"
         );
 
-        // `rule:config/three-changeability-classes`'s spelling for "no ceiling" leaves admission
+        // `rule:config/set-changes-only-listed-keys`'s spelling for "no ceiling" leaves admission
         // no cap to make room for, and reading it as the `[limits] memory` underneath would make
         // room for less than the request is free to hold.
         let unbounded = capacity_for(

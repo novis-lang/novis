@@ -4703,7 +4703,7 @@ descriptors, so it needs no `libsystemd` either. Elsewhere nothing is passed and
 `AmbientCapabilities=CAP_NET_BIND_SERVICE` for a privileged port, because a capability the
 process holds is one a compromise of it holds too.
 
-<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/three-changeability-classes`](config.md#config-three-changeability-classes).</sub>
+<sub>See also [`packaging/the-unit-is-printed-and-install-is-the-opt-in`](packaging.md#packaging-the-unit-is-printed-and-install-is-the-opt-in), [`packaging/a-service-runs-as-a-virtual-account`](packaging.md#packaging-a-service-runs-as-a-virtual-account), [`packaging/a-c-dependency-answers-two-questions`](packaging.md#packaging-a-c-dependency-answers-two-questions), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys).</sub>
 
 <a id="packaging-a-bundle-may-not-install-itself"></a>
 

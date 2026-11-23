@@ -847,7 +847,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
 /// [`budget_exhausted`] is.
 ///
 /// This is what a request **starts with** and not a ceiling: the directive is
-/// `Runtime`-class (`rule:config/three-changeability-classes`), so a request
+/// `Runtime`-class (`rule:config/set-changes-only-listed-keys`), so a request
 /// may widen or narrow it for itself up to `[limits.hard] max_regex_steps`.
 /// Where that is not written, a `[limits] max_regex_steps` the file wrote is
 /// the ceiling, and this unwritten default is not one.
@@ -865,7 +865,7 @@ const STEPS_KEY: &str = "max_regex_steps";
 /// budget has to get the wider one on the next compile.
 ///
 /// **`false` is not a spelling for an unbounded tier.**
-/// `rule:config/three-changeability-classes` spells "no ceiling" that way for
+/// `rule:config/set-changes-only-listed-keys` spells "no ceiling" that way for
 /// the limits a request may raise; a pattern allowed to backtrack forever is
 /// the hang `rule:core-classes/regex-two-tiers` exists to stop, so it reads as
 /// the shipped budget instead. A malformed value reads the same way, for the

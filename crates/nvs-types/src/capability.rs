@@ -198,7 +198,7 @@ pub(crate) fn prepare_config_set(
 
 /// Refuses a `Core\Config::set` or `restore` whose written name no request may
 /// change, and warns where a template's name can fit no such key
-/// (`rule:config/three-changeability-classes`).
+/// (`rule:config/set-changes-only-listed-keys`).
 ///
 /// `get` is never asked: it reads every key. The keys a request may change are
 /// [`nvs_config::settable::SETTABLE`]'s, and in a package's namespace only its

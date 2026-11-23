@@ -5,7 +5,7 @@
     "http-server/no-spelling-for-an-unbounded-wait",
     "http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime",
     "http-server/an-unsafe-or-unbounded-default-is-a-defect",
-    "config/three-changeability-classes"
+    "config/set-changes-only-listed-keys"
   ],
   "guardedBy": [
     "crates/nvs-stdlib/src/http/socket.rs",

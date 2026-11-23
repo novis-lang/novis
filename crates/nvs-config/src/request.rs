@@ -9,12 +9,12 @@
 //!
 //! **A bare name is a limit's name.** The API is keyed on a directive *name*, and the common
 //! call is `Core\Config::set('memory', '512M')`, with no block in it. So a name with no dot
-//! that [`value::unit_of`] knows is read and written in `[limits]` — the block `rule:config/three-changeability-classes` states the
+//! that [`value::unit_of`] knows is read and written in `[limits]` — the block `rule:config/set-changes-only-listed-keys` states the
 //! request-settable default in — and every other name is the dotted path the file writes. This is
 //! not a second rule: it is the empty block [`value::unit_of`] already answers for, made into the
 //! one place that decides it.
 //!
-//! **What `set` refuses, it refuses by returning `false`** (`rule:config/three-changeability-classes` and `rule:config/ini-set-is-core-config-set`).
+//! **What `set` refuses, it refuses by returning `false`** (`rule:config/set-changes-only-listed-keys` and `rule:config/ini-set-is-core-config-set`).
 //! First a key [`SETTABLE`](crate::settable::SETTABLE) does not list, whatever its value. Then the
 //! value checks: a value that does not spell its unit, a value above its ceiling
 //! (`[limits.hard]`, or where that is not written the `[limits]` value the run started with,

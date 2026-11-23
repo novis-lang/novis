@@ -4,7 +4,7 @@
   "seeAlso": [
     "config/one-parser-for-the-boot-path-and-config-set",
     "classes/no-free-functions-or-constants",
-    "config/three-changeability-classes",
+    "config/set-changes-only-listed-keys",
     "config/ceilings-are-their-own-directives"
   ],
   "guardedBy": [

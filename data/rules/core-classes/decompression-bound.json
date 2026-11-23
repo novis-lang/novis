@@ -3,7 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "core-api/tier-roster",
-    "config/three-changeability-classes",
+    "config/set-changes-only-listed-keys",
     "programs/memory-priority"
   ],
   "guardedBy": [

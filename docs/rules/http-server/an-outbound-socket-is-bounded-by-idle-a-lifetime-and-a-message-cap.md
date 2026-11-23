@@ -24,7 +24,7 @@ comes from the absence of a spelling, exactly as it does for a call
 (`rule:core-api/failure-throws`).
 
 `[http.client.socket]` carries `max_message` and `send_timeout`, both `Runtime`
-(`rule:config/three-changeability-classes`), as `[http.client] deadline` is and for its reason: each
+(`rule:config/set-changes-only-listed-keys`), as `[http.client] deadline` is and for its reason: each
 bounds one call, and neither is a shared resource one request could spend on another's behalf. They sit in
 a block of their own because they mean nothing to a row that is not `openSocket`. A zero or a `false` in
 either is refused while the file is read, because neither is a bound. Shipped:

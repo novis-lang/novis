@@ -33,7 +33,7 @@ something a caller can override. That is the trade taken deliberately: an engine
 cannot see is the failure mode the whole design exists to avoid.
 
 The budget's default is `[limits] max_regex_steps`, an ordinary `Runtime` directive
-(`rule:config/three-changeability-classes`): a request may widen or narrow it for itself, a
+(`rule:config/set-changes-only-listed-keys`): a request may widen or narrow it for itself, a
 `[limits.hard]` entry is how a host bounds that, and a deployment that has written nothing gets the
 constant `crates/nvs-stdlib/src/regex.rs` states. `false` does not spell an unbounded tier — it
 reads as that same constant, because a pattern allowed to backtrack forever is the hang this rule

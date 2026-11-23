@@ -1,4 +1,4 @@
-//! `rule:config/three-changeability-classes`, from outside the process: every key a request may
+//! `rule:config/set-changes-only-listed-keys`, from outside the process: every key a request may
 //! set through `Core\Config::set` changes what that request does, and `set` returns `false` for
 //! every `http.*` key `nvs_config::settable::SETTABLE` does not list.
 //!

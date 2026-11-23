@@ -366,7 +366,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Config::set(string $name, string $value): bool` — replacing
     /// `ini_set`.
     ///
-    /// The `false` this can answer with is `rule:config/three-changeability-classes`'s refusal and never an
+    /// The `false` this can answer with is `rule:config/set-changes-only-listed-keys`'s refusal and never an
     /// exception: `rule:config/ini-set-is-core-config-set` pins a set above the `[limits.hard]`
     /// ceiling as `false` with the previous value intact, and a version of it
     /// that threw would be a different API.

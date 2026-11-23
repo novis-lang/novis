@@ -18,7 +18,7 @@
 //! block spelling `memory` for something that is not a heap does not inherit a unit by accident.
 //!
 //! **`false` is [`Quantity::Unbounded`] in both spellings** — a TOML boolean from a file, the text
-//! `"false"` through `set` — because `rule:config/three-changeability-classes` gives "no ceiling" that spelling and `Core\Config` crosses
+//! `"false"` through `set` — because `rule:config/set-changes-only-listed-keys` gives "no ceiling" that spelling and `Core\Config` crosses
 //! every value as a string. It is above every magnitude, which is exactly what removing a ceiling
 //! means, and it is a value as well as a ceiling: a `[limits] memory = false` under a `512M`
 //! `[limits.hard]` is a default that exceeds its own ceiling and is refused as one.
@@ -181,7 +181,7 @@ pub fn unit_of(key: &str) -> Option<Unit> {
     limit(leaf).map(|(_, row)| row.unit)
 }
 
-/// Whether a limit written in `block` is one of `rule:config/three-changeability-classes`'s — `""` for the bare name
+/// Whether a limit written in `block` is one of `rule:config/set-changes-only-listed-keys`'s — `""` for the bare name
 /// `Core\Config::set` uses, and any block ending in `limits` or `limits.hard` for the file, which
 /// covers `app.0.limits` and a `[[schedule]]`'s alike.
 ///
@@ -202,7 +202,7 @@ fn in_a_limits_block(block: &str) -> bool {
 /// runs out at 584 years and so cannot be reached by any ceiling an operator would write.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Quantity {
-    /// `false`: no ceiling at all (`rule:config/three-changeability-classes`). Above every magnitude, whatever its unit.
+    /// `false`: no ceiling at all (`rule:config/set-changes-only-listed-keys`). Above every magnitude, whatever its unit.
     Unbounded,
     /// A size, in bytes.
     Bytes(u64),
@@ -262,7 +262,7 @@ impl PartialOrd for Quantity {
     }
 }
 
-/// Whether `value` stays within `ceiling` for `key` — the ceiling check `rule:config/three-changeability-classes` states, in the one
+/// Whether `value` stays within `ceiling` for `key` — the ceiling check `rule:config/set-changes-only-listed-keys` states, in the one
 /// place both the boot path and `Core\Config::set` reach it, so the two cannot disagree about which
 /// values are allowed.
 ///

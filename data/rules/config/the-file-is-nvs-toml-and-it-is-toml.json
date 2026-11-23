@@ -5,7 +5,7 @@
     "config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one",
     "config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults",
     "config/lists-are-arrays-and-repeated-records-are-arrays-of-tables",
-    "config/three-changeability-classes",
+    "config/set-changes-only-listed-keys",
     "config/the-config-is-an-immutable-snapshot"
   ],
   "guardedBy": [

@@ -20,7 +20,7 @@ and `rule:config/include-takes-a-path-or-a-dir` how it pulls in more. Every file
 in this syntax, and `rule:config/every-block-is-argued-where-it-is-added` lists the blocks.
 
 The `[limits]`/`[limits.hard]` layout is the changeability model's
-(`rule:config/three-changeability-classes`); this rule gives it only its syntax.
+(`rule:config/set-changes-only-listed-keys`); this rule gives it only its syntax.
 
 - **Memory:** nothing on the request path. The parse runs at boot and on each reload, over files
   measured in kilobytes, and never per request or from a request-serving core; what a live snapshot

@@ -33,7 +33,7 @@ use super::transport::Connection;
 ///
 /// `Copy` and owning nothing, so carrying it beside every connection costs the
 /// two numbers and no allocation. They are `System` because they bound a core's
-/// memory rather than a request's (`rule:config/three-changeability-classes`),
+/// memory rather than a request's (`rule:config/set-changes-only-listed-keys`),
 /// which is why nothing in a call's own options bag can move them.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Caps {

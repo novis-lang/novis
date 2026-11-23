@@ -129,7 +129,7 @@ pub(crate) struct Named {
 }
 
 /// The class whose `set` and `restore` take a key a request may change
-/// (`rule:config/three-changeability-classes`).
+/// (`rule:config/set-changes-only-listed-keys`).
 const CONFIG: &str = "Core\\Config";
 
 /// The class a string literal names a time zone of, at a parameter of its

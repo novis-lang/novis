@@ -2,7 +2,7 @@
   "title": "A refused `Core\\Config::set` returns `false` and leaves the value unchanged; it is never clamped",
   "status": "shipped",
   "seeAlso": [
-    "config/three-changeability-classes",
+    "config/set-changes-only-listed-keys",
     "config/ceilings-are-their-own-directives",
     "config/ini-set-is-core-config-set"
   ],

@@ -483,7 +483,7 @@ something a caller can override. That is the trade taken deliberately: an engine
 cannot see is the failure mode the whole design exists to avoid.
 
 The budget's default is `[limits] max_regex_steps`, an ordinary `Runtime` directive
-([`config/three-changeability-classes`](config.md#config-three-changeability-classes)): a request may widen or narrow it for itself, a
+([`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys)): a request may widen or narrow it for itself, a
 `[limits.hard]` entry is how a host bounds that, and a deployment that has written nothing gets the
 constant `crates/nvs-stdlib/src/regex.rs` states. `false` does not spell an unbounded tier — it
 reads as that same constant, because a pattern allowed to backtrack forever is the hang this rule
@@ -4133,7 +4133,7 @@ about 60:1, and a log of near-identical lines into the low hundreds, while publi
 around 10,000:1. Neither key is under `[limits.hard]`, which bounds a value a request sets for
 itself, and a request has no setting to lower them: the call's own arguments are that. **There is no spelling for an unbounded decompression**: not an
 argument, since the largest `uint` is still clamped and `0` is a bound of zero; and not a
-configuration, since `false` — which [`config/three-changeability-classes`](config.md#config-three-changeability-classes) reads as "no ceiling"
+configuration, since `false` — which [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys) reads as "no ceiling"
 for the limits a request may raise — reads here as the shipped default, as a malformed value does. A
 configuration that spells an unbounded decompression would be written once for a debugging session
 and left in place.
@@ -4196,7 +4196,7 @@ chosen for the deployment that has not thought about it.
 - **Refusing early on the uncompressed size a frame or archive header declares.** The input's author
   wrote that number, so no member uses it, not even as a hint, and the output is measured as it grows.
 
-<sub>See also [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
+<sub>See also [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`programs/memory-priority`](programs.md#programs-memory-priority).</sub>
 
 <a id="core-classes-image-pipeline"></a>
 

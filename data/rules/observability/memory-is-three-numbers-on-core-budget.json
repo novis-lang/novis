@@ -6,7 +6,7 @@
     "observability/memory-high-water-writes-a-warn",
     "core-api/no-mode-strings",
     "core-api/tier-roster",
-    "config/three-changeability-classes",
+    "config/set-changes-only-listed-keys",
     "errors/on-limit"
   ],
   "guardedBy": [

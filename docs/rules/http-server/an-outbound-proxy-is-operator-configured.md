@@ -3,7 +3,7 @@ A `Core\Http\Client` call leaves through a forward proxy when, and only when, an
 and **no environment variable is read** — not `HTTP_PROXY`, not `HTTPS_PROXY`, not `NO_PROXY`, in any case
 spelling.
 
-The block is `System` class and `Reload` (`rule:config/three-changeability-classes`,
+The block is `System` class and `Reload` (`rule:config/set-changes-only-listed-keys`,
 `rule:config/reloadability-is-its-own-field`): `Core\Config::set` fails on every key, and a changed value
 takes effect on the next call, with the pool's key carrying the proxy so nothing the old value made can
 serve one.

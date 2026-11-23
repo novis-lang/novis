@@ -31,7 +31,7 @@ and [`config/include-takes-a-path-or-a-dir`](config.md#config-include-takes-a-pa
 in this syntax, and [`config/every-block-is-argued-where-it-is-added`](config.md#config-every-block-is-argued-where-it-is-added) lists the blocks.
 
 The `[limits]`/`[limits.hard]` layout is the changeability model's
-([`config/three-changeability-classes`](config.md#config-three-changeability-classes)); this rule gives it only its syntax.
+([`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys)); this rule gives it only its syntax.
 
 - **Memory:** nothing on the request path. The parse runs at boot and on each reload, over files
   measured in kilobytes, and never per request or from a request-serving core; what a live snapshot
@@ -58,7 +58,7 @@ The `[limits]`/`[limits.hard]` layout is the changeability model's
 - **Accepting both `.ini` and `.toml`.** Two formats to specify, parse and test, and a deployment that
   holds both with no answer for which wins; nothing in Novis gets a second syntax.
 
-<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot).</sub>
+<sub>See also [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults`](config.md#config-the-root-is-config-else-nvs-toml-else-the-shipped-defaults), [`config/lists-are-arrays-and-repeated-records-are-arrays-of-tables`](config.md#config-lists-are-arrays-and-repeated-records-are-arrays-of-tables), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot).</sub>
 
 <a id="config-a-size-or-duration-is-a-quoted-string-with-its-suffix"></a>
 
@@ -1248,59 +1248,65 @@ configuration path every two seconds on the checking thread.
 
 <sub>See also [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/later-wins-and-every-override-is-recorded`](config.md#config-later-wins-and-every-override-is-recorded), [`config/ownership-is-the-trust-boundary`](config.md#config-ownership-is-the-trust-boundary).</sub>
 
-<a id="config-three-changeability-classes"></a>
+<a id="config-set-changes-only-listed-keys"></a>
 
-## `nvs.toml` states defaults, not ceilings, and every directive carries one of three changeability classes
+## `nvs.toml` gives what a request starts with, and `Core\Config::set` changes only the keys one list names
 
-`rule:config/three-changeability-classes`
+`rule:config/set-changes-only-listed-keys`
 
-`nvs.toml` defines what a request **starts with**. A directive is a limit that cannot be exceeded
-only when it cannot be changed at runtime at all; where a value can change, the request sets whatever
-it wants, wider or narrower, and the file's value is the starting point it inherits.
+`nvs.toml` gives what a request **starts with**. `nvs_config::settable::SETTABLE` is the one list
+of the keys a request may then change for itself with `Core\Config::set`, one row per leaf key, and
+each row says how:
 
-Every directive carries one of three changeability classes in the registry:
+| How | What `Core\Config::set` accepts |
+|---|---|
+| `UpToCeiling` | any valid value, wider or narrower, up to the key's ceiling where it has one |
+| `OffOnly` | the value `false` and nothing else; `restore` turns the switch back on |
 
-| Class | `nvs.toml` | `Core\Config::set` |
-|---|---|---|
-| `System` | the only place it can be set | fails, returns `false` |
-| `Runtime` | the **default** a request starts with | any value, wider or narrower, up to the ceiling |
-| `RuntimeTighten` | the default *and* an upper bound | narrowing only; widening fails |
+A key the list does not name returns `false` before any other check, whatever its value. So a key
+added to the configuration is the operator's alone until somebody adds its row and argues it in the
+row's comment. The list is one table rather than a field on each directive, because *who may set it*
+and *what applying a change requires* ([`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)) are two
+questions with two homes.
 
-`Runtime` is the class for anything changeable. `RuntimeTighten` is argued per directive, never as a
-policy: it exists for capability grants, where a script may drop a right it holds and never add one it
-does not, and for directives that only ever narrow, such as `open_basedir`. The class answers
-one question only — *who may set it*. What applying a change requires is a second field on the same
-entry ([`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)).
+A key is listed only when changing it changes what the request that set it does. A key nothing reads
+while a request runs is not listed, because a `true` would change nothing: under `[http]` these are
+`http.cors.methods`, `http.cors.headers` and `http.cors.max_age`, which shape only a preflight
+answered before any program runs, `http.errors.detail`, and `log.access`, whose line is written from
+the file's value once the program has ended. `crates/nvs-config/tests/request.rs` walks every key the
+default file writes and checks `set` accepts exactly the listed ones, and
+`crates/nvs-cli/tests/request_http_settings.rs` checks each listed key changes what the request does.
 
-The class is the application's own code's. Code in a package's namespace sets `limits.*` alone, and
-only lower, and restores only what a package set
+The ceiling of a limit is `[limits.hard]`, and a key it does not write is the value the run started
+with, so a limit widens only where the operator wrote a ceiling above its start
+([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)). The ceiling of `mode.default` is
+`[mode] ceiling`. Every other `UpToCeiling` key has none.
+
+The list is the application's own code's. Code in a package's namespace sets the `limits.*` rows
+alone, and only lower, and restores only what a package set
 ([`security/package-authority-is-granted-one-line-at-a-time`](security.md#security-package-authority-is-granted-one-line-at-a-time)).
 
-A key nothing reads while a request runs is not settable, whatever its block's class: `set` returns
-`false` for it, because a `true` would change nothing. Under `[http]`, the `Runtime` block, these are
-`http.cors.methods`, `http.cors.headers` and `http.cors.max_age`, which shape only a preflight
-answered before any program runs, and `http.errors.detail`, which shapes the page of a request that
-never got a frame. `http.csrf_key`, `http.csrf_key_file`, `[http.client.tls]`, `[http.client.proxy]`
-and the outbound pool's two caps are `System`. `nvs_config::request::UNREAD_BY_A_REQUEST` is the
-list, and `crates/nvs-cli/tests/request_http_settings.rs` walks every `http.*` key against it.
+**The compiler reads the same list.** A literal name in the first argument of `set` or `restore`
+that no row names is `E0667`, and so is a literal key outside `limits.` in a package's namespace. A
+template string whose fixed parts no row can fit is warning `W1037`. A variable, a call or a
+concatenation gets no diagnostic, because neither the checker nor the author can know its value.
+`get` reads every key and is not checked. *What it spends:* one scan of the list per call site while
+compiling, and nothing at run time.
 
-The ceiling is `[limits.hard]`, and a key it does not write is the value the run started with, so a
-`Runtime` limit widens only where the operator wrote a ceiling above its start
-([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)).
-
-This is what lets the most common run-time set — raising `memory_limit` for one import — work, while
+This is what lets the most common run-time set, raising `memory` for one import, work, while
 [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives) keeps one request from becoming every co-resident
-request's outage. One directive cannot answer both questions — what a script gets by default, and
-what the host tolerates from one request — and keeping them apart is what spares an operator from
-raising the global limit for everyone to let one import through. No runtime set crosses an isolation
-boundary ([`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local)), so **Security and request isolation** is not
-what widening trades.
+request's outage. No runtime set crosses an isolation boundary
+([`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local)), so **Security and request isolation** is not what
+widening trades. *What it spends:* one scan of the list's rows per `set`, and no memory.
 
 **Declined:**
 - **Narrowing only, for every limit.** The commonest run-time set raises a limit, so code that does it
   would fail at run time with the out-of-memory error or timeout it was trying to prevent.
 - **A hardened mode that makes every limit narrowing-only again.** Two configuration semantics to
   implement, test and reason about, for what one ceiling per directive already says.
+- **A refuse list, or a class on each directive.** Both make a new key settable unless somebody
+  notices: a directive added under a settable block, or missing from the refuse list, is a key every
+  request may change. A list of what is allowed fails closed.
 
 <sub>See also [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling).</sub>
 
@@ -1425,7 +1431,7 @@ unreachable store does not hold back an unrelated change that may be a security 
 - **Refusing the whole reload when one resource cannot be built.** An unreachable session database
   would then hold back a tightened header policy written in the same save.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system).</sub>
+<sub>See also [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/a-reload-names-what-it-could-not-apply`](config.md#config-a-reload-names-what-it-could-not-apply), [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/opcache-file-cache-directives-are-system`](config.md#config-opcache-file-cache-directives-are-system).</sub>
 
 <a id="config-ceilings-are-their-own-directives"></a>
 
@@ -1487,7 +1493,7 @@ reader learns once; a third would need its own argument.
   value, and the other limits bound one read or one response, which a program sizes by writing
   `[limits]`.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`errors/on-limit`](errors.md#errors-on-limit), [`programs/memory-priority`](programs.md#programs-memory-priority), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling).</sub>
+<sub>See also [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`config/a-refused-set-returns-false`](config.md#config-a-refused-set-returns-false), [`errors/on-limit`](errors.md#errors-on-limit), [`programs/memory-priority`](programs.md#programs-memory-priority), [`config/an-app-block-may-widen-bounded-by-the-global-ceiling`](config.md#config-an-app-block-may-widen-bounded-by-the-global-ceiling).</sub>
 
 <a id="config-system-means-a-request-may-not-set-it"></a>
 
@@ -1512,7 +1518,7 @@ change needs a new snapshot or a restart is [`config/reloadability-is-its-own-fi
 held in a field of its own, and the registry's census test fails if either field is ever derived from
 the other. With that split, `System` means one thing again — a request may not set it.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class).</sub>
+<sub>See also [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class).</sub>
 
 <a id="config-a-runtime-set-is-request-local"></a>
 
@@ -1537,7 +1543,7 @@ The same property is what makes a request-local mode flip safe at all
 [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot) completes: requests share nothing *mutable*, and an
 overlay each request owns is not shared.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set).</sub>
+<sub>See also [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`config/the-config-is-an-immutable-snapshot`](config.md#config-the-config-is-an-immutable-snapshot), [`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set).</sub>
 
 <a id="config-a-refused-set-returns-false"></a>
 
@@ -1559,7 +1565,7 @@ The accepted half is the other assertion: a set below the ceiling does not merel
 `get`, it **takes effect** — a raised `memory` moves the ceiling the runtime enforces for the rest of
 that request ([`errors/on-limit`](errors.md#errors-on-limit)).
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set).</sub>
+<sub>See also [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`config/ini-set-is-core-config-set`](config.md#config-ini-set-is-core-config-set).</sub>
 
 <a id="config-ini-set-is-core-config-set"></a>
 
@@ -1596,7 +1602,7 @@ built-in defaults included, and on a host with no configuration file they give t
 context handed no configuration at all has `get` `null`, `all` empty, `set` `false`, and nothing
 throws ([`config/no-configuration-file-is-a-complete-configuration`](config.md#config-no-configuration-file-is-a-complete-configuration)).
 
-<sub>See also [`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives).</sub>
+<sub>See also [`config/one-parser-for-the-boot-path-and-config-set`](config.md#config-one-parser-for-the-boot-path-and-config-set), [`classes/no-free-functions-or-constants`](classes.md#classes-no-free-functions-or-constants), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives).</sub>
 
 <a id="config-an-edit-reaches-the-next-request-without-a-restart"></a>
 
@@ -2521,7 +2527,7 @@ why not even `RuntimeTighten` applies. This is the same class and the same reaso
 `[queue]`, the durable job queue beside the schedule, is `System` throughout for the same reason: work
 a request could redirect is work a request could redirect into a database it was never granted.
 
-<sub>See also [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class).</sub>
+<sub>See also [`config/scheduled-work-is-a-config-block`](config.md#config-scheduled-work-is-a-config-block), [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class).</sub>
 
 <a id="config-a-schedule-entry-narrows-only"></a>
 
@@ -3107,7 +3113,7 @@ world-writable directory are the packaging chapter's; this rule is only the rost
 - **Both keys, documented as equal.** Two keys that can disagree need a rule for which one wins, which
   is the alias above with its precedence left unwritten.
 
-<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class).</sub>
+<sub>See also [`config/every-schedule-key-is-system`](config.md#config-every-schedule-key-is-system), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class).</sub>
 
 <a id="config-telemetry-and-update-endpoints-are-configuration"></a>
 

@@ -25,7 +25,7 @@
     "config/settings-and-secrets-are-a-programs-own-values",
     "config/one-parser-for-the-boot-path-and-config-set",
     "config/the-config-is-an-immutable-snapshot",
-    "config/three-changeability-classes",
+    "config/set-changes-only-listed-keys",
     "config/a-directive-flag-is-a-closed-list-at-the-global-layer",
     "config/reloadability-is-its-own-field",
     "config/ceilings-are-their-own-directives",

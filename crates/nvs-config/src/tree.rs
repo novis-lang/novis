@@ -35,7 +35,7 @@ use serde::Deserialize;
 /// One directive's value, in the shapes the rules actually write.
 ///
 /// Several directives are spelled two ways on purpose and the second spelling is load-bearing:
-/// `[limits.hard] memory = false` removes a ceiling (`rule:config/three-changeability-classes`, and `rule:config/the-file-is-nvs-toml-and-it-is-toml` chose TOML partly
+/// `[limits.hard] memory = false` removes a ceiling (`rule:config/set-changes-only-listed-keys`, and `rule:config/the-file-is-nvs-toml-and-it-is-toml` chose TOML partly
 /// because "off" is a boolean there), `[metrics] exporter = false` disables an export,
 /// `[http.headers] frame_ancestors` is `"none"`, `"self"` or a list of origins. A field typed
 /// `String` would refuse the operator's own documented example, so those fields are typed here.
@@ -75,12 +75,12 @@ pub struct Config {
     pub include: Vec<Include>,
     /// `[[app]]` — one application, keyed on an entry file path (`rule:config/an-application-is-its-entry-file-path`).
     pub app: Vec<App>,
-    /// `[limits]` and the `[limits.hard]` ceiling under it (`rule:config/three-changeability-classes`).
+    /// `[limits]` and the `[limits.hard]` ceiling under it (`rule:config/set-changes-only-listed-keys`).
     pub limits: Option<Limits>,
     /// `[mode]` — the default a request starts in and the ceiling it may select
     /// (`rule:config/ceilings-are-their-own-directives`, `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`).
     pub mode: Option<Mode>,
-    /// `[capabilities]` — deny-by-default grants (`rule:config/three-changeability-classes`, `rule:security/script-spawn-capability`).
+    /// `[capabilities]` — deny-by-default grants (`rule:config/set-changes-only-listed-keys`, `rule:security/script-spawn-capability`).
     pub capabilities: Option<Capabilities>,
     /// `[[extension]]` — a precompiled binary and its pin (`rule:packaging/extension-loading-is-root-controlled`).
     pub extension: Vec<Extension>,
@@ -190,7 +190,7 @@ pub struct App {
     pub secrets: Option<toml::Table>,
 }
 
-/// `[limits]` — what a request starts with, plus the ceiling it may raise itself to (`rule:config/three-changeability-classes`).
+/// `[limits]` — what a request starts with, plus the ceiling it may raise itself to (`rule:config/set-changes-only-listed-keys`).
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Limits {
@@ -281,7 +281,7 @@ pub struct Limits {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct LimitSet {
-    /// The ceiling on the heap; `false` removes it (`rule:config/three-changeability-classes`).
+    /// The ceiling on the heap; `false` removes it (`rule:config/set-changes-only-listed-keys`).
     pub memory: Option<Setting>,
     /// The ceiling on CPU time.
     pub cpu_time: Option<Setting>,
@@ -301,7 +301,7 @@ pub struct LimitSet {
     pub max_regex_steps: Option<Setting>,
 }
 
-/// `[mode]` — `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`, whose keys `rule:config/three-changeability-classes` gives different classes.
+/// `[mode]` — `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`, whose keys `rule:config/set-changes-only-listed-keys` gives different classes.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Mode {
@@ -780,7 +780,7 @@ pub struct HttpClient {
 /// `[http.client.tls]` — whose certificates an outbound `https` call believes, the version floor it
 /// speaks over, and the debugging file it may write its secrets to.
 ///
-/// `System` as a block, and for the reason `rule:config/three-changeability-classes` gives: these
+/// `System` as a block, and for the reason `rule:config/set-changes-only-listed-keys` gives: these
 /// three settle the one `ClientConfig` every session in the process shares
 /// (`nvs_host::tls`'s module doc § *The trust anchors are compiled in*), so a request setting one
 /// would be setting it for every co-resident request. There is no code-side spelling for any of
@@ -859,7 +859,7 @@ pub struct HttpClientProxy {
 /// does: the largest message it will reassemble, and how long one frame may wait to be written.
 ///
 /// `Runtime` as a block, and for `[http.client] deadline`'s reason
-/// (`rule:config/three-changeability-classes`): each key bounds one call, a program that knows its
+/// (`rule:config/set-changes-only-listed-keys`): each key bounds one call, a program that knows its
 /// own peer names its own value at the call site, and neither is a resource one request could spend
 /// on another's behalf. They are written here rather than among [`HttpClient`]'s own keys because
 /// they mean nothing to a row that is not `openSocket`, and a block is the smallest thing a

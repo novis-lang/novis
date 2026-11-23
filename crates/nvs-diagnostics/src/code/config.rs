@@ -125,7 +125,7 @@ codes! {
     /// deployment holds an access-control rule that does not run and nothing
     /// tells it so. This is the boot half; inside a request the same two
     /// combinations make `Core\Config::set` return `false` and leave the value
-    /// unchanged (`rule:config/three-changeability-classes`'s existing rule), and the condition behind both
+    /// unchanged (`rule:config/set-changes-only-listed-keys`'s existing rule), and the condition behind both
     /// halves is written once in `nvs_config::http`. Each half of a pair is
     /// legitimate alone — a wildcard origin is an ordinary public API — so
     /// there is no refusal here for a single key.
@@ -235,7 +235,7 @@ codes! {
     /// A `[server]` wait that would never end: `false`, or `0`. `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s
     /// headline is that Novis never waits forever and `rule:http-server/the-server-block-is-boot-class` states its
     /// four inbound waits as finite with nothing configured, so `false` — which
-    /// removes a ceiling everywhere else in the tree (`rule:config/three-changeability-classes`) — has no
+    /// removes a ceiling everywhere else in the tree (`rule:config/set-changes-only-listed-keys`) — has no
     /// meaning here and is refused rather than read as a default. `0` is the
     /// same refusal from the other side: a wait that expires as it is armed
     /// closes every connection before it can say anything, which is a server
@@ -290,7 +290,7 @@ codes! {
     /// connection and then refuses every request on it — the same deployment
     /// `E0620` refuses when `listen` is written empty, reached from the other
     /// end. `false` is not the other half of this refusal because the key is a
-    /// plain count rather than a `Setting`: `rule:config/three-changeability-classes`'s ceiling-removing
+    /// plain count rather than a `Setting`: `rule:config/set-changes-only-listed-keys`'s ceiling-removing
     /// spelling does not typecheck against it, so removing this valve is not
     /// something the file can say.
     ///
@@ -747,7 +747,7 @@ codes! {
     /// held open with a ceiling an operator removed is memory and a
     /// descriptor nothing in the process ever reclaims. `false` removes a
     /// ceiling everywhere else in the tree
-    /// (`rule:config/three-changeability-classes`) and has no meaning here;
+    /// (`rule:config/set-changes-only-listed-keys`) and has no meaning here;
     /// zero is the same value from the other side — no connection may be
     /// open, no frame may arrive and no wait may elapse — which is a server
     /// that upgrades nothing. The refusal names the key and the number the
@@ -957,7 +957,7 @@ codes! {
 
     /// A `Core\Config::set` or `restore` whose written name is a key a request may never change:
     /// one `nvs_config::settable::SETTABLE` does not list, or, in a package's namespace, one
-    /// outside `limits.` (`rule:config/three-changeability-classes`). The call would change
+    /// outside `limits.` (`rule:config/set-changes-only-listed-keys`). The call would change
     /// nothing on every server, so the name is found here. A name built at run time is not
     /// checked.
     pub const E_NOT_SETTABLE: Code = Code::new("E0667").card(

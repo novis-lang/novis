@@ -381,7 +381,7 @@ codes! {
     // `W1036` is held for a warning that is not written yet.
     /// A `Core\Config::set` or `restore` whose name is a string template that no key on
     /// `nvs_config::settable::SETTABLE` can fit, whatever its holes contain
-    /// (`rule:config/three-changeability-classes`). Each hole fits one or more characters that
+    /// (`rule:config/set-changes-only-listed-keys`). Each hole fits one or more characters that
     /// are not a dot. A warning, because the checker cannot see the value.
     pub const W_SET_NEVER_FITS: Code = Code::new("W1037").card(
         "This `Core\\Config::set` or `Core\\Config::restore` call builds the name of a setting \

@@ -286,7 +286,7 @@ fn max_script_depth_is_read_as_a_count() {
 }
 
 /// The directive is `System`, so a request may not raise its own recursion ceiling — which is the
-/// entire reason `rule:config/three-changeability-classes`'s class was chosen for it, and the one property a reader test can pin
+/// entire reason `rule:config/set-changes-only-listed-keys`'s class was chosen for it, and the one property a reader test can pin
 /// without a host to spawn in.
 #[test]
 fn a_request_cannot_set_its_own_max_script_depth() {

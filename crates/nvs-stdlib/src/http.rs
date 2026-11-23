@@ -5013,7 +5013,7 @@ fn traceparent_of(ctx: &Ctx) -> Option<String> {
 /// ships.
 ///
 /// No option slot and no `Result`, unlike [`bound_of`]: both directives are
-/// `System`-class (`rule:config/three-changeability-classes`), so the bag has
+/// `System`-class (`rule:config/set-changes-only-listed-keys`), so the bag has
 /// no key for a request to widen a bound on memory it shares with every
 /// co-resident request, and a value that does not parse was refused where the
 /// configuration was loaded rather than being a failed request here.

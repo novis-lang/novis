@@ -3,7 +3,7 @@
   "status": "shipped",
   "seeAlso": [
     "config/every-schedule-key-is-system",
-    "config/three-changeability-classes",
+    "config/set-changes-only-listed-keys",
     "config/opcache-revalidation-is-system-class"
   ],
   "guardedBy": [

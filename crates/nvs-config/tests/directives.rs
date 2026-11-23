@@ -1,5 +1,5 @@
 //! The registry's `apply` field is its own field, independent of who may set a key
-//! (`rule:config/reloadability-is-its-own-field` against `rule:config/three-changeability-classes`),
+//! (`rule:config/reloadability-is-its-own-field` against `rule:config/set-changes-only-listed-keys`),
 //! plus the lookup rule the module doc states.
 
 use std::collections::BTreeMap;
@@ -27,7 +27,7 @@ fn governs_a_settable_key(row: &Directive) -> bool {
 }
 
 /// `rule:config/reloadability-is-its-own-field`: reloadability says *what applying a change requires*,
-/// and `settable::SETTABLE` (`rule:config/three-changeability-classes`) says *who may set it*. The two
+/// and `settable::SETTABLE` (`rule:config/set-changes-only-listed-keys`) says *who may set it*. The two
 /// are independent, and the failure this pins is a registry that reads one off the other: "not
 /// settable" read as "read once at boot".
 #[test]
@@ -133,7 +133,7 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
         assert_eq!(
             settable::how(key),
             None,
-            "`{key}` is not settable (`rule:config/three-changeability-classes`)"
+            "`{key}` is not settable (`rule:config/set-changes-only-listed-keys`)"
         );
         assert_eq!(
             row.apply,
@@ -145,7 +145,7 @@ fn reloadability_is_a_field_of_its_own_and_not_the_changeability_class() {
 
 /// The longest-prefix rule, and the pair it exists for: `[limits]` and `[limits.hard]` spell the
 /// same key names, and a request may set the first and not the second
-/// (`rule:config/three-changeability-classes`), so a registry keyed on the last segment would give
+/// (`rule:config/set-changes-only-listed-keys`), so a registry keyed on the last segment would give
 /// a ceiling the row of the limit.
 #[test]
 fn a_more_specific_row_wins_and_a_prefix_must_end_on_a_dot() {
@@ -706,7 +706,7 @@ fn every_key_of_an_app_block_is_not_settable_and_applied_at_reload() {
             settable::how(&key),
             None,
             "`{key}` is part of what an operator granted one application, and a request that \
-             could set it would be choosing its own capabilities (`rule:config/three-changeability-classes`)",
+             could set it would be choosing its own capabilities (`rule:config/set-changes-only-listed-keys`)",
         );
         assert_eq!(
             row.apply,
@@ -717,7 +717,7 @@ fn every_key_of_an_app_block_is_not_settable_and_applied_at_reload() {
     }
 }
 
-/// `rule:config/three-changeability-classes`: one row governs every grant, and `SETTABLE` lists
+/// `rule:config/set-changes-only-listed-keys`: one row governs every grant, and `SETTABLE` lists
 /// none of them, so no request may set a grant through `Core\Config::set`.
 ///
 /// `rule:security/isolate-shares-nothing` gives a script no way to add a right it does not hold.
@@ -1264,7 +1264,7 @@ fn an_extension_entry_carries_its_pin_and_no_part_of_it_is_a_programs() {
 }
 
 /// The one `http` row, read as the *default* answer for the whole `[http.*]` tree rather than as
-/// one more row: `rule:config/three-changeability-classes` names a response header as a key a
+/// one more row: `rule:config/set-changes-only-listed-keys` names a response header as a key a
 /// request may set, because the request could already have written the header by hand. The
 /// settable key this case picks is `http.headers.hsts`, a header the blanket row governs.
 ///
@@ -1413,7 +1413,7 @@ fn the_door_key_is_carved_out_of_a_block_a_request_may_otherwise_write() {
     assert_eq!(
         (blanket.key, settable::how("http.cookies.same_site")),
         ("http", Some(How::UpToCeiling)),
-        "the block the key sits in is the request's own (`rule:config/three-changeability-classes`), \
+        "the block the key sits in is the request's own (`rule:config/set-changes-only-listed-keys`), \
          so the carve-out is the whole of what keeps it out of reach",
     );
 
@@ -1867,7 +1867,7 @@ fn the_socket_block_is_the_one_under_http_client_a_request_may_still_set() {
     );
 }
 
-/// `rule:config/three-changeability-classes` names a response header as a key a request may set,
+/// `rule:config/set-changes-only-listed-keys` names a response header as a key a request may set,
 /// and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s policy blocks are what that
 /// names: a request may set any of them for itself, because it could already write the header
 /// directly. `SETTABLE` lists each of them. The exceptions are `[http.cors]`'s `methods`, `headers`
@@ -1894,7 +1894,7 @@ fn every_http_response_directive_is_settable_and_the_preflight_ones_are_not() {
             assert_eq!(
                 settable::how(&dotted),
                 expected,
-                "`{dotted}` resolves through `{}`, and `rule:config/three-changeability-classes` \
+                "`{dotted}` resolves through `{}`, and `rule:config/set-changes-only-listed-keys` \
                  makes a response policy directive settable: refusing it would refuse nothing, \
                  because the request can write the header itself. A preflight key is the \
                  exception, because no program runs before the preflight is answered",
@@ -2280,7 +2280,7 @@ fn every_unimplemented_key_in_the_default_file_is_marked_as_one() {
     }
 }
 
-/// The roster half of `rule:config/three-changeability-classes`, asked of the declaration rather
+/// The roster half of `rule:config/set-changes-only-listed-keys`, asked of the declaration rather
 /// than of its presence: a trailer that names nothing is the same silence as no trailer at all.
 ///
 /// `bun nv directives`'s gate reads a trailer that *parses* — an `[unread:]` with anything at all
@@ -2402,7 +2402,7 @@ fn reads_the_key<'a>(source: &'a [(String, String)], dotted: &str) -> Option<&'a
         .map(|(rel, _)| rel.as_str())
 }
 
-/// The other direction of `rule:config/three-changeability-classes`'s roster, and the worse of the
+/// The other direction of `rule:config/set-changes-only-listed-keys`'s roster, and the worse of the
 /// two: a note that outlives its gap tells an operator not to write a key that now works.
 ///
 /// **This is the narrower of the two claims the name allows, and deliberately.** A reader is counted
@@ -2550,7 +2550,7 @@ fn the_temporary_root_is_the_operators_and_a_new_one_applies_to_the_next_directo
     }
 }
 
-/// `rule:config/three-changeability-classes`: `[limits]` is the block a request *may* write, and the
+/// `rule:config/set-changes-only-listed-keys`: `[limits]` is the block a request *may* write, and the
 /// whole of its safety is that `[limits.hard]` has the same key names and no request may set them.
 /// Pinned as the pair, because either alone still reads right — a `[limits]` no request may set
 /// takes away the per-request default the block exists to be, and a settable `[limits.hard]` lets a
@@ -2566,7 +2566,7 @@ fn the_default_limits_are_the_requests_and_everything_carved_out_of_them_is_not(
         ("limits", Apply::Reload),
         "`limits.memory` resolves through `{}`, and it has to be the `limits` row: this block is \
          the per-request default a program lowers for itself, which is the one thing \
-         `rule:config/three-changeability-classes` names it as",
+         `rule:config/set-changes-only-listed-keys` names it as",
         soft.key,
     );
     let hard = governing("limits.hard.memory");
@@ -2626,7 +2626,7 @@ fn the_default_limits_are_the_requests_and_everything_carved_out_of_them_is_not(
     }
 }
 
-/// `rule:config/three-changeability-classes`'s ceiling, asserted as the agreement it has to be with
+/// `rule:config/set-changes-only-listed-keys`'s ceiling, asserted as the agreement it has to be with
 /// the block underneath it: `[limits.hard]` holds the same key names as `[limits]`, and the pair
 /// answers `Core\Config::set` differently for every one of them. Asked of every key rather than
 /// written out for `memory`, because a ceiling that governs the one key somebody tested and
@@ -3090,7 +3090,7 @@ fn the_tier_three_handler_is_the_operators_and_its_row_ends_at_the_dot() {
     assert!(
         settable::how("log.handler").is_none() && settable::how("log.level").is_some(),
         "the handler and the block around it are on the same side of \
-         `rule:config/three-changeability-classes`'s line, so one of the two is written for a \
+         `rule:config/set-changes-only-listed-keys`'s line, so one of the two is written for a \
          reason that has stopped holding: a settable handler makes the script that reports a \
          failure the failing program's to name",
     );

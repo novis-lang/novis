@@ -3,7 +3,7 @@ a `Core\Config::set` is in force only for the request that made it, and the next
 --FILE nvs.toml--
 # The root file, `rule:config/the-root-is-config-else-nvs-toml-else-the-shipped-defaults` step 2's `./nvs.toml`. `[limits]` is the value
 # every request here starts at, `[limits.hard]` is what makes the setter's `set`
-# land rather than be refused (`rule:config/three-changeability-classes`), and the `script.spawn` grant is what
+# land rather than be refused (`rule:config/set-changes-only-listed-keys`), and the `script.spawn` grant is what
 # lets this case run more than one request at all (`rule:security/capability-check-at-the-door`).
 [capabilities.script]
 spawn = true

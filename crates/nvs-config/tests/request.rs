@@ -1,4 +1,4 @@
-//! `rule:config/ini-set-is-core-config-set` and `rule:config/three-changeability-classes`: what one request may move, how far, and how far that move reaches.
+//! `rule:config/ini-set-is-core-config-set` and `rule:config/set-changes-only-listed-keys`: what one request may move, how far, and how far that move reaches.
 //!
 //! The cases `rule:config/ini-set-is-core-config-set` names in one sentence are here under its own words, because
 //! invisibility to the next request on the same core is the one a shared mutable registry passes
@@ -91,7 +91,7 @@ memory = \"256M\"
 memory = \"512M\"
 ";
 
-/// `rule:config/three-changeability-classes`: `[limits]` states the **default**, and a request may move above it for itself as far
+/// `rule:config/set-changes-only-listed-keys`: `[limits]` states the **default**, and a request may move above it for itself as far
 /// as the ceiling.
 #[test]
 fn config_set_above_the_default_takes_effect() {
@@ -156,7 +156,7 @@ fn restore_drops_only_what_this_request_set() {
     assert_eq!(request.get("wall_time"), None);
 }
 
-/// A key `SETTABLE` does not list is refused whatever its value (`rule:config/three-changeability-classes`): the allowlist
+/// A key `SETTABLE` does not list is refused whatever its value (`rule:config/set-changes-only-listed-keys`): the allowlist
 /// answers *who may set it* before any ceiling is consulted, so the ceiling of the ceiling is not a question.
 #[test]
 fn an_unlisted_key_is_not_settable_by_a_request() {
@@ -379,7 +379,7 @@ fn the_same_two_refusals_come_from_config_set_as_from_the_boot() {
             assert_eq!(
                 request.get(key),
                 before,
-                "a refused `set` leaves the previous value in force (`rule:config/three-changeability-classes`)",
+                "a refused `set` leaves the previous value in force (`rule:config/set-changes-only-listed-keys`)",
             );
         } else {
             assert_eq!(request.get(key).as_deref(), Some(value));
@@ -395,7 +395,7 @@ fn the_same_two_refusals_come_from_config_set_as_from_the_boot() {
     );
 }
 
-/// `rule:config/three-changeability-classes`, adversarially: **every** unlisted row is refused, counted over the registry
+/// `rule:config/set-changes-only-listed-keys`, adversarially: **every** unlisted row is refused, counted over the registry
 /// rather than asked of one key.
 ///
 /// `an_unlisted_key_is_not_settable_by_a_request` above pins the allowlist on the keys it names.
@@ -445,7 +445,7 @@ fn a_script_attempting_to_set_an_unlisted_key_fails() {
     assert_eq!(
         request.all(),
         before,
-        "a refused `set` changes nothing about what is in force (`rule:config/three-changeability-classes`)",
+        "a refused `set` changes nothing about what is in force (`rule:config/set-changes-only-listed-keys`)",
     );
 
     // The control: a listed key beside them takes the same value. Without it a `set`
@@ -453,7 +453,7 @@ fn a_script_attempting_to_set_an_unlisted_key_fails() {
     assert!(request.set("memory", "512M"));
 }
 
-/// `rule:config/three-changeability-classes`, adversarially: a request cannot widen **any** capability, asked
+/// `rule:config/set-changes-only-listed-keys`, adversarially: a request cannot widen **any** capability, asked
 /// once per row of [`Cap::ALL`] rather than of the one grant this tree happens to hold.
 ///
 /// No `capabilities` key is on `SETTABLE`, so each is refused whether a grant is in force
@@ -980,7 +980,7 @@ fn a_valid_value(key: &str) -> &'static str {
 /// A tree that names one CORS origin, so `http.cors.credentials = true` is a meaningful pair.
 const ALLOWLIST_FIXTURE: &str = "[http.cors]\norigins = [\"https://b.example\"]\n";
 
-/// `rule:config/three-changeability-classes`: `set` accepts a key exactly when `SETTABLE` lists it.
+/// `rule:config/set-changes-only-listed-keys`: `set` accepts a key exactly when `SETTABLE` lists it.
 /// Every leaf key the default file writes is asked once, on a fresh request, with a value that key
 /// accepts when it is listed. A listed key that returns `false` is a row nothing can use, and an
 /// unlisted one that returns `true` is a key the allowlist does not decide.

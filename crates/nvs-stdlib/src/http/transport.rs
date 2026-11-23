@@ -192,7 +192,7 @@ pub(crate) struct Call<'a> {
     ///
     /// A call carries them rather than the pool reading them because that
     /// module holds no configuration and this one holds no `Ctx`: the two
-    /// numbers are `System`-class (`rule:config/three-changeability-classes`),
+    /// numbers are `System`-class (`rule:config/set-changes-only-listed-keys`),
     /// so every call on a core arrives with the same pair and a request cannot
     /// move them.
     pub(crate) pool: pool::Caps,

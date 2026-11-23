@@ -1021,7 +1021,7 @@ fn the_opcache_block_is_read_into_a_revalidation_policy() {
     assert_eq!(
         written("[opcache]\nrevalidate_freq = false\n").freq,
         Duration::ZERO,
-        "`rule:config/three-changeability-classes`'s `false` removes the cap, which is a check on every resolve",
+        "`rule:config/set-changes-only-listed-keys`'s `false` removes the cap, which is a check on every resolve",
     );
 }
 

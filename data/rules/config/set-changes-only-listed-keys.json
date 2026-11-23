@@ -1,5 +1,5 @@
 {
-  "title": "`nvs.toml` states defaults, not ceilings, and every directive carries one of three changeability classes",
+  "title": "`nvs.toml` gives what a request starts with, and `Core\\Config::set` changes only the keys one list names",
   "status": "shipped",
   "seeAlso": [
     "config/ceilings-are-their-own-directives",

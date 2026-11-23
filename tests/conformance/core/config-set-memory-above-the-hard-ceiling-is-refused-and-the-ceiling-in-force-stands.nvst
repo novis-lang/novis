@@ -1,5 +1,5 @@
 --TEST--
-`Core\Config::set('memory', …)` is accepted at the `[limits.hard]` ceiling and refused one unit above it, and the refusal leaves the ceiling the runtime enforces where it was — `rule:config/three-changeability-classes`, `rule:errors/on-limit`
+`Core\Config::set('memory', …)` is accepted at the `[limits.hard]` ceiling and refused one unit above it, and the refusal leaves the ceiling the runtime enforces where it was — `rule:config/set-changes-only-listed-keys`, `rule:errors/on-limit`
 --FILE--
 <?nvs
 // The bound asserted on both sides. `config-every-set-refusal-answers-false-and-moves-nothing.nvst`
@@ -35,7 +35,7 @@ while ($slabs < 64) {
 echo "held=", Core\Arr::count($ballast), "\n";
 --FILE nvs.toml--
 # The value in force and the ceiling over it. `[limits.hard]` is `System`, so
-# nothing the program below does can reach this line — `rule:config/three-changeability-classes`.
+# nothing the program below does can reach this line — `rule:config/set-changes-only-listed-keys`.
 [limits]
 memory = "16M"
 

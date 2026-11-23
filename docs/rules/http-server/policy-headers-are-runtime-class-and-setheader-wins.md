@@ -1,5 +1,5 @@
 Every directive under `[http.headers]`, `[http.cors]` and `[http.cookies]` is
-`rule:config/three-changeability-classes`' **`Runtime`** class: `nvs.toml` states the default a
+`rule:config/set-changes-only-listed-keys`' **`Runtime`** class: `nvs.toml` states the default a
 request starts with, a request may set any value for itself through `Core\Config::set`, and the
 change is discarded when the request ends (`rule:config/a-runtime-set-is-request-local`). The next
 request on the same core sees the configured value. `Core\Response::setHeader` additionally
@@ -14,7 +14,7 @@ file's**: it is answered before any program runs
 (`rule:http-server/a-preflight-is-answered-before-any-code-runs`), so no request setting reaches
 it, and only the actual response's CORS headers take the request's values. So `methods`, `headers`
 and `max_age`, which only a preflight carries, are not settable: `set` returns `false` for each
-(`rule:config/three-changeability-classes`). A cookie's defaults are the request's too: an
+(`rule:config/set-changes-only-listed-keys`). A cookie's defaults are the request's too: an
 `addCookie` call, and the session cookie, take `[http.cookies]` with the request's settings folded
 over it, and `set` refuses a `same_site` that is not `Lax`, `Strict` or `None`.
 
@@ -45,7 +45,7 @@ some other way changes nothing.
 - **`RuntimeTighten` policy blocks.** Narrowing-only would forbid the legitimate case (one API
   route with an open CORS policy beside an application that has none) while stopping nothing.
   `RuntimeTighten` is for grants, where "may drop rights, never add them" is the whole mechanism
-  (`rule:config/three-changeability-classes`); a response header is not a grant.
+  (`rule:config/set-changes-only-listed-keys`); a response header is not a grant.
 - **Logging an override.** The header is ordinary output the request wrote deliberately, and a
   line per response on any route that customises one is noise that trains people to ignore the log.
 - **Admitting a `Content-Length` that matches the body.** The server already writes that value,

@@ -4,7 +4,7 @@
   "seeAlso": [
     "http-server/upload-total-is-enforced-on-the-wire",
     "http-server/a-part-is-consumed-in-one-of-three-ways",
-    "config/three-changeability-classes",
+    "config/set-changes-only-listed-keys",
     "config/ceilings-are-their-own-directives",
     "errors/multipart-part-count",
     "http-server/the-body-is-read-on-demand-under-two-caps"

@@ -655,7 +655,7 @@ impl Bound {
     /// `[limits] max_decompression_ratio`, each falling back to its shipped
     /// default.
     ///
-    /// **`false` does not turn either off.** `rule:config/three-changeability-classes`
+    /// **`false` does not turn either off.** `rule:config/set-changes-only-listed-keys`
     /// spells "no ceiling" that way for the limits a request may raise; this is
     /// not one of those, so an unbounded value reads as the shipped default and
     /// there is no configuration that removes the bound. A malformed value
@@ -1943,7 +1943,7 @@ mod tests {
     /// Three spellings a caller might reach for, each asserted to be an
     /// ordinary bound rather than an escape: the largest `uint` is the
     /// configured ceiling, `0` is a bound of zero octets and not a sentinel,
-    /// and `[limits] max_decompressed = false` — `rule:config/three-changeability-classes`'s
+    /// and `[limits] max_decompressed = false` — `rule:config/set-changes-only-listed-keys`'s
     /// spelling of "no ceiling" for the limits a request may raise — reads as
     /// the shipped default here.
     #[test]

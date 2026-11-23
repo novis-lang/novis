@@ -49,7 +49,7 @@ drain_timeout      = "30s"                # how long a connection is served afte
 watchdog_margin    = "5s"                 # restart required; how far past its deadline a worker is reported
 ```
 
-The whole block is `System`-class ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)): `header_timeout` and `keepalive_timeout` apply before any Novis code exists on a connection, so a `Runtime` class would be a promise the block could not keep. **Four keys need a restart: `listen`, `socket_mode`, `workers` and `watchdog_margin`** ([`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)). Every other key applies without one. `dispatch`, `static`, `trusted_proxies`, `health_path` and `max_in_flight` are read from the snapshot a request cloned, so a reload reaches the next request. The four waits, `drain_timeout` and `[server.connection]` are read from the snapshot published when a connection is accepted, so a reload reaches the next connection, and a connection already open keeps what it was accepted under. `root` and `[[server.mount]]` are read from the snapshot a reload published, and a change to either expands the mount table again ([`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)).
+The whole block is `System`-class ([`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys)): `header_timeout` and `keepalive_timeout` apply before any Novis code exists on a connection, so a `Runtime` class would be a promise the block could not keep. **Four keys need a restart: `listen`, `socket_mode`, `workers` and `watchdog_margin`** ([`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)). Every other key applies without one. `dispatch`, `static`, `trusted_proxies`, `health_path` and `max_in_flight` are read from the snapshot a request cloned, so a reload reaches the next request. The four waits, `drain_timeout` and `[server.connection]` are read from the snapshot published when a connection is accepted, so a reload reaches the next connection, and a connection already open keeps what it was accepted under. `root` and `[[server.mount]]` are read from the snapshot a reload published, and a change to either expands the mount table again ([`http-server/a-mount-table-expands-at-boot`](http-server.md#http-server-a-mount-table-expands-at-boot)).
 
 `listen` is one flat array — an entry beginning with a separator is a Unix socket ([`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener)), and no `host:port` can be spelled that way. **The default is `127.0.0.1:8000` in both modes**: loopback is the proxied shape as well as the development one, so demanding an explicit `listen` in production would be friction with no safety in it. `nvs serve --listen`/`--port` overrides the file ([`config/a-directive-flag-is-a-closed-list-at-the-global-layer`](config.md#config-a-directive-flag-is-a-closed-list-at-the-global-layer)); `--port` alone keeps the host the file chose.
 
@@ -63,7 +63,7 @@ The accept loop backs off on descriptor exhaustion and logs once per window rath
 - **Resizing `workers` while the server runs.** Each core holds its own runtime state, and resizing
   that live is a large change for a key set once per machine.
 
-<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`http-server/max-in-flight-refuses-before-allocating`](http-server.md#http-server-max-in-flight-refuses-before-allocating), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`config/a-directive-flag-is-a-closed-list-at-the-global-layer`](config.md#config-a-directive-flag-is-a-closed-list-at-the-global-layer).</sub>
+<sub>See also [`http-server/four-idle-waits-all-finite`](http-server.md#http-server-four-idle-waits-all-finite), [`http-server/max-in-flight-refuses-before-allocating`](http-server.md#http-server-max-in-flight-refuses-before-allocating), [`http-server/health-path-is-off-and-checks-nothing`](http-server.md#http-server-health-path-is-off-and-checks-nothing), [`http-server/the-accept-fan-out-is-one-worker-per-core`](http-server.md#http-server-the-accept-fan-out-is-one-worker-per-core), [`http-server/a-unix-socket-listener`](http-server.md#http-server-a-unix-socket-listener), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`http-server/a-wedged-core-is-detected-by-its-deadline`](http-server.md#http-server-a-wedged-core-is-detected-by-its-deadline), [`http-server/the-accept-loop-backs-off`](http-server.md#http-server-the-accept-loop-backs-off), [`config/a-directive-flag-is-a-closed-list-at-the-global-layer`](config.md#config-a-directive-flag-is-a-closed-list-at-the-global-layer).</sub>
 
 <a id="http-server-a-mount-table-expands-at-boot"></a>
 
@@ -957,7 +957,7 @@ on read and on write. The two rules meet at the same header and are otherwise in
 `rule:http-server/policy-headers-are-runtime-class-and-setheader-wins`
 
 Every directive under `[http.headers]`, `[http.cors]` and `[http.cookies]` is
-[`config/three-changeability-classes`](config.md#config-three-changeability-classes)' **`Runtime`** class: `nvs.toml` states the default a
+[`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys)' **`Runtime`** class: `nvs.toml` states the default a
 request starts with, a request may set any value for itself through `Core\Config::set`, and the
 change is discarded when the request ends ([`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local)). The next
 request on the same core sees the configured value. `Core\Response::setHeader` additionally
@@ -972,7 +972,7 @@ file's**: it is answered before any program runs
 ([`http-server/a-preflight-is-answered-before-any-code-runs`](http-server.md#http-server-a-preflight-is-answered-before-any-code-runs)), so no request setting reaches
 it, and only the actual response's CORS headers take the request's values. So `methods`, `headers`
 and `max_age`, which only a preflight carries, are not settable: `set` returns `false` for each
-([`config/three-changeability-classes`](config.md#config-three-changeability-classes)). A cookie's defaults are the request's too: an
+([`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys)). A cookie's defaults are the request's too: an
 `addCookie` call, and the session cookie, take `[http.cookies]` with the request's settings folded
 over it, and `set` refuses a `same_site` that is not `Lax`, `Strict` or `None`.
 
@@ -1003,13 +1003,13 @@ some other way changes nothing.
 - **`RuntimeTighten` policy blocks.** Narrowing-only would forbid the legitimate case (one API
   route with an open CORS policy beside an application that has none) while stopping nothing.
   `RuntimeTighten` is for grants, where "may drop rights, never add them" is the whole mechanism
-  ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)); a response header is not a grant.
+  ([`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys)); a response header is not a grant.
 - **Logging an override.** The header is ordinary output the request wrote deliberately, and a
   line per response on any route that customises one is noise that trains people to ignore the log.
 - **Admitting a `Content-Length` that matches the body.** The server already writes that value,
   so the only `Content-Length` a program could add is a wrong one.
 
-<sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written).</sub>
+<sub>See also [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written).</sub>
 
 <a id="http-server-a-session-store-answers-six-operations"></a>
 
@@ -1530,7 +1530,7 @@ Each of the three consumers gives the held bytes first and then the rest off the
 | `request_body` | `"8M"` | `"64M"` | **Bytes parsed into memory** — `body()`, a JSON or urlencoded body, a multipart form's buffered fields, a bare `readAll()`. |
 | `upload_total` | `"256M"` | `"2G"` | **Total bytes of a streamed multipart body**, consumed parts and drained ones alike. |
 
-Both are rows in the `[limits]`/`[limits.hard]` pair that [`config/three-changeability-classes`](config.md#config-three-changeability-classes) established — a `Runtime` default beside a `System` ceiling per [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives) — not a third instance of that pattern. `nvs config dump` prints both where the tree writes them, and this table is the only place their meanings are defined.
+Both are rows in the `[limits]`/`[limits.hard]` pair that [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys) established — a `Runtime` default beside a `System` ceiling per [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives) — not a third instance of that pattern. `nvs config dump` prints both where the tree writes them, and this table is the only place their meanings are defined.
 
 The split follows from what the two measure. Content parsed into memory deserves the tighter number, because it is resident and O(in-flight); content streamed to disk deserves a ceiling shaped like what uploads are, because a phone photo is 5–12M and an 8M refusal is advice rather than protection. One number governing both would have to be the larger, and would then license a quarter-gigabyte JSON body parsed wholly into memory on the strength of an argument made about files. [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire) is where the second cap bites.
 
@@ -1545,7 +1545,7 @@ value in force, `[app.limits]` and `Core\Config::set` included (`RequestBody::al
 (`Ctx::request_body_limit`). Neither reads "no cap" from a missing or malformed value: both fall back
 to the shipped default.
 
-<sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps).</sub>
+<sub>See also [`http-server/upload-total-is-enforced-on-the-wire`](http-server.md#http-server-upload-total-is-enforced-on-the-wire), [`http-server/a-part-is-consumed-in-one-of-three-ways`](http-server.md#http-server-a-part-is-consumed-in-one-of-three-ways), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`config/ceilings-are-their-own-directives`](config.md#config-ceilings-are-their-own-directives), [`errors/multipart-part-count`](errors.md#errors-multipart-part-count), [`http-server/the-body-is-read-on-demand-under-two-caps`](http-server.md#http-server-the-body-is-read-on-demand-under-two-caps).</sub>
 
 <a id="http-server-upload-total-is-enforced-on-the-wire"></a>
 
@@ -1719,7 +1719,7 @@ for `deadline`'s reason: each bounds one call, and a change made by a request en
 - **A `Response` whose `text()` throws until the body is read some other way.** A class whose members
   throw depending on how it was obtained is the worse surface, so a streamed reply is a class of its own.
 
-<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`config/three-changeability-classes`](config.md#config-three-changeability-classes).</sub>
+<sub>See also [`http-server/one-deadline-covers-the-whole-call`](http-server.md#http-server-one-deadline-covers-the-whole-call), [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`](http-server.md#http-server-buffering-readers-share-the-body-and-streaming-readers-consume-it), [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys).</sub>
 
 <a id="http-server-retry-is-opt-in-jittered-and-closed"></a>
 
@@ -2029,7 +2029,7 @@ once **without spending an attempt**, a server closing an idle connection not be
 later failure is an attempt under [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed). The two caps
 are `[http.client] pool_idle`, the idle connections one core may hold, and `pool_idle_timeout`, how long
 one may sit idle before it is closed — both `System` class, because they bound a core's memory rather
-than a request's ([`config/three-changeability-classes`](config.md#config-three-changeability-classes)).
+than a request's ([`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys)).
 
 `pool_idle` ships at `16`, enough for a handful of upstream APIs per core without a footprint worth
 stating, and `0` keeps none. `pool_idle_timeout` ships at `30s`, under the idle timeout of every common
@@ -2039,7 +2039,7 @@ the side that cannot lose a request to the race.
 - **Memory:** per core, at most `pool_idle` idle connections, each a socket and a TLS session, held
   between requests and charged to the core: O(cores × `pool_idle`), never O(requests served).
 
-<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/three-changeability-classes`](config.md#config-three-changeability-classes).</sub>
+<sub>See also [`http-server/allow-url-pins-the-address`](http-server.md#http-server-allow-url-pins-the-address), [`http-server/redirects-are-off-and-every-hop-is-re-pinned`](http-server.md#http-server-redirects-are-off-and-every-hop-is-re-pinned), [`security/db-pool-reset-is-a-boundary`](security.md#security-db-pool-reset-is-a-boundary), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys).</sub>
 
 <a id="http-server-an-outbound-proxy-is-operator-configured"></a>
 
@@ -2052,7 +2052,7 @@ A `Core\Http\Client` call leaves through a forward proxy when, and only when, an
 and **no environment variable is read** — not `HTTP_PROXY`, not `HTTPS_PROXY`, not `NO_PROXY`, in any case
 spelling.
 
-The block is `System` class and `Reload` ([`config/three-changeability-classes`](config.md#config-three-changeability-classes),
+The block is `System` class and `Reload` ([`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys),
 [`config/reloadability-is-its-own-field`](config.md#config-reloadability-is-its-own-field)): `Core\Config::set` fails on every key, and a changed value
 takes effect on the next call, with the pool's key carrying the proxy so nothing the old value made can
 serve one.
@@ -2120,7 +2120,7 @@ connections unmatchable, so they age out rather than serve a call the operator h
   verify the proxy; the second is a routing table rather than a block. Neither has a deployment asking
   for it.
 
-<sub>See also [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value).</sub>
+<sub>See also [`http-server/a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise`](http-server.md#http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise), [`http-server/the-client-trust-roots-are-the-operators`](http-server.md#http-server-the-client-trust-roots-are-the-operators), [`http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`](http-server.md#http-server-an-outbound-connection-is-pooled-per-core-and-stays-pinned), [`http-server/retry-is-opt-in-jittered-and-closed`](http-server.md#http-server-retry-is-opt-in-jittered-and-closed), [`security/no-cross-request-state`](security.md#security-no-cross-request-state), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`config/a-secret-is-a-file-whose-content-is-the-value`](config.md#config-a-secret-is-a-file-whose-content-is-the-value).</sub>
 
 <a id="http-server-a-proxied-call-keeps-its-pin-unless-the-operator-says-otherwise"></a>
 
@@ -2181,7 +2181,7 @@ program code decides or branches on.
 
 Which certificates the outbound client believes is the operator's decision and has no code-side spelling
 at all. `[http.client.tls]` carries three keys, every one of them `System` class
-([`config/three-changeability-classes`](config.md#config-three-changeability-classes)) because they configure the one `ClientConfig` the process
+([`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys)) because they configure the one `ClientConfig` the process
 shares ([`security/one-tls-client`](security.md#security-one-tls-client)):
 
 | Key | Ships | Allows |
@@ -2204,7 +2204,7 @@ never through any of these three keys.
   naming any per-call TLS option builds its own client configuration and frees it with the call, so that
   cost is O(in-flight).
 
-<sub>See also [`security/one-tls-client`](security.md#security-one-tls-client), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect).</sub>
+<sub>See also [`security/one-tls-client`](security.md#security-one-tls-client), [`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect).</sub>
 
 <a id="http-server-a-reply-reports-its-tls-session"></a>
 
@@ -2371,7 +2371,7 @@ comes from the absence of a spelling, exactly as it does for a call
 ([`core-api/failure-throws`](core-api.md#core-api-failure-throws)).
 
 `[http.client.socket]` carries `max_message` and `send_timeout`, both `Runtime`
-([`config/three-changeability-classes`](config.md#config-three-changeability-classes)), as `[http.client] deadline` is and for its reason: each
+([`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys)), as `[http.client] deadline` is and for its reason: each
 bounds one call, and neither is a shared resource one request could spend on another's behalf. They sit in
 a block of their own because they mean nothing to a row that is not `openSocket`. A zero or a `false` in
 either is refused while the file is read, because neither is a bound. Shipped:
@@ -2380,7 +2380,7 @@ applies to the other half of RFC 6455, because one process holding two opinions 
 message is how a program comes to work in one direction and not the other. Neither ships unbounded, which
 [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect) requires of exactly this kind of wait.
 
-<sub>See also [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`](http-server.md#http-server-a-streamed-reply-is-bounded-by-idle-and-a-lifetime), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`config/three-changeability-classes`](config.md#config-three-changeability-classes).</sub>
+<sub>See also [`http-server/no-spelling-for-an-unbounded-wait`](http-server.md#http-server-no-spelling-for-an-unbounded-wait), [`http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`](http-server.md#http-server-a-streamed-reply-is-bounded-by-idle-and-a-lifetime), [`http-server/an-unsafe-or-unbounded-default-is-a-defect`](http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys).</sub>
 
 <a id="http-server-an-outbound-socket-has-no-compression-and-no-reconnect"></a>
 

@@ -117,7 +117,7 @@ pub fn canonicalize(
 /// [`Files`]. With no global `[limits.hard]` written there is no bound to apply and every block
 /// passes: `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` bounds a block by the host's answer, and a host that gave none has not answered.
 ///
-/// The refusal is at boot and the value is **not** clamped, which is `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` citing `rule:config/three-changeability-classes`'s
+/// The refusal is at boot and the value is **not** clamped, which is `rule:config/an-app-block-may-widen-bounded-by-the-global-ceiling` citing `rule:config/set-changes-only-listed-keys`'s
 /// treatment of `Core\Config::set`: a clamped block still reads as though it got what it asked for,
 /// and the operator finds out at the first request that hits the real ceiling.
 ///

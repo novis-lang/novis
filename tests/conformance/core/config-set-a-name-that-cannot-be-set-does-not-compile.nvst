@@ -1,5 +1,5 @@
 --TEST--
-A written `Core\Config::set` or `restore` name that no request may change does not compile, and a template no settable key fits warns — `rule:config/three-changeability-classes`
+A written `Core\Config::set` or `restore` name that no request may change does not compile, and a template no settable key fits warns — `rule:config/set-changes-only-listed-keys`
 --FILE--
 <?nvs
 // covers: tools:config/reading-and-changing-it-from-a-program-core-config

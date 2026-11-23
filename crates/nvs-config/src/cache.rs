@@ -690,7 +690,7 @@ pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(
 ///
 /// [`Quantity`] is the one parser for a duration anywhere in this tree (`rule:config/ini-set-is-core-config-set`), so `"2s"`,
 /// `"500ms"` and a bare `2` all read here exactly as they do in `[limits]`. `false` is the spelling
-/// `rule:config/three-changeability-classes` gives to "no ceiling" and means no wait at all: for
+/// `rule:config/set-changes-only-listed-keys` gives to "no ceiling" and means no wait at all: for
 /// `revalidate_freq` a background check as often as the process allows, for `settle` a compile as soon as a change is seen.
 ///
 fn duration_of(key: &str, setting: &Setting) -> Option<Duration> {

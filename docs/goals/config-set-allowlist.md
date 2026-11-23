@@ -142,7 +142,7 @@ decision below is mine.
   own goal.
 - **A package is unchanged.** `set_as_package` still accepts only `limits.*` keys, lower only. Those
   keys must also be on the list.
-- **The rule is renamed.** `rule:config/three-changeability-classes` becomes
+- **The rule is renamed.** The old id `config/three-changeability-classes` becomes
   the fragment `docs/rules/config/set-changes-only-listed-keys.md`. Its text: `nvs.toml` gives what a request starts with,
   `SETTABLE` is the one list of keys a request may change, and each row says how. The Declined list
   keeps its two items and adds "a refuse list": a new key would be settable unless somebody noticed.
@@ -323,7 +323,7 @@ Stage 4. Each item stands under its stage above, with its anchors.
   its names in variables; stage 4 adds the new example that shows the compile error in a comment.
   `settable.rs:1`, both new code docs, the new conformance case and `CONFIG` in
   `crates/nvs-lsp/src/arguments.rs` cite
-  `rule:config/three-changeability-classes`, which the citation sweep moves.
+  the old rule id, which the citation sweep moves.
 
 ### Backlog
 

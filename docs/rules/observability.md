@@ -382,7 +382,7 @@ protocol, metrics take a scrape or a push, a trace takes only a push, and `sampl
 one. Anything else is **refused at boot, where it is written** — a wrong value here produces
 silence, a collector nothing writes to, and there is no later moment at which that reports itself.
 
-<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not).</sub>
+<sub>See also [`config/system-means-a-request-may-not-set-it`](config.md#config-system-means-a-request-may-not-set-it), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`testing/debug-mode-directive`](testing.md#testing-debug-mode-directive), [`observability/sampling-is-head-based`](observability.md#observability-sampling-is-head-based), [`observability/past-max-series-a-new-series-is-refused`](observability.md#observability-past-max-series-a-new-series-is-refused), [`observability/the-exporter-is-a-feature-and-core-metrics-is-not`](observability.md#observability-the-exporter-is-a-feature-and-core-metrics-is-not).</sub>
 
 <a id="observability-four-kinds-become-a-span"></a>
 
@@ -886,7 +886,7 @@ if (Core\Budget::memoryPeak() * 10 > Core\Budget::memoryLimit() * 9) { … }
 ```
 
 An uncapped request — `[limits] memory = false`, which
-[`config/three-changeability-classes`](config.md#config-three-changeability-classes) permits — answers `0` from `memoryLimit`, the same reading
+[`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys) permits — answers `0` from `memoryLimit`, the same reading
 of zero as "no ceiling" the runtime's own limit check already uses, rather than a second spelling for
 it.
 
@@ -910,7 +910,7 @@ to be a number.
 - **A fourth `memoryHeadroom()` member.** It is `memoryLimit() - memoryHeld()` at the call site, and
   a member per piece of arithmetic is how a three-member class becomes a nine-member one.
 
-<sub>See also [`observability/a-memory-peak-is-recorded-not-asked-for`](observability.md#observability-a-memory-peak-is-recorded-not-asked-for), [`observability/memory-high-water-writes-a-warn`](observability.md#observability-memory-high-water-writes-a-warn), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`errors/on-limit`](errors.md#errors-on-limit).</sub>
+<sub>See also [`observability/a-memory-peak-is-recorded-not-asked-for`](observability.md#observability-a-memory-peak-is-recorded-not-asked-for), [`observability/memory-high-water-writes-a-warn`](observability.md#observability-memory-high-water-writes-a-warn), [`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings), [`core-api/tier-roster`](core-api.md#core-api-tier-roster), [`config/set-changes-only-listed-keys`](config.md#config-set-changes-only-listed-keys), [`errors/on-limit`](errors.md#errors-on-limit).</sub>
 
 <a id="observability-a-memory-peak-is-recorded-not-asked-for"></a>
 

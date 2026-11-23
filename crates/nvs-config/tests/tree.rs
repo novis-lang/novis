@@ -103,7 +103,7 @@ fn every_block_a_rule_writes_out_is_in_the_tree() {
 /// `rule:http-server/a-mount-table-expands-at-boot` say where a request
 /// arrives and which file answers it; every directive saying what the code answering it *may do*
 /// belongs to `rule:config/an-application-is-its-entry-file-path`'s `[[app]]` block, keyed on the entry file path. A `[[server.mount]]`
-/// that grew one would be a second home for a fact `rule:config/three-changeability-classes` owns, and the per-app block
+/// that grew one would be a second home for a fact `rule:config/set-changes-only-listed-keys` owns, and the per-app block
 /// re-implemented one block over.
 ///
 /// Asserted on both sides, because either half alone reads as correct: the routing keys parse
@@ -260,7 +260,7 @@ fn the_two_spellings_of_a_dotted_capability_agree() {
     );
 }
 
-/// `rule:config/three-changeability-classes`: `[limits.hard] memory = false` removes the ceiling entirely, and `rule:config/the-file-is-nvs-toml-and-it-is-toml` chose
+/// `rule:config/set-changes-only-listed-keys`: `[limits.hard] memory = false` removes the ceiling entirely, and `rule:config/the-file-is-nvs-toml-and-it-is-toml` chose
 /// TOML partly because "off" is a boolean there. A field typed `String` refuses that `false`, so the bound is asserted on both sides — the size *and* the `false`.
 #[test]
 fn a_ceiling_is_a_size_or_the_boolean_that_removes_it() {

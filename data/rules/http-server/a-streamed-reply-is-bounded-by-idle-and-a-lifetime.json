@@ -6,7 +6,7 @@
     "http-server/no-spelling-for-an-unbounded-wait",
     "http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it",
     "core-classes/io-write-stream",
-    "config/three-changeability-classes"
+    "config/set-changes-only-listed-keys"
   ],
   "guardedBy": [
     "crates/nvs-stdlib/src/http/transport.rs",

@@ -801,7 +801,7 @@ impl Ctx {
     /// answer is not polled but taken once, at the one call that could widen
     /// the tree. [`Limit::ScriptDepth`] is the report it becomes.
     ///
-    /// A ceiling of `0` is `rule:config/three-changeability-classes`'s no-ceiling-at-all and answers `None`
+    /// A ceiling of `0` is `rule:config/set-changes-only-listed-keys`'s no-ceiling-at-all and answers `None`
     /// however deep the chain already is — see [`Self::max_script_depth`]'s
     /// field doc, which owns why only an explicit `false` reads that way here.
     ///
@@ -996,7 +996,7 @@ impl Ctx {
     /// ([`nvs_config::Request::serves`]) and nothing, so `0`, for a CLI program
     /// or a test. A context with no configuration is `0` too. A
     /// malformed value answers "no cap" for the reason
-    /// [`Self::configured_memory_limit`] does, and `false` — `rule:config/three-changeability-classes`'s
+    /// [`Self::configured_memory_limit`] does, and `false` — `rule:config/set-changes-only-listed-keys`'s
     /// spelling of no ceiling at all — answers the same `0`, because a request
     /// that may burn any amount of CPU and one whose ceiling nothing states are
     /// the same request to everything downstream.
@@ -1397,7 +1397,7 @@ impl Ctx {
     /// [`Self::DEFAULT_MAX_SCRIPT_DEPTH`] where the configuration does not state
     /// one.
     ///
-    /// `false` — `rule:config/three-changeability-classes`'s spelling of no ceiling at all — is the one value
+    /// `false` — `rule:config/set-changes-only-listed-keys`'s spelling of no ceiling at all — is the one value
     /// that answers `0` and turns the net off. A malformed one takes the default
     /// instead, which is where this reader parts company with
     /// [`Self::configured_cpu_time`]; the field doc owns why. Either way the

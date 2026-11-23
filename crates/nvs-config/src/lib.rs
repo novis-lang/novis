@@ -1,7 +1,7 @@
 //! Novis's configuration: the directive registry, and the `nvs.toml` tree that reads through it.
 //!
 //! What a directive *is* — three fields, one of which is reloadability — lives in
-//! [`directive`]'s own module doc, and what is behind it is `rule:config/three-changeability-classes`
+//! [`directive`]'s own module doc, and what is behind it is `rule:config/set-changes-only-listed-keys`
 //! (the changeability class), `rule:config/reloadability-is-its-own-field` (the reloadability
 //! field) and `rule:config/the-file-is-nvs-toml-and-it-is-toml` (the file format).
 //! Nothing in this crate restates them.

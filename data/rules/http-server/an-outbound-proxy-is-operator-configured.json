@@ -7,7 +7,7 @@
     "http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned",
     "http-server/retry-is-opt-in-jittered-and-closed",
     "security/no-cross-request-state",
-    "config/three-changeability-classes",
+    "config/set-changes-only-listed-keys",
     "config/a-secret-is-a-file-whose-content-is-the-value"
   ],
   "guardedBy": [

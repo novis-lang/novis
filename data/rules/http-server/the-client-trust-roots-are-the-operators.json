@@ -4,7 +4,7 @@
   "seeAlso": [
     "security/one-tls-client",
     "security/tls-trust-is-relaxed-only-under-a-host-grant",
-    "config/three-changeability-classes",
+    "config/set-changes-only-listed-keys",
     "http-server/an-unsafe-or-unbounded-default-is-a-defect"
   ],
   "guardedBy": [

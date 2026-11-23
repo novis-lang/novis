@@ -58,7 +58,7 @@
 
 # ----------------------------------------------------------------------------------------------
 # [limits] — what a request starts with, and the ceiling it may raise itself to
-# (`rule:config/three-changeability-classes`).
+# (`rule:config/set-changes-only-listed-keys`).
 # ----------------------------------------------------------------------------------------------
 
 [limits]

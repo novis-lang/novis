@@ -6,7 +6,7 @@
     "http-server/redirects-are-off-and-every-hop-is-re-pinned",
     "security/db-pool-reset-is-a-boundary",
     "security/tls-trust-is-relaxed-only-under-a-host-grant",
-    "config/three-changeability-classes"
+    "config/set-changes-only-listed-keys"
   ],
   "guardedBy": [
     "crates/nvs-stdlib/src/http/pool.rs",

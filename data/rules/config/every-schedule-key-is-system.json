@@ -4,7 +4,7 @@
   "seeAlso": [
     "config/scheduled-work-is-a-config-block",
     "statements/static-is-a-member-modifier",
-    "config/three-changeability-classes",
+    "config/set-changes-only-listed-keys",
     "config/opcache-revalidation-is-system-class"
   ],
   "guardedBy": [

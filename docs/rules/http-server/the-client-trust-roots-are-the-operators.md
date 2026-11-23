@@ -1,6 +1,6 @@
 Which certificates the outbound client believes is the operator's decision and has no code-side spelling
 at all. `[http.client.tls]` carries three keys, every one of them `System` class
-(`rule:config/three-changeability-classes`) because they configure the one `ClientConfig` the process
+(`rule:config/set-changes-only-listed-keys`) because they configure the one `ClientConfig` the process
 shares (`rule:security/one-tls-client`):
 
 | Key | Ships | Allows |
