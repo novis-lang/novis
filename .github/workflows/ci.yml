@@ -84,8 +84,7 @@ concurrency:
 # `lint` does not skip them.
 #
 # Every job that skips a tested nightly needs `tested`, and its `if` is `!cancelled()` and
-# `needs.tested.outputs.tested != 'true'`. Without `!cancelled()`, a push run's skipped `tested`
-# would skip it too.
+# `needs.tested.outputs.tested != 'true'`. `!cancelled()` keeps a red `tested` from skipping it.
 jobs:
   # ---------------------------------------------------------------------------
   # Whether this nightly's commit already has a green push run of this workflow from the last day.
@@ -93,12 +92,14 @@ jobs:
   # jobs (`miri`, `miri-units`, `asan`, `tsan`), the image pulls (`docker`, `database`), and the
   # nightly-only `unsafe-audit`, `flood` and musl leg. Every other job proved this commit in the
   # push run. What it spends: on a quiet day a changed runner image is found by the next push.
-  # Only the nightly runs this job, so a push, a pull request, a dispatch and a release's call run
-  # every job. A `gh` failure answers `false`, and the nightly runs every job.
+  # Every run runs this job, and only the nightly looks: a push, a pull request, a dispatch and a
+  # release's call answer `false` at once and run every job. The job is never skipped, because a
+  # skipped `tested` skipped `dev-image` in every push run, even under `!cancelled()` and with every
+  # direct need green. What it spends: one runner start of a few seconds per run. A `gh` failure
+  # answers `false`, and the nightly runs every job.
   # ---------------------------------------------------------------------------
   tested:
     name: whether a push run already tested this commit
-    if: github.event_name == 'schedule'
     runs-on: ubuntu-26.04
     timeout-minutes: 5
     permissions:
@@ -109,7 +110,13 @@ jobs:
       - id: look
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
         run: |
+          if [ "$EVENT" != "schedule" ]; then
+            echo "A $EVENT run runs every job: false"
+            echo "tested=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           since="$(date -u -d '1 day ago' +%Y-%m-%dT%H:%M:%SZ)"
           count="$(gh api -X GET "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs" \
             -f event=push -f head_sha="$GITHUB_SHA" -f status=success -f created=">=$since" \
@@ -1978,10 +1985,10 @@ jobs:
       - build
       - release-version
       - nvs-debug
-    # A push run skips `tested`, and most jobs above need it. An `if` with no status function is
-    # read as `success()`, which is false when any job in the chain of needs was skipped, so the
-    # image was never published. `!cancelled()` stops that, and the `needs.*.result` checks keep the
-    # rule: every job this one needs ended green.
+    # GitHub skips this job when any job in its chain of needs was skipped, even under
+    # `!cancelled()`, so no job in that chain may skip on a push (`tested` above says why it never
+    # does). `!cancelled()` and the `needs.*.result` checks keep the rule: every job this one needs
+    # ended green.
     if: >-
       ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main'
       && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')

@@ -64,21 +64,37 @@ test("only a push to main publishes the dev image, after every other job of its 
   const ci = workflow("ci.yml").jobs;
   const image = ci["dev-image"]!;
   expect(image.uses).toBe("./.github/workflows/image.yml");
-  // A push run skips `tested`, which is in the chain of needs of most jobs here. An `if` with no
-  // status function is read as `success()`, which a skipped job anywhere in that chain makes false,
-  // so the condition starts with `!cancelled()` and checks each direct need's result itself.
+  // The condition starts with `!cancelled()` and checks each direct need's result itself.
   const condition = image.if ?? "";
   expect(condition.startsWith("${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main'")).toBe(true);
   for (const result of ["failure", "cancelled", "skipped"]) {
     expect(condition).toContain(`!contains(needs.*.result, '${result}')`);
   }
   const needs = [image.needs ?? []].flat().sort();
-  // `tested` runs in the nightly alone, so it is not a direct need.
+  // `tested` is a need of the jobs this one needs, not a direct need.
   const others = Object.keys(ci).filter((name) => !["dev-image", "tested"].includes(name) && !nightlyOnly(ci[name]!)).sort();
   expect(needs).toEqual(others);
   // The only job of ci.yml that writes anything.
   const writes = Object.entries(ci).filter(([, job]) => Object.values(job.permissions ?? {}).includes("write"));
   expect(writes.map(([name]) => name)).toEqual(["dev-image"]);
+  // GitHub skips `dev-image` when any job in its chain of needs was skipped, even under
+  // `!cancelled()`. So on a push, no job in that chain may have an `if` that can skip it.
+  const chain = new Set<string>();
+  const walk = (name: string): void => {
+    for (const need of [ci[name]!.needs ?? []].flat()) {
+      if (!chain.has(need)) {
+        chain.add(need);
+        walk(need);
+      }
+    }
+  };
+  walk("dev-image");
+  expect(chain.has("tested")).toBe(true);
+  const skippable = [...chain].filter((name) => {
+    const cond = ci[name]!.if;
+    return cond !== undefined && cond !== SKIPS_TESTED && cond !== "${{ !cancelled() }}";
+  });
+  expect(skippable).toEqual([]);
 });
 
 test("only the jobs whose result gates nothing run in the nightly and a dispatch alone", () => {
@@ -92,7 +108,9 @@ test("only the jobs whose result gates nothing run in the nightly and a dispatch
 
 test("a nightly on a commit a push run already tested runs only what reads the outside world", () => {
   const ci = workflow("ci.yml").jobs;
-  expect(ci.tested!.if).toBe("github.event_name == 'schedule'");
+  // `tested` runs in every run, and only a nightly's answer can be `true`.
+  expect(ci.tested!.if).toBeUndefined();
+  expect(ci.tested!.steps?.[0]?.run).toContain('if [ "$EVENT" != "schedule" ]; then');
   const kept = Object.keys(ci).filter((name) => ci[name]!.if !== SKIPS_TESTED).sort();
   expect(kept).toEqual(
     ["asan", "build", "database", "dev-image", "docker", "flood", "miri", "miri-units", "supply-chain", "tested", "tsan", "unsafe-audit"],
