@@ -5,13 +5,6 @@
   ],
   "themes": [
     {
-      "title": "Faster checks in the editor after an edit",
-      "text": "After you edit a file, the editor checks again only the files that use what you changed. An edit inside a method body checks no other file.",
-      "goals": [
-        "exact-invalidation"
-      ]
-    },
-    {
       "title": "Settings a program may change",
       "text": "`Core\\Config::set` changes only the settings on one list. Every page and every compiler error names the settings on it.",
       "goals": [
