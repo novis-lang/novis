@@ -3,12 +3,14 @@ server when it is declared with `#[Test(server: true)]`. The server runs on your
 free port that the operating system chooses. The address looks like `http://127.0.0.1:52341`. It has
 no `/` at the end, so you can add a path to it directly.
 
-The server answers each request by running your program, the same way a real server does. Use it
-when a test needs a real network connection, for example to test an HTTP client. For most tests,
-`Core\Test::request` is simpler and faster.
+The server answers each request by running your program, the same way a real server does. Each
+request uses the test's clock and the environment variables that `env:` sets in the `#[Test]`
+attribute. `Core\Test::logs` returns what these requests log, and `Core\Test::sentMail` returns the
+mail they send. Use `serverUrl` when a test needs a real network connection, for example to test an
+HTTP client. For most tests, `Core\Test::request` is simpler and faster.
 
 Everywhere else, `serverUrl()` returns `null`. This includes a test without `server: true` and a
 program started with `nvs run`.
 
-**The examples below** show the `null` result outside a server test, a test that calls its own
-server, and a test of a small health check client.
+**The examples below** show the `null` result, a test that calls its own server, and a test of a
+small health check client.

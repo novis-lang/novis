@@ -10,5 +10,10 @@ match, an exact URL wins, and then the longest prefix wins.
 
 The status must be between `100` and `999`. An answer can have `json` or `body`, but not both.
 
+You can call `answerHttp` in a test and in a command-line program. In a server, it throws a
+`LogicError`. This includes a request, a connection, a scheduled task and a queued job. So test code
+left in your program cannot fake the replies of a real service. Code that a test starts may still
+call it, such as a request sent with `Core\Test::request`.
+
 **The examples below** show a reply with JSON, which answer a URL gets, and a client that handles
 the error statuses a service can return.

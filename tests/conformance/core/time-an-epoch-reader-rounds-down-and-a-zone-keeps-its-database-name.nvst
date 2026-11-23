@@ -1,0 +1,39 @@
+--TEST--
+An epoch reader rounds a part of a unit down, `-0000` is not a year, a zone keeps the name the database uses, and `Date::at` names its parameters `year`, `month` and `day` — `rule:core-classes/a-time-class-builds-its-own-values`
+--FILE--
+<?nvs
+// covers: Core\Time\Instant::toEpochSeconds, Core\Time\Instant::toEpochMillis, Core\Time\Instant::toEpochMicros, Core\Time\Date::fromIso, Core\Time\Zone::of, Core\Time\Date::at
+// Each epoch reader rounds a part of a unit down, so half a unit before 1970 is -1.
+echo Core\Time\Instant::fromIso('1969-12-31T23:59:59.5Z')->toEpochSeconds(), "\n";
+echo Core\Time\Instant::fromIso('1969-12-31T23:59:59.9995Z')->toEpochMillis(), "\n";
+echo Core\Time\Instant::fromIso('1969-12-31T23:59:59.9999995Z')->toEpochMicros(), "\n";
+
+// The whole seconds and the rest build the same instant again.
+Core\Time\Instant $before = Core\Time\Instant::fromIso('1969-12-31T23:59:59.25Z');
+echo Core\Time\Instant::fromEpoch($before->toEpochSeconds(), { nanos: 250000000 })->toIso(), "\n";
+
+// Year 0 is written `0000`, and `-0000` is not a year. The text is built at run
+// time, because a written constant is checked while compiling.
+echo Core\Time\Date::fromIso('0000-01-01')->year(), "\n";
+try {
+    string $text = "-" . "0000-01-01";
+    Core\Time\Date::fromIso($text);
+} catch (ParseError $e) {
+    echo "ParseError\n";
+}
+
+// The zone keeps the name the time-zone database uses.
+echo Core\Time\Instant::fromEpoch(0)->in(Core\Time\Zone::of('europe/berlin'))->format('VV'), "\n";
+
+// The parameters of `Date::at` are `year`, `month` and `day`.
+Core\Time\Date $eve = Core\Time\Date::at(year: 2024, month: 12, day: 24);
+echo $eve->year(), "-", $eve->month(), "-", $eve->day(), "\n";
+--EXPECT--
+-1
+-1
+-1
+1969-12-31T23:59:59.25Z
+0
+ParseError
+Europe/Berlin
+2024-12-24

@@ -1280,9 +1280,9 @@ const APPEND_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The entries of `$a` under their own keys, then each value under the next free \
-          integer key. That key is the one `$a[] = $v` would use on `$a`. With no values, the \
-          result is `$a` itself.",
+    ret: "First every entry of `$a`, with its own key. Then each value, with the key that \
+          `$a[] = $v` would give it. If an entry was removed from `$a`, the new key can be \
+          higher than the largest key `$a` has now. With no values, the result is the same as `$a`.",
     errors: &[],
 };
 

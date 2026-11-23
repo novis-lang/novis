@@ -15,7 +15,7 @@ for production and then for development.
 `nvs serve` speaks HTTP/1.1 only. The browser connects to the proxy with HTTP/2 or HTTP/3. The proxy
 then sends each request to Novis with HTTP/1.1.
 
-Your visitors still get the full benefit of HTTP/2 and HTTP/3. These protocols are faster on the
+Your visitors still get the speed of HTTP/2 and HTTP/3. These protocols are faster on the
 network between the browser and the proxy, for example on a slow mobile connection. The proxy and
 Novis run on the same machine. The proxy keeps a few connections to Novis open, and it uses them
 again for every request.
@@ -60,7 +60,7 @@ usermod -aG shop caddy      # for Caddy
 Restart the proxy after this change, so it runs with the new group.
 
 The folder `/run/shop` must exist before the server starts. Linux empties `/run` at every boot.
-[`nvs service`](/guides/production/run-as-a-service/) takes care of this. systemd then creates the
+[`nvs service`](/guides/production/run-as-a-service/) sets this up for you. systemd then creates the
 folder at every start of the service, and deletes it when the service stops. The folder belongs to
 the account of the service. Members of its group can open it, so the proxy can reach the socket.
 
@@ -257,8 +257,8 @@ What the important lines do:
   sees.
 - The location `(\.nvs$|/\.)` sends `.nvs` files and hidden files to Novis. A hidden file has a name
   that starts with a dot, such as `.env`. Novis runs your entry file for these paths.
-- nginx allows request bodies up to 1 MB by default. `client_max_body_size` sets the same limit
-  that Novis uses.
+- nginx allows request bodies up to 1 MB by default. `client_max_body_size` raises this limit. Set
+  it to the same size as `upload_total` in your `nvs.toml`.
 - The first `server` block is the default server. It gets every request whose host name is not
   `shop.example.com`. `return 444` closes the connection with no answer, and
   `ssl_reject_handshake on` stops an HTTPS connection before it starts. So a scanner that only knows
@@ -385,7 +385,7 @@ the common attacks, and the setting in each configuration above that stops them:
 | Requests for the IP address of the server, or for another host name | the default server | only the names in the Caddyfile |
 | Reading `.env` or the code of a `.nvs` file | the location `(\.nvs$\|/\.)` | `@static` |
 
-The numbers in the configurations are a start. Choose them for your own traffic:
+The numbers in the configurations are starting values. Choose them for your own traffic:
 
 - Many people can share one address, for example in an office or on a mobile network. Choose limits
   that such a group stays under.
@@ -422,6 +422,17 @@ hsts = false
 Novis sends `Strict-Transport-Security` when the proxy reports HTTPS. A browser remembers this header
 for a year. It may then open every port of `localhost` with HTTPS only. `hsts = false` turns the
 header off.
+
+In development, Novis checks the `Host` header of every request from this machine. Both
+configurations below send `localhost`, which is always allowed. If your proxy uses another host
+name, such as `app.test`, add it to the `[server]` block:
+
+```toml
+[server]
+development_hosts = ["app.test"]
+```
+
+Without this entry, each request gets `421`. The response says which host to add.
 
 <Tabs syncKey="proxy">
 <TabItem label="nginx">

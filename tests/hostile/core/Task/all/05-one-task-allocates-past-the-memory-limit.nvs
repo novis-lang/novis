@@ -1,11 +1,11 @@
 <?nvs
 // Attack: a task asks for 400 MB at once while the program's memory limit is 64 MB.
-// The memory should not be given to the task. The program should stop with an error.
+// The task should not get the memory. The program should stop with an error.
 // hostile: ends-early 3 FATAL
 
 class Grow
 {
-    // `Core\Str::repeat` makes one string of `$bytes` characters in one allocation.
+    // `Core\Str::repeat` makes one string of `$bytes` characters. It asks for all the memory at once.
     public static function big(uint $bytes): uint
     {
         string $text = Core\Str::repeat('x', $bytes);
@@ -16,7 +16,7 @@ class Grow
 // 1. The program lowers its own memory limit to 64 MB.
 echo 'step 1: ', Core\Config::set('limits.memory', '64M') ? 'limit set' : 'not allowed', "\n";
 
-// 2. Many tasks each make a string of 1 MB. Each one fits, so this step ends normally.
+// 2. Three tasks each make a string of 1 MB. This is less than the limit, so this step works.
 var $small = Core\Task::all({
     a: fn(): uint => Grow::big(1000000),
     b: fn(): uint => Grow::big(1000000),

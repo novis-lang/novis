@@ -1,6 +1,6 @@
 <?nvs
-// Attack: a script is started with fewer rights than the program has. Its tasks try
-// to use a right the script gave up. Every try should be refused.
+// Attack: a script is started with fewer capabilities (rights to do things) than the program has.
+// Its tasks try to use a capability the script does not have. Every try should fail.
 
 // `Here::path` returns its argument as a full path. A relative path written in quotes
 // starts at the folder of this file.
@@ -12,14 +12,14 @@ class Here
     }
 }
 
-// 1. The script may only read files. Its tasks connect to the network, in groups
-// nested 50 deep, and one task starts a script with more rights.
+// 1. The script may only read files. Its tasks try to connect to the network.
+// One task tries to start a script with more capabilities.
 string $job = Here::path('jobs/asks-from-its-tasks.nvs');
 var $run = spawn script $job with(grants: ['fs.read'], output: 'capture');
 var $done = await $run;
 echo $done->output;
 
-// 2. The same script, started 100 times at once. No start may give its tasks a right.
+// 2. This starts the same script 100 times. Every try should fail in every run.
 uint $allowed = 0;
 uint $i = 0;
 while ($i < 100) {

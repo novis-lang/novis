@@ -204,7 +204,7 @@
     "Core\\Arr::any": "dd5a35bfba7a6c26"
   },
   "docs/examples/core/Arr/append/about.md": {
-    "Core\\Arr::append": "8f2aea1b85948abe"
+    "Core\\Arr::append": "4505b4d92c2f7fd3"
   },
   "docs/examples/core/Arr/appendAll/about.md": {
     "Core\\Arr::appendAll": "a2300d6176a9b4f1"
@@ -1323,7 +1323,7 @@
     "Core\\Json::decode": "b970c6ed14832243"
   },
   "docs/examples/core/Json/decodeAs/about.md": {
-    "Core\\Json::decodeAs": "e03d957010223763"
+    "Core\\Json::decodeAs": "942419d393165a8e"
   },
   "docs/examples/core/Json/decodeEach/about.md": {
     "Core\\Json::decodeEach": "21290c26003501a4"
@@ -1335,7 +1335,7 @@
     "Core\\Json::encodeEach": "d09f6bf84f0fa7b6"
   },
   "docs/examples/core/Json/isValid/about.md": {
-    "Core\\Json::isValid": "e12f73b03708816d"
+    "Core\\Json::isValid": "b84c31bb75460a3b"
   },
   "docs/examples/core/Jwe/decrypt/about.md": {
     "Core\\Jwe::decrypt": "25bd088ce9312ddc"
@@ -2811,7 +2811,7 @@
     "Core\\Task::afterResponse": "5ca887291f04adbb"
   },
   "docs/examples/core/Task/all/about.md": {
-    "Core\\Task::all": "cc21d34b25dcc138"
+    "Core\\Task::all": "f4cf983ce64bbcbd"
   },
   "docs/examples/core/Task/map/about.md": {
     "Core\\Task::map": "f9928b40179b403f"
@@ -2826,10 +2826,10 @@
     "Core\\Test::advance": "7ad384fd84673438"
   },
   "docs/examples/core/Test/answerHttp/about.md": {
-    "Core\\Test::answerHttp": "561167197c1673cf"
+    "Core\\Test::answerHttp": "ad3710a1e0732256"
   },
   "docs/examples/core/Test/answerSocket/about.md": {
-    "Core\\Test::answerSocket": "a03f56a3f7d295ba"
+    "Core\\Test::answerSocket": "6c2a359c504e4ae0"
   },
   "docs/examples/core/Test/assertCalled/about.md": {
     "Core\\Test::assertCalled": "27f1b6d8aa6d9ed9"
@@ -2871,7 +2871,7 @@
     "Core\\Test::assertTrue": "1ae291c12c432822"
   },
   "docs/examples/core/Test/double/about.md": {
-    "Core\\Test::double": "1f0495bd1a6cb5ff"
+    "Core\\Test::double": "914df57002925cb0"
   },
   "docs/examples/core/Test/expectFailure/about.md": {
     "Core\\Test::expectFailure": "cb93455176cc67d3"
@@ -2889,7 +2889,7 @@
     "Core\\Test::run": "cd8c83c44ecc09e1"
   },
   "docs/examples/core/Test/scriptAnswers/about.md": {
-    "Core\\Test::scriptAnswers": "9d5207a508f80cce"
+    "Core\\Test::scriptAnswers": "5a01af14cc097012"
   },
   "docs/examples/core/Test/sentHttp/about.md": {
     "Core\\Test::sentHttp": "0a898ac22924a193"
@@ -2901,10 +2901,10 @@
     "Core\\Test::sentSocket": "0cb390403262bd27"
   },
   "docs/examples/core/Test/serverUrl/about.md": {
-    "Core\\Test::serverUrl": "91be0ff4f3a9754b"
+    "Core\\Test::serverUrl": "5008f7362a8d8e48"
   },
   "docs/examples/core/Test/tlsSession/about.md": {
-    "Core\\Test::tlsSession": "2cbae9a8db24bcfd"
+    "Core\\Test::tlsSession": "2b83e798afb6fa96"
   },
   "docs/examples/core/Test-LogRecord/fields/about.md": {
     "Core\\Test\\LogRecord::fields": "ee754370375dbc61"
@@ -3033,7 +3033,7 @@
     "Core\\Time::sleep": "ebca5824acd7c40e"
   },
   "docs/examples/core/Time-Date/at/about.md": {
-    "Core\\Time\\Date::at": "671cd45521c1ade7"
+    "Core\\Time\\Date::at": "41705749b04f96cb"
   },
   "docs/examples/core/Time-Date/compareTo/about.md": {
     "Core\\Time\\Date::compareTo": "a40cd00c927f20d4"
@@ -3048,7 +3048,7 @@
     "Core\\Time\\Date::format": "e42059e19f1bf0ea"
   },
   "docs/examples/core/Time-Date/fromIso/about.md": {
-    "Core\\Time\\Date::fromIso": "7fce3044cb1061d4"
+    "Core\\Time\\Date::fromIso": "1f1e6f97ac061ac2"
   },
   "docs/examples/core/Time-Date/isLeapYear/about.md": {
     "Core\\Time\\Date::isLeapYear": "b014cd78b61c3788"
@@ -3216,7 +3216,7 @@
     "Core\\Time\\Instant::fromEpoch": "980c29d6ab8ed7e2"
   },
   "docs/examples/core/Time-Instant/fromIso/about.md": {
-    "Core\\Time\\Instant::fromIso": "b52f3cb4993033a8"
+    "Core\\Time\\Instant::fromIso": "f444e4fbf740cf1d"
   },
   "docs/examples/core/Time-Instant/in/about.md": {
     "Core\\Time\\Instant::in": "7e0a299e4db727d0"
@@ -3231,13 +3231,13 @@
     "Core\\Time\\Instant::since": "dd7519f8b3ba073c"
   },
   "docs/examples/core/Time-Instant/toEpochMicros/about.md": {
-    "Core\\Time\\Instant::toEpochMicros": "9ce7d7c3daf356f6"
+    "Core\\Time\\Instant::toEpochMicros": "ab3150718f57aa0f"
   },
   "docs/examples/core/Time-Instant/toEpochMillis/about.md": {
-    "Core\\Time\\Instant::toEpochMillis": "9a23491e5f77814b"
+    "Core\\Time\\Instant::toEpochMillis": "7320da99e91852cf"
   },
   "docs/examples/core/Time-Instant/toEpochSeconds/about.md": {
-    "Core\\Time\\Instant::toEpochSeconds": "d74250fab529664e"
+    "Core\\Time\\Instant::toEpochSeconds": "e58b7b0b9c30d260"
   },
   "docs/examples/core/Time-Instant/toIso/about.md": {
     "Core\\Time\\Instant::toIso": "62199774198f1659"
@@ -3279,7 +3279,7 @@
     "Core\\Time\\Zone::fixed": "ee4e0f48414a4a55"
   },
   "docs/examples/core/Time-Zone/of/about.md": {
-    "Core\\Time\\Zone::of": "1ba9449676e78627"
+    "Core\\Time\\Zone::of": "525d109608fb89ec"
   },
   "docs/examples/core/Time-Zone/offsetAt/about.md": {
     "Core\\Time\\Zone::offsetAt": "464b9a14a43a415a"
@@ -3585,7 +3585,7 @@
     "lang:classes/propertyobserver": "f0d934f68a6b7ca4"
   },
   "docs/examples/lang/classes/revocable-objects/about.md": {
-    "lang:classes/revocable-objects": "bec98eb635a0b903"
+    "lang:classes/revocable-objects": "98470ab5463dce36"
   },
   "docs/examples/lang/classes/stringable/about.md": {
     "lang:classes/stringable": "3ccc9a5c650887ad"
@@ -4446,7 +4446,7 @@
     "tools:cli/nvs-telemetry": "9abbb9d86e296fc3"
   },
   "docs/examples/tools/cli/nvs-test/about.md": {
-    "tools:cli/nvs-test": "b81aac29fe5d640b"
+    "tools:cli/nvs-test": "982bedfb1c7b56fe"
   },
   "docs/examples/tools/cli/nvs-test-mutate/about.md": {
     "tools:cli/nvs-test-mutate": "0259621bd0cc6ac4"
@@ -4581,7 +4581,7 @@
     "tools:packages/package-toml": "5b6760e417747bb7"
   },
   "docs/examples/tools/packages/restrictions-where-a-class-or-method-may-be-used/about.md": {
-    "tools:packages/restrictions-where-a-class-or-method-may-be-used": "ed95fce5e748e865"
+    "tools:packages/restrictions-where-a-class-or-method-may-be-used": "d35eb4c09b942676"
   },
   "docs/examples/tools/packages/the-registry-website/about.md": {
     "tools:packages/the-registry-website": "e8484defeafb48f6"
@@ -4599,16 +4599,16 @@
     "tools:php-differences/the-tools-you-do-not-install": "4e9409184abda7a6"
   },
   "docs/examples/tools/server/behind-a-proxy-trusted-proxies/about.md": {
-    "tools:server/behind-a-proxy-trusted-proxies": "f509f44033568eb6"
+    "tools:server/behind-a-proxy-trusted-proxies": "10ac26b34ffe6eb3"
   },
   "docs/examples/tools/server/links-between-modules/about.md": {
     "tools:server/links-between-modules": "1260055ddd1cc80e"
   },
   "docs/examples/tools/server/mounts-which-file-answers-a-request/about.md": {
-    "tools:server/mounts-which-file-answers-a-request": "9b53efe7337f5547"
+    "tools:server/mounts-which-file-answers-a-request": "cdb3be28bc91fa9e"
   },
   "docs/examples/tools/server/nvs-reload/about.md": {
-    "tools:server/nvs-reload": "d5ac8cba1c440282"
+    "tools:server/nvs-reload": "f81f0e43795dc3c6"
   },
   "docs/examples/tools/server/nvs-serve/about.md": {
     "tools:server/nvs-serve": "e77bad0426c52981"
@@ -4971,7 +4971,7 @@
     "Core\\Arr::any": "9566b33dbb07c82e"
   },
   "help:Core\\Arr::append": {
-    "Core\\Arr::append": "eff144ecafc6e99a"
+    "Core\\Arr::append": "a9125acec2c41035"
   },
   "help:Core\\Arr::appendAll": {
     "Core\\Arr::appendAll": "ca6b1f0dad463fc1"
@@ -6174,7 +6174,7 @@
     "Core\\Json::decode": "4009022567bc2f70"
   },
   "help:Core\\Json::decodeAs": {
-    "Core\\Json::decodeAs": "b31ec6d3ba1d14e0"
+    "Core\\Json::decodeAs": "9d22e2fe3122ee6b"
   },
   "help:Core\\Json::decodeEach": {
     "Core\\Json::decodeEach": "b07a659510dbdc5e"
@@ -6186,7 +6186,7 @@
     "Core\\Json::encodeEach": "5f72074f0be6ac67"
   },
   "help:Core\\Json::isValid": {
-    "Core\\Json::isValid": "703e1d52ee5d119c"
+    "Core\\Json::isValid": "dcebc67832d6235c"
   },
   "help:Core\\Jwe::decrypt": {
     "Core\\Jwe::decrypt": "843605cf49a35528"
@@ -7719,7 +7719,7 @@
     "Core\\Task::afterResponse": "199303149acfe7b8"
   },
   "help:Core\\Task::all": {
-    "Core\\Task::all": "25cc007ba8089d61"
+    "Core\\Task::all": "3942bef8d44f47dd"
   },
   "help:Core\\Task::map": {
     "Core\\Task::map": "8f4d42e8c055fb5c"
@@ -7734,10 +7734,10 @@
     "Core\\Test::advance": "afc67103fdb531f6"
   },
   "help:Core\\Test::answerHttp": {
-    "Core\\Test::answerHttp": "273f99b57f0ed36f"
+    "Core\\Test::answerHttp": "f1a4b83f50674a5f"
   },
   "help:Core\\Test::answerSocket": {
-    "Core\\Test::answerSocket": "a64fcc6580ac46ec"
+    "Core\\Test::answerSocket": "d206c6b273abacce"
   },
   "help:Core\\Test::assertCalled": {
     "Core\\Test::assertCalled": "b47c18c88bbd7f94"
@@ -7779,7 +7779,7 @@
     "Core\\Test::assertTrue": "3100d8b3db748866"
   },
   "help:Core\\Test::double": {
-    "Core\\Test::double": "275c4bf5fd3f64d8"
+    "Core\\Test::double": "c0a55b6a685050b0"
   },
   "help:Core\\Test::expectFailure": {
     "Core\\Test::expectFailure": "7a3598445ba352d5"
@@ -7791,13 +7791,13 @@
     "Core\\Test::partial": "aad184cf17e5368b"
   },
   "help:Core\\Test::request": {
-    "Core\\Test::request": "2db419d38180b782"
+    "Core\\Test::request": "65f657ea4483190f"
   },
   "help:Core\\Test::run": {
     "Core\\Test::run": "0d96274e79359703"
   },
   "help:Core\\Test::scriptAnswers": {
-    "Core\\Test::scriptAnswers": "6793c50fde074a43"
+    "Core\\Test::scriptAnswers": "2e8d60847380e0c3"
   },
   "help:Core\\Test::sentHttp": {
     "Core\\Test::sentHttp": "d257fdacac90e995"
@@ -7809,10 +7809,10 @@
     "Core\\Test::sentSocket": "8a79effb4b12eb99"
   },
   "help:Core\\Test::serverUrl": {
-    "Core\\Test::serverUrl": "334e9be697956a6f"
+    "Core\\Test::serverUrl": "cbe81ba3bd4af6a3"
   },
   "help:Core\\Test::tlsSession": {
-    "Core\\Test::tlsSession": "3ad58b6cbaff1dc7"
+    "Core\\Test::tlsSession": "96bc6cad84781d27"
   },
   "help:Core\\Test\\Failure": {
     "Core\\Test\\Failure": "2ec50c5b87f7f8f6"
@@ -7944,7 +7944,7 @@
     "Core\\Time::sleep": "e656aa9d056800b6"
   },
   "help:Core\\Time\\Date::at": {
-    "Core\\Time\\Date::at": "297d896d8ab51a38"
+    "Core\\Time\\Date::at": "e5876d0b3835c31a"
   },
   "help:Core\\Time\\Date::compareTo": {
     "Core\\Time\\Date::compareTo": "c8c626c978581fa1"
@@ -7959,7 +7959,7 @@
     "Core\\Time\\Date::format": "52ef60ec06e2314c"
   },
   "help:Core\\Time\\Date::fromIso": {
-    "Core\\Time\\Date::fromIso": "5b30e5b675c4138d"
+    "Core\\Time\\Date::fromIso": "40b578f604a8945b"
   },
   "help:Core\\Time\\Date::isLeapYear": {
     "Core\\Time\\Date::isLeapYear": "32ef485615bbfc98"
@@ -8127,7 +8127,7 @@
     "Core\\Time\\Instant::fromEpoch": "b8dd7f31636c0836"
   },
   "help:Core\\Time\\Instant::fromIso": {
-    "Core\\Time\\Instant::fromIso": "025ecb5878abad4a"
+    "Core\\Time\\Instant::fromIso": "5913c382545c5367"
   },
   "help:Core\\Time\\Instant::in": {
     "Core\\Time\\Instant::in": "bf722fd3c673d676"
@@ -8142,13 +8142,13 @@
     "Core\\Time\\Instant::since": "621257199f683696"
   },
   "help:Core\\Time\\Instant::toEpochMicros": {
-    "Core\\Time\\Instant::toEpochMicros": "7955121f0f2e2b6c"
+    "Core\\Time\\Instant::toEpochMicros": "2aa4130bc542765d"
   },
   "help:Core\\Time\\Instant::toEpochMillis": {
-    "Core\\Time\\Instant::toEpochMillis": "b99e78c3fd3b54c7"
+    "Core\\Time\\Instant::toEpochMillis": "cc55da283e8f051b"
   },
   "help:Core\\Time\\Instant::toEpochSeconds": {
-    "Core\\Time\\Instant::toEpochSeconds": "2754f90101a16212"
+    "Core\\Time\\Instant::toEpochSeconds": "e8f936fd838e0c93"
   },
   "help:Core\\Time\\Instant::toIso": {
     "Core\\Time\\Instant::toIso": "74b5612e6b6b3f7a"
@@ -8193,7 +8193,7 @@
     "Core\\Time\\Zone::fixed": "795bf9d2e1aeea66"
   },
   "help:Core\\Time\\Zone::of": {
-    "Core\\Time\\Zone::of": "092220f07393fd1f"
+    "Core\\Time\\Zone::of": "a01854ea1f6647f5"
   },
   "help:Core\\Time\\Zone::offsetAt": {
     "Core\\Time\\Zone::offsetAt": "ffbb6325b7350364"
@@ -9300,7 +9300,7 @@
     "tools:cli/nvs-telemetry": "496af1ec2f7fe8bb"
   },
   "help:tools:cli/nvs-test": {
-    "tools:cli/nvs-test": "af22de1b3dd5fd2a"
+    "tools:cli/nvs-test": "d37e6d3aaf0d953b"
   },
   "help:tools:cli/nvs-test-mutate": {
     "tools:cli/nvs-test-mutate": "a44e3b9b04aa9b93"
@@ -9435,7 +9435,7 @@
     "tools:packages/package-toml": "37a64b5479f4bf18"
   },
   "help:tools:packages/restrictions-where-a-class-or-method-may-be-used": {
-    "tools:packages/restrictions-where-a-class-or-method-may-be-used": "f3d143a472c111ba"
+    "tools:packages/restrictions-where-a-class-or-method-may-be-used": "d351390792fcd508"
   },
   "help:tools:packages/the-registry-website": {
     "tools:packages/the-registry-website": "85b72c06df93c885"
@@ -9453,7 +9453,7 @@
     "tools:php-differences/the-tools-you-do-not-install": "3a3585481eb92a1b"
   },
   "help:tools:server/behind-a-proxy-trusted-proxies": {
-    "tools:server/behind-a-proxy-trusted-proxies": "279e1ce023df9403"
+    "tools:server/behind-a-proxy-trusted-proxies": "a55c14e1a383fb27"
   },
   "help:tools:server/links-between-modules": {
     "tools:server/links-between-modules": "82ee25711b74eaf0"
@@ -9462,7 +9462,7 @@
     "tools:server/mounts-which-file-answers-a-request": "641769e3c81982fa"
   },
   "help:tools:server/nvs-reload": {
-    "tools:server/nvs-reload": "616fc5a68f05545e"
+    "tools:server/nvs-reload": "125a012ab5d89391"
   },
   "help:tools:server/nvs-serve": {
     "tools:server/nvs-serve": "3082ff8d2a7a7d02"
@@ -9565,7 +9565,7 @@
     "lang:types/strings-with-holes": "643089d2047c6f64"
   },
   "syntax/classes/revocable-objects.mdx": {
-    "lang:classes/revocable-objects": "d5587a8a6a9abd89",
+    "lang:classes/revocable-objects": "1026aa1b47498957",
     "Revocable": "c13ce44c06534cf8"
   },
   "syntax/classes/standard-interfaces.mdx": {
@@ -9886,7 +9886,7 @@
     "tools:cli/profiling": "f9416f0b950726ae"
   },
   "tools/test-runner/coverage.mdx": {
-    "tools:cli/nvs-test": "3b17bb38adc0b4cb"
+    "tools:cli/nvs-test": "45a58fbe4735cc40"
   },
   "tools/test-runner/index.mdx": {
     "lang:testing/a-test-is-a-method-marked-test": "368f1a80f39ee11b",
@@ -9894,7 +9894,7 @@
     "lang:testing/core-test-property-generated-inputs": "ac1715e807062536",
     "lang:testing/running-tests-nvs-test": "35ed159cdab1d562",
     "lang:testing/test-options": "00bf91414a4976ef",
-    "tools:cli/nvs-test": "3b17bb38adc0b4cb",
+    "tools:cli/nvs-test": "45a58fbe4735cc40",
     "tools:cli/nvs-test-mutate": "d9ceecb30e34ccc7"
   }
 }

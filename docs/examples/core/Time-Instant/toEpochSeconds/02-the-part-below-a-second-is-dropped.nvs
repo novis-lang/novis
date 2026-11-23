@@ -1,9 +1,9 @@
 <?nvs
-// Shows that `toEpochSeconds` drops the part of a second. It does not round.
+// Shows that `toEpochSeconds` rounds the part of a second down, to the earlier second.
 
 // This prints 1709294400. The 0.9 seconds are dropped.
 echo Core\Time\Instant::fromIso('2024-03-01T12:00:00.9Z')->toEpochSeconds(), "\n";
 
-// Half a second before 1970 is -0.5 seconds. The part of a second is dropped here too,
-// so this prints 0.
+// Half a second before 1970 is -0.5 seconds. The earlier whole second is -1,
+// so this prints -1.
 echo Core\Time\Instant::fromIso('1969-12-31T23:59:59.5Z')->toEpochSeconds(), "\n";

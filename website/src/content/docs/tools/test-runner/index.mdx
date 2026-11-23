@@ -27,7 +27,7 @@ expects `650`, but `withTax(500)` returns `600`:
 
 <Terminal src="tools/test-runner/fail.term" />
 
-When a test fails, `nvs test` exits with the status `1`. Your build stops there. A skipped test is
+When a test fails, `nvs test` exits with the status `1`, so a CI build fails too. A skipped test is
 not a failure.
 
 ## Run every test in a project
@@ -62,8 +62,9 @@ The summary counts the tests that did not run as `left out`.
 You can also choose tests by where they are, or by what you changed:
 
 - `nvs test tests/CartTest.nvs:42` runs the test that contains line 42.
-- `nvs test . --since main` runs only the tests that reach code you changed since the git branch
-  `main`. Use it while you edit, and run every test in CI.
+- `nvs test . --since main` runs only the tests that reach code you changed or deleted since the git
+  branch `main`. When it cannot tell which tests a change affects, it runs every test. Use it while
+  you edit, and run every test in CI.
 
 A build server often needs a report file. `--format junit` prints the result as JUnit XML, and
 `--format json` prints one JSON document:

@@ -1,4 +1,5 @@
-Creates a date from a year, a month and a day.
+Creates a date from a year, a month and a day. You can also name the arguments:
+`Date::at(year: 2024, month: 12, day: 24)`.
 
 A `Core\Time\Date` is one day in the calendar. It has no time of day and no time zone, so it is the
 right type for a birthday, a due date or a holiday.

@@ -89,6 +89,163 @@
         "lang:types/qualifiers-tainted-and-secret"
       ],
       "text": "Text from a `Core` method is `tainted` unless the method says where the text comes from. When a `tainted` value reaches a parameter that does not take it, the error names the method that makes the value safe for that parameter."
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Task::all"
+      ],
+      "text": "Each task that `Core\\Task::all` runs has the same capabilities and the same memory limit as the code that calls it. A task that asks for more memory than the limit does not get it.",
+      "security": true
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Serialize::decode"
+      ],
+      "text": "`Core\\Serialize::decode` gives a revocable object that is in no collection. Encoded data that tries to set the hidden internal value of a revocable object throws a `ParseError`.",
+      "breaking": true,
+      "instead": "Encode the objects again with `Core\\Serialize::encode`.",
+      "security": true
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "lang:classes/revocable-objects"
+      ],
+      "text": "When the memory limit stops a `set`, `add` or `push`, the revocable object is not added, and a later `revoke()` works as usual. `Core\\Debug::dump` no longer prints a `#revocable` line."
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "tools:packages/restrictions-where-a-class-or-method-may-be-used"
+      ],
+      "text": "A restriction now covers every way to use a declaration. This includes a union type, `static::NAME`, a default value, an attribute argument and a route link. A package can restrict only its own code and the code in `Core`, and any other `use` gives the error `E0665`.",
+      "breaking": true,
+      "instead": "Move a restriction on another package's code into that package, or into your application's `package.toml`.",
+      "security": true
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "tools:server/nvs-reload"
+      ],
+      "text": "`nvs reload` exits with `1` when a server does not reply. Its line says `could not be reached` or `closed the connection without a reply`. A server that is shutting down prints a line that says it is stopping."
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "tools:server/behind-a-proxy-trusted-proxies",
+        "tools:server/mounts-which-file-answers-a-request"
+      ],
+      "text": "In development, the server checks the `Host` header of every request from a proxy on this machine. This check does not use `X-Forwarded-For`. The `421` response has a text body that names the host to add to `development_hosts` in the `[server]` block.",
+      "breaking": true,
+      "instead": "Add the host name your local proxy sends to `[server] development_hosts`.",
+      "security": true
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Test::answerHttp",
+        "Core\\Test::answerSocket",
+        "Core\\Test::tlsSession",
+        "Core\\Test::scriptAnswers"
+      ],
+      "text": "These methods throw a `LogicError` in a request, a connection, a scheduled task and a queued job. A test can call them, and so can a request or a program that the test starts. A command-line program can call them too.",
+      "breaking": true,
+      "instead": "Call these methods only in a test or in a command-line program.",
+      "security": true
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Test::serverUrl"
+      ],
+      "text": "A request to the test server uses the test's clock and its `env:` variables. What the request logs or sends as mail is in `Core\\Test::logs` and `Core\\Test::sentMail`."
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Test::request"
+      ],
+      "text": "A file that a response sends with `Core\\Response::sendFile` counts toward the test's memory limit. A file that does not fit ends the test with a memory error.",
+      "security": true
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Test::double"
+      ],
+      "text": "A double can replace an interface method that has a body with a function. The double then runs that function."
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "tools:cli/nvs-test"
+      ],
+      "text": "`nvs test --since` also runs the tests that reach a deleted or renamed file or method. When it cannot tell which tests a change affects, it runs every test."
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Time\\Instant::toEpochSeconds",
+        "Core\\Time\\Instant::toEpochMillis",
+        "Core\\Time\\Instant::toEpochMicros"
+      ],
+      "text": "The three epoch methods round down to the earlier whole unit. Half a second before 1970 gives `-1` seconds. `Instant::fromEpoch` with the result and the remaining part gives the same instant.",
+      "breaking": true,
+      "instead": "Before 1970, add one to the result when the instant has a part of a unit left."
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Time\\Instant::fromIso"
+      ],
+      "text": "`Instant::fromIso` reads an upper-case `T` and `Z`, a `.` before the fraction, and an offset with a colon, such as `+02:00`. A lower-case `t` or `z`, a comma, the second `60` or an offset like `+0100` throws a `ParseError`.",
+      "breaking": true,
+      "instead": "Write `T`, `Z`, a `.` before the fraction, and an offset with a colon, such as `+01:00`."
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Time\\Date::fromIso"
+      ],
+      "text": "`Date::fromIso('-0000-01-01')` throws a `ParseError`. Year 0 is written `0000`.",
+      "breaking": true,
+      "instead": "Write year 0 as `0000`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Time\\Zone::of"
+      ],
+      "text": "`Zone::of` gives the zone the name the time-zone database uses. `Zone::of('europe/berlin')` gives the zone `Europe/Berlin`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Time\\Date::at"
+      ],
+      "text": "The parameters of `Date::at` are named `year`, `month` and `day`.",
+      "breaking": true,
+      "instead": "Write `Date::at(year: 2024, month: 12, day: 24)`."
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Arr::append"
+      ],
+      "text": "`Core\\Arr::append` uses the same key as `$a[] = $v`. After `unset` removes the largest number key, the next value gets the key after the removed one.",
+      "breaking": true,
+      "instead": "To number the keys again from `0`, call `Core\\Arr::values` first."
+    },
+    {
+      "kind": "fixed",
+      "features": [
+        "Core\\Json::decodeAs"
+      ],
+      "text": "A `ParseError` from `Core\\Json::decodeAs` lists at most 64 issues. When there are more, the last issue says that more follow.",
+      "security": true
     }
   ],
   "unseen": {

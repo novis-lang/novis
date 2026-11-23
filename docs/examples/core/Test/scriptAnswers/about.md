@@ -9,4 +9,8 @@ of a choice. When an answer is not valid, the prompt asks again and takes the ne
 A second call adds its answers after the ones still waiting. When no answer is left, a prompt returns
 its `default`. A prompt with no `default` throws `Core\Cli\NotInteractive`.
 
+You can call `scriptAnswers` in a test and in a command-line program. In a server, it throws a
+`LogicError`. This includes a request, a connection, a scheduled task and a queued job. Code that a
+test starts may still call it, such as a request sent with `Core\Test::request`.
+
 **The examples below** show one answer, several prompts in a row, and a test of a setup program.

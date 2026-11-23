@@ -1373,22 +1373,25 @@ const SERVER_URL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::scriptAnswers`'s reference card — `rule:core-api/reference-card`.
 const SCRIPT_ANSWERS_DOC: MethodDoc = MethodDoc {
-    short: "Gives the answers for the next `Core\\Cli` prompts, so you can test a program that \
-            asks questions. Each prompt takes the first answer that is still waiting. It does \
-            not read the terminal.",
+    short: "Gives the answers for the next questions your program asks with `Core\\Cli`, such \
+            as `Core\\Cli::confirm`. Such a question is called a prompt. Each prompt uses the \
+            next answer in the list, and the terminal is not read.",
     params: &[ParamDoc {
         name: "answers",
         desc: "One answer per prompt, in the order the program asks. Write what a person would \
-               type, without the line ending. A `select` reads the number of a choice, and a \
-               `confirm` reads `y` or `n`.",
+               type, without the line ending. `Core\\Cli::select` reads the number of a choice, \
+               and `Core\\Cli::confirm` reads `y` or `n`.",
         shape: &[],
     }],
-    ret: "Nothing. A second call adds its answers after the ones still waiting. When no answer \
-          is left, a prompt returns its `default` or throws `Core\\Cli\\NotInteractive`.",
+    ret: "Nothing. A second call adds its answers to the end of the list. When the list is \
+          empty, a prompt returns the `default` you gave it. A prompt with no `default` throws \
+          `Core\\Cli\\NotInteractive`.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The call runs in a server: in a request, a connection, a scheduled task or a \
-               queued job. A test and a command-line program may call it.",
+        desc: "The call runs in a server, such as in a request, a connection, a scheduled \
+               task or a queued job. A test may call it. Code that a test starts may call it \
+               too, such as a request sent with `Core\\Test::request`. A command-line program \
+               may also call it.",
     }],
 };
 
@@ -1671,15 +1674,15 @@ const RESPONSE_JSON_AS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::answerHttp`'s reference card — `rule:core-api/reference-card`.
 const ANSWER_HTTP_DOC: MethodDoc = MethodDoc {
-    short: "Gives a fake reply for one outbound URL. After the first call to `answerHttp`, every \
-            `Core\\Http\\Client` call in this test gets a fake reply. No call connects to the \
-            network.",
+    short: "Gives a fake reply for one URL that your program calls. After the first call to \
+            `answerHttp`, every `Core\\Http\\Client` call in this test gets a fake reply. No \
+            call connects to the network.",
     params: &[
         ParamDoc {
             name: "url",
-            desc: "The URL this reply is for: the whole URL, or a prefix that ends in `*`. \
-                   Nothing is resolved and no host is looked up. The URL of each call is \
-                   compared with this text.",
+            desc: "The URL this reply is for. Give the whole URL, or a prefix that ends in `*`. \
+                   A prefix matches every URL that starts with the text before the `*`. Each \
+                   call's URL is compared with this text, and no host is looked up.",
             shape: &[],
         },
         ParamDoc {
@@ -1703,16 +1706,16 @@ const ANSWER_HTTP_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "headers",
-            desc: "The headers of the reply, with the name as the key. This is the shape \
-                   `Core\\Http\\Options` uses for the headers of a request, with one addition. \
-                   An array of strings under a name means the reply has that header on that \
-                   many lines. `Core\\Http\\Response::headers` returns it that way. Upper and \
-                   lower case do not matter in a name, as for any header name.",
+            desc: "The headers of the reply, with the header name as the key. Each value is a \
+                   string, or an array of strings. With an array, the reply has that header once \
+                   for each string, and `Core\\Http\\Response::headers` returns them as an array. \
+                   Upper and lower case do not matter in a header name.",
             shape: &[],
         },
         ParamDoc {
             name: "tls",
-            desc: "The TLS session the reply reports, from `Core\\Test::tlsSession`. \
+            desc: "The TLS session the reply reports. A TLS session is the details of an \
+                   encrypted `https://` connection. Build one with `Core\\Test::tlsSession`. \
                    `Core\\Http\\Response::tls` returns it for every call this answer serves. \
                    Without it, `tls()` returns `null`.",
             shape: &[],
@@ -1724,15 +1727,18 @@ const ANSWER_HTTP_DOC: MethodDoc = MethodDoc {
         error: "LogicError",
         desc: "The call gives both `json` and `body`, which are two ways to write one body. Or \
                the status is not from `100` to `999`. Or the call gives a `tls` session for an \
-               `http://` URL, which has no TLS. Or the call runs in a server: in a request, a \
-               connection, a scheduled task or a queued job.",
+               `http://` URL, which has no TLS. Or the call runs in a server, such as in a \
+               request, a connection, a scheduled task or a queued job. A test may call it. \
+               Code that a test starts may call it too, such as a request sent with \
+               `Core\\Test::request`. A command-line program may also call it.",
     }],
 };
 
 /// `Core\Test::tlsSession`'s reference card — `rule:core-api/reference-card`.
 const TLS_SESSION_DOC: MethodDoc = MethodDoc {
-    short: "Builds a TLS session for a test, with a real certificate chain, so a test can read a \
-            `Core\\Http\\TlsInfo` without a network.",
+    short: "Builds a TLS session for a test. TLS is the encryption that an `https://` connection \
+            uses. The result is a `Core\\Http\\TlsInfo` with two real certificates, and no \
+            network is used.",
     params: &[
         ParamDoc {
             name: "version",
@@ -1741,8 +1747,9 @@ const TLS_SESSION_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "cipher",
-            desc: "A cipher suite this build supports for that version, under its IANA name. The \
-                   default is `TLS_AES_128_GCM_SHA256` for TLS 1.3 and \
+            desc: "The cipher suite: the set of encryption methods the session uses. Write its \
+                   standard name, and use one this build supports for that version. The default \
+                   is `TLS_AES_128_GCM_SHA256` for TLS 1.3 and \
                    `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256` for TLS 1.2.",
             shape: &[],
         },
@@ -1753,35 +1760,40 @@ const TLS_SESSION_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "subject",
-            desc: "The leaf certificate's subject, written as `subject()` returns it: `KEY=value` \
-                   pairs such as `CN=api.example.com, O=Shop`, with the keys `CN`, `O`, `OU`, \
-                   `C`, `ST` and `L`. The default is `CN=example.com`.",
+            desc: "The subject of the server's own certificate, which is called the leaf \
+                   certificate. The subject names who the certificate is for. Write it as \
+                   `subject()` returns it: `KEY=value` pairs such as \
+                   `CN=api.example.com, O=Shop`, with the keys `CN`, `O`, `OU`, `C`, `ST` and \
+                   `L`. The default is `CN=example.com`.",
             shape: &[],
         },
         ParamDoc {
             name: "issuer",
-            desc: "The subject of the CA certificate that signs the leaf, which is what \
-                   `issuer()` returns. Written like `subject`. The default is `CN=Novis Test CA`.",
+            desc: "The subject of the certificate authority (CA) that signed the leaf \
+                   certificate. `issuer()` returns it. Write it like `subject`. The default is \
+                   `CN=Novis Test CA`.",
             shape: &[],
         },
         ParamDoc {
             name: "expiry",
-            desc: "When the leaf certificate expires, in whole seconds. The default is 90 days \
-                   after `Core\\Time::now()`, so a test with a fixed clock gets the same value \
-                   every run.",
+            desc: "The date and time when the leaf certificate expires. It is kept in whole \
+                   seconds. The default is 90 days after `Core\\Time::now()`. So a test that \
+                   sets its clock to a fixed time gets the same value every run.",
             shape: &[],
         },
     ],
-    ret: "A `Core\\Http\\TlsInfo`. Its `peerChain()` has two certificates: the leaf, then the CA \
-          that signed it. Pass it to `Core\\Test::answerHttp` as `tls` to make a faked reply \
-          report it.",
+    ret: "A `Core\\Http\\TlsInfo`. Its `peerChain()` returns two certificates: the leaf \
+          certificate, then the CA certificate that signed it. Pass the result to \
+          `Core\\Test::answerHttp` as `tls`, and the fake reply reports this session.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "The version is not `TLSv1.3` or `TLSv1.2`. Or the cipher is not one this build \
                supports for that version. Or a subject or issuer is not written as `KEY=value` \
                pairs with the keys above. Or the expiry is before 1950 or after 9999. Or the \
-               call runs in a server: in a request, a connection, a scheduled task or a queued \
-               job.",
+               call runs in a server, such as in a request, a connection, a scheduled task or \
+               a queued job. A test may call it. Code that a test starts may call it too, such \
+               as a request sent with `Core\\Test::request`. A command-line program may also \
+               call it.",
     }],
 };
 
@@ -1798,43 +1810,48 @@ const SENT_HTTP_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Test::answerSocket`'s reference card — `rule:core-api/reference-card`.
 const ANSWER_SOCKET_DOC: MethodDoc = MethodDoc {
-    short: "Gives a fake peer for one outbound WebSocket URL, and this test does not use the \
-            network. A socket opened to a matching URL completes its handshake without \
-            connecting. It receives these frames in order, and then a close.",
+    short: "Gives a fake WebSocket server for one URL, so this test does not use the network. \
+            The fake server is called the peer. A socket your program opens to a matching URL \
+            connects to it. The socket receives the peer's messages in order, and then the peer \
+            closes it.",
     params: &[
         ParamDoc {
             name: "url",
-            desc: "The URL this peer is for: the whole URL, or a prefix that ends in `*`. \
-                   Nothing is resolved and no host is looked up. The URL given to \
-                   `Core\\Http\\Client::openSocket` is compared with this text. Its scheme is \
-                   still checked, so a `https` URL given here is not allowed when \
-                   `openSocket` runs.",
+            desc: "The URL this peer is for. Give the whole URL, or a prefix that ends in `*`. \
+                   A prefix matches every URL that starts with the text before the `*`. The URL \
+                   given to `Core\\Http\\Client::openSocket` is compared with this text, and no \
+                   host is looked up. `openSocket` still throws an error for a URL whose scheme \
+                   is not `ws` or `wss`.",
             shape: &[],
         },
         ParamDoc {
             name: "frames",
-            desc: "What the peer sends, in order. A `string` is a text message and `bytes` is a \
-                   binary message, the same as `send` and `sendBytes` write. After the last \
-                   frame, `receive` returns `null`, which means the peer closed the socket.",
+            desc: "The messages the peer sends, in order. Each message is one frame. A `string` \
+                   is a text message, and `bytes` is a binary message. The socket's `send` and \
+                   `sendBytes` methods write the same two kinds. After the last frame, \
+                   `receive` returns `null`, which means the peer closed the socket.",
             shape: &[],
         },
         ParamDoc {
             name: "protocol",
-            desc: "The subprotocol the peer chooses in its `101` reply. It must be one that the \
-                   call offered in `protocols`. If the peer chooses a name that was never \
-                   offered, `openSocket` throws an error, as it does with a real peer. If you \
-                   leave it out, the handshake chooses no subprotocol.",
+            desc: "The subprotocol the peer chooses. A subprotocol is a name that both sides \
+                   agree on when the socket opens. It must be one of the names your call \
+                   offered in `protocols`. If the peer chooses a name that was never offered, \
+                   `openSocket` throws an error, as it does with a real server. If you leave it \
+                   out, the peer chooses no subprotocol.",
             shape: &[],
         },
     ],
     ret: "Nothing. Each call adds one more peer, so a test can give a peer for each socket it \
           opens. An exact URL wins over a prefix, and the longest prefix wins among prefixes. \
-          Two sockets opened to one URL read that peer's frames separately. Each socket keeps \
-          its own place in the list.",
+          Two sockets opened to one URL each receive all of that peer's frames, from the first \
+          one.",
     errors: &[ErrorDoc {
         error: "LogicError",
-        desc: "The call runs in a server: in a request, a connection, a scheduled task or a \
-               queued job. A test and a command-line program may call it.",
+        desc: "The call runs in a server, such as in a request, a connection, a scheduled \
+               task or a queued job. A test may call it. Code that a test starts may call it \
+               too, such as a request sent with `Core\\Test::request`. A command-line program \
+               may also call it.",
     }],
 };
 
@@ -1859,12 +1876,13 @@ const DOUBLE_DOC: MethodDoc = MethodDoc {
         desc: "One field per method of `T`, with the same name as the method. Each field has the \
                function that runs when that method is called. A field for a method that `T` \
                does not declare does not compile. A method of `T` that has no field does not \
-               compile either.",
+               compile either. The exception is a method that has a body in the interface. \
+               Without a field, that body runs. With a field, the field's function runs.",
         shape: &[],
     }],
     ret: "The double, typed as `T`. It records every call made to it, and \
-          `Core\\Test::assertCalled` reads that record later. A backtrace shows no class that \
-          you did not write.",
+          `Core\\Test::assertCalled` reads that record later. A backtrace through the double \
+          shows only classes that you wrote.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "`T` declares more methods than one double supports. This limit is fixed, and it \

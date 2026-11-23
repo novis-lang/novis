@@ -1196,7 +1196,7 @@ namespace alone.
 
 **What is checked where it is written** (`E0665`, at the entry's line): a `use` or an `allow` entry
 that is not a declaration name, a `\*` anywhere but at the end, a field `nvs` does not know, a
-`replace` on a target that is not a method or a function, and, in a package's file, an `allow` entry
+`replace` on a target that is not a method, and, in a package's file, an `allow` entry
 that does not lie under the package's own name and a `use` that lies under neither the package's own
 name nor `Core`. A package restricts its own code, and `Core`'s, which it may wrap, as the example
 above does. It never restricts another package's code or the application's, because that would add

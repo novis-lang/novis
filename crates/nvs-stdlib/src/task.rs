@@ -224,7 +224,8 @@ const GROUP_ERRORS: &[ErrorDoc] = &[
 const ALL_DOC: MethodDoc = MethodDoc {
     short: "Runs every function in the `$tasks` object at the same time, and waits until all \
             of them have finished. The result is an object with the same field names, and each \
-            field has the type its function returns.",
+            field has the type its function returns. Each task has the same capabilities and the \
+            same memory limit as the code that calls `all()`.",
     params: &[
         ParamDoc {
             name: "tasks",

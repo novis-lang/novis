@@ -777,10 +777,10 @@ const DECODE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Json::decodeAs`'s reference card — `rule:core-api/reference-card`.
 const DECODE_AS_DOC: MethodDoc = MethodDoc {
-    short: "Parses the JSON object `$json` into an instance of `T`, a class with \
-            `#[Json\\Derive]`. It reads every declared property, and it runs the constructor only \
-            when all of them match. Write `array<T>` to read a JSON array as one instance per \
-            element. You do not need to copy each field into the object yourself.",
+    short: "Parses the JSON object `$json` into an instance of `T`. `T` is a class with the \
+            `#[Json\\Derive]` attribute. Each property of the class reads the JSON field with \
+            the same name. The constructor runs only when every field has the right type. Write \
+            `array<T>` to read a JSON array as one instance per element.",
     params: &[
         ParamDoc {
             name: "json",
@@ -804,10 +804,12 @@ const DECODE_AS_DOC: MethodDoc = MethodDoc {
                    object with the same key twice, or contains a whole number too large for \
                    `int`. It is also thrown when the top level is not an object, or not an array \
                    for an `array<C>`. Fields that are missing or have the wrong type throw it too. \
-                   Each failed field is one issue on the error, with its own path. The message \
-                   gives the number of issues. A list stops at its first bad element, and each \
-                   path contains the position of that element. The error lists at most 64 \
-                   issues. When more values are wrong, a last issue with the path `\"\"` says so.",
+                   The error has a list of issues: one for each wrong field or list element. \
+                   Each issue has a path, such as `items.2.price`, and a message. The error \
+                   message gives the number of issues. For an \
+                   `array<C>` the decode stops at the first bad element. The list has at most \
+                   64 issues. When there are more, the last issue says so, and its path is the \
+                   empty string.",
         },
         ErrorDoc {
             error: "LogicError",
@@ -816,9 +818,10 @@ const DECODE_AS_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RecursionError",
-            desc: "The call stack is full when a constructor runs. This happens when the call \
-                   starts with the stack almost full, or when a constructor recurses deeply. A \
-                   deep document within `maxDepth` does not throw this error.",
+            desc: "The call stack has no more room when a constructor is called. This happens \
+                   when a constructor calls itself many times, or when `decodeAs` is called from \
+                   deep recursion. A deeply nested document within `maxDepth` does not throw this \
+                   error.",
         },
     ],
 };
@@ -833,9 +836,10 @@ const IS_VALID_DOC: MethodDoc = MethodDoc {
         desc: "The JSON text to check.",
         shape: &[],
     }],
-    ret: "`true` when `$json` parses. `false` for text that is not valid JSON, nesting deeper \
-          than `512`, or a whole number too large for `int`. A valid document that is too large \
-          to decode under the memory limit still returns `true`.",
+    ret: "`true` when `$json` is a valid JSON document. `false` for text that is not valid \
+          JSON, nesting deeper than `512`, or a whole number too large or too small for \
+          `int`. A valid document returns `true` even when `decode` would run out of memory \
+          for it.",
     errors: &[],
 };
 

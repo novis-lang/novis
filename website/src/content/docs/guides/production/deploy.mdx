@@ -4,7 +4,7 @@ covers: []
 description: Put a new release in place, make the running server use it at once with nvs reload, and check the result.
 ---
 
-A running `nvs serve` uses new code and a new configuration without a restart. This page shows a
+A running `nvs serve` uses new code and most configuration changes without a restart. This page shows a
 deploy that is safe at every step. The last section shows how to work the same way while you
 develop, alone or with a coding agent.
 
@@ -66,11 +66,13 @@ such as the compile cache. If the server was started with `--data`, give the sam
 | Exit code | Meaning |
 |---|---|
 | `0` | Every server uses the files on disk. |
-| `1` | A configuration file or a program has an error. Each error is printed with its file and line. |
+| `1` | A configuration file or a program has an error. Each error is printed with its file and line. A server that did not reply also gives `1`. |
 | `2` | No server is running for this data folder. |
 
 When a program has an error, the server does not use the new version of it. Every request to that
 program fails with the error until you fix the file.
+When a server does not reply, the command cannot tell which files it uses. Its line says
+`could not be reached` or `closed the connection without a reply`.
 So a deploy script switches back to the previous release when the exit code is `1`:
 
 ```sh skip="a shell script that switches links"
@@ -82,7 +84,7 @@ mv -T current.new current
 nvs reload
 case $? in
   0) echo "The new release is live." ;;
-  1) echo "The new release has an error. Switching back."
+  1) echo "The reload failed. Switching back."
      ln -sfn releases/2026-11-20 current.new
      mv -T current.new current
      nvs reload

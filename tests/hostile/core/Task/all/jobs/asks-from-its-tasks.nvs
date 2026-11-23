@@ -1,9 +1,11 @@
 <?nvs
-// This script was started with `grants: ['fs.read']`. Its tasks try to connect to the network.
+// This script was started with `grants: ['fs.read']`, so it may only read files.
+// Its tasks try to connect to the network.
 
 class Ask
 {
-    // `Core\Http::allowUrl` needs `net.connect`. This returns `refused` when that right is missing.
+    // `Core\Http::allowUrl` needs the capability `net.connect`.
+    // `url()` returns `refused` when the script does not have it.
     public static function url(): string
     {
         try {
@@ -14,7 +16,8 @@ class Ask
         }
     }
 
-    // A group inside a task. Each level runs one more group, `$depth` levels deep.
+    // `nested()` runs `Core\Task::all` inside a task, and again inside that task.
+    // It does this `$depth` times, and the last task calls `url()`.
     public static function nested(uint $depth): string
     {
         if ($depth == 0) {
@@ -26,8 +29,8 @@ class Ask
         return $inner->next;
     }
 
-    // A task tries to start a script with every right. Starting a script needs
-    // `script.spawn`, which this script does not have.
+    // `widen()` tries to start a script with more capabilities. Starting a script
+    // needs `script.spawn`, and this script does not have it.
     public static function widen(): string
     {
         try {

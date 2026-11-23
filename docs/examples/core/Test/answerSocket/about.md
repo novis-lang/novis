@@ -10,5 +10,9 @@ After the first call to `answerSocket`, the program makes no network connections
 in `*` matches every URL that starts with the text before it. An exact URL wins, and then the
 longest prefix wins. `Core\Test::sentSocket` returns the messages your program sent.
 
+You can call `answerSocket` in a test and in a command-line program. In a server, it throws a
+`LogicError`. This includes a request, a connection, a scheduled task and a queued job. Code that a
+test starts may still call it, such as a request sent with `Core\Test::request`.
+
 **The examples below** show a service that sends messages, which service a URL gets, and a test of
 a client for a live price feed.

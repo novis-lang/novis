@@ -17475,7 +17475,8 @@ subclasses are then revocable too.
 job heap.
 
 If a class has a parent class and writes `implements Revocable`, the compiler reports the error
-`E1001`. Its help names the class with no parent. Write `implements Revocable` on that class instead.
+`E1001`. The help of the error names the top class of the hierarchy, the one with no parent. Write
+`implements Revocable` on that class instead.
 An interface that extends `Revocable` is the error `E1002`. A class that declares its own `revoke()`
 or `isRevoked()` is the error `E1003`. An abstract class with no parent may implement `Revocable`.
 
@@ -17487,7 +17488,8 @@ These uses throw:
 - an `inout` property argument, before the call and again when the value is written back;
 - a method call, `?->` included, and a `static` method that you call through the object;
 - a method that the class delegates to a property, and a call of a method reference;
-- a conversion to a string, such as a string with a hole, a concatenation or `echo`;
+- a conversion to a string, such as a variable inside a double-quoted string, a concatenation or
+  `echo`;
 - `<`, `<=`, `>`, `>=` and `<=>`, which call `compareTo`;
 - a `foreach` over the object;
 - `clone`, `Core\Json::encode`, and a `Core\Reflect` read, call or write.
@@ -17501,16 +17503,22 @@ The error message has this form: "This `Blog\Post` object was revoked in `src/Bl
 `revoke()` through `mixed` or `Core\Reflect` has no line in the source code. Then the message names
 only the class.
 
-`serialize()` of a revoked object throws too. So does sending it to a task or storing it in a cache.
-Each of them throws the error class it throws for any value it cannot copy. The message is the
-message of `RevokedObjectError`.
+`Core\Serialize::encode` of a revoked object throws too. So does sending it to a task or storing it
+in a cache. Each of these throws the same error class as for any other value that it cannot copy.
+The message is the message of `RevokedObjectError`.
 
 `Core\Debug::dump` does not throw. It prints the class name and `(revoked)`, and no properties.
+For an object that is not revoked, it prints the properties of the class and nothing else.
 
-`clone` of an object that is not revoked gives a new object. The new object is not revoked, and no
-collection contains it.
+In this section, a collection is a `Core\ObjectMap`, a `Core\ObjectSet` or a `Core\Heap`.
 
-A revoked object is never added to a collection. `set`, `add` and `push` of one do nothing.
+`clone` of an object that is not revoked gives a new object. The new object is not revoked. It is
+in no collection, even when the original object is. `Core\Serialize::decode` also gives a new object
+that is in no collection.
+
+`set`, `add` and `push` of a revoked object do nothing. So a collection never contains a revoked
+object. When the memory limit stops a `set`, `add` or `push`, the object is not added to that
+collection. If the object is revoked later, `revoke()` works as usual.
 
 `Core\ObjectMap<string, Post>` is not a `Core\ObjectMap<string, Storable>`, even when `Post` extends
 `Storable`. If it were, a program could add a `Storable` that is not a `Post` to a map of posts.
@@ -17521,9 +17529,9 @@ nullable type, and create the map the first time you need it:
 
 **Speed and memory.** A property read or a method call through a revocable class, an interface or
 `mixed` runs one extra check. Through any other class type there is no check. Each revocable object
-uses 16 more bytes. Its first collection adds 24 bytes, and each collection that contains it adds 32
-bytes. `revoke()` takes longer when more collections contain the object. The size of each collection
-does not change its speed. The memory belongs to the request and is freed when the request ends.
+uses 16 more bytes. The first time it is added to a collection, it uses 24 more bytes. Each
+collection that contains it adds another 32 bytes. `revoke()` takes longer when more collections
+contain the object. The size of each collection does not change its speed. The memory belongs to the request and is freed when the request ends.
 
 #### Example 01: an identity map forgets a deleted row
 
@@ -33322,7 +33330,7 @@ Returns the array with every given value added after its last entry. It works li
 | `$a` | `array<T>` | The array to extend. |
 | `...$values` | `T` | The values to add, in written order. |
 
-**Returns** `array<T>` — The entries of `$a` under their own keys, then each value under the next free integer key. That key is one past the largest key present. With no values, the result is `$a` itself.
+**Returns** `array<T>` — First every entry of `$a`, with its own key. Then each value, with the key that `$a[] = $v` would give it. If an entry was removed from `$a`, the new key can be higher than the largest key `$a` has now. With no values, the result is the same as `$a`.
 
 <a id="core-core-arr-prepend"></a>
 #### `Core\Arr::prepend`
@@ -35844,7 +35852,7 @@ Parses the JSON text `$json` into a value. A JSON object becomes a string-keyed 
 Core\Json::decodeAs<T>(string $json, { maxDepth?: uint }): T
 ```
 
-Parses the JSON object `$json` into an instance of `T`, a class with `#[Json\Derive]`. It reads every declared property, and it runs the constructor only when all of them match. Write `array<T>` to read a JSON array as one instance per element. You do not need to copy each field into the object yourself.
+Parses the JSON object `$json` into an instance of `T`. `T` is a class with the `#[Json\Derive]` attribute. Each property of the class reads the JSON field with the same name. The constructor runs only when every field has the right type. Write `array<T>` to read a JSON array as one instance per element.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -35853,7 +35861,7 @@ Parses the JSON object `$json` into an instance of `T`, a class with `#[Json\Der
 
 **Returns** `T` — A new `T` created from the fields of the document. For an `array<C>`, it is one new `C` per element, in the order of the document.
 
-**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, has an object with the same key twice, or contains a whole number too large for `int`. It is also thrown when the top level is not an object, or not an array for an `array<C>`. Fields that are missing or have the wrong type throw it too. Each failed field is one issue on the error, with its own path. The message gives the number of issues. A list stops at its first bad element, and each path contains the position of that element.; `LogicError` — `T` cannot be read from JSON because it does not have `#[Json\Derive]`. It is also thrown when `maxDepth` is `0` or above `1024`.; `RecursionError` — The call stack is full when a constructor runs. This happens when the call starts with the stack almost full, or when a constructor recurses deeply. A deep document within `maxDepth` does not throw this error.
+**Throws** `ParseError` — `$json` is not a valid JSON document, nests deeper than `maxDepth`, has an object with the same key twice, or contains a whole number too large for `int`. It is also thrown when the top level is not an object, or not an array for an `array<C>`. Fields that are missing or have the wrong type throw it too. The error has a list of issues: one for each wrong field or list element. Each issue has a path, such as `items.2.price`, and a message. The error message gives the number of issues. For an `array<C>` the decode stops at the first bad element. The list has at most 64 issues. When there are more, the last issue says so, and its path is the empty string.; `LogicError` — `T` cannot be read from JSON because it does not have `#[Json\Derive]`. It is also thrown when `maxDepth` is `0` or above `1024`.; `RecursionError` — The call stack has no more room when a constructor is called. This happens when a constructor calls itself many times, or when `decodeAs` is called from deep recursion. A deeply nested document within `maxDepth` does not throw this error.
 
 <a id="core-core-json-isvalid"></a>
 #### `Core\Json::isValid`
@@ -35862,13 +35870,13 @@ Parses the JSON object `$json` into an instance of `T`, a class with `#[Json\Der
 Core\Json::isValid(string $json): bool
 ```
 
-Checks whether `decode` accepts `$json` at the default depth of `512`. It parses the text to check it.
+Checks whether `$json` is a valid JSON document at the default depth of `512`. It reads the text and builds no values, so it is faster than `decode` and uses less memory.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$json` | `string` (neutral) | The JSON text to check. |
 
-**Returns** `bool` — `true` when `$json` parses. `false` for text that is not valid JSON, nesting deeper than `512`, or a whole number too large for `int`.
+**Returns** `bool` — `true` when `$json` is a valid JSON document. `false` for text that is not valid JSON, nesting deeper than `512`, or a whole number too large or too small for `int`. A valid document returns `true` even when `decode` would run out of memory for it.
 
 <a id="core-core-json-decodeeach"></a>
 #### `Core\Json::decodeEach`
@@ -38057,11 +38065,11 @@ Reads an ISO 8601 or RFC 3339 timestamp that includes its own offset, such as `2
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$text` | `string` (neutral) | The timestamp text, with a date, `T` or one space, a time and a `Z` or `±HH:MM` offset. |
+| `$text` | `string` (neutral) | The timestamp text, with a date, `T` or one space, a time and a `Z` or `±HH:MM` offset. `T` and `Z` are upper case. A part of a second follows a `.`. |
 
 **Returns** `Core\Time\Instant` — The `Instant` the text names.
 
-**Throws** `ParseError` — `$text` is not such a timestamp. The error names the part of the text where reading stopped. It is also thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.
+**Throws** `ParseError` — `$text` is not such a timestamp. The error names the part of the text where reading stopped. A lower-case `t` or `z` throws, and so does a `,` before the part of a second. The second `60` and an offset without a colon, such as `+0100`, also throw. It is also thrown for a time before `-9999-01-02T01:59:59Z` or after `9999-12-30T22:00:00Z`.
 
 <a id="core-core-time-instant-in"></a>
 #### `Core\Time\Instant->in`
@@ -38087,7 +38095,7 @@ $instant->toEpochSeconds(): int
 
 Returns the Unix timestamp of this instant: the whole seconds since 1 January 1970 in UTC.
 
-**Returns** `int` — An `int`, negative before 1970. The part of a second is cut off, toward zero.
+**Returns** `int` — An `int`, negative before 1970. The part of a second is rounded down, to the earlier second. Half a second before 1970 gives `-1`.
 
 <a id="core-core-time-instant-toepochmillis"></a>
 #### `Core\Time\Instant->toEpochMillis`
@@ -38096,9 +38104,9 @@ Returns the Unix timestamp of this instant: the whole seconds since 1 January 19
 $instant->toEpochMillis(): int
 ```
 
-Returns the whole milliseconds since 1 January 1970 in UTC, as JavaScript counts time.
+Returns the whole milliseconds since 1 January 1970 in UTC. JavaScript counts time in the same way.
 
-**Returns** `int` — An `int`, negative before 1970. The part of a millisecond is cut off, toward zero. Every instant fits.
+**Returns** `int` — An `int`, negative before 1970. The part of a millisecond is rounded down, to the earlier millisecond. Half a millisecond before 1970 gives `-1`. The count of every instant fits in an `int`.
 
 <a id="core-core-time-instant-toepochmicros"></a>
 #### `Core\Time\Instant->toEpochMicros`
@@ -38109,7 +38117,7 @@ $instant->toEpochMicros(): int
 
 Returns the whole microseconds since 1 January 1970 in UTC.
 
-**Returns** `int` — An `int`, negative before 1970. The part of a microsecond is cut off, toward zero. Every instant fits.
+**Returns** `int` — An `int`, negative before 1970. The part of a microsecond is rounded down, to the earlier microsecond. Half a microsecond before 1970 gives `-1`. The count of every instant fits in an `int`.
 
 <a id="core-core-time-instant-plus"></a>
 #### `Core\Time\Instant->plus`
@@ -38769,7 +38777,7 @@ Tue 30 Jan
 
 | Member | Signature |
 |---|---|
-| [`Core\Time\Date::at`](#core-core-time-date-at) | `at(int $y, uint $m, uint $d): Core\Time\Date` |
+| [`Core\Time\Date::at`](#core-core-time-date-at) | `at(int $year, uint $month, uint $day): Core\Time\Date` |
 | [`Core\Time\Date::fromIso`](#core-core-time-date-fromiso) | `fromIso(string $text): Core\Time\Date` |
 | [`Core\Time\Date->format`](#core-core-time-date-format) | `format(string $pattern): string` |
 | [`Core\Time\Date->plus`](#core-core-time-date-plus) | `plus(int $count, Core\Unit $unit): Core\Time\Date` |
@@ -38787,20 +38795,20 @@ Tue 30 Jan
 #### `Core\Time\Date::at`
 
 ```nvs skip
-Core\Time\Date::at(int $y, uint $m, uint $d): Core\Time\Date
+Core\Time\Date::at(int $year, uint $month, uint $day): Core\Time\Date
 ```
 
-Builds a date with no zone from its three fields. A date that does not exist, such as 30 February, throws an error.
+Builds a date from a year, a month and a day. A `Date` has no time of day and no time zone. A date that does not exist, such as 30 February, throws an error.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$y` | `int` | The year, within `-9999..=9999`. |
-| `$m` | `uint` | The month, `1` to `12`. |
-| `$d` | `uint` | The day of the month, which must exist in that month. |
+| `$year` | `int` | The year, from `-9999` to `9999`. |
+| `$month` | `uint` | The month, `1` to `12`. |
+| `$day` | `uint` | The day of the month, which must exist in that month. |
 
 **Returns** `Core\Time\Date` — The `Date`.
 
-**Throws** `RuntimeError` — A field is outside its range, or the three together are not a date that exists.
+**Throws** `RuntimeError` — The year, the month or the day is outside its range. It is also thrown when the date does not exist in the calendar, such as 30 February.
 
 <a id="core-core-time-date-fromiso"></a>
 #### `Core\Time\Date::fromIso`
@@ -38813,11 +38821,11 @@ Reads a date in the ISO 8601 form `YYYY-MM-DD`, such as `2024-03-01`. A `$text` 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$text` | `string` (neutral) | The date as `YYYY-MM-DD`. A year before year 1 starts with `-`. |
+| `$text` | `string` (neutral) | The date as `YYYY-MM-DD`. A year before year 0 starts with `-`. Year 0 is written `0000`. |
 
 **Returns** `Core\Time\Date` — The `Date`.
 
-**Throws** `ParseError` — `$text` is not in this form, such as `2024-3-1`, or it is not a real date, such as `2024-02-30`. The error says which part is wrong.
+**Throws** `ParseError` — `$text` is not in this form, such as `2024-3-1`, or it is not a real date, such as `2024-02-30`. The year `-0000` also throws. The error says which part is wrong.
 
 <a id="core-core-time-date-format"></a>
 #### `Core\Time\Date->format`
@@ -39627,7 +39635,7 @@ Finds a time zone by its name, such as `Europe/Berlin` or `America/New_York`. Th
 |---|---|---|
 | `$id` | `string` (neutral) | The name of the zone, such as `Asia/Tokyo`. An offset such as `+02:00` is not allowed here. Use `Zone::fixed` for an offset. |
 
-**Returns** `Core\Time\Zone` — The `Zone` with that name.
+**Returns** `Core\Time\Zone` — The `Zone` with that name. Upper and lower case do not matter, and the zone has the name as the database writes it. So `europe/berlin` gives the zone `Europe/Berlin`.
 
 **Throws** `RuntimeError` — `$id` is not a zone name in the database, or starts with `+` or `-`.
 
@@ -42657,13 +42665,15 @@ Returns the address of the test server that a `#[Test(server: true)]` test start
 Core\Test::scriptAnswers(array<string> $answers): void
 ```
 
-Gives the answers for the next `Core\Cli` prompts, so you can test a program that asks questions. Each prompt takes the first answer that is still waiting. It does not read the terminal.
+Gives the answers for the next questions your program asks with `Core\Cli`, such as `Core\Cli::confirm`. Such a question is called a prompt. Each prompt uses the next answer in the list, and the terminal is not read.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$answers` | `array<string>` | One answer per prompt, in the order the program asks. Write what a person would type, without the line ending. A `select` reads the number of a choice, and a `confirm` reads `y` or `n`. |
+| `$answers` | `array<string>` | One answer per prompt, in the order the program asks. Write what a person would type, without the line ending. `Core\Cli::select` reads the number of a choice, and `Core\Cli::confirm` reads `y` or `n`. |
 
-**Returns** `void` — Nothing. A second call adds its answers after the ones still waiting. When no answer is left, a prompt returns its `default` or throws `Core\Cli\NotInteractive`.
+**Returns** `void` — Nothing. A second call adds its answers to the end of the list. When the list is empty, a prompt returns the `default` you gave it. A prompt with no `default` throws `Core\Cli\NotInteractive`.
+
+**Throws** `LogicError` — The call runs in a server, such as in a request, a connection, a scheduled task or a queued job. A test may call it. Code that a test starts may call it too, such as a request sent with `Core\Test::request`. A command-line program may also call it.
 
 <a id="core-core-test-request"></a>
 #### `Core\Test::request`
@@ -42741,20 +42751,20 @@ Returns every message `Core\Mail::send` was given since this test started. This 
 Core\Test::answerHttp(string $url, uint $status, { json?: mixed, body?: string|bytes, headers?: array<string|array<string>>, tls?: Core\Http\TlsInfo }): void
 ```
 
-Gives a fake reply for one outbound URL. After the first call to `answerHttp`, every `Core\Http\Client` call in this test gets a fake reply. No call connects to the network.
+Gives a fake reply for one URL that your program calls. After the first call to `answerHttp`, every `Core\Http\Client` call in this test gets a fake reply. No call connects to the network.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$url` | `string` (sink) | The URL this reply is for: the whole URL, or a prefix that ends in `*`. Nothing is resolved and no host is looked up. The URL of each call is compared with this text. |
+| `$url` | `string` (sink) | The URL this reply is for. Give the whole URL, or a prefix that ends in `*`. A prefix matches every URL that starts with the text before the `*`. Each call's URL is compared with this text, and no host is looked up. |
 | `$status` | `uint` | The status code of the reply. It has three digits, from `100` to `999`. |
 | `{ json: … }` | `mixed` (default `(omitted)`) | A value that the reply sends as a JSON document. It is written exactly as `Core\Json::encode` writes it. The reply has the content type `application/json`, unless `headers` sets a content type. |
 | `{ body: … }` | `string\|bytes` (default `null`, neutral) | The body of a reply that is not JSON. It can be text, or the bytes of a reply that is not text. `Core\Http\Response::bytes` reads such a body, and `::text` throws an error for it. Give `body` or `json`, not both. |
-| `{ headers: … }` | `array<string\|array<string>>` (default `[]`) | The headers of the reply, with the name as the key. This is the shape `Core\Http\Options` uses for the headers of a request, with one addition. An array of strings under a name means the reply has that header on that many lines. `Core\Http\Response::headers` returns it that way. Upper and lower case do not matter in a name, as for any header name. |
-| `{ tls: … }` | `Core\Http\TlsInfo` (default `null`) | The TLS session the reply reports, from `Core\Test::tlsSession`. `Core\Http\Response::tls` returns it for every call this answer serves. Without it, `tls()` returns `null`. |
+| `{ headers: … }` | `array<string\|array<string>>` (default `[]`) | The headers of the reply, with the header name as the key. Each value is a string, or an array of strings. With an array, the reply has that header once for each string, and `Core\Http\Response::headers` returns them as an array. Upper and lower case do not matter in a header name. |
+| `{ tls: … }` | `Core\Http\TlsInfo` (default `null`) | The TLS session the reply reports. A TLS session is the details of an encrypted `https://` connection. Build one with `Core\Test::tlsSession`. `Core\Http\Response::tls` returns it for every call this answer serves. Without it, `tls()` returns `null`. |
 
 **Returns** `void` — Nothing. Each call adds one more reply, so a test can give a reply for each call it makes. An exact URL wins over a prefix, and the longest prefix wins among prefixes.
 
-**Throws** `LogicError` — The call gives both `json` and `body`, which are two ways to write one body. Or the status is not from `100` to `999`. Or the call gives a `tls` session for an `http://` URL, which has no TLS.
+**Throws** `LogicError` — The call gives both `json` and `body`, which are two ways to write one body. Or the status is not from `100` to `999`. Or the call gives a `tls` session for an `http://` URL, which has no TLS. Or the call runs in a server, such as in a request, a connection, a scheduled task or a queued job. A test may call it. Code that a test starts may call it too, such as a request sent with `Core\Test::request`. A command-line program may also call it.
 
 <a id="core-core-test-tlssession"></a>
 #### `Core\Test::tlsSession`
@@ -42763,20 +42773,20 @@ Gives a fake reply for one outbound URL. After the first call to `answerHttp`, e
 Core\Test::tlsSession({ version?: string, cipher?: string, verified?: bool, subject?: string, issuer?: string, expiry?: Core\Time\Instant }): Core\Http\TlsInfo
 ```
 
-Builds a TLS session for a test, with a real certificate chain, so a test can read a `Core\Http\TlsInfo` without a network.
+Builds a TLS session for a test. TLS is the encryption that an `https://` connection uses. The result is a `Core\Http\TlsInfo` with two real certificates, and no network is used.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `{ version: … }` | `string` (default `null`, neutral) | `TLSv1.3` or `TLSv1.2`. The default is `TLSv1.3`. |
-| `{ cipher: … }` | `string` (default `null`, neutral) | A cipher suite this build supports for that version, under its IANA name. The default is `TLS_AES_128_GCM_SHA256` for TLS 1.3 and `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256` for TLS 1.2. |
+| `{ cipher: … }` | `string` (default `null`, neutral) | The cipher suite: the set of encryption methods the session uses. Write its standard name, and use one this build supports for that version. The default is `TLS_AES_128_GCM_SHA256` for TLS 1.3 and `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256` for TLS 1.2. |
 | `{ verified: … }` | `bool` (default `true`) | What `verified()` returns. The default is `true`. |
-| `{ subject: … }` | `string` (default `null`, neutral) | The leaf certificate's subject, written as `subject()` returns it: `KEY=value` pairs such as `CN=api.example.com, O=Shop`, with the keys `CN`, `O`, `OU`, `C`, `ST` and `L`. The default is `CN=example.com`. |
-| `{ issuer: … }` | `string` (default `null`, neutral) | The subject of the CA certificate that signs the leaf, which is what `issuer()` returns. Written like `subject`. The default is `CN=Novis Test CA`. |
-| `{ expiry: … }` | `Core\Time\Instant` (default `null`) | When the leaf certificate expires, in whole seconds. The default is 90 days after `Core\Time::now()`, so a test with a fixed clock gets the same value every run. |
+| `{ subject: … }` | `string` (default `null`, neutral) | The subject of the server's own certificate, which is called the leaf certificate. The subject names who the certificate is for. Write it as `subject()` returns it: `KEY=value` pairs such as `CN=api.example.com, O=Shop`, with the keys `CN`, `O`, `OU`, `C`, `ST` and `L`. The default is `CN=example.com`. |
+| `{ issuer: … }` | `string` (default `null`, neutral) | The subject of the certificate authority (CA) that signed the leaf certificate. `issuer()` returns it. Write it like `subject`. The default is `CN=Novis Test CA`. |
+| `{ expiry: … }` | `Core\Time\Instant` (default `null`) | The date and time when the leaf certificate expires. It is kept in whole seconds. The default is 90 days after `Core\Time::now()`. So a test that sets its clock to a fixed time gets the same value every run. |
 
-**Returns** `Core\Http\TlsInfo` — A `Core\Http\TlsInfo`. Its `peerChain()` has two certificates: the leaf, then the CA that signed it. Pass it to `Core\Test::answerHttp` as `tls` to make a faked reply report it.
+**Returns** `Core\Http\TlsInfo` — A `Core\Http\TlsInfo`. Its `peerChain()` returns two certificates: the leaf certificate, then the CA certificate that signed it. Pass the result to `Core\Test::answerHttp` as `tls`, and the fake reply reports this session.
 
-**Throws** `LogicError` — The version is not `TLSv1.3` or `TLSv1.2`. Or the cipher is not one this build supports for that version. Or a subject or issuer is not written as `KEY=value` pairs with the keys above. Or the expiry is before 1950 or after 9999.
+**Throws** `LogicError` — The version is not `TLSv1.3` or `TLSv1.2`. Or the cipher is not one this build supports for that version. Or a subject or issuer is not written as `KEY=value` pairs with the keys above. Or the expiry is before 1950 or after 9999. Or the call runs in a server, such as in a request, a connection, a scheduled task or a queued job. A test may call it. Code that a test starts may call it too, such as a request sent with `Core\Test::request`. A command-line program may also call it.
 
 <a id="core-core-test-senthttp"></a>
 #### `Core\Test::sentHttp`
@@ -42796,15 +42806,17 @@ Returns every HTTP request the program sent after the first `Core\Test::answerHt
 Core\Test::answerSocket(string $url, array<string|bytes> $frames, { protocol?: string }): void
 ```
 
-Gives a fake peer for one outbound WebSocket URL, and this test does not use the network. A socket opened to a matching URL completes its handshake without connecting. It receives these frames in order, and then a close.
+Gives a fake WebSocket server for one URL, so this test does not use the network. The fake server is called the peer. A socket your program opens to a matching URL connects to it. The socket receives the peer's messages in order, and then the peer closes it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$url` | `string` (sink) | The URL this peer is for: the whole URL, or a prefix that ends in `*`. Nothing is resolved and no host is looked up. The URL given to `Core\Http\Client::openSocket` is compared with this text. Its scheme is still checked, so a `https` URL given here is not allowed when `openSocket` runs. |
-| `$frames` | `array<string\|bytes>` | What the peer sends, in order. A `string` is a text message and `bytes` is a binary message, the same as `send` and `sendBytes` write. After the last frame, `receive` returns `null`, which means the peer closed the socket. |
-| `{ protocol: … }` | `string` (default `null`, neutral) | The subprotocol the peer chooses in its `101` reply. It must be one that the call offered in `protocols`. If the peer chooses a name that was never offered, `openSocket` throws an error, as it does with a real peer. If you leave it out, the handshake chooses no subprotocol. |
+| `$url` | `string` (sink) | The URL this peer is for. Give the whole URL, or a prefix that ends in `*`. A prefix matches every URL that starts with the text before the `*`. The URL given to `Core\Http\Client::openSocket` is compared with this text, and no host is looked up. `openSocket` still throws an error for a URL whose scheme is not `ws` or `wss`. |
+| `$frames` | `array<string\|bytes>` | The messages the peer sends, in order. Each message is one frame. A `string` is a text message, and `bytes` is a binary message. The socket's `send` and `sendBytes` methods write the same two kinds. After the last frame, `receive` returns `null`, which means the peer closed the socket. |
+| `{ protocol: … }` | `string` (default `null`, neutral) | The subprotocol the peer chooses. A subprotocol is a name that both sides agree on when the socket opens. It must be one of the names your call offered in `protocols`. If the peer chooses a name that was never offered, `openSocket` throws an error, as it does with a real server. If you leave it out, the peer chooses no subprotocol. |
 
-**Returns** `void` — Nothing. Each call adds one more peer, so a test can give a peer for each socket it opens. An exact URL wins over a prefix, and the longest prefix wins among prefixes. Two sockets opened to one URL read that peer's frames separately. Each socket keeps its own place in the list.
+**Returns** `void` — Nothing. Each call adds one more peer, so a test can give a peer for each socket it opens. An exact URL wins over a prefix, and the longest prefix wins among prefixes. Two sockets opened to one URL each receive all of that peer's frames, from the first one.
+
+**Throws** `LogicError` — The call runs in a server, such as in a request, a connection, a scheduled task or a queued job. A test may call it. Code that a test starts may call it too, such as a request sent with `Core\Test::request`. A command-line program may also call it.
 
 <a id="core-core-test-sentsocket"></a>
 #### `Core\Test::sentSocket`
@@ -42828,9 +42840,9 @@ Creates a test double: a fake `T` built from an object of functions, one for eac
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$answers` | `object` | One field per method of `T`, with the same name as the method. Each field has the function that runs when that method is called. A field for a method that `T` does not declare does not compile. A method of `T` that has no field does not compile either. |
+| `$answers` | `object` | One field per method of `T`, with the same name as the method. Each field has the function that runs when that method is called. A field for a method that `T` does not declare does not compile. A method of `T` that has no field does not compile either. The exception is a method that has a body in the interface. Without a field, that body runs. With a field, the field's function runs. |
 
-**Returns** `T` — The double, typed as `T`. It records every call made to it, and `Core\Test::assertCalled` reads that record later. A backtrace shows no class that you did not write.
+**Returns** `T` — The double, typed as `T`. It records every call made to it, and `Core\Test::assertCalled` reads that record later. A backtrace through the double shows only classes that you wrote.
 
 **Throws** `LogicError` — `T` declares more methods than one double supports. This limit is fixed, and it is far above the size of the interfaces a test usually replaces.
 
@@ -43564,7 +43576,7 @@ deadline hit
 Core\Task::all({ name: callable(): T, ... } $tasks, { limit?: uint, deadline?: Core\Time\Duration }): S
 ```
 
-Runs every function in the `$tasks` object at the same time, and waits until all of them have finished. The result is an object with the same field names, and each field has the type its function returns.
+Runs every function in the `$tasks` object at the same time, and waits until all of them have finished. The result is an object with the same field names, and each field has the type its function returns. Each task has the same capabilities and the same memory limit as the code that calls `all()`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -60308,7 +60320,8 @@ the class. A line outside every test class stops the run with exit status `2`. T
 nearest test class in the file. A Windows path such as `C:\app\CartTest.nvs:42` keeps its drive
 letter.
 
-The command runs two kinds of test, and the path decides which kind:
+The command runs two kinds of test: programs with `#[Test]` methods, and `.nvst` case files. The
+path decides which kind:
 
 - **A `.nvs` path is a program**, and its `#[Test]` methods run. Each `public` `void` instance
   method with `#[Test]` is one test. Classes are reported in name order, and methods in the order
@@ -60319,9 +60332,8 @@ The command runs two kinds of test, and the path decides which kind:
   requires the application's bootstrap file. That file gives the whole directory its `autoload`
   declarations. A directory with both `.nvs` and `.nvst` files is an error.
 - **Any other path is a `.nvst` case file, or a directory of `.nvst` files.** A case is one program
-  with its expected output. The report is a summary, such as `3 passed, 0 failed, 0 skipped`. Only
-  here does the file extension matter. A program in a file not named `.nvs` is read as a case, and
-  it fails to parse.
+  with its expected output. The report is a summary, such as `3 passed, 0 failed, 0 skipped`. A
+  program in a file whose name does not end in `.nvs` is read as a case, so it fails to parse.
 
 One run does not mix the two kinds. The exit status is not zero when a test or a case failed. A
 skipped one is not a failure. *Which kind of test to write*, in [testing](#lang-testing), says
@@ -60359,8 +60371,8 @@ skipped: not written yet
 - `--tag <tag>` runs only the tests that have this tag. A test gets tags with
   `#[Test(tags: ['slow', 'db'])]`. You can give `--tag` more than once. A test then runs when it has
   at least one of the tags.
-- `--skip-tag <tag>` does not run the tests that have this tag. You can give it more than once. It
-  wins over `--tag`.
+- `--skip-tag <tag>` does not run the tests that have this tag. You can give it more than once. A
+  test with this tag does not run, even when it also has a tag that `--tag` names.
 - `--shard <n>/<m>` runs one of `m` parts of the tests. `--shard 2/4` runs the second of four parts.
   Each test is in exactly one part, and it stays in that part when other tests are added.
 - `--since <ref>` runs only the tests that a change since a git branch, tag or commit can reach. See
@@ -60369,7 +60381,8 @@ skipped: not written yet
   run had no failed test, every selected test runs. You cannot use it together with `--since`.
 - `--format human|json|junit` chooses how a program's run is reported.
   - `human` is the default. It prints one line per test as it runs, then
-    `N failed, N passed, N skipped, N flaky in N ms`.
+    `N failed, N passed, N skipped, N flaky in N ms`. A flaky test is a test that failed and then
+    passed when it ran again.
   - `json` prints one JSON document on standard output at the end. `schemaVersion` is `2`. The
     document has a `summary` and one `tests[]` entry per test. An entry has `class`, `method`,
     `file`, `line`, `column`, `verdict` and `durationMs`. It also has `reason`, `failures` or
@@ -60415,15 +60428,15 @@ skipped: not written yet
 - `--bench` runs the methods with `#[Bench]` and no test. It is an error beside `--mutate` or
   `--jobs`.
 - `--opt-level none|speed` compiles the tests at this optimisation level. The default is `speed`,
-  the level `nvs run` uses. A test that passes at one level and fails at the other shows a bug in
-  Novis.
-- `--probes` runs the tests with the coverage probes compiled in, and records nothing. A test that
-  passes without it and fails with it shows a bug in Novis.
+  the level `nvs run` uses. A test that passes at one level and fails at the other means that Novis
+  has a bug.
+- `--probes` compiles the tests with the code that counts coverage, but writes no coverage. A test
+  that passes without it and fails with it means that Novis has a bug.
 - `--cases <file>` runs only the `.nvst` case files this file lists, one path per line.
 - `--record <dir>` writes, for each `.nvst` case, the classes and files it used into this folder.
 - `--shared-worker` also runs each `.nvst` case in one shared process, after its own run passed.
-  A case fails when its output there is different. Then the case read something an earlier case
-  left behind.
+  A case fails when its output in the shared process is different. This means that the case read
+  something an earlier case left behind.
 - `--update` rewrites each failed `Core\Test::assertMatchesInline` snapshot in the source file. It
   is **the only flag with which `nvs test` writes to a source file**. It replaces the `$expected`
   string and nothing else. A passing snapshot does not change, and neither does any other line of
@@ -60447,7 +60460,7 @@ A `.nvst` case is a list of sections, each starting with a `--SECTION--` header:
 
 ```text
 --TEST--
-a read outside the granted roots is refused
+a file inside the allowed folder can be read
 --FILE nvs.toml--
 [capabilities.fs]
 read = ["data"]
@@ -60466,22 +60479,30 @@ note
 
 `--since main` runs only the tests that a change since the git branch `main` can reach. `<ref>` can
 be a branch, a tag or a commit. Novis runs `git diff` against it in the program's folder. A line you
-added or edited is a change. So is every line of a new file that git does not track yet.
+added or edited is a change. So is every line of a new file that git does not track yet. A deleted
+file is a change too. A renamed file counts as a deleted file and a new file.
 
 Each run with `--since`, a coverage flag or `--mutate` records which methods each test ran. Novis
 keeps this record in its data folder, one for each program. A test runs when one of these is true:
 
 - in the recorded run, it ran a method you changed;
+- in the recorded run, it ran a method you deleted, or a method in a file you deleted or renamed;
 - you added or changed the test itself;
 - the record does not have the test.
 
-Sometimes Novis cannot tell which tests a change affects. Then every test runs, and the first line
-of the report says why:
+A run that leaves a test out, for example with `--filter`, does not remove it from the record. A
+later `--since` run still selects it for the changes it has not run against.
+
+When Novis cannot tell which tests a change affects, it runs more tests, never fewer. Then every
+test runs, and the first line of the report says why:
 
 - no run of this program was recorded yet;
 - a line outside a method body changed, such as a property, a method's parameters, an attribute or
   a `use` line;
-- a file that is not a `.nvs` file changed, such as `nvs.toml` or a file a test reads.
+- a file in the program's folder that is not a `.nvs` file changed, such as `nvs.toml` or a file a
+  test reads;
+- a file outside the program's folder changed, and it is not one of the program's files;
+- Novis cannot find a changed path, such as a deleted file whose folder is also gone.
 
 The tests run with coverage on, so that the run can record what they reach. Use `--since` while you
 edit, and run every test in CI. `--since` works with `--filter`, `--tag`, `--skip-tag` and
@@ -62696,27 +62717,32 @@ origin = "https://{1:lower}.example.com"  # what Core\Router::urlAbsolute prepen
 
 [[server.mount]]
 prefix = "/admin"
-entry  = "Backoffice/public/index.nvs"    # an explicit mount overrides a scanned one at the same key
+entry  = "Backoffice/public/index.nvs"    # replaces a scanned mount with the same prefix and host
 
 [[server.mount]]
 host   = "shop.example.com"               # compared without regard to case
 entry  = "Shop/public/index.nvs"
 ```
 
-- A `scan` expands against the disk into ordinary mounts when the server starts. It expands again
-  when a scanned directory changes, and when a reload changes `root` or a mount. `*` matches exactly one segment of letters, digits, `.`, `_` and `-`, not
-  beginning with a dot. `{n}` is the nth capture as the directory spells it, `{n:lower}` the same
-  in lower case, so a directory named `Blog` is served at `/blog` while `Core\Request::mount()`
-  still reports `Blog`. Any other brace is an error at start and under `nvs config check`.
-- `root` is required whenever a mount is written, and every resolved path must lie inside it.
-  A relative `root` resolves against the file it is written in.
-- Two explicit mounts at one key are an error. A scan that matched no file refuses the start.
-- A mount whose entry file does not compile at start is still served. Its requests answer `500`
-  until an edit compiles, and `nvs service status` lists it. The `origin` check runs on it when it
-  first compiles.
-- A mount routes and nothing else: it has no `mode`, no limits and no capabilities. Those are the
-  `[[app]]` block's, keyed on the entry file's path (the configuration chapter), and the two
-  usually name the same directory.
+- When the server starts, it looks for the files that match each `scan`. Each match becomes one
+  mount. The server looks again when a scanned directory changes, and when a reload changes `root`
+  or a mount.
+- In a `scan`, `*` matches exactly one path segment: one name between two `/`. The name may have
+  letters, digits, `.`, `_` and `-`, and it must not start with a dot.
+- `{n}` is the text that the nth `*` matched, written as the directory name is. `{n:lower}` is the
+  same text in lower case. So a directory named `Blog` is served at `/blog`.
+  `Core\Request::mount()` still returns `Blog`. Any other text in braces is an error at start and
+  under `nvs config check`.
+- `root` is required when the file has a mount. Every path that a mount finds must be inside it. A
+  relative `root` is read from the folder of the file it is written in.
+- Two explicit mounts with the same `prefix` and `host` are an error. When a `scan` matches no
+  file, the server does not start.
+- A mount whose entry file does not compile at start is still served. Its requests get `500` until
+  an edit compiles, and `nvs service status` lists it. The `origin` check runs on it when it first
+  compiles.
+- A mount only chooses the entry file. It has no `mode`, no limits and no capabilities. Those
+  settings are in the `[[app]]` block for the entry file's path, which the configuration chapter
+  describes. Most often the mount and the `[[app]]` block name the same directory.
 
 #### How a request resolves
 
@@ -62728,30 +62754,47 @@ entry  = "Shop/public/index.nvs"
 5. otherwise                                                                          -> run the mount's entry
 ```
 
-In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do not run: match, strip,
-entry. With `dispatch = "path"` and `static = true`, which is what development gives when neither
-key is written, the sequence is `try_files $uri /index.nvs`. A prefix is matched exactly, and in steps 3 and 4 the URL has to write the name of
-the file exactly as the disk has it. A name in another case, a name with a dot or a space added at
-its end and a Windows short name such as `REPORT~1.NVS` are each a file that is not there, on every
-platform. A trailing slash is never added or removed: `/users` and `/users/` are two URLs. `HEAD`
-runs as `GET` with the body discarded.
+In production, `dispatch = "entry"` and `static = false`. So steps 3 and 4 do not run, and every
+request runs the mount's entry. In development, when neither key is written, the server uses
+`dispatch = "path"` and `static = true`. That works like `try_files $uri /index.nvs` in nginx.
 
-`health_path`, when set, is matched ahead of every mount: `200` with an empty body while the
-process accepts, `503` while it drains, no dependency checked and nothing logged.
+A prefix is matched exactly. In steps 3 and 4, the URL must write the file name exactly as it is on
+the disk. On every platform, these names find no file:
+
+- a name in another case;
+- a name with a dot or a space added at its end;
+- a Windows short name, such as `REPORT~1.NVS`.
+
+A slash at the end of a URL is never added or removed, so `/users` and `/users/` are two URLs.
+`HEAD` runs as `GET`, and the server does not send the body.
+
+`health_path` is off by default. When you set it, the server checks it before every mount. It
+returns `200` with an empty body while the server accepts requests. It returns `503` while the
+server finishes its last requests before it stops. It checks no database or other service, and it
+writes nothing to the log.
 
 #### Development: the `Host` check
 
-In `development` mode, the server checks the `Host` header of every request that comes from this
-machine. The host must be one of these:
+In `development` mode, the server checks the `Host` header of every connection that comes from this
+machine. A local proxy is checked too, whatever it writes in `X-Forwarded-For`. The host must be
+one of these:
 
 - `localhost`, or a name that ends in `.localhost`, such as `blog.localhost`
 - a loopback address, such as `127.0.0.1` or `[::1]`
 - the `host` of a `[[server.mount]]`
 - an entry in `[server] development_hosts`
 
-Any other host gets `421 Misdirected Request` with an empty body. The log has a `Warn` line with
-the host and the setting to change. This check stops a web page on another site from using your
-development server. Such a page can make its own name point at `127.0.0.1`.
+Any other host gets `421 Misdirected Request`. The body is one line of text with the host and the
+setting to change:
+
+```text
+421 Misdirected Request: this development server does not answer for the host "app.test".
+Add "app.test" to development_hosts in the [server] block of nvs.toml to allow it.
+```
+
+The log has a `Warn` line with the same host and setting. It is written once per host per minute.
+This check stops a web page on another site from using your development server. Such a page can
+make its own name point at `127.0.0.1`.
 
 A local proxy that sends its own host name needs that name in `development_hosts`:
 
@@ -62766,12 +62809,17 @@ no request is checked.
 
 #### Static files
 
-With `static = true`, step 3 serves the exact file and nothing else: no directory listing,
-`index.html` as the only default document, the type from a fixed extension table and
-`application/octet-stream` for an unknown one. Freshness is `Cache-Control: no-cache` with one
-strong `ETag`; one `Range` is honoured and anything else is a `416`. A `.nvs` file is never served
-as source, under any setting, from any mount. This is a development convenience and a fallback,
-not a CDN: there is no `max-age` and no precompressed lookup.
+With `static = true`, step 3 serves the exact file and nothing else:
+
+- There is no directory listing. `index.html` is the only file served for a directory.
+- The `Content-Type` comes from a fixed table of file extensions. An unknown extension gets
+  `application/octet-stream`.
+- Each response has `Cache-Control: no-cache` and one strong `ETag`.
+- A request with one valid `Range` gets that part of the file. Any other `Range` gets `416`.
+
+A `.nvs` file is never served as text, under any setting, from any mount. Static serving is meant
+for development and for a few files. It sends no `max-age`, and it does not look for a compressed
+copy of a file.
 
 ### Links between modules
 
@@ -62852,15 +62900,16 @@ without a restart.
 
 **The list is empty.** This is the default, and the server reads no forwarding header.
 `Core\Request::clientIp()` returns the address that connected, and `Core\Request::scheme()` returns
-`http`. A program can still read `X-Forwarded-For` with `Core\Request::header`, as a `tainted`
-string.
+`http`. A program can still read `X-Forwarded-For` with `Core\Request::header`. The result is a
+`tainted` string: a value that came from the client and is not checked yet.
 
 **The list has the address that connected.** `clientIp()` returns the last address in
-`X-Forwarded-For` that is not in the list. A client can send its own `X-Forwarded-For`, and the
-proxy adds the real address after it, so the server does not use the addresses the client wrote.
-`scheme()` returns `https` when the last value in `X-Forwarded-Proto` is `https`, and only the
-response to such a request has the HSTS header. `X-Forwarded-For` is the only address header the
-server reads.
+`X-Forwarded-For` that is not in the list. A client can send its own `X-Forwarded-For`. The proxy
+adds the real address after it. So the server does not use the addresses that the client wrote.
+
+`scheme()` returns `https` when the last value in `X-Forwarded-Proto` is `https`. Only the response
+to such a request has the HSTS header. That header tells the browser to use HTTPS for this site.
+`X-Forwarded-For` is the only address header that the server reads.
 
 ```nvs skip
 <?nvs
@@ -62882,10 +62931,16 @@ request that arrives over a Unix socket. The operating system decides who may co
 socket, so it needs no entry of its own. With an empty list, `clientIp()` returns `null` for such a
 request.
 
-A production server whose configuration has a `[server]` block prints one warning at start when
-`trusted_proxies` is empty and every address it listens on is a loopback address or a Unix socket.
-A server like this is usually behind a proxy, and without the list every request has the address of
-the proxy, or none.
+A production server can print one warning at start. It does this when its configuration has a
+`[server]` block, `trusted_proxies` is empty, and it listens only on loopback addresses or Unix
+sockets. A server like this is usually behind a proxy. Without the list, every request has the
+address of the proxy, or no address.
+
+**In `development` mode,** the server checks the `Host` header of each request from a proxy on this
+machine. For this check, the server uses the address that connected. It does not read
+`X-Forwarded-For`. A proxy that sends its own host name needs that name in
+`[server] development_hosts`. The section *Development: the `Host` check*, under *Mounts*, has the
+details.
 
 ### What reaches a running server
 
@@ -62960,19 +63015,36 @@ default for the jobs queued without it.
     nvs reload [--config <path>]... [--data <dir>] [--json]
 
 `nvs reload` makes a running `nvs serve` use what is on disk now. Run it after you edit code or
-configuration. The server checks its configuration files and every program it has loaded at once.
-It does not wait for `settle`. The command returns when every compile has ended:
+configuration. The server checks its configuration files and every program it has loaded
+immediately. It does not wait for `[opcache] settle`, the time the files must stay unchanged before
+an automatic compile. The command returns when every compile has ended:
 
 | Exit code | Meaning |
 |---|---|
-| `0` | every server uses the files on disk |
-| `1` | a configuration file or a program has an error; each error is printed with its file and line |
-| `2` | no server is running for this data folder |
+| `0` | every server replied, and every server uses the files on disk |
+| `1` | there is an error, or one of the servers did not reply |
+| `2` | no server is running for this data folder, or every server is shutting down |
 
 ```text
 $ nvs reload
 server 4120: configuration unchanged, 1 program reloaded, 0 programs with errors
 ```
+
+Exit code `1` has two causes, and the output names each one:
+
+- There is an error. The command prints each error of a configuration file or a program with its
+  file and line, such as `  error: shop/index.nvs:12: ...`. An error inside the server's own check
+  is printed as `  error: server: ...`, and its details are in the server's log.
+- A server did not reply. Its line is `server 4120: could not be reached: ...` or
+  `server 4120: closed the connection without a reply`. The command cannot say which files that
+  server uses. Look in that server's log.
+
+On Windows, the command also checks that the server it reached is the process the data folder
+names. Any other process is reported as `could not be reached`.
+
+A server that is shutting down does not reload. Its line is `server 4120: is stopping, so it did
+not reload`. This line does not make the exit code `1`. When every server is shutting down, the
+exit code is `2`.
 
 The command finds the data folder the same way `nvs serve` does, and reloads every server that uses
 it. Only the account that runs the server, or an administrator, can reload it. A request cannot.
@@ -63585,7 +63657,8 @@ leaves it with `..`, with an absolute path or through a symbolic link is error `
 
 A `[[restrict]]` table says that a class, a method or a namespace may be used only in some places. A
 framework uses it to make sure that every module calls its own helper, and not the method the helper
-wraps. The check happens when the program compiles, so it costs nothing when the program runs.
+wraps. Almost every use is checked when the program compiles. That check costs nothing when the
+program runs.
 
 ```toml
 [[restrict]]
@@ -63600,53 +63673,70 @@ replace = 'Framework\Core\Url::signed($route, $params)'
 | `use` | the declaration that is restricted. It is required |
 | `allow` | the list of places that may use it. It is required, and `[]` allows no place |
 | `note` | the text the error and the editor show. It is optional, and it may use Markdown |
-| `replace` | the code to write instead, as one Novis expression. It is optional, and only for a method or a function |
+| `replace` | the code to write instead, as one Novis expression. It is optional, and only for a method |
 
 `use` names one of these:
 
 - a class, an interface or an enum: `'Shop\Vault'`
-- a method, a property or a class constant: `'Shop\Vault::open'`
-- a function: `'Shop\format'`
+- a method, a property, a class constant or an enum case: `'Shop\Vault::open'`
 - a namespace: `'Shop'` for its own declarations, or `'Shop\*'` for every namespace below it too
 
-An entry of `allow` is a namespace, `'Shop'` or `'Shop\*'`, a class, `'Shop\Door'`, or one method
-of a class, `'Shop\Door::open'`. Code inside the restricted declaration, its class or its namespace
-may always use it.
+Novis has no functions outside a class, so the only callable that `use` names is a method.
 
-In `replace`, the method's parameters and `$this` are the values of the call. The compiler checks
+An entry of `allow` is a namespace, `'Shop'` or `'Shop\*'`, a class, `'Shop\Door'`, or one method
+of a class, `'Shop\Door::open'`. A class entry allows that class only. It does not allow a namespace
+with the same name, such as `Shop\Door\Lock`. Code inside the restricted declaration, its class or
+its namespace may always use it.
+
+`replace` can use the restricted method's parameters and `$this`. At each use, they are the values
+of that call. The compiler checks
 the replacement where it is written. The editor offers it as a fix at each use that is not allowed.
 
 #### What counts as a use
 
 These are uses:
 
-- a call, also through `parent::`, a subclass or an interface
+- a call, also through `parent::` or a subclass
 - a method reference, such as `callable $open = Shop\Vault::open;`
 - `new`, a property read or write, a class constant and an enum case
+- `static::NAME`, which uses the constant `NAME`
+- a call or a property access on a variable with a union type, such as `Shop\Vault|Shop\Safe`.
+  It is a use of that method or property on each class of the union
 - a call or a property access through a `mixed` or `object` variable
 - `$object->$key`, where `$key` is a `property<T>`. It is a use of every public property of `T`
+- a link to a route or a route test written as a call. It is a use of the method it names
+- a constant or an enum case in a property default, a parameter default or an attribute's arguments
+- `Core\Program::implementing`, `implementingWith` and `constructors`. Each is a use of every class
+  it creates
 - `Core\Reflect\ClassInfo`'s `call`, `get`, `set`, `constant` and `construct`
 
 A type, an `is` test and `catch` are not uses. Allowed code can pass a restricted object to other
 code through typed parameters.
+
+A call through an interface or a parent class is a use of the method of that interface or parent
+class. The compiler cannot know which class runs the call. So an entry on the class `Shop\Vault`
+does not apply to `$lock->open()` when `$lock` is a `Shop\Lockable` variable. Restrict
+`Shop\Lockable::open` to check those calls too.
 
 A use outside the allowed places is error `E0664`, and the program does not compile. The message
 says what is not allowed, where it is allowed and the `note`. Then it names the `package.toml` file
 and the line of the rule. A call through `mixed` and a reflective call cannot be checked when the
 program compiles. They throw a `LogicError` with the same text when they run.
 
-A restriction on a method holds for every method that overrides or implements it. A `use` that
-names such an overriding method is error `E0665`. Restrict the parent's method instead.
+A restriction on a method also applies to every method that overrides or implements it. So a `use`
+must not name an overriding method: that is error `E0665`. Restrict the parent's method instead.
 
 #### Where the tables are read
 
 Novis reads `[[restrict]]` from your application's `package.toml` and from the `package.toml` of
-each package your program loads. A package's `allow` entries must all be inside the package's own
+each package your program loads. A package's `use` must name code inside the package's own
+namespace, or code in `Core`. A package cannot restrict another package or your application. Any
+other `use` is error `E0665`. A package's `allow` entries must all be inside the package's own
 namespace. A package's entry allows only the files inside that package's folder. A file outside the
 folder that writes `namespace Framework\Core;` is still not allowed.
 
-Nothing lifts a restriction. Every entry on a declaration must allow the use. Your application's file
-cannot remove or widen an entry of a package.
+No file can remove a restriction. When several entries restrict the same declaration, a use must be
+allowed by each of them. Your application's file cannot remove or widen an entry of a package.
 
 A broken entry is error `E0665` at its line. A `replace` that does not compile is error `E0666`. A
 `Core` target that does not exist is error `E0665`. Any other target that names nothing in your
@@ -63668,7 +63758,7 @@ modules/
 ```
 
 When the entry file of `Blog` loads a file of `modules/Framework`, the restrictions in
-`modules/Framework/package.toml` hold in `Blog` too. Every module that loads the framework gets the
+`modules/Framework/package.toml` apply in `Blog` too. Every module that loads the framework gets the
 same rules.
 
 `nvs pkg diff` reports a new restriction, or one that allows fewer places, as a breaking change.

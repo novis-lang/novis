@@ -86,6 +86,9 @@ namespace. `allow` lists the namespaces, classes and methods that may use it. `N
 namespace `Ns` and every namespace below it. An empty list, `allow = []`, allows no place. `note`
 and `replace` are optional.
 
+A package can restrict its own code and code in `Core`. It cannot restrict another package or a
+module, and such an entry is error `E0665`.
+
 ## A link to another module
 
 `Core\Router::url` returns the link to a route of another module. The compiler checks the link. The
@@ -104,7 +107,8 @@ the link with an origin.
 
 ## Two mounts for one module
 
-The server picks the mount a link goes through. It takes the first of these that serves the route:
+A module can have more than one mount. Then the server chooses which mount a link uses. It takes the
+first of these that serves the route:
 
 1. A mount from the same `[[server.mount]]` block. All modules of one `scan` are one block.
 2. A mount on the same host. The link is a path.

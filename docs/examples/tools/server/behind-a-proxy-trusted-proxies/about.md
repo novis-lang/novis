@@ -15,3 +15,8 @@ a courier you know brought the letter, because that courier saw who gave it to t
 
 **Good to know:** `clientIp()` returns `null` when the proxy wrote `unknown` in place of the
 address. You can always read both headers yourself with `Core\Request::header`.
+
+In `development` mode, the server checks the `Host` header of each request from a proxy on this
+machine. It does this whether or not the proxy is in the list. If your proxy sends its own host
+name, such as `app.test`, add that name to `[server] development_hosts`. Otherwise each request
+gets `421`, and the response says which host to add.

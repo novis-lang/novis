@@ -1147,7 +1147,9 @@ const ZONE_OF_DOC: MethodDoc = MethodDoc {
                allowed here. Use `Zone::fixed` for an offset.",
         shape: &[],
     }],
-    ret: "The `Zone` with that name.",
+    ret: "The `Zone` with that name. Upper and lower case do not matter, and the zone has \
+          the name as the database writes it. So `europe/berlin` gives the zone \
+          `Europe/Berlin`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "`$id` is not a zone name in the database, or starts with `+` or `-`.",
@@ -1379,18 +1381,19 @@ const INSTANT_TO_EPOCH_SECONDS_DOC: MethodDoc = MethodDoc {
     short: "Returns the Unix timestamp of this instant: the whole seconds since 1 January 1970 \
             in UTC.",
     params: &[],
-    ret: "An `int`, negative before 1970. The part of a second is rounded down, so an \
-          instant half a second before 1970 gives `-1`.",
+    ret: "An `int`, negative before 1970. The part of a second is rounded down, to the \
+          earlier second. Half a second before 1970 gives `-1`.",
     errors: &[],
 };
 
 /// `Core\Time\Instant::toEpochMillis`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_TO_EPOCH_MILLIS_DOC: MethodDoc = MethodDoc {
-    short: "Returns the whole milliseconds since 1 January 1970 in UTC, as JavaScript counts \
-            time.",
+    short: "Returns the whole milliseconds since 1 January 1970 in UTC. JavaScript counts time \
+            in the same way.",
     params: &[],
-    ret: "An `int`, negative before 1970. The part of a millisecond is rounded down, so an \
-          instant half a millisecond before 1970 gives `-1`. Every instant fits.",
+    ret: "An `int`, negative before 1970. The part of a millisecond is rounded down, to the \
+          earlier millisecond. Half a millisecond before 1970 gives `-1`. The count of every \
+          instant fits in an `int`.",
     errors: &[],
 };
 
@@ -1398,8 +1401,9 @@ const INSTANT_TO_EPOCH_MILLIS_DOC: MethodDoc = MethodDoc {
 const INSTANT_TO_EPOCH_MICROS_DOC: MethodDoc = MethodDoc {
     short: "Returns the whole microseconds since 1 January 1970 in UTC.",
     params: &[],
-    ret: "An `int`, negative before 1970. The part of a microsecond is rounded down, so an \
-          instant half a microsecond before 1970 gives `-1`. Every instant fits.",
+    ret: "An `int`, negative before 1970. The part of a microsecond is rounded down, to the \
+          earlier microsecond. Half a microsecond before 1970 gives `-1`. The count of every \
+          instant fits in an `int`.",
     errors: &[],
 };
 
@@ -1526,15 +1530,18 @@ const INSTANT_FROM_ISO_DOC: MethodDoc = MethodDoc {
     params: &[ParamDoc {
         name: "text",
         desc: "The timestamp text, with a date, `T` or one space, a time and a `Z` or \
-               `±HH:MM` offset.",
+               `±HH:MM` offset. `T` and `Z` are upper case. A part of a second follows a \
+               `.`.",
         shape: &[],
     }],
     ret: "The `Instant` the text names.",
     errors: &[ErrorDoc {
         error: "ParseError",
         desc: "`$text` is not such a timestamp. The error names the part of the text where \
-               reading stopped. It is also thrown for a time outside \
-               `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.",
+               reading stopped. A lower-case `t` or `z` throws, and so does a `,` before the \
+               part of a second. The second `60` and an offset without a colon, such as \
+               `+0100`, also throw. It is also thrown for a time before \
+               `-9999-01-02T01:59:59Z` or after `9999-12-30T22:00:00Z`.",
     }],
 };
 
@@ -2896,12 +2903,12 @@ const DATE_CARD: ClassDoc = ClassDoc {
 
 /// `Core\Time\Date::at`'s reference card — `rule:core-api/reference-card`.
 const DATE_AT_DOC: MethodDoc = MethodDoc {
-    short: "Builds a date with no zone from its three fields. A date that does not exist, such as \
-            30 February, throws an error.",
+    short: "Builds a date from a year, a month and a day. A `Date` has no time of day and no \
+            time zone. A date that does not exist, such as 30 February, throws an error.",
     params: &[
         ParamDoc {
             name: "year",
-            desc: "The year, within `-9999..=9999`.",
+            desc: "The year, from `-9999` to `9999`.",
             shape: &[],
         },
         ParamDoc {
@@ -2918,7 +2925,8 @@ const DATE_AT_DOC: MethodDoc = MethodDoc {
     ret: "The `Date`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A field is outside its range, or the three together are not a date that exists.",
+        desc: "The year, the month or the day is outside its range. It is also thrown when the \
+               date does not exist in the calendar, such as 30 February.",
     }],
 };
 
@@ -2928,14 +2936,16 @@ const DATE_FROM_ISO_DOC: MethodDoc = MethodDoc {
             written directly in the code is checked when the program compiles.",
     params: &[ParamDoc {
         name: "text",
-        desc: "The date as `YYYY-MM-DD`. A year before year 1 starts with `-`.",
+        desc: "The date as `YYYY-MM-DD`. A year before year 0 starts with `-`. Year 0 is \
+               written `0000`.",
         shape: &[],
     }],
     ret: "The `Date`.",
     errors: &[ErrorDoc {
         error: "ParseError",
         desc: "`$text` is not in this form, such as `2024-3-1`, or it is not a real date, such \
-               as `2024-02-30`. The error says which part is wrong.",
+               as `2024-02-30`. The year `-0000` also throws. The error says which part is \
+               wrong.",
     }],
 };
 

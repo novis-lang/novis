@@ -126,7 +126,8 @@ leaves it with `..`, with an absolute path or through a symbolic link is error `
 
 A `[[restrict]]` table says that a class, a method or a namespace may be used only in some places. A
 framework uses it to make sure that every module calls its own helper, and not the method the helper
-wraps. The check happens when the program compiles, so it costs nothing when the program runs.
+wraps. Almost every use is checked when the program compiles. That check costs nothing when the
+program runs.
 
 ```toml
 [[restrict]]
@@ -141,53 +142,70 @@ replace = 'Framework\Core\Url::signed($route, $params)'
 | `use` | the declaration that is restricted. It is required |
 | `allow` | the list of places that may use it. It is required, and `[]` allows no place |
 | `note` | the text the error and the editor show. It is optional, and it may use Markdown |
-| `replace` | the code to write instead, as one Novis expression. It is optional, and only for a method or a function |
+| `replace` | the code to write instead, as one Novis expression. It is optional, and only for a method |
 
 `use` names one of these:
 
 - a class, an interface or an enum: `'Shop\Vault'`
-- a method, a property or a class constant: `'Shop\Vault::open'`
-- a function: `'Shop\format'`
+- a method, a property, a class constant or an enum case: `'Shop\Vault::open'`
 - a namespace: `'Shop'` for its own declarations, or `'Shop\*'` for every namespace below it too
 
-An entry of `allow` is a namespace, `'Shop'` or `'Shop\*'`, a class, `'Shop\Door'`, or one method
-of a class, `'Shop\Door::open'`. Code inside the restricted declaration, its class or its namespace
-may always use it.
+Novis has no functions outside a class, so the only callable that `use` names is a method.
 
-In `replace`, the method's parameters and `$this` are the values of the call. The compiler checks
+An entry of `allow` is a namespace, `'Shop'` or `'Shop\*'`, a class, `'Shop\Door'`, or one method
+of a class, `'Shop\Door::open'`. A class entry allows that class only. It does not allow a namespace
+with the same name, such as `Shop\Door\Lock`. Code inside the restricted declaration, its class or
+its namespace may always use it.
+
+`replace` can use the restricted method's parameters and `$this`. At each use, they are the values
+of that call. The compiler checks
 the replacement where it is written. The editor offers it as a fix at each use that is not allowed.
 
 ## What counts as a use
 
 These are uses:
 
-- a call, also through `parent::`, a subclass or an interface
+- a call, also through `parent::` or a subclass
 - a method reference, such as `callable $open = Shop\Vault::open;`
 - `new`, a property read or write, a class constant and an enum case
+- `static::NAME`, which uses the constant `NAME`
+- a call or a property access on a variable with a union type, such as `Shop\Vault|Shop\Safe`.
+  It is a use of that method or property on each class of the union
 - a call or a property access through a `mixed` or `object` variable
 - `$object->$key`, where `$key` is a `property<T>`. It is a use of every public property of `T`
+- a link to a route or a route test written as a call. It is a use of the method it names
+- a constant or an enum case in a property default, a parameter default or an attribute's arguments
+- `Core\Program::implementing`, `implementingWith` and `constructors`. Each is a use of every class
+  it creates
 - `Core\Reflect\ClassInfo`'s `call`, `get`, `set`, `constant` and `construct`
 
 A type, an `is` test and `catch` are not uses. Allowed code can pass a restricted object to other
 code through typed parameters.
+
+A call through an interface or a parent class is a use of the method of that interface or parent
+class. The compiler cannot know which class runs the call. So an entry on the class `Shop\Vault`
+does not apply to `$lock->open()` when `$lock` is a `Shop\Lockable` variable. Restrict
+`Shop\Lockable::open` to check those calls too.
 
 A use outside the allowed places is error `E0664`, and the program does not compile. The message
 says what is not allowed, where it is allowed and the `note`. Then it names the `package.toml` file
 and the line of the rule. A call through `mixed` and a reflective call cannot be checked when the
 program compiles. They throw a `LogicError` with the same text when they run.
 
-A restriction on a method holds for every method that overrides or implements it. A `use` that
-names such an overriding method is error `E0665`. Restrict the parent's method instead.
+A restriction on a method also applies to every method that overrides or implements it. So a `use`
+must not name an overriding method: that is error `E0665`. Restrict the parent's method instead.
 
 ## Where the tables are read
 
 Novis reads `[[restrict]]` from your application's `package.toml` and from the `package.toml` of
-each package your program loads. A package's `allow` entries must all be inside the package's own
+each package your program loads. A package's `use` must name code inside the package's own
+namespace, or code in `Core`. A package cannot restrict another package or your application. Any
+other `use` is error `E0665`. A package's `allow` entries must all be inside the package's own
 namespace. A package's entry allows only the files inside that package's folder. A file outside the
 folder that writes `namespace Framework\Core;` is still not allowed.
 
-Nothing lifts a restriction. Every entry on a declaration must allow the use. Your application's file
-cannot remove or widen an entry of a package.
+No file can remove a restriction. When several entries restrict the same declaration, a use must be
+allowed by each of them. Your application's file cannot remove or widen an entry of a package.
 
 A broken entry is error `E0665` at its line. A `replace` that does not compile is error `E0666`. A
 `Core` target that does not exist is error `E0665`. Any other target that names nothing in your
@@ -209,7 +227,7 @@ modules/
 ```
 
 When the entry file of `Blog` loads a file of `modules/Framework`, the restrictions in
-`modules/Framework/package.toml` hold in `Blog` too. Every module that loads the framework gets the
+`modules/Framework/package.toml` apply in `Blog` too. Every module that loads the framework gets the
 same rules.
 
 `nvs pkg diff` reports a new restriction, or one that allows fewer places, as a breaking change.

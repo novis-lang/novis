@@ -310,7 +310,7 @@
   },
   "/guides/how-to-use/modules/": {
     "feature": "guides/how-to-use/modules.mdx",
-    "hash": "bc11ff291c115589",
+    "hash": "9b463119409e6e7e",
     "questions": [
       "How do I run several apps on one server?",
       "Serve every folder with an index file under its own path",
@@ -365,7 +365,7 @@
   },
   "/guides/production/deploy/": {
     "feature": "guides/production/deploy.mdx",
-    "hash": "50b38a4cbbf9538b",
+    "hash": "93307e6eb4685eaa",
     "questions": [
       "How do I deploy a new version without a restart?",
       "Switch to a new release folder with a symlink",
@@ -401,7 +401,7 @@
   },
   "/guides/production/reverse-proxy/": {
     "feature": "guides/production/reverse-proxy.mdx",
-    "hash": "af85ce48bc076624",
+    "hash": "7bd1f5fe8535f27a",
     "questions": [
       "How do I run Novis behind nginx or Caddy with HTTPS?",
       "Does Novis support HTTP/2 or HTTP/3?",
@@ -1431,7 +1431,7 @@
   },
   "/reference/cli/nvs-reload/": {
     "feature": "tools:server/nvs-reload",
-    "hash": "276d9fc1d5890069",
+    "hash": "8e209f8df289404e",
     "questions": [
       "Make my running server use the new code at once",
       "How do I know if a deploy has a compile error?",
@@ -1491,7 +1491,7 @@
   },
   "/reference/cli/nvs-test/": {
     "feature": "tools:cli/nvs-test",
-    "hash": "38263d80abbceb92",
+    "hash": "ec48c717d592769f",
     "questions": [
       "Run only the tests whose name matches some text",
       "Skip the slow tests that have a tag",
@@ -1985,7 +1985,7 @@
   },
   "/reference/core/arr/append/": {
     "feature": "Core\\Arr::append",
-    "hash": "fd13dbee84febc27",
+    "hash": "0a81a3314a594c3b",
     "questions": [
       "How do I add an item to the end of an array?",
       "Push a value onto a list",
@@ -6684,7 +6684,7 @@
   },
   "/reference/core/json/decodeas/": {
     "feature": "Core\\Json::decodeAs",
-    "hash": "c58a967f7bea0558",
+    "hash": "5e0bd19a6be2dc67",
     "questions": [
       "How do I read JSON straight into my own class?",
       "Fill an object from a JSON document",
@@ -6731,7 +6731,7 @@
   },
   "/reference/core/json/isvalid/": {
     "feature": "Core\\Json::isValid",
-    "hash": "e08caca433d1d83d",
+    "hash": "938ca352e6fada9b",
     "questions": [
       "How do I check if a string is valid JSON?",
       "Test JSON text without catching an error",
@@ -14628,7 +14628,7 @@
   },
   "/reference/core/task/all/": {
     "feature": "Core\\Task::all",
-    "hash": "9ad3d26e1ed00d0e",
+    "hash": "eff8aff8c6df6ad2",
     "questions": [
       "How do I call two web services at the same time?",
       "Load a database query and a cache lookup in parallel",
@@ -14704,7 +14704,7 @@
   },
   "/reference/core/test/answerhttp/": {
     "feature": "Core\\Test::answerHttp",
-    "hash": "808b09f340d6d8b7",
+    "hash": "a90800cfbd27dc66",
     "questions": [
       "How do I fake an HTTP API reply in a test?",
       "Mock an external web service response",
@@ -14715,7 +14715,7 @@
   },
   "/reference/core/test/answersocket/": {
     "feature": "Core\\Test::answerSocket",
-    "hash": "3609ceb2ab8e3555",
+    "hash": "5fe19c7416461731",
     "questions": [
       "How do I fake a WebSocket server in a test?",
       "Send scripted messages to my WebSocket client",
@@ -14855,7 +14855,7 @@
   },
   "/reference/core/test/double/": {
     "feature": "Core\\Test::double",
-    "hash": "10ac40f0ae27a353",
+    "hash": "35a26d0fac7aea1f",
     "questions": [
       "How do I create a mock object for an interface?",
       "Replace a real service with a fake in tests",
@@ -14896,7 +14896,7 @@
   },
   "/reference/core/test/request/": {
     "feature": "Core\\Test::request",
-    "hash": "058f4b4c5a28ba1d",
+    "hash": "95c5ae8f4ee950a1",
     "questions": [
       "How do I test a route of my web app?",
       "Send a fake HTTP request to my own program",
@@ -14920,7 +14920,7 @@
   },
   "/reference/core/test/scriptanswers/": {
     "feature": "Core\\Test::scriptAnswers",
-    "hash": "5afeafb045c63279",
+    "hash": "f72a248152626944",
     "questions": [
       "How do I test a command-line program that prompts for input?",
       "Give typed replies to prompts in a test",
@@ -14961,7 +14961,7 @@
   },
   "/reference/core/test/serverurl/": {
     "feature": "Core\\Test::serverUrl",
-    "hash": "10d18d468e6d4e54",
+    "hash": "1a12bf8afa46e4da",
     "questions": [
       "How do I start a real web server in a test?",
       "Get the address of the local test server",
@@ -14971,7 +14971,7 @@
   },
   "/reference/core/test/tlssession/": {
     "feature": "Core\\Test::tlsSession",
-    "hash": "87fd3e5e1e1e6f01",
+    "hash": "00e83a0a72a955f6",
     "questions": [
       "How do I fake an HTTPS certificate in a test?",
       "Test code that reads TLS version and cipher",
@@ -15503,7 +15503,7 @@
   },
   "/reference/core/time-date/at/": {
     "feature": "Core\\Time\\Date::at",
-    "hash": "dcbd83bb18936bbd",
+    "hash": "db3b45950ed0a65e",
     "questions": [
       "How do I create a date from year, month and day?",
       "Check whether a date typed into a form exists",
@@ -15556,7 +15556,7 @@
   },
   "/reference/core/time-date/fromiso/": {
     "feature": "Core\\Time\\Date::fromIso",
-    "hash": "ddf50f81c2ed56d2",
+    "hash": "46ffb5328219cfab",
     "questions": [
       "How do I create a date from text like 2024-03-01?",
       "Read a date from a form field or a URL",
@@ -16176,7 +16176,7 @@
   },
   "/reference/core/time-instant/fromiso/": {
     "feature": "Core\\Time\\Instant::fromIso",
-    "hash": "3770c7d61a9d84df",
+    "hash": "a818f94181c8d9a8",
     "questions": [
       "How do I read an ISO 8601 timestamp?",
       "Convert text like 2024-03-01T12:00:00Z into a time",
@@ -16227,7 +16227,7 @@
   },
   "/reference/core/time-instant/toepochmicros/": {
     "feature": "Core\\Time\\Instant::toEpochMicros",
-    "hash": "3854344750f02a6e",
+    "hash": "d26fcd91b997464a",
     "questions": [
       "How do I get a timestamp in microseconds since 1970?",
       "Convert a moment to Unix time in microseconds",
@@ -16237,7 +16237,7 @@
   },
   "/reference/core/time-instant/toepochmillis/": {
     "feature": "Core\\Time\\Instant::toEpochMillis",
-    "hash": "be43f877ab4011e0",
+    "hash": "b8a1d97dcbfadf99",
     "questions": [
       "How do I get a timestamp in milliseconds since 1970?",
       "Convert a moment to a JavaScript timestamp",
@@ -16247,7 +16247,7 @@
   },
   "/reference/core/time-instant/toepochseconds/": {
     "feature": "Core\\Time\\Instant::toEpochSeconds",
-    "hash": "20031eebbe6b0e07",
+    "hash": "5c11bbd3e4cf353e",
     "questions": [
       "How do I get the Unix timestamp of a moment?",
       "Convert a moment to seconds since 1970",
@@ -16407,7 +16407,7 @@
   },
   "/reference/core/time-zone/of/": {
     "feature": "Core\\Time\\Zone::of",
-    "hash": "63433c753e96f2bb",
+    "hash": "5e29eaca767bc1c1",
     "questions": [
       "How do I get a time zone by its name?",
       "Use Europe/Berlin or America/New_York as a time zone",
@@ -19304,7 +19304,7 @@
   },
   "/tools/test-runner/": {
     "feature": "tools/test-runner/index.mdx",
-    "hash": "31f726ff1cc9cdc6",
+    "hash": "46fdd6d4c08225ab",
     "questions": [
       "How do I write my first test and run it?",
       "Run only the tests whose name contains some text",

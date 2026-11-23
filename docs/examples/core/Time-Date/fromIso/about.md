@@ -11,6 +11,8 @@ directly in the code is checked when the program compiles, so `Date::fromIso('20
 compile. A text from a variable is checked when the program runs.
 
 **Good to know:** the year must be between -9999 and 9999, the same range `Core\Time\Date::at` takes.
+A year before year 0 starts with `-`, such as `-0044`. Year 0 is written `0000`, and `-0000` throws
+a `ParseError`.
 
 **The examples below** show how to read a date, texts that are not valid dates, and how to check
 whether an invoice is overdue.

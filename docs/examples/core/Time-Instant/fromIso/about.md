@@ -1,12 +1,23 @@
 Reads a date and time written as text, such as `2024-06-01T09:30:00+02:00`, and returns an
-`Instant`. The text must follow ISO 8601, the international standard way to write a date and time.
+`Instant`, one exact moment in time. The text must follow ISO 8601, the international standard way
+to write a date and time.
 
-The text needs a date, a time and an offset from UTC. The offset is `Z` for UTC, or a value such as
-`+02:00`. Part of a second, such as `.25`, is kept. A text without an offset throws a `ParseError`.
-For a time without an offset, use `Core\Time\DateTime::fromIso` with a time zone. A date that does
-not exist also throws a `ParseError`, and the message says which part of the text is wrong. So does
-a time outside about the years -9999 to 9999. A text written directly in the code is checked when
-the program compiles.
+The text needs a date, `T` or one space, a time and an offset from UTC. The offset is `Z` for UTC,
+or a value such as `+02:00`. Part of a second, such as `.25`, is kept. For a time without an
+offset, use `Core\Time\DateTime::fromIso` with a time zone.
 
-**The examples below** show a time with an offset, texts that are not valid timestamps, and how long
-a job ran from two times a web service returned.
+These texts throw a `ParseError`:
+
+- a text without an offset
+- a lower-case `t` or `z`
+- a `,` before the part of a second
+- the second `60`
+- an offset without a colon, such as `+0100`
+- a date that does not exist, such as `2024-02-30`
+- a time before `-9999-01-02T01:59:59Z` or after `9999-12-30T22:00:00Z`
+
+The error message says which part of the text is wrong. A text written directly in the code is
+checked when the program compiles.
+
+**The examples below** show a time with an offset and texts that are not valid timestamps. The last
+one reads two times from a web service and shows how long a job ran.

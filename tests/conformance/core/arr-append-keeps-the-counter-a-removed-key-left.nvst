@@ -2,6 +2,7 @@
 Core\Arr::append keeps the counter a removed key left behind, as `$a[] = $v` on the same array does, `rule:core-api/shape-rules`
 --FILE--
 <?nvs
+// covers: Core\Arr::append
 final class Render {
     public static function of(array<int> $a): string {
         var $out = "";

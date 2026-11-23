@@ -236,7 +236,8 @@ the class. A line outside every test class stops the run with exit status `2`. T
 nearest test class in the file. A Windows path such as `C:\app\CartTest.nvs:42` keeps its drive
 letter.
 
-The command runs two kinds of test, and the path decides which kind:
+The command runs two kinds of test: programs with `#[Test]` methods, and `.nvst` case files. The
+path decides which kind:
 
 - **A `.nvs` path is a program**, and its `#[Test]` methods run. Each `public` `void` instance
   method with `#[Test]` is one test. Classes are reported in name order, and methods in the order
@@ -247,9 +248,8 @@ The command runs two kinds of test, and the path decides which kind:
   requires the application's bootstrap file. That file gives the whole directory its `autoload`
   declarations. A directory with both `.nvs` and `.nvst` files is an error.
 - **Any other path is a `.nvst` case file, or a directory of `.nvst` files.** A case is one program
-  with its expected output. The report is a summary, such as `3 passed, 0 failed, 0 skipped`. Only
-  here does the file extension matter. A program in a file not named `.nvs` is read as a case, and
-  it fails to parse.
+  with its expected output. The report is a summary, such as `3 passed, 0 failed, 0 skipped`. A
+  program in a file whose name does not end in `.nvs` is read as a case, so it fails to parse.
 
 One run does not mix the two kinds. The exit status is not zero when a test or a case failed. A
 skipped one is not a failure. *Which kind of test to write*, in [testing](#lang-testing), says
@@ -287,8 +287,8 @@ skipped: not written yet
 - `--tag <tag>` runs only the tests that have this tag. A test gets tags with
   `#[Test(tags: ['slow', 'db'])]`. You can give `--tag` more than once. A test then runs when it has
   at least one of the tags.
-- `--skip-tag <tag>` does not run the tests that have this tag. You can give it more than once. It
-  wins over `--tag`.
+- `--skip-tag <tag>` does not run the tests that have this tag. You can give it more than once. A
+  test with this tag does not run, even when it also has a tag that `--tag` names.
 - `--shard <n>/<m>` runs one of `m` parts of the tests. `--shard 2/4` runs the second of four parts.
   Each test is in exactly one part, and it stays in that part when other tests are added.
 - `--since <ref>` runs only the tests that a change since a git branch, tag or commit can reach. See
@@ -297,7 +297,8 @@ skipped: not written yet
   run had no failed test, every selected test runs. You cannot use it together with `--since`.
 - `--format human|json|junit` chooses how a program's run is reported.
   - `human` is the default. It prints one line per test as it runs, then
-    `N failed, N passed, N skipped, N flaky in N ms`.
+    `N failed, N passed, N skipped, N flaky in N ms`. A flaky test is a test that failed and then
+    passed when it ran again.
   - `json` prints one JSON document on standard output at the end. `schemaVersion` is `2`. The
     document has a `summary` and one `tests[]` entry per test. An entry has `class`, `method`,
     `file`, `line`, `column`, `verdict` and `durationMs`. It also has `reason`, `failures` or
@@ -343,15 +344,15 @@ skipped: not written yet
 - `--bench` runs the methods with `#[Bench]` and no test. It is an error beside `--mutate` or
   `--jobs`.
 - `--opt-level none|speed` compiles the tests at this optimisation level. The default is `speed`,
-  the level `nvs run` uses. A test that passes at one level and fails at the other shows a bug in
-  Novis.
-- `--probes` runs the tests with the coverage probes compiled in, and records nothing. A test that
-  passes without it and fails with it shows a bug in Novis.
+  the level `nvs run` uses. A test that passes at one level and fails at the other means that Novis
+  has a bug.
+- `--probes` compiles the tests with the code that counts coverage, but writes no coverage. A test
+  that passes without it and fails with it means that Novis has a bug.
 - `--cases <file>` runs only the `.nvst` case files this file lists, one path per line.
 - `--record <dir>` writes, for each `.nvst` case, the classes and files it used into this folder.
 - `--shared-worker` also runs each `.nvst` case in one shared process, after its own run passed.
-  A case fails when its output there is different. Then the case read something an earlier case
-  left behind.
+  A case fails when its output in the shared process is different. This means that the case read
+  something an earlier case left behind.
 - `--update` rewrites each failed `Core\Test::assertMatchesInline` snapshot in the source file. It
   is **the only flag with which `nvs test` writes to a source file**. It replaces the `$expected`
   string and nothing else. A passing snapshot does not change, and neither does any other line of
@@ -375,7 +376,7 @@ A `.nvst` case is a list of sections, each starting with a `--SECTION--` header:
 
 ```text
 --TEST--
-a read outside the granted roots is refused
+a file inside the allowed folder can be read
 --FILE nvs.toml--
 [capabilities.fs]
 read = ["data"]
@@ -394,22 +395,30 @@ note
 
 `--since main` runs only the tests that a change since the git branch `main` can reach. `<ref>` can
 be a branch, a tag or a commit. Novis runs `git diff` against it in the program's folder. A line you
-added or edited is a change. So is every line of a new file that git does not track yet.
+added or edited is a change. So is every line of a new file that git does not track yet. A deleted
+file is a change too. A renamed file counts as a deleted file and a new file.
 
 Each run with `--since`, a coverage flag or `--mutate` records which methods each test ran. Novis
 keeps this record in its data folder, one for each program. A test runs when one of these is true:
 
 - in the recorded run, it ran a method you changed;
+- in the recorded run, it ran a method you deleted, or a method in a file you deleted or renamed;
 - you added or changed the test itself;
 - the record does not have the test.
 
-Sometimes Novis cannot tell which tests a change affects. Then every test runs, and the first line
-of the report says why:
+A run that leaves a test out, for example with `--filter`, does not remove it from the record. A
+later `--since` run still selects it for the changes it has not run against.
+
+When Novis cannot tell which tests a change affects, it runs more tests, never fewer. Then every
+test runs, and the first line of the report says why:
 
 - no run of this program was recorded yet;
 - a line outside a method body changed, such as a property, a method's parameters, an attribute or
   a `use` line;
-- a file that is not a `.nvs` file changed, such as `nvs.toml` or a file a test reads.
+- a file in the program's folder that is not a `.nvs` file changed, such as `nvs.toml` or a file a
+  test reads;
+- a file outside the program's folder changed, and it is not one of the program's files;
+- Novis cannot find a changed path, such as a deleted file whose folder is also gone.
 
 The tests run with coverage on, so that the run can record what they reach. Use `--since` while you
 edit, and run every test in CI. `--since` works with `--filter`, `--tag`, `--skip-tag` and

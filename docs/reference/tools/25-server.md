@@ -109,27 +109,32 @@ origin = "https://{1:lower}.example.com"  # what Core\Router::urlAbsolute prepen
 
 [[server.mount]]
 prefix = "/admin"
-entry  = "Backoffice/public/index.nvs"    # an explicit mount overrides a scanned one at the same key
+entry  = "Backoffice/public/index.nvs"    # replaces a scanned mount with the same prefix and host
 
 [[server.mount]]
 host   = "shop.example.com"               # compared without regard to case
 entry  = "Shop/public/index.nvs"
 ```
 
-- A `scan` expands against the disk into ordinary mounts when the server starts. It expands again
-  when a scanned directory changes, and when a reload changes `root` or a mount. `*` matches exactly one segment of letters, digits, `.`, `_` and `-`, not
-  beginning with a dot. `{n}` is the nth capture as the directory spells it, `{n:lower}` the same
-  in lower case, so a directory named `Blog` is served at `/blog` while `Core\Request::mount()`
-  still reports `Blog`. Any other brace is an error at start and under `nvs config check`.
-- `root` is required whenever a mount is written, and every resolved path must lie inside it.
-  A relative `root` resolves against the file it is written in.
-- Two explicit mounts at one key are an error. A scan that matched no file refuses the start.
-- A mount whose entry file does not compile at start is still served. Its requests answer `500`
-  until an edit compiles, and `nvs service status` lists it. The `origin` check runs on it when it
-  first compiles.
-- A mount routes and nothing else: it has no `mode`, no limits and no capabilities. Those are the
-  `[[app]]` block's, keyed on the entry file's path (the configuration chapter), and the two
-  usually name the same directory.
+- When the server starts, it looks for the files that match each `scan`. Each match becomes one
+  mount. The server looks again when a scanned directory changes, and when a reload changes `root`
+  or a mount.
+- In a `scan`, `*` matches exactly one path segment: one name between two `/`. The name may have
+  letters, digits, `.`, `_` and `-`, and it must not start with a dot.
+- `{n}` is the text that the nth `*` matched, written as the directory name is. `{n:lower}` is the
+  same text in lower case. So a directory named `Blog` is served at `/blog`.
+  `Core\Request::mount()` still returns `Blog`. Any other text in braces is an error at start and
+  under `nvs config check`.
+- `root` is required when the file has a mount. Every path that a mount finds must be inside it. A
+  relative `root` is read from the folder of the file it is written in.
+- Two explicit mounts with the same `prefix` and `host` are an error. When a `scan` matches no
+  file, the server does not start.
+- A mount whose entry file does not compile at start is still served. Its requests get `500` until
+  an edit compiles, and `nvs service status` lists it. The `origin` check runs on it when it first
+  compiles.
+- A mount only chooses the entry file. It has no `mode`, no limits and no capabilities. Those
+  settings are in the `[[app]]` block for the entry file's path, which the configuration chapter
+  describes. Most often the mount and the `[[app]]` block name the same directory.
 
 <!-- src: `rule:http-server/a-mount-table-expands-at-boot`, `rule:http-server/a-mount-carries-no-policy` -->
 
@@ -143,32 +148,49 @@ entry  = "Shop/public/index.nvs"
 5. otherwise                                                                          -> run the mount's entry
 ```
 
-In production — `dispatch = "entry"`, `static = false` — steps 3 and 4 do not run: match, strip,
-entry. With `dispatch = "path"` and `static = true`, which is what development gives when neither
-key is written, the sequence is `try_files $uri /index.nvs`. A prefix is matched exactly, and in steps 3 and 4 the URL has to write the name of
-the file exactly as the disk has it. A name in another case, a name with a dot or a space added at
-its end and a Windows short name such as `REPORT~1.NVS` are each a file that is not there, on every
-platform. A trailing slash is never added or removed: `/users` and `/users/` are two URLs. `HEAD`
-runs as `GET` with the body discarded.
+In production, `dispatch = "entry"` and `static = false`. So steps 3 and 4 do not run, and every
+request runs the mount's entry. In development, when neither key is written, the server uses
+`dispatch = "path"` and `static = true`. That works like `try_files $uri /index.nvs` in nginx.
 
-`health_path`, when set, is matched ahead of every mount: `200` with an empty body while the
-process accepts, `503` while it drains, no dependency checked and nothing logged.
+A prefix is matched exactly. In steps 3 and 4, the URL must write the file name exactly as it is on
+the disk. On every platform, these names find no file:
+
+- a name in another case;
+- a name with a dot or a space added at its end;
+- a Windows short name, such as `REPORT~1.NVS`.
+
+A slash at the end of a URL is never added or removed, so `/users` and `/users/` are two URLs.
+`HEAD` runs as `GET`, and the server does not send the body.
+
+`health_path` is off by default. When you set it, the server checks it before every mount. It
+returns `200` with an empty body while the server accepts requests. It returns `503` while the
+server finishes its last requests before it stops. It checks no database or other service, and it
+writes nothing to the log.
 
 <!-- src: `rule:http-server/a-request-resolves-in-five-steps`, `rule:http-server/health-path-is-off-and-checks-nothing` -->
 
 ## Development: the `Host` check
 
-In `development` mode, the server checks the `Host` header of every request that comes from this
-machine. The host must be one of these:
+In `development` mode, the server checks the `Host` header of every connection that comes from this
+machine. A local proxy is checked too, whatever it writes in `X-Forwarded-For`. The host must be
+one of these:
 
 - `localhost`, or a name that ends in `.localhost`, such as `blog.localhost`
 - a loopback address, such as `127.0.0.1` or `[::1]`
 - the `host` of a `[[server.mount]]`
 - an entry in `[server] development_hosts`
 
-Any other host gets `421 Misdirected Request` with an empty body. The log has a `Warn` line with
-the host and the setting to change. This check stops a web page on another site from using your
-development server. Such a page can make its own name point at `127.0.0.1`.
+Any other host gets `421 Misdirected Request`. The body is one line of text with the host and the
+setting to change:
+
+```text
+421 Misdirected Request: this development server does not answer for the host "app.test".
+Add "app.test" to development_hosts in the [server] block of nvs.toml to allow it.
+```
+
+The log has a `Warn` line with the same host and setting. It is written once per host per minute.
+This check stops a web page on another site from using your development server. Such a page can
+make its own name point at `127.0.0.1`.
 
 A local proxy that sends its own host name needs that name in `development_hosts`:
 
@@ -185,12 +207,17 @@ no request is checked.
 
 ## Static files
 
-With `static = true`, step 3 serves the exact file and nothing else: no directory listing,
-`index.html` as the only default document, the type from a fixed extension table and
-`application/octet-stream` for an unknown one. Freshness is `Cache-Control: no-cache` with one
-strong `ETag`; one `Range` is honoured and anything else is a `416`. A `.nvs` file is never served
-as source, under any setting, from any mount. This is a development convenience and a fallback,
-not a CDN: there is no `max-age` and no precompressed lookup.
+With `static = true`, step 3 serves the exact file and nothing else:
+
+- There is no directory listing. `index.html` is the only file served for a directory.
+- The `Content-Type` comes from a fixed table of file extensions. An unknown extension gets
+  `application/octet-stream`.
+- Each response has `Cache-Control: no-cache` and one strong `ETag`.
+- A request with one valid `Range` gets that part of the file. Any other `Range` gets `416`.
+
+A `.nvs` file is never served as text, under any setting, from any mount. Static serving is meant
+for development and for a few files. It sends no `max-age`, and it does not look for a compressed
+copy of a file.
 
 <!-- src: `rule:http-server/static-serving-is-one-policy` -->
 
@@ -277,15 +304,16 @@ without a restart.
 
 **The list is empty.** This is the default, and the server reads no forwarding header.
 `Core\Request::clientIp()` returns the address that connected, and `Core\Request::scheme()` returns
-`http`. A program can still read `X-Forwarded-For` with `Core\Request::header`, as a `tainted`
-string.
+`http`. A program can still read `X-Forwarded-For` with `Core\Request::header`. The result is a
+`tainted` string: a value that came from the client and is not checked yet.
 
 **The list has the address that connected.** `clientIp()` returns the last address in
-`X-Forwarded-For` that is not in the list. A client can send its own `X-Forwarded-For`, and the
-proxy adds the real address after it, so the server does not use the addresses the client wrote.
-`scheme()` returns `https` when the last value in `X-Forwarded-Proto` is `https`, and only the
-response to such a request has the HSTS header. `X-Forwarded-For` is the only address header the
-server reads.
+`X-Forwarded-For` that is not in the list. A client can send its own `X-Forwarded-For`. The proxy
+adds the real address after it. So the server does not use the addresses that the client wrote.
+
+`scheme()` returns `https` when the last value in `X-Forwarded-Proto` is `https`. Only the response
+to such a request has the HSTS header. That header tells the browser to use HTTPS for this site.
+`X-Forwarded-For` is the only address header that the server reads.
 
 ```nvs skip
 <?nvs
@@ -307,10 +335,16 @@ request that arrives over a Unix socket. The operating system decides who may co
 socket, so it needs no entry of its own. With an empty list, `clientIp()` returns `null` for such a
 request.
 
-A production server whose configuration has a `[server]` block prints one warning at start when
-`trusted_proxies` is empty and every address it listens on is a loopback address or a Unix socket.
-A server like this is usually behind a proxy, and without the list every request has the address of
-the proxy, or none.
+A production server can print one warning at start. It does this when its configuration has a
+`[server]` block, `trusted_proxies` is empty, and it listens only on loopback addresses or Unix
+sockets. A server like this is usually behind a proxy. Without the list, every request has the
+address of the proxy, or no address.
+
+**In `development` mode,** the server checks the `Host` header of each request from a proxy on this
+machine. For this check, the server uses the address that connected. It does not read
+`X-Forwarded-For`. A proxy that sends its own host name needs that name in
+`[server] development_hosts`. The section *Development: the `Host` check*, under *Mounts*, has the
+details.
 
 <!-- src: `rule:http-server/trusted-proxies-is-empty-and-empty-reads-nothing` -->
 
@@ -390,19 +424,36 @@ default for the jobs queued without it.
     nvs reload [--config <path>]... [--data <dir>] [--json]
 
 `nvs reload` makes a running `nvs serve` use what is on disk now. Run it after you edit code or
-configuration. The server checks its configuration files and every program it has loaded at once.
-It does not wait for `settle`. The command returns when every compile has ended:
+configuration. The server checks its configuration files and every program it has loaded
+immediately. It does not wait for `[opcache] settle`, the time the files must stay unchanged before
+an automatic compile. The command returns when every compile has ended:
 
 | Exit code | Meaning |
 |---|---|
-| `0` | every server uses the files on disk |
-| `1` | a configuration file or a program has an error; each error is printed with its file and line |
-| `2` | no server is running for this data folder |
+| `0` | every server replied, and every server uses the files on disk |
+| `1` | there is an error, or one of the servers did not reply |
+| `2` | no server is running for this data folder, or every server is shutting down |
 
 ```text
 $ nvs reload
 server 4120: configuration unchanged, 1 program reloaded, 0 programs with errors
 ```
+
+Exit code `1` has two causes, and the output names each one:
+
+- There is an error. The command prints each error of a configuration file or a program with its
+  file and line, such as `  error: shop/index.nvs:12: ...`. An error inside the server's own check
+  is printed as `  error: server: ...`, and its details are in the server's log.
+- A server did not reply. Its line is `server 4120: could not be reached: ...` or
+  `server 4120: closed the connection without a reply`. The command cannot say which files that
+  server uses. Look in that server's log.
+
+On Windows, the command also checks that the server it reached is the process the data folder
+names. Any other process is reported as `could not be reached`.
+
+A server that is shutting down does not reload. Its line is `server 4120: is stopping, so it did
+not reload`. This line does not make the exit code `1`. When every server is shutting down, the
+exit code is `2`.
 
 The command finds the data folder the same way `nvs serve` does, and reloads every server that uses
 it. Only the account that runs the server, or an administrator, can reload it. A request cannot.
