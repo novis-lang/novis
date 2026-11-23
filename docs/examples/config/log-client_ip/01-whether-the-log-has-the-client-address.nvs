@@ -9,7 +9,7 @@ echo 'client_ip: ', Core\Config::get('log.client_ip') ?? '(no value)', "\n";
 // `Core\Config::set('log.client_ip', ...)` does not compile,
 // because a program may not change `log.client_ip`.
 
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 string $name = 'log.client_ip';
 echo 'turn it off: ', Core\Config::set($name, 'false') ? 'accepted' : 'not allowed', "\n";
 

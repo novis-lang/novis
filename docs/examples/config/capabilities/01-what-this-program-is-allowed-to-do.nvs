@@ -20,7 +20,7 @@ echo 'run scripts: ', Core\Config::get('capabilities.script.spawn') ?? '(nothing
 // `Core\Config::set('capabilities.db.connect', ...)` does not compile,
 // because a program may not change `capabilities.db.connect`.
 
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 string $grant = 'capabilities.db.connect';
 echo 'grant a db:  ', Core\Config::set($grant, 'main') ? 'yes' : 'no', "\n";
 

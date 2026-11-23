@@ -3,7 +3,7 @@
 // Only the person who runs the server may allow that, so every attempt should fail.
 
 // `Core\Config::set('mode.ceiling', ...)` does not compile. A program may not change it.
-// Names in variables are checked only when the program runs. Then `set` returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so `set` runs and returns `false`.
 
 // 1. Switch the mode directly, with other spellings, and with no key at all.
 // Each call should return `false`.

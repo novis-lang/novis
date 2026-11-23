@@ -52,7 +52,7 @@ array<string> $malformed = [
     $enormous,
 ];
 // `Core\Config::set('cache.shared.url', ...)` does not compile, because a program may not change `cache.shared.url`.
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 string $sharedUrl = 'cache.shared.url';
 uint $i = 0;
 while ($i < 20000) {

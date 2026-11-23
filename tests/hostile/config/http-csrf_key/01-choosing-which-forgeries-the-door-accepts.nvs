@@ -5,7 +5,7 @@
 // hostile: timeout-ms 30000
 
 // `Core\Config::set('http.csrf_key', ...)` does not compile, because a program may not change `http.csrf_key`.
-// Names in variables are checked only when the program runs. Then `set` returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so `set` runs and returns `false`.
 string $csrfKey = 'http.csrf_key';
 string $csrfKeyFile = 'http.csrf_key_file';
 

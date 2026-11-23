@@ -9,11 +9,11 @@ echo 'running in: ', Core\Env::mode() == Core\Env::Mode::Development ? 'developm
 echo 'ceiling:    ', Core\Config::get('mode.ceiling') ?? '(no value)', "\n";
 
 // `production` is at the ceiling, so this call returns `true`.
-echo 'select production:  ', Core\Config::set('mode.default', 'production') ? 'accepted' : 'refused', "\n";
+echo 'select production:  ', Core\Config::set('mode.default', 'production') ? 'accepted' : 'not allowed', "\n";
 
 // `development` is above the ceiling, so the call returns `false`. The server
 // started in production, and the mode stays `production`.
-echo 'select development: ', Core\Config::set('mode.default', 'development') ? 'accepted' : 'refused', "\n";
+echo 'select development: ', Core\Config::set('mode.default', 'development') ? 'accepted' : 'not allowed', "\n";
 echo 'still running in:   ', Core\Env::mode() == Core\Env::Mode::Development ? 'development' : 'production', "\n";
 
 // Only the person who runs the server may change the ceiling.
@@ -21,6 +21,6 @@ echo 'still running in:   ', Core\Env::mode() == Core\Env::Mode::Development ? '
 // `Core\Config::set('mode.ceiling', ...)` does not compile,
 // because a program may not change `mode.ceiling`.
 
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 string $ceiling = 'mode.ceiling';
-echo 'raise the ceiling:  ', Core\Config::set($ceiling, 'development') ? 'accepted' : 'refused', "\n";
+echo 'raise the ceiling:  ', Core\Config::set($ceiling, 'development') ? 'accepted' : 'not allowed', "\n";

@@ -5,7 +5,7 @@
 // hostile: timeout-ms 30000
 
 // `Core\Config::set('http.client.tls.roots', ...)` does not compile, because a program may not change `http.client.tls.roots`.
-// Names in variables are checked only when the program runs. Then `set` returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so `set` runs and returns `false`.
 string $rootsKey = 'http.client.tls.roots';
 string $minVersion = 'http.client.tls.min_version';
 string $keylog = 'http.client.tls.keylog';

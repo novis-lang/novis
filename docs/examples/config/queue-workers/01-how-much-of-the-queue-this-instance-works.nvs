@@ -13,12 +13,12 @@ echo 'enqueue-only:  ', (Core\Config::get('queue.workers') ?? '4') == '0' ? 'yes
 // `Core\Config::set('queue.workers', ...)` does not compile,
 // because a program may not change `queue.workers`.
 
-// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so each `set` call runs and returns `false`.
 string $name = 'queue.workers';
 
 // A program cannot add workers, so the call returns `false`. More workers would
 // take CPU time from the other requests on the same server.
-echo 'hire eight more:        ', Core\Config::set($name, '8') ? 'accepted' : 'refused', "\n";
+echo 'hire eight more:        ', Core\Config::set($name, '8') ? 'accepted' : 'not allowed', "\n";
 
 // A program cannot set the workers to `0` either. This call also returns `false`.
-echo 'stop working the queue: ', Core\Config::set($name, '0') ? 'accepted' : 'refused', "\n";
+echo 'stop working the queue: ', Core\Config::set($name, '0') ? 'accepted' : 'not allowed', "\n";

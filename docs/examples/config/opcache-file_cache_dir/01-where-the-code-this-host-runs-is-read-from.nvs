@@ -13,17 +13,17 @@ echo 'size limit:     ', Core\Config::get('opcache.file_cache_max_size') ?? '(no
 // `Core\Config::set('opcache.file_cache_dir', ...)` does not compile,
 // because a program may not change `opcache.file_cache_dir`.
 
-// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so each `set` call runs and returns `false`.
 string $cacheDir = 'opcache.file_cache_dir';
 string $cache = 'opcache.file_cache';
 
 // A program cannot move this directory, so the call returns `false`. The server
 // runs the compiled code it reads from there.
-echo 'read my code from /tmp:  ', Core\Config::set($cacheDir, '/tmp/mine') ? 'accepted' : 'refused', "\n";
+echo 'read my code from /tmp:  ', Core\Config::set($cacheDir, '/tmp/mine') ? 'accepted' : 'not allowed', "\n";
 
 // A program cannot turn the cache off either. This call also returns `false`.
-echo 'turn the cache off:      ', Core\Config::set($cache, 'false') ? 'accepted' : 'refused', "\n";
+echo 'turn the cache off:      ', Core\Config::set($cache, 'false') ? 'accepted' : 'not allowed', "\n";
 
 // `[cache]` is a different block. It is the data cache your code reads and
 // writes, and it has no `dir` key.
-echo 'the data cache is not it: ', Core\Config::get('cache.dir') ?? '(no such key — an unknown key is refused when the file is read)', "\n";
+echo 'the data cache is not it: ', Core\Config::get('cache.dir') ?? '(no such setting)', "\n";

@@ -1,11 +1,11 @@
 <?nvs
-// Attack: a request tries to give itself more memory than the server allows,
-// and then takes all its memory away. Every attempt above the ceiling should fail.
-// The last step should stop the program with an error.
+// Attack: a request tries to give itself more memory than the server allows.
+// Every attempt above the ceiling (the highest limit) should fail. Then the request
+// lowers its own limit to one byte, and the last step should stop it with an error.
 // hostile: ends-early 5 FATAL
 
-// 1. The request sets a memory limit far above any machine. The server has a
-// ceiling, so `set` returns `false`.
+// 1. The request sets a memory limit larger than any machine has. The limit is
+// above the ceiling, so `set` returns `false`.
 echo '999999T: ', Core\Config::set('memory', '999999T') ? 'changed' : 'refused', "\n";
 
 // 2. The request sets a name of one million characters, and then a value of one
@@ -14,15 +14,15 @@ echo 'long name: ', Core\Config::set(Core\Str::repeat('a', 1000000), '1') ? 'cha
 echo 'long value: ', Core\Config::set('memory', Core\Str::repeat('9', 1000000)) ? 'changed' : 'refused', "\n";
 
 // 3. A program may not change `opcache.file_cache_dir`, so `set` with that name as text does not compile.
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 string $serverOwn = 'opcache.file_cache_dir';
 echo "the server's own: ", Core\Config::set($serverOwn, '/tmp/nvs') ? 'changed' : 'refused', "\n";
 
-// 4. Nothing above moved the limit, so it is still what it was.
+// 4. No call above changed the limit, so it has its old value.
 echo 'memory: ', Core\Config::get('memory') ?? '(no value)', "\n";
 
-// 5. The request takes its own memory away: one byte for everything it does
-// next. This step ends the program at its memory limit.
+// 5. The request sets its own memory limit to one byte. The next line needs more
+// memory, so the program stops at its memory limit.
 echo "step 5\n";
 Core\Config::set('memory', '1');
 echo Core\Str::repeat('x', 1000), "\n";

@@ -2,6 +2,6 @@ records live in: (nothing written — a program that wants a session says so)
 short-lived for: 2h
 long-lived for:  180d
 cookie name:     nvsid
-keep mine in memory:        refused
-keep mine for a year:       refused
-rename the cookie:          refused
+keep mine in memory:        not allowed
+keep mine for a year:       not allowed
+rename the cookie:          not allowed

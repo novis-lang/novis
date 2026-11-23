@@ -11,9 +11,9 @@ echo 'one per core:   ', (Core\Config::get('server.workers') as ?int) == Core\Os
 // `Core\Config::set('server.workers', ...)` does not compile,
 // because a program may not change `server.workers`.
 
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
-// This prints `refused`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
+// This prints `not allowed`.
 string $name = 'server.workers';
-echo 'use 64 workers: ', Core\Config::set($name, '64') ? 'accepted' : 'refused', "\n";
+echo 'use 64 workers: ', Core\Config::set($name, '64') ? 'accepted' : 'not allowed', "\n";
 
 // The server creates its workers when it starts. A new value takes effect after a restart.

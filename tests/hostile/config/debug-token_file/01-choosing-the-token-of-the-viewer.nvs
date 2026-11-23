@@ -4,7 +4,7 @@
 // Every change should fail, and the setting should stay unset.
 
 // `Core\Config::set('debug.token_file', ...)` does not compile, because a program may not change `debug.token_file`.
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 string $setting = 'debug.token_file';
 
 // 1. Set paths to other token files. Each change should fail.

@@ -4,7 +4,7 @@
 // Every change should fail, and the setting should keep the value from the file.
 
 // `Core\Config::set('debug.index_age', ...)` does not compile, because a program may not change `debug.index_age`.
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 string $setting = 'debug.index_age';
 
 // 1. Set `debug.index_age` to very long times, to zero and to negative times. Each change should fail.

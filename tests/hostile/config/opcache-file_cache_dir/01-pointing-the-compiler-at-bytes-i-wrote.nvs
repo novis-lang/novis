@@ -5,7 +5,7 @@
 // hostile: timeout-ms 20000
 
 // `Core\Config::set('opcache.file_cache_dir', ...)` does not compile, because a program may not change `opcache.file_cache_dir`.
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 string $dir = 'opcache.file_cache_dir';
 
 // 1. Tries `..` paths, a root, a device, a network share, null bytes and a very

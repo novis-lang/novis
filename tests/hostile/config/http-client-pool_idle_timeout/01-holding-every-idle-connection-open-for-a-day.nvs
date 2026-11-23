@@ -5,7 +5,7 @@
 // hostile: timeout-ms 30000
 
 // `Core\Config::set('http.client.pool_idle_timeout', ...)` does not compile, because a program may not change `http.client.pool_idle_timeout`.
-// Names in variables are checked only when the program runs. Then `set` returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so `set` runs and returns `false`.
 string $poolIdleTimeout = 'http.client.pool_idle_timeout';
 string $poolIdle = 'http.client.pool_idle';
 

@@ -13,9 +13,9 @@ echo 'socket mode:          ', Core\Config::get('server.socket_mode') ?? '(no va
 // `Core\Config::set('server.socket_mode', ...)` does not compile,
 // because a program may not change `server.socket_mode`.
 
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
-// This prints `refused`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
+// This prints `not allowed`.
 string $name = 'server.socket_mode';
-echo 'let everyone connect: ', Core\Config::set($name, '0666') ? 'accepted' : 'refused', "\n";
+echo 'let everyone connect: ', Core\Config::set($name, '0666') ? 'accepted' : 'not allowed', "\n";
 
 // The server uses this value when it creates a socket. A new value takes effect after a restart.

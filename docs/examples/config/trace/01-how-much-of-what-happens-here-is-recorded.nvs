@@ -18,11 +18,11 @@ string $sample = 'trace.sample';
 string $propagate = 'trace.propagate';
 
 // A program cannot trace more of its own requests, so this call returns `false`.
-echo 'record every request of mine: ', Core\Config::set($sample, '1.0') ? 'accepted' : 'refused', "\n";
+echo 'record every request of mine: ', Core\Config::set($sample, '1.0') ? 'accepted' : 'not allowed', "\n";
 
 // A program cannot trace fewer of its requests either. This call also returns `false`.
-echo 'record none of them:          ', Core\Config::set($sample, '0.0') ? 'accepted' : 'refused', "\n";
+echo 'record none of them:          ', Core\Config::set($sample, '0.0') ? 'accepted' : 'not allowed', "\n";
 
 // A program cannot stop sending the trace header on outgoing calls. This call
 // returns `false` too.
-echo 'leave the trace behind:       ', Core\Config::set($propagate, 'false') ? 'accepted' : 'refused', "\n";
+echo 'leave the trace behind:       ', Core\Config::set($propagate, 'false') ? 'accepted' : 'not allowed', "\n";

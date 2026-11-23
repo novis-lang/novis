@@ -15,5 +15,4 @@ every other setting. The compiler checks a name written as text in the call. If 
 change that setting, the program does not compile.
 
 **Good to know:** a limit's ceiling is the highest value a program may set. It is the limit's
-value in `[limits.hard]`. When `[limits.hard]` does not set the limit, a server program cannot
-raise it. A command-line program is different: it may raise `memory` to any value.
+value in `[limits.hard]`, or else its value in `[limits]`.

@@ -6,7 +6,7 @@
 // hostile: ends-early 4 FATAL
 
 // `Core\Config::set('metrics.exporter', ...)` does not compile, because a program may not change `metrics.exporter`.
-// Names in variables are checked only when the program runs. Then `set` returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so `set` runs and returns `false`.
 string $exporter = 'metrics.exporter';
 string $listen = 'metrics.listen';
 string $endpoint = 'metrics.endpoint';

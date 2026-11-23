@@ -3,7 +3,7 @@
 // more details. Nothing here allows that, so the mode must stay `Production`.
 
 // `Core\Config::set('mode', ...)` does not compile, because a program may not change `mode`.
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 
 // 1. The program tries to set development mode. The mode cannot go past its ceiling,
 // so `set` returns `false`.

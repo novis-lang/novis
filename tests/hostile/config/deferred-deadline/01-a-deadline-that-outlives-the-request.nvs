@@ -5,7 +5,7 @@
 // Nothing should crash, and every change to `max_concurrent` should fail.
 
 // `Core\Config::set('deferred.max_concurrent', ...)` does not compile, because a program may not change `deferred.max_concurrent`.
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 string $maxConcurrent = 'deferred.max_concurrent';
 
 // 1. Raise `max_concurrent`, or set values that could mean "no limit". Each change should fail.
@@ -70,7 +70,7 @@ Core\Config::set($deep, '9999h');
 Core\Config::get($deep);
 Core\Config::restore($deep);
 
-// 6. Set the deadline 50,000 times with no restore. Only the last value should use memory.
+// 6. Set the deadline 50,000 times with no restore. The request keeps only the last value, so memory should not grow.
 uint $i = 0;
 while ($i < 50000) {
     Core\Config::set('deferred.deadline', $i . 's');

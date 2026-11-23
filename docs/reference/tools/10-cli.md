@@ -1141,8 +1141,8 @@ Prints the built-in `Core` classes as one JSON object. The `Core` reference on t
 made from the same data. `--json` is required. The object has eight top-level keys:
 
 - `classes`: one object per `Core` class, with `name` and `members`. A method has `name`, `kind`
-  (`static` or `instance`), `signature` (the whole declaration, such as `length(string $s): uint`),
-  `params`, `names`, `returns` and `doc`. Each parameter has `name`, `type` and `qualifier`. The
+  (`static` or `instance`) and `signature` (the whole declaration, such as `length(string $s): uint`).
+  It also has `params`, `names`, `returns` and `doc`. Each parameter has `name`, `type` and `qualifier`. The
   qualifier is `neutral`, or the tainted or secret value the parameter accepts. `doc` has `short`,
   a `params` list with a `desc` per parameter, `return`, and `errors` where the method throws. A
   class with constants has a `constants` list.

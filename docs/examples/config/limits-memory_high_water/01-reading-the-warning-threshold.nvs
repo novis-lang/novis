@@ -10,8 +10,8 @@ echo 'warning at:      ', Core\Config::get('limits.memory_high_water') ?? '(unse
 // `Core\Config::set('limits.memory_high_water', ...)` does not compile,
 // because a program may not change `limits.memory_high_water`.
 
-// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so each `set` call runs and returns `false`.
 string $name = 'limits.memory_high_water';
-echo 'warn at half:    ', Core\Config::set($name, '0.5') ? 'accepted' : 'refused', "\n";
-echo 'warn always:     ', Core\Config::set($name, '0') ? 'accepted' : 'refused', "\n";
+echo 'warn at half:    ', Core\Config::set($name, '0.5') ? 'accepted' : 'not allowed', "\n";
+echo 'warn always:     ', Core\Config::set($name, '0') ? 'accepted' : 'not allowed', "\n";
 echo 'still:           ', Core\Config::get('limits.memory_high_water') ?? '(unset)', "\n";

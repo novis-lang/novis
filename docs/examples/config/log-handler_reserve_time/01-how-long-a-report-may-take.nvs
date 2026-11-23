@@ -15,9 +15,9 @@ echo 'the request-side heap: ', Core\Config::get('limits.fatal_reserve_memory') 
 // The compiler checks a setting name written as text, so `Core\Config::set('log.handler_reserve_time', ...)` does not compile.
 // Here the name is in a variable, so each call runs and returns `false`.
 string $name = 'log.handler_reserve_time';
-echo 'give it an hour:  ', Core\Config::set($name, '1h') ? 'accepted' : 'refused', "\n";
-echo 'give it a moment: ', Core\Config::set($name, '1ms') ? 'accepted' : 'refused', "\n";
+echo 'give it an hour:  ', Core\Config::set($name, '1h') ? 'accepted' : 'not allowed', "\n";
+echo 'give it a moment: ', Core\Config::set($name, '1ms') ? 'accepted' : 'not allowed', "\n";
 
 // A program may lower its own `limits.cpu_time`. The time for the report stays `5s`.
-echo 'bound my own run:  ', Core\Config::set('limits.cpu_time', '2s') ? 'accepted' : 'refused', "\n";
+echo 'bound my own run:  ', Core\Config::set('limits.cpu_time', '2s') ? 'accepted' : 'not allowed', "\n";
 echo 'time for the report still: ', Core\Config::get('log.handler_reserve_time') ?? '(nothing written)', "\n";

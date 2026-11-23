@@ -44639,10 +44639,10 @@ Changes a setting for this request only. Other requests do not see the change, a
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The dotted name of the setting, such as `limits.memory`, as `get` takes it. A request may change only some settings. They are in `[mode]`, `[limits]`, `[log]`, `[errors]`, `[deferred]`, `[debug]` and `[http]`. The editor offers each one, and the page of `Core\Config::set` lists them. The compiler checks a name written as text in the call. If a request may never change that setting, the program does not compile. |
+| `$name` | `string` (neutral) | The dotted name of the setting, such as `limits.memory`, as `get` takes it. A request may change only some settings of `[mode]`, `[limits]`, `[log]`, `[errors]`, `[deferred]`, `[debug]` and `[http]`. Your editor offers each one, and the page of `Core\Config::set` lists them. If you write a name in the call that a request may never change, the program does not compile. |
 | `$value` | `string` (neutral) | The value, written the way the configuration file writes it, such as `512M`, `30s` or `64`. |
 
-**Returns** `bool` — `true` when the change was made. `false` when the change is not allowed, and the old value stays. A change is not allowed for a setting a request may not change. It is not allowed for a value that is not a valid size, duration or count. A limit has a ceiling, the highest value a request may set. A value above it is not allowed. The ceiling is the limit's value in `[limits.hard]`. Without one, the ceiling is the value the program started with. `debug.inline` and `debug.store` take only `false`. `set` never throws an error.
+**Returns** `bool` — `true` when the change was made. `false` when the change is not allowed, and the old value stays. A change is not allowed for a setting a request may not change. It is not allowed for a value that is not a valid size, duration or count. A limit has a ceiling, the highest value a request may set. A value above it is not allowed. The ceiling is the limit's value in `[limits.hard]`. Without one, the ceiling is the limit's value in `nvs.toml`. `debug.inline` and `debug.store` take only `false`. `set` never throws an error.
 
 <a id="core-core-config-restore"></a>
 #### `Core\Config::restore`
@@ -61228,8 +61228,8 @@ Prints the built-in `Core` classes as one JSON object. The `Core` reference on t
 made from the same data. `--json` is required. The object has eight top-level keys:
 
 - `classes`: one object per `Core` class, with `name` and `members`. A method has `name`, `kind`
-  (`static` or `instance`), `signature` (the whole declaration, such as `length(string $s): uint`),
-  `params`, `names`, `returns` and `doc`. Each parameter has `name`, `type` and `qualifier`. The
+  (`static` or `instance`) and `signature` (the whole declaration, such as `length(string $s): uint`).
+  It also has `params`, `names`, `returns` and `doc`. Each parameter has `name`, `type` and `qualifier`. The
   qualifier is `neutral`, or the tainted or secret value the parameter accepts. `doc` has `short`,
   a `params` list with a `desc` per parameter, `return`, and `errors` where the method throws. A
   class with constants has a `constants` list.
@@ -62461,15 +62461,16 @@ them.
 - A name is the dotted path the file writes: `limits.hard.memory`, `log.level`, `mode.default`.
   A limit's name alone, such as `memory`, `cpu_time` or `wall_time`, is the setting in `[limits]`.
 - `get` returns the current value of a setting as text. A value from the file is written exactly
-  as the file writes it. A setting the file does not write gives its built-in default, written as
-  the shipped `nvs.toml` shows it: `128M`, `30s`.
-- `get` returns `null` in three cases: a setting with no default, such as `wall_time`; a setting
-  that is not written, such as `[log] target`; and a name whose value is a table or a list.
+  as the file writes it. A setting the file does not write gives its built-in default, such as
+  `128M` or `30s`.
+- `get` returns `null` in three cases. The first is a setting with no default, such as `wall_time`.
+  The second is a setting that is not written, such as `[log] target`. The third is a name whose
+  value is a table or a list.
 - `set` changes a setting **for this request only**. The change ends with the request. No other
   request sees it, and a script this request starts does not see it either.
-- `set` returns `false` and changes nothing for a setting a request may not change, for an unknown
-  name, for a value that is not valid for the setting, and for a value above its `[limits.hard]`
-  ceiling. `set` never throws an error.
+- `set` returns `false` and changes nothing when the change is not allowed. That is a setting a
+  request may not change, or an unknown name. It is also a value that is not valid for the setting,
+  or a value above its ceiling in `[limits.hard]`. `set` never throws an error.
 - `restore` deletes this request's change to one setting. The setting has the file's value or its
   default again.
 - `all` returns every current value as an array, with the dotted names as keys, in name order. The

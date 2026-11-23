@@ -15,7 +15,7 @@
 // `Core\Config::set('schedule', ...)` does not compile,
 // because a program may not change `schedule`.
 
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 string $name = 'schedule';
 echo 'schedule myself: ', Core\Config::set($name, '* * * * *') ? 'yes' : 'no', "\n";
 

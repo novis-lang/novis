@@ -4,7 +4,7 @@
 // hostile: timeout-ms 20000
 
 // `Core\Config::set('server.socket_mode', ...)` does not compile, because a program may not change `server.socket_mode`.
-// Names in variables are checked only when the program runs. Then `set` returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so `set` runs and returns `false`.
 string $socketMode = 'server.socket_mode';
 string $appSocketMode = 'app.0.server.socket_mode';
 

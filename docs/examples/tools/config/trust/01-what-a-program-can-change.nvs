@@ -14,7 +14,7 @@ echo Core\Config::get('memory'), "\n";
 // `Core\Config::set('capabilities.fs.write', ...)` does not compile,
 // because a program may not change `capabilities.fs.write`.
 
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 // This prints `no`.
 string $right = 'capabilities.fs.write';
 echo Core\Config::set($right, '.') ? 'yes' : 'no', "\n";

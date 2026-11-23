@@ -4,7 +4,7 @@
 // every attempt below should fail.
 
 // `Core\Config::set('opcache.settle', ...)` does not compile. A program may not change it.
-// Names in variables are checked only when the program runs. Then `set` returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so `set` runs and returns `false`.
 
 // 1. Compile the program again after every file that a deploy writes.
 string $settle = 'opcache.settle';

@@ -1,6 +1,6 @@
 running in: production
 ceiling:    production
 select production:  accepted
-select development: refused
+select development: not allowed
 still running in:   production
-raise the ceiling:  refused
+raise the ceiling:  not allowed

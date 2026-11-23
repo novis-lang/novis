@@ -4,7 +4,7 @@
 // hostile: timeout-ms 20000
 
 // `Core\Config::set('server.listen', ...)` does not compile, because a program may not change `server.listen`.
-// Names in variables are checked only when the program runs. Then `set` returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so `set` runs and returns `false`.
 string $listen = 'server.listen';
 string $listenFirst = 'server.listen.0';
 string $appListen = 'app.0.server.listen';

@@ -11,13 +11,13 @@ echo 'workers here:       ', Core\Config::get('queue.workers') ?? '(nothing writ
 // `Core\Config::set('queue.connection', ...)` does not compile,
 // because a program may not change `queue.connection`.
 
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
-// This prints `refused`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
+// This prints `not allowed`.
 string $name = 'queue.connection';
-echo 'store them elsewhere:      ', Core\Config::set($name, 'somewhere-else') ? 'accepted' : 'refused', "\n";
+echo 'store them elsewhere:      ', Core\Config::set($name, 'somewhere-else') ? 'accepted' : 'not allowed', "\n";
 
 // The same is true for the value that is already set.
-echo 'write the same one back:   ', Core\Config::set($name, Core\Config::get('queue.connection') ?? 'main') ? 'accepted' : 'refused', "\n";
+echo 'write the same one back:   ', Core\Config::set($name, Core\Config::get('queue.connection') ?? 'main') ? 'accepted' : 'not allowed', "\n";
 
 // The server applies a new value in the file while it runs. Workers on the old
 // connection put their current job back, and new workers use the new connection.

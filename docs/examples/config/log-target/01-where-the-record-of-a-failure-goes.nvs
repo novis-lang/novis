@@ -9,11 +9,11 @@ echo 'records go to: ', Core\Config::get('log.target') ?? '(nothing written — 
 string $name = 'log.target';
 array<string> $destinations = ['stderr', 'file:/var/log/nvs.log', 'syslog'];
 foreach ($destinations as string $destination) {
-    echo 'send them to ', $destination, ': ', Core\Config::set($name, $destination) ? 'accepted' : 'refused', "\n";
+    echo 'send them to ', $destination, ': ', Core\Config::set($name, $destination) ? 'accepted' : 'not allowed', "\n";
 }
 
 // A program may change `log.format` and `log.level` for one request.
 // The target stays the same.
-echo 'trace this one run: ', Core\Config::set('log.level', 'Debug') ? 'accepted' : 'refused', "\n";
+echo 'trace this one run: ', Core\Config::set('log.level', 'Debug') ? 'accepted' : 'not allowed', "\n";
 Core\Config::restore('log.level');
 echo 'destination now: ', Core\Config::get('log.target') ?? '(nothing written — still stderr)', "\n";

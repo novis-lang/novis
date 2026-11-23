@@ -3,7 +3,7 @@
 // Only the person who runs the server may set them, so every attempt below should fail.
 
 // `Core\Config::set('server.workers', ...)` does not compile. A program may not change it.
-// Names in variables are checked only when the program runs. Then `set` returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so `set` runs and returns `false`.
 
 // 1. Raise the number of requests that run at one time, and the number of workers.
 string $inFlight = 'server.max_in_flight';

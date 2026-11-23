@@ -5,7 +5,7 @@
 // hostile: timeout-ms 20000
 
 // `Core\Config::set('opcache.validate', ...)` does not compile, because a program may not change `opcache.validate`.
-// Names in variables are checked only when the program runs. Then `set` returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so `set` runs and returns `false`.
 string $validate = 'opcache.validate';
 string $indexed = 'app.0.opcache.validate';
 string $freq = 'opcache.revalidate_freq';

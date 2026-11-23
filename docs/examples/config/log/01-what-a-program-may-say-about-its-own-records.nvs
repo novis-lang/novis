@@ -10,15 +10,15 @@ echo 'level:     ', Core\Config::get('log.level') ?? '(no value)', "\n";
 
 // This sets the log level to `Debug` for this request only. Other requests
 // still use the configured level.
-echo 'trace this run: ', Core\Config::set('log.level', 'Debug') ? 'accepted' : 'refused', "\n";
+echo 'trace this run: ', Core\Config::set('log.level', 'Debug') ? 'accepted' : 'not allowed', "\n";
 echo 'level now:      ', Core\Config::get('log.level') ?? '(no value)', "\n";
 
 // A program cannot change where records go or which script runs when it fails. A name written
 // in the call does not compile. These names are in variables, so both calls run and return `false`.
 string $target = 'log.target';
 string $handler = 'log.handler';
-echo 'send them elsewhere: ', Core\Config::set($target, 'file:/tmp/mine.log') ? 'accepted' : 'refused', "\n";
-echo 'name my own handler: ', Core\Config::set($handler, 'scripts/mine.nvs') ? 'accepted' : 'refused', "\n";
+echo 'send them elsewhere: ', Core\Config::set($target, 'file:/tmp/mine.log') ? 'accepted' : 'not allowed', "\n";
+echo 'name my own handler: ', Core\Config::set($handler, 'scripts/mine.nvs') ? 'accepted' : 'not allowed', "\n";
 
 // `Core\Config::restore` sets the level back to the configured value.
 // No level is configured here, so the result is the default, `Info`.

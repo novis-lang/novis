@@ -2,6 +2,6 @@ rendering: json
 level:     Info
 trace this run: accepted
 level now:      Debug
-send them elsewhere: refused
-name my own handler: refused
+send them elsewhere: not allowed
+name my own handler: not allowed
 level after restore: Info

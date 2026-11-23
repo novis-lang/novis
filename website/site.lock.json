@@ -1,201 +1,201 @@
 {
   "docs/examples/config/app/about.md": {
-    "directive:app": "f735bc0ad2d44b97"
+    "directive:app": "f3b309b3cdb021e0"
   },
   "docs/examples/config/cache-memory/about.md": {
-    "directive:cache.memory": "dda28f8c54773828"
+    "directive:cache.memory": "4b5066072aec5bce"
   },
   "docs/examples/config/cache-shared/about.md": {
-    "directive:cache.shared": "eecafd8bfcbef54d"
+    "directive:cache.shared": "7e8634f91603de78"
   },
   "docs/examples/config/capabilities/about.md": {
-    "directive:capabilities": "7f708a1daf1245ca"
+    "directive:capabilities": "cc900670d6c8c44b"
   },
   "docs/examples/config/debug-index_age/about.md": {
-    "directive:debug.index_age": "e24ec16ce22b5cc3"
+    "directive:debug.index_age": "245fe3dfebfc073b"
   },
   "docs/examples/config/debug-index_max/about.md": {
-    "directive:debug.index_max": "126ed6b05b0b19d5"
+    "directive:debug.index_max": "b18422a34d6dab10"
   },
   "docs/examples/config/debug-inline/about.md": {
-    "directive:debug.inline": "c3ff91901fbbb845"
+    "directive:debug.inline": "629f3ffecee4c206"
   },
   "docs/examples/config/debug-keep_temporary/about.md": {
-    "directive:debug.keep_temporary": "d9aa049185ac97a8"
+    "directive:debug.keep_temporary": "166b17a2e6d3ae4f"
   },
   "docs/examples/config/debug-listen/about.md": {
-    "directive:debug.listen": "9904aefa4630c3a3"
+    "directive:debug.listen": "3b3492c07b6c9f5d"
   },
   "docs/examples/config/debug-spool_max/about.md": {
-    "directive:debug.spool_max": "fe10a731b3e038df"
+    "directive:debug.spool_max": "ddf2c18872ce62d6"
   },
   "docs/examples/config/debug-store/about.md": {
-    "directive:debug.store": "01bb627d93954033"
+    "directive:debug.store": "900c7b86be4732ee"
   },
   "docs/examples/config/debug-tls_cert_file/about.md": {
-    "directive:debug.tls_cert_file": "b5c196521319a468"
+    "directive:debug.tls_cert_file": "d4afe49b588752fe"
   },
   "docs/examples/config/debug-tls_key_file/about.md": {
-    "directive:debug.tls_key_file": "88e70aa705ee9579"
+    "directive:debug.tls_key_file": "b97c887767110760"
   },
   "docs/examples/config/debug-token_file/about.md": {
-    "directive:debug.token_file": "cca2c7cb0439609f"
+    "directive:debug.token_file": "1f93e5e3c06a172a"
   },
   "docs/examples/config/deferred-deadline/about.md": {
-    "directive:deferred.deadline": "68d717f15e9565d7"
+    "directive:deferred.deadline": "ae72d63f67407161"
   },
   "docs/examples/config/deferred-max_concurrent/about.md": {
-    "directive:deferred.max_concurrent": "4453bea02c2724e0"
+    "directive:deferred.max_concurrent": "06dc049af2c45d43"
   },
   "docs/examples/config/errors-deprecated/about.md": {
-    "directive:errors.deprecated": "672a326d2d22d9ec"
+    "directive:errors.deprecated": "6eaf2fb655808f20"
   },
   "docs/examples/config/ext/about.md": {
-    "directive:ext": "810ea65b1c10c975"
+    "directive:ext": "7a9205a4046d123a"
   },
   "docs/examples/config/extension/about.md": {
-    "directive:extension": "95ad77a058df82b7"
+    "directive:extension": "c7b0fb316e8c1bec"
   },
   "docs/examples/config/http/about.md": {
-    "directive:http": "b8096944af6c333a"
+    "directive:http": "fa3c9b38f5884fa8"
   },
   "docs/examples/config/http-client-pool_idle/about.md": {
-    "directive:http.client.pool_idle": "c3b44e946bf233b2"
+    "directive:http.client.pool_idle": "1a82385d7c8ed604"
   },
   "docs/examples/config/http-client-pool_idle_timeout/about.md": {
-    "directive:http.client.pool_idle_timeout": "5040346f3231bb60"
+    "directive:http.client.pool_idle_timeout": "5614dabc2d180b99"
   },
   "docs/examples/config/http-client-proxy/about.md": {
-    "directive:http.client.proxy": "cdfa67b72a74bbc3"
+    "directive:http.client.proxy": "f97d140d4f289e95"
   },
   "docs/examples/config/http-client-socket/about.md": {
-    "directive:http.client.socket": "9bac37fdf8f8b325"
+    "directive:http.client.socket": "970b1d567e4f8c5e"
   },
   "docs/examples/config/http-client-tls/about.md": {
-    "directive:http.client.tls": "bddd63e8ad0ced1c"
+    "directive:http.client.tls": "90c9a4e462028b87"
   },
   "docs/examples/config/http-csrf_key/about.md": {
-    "directive:http.csrf_key": "4aa953e17c12b2b8"
+    "directive:http.csrf_key": "673985fe1bd93ef0"
   },
   "docs/examples/config/http-csrf_key_file/about.md": {
-    "directive:http.csrf_key_file": "933f882e01eef654"
+    "directive:http.csrf_key_file": "75a98d022b6e3818"
   },
   "docs/examples/config/image-max_pixels/about.md": {
-    "directive:image.max_pixels": "1c7aabfad1581d9b"
+    "directive:image.max_pixels": "b9e5618b72caf2c1"
   },
   "docs/examples/config/include/about.md": {
-    "directive:include": "57a6b6b33346b947"
+    "directive:include": "ea00542173ebdace"
   },
   "docs/examples/config/io-temp_root/about.md": {
-    "directive:io.temp_root": "dee9d7632de10d29"
+    "directive:io.temp_root": "078dda1921acb55c"
   },
   "docs/examples/config/limits/about.md": {
-    "directive:limits": "e60fdd6aef845670"
+    "directive:limits": "9f0287ba5b99d1fc"
   },
   "docs/examples/config/limits-cancel_on_disconnect/about.md": {
-    "directive:limits.cancel_on_disconnect": "b59dc442ed2b27d9"
+    "directive:limits.cancel_on_disconnect": "67db7192c1044f4d"
   },
   "docs/examples/config/limits-disconnect_grace/about.md": {
-    "directive:limits.disconnect_grace": "8d9544c121d1b453"
+    "directive:limits.disconnect_grace": "5fe2088c22646a2c"
   },
   "docs/examples/config/limits-fatal_reserve_memory/about.md": {
-    "directive:limits.fatal_reserve_memory": "cbfe0d11c7bd135a"
+    "directive:limits.fatal_reserve_memory": "6457f167f6860d99"
   },
   "docs/examples/config/limits-fatal_reserve_time/about.md": {
-    "directive:limits.fatal_reserve_time": "d74d8cde06568f71"
+    "directive:limits.fatal_reserve_time": "de490601bfad71c5"
   },
   "docs/examples/config/limits-hard/about.md": {
-    "directive:limits.hard": "fc6b6b6c6375a221"
+    "directive:limits.hard": "a3557ffd46c0d72d"
   },
   "docs/examples/config/limits-max_decompressed/about.md": {
-    "directive:limits.max_decompressed": "79379bacf1f02847"
+    "directive:limits.max_decompressed": "bf08851ac066b591"
   },
   "docs/examples/config/limits-max_decompression_ratio/about.md": {
-    "directive:limits.max_decompression_ratio": "3ee8516fda7c11cb"
+    "directive:limits.max_decompression_ratio": "39bbfe6b6f207714"
   },
   "docs/examples/config/limits-max_script_depth/about.md": {
-    "directive:limits.max_script_depth": "44a99193988ed8da"
+    "directive:limits.max_script_depth": "82198c116c94a2e2"
   },
   "docs/examples/config/limits-memory_high_water/about.md": {
-    "directive:limits.memory_high_water": "5453352d41c40c9d"
+    "directive:limits.memory_high_water": "1531b56f78f995ef"
   },
   "docs/examples/config/log/about.md": {
-    "directive:log": "aa59d888eaef13d3"
+    "directive:log": "3be1d6379b45573c"
   },
   "docs/examples/config/log-client_ip/about.md": {
-    "directive:log.client_ip": "b3198565217f0f50"
+    "directive:log.client_ip": "1faa2353946781f8"
   },
   "docs/examples/config/log-handler/about.md": {
-    "directive:log.handler": "a6b2c4dc21c477cc"
+    "directive:log.handler": "d695408f30d91cf5"
   },
   "docs/examples/config/log-handler_reserve_memory/about.md": {
-    "directive:log.handler_reserve_memory": "b1a86fdc9d294fa8"
+    "directive:log.handler_reserve_memory": "2c4527f7f8dc71be"
   },
   "docs/examples/config/log-handler_reserve_time/about.md": {
-    "directive:log.handler_reserve_time": "aed3ced25de7105b"
+    "directive:log.handler_reserve_time": "045663b1d8dd937f"
   },
   "docs/examples/config/log-keep/about.md": {
-    "directive:log.keep": "34b05b98591af1a7"
+    "directive:log.keep": "281f7b64e2b931da"
   },
   "docs/examples/config/log-max_size/about.md": {
-    "directive:log.max_size": "b813143e74ce2be3"
+    "directive:log.max_size": "e4ecda85c64f1197"
   },
   "docs/examples/config/log-target/about.md": {
-    "directive:log.target": "084c2e2fb334e511"
+    "directive:log.target": "743cc6fedbf093ef"
   },
   "docs/examples/config/metrics/about.md": {
-    "directive:metrics": "067154bd0cb9758b"
+    "directive:metrics": "74ecc38006753640"
   },
   "docs/examples/config/mode-ceiling/about.md": {
-    "directive:mode.ceiling": "6deb55b9157853f0"
+    "directive:mode.ceiling": "3d52fcad32e30f1c"
   },
   "docs/examples/config/mode-default/about.md": {
-    "directive:mode.default": "e7eaae9a7caae117"
+    "directive:mode.default": "443686f18a50ec7c"
   },
   "docs/examples/config/opcache/about.md": {
-    "directive:opcache": "3077af9d945b6c4d"
+    "directive:opcache": "fa095ecc87446848"
   },
   "docs/examples/config/opcache-file_cache_dir/about.md": {
-    "directive:opcache.file_cache_dir": "e54bcb0fe3330383"
+    "directive:opcache.file_cache_dir": "6125e289be01d70f"
   },
   "docs/examples/config/queue-connection/about.md": {
-    "directive:queue.connection": "b5ca00609cf222f5"
+    "directive:queue.connection": "16f80830768468ba"
   },
   "docs/examples/config/queue-max_attempts/about.md": {
-    "directive:queue.max_attempts": "d1d80a170101fec4"
+    "directive:queue.max_attempts": "9ec16eac99cd072a"
   },
   "docs/examples/config/queue-visibility/about.md": {
-    "directive:queue.visibility": "bb03939445d3f854"
+    "directive:queue.visibility": "fa6da16be12cc8a9"
   },
   "docs/examples/config/queue-workers/about.md": {
-    "directive:queue.workers": "8b4853ceccd2cf7d"
+    "directive:queue.workers": "ff783287cc53b820"
   },
   "docs/examples/config/regex-backtracking/about.md": {
-    "directive:regex.backtracking": "e097071d2e6698dc"
+    "directive:regex.backtracking": "6baef0ab4e57f509"
   },
   "docs/examples/config/schedule/about.md": {
-    "directive:schedule": "a5ab4bdf686c65f6"
+    "directive:schedule": "03bf5d4d41a8b562"
   },
   "docs/examples/config/server/about.md": {
-    "directive:server": "8f0542902b191649"
+    "directive:server": "9235c69bffd1328f"
   },
   "docs/examples/config/server-listen/about.md": {
-    "directive:server.listen": "9aaf3b54fdc9c390"
+    "directive:server.listen": "ec7b96bbee3131f6"
   },
   "docs/examples/config/server-socket_mode/about.md": {
-    "directive:server.socket_mode": "061769ee07c88584"
+    "directive:server.socket_mode": "0ba9cc86140205fa"
   },
   "docs/examples/config/server-watchdog_margin/about.md": {
-    "directive:server.watchdog_margin": "417d6dfd1a06f367"
+    "directive:server.watchdog_margin": "810ea2682745e7b4"
   },
   "docs/examples/config/server-workers/about.md": {
-    "directive:server.workers": "5e4be023e58914cb"
+    "directive:server.workers": "7a4036ac2746edfb"
   },
   "docs/examples/config/session/about.md": {
-    "directive:session": "49223891ce1e6451"
+    "directive:session": "d7521e8e89ad0b7b"
   },
   "docs/examples/config/trace/about.md": {
-    "directive:trace": "8494498ce07b08fe"
+    "directive:trace": "af40cc613bcfff08"
   },
   "docs/examples/core/Arr/all/about.md": {
     "Core\\Arr::all": "3714a591b6ca342b"
@@ -663,7 +663,7 @@
     "Core\\Config::secret": "b627f12f740764f0"
   },
   "docs/examples/core/Config/set/about.md": {
-    "Core\\Config::set": "c8b7041325371273"
+    "Core\\Config::set": "85ad1be90bf22298"
   },
   "docs/examples/core/Config/setting/about.md": {
     "Core\\Config::setting": "5e155c231e082bb6"
@@ -4437,7 +4437,7 @@
     "tools:cli/nvs-info": "9a26f3d521379af1"
   },
   "docs/examples/tools/cli/nvs-meta-json/about.md": {
-    "tools:cli/nvs-meta-json": "14ab57576192b12e"
+    "tools:cli/nvs-meta-json": "dfded4c7773e57c9"
   },
   "docs/examples/tools/cli/nvs-run/about.md": {
     "tools:cli/nvs-run": "a6a4de813e919512"
@@ -4485,13 +4485,13 @@
     "tools:config/limits-and-limits-hard": "af381294d1a55159"
   },
   "docs/examples/tools/config/mode/about.md": {
-    "tools:config/mode": "61ba97a7a39fe60b"
+    "tools:config/mode": "b5d58e37bbef6ed9"
   },
   "docs/examples/tools/config/network-grants-the-addresses-and-endpoints-they-reach/about.md": {
     "tools:config/network-grants-the-addresses-and-endpoints-they-reach": "33eb0f658f8cced7"
   },
   "docs/examples/tools/config/reading-and-changing-it-from-a-program-core-config/about.md": {
-    "tools:config/reading-and-changing-it-from-a-program-core-config": "06a3520c0051a735"
+    "tools:config/reading-and-changing-it-from-a-program-core-config": "f0be12b38c7004da"
   },
   "docs/examples/tools/config/secrets-from-files/about.md": {
     "tools:config/secrets-from-files": "3641adb356df4950"
@@ -4503,7 +4503,7 @@
     "tools:config/the-file-and-where-it-is-read-from": "21c15fe72d055e86"
   },
   "docs/examples/tools/config/trust/about.md": {
-    "tools:config/trust": "1143ed5b2dab54b2"
+    "tools:config/trust": "3431761df7bdedc9"
   },
   "docs/examples/tools/config/values-and-units/about.md": {
     "tools:config/values-and-units": "6a220fcab38744db"
@@ -5460,7 +5460,7 @@
     "Core\\Config::secret": "78b183d9eca245a1"
   },
   "help:Core\\Config::set": {
-    "Core\\Config::set": "8dbe992ba98f2656"
+    "Core\\Config::set": "fc676ed3f15920ab"
   },
   "help:Core\\Config::setting": {
     "Core\\Config::setting": "e3f95e3d98b1cb7e"
@@ -8433,13 +8433,13 @@
     "directive:cache.shared": "7c09dbfd794f52f9"
   },
   "help:directive:capabilities": {
-    "directive:capabilities": "66575725633c817a"
+    "directive:capabilities": "e61749c7583627e4"
   },
   "help:directive:debug.index_age": {
     "directive:debug.index_age": "a75470a280e22c02"
   },
   "help:directive:debug.index_max": {
-    "directive:debug.index_max": "81022475818145f2"
+    "directive:debug.index_max": "9b32c48c8a0b315e"
   },
   "help:directive:debug.inline": {
     "directive:debug.inline": "45ee257a27c3d60f"
@@ -8448,7 +8448,7 @@
     "directive:debug.keep_temporary": "9fc58a6e14d1ef7e"
   },
   "help:directive:debug.listen": {
-    "directive:debug.listen": "74237cac140d3c77"
+    "directive:debug.listen": "05390ce01f48ae83"
   },
   "help:directive:debug.mode": {
     "directive:debug.mode": "e3da83e272a5b497"
@@ -8460,16 +8460,16 @@
     "directive:debug.store": "8c284e6baf6e0c5f"
   },
   "help:directive:debug.tls_cert_file": {
-    "directive:debug.tls_cert_file": "420ac5cb1944d6cf"
+    "directive:debug.tls_cert_file": "5bdd929d97fe71be"
   },
   "help:directive:debug.tls_key_file": {
-    "directive:debug.tls_key_file": "6795d1397a523f67"
+    "directive:debug.tls_key_file": "9eb292e6b602579e"
   },
   "help:directive:debug.token_file": {
-    "directive:debug.token_file": "6943b0ae34070b13"
+    "directive:debug.token_file": "042936bc54f9d1e0"
   },
   "help:directive:deferred.deadline": {
-    "directive:deferred.deadline": "4d81dc62c7aa7e42"
+    "directive:deferred.deadline": "423a9fe69871011e"
   },
   "help:directive:deferred.max_concurrent": {
     "directive:deferred.max_concurrent": "23fd616a4f3c6631"
@@ -8481,10 +8481,10 @@
     "directive:ext": "76d9429e7ede6db8"
   },
   "help:directive:extension": {
-    "directive:extension": "c7735fb0acf0fb1d"
+    "directive:extension": "83286e1b80fb7245"
   },
   "help:directive:http": {
-    "directive:http": "86dc0288af7d6ef1"
+    "directive:http": "a501cb15118eaf6c"
   },
   "help:directive:http.client.pool_idle": {
     "directive:http.client.pool_idle": "4c68cfb2ff5b0c53"
@@ -8514,16 +8514,16 @@
     "directive:include": "04cf1b39b55ea860"
   },
   "help:directive:io.temp_root": {
-    "directive:io.temp_root": "5aa067a17a81aa05"
+    "directive:io.temp_root": "4a8a9c6cb3e1a77e"
   },
   "help:directive:limits": {
-    "directive:limits": "2ed09faf03935ed7"
+    "directive:limits": "cc6df36d99984b43"
   },
   "help:directive:limits.cancel_on_disconnect": {
-    "directive:limits.cancel_on_disconnect": "4da11e441d557fab"
+    "directive:limits.cancel_on_disconnect": "3e7759406c9dd4cd"
   },
   "help:directive:limits.disconnect_grace": {
-    "directive:limits.disconnect_grace": "363bbc7162923c70"
+    "directive:limits.disconnect_grace": "69de918362eceea0"
   },
   "help:directive:limits.fatal_reserve_memory": {
     "directive:limits.fatal_reserve_memory": "cd5a4e37d040750d"
@@ -8538,91 +8538,91 @@
     "directive:limits.max_decompressed": "0c9853fd8cc5cbce"
   },
   "help:directive:limits.max_decompression_ratio": {
-    "directive:limits.max_decompression_ratio": "4b6570b0820352be"
+    "directive:limits.max_decompression_ratio": "0e1bcb1590506364"
   },
   "help:directive:limits.max_script_depth": {
-    "directive:limits.max_script_depth": "0a5b3f5e2306b583"
+    "directive:limits.max_script_depth": "2defea03fbd3391f"
   },
   "help:directive:limits.memory_high_water": {
-    "directive:limits.memory_high_water": "46eb5f2b02c0691d"
+    "directive:limits.memory_high_water": "6f4b858c4452066f"
   },
   "help:directive:log": {
-    "directive:log": "08675e25b13ad744"
+    "directive:log": "d836730eea606eae"
   },
   "help:directive:log.client_ip": {
-    "directive:log.client_ip": "5df22dadab0388c9"
+    "directive:log.client_ip": "c938a88655e4ec50"
   },
   "help:directive:log.handler": {
-    "directive:log.handler": "8571ffb6bf2c0524"
+    "directive:log.handler": "43607e59a67e3dc4"
   },
   "help:directive:log.handler_reserve_memory": {
-    "directive:log.handler_reserve_memory": "3aa2c2a319854c34"
+    "directive:log.handler_reserve_memory": "17fa50db66ddec1e"
   },
   "help:directive:log.handler_reserve_time": {
-    "directive:log.handler_reserve_time": "a388e61cec989d66"
+    "directive:log.handler_reserve_time": "07c99562f5484f7a"
   },
   "help:directive:log.keep": {
-    "directive:log.keep": "d418baf1565c18d8"
+    "directive:log.keep": "92aeb5b90b432005"
   },
   "help:directive:log.max_size": {
-    "directive:log.max_size": "85c8e6c1bc44f0f1"
+    "directive:log.max_size": "415c3016a3fce3fe"
   },
   "help:directive:log.target": {
-    "directive:log.target": "944f5ae9382cabd4"
+    "directive:log.target": "a98f3e7671976e8d"
   },
   "help:directive:metrics": {
-    "directive:metrics": "1b2c3851c0dfb460"
+    "directive:metrics": "dfa9d4856e925d88"
   },
   "help:directive:mode.ceiling": {
-    "directive:mode.ceiling": "bb8b4e4dbd670dec"
+    "directive:mode.ceiling": "a522858d7d07d85a"
   },
   "help:directive:mode.default": {
     "directive:mode.default": "205b178e2070ef64"
   },
   "help:directive:opcache": {
-    "directive:opcache": "7944b56ba2a5fe56"
+    "directive:opcache": "589a5d19437efb74"
   },
   "help:directive:opcache.file_cache_dir": {
-    "directive:opcache.file_cache_dir": "55a213f42508b40e"
+    "directive:opcache.file_cache_dir": "43069ed755c44984"
   },
   "help:directive:queue.connection": {
-    "directive:queue.connection": "c6524738fb39ccb9"
+    "directive:queue.connection": "4a37bfb1d4797d5f"
   },
   "help:directive:queue.max_attempts": {
-    "directive:queue.max_attempts": "0d1ba53a63736e9e"
+    "directive:queue.max_attempts": "1b33be70a0c96e86"
   },
   "help:directive:queue.visibility": {
-    "directive:queue.visibility": "2ecc189cc23b3b12"
+    "directive:queue.visibility": "c5fd1bd7d36893f1"
   },
   "help:directive:queue.workers": {
-    "directive:queue.workers": "e9620777fbd6b695"
+    "directive:queue.workers": "785fe0bf20908c5c"
   },
   "help:directive:regex.backtracking": {
-    "directive:regex.backtracking": "83d500776c45c94e"
+    "directive:regex.backtracking": "6c0dad1787a07eb4"
   },
   "help:directive:schedule": {
-    "directive:schedule": "7af9b5e6dd645683"
+    "directive:schedule": "cfe1fb804b9fb694"
   },
   "help:directive:server": {
-    "directive:server": "38a6e206e717edd4"
+    "directive:server": "d0c00deed4c4968f"
   },
   "help:directive:server.listen": {
-    "directive:server.listen": "e3dadf24061d01d9"
+    "directive:server.listen": "863911632d01ec62"
   },
   "help:directive:server.socket_mode": {
-    "directive:server.socket_mode": "693123c0d8cdf786"
+    "directive:server.socket_mode": "7148fea9db99e025"
   },
   "help:directive:server.watchdog_margin": {
-    "directive:server.watchdog_margin": "a25ca3b19275f0d7"
+    "directive:server.watchdog_margin": "2e0718441ccc1350"
   },
   "help:directive:server.workers": {
-    "directive:server.workers": "a232059a0837bb1e"
+    "directive:server.workers": "1456a36aaff52b47"
   },
   "help:directive:session": {
-    "directive:session": "cb0f1f27215b980b"
+    "directive:session": "a93870ba58b10a83"
   },
   "help:directive:trace": {
-    "directive:trace": "ce7c1b79e279a9ac"
+    "directive:trace": "1bd50c8fe75f7424"
   },
   "help:ExtensionError": {
     "ExtensionError": "a3bb2fa9a01980b7"
@@ -9339,13 +9339,13 @@
     "tools:config/limits-and-limits-hard": "4c078b9e7d7d73e9"
   },
   "help:tools:config/mode": {
-    "tools:config/mode": "a21bfd06657eadd0"
+    "tools:config/mode": "611189971c5bb528"
   },
   "help:tools:config/network-grants-the-addresses-and-endpoints-they-reach": {
     "tools:config/network-grants-the-addresses-and-endpoints-they-reach": "727fbb8d6232bd71"
   },
   "help:tools:config/reading-and-changing-it-from-a-program-core-config": {
-    "tools:config/reading-and-changing-it-from-a-program-core-config": "f40b1caeb8982cfe"
+    "tools:config/reading-and-changing-it-from-a-program-core-config": "c30c4928ffd46f1e"
   },
   "help:tools:config/secrets-from-files": {
     "tools:config/secrets-from-files": "5dd10e012d051f74"
@@ -9357,7 +9357,7 @@
     "tools:config/the-file-and-where-it-is-read-from": "595b3af8a0cc7d34"
   },
   "help:tools:config/trust": {
-    "tools:config/trust": "d47847320ccaef77"
+    "tools:config/trust": "fba8c02b748773b4"
   },
   "help:tools:config/values-and-units": {
     "tools:config/values-and-units": "ac8e6a737e37140b"

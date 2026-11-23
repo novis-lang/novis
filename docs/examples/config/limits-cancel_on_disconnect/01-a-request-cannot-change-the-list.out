@@ -1,4 +1,4 @@
-set to []: refused
-set to ["POST"]: refused
-set to ["GET", "HEAD", "POST"]: refused
+set to []: not allowed
+set to ["POST"]: not allowed
+set to ["GET", "HEAD", "POST"]: not allowed
 lower the memory: accepted

@@ -2,7 +2,7 @@ memory for the report: 16M
 time for it:           5s
 the script it runs:    (none — the floor writes the record itself)
 the request-side slice: 1M
-widen it:  refused
-narrow it: refused
-remove it: refused
+widen it:  not allowed
+narrow it: not allowed
+remove it: not allowed
 bound my own heap: accepted

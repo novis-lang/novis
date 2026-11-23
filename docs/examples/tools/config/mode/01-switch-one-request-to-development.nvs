@@ -16,7 +16,7 @@ echo Core\Config::get('mode.default'), "\n";
 // `Core\Config::set('mode.ceiling', ...)` does not compile,
 // because a program may not change `mode.ceiling`.
 
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 // This prints `no`.
 string $ceiling = 'mode.ceiling';
 echo Core\Config::set($ceiling, 'production') ? 'yes' : 'no', "\n";

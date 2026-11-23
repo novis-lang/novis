@@ -4,7 +4,7 @@
 // hostile: timeout-ms 20000
 
 // `Core\Config::set('server.watchdog_margin', ...)` does not compile, because a program may not change `server.watchdog_margin`.
-// Names in variables are checked only when the program runs. Then `set` returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so `set` runs and returns `false`.
 string $watchdog = 'server.watchdog_margin';
 string $appWatchdog = 'app.0.server.watchdog_margin';
 

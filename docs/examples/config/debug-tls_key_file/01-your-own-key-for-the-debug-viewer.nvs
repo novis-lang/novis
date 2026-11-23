@@ -6,7 +6,7 @@ echo 'tls_key_file: ', Core\Config::get('debug.tls_key_file') ?? '(not set)', "\
 // `Core\Config::set('debug.tls_key_file', ...)` does not compile,
 // because a program may not change `debug.tls_key_file`.
 
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 // This prints `no`.
 string $name = 'debug.tls_key_file';
 echo 'change it:    ', Core\Config::set($name, '/etc/novis/debug.key') ? 'yes' : 'no', "\n";

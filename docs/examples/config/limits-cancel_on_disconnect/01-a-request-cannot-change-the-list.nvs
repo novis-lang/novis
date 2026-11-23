@@ -4,13 +4,13 @@
 // `Core\Config::set('limits.cancel_on_disconnect', ...)` does not compile,
 // because a program may not change `limits.cancel_on_disconnect`.
 
-// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
-// This prints `refused` three times.
+// This program keeps the names in variables. The compiler does not check a variable, so each `set` call runs and returns `false`.
+// This prints `not allowed` three times.
 string $name = 'limits.cancel_on_disconnect';
 array<string> $lists = ['[]', '["POST"]', '["GET", "HEAD", "POST"]'];
 foreach ($lists as string $list) {
-    echo 'set to ', $list, ': ', Core\Config::set($name, $list) ? 'accepted' : 'refused', "\n";
+    echo 'set to ', $list, ': ', Core\Config::set($name, $list) ? 'accepted' : 'not allowed', "\n";
 }
 
 // `limits.memory` is in the same block, and a request may lower it. This prints `accepted`.
-echo 'lower the memory: ', Core\Config::set('limits.memory', '64M') ? 'accepted' : 'refused', "\n";
+echo 'lower the memory: ', Core\Config::set('limits.memory', '64M') ? 'accepted' : 'not allowed', "\n";

@@ -3,7 +3,7 @@
 // Only the person who runs the server may set these limits, so every change below should fail.
 
 // `Core\Config::set('limits.disconnect_grace', ...)` does not compile. A program may not change it.
-// Names in variables are checked only when the program runs. Then `set` returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so `set` runs and returns `false`.
 
 // 1. Raise the time after the client went away to 100000 hours.
 string $grace = 'limits.disconnect_grace';

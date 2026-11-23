@@ -16,13 +16,13 @@ try {
     Core\Compress::decompress($frame, Core\Compress::Codec::Gzip, 1048576, 2);
     echo "at 2 to 1:                 got the whole thing anyway\n";
 } catch (ParseError $bomb) {
-    echo "at 2 to 1:                 refused\n";
+    echo "at 2 to 1:                 not allowed\n";
 }
 echo 'at the deployment\'s ratio: ', Core\Bytes::length(Core\Compress::decompress($frame, Core\Compress::Codec::Gzip)), " octets\n";
 
 // `Core\Config::set('limits.max_decompression_ratio', ...)` does not compile,
 // because a program may not change `limits.max_decompression_ratio`.
 
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 string $name = 'limits.max_decompression_ratio';
-echo 'loosen it from here:       ', Core\Config::set($name, '1000000') ? 'accepted' : 'refused', "\n";
+echo 'loosen it from here:       ', Core\Config::set($name, '1000000') ? 'accepted' : 'not allowed', "\n";

@@ -45,13 +45,13 @@
 # ----------------------------------------------------------------------------------------------
 
 [mode]
+# A request may change this with `Core\Config::set`, up to `[mode] ceiling`.
 # The mode a run starts in: `production` or `development`. A host with no configuration file
-# starts in `production`. The mode sets the default of five other settings. Three of them are keys
-# in this file, and the comment of each one gives its default for both modes.
-# The mode also sets `[server] dispatch`, `[server] static` and `[opcache] settle` when they are not
-# written. This happens once, when the file is loaded. So in `development`, the request path selects
-# the entry file, and the server sends static files. A change of mode while the server runs does
-# not change these three settings.
+# starts in `production`. Some settings in this file have a different default in each mode. The
+# comment of each one gives both defaults.
+# The mode also sets `[server] dispatch`, `[server] static` and `[opcache] settle` when the file
+# does not write them. This happens once, when the file is loaded. A change of mode while the
+# server runs does not change these three settings.
 #default = "production"               # default
 # The highest mode that code may switch to. `development` is higher than `production`, because it
 # allows more. When this is not written, code cannot switch to a mode above the one the server
@@ -323,7 +323,7 @@
 # request that failed. It is larger than `[limits] fatal_reserve_time`, because the script must be
 # compiled and run.
 #handler_reserve_time = "5s"          # default
-# Where Novis writes log records: `stderr`, `file:<path>` or `syslog`. This log is always written.
+# Where Novis writes log records: `stderr`, `file:<path>` or `syslog`.
 # `syslog` works on Linux, macOS and other Unix systems. Windows does not have it.
 # When this is not set, Novis writes to `stderr` (standard error). A server that a service manager
 # started is different: it writes to `logs/nvs.log` in its data folder.
@@ -407,15 +407,15 @@
 # runs, such as which lines run. `[]` turns all probes off. Otherwise, write any of `coverage`,
 # `branch`, `trace` and `profile`. A server in `development` mode may use `coverage` only. With
 # `coverage`, the server counts the lines each request runs. With any other value, the server does
-# not start and prints an error.
+# not start and prints an error. That is also true for `branch`, `trace` and `profile`.
 # A request cannot turn a probe on.
 #mode = ["coverage"]                  # example
 
 # With `true`, a `Core\Debug::dump` call adds its output to the HTML body of the request.
 # The output is a block that you can open and close. The dump is also written as a log record.
-# A JSON body does not change, whatever this value is.
+# This setting does not change a JSON body.
 # A request may set this to `false` for itself. It can never set it to `true`.
-# Only the mode turns it on: it is `true` when `[mode] default` is `development`.
+# It is `true` only when `[mode] default` is `development`.
 #inline = false                       # default: false in production, true in development
 
 # With `true`, the cleanup at the end of a script does not delete its temporary directories. It
@@ -435,11 +435,12 @@
 # process may use. When they use more, Novis deletes the oldest files.
 #spool_max = "256M"                   # default
 
-# `nvs debug` deletes a request's records from the index once they are this old.
+# The index is the database of `nvs debug`, `debug/index.sqlite` in the data folder. `nvs debug`
+# deletes a request's records from the index once they are this old.
 #index_age = "7d"                     # default
 
-# The largest size of the index. When the index is larger, `nvs debug` deletes the oldest requests
-# first.
+# The largest size of the index, the database of `nvs debug`. When the index is larger,
+# `nvs debug` deletes the oldest requests first.
 #index_max = "1G"                     # default
 
 # The address `nvs debug` serves the debug viewer on: an IP address and a port. `nvs debug` prints
@@ -447,16 +448,19 @@
 # with an error.
 #listen = "127.0.0.1:8137"            # default; restart required
 
-# The viewer always needs a token. `nvs debug` creates one in `debug/` in the data folder, and the
-# link it prints contains the token. Open that link in your browser. With `listen` on an address
-# that is not loopback, `nvs debug` uses HTTPS. It also creates a certificate and a private key in
-# `debug/`. You can use your own files instead, with `tls_cert_file`, `tls_key_file` and
-# `token_file`. If a file you name does not exist, `nvs debug` prints a warning and uses the file it
-# created. This setting is the path of your own certificate file for HTTPS.
+# The path of your own certificate file for HTTPS. `nvs debug` uses HTTPS when `listen` is not a
+# loopback address, such as `127.0.0.1`. Without this setting, `nvs debug` creates a certificate
+# and a private key in `debug/` in the data folder. If the file does not exist, `nvs debug` prints
+# a warning and uses the certificate it created.
 #tls_cert_file = "/etc/novis/debug.crt" # example; restart required
-# The path of your own private key file for HTTPS.
+# The path of your own private key file for HTTPS. It is the key of the certificate in
+# `tls_cert_file`. If the file does not exist, `nvs debug` prints a warning and uses the key it
+# created.
 #tls_key_file = "/etc/novis/debug.key"  # example; restart required
-# The path of your own file that contains the token.
+# The path of your own file that contains the token. The debug viewer always needs a token.
+# Without this setting, `nvs debug` creates one in `debug/` in the data folder. The link that
+# `nvs debug` prints contains the token, so open that link in your browser. If the file does not
+# exist, `nvs debug` prints a warning and uses the token it created.
 #token_file = "/etc/novis/debug.token"  # example; restart required
 
 
@@ -965,8 +969,8 @@
 [deferred]
 # Only `nvs.toml` sets this. A request may not change it.
 # The most requests on one CPU core that may have work waiting to run after the response
-# is sent. When this number is reached, `Core\Task::afterResponse` throws an error. The error
-# shows up in the request that made the call.
+# is sent. When this number is reached, `Core\Task::afterResponse` throws an error in the request
+# that made the call.
 #max_concurrent = 256                 # default
 # A request may change this with `Core\Config::set`.
 # The deadline of a `Core\Task::afterResponse` call that does not give its own deadline. When

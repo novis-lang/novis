@@ -7,10 +7,10 @@ echo 'grace: ', Core\Config::get('limits.disconnect_grace') ?? 'not set', "\n";
 // `Core\Config::set('limits.disconnect_grace', ...)` does not compile,
 // because a program may not change `limits.disconnect_grace`.
 
-// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
-// This prints `refused` three times.
+// This program keeps the names in variables. The compiler does not check a variable, so each `set` call runs and returns `false`.
+// This prints `not allowed` three times.
 string $name = 'limits.disconnect_grace';
 array<string> $values = ['1h', '1s', 'false'];
 foreach ($values as string $value) {
-    echo 'set to ', $value, ': ', Core\Config::set($name, $value) ? 'accepted' : 'refused', "\n";
+    echo 'set to ', $value, ': ', Core\Config::set($name, $value) ? 'accepted' : 'not allowed', "\n";
 }

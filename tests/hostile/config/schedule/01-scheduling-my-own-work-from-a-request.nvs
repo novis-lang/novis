@@ -5,7 +5,7 @@
 // hostile: timeout-ms 20000
 
 // `Core\Config::set('schedule', ...)` does not compile, because a program may not change `schedule`.
-// Names in variables are checked only when the program runs. Then `set` returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so `set` runs and returns `false`.
 string $scheduleKey = 'schedule';
 string $scriptKey = 'schedule.0.script';
 string $scriptNoIndex = 'schedule.script';

@@ -4,7 +4,7 @@
 // Every change should fail, and the limit should keep the value from the file.
 
 // `Core\Config::set('debug.spool_max', ...)` does not compile, because a program may not change `debug.spool_max`.
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 string $setting = 'debug.spool_max';
 
 // 1. Set `debug.spool_max` to huge sizes, to zero and to negative sizes. Each change should fail.

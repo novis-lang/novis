@@ -4,7 +4,7 @@
 // Only the configuration file may turn a probe on, so every change below should fail.
 
 // `Core\Config::set('debug.mode', ...)` does not compile, because a program may not change `debug.mode`.
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 string $setting = 'debug.mode';
 
 // 1. Set `debug.mode` to each probe name, and to lists of names. Each change should fail.

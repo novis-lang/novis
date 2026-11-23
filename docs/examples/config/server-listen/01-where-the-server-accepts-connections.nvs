@@ -10,9 +10,9 @@ echo 'listening on:            ', Core\Config::get('server.listen') ?? '127.0.0.
 // `Core\Config::set('server.listen', ...)` does not compile,
 // because a program may not change `server.listen`.
 
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
-// This prints `refused`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
+// This prints `not allowed`.
 string $name = 'server.listen';
-echo 'listen on every address: ', Core\Config::set($name, '0.0.0.0:80') ? 'accepted' : 'refused', "\n";
+echo 'listen on every address: ', Core\Config::set($name, '0.0.0.0:80') ? 'accepted' : 'not allowed', "\n";
 
 // A new value in the file takes effect after a restart. Until then, the server writes it to its log.

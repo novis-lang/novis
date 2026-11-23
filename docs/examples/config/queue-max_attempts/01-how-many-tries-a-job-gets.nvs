@@ -12,13 +12,13 @@ echo 'queued in:           ', Core\Config::get('queue.connection') ?? '(nothing 
 // `Core\Config::set('queue.max_attempts', ...)` does not compile,
 // because a program may not change `queue.max_attempts`.
 
-// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so each `set` call runs and returns `false`.
 string $name = 'queue.max_attempts';
 
 // A program cannot raise this number, so the call returns `false`. Too many
 // retries slow down every other job in the same queue.
-echo 'try mine a thousand times: ', Core\Config::set($name, '1000') ? 'accepted' : 'refused', "\n";
+echo 'try mine a thousand times: ', Core\Config::set($name, '1000') ? 'accepted' : 'not allowed', "\n";
 
 // A program cannot lower it either, so this call also returns `false`.
 // A job that is not retried may never be done.
-echo 'or give mine one try:      ', Core\Config::set($name, '1') ? 'accepted' : 'refused', "\n";
+echo 'or give mine one try:      ', Core\Config::set($name, '1') ? 'accepted' : 'not allowed', "\n";

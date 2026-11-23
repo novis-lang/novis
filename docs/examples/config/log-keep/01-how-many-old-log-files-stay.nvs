@@ -9,7 +9,7 @@ echo 'keep: ', Core\Config::get('log.keep') ?? '(no value)', "\n";
 // `Core\Config::set('log.keep', ...)` does not compile,
 // because a program may not change `log.keep`.
 
-// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so each `set` call runs and returns `false`.
 string $name = 'log.keep';
 echo 'keep 1000 files: ', Core\Config::set($name, '1000') ? 'accepted' : 'not allowed', "\n";
 echo 'keep 0 files: ', Core\Config::set($name, '0') ? 'accepted' : 'not allowed', "\n";

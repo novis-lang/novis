@@ -6,7 +6,7 @@ echo 'listen:     ', Core\Config::get('debug.listen') ?? '(no value)', "\n";
 // `Core\Config::set('debug.listen', ...)` does not compile,
 // because a program may not change `debug.listen`.
 
-// A name in a variable is checked only when the program runs. Then `set` returns `false`.
+// This program keeps the name in a variable. The compiler does not check a variable, so `set` runs and returns `false`.
 // This prints `no`.
 string $name = 'debug.listen';
 echo 'change it:  ', Core\Config::set($name, '0.0.0.0:8137') ? 'yes' : 'no', "\n";

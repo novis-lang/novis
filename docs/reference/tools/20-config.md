@@ -571,15 +571,16 @@ them.
 - A name is the dotted path the file writes: `limits.hard.memory`, `log.level`, `mode.default`.
   A limit's name alone, such as `memory`, `cpu_time` or `wall_time`, is the setting in `[limits]`.
 - `get` returns the current value of a setting as text. A value from the file is written exactly
-  as the file writes it. A setting the file does not write gives its built-in default, written as
-  the shipped `nvs.toml` shows it: `128M`, `30s`.
-- `get` returns `null` in three cases: a setting with no default, such as `wall_time`; a setting
-  that is not written, such as `[log] target`; and a name whose value is a table or a list.
+  as the file writes it. A setting the file does not write gives its built-in default, such as
+  `128M` or `30s`.
+- `get` returns `null` in three cases. The first is a setting with no default, such as `wall_time`.
+  The second is a setting that is not written, such as `[log] target`. The third is a name whose
+  value is a table or a list.
 - `set` changes a setting **for this request only**. The change ends with the request. No other
   request sees it, and a script this request starts does not see it either.
-- `set` returns `false` and changes nothing for a setting a request may not change, for an unknown
-  name, for a value that is not valid for the setting, and for a value above its `[limits.hard]`
-  ceiling. `set` never throws an error.
+- `set` returns `false` and changes nothing when the change is not allowed. That is a setting a
+  request may not change, or an unknown name. It is also a value that is not valid for the setting,
+  or a value above its ceiling in `[limits.hard]`. `set` never throws an error.
 - `restore` deletes this request's change to one setting. The setting has the file's value or its
   default again.
 - `all` returns every current value as an array, with the dotted names as keys, in name order. The

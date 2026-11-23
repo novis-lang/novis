@@ -20,14 +20,14 @@ echo 'cookie name:     ', Core\Config::get('session.cookie') ?? '(no value)', "\
 // There are only two stores. The next request may run in another server process,
 // so `memory` is not allowed and this call returns `false`.
 string $backend = 'session.backend';
-echo 'keep mine in memory:        ', Core\Config::set($backend, 'memory') ? 'accepted' : 'refused', "\n";
+echo 'keep mine in memory:        ', Core\Config::set($backend, 'memory') ? 'accepted' : 'not allowed', "\n";
 
 // A program cannot change how long a session value is kept. A longer time makes a
 // stolen session cookie useful for longer.
 string $shortLived = 'session.short_lived';
-echo 'keep mine for a year:       ', Core\Config::set($shortLived, '8760h') ? 'accepted' : 'refused', "\n";
+echo 'keep mine for a year:       ', Core\Config::set($shortLived, '8760h') ? 'accepted' : 'not allowed', "\n";
 
 // A program cannot rename the cookie either. Every cookie this server writes is
 // secure, HTTP-only and same-site, and no setting changes that.
 string $cookie = 'session.cookie';
-echo 'rename the cookie:          ', Core\Config::set($cookie, 'sid') ? 'accepted' : 'refused', "\n";
+echo 'rename the cookie:          ', Core\Config::set($cookie, 'sid') ? 'accepted' : 'not allowed', "\n";

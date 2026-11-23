@@ -9,7 +9,7 @@ echo 'max_size: ', Core\Config::get('log.max_size') ?? '(no value)', "\n";
 // `Core\Config::set('log.max_size', ...)` does not compile,
 // because a program may not change `log.max_size`.
 
-// A name in a variable is checked only when the program runs. Then each `set` call returns `false`.
+// This program keeps the names in variables. The compiler does not check a variable, so each `set` call runs and returns `false`.
 string $name = 'log.max_size';
 echo 'set it to 1G: ', Core\Config::set($name, '1G') ? 'accepted' : 'not allowed', "\n";
 echo 'remove the limit: ', Core\Config::set($name, 'false') ? 'accepted' : 'not allowed', "\n";
