@@ -813,6 +813,26 @@ const TEXT_ROWS: &[(&str, &str, TextRow)] = &[
     ),
     (
         r"Core\Str",
+        "afterPrefix",
+        TextRow::Keeps {
+            subject: "id-bcd",
+            room: 0,
+            args: || vec![text("id-")],
+            result: "bcd",
+        },
+    ),
+    (
+        r"Core\Str",
+        "beforeSuffix",
+        TextRow::Keeps {
+            subject: "abc.gz",
+            room: 0,
+            args: || vec![text(".gz")],
+            result: "abc",
+        },
+    ),
+    (
+        r"Core\Str",
         "trim",
         TextRow::Keeps {
             subject: " abc ",
