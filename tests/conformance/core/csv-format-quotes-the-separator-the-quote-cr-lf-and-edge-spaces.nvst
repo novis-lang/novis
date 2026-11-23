@@ -13,7 +13,7 @@ final class Show {
     public static function of(string $document): string {
         return "[" . Core\Str::replaceAll(
             $document,
-            ["\r" => "<CR>", "\n" => "<LF>", "\t" => "<TAB>"],
+            ["\r\n" => "<CR><LF>", "\r" => "<CR>", "\n" => "<LF>", "\t" => "<TAB>"],
         ) . "]";
     }
 }

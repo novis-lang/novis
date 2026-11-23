@@ -29,7 +29,7 @@ foreach (Reader::open($file)->rows(0, { header: true }) as var $row) {
 
 // The CSV file starts with a byte order mark and ends each line with CR and LF. This prints it without both.
 string $csv = Workbook::fromRows([['note' => Cell::rich([{ text: '=1+' }, { text: '2', style: $bold }])]], { format: 'csv' })->bytes() as string;
-echo Core\Str::replaceAll($csv, ["\u{FEFF}" => "", "\r" => ""]);
+echo Core\Str::replaceAll($csv, ["\u{FEFF}" => "", "\r\n" => "\n", "\r" => ""]);
 --EXPECT--
 value is null
 3 runs

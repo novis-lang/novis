@@ -24,7 +24,7 @@ array<array<mixed>> $rows = [['Name' => 'Jürgen', 'Note' => "a;b 'c'"], ['Name'
 // A semicolon separator and a `'` quote, in UTF-8.
 // The file starts with a byte order mark and ends each line with CR and LF. This prints it without both.
 string $utf8 = Workbook::fromRows($rows, { format: 'csv', csv: { separator: ';', quote: "'" } })->bytes() as string;
-echo Core\Str::replaceAll($utf8, ["\u{FEFF}" => "", "\r" => ""]);
+echo Core\Str::replaceAll($utf8, ["\u{FEFF}" => "", "\r\n" => "\n", "\r" => ""]);
 
 // Latin-1: `ü`, `ë` and `ö` are one byte each, and the file has no byte order mark.
 // The second line starts at byte 11, after `Name;Note` and CR and LF.

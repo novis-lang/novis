@@ -6,7 +6,7 @@ context: [docs/rules/types.md, crates/nvs-stdlib/src/str.rs, crates/nvs-stdlib/s
 stages:
   - id: 1
     title: "startsWith, endsWith, replaceAll and the trims match only whole graphemes"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/str.rs, tests/conformance/core/str-after-and-before-cut-at-the-position-index-of-reports.nvst]
   - id: 2
     title: "Str::afterPrefix and Str::beforeSuffix"
@@ -154,6 +154,13 @@ The user's calls on 2026-11-23: every `Str` member keeps to graphemes, not only 
 - **Measured before it is written down:** the bench pair of stage 2 records the per-op counts of the
   hand-written cut and of `afterPrefix`. The `W1036` rule fragment states that figure. The warning is
   built whatever the ratio, because its reason is simplicity and not the cheaper-forms 2x bound.
+- **`\r` or `\n` alone does not match inside a `\r\n` pair**, in `startsWith`, `endsWith` and
+  `replaceAll`, as it already did not in `replace`, `indexOf` and the rest of the search family. So
+  `replaceAll($s, ["\r" => ""])` leaves CRLF text unchanged, and `endsWith(Core\Env::EOL, "\n")` is
+  `false` on Windows. A program names the pair: `["\r\n" => "\n", "\r" => ""]`. *Why:* `\r\n` is one
+  grapheme, and an exception for it would make the one ASCII pair UAX #29 joins the one place a match
+  splits a grapheme. The tree's twelve conformance cases that stripped or showed `\r` alone name the
+  pair now, and stage 4's `replaceAll`, `endsWith` and `trim` pages say so with an example.
 - **Out of scope:** `Core\Regex`, whose patterns name code points (`.` is one code point), and
   `Core\Bytes`, which is bytes by design.
 - **Lanes:** stages 1 and 2 touch `str.rs` and run in order. Stage 3 touches `nvs-ir`, the diagnostics,
@@ -169,26 +176,26 @@ adds a test and a conformance case.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-stdlib/src/str.rs:2115` `nvs_core_str_starts_with` and `:2125`
+- [x] `crates/nvs-stdlib/src/str.rs:2115` `nvs_core_str_starts_with` and `:2125`
   `nvs_core_str_ends_with`: the bytes compare and `on_boundary` at the cut, per *Standing decisions*.
   Each doc comment says so.
-- [ ] `str.rs:3451-3475` `nvs_core_str_replace_all`: a match at `at` counts only when
+- [x] `str.rs:3451-3475` `nvs_core_str_replace_all`: a match at `at` counts only when
   `whole_clusters(subject, at, at + matched)`, in both modes. The comment near `:3470` says grapheme
   boundaries, not char boundaries.
-- [ ] `str.rs:2620` `trimmed`: remove whole graphemes per *Standing decisions*, keeping the ASCII path
+- [x] `str.rs:2620` `trimmed`: remove whole graphemes per *Standing decisions*, keeping the ASCII path
   free of the segmenter. Its doc (`str.rs:2600-2614`) says what is removed, and `TRIM_DOC`
   (`str.rs:1301`) and the two cards beside it say it in user words.
-- [ ] `str.rs:2785-2789` `find_from`'s doc: "every member of the search family" now also covers
+- [x] `str.rs:2785-2789` `find_from`'s doc: "every member of the search family" now also covers
   `startsWith`, `endsWith` and `replaceAll`, and names `on_boundary` for the first two.
-- [ ] `str.rs:6039-6067` `contains_starts_with_and_ends_with_match_exact_bytes_and_find_the_empty_needle_everywhere`:
+- [x] `str.rs:6039-6067` `contains_starts_with_and_ends_with_match_exact_bytes_and_find_the_empty_needle_everywhere`:
   the assertion at `:6067` that `startsWith("👩‍💻", "👩")` is `true` becomes `false`, and the doc
   comment and the test's name stop saying "exact bytes".
-- [ ] `str.rs:6588`, beside `a_search_never_matches_inside_a_grapheme`: the new test
+- [x] `str.rs:6588`, beside `a_search_never_matches_inside_a_grapheme`: the new test
   `a_match_at_the_edge_never_splits_a_grapheme`. It covers a mark alone, half a flag, a base letter
   without its mark, a ZWJ emoji's first code point, `\r` of a `\r\n` pair, for `startsWith`, `endsWith`,
   `replaceAll` in both modes and the three trims, and checks that the ASCII and empty cases are as
   before. Its `// covers:` line names the six members. Run the check `boundaries` once.
-- [ ] `tests/conformance/core/str-every-match-and-cut-keeps-whole-graphemes.nvst:1`: the probe of
+- [x] `tests/conformance/core/str-every-match-and-cut-keeps-whole-graphemes.nvst:1`: the probe of
   *Why* (`startsWith` agrees with `after`), a `replaceAll` that skips a mark, and a `trim` that keeps
   `e` with its mark and removes a `\r\n`. Run the check `boundaries-conformance` once.
 
@@ -288,21 +295,29 @@ the change entries.
 
 ### State
 
-The goal is written and nothing is built. Stage 1 turns
-`contains_starts_with_and_ends_with_match_exact_bytes_and_find_the_empty_needle_everywhere` red at
-`str.rs:6067` until its assertion is rewritten in the same stage.
+Stage 1 is done. `startsWith`/`endsWith` test `on_boundary` at the cut, `replaceAll` skips a match
+that is not `whole_clusters`, and `trimmed` removes whole graphemes through `first_grapheme_len` /
+`last_grapheme_len`. The three trim cards say it in user words. The checks `boundaries` and
+`boundaries-conformance` are green. The old byte test is renamed
+`contains_starts_with_and_ends_with_are_case_sensitive_and_find_the_empty_needle`.
+Twelve CSV and spreadsheet conformance cases and the `Env::EOL` case named `\r` or `\n` alone where
+the text had `\r\n`, and now name the pair (*Standing decisions*). No test is expected red. The
+sweep's cancelled nightly jobs came from a push-time cancel, which `301e05b33d` already fixed.
 
 ### Next
 
-Stage 1, startsWith, endsWith, replaceAll and the trims match only whole graphemes
-(`crates/nvs-stdlib/src/str.rs`). No gate: it starts when `class-name-as-reference` is reached.
+Stage 2, `Str::afterPrefix` and `Str::beforeSuffix` (`crates/nvs-stdlib/src/str.rs`), split as the
+stage's `**Split:**` line says.
 
-- [ ] `str.rs:2115`, `:2125`: `startsWith` and `endsWith` test `on_boundary` at the cut.
-- [ ] `str.rs:3451-3475`: `replaceAll` takes only `whole_clusters` matches, in both modes.
-- [ ] `str.rs:2620` `trimmed`: whole graphemes, every code point in the set.
-- [ ] `str.rs:2785`, `:6039-6067`: `find_from`'s doc and the old byte test.
-- [ ] `str.rs:6588`: `a_match_at_the_edge_never_splits_a_grapheme`.
-- [ ] `tests/conformance/core/str-every-match-and-cut-keeps-whole-graphemes.nvst:1`.
+- [ ] `str.rs:364`, after the `after` row: the two `CoreMethod` rows.
+- [ ] `str.rs:4173`, after `nvs_core_str_after`: the two `nvs_helper!`s with `Cut::window`.
+- [ ] `str.rs:977`, after `AFTER_DOC`: `AFTER_PREFIX_DOC` and `BEFORE_SUFFIX_DOC`.
+- [ ] `str.rs:6072`, beside `after_cuts_past_the_first_or_last_needle_and_answers_null_when_absent`:
+  `after_prefix_and_before_suffix_cut_one_end_or_return_null`, then the check `members`.
+- [ ] `tests/conformance/core/str-after-prefix-and-before-suffix-cut-one-end-or-return-null.nvst:1`,
+  then the check `members-conformance`.
+- [ ] `benches/members/core/Str/after.nvs:1` and its stage-2 siblings: the benches, attacks and
+  examples, to the writing subagent.
 
 ### Backlog
 

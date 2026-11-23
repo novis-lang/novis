@@ -25,7 +25,7 @@ string $text = $file as string;
 echo "starts with: ", Core\Encoding::toHex(Core\Bytes::slice($file, 0, 3)), "\n";
 echo "marks: ", Core\Arr::count(Core\Str::split($text, "\u{FEFF}")) - 1, "\n";
 echo "CRLF: ", Core\Arr::count(Core\Str::split($text, "\r\n")) - 1, "\n";
-echo "first record: ", Core\Str::replaceAll(Core\Str::slice($text, 1, 18), ["\r" => "<CR>", "\n" => "<LF>"]), "\n";
+echo "first record: ", Core\Str::replaceAll(Core\Str::slice($text, 1, 18), ["\r\n" => "<CR><LF>", "\r" => "<CR>", "\n" => "<LF>"]), "\n";
 
 // The reader skips the mark and reads the line feed inside the field.
 int $rows = 0;

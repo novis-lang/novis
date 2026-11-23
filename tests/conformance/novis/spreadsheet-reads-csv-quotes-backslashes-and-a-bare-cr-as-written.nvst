@@ -11,7 +11,7 @@ final class Show
         foreach (Reader::open($file)->rows(0) as var $row) {
             echo "row ", $row->number as string, ":";
             foreach ($row->values as var $value) {
-                echo " [", Core\Str::replaceAll($value is string ? $value : "null", ["\r" => "<CR>", "\n" => "<LF>"]), "]";
+                echo " [", Core\Str::replaceAll($value is string ? $value : "null", ["\r\n" => "<CR><LF>", "\r" => "<CR>", "\n" => "<LF>"]), "]";
             }
             echo "\n";
         }

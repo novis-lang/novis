@@ -1310,7 +1310,8 @@ const TRIM_DOC: MethodDoc = MethodDoc {
             name: "characters",
             desc: "The characters to remove, in any order. `a..z` is the three characters `a`, \
                    `.` and `z`. The default is space, tab, newline, carriage return, NUL and \
-                   vertical tab.",
+                   vertical tab. A character made of several code points, such as `e` with an \
+                   accent mark, is removed only when all of its code points are in this set.",
             shape: &[],
         },
     ],
@@ -1332,7 +1333,8 @@ const TRIM_START_DOC: MethodDoc = MethodDoc {
             name: "characters",
             desc: "The characters to remove, in any order. `a..z` is the three characters `a`, \
                    `.` and `z`. The default is space, tab, newline, carriage return, NUL and \
-                   vertical tab.",
+                   vertical tab. A character made of several code points, such as `e` with an \
+                   accent mark, is removed only when all of its code points are in this set.",
             shape: &[],
         },
     ],
@@ -1353,7 +1355,8 @@ const TRIM_END_DOC: MethodDoc = MethodDoc {
             name: "characters",
             desc: "The characters to remove, in any order. `a..z` is the three characters `a`, \
                    `.` and `z`. The default is space, tab, newline, carriage return, NUL and \
-                   vertical tab.",
+                   vertical tab. A character made of several code points, such as `e` with an \
+                   accent mark, is removed only when all of its code points are in this set.",
             shape: &[],
         },
     ],
@@ -2112,20 +2115,36 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Str::startsWith(string $s, string $prefix): bool` — replacing
     /// PHP's `str_starts_with`.
+    ///
+    /// `true` when `$s` begins with the bytes of `$prefix` **and** the prefix
+    /// ends on a grapheme boundary of `$s` ([`on_boundary`]), so the first code
+    /// point of a joined emoji or a letter without its mark is not a prefix.
+    /// This is the same match [`find_from`] makes, so `startsWith` is `true`
+    /// exactly where `after` would cut at offset 0. An empty prefix is found in
+    /// every string. ASCII around the cut costs two byte compares and no call.
     fn nvs_core_str_starts_with(_ctx, args: [2]) {
         let subject = text(&args[0], "startsWith", "the subject")?;
         let prefix = text(&args[1], "startsWith", "the prefix")?;
-        Ok(Value::bool(subject.starts_with(prefix)))
+        Ok(Value::bool(
+            subject.starts_with(prefix) && on_boundary(subject, prefix.len()),
+        ))
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `Core\Str::endsWith(string $s, string $suffix): bool` — replacing PHP's
     /// `str_ends_with`.
+    ///
+    /// `true` when `$s` ends with the bytes of `$suffix` **and** the suffix
+    /// starts on a grapheme boundary of `$s` ([`on_boundary`]), so a combining
+    /// mark alone or the second half of a flag is not a suffix. An empty suffix
+    /// is found in every string.
     fn nvs_core_str_ends_with(_ctx, args: [2]) {
         let subject = text(&args[0], "endsWith", "the subject")?;
         let suffix = text(&args[1], "endsWith", "the suffix")?;
-        Ok(Value::bool(subject.ends_with(suffix)))
+        Ok(Value::bool(
+            subject.ends_with(suffix) && on_boundary(subject, subject.len() - suffix.len()),
+        ))
     }
 }
 
@@ -2597,21 +2616,31 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// `subject` with every leading and/or trailing character drawn from
+/// `subject` with every leading and/or trailing grapheme drawn from
 /// `characters` removed — the shared body of `trim`/`trimStart`/`trimEnd`.
+///
+/// **A trim removes whole graphemes.** A grapheme at a trimmed end is removed
+/// when the set has **every** code point of it, so `trim("e\u{301}", {
+/// characters: "\u{301}" })` keeps `e` with its mark, and the default set
+/// still removes a `\r\n` pair, one grapheme of two code points both in the
+/// set. The set stays a set of code points: read as graphemes, the default's
+/// `"\n\r"` would be one unit and would no longer trim `\r\n`.
 ///
 /// Two deliberate divergences from PHP's `trim`, both consequences of `rule:types/bytes`
 /// making a `string` text rather than bytes, and of `rule:core-api/shape-rules` R13 refusing a
 /// mini-language inside an argument:
 ///
-/// * The set is matched by **character**, not by byte, so a multi-byte
+/// * The set is matched by **grapheme**, not by byte, so a multi-byte
 ///   character can be trimmed and a lone continuation byte can never be.
 /// * PHP's `"a..z"` range syntax is **not** interpreted. A `.` in the set is a
 ///   `.`, and nothing else.
 ///
-/// The set is read once into a [`TrimSet`], so each character of the subject
+/// The set is read once into a [`TrimSet`], so each code point of the subject
 /// costs one lookup whatever the set's length. Searching `characters` itself
-/// per character made a long set against a long subject quadratic.
+/// per character made a long set against a long subject quadratic. An end
+/// whose byte and its neighbour are ASCII and not `\r\n` is one grapheme of one
+/// byte and never reaches the segmenter. Elsewhere the segmenter walks only
+/// the graphemes trimmed, plus the one kept.
 ///
 /// # Errors
 ///
@@ -2625,14 +2654,56 @@ fn trimmed<'a>(
     member: &str,
 ) -> Result<&'a str, Fault> {
     let set = TrimSet::of(characters, member)?;
+    let whole = |g: &str| g.chars().all(|c| set.has(c));
     let mut out = subject;
     if start {
-        out = out.trim_start_matches(|c| set.has(c));
+        while !out.is_empty() {
+            let n = first_grapheme_len(out);
+            if !whole(&out[..n]) {
+                break;
+            }
+            out = &out[n..];
+        }
     }
     if end {
-        out = out.trim_end_matches(|c| set.has(c));
+        while !out.is_empty() {
+            let n = last_grapheme_len(out);
+            let cut = out.len() - n;
+            if !whole(&out[cut..]) {
+                break;
+            }
+            out = &out[..cut];
+        }
     }
     Ok(out)
+}
+
+/// The byte length of the first grapheme of `s`, which is not empty. An ASCII
+/// byte followed by an ASCII byte or by nothing is one grapheme unless the two
+/// are `\r\n`, so that case never reaches the segmenter.
+fn first_grapheme_len(s: &str) -> usize {
+    let b = s.as_bytes();
+    if b[0].is_ascii() && (b.len() == 1 || (b[1].is_ascii() && !(b[0] == b'\r' && b[1] == b'\n'))) {
+        return 1;
+    }
+    unicode_segmentation::UnicodeSegmentation::graphemes(s, true)
+        .next()
+        .map_or(s.len(), str::len)
+}
+
+/// The byte length of the last grapheme of `s`, which is not empty, with the
+/// same ASCII path as [`first_grapheme_len`].
+fn last_grapheme_len(s: &str) -> usize {
+    let b = s.as_bytes();
+    let n = b.len();
+    if b[n - 1].is_ascii()
+        && (n == 1 || (b[n - 2].is_ascii() && !(b[n - 2] == b'\r' && b[n - 1] == b'\n')))
+    {
+        return 1;
+    }
+    unicode_segmentation::UnicodeSegmentation::graphemes(s, true)
+        .next_back()
+        .map_or(s.len(), str::len)
 }
 
 /// The characters one trim removes: a bit per ASCII character, and every
@@ -2787,6 +2858,8 @@ nvs_runtime::nvs_helper! {
 /// so `"e"` does not occur in a decomposed `"é"`, and one regional indicator
 /// does not occur in a flag. [`whole_clusters`] is that test, and every member
 /// of the search family reaches it through this function or [`rfind_from`].
+/// `startsWith` and `endsWith` make the same test at their one cut with
+/// [`on_boundary`], and `replaceAll` with [`whole_clusters`] at each match.
 ///
 /// The scan is Knuth–Morris–Pratt over per-`char` keys, so it is linear in the
 /// haystack plus the needle. Trying the needle at every start is the haystack's
@@ -3386,6 +3459,12 @@ nvs_runtime::nvs_helper! {
     ///   needles cannot match the same span exactly. With it they can, and the
     ///   pair written first wins.
     ///
+    /// **A match starts and ends on a grapheme boundary** ([`whole_clusters`]),
+    /// in both modes, as in [`find_from`]: a needle that is a mark alone or a
+    /// base letter without its mark is not replaced inside a cluster. The test
+    /// is made once per match found, and ASCII around it never reaches the
+    /// segmenter.
+    ///
     /// **An empty needle is skipped**, matching [`nvs_core_str_replace`]'s
     /// answer for the same input rather than inserting its replacement between
     /// every character. An empty `$pairs` returns the subject unchanged.
@@ -3463,6 +3542,11 @@ nvs_runtime::nvs_helper! {
                         rest.starts_with(needle.as_str()).then_some(needle.len())
                     };
                     let Some(matched) = matched else { continue };
+                    // A match that starts or ends inside a grapheme is not a
+                    // match, in both modes, as in every search member.
+                    if !whole_clusters(subject, at, at + matched) {
+                        continue;
+                    }
                     if best.is_none_or(|(longest, _)| matched > longest) {
                         best = Some((matched, replacement.as_str()));
                     }
@@ -3473,10 +3557,10 @@ nvs_runtime::nvs_helper! {
                     at += matched;
                     kept_from = at;
                 } else {
-                    // No pair starts here, so this character is kept as it
-                    // stands and the next position is the next character's —
-                    // never the next byte's, since a needle can only begin on
-                    // a boundary.
+                    // No pair matches whole graphemes here, so this character
+                    // is kept as it stands and the next position is the next
+                    // character's. A match can only begin on a grapheme
+                    // boundary, which is always a character boundary.
                     at += rest.chars().next().map_or(1, char::len_utf8);
                 }
             }
@@ -6036,15 +6120,15 @@ mod tests {
         assert_eq!(at("abc", i64::MIN), None);
     }
 
-    /// `contains`, `startsWith` and `endsWith` compare bytes exactly: case
-    /// matters, an empty needle is found in every string, the empty one
-    /// included, a needle longer than the subject is simply absent, and a
-    /// prefix that is the first code point of a joined emoji still matches.
+    /// `contains`, `startsWith` and `endsWith` are case-sensitive, an empty
+    /// needle is found in every string, the empty one included, a needle
+    /// longer than the subject is absent, and a prefix that is the first code
+    /// point of a joined emoji does not match.
     // covers: Core\Str::contains
     // covers: Core\Str::startsWith
     // covers: Core\Str::endsWith
     #[test]
-    fn contains_starts_with_and_ends_with_match_exact_bytes_and_find_the_empty_needle_everywhere() {
+    fn contains_starts_with_and_ends_with_are_case_sensitive_and_find_the_empty_needle() {
         let ask = |member: unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,
                    subject: &str,
                    needle: &str| {
@@ -6064,7 +6148,7 @@ mod tests {
         assert!(!ask(starts_with, "a", "abc"));
         assert!(!ask(starts_with, "", "a"));
         assert!(ask(starts_with, "Größe", "Grö"));
-        assert!(ask(starts_with, "\u{1f469}\u{200d}\u{1f4bb}", "\u{1f469}"));
+        assert!(!ask(starts_with, "\u{1f469}\u{200d}\u{1f4bb}", "\u{1f469}"));
         assert!(ask(contains, "order #1042", "#10"));
         assert!(!ask(contains, "order #1042", "Order"));
         assert!(ask(contains, "", ""));
@@ -6673,6 +6757,125 @@ mod tests {
                 .expect("replace never fails")
             ),
             "e\u{301}x"
+        );
+    }
+
+    /// `startsWith`, `endsWith`, `replaceAll` in both modes and the three trims
+    /// never match or cut inside a grapheme: a mark alone, half a flag, a base
+    /// letter without its mark, a joined emoji's first code point and the `\r`
+    /// of a `\r\n` pair are not matched, while ASCII and empty cases are
+    /// answered as before.
+    // covers: Core\Str::startsWith, Core\Str::endsWith, Core\Str::replaceAll, Core\Str::trim, Core\Str::trimStart, Core\Str::trimEnd
+    #[test]
+    fn a_match_at_the_edge_never_splits_a_grapheme() {
+        let flag_de = "\u{1f1e9}\u{1f1ea}";
+        let coder = "\u{1f469}\u{200d}\u{1f4bb}";
+        let ask = |member: unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,
+                   subject: &str,
+                   needle: &str| {
+            run(member, &[s(subject), s(needle)])
+                .expect("startsWith and endsWith never fail")
+                .as_bool()
+                .expect("the member returned a bool")
+        };
+        let starts_with = super::nvs_core_str_starts_with;
+        let ends_with = super::nvs_core_str_ends_with;
+        // Not a prefix: a base letter without its mark, half a flag, the first
+        // code point of a joined emoji, and `\r` before `\n`.
+        assert!(!ask(starts_with, "e\u{301}x", "e"));
+        assert!(!ask(starts_with, flag_de, "\u{1f1e9}"));
+        assert!(!ask(starts_with, coder, "\u{1f469}"));
+        assert!(!ask(starts_with, "\r\nx", "\r"));
+        // Not a suffix: a mark alone, half a flag, `\n` after `\r`.
+        assert!(!ask(ends_with, "xe\u{301}", "\u{301}"));
+        assert!(!ask(ends_with, flag_de, "\u{1f1ea}"));
+        assert!(!ask(ends_with, "x\r\n", "\n"));
+        // Whole graphemes, ASCII and the empty needle match as before.
+        assert!(ask(starts_with, "e\u{301}x", "e\u{301}"));
+        assert!(ask(starts_with, coder, coder));
+        assert!(ask(starts_with, "\r\nx", "\r\n"));
+        assert!(ask(ends_with, "xe\u{301}", "e\u{301}"));
+        assert!(ask(ends_with, &format!("a{flag_de}"), flag_de));
+        assert!(ask(starts_with, "abc", "ab"));
+        assert!(ask(ends_with, "abc", "bc"));
+        assert!(ask(starts_with, "e\u{301}", ""));
+        assert!(ask(ends_with, "e\u{301}", ""));
+
+        let replaced_all = |subject: &str, table: &[(&str, &str)], case_insensitive: bool| {
+            taken(
+                run(
+                    super::nvs_core_str_replace_all,
+                    &[s(subject), pairs(table), Value::bool(case_insensitive)],
+                )
+                .expect("replaceAll never fails under no limit"),
+            )
+        };
+        for ci in [false, true] {
+            assert_eq!(
+                replaced_all("e\u{301} e", &[("\u{301}", "!")], ci),
+                "e\u{301} e"
+            );
+            assert_eq!(replaced_all("e\u{301} e", &[("e", "x")], ci), "e\u{301} x");
+            assert_eq!(
+                replaced_all(
+                    &format!("{flag_de}{flag_de}"),
+                    &[("\u{1f1ea}\u{1f1e9}", "x")],
+                    ci
+                ),
+                format!("{flag_de}{flag_de}")
+            );
+            assert_eq!(replaced_all(coder, &[("\u{1f469}", "x")], ci), coder);
+            assert_eq!(replaced_all("a\r\nb", &[("\r", "")], ci), "a\r\nb");
+            assert_eq!(replaced_all("a\r\nb", &[("\r\n", "\n")], ci), "a\nb");
+            // A longer match inside a grapheme loses to a shorter whole one.
+            assert_eq!(
+                replaced_all("ae\u{301}", &[("a", "1"), ("ae", "2")], ci),
+                "1e\u{301}"
+            );
+            assert_eq!(replaced_all("abc", &[("b", "x")], ci), "axc");
+        }
+        assert_eq!(
+            replaced_all("E\u{301} e", &[("e", "x")], true),
+            "E\u{301} x"
+        );
+
+        let trim = |member: unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32,
+                    subject: &str,
+                    characters: &str| {
+            taken(run(member, &[s(subject), s(characters)]).expect("trimming never fails"))
+        };
+        let php_default = " \t\n\r\0\u{0b}";
+        for member in [
+            super::nvs_core_str_trim,
+            super::nvs_core_str_trim_start,
+            super::nvs_core_str_trim_end,
+        ] {
+            // A mark alone is not trimmed off its letter, at either end.
+            assert_eq!(trim(member, "e\u{301}", "\u{301}"), "e\u{301}");
+            assert_eq!(trim(member, "e\u{301}", "e"), "e\u{301}");
+            // Half a flag is not trimmed, and a whole one whose code points
+            // are all in the set is.
+            assert_eq!(trim(member, flag_de, "\u{1f1e9}"), flag_de);
+            assert_eq!(trim(member, flag_de, "\u{1f1e9}\u{1f1ea}"), "");
+            assert_eq!(trim(member, coder, "\u{1f469}"), coder);
+            // A `\r\n` pair is one grapheme: removed when both are in the
+            // set, kept when only one is.
+            assert_eq!(trim(member, "\r\n", php_default), "");
+            assert_eq!(trim(member, "\r\n", "\r"), "\r\n");
+            assert_eq!(trim(member, "\r\n", "\n"), "\r\n");
+            assert_eq!(trim(member, "", php_default), "");
+        }
+        assert_eq!(
+            trim(super::nvs_core_str_trim, "\r\n hi \r\n", php_default),
+            "hi"
+        );
+        assert_eq!(trim(super::nvs_core_str_trim, "  hi  ", php_default), "hi");
+        assert_eq!(trim(super::nvs_core_str_trim_start, "xxhixx", "x"), "hixx");
+        assert_eq!(trim(super::nvs_core_str_trim_end, "xxhixx", "x"), "xxhi");
+        assert_eq!(trim(super::nvs_core_str_trim, "ééhié", "é"), "hi");
+        assert_eq!(
+            trim(super::nvs_core_str_trim_end, "a\u{301}\u{301}", "\u{301}"),
+            "a\u{301}\u{301}"
         );
     }
 

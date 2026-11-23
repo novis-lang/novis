@@ -1,0 +1,50 @@
+--TEST--
+`Core\Str::startsWith`, `endsWith`, `replaceAll` and `trim` match only whole graphemes: `startsWith` is `true` exactly where `indexOf` finds the prefix at 0, `replaceAll` skips a mark inside a letter, and `trim` keeps a letter with its mark and removes a `\r\n` pair
+--FILE--
+<?nvs
+// For each row, `startsWith` must agree with `indexOf` and `after`: it is
+// `true` only when the prefix is found at position 0, and then `after` returns
+// the rest of the string.
+array<string> $subjects = [
+    "e\u{301}x", "e\u{301}x", "\u{1f469}\u{200d}\u{1f4bb}", "\u{1f469}\u{200d}\u{1f4bb}",
+    "\r\nx", "\r\nx", "abc", "abc",
+];
+array<string> $prefixes = [
+    "e", "e\u{301}", "\u{1f469}", "\u{1f469}\u{200d}\u{1f4bb}",
+    "\r", "\r\n", "ab", "",
+];
+
+int $agrees = 0;
+string $trace = "";
+int $i = 0;
+foreach ($subjects as string $s) {
+    string $p = $prefixes[$i as string];
+    $i = $i + 1;
+    bool $starts = Core\Str::startsWith($s, $p);
+    bool $atZero = Core\Str::indexOf($s, $p) == 0;
+    ?string $rest = Core\Str::after($s, $p);
+    if ($starts == $atZero) {
+        if (!$starts || $rest == Core\Str::slice($s, Core\Str::length($p) as int)) {
+            $agrees = $agrees + 1;
+        }
+    }
+    $trace = $trace . ($starts ? "1" : "0");
+}
+echo $trace, " ", $agrees as string, "\n";
+
+// A suffix that is a mark alone is not found. The whole letter is.
+echo Core\Str::endsWith("cafe\u{301}", "\u{301}") ? "yes" : "no", " ";
+echo Core\Str::endsWith("cafe\u{301}", "e\u{301}") ? "yes" : "no", "\n";
+
+// `replaceAll` replaces the plain `e` and keeps the `e` that has a mark.
+echo Core\Str::replaceAll("e\u{301} e", ["e" => "x"]) == "e\u{301} x" ? "kept" : "split", "\n";
+
+// `trim` keeps `e` with its mark, and removes a whole `\r\n` pair.
+echo Core\Str::trim("e\u{301}", { characters: "\u{301}" }) == "e\u{301}" ? "kept" : "split", " ";
+echo Core\Str::length(Core\Str::trim("\r\nhi\r\n")) as string, " ";
+echo Core\Str::trimEnd("hi\r\n", { characters: "\r" }) == "hi\r\n" ? "kept" : "split", "\n";
+--EXPECT--
+01010111 8
+no yes
+kept
+kept 2 kept

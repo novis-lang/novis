@@ -15,7 +15,7 @@ echo Core\Str::replaceAll($file as string, ["\u{FEFF}" => "", "\r\n" => "<CRLF>\
 // The reader returns each field as it is in the file, with its `'`.
 foreach (Reader::open($file)->rows(0) as var $row) {
     foreach ($row->values as var $value) {
-        echo "[", Core\Str::replaceAll($value as string, ["\t" => "<TAB>", "\r" => "<CR>"]), "]";
+        echo "[", Core\Str::replaceAll($value as string, ["\t" => "<TAB>", "\r\n" => "<CR>\n", "\r" => "<CR>"]), "]";
     }
     echo "\n";
 }

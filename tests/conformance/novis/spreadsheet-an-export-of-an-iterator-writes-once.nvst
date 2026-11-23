@@ -28,7 +28,7 @@ final class Rows
 
 var $once = Workbook::fromRows(Rows::orders(), {format: "csv"});
 // The CSV file starts with a byte order mark and ends each line with CR and LF. This prints it without both.
-echo Core\Str::replaceAll($once->bytes() as string, ["\u{FEFF}" => "", "\r" => ""]);
+echo Core\Str::replaceAll($once->bytes() as string, ["\u{FEFF}" => "", "\r\n" => "\n", "\r" => ""]);
 try {
     $once->bytes();
     echo "not reached\n";

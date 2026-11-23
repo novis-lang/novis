@@ -6,7 +6,7 @@ Core\Csv::format ends each record with its `lineEnd` option, LF by default or CR
 final class Show {
     // This function shows CR and LF as visible text.
     public static function of(string $document): string {
-        return "[" . Core\Str::replaceAll($document, ["\r" => "<CR>", "\n" => "<LF>"]) . "]";
+        return "[" . Core\Str::replaceAll($document, ["\r\n" => "<CR><LF>", "\r" => "<CR>", "\n" => "<LF>"]) . "]";
     }
 }
 

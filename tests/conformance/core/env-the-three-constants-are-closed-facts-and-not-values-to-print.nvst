@@ -12,7 +12,8 @@
 // constant that answered `\r` alone would still be one character and a constant
 // that answered a whole sentence would still end in a line feed.
 int $eol = Core\Str::length(Core\Env::EOL) as int;
-if (Core\Str::endsWith(Core\Env::EOL, "\n") && $eol >= 1 && $eol <= 2) {
+bool $endsInLineFeed = Core\Str::endsWith(Core\Env::EOL, "\n") || Core\Str::endsWith(Core\Env::EOL, "\r\n");
+if ($endsInLineFeed && $eol >= 1 && $eol <= 2) {
     echo "EOL: a line feed, at most one character before it\n";
 } else {
     echo "EOL: something else\n";
