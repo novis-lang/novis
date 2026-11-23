@@ -1,0 +1,24 @@
+--TEST--
+an attribute declaration whose body spans lines folds over its own span, at file scope and inside a class, and a one-line declaration folds nowhere, `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+attribute Job on method {
+    queue: string,
+    retries?: int,
+}
+
+attribute Cache on method { ttlSeconds: int }
+
+class Storable
+{
+    repeatable attribute Index on class {
+        columns: string,
+        unique?: bool,
+    }
+}
+--REQUEST--
+foldingRange
+--EXPECT--
+2-4 -
+9-14 -
+11-13 -

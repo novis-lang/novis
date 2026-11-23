@@ -442,7 +442,10 @@ type Key = (u8, u8, u8, u8, u8);
 /// by its group alone, so the stable sort keeps the written order among them.
 fn key(member: &ClassMember, keep: bool, file: &SourceFile) -> Key {
     let (group, modifiers, constructor) = match &member.kind {
-        ClassMemberKind::Enum(_) | ClassMemberKind::TypeAlias(_) | ClassMemberKind::Error => {
+        ClassMemberKind::Enum(_)
+        | ClassMemberKind::TypeAlias(_)
+        | ClassMemberKind::Attribute(_)
+        | ClassMemberKind::Error => {
             return (0, 0, 0, 0, 0);
         }
         ClassMemberKind::Const(constant) => (1, constant.modifiers.as_slice(), false),

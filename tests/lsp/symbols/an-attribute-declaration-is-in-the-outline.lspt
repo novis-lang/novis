@@ -1,0 +1,27 @@
+--TEST--
+an attribute declaration is a struct in the outline with its fields under it, at file scope and as a class member, `rule:attributes/an-attribute-is-declared-with-its-sites`
+--FILE--
+<?nvs
+namespace Shop;
+/// Marks a method a job runner may call.
+attribute Job on method {
+    /// The queue the job runs on.
+    queue: string,
+    retries?: int,
+}
+class Storable {
+    repeatable attribute Index on class { columns: string, unique?: bool }
+    public int $id = 0;
+}
+--REQUEST--
+documentSymbol
+--EXPECT--
+Shop namespace
+Job struct
+  queue field
+  retries field
+Storable class
+  Index struct
+    columns field
+    unique field
+  $id property

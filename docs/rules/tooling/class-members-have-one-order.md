@@ -1,16 +1,16 @@
 The body of a class and of an interface has one member order, the same in every project. Novis has
 no anonymous class (`new class { … }` is `E0244` at the parse). Top to bottom:
 
-1. **Group:** `enum` and `type` declarations, then constants, then properties (hooked ones included),
-   then methods.
+1. **Group:** `enum`, `type` and `attribute` declarations, then constants, then properties (hooked
+   ones included), then methods. The first group all declare a name the members below may use.
 2. **Inside a group:** every `static` member, then every instance member.
 3. **Inside the static members, and again inside the instance members:** `public`, then `protected`,
    then `private`. The read visibility counts, so `public private(set)` is `public`.
 4. **Inside one visibility:** `abstract`, then `final`, then the rest.
 
 Steps 2 to 4 read only the modifiers a member writes. An interface method writes no `abstract`, so it
-sorts with the rest, and an `enum` or `type` declaration has none of these modifiers, so its group keeps
-its written order.
+sorts with the rest, and an `enum`, `type` or `attribute` declaration has none of these modifiers, so
+its group keeps its written order.
 
 **Equal members keep their written order**, because the sort is stable. That is what keeps a test
 class's report order (`rule:testing/bench-counters`): every `#[Test]` method is `public`, so the cases

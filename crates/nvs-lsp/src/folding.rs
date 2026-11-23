@@ -253,6 +253,9 @@ impl Walk<'_> {
                 }
             }
             StmtKind::TopLevelFunction(method) => self.method(method),
+            // An attribute declaration folds over its own span, as a class
+            // does, and its fields hold nothing that folds.
+            StmtKind::AttributeDecl(decl) => self.braced(decl.span),
             // A statement covering one line, or one whose body is an
             // expression — either way, nothing to fold.
             _ => {}
@@ -270,6 +273,7 @@ impl Walk<'_> {
                     self.braced(decl.span);
                     self.members(&decl.members);
                 }
+                ClassMemberKind::Attribute(decl) => self.braced(decl.span),
                 // A hook's body is a block on the same terms a method's is;
                 // the `{ get ... set ... }` around the pair is not a span the
                 // tree keeps, so the property itself does not fold.

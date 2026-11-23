@@ -1,0 +1,14 @@
+--TEST--
+order class members puts an attribute declaration in the first group, above a property, `rule:tooling/class-members-have-one-order`
+--FILE--
+<?nvs
+class Shop
+{
+    private int $<|>count = 0;
+
+    attribute Job on method { queue: string }
+}
+--REQUEST--
+codeAction only=source.orderMembers.nvs
+--EXPECT--
+4:5-6:46 source.orderMembers.nvs Order class members -> "attribute Job on method { queue: string }\n    private int $count = 0;"

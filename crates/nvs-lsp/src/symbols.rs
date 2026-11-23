@@ -33,7 +33,9 @@
 
 use lsp_types::{DocumentSymbol, SymbolKind};
 use nvs_diagnostics::{PositionEncoding, SourceFile, Span};
-use nvs_syntax::ast::{ClassMember, ClassMemberKind, EnumDecl, NamespaceDecl, Stmt, StmtKind};
+use nvs_syntax::ast::{
+    AttributeDecl, ClassMember, ClassMemberKind, EnumDecl, NamespaceDecl, Stmt, StmtKind,
+};
 
 use crate::document::Analysed;
 use crate::position::range_at;
@@ -132,6 +134,14 @@ fn declared(stmt: &Stmt, file: &SourceFile, encoding: PositionEncoding) -> Vec<D
             })
             .collect(),
         StmtKind::NamespaceDecl(decl) => namespace(decl, file, encoding),
+        StmtKind::AttributeDecl(decl) => one(symbol(
+            file,
+            encoding,
+            decl.name.span,
+            whole,
+            SymbolKind::STRUCT,
+            fields(decl, file, encoding),
+        )),
         _ => Vec::new(),
     }
 }
@@ -226,6 +236,13 @@ fn members(
                     SymbolKind::ENUM,
                     enum_body(decl, file, encoding),
                 ),
+                // An attribute a body owns is outlined as the file-scope form
+                // is, its fields nested under it.
+                ClassMemberKind::Attribute(decl) => (
+                    decl.name.span,
+                    SymbolKind::STRUCT,
+                    fields(decl, file, encoding),
+                ),
                 // `Error` is recovery, and the wildcard is what
                 // `ClassMemberKind` being `#[non_exhaustive]` asks for: a
                 // member shape this crate has not heard of shows nothing
@@ -233,6 +250,30 @@ fn members(
                 _ => return None,
             };
             symbol(file, encoding, name, member.span, kind, children)
+        })
+        .collect()
+}
+
+/// An attribute declaration's fields, in the order they are written.
+///
+/// The declaration is `Struct`, the kind the workspace symbols give it, so a
+/// field is `Field`, the kind LSP pairs with a struct's named members.
+fn fields(
+    decl: &AttributeDecl,
+    file: &SourceFile,
+    encoding: PositionEncoding,
+) -> Vec<DocumentSymbol> {
+    decl.fields
+        .iter()
+        .filter_map(|field| {
+            symbol(
+                file,
+                encoding,
+                field.name,
+                field.span,
+                SymbolKind::FIELD,
+                Vec::new(),
+            )
         })
         .collect()
 }
