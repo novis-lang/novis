@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/csrf.rs, docs/rules/security/csrf-is-on-by-defau
 stages:
   - id: 1
     title: "a token for a new visitor sends its cookie and stores no row"
-    status: open
+    status: done
     context: [crates/nvs-server/src/route.rs, docs/rules/core-classes/a-session-opens-on-its-first-use.md]
   - id: 2
     title: "the feature's proofs, pages and change entry"
@@ -75,6 +75,18 @@ caller of it for a store read. If one is found, the token binds to the drawn ide
 `[http] csrf_key` in its own cookie, and the door reads that cookie for a request with no session row.
 The choice is recorded under `### State`.
 
+**A returning visitor with no row keeps the cookie a token page sent.** Found in stage 1: with no row
+under the drawn identifier, the next token page would draw a new identifier and overwrite the cookie,
+so a form in another tab or from an earlier page would be refused, and the conformance case
+`csrf-token-for-a-returning-visitor-sends-no-new-cookie` would go red. So `sent_id`, for a session
+with no identifier that was opened from a cookie, binds the token to the presented value when it has
+a drawn identifier's shape (`issuable`), and sends no cookie. The session keeps no identifier, so a
+later write still draws a new one and the fixation rule holds. Reason: the door accepts any token
+sealed over the cookie the request carries, so this gives an attacker nothing; it keeps every form a
+visitor was shown valid, and costs nothing. The one case it leaves: a token rendered before a write
+in the same request, for a presented identifier with no row, is refused on the next request.
+`an_identifier_the_store_never_issued_opens_a_fresh_session` pins it.
+
 **Lanes.** One lane: stage 1 changes `session.rs`, stage 2 writes only docs and data.
 
 ## Stages
@@ -83,19 +95,19 @@ The choice is recorded under `### State`.
 
 **Does:** stops `sent_id` from storing a row for a drawn identifier, and proves it on the wire.
 
-- [ ] Measure first: serve a page that prints `Core\Csrf::token()`, send 1,000 requests with no cookie,
+- [x] Measure first: serve a page that prints `Core\Csrf::token()`, send 1,000 requests with no cookie,
   and count `nvs_session_heads` in the data folder's `session.sqlite`. Write the count under
   `### State`. If the probe ends in a `500`, as it did in `review-hardening`, find why first.
-- [ ] Check `verified` (`crates/nvs-server/src/route.rs:356`) and its callers for a store read, and
+- [x] Check `verified` (`crates/nvs-server/src/route.rs:356`) and its callers for a store read, and
   record the result under `### State`.
-- [ ] `sent_id` (`crates/nvs-stdlib/src/session.rs:2133`) no longer sets `dirty` for a drawn identifier,
+- [x] `sent_id` (`crates/nvs-stdlib/src/session.rs:2133`) no longer sets `dirty` for a drawn identifier,
   and its doc comment says what it spends now.
-- [ ] `crates/nvs-cli/tests/csrf_cookieless.rs:1`: 1,000 cookieless requests leave no row; a token from
+- [x] `crates/nvs-cli/tests/csrf_cookieless.rs:1`: 1,000 cookieless requests leave no row; a token from
   one passes the door on the next request with its cookie; a token and a later session write in one
   request name the same row; a forged identifier still opens a fresh session.
-- [ ] `rule:security/csrf-is-on-by-default` and `rule:core-classes/a-session-opens-on-its-first-use`
+- [x] `rule:security/csrf-is-on-by-default` and `rule:core-classes/a-session-opens-on-its-first-use`
   say that a token's drawn identifier is sent and not stored.
-- [ ] `data/gaps/nvs-stdlib/csrf-token-makes-a-session-per-visitor.json` is deleted.
+- [x] `data/gaps/nvs-stdlib/csrf-token-makes-a-session-per-visitor.json` is deleted.
 
 ### 2. the feature's proofs, pages and change entry
 
@@ -117,11 +129,25 @@ The choice is recorded under `### State`.
 
 ### State
 
-The goal is written; no stage has started.
+Stage 1 is done and committed. Measured before the fix: 1,000 cookieless requests to a token page
+left 1,000 rows in `nvs_session_heads` (1,001 with one marker write), with no `500`. After it, 0.
+`verified` (`crates/nvs-server/src/route.rs:356`) reads the cookie and the key only, never the store,
+so the plain design holds and the safe default was not needed. `sent_id`
+(`crates/nvs-stdlib/src/session.rs`, `@sent_id`) sets no `dirty`, and reuses a presented `issuable`
+cookie for a session with no row (see the standing decision). `crates/nvs-cli/tests/csrf_cookieless.rs`
+has four tests, all green. Both rules and the `csrf.rs` module doc say it; the gap record is deleted.
 
 ### Next
 
-Stage 1, its first item: the measurement, with the probe under `.agent-tmp/`.
+Stage 2: `docs/examples/core/Csrf/token/about.md` says a new visitor's token stores no session and a
+returning visitor keeps their cookie; a `website/src/data/changes.json` entry, `changed`
+`Core\Csrf::token`; then `bun nv proofs --owed --goal csrf-cookieless-visitor` and
+`bun nv site --check stale changes review`. The new Rust test may need a `// covers: Core\Csrf::token`
+marker for `site --check changes` to count the feature as moved.
+
+Tests that may go red at the gate: none expected. `csrf-token-for-a-returning-visitor-sends-no-new-cookie`
+and `csrf.rs`'s `a_first_requests_token_passes_the_door_with_the_cookie_it_sent` (updated) cover
+the change; the first was not run this session.
 
 ### Backlog
 

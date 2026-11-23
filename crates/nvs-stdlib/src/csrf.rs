@@ -40,11 +40,12 @@
 //! (`rule:security/csrf-is-on-by-default`), so a page that bound a token to
 //! anything other than the identifier the next request presents would render a
 //! form its own door refuses. That is the mistake [`token`] makes impossible:
-//! [`crate::session::sent_id`] gives it the identifier, drawing one and sending
-//! its cookie for a session nobody has written yet, and marks only that
-//! session written, so the write-back creates its row. A token for a session
-//! that already has a row writes nothing, because the token is sealed over the
-//! id on each call and never stored. It opens the session on its first use, as
+//! [`crate::session::sent_id`] gives it the identifier the client holds after
+//! the response: the session's own, the one the visitor's cookie already
+//! carries where the store has no row, or a drawn one whose cookie it sends.
+//! No token writes a row: the door checks a token against the cookie and the
+//! key alone, so the identifier is never stored for a token, and the token is
+//! sealed over it on each call. It opens the session on its first use, as
 //! every `Core\Session` member does
 //! (`rule:core-classes/a-session-opens-on-its-first-use`), after it has read the
 //! key with [`nvs_config::http::csrf_key`], the door's own reader, so no program
@@ -527,7 +528,10 @@ mod tests {
         let headers = ctx.take_headers();
         assert_eq!(headers.len(), 1, "the first token sends one cookie");
         let open = ctx.session().expect("the session stays open");
-        assert!(open.dirty, "a token is a write, so the row is stored");
+        assert!(
+            !open.dirty,
+            "a drawn identifier is sent and not stored, so no row is written"
+        );
         let id = open.id.clone();
         assert!(
             headers[0].value.starts_with(&format!("nvsid={id};")),

@@ -1254,6 +1254,19 @@ pub fn cookie_in(config: &nvs_config::Config) -> &str {
         .unwrap_or(DEFAULT_COOKIE)
 }
 
+/// The value of the `[session] cookie` the request presented, as text, or `None` without one.
+///
+/// It is read through the same `crate::request::cookie_of` `Core\Request::cookie` reads it with:
+/// one reading, so a `__Host-` name that arrived twice is invisible to both, not to one of them.
+fn presented(ctx: &Ctx) -> Option<String> {
+    let named = cookie(ctx);
+    ctx.inbound().and_then(|inbound| {
+        crate::request::cookie_of(inbound, named.as_bytes())
+            .and_then(|value| std::str::from_utf8(value).ok())
+            .map(str::to_owned)
+    })
+}
+
 /// An identifier no store has issued: 128 drawn bits, base64url with no padding.
 pub(crate) fn mint(ctx: &mut Ctx) -> String {
     use rand::Rng as _;
@@ -1588,15 +1601,8 @@ fn opened_under(ctx: &mut Ctx, who: &'static str, given: Option<String>) -> Resu
     };
     let presented = match given {
         Some(given) => Some(given),
-        // The ordinary case: the identifier rides in the `[session] cookie` field, read
-        // through the same `crate::request::cookie_of` `Core\Request::cookie` reads it with —
-        // one reading, so a `__Host-` name that arrived twice is invisible to both rather
-        // than to one of them.
-        None => ctx.inbound().and_then(|inbound| {
-            crate::request::cookie_of(inbound, named.as_bytes())
-                .and_then(|value| std::str::from_utf8(value).ok())
-                .map(str::to_owned)
-        }),
+        // The ordinary case: the identifier rides in the `[session] cookie` field.
+        None => presented(ctx),
     }
     .filter(|id| issuable(id));
     let short_name = who.rsplit_once("::").map_or(who, |(_, member)| member);
@@ -2112,38 +2118,51 @@ fn write(
     Ok(())
 }
 
-/// The identifier the response sends for this request's session. `Core\Csrf::token` binds its
-/// token to it.
+/// The identifier `Core\Csrf::token` binds its token to: the one the client holds after this
+/// response. The door checks the token against that cookie and the key alone
+/// (`rule:security/csrf-is-on-by-default`), so no identifier here is ever stored.
 ///
-/// **The session opens here on its first use, and a session with no identifier draws one**, and
-/// sends its cookie, as its first [`write`] would. So the token and the cookie name the same
-/// session, and the door accepts the token on the next request
-/// (`rule:security/csrf-is-on-by-default`).
+/// The session opens here on its first use. Then, in this order:
 ///
-/// **Only a drawn identifier marks the record changed**, even while it is empty, so the write-back
-/// creates a row under it and the next request's first use finds it. What it spends is one row per
-/// new visitor who is shown a token, which `[session] short_lived` expires. A session that already
-/// has an identifier is left as it was: the token is sealed over the id on each call and never
-/// stored, so a page that renders a token for a loaded session sends no store write.
+/// - **A session with an identifier** gives that identifier, and is left as it was.
+/// - **A session the store does not hold, opened from a cookie whose value has the shape of a
+///   drawn identifier**, gives that value. No cookie is sent and the session keeps no identifier,
+///   so a later [`write`] still draws a new one
+///   (`rule:security/a-session-id-the-store-did-not-issue-is-rejected`). A visitor who was shown a
+///   token keeps one identifier across pages and tabs, and every form they were shown passes. A
+///   token rendered before such a write in the same request is bound to the old value, and the
+///   door refuses it on the next request, as it does a form from an expired session.
+/// - **Any other session** draws an identifier and sends its cookie. The session keeps it, so a
+///   later [`write`] in the same request stores its row under the identifier the token names.
+///
+/// None of these marks the record changed, so a token alone writes no row, and a flood of
+/// cookieless requests to a page that renders a token adds nothing to the store. Binding a token to
+/// a value the visitor presented gives nobody more than the door already accepts: the door accepts
+/// any token sealed over the cookie the request carries. **What it spends:** nothing per request,
+/// and it saves one store write per visitor shown a token.
 ///
 /// # Errors
 ///
-/// [`first_use`]'s, and, for a session with no identifier yet, [`crate::response::head_open`]'s
-/// and [`issue_cookie`]'s.
+/// [`first_use`]'s, and, where an identifier is drawn, [`crate::response::head_open`]'s and
+/// [`issue_cookie`]'s.
 pub(crate) fn sent_id(ctx: &mut Ctx, who: &'static str) -> Result<String, Fault> {
     first_use(ctx, who)?;
-    let fresh = ctx.session().ok_or_else(|| unstarted(who))?.id.is_empty();
-    if fresh {
-        // Drawn and sent before the session changes, so a cookie that cannot be sent leaves the
-        // session as it was.
-        crate::response::head_open(ctx, who)?;
-        let id = mint(ctx);
-        issue_cookie(ctx, who, &id, None)?;
-        let session = ctx.session_mut().ok_or_else(|| unstarted(who))?;
-        session.id = id;
-        session.dirty = true;
+    let open = ctx.session().ok_or_else(|| unstarted(who))?;
+    if !open.id.is_empty() {
+        return Ok(open.id.clone());
     }
-    Ok(ctx.session().ok_or_else(|| unstarted(who))?.id.clone())
+    if !open.by_hand
+        && let Some(held) = presented(ctx).filter(|id| issuable(id))
+    {
+        return Ok(held);
+    }
+    // Drawn and sent before the session changes, so a cookie that cannot be sent leaves the
+    // session as it was.
+    crate::response::head_open(ctx, who)?;
+    let id = mint(ctx);
+    issue_cookie(ctx, who, &id, None)?;
+    ctx.session_mut().ok_or_else(|| unstarted(who))?.id = id.clone();
+    Ok(id)
 }
 
 /// Saves `value` under `key` as a short-lived value of this request's session, for a `Core` class

@@ -3649,10 +3649,13 @@ sessions somebody wrote, never with requests served, and a flood of cookieless r
 leaves nothing behind. `regenerate` on such a session does nothing, because no client holds an
 identifier for it, and `clearShortLived` and `clearLongLived` have no row to change.
 
-**A CSRF token counts as a write.** `Core\Csrf::token` binds its token to the identifier the response
-sends, so on a session with none it draws one and sends the cookie, and it marks the session changed
-even while the record is empty, so the end of the request writes the row and the next request finds
-it. It spends one row per visitor who is shown a token, and `[session] short_lived` expires it.
+**A CSRF token is not a write.** `Core\Csrf::token` binds its token to the identifier the client
+holds after the response. A session with no identifier uses the cookie the visitor presented where it
+has the shape of a drawn identifier, and otherwise draws one and sends the cookie. Neither marks the
+session changed, so a token alone writes no row and the store grows with nothing a visitor only
+looked at ([`security/csrf-is-on-by-default`](security.md#security-csrf-is-on-by-default) says why the door needs no row). A write later in
+the same request keeps an identifier the token drew, so the row and the token name one session. A
+presented identifier the store does not hold is still never used for a write.
 
 **Declined:**
 - **An explicit `start`.** A program that forgets it throws at its first read, and the explicit line

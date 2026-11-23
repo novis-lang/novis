@@ -3650,13 +3650,20 @@ another site sign a visitor in to an account the attacker chose.
 
 **A page issues a token with `Core\Csrf::token`**, which opens the session on its first use. It binds the token to
 the identifier the response's session cookie carries, under `[http] csrf_key` read by the door's own
-reader, so the token it renders is one the door accepts on the next request. For a visitor with no
-session, the call is the session's first write: it draws the identifier and sends the cookie, so a
-login form shown to a new visitor is bound to an identifier too. For a session that already has a
-row, the call writes nothing: the token is sealed over the identifier on each call and never stored,
-so a page that renders a token makes no store write and does not extend the session's lifetime.
-**What it spends:** nothing, and it removes one store write per page that renders a token for a
-loaded session. `token` before `start` throws naming
+reader, so the token it renders is one the door accepts on the next request. **No token is stored,
+and no token writes a session row.** For a session with a row, the token is bound to its identifier.
+For a visitor with no row whose cookie has the shape of a drawn identifier, it is bound to that
+cookie and no new cookie is sent, so every form a visitor was shown passes, in any tab. For any other
+visitor it draws an identifier and sends its cookie, so a login form shown to a new visitor is bound
+to an identifier too. The identifier is sent and not stored: the door needs only the cookie and the
+key. A store that has no row for it opens a fresh session at the first `Core\Session` use, and that
+session's first write draws a new identifier
+([`security/a-session-id-the-store-did-not-issue-is-rejected`](security.md#security-a-session-id-the-store-did-not-issue-is-rejected)). A form rendered before that write
+is then refused, as a form from an expired session is. Binding to a cookie the visitor presented
+gives nobody more than the door already accepts, because the door accepts any token sealed over the
+cookie the request carries. **What it spends:** nothing per request, and it removes one store write
+per page that renders a token, so a flood of cookieless requests to such a page leaves the store as
+it was (`nvs-cli`'s test `csrf_cookieless`). `token` before `start` throws naming
 `start`, and with no key it throws naming `[http] csrf_key`. `Core\Csrf::issue` stays for a program
 that binds a token to a value of its own and checks it itself with `verify`.
 
