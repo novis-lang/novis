@@ -1542,8 +1542,10 @@ pub struct CacheShared {
 /// and no `save_path` — `rule:http-server/session-expiry-belongs-to-the-store` gives expiry to the
 /// store, and the backend rule above gives it no backend that keeps files.
 ///
-/// The block being absent is **not** a default backend: a request's first `Core\Session` call throws naming this
-/// block, which is `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s "nothing configured is already safe" applied to a store nobody chose.
+/// An absent block, or one that writes no `backend`, keeps sessions in the data folder's
+/// `session.sqlite`, the `db` store
+/// (`rule:http-server/no-session-block-means-the-data-folder-store`). A process with no usable
+/// data folder throws at a request's first `Core\Session` call, naming `backend = "shared"`.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Session {
