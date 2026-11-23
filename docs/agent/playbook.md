@@ -490,6 +490,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Writing a test case
 
+- **A directory of programs run by `nvs test <dir>` has the folder above `<dir>` as its program
+  folder, because the snapshot's entry is the directory and `app::folder` takes its parent.** A
+  `--since` case expected a file beside the directory to count as outside the program's folder,
+  and it counted as inside. Put the directory one level down, as `lib/app/`. See
+  `crates/nvs-cli/tests/since_selection.rs` `app`.
 - **A new `.nvs` example, attack or bench is a formatter corpus file, and `nvs-fmt::identity`
   fails on every CI leg when it is not written as the formatter writes it.** Six `Core\Test\RunResult`
   proof files used `else if` and `{stdin: ...}`, and one push run went red on all four test legs.
