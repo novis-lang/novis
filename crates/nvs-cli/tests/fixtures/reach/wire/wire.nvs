@@ -1,0 +1,46 @@
+<?nvs
+// A request a test sends to its own listener reads the test's clock and
+// variables, and what it logs and mails is kept for the test.
+use Core\Http\Client;
+
+class Wire
+{
+    #[Core\Test(server: true, at: '2026-03-01T00:00:00Z', env: ['WIRE_MODE' => 'test'])]
+    public function aRequestReadsTheTestsClockAndEnv(): void
+    {
+        string $base = Core\Test::serverUrl() ?? '';
+        Core\Test::assertEquals(Client::get($base . '/now')->text(), '1772323200');
+        Core\Test::advance(60s);
+        Core\Test::assertEquals(Client::get($base . '/now')->text(), '1772323260');
+        Core\Test::assertEquals(Client::get($base . '/mode')->text(), 'test');
+    }
+
+    #[Core\Test(server: true)]
+    public function aRequestsLogsAndMailAreKept(): void
+    {
+        string $base = Core\Test::serverUrl() ?? '';
+        Client::get($base . '/log');
+        Client::get($base . '/mail');
+
+        array<Core\Test\LogRecord> $logs = Core\Test::logs();
+        Core\Test::assertCount($logs, 1);
+        Core\Test::assertEquals($logs[0]->message(), 'from the wire');
+
+        array<Core\Test\SentMail> $sent = Core\Test::sentMail();
+        Core\Test::assertCount($sent, 1);
+        Core\Test::assertEquals($sent[0]->subject(), 'Order 7');
+    }
+}
+
+if (Core\Env::context() == Core\Env::Context::Request) {
+    var $path = Core\Request::path();
+    if ($path == '/now') {
+        echo Core\Time::now()->toEpochSeconds();
+    } elseif ($path == '/log') {
+        Core\Log::write(Core\Log::Level::Warn, 'from the wire');
+    } elseif ($path == '/mail') {
+        Core\Mail::send('relay', ['ada@example.com'], 'Order 7', 'Your order is on its way.');
+    } else {
+        echo Core\Env::get('WIRE_MODE') ?? 'none';
+    }
+}

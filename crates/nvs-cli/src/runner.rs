@@ -1677,17 +1677,12 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         }
         let unit = Arc::clone(&self.unit);
         let routes = std::sync::Arc::clone(&self.routes);
-        // `rule:testing/determinism-declared-on-the-test`'s fixed clock, read now so the request
-        // sees the test's `at:` and every `Core\Test::advance` made before it. The child gets a
-        // copy, so nothing the request does moves the test's clock. The `seed:` generator does not
-        // cross: a copy of its state would draw the same values in every request a test makes.
-        let clock = ctx.fixed_clock();
-        // The test's `env:` variables reach the request too (`rule:testing/test-attribute`). The
-        // child runs on this thread, inside the join below, so it shares the test's `Rc`.
-        let vars = ctx.test_env().cloned();
-        // The test's records too, so what the request logs and mails is kept for the test
-        // (`rule:testing/a-test-reads-its-logs-and-mail`).
-        let records = ctx.test_records().cloned();
+        // [`Armed`]: `rule:testing/determinism-declared-on-the-test`'s fixed clock, read now so
+        // the request sees the test's `at:` and every `Core\Test::advance` made before it, and
+        // the test's `env:` variables and records. The `seed:` generator does not cross: a copy
+        // of its state would draw the same values in every request a test makes. The child runs
+        // on this thread, inside the join below, so it shares the test's `Rc`s.
+        let armed = Armed::of(ctx);
         let request = self.request;
         // The same program `crate::script::program_over` builds for a `spawn
         // script`, over this run's own unit instead of a resolved one: the
@@ -1695,19 +1690,7 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         // `rule:security/isolate-shares-nothing`'s isolate shares compiled code and nothing else.
         let program: nvs_runtime::script::Program =
             Box::new(move |ctx: &mut nvs_runtime::Ctx, _args| {
-                unit.install_in(ctx);
-                if let Some(nanos) = clock {
-                    ctx.set_fixed_clock(nanos);
-                }
-                if let Some(vars) = &vars {
-                    ctx.set_test_env(Rc::clone(vars));
-                }
-                if let Some(records) = &records {
-                    ctx.set_test_records(Rc::clone(records));
-                }
-                if !routes.rows().is_empty() {
-                    ctx.set_routes(std::sync::Arc::clone(&routes));
-                }
+                armed.arm(ctx, &unit, &routes);
                 let entry = match request {
                     Some(id) => unit.file_script(id),
                     None => unit.script(),
@@ -1776,11 +1759,9 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         let routes = std::sync::Arc::clone(&self.routes);
         let commands = command.commands.clone();
         let name = command.name.clone();
-        // A copy of the test's clock, and the test's `env:` variables, as a request's child gets
-        // them in `answer`.
-        let clock = ctx.fixed_clock();
-        let vars = ctx.test_env().cloned();
-        let records = ctx.test_records().cloned();
+        // A copy of the test's clock, and the test's `env:` variables and records, as a
+        // request's child gets them in `answer`.
+        let armed = Armed::of(ctx);
         // The exit code and standard error the child's frame leaves here, read
         // once the child has ended. The child runs on this thread, inside the
         // join below, so the cell is never shared across threads.
@@ -1791,19 +1772,7 @@ impl nvs_runtime::inproc::Answering for UnderTest {
         // standard error captured apart from standard output.
         let program: nvs_runtime::script::Program =
             Box::new(move |ctx: &mut nvs_runtime::Ctx, _args| {
-                unit.install_in(ctx);
-                if let Some(nanos) = clock {
-                    ctx.set_fixed_clock(nanos);
-                }
-                if let Some(vars) = vars {
-                    ctx.set_test_env(vars);
-                }
-                if let Some(records) = records {
-                    ctx.set_test_records(records);
-                }
-                if !routes.rows().is_empty() {
-                    ctx.set_routes(routes);
-                }
+                armed.arm(ctx, &unit, &routes);
                 if let Some(commands) = commands {
                     ctx.set_commands(commands);
                 }
@@ -3853,14 +3822,15 @@ fn run_the_test(
     // string on its own context, and a socket cannot be handed across the heap
     // boundary afterwards. A failure to bind is this test's own failure and
     // nothing has run.
-    let served = match wants_server(case) {
-        false => None,
-        true => match TestServer::bind(
+    let owner = wants_server(case).then(|| Rc::new(RefCell::new(Owner::default())));
+    let served = match &owner {
+        None => None,
+        Some(owner) => match TestServer::bind(
             unit,
             routes,
             Door::of(ctx),
             Tree::of(ctx),
-            ctx.stmt_hits().cloned(),
+            Rc::clone(owner),
         ) {
             Ok(server) => Some(server),
             Err(refused) => {
@@ -3952,7 +3922,7 @@ fn run_the_test(
     // child, on the test's own thread (`nvs_runtime::Ctx::test_env`).
     let vars = env_of(case);
     let child_unit = Arc::clone(unit);
-    let child_routes = (!routes.rows().is_empty()).then(|| Arc::clone(routes));
+    let child_routes = Arc::clone(routes);
     let class_name = class.to_owned();
     let method = case.method.clone();
     let attempted = test.clone();
@@ -3960,40 +3930,40 @@ fn run_the_test(
         // `rule:statements/an-isolate-has-its-own-statics`'s fresh statics base, armed with *this* unit's tables:
         // the isolate's context deliberately arrives with none, so this call
         // is the whole of why one test does not read back another's static.
-        child_unit.install_in(child);
-        // `Core\Router`'s members read the table outside a request too, as under `nvs run`, so a
-        // test links a method reference passed as a value
-        // (`rule:routing/link-target-and-params-are-checked`).
-        if let Some(routes) = &child_routes {
-            child.set_routes(Arc::clone(routes));
+        // [`Armed::arm`], as every request and run this test makes is armed:
+        // - `Core\Router`'s members read the table outside a request too, as under `nvs run`, so
+        //   a test links a method reference passed as a value
+        //   (`rule:routing/link-target-and-params-are-checked`).
+        // - `rule:testing/determinism-declared-on-the-test`'s fixed clock, onto the *child's*
+        //   context, which is the only context a test can observe: a sibling declaring no `at:`
+        //   still reads the host's clock, because `rule:testing/isolate-per-test` gave it a
+        //   context of its own. `Core\Test::advance` moves this same clock and nothing else
+        //   does (`nvs_runtime::Ctx::fixed_clock`).
+        // - `#[Test(env:)]`'s variables, on the child's context alone, so a sibling test reads
+        //   the process environment (`rule:testing/test-attribute`).
+        // - A fresh store of log records and mail for each test, so `Core\Test::logs` and
+        //   `Core\Test::sentMail` read only what this test caused
+        //   (`rule:testing/a-test-reads-its-logs-and-mail`).
+        Armed {
+            clock,
+            vars: vars.map(Rc::from),
+            records: Some(nvs_runtime::test_records::TestRecords::new()),
+        }
+        .arm(child, &child_unit, &child_routes);
+        // The listener this test bound arms each request it answers from what was just armed.
+        if let Some(owner) = &owner {
+            *owner.borrow_mut() = Owner::of(child);
         }
         // A failed comparison keeps its two values only on a test's own
         // context (`nvs_runtime::Ctx::owned_by_test`).
         child.set_owned_by_test();
-        // `rule:testing/determinism-declared-on-the-test`'s fixed clock, armed before a line of the test runs and onto the
-        // *child's* context, which is the only context a test can observe: a
-        // sibling declaring no `at:` still reads the host's clock, because `rule:testing/isolate-per-test`
-        // gave it a context of its own. `Core\Test::advance` moves this same
-        // field and nothing else does (`nvs_runtime::Ctx::fixed_clock`).
-        if let Some(nanos) = clock {
-            child.set_fixed_clock(nanos);
-        }
-        // `rule:testing/determinism-declared-on-the-test`'s other half, and armed the same way and in the same place: the
+        // `rule:testing/determinism-declared-on-the-test`'s other half, armed in the same place: the
         // generator's state lives on the child's own context, so a sibling that
         // declared no `seed:` still draws from the CSPRNG and one test's draws
         // cannot move another's (`nvs_stdlib::random::draw`).
         if let Some(seed) = seed {
             child.set_random_state(seed);
         }
-        // `#[Test(env:)]`'s variables, on the child's context alone, so a sibling test reads the
-        // process environment (`rule:testing/test-attribute`).
-        if let Some(vars) = vars {
-            child.set_test_env(Rc::from(vars));
-        }
-        // A fresh store of log records and mail for each test, so `Core\Test::logs` and
-        // `Core\Test::sentMail` read only what this test caused
-        // (`rule:testing/a-test-reads-its-logs-and-mail`).
-        child.set_test_records(nvs_runtime::test_records::TestRecords::new());
         // `rule:testing/in-process-request`'s listener, armed the same way and in the same place as the two
         // above: the address is the *child's* to read, so a sibling that
         // declared no `server:` answers `null` and cannot reach a port this
@@ -4222,17 +4192,18 @@ impl TestServer {
     /// its own name could not be read back, or there was no task to spawn the
     /// accept loop onto.
     ///
-    /// `hits` is the run's coverage table, or `None` when the run does not
-    /// measure coverage. Each request's own context gets it in
-    /// [`answer_on_the_wire`], because the server starts every connection
-    /// from a fresh context that copies nothing from this one. `tree` reaches
-    /// each request the same way, for the same reason ([`Tree`]).
+    /// `tree` is the run's configuration, folder and coverage table. Each
+    /// request's own context gets it in [`answer_on_the_wire`], because the
+    /// server starts every connection from a fresh context that copies nothing
+    /// from this one ([`Tree`]). `owner` is
+    /// filled by the test's isolate once it is armed, and each request is armed
+    /// from it as a `Core\Test::request` is ([`Owner`]).
     fn bind(
         unit: &Arc<nvs_codegen::Unit>,
         routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
         door: Door,
         tree: Tree,
-        hits: Option<std::sync::Arc<nvs_runtime::StmtHits>>,
+        owner: Rc<RefCell<Owner>>,
     ) -> Result<Self, String> {
         let wanted = std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 0));
         let mut listener = nvs_host::NvsListener::bind(wanted)
@@ -4251,7 +4222,7 @@ impl TestServer {
                     &carried,
                     &door,
                     &tree,
-                    hits.as_ref(),
+                    owner.borrow().armed(),
                     request,
                     origin,
                 )
@@ -4461,8 +4432,9 @@ impl Door {
     }
 }
 
-/// The run's configuration and app folder, read off the suite's context once
-/// at bind time and handed to every request the listener answers.
+/// The run's configuration, app folder and coverage table, read off the
+/// suite's context once at bind time and handed to every request the listener
+/// answers.
 ///
 /// A served request runs on a fresh context that copies nothing from the
 /// test's, and a context with no snapshot grants nothing. Without this, the
@@ -4470,7 +4442,7 @@ impl Door {
 /// connection it upgrades, with none of the `[capabilities]` its tree names,
 /// where `rule:testing/in-process-request`'s first mechanism and `nvs serve`
 /// both grant them. It is the program's tree and not a serving policy, so
-/// [`TestServer::bind`]'s defaults are untouched by it. **What it spends:** two
+/// [`TestServer::bind`]'s defaults are untouched by it. **What it spends:** three
 /// reference counts per request; the snapshot is the run's one copy.
 #[derive(Clone)]
 struct Tree {
@@ -4478,16 +4450,112 @@ struct Tree {
     config: Option<std::sync::Arc<nvs_config::Snapshot>>,
     /// The run's app folder, which a capability default reads.
     folder: Option<std::sync::Arc<std::path::Path>>,
+    /// The run's coverage table, or `None` when the run does not measure
+    /// coverage.
+    hits: Option<std::sync::Arc<nvs_runtime::StmtHits>>,
 }
 
 impl Tree {
-    /// What the suite's context was given by its own `set_config` and
-    /// `set_app_folder`.
+    /// What the suite's context was given by its own `set_config`,
+    /// `set_app_folder` and `set_stmt_hits`.
     fn of(ctx: &nvs_runtime::Ctx) -> Self {
         let request = ctx.config();
         Self {
             config: request.map(|request| std::sync::Arc::clone(request.snapshot())),
             folder: request.and_then(nvs_config::Request::folder).cloned(),
+            hits: ctx.stmt_hits().cloned(),
+        }
+    }
+}
+
+/// What a test arms on every context it starts: the test's own isolate, each
+/// `Core\Test::request` and `Core\Test::run` it makes, and each request off the
+/// wire to its `#[Test(server: true)]` listener. [`Self::arm`] is the one
+/// function that sets them, so no path that runs the program under test for a
+/// test forgets one (`rule:testing/a-test-reads-its-logs-and-mail`,
+/// `rule:testing/determinism-declared-on-the-test`).
+///
+/// The clock is a reading, not the test's clock: a request gets a clock of its
+/// own set from it, so nothing the request does moves the test's. The
+/// variables and the records are the test's own `Rc`s, so what a request logs
+/// or mails is kept for the test. **What it spends:** two reference counts per
+/// context it arms.
+#[derive(Clone, Default)]
+struct Armed {
+    clock: Option<i128>,
+    vars: Option<Rc<[(String, String)]>>,
+    records: Option<Rc<nvs_runtime::test_records::TestRecords>>,
+}
+
+impl Armed {
+    /// What `ctx` has: the clock's reading now, and its variables and records.
+    fn of(ctx: &nvs_runtime::Ctx) -> Self {
+        Self {
+            clock: ctx.fixed_clock(),
+            vars: ctx.test_env().cloned(),
+            records: ctx.test_records().cloned(),
+        }
+    }
+
+    /// Installs `unit`'s statics on `ctx`, then sets the clock, the variables,
+    /// the records and the route table on it.
+    fn arm(
+        self,
+        ctx: &mut nvs_runtime::Ctx,
+        unit: &nvs_codegen::Unit,
+        routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
+    ) {
+        unit.install_in(ctx);
+        if let Some(nanos) = self.clock {
+            ctx.set_fixed_clock(nanos);
+        }
+        if let Some(vars) = self.vars {
+            ctx.set_test_env(vars);
+        }
+        if let Some(records) = self.records {
+            ctx.set_test_records(records);
+        }
+        if !routes.rows().is_empty() {
+            ctx.set_routes(std::sync::Arc::clone(routes));
+        }
+    }
+}
+
+/// The test's side of its own listener: the test's isolate writes it once it is
+/// armed, and each request off the wire reads an [`Armed`] from it. The server
+/// is bound before the isolate exists, so the two meet here.
+///
+/// Each handle is weak: the accept loop may outlive its test until the
+/// scheduler reaps it, and a strong handle would keep the test's records alive
+/// that long. A request after the test ended gets nothing, as it gets no
+/// program ([`answer_on_the_wire`]).
+#[derive(Default)]
+struct Owner {
+    clock: Option<std::rc::Weak<nvs_runtime::test_clock::TestClock>>,
+    vars: Option<std::rc::Weak<[(String, String)]>>,
+    records: Option<std::rc::Weak<nvs_runtime::test_records::TestRecords>>,
+}
+
+impl Owner {
+    /// Weak handles to what the test's armed isolate `ctx` has.
+    fn of(ctx: &nvs_runtime::Ctx) -> Self {
+        Self {
+            clock: ctx.test_clock().map(Rc::downgrade),
+            vars: ctx.test_env().map(Rc::downgrade),
+            records: ctx.test_records().map(Rc::downgrade),
+        }
+    }
+
+    /// What a request made now is armed with: the test's clock as it reads now.
+    fn armed(&self) -> Armed {
+        Armed {
+            clock: self
+                .clock
+                .as_ref()
+                .and_then(std::rc::Weak::upgrade)
+                .map(|clock| clock.now()),
+            vars: self.vars.as_ref().and_then(std::rc::Weak::upgrade),
+            records: self.records.as_ref().and_then(std::rc::Weak::upgrade),
         }
     }
 }
@@ -4504,7 +4572,7 @@ fn answer_on_the_wire(
     routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
     door: &Door,
     tree: &Tree,
-    hits: Option<&std::sync::Arc<nvs_runtime::StmtHits>>,
+    armed: Armed,
     request: nvs_server::Request<nvs_server::Incoming>,
     origin: nvs_server::Origin,
 ) -> nvs_server::Reply {
@@ -4578,13 +4646,10 @@ fn answer_on_the_wire(
         }
     };
     let carried = std::sync::Arc::clone(routes);
-    let hits = hits.cloned();
+    let hits = tree.hits.clone();
     let program: nvs_runtime::script::Program =
         Box::new(move |ctx: &mut nvs_runtime::Ctx, _args| {
-            unit.install_in(ctx);
-            if !carried.rows().is_empty() {
-                ctx.set_routes(std::sync::Arc::clone(&carried));
-            }
+            armed.arm(ctx, &unit, &carried);
             if let Some(hits) = hits {
                 ctx.set_stmt_hits(Some(hits));
                 ctx.set_debug_flags(

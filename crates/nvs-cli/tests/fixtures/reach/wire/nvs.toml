@@ -1,0 +1,14 @@
+# A mail server nothing listens on, as in `records/`. The test reaches its own
+# listener on 127.0.0.1, which needs the `net.connect` and `net.internal` pair.
+[mail.relay]
+host = "127.0.0.1"
+port = 1
+from = "app@example.com"
+timeout = "1s"
+
+[capabilities.mail]
+send = ["relay"]
+
+[capabilities.net]
+connect = ["127.0.0.1"]
+internal = ["127.0.0.1"]
