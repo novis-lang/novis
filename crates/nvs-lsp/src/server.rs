@@ -340,7 +340,9 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
                 None if !index.pending().is_empty() => match connection.receiver.try_recv() {
                     Ok(message) => message,
                     Err(error) if error.is_empty() => {
-                        if !index.advance(&documents) {
+                        let more = index.advance(&documents);
+                        log_panicked(connection, &mut index)?;
+                        if !more {
                             settled(
                                 connection,
                                 &index,
@@ -783,6 +785,35 @@ fn save_index(index: &SymbolIndex, settings: &Settings) -> bool {
         return false;
     };
     nvs_config::data::create_private_root(dir).is_ok() && index.save_to(&file, root).is_ok()
+}
+
+/// Logs each entry whose analysis panicked on a worker, with its path, to
+/// stderr and as a `window/logMessage` error. The index skips the entry until
+/// its file changes.
+///
+/// # Errors
+///
+/// When the connection is gone.
+fn log_panicked(connection: &Connection, index: &mut SymbolIndex) -> Result<(), ServerError> {
+    for entry in index.take_panicked() {
+        let message = format!(
+            "the analysis of {} panicked on a worker; the file is skipped until it changes",
+            entry.display()
+        );
+        let _ =
+            std::io::Write::write_all(&mut std::io::stderr(), format!("{message}\n").as_bytes());
+        connection.sender.send(
+            Notification::new(
+                lsp_types::notification::LogMessage::METHOD.to_owned(),
+                lsp_types::LogMessageParams {
+                    typ: lsp_types::MessageType::ERROR,
+                    message,
+                },
+            )
+            .into(),
+        )?;
+    }
+    Ok(())
 }
 
 /// What follows once the index has no entry waiting: the completion files are

@@ -465,6 +465,12 @@ pub struct SymbolIndex {
     /// flight, with the counter it moved to. A result that read one of them
     /// after its job was sent is stale. Cleared once no entry waits.
     changed: FxHashMap<PathBuf, u64>,
+    /// Each entry whose job panicked on a worker. Its turn skips it, and it is
+    /// never analysed on the server's thread, until a refresh of its own file.
+    panicked: BTreeSet<PathBuf>,
+    /// The entries that panicked since [`take_panicked`](Self::take_panicked)
+    /// last ran, for the server to log.
+    panic_log: Vec<PathBuf>,
     /// Every configuration input of the entries' directories
     /// (`crate::tree_cache::inputs`), as it was when the index was planned or
     /// loaded. A directory found later adds its inputs as they are then.
@@ -792,6 +798,11 @@ impl SymbolIndex {
     pub fn refresh(&mut self, documents: &Documents, changed: &Path) -> Refreshed {
         let key = canonical_key(changed);
         self.change += 1;
+        // An entry that panicked on a worker recorded no reads, so it is no
+        // reader of its own file. Its file changed, so it waits again.
+        if self.panicked.remove(&key) {
+            self.pending.insert(key.clone());
+        }
         if self.workers.is_some() {
             self.changed.insert(key.clone(), self.change);
         }
@@ -894,7 +905,14 @@ impl SymbolIndex {
     /// Whether `entry`'s turn skips it: its own file is indexed and it owns
     /// no file, so its analysis would read a graph another entry indexed.
     fn skips(&self, entry: &Path) -> bool {
-        self.files.contains_key(entry) && self.owned_by(entry).is_empty()
+        self.panicked.contains(entry)
+            || (self.files.contains_key(entry) && self.owned_by(entry).is_empty())
+    }
+
+    /// The entries whose job panicked on a worker since the last call, each
+    /// once. The server logs each with its path.
+    pub fn take_panicked(&mut self) -> Vec<PathBuf> {
+        std::mem::take(&mut self.panic_log)
     }
 
     /// Analyses `entry` on this thread, through a snapshot of the store, and
@@ -1013,6 +1031,11 @@ impl SymbolIndex {
             for made in pool.take_parses() {
                 documents.file_parses(made);
             }
+            for entry in pool.take_panicked() {
+                if self.panicked.insert(entry.clone()) {
+                    self.panic_log.push(entry);
+                }
+            }
             let Some(head) = self.pending.first().cloned() else {
                 pool.stop();
                 self.changed.clear();
@@ -1062,6 +1085,7 @@ impl SymbolIndex {
                 break;
             }
             let passed = pool.is_split(&next)
+                || self.panicked.contains(&next)
                 || ((self.files.contains_key(&next) || pool.is_claimed(&next))
                     && self.owned_by(&next).is_empty());
             if !passed {
@@ -1098,6 +1122,7 @@ impl SymbolIndex {
                 break;
             };
             let known = pool.is_sent(&next)
+                || self.panicked.contains(&next)
                 || pool.graph(&next).is_some()
                 || self.reads.contains_key(&next)
                 || self.files.contains_key(&next)

@@ -42,7 +42,7 @@ stages:
     context: []
   - id: 10
     title: "a chunked reply is pooled after its last byte, and a worker panic stays on the worker"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/workers.rs]
   - id: 11
     title: a release refuses a tip that holds shipped code its build did not have
@@ -472,15 +472,16 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 - [x] `crates/nvs-stdlib/src/http/transport.rs:1014`: `dechunk` ends after the trailer's last line,
   and `pool::take` (`crates/nvs-stdlib/src/http/pool.rs:76`) closes a connection with bytes waiting.
   *check first.*
-- [ ] `crates/nvs-lsp/src/index.rs:1234`: no `analyse_here` after a part that panicked, and the path
+- [x] `crates/nvs-lsp/src/index.rs:1234`: no `analyse_here` after a part that panicked, and the path
   at `:1035`. *read.*
-- [ ] `crates/nvs-lsp/src/workers.rs:572`: `adopt` and `take_made` inside the guard, and the log line.
-- [ ] `crates/nvs-stdlib/tests/chunked_end.rs:1` and `crates/nvs-lsp/tests/worker_panic.rs:1`, the
+- [x] `crates/nvs-lsp/src/workers.rs:572`: `adopt` and `take_made` inside the guard, and the log line.
+- [x] `crates/nvs-stdlib/tests/chunked_end.rs:1` and `crates/nvs-lsp/tests/worker_panic.rs:1`, the
   second with a test-only switch that makes one file's check panic. Each runs once, by name.
   - [x] The chunked half: two unit tests in `transport.rs`'s tests, passed; `chunked-end` runs them
     by name, because `Framed` and the pool are private to `nvs-stdlib`.
-  - [ ] The worker half.
-- [ ] `cargo build` and clippy are green.
+  - [x] The worker half: `crates/nvs-lsp/tests/worker_panic.rs`, one case, passed. The switch is
+    `nvs_lsp::panic_on_worker`.
+- [x] `cargo build` and clippy are green.
 
 ### 11. a release refuses a tip that holds shipped code its build did not have
 

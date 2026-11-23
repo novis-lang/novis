@@ -98,7 +98,8 @@
 use std::collections::BTreeMap;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, PoisonError};
 use std::thread::JoinHandle;
 
 use crossbeam_channel::{Receiver, Sender};
@@ -144,6 +145,9 @@ pub(crate) enum Found {
     Plan(Option<(Vec<PathBuf>, Work)>),
     /// The part's analysis, or `None` when the entry could not be loaded.
     Part(Option<Analysis>),
+    /// The job panicked. The server skips the entry until its file changes,
+    /// and never analyses it on its own thread.
+    Panicked,
 }
 
 /// What a worker sends back for one [`Job`].
@@ -216,6 +220,8 @@ pub(crate) struct Pool {
     pub(crate) plan_cursor: Option<PathBuf>,
     /// Every file a graph that came back reaches, until the pool stops.
     reached: FxHashSet<PathBuf>,
+    /// The entries whose job panicked, for the index to log and skip.
+    panicked: Vec<PathBuf>,
 }
 
 impl std::fmt::Debug for Pool {
@@ -247,6 +253,7 @@ impl Pool {
             cursor: None,
             plan_cursor: None,
             reached: FxHashSet::default(),
+            panicked: Vec::new(),
         }
     }
 
@@ -415,8 +422,25 @@ impl Pool {
                     *slot = Some(analysis);
                 }
             }
+            // The entry leaves the flight and its claims are released. A part
+            // of it that arrives later finds no flight and is dropped.
+            (Some(Flight::Planning { change } | Flight::Split { change, .. }), Found::Panicked)
+                if *change == sent =>
+            {
+                if let Some(Flight::Split { claims, .. }) = self.in_flight.remove(&entry) {
+                    for claim in &claims {
+                        self.claimed.remove(claim);
+                    }
+                }
+                self.panicked.push(entry);
+            }
             _ => {}
         }
+    }
+
+    /// The entries whose job panicked since the last call.
+    pub(crate) fn take_panicked(&mut self) -> Vec<PathBuf> {
+        std::mem::take(&mut self.panicked)
     }
 
     /// The parts of `entry`, in part order, taken out of flight once every
@@ -548,6 +572,7 @@ impl Pool {
         self.cursor = None;
         self.plan_cursor = None;
         self.reached.clear();
+        self.panicked.clear();
     }
 
     /// How many worker threads run.
@@ -569,53 +594,85 @@ fn run_jobs(jobs: &Receiver<Job>, done: &Sender<Done>) {
     let mut session = Session::default();
     let mut trees = TreeCache::default();
     while let Ok(job) = jobs.recv() {
-        session.parses.adopt(job.parses);
         let at = Entry {
             path: &job.entry,
             key: &job.entry,
         };
-        // A panic in one job is that entry's result, as an entry that could
-        // not be loaded, and not a server that waits for ever. The caches it
-        // may have left half written are started again.
-        let found = catch_unwind(AssertUnwindSafe(|| match &job.task {
-            Task::Plan => Found::Plan(plan_entry(
-                &job.snapshot,
-                &mut session,
-                &mut trees,
-                at,
-                job.version,
-            )),
-            Task::Part(files) => Found::Part(
-                analyse_entry(
+        // A panic in one job is that entry's result, `Found::Panicked`, and
+        // not a server that waits for ever. Adopting the server's parses and
+        // taking the new ones run inside the guard too. The caches it may have
+        // left half written are started again, and its parses are dropped.
+        let ran = catch_unwind(AssertUnwindSafe(|| {
+            session.parses.adopt(job.parses.clone());
+            if panics_on(&job.entry) {
+                panic!("a check made to panic for a test");
+            }
+            let found = match &job.task {
+                Task::Plan => Found::Plan(plan_entry(
                     &job.snapshot,
                     &mut session,
                     &mut trees,
                     at,
                     job.version,
-                    |key| !files.contains(key),
-                    files.contains(&job.entry),
-                    job.part == 0,
-                )
-                .map(|(_, analysis)| analysis),
-            ),
-        }))
-        .unwrap_or_else(|_| {
+                )),
+                Task::Part(files) => Found::Part(
+                    analyse_entry(
+                        &job.snapshot,
+                        &mut session,
+                        &mut trees,
+                        at,
+                        job.version,
+                        |key| !files.contains(key),
+                        files.contains(&job.entry),
+                        job.part == 0,
+                    )
+                    .map(|(_, analysis)| analysis),
+                ),
+            };
+            (found, session.parses.take_made())
+        }));
+        let (found, parses) = ran.unwrap_or_else(|_| {
             session = Session::default();
             trees = TreeCache::default();
-            match job.task {
-                Task::Plan => Found::Plan(None),
-                Task::Part(_) => Found::Part(None),
-            }
+            (Found::Panicked, Made::default())
         });
         let sent = done.send(Done {
             entry: job.entry,
             change: job.change,
             part: job.part,
             found,
-            parses: session.parses.take_made(),
+            parses,
         });
         if sent.is_err() {
             return;
         }
     }
+}
+
+/// Whether [`panic_on_worker`] set a file name. One load per job, and the lock
+/// is taken only in a test that set one.
+static PANIC_ARMED: AtomicBool = AtomicBool::new(false);
+
+/// The file name whose job panics on a worker.
+static PANIC_ON: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+/// Makes every worker job of an entry whose path ends in `name` panic, or
+/// stops that with `None`. For `tests/worker_panic.rs`; no server sets it.
+#[doc(hidden)]
+pub fn panic_on_worker(name: Option<PathBuf>) {
+    let mut held = PANIC_ON.lock().unwrap_or_else(PoisonError::into_inner);
+    PANIC_ARMED.store(name.is_some(), Ordering::Release);
+    *held = name;
+}
+
+/// Whether [`panic_on_worker`] names `entry`.
+fn panics_on(entry: &Path) -> bool {
+    if !PANIC_ARMED.load(Ordering::Acquire) {
+        return false;
+    }
+    PANIC_ON
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .as_deref()
+        .is_some_and(|name| entry.ends_with(name))
 }
