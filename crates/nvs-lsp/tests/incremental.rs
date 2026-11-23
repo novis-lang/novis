@@ -647,14 +647,24 @@ fn agrees_with_a_fresh_store(
     path: &Path,
     kind: &str,
 ) {
-    let uri = uri_of(path).expect("a temp path is UTF-8");
-    let text = documents.get(&uri).expect("open").text().to_owned();
     let mut fresh = Documents::new();
     fresh.survey(CheckScope::Workspace, Some(dir.root()));
     let mut fresh_index = SymbolIndex::build(&fresh, CheckScope::Workspace, Some(dir.root()));
-    fresh.open(uri, 1, text);
-    fresh.resurvey(path);
-    fresh_index.refresh(&fresh, path);
+    // Every document open in `documents` is open in the fresh store too,
+    // because an open document is an entry of the index.
+    let mut open: Vec<(PathBuf, String)> = documents
+        .iter()
+        .map(|document| {
+            let at = document.path().expect("an open document has a path");
+            (at.to_path_buf(), document.text().to_owned())
+        })
+        .collect();
+    open.sort();
+    for (at, text) in open {
+        fresh.open(uri_of(&at).expect("a temp path is UTF-8"), 1, text);
+        fresh.resurvey(&at);
+        fresh_index.refresh(&fresh, &at);
+    }
     fresh_index.settle(&fresh);
 
     let mut entries = vec![path.to_path_buf()];
@@ -814,6 +824,116 @@ fn reach_edits() -> Vec<(&'static str, Edit)> {
     ]
 }
 
+/// The two reach rows that need sites `Part5` does not have: an enum case
+/// another file uses, and a private property of a class another file decodes
+/// into. `Part5` gains a method that names `Reader`, which decodes a `Record`
+/// and compares its `Shade`, so the three files join every graph that reads
+/// `Part5`. Each edit is typed in `Shade` or `Record`, opened as documents.
+fn decode_and_case_edits(
+    dir: &TempDir,
+    documents: &mut Documents,
+    index: &mut SymbolIndex,
+    part5: &Path,
+) {
+    dir.write(
+        "lib/Framework/Shade.nvs",
+        "<?nvs\nnamespace Framework;\n\nenum Shade { Light, Dark }\n",
+    );
+    dir.write(
+        "lib/Framework/Record.nvs",
+        "<?nvs\nnamespace Framework;\n\n#[Core\\Json\\Derive]\nclass Record\n{\n    \
+         public Shade $shade;\n    private int $size;\n\n    \
+         public function constructor(Shade $shade, int $size)\n    {\n        \
+         $this->shade = $shade;\n        $this->size = $size;\n    }\n}\n",
+    );
+    dir.write(
+        "lib/Framework/Reader.nvs",
+        "<?nvs\nnamespace Framework;\n\nclass Reader\n{\n    public function dark(): bool\n    {\n        \
+         var $record = Core\\Json::decodeAs<Record>(\"{\\\"shade\\\":1,\\\"size\\\":2}\");\n        \
+         return $record->shade == Shade::Dark;\n    }\n}\n",
+    );
+    keystroke(
+        index,
+        documents,
+        part5,
+        replace(
+            "    public function next(",
+            "    public function read(): bool\n    {\n        Reader $reader = new Reader();\n        \
+             return $reader->dark();\n    }\n\n    public function next(",
+        ),
+    );
+    agrees_with_a_fresh_store(dir, documents, index, part5, "decode site named");
+    let main = dir.at("Blog/main.nvs");
+    let analysed = nvs_lsp::analyse_file(documents, &main, 1).expect("the entry analyses");
+    // `Child` has an error the edits above left, and the three new files have
+    // none, so each edit below starts from files that are type checked.
+    let reports = reported(&analysed);
+    assert!(
+        !reports
+            .iter()
+            .any(|line| ["Shade.nvs", "Record.nvs", "Reader.nvs"]
+                .iter()
+                .any(|file| line.contains(file))),
+        "the decode and case edits start from files with no error: {reports:#?}"
+    );
+
+    let record = dir.at("lib/Framework/Record.nvs");
+    open(index, documents, &record);
+    let edits: Vec<(&str, Edit)> = vec![
+        (
+            "private property's type under a decode",
+            replace("private int $size;", "private string $size;"),
+        ),
+        // The decode site reports that the codec cannot fill `$seen`.
+        (
+            "constructor parameter a decode cannot fill added",
+            replace("int $size)", "int $size, bool $seen)"),
+        ),
+        // The new private property fills it, so the error at the site goes.
+        (
+            "private property added under a decode",
+            Box::new(|text: &str| {
+                replace(
+                    "$this->size = $size;",
+                    "$this->size = $size;\n        $this->seen = $seen;",
+                )(&replace(
+                    "private string $size;",
+                    "private string $size;\n    private bool $seen;",
+                )(text))
+            }),
+        ),
+        (
+            "private property under a decode made public",
+            replace("private bool $seen", "public bool $seen"),
+        ),
+    ];
+    for (kind, edit) in edits {
+        keystroke(index, documents, &record, edit);
+        agrees_with_a_fresh_store(dir, documents, index, &record, kind);
+    }
+
+    let shade = dir.at("lib/Framework/Shade.nvs");
+    open(index, documents, &shade);
+    let edits: Vec<(&str, Edit)> = vec![
+        (
+            "enum case added before a used case",
+            replace("{ Light, Dark }", "{ Light, Dim, Dark }"),
+        ),
+        (
+            "enum case another file uses removed",
+            replace("{ Light, Dim, Dark }", "{ Light, Dim }"),
+        ),
+        (
+            "enum case another file uses added",
+            replace("{ Light, Dim }", "{ Light, Dark }"),
+        ),
+    ];
+    for (kind, edit) in edits {
+        keystroke(index, documents, &shade, edit);
+        agrees_with_a_fresh_store(dir, documents, index, &shade, kind);
+    }
+}
+
 /// A cached parse and a cached check give what a store with neither gives,
 /// after every kind of edit that changes what a file's bodies may read.
 #[test]
@@ -870,6 +990,7 @@ fn a_cached_analysis_reports_what_a_fresh_one_does_after_every_kind_of_edit() {
             );
         }
     }
+    decode_and_case_edits(&dir, &mut documents, &mut index, &path);
 
     let edits: Vec<(&str, Edit)> = vec![
         (
