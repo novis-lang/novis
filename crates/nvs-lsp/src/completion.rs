@@ -366,7 +366,7 @@ use nvs_stdlib::registry::{
     self, CoreClass, CoreConst, CoreEnum, CoreMethod, CoreOption, ParamText,
 };
 use nvs_syntax::ast::{
-    AttributeSite, AutoloadKind, ClassMember, ClassMemberKind, DocComment, DocTagKind, EnumCase,
+    AttributeDecl, AttributeSite, AutoloadKind, ClassMember, ClassMemberKind, DocComment, DocTagKind, EnumCase,
     MethodMember, Modifier, PropertyMember, StmtKind, Visibility,
 };
 use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, tokenize};
@@ -2242,8 +2242,9 @@ enum DocTag {
 enum Documented<'a> {
     /// A method, a constructor and an abstract or interface method included.
     Method(&'a MethodMember),
-    /// A class, an interface, an enum, an enum case, a property, a constant or
-    /// a type alias, none of which takes `@param`, `@return` or `@throws`.
+    /// A class, an interface, an enum, an enum case, a property, a constant, a
+    /// type alias, an attribute declaration or one of its fields, none of which
+    /// takes `@param`, `@return` or `@throws`.
     Other,
     /// A run the parser attached to nothing, such as one above a declaration
     /// still being written. Every tag is offered there.
@@ -2292,8 +2293,21 @@ fn documented_in<'a>(
     let covers = |doc: Option<&DocComment>| {
         doc.is_some_and(|doc| doc.span.start <= offset && offset <= doc.span.end)
     };
+    // An attribute declaration's own run and each field's run take no tag a
+    // method takes.
+    let in_fields = |decl: &AttributeDecl| {
+        decl.fields
+            .iter()
+            .any(|field| covers(field.doc.as_ref()))
+            .then_some(Documented::Other)
+    };
     let in_members = |members: &'a [ClassMember]| {
         members.iter().find_map(|member| {
+            if let ClassMemberKind::Attribute(decl) = &member.kind
+                && let Some(found) = in_fields(decl)
+            {
+                return Some(found);
+            }
             if !covers(member.doc.as_ref()) {
                 return None;
             }
@@ -2318,6 +2332,8 @@ fn documented_in<'a>(
         StmtKind::EnumDecl(decl) if covers(decl.doc.as_ref()) => Some(Documented::Other),
         StmtKind::EnumDecl(decl) => in_cases(&decl.cases).or_else(|| in_members(&decl.members)),
         StmtKind::TypeAliasDecl(decl) => covers(decl.doc.as_ref()).then_some(Documented::Other),
+        StmtKind::AttributeDecl(decl) if covers(decl.doc.as_ref()) => Some(Documented::Other),
+        StmtKind::AttributeDecl(decl) => in_fields(decl),
         _ => None,
     })
 }
