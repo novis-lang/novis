@@ -2,8 +2,10 @@
 //!
 //! [`MOVES`] is one row per move: the old name, the new name and the release
 //! that moved it. A row names a type, such as `Core\Order`, or a static member
-//! as `Class::member`, such as `Core\Time::fromEpoch`. A member whose arguments
-//! changed as it moved also carries the call to write instead ([`Move::call`]).
+//! or a class-scoped type as `Class::member`, such as `Core\Time::fromEpoch`. A
+//! member whose arguments changed as it moved also carries the call to write
+//! instead ([`Move::call`]). A member removed with no one replacement carries
+//! the sentence that says what to write ([`Move::help`]).
 //! The table is data beside the registry, and the registry is the source of
 //! truth: a test holds every row to it, so the new name exists and the old one
 //! does not. `nvs_types::moved` is the pass that reads the table and adds the
@@ -27,6 +29,10 @@ pub struct Move {
     /// as code. `None` for a rename, whose fix writes [`Self::new`] over the
     /// old name and keeps the arguments.
     pub call: Option<&'static str>,
+    /// For a member removed with no one replacement, the whole help line,
+    /// which names every member to choose from. Such a row has no fix, and
+    /// [`Self::new`] is the first member the line names.
+    pub help: Option<&'static str>,
 }
 
 impl Move {
@@ -37,6 +43,19 @@ impl Move {
             new,
             since: None,
             call: None,
+            help: None,
+        }
+    }
+
+    /// A member removed with no one replacement: the help line is `help`,
+    /// and no fix is offered.
+    const fn removed(old: &'static str, new: &'static str, help: &'static str) -> Self {
+        Self {
+            old,
+            new,
+            since: None,
+            call: None,
+            help: Some(help),
         }
     }
 
@@ -61,13 +80,42 @@ pub const MOVES: &[Move] = &[
         call: Some(
             r"Core\Time\DateTime::at(Core\Time\Date::at(…), Core\Time\TimeOfDay::at(…), $zone)",
         ),
+        help: None,
     },
     Move {
         old: r"Core\Time\Date::atStartOfDay",
         new: r"Core\Time\DateTime::at",
         since: None,
         call: Some(r"Core\Time\DateTime::at($date, Core\Time\TimeOfDay::at(0, 0), $zone)"),
+        help: None,
     },
+    Move::renamed(r"Core\Time\DateTime::Weekday", r"Core\Time\Weekday"),
+    // rule:core-api/session-roster
+    Move::removed(
+        r"Core\Session::start",
+        r"Core\Session::get",
+        "`Core\\Session::start` was removed. The first call of any `Core\\Session` method opens \
+         the session, so delete this call",
+    ),
+    Move::removed(
+        r"Core\Session::set",
+        r"Core\Session::setShortLived",
+        "`Core\\Session::set` was removed. Write `Core\\Session::setShortLived` for a value that \
+         is deleted when the browser closes, or `Core\\Session::setLongLived` for one that stays",
+    ),
+    Move::removed(
+        r"Core\Session::setSecret",
+        r"Core\Session::setShortLivedSecret",
+        "`Core\\Session::setSecret` was removed. Write `Core\\Session::setShortLivedSecret` or \
+         `Core\\Session::setLongLivedSecret`, for the lifetime the secret needs",
+    ),
+    Move::removed(
+        r"Core\Session::clear",
+        r"Core\Session::clearShortLived",
+        "`Core\\Session::clear` was removed. Write `Core\\Session::clearShortLived`, \
+         `Core\\Session::clearLongLived` or `Core\\Session::clearAll`, for the values to delete",
+    ),
+    Move::renamed(r"Core\Session::destroy", r"Core\Session::clearAll"),
 ];
 
 /// The row for `name`, a type or a `Class::member`, matched without regard to
@@ -101,15 +149,15 @@ mod tests {
                 row.old
             );
             if let Some((class, member)) = row.member() {
-                let (new_class, new_member) = row
-                    .new
-                    .split_once("::")
-                    .unwrap_or_else(|| panic!("`{}` names no member", row.new));
-                assert!(
-                    has_member(new_class, new_member),
-                    "`{}` is not a `Core` member",
-                    row.new
-                );
+                // A class-scoped type moved out of its class names a type.
+                match row.new.split_once("::") {
+                    Some((new_class, new_member)) => assert!(
+                        has_member(new_class, new_member),
+                        "`{}` is not a `Core` member",
+                        row.new
+                    ),
+                    None => assert!(has(row.new), "`{}` is not a `Core` type", row.new),
+                }
                 assert!(
                     !has_member(class, member),
                     "`{}` is still a `Core` member",
@@ -119,6 +167,13 @@ mod tests {
                     assert!(
                         call.starts_with(row.new),
                         "`{call}` does not call `{}`",
+                        row.new
+                    );
+                }
+                if let Some(help) = row.help {
+                    assert!(
+                        help.contains(&format!("`{}`", row.new)),
+                        "`{help}` does not name `{}`",
                         row.new
                     );
                 }

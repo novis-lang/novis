@@ -34,7 +34,7 @@ stages:
     context: [docs/rules/types/a-replaced-value-is-changed-in-place.md]
   - id: 8
     title: the time classes read their text and their epoch one way
-    status: open
+    status: done
     context: [docs/rules/core-classes/a-time-class-builds-its-own-values.md]
   - id: 9
     title: a typed decode bounds its issue list, and a passkey challenge is taken once
@@ -433,19 +433,19 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### 8. the time classes read their text and their epoch one way
 
-- [ ] `crates/nvs-stdlib/src/time.rs:4168`: `parse_offset` takes one sign and digits. `'+-5:00'` gives
+- [x] `crates/nvs-stdlib/src/time.rs:4168`: `parse_offset` takes one sign and digits. `'+-5:00'` gives
   a `-05:00` zone today. `rule:core-classes/a-time-class-builds-its-own-values` *run.*
-- [ ] `crates/nvs-stdlib/src/time.rs:4592`: the three epoch readers floor.
+- [x] `crates/nvs-stdlib/src/time.rs:4592`: the three epoch readers floor.
   `Instant::fromEpoch(-1, {nanos: 500000000})->toEpochSeconds()` gives `0` today. *run.*
-- [ ] `crates/nvs-stdlib/src/time.rs:3775`: `-0000` throws, and a zone keeps the database's name at
+- [x] `crates/nvs-stdlib/src/time.rs:3775`: `-0000` throws, and a zone keeps the database's name at
   `:4261` and `:4718`.
-- [ ] `crates/nvs-stdlib/src/time.rs:3725`: `Instant::fromIso` takes only the forms the rule lists.
+- [x] `crates/nvs-stdlib/src/time.rs:3725`: `Instant::fromIso` takes only the forms the rule lists.
   *check first*, with `23:59:60Z`, a lower-case `t` and a comma.
-- [ ] `crates/nvs-stdlib/src/time.rs:2691`: `Date::at(year, month, day)`.
-- [ ] `crates/nvs-stdlib/src/moved.rs:51`: the `MOVES` rows, and `E0763`'s help at
+- [x] `crates/nvs-stdlib/src/time.rs:2691`: `Date::at(year, month, day)`.
+- [x] `crates/nvs-stdlib/src/moved.rs:51`: the `MOVES` rows, and `E0763`'s help at
   `crates/nvs-diagnostics/src/code/types_e07.rs:1144`.
-- [ ] `crates/nvs-codegen/tests/time_text.rs:1`. It runs once, by name.
-- [ ] `cargo build` and clippy are green.
+- [x] `crates/nvs-codegen/tests/time_text.rs:1`. It runs once, by name.
+- [x] `cargo build` and clippy are green.
 
 ### 9. a typed decode bounds its issue list, and a passkey challenge is taken once
 
@@ -506,40 +506,46 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### State
 
-Stages 1 to 7 are done, each with its acceptance test passing. `Live::adopt` and the retrieval
-`static` item were not found.
+Stages 1 to 8 are done, each with its acceptance test passing. `Live::adopt` and the retrieval
+`static` item were not found. Stage 7 is summarised in its commits (`in_place_results`); the queue
+loop measured 66, 60 and 66 ms at 5,000, 10,000 and 20,000 rounds.
 
-Stage 7 landed in one session (`in_place_results`, three cases, passed):
+Stage 8 landed in one session (`time_text`, five cases, passed):
 
-- `Table::rekey` gives a list when a build of the same keys is a list (`list_length`), so
-  `mapKeys` or `flip`, then a cut, then an append land on the build path's key.
-- `NvsStr::keep` copies a sole cut under half its capacity into its own allocation.
-- `Core\Arr::append` keeps the subject's counter, as `$a[] = $v` does. `fresh_counter`,
-  `fresh_append_index` and `recount_append_index` are deleted. The conformance case is renamed
-  `arr-append-keeps-the-counter-a-removed-key-left.nvst`, and `rule:types/arrays` says so. The
-  queue loop on the release binary, whole process: 66 ms at 5,000 rounds, 60 ms at 10,000, 66 ms
-  at 20,000 (993, 4,742 and 15,837 ms before).
-- The *check first* item was found by reading: `prepend` and `replace_window` on a map asked the
-  map's growth and reserved map room, then allocated a list unasked. They now ask
-  `Table::list_cost` (`reserve_list_within_budget`); the unit test
-  `a_change_that_ends_as_a_list_asks_for_the_list` shows the old ask was 0.
-- A debug-only `nvs_runtime::array::key_parses` counter backs the queue case.
-- The in-place fuzz check prints keys, and draws a member, a cut and an append as one shape.
+- `parse_offset` reads one sign, then digits only. The `toEpoch*` readers floor (`epoch_count`).
+  `-0000` throws. `Zone::of` and `written_zone` store the database's name (`database_name`).
+- *Check first* was shown by a probe: `23:59:60Z`, a lower-case `t` or `z`, a comma and `+0100` were
+  all read. `iso_instant` now uses the `DateTime::fromIso` readers, then `Z` or `±HH:MM`.
+- `Date::at` names `year`, `month`, `day`. `Move` gained `help` (`Move::removed`, no fix) for
+  `Core\Session::start`, `set`, `setSecret` and `clear`; `destroy` and `DateTime::Weekday` are
+  renames. `E0763` on a `Core` attribute says only "Delete one of the two."
 
 Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, two; stage 5, one; stage 6,
-two; stage 7, one.
+two; stage 7, one; stage 8, one.
 
 ### Next
 
-Stage 8: the time classes (`docs/rules/core-classes/a-time-class-builds-its-own-values.md`), per the
-standing decision *An epoch reader floors*, with its test `time_text`. Stages 9, 10 and 11 touch
+Stage 9: a typed decode bounds its issue list at 64, and a passkey challenge is taken once, per the
+standing decisions *A typed decode stops collecting issues at 64* and *A passkey challenge is
+removed in the store when it is taken*, with its test `decode_and_passkey`. Stages 10 and 11 touch
 disjoint files, so another session may take one of them beside it.
 
 Stage 12 owes `tools:cli/nvs-test` its change entry and page reread for the `--since` change, and
 `Core\Arr::append` its change entry, its reference card reread and `website/src/data/core.json`
-regenerated for the counter change and the new help text.
+regenerated for the counter change and the new help text. From stage 8 it owes change entries and
+card rereads for `Core\Time\Instant::toEpochSeconds`, `toEpochMillis`, `toEpochMicros`, `fromIso`,
+`Core\Time\Date::at` (parameter names; `core.json:49544` still says `$y, $m, $d`),
+`Core\Time\Date::fromIso` and `Core\Time\Zone::of`, and the example
+`docs/examples/core/Time-Date/at/01-building-a-date.nvs` reread.
 
-Tests that may go red: a program that calls `Core\Arr::append` on an array that lost its highest
+Tests that may go red: `crates/nvs-stdlib/src/moved.rs`'s
+`every_move_points_from_a_missing_name_to_a_registered_one` was not run; it checks the six new rows
+against the registry. A test or example that calls `Instant::fromIso` with a leap second, a
+lower-case `t` or `z`, a comma before the fraction, or a basic offset such as `+0100`, now throws. A
+program that prints a zone built from a name written in another case now prints the database's
+case. A test of `toEpoch*` before 1970 with a part of a unit now gets one less. A test that names
+`Date::at`'s arguments `y`, `m`, `d` no longer compiles. An `E0763` case that reads the old help on
+a `Core` attribute. A program that calls `Core\Arr::append` on an array that lost its highest
 integer key (by `unset`, `withoutLast`, `filter` or a slice) now appends after the removed key, as
 `$a[] = $v` does. A test that reads a sole string's address or capacity after a short cut. A
 `mapKeys` or `flip` result whose new keys are `0` to `n-1` is now a list, so a bench or a count of

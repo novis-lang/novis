@@ -17,18 +17,23 @@ determinism rules fake the clock through it (`rule:testing/determinism-declared-
 `Date::atStartOfDay`: `DateTime::at($date, TimeOfDay::at(0, 0), $zone)` is the same value, resolved
 the same way, and `DateTime::fromIso('2024-03-01', $zone)` is its short form.
 
+**An epoch reader floors.** `toEpochSeconds`, `toEpochMillis` and `toEpochMicros` give the largest
+whole count at or before the instant, so `fromEpoch` of the count and the remainder builds the same
+instant. Half a second before 1970 is second `-1`, millisecond `-500`.
+
 **One text format per class, the ISO 8601 extended form, and nothing else.**
 
 - `Date::fromIso` reads `YYYY-MM-DD` over the year range `Date::at` takes. No week date, no ordinal
-  date and no basic form such as `20240301`.
+  date and no basic form such as `20240301`. Year zero is `0000`, and `-0000` throws.
 - `TimeOfDay::fromIso` reads `HH:MM`, `HH:MM:SS` or `HH:MM:SS.f` with one to nine fraction digits. No
   `24:00` and no leap second `60`.
 - `DateTime::fromIso(text, Zone)` reads a date, or a date, a separator and a time. The separator is
   `T` or one space, as RFC 3339 allows. A date alone is the first instant of that day, and a local
   time resolves as `DateTime::at` resolves it. An offset or a `Z` in the text throws, and the message
   names `Instant::fromIso(...)->in($zone)`: the zone is the argument, never the text.
-- `Instant::fromIso` reads an ISO 8601 timestamp that carries its own offset or `Z`, and takes the
-  same two separators.
+- `Instant::fromIso` reads a date, `T` or one space, a time as `TimeOfDay::fromIso` reads it, and
+  `Z` or a `±HH:MM` offset. A leap second `60`, a lower-case `t` or `z`, a comma before the fraction
+  and a basic offset such as `+0100` throw.
 - A text outside the format throws `ParseError` naming the part that is wrong.
 
 **A literal text is checked while compiling.** A string literal at the text argument of every `fromIso`
@@ -44,8 +49,10 @@ for a value fixed in the source, and the member, `Zone::of($text)`, for text tha
 which is the one place a zone name throws. The checker reads the literal as it reads a key literal at
 a `property<C>` parameter (`rule:types/property-key`): a name the time-zone database lacks, or an
 offset `Zone::fixed` does not take, is a compile error at the literal. A name is looked up as
-`Zone::of` looks it up, case ignored, and kept as written, so the literal refuses only what
-`Zone::of` throws on. Only a literal converts. A
+`Zone::of` looks it up, case ignored, and kept as the database writes it, so `'europe/berlin'` and
+`Zone::of('EUROPE/BERLIN')` are both `Europe/Berlin`, and the literal refuses only what `Zone::of`
+throws on. An offset is one sign, one or two hour digits, and two digits for each later part, so
+`'+-5:00'` does not compile. Only a literal converts. A
 `string` variable at a `Zone` parameter stays a type error, so tainted text reaches a zone only through
 `Zone::of`. `Zone::of('UTC')` written with a literal still compiles, and the docs show the short form.
 The editor completes a string at a `Zone` parameter from the same database, one `/` segment at a time.

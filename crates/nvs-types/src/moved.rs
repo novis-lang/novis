@@ -85,7 +85,9 @@ pub fn note_moves(diags: &mut Diagnostics, map: &SourceMap) {
             Some(version) => format!("`{}` moved to `{}` in {version}", row.old, row.new),
             None => format!("`{}` moved to `{}`", row.old, row.new),
         };
-        let help = if let Some(call) = row.call {
+        let help = if let Some(help) = row.help {
+            help.to_owned()
+        } else if let Some(call) = row.call {
             format!("{moved_to}, which takes other arguments. Write `{call}` here")
         } else if import {
             format!(
@@ -142,10 +144,11 @@ fn written_fix(row: &Move, span: Span, file: &SourceFile) -> Option<(Span, Strin
 
 /// The edit that writes `row.new` over `Class::member` at the start of `span`,
 /// a static call such as `Time::fromIso('…')`, whatever the class's spelling.
-/// `None` for a member whose arguments changed ([`Move::call`]) and where the
-/// text after the class's `::` is not `member`.
+/// `None` for a member whose arguments changed ([`Move::call`]), one removed
+/// with no one replacement ([`Move::help`]), and where the text after the
+/// class's `::` is not `member`.
 fn member_fix(row: &Move, member: &str, span: Span, file: &SourceFile) -> Option<(Span, String)> {
-    if row.call.is_some() {
+    if row.call.is_some() || row.help.is_some() {
         return None;
     }
     let text = file.span_text(span)?;

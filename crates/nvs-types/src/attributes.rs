@@ -352,7 +352,7 @@ fn count_fits(
             .with_help(if program {
                 format!("Delete one of the two, or write `repeatable` before `attribute {shown}`.")
             } else {
-                format!("Delete one of the two, or write all of it in one `#[{shown}]`.")
+                "Delete one of the two.".to_owned()
             }),
         );
         return false;

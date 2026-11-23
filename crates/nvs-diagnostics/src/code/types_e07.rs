@@ -1144,7 +1144,8 @@ codes! {
     pub const E_ACCESS_REPEATED: Code = Code::new("E0763").card(
         "This attribute is used twice on one declaration, and its declaration is not \
          `repeatable`. For example, a method can have only one `#[Access]`. Delete one of the \
-         two, or write `repeatable` before `attribute` in the declaration.",
+         two. For an attribute your program declares, you can also write `repeatable` before \
+         `attribute` in its declaration.",
     );
 
     /// A `csrf: false` beside a method whose every `#[Route]` names a verb with

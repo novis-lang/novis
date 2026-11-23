@@ -190,7 +190,6 @@ use std::sync::OnceLock;
 use std::time::SystemTime;
 
 use jiff::civil::{self, Weekday};
-use jiff::fmt::temporal::Pieces;
 use jiff::tz::{Offset, TimeZone};
 use jiff::{SignedDuration, Timestamp, Zoned};
 use nvs_runtime::host::Woken;
@@ -1380,7 +1379,8 @@ const INSTANT_TO_EPOCH_SECONDS_DOC: MethodDoc = MethodDoc {
     short: "Returns the Unix timestamp of this instant: the whole seconds since 1 January 1970 \
             in UTC.",
     params: &[],
-    ret: "An `int`, negative before 1970. The part of a second is cut off, toward zero.",
+    ret: "An `int`, negative before 1970. The part of a second is rounded down, so an \
+          instant half a second before 1970 gives `-1`.",
     errors: &[],
 };
 
@@ -1389,8 +1389,8 @@ const INSTANT_TO_EPOCH_MILLIS_DOC: MethodDoc = MethodDoc {
     short: "Returns the whole milliseconds since 1 January 1970 in UTC, as JavaScript counts \
             time.",
     params: &[],
-    ret: "An `int`, negative before 1970. The part of a millisecond is cut off, toward zero. \
-          Every instant fits.",
+    ret: "An `int`, negative before 1970. The part of a millisecond is rounded down, so an \
+          instant half a millisecond before 1970 gives `-1`. Every instant fits.",
     errors: &[],
 };
 
@@ -1398,8 +1398,8 @@ const INSTANT_TO_EPOCH_MILLIS_DOC: MethodDoc = MethodDoc {
 const INSTANT_TO_EPOCH_MICROS_DOC: MethodDoc = MethodDoc {
     short: "Returns the whole microseconds since 1 January 1970 in UTC.",
     params: &[],
-    ret: "An `int`, negative before 1970. The part of a microsecond is cut off, toward zero. \
-          Every instant fits.",
+    ret: "An `int`, negative before 1970. The part of a microsecond is rounded down, so an \
+          instant half a microsecond before 1970 gives `-1`. Every instant fits.",
     errors: &[],
 };
 
@@ -2752,7 +2752,7 @@ pub const DATE: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "at",
-            names: &["y", "m", "d"],
+            names: &["year", "month", "day"],
             params: &[CoreTy::Int, CoreTy::Uint, CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Instance(DATE_NAME),
@@ -2900,17 +2900,17 @@ const DATE_AT_DOC: MethodDoc = MethodDoc {
             30 February, throws an error.",
     params: &[
         ParamDoc {
-            name: "y",
+            name: "year",
             desc: "The year, within `-9999..=9999`.",
             shape: &[],
         },
         ParamDoc {
-            name: "m",
+            name: "month",
             desc: "The month, `1` to `12`.",
             shape: &[],
         },
         ParamDoc {
-            name: "d",
+            name: "day",
             desc: "The day of the month, which must exist in that month.",
             shape: &[],
         },
@@ -3804,22 +3804,42 @@ pub fn validate_iso(form: IsoForm, text: &str) -> Result<(), String> {
     }
 }
 
-/// The instant `text` names, read with `jiff`'s RFC 3339 reader, which takes
-/// `T` or a space between the date and the time.
+/// The instant `text` names: `Instant::fromIso`'s grammar.
 ///
-/// For a text that is not written as a timestamp, the sentence is `jiff`'s,
-/// since it says which part it stopped at. A text written as one that still
-/// fails names a time past either end of the range.
+/// A date, `T` or one space, a time as [`iso_time_prefix`] reads it, and then
+/// `Z` or a `±HH:MM` offset. The date and the time are read by the readers
+/// `DateTime::fromIso` uses, so a leap second `60`, a lower-case `t`, a comma
+/// before the fraction and a basic offset such as `+0100` are refused here as
+/// they are there. A text that is written as one and still fails names a time
+/// past either end of the range.
 fn iso_instant(text: &str) -> Result<Timestamp, String> {
-    text.parse::<Timestamp>().map_err(|err| {
-        let written_as_one = Pieces::parse(text.as_bytes())
-            .is_ok_and(|read| read.time().is_some() && read.offset().is_some());
-        if written_as_one {
-            PAST_THE_RANGE.to_owned()
-        } else {
-            err.to_string()
-        }
-    })
+    const FORM: &str = "YYYY-MM-DDTHH:MM:SSZ";
+    let bytes = text.as_bytes();
+    let (date, end) = iso_date_prefix(bytes)?;
+    if !matches!(bytes.get(end), Some(b'T' | b' ')) {
+        return Err(format!(
+            "expected `T` or a space at byte {end}, between the date and the time"
+        ));
+    }
+    let start = end + 1;
+    let (time, end) = iso_time_prefix(&bytes[start..])?;
+    let end = start + end;
+    let rest = &text[end..];
+    let offset = if rest == "Z" {
+        Some(Offset::UTC)
+    } else if rest.len() == 6 && rest.as_bytes()[3] == b':' {
+        parse_offset(rest)
+    } else {
+        None
+    };
+    let Some(offset) = offset else {
+        return Err(format!(
+            "expected `Z` or an offset such as `+02:00` at byte {end}, in the form `{FORM}`"
+        ));
+    };
+    offset
+        .to_timestamp(date.to_datetime(time))
+        .map_err(|_| PAST_THE_RANGE.to_owned())
 }
 
 /// A run of exactly `width` ASCII digits at `at`, as a number, or the sentence
@@ -3867,6 +3887,10 @@ fn iso_date_prefix(bytes: &[u8]) -> Result<(civil::Date, usize), String> {
     let month = iso_digits(bytes, start + 5, 2, "month", FORM)?;
     iso_expect(bytes, start + 7, b'-', FORM)?;
     let day = iso_digits(bytes, start + 8, 2, "day", FORM)?;
+    // Year zero is written `0000`, and one value has one text.
+    if signed && year == 0 {
+        return Err("the year `-0000` is written `0000`".to_owned());
+    }
     let year = if signed { -year } else { year };
     if !(1..=12).contains(&month) {
         return Err(format!(
@@ -4252,29 +4276,50 @@ fn resolve_zone(id: &str) -> Option<TimeZone> {
     TimeZone::get(id).ok()
 }
 
+/// The name the zone database writes for the zone `text` names, or `None`
+/// for a name it does not have.
+///
+/// The lookup ignores ASCII case, so `europe/berlin` names a zone, and the
+/// zone keeps the database's `Europe/Berlin`. One zone then has one id, and
+/// a value that prints its zone prints the same name however the source
+/// wrote it.
+fn database_name(text: &str) -> Option<String> {
+    let zone = TimeZone::get(text).ok()?;
+    Some(zone.iana_name().unwrap_or(text).to_owned())
+}
+
 /// A `±HH:MM[:SS]` offset spelling, or `None` for anything else.
+///
+/// One sign, then digits alone: one or two for the hour, and exactly two for
+/// the minute and the second. A field is never read with `str::parse`, which
+/// takes a sign of its own, so `+-5:00` is refused and not read as `-05:00`.
 fn parse_offset(text: &str) -> Option<Offset> {
     let sign = match text.as_bytes().first()? {
         b'+' => 1,
         b'-' => -1,
         _ => return None,
     };
+    let field = |part: Option<&str>, widths: std::ops::RangeInclusive<usize>| -> Option<i32> {
+        let part = part?;
+        if !widths.contains(&part.len()) || !part.bytes().all(|byte| byte.is_ascii_digit()) {
+            return None;
+        }
+        Some(
+            part.bytes()
+                .fold(0, |sum, digit| sum * 10 + i32::from(digit - b'0')),
+        )
+    };
     let mut fields = text[1..].split(':');
-    let hours: i32 = fields.next()?.parse().ok()?;
-    let minutes: i32 = fields.next()?.parse().ok()?;
-    let seconds: i32 = match fields.next() {
-        Some(field) => field.parse().ok()?,
+    let hours = field(fields.next(), 1..=2)?;
+    let minutes = field(fields.next(), 2..=2)?;
+    let seconds = match fields.next() {
+        Some(part) => field(Some(part), 2..=2)?,
         None => 0,
     };
-    if fields.next().is_some() || !(0..60).contains(&minutes) || !(0..60).contains(&seconds) {
+    if fields.next().is_some() || minutes >= 60 || seconds >= 60 {
         return None;
     }
-    // Checked, because a zone id read back from bytes is any text: a large
-    // `hours` overflows the sum before `Offset` can refuse it.
-    let total = hours
-        .checked_mul(3_600)?
-        .checked_add(minutes * 60 + seconds)?;
-    Offset::from_seconds(sign * total).ok()
+    Offset::from_seconds(sign * (hours * 3_600 + minutes * 60 + seconds)).ok()
 }
 
 /// The `±HH:MM[:SS]` spelling of a whole-second offset — [`parse_offset`]'s
@@ -4324,8 +4369,8 @@ pub fn zone_names() -> &'static [String] {
 /// text*.
 ///
 /// A name is accepted where [`nvs_core_time_zone_of`] accepts it, through the
-/// same `TimeZone::get`, which ignores case, and is stored as written, as
-/// `Zone::of` stores it. So checking a literal while compiling refuses only
+/// same `TimeZone::get`, which ignores case, and is stored as the database
+/// writes it, as `Zone::of` stores it ([`database_name`]). So checking a literal while compiling refuses only
 /// what the run time refuses (`rule:expressions/preparation-preserves-behaviour`).
 /// An offset is read by the same reader
 /// [`resolve_zone`] uses and written back as [`render_offset`] writes it, so
@@ -4346,8 +4391,8 @@ pub fn written_zone(text: &str) -> Result<String, String> {
                 )
             });
     }
-    if TimeZone::get(text).is_ok() {
-        return Ok(text.to_owned());
+    if let Some(name) = database_name(text) {
+        return Ok(name);
     }
     Err(format!(
         "`{}` is not a time zone name",
@@ -4678,7 +4723,7 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `$i->toEpochSeconds(): int` — replaces `getTimestamp` and `date("U")`.
     fn nvs_core_time_instant_to_epoch_seconds(_ctx, args: [1]) {
-        Ok(Value::int(instant_of(args, 0, "toEpochSeconds")?.as_second()))
+        epoch_count(instant_of(args, 0, "toEpochSeconds")?, 1_000_000_000, "toEpochSeconds")
     }
 }
 
@@ -4687,37 +4732,33 @@ nvs_runtime::nvs_helper! {
     /// as an exact integer rather than a `float` that loses the subsecond
     /// digits it was asked for.
     fn nvs_core_time_instant_to_epoch_millis(_ctx, args: [1]) {
-        let at = instant_of(args, 0, "toEpochMillis")?;
-        at.as_second()
-            .checked_mul(1_000)
-            .and_then(|whole| {
-                whole.checked_add(i64::from(at.subsec_nanosecond()) / 1_000_000)
-            })
-            .map(Value::int)
-            .ok_or_else(|| {
-                out_of_range(
-                    r"Core\Time\Instant::toEpochMillis",
-                    "this instant is past what a millisecond count can hold",
-                )
-            })
+        epoch_count(instant_of(args, 0, "toEpochMillis")?, 1_000_000, "toEpochMillis")
     }
 }
 
 nvs_runtime::nvs_helper! {
     /// `$i->toEpochMicros(): int` — `microtime`'s other half.
     fn nvs_core_time_instant_to_epoch_micros(_ctx, args: [1]) {
-        let at = instant_of(args, 0, "toEpochMicros")?;
-        at.as_second()
-            .checked_mul(1_000_000)
-            .and_then(|whole| whole.checked_add(i64::from(at.subsec_nanosecond()) / 1_000))
-            .map(Value::int)
-            .ok_or_else(|| {
-                out_of_range(
-                    r"Core\Time\Instant::toEpochMicros",
-                    "this instant is past what a microsecond count can hold",
-                )
-            })
+        epoch_count(instant_of(args, 0, "toEpochMicros")?, 1_000, "toEpochMicros")
     }
+}
+
+/// The largest whole count of units of `unit` nanoseconds at or before `at`,
+/// from 1970-01-01T00:00:00Z: the three epoch readers' answer.
+///
+/// The count is floored, so `Instant::fromEpoch` of it and of the remainder
+/// builds `at` again. Before 1970 that is one less than a count cut toward
+/// zero: half a second before 1970 is second `-1`. Every instant's count of
+/// microseconds fits an `int`, so the error is for the bound alone.
+fn epoch_count(at: Timestamp, unit: i128, member: &str) -> Result<Value, Fault> {
+    i64::try_from(at.as_nanosecond().div_euclid(unit))
+        .map(Value::int)
+        .map_err(|_| {
+            out_of_range(
+                &format!(r"Core\Time\Instant::{member}"),
+                "this instant is past what the count can hold",
+            )
+        })
 }
 
 nvs_runtime::nvs_helper! {
@@ -4797,13 +4838,16 @@ nvs_runtime::nvs_helper! {
         // A sign-leading id is `fixed`'s spelling, not an IANA one, so `of`
         // refuses it: two ways to build one value is exactly what `rule:core-api/shape-rules`
         // R20 forbids.
-        if TimeZone::get(id).is_err() || id.starts_with('+') || id.starts_with('-') {
+        let name = (!id.starts_with('+') && !id.starts_with('-'))
+            .then(|| database_name(id))
+            .flatten();
+        let Some(name) = name else {
             return Err(Fault::thrown(format!(
                 "Core\\Time\\Zone::of(): unknown time zone `{}`",
                 nvs_runtime::quoted(id)
             )));
-        }
-        Ok(zone_built(id))
+        };
+        Ok(zone_built(&name))
     }
 }
 
@@ -6246,8 +6290,14 @@ mod tests {
         assert!(parse_offset("+02").is_none());
         assert!(parse_offset("+02:60").is_none());
         assert!(parse_offset("+99:00").is_none());
-        // A zone id read back from bytes can be any text, so the sum is checked.
+        // A zone id read back from bytes can be any text, so every field is
+        // digits of a bounded width, and a second sign is refused.
         assert!(parse_offset("+596523:15:00").is_none());
+        assert!(parse_offset("+-5:00").is_none());
+        assert!(parse_offset("-+5:00").is_none());
+        assert!(parse_offset("+05:+3").is_none());
+        assert!(parse_offset("+ 5:00").is_none());
+        assert_eq!(parse_offset("+5:00").map(Offset::seconds), Some(18_000));
         assert!(resolve_zone("+02:00").is_some());
         assert!(resolve_zone("Nowhere/Nothing").is_none());
     }

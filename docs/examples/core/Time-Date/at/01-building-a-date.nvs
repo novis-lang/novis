@@ -6,7 +6,7 @@ var $start = Core\Time\Date::at(2024, 7, 1);
 echo $start->format('yyyy-MM-dd'), "\n";
 
 // You can also name the arguments. This prints 2024-12-24.
-var $party = Core\Time\Date::at(y: 2024, m: 12, d: 24);
+var $party = Core\Time\Date::at(year: 2024, month: 12, day: 24);
 echo $party->format('yyyy-MM-dd'), "\n";
 
 // Two dates built from the same three numbers are the same date.
