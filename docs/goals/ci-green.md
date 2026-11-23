@@ -145,42 +145,24 @@ Once verify is green, every session runs this cycle until the run is green or th
 
 ### State
 
-**`looper verify` was green** (fourth run). Pushes so far: **5**.
+**`looper verify` was green** (fourth run). Pushes so far: **5**. Runs 1 to 3: see `git log`
+of this file; push 3's runs on `33d4a8eb1` were green.
 
-1. Push 1, `5151abf52`, CI run 44934736208: **red** on all four `test` legs. Website green.
-   - `nvs-fmt::identity`, every leg: six new `Core\Test\RunResult` proof files were not formatted.
-     Fixed by `bun nv nvs-fmt` in `10c3fe28a4`.
-   - `nvs-cli::reload_command`, macOS only, every case: the data folder put the endpoint socket at
-     about 105 bytes, over macOS's 103. Fixed in `fd7f0cd171` with
-     `nvs_repo::scratch_private_for_socket` (99 bytes now). Checked on Windows and in WSL.
-   - The `miri units (nvs-stdlib 2/12)` shard passed: the nightly red (run 44894790665) was from
-     `7e97fa8444`, before `156f11a7ca`.
-2. Push 2, `fd7f0cd17`. A side loop pushed `a477b5804` on top before the run started. CI run
-   44940832132 and Website run 44940832016 on `a477b5804`: **green**.
-3. Push 3, `33d4a8eb1`: two side-loop commits (`b37214606c`, `33d4a8eb1c`) that local `main` had
-   after `a477b5804`. CI run 44945274371 and Website run 44945274362: **green**, and
-   `bun nv ci --green` exits 0 on `33d4a8eb1`.
-4. Side loops then pushed `5e7fe8240`: CI run 45170425507 **red** on `docs`
-   (`docs/rules/tooling.md` stale). The nightly 45166887327 on `c6c8111e4` had its miri and unsafe
-   audit jobs cancelled by a manual `gh run cancel` from the owner's account 20 s after that push
-   (the annotation says "canceled by"), not by `ci.ts`, whose `superseded` never names a scheduled
-   run. Its failed jobs were rerun with `gh run rerun --failed`: **green**.
-5. Push 4, `cfed21f50` (96 commits; local `rules --render --check` green). CI run 45269411282:
-   **red**, Website green. The goals `whole-grapheme-cuts` and the `Config::set` E0667 work closed
-   without a full gate, and left five tests and two attacks red on every leg:
-   - `conformance_coverage` floor: `Str::afterPrefix`/`beforeSuffix` had one case each. Two
-     cases in `f85947fe8d`.
-   - `in_place::every_string_member_has_a_row_here`, and the LSP stub cases (definition line,
-     `Core\Str` hover card): `fb0f707be2`.
-   - `request_http_settings`: written refused keys became E0667. Through `$key` in `d874156aa4`,
-     with `nvs-fmt` over two config attacks (`nvs-fmt::identity`).
-   - Attacks 08 and 09 of `grants-what-each-namespace-may-do`: the `Acme\Limits` fixture wrote
-     cookie keys. Variables in `7e6df38207`, reviewed in `9996071ef`.
-   - Windows proofs part 2/2 only: `tests/hostile/core/Response/sendFile/01-...` ran past its
-     `timeout-ms 30000`, first time in five runs. Alone it takes 15 to 17 s here in release: its
-     100,000 `sendFile` calls each make the `beneath` no-follow walk (`isFile` alone is about
-     120 µs a call on Windows, `isReadable` 46 µs). Treated as load. Not changed.
-6. Push 5, `9996071ef`: being watched. and `SentMail` readers have a `perf` skip: their values exist only under `nvs test`.
+1. A side loop's push `5e7fe8240`: CI 45170425507 red on `docs` (stale `docs/rules/tooling.md`).
+   The nightly 45166887327's miri and unsafe-audit jobs were cancelled by hand from the owner's
+   account, not by `ci.ts`; rerun with `gh run rerun --failed`: **green**.
+2. Push 4, `cfed21f50` (96 commits), CI 45269411282: **red**, Website green. Goals that closed
+   without a full gate left these red on every leg, each fixed and run once by name here:
+   - `conformance_coverage` floor of `Str::afterPrefix`/`beforeSuffix`: two cases, `f85947fe8d`.
+   - `in_place` rows and the `Core\Str` stub LSP cases: `fb0f707be2`.
+   - `request_http_settings` (refused keys now E0667) and `nvs-fmt::identity`: `d874156aa4`.
+   - Attacks 08 and 09 of `grants-what-each-namespace-may-do`: `7e6df38207`, `9996071ef`.
+   - Windows proofs 2/2 only: the `sendFile/01` attack passed its `timeout-ms 30000`, the first
+     time in five runs. Alone it takes 15 to 17 s in release here: 100,000 calls, each walking
+     every folder above the file (`isFile` about 120 µs a call). Treated as load.
+3. Push 5, `9996071ef`: being watched.
+
+`LogRecord` and `SentMail` readers have a `perf` skip: their values exist only under `nvs test`.
 
 ### Next
 
