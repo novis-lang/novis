@@ -26,7 +26,7 @@ stages:
     context: [tools/nv/cmd/lsp-start.ts, website/src/content/docs/tools/editor/index.mdx, website/src/data/changes.json]
   - id: 6
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: reach
@@ -387,48 +387,31 @@ subagent once `refresh` lands. The session builds once it ends.
 
 ### 6. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of the change entry ([prose.md](../agent/prose.md) § *A newcomer reads it*).
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] The newcomer review of the change entry ([prose.md](../agent/prose.md) § *A newcomer reads it*).
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 5 are done. The rule has the rows, the reach table and the measured line, and its
-Declined list has "a key per body" (the per-file dependency set entry was already gone). `bun nv
-lsp-start` takes `--kind member|private|public|comment` beside `--edits <m>` (a separate flag keeps
-`--edits <m>`'s callers working) and `--exe <path>` for a build of another commit. An edit that
-reaches no other file begins no indexing run, so the tool sends a second `documentSymbol` and waits
-for the run's work line only when a run began before that answer. It prints the files the edits' runs
-checked.
+Every stage is done, and `bun nv close --goal exact-invalidation` is green. The newcomer review of
+the editor page and the change entry is done: the page's paragraph now lists which declaration change
+checks which files, and both texts and the page's questions are stamped. The close also needed
+`cargo fmt`, a render of `docs/rules/ide.md`, and roadmap themes for the three chain goals that had
+none (`config-set-allowlist`, `class-name-as-reference`, `whole-grapheme-cuts`).
 
-Measured on `--copies 12 --cold --edits 5`, with a build of 5e7fe82409 (before stage 1, not
-3bf80195dd^: the memory of the rows and uses came in stages 1 to 4) and one of the tree: `member`,
-`private` and `public` checked 4861 files before, and 0, 0 and 11 after; `comment` 0 on both. The
-memory after a cold index went from about 460 MB private / 900 MB peak paged to about 550 / 1015 MB.
-The figures are in the rule and in `crates/nvs-lsp/src/session.rs`'s § *What it costs*.
+`cargo test --test incremental` had two red tests that still asserted the rule before stage 4: every
+reader of a changed surface is queued. In their tree `Shop` reads the library but names nothing the
+edit reaches, so only `Blog`, which owns the library, waits. Both now assert that, renamed for it.
+`reach`, `incremental` and `index` are green. The decisions only this file held are in
+`rule:ide/the-index-is-incremental-and-persistent`: the private reads of another file, the miss on
+the looked-up class, enum cases, `#[Core\Deprecated]`, and two Declined entries.
 
-The editor page has one new paragraph (`website/src/content/docs/tools/editor/index.mdx`, § *Which
-files the editor reads*), and `changes.json` has the `changed` entry for `tools:editor/nvs-lsp`. `site
---check stale changes` is green. `review` is red for these two texts until the newcomer review,
-which is stage 6's first item.
-
-No test outside `reach` and the oracle ran since stage 4's code landed. None is expected to go red,
-though `tests/index.rs`'s counted refresh tests are the likeliest if one does.
+The nightly CI run 45166887327 was cancelled by hand on GitHub, not by a failure or a timeout.
 
 ### Next
 
-Stage 6, one session.
-
-- [ ] `website/src/content/docs/tools/editor/index.mdx:240` and `website/src/data/changes.json:3`: the
-  newcomer review, with `bun nv site --review --brief <both keys>` to a `reader`, then `bun nv site
-  --review --stamp` for each key.
-- [ ] `crates/nvs-lsp/tests/reach.rs:1`: the pack's check for this stage (a close, unless the pack
-  names a full gate): `cargo build`,
-  `cargo clippy --all-targets -- -D warnings`, `cargo test --test reach`, `cargo test --test
-  incremental`, then `bun nv close --goal exact-invalidation`, each red fixed.
-- [ ] `docs/goals/exact-invalidation.md:94`: before the file is deleted, the standing decisions that only
-  its prose holds go to the rule or to the module docs of `surface.rs`, `file_key.rs` and `index.rs`.
+Nothing. The goal is reached.
 
 ### Backlog
