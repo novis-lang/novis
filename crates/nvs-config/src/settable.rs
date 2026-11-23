@@ -129,3 +129,40 @@ pub fn how(name: &str) -> Option<How> {
         .find(|row| row.key == key)
         .map(|row| row.how)
 }
+
+/// Whether code in a package's namespace may change the key `name` names: a `limits.*` row of
+/// [`SETTABLE`] (`rule:security/package-authority-is-granted-one-line-at-a-time`). A bare limit
+/// name is that row's, as in [`how`].
+#[must_use]
+pub fn package_may_change(name: &str) -> bool {
+    how(name).is_some() && crate::request::canonical(name).starts_with("limits.")
+}
+
+/// [`SETTABLE`]'s keys, one block after another, as the compiler's help line prints them:
+/// `limits: memory, cpu_time; log: format`. A block is the key without its last segment, and an
+/// [`OffOnly`](How::OffOnly) key is followed by `(only false)`.
+///
+/// Cost: one `String` per call, built only when a diagnostic is reported.
+#[must_use]
+pub fn by_block() -> String {
+    let mut out = String::new();
+    let mut block = "";
+    for row in SETTABLE {
+        let (this, leaf) = row.key.rsplit_once('.').unwrap_or(("", row.key));
+        if this == block {
+            out.push_str(", ");
+        } else {
+            if !out.is_empty() {
+                out.push_str("; ");
+            }
+            out.push_str(this);
+            out.push_str(": ");
+            block = this;
+        }
+        out.push_str(leaf);
+        if row.how == How::OffOnly {
+            out.push_str(" (only false)");
+        }
+    }
+    out
+}

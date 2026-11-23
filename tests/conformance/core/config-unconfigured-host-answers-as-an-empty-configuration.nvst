@@ -28,9 +28,11 @@ if (Core\Config::set("memory", "64M")) {
 }
 echo "after=", Core\Config::get("memory") ?? "unset", "\n";
 
-// A `System` directive is refused whatever the tree says, because the class
-// answers *who may set it* before any ceiling is consulted.
-if (Core\Config::set("opcache.file_cache_dir", "/tmp/nvs")) {
+// A key `SETTABLE` does not list is refused whatever the tree says, because the
+// list answers *who may set it* before any ceiling is consulted. A written name is
+// `E0667`, so the name is a variable and the run-time refusal is what runs.
+string $system = "opcache.file_cache_dir";
+if (Core\Config::set($system, "/tmp/nvs")) {
     echo "system=ok", "\n";
 } else {
     echo "system=refused", "\n";

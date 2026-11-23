@@ -32,7 +32,10 @@ echo 'now=', Core\Config::get('limits.memory') ?? 'unset', "\n";
 Core\Config::restore('memory');
 echo 'restored=', Core\Config::get('memory') ?? 'unset', "\n";
 
-echo Core\Config::set('no.such.directive', '1') ? 'set' : 'unknown name refused', "\n";
+// A name written directly in `set` that a program may not change does not compile.
+// This name is in a variable, so the call runs and returns `false`.
+string $unknown = 'no.such.directive';
+echo Core\Config::set($unknown, '1') ? 'set' : 'unknown name refused', "\n";
 ```
 ```output
 memory=256M

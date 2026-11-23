@@ -54,8 +54,10 @@ try {
 }
 
 // The other way to ask. `[capabilities]` is not on the list of keys `set` may
-// change, so `set` neither narrows nor widens it. `false`, never a throw.
-echo "child set = ", Core\Config::set('capabilities.fs.read', '.') ? "true" : "false", "\n";
+// change, so `set` neither narrows nor widens it. `false`, never a throw. A written
+// name is `E0667`, so the name is a variable and the run-time refusal is what runs.
+string $key = 'capabilities.fs.read';
+echo "child set = ", Core\Config::set($key, '.') ? "true" : "false", "\n";
 
 // And the refusal left the grant exactly where it was.
 try {

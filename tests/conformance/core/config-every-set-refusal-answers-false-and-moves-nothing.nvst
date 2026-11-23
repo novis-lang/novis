@@ -14,13 +14,16 @@ Core\Config::set("memory", "128M");
 // thing the boot path would have accepted out of the file.
 echo "unit=", (Core\Config::set("memory", "soon") ? "ok" : "refused"), "\n";
 
-// `System`: `nvs.toml` is the only place it can be set, and the class answers
-// that before any ceiling is consulted.
-echo "system=", (Core\Config::set("opcache.validate", "false") ? "ok" : "refused"), "\n";
+// A key `SETTABLE` does not list: `nvs.toml` is the only place it can be set, and
+// the list answers that before any ceiling is consulted. A written name is `E0667`,
+// so each name below is a variable and the run-time refusal is what runs.
+string $system = "opcache.validate";
+echo "system=", (Core\Config::set($system, "false") ? "ok" : "refused"), "\n";
 
 // And a name no directive row governs at all: `Core\Config` is the registry's
 // surface, not a per-request string map.
-echo "unknown=", (Core\Config::set("no.such.directive", "1") ? "ok" : "refused"), "\n";
+string $unknown = "no.such.directive";
+echo "unknown=", (Core\Config::set($unknown, "1") ? "ok" : "refused"), "\n";
 
 // What survived all three: the one accepted set, and nothing else.
 echo "value=", Core\Config::get("memory") ?? "unset", "\n";

@@ -25,10 +25,13 @@ namespace Acme\Cache;
 
 final class Store
 {
-    // A package may not change a cookie setting, so this returns `false`.
+    // A package may not change a cookie setting, so this returns `false`. A written
+    // name is `E0667` in a package, so the name is a variable and the run-time
+    // refusal is what runs.
     public static function cookies(): string
     {
-        bool $changed = Core\Config::set("http.cookies.http_only", "false");
+        string $key = "http.cookies.http_only";
+        bool $changed = Core\Config::set($key, "false");
         return "cookies=" . ($changed ? "ok" : "refused");
     }
 

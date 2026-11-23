@@ -378,4 +378,15 @@ codes! {
          facts about one file path, call `Core\\IO::stat` once. For several query parameters, \
          call `Core\\Uri::parseQuery` once.",
     );
+    // `W1036` is held for a warning that is not written yet.
+    /// A `Core\Config::set` or `restore` whose name is a string template that no key on
+    /// `nvs_config::settable::SETTABLE` can fit, whatever its holes contain
+    /// (`rule:config/three-changeability-classes`). Each hole fits one or more characters that
+    /// are not a dot. A warning, because the checker cannot see the value.
+    pub const W_SET_NEVER_FITS: Code = Code::new("W1037").card(
+        "This `Core\\Config::set` or `Core\\Config::restore` call builds the name of a setting \
+         from a string template. No setting that a program may change has a name of this form, \
+         so the call changes nothing. Check the name. The help line lists the \
+         settings a program may change.",
+    );
 }

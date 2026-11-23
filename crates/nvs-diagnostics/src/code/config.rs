@@ -954,4 +954,16 @@ codes! {
          Novis expression that can replace the restricted call. It may use the call's \
          parameters and `$this`. It must not use the restricted declaration itself.",
     );
+
+    /// A `Core\Config::set` or `restore` whose written name is a key a request may never change:
+    /// one `nvs_config::settable::SETTABLE` does not list, or, in a package's namespace, one
+    /// outside `limits.` (`rule:config/three-changeability-classes`). The call would change
+    /// nothing on every server, so the name is found here. A name built at run time is not
+    /// checked.
+    pub const E_NOT_SETTABLE: Code = Code::new("E0667").card(
+        "A program cannot change this setting with `Core\\Config::set` or `Core\\Config::restore`. \
+         Only `nvs.toml` sets it, so the call would change nothing every time. The help line \
+         lists the settings a program may change. Code in a package may change only the \
+         `limits` settings. To change this setting, change it in `nvs.toml`.",
+    );
 }

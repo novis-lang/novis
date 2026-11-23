@@ -817,6 +817,9 @@ pub(crate) fn infer_static_call(
     // (`rule:security/capability-check-at-the-door`).
     if let Some((owner, name, _)) = resolved.as_ref().filter(|(owner, _, _)| owner.is_core()) {
         crate::capability::prepare_config_set(owner, name, expr.span, ctx, env);
+        // A written name `set` or `restore` can never change. See
+        // [`crate::capability::reject_unsettable_name`].
+        crate::capability::reject_unsettable_name(owner, name, args, ctx, env);
         crate::capability::prepare_cap_has(owner, name, expr.span, ctx, env);
         // `rule:config/settings-and-secrets-are-a-programs-own-values`'s typo check reads the
         // names recorded here. See [`crate::setting_names`].

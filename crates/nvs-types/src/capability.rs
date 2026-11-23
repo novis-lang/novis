@@ -109,7 +109,7 @@ use std::path::{Path, PathBuf};
 use nvs_config::Cap;
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
-use nvs_syntax::ast::{CallArgs, ExprKind};
+use nvs_syntax::ast::{CallArgs, ExprKind, StringPart};
 
 use crate::defaults::ConstArg;
 use crate::expr_table::{ArgSlot, CapabilityGuard, Prepared, PreparedFact};
@@ -193,6 +193,154 @@ pub(crate) fn prepare_config_set(
                 fact: PreparedFact::ApplicationSet,
             },
         );
+    }
+}
+
+/// Refuses a `Core\Config::set` or `restore` whose written name no request may
+/// change, and warns where a template's name can fit no such key
+/// (`rule:config/three-changeability-classes`).
+///
+/// `get` is never asked: it reads every key. The keys a request may change are
+/// [`nvs_config::settable::SETTABLE`]'s, and in a package's namespace only its
+/// `limits.*` rows ([`nvs_config::settable::package_may_change`]), so the
+/// checker holds no copy of the list.
+///
+/// - A string literal no row lists is `E0667`: the call changes nothing on
+///   every server.
+/// - A template no row fits, whatever its holes contain, is `W1037`. Each hole
+///   fits one or more characters that are not a dot, and a template with no
+///   dot fits a bare limit name.
+/// - Anything else, a variable, a call, a concatenation, a spread or a
+///   heredoc, is left alone: the value is not known here.
+///
+/// Cost: one scan of the list's rows per `set` or `restore` call site while
+/// compiling, and nothing at run time.
+pub(crate) fn reject_unsettable_name(
+    owner: &QName,
+    member: &str,
+    args: &CallArgs,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if !matches!(member, "set" | "restore") || owner.segments() != ["Core", "Config"] {
+        return;
+    }
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    let src = env.src;
+    let arg = list
+        .iter()
+        .find(|arg| !arg.spread && arg.name.is_some_and(|n| src.span_text(n) == Some("name")))
+        .or_else(|| list.first().filter(|arg| !arg.spread && arg.name.is_none()));
+    let Some(arg) = arg else {
+        return;
+    };
+    let package = !matches!(authority_of(ctx, env), Authority::Application);
+    let may_change = |key: &str| {
+        if package {
+            nvs_config::settable::package_may_change(key)
+        } else {
+            nvs_config::settable::how(key).is_some()
+        }
+    };
+    let help = || {
+        let scope = if package {
+            "code in a package may change only the `limits` settings. "
+        } else {
+            ""
+        };
+        let these = if package { "The" } else { "the" };
+        format!(
+            "{scope}{these} settings a program may change are: {}",
+            nvs_config::settable::by_block()
+        )
+    };
+    if let ExprKind::Interpolated(parts) = &arg.value.kind {
+        if src
+            .span_text(arg.value.span)
+            .unwrap_or_default()
+            .starts_with("<<<")
+        {
+            return;
+        }
+        let pieces = parts
+            .iter()
+            .map(|part| match part {
+                StringPart::Text(span) => {
+                    Some(nvs_syntax::string_lit::cook_double_quoted_text(src, *span).0)
+                }
+                StringPart::Expr(_) => None,
+            })
+            .collect::<Vec<_>>();
+        if template_fits_a_key(&pieces, package) {
+            return;
+        }
+        env.diags.report(
+            Diagnostic::warning(
+                code::W_SET_NEVER_FITS,
+                format!("no setting a program may change has a name of this form, so `{member}` changes nothing"),
+            )
+            .with_primary(arg.value.span, "no setting fits this name")
+            .with_help(help()),
+        );
+        return;
+    }
+    let declared = env.interner.intern(Ty::String);
+    let Some(ConstArg::Str(name)) = crate::defaults::literal_default(&arg.value, declared, env)
+    else {
+        return;
+    };
+    if may_change(&name) {
+        return;
+    }
+    let label = if package && nvs_config::settable::how(&name).is_some() {
+        "code in a package may not change this setting"
+    } else {
+        "only `nvs.toml` sets this"
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_NOT_SETTABLE,
+            format!("a program cannot change the setting `{name}`"),
+        )
+        .with_primary(arg.value.span, label)
+        .with_help(help()),
+    );
+}
+
+/// Whether some key a request may change fits the template `pieces`: a fixed
+/// text is `Some`, a hole is `None` and fits one or more characters that are
+/// not a dot. A template that writes no dot may be a bare limit name, so it is
+/// also tried against each `limits.*` key's last segment. `package` keeps the
+/// `limits.*` keys alone.
+fn template_fits_a_key(pieces: &[Option<String>], package: bool) -> bool {
+    let dotted = pieces.iter().flatten().any(|text| text.contains('.'));
+    nvs_config::settable::SETTABLE
+        .iter()
+        .filter(|row| !package || row.key.starts_with("limits."))
+        .any(|row| {
+            glob_fits(pieces, row.key)
+                || (!dotted
+                    && row
+                        .key
+                        .strip_prefix("limits.")
+                        .is_some_and(|bare| glob_fits(pieces, bare)))
+        })
+}
+
+/// Whether `key` is exactly what `pieces` can spell: each `Some` text in turn,
+/// and each `None` hole one or more characters that are not a dot.
+fn glob_fits(pieces: &[Option<String>], key: &str) -> bool {
+    match pieces.split_first() {
+        None => key.is_empty(),
+        Some((Some(text), rest)) => key
+            .strip_prefix(text.as_str())
+            .is_some_and(|tail| glob_fits(rest, tail)),
+        Some((None, rest)) => {
+            let run = key.find('.').unwrap_or(key.len());
+            (1..=run).any(|taken| glob_fits(rest, &key[taken..]))
+        }
     }
 }
 
@@ -483,4 +631,117 @@ fn relative_in(path: &Path, dir: &Path) -> Option<String> {
         .map(|part| part.as_os_str().to_str())
         .collect::<Option<Vec<_>>>()?;
     (!parts.is_empty()).then(|| parts.join("/"))
+}
+
+/// [`reject_unsettable_name`]: which `Core\Config::set` and `restore` names
+/// compile, which warn, and which are left alone.
+#[cfg(test)]
+mod config_set_names {
+    use nvs_diagnostics::{Code, Diagnostics, SourceMap, code};
+    use nvs_hir::resolve_file;
+    use nvs_syntax::parse_file;
+
+    use crate::expr_table::ExprTypeTable;
+    use crate::ty::TypeInterner;
+
+    /// The diagnostics of `src`, checked under the `[grants]` table `grants`.
+    fn check(src: &str, grants: &str) -> Diagnostics {
+        let mut map = SourceMap::new();
+        let table = nvs_config::grants::Grants::parse(&mut map, "package.toml", grants)
+            .expect("the grants table parses");
+        let file = map.add("t.nvs", src);
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+        let module = resolve_file(&stmts, map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
+        crate::check::check_program_loaded(
+            &[crate::ProgramFile {
+                src: map.file(file),
+                stmts: &stmts,
+            }],
+            &module,
+            None,
+            nvs_config::regex::Backtracking::Allow,
+            &table,
+            None,
+            &[],
+            &mut TypeInterner::new(),
+            &mut ExprTypeTable::new(),
+            &mut diags,
+        );
+        diags
+    }
+
+    /// How many diagnostics of `src`, checked as the application's, carry `code`.
+    fn count(src: &str, code: Code) -> usize {
+        check(src, "")
+            .iter()
+            .filter(|d| d.code == Some(code))
+            .count()
+    }
+
+    #[test]
+    fn a_literal_name_set_cannot_change_does_not_compile() {
+        let src = "<?nvs\n\
+                   Core\\Config::set('opcache.file_cache_dir', '/tmp');\n\
+                   Core\\Config::restore('server.listen');\n\
+                   Core\\Config::set(value: '1', name: 'my.own.setting');\n";
+        assert_eq!(count(src, code::E_NOT_SETTABLE), 3);
+
+        let listed = "<?nvs\n\
+                      Core\\Config::set('memory', '512M');\n\
+                      Core\\Config::set('limits.wall_time', '5s');\n\
+                      Core\\Config::set('debug.inline', 'false');\n\
+                      Core\\Config::restore('http.cors.origins');\n";
+        let diags = check(listed, "");
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_template_no_settable_key_fits_warns() {
+        let never = "<?nvs\n$k = 'x';\n\
+                     Core\\Config::set(\"db.{$k}.driver\", 'mysql');\n\
+                     Core\\Config::restore(\"limits.{$k}.extra\");\n";
+        assert_eq!(count(never, code::W_SET_NEVER_FITS), 2);
+
+        let fits = "<?nvs\n$k = 'x';\n\
+                    Core\\Config::set(\"limits.{$k}\", '1');\n\
+                    Core\\Config::set(\"http.{$k}.origins\", '*');\n\
+                    Core\\Config::set(\"{$k}\", '1');\n\
+                    Core\\Config::restore(\"debug.{$k}\");\n";
+        assert_eq!(count(fits, code::W_SET_NEVER_FITS), 0);
+    }
+
+    #[test]
+    fn a_plain_variable_name_gets_no_diagnostic() {
+        let src = "<?nvs\nclass Keys { public static function key(): string { return 'server.listen'; } }\n\
+                   $k = 'server.listen';\n\
+                   Core\\Config::set($k, '1');\n\
+                   Core\\Config::set('server.' . 'listen', '1');\n\
+                   Core\\Config::restore(Keys::key());\n\
+                   $v = Core\\Config::get('server.listen');\n";
+        let diags = check(src, "");
+        let named = diags
+            .iter()
+            .filter(|d| {
+                d.code == Some(code::E_NOT_SETTABLE) || d.code == Some(code::W_SET_NEVER_FITS)
+            })
+            .count();
+        assert_eq!(named, 0, "{diags:?}");
+    }
+
+    #[test]
+    fn a_package_literal_outside_limits_does_not_compile() {
+        let grants = "[grants]\n'Acme' = ['net.connect']\n";
+        let src = "<?nvs\nnamespace Acme;\n\
+                   Core\\Config::set('log.level', 'debug');\n\
+                   Core\\Config::set('memory', '64M');\n";
+        let diags = check(src, grants);
+        let refused = diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_NOT_SETTABLE))
+            .count();
+        assert_eq!(refused, 1, "{diags:?}");
+    }
 }

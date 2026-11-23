@@ -5,11 +5,13 @@
 // covers: directive:limits.memory_high_water
 // Unwritten is off, so the key reads back `null`.
 echo Core\Config::get('limits.memory_high_water') ?? 'null', "\n";
-// A system directive: every program write is refused, in range or not.
-echo Core\Config::set('limits.memory_high_water', '0.5') ? 'set' : 'refused', "\n";
-echo Core\Config::set('limits.memory_high_water', '0') ? 'set' : 'refused', "\n";
-echo Core\Config::set('limits.memory_high_water', '2') ? 'set' : 'refused', "\n";
-Core\Config::restore('limits.memory_high_water');
+// The key is not on `SETTABLE`: every program write is refused, in range or not. A written
+// name is `E0667`, so the name is a variable and the run-time refusal is what runs.
+string $key = 'limits.memory_high_water';
+echo Core\Config::set($key, '0.5') ? 'set' : 'refused', "\n";
+echo Core\Config::set($key, '0') ? 'set' : 'refused', "\n";
+echo Core\Config::set($key, '2') ? 'set' : 'refused', "\n";
+Core\Config::restore($key);
 echo Core\Config::get('limits.memory_high_water') ?? 'null', "\n";
 --EXPECT--
 null

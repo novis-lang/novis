@@ -1,0 +1,28 @@
+--TEST--
+A written `Core\Config::set` or `restore` name that no request may change does not compile, and a template no settable key fits warns — `rule:config/three-changeability-classes`
+--FILE--
+<?nvs
+// covers: tools:config/reading-and-changing-it-from-a-program-core-config
+// `server.listen` is set only in `nvs.toml`, and `my.own.setting` is no setting at all.
+// Both calls would change nothing on every server, so both names are compile errors.
+Core\Config::set('server.listen', '0.0.0.0:9000');
+Core\Config::restore('my.own.setting');
+
+// No setting a program may change has the form `db.<something>.driver`, so this warns.
+string $name = 'main';
+Core\Config::set("db.{$name}.driver", 'sqlite');
+
+// A listed key compiles, in the same file, so the name is what is refused.
+Core\Config::set('memory', '64M');
+Core\Config::restore('memory');
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0667]: a program cannot change the setting `server.listen`
+%A
+error[E0667]: a program cannot change the setting `my.own.setting`
+%A
+warning[W1037]: no setting a program may change has a name of this form, so `set` changes nothing
+%A
+error: aborting due to 2 errors; 1 warning emitted
+To read what a code means and how to fix it, run `nvs agent show <code>`.

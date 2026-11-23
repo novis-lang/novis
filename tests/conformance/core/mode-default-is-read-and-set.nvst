@@ -11,9 +11,11 @@ echo "read=", Core\Config::get("mode.default") ?? "unset", "\n";
 // here names the table itself — and a table has no text rendering.
 echo "bare=", Core\Config::get("mode") ?? "unset", "\n";
 
-// Nor does the bare name write it: no directive row governs it, which is one of
-// the refusals `set` answers `false` to rather than throwing.
-echo "bare-set=", Core\Config::set("mode", "development") ? "true" : "false", "\n";
+// Nor does the bare name write it: `SETTABLE` does not list it, which is one of
+// the refusals `set` answers `false` to rather than throwing. A written name is
+// `E0667`, so the name is a variable and the run-time refusal is what runs.
+string $bare = "mode";
+echo "bare-set=", Core\Config::set($bare, "development") ? "true" : "false", "\n";
 echo "read=", Core\Config::get("mode.default") ?? "unset", "\n";
 
 // The ceiling admits this flip, and `mode.default` is what it is asked for at.

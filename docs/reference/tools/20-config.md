@@ -601,8 +601,12 @@ use Core\Config;
 
 echo '256M: ', Config::set('memory', '256M') ? 'ok' : 'refused', "\n";
 echo '1G: ', Config::set('memory', '1G') ? 'ok' : 'refused', "\n";
-echo 'file_cache_dir: ', Config::set('opcache.file_cache_dir', '/tmp/nvs') ? 'ok' : 'refused', "\n";
-echo 'unknown: ', Config::set('no.such.key', '1') ? 'ok' : 'refused', "\n";
+// A name written directly in `set` that a program may not change does not compile.
+// These names are in variables, so each call runs and returns `false`.
+string $cache = 'opcache.file_cache_dir';
+string $unknown = 'no.such.key';
+echo 'file_cache_dir: ', Config::set($cache, '/tmp/nvs') ? 'ok' : 'refused', "\n";
+echo 'unknown: ', Config::set($unknown, '1') ? 'ok' : 'refused', "\n";
 Config::set('log.level', 'debug');
 
 foreach (Config::all() as string $name => string $value) {
