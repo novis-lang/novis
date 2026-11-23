@@ -45,14 +45,17 @@
 # ----------------------------------------------------------------------------------------------
 
 [mode]
-# `production` or `development`, which is also the mode a host with no file at all starts in. The
-# mode selects the default of five other directives, and each of the three that are keys in this
-# file names both values where it appears below. When they are unwritten it also chooses
-# `[server] dispatch`, `[server] static` and `[opcache] settle`, once when the file is loaded, so
-# development dispatches by path and serves static files; a runtime mode flip changes none of them.
+# The mode a run starts in: `production` or `development`. A host with no configuration file
+# starts in `production`. The mode sets the default of five other settings. Three of them are keys
+# in this file, and the comment of each one gives its default for both modes.
+# The mode also sets `[server] dispatch`, `[server] static` and `[opcache] settle` when they are not
+# written. This happens once, when the file is loaded. So in `development`, the request path selects
+# the entry file, and the server sends static files. A change of mode while the server runs does
+# not change these three settings.
 #default = "production"               # default
-# The most permissive mode any code may select. With nothing written here a production host is
-# unreachable from code.
+# The highest mode that code may switch to. `development` is higher than `production`, because it
+# allows more. When this is not written, code cannot switch to a mode above the one the server
+# started in. So code can never switch a `production` server to `development`.
 #ceiling = "development"              # default: the mode the server started in
 
 
@@ -96,42 +99,48 @@
 # patterns the linear engine cannot express.
 #max_regex_steps = 1000000            # default
 # Only `nvs.toml` sets this. A request may not change it.
-# The bytes and the CPU time carved out of `memory` and `cpu_time` at request start and
-# kept back for the tier-1 fatal handler, which is the one thing that may still allocate once the
-# rest of the ceiling is gone (`rule:errors/on-limit`). A request may not set either one, and
-# neither has a `[limits.hard]` ceiling, because there is no request-set value for a ceiling to
-# bound. Either is clamped to a quarter of the ceiling it comes out of, so a short budget stays
-# mostly program. Where that ceiling is `false`, or `cpu_time` has none under `nvs run`, nothing is
-# reserved.
+# The memory kept for the handler that `Core\Fatal::onLimit` sets (`rule:errors/on-limit`). That
+# handler runs when a request reaches a resource limit. Novis takes this amount from `memory` when
+# the request starts. So the handler can still run after the request has used all the rest.
+# This value is at most a quarter of `memory`. When `memory` is `false`, nothing is kept.
+# Neither this key nor `fatal_reserve_time` has a `[limits.hard]` limit, because a request cannot set them.
 #fatal_reserve_memory = "1M"          # default
+# Only `nvs.toml` sets this. A request may not change it.
+# The CPU time kept for the same handler. Novis takes it from `cpu_time` when the request starts.
+# It is at most a quarter of `cpu_time`. When there is no CPU time limit, nothing is kept.
+# This is the case when `cpu_time` is `false`, and under `nvs run` when `cpu_time` is not written.
 #fatal_reserve_time = "50ms"          # default
 # Only `nvs.toml` sets this. A request may not change it.
-# How deep a chain of `spawn script` may nest before the next one is refused. `false`
-# removes the ceiling, which is the one value that lets a recursion end as an exhausted heap rather
-# than as a depth.
+# How many levels of `spawn script` may nest. A script that a spawned script starts is one level
+# deeper. A spawn that goes deeper than this number stops the request with a limit error.
+# `false` removes this limit. A deep recursion then stops only when it reaches the memory limit.
 #max_script_depth = 64                # default
 # Only `nvs.toml` sets this. A request may not change it.
-# The two halves of the decompression bound (`rule:core-classes/decompression-bound`): the
-# most any one `Core\Compress` or `Core\Zip` call may produce, and the most output per octet of
-# input. A bomb is small on the wire, so the byte ceiling alone is one a small request still reaches.
-# `false` does not remove either — an unbounded value reads as the default, so no configuration
-# spells an unbounded decompression.
+# The largest output that one `Core\Compress` or `Core\Zip` call may produce
+# (`rule:core-classes/decompression-bound`).
+# `false` does not remove this limit or the next one. Novis uses the default value instead.
 #max_decompressed = "64M"             # default
+# Only `nvs.toml` sets this. A request may not change it.
+# The most bytes of output that a call may produce for each byte of compressed input.
+# A small compressed file can expand to a very large output. Without this limit, a small request
+# could still produce `max_decompressed` bytes.
 #max_decompression_ratio = 1000       # default
 # Only `nvs.toml` sets this. A request may not change it.
-# A share of `memory`, between 0 and 1. A request whose memory peak reaches it writes one
-# `Warn` to the log when it ends, naming the peak, the ceiling and the route
-# (`rule:observability/memory-high-water-writes-a-warn`). A request with `memory = false` has no
-# cap and is never warned about.
+# A fraction of `memory`, between 0 and 1. When the memory peak of a request reaches this fraction,
+# Novis writes one `Warn` record to the log when the request ends
+# (`rule:observability/memory-high-water-writes-a-warn`). The record gives the peak, the limit and
+# the route. A request with `memory = false` has no limit, and it never gets this warning.
+# When this key is not written, no warning is written. `0.8` is an example value.
 #memory_high_water = 0.8              # default: off
 # Only `nvs.toml` sets this. A request may not change it.
-# What happens to a request whose client goes away before its response is sent. A
-# request runs to its end and its response is thrown away, unless its method is listed here; a
-# listed method is cancelled at once. Methods are matched exactly, so `GET` and `get` differ.
+# The HTTP methods of the requests that stop when the client disconnects before the response is sent.
+# A request with a method in this list stops at once. A request with any other method runs to its
+# end, and Novis does not send its response. Methods are matched exactly, so `GET` and `get` are
+# different.
 #cancel_on_disconnect = ["GET", "HEAD"] # default: []
 # Only `nvs.toml` sets this. A request may not change it.
-# How long a request with no `wall_time` may run after its client went away. A request
-# with a `wall_time` has only that limit. `false` and `0` are refused: there is no way to say
+# How long a request with no `wall_time` may run after its client disconnects. A request with a
+# `wall_time` has only that limit. `false` and `0` are not allowed. There is no value that means
 # "forever".
 #disconnect_grace = "30s"             # default
 
@@ -301,17 +310,21 @@
 # ----------------------------------------------------------------------------------------------
 
 [log]
-# Tier 3: a `.nvs` invoked as a `spawn script` isolate with one `ErrorReport` argument, plus the
-# memory and time reserved for it. The reserve is the engine's rather than the failing request's and
-# is sized once per core, so that the tier reporting an out-of-memory is not itself out of memory.
-# Both are what compiling and running a whole script costs, which is why both are larger than
-# `[limits]`' own reserve for a handler the request already holds.
+# The path of a `.nvs` script that runs when a request fails. Novis starts it as a `spawn script`
+# with one argument, an `ErrorReport`.
 #handler = "scripts/on-error.nvs"     # example
+# The memory for the `handler` script. Novis keeps this memory for each CPU core. It does not come
+# from the request that failed. So the script can still report a request that ran out of memory.
+# This value is larger than `[limits] fatal_reserve_memory`, because the script must be compiled
+# and run.
 #handler_reserve_memory = "16M"       # default
+# The CPU time for the `handler` script. Like `handler_reserve_memory`, it does not come from the
+# request that failed. It is larger than `[limits] fatal_reserve_time` for the same reason.
 #handler_reserve_time = "5s"          # default
-# Tier 4, the floor that is always there: `stderr`, `file:<path>` or `syslog`.
+# Where Novis writes log records: `stderr`, `file:<path>` or `syslog`. This log is always written.
 # `syslog` works on Linux, macOS and other Unix systems. Windows does not have it.
-# When this is not set, a service writes to `logs/nvs.log` in its data folder.
+# When this is not set, Novis writes to `stderr` (standard error). A server that a service manager
+# started is different: it writes to `logs/nvs.log` in its data folder.
 #target = "stderr"                    # default
 # When a `file:` log reaches this size, Novis renames it to `<file>.1` and starts a new file.
 #max_size = "10M"                     # default
@@ -336,7 +349,8 @@
 
 [errors]
 # `ignore` runs the deprecated code unchanged. `log` writes one warning record for each place the
-# request uses it. `throw` throws `Core\DeprecatedError`. The mode does not change this setting.
+# request uses it. `throw` throws `Core\DeprecatedError`. The default is
+# the same in both modes of `[mode] default`.
 #deprecated = "ignore"               # default
 
 
@@ -350,7 +364,7 @@
 # A pattern with lookaround or a backreference needs the backtracking engine.
 # `allow` compiles such a pattern. `warn` compiles a pattern literal with a warning.
 # `deny` stops a pattern literal from compiling, and a pattern built while the program runs throws a
-# `RuntimeError`. The mode does not change this setting.
+# `RuntimeError`. The default is the same in both modes of `[mode] default`.
 #backtracking = "allow"              # default
 
 
@@ -363,9 +377,9 @@
 # The directory every temporary directory is created in. When this is not set, Novis uses `tmp`
 # in its data folder, `.nvsdata` next to the `nvs` program. Novis creates that folder, and only
 # the account that runs `nvs` can open it. An empty string means the same as not set.
-# Set this to put temporaries on a particular filesystem, such as a larger disk or a tmpfs.
-# `Boot`-class: `nvs serve` removes leftover directories at start, under the root it started with.
-# Changing it while a server runs leaves the old root's leftovers in place; nothing removes them.
+# Set this to put temporary directories on a particular filesystem, such as a larger disk or a tmpfs.
+# When `nvs serve` starts, it deletes the directories left over in this folder. If you change this
+# setting while a server runs, the directories left in the old folder stay there. Nothing deletes them.
 #temp_root = "/var/tmp/novis"         # default: `tmp` in the data folder
 
 
@@ -387,38 +401,41 @@
 # ----------------------------------------------------------------------------------------------
 
 [debug]
-# The probes `nvs run` and `nvs test` turn on. `[]` is off. Otherwise write any of `coverage`,
-# `branch`, `trace` and `profile`. Any other name stops the start. A server in `development` mode
-# may name `coverage` only, and then counts the lines each request runs. Any other probe stops a
-# server from starting. A request cannot turn a probe on.
+# The probes that `nvs run` and `nvs test` turn on. A probe records what a program does while it
+# runs, such as which lines run. `[]` turns all probes off. Otherwise, write any of `coverage`,
+# `branch`, `trace` and `profile`. A server in `development` mode may use `coverage` only. It then
+# counts the lines each request runs. Any other value stops the start with an error.
+# A request cannot turn a probe on.
 #mode = ["coverage"]                  # example
 
-# `true` and a `Core\Debug::dump` made while a request writes an HTML body is appended to that body
-# as a collapsible block as well as written as a record. A JSON body is never modified either way.
-# A request may set it to `false` for itself and can never set it to `true`. Only the run mode's
-# default turns it on, and `mode = "development"` is what sets it.
+# With `true`, a `Core\Debug::dump` call adds its output to the HTML body of the request.
+# The output is a block that you can open and close. The dump is also written as a log record.
+# A JSON body does not change, whatever this value is.
+# A request may set this to `false` for itself. It can never set it to `true`.
+# Only the mode turns it on: it is `true` when `[mode] default` is `development`.
 #inline = false                       # default: false in production, true in development
 
-# `true` and the end-of-script sweep logs each path it would have deleted instead of deleting it, so
-# that absent cleanup is deliberate and visible rather than a silent leak. Only `nvs.toml` sets it, and it reloads,
-# which is what lets an operator flip it on around one problematic request and off again; there is
-# deliberately no in-language setter, because a program that could exempt its own files from cleanup
-# is a program that can be made to hoard them.
+# With `true`, the cleanup at the end of a script does not delete its temporary directories. It
+# writes each path it would delete to the log. Use this to look at the files of one request.
+# Only `nvs.toml` sets this. A program cannot change it, so a program cannot keep its own files.
+# A server reads a change to this key when it reloads, so you can turn it on and off without a restart.
 #keep_temporary = false               # default
 
-# `true` and each request's debug records are written to files in `debug/spool` in the data folder.
+# With `true`, the debug records of each request are written to files in `debug/spool` in the data folder.
 # `nvs debug` reads them into `debug/index.sqlite` and deletes them. In development, `nvs serve`
 # starts `nvs debug` and stops it when the server stops. In production, you start `nvs debug`
 # yourself. A request can turn its own recording off and cannot turn it on.
 #store = false                        # default
 
-# The most disk one process's spool files may use. Past it, the oldest files are deleted.
+# The most disk space that the spool files of one process may use. When they use more, the oldest
+# files are deleted.
 #spool_max = "256M"                   # default
 
 # `nvs debug` deletes a request's records from the index once they are this old.
 #index_age = "7d"                     # default
 
-# The largest the index may grow. Past it, `nvs debug` deletes the oldest requests first.
+# The largest size of the index. When the index is larger, `nvs debug` deletes the oldest requests
+# first.
 #index_max = "1G"                     # default
 
 # The address `nvs debug` serves the debug viewer on: an IP address and a port. `nvs debug` prints
@@ -429,10 +446,13 @@
 # The viewer always needs a token. `nvs debug` creates one in `debug/` in the data folder, and the
 # link it prints contains the token. Open that link in your browser. With `listen` on an address
 # that is not loopback, `nvs debug` uses HTTPS. It also creates a certificate and a key there.
-# These three keys name your own files instead. If a file
-# does not exist, `nvs debug` prints a warning and uses the file it created.
+# You can use your own files instead, with `tls_cert_file`, `tls_key_file` and `token_file`.
+# If a file you name does not exist, `nvs debug` prints a warning and uses the file it created.
+# This key is the path of your own certificate file for HTTPS.
 #tls_cert_file = "/etc/novis/debug.crt" # example; restart required
+# The path of your own private key file for HTTPS.
 #tls_key_file = "/etc/novis/debug.key"  # example; restart required
+# The path of your own file that contains the token.
 #token_file = "/etc/novis/debug.token"  # example; restart required
 
 
@@ -442,15 +462,19 @@
 # ----------------------------------------------------------------------------------------------
 
 [http]
-# The key the door verifies a CSRF token against, and the one an application issues tokens under —
-# `Core\Csrf::issue($session, Core\Config::get("http.csrf_key"))`, with `Core\Crypto::generateKey()`
-# answering a value of the right length (`rule:security/csrf-is-on-by-default`). Naming it is what
-# **arms** the token half of the check: with a key, a `POST`, `PUT`, `PATCH` or `DELETE` matching a
-# route that did not write `csrf: false` is refused unless it presents a token bound to this
-# request's session cookie. With no key the door still refuses the cross-origin half, which needs
-# nothing configured. A secret like every other credential here, so `csrf_key_file` is the sibling a
-# mounted file arrives in and writing both is a refusal.
+# The secret key for CSRF tokens (`rule:security/csrf-is-on-by-default`). CSRF (cross-site request
+# forgery) is an attack where another website makes a browser send a request to your application.
+# The server checks each token with this key. Your application creates tokens with the same key:
+# `Core\Csrf::issue($session, Core\Config::get("http.csrf_key"))`.
+# `Core\Crypto::generateKey()` returns a key of the right length.
+# When this key is set, the server checks the token of each `POST`, `PUT`, `PATCH` and `DELETE`
+# request. Such a request is not allowed without a token for its session cookie. A route with
+# `csrf: false` is not checked.
+# Without a key, the server still blocks requests that come from another origin. That check needs
+# no setting. You may set only one of `csrf_key` and `csrf_key_file`.
 #csrf_key = "…"                       # example
+# The path of a file whose whole content is the CSRF key. Use it in place of `csrf_key`, for
+# example for a secret that is mounted as a file.
 #csrf_key_file = "/run/secrets/nvs-csrf-key"  # example
 
 [http.errors]
@@ -518,11 +542,14 @@
 #idle = "30s"                         # default
 #max_duration = "5m"                  # default
 
-# A connection outlives its call in a per-core pool keyed on what the outbound check approved
-# (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`). These two bound a
-# core's memory rather than a request's, so neither is settable by a request: `pool_idle = 0` keeps
-# none, which is a connection per call exactly.
+# After a call ends, its connection stays open in a pool. A later call to the same address can use
+# it again (`rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`). Each CPU
+# core has its own pool. `pool_idle` and `pool_idle_timeout` limit the memory of a core, not of a
+# request. So a request cannot change them.
+# This key is the most idle connections that one pool keeps. With `0`, no connection is kept, and
+# each call opens a new one.
 #pool_idle = 16                       # default
+# How long an idle connection stays open in the pool. After this time, it is closed.
 #pool_idle_timeout = "30s"            # default
 
 [http.client.socket]
@@ -596,16 +623,17 @@
 # ----------------------------------------------------------------------------------------------
 
 [server]
-# The root every mount path must resolve inside, and what this instance accepts on. `root` must be
-# written when a `[[server.mount]]` is: the server does not start without it. `listen` is one
-# flat array of `host:port`, or an absolute path meaning a Unix socket; Unix sockets are Unix-only
-# and Windows listens on TCP loopback.
+# The folder that every mount path must be inside. You must write `root` when you write a
+# `[[server.mount]]`. Without it, the server does not start.
 #root = "/srv/app"                    # example
+# The addresses this server accepts connections on. Each entry is `host:port`, or an absolute path
+# for a Unix socket. Unix sockets work only on Unix systems. On Windows, the server listens on TCP
+# loopback.
 #listen = ["127.0.0.1:8000"]          # default; restart required
-# Unix-socket entries only, and the whole of who may connect to one: a connection over a Unix
-# socket names its own client address, so this is `rule:config/ownership-is-the-trust-boundary`'s
-# question asked of a socket rather than of a file. `0660` with the key left out — the owner's
-# account and the socket's group, and adding a tenant to that group grants them that address.
+# The file mode of each Unix socket in `listen`. This mode is the only check of who may connect.
+# A connection over a Unix socket gives its own client address, so the server cannot check it
+# (`rule:config/ownership-is-the-trust-boundary`). The default `0660` allows the account that owns
+# the socket and the group of the socket. A user you add to that group may connect too.
 #socket_mode = "0660"                 # default; restart required
 
 # How a request finds its entry file: `entry` or `path`. Unwritten, both this and `static` take the
@@ -625,9 +653,11 @@
 #development_hosts = ["app.test"]     # example
 # Off when empty — a path answered without entering the application at all.
 #health_path = "/healthz"             # default: off
-# The in-flight ceiling, and how many cores accept over this machine's own available parallelism
-# (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`).
+# The most requests that the server handles at the same time.
 #max_in_flight = 10000                # default
+# How many workers accept connections. Each worker runs on its own CPU core
+# (`rule:http-server/the-accept-fan-out-is-one-worker-per-core`). When this is not written, there
+# is one worker for each core of this machine.
 #workers = 4                          # default: one per core; restart required
 # The connection waits, each finite with nothing configured. `header_timeout` is the total time a
 # client has to send a whole request head, counted from when the head starts. The other three are
@@ -643,7 +673,8 @@
 #drain_timeout = "30s"                # default
 # How long a worker may stay past the deadline of its oldest request before the server reports
 # that the worker has stopped. A late request is stopped by its own deadline, so this margin is
-# only for a worker that no longer runs at all. Spelled like the waits above.
+# only for a worker that no longer runs at all. Write it like the waits above, so `"5s"` and `5`
+# are the same.
 #watchdog_margin = "5s"               # default; restart required
 
 [server.connection]
@@ -907,18 +938,18 @@
 # ----------------------------------------------------------------------------------------------
 
 [queue]
-# The `[db.<name>]` block whose connection holds the jobs and dead-letter tables. Required, and best
-# the application's own: that is what makes an enqueue commit with the write that caused it.
+# The `[db.<name>]` block whose database has the jobs table and the dead-letter table. This key is
+# required. Use the same database as your application. Then a new job is saved in the same
+# transaction as the write that created it.
 #connection = "main"                  # example
-# Workers this instance runs. `0` makes it enqueue-only, which is a supported deployment and not a
-# disabled queue.
+# How many workers this instance runs. With `0`, this instance adds jobs to the queue and runs none.
+# Another instance can run them.
 #workers = 4                          # default
-# Attempts a job gets before it is moved to the dead-letter table. Finite with nothing configured,
-# and there is no spelling for unbounded: nothing is retried forever and nothing is discarded
-# silently.
+# How many times a job is tried before it is moved to the dead-letter table. There is no value that
+# means "no limit". So no job is retried forever, and no failed job is deleted without a record.
 #max_attempts = 5                     # default
-# How long a claimed job stays invisible to other workers before it may be claimed again. A duration,
-# so `"5m"` and `300` read the same.
+# How long other workers cannot see a job that a worker has taken. After this time, another worker
+# may take it. `"5m"` and `300` (300 seconds) are the same.
 #visibility = "5m"                    # default
 
 
@@ -929,11 +960,13 @@
 
 [deferred]
 # Only `nvs.toml` sets this. A request may not change it.
-# Request trees per core kept alive for deferred work. Past the cap, `afterResponse`
-# throws rather than queueing, so the pressure is visible in the request that caused it.
+# The most requests on one CPU core that may have work waiting to run after the response
+# is sent. When this number is reached, `Core\Task::afterResponse` throws an error. The error
+# shows up in the request that made the call.
 #max_concurrent = 256                 # default
 # A request may change this with `Core\Config::set`.
-# The deadline a call inherits when it names none.
+# The deadline of a `Core\Task::afterResponse` call that does not give its own deadline. When
+# this key is not written, such a call has no deadline. `30s` is an example value.
 #deadline = "30s"                     # default: none
 
 
@@ -1094,12 +1127,12 @@
 # How long no file of a changed program may move before it is compiled, so a deploy that is still
 # being copied is compiled once, from the finished files.
 #settle = "1s"                        # default: "1s" in production, "100ms" in development
-# Whether the on-disk artifact cache is used at all, and where it lives. `file_cache_dir` is the only
-# spelling of that directory — `[cache]` above is `Core\Cache`'s two tiers and holds none — and it is
-# the one key in this block that applies at boot rather than at reload, because moving it re-creates
-# the runtime's mapping of every cached unit. Whatever the directory is, it must be owned by the
-# account running the compile and writable by nobody else.
+# Whether Novis saves compiled code to files on disk, so a later start can use it again.
 #file_cache = true                    # default
+# The folder for the compiled code files. Only this key sets that folder. The `[cache]` block
+# above is for `Core\Cache`, and it does not set this folder. A change to this key takes effect
+# when the server starts again, not when it reloads. The folder must be owned by the account that
+# compiles the code. No other account may write to it.
 #file_cache_dir = "/var/cache/novis"  # default: `cache` in the data folder
 # The cache's ceiling in bytes, and the probability pair that decides how often a sweep runs — the
 # shape PHP's session GC uses, read the same way: a sweep on `file_cache_gc_probability` runs in
