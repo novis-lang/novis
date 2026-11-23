@@ -1740,6 +1740,30 @@ fn a_parameter_default_may_be_a_written_class_name() {
     }
 }
 
+/// A default refused at a `class<T>` declaration names the class name it may
+/// be instead, at a parameter and at a property. The same refusal at an `int`
+/// declaration does not mention class names.
+#[test]
+fn a_refused_default_at_a_class_reference_names_a_written_class_name() {
+    let help = "Write a class name such as `Foo::class`";
+    for (decl, names_it) in [
+        (
+            "function m(class<Animal> $c = static::class): void {}",
+            true,
+        ),
+        ("public class<Animal> $c = static::class;", true),
+        ("function m(int $n = static::class): void {}", false),
+        ("public int $n = static::class;", false),
+    ] {
+        let diags = check_src(&format!("{PLACED}class Cat extends Animal {{ {decl} }}\n"));
+        let found = diags
+            .iter()
+            .flat_map(|d| d.notes.iter())
+            .any(|note| note.contains(help));
+        assert_eq!(found, names_it, "`{decl}`: {diags:?}");
+    }
+}
+
 /// `rule:types/class-reference`: a property declared `class<T>`, instance or
 /// `static`, may default to a written `Foo::class` on the parameter's terms.
 #[test]

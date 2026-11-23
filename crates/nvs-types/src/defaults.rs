@@ -309,20 +309,34 @@ pub(crate) fn eval_param_default(
     };
     if value.is_none() && !reported {
         let want = env.interner.describe(declared);
-        env.diags.report(
-            Diagnostic::error(
-                code::E_PARAM_DEFAULT_NOT_LITERAL,
-                format!("a parameter default must be a `{want}` constant"),
-            )
-            .with_primary(expr.span, "not a constant of the declared type")
-            .with_help(
-                "a default is evaluated once, at the call site that omits it — write a \
-                 `bool`/`int`/`uint`/`float`/`decimal`/`string` value directly in the code, optionally \
-                 negated, an enum case or another class's `const`",
-            ),
+        let report = Diagnostic::error(
+            code::E_PARAM_DEFAULT_NOT_LITERAL,
+            format!("a parameter default must be a `{want}` constant"),
+        )
+        .with_primary(expr.span, "not a constant of the declared type")
+        .with_help(
+            "a default is evaluated once, at the call site that omits it — write a \
+             `bool`/`int`/`uint`/`float`/`decimal`/`string` value directly in the code, optionally \
+             negated, an enum case or another class's `const`",
         );
+        let report = with_class_name_help(report, declared, env);
+        env.diags.report(report);
     }
     value
+}
+
+/// Adds the one help line a `class<T>` default needs to a default's refusal:
+/// the written `Foo::class` that [`class_reference_default`] accepts there.
+/// Every other declared type gets the diagnostic unchanged, so the help
+/// appears only where a class name is a constant of the declared type.
+fn with_class_name_help(report: Diagnostic, declared: TypeId, env: &Env<'_>) -> Diagnostic {
+    if crate::expr::members::class_reference_targets(declared, env).is_none() {
+        return report;
+    }
+    report.with_help(
+        "the type is a class reference. Write a class name such as `Foo::class`. \
+         `static::class` and `$obj::class` are not constants",
+    )
 }
 
 /// [`eval_param_default`]'s constant, reporting nothing: for a pass that reads
@@ -452,19 +466,19 @@ pub(crate) fn eval_property_default(
     };
     if value.is_none() && !reported {
         let want = env.interner.describe(declared);
-        env.diags.report(
-            Diagnostic::error(
-                code::E_PROPERTY_DEFAULT_NOT_LITERAL,
-                format!("a property default must be a `{want}` constant"),
-            )
-            .with_primary(expr.span, "not a constant of the declared type")
-            .with_help(
-                "a property default is evaluated once, at compile time, and written into \
-                 every fresh instance's slot — write a `bool`/`int`/`uint`/`float`/`decimal`/`string` \
-                 value directly in the code, optionally negated, `[]`, an enum case or another class's `const`; \
-                 anything else belongs in `constructor`",
-            ),
+        let report = Diagnostic::error(
+            code::E_PROPERTY_DEFAULT_NOT_LITERAL,
+            format!("a property default must be a `{want}` constant"),
+        )
+        .with_primary(expr.span, "not a constant of the declared type")
+        .with_help(
+            "a property default is evaluated once, at compile time, and written into \
+             every fresh instance's slot — write a `bool`/`int`/`uint`/`float`/`decimal`/`string` \
+             value directly in the code, optionally negated, `[]`, an enum case or another class's `const`; \
+             anything else belongs in `constructor`",
         );
+        let report = with_class_name_help(report, declared, env);
+        env.diags.report(report);
     }
     value
 }
