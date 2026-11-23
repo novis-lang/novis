@@ -19,7 +19,10 @@ the same way, and `DateTime::fromIso('2024-03-01', $zone)` is its short form.
 
 **An epoch reader floors.** `toEpochSeconds`, `toEpochMillis` and `toEpochMicros` give the largest
 whole count at or before the instant, so `fromEpoch` of the count and the remainder builds the same
-instant. Half a second before 1970 is second `-1`, millisecond `-500`.
+instant. Half a second before 1970 is second `-1`, millisecond `-500`. Before 1970, an instant with a
+part of a unit reads one less than a reader that truncates toward zero gives.
+
+`Date::at` names its parameters `year`, `month` and `day`, the names of its readers.
 
 **One text format per class, the ISO 8601 extended form, and nothing else.**
 

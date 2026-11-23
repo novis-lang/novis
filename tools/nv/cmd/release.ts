@@ -842,6 +842,8 @@ export async function notesFor(version: string, previousTag: string, cap: number
 /**
  * The paths a release's archives and extension are built from. A directory ends in `/`; any other
  * entry is one file at the root. `--fixes-built` fails on a commit after the build that changes one.
+ * `editors/vscode/` is in it because the release ships the extension built at the built commit, and
+ * `rust-toolchain.toml` because its pin decides the compiler the binaries are built with.
  */
 export const SHIPPED = ["crates/", "extensions/", "vendor/", "editors/vscode/", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml"];
 

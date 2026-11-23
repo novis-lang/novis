@@ -331,7 +331,8 @@ fn site_fits(
 /// for a second use of `name` on one declaration when it is not
 /// `repeatable`. Each later use is reported against the first. `program` is
 /// whether a program declares it, so the help may say to add `repeatable`.
-/// Whether the use may go on.
+/// On a `Core` attribute the help says only to delete one, because a program
+/// cannot change a `Core` declaration. Whether the use may go on.
 fn count_fits(
     attr: &Attribute,
     shown: &str,

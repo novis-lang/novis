@@ -7,6 +7,11 @@
 //! ways (`nvs_ir::lower::without_in_place`), runs each, and fails on any
 //! difference in output or status.
 //!
+//! The run without the pass, which builds a new array, is the reference. After
+//! any member, the next appended key is the one that run gives, whatever
+//! storage the in-place run ends with. The member, cut and append step tests
+//! exactly that.
+//!
 //! A program is a run of steps over the axes of the matrix under
 //! `tests/conformance/in-place/`: the kind (`array<int>` or `string`), the
 //! target (a local, an element, a static property, a property or an element

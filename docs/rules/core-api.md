@@ -866,6 +866,10 @@ value's entry keeps its key.
 
 - Adding a revocable object to one of the three writes one membership. `remove()`, `clear()` and a
   `set()` that replaces a value remove the old one's membership.
+- **A membership is written only after the write lands, and removed by identity.** A write the memory
+  ceiling refused leaves the collection as it was and links nothing. A revoked value removes a map
+  entry only when the value under its key is that object, so it never removes an entry another value
+  holds under the same key.
 - `revoke()` sets the flag, follows the memberships and removes each entry in O(1). A map or set leaves
   a hole and compacts later, as an array's `unset` does. A `Heap` entry stays in place, and the heap's
   count drops by one.

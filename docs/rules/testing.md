@@ -600,7 +600,11 @@ run prints one line saying why, when:
   not be resolved, such as a deleted file whose folder is gone.
 
 A run that left a test out keeps that test's entry, and the stored hash of each method, class and
-file it depends on, so a change it did not run against still selects it at the next run.
+file it depends on, so a change it did not run against still selects it at the next run. A method
+reached both by a test that ran and by one left out keeps the old hash too, so the test that ran runs
+once more. That costs at most one extra run of a test, and the map agrees with the program after the
+next `--since` run. A directory of programs has the folder it is in as its program folder, so more
+paths count as the program's own, which runs more tests, never fewer.
 
 A line that was only deleted sits between two lines, and is in a body only when both are. The hashes
 keep the map honest when it was written from a working tree that has changed since: an edit put back
