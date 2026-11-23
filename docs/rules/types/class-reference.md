@@ -26,7 +26,9 @@ expression stays a `string`; with `class<…>` members and no `string`, assignab
 `E0708` with its help is given where exactly one `class<T>` is expected, and a union of several gives
 the ordinary mismatch. A `string` at a `class<T>` place stays the ordinary mismatch, and its help
 names `as class<T>`, which is where a program that writes a variable learns the conversion exists. An
-existing `Foo::class as class<T>` keeps compiling with no warning.
+existing `Foo::class as class<T>` keeps compiling with no warning. A `Core` parameter that takes a
+class name is a `string`, so a written `::class` there stays a `string`; a `Core` signature that
+takes `class<T>` instead is an API change of its own.
 
 A parameter default and a property default, instance or `static`, may be a written `Foo::class` at a
 `class<T>` declaration; `static::class` and `$obj::class` are not constants and stay refused there
