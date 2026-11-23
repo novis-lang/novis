@@ -130,8 +130,7 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **`::class` names a class.** *Working on it now.* `User::class` is a reference to the class `User` wherever a class is expected.
-2. **Text cut on whole characters.** Every `Core\Str` method finds and cuts text on whole graphemes (what a person counts as one character). Cutting a prefix or a suffix from a string is one call.
+1. **Text cut on whole characters.** *Working on it now.* Every `Core\Str` method finds and cuts text on whole graphemes (what a person counts as one character). Cutting a prefix or a suffix from a string is one call.
 <!-- roadmap:end -->
 
 ## Contributing
