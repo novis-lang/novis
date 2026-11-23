@@ -17,6 +17,6 @@ class Strict extends Formatter
     }
 }
 
-class<Formatter> $cls = Formatter::class as class<Formatter>;
+class<Formatter> $cls = Formatter::class;
 Formatter $made = new $cls('p: ');
 echo $made->prefix, "\n";

@@ -1,0 +1,28 @@
+<?nvs
+// Shows a function that takes a class as its argument, and a call that passes `Invoice::class`.
+
+interface Storable
+{
+    public static function table(): string;
+}
+
+class Invoice implements Storable
+{
+    public static function table(): string
+    {
+        return 'invoices';
+    }
+}
+
+class Store
+{
+    // `$c` is a class that implements `Storable`. `$c::table()` calls its static method.
+    public static function describe(class<Storable> $c): string
+    {
+        return 'rows go to the table ' . $c::table();
+    }
+}
+
+// `Invoice::class` is a class reference, so the call needs no `as`. This prints:
+// rows go to the table invoices
+echo Store::describe(Invoice::class), "\n";

@@ -4,8 +4,8 @@ A conversion gives a value of that type, or it throws an error. It never rounds,
 fraction, and never uses a zero or an empty string instead. With `as ?int`, the result is `null` where the plain form would throw. Add `??` to
 use a default value instead.
 
-`as` also checks an object against a shape, such as `as Point`, and turns a class name into a class
-reference with `as class<T>`.
+`as` also checks an object against a shape, such as `as Point`. `as class<T>` turns a class name in a
+string into a class reference. Where a `class<T>` is expected, `Foo::class` needs no `as`.
 
 **Good to know:** `as` converts only the value directly before it, so `$a + $b as float` converts
 `$b` alone.

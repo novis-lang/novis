@@ -63,8 +63,11 @@ echo Report::line(true), "\n";
 
 array<mixed> $readings = [new Temperature(21.5), new Humidity(40), new Temperature(19.0), 'warm'];
 
-// `as class<Reading>` turns a class name, here from a string, into a class
-// value. It throws an error if the name is not a `Reading`. This prints: 2 1
+// `as class<Reading>` converts a class name in a string to a class value.
+// It throws an error if the name is not a `Reading`.
 class<Reading> $kind = 'Temperature' as class<Reading>;
 echo Report::count($readings, $kind), ' ';
-echo Report::count($readings, Humidity::class as class<Reading>), "\n";
+
+// `Humidity::class` is already a class value, so you can pass it directly.
+// The two calls print: 2 1
+echo Report::count($readings, Humidity::class), "\n";

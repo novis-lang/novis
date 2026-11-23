@@ -37,9 +37,9 @@ class LinesReport implements Renders
 
 array<string> $rows = ['north', 'south'];
 
-// A class name written in quotes is checked when the program compiles.
+// `CsvReport::class` is a class reference, and it is checked when the program compiles.
 // If `CsvReport` did not implement `Renders`, the program would not compile.
-class<Renders> $default = 'CsvReport' as class<Renders>;
+class<Renders> $default = CsvReport::class;
 
 // A name from a setting is checked when the program runs. `as ?class<Renders>` gives `null`
 // for a name that is not a `Renders` class. Then `??` uses the default format.

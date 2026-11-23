@@ -14,8 +14,8 @@ class CsvReport implements Renders
     }
 }
 
-// The default is checked while the program compiles.
-class<Renders> $fallback = 'CsvReport' as class<Renders>;
+// The default is `CsvReport::class`. It is checked while the program compiles.
+class<Renders> $fallback = CsvReport::class;
 
 // No class `PdfReport` exists, so `as ?class<Renders>` gives `null`, and `??` uses the default.
 string $setting = 'PdfReport';

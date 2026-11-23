@@ -40,5 +40,8 @@ A `class<T>` value works in three places: `new $cls(...)`, `$cls::f(...)` and `$
 static call through a `class<T>` value runs the subclass's method, and `static::` in it is that
 subclass. `new $cls(...)` checks the arguments against the constructor of `T`. When a subclass of `T`
 has a constructor that cannot take those arguments, the `new` is the error `E0794`. Convert to the
-subclass, as in `as class<Strict>`, or give the subclass a constructor that fits. A class name
-written in the code that is not a subclass of `T` is the error `E0708` at `as class<T>`.
+subclass, as in `as class<Strict>`, or give the subclass a constructor that fits.
+
+Where a `class<T>` is expected, write a class as `Strict::class`, with no `as`. A class name in a
+string needs `as class<T>`. A class name written in the code that is not a subclass of `T` is the
+error `E0708`, with or without `as`.

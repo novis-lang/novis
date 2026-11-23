@@ -2814,16 +2814,16 @@ A `callable` is an anonymous function written with `fn`, or a method reference s
 instance fits. A shape describes an object by its fields. `as Point` checks that a value has those
 fields and throws an error if not. `is Point` gives `true` or `false`.
 
-To pick a class while the program runs, convert its name with `as class<T>`. A name from a setting
-is checked when it runs, and `as ?class<T>` gives `null` for a wrong name. `new $c()` throws a
-`LogicError` when the name is an `abstract` class or an interface.
+Where a `class<T>` is expected, write the class as `Invoice::class`. A class name in a string needs
+`as class<T>`, and is checked when the program runs. `as ?class<T>` gives `null` for a wrong name.
+`new $c()` throws a `LogicError` when the class is `abstract` or an interface.
 
 **Good to know:** a call through a `callable` returns a `mixed` value, so convert the result where
 you use it: `$f(4) as int`.
 
 **The examples below** pass a pricing rule around, check a value against a shape, and pick a
-report class from a name. The last two get the class of an `object` back, and show a shape without
-a name as a compile error.
+report class from a name. Then they get the class of an `object` back, show a shape without a name
+as a compile error, and pass a class to a function.
 
 A string is never a `callable`. `callable $f = "strlen";` is the error `E0418`. Write a method
 reference such as `Core\Str::length` instead.
@@ -2837,14 +2837,19 @@ A `class<T>` variable contains a class, not an instance. `T` is a class or an in
 class in the variable is `T` or extends or implements it. A `class<Dog>` can be assigned to a
 `class<Animal>`. Two class references are equal when they are the same class.
 
-`as class<T>` is the only way to get a class reference. A class name in quotes is checked when the
-program compiles, and a name outside the hierarchy of `T` is the error `E0708`. A name in a variable
-is checked when the program runs. A wrong name throws a `RuntimeError`, and `as ?class<T>` gives
-`null` for it. `$cls as string` gives the class name.
+There are two ways to get a class reference. Where a `class<T>` is expected, `Dog::class` is a class
+reference. That place can be a variable, a parameter, a return value or a default value.
+`self::class`, `parent::class`, `static::class` and `$obj::class` work the same way. The compiler
+checks the class, and a class outside the hierarchy of `T` is the error `E0708`. Everywhere else,
+`Dog::class` is a `string`, the class name.
+
+The other way is `as class<T>`, for a class name in a string. A class name in quotes is checked when
+the program compiles. A name in a variable is checked when the program runs. A wrong name throws a
+`RuntimeError`, and `as ?class<T>` gives `null` for it. A `string` where a `class<T>` is expected
+does not compile, and the error message shows the `as`. `$cls as string` gives the class name.
 
 Only three places take a class reference: `new $cls()`, `$cls::f()` and `$x is $cls`. A `string` in
-any of the three is the error `E0496`. `Dog::class` is a `string`, the class name. Comparing a
-`string` with a `class<T>` is the error `E0466`.
+any of the three is the error `E0496`. Comparing a `string` with a `class<T>` is the error `E0466`.
 
 A shape cannot be written in front of a variable, because a `{` at the start of a statement opens a
 block. `{ x: int } $p = …;` is the error `E0134`. Name the shape with `type` first.
@@ -2984,9 +2989,9 @@ class LinesReport implements Renders
 
 array<string> $rows = ['north', 'south'];
 
-// A class name written in quotes is checked when the program compiles.
+// `CsvReport::class` is a class reference, and it is checked when the program compiles.
 // If `CsvReport` did not implement `Renders`, the program would not compile.
-class<Renders> $default = 'CsvReport' as class<Renders>;
+class<Renders> $default = CsvReport::class;
 
 // A name from a setting is checked when the program runs. `as ?class<Renders>` gives `null`
 // for a name that is not a `Renders` class. Then `??` uses the default format.
@@ -3067,6 +3072,43 @@ error[E0134]: a local declaration cannot be typed with a bare shape
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+#### Example 06: pass a class to a function
+
+```nvs
+<?nvs
+// Shows a function that takes a class as its argument, and a call that passes `Invoice::class`.
+
+interface Storable
+{
+    public static function table(): string;
+}
+
+class Invoice implements Storable
+{
+    public static function table(): string
+    {
+        return 'invoices';
+    }
+}
+
+class Store
+{
+    // `$c` is a class that implements `Storable`. `$c::table()` calls its static method.
+    public static function describe(class<Storable> $c): string
+    {
+        return 'rows go to the table ' . $c::table();
+    }
+}
+
+// `Invoice::class` is a class reference, so the call needs no `as`. This prints:
+// rows go to the table invoices
+echo Store::describe(Invoice::class), "\n";
+```
+
+```output
+rows go to the table invoices
 ```
 
 ### `mixed`
@@ -4632,8 +4674,8 @@ A conversion gives a value of that type, or it throws an error. It never rounds,
 fraction, and never uses a zero or an empty string instead. With `as ?int`, the result is `null` where the plain form would throw. Add `??` to
 use a default value instead.
 
-`as` also checks an object against a shape, such as `as Point`, and turns a class name into a class
-reference with `as class<T>`.
+`as` also checks an object against a shape, such as `as Point`. `as class<T>` turns a class name in a
+string into a class reference. Where a `class<T>` is expected, `Foo::class` needs no `as`.
 
 **Good to know:** `as` converts only the value directly before it, so `$a + $b as float` converts
 `$b` alone.
@@ -4688,6 +4730,9 @@ them. Otherwise it throws a `RuntimeError` that lists the allowed values.
 
 `as ?T` is not allowed where `as T` cannot fail. `$i as ?int` on an `int` is the error `E0709`. A
 class is not allowed either: `$o as ?Foo` is the error `E0473`, so use `$o is Foo`.
+
+Where a `class<T>` is expected, `Foo::class` is already a class reference and needs no `as`. A
+class name in a string always needs `as class<T>`.
 
 `as class<T>` checks a class name written in the code while the program compiles. That is
 `Foo::class` or a string literal such as `'Shop\Dog'`. A name that is not a class is the error
@@ -4888,8 +4933,9 @@ class Dog extends Animal
     }
 }
 
-// `Dog::class` is checked while the program compiles.
-class<Animal> $folded = Dog::class as class<Animal>;
+// `Dog::class` is already a class reference, so it needs no `as`.
+// It is checked while the program compiles.
+class<Animal> $folded = Dog::class;
 
 // A name in a variable is checked while the program runs.
 string $name = 'Dog';
@@ -4931,8 +4977,8 @@ class CsvReport implements Renders
     }
 }
 
-// The default is checked while the program compiles.
-class<Renders> $fallback = 'CsvReport' as class<Renders>;
+// The default is `CsvReport::class`. It is checked while the program compiles.
+class<Renders> $fallback = CsvReport::class;
 
 // No class `PdfReport` exists, so `as ?class<Renders>` gives `null`, and `??` uses the default.
 string $setting = 'PdfReport';
@@ -9731,11 +9777,14 @@ echo Report::line(true), "\n";
 
 array<mixed> $readings = [new Temperature(21.5), new Humidity(40), new Temperature(19.0), 'warm'];
 
-// `as class<Reading>` turns a class name, here from a string, into a class
-// value. It throws an error if the name is not a `Reading`. This prints: 2 1
+// `as class<Reading>` converts a class name in a string to a class value.
+// It throws an error if the name is not a `Reading`.
 class<Reading> $kind = 'Temperature' as class<Reading>;
 echo Report::count($readings, $kind), ' ';
-echo Report::count($readings, Humidity::class as class<Reading>), "\n";
+
+// `Humidity::class` is already a class value, so you can pass it directly.
+// The two calls print: 2 1
+echo Report::count($readings, Humidity::class), "\n";
 ```
 
 ```output
@@ -14682,8 +14731,11 @@ A `class<T>` value works in three places: `new $cls(...)`, `$cls::f(...)` and `$
 static call through a `class<T>` value runs the subclass's method, and `static::` in it is that
 subclass. `new $cls(...)` checks the arguments against the constructor of `T`. When a subclass of `T`
 has a constructor that cannot take those arguments, the `new` is the error `E0794`. Convert to the
-subclass, as in `as class<Strict>`, or give the subclass a constructor that fits. A class name
-written in the code that is not a subclass of `T` is the error `E0708` at `as class<T>`.
+subclass, as in `as class<Strict>`, or give the subclass a constructor that fits.
+
+Where a `class<T>` is expected, write a class as `Strict::class`, with no `as`. A class name in a
+string needs `as class<T>`. A class name written in the code that is not a subclass of `T` is the
+error `E0708`, with or without `as`.
 
 #### Example 01: a subclass adds to what its parent does
 
@@ -15131,7 +15183,7 @@ class Strict extends Formatter
     }
 }
 
-class<Formatter> $cls = Formatter::class as class<Formatter>;
+class<Formatter> $cls = Formatter::class;
 Formatter $made = new $cls('p: ');
 echo $made->prefix, "\n";
 ```

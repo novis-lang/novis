@@ -3549,7 +3549,7 @@
     "lang:classes/declaring-a-class": "e7e29f3cb55816ff"
   },
   "docs/examples/lang/classes/inheritance/about.md": {
-    "lang:classes/inheritance": "2790a09b15b467e4"
+    "lang:classes/inheritance": "06edcdea57b78478"
   },
   "docs/examples/lang/classes/interfaces/about.md": {
     "lang:classes/interfaces": "b18c9b167c1dce85"
@@ -3714,7 +3714,7 @@
     "lang:expressions/comparison-and-equality": "460aa1bdc3a15fa7"
   },
   "docs/examples/lang/expressions/is-new-clone-throw-print-exit-isset-empty/about.md": {
-    "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "17cdee0677fc876f"
+    "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "84b521fa25c0bc81"
   },
   "docs/examples/lang/expressions/logical-operators-and-truth/about.md": {
     "lang:expressions/logical-operators-and-truth": "2e2866029aac425e"
@@ -3861,7 +3861,7 @@
     "lang:types/array-t": "5fccdbced28d049b"
   },
   "docs/examples/lang/types/callable-classes-object-shapes/about.md": {
-    "lang:types/callable-classes-object-shapes": "6afce4a0bfdcac73"
+    "lang:types/callable-classes-object-shapes": "99804e6ab579b410"
   },
   "docs/examples/lang/types/every-binding-has-a-type/about.md": {
     "lang:types/every-binding-has-a-type": "2a429907708204e7"
@@ -3900,7 +3900,7 @@
     "lang:types/text-string-and-bytes": "31b64b7deedd5a76"
   },
   "docs/examples/lang/types/the-conversion-operator-as/about.md": {
-    "lang:types/the-conversion-operator-as": "212e324c696ee0c8"
+    "lang:types/the-conversion-operator-as": "2ff45d832bb035de"
   },
   "docs/examples/lang/types/truthiness/about.md": {
     "lang:types/truthiness": "38b50154aea3ffc4"
@@ -9535,7 +9535,7 @@
     "lang:classes/interfaces": "c2df17e11935d2ac"
   },
   "syntax/classes/methods-and-inheritance.mdx": {
-    "lang:classes/inheritance": "401b1f91a8067782",
+    "lang:classes/inheritance": "af0b14719c637f9e",
     "lang:classes/methods-self-static-and-parent": "4bf262d86df6b531"
   },
   "syntax/classes/objects.mdx": {
@@ -9543,8 +9543,8 @@
     "lang:classes/object-the-top-of-every-class-type": "31838345f5d25b32",
     "lang:classes/objects-are-handles": "5e50d70650452f53",
     "lang:classes/what-a-class-cannot-declare": "01e5f31f2f8f17b1",
-    "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "209291ff1bfecdea",
-    "lang:types/callable-classes-object-shapes": "976abda4d756a387"
+    "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "2c3987a55f2611e0",
+    "lang:types/callable-classes-object-shapes": "a3f64e67f5cfaebd"
   },
   "syntax/classes/properties.mdx": {
     "lang:classes/lateinit": "04a908eb48054d47",
@@ -9742,7 +9742,7 @@
     "lang:types/array-t": "2bce18472e581290"
   },
   "syntax/values/as.mdx": {
-    "lang:types/the-conversion-operator-as": "09090ccb6bab96b2",
+    "lang:types/the-conversion-operator-as": "ba654145b8c0942f",
     "lang:types/widening-without-as": "820f85a72e23f555"
   },
   "syntax/values/bool-and-null.mdx": {

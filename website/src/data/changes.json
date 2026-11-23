@@ -3,6 +3,14 @@
     {
       "kind": "changed",
       "features": [
+        "lang:types/callable-classes-object-shapes",
+        "lang:types/the-conversion-operator-as"
+      ],
+      "text": "You can pass `Foo::class` where a `class<T>` is expected. You do not need to write `as class<T>`. A class name in a string variable still needs `as`."
+    },
+    {
+      "kind": "changed",
+      "features": [
         "Core\\Config::set",
         "Core\\Config::restore"
       ],
@@ -654,10 +662,6 @@
     "lang:types/nullable-union-single-value-and-enum-case-types": {
       "hash": "2ff829c24ec42cae",
       "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/nullable-union-single-value-and-enum-case-types` does is unchanged."
-    },
-    "lang:types/the-conversion-operator-as": {
-      "hash": "6fea1368cb2c2af3",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/the-conversion-operator-as` does is unchanged."
     },
     "lang:expressions/anonymous-functions": {
       "hash": "7343228949789310",

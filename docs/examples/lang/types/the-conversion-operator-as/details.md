@@ -45,6 +45,9 @@ them. Otherwise it throws a `RuntimeError` that lists the allowed values.
 `as ?T` is not allowed where `as T` cannot fail. `$i as ?int` on an `int` is the error `E0709`. A
 class is not allowed either: `$o as ?Foo` is the error `E0473`, so use `$o is Foo`.
 
+Where a `class<T>` is expected, `Foo::class` is already a class reference and needs no `as`. A
+class name in a string always needs `as class<T>`.
+
 `as class<T>` checks a class name written in the code while the program compiles. That is
 `Foo::class` or a string literal such as `'Shop\Dog'`. A name that is not a class is the error
 `E0303`, and a class that is not a `T` is `E0708`. This is the same with `as ?class<T>`. Every

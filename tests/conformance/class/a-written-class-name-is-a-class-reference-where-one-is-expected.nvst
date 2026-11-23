@@ -2,6 +2,8 @@
 A written `::class` passed to a `class<T>` parameter or used as a `class<T>` property default needs no `as`, and `new` builds the class it names (`rule:types/class-reference`)
 --FILE--
 <?nvs
+// covers: lang:types/callable-classes-object-shapes
+// covers: lang:types/the-conversion-operator-as
 class Animal {
     // `static::class` is the class the call was made on, so a `Dog` returns `Dog`.
     public function kind(): class<Animal> {
