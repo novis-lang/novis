@@ -22,7 +22,7 @@ stages:
     context: [docs/agent/prose.md, docs/rules/types.md, website/src/data/changes.json]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: boundaries
@@ -300,47 +300,28 @@ the change entries.
 
 - [x] The newcomer review of the change entries, the two new `about.md` files and the `W1036` card
   ([prose.md](../agent/prose.md) § *A newcomer reads it*).
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done. Stage 4 landed in four commits:
+Every stage is done, and the goal is reached. Stage 5 closed it without the full gate:
+`cargo clippy --all-targets -- -D warnings` is clean, and the acceptance checks `boundaries`,
+`boundaries-conformance`, `members`, `members-conformance`, `warning` and `proofs` are green by name.
+`bun nv close --goal whole-grapheme-cuts` is green. The two choices only this file held, the pair's
+`null` on no match and the name `withoutPrefix` declined, moved into the W1036 rule's Declined list
+(`1f527ec679`). Every other *Standing decision* is in `rule:types/string-is-utf8`, the W1036 rule
+or `hand_cuts.rs`.
 
-- The rules (`6b0b504ae7`). `docs/rules/types/string-is-utf8.md` names the six members, the trim set,
-  the `
-` pair and what it does not cover. The new
-  `rule:expressions/a-prefix-or-suffix-cut-written-by-hand-warns` states `W1036`'s shapes, its fix,
-  the twin, the counts and its Declined list. `hand_cuts.rs` and `W_HAND_CUT` cite it.
-  `rule:core-api/symmetric-names` lists `before`/`after` and `afterPrefix`/`beforeSuffix`.
-- The pages, the help and the change entries (`48b391c95b`). The help of `startsWith`, `endsWith`
-  and `replaceAll` has one sentence on whole characters (`crates/nvs-stdlib/src/str.rs:793`).
-  W1036's entry names `tools:editor/nvs-lsp` alone: `site --check changes` rejects
-  `tools:cli/nvs-check`, whose behaviour has not moved since v0.0.5. Fifteen `unseen` records cover
-  the spreadsheet, `Csv::format` and `Str::contains` tests, which only name the `
-` pair or a
-  tainted message.
-- The new pages' questions (`ad661626e2`), and the review of 16 texts, fixed (`127cd0ee88`).
-- The perf of every `Core\Str` member (`ef4aa5c400`). `replaceAll` failed the sweep as growing
-  (clock slope 1.58) and recorded flat alone, as the playbook's load bullet says.
-
-`bun nv proofs --gate --goal whole-grapheme-cuts` is green. So are `site --check stale`, `changes`,
-`review` and `questions`, `rules --check` and `render --check`. The nightly CI jobs the sweep named were
-`cancelled` by a newer push run, and none of them failed. No test is expected red.
+The sweep's nightly jobs were `cancelled` by a newer push run, and none failed. That push run's
+`docs` job failed on a stale `docs/rules/tooling.md`, which `b1358a5d64` already re-rendered; it is
+not pushed yet, and `ci-green` pushes it. No test is expected red.
 
 ### Next
 
-Stage 5 closes the goal. The goal is not the chain's full gate, so the close is the build, clippy and
-the goal's own tests by name.
-
-- [ ] `crates/nvs-stdlib/src/str.rs:1`: `cargo clippy --all-targets -- -D warnings`, then the
-  acceptance checks by name: `boundaries`, `boundaries-conformance`, `members`,
-  `members-conformance`, `warning` and `proofs` (`looper check --name <text>`).
-- [ ] `docs/goals/whole-grapheme-cuts.md:1`: `bun nv close --goal whole-grapheme-cuts`, and fix each
-  red. Move any decision only this file holds into a rule first. Every *Standing decision* is now
-  in `rule:types/string-is-utf8`, the W1036 rule or `hand_cuts.rs`. Then delete the file and run
-  `bun nv relink --build`.
+- [ ] `docs/goals/whole-grapheme-cuts.md:1`: the driver retires this file on `DONE`, and the goal
+  joins the chain's `ungated:` list. `ci-green` is the live goal next.
 
 ### Backlog
 
