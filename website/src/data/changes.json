@@ -5,7 +5,7 @@
       "features": [
         "tools:editor/nvs-lsp"
       ],
-      "text": "An edit in the editor checks again only the files that use what changed. A change inside a method body or a comment checks only the file you edit."
+      "text": "After an edit, the editor checks fewer files again. A change inside a method body or a comment checks only the file you edit. A change to a `public` method checks the files that call it and the subclasses, and a `private` method only the subclasses."
     },
     {
       "kind": "fixed",

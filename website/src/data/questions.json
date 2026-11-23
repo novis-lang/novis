@@ -19270,13 +19270,13 @@
   },
   "/tools/editor/": {
     "feature": "tools/editor/index.mdx",
-    "hash": "e7f6b5e24b3f4c4e",
+    "hash": "22d3e205fa910313",
     "questions": [
       "Install the Novis extension from the Marketplace, Open VSX or a .vsix file",
       "Which quick fixes and code actions does the editor offer?",
       "How can I see which routes and tests use a method?",
       "How do I change a colour of the Novis Dark theme?",
-      "Which files does the editor read, and does it skip folders in .gitignore?",
+      "Which files does the editor read, and check again after an edit?",
       "Can I rename a field of an attribute declaration in every place it is used?"
     ]
   },

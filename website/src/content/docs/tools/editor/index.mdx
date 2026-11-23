@@ -234,13 +234,25 @@ files and folders:
 - a folder whose name starts with a dot, such as `.cache`.
 
 Novis does not read `.git/info/exclude` or your global git ignore file. It also does not read an
-ignore file above the folder you opened. So every computer finds the same files.
+ignore file above the folder you opened. These files are different on each computer. Because Novis
+does not read them, every computer finds the same files.
 
 `nvs check`, `nvs fmt` and `nvs code` skip the same files. The editor and `nvs code` also share one
 index of the project. When the editor has indexed a project, `nvs code` is faster.
 
-When you edit a file, the editor checks that file again. It also checks the files that use what you
-changed, and no other files. A change inside a method body or a comment checks only the file you edit.
+When you edit a file, the editor checks that file again and updates its errors and warnings. A change
+inside a method body or a comment checks only the file you edit. A change to a declaration also checks
+other files:
+
+- a `public` method, property or constant: the files that use it, and the subclasses.
+- a `protected` method, property or constant: the subclasses.
+- a `private` method or constant: the subclasses. A `private` property also checks the files that
+  decode JSON or database rows into the class.
+- a new method or property: the files that tried to use that name and did not find it, and the
+  subclasses.
+- the class line, such as `extends` or `implements`: every file that uses the class.
+
+No other file is checked again.
 
 ### A file in a skipped folder
 
@@ -260,7 +272,7 @@ folder with a `!` at the start of the line:
 !/addons/
 ```
 
-A line in `.ignore` is stronger than a line in `.gitignore`. Git does not read `.ignore`, so git still
+When `.ignore` and `.gitignore` disagree about a file, the line in `.ignore` wins. Git does not read `.ignore`, so git still
 ignores the folder. Then run **Novis: Restart Language Server**.
 
 ## Change a Novis colour
