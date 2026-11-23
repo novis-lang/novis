@@ -1011,11 +1011,11 @@ some other way changes nothing.
 
 <sub>See also [`config/three-changeability-classes`](config.md#config-three-changeability-classes), [`config/a-runtime-set-is-request-local`](config.md#config-a-runtime-set-is-request-local), [`http-server/secure-headers-with-nothing-written`](http-server.md#http-server-secure-headers-with-nothing-written).</sub>
 
-<a id="http-server-a-session-store-answers-five-operations"></a>
+<a id="http-server-a-session-store-answers-six-operations"></a>
 
-## A session is a set of keys its store issued: a backend answers `issue`, `load`, `save`, `move` and `destroy`, and `load` answering absent is the whole of the strict-id rule
+## A session is a set of keys its store issued: a backend answers `issue`, `load`, `save`, `take`, `move` and `destroy`, and `load` answering absent is the whole of the strict-id rule
 
-`rule:http-server/a-session-store-answers-five-operations`
+`rule:http-server/a-session-store-answers-six-operations`
 
 A session is a set of keys in a store that can answer *did I issue this id*. A backend answers six
 operations and no more:
@@ -1209,7 +1209,7 @@ written whole: an array under one key is one value, and two requests that change
 write. Two requests that change *different* keys of one session keep both changes.
 
 **Each write-back is one atomic step:** one `EVAL` of the write-back script on the shared store, and
-one transaction on the `db` store ([`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations)). Two
+one transaction on the `db` store ([`http-server/a-session-store-answers-six-operations`](http-server.md#http-server-a-session-store-answers-six-operations)). Two
 requests that both write `userId` and `role` leave all of one request's values, never half of each.
 
 There is no lock. Nothing is held between `start` and the write-back, and two requests of one session
@@ -1263,7 +1263,7 @@ A cancelled task is the one end that sends nothing, because the send parks.
   would each touch many keys, which the shared tier cannot do in one step. A hash is the same layout
   as one key.
 
-<sub>See also [`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations), [`security/closed-doors`](security.md#security-closed-doors), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`core-api/session-roster`](core-api.md#core-api-session-roster), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers).</sub>
+<sub>See also [`http-server/a-session-store-answers-six-operations`](http-server.md#http-server-a-session-store-answers-six-operations), [`security/closed-doors`](security.md#security-closed-doors), [`concurrency/cross-request-state-is-explicit`](concurrency.md#concurrency-cross-request-state-is-explicit), [`core-api/session-roster`](core-api.md#core-api-session-roster), [`http-server/a-requests-blast-radius-is-bounded-at-four-tiers`](http-server.md#http-server-a-requests-blast-radius-is-bounded-at-four-tiers).</sub>
 
 <a id="http-server-session-expiry-belongs-to-the-store"></a>
 
@@ -1281,7 +1281,7 @@ The record's expiry is written onto the entry: `PEXPIRE` on the session's hash o
 which `RENAMENX` keeps, and an `expires_at` column on the session's head row in the `db` store's
 SQLite file. The short clock is a field of the record, `x` on the hash and `short_expires_at` on the
 head row, as epoch milliseconds. An expired record is absent at once, so `load` already answers it and
-the first use opens a fresh session ([`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations)). On
+the first use opens a fresh session ([`http-server/a-session-store-answers-six-operations`](http-server.md#http-server-a-session-store-answers-six-operations)). On
 the SQLite file `load` reads only a row whose `expires_at` is still ahead, so correctness never waits
 for a sweep.
 
@@ -1319,7 +1319,7 @@ with visitors, and the long clock bounds it.
 - **Moving the SQLite store's reads and writes off the core thread.** Each is one indexed statement
   on a local file, and no measured program waits on it. It is reconsidered when one does.
 
-<sub>See also [`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations), [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/no-session-block-means-the-data-folder-store`](http-server.md#http-server-no-session-block-means-the-data-folder-store).</sub>
+<sub>See also [`http-server/a-session-store-answers-six-operations`](http-server.md#http-server-a-session-store-answers-six-operations), [`http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`](http-server.md#http-server-session-backend-is-shared-or-db-and-memory-is-refused-at-boot), [`http-server/no-session-block-means-the-data-folder-store`](http-server.md#http-server-no-session-block-means-the-data-folder-store).</sub>
 
 <a id="http-server-a-session-value-is-short-lived-or-long-lived"></a>
 
@@ -1426,10 +1426,10 @@ write access to the store, which already means owning every session in it.
 `get` answers `null` for a sealed value and `setShortLived` and `setLongLived` refuse a `secret`, so the
 sealed members are the only door here too; a sealed value that does not open under the ring is absent
 rather than an error. The record crosses the store as the byte carrier it already is
-([`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations)), so no `secret` reaches the store and
+([`http-server/a-session-store-answers-six-operations`](http-server.md#http-server-a-session-store-answers-six-operations)), so no `secret` reaches the store and
 [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary) is unchanged.
 
-<sub>See also [`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed), [`http-server/a-session-store-answers-five-operations`](http-server.md#http-server-a-session-store-answers-five-operations), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary).</sub>
+<sub>See also [`concurrency/a-secret-is-cached-only-sealed`](concurrency.md#concurrency-a-secret-is-cached-only-sealed), [`http-server/a-session-store-answers-six-operations`](http-server.md#http-server-a-session-store-answers-six-operations), [`http-server/session-expiry-belongs-to-the-store`](http-server.md#http-server-session-expiry-belongs-to-the-store), [`security/secret-crosses-no-boundary`](security.md#security-secret-crosses-no-boundary).</sub>
 
 <a id="http-server-an-upload-is-received-only-through-files"></a>
 

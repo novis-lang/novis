@@ -76,7 +76,7 @@ isolation*, and each rule there links its reasons. Anything that defeats one of 
   ([`rule:core-classes/process-is-argv-only`](docs/rules/core-classes.md#core-classes-process-is-argv-only),
   [`rule:http-server/allow-url-pins-the-address`](docs/rules/http-server.md#http-server-allow-url-pins-the-address),
   [`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`](docs/rules/http-server.md#http-server-an-unsafe-or-unbounded-default-is-a-defect),
-  [`rule:http-server/a-session-store-answers-five-operations`](docs/rules/http-server.md#http-server-a-session-store-answers-five-operations)).
+  [`rule:http-server/a-session-store-answers-six-operations`](docs/rules/http-server.md#http-server-a-session-store-answers-six-operations)).
 - **Supply chain** — anything that makes a build produce something other than these sources.
 
 ## What does not count

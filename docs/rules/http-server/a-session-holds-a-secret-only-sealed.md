@@ -26,5 +26,5 @@ write access to the store, which already means owning every session in it.
 `get` answers `null` for a sealed value and `setShortLived` and `setLongLived` refuse a `secret`, so the
 sealed members are the only door here too; a sealed value that does not open under the ring is absent
 rather than an error. The record crosses the store as the byte carrier it already is
-(`rule:http-server/a-session-store-answers-five-operations`), so no `secret` reaches the store and
+(`rule:http-server/a-session-store-answers-six-operations`), so no `secret` reaches the store and
 `rule:security/secret-crosses-no-boundary` is unchanged.

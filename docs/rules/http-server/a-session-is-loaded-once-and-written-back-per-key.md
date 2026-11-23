@@ -14,7 +14,7 @@ written whole: an array under one key is one value, and two requests that change
 write. Two requests that change *different* keys of one session keep both changes.
 
 **Each write-back is one atomic step:** one `EVAL` of the write-back script on the shared store, and
-one transaction on the `db` store (`rule:http-server/a-session-store-answers-five-operations`). Two
+one transaction on the `db` store (`rule:http-server/a-session-store-answers-six-operations`). Two
 requests that both write `userId` and `role` leave all of one request's values, never half of each.
 
 There is no lock. Nothing is held between `start` and the write-back, and two requests of one session

@@ -2,7 +2,7 @@
   "title": "A session record has a short clock and a long clock, a read refreshes one only past half its time, and the SQLite store sweeps by time, never by chance",
   "status": "shipped",
   "seeAlso": [
-    "http-server/a-session-store-answers-five-operations",
+    "http-server/a-session-store-answers-six-operations",
     "http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot",
     "http-server/no-session-block-means-the-data-folder-store"
   ],

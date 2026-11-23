@@ -1,8 +1,8 @@
-//! `rule:http-server/a-session-store-answers-five-operations`'s session store:
+//! `rule:http-server/a-session-store-answers-six-operations`'s session store:
 //! the identifier a store issues, the keys it keeps under it, and the two directives that decide
 //! where that store is and how long a session survives.
 //!
-//! **What is on disk is the store `rule:http-server/a-session-store-answers-five-operations` names
+//! **What is on disk is the store `rule:http-server/a-session-store-answers-six-operations` names
 //! and all twelve members of `rule:core-api/session-roster`.** The six operations a backend
 //! answers are here — [`issue`], [`load`], [`save`], [`take`], [`relocate`] (the rule's `move`)
 //! and [`destroy`], with [`mint`] and the key they share — over the shared tier's wire, one hash per
@@ -94,7 +94,7 @@
 //!
 //! # Decision: an identifier this store cannot have issued is *absent*, and costs no round trip
 //!
-//! `rule:http-server/a-session-store-answers-five-operations` refuses a separate `validateId`,
+//! `rule:http-server/a-session-store-answers-six-operations` refuses a separate `validateId`,
 //! because a second question is a second thing that can
 //! disagree with the first. [`issuable`] is not that second question. It answers **absent** — the
 //! same answer [`load`] gives for an expired identifier and for one an attacker minted, and
@@ -167,7 +167,7 @@ const KEY: CoreTy = CoreTy::Text(Qual::Neutral);
 /// One class and no instance side: a session is the request's, not an object a program holds, so
 /// there is nothing for a handle to be and nothing to hand back. Every member is static for that
 /// reason. [`crate::session`]'s own module doc owns which of
-/// `rule:http-server/a-session-store-answers-five-operations`'s six operations are on disk, why
+/// `rule:http-server/a-session-store-answers-six-operations`'s six operations are on disk, why
 /// the local tier is unreachable from there rather than merely unselected, and why a presented
 /// identifier this store cannot have issued is *absent* rather than a second question about
 /// validity.
@@ -322,7 +322,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             name: "openWithIdentifier",
             names: &["id"],
             // `tainted` is admitted, because the strict-id rule
-            // (`rule:http-server/a-session-store-answers-five-operations`) makes the value a
+            // (`rule:http-server/a-session-store-answers-six-operations`) makes the value a
             // lookup key and never an instruction: what the store did not issue is absent,
             // whatever it was.
             params: &[KEY],
@@ -723,7 +723,7 @@ const SIZE_CEILING: usize = crate::cache::redis::REPLY_CEILING - 64 * 1024;
 )]
 const KEY_CEILING: usize = (crate::cache::redis::STRING_ELEMENT_CEILING / 2) as usize - 1;
 
-/// `rule:http-server/a-session-store-answers-five-operations`'s `issue` on the shared store, run where
+/// `rule:http-server/a-session-store-answers-six-operations`'s `issue` on the shared store, run where
 /// the session lives.
 ///
 /// `KEYS[1]` is the session's hash. `ARGV[1]` is now, `ARGV[2]` the short clock's end and `ARGV[3]`
@@ -749,7 +749,7 @@ end
 redis.call('PEXPIRE', KEYS[1], math.max(expires - now, 1))
 return {1}";
 
-/// `rule:http-server/a-session-store-answers-five-operations`'s `save` on the shared store, run where
+/// `rule:http-server/a-session-store-answers-six-operations`'s `save` on the shared store, run where
 /// the session lives.
 ///
 /// `KEYS[1]` is the session's hash. `ARGV[1]` to `ARGV[3]` are now and the two clocks, as
@@ -832,7 +832,7 @@ end
 redis.call('PEXPIRE', key, math.max(expires - now, 1))
 return {1, size}";
 
-/// `rule:http-server/a-session-store-answers-five-operations`'s `take` on the shared store, run
+/// `rule:http-server/a-session-store-answers-six-operations`'s `take` on the shared store, run
 /// where the session lives.
 ///
 /// `KEYS[1]` is the session's hash, `ARGV[1]` the bare key and `ARGV[2]` the value the request
@@ -1266,7 +1266,7 @@ pub(crate) fn mint(ctx: &mut Ctx) -> String {
     URL_SAFE_NO_PAD.encode(drawn)
 }
 
-/// `rule:http-server/a-session-store-answers-five-operations`'s `load` — the record under `id`, or
+/// `rule:http-server/a-session-store-answers-six-operations`'s `load` — the record under `id`, or
 /// **absent**.
 ///
 /// Absent is the answer to all three of
@@ -1312,7 +1312,7 @@ fn integer_in(text: &[u8]) -> i64 {
         .unwrap_or(0)
 }
 
-/// `rule:http-server/a-session-store-answers-five-operations`'s `destroy` — the session under `id`,
+/// `rule:http-server/a-session-store-answers-six-operations`'s `destroy` — the session under `id`,
 /// deleted, and whether there was one. `DEL` of its hash.
 ///
 /// `false` tells `regenerate` that another request destroyed the session first.
@@ -1338,7 +1338,7 @@ fn decimal(number: impl std::fmt::Display) -> Vec<u8> {
     number.to_string().into_bytes()
 }
 
-/// `rule:http-server/a-session-store-answers-five-operations`'s `issue` — a new session under `id`
+/// `rule:http-server/a-session-store-answers-six-operations`'s `issue` — a new session under `id`
 /// holding `whole`, and whether it was written. One `EVAL` of [`ISSUE`]: `false` is a key that
 /// already exists, which keeps what it has.
 ///
@@ -1387,7 +1387,7 @@ pub(crate) fn issue(
     }
 }
 
-/// `rule:http-server/a-session-store-answers-five-operations`'s `save` — one request's `changes`
+/// `rule:http-server/a-session-store-answers-six-operations`'s `save` — one request's `changes`
 /// applied to the session under `id`, with its expiry refreshed, **only while the session still
 /// exists**. One `EVAL` of [`SAVE`].
 ///
@@ -1448,7 +1448,7 @@ pub(crate) fn save(
     }
 }
 
-/// `rule:http-server/a-session-store-answers-five-operations`'s `take` — `key` deleted from the
+/// `rule:http-server/a-session-store-answers-six-operations`'s `take` — `key` deleted from the
 /// session under `id` where it still holds `value`, and whether it did. One `EVAL` of [`TAKE`].
 ///
 /// A lost reply is not replayed past a request that reached the store: a replay would find the
@@ -1472,7 +1472,7 @@ pub(crate) fn take(
     }
 }
 
-/// `rule:http-server/a-session-store-answers-five-operations`'s `move` — the session under `old`
+/// `rule:http-server/a-session-store-answers-six-operations`'s `move` — the session under `old`
 /// renamed to `new` with its expiry, as one `RENAMENX`.
 ///
 /// # Errors
@@ -1527,7 +1527,7 @@ pub(crate) fn first_use(ctx: &mut Ctx, who: &'static str) -> Result<(), Fault> {
 /// identifier the `[session] cookie` presented where `given` is `None`.
 ///
 /// **Absent is one answer with one response.**
-/// `rule:http-server/a-session-store-answers-five-operations` gives `load` three ways to answer
+/// `rule:http-server/a-session-store-answers-six-operations` gives `load` three ways to answer
 /// absent — an identifier the store never issued, one it issued and has since expired, and one an
 /// attacker minted — and the open does not distinguish them: each discards the presented
 /// identifier and opens a fresh, empty session. The pre-store shape check ([`issuable`]) is not a
@@ -1626,7 +1626,7 @@ nvs_runtime::nvs_helper! {
     /// alone.
     ///
     /// The parameter admits `tainted` text, because the strict-id rule
-    /// (`rule:http-server/a-session-store-answers-five-operations`) makes it a lookup key and
+    /// (`rule:http-server/a-session-store-answers-six-operations`) makes it a lookup key and
     /// never an instruction: what the store did not issue is absent, whatever it was.
     ///
     /// # Errors
@@ -2178,7 +2178,7 @@ pub(crate) fn put_bytes(
 /// half, and what makes `Core\Passkey`'s challenge single-use.
 ///
 /// **The store deletes the key at once**, with
-/// `rule:http-server/a-session-store-answers-five-operations`'s `take`, and the bytes are returned
+/// `rule:http-server/a-session-store-answers-six-operations`'s `take`, and the bytes are returned
 /// only when the store still had the value this request loaded.
 /// So of two requests that loaded the same session in parallel, one gets the bytes and the other
 /// gets `None`. A key this request wrote itself, and a session the store does not have yet, have
@@ -3694,7 +3694,7 @@ mod tests {
         );
     }
 
-    /// The fourth operation of `rule:http-server/a-session-store-answers-five-operations`: after
+    /// The fourth operation of `rule:http-server/a-session-store-answers-six-operations`: after
     /// `destroy` the store answers absent, which is the same answer
     /// it gives an identifier it never issued.
     ///
@@ -4213,7 +4213,7 @@ mod tests {
             .map(|fields| fields.into_iter().collect())
     }
 
-    /// `rule:http-server/a-session-store-answers-five-operations`'s `save` on a real store: once
+    /// `rule:http-server/a-session-store-answers-six-operations`'s `save` on a real store: once
     /// another request destroyed the session, the write-back script answers gone and creates no
     /// hash.
     #[cfg_attr(miri, ignore = "a real store is a socket, which Miri cannot open")]
@@ -4339,7 +4339,7 @@ mod tests {
         destroy(&mut open, &app, ID).expect("the case cleans up");
     }
 
-    /// `rule:http-server/a-session-store-answers-five-operations`'s replay of `save`, on a real
+    /// `rule:http-server/a-session-store-answers-six-operations`'s replay of `save`, on a real
     /// store: the write-back script run twice with the same changes leaves the same hash as once,
     /// with and without `clear`.
     #[cfg_attr(miri, ignore = "a real store is a socket, which Miri cannot open")]
@@ -4562,7 +4562,7 @@ mod tests {
         }
     }
 
-    /// `rule:http-server/a-session-store-answers-five-operations`: on every store, `save`
+    /// `rule:http-server/a-session-store-answers-six-operations`: on every store, `save`
     /// writes nothing for an absent id or an expired row, and `issue` on an id that has a row
     /// fails and keeps that row's keys.
     #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
@@ -5948,7 +5948,7 @@ mod tests {
         }
     }
 
-    /// `rule:http-server/a-session-store-answers-five-operations`'s `take`: two requests load the
+    /// `rule:http-server/a-session-store-answers-six-operations`'s `take`: two requests load the
     /// same session and each takes the same key, as two parallel passkey verifications take one
     /// challenge. On every store exactly one gets the bytes, the other gets `None`, and the store
     /// keeps the other key with its counted size lowered.

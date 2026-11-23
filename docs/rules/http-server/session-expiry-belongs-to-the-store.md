@@ -8,7 +8,7 @@ The record's expiry is written onto the entry: `PEXPIRE` on the session's hash o
 which `RENAMENX` keeps, and an `expires_at` column on the session's head row in the `db` store's
 SQLite file. The short clock is a field of the record, `x` on the hash and `short_expires_at` on the
 head row, as epoch milliseconds. An expired record is absent at once, so `load` already answers it and
-the first use opens a fresh session (`rule:http-server/a-session-store-answers-five-operations`). On
+the first use opens a fresh session (`rule:http-server/a-session-store-answers-six-operations`). On
 the SQLite file `load` reads only a row whose `expires_at` is still ahead, so correctness never waits
 for a sweep.
 

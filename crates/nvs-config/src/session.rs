@@ -33,7 +33,7 @@ use crate::tree::Config;
 /// `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent` enforced is that there is
 /// no value of this type meaning the process's map, so no later reader can select it however
 /// carelessly it matches. A backend added here is another store that answers
-/// `rule:http-server/a-session-store-answers-five-operations`'s
+/// `rule:http-server/a-session-store-answers-six-operations`'s
 /// operations, and the memory tier cannot answer them — `load` where nothing wrote is the question
 /// it gets wrong, in the next process a deployment scales to and in this one after a restart.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

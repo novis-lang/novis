@@ -1,5 +1,5 @@
 --TEST--
-The first use of `Core\Session` on the `shared` backend reaches the one store `[cache.shared]` names, and says so when there is none -- `rule:http-server/a-session-store-answers-five-operations` and `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`, `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`, `rule:core-classes/a-session-opens-on-its-first-use`
+The first use of `Core\Session` on the `shared` backend reaches the one store `[cache.shared]` names, and says so when there is none -- `rule:http-server/a-session-store-answers-six-operations` and `rule:http-server/session-backend-is-shared-or-db-and-memory-is-refused-at-boot`, `rule:concurrency/the-memory-tier-cannot-hold-what-must-be-coherent`, `rule:core-classes/a-session-opens-on-its-first-use`
 --GET--
 under=a-request
 --FILE--

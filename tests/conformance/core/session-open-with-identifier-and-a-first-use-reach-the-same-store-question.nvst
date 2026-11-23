@@ -1,5 +1,5 @@
 --TEST--
-`Core\Session::openWithIdentifier` takes an identifier the program read itself, and the first use of any other member reads it from the cookie, so every shape reaches the same store question -- `rule:core-api/session-roster`, `rule:core-classes/a-session-opens-on-its-first-use` and `rule:http-server/a-session-store-answers-five-operations`
+`Core\Session::openWithIdentifier` takes an identifier the program read itself, and the first use of any other member reads it from the cookie, so every shape reaches the same store question -- `rule:core-api/session-roster`, `rule:core-classes/a-session-opens-on-its-first-use` and `rule:http-server/a-session-store-answers-six-operations`
 --GET--
 under=a-request
 --FILE--
@@ -22,7 +22,7 @@ array<string> $shapes = [
     // characters, which is what `mint` renders 128 drawn bits to.
     "PmA5tKz1QvR3sYbNqLwXe2",
     // And one it plainly did not — absence and a forgery are the same answer
-    // under `rule:http-server/a-session-store-answers-five-operations`, so neither can be told from the other by which error arrives.
+    // under `rule:http-server/a-session-store-answers-six-operations`, so neither can be told from the other by which error arrives.
     "not-an-identifier",
 ];
 uint $presented = 0;

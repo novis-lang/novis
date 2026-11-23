@@ -2,7 +2,7 @@
   "title": "A session is loaded once at `start`, and only the keys a request changed are written back, in one step and never locked",
   "status": "shipped",
   "seeAlso": [
-    "http-server/a-session-store-answers-five-operations",
+    "http-server/a-session-store-answers-six-operations",
     "security/closed-doors",
     "concurrency/cross-request-state-is-explicit",
     "core-api/session-roster",

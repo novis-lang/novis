@@ -45,7 +45,7 @@
 //! both and `nvs serve` is their caller.
 //!
 //! The session store, [`crate::session`], keeps one hash per session
-//! (`rule:http-server/a-session-store-answers-five-operations`). Its commands
+//! (`rule:http-server/a-session-store-answers-six-operations`). Its commands
 //! here are [`Connection::hash_all`], `HGETALL`, which reads every key at
 //! `start`; [`Connection::rename_if_absent`], `RENAMENX`, which moves a session
 //! to a new identifier; [`Connection::del`], `DEL`; and [`Connection::eval`],
@@ -422,7 +422,7 @@ impl Connection {
     /// Redis answers an absent key with an empty array, and deletes a hash
     /// whose last field goes, so an empty answer is always an absent key.
     /// [`crate::session`] keeps one field in every session's hash for that
-    /// reason (`rule:http-server/a-session-store-answers-five-operations`).
+    /// reason (`rule:http-server/a-session-store-answers-six-operations`).
     ///
     /// # Errors
     ///
@@ -1110,7 +1110,7 @@ pub(crate) mod tests {
         assert_eq!(got, Some(b"hi".to_vec()));
     }
 
-    /// `rule:http-server/a-session-store-answers-five-operations`'s `load`:
+    /// `rule:http-server/a-session-store-answers-six-operations`'s `load`:
     /// `HGETALL` answers a hash as one array, a field and its value in turn,
     /// and an absent key as the empty array. Binary bytes and an empty value
     /// cross intact, and the order is the store's.
@@ -1174,7 +1174,7 @@ pub(crate) mod tests {
         }
     }
 
-    /// `rule:http-server/a-session-store-answers-five-operations`'s `move`:
+    /// `rule:http-server/a-session-store-answers-six-operations`'s `move`:
     /// `RENAMENX` answers `1` for a move, `0` for a taken new key, and the
     /// error `ERR no such key` for a gone old one. The last is an answer and
     /// not a failure, and any other error is still a failure.

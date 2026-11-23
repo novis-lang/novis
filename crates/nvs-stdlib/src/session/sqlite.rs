@@ -1,7 +1,7 @@
 //! The `db` session store: one SQLite file in the data folder, in WAL mode
 //! (`rule:http-server/no-session-block-means-the-data-folder-store`).
 //!
-//! It answers `rule:http-server/a-session-store-answers-five-operations`'s operations over two
+//! It answers `rule:http-server/a-session-store-answers-six-operations`'s operations over two
 //! tables keyed by the application and the identifier: `nvs_session_heads`, one row per session
 //! with its expiry as milliseconds since the epoch, and `nvs_session_entries`, one row per key with
 //! its encoded value. The application is the innermost `[[app]]` block's path, the one

@@ -165,7 +165,7 @@ pub struct Session {
     ///
     /// It has to travel, because none of the three crates involved can name
     /// the other two. The store is `nvs-stdlib`'s —
-    /// `rule:http-server/a-session-store-answers-five-operations`'s five operations are
+    /// `rule:http-server/a-session-store-answers-six-operations`'s six operations are
     /// over `Core\Cache`'s wire — while the two places a program *ends* are
     /// `nvs-host`'s isolate teardown, which an HTTP request is
     /// (`rule:security/isolate-shares-nothing`), and

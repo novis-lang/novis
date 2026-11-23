@@ -1,5 +1,5 @@
 {
-  "title": "A session is a set of keys its store issued: a backend answers `issue`, `load`, `save`, `move` and `destroy`, and `load` answering absent is the whole of the strict-id rule",
+  "title": "A session is a set of keys its store issued: a backend answers `issue`, `load`, `save`, `take`, `move` and `destroy`, and `load` answering absent is the whole of the strict-id rule",
   "status": "shipped",
   "seeAlso": [
     "core-api/session-roster",
