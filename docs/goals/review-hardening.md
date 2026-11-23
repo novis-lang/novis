@@ -195,8 +195,11 @@ interface or a parent type is a use of that type's member, and the rule's fragme
 sentence. Reason: the checker cannot know which body runs. `new $cls()` through `class<Base>` is held
 by the entries on `Base` for the same reason. Nothing is built for either.
 
-**A package's `[[restrict]]` may name only its own declarations.** A `use` target outside the
-package's own name is refused when `package.toml` is read. The application's file may name anything.
+**A package's `[[restrict]]` may name only its own declarations and `Core`'s.** A `use` target under
+neither the package's own name nor `Core` is refused when `package.toml` is read. The application's
+file may name anything. Reason: one package must not add compile errors to another package's code
+or the application's. `Core` stays allowed because a framework that wraps a `Core` method restricts
+it, which is the feature's documented example (`Core\Router::urlSigned`).
 
 **`nvs reload` exits 0 only when every server it found replied and applied everything.** A server
 that drains writes a line that says it is stopping. A connection that closes with no line is a failed
@@ -328,22 +331,28 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 **Split:** an `Explore` subagent lists every `ExprInfo` variant of
 `crates/nvs-types/src/expr_table.rs`, one line each, with whether `resolved` has an arm for it.
 
-- [ ] `crates/nvs-types/src/deprecated/template.rs:654`: `resolved` has no `_` arm, as the standing
+- [x] `crates/nvs-types/src/deprecated/template.rs:654`: `resolved` has no `_` arm, as the standing
   decision gives it. `rule:packaging/a-restriction-limits-where-a-declaration-is-used` *read.*
-- [ ] `crates/nvs-types/src/program.rs:106`: the three `Core\Program` members record the classes they
-  construct. *check first.*
+- [x] `crates/nvs-types/src/program.rs:106`: the three `Core\Program` members record the classes they
+  construct. *check first.* Shown: an enumeration of a restricted class compiled. Fixed in `resolved`.
 - [ ] `crates/nvs-types/src/defaults.rs:430`: a property default, a parameter default at `:556` and an
   attribute payload (`crates/nvs-types/src/attributes.rs:979`) are read inside a window. *check first.*
 - [ ] `crates/nvs-types/src/attributes.rs:147`: an attribute on an anonymous function's parameter is
   checked like a method parameter's. `fn(#[NoSuchThing(x: 1)] int $n): int => $n` compiles today.
   *run.*
-- [ ] `crates/nvs-config/src/restrict.rs:371`: a package's `use` target is its own.
-- [ ] `crates/nvs-types/src/restrict.rs:718`: an allowed place that is a class does not allow a
-  namespace of the same name. *check first.*
+- [ ] `crates/nvs-config/src/restrict.rs:371`: a package's `use` target is its own or `Core`'s.
+  - [x] the check is in `parse`
+  - [ ] a row in `crates/nvs-config/tests/restrict.rs`: a package naming `Shop\Cart` is E0665, one
+    naming `Core\Str::upper` is not
+- [x] `crates/nvs-types/src/restrict.rs:718`: an allowed place that is a class does not allow a
+  namespace of the same name. *check first.* Shown by a row, and fixed with `Site::graph`.
 - [ ] `crates/nvs-types/src/retrieval.rs:452`: a retrieval binds `static` to the method's owner.
   *check first.*
-- [ ] `crates/nvs-types/tests/restrict_use_forms.rs:1`: one row per variant the subagent listed, in a
-  two-package fixture named `Shop` and `Framework`. It runs once, by name.
+- [ ] `crates/nvs-cli/tests/restrict_use_forms.rs:1`: one row per variant the subagent listed, in a
+  two-package fixture named `Shop` and `Framework`. It runs once, by name. It is in `nvs-cli`
+  because a row runs `nvs check` over a folder with a `package.toml`.
+  - [x] a union receiver, an enumeration, `static::NAME`, a class that is not a namespace
+  - [ ] a route link, and the rows the defaults, attribute and retrieval items add
 - [ ] `docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md:57`: the use forms as
   the table has them, and the sentence on ancestors.
 - [ ] `cargo build` and clippy are green.
@@ -484,38 +493,43 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### State
 
-Stages 1 and 2 are done. Stage 1: `Ctx::child` in `crates/nvs-runtime/src/ctx/isolate.rs`, test
-`crates/nvs-cli/tests/task_child_limits.rs`. Stage 2: `Carrier::SKIPS_HIDDEN` and `written_slots`
-(`crates/nvs-runtime/src/graph.rs`) keep the hidden slot out of a payload. `Core\ObjectMap::set`,
-`Core\ObjectSet::add` and `Core\Heap::push` link a member only once a re-read shows the write
-landed. Without that, a write the ceiling refused still linked, the collection was freed, and the
-revoke read it: the map and the heap aborted on a refcount underflow (`array.rs:3049`), the set on
-`STATUS_HEAP_CORRUPTION`. `crates/nvs-codegen/tests/hidden_slot.rs` has one ceiling row per
-collection (`refused_write_links_nothing`), run by name, green, and each aborts with its fix
-reverted. The row's proof is the abort: `membership_walks` also counts the `unlink` a freed
-collection runs for a landed write, so it cannot tell the two apart.
+Stages 1 and 2 are done (tests `task_child_limits`, `hidden_slot`). `Live::adopt` was not found:
+only a task's returned collection at the await is adopted, and no code reads its membership after.
 
-`Live::adopt` (`graph.rs:595`) was not found. Every array entry and object field is retained before
-the walk reaches it (`graph.rs:389`, `:462`), so only the top-level value of a crossing can be
-adopted. The `upgrade` members and the test fixtures retain that value too (`socket.rs:896`,
-`dispatch.rs:1334`), and a spawn's top level is its argument list. That leaves a task's returned
-collection at the await (`crates/nvs-host/src/isolate.rs:1634`). Its members are copied, and an
-original that the task still holds elsewhere keeps a membership that names the adopted collection.
-Only `revoke()` reads a membership, and no task code runs after the await's copy, so nothing reaches
-it. It is freed with the task's heap.
+Stage 3 is half done. `resolved` (`crates/nvs-types/src/deprecated/template.rs:654`) names all 38
+`ExprInfo` variants with no `_` arm. Before, 28 of them used nothing. New uses: `UnionMember` (each
+arm), `ProgramInstances`/`With`/`Constructors` (each class and its constructor), `ClassConstLate`
+(the declaring class's constant), and `RouteLink`/`RouteIs` (the call they are recorded over).
+`Site` (`crates/nvs-types/src/restrict.rs:691`) now carries the class graph: an allowed name that is
+a class matches only that class. A package's `use` target must lie under its own name or `Core`
+(`crates/nvs-config/src/restrict.rs`, `parse`). This narrows the standing decision, because the
+feature's documented example is a package restricting `Core\Router::urlSigned`.
+`crates/nvs-cli/tests/restrict_use_forms.rs` has 4 rows. They ran once by name and passed, and all 4
+fail with the checker change reverted.
 
-Sessions per stage: stage 1, one; stage 2, two.
+Not yet looked at: the defaults window (`defaults.rs:430`). A default is folded from the syntax and
+records no `ExprInfo`, so a restricted constant in a property default is probably not checked. One
+attempt still owed. Also owed: the anonymous function's parameter attribute (`attributes.rs:147`),
+the retrieval `static` binding (`retrieval.rs:452`), the rule text, and the package-target test row.
+
+Sessions per stage: stage 1, one; stage 2, two; stage 3, one.
 
 ### Next
 
-Stage 3, as its `**Split:**` line says: an `Explore` subagent lists every `ExprInfo` variant of
-`crates/nvs-types/src/expr_table.rs` and whether `resolved`
-(`crates/nvs-types/src/deprecated/template.rs:654`) has an arm for it. Then `resolved` loses its `_`
-arm, and the *check first* items at `program.rs:106`, `defaults.rs:430`, `restrict.rs:718` and
-`retrieval.rs:452` each get one attempt. Stages 4, 5, 6, 8, 9, 10 and 11 touch disjoint files and
-may be taken in any order.
+Stage 3's open items, in this order. (1) Add a row to `crates/nvs-config/tests/restrict.rs`: a
+package naming `Shop\Cart` gives E0665, and one naming `Core\Str::upper` passes. (2) Make one attempt
+at the defaults item: add a row to `restrict_use_forms.rs` with `public int $n = Framework\Base::LIMIT;`
+in `Shop`. If it compiles, check a default's const references in the body's restriction window.
+(3) Fix the anonymous function's parameter attribute: find where `check_anon_fn`
+(`crates/nvs-types/src/expr/calls.rs`) checks parameters and call `attributes::check_params`.
+(4) Make one attempt at the `retrieval.rs:452` item. (5) Update the rule fragment
+(`docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md:57`): the use forms, the
+sentence on ancestors, the class-not-namespace match, and a package's `use` target. Stages 4, 5, 6,
+8, 9, 10 and 11 touch disjoint files.
 
-No test is expected to go red. Stage 1's arming may move where a task's allocation over the ceiling
+Tests that may go red: an existing package fixture whose `use` names another package's code (none
+found). Also an editor completion or `E0664` case that relied on a class's allowed name matching a
+namespace with the same name. Stage 1's arming may move where a task's allocation over the ceiling
 stops in a conformance or group test: a case whose expected error had no "was refused" clause for a
 task's allocation now has one. A dump of a revocable object no longer prints a `#revocable` line;
 no expected output in the tree had one.
