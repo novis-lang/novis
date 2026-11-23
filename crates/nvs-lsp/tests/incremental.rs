@@ -383,6 +383,32 @@ fn a_signature_constant_attribute_or_require_edit_changes_the_surface_hash() {
     }
 }
 
+/// A file-scope attribute declaration is on the surface: an edit to its
+/// sites, a field or its doc comment changes the hash.
+#[test]
+fn an_attribute_declaration_edit_changes_the_surface_hash() {
+    let text = "<?nvs
+/// Marks a job.
+attribute Job on method {
+    queue: string,
+}
+";
+    let base = surface::of_source(text);
+    let edits: [(&str, &str, &str); 3] = [
+        ("site", "on method", "on method, class"),
+        ("field", "queue: string", "queue: int"),
+        ("doc comment", "Marks a job.", "Marks a queued job."),
+    ];
+    for (kind, from, to) in edits {
+        assert!(text.contains(from), "the {kind} edit finds its text");
+        assert_ne!(
+            surface::of_source(&text.replacen(from, to, 1)),
+            base,
+            "a {kind} edit keeps the surface hash"
+        );
+    }
+}
+
 /// A body-only edit in a library file changes nothing another file can see,
 /// so no reader waits.
 #[test]

@@ -16,6 +16,7 @@
 //!   cases with their values, and each member's doc comment, attributes,
 //!   modifiers, type, default, constant value and signature, and each property
 //!   hook's signature;
+//! - every attribute declaration, with its doc comment and its fields' docs;
 //! - every function's signature, top-level ones included;
 //! - every other file-scope statement whose text has the word `require`, which
 //!   is every file-scope `require`.
@@ -141,6 +142,9 @@ impl<'a> Surface<'a> {
                         continue;
                     }
                 }
+                // An attribute declaration is written whole: its sites and its
+                // fields, with each field's doc comment, are what a use checks.
+                StmtKind::AttributeDecl(decl) => self.doc(decl.doc.as_ref()),
                 StmtKind::UseDecl(_)
                 | StmtKind::AutoloadDecl(_)
                 | StmtKind::TypeAliasDecl(_)
