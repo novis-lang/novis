@@ -258,32 +258,17 @@ value. Reason: one way to write a year is simpler, and the reader stays strict.
 
 ### State
 
-All seven stages are done. The full gate ran `looper verify` three times. The first two runs were
-red, and the third was green over everything since the last full gate. It covered
-taint-fail-closed, windows-rust-lld, review-hardening and csrf-cookieless-visitor too.
+All seven stages are done. The full gate's third `looper verify` was green over everything since
+the last full gate, taint-fail-closed, windows-rust-lld, review-hardening and csrf-cookieless-visitor
+included. Its fixes: `signatureHelp` `.lspt` cases and fixtures (`test(lsp)`), tests that pin what
+earlier goals shipped (`test`), `Instant::toIso` writing `-9999-…` (`fix(stdlib)`, standing
+decision *An ISO year has one syntax*), and the editor page's snippet (`docs(site)`).
 
-What the gate fixed, in four commits:
-
-- `test(lsp)`: `signatureHelp` is in the render fixtures, the cursor split
-  (`crates/nvs-lsp/src/case.rs`) and the completion source table (`declaration_words`). 41 new
-  `.lspt` cases fill the coverage matrix's `signatureHelp` row and five `ShapeType` cells.
-- `test`: tests that earlier goals left behind their own deliberate changes. These were the string
-  half-capacity copy, no session row from a CSRF token alone, the write-back script's long-clock
-  ceiling, a package restriction naming only its own code, and the epoch readers rounding down.
-  Each test now pins the shipped behaviour. No library code changed.
-- `fix(stdlib)`: `Instant::toIso` and the JSON, db and io writers wrote the first instant as
-  `-009999-…`, which `fromIso` rejects. They now write `-9999-…`, and JSON reads with `fromIso`'s
-  grammar (standing decision *An ISO year has one syntax*). The cases, 33 hostile programs, the
-  rule and the `toIso` and `fromIso` pages say so, and `changes.json` has a breaking `fixed` entry.
-- `docs(site)`: the editor page's example is the snippet `tools/editor/attribute-declaration.nvs`.
-  The roadmap gives `exact-invalidation` a theme, and the question entries are restamped.
-
-`bun nv proofs --record-perf` re-measured the seven `Core\Time` groups, because `time.rs` changed.
 The first DONE was refused: `floor-debt` found two `Novis-Rest-Session` examples red. They called
 `Core\Test::answerHttp` beside a `.nvsr`, and review-hardening made it throw in a request.
 `fix(examples)` builds the token directly in `01-*` and makes `03-*` a `proof: test` program whose
-`Core\Test::request` fakes the reply. `bun nv proofs --run --only 'Novis\Rest\Session'` is green
-(3 examples), and the feature's `about.md` and help are restamped. No test is expected to go red.
+`Core\Test::request` fakes the reply. `bun nv proofs --run --only 'Novis\Rest\Session'` is green,
+and the feature's `about.md` and help are restamped. No test is expected to go red.
 
 The uncommitted `docs/rules/tooling.md` hunk is not this goal's.
 
