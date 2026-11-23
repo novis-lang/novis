@@ -6,7 +6,7 @@ context: []
 stages:
   - id: 1
     title: "a task child keeps its request's grants and its memory ceiling"
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/ctx/isolate.rs, crates/nvs-runtime/src/ctx/limits.rs]
   - id: 2
     title: a decoded payload and a refused write leave no membership that points nowhere
@@ -294,17 +294,16 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### 1. a task child keeps its request's grants and its memory ceiling
 
-- [ ] `crates/nvs-runtime/src/ctx/isolate.rs:396`: `Ctx::child` copies `grant_filter`. *read.*
-- [ ] `crates/nvs-runtime/src/ctx/limits.rs:368`: a task's stack is armed with its request's ceiling
+- [x] `crates/nvs-runtime/src/ctx/isolate.rs:396`: `Ctx::child` copies `grant_filter`. *read.*
+- [x] `crates/nvs-runtime/src/ctx/limits.rs:368`: a task's stack is armed with its request's ceiling
   (`arm_on_this_stack`, called at `crates/nvs-host/src/scheduler.rs:1013`). The comment at
   `crates/nvs-runtime/src/ctx/isolate.rs:454` says what holds. *run.*
-- [ ] `crates/nvs-host/tests/task_child_limits.rs:1`: a script spawned with `grants: ['fs.read']`
+- [x] `crates/nvs-cli/tests/task_child_limits.rs:1`: a script spawned with `grants: ['fs.read']`
   under a configuration that grants `net` too is refused an outbound call inside `Core\Task::all`. An
-  allocation of 400 MB inside a task is refused before it is made, in a release-profile run. It runs
-  once, by name.
-- [ ] `tests/hostile/`: one attack for each, beside the existing attacks on `grants:` and on the
+  allocation of 400 MB inside a task is refused before it is made. It runs once, by name.
+- [x] `tests/hostile/`: one attack for each, beside the existing attacks on `grants:` and on the
   memory limit. `bun nv proofs --id 'Core\Task::all'` names the folder.
-- [ ] `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
+- [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` are green.
 
 ### 2. a decoded payload and a refused write leave no membership that points nowhere
 
@@ -482,19 +481,29 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### State
 
-Nothing is built. The figures of § *Why* were measured on a release binary built from a commit inside
-`v0.0.5`.
+Stage 1 is done. `Ctx::child` copies `grant_filter` and arms the copied memory ceiling as it is made
+(`crates/nvs-runtime/src/ctx/isolate.rs`). The cause of the escaped ceiling: `Ctx::sharing` arms
+nothing, and `Ctx::child` copied `memory_limit` without arming it, so `leave_this_stack` saved
+nothing and `arm_on_this_stack` armed nothing on the task's stack. A 400 MB string in a task under a
+64 MB ceiling was made and caught only at the next poll. Now the allocator refuses it, and the error
+names the refused size. Both defects were reproduced on the pre-fix release binary first.
 
-Sessions per stage: none yet.
+The test is `crates/nvs-cli/tests/task_child_limits.rs`, not `nvs-host`: both cases are Novis
+programs, and only `nvs-cli`'s tests have the binary. It ran once by name, green, on the debug binary.
+The debug binary shows the refusal too, so no release run is needed. The attacks are
+`tests/hostile/core/Task/all/04-…` and `05-…`, with the spawned script in `jobs/`. The paragraph
+*A `Core\Task` child is its request for every limit* is in `rule:security/isolate-shares-nothing`.
+
+Sessions per stage: stage 1, one.
 
 ### Next
 
-Stage 1 from its first item, at `crates/nvs-runtime/src/ctx/isolate.rs:396` (`Ctx::child`). Copy
-`grant_filter` as `Ctx::isolate` does at `:589`, then read `arm_on_this_stack`
-(`crates/nvs-runtime/src/ctx/limits.rs:368`) and `leave_this_stack` at `:342` to see why a task's
-stack is armed with nothing. Write `crates/nvs-host/tests/task_child_limits.rs:1` from the two
-programs of § *Why*. The group tests of `crates/nvs-host/src/group.rs:1352` read the poll and stay
-green. No test is expected to go red.
+Stage 2 from its first item, at `crates/nvs-runtime/src/graph.rs:1159` (`decode`) and `:870`
+(`encode`). Then `crates/nvs-stdlib/src/objmap.rs:540` (*check first*, one attempt) and `:613`
+(`remove_entry`). No test is expected to go red. Stage 1's arming may move where a task's
+allocation over the ceiling stops in a conformance or group test: a case whose expected error had no
+"was refused" clause for a task's allocation now has one. No conformance case expects a memory error
+and uses a task, and no suite was run.
 
 ### Backlog
 
