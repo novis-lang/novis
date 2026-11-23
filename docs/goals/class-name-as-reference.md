@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-ir/src/lower/expr.rs, crates/nvs-ir/src/lower/convert.rs, crates/nvs-ir/tests/class_reference.rs, tests/conformance/class/a-class-reference-instantiates-the-subclass-it-names.nvst]
   - id: 3
     title: "the rules, the examples, the proofs and the website"
-    status: open
+    status: done
     context: [docs/agent/prose.md, docs/examples/lang/types/callable-classes-object-shapes/about.md, docs/examples/lang/types/the-conversion-operator-as/about.md, website/src/data/changes.json]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
@@ -205,14 +205,14 @@ pays every proof the goal owes.
 written, with [prose.md](../agent/prose.md) in its brief. The session writes the rules and the change
 entry.
 
-- [ ] `docs/rules/types/class-reference.md:1`: "`as` is the only source" becomes "`as` and a written
+- [x] `docs/rules/types/class-reference.md:1`: "`as` is the only source" becomes "`as` and a written
   `::class` at a `class<T>` place are the two sources", with the table of *Standing decisions*, the
   default bullet and *What it spends*. Add to Declined: "A string literal or a `string` variable accepted
   at a `class<T>` place without `as`" (the reason from *Standing decisions*) and "A warning on an `as`
   that is no longer needed".
-- [ ] `docs/rules/types/class-constant.md:1`: one sentence saying that `::class` is a `class<C>` where
+- [x] `docs/rules/types/class-constant.md:1`: one sentence saying that `::class` is a `class<C>` where
   a `class<T>` is expected, pointing at `types/class-reference`. Then `bun nv rules --render`.
-- [ ] The examples that write `Foo::class as class<…>` drop the `as` where a written `::class` now
+- [x] The examples that write `Foo::class as class<…>` drop the `as` where a written `::class` now
   needs none, and keep it where a string arrives at run time. Each is reread and its `.out` checked:
   - `docs/examples/lang/classes/inheritance/03-a-class-the-program-picks-while-it-runs.nvs`
   - `docs/examples/lang/classes/inheritance/10-a-static-call-through-a-class-value.nvs`
@@ -223,20 +223,20 @@ entry.
   - `docs/examples/lang/types/the-conversion-operator-as/05-a-class-name-read-while-the-program-runs.nvs`
   - `docs/examples/lang/types/the-conversion-operator-as/06-a-configured-class-with-a-default.nvs`
   - `docs/examples/lang/types/the-conversion-operator-as/07-a-class-name-outside-the-hierarchy.nvs`
-- [ ] A new example in `docs/examples/lang/types/callable-classes-object-shapes/` at the next free
+- [x] A new example in `docs/examples/lang/types/callable-classes-object-shapes/` at the next free
   number: a function takes `class<Storable>`, and the caller passes `Invoice::class`.
-- [ ] `docs/examples/lang/types/callable-classes-object-shapes/about.md`, its `details.md`,
+- [x] `docs/examples/lang/types/callable-classes-object-shapes/about.md`, its `details.md`,
   `docs/examples/lang/types/the-conversion-operator-as/about.md`, its `details.md` and
   `docs/examples/lang/classes/inheritance/details.md` say when the `as` is needed and when it is not.
-- [ ] `website/src/data/changes.json`: one `changed` entry for `lang:types/callable-classes-object-shapes`
+- [x] `website/src/data/changes.json`: one `changed` entry for `lang:types/callable-classes-object-shapes`
   and `lang:types/the-conversion-operator-as`: "You can pass `Foo::class` where a `class<T>` is
   expected. You do not need to write `as class<T>`. A class name in a string variable still needs `as`."
   Every page `bun nv site --check stale` names is reread and stamped (`bun nv site --stamp`).
-- [ ] `bun nv proofs --owed --goal class-name-as-reference` names nothing.
+- [x] `bun nv proofs --owed --goal class-name-as-reference` names nothing.
 
 ### 4. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of the change entry and the new example ([prose.md](../agent/prose.md) § *A newcomer reads it*).
+- [x] The newcomer review of the change entry and the new example ([prose.md](../agent/prose.md) § *A newcomer reads it*).
 - [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
@@ -244,34 +244,32 @@ entry.
 
 ### State
 
-Stages 1 and 2 are done. Stage 2 pinned the lowering with the two `lowering` tests
-(`crates/nvs-ir/tests/class_reference.rs`). It also made a property default, instance or `static`, take a
-written `Foo::class`: `defaults::eval_property_default` → `ir::PropertyDefault::Class` →
-`nvs-codegen`'s `Classes::link_default` → `nvs_runtime::FieldDefault::Class(ClassAddr)`. The parser now
-reads `public class<T> $p` as a property (`parser/decl.rs`, test
-`a_class_reference_property_in_a_class_body_parses`). The new checker test is
-`a_property_default_may_be_a_written_class_name`. The `conformance` check is green, and so are a build
-and clippy.
+Stages 1 to 3 are done. Stage 3 wrote `rule:types/class-reference` (the two sources, the table of the
+five forms, the defaults, *What it spends*, two Declined bullets) and the pointer sentence in
+`rule:types/class-constant`. Five examples drop the `as` on a written `::class` or a quoted default.
+`07-a-class-name-outside-the-hierarchy.nvs` keeps `'Rock' as class<Animal>`, because its folder is
+about `as` and a literal still needs it. The new example is
+`callable-classes-object-shapes/06-pass-a-class-to-a-function.nvs`. The pages say when the `as` is
+needed, the `changed` entry is in `website/src/data/changes.json`, and the conformance case now
+`covers:` both features, which is what moved their behaviour hash. The old `unseen` record of
+`lang:types/the-conversion-operator-as` is deleted, since a real entry covers it now.
 
-No test is expected to go red. `FieldDefault` gained a variant, and every match on it outside the
-runtime's `materialize` is a constructor, so none broke.
+The newcomer review of stage 4 is done: 11 texts reviewed, their findings fixed and stamped. The
+re-render made 54 `lang:` perf figures stale, and they are recorded with the release binary. `site
+--check stale`, `review`, `questions` and `changes` are green.
 
-The nightly CI run `45166887327` was cancelled by a push's concurrency group, not by a failure.
+No test is expected to go red.
 
 ### Next
 
-Stage 3, the rules, the examples and the website (`docs/rules/types/class-reference.md:1`,
-`docs/rules/types/class-constant.md:1`, the examples list in stage 3).
+Stage 4 closes the goal.
 
-- [ ] `docs/rules/types/class-reference.md:1`: the two sources, the table, the parameter and property
-  default (with the parser bullet and *What it spends* from *Standing decisions*), and the two Declined
-  bullets. Then `docs/rules/types/class-constant.md:1`'s one sentence, and `bun nv rules --render`.
-- [ ] `docs/examples/lang/classes/inheritance/03-a-class-the-program-picks-while-it-runs.nvs:1` and the
-  other eight examples stage 3 lists, plus the new `class<Storable>` example: one writing subagent with
-  `docs/agent/prose.md` in its brief.
-- [ ] `docs/examples/lang/types/callable-classes-object-shapes/about.md:1` and the other pages stage 3
-  lists, the `website/src/data/changes.json:1` entry, `bun nv site --check stale`, and
-  `bun nv proofs --owed --goal class-name-as-reference`.
+- [ ] `crates/nvs-types/tests/classes.rs:1`: the build, clippy, and the `checker`, `lowering` and
+  `conformance` acceptance runs by name, then `bun nv close --goal class-name-as-reference`, each red
+  fixed. At a full gate, `looper verify` instead, as the pack says.
+- [ ] `docs/goals/class-name-as-reference.md:1`: before `DONE`, move any decision only this file holds
+  to the rule (the *Standing decisions* are already in `rule:types/class-reference`), then delete the
+  file and `bun nv relink --build`.
 
 ### Backlog
 
