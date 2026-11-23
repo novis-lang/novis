@@ -73,7 +73,10 @@ fn a_payload_with_a_node_for_the_hidden_slot_is_refused() {
 
     let built = nvs_runtime::decode(&post_payload(false), &ctx.receiving())
         .expect("a payload of the class's one property decodes");
-    #[expect(unsafe_code, reason = "the decode returned one reference, given up here")]
+    #[expect(
+        unsafe_code,
+        reason = "the decode returned one reference, given up here"
+    )]
     unsafe {
         built.release();
     }
@@ -110,13 +113,39 @@ foreach ($back->posts as Post $copy) {{
 
 #[test]
 #[cfg(debug_assertions)]
-fn a_write_the_ceiling_refused_links_nothing() {
+fn a_map_write_the_ceiling_refused_links_nothing() {
+    refused_write_links_nothing(
+        "var $map = new Core\\ObjectMap<string, Post>();\n        $map->set(\"k\", $post);",
+    );
+}
+
+#[test]
+#[cfg(debug_assertions)]
+fn a_set_write_the_ceiling_refused_links_nothing() {
+    refused_write_links_nothing(
+        "var $set = new Core\\ObjectSet<Post>();\n        $set->add($post);",
+    );
+}
+
+#[test]
+#[cfg(debug_assertions)]
+fn a_heap_write_the_ceiling_refused_links_nothing() {
+    refused_write_links_nothing(
+        "var $heap = new Core\\Heap<Post>(fn(Post $a, Post $b): int => 0);\n        $heap->push($post);",
+    );
+}
+
+/// Runs `write`, which puts `$post` into a collection that is freed when the
+/// write returns, and then revokes `$post`, under every ceiling from 8 to 4096
+/// bytes. A membership left by a refused write names the freed collection, and
+/// the revoke then reads freed memory and aborts the test.
+#[cfg(debug_assertions)]
+fn refused_write_links_nothing(write: &str) {
     let source = format!(
         r#"{POST}
 class K {{
     public static function put(Post $post): void {{
-        var $map = new Core\ObjectMap<string, Post>();
-        $map->set("k", $post);
+        {write}
     }}
 }}
 Post $post = new Post("first");
@@ -131,7 +160,9 @@ echo "revoked";
     // The bytes a run holds when the map writes differ by platform, so every
     // ceiling up to well past them is tried. Below them the run stops before
     // the write. Between them and the write's growth the write is refused,
-    // `put` frees the map, and the revoke runs before any poll stops the run.
+    // `put` frees the collection, and the revoke runs before any poll stops
+    // the run. Above them the write lands, and the collection's free unlinks
+    // the post, which counts one membership walk.
     let mut refused = 0;
     for ceiling in (8..4096).step_by(8) {
         let mut ctx = Ctx::buffered();
@@ -149,13 +180,11 @@ echo "revoked";
         if !stopped || nvs_runtime::revoke::revokes() == revokes {
             continue;
         }
-        refused += 1;
-        // The refused write linked nothing, so the revoke walked no membership.
-        assert_eq!(
-            nvs_runtime::budget::membership_walks(),
-            walks,
-            "under a {ceiling}-byte ceiling, a write the ceiling refused left a membership behind"
-        );
+        // No walk at all: the write was refused, it linked nothing, and the
+        // revoke found the post in no collection.
+        if nvs_runtime::budget::membership_walks() == walks {
+            refused += 1;
+        }
     }
     assert!(
         refused > 0,

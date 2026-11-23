@@ -862,9 +862,15 @@ nvs_runtime::nvs_helper! {
                 value.retain();
             }
             entries.set_index(at(position), value);
-            position
+            // A write the memory ceiling refused leaves the heap as it was,
+            // so it links nothing.
+            let landed = entries
+                .get_index(at(position))
+                .is_some_and(|held| held.bits() == value.bits());
+            (position, landed)
         })?;
-        if tracked {
+        let (position, landed) = position;
+        if tracked && landed {
             revoke::link(value, receiver, MembershipKind::HeapEntry, Value::null());
         }
         sift_up(ctx, receiver, "push", position)?;

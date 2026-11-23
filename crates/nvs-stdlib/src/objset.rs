@@ -579,7 +579,9 @@ nvs_runtime::nvs_helper! {
                 value.retain();
             }
             store::put(entries, &place, false, value);
-            true
+            // A write the memory ceiling refused leaves the set as it was, so
+            // it links nothing.
+            store::place(entries, keying, value).1
         })?;
         if tracked && added {
             revoke::link(value, receiver, MembershipKind::SetMember, Value::null());
