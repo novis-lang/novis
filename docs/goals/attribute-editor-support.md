@@ -10,7 +10,7 @@ stages:
     context: [editors/vscode/syntaxes/nvs.tmLanguage.json, crates/nvs-lsp/src/semantic.rs, crates/nvs-lsp/src/file_kinds.rs, editors/vscode/src/kinds.ts, docs/rules/ide/a-file-shows-what-it-declares.md]
   - id: 2
     title: "the outline, folding, member order and fmt know a declaration"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/symbols.rs, crates/nvs-lsp/src/folding.rs, crates/nvs-lsp/src/order.rs, docs/rules/tooling/class-members-have-one-order.md]
   - id: 3
     title: "attribute, repeatable and a field's type are completed"
@@ -156,19 +156,19 @@ allow writing one. Key completion and signature help show what is missing.
 
 **Split:** the four `.lspt` cases and the two fmt cases go to one writing subagent once the code lands.
 
-- [ ] `crates/nvs-lsp/src/symbols.rs:135` and `:233`: a declaration is a document symbol at file scope
+- [x] `crates/nvs-lsp/src/symbols.rs:135` and `:233`: a declaration is a document symbol at file scope
   and as a class member, of the kind the workspace symbols already give it
   (`crates/nvs-lsp/src/server.rs:2076`). Its fields are its children.
-- [ ] `crates/nvs-lsp/src/folding.rs:258` and `:283`: a body that spans lines folds.
-- [ ] `crates/nvs-lsp/src/order.rs:445`: a declaration is in group one with `enum` and `type`;
+- [x] `crates/nvs-lsp/src/folding.rs:258` and `:283`: a body that spans lines folds.
+- [x] `crates/nvs-lsp/src/order.rs:445`: a declaration is in group one with `enum` and `type`;
   `rule:tooling/class-members-have-one-order` says so in its step 1.
-- [ ] `.lspt` cases: `tests/lsp/symbols/an-attribute-declaration-is-in-the-outline.lspt:1`,
+- [x] `.lspt` cases: `tests/lsp/symbols/an-attribute-declaration-is-in-the-outline.lspt:1`,
   `tests/lsp/folding/an-attribute-declarations-body-folds.lspt:1`, and an order case beside the existing
   ones under `tests/lsp/actions/`.
-- [ ] An `nvs fmt` case, `tests/fmt/input/attribute-declarations.nvs:1` and its
+- [x] An `nvs fmt` case, `tests/fmt/input/attribute-declarations.nvs:1` and its
   `tests/fmt/formatted/attribute-declarations.nvs:1`: a one-line declaration, a multi-line body with a
   doc comment on a field, and a class-scoped one, each written with spacing `fmt` corrects.
-- [ ] A sweep with `Explore`: every `match` on `StmtKind` or `ClassMemberKind` under `crates/nvs-lsp/src/`
+- [x] A sweep with `Explore`: every `match` on `StmtKind` or `ClassMemberKind` under `crates/nvs-lsp/src/`
   with a `_ =>` arm. Each that drops a declaration where a class or enum is handled gets an arm, or a
   line under `### State` saying why it needs none.
 
@@ -239,29 +239,29 @@ allow writing one. Key completion and signature help show what is missing.
 
 ### State
 
-Stage 1 is done, in three commits. The grammar's `#attribute-declaration` is now a region: the header,
-then `#attribute-sites` (the four site words take `keyword.other.nvs` up to the `{` or the end of the
-line; the commas keep the text colour, since the allowlist has no separator scope), then the body
-through `#shape-type`. `#shape-type` now includes `#comments` and colours an optional field's name
-(`name?:`), which also fixes both in an ordinary inline shape. The website grammar was re-rendered with
-`bun nv render`. The semantic layer gives a field `property` (`Named::attribute_decl`,
-`crates/nvs-lsp/src/semantic.rs:588`); the legend has no `declaration` modifier, so the standing
-decision was corrected. `nvs/fileKinds` answers `attribute`, and the client draws `A`.
+Stages 1 and 2 are done. Stage 2: a declaration is a `struct` document symbol at file scope and as a
+class member, its fields `field` children (`fields`, `crates/nvs-lsp/src/symbols.rs`). It folds over
+its own span (`crates/nvs-lsp/src/folding.rs`), and `order.rs`'s `key` puts it in group one; the
+rule's step 1 says so. `nvs fmt` already formatted every form, so the fmt pair only pins it.
 
-A field has no default (`rule:attributes/an-attribute-is-declared-with-its-sites`), so the fixture's
-optional field has none, and the signature-help decision no longer writes `= v`. The `## Why`
-paragraph at line 51 still writes `opt?: T = v`; it is history and left as written.
+The sweep found two real gaps, both fixed. `surface.rs` left a file-scope declaration out of the
+surface hash, so an edit to its fields did not re-check the files that use it. The `///` tag
+completion read a declaration's doc and its fields' docs as `Unknown` and offered `@param`; it now
+reads them as `Other`. Every other wildcard arm sees no expression, call, method, parameter or member
+in a declaration (`walk.rs`, `rename.rs:1113`, `locals.rs`, `narrow.rs`, `typed_parameter.rs`,
+`definition.rs`'s `body_of`, `supertype_names` and `class_name_at`, `order.rs`'s `collect`), so it
+needs no arm. `completion.rs:4126` and the member rows after `Owner::` leave a declaration out on
+purpose: `Owner::Name` names one only after `#[`, which is stage 3's.
 
-Tests run by name and green: the grammar suite (129 passing), `kinds.test.ts` (13 passing),
-`autoload::a_file_that_declares_one_type_is_listed_with_its_kind`, and the `.lspt` case. None is
-expected to go red. Stage 6 owes the editor page's mention of `A` and a `changes.json` entry for the
-colours and the badge.
+Tests run by name and green: `incremental::an_attribute_declaration_edit_changes_the_surface_hash`,
+the fmt `fixtures` suite (4), and the three new `.lspt` cases. None is expected to go red. Stage 6
+owes the editor page's mention of `A`, the outline and folding, and `changes.json` entries for the
+colours, the badge, the outline and the order.
 
 ### Next
 
-Stage 2, its first item: `crates/nvs-lsp/src/symbols.rs:135` and `:233`, a declaration as a document
-symbol. Then folding (`crates/nvs-lsp/src/folding.rs:258`), member order
-(`crates/nvs-lsp/src/order.rs:445`) and the fmt case.
+Stage 3, its first item: `crates/nvs-lsp/src/completion.rs:2793` and `:2896`, `attribute` and
+`repeatable` offered where the parser accepts them, with the snippet the standing decision gives.
 
 ### Backlog
 
