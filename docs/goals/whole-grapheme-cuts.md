@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-stdlib/src/str.rs, tests/conformance/core/str-after-and-before-cut-at-the-position-index-of-reports.nvst]
   - id: 2
     title: "Str::afterPrefix and Str::beforeSuffix"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/str.rs, docs/examples/core/Str/after/about.md, benches/members/core/Str/after.nvs, tests/hostile/core/Str/after/01-long-searches-and-repeated-separators.nvs]
   - id: 3
     title: "W1036 names a prefix or suffix cut written by hand"
@@ -207,28 +207,28 @@ adds a test and a conformance case.
 subagent once the members build, with [prose.md](../agent/prose.md) and the `after` proofs
 (`bun nv proofs --id 'Core\Str::after'`) in its brief. The session writes the members and the tests.
 
-- [ ] `str.rs:363`, after the `after` row: two `CoreMethod` rows, `afterPrefix` (`names: ["s",
+- [x] `str.rs:363`, after the `after` row: two `CoreMethod` rows, `afterPrefix` (`names: ["s",
   "prefix"]`) and `beforeSuffix` (`names: ["s", "suffix"]`), typed as *Standing decisions* says.
-- [ ] `str.rs:4099`, after `nvs_core_str_after`: `nvs_core_str_after_prefix` and
+- [x] `str.rs:4099`, after `nvs_core_str_after`: `nvs_core_str_after_prefix` and
   `nvs_core_str_before_suffix`, each a `nvs_helper!` with `Cut::window` and the `apply` arm `after` has.
-- [ ] `str.rs:977`, after `AFTER_DOC`: `AFTER_PREFIX_DOC` and `BEFORE_SUFFIX_DOC`
+- [x] `str.rs:977`, after `AFTER_DOC`: `AFTER_PREFIX_DOC` and `BEFORE_SUFFIX_DOC`
   (`rule:core-api/reference-card`), in user words: what each returns, and `null` when the string does
   not start or end with it.
-- [ ] `str.rs`, beside `after_cuts_past_the_first_or_last_needle_and_answers_null_when_absent`
+- [x] `str.rs`, beside `after_cuts_past_the_first_or_last_needle_and_answers_null_when_absent`
   (`:5988`): `after_prefix_and_before_suffix_cut_one_end_or_return_null`, covering a match, no match,
   the empty prefix, the whole string, a needle inside a grapheme and a tainted subject. Run the check
   `members` once.
-- [ ] `tests/conformance/core/str-after-prefix-and-before-suffix-cut-one-end-or-return-null.nvst:1`.
+- [x] `tests/conformance/core/str-after-prefix-and-before-suffix-cut-one-end-or-return-null.nvst:1`.
   Run the check `members-conformance` once.
-- [ ] `benches/members/core/Str/afterPrefix.nvs:1`, `afterPrefix.scale.nvs`, `beforeSuffix.nvs`,
+- [x] `benches/members/core/Str/afterPrefix.nvs:1`, `afterPrefix.scale.nvs`, `beforeSuffix.nvs`,
   `beforeSuffix.scale.nvs`, shaped as `after.nvs` and `after.scale.nvs`. One more bench,
   `benches/members/core/Str/afterPrefix.nvs`'s second `#[Bench]`, runs the hand-written
   `startsWith` + `slice(length)` cut on the same input. Record both per-op counts in the handoff for
   stage 4's rule.
-- [ ] `tests/hostile/core/Str/afterPrefix/01-…nvs` and `tests/hostile/core/Str/beforeSuffix/01-…nvs`:
+- [x] `tests/hostile/core/Str/afterPrefix/01-…nvs` and `tests/hostile/core/Str/beforeSuffix/01-…nvs`:
   a very long subject with a prefix that matches up to its last byte, and a prefix that ends inside a
   grapheme.
-- [ ] `docs/examples/core/Str/afterPrefix/` and `docs/examples/core/Str/beforeSuffix/`: `about.md` and
+- [x] `docs/examples/core/Str/afterPrefix/` and `docs/examples/core/Str/beforeSuffix/`: `about.md` and
   three examples each. The first `afterPrefix` example is the user's shape with neutral names: a form
   key `openingHours-12` gives `12`.
 
@@ -295,29 +295,34 @@ the change entries.
 
 ### State
 
-Stage 1 is done. `startsWith`/`endsWith` test `on_boundary` at the cut, `replaceAll` skips a match
-that is not `whole_clusters`, and `trimmed` removes whole graphemes through `first_grapheme_len` /
-`last_grapheme_len`. The three trim cards say it in user words. The checks `boundaries` and
-`boundaries-conformance` are green. The old byte test is renamed
-`contains_starts_with_and_ends_with_are_case_sensitive_and_find_the_empty_needle`.
-Twelve CSV and spreadsheet conformance cases and the `Env::EOL` case named `\r` or `\n` alone where
-the text had `\r\n`, and now name the pair (*Standing decisions*). No test is expected red. The
-sweep's cancelled nightly jobs came from a push-time cancel, which `301e05b33d` already fixed.
+Stages 1 and 2 are done. `Core\Str::afterPrefix` and `beforeSuffix` are registered (`str.rs:377`,
+symbols in `address` at `str.rs:1832`), cut with `Cut::window` after `startsWith`/`endsWith`'s own
+test, and have cards, the unit test `after_prefix_and_before_suffix_cut_one_end_or_return_null`, the
+conformance case, two `about.md` with three examples each, benches with growth, one attack each, and
+every proof reviewed and stamped. The checks `members` and `members-conformance` are green, and
+`bun nv proofs --id` owes nothing for either. A new member's symbol must also be added to `str.rs`'s
+`address` match, or every program panics at registry build (3410 suite cases red at once).
+
+The hand-written cut is `benches/members/core/Str/afterPrefix.twin.nvs` (the project's twin
+convention, `benches/members/README.md`), not a second `#[Bench]`. Per op, on the same input:
+`afterPrefix` 6.00 statements, 1.00 calls, 0.50 allocations, 24.75 bytes; the twin 9.00 statements,
+2.00 calls, 0.50 allocations, 24.75 bytes (counted by `nvs run --count`; the ledger keeps the twin's
+clock only, ratio 1.29x). Stage 4's `W1036` fragment states these. No test is expected red.
+Stage 3 will warn on `afterPrefix.twin.nvs` itself: it is the hand-written cut on purpose, so it
+needs the warning's allow, not a rewrite.
 
 ### Next
 
-Stage 2, `Str::afterPrefix` and `Str::beforeSuffix` (`crates/nvs-stdlib/src/str.rs`), split as the
-stage's `**Split:**` line says.
+Stage 3, `W1036` (`crates/nvs-ir`, diagnostics, CLI, LSP), split as the stage's `**Split:**` line says.
 
-- [ ] `str.rs:364`, after the `after` row: the two `CoreMethod` rows.
-- [ ] `str.rs:4173`, after `nvs_core_str_after`: the two `nvs_helper!`s with `Cut::window`.
-- [ ] `str.rs:977`, after `AFTER_DOC`: `AFTER_PREFIX_DOC` and `BEFORE_SUFFIX_DOC`.
-- [ ] `str.rs:6072`, beside `after_cuts_past_the_first_or_last_needle_and_answers_null_when_absent`:
-  `after_prefix_and_before_suffix_cut_one_end_or_return_null`, then the check `members`.
-- [ ] `tests/conformance/core/str-after-prefix-and-before-suffix-cut-one-end-or-return-null.nvst:1`,
-  then the check `members-conformance`.
-- [ ] `benches/members/core/Str/after.nvs:1` and its stage-2 siblings: the benches, attacks and
-  examples, to the writing subagent.
+- [ ] `crates/nvs-diagnostics/src/code/warnings.rs:375`: `W_HAND_CUT` after `W_REPEATED_READ`.
+- [ ] `crates/nvs-ir/src/hand_cuts.rs:1`, modelled on `crates/nvs-ir/src/rereads.rs`.
+- [ ] `crates/nvs-ir/src/ir.rs:56` `Program::hand_cuts`; `crates/nvs-ir/src/lower/mod.rs:1592` the
+  `find` call.
+- [ ] `crates/nvs-cli/src/main.rs:1522` and `crates/nvs-lsp/src/document.rs:1406`: the warnings.
+- [ ] `crates/nvs-ir/src/hand_cuts.rs:1`, its test module, then the check `warning`.
+- [ ] `apps/registry/src/App.nvs:1039` and the rest of the Explore subagent's list of the tree's
+  hand-written cuts, with `benches/members/core/Str/afterPrefix.twin.nvs:1` kept.
 
 ### Backlog
 
