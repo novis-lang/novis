@@ -18,7 +18,7 @@ stages:
     context: [docs/agent/prose.md, docs/examples/lang/types/callable-classes-object-shapes/about.md, docs/examples/lang/types/the-conversion-operator-as/about.md, website/src/data/changes.json]
   - id: 4
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: checker
@@ -34,6 +34,7 @@ checks:
       - a_string_literal_and_a_string_variable_still_need_as
       - a_written_class_name_stays_a_string_where_a_string_is_expected
       - a_parameter_default_may_be_a_written_class_name
+      - a_refused_default_at_a_class_reference_names_a_written_class_name
   - id: lowering
     stage: 2
     name: "a written ::class at a class<T> lowers to a descriptor constant or the frame's descriptor, never a name lookup"
@@ -237,44 +238,36 @@ entry.
 ### 4. the goal is verified once, and every failure is fixed
 
 - [x] The newcomer review of the change entry and the new example ([prose.md](../agent/prose.md) § *A newcomer reads it*).
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 3 are done. Stage 3 wrote `rule:types/class-reference` (the two sources, the table of the
-five forms, the defaults, *What it spends*, two Declined bullets) and the pointer sentence in
-`rule:types/class-constant`. Five examples drop the `as` on a written `::class` or a quoted default.
-`07-a-class-name-outside-the-hierarchy.nvs` keeps `'Rock' as class<Animal>`, because its folder is
-about `as` and a literal still needs it. The new example is
-`callable-classes-object-shapes/06-pass-a-class-to-a-function.nvs`. The pages say when the `as` is
-needed, the `changed` entry is in `website/src/data/changes.json`, and the conformance case now
-`covers:` both features, which is what moved their behaviour hash. The old `unseen` record of
-`lang:types/the-conversion-operator-as` is deleted, since a real entry covers it now.
+All four stages are done. The rule, the examples, the change entry and the newcomer review landed in
+stage 3 and in stage 4's first item. Stage 4 closed the goal. The build and clippy are green, `checker`, `lowering` and `conformance`
+pass, and `bun nv close --goal class-name-as-reference` is green. Its one red was rustfmt's order of
+`nvs-runtime`'s re-export list, which stage 2's `ClassAddr` had changed, now fixed. A refused default
+at a `class<T>` declaration now adds a help line that names a written `Foo::class`
+(`defaults::with_class_name_help`). `a_refused_default_at_a_class_reference_names_a_written_class_name`
+pins it and joins `checker`. `rule:types/class-reference` now states that a `Core` parameter that
+takes a class name stays a `string`. That was the one decision only this file held.
 
-The newcomer review of stage 4 is done: 11 texts reviewed, their findings fixed and stamped. The
-re-render made 54 `lang:` perf figures stale, and they are recorded with the release binary. `site
---check stale`, `review`, `questions` and `changes` are green.
+The nightly CI run's cancelled jobs were not failures. The 12:01 push to `main` cancelled them through
+the shared concurrency group. That push's one red, `docs/rules/tooling.md` stale, is already fixed
+by `b1358a5`, which is not pushed yet. `ci-green` pushes it.
 
 No test is expected to go red.
 
 ### Next
 
-Stage 4 closes the goal.
+The goal is reached. The driver retires it.
 
-- [ ] `crates/nvs-types/tests/classes.rs:1`: the build, clippy, and the `checker`, `lowering` and
-  `conformance` acceptance runs by name, then `bun nv close --goal class-name-as-reference`, each red
-  fixed. At a full gate, `looper verify` instead, as the pack says.
-- [ ] `docs/goals/class-name-as-reference.md:1`: before `DONE`, move any decision only this file holds
-  to the rule (the *Standing decisions* are already in `rule:types/class-reference`), then delete the
-  file and `bun nv relink --build`.
+- [x] `crates/nvs-types/tests/classes.rs:1`: the build, clippy, the acceptance runs and the close.
+- [x] `docs/rules/types/class-reference.md:1`: the decision only this file held moved to the rule.
 
 ### Backlog
 
 - Hover on a `Foo::class` at a `class<T>` place shows `class<Foo>` (`docs/rules/ide.md`).
 - `Core` parameters marked `CoreTy::ClassName` could take `class<T>` (`docs/rules/core-api/`).
-- The help of `E_PARAM_DEFAULT_NOT_LITERAL` and `E_PROPERTY_DEFAULT_NOT_LITERAL`
-  (`crates/nvs-types/src/defaults.rs`) lists the constants a default may be, and does not yet name a
-  written `Foo::class`.
