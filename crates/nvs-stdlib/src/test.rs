@@ -3548,7 +3548,17 @@ nvs_runtime::nvs_helper! {
                 // no case can reach this: a case never runs `Core\Test::request` against
                 // a unit, so a file gone between `sendFile` and this read is asserted by
                 // `a_response_that_sends_a_file_answers_with_its_bytes_and_its_media_type`.
+                // A file larger than the test may still hold stops the read before it is
+                // whole, and the test ends on its memory limit as any allocation would.
                 let bytes = bytes.map_err(|error| {
+                    if error.kind() == std::io::ErrorKind::OutOfMemory {
+                        return ctx.memory_breach().unwrap_or_else(|| {
+                            Fault::fatal(
+                                "Core\\Test::request: the file the response sent does not fit in \
+                                 the memory limit",
+                            )
+                        });
+                    }
                     Fault::thrown(format!(
                         "Core\\Test::request could not read the file the response sent, `{}`: \
                          {error}",

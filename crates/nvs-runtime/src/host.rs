@@ -737,11 +737,23 @@ impl Completion {
     ///
     /// `None` where the body is [`Self::output`].
     ///
-    /// **What it spends:** the file's bytes, once, for as long as the caller
-    /// holds them.
+    /// The bytes are read into a [`crate::budget::ByteWriter`], so the running
+    /// context's memory ceiling is asked before each growth. A file larger than
+    /// what the caller may still hold stops the read with an error of kind
+    /// [`std::io::ErrorKind::OutOfMemory`], and the breach is already recorded
+    /// ([`crate::budget::affords`]).
+    ///
+    /// **What it spends:** the file's bytes, at most twice while the buffer
+    /// grows, for as long as the caller holds them.
     pub fn read_file_body(&mut self) -> Option<(Box<std::path::Path>, std::io::Result<Vec<u8>>)> {
         let path = self.file_body.take()?;
-        let bytes = std::fs::read(&path);
+        let bytes = std::fs::File::open(&path).and_then(|mut file| {
+            let mut bytes = crate::budget::ByteWriter::new();
+            bytes.read_from(&mut file)?;
+            bytes
+                .finish()
+                .map_err(|_| std::io::Error::from(std::io::ErrorKind::OutOfMemory))
+        });
         Some((path, bytes))
     }
 
@@ -1129,6 +1141,53 @@ mod tests {
             let value = (prepared.program)(ctx, args);
             Ok(Box::new(Started(std::cell::Cell::new(Some(value)))))
         }
+    }
+
+    /// A file body larger than the context's memory ceiling stops the read with
+    /// `OutOfMemory` and records the breach, and one that fits is read whole.
+    #[test]
+    fn a_file_body_is_read_within_the_memory_ceiling() {
+        const CEILING: usize = 64 << 10;
+        let folder = nvs_repo::scratch("file-body");
+        let path = folder.join("body.bin");
+        std::fs::write(&path, vec![7_u8; CEILING * 4]).expect("the scratch file is written");
+        let completion = |path: &std::path::Path| super::Completion {
+            ok: true,
+            value: crate::value::Value::null(),
+            output: super::Written::default(),
+            content_type: None,
+            file_body: Some(path.into()),
+            style_nonce: None,
+            http: None,
+            status: None,
+            headers: Vec::new(),
+            error: None,
+            wall: None,
+            trace: Vec::new(),
+            coverage: None,
+            trace_sink: None,
+            store: None,
+        };
+
+        let read = {
+            let mut ctx = Ctx::buffered();
+            ctx.set_memory_limit(CEILING);
+            let (_, read) = completion(&path)
+                .read_file_body()
+                .expect("the completion names a file");
+            assert!(
+                matches!(ctx.memory_breach(), Some(crate::Fault::Fatal(_))),
+                "the refused read recorded no breach"
+            );
+            read
+        };
+        let error = read.expect_err("a file four times the ceiling is not read");
+        assert_eq!(error.kind(), std::io::ErrorKind::OutOfMemory);
+
+        let (_, read) = completion(&path)
+            .read_file_body()
+            .expect("the completion names a file");
+        assert_eq!(read.expect("an uncapped read is whole").len(), CEILING * 4);
     }
 
     /// The `Recording` host's handle: the answer, held until it is joined.
