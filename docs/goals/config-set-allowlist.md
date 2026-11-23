@@ -310,7 +310,8 @@ Stage 1's last item, then stages 2 and 3, which may run side by side.
   `log.*` key and the server's log output; `errors.deprecated = throw` and a call to deprecated code;
   `mode.default` and `Core\Env::mode`; and an outbound call for `http.client.*`. Drop a key that
   shows no effect, per *Standing decisions*. Run the `effect` check once.
-- [ ] Run `cargo test --test directives` once by name, and fix what the rewrite got wrong.
+- [ ] `crates/nvs-config/tests/directives.rs:1`: run `cargo test --test directives` once by name,
+  and fix what the rewrite got wrong.
 - [ ] Comments that still name the old classes, all text only: `crates/nvs-config/src/debug.rs:18`,
   `crates/nvs-config/src/tree.rs:316`, `:544`, `:565`, `crates/nvs-config/src/default.toml:387`,
   `crates/nvs-stdlib/src/debug.rs:54`, `:463`, `crates/nvs-runtime/src/ctx/isolate.rs:369`, and
