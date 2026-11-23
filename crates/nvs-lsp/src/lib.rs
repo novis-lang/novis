@@ -111,6 +111,7 @@ pub mod directives;
 mod disk_index;
 mod document;
 pub mod extract;
+mod file_key;
 pub mod file_kinds;
 pub mod folding;
 pub mod generate;

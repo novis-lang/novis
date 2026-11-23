@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/partial.rs, crates/nvs-types/src/check.rs]
   - id: 3
     title: "a file's checked output is keyed on what it used"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/document.rs, crates/nvs-types/src/partial.rs, crates/nvs-lsp/tests/incremental.rs]
   - id: 4
     title: "an edit queues only the entries that own a file it reaches"
@@ -202,16 +202,40 @@ A file's walk is one synthesized frame, and the anonymous-function count threads
 reached file is one file's check, and the probe measures milliseconds for that. **Declined:** a key per
 body. Reopen only if stage 5's measurement shows one file's re-check over 20 ms on the 972-file tree.
 
-**A checked output's key is**: its own text hash, the row hashes of every symbol it used (sorted), the
-presence of every name it failed to find, the header rows of its supertypes, the extension digest, the
-restrictions digest, the configuration, and its anonymous-function start. The graph key leaves the
-per-file key. Whole-graph passes (`after_walk`, signatures, the tables) still run on every analysis, as
-now (`crates/nvs-types/src/check.rs:285`).
+**A checked output's key is**: its own id and text hash, the rows of every symbol it used (sorted), each
+with its file, text and attributes, the presence of every name it failed to find, every row of every
+class above a class it declares, the extension digest, the restrictions digest, and its
+anonymous-function start (`crates/nvs-lsp/src/file_key.rs`). The graph key leaves the per-file key,
+and so do the graph's file list and the borrowed `autoload` maps: a file reads another only through a
+name it looks up. Whole-graph passes (`after_walk`, signatures, the tables) still run on every analysis,
+as now (`crates/nvs-types/src/check.rs:285`). Stage 3 widened two things against the table, both safe:
+a used class brings its header and cases rows, and a subclass hashes every row of every ancestor, private
+ones included. A member's attributes reach only the files that used it for the key; stage 4 still
+queues every reader for them, as the table says.
+
+**A derived codec records the class's property list as `Owner::$`** (stage 3, `Uses::properties`). It
+is the properties row, so an added or moved property of any visibility reaches the codec files. A use of
+a class alone does not bring the properties row, so an added private property reaches no plain user.
+
+**The uses stay strings in the session for now** (stage 3). Interning them into symbol ids buys memory
+alone, which is last in the ordering, and stage 4 puts the uses into `Indexed` and the index file,
+where one id scheme serves both. Stage 4 interns them there, or records why not.
 
 **An edit queues the entries that own a reached file**, not every reader. An entry that owns no reached
 file keeps its records. Its files' text did not change, and nothing they used changed either. The
 existing rule stays where the table says "every reader". The open documents among the readers are still
 analysed at once, as now.
+
+**A queued entry's analysis checks only the reached files it owns, and leaves out the rest** (stage 3,
+for stage 4). A worker's session is freed when the queue empties, and an output names its types in its
+own session's interner, so no worker has an output from an earlier settle. With the key alone, a surface
+edit on workers still checks every file of every queued entry (`FILES` in
+`a_surface_edit_read_by_every_program_checks_each_file_once`). So stage 4 passes each queued entry's
+part the reached files alone, and leaves out the others as `absent` does now. Their index records stay
+as they were, because neither their text nor anything they used changed. Reason: it is the same count
+on workers and on the server's thread, and it needs no session to outlive its queue. **Declined:**
+keeping worker sessions between settles with an entry pinned to its worker. It spends one copy of the
+tree's outputs for the whole session, and an edit still checks a file twice when its entry moves.
 
 **The fresh-analysis oracle is the safety net.**
 `a_cached_analysis_reports_what_a_fresh_one_does_after_every_kind_of_edit`
@@ -297,13 +321,19 @@ declaration re-checks only the files that used it.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-lsp/src/session.rs:148` `Session::keys`: the per-file key the standing decision
+- [x] `crates/nvs-lsp/src/session.rs:148` `Session::keys`: the per-file key the standing decision
   gives. The module doc's "a finer key is not built" becomes the new key's description.
-- [ ] `crates/nvs-lsp/src/document.rs:1442` `graph_key`: no longer part of any file's key. What still
-  reads it keeps it, or it is deleted.
-- [ ] `crates/nvs-lsp/tests/incremental.rs:693`: the oracle gains one edit per row of the table, each at
+  - [x] `crates/nvs-lsp/src/file_key.rs` `Surfaces`: the rows of a graph, and `key(id, uses)`.
+  - [x] `Session::check` computes the stale set, runs the check, and stores the walked files' keys.
+  - [x] A codec site records `Owner::$` (`Uses::properties`), the class's properties row.
+- [x] `crates/nvs-lsp/src/document.rs:1442` `graph_key`: no longer part of any file's key. What still
+  reads it keeps it, or it is deleted. It is `shared_key` now: the extension and restriction digests.
+- [x] `crates/nvs-lsp/tests/incremental.rs:693`: the oracle gains one edit per row of the table, each at
   public, protected and private. The check `oracle` runs it.
-- [ ] `crates/nvs-lsp/tests/incremental.rs`: the existing counted tests that assert a surface edit checks
+  - [x] `reach_edits`: a subclass `Child` in another file, then 24 edits of `Part5`.
+  - [x] The reach edits run before the file-scope closure edit, whose `E0317` stops the type phase.
+  - [x] With the uses dropped from the key, the oracle fails on the first reach edit.
+- [x] `crates/nvs-lsp/tests/incremental.rs`: the existing counted tests that assert a surface edit checks
   every file are updated to the new counts. Each says in its doc which row of the table it pins.
 
 ### 4. an edit queues only the entries that own a file it reaches
@@ -352,34 +382,47 @@ subagent once `refresh` lands. The session builds once it ends.
 
 ### State
 
-Stages 1 and 2 are done. Every walked file of a partial check has its used and missed names in
-`FileOutput::uses()` (`crates/nvs-types/src/partial.rs`). The hir half records into `Module::uses`, a
-`nvs_hir::FileUses` keyed by file, on only when `resolve_program_borrowing` gets a `Parses`
-(`crates/nvs-hir/src/requires.rs`, `walk`). `check_program_partial` folds it into each walked file
-(`crates/nvs-types/src/check.rs`, next to `signatures.uses`). The records: `resolve_supertype`,
-`MemberResolver::check_recording` with `record_member`, the `@see` and `@throws` tags, attribute names
-(`record_attribute_lookup`), `::name` on an error-typed receiver, codec sites (`record_codec_uses`), and
-per-member declaration lookups (`SignatureTable::member_reads`) that a lookup of the member replays.
-The test helper `crates/nvs-types/tests/common/mod.rs` now passes a parse cache for a partial check.
-Thirteen tests in `cargo test --test uses` pass. No test is expected to go red.
+Stages 1 to 3 are done. A file's checked output is keyed on what it used: `crates/nvs-lsp/src/file_key.rs`
+`Surfaces::key`, called from `Session::check` (`crates/nvs-lsp/src/session.rs`), which replaced
+`keys`/`store`/`check_parts`. `graph_key` in `document.rs` is now `shared_key`, the extension and
+restriction digests alone. The graph's file list and the borrowed maps left the key, so a file read by
+many entries has one key, and an output one entry stored is current for another. A codec site records
+`Owner::$` (`Uses::properties`, `crates/nvs-hir/src/uses.rs`) for the properties row.
 
-One standing decision was corrected: a constant whose value names another constant has no value today
-(`E0792` at the read), so the real inlined case is a parameter default, and the member-reads set covers it.
+The oracle (`crates/nvs-lsp/tests/incremental.rs:820`) runs 24 reach edits (`reach_edits`, `:694`)
+with a subclass `Child` in another file. It used to run every edit after the file-scope closure edit,
+whose `E0317` stopped the type phase, so those edits checked nothing. The reach edits now run first, and
+a closure-removed edit follows the closure. Probed: with the uses dropped from the key, the oracle fails
+on the first reach edit. With the key, a public-member edit checks 3 files on the server's thread where
+it checked 44. All 33 tests of `cargo test --test incremental` pass, and no test is expected to go red.
 
-The acceptance sweep's nightly `cancelled` jobs (run 45166887327) ended at 12:01Z, before the fix in
-301e05b33d at 12:17Z, so nothing more was needed.
+Two counted tests moved. `a_surface_edit_read_by_every_program_checks_each_file_once` (`:1470`) is the
+class and its callers on the server's thread, and still `FILES` on workers (the standing decision "a
+queued entry's analysis checks only the reached files it owns" says why and what stage 4 does).
+`a_cold_index_checks_each_body_once` (`:1585`) is exact on the server's thread and a range on workers:
+the extension's pathless class gets a fresh id per program map, and a worker reuses an output stored
+under the same id and text.
+
+The rule fragment's check-output bullet describes the new key, and its Declined entry "A per-file
+dependency set" is gone. The nightly `cancelled` jobs of run 45166887327 predate the fix in 301e05b33d.
 
 ### Next
 
-Stage 3: a file's checked output is keyed on what it used.
+Stage 4: an edit queues only the entries that own a file it reaches.
 
-- [ ] `crates/nvs-lsp/src/session.rs:148` `Session::keys`: the per-file key the standing decision gives.
-  It hashes the row hashes of every used symbol (`FileOutput::uses().used_sorted()`), the presence of
-  every missed name, and the header rows of the file's supertypes. Intern the names into the session's
-  symbol ids here.
-- [ ] `crates/nvs-lsp/src/document.rs:1442` `graph_key`: out of every file's key.
-- [ ] `crates/nvs-lsp/tests/incremental.rs:693`: the oracle gains one edit per row of the reach table.
-- [ ] `crates/nvs-lsp/tests/incremental.rs:1295` `a_surface_edit_read_by_every_program_checks_each_file_once`
-  and the other counted tests that assert a surface edit checks every file move to the new counts.
+- [ ] `crates/nvs-lsp/src/index.rs:807` `refresh`: the diff of the old and new rows
+  (`crate::surface::diff`) gives the reached files through the uses, the misses and the subclasses. It
+  queues the entry that owns each. `readers_of` (`index.rs:1376`) stays for the graph and attribute rows.
+- [ ] `crates/nvs-lsp/src/workers.rs:120` `Task::Part`: the queued entry's part checks only its
+  reached files and leaves out the rest (standing decision),
+  so the workers' count matches the server thread's. Then `a_surface_edit_read_by_every_program_checks_each_file_once`
+  asserts `1 + callers` on both.
+- [ ] `crates/nvs-lsp/src/index.rs:360` `Indexed`: the file's uses and missed names, with postings from
+  a symbol to the files. Intern the names here (standing decision "the uses stay strings").
+- [ ] `crates/nvs-lsp/src/disk_index.rs:76` `FORMAT` raised, and the uses written and read.
+- [ ] `crates/nvs-lsp/src/index.rs:664`: a start's load compares rows for a file changed on disk.
+- [ ] `crates/nvs-lsp/tests/incremental.rs:96`: the 200-entry tree goes in a new `tests/reach.rs`, with and the eleven tests. It has an enum and a
+  codec site, which the oracle's tree lacks: add an enum case edit and a private property edit under a
+  `decodeAs` to the oracle too.
 
 ### Backlog

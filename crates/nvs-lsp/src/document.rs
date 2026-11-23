@@ -1255,27 +1255,6 @@ pub(crate) fn analyse_through(
                 stmts: &file.stmts,
             })
             .collect();
-        // Each file's bodies are checked only where its key moved
-        // (`crate::session`).
-        let keys = session.keys(
-            &graph_key(
-                &session.parses,
-                &files,
-                &lent,
-                &extensions.digest,
-                restricting.restrictions().digest(),
-            ),
-            &files
-                .iter()
-                .map(|file| {
-                    let text = session.parses.hashes(file.src).map_or_else(
-                        || *blake3::hash(file.src.text().as_bytes()).as_bytes(),
-                        |(text, _)| *text.as_bytes(),
-                    );
-                    (file.src.id(), text)
-                })
-                .collect::<Vec<_>>(),
-        );
         let left_out: rustc_hash::FxHashSet<SourceId> = files
             .iter()
             .map(|file| file.src)
@@ -1289,28 +1268,38 @@ pub(crate) fn analyse_through(
             .map(|src| src.id())
             .collect();
         let walked = session.checks.walked();
-        // The enum table is kept for the lowering below, and the expression
-        // table for every cursor request.
-        let (checks, interner) = session.check_parts();
-        let enums = nvs_types::check::check_program_partial(
-            &files,
-            &module,
-            None,
-            // The editor reads no `nvs.toml`, so a backtracking pattern is
-            // silent here. `nvs check` and every run judge it.
-            nvs_types::Backtracking::Allow,
-            // The table carries the restrictions and no grant key, so the
-            // editor shows no `E0658`. `nvs check` and every run still refuse
-            // the call.
-            &restricting,
-            Some(&packages),
-            &extensions.manifests,
-            &keys.bodies,
+        let sources: Vec<&nvs_diagnostics::SourceFile> = files.iter().map(|file| file.src).collect();
+        // Each file's bodies are checked only where its key moved
+        // (`crate::session`). The enum table is kept for the lowering below,
+        // and the expression table for every cursor request.
+        let enums = session.check(
+            &sources,
+            &shared_key(&extensions.digest, restricting.restrictions().digest()),
+            &module.graph,
             &left_out,
-            checks,
-            interner,
-            &mut exprs,
-            &mut diags,
+            |bodies, checks, interner| {
+                nvs_types::check::check_program_partial(
+                    &files,
+                    &module,
+                    None,
+                    // The editor reads no `nvs.toml`, so a backtracking
+                    // pattern is silent here. `nvs check` and every run judge
+                    // it.
+                    nvs_types::Backtracking::Allow,
+                    // The table carries the restrictions and no grant key, so
+                    // the editor shows no `E0658`. `nvs check` and every run
+                    // still refuse the call.
+                    &restricting,
+                    Some(&packages),
+                    &extensions.manifests,
+                    bodies,
+                    &left_out,
+                    checks,
+                    interner,
+                    &mut exprs,
+                    &mut diags,
+                )
+            },
         );
         work.checked = session.checks.walked() - walked;
         // A file's own bodies' errors are in its output, which the check
@@ -1323,7 +1312,6 @@ pub(crate) fn analyse_through(
                     .any(nvs_diagnostics::Diagnostic::is_error)
             })
         }));
-        session.store(keys, &left_out);
         // The copies an easy edit removes, as `nvs check` reports them. Only a
         // program with no error lowers, and only when every file's expressions
         // are in the table, which is `rule:ide/diagnostics-are-phase-gated`'s
@@ -1425,52 +1413,21 @@ fn copy_warnings(
         .collect()
 }
 
-/// The key every file of one analysis's graph shares (`crate::session`): the
-/// extension set's digest, the files the walk borrowed `autoload` declarations from,
-/// and each file's canonical path, id and declaration surface, in graph order.
-///
-/// The path is the canonical one, not the name the file was loaded by. The
-/// index loads an entry by the path its tree walk found, and an open document
-/// by the path of its URI, and on Windows the two differ in their separators.
-/// So the open document's analysis reads the output the index's analysis
-/// stored.
-///
-/// A file the parse cache does not hold, which no walk leaves behind, hashes
-/// its whole text in place of its surface, so any edit to it moves the key.
-/// The `[[restrict]]` tables' digest is in it too, so an edited restriction
-/// checks every body again.
-fn graph_key(
-    parses: &crate::parse_cache::ParseCache,
-    files: &[nvs_types::ProgramFile<'_>],
-    lent: &[PathBuf],
-    extensions: &blake3::Hash,
-    restrictions: Option<[u8; 32]>,
-) -> blake3::Hash {
+/// The part of every file's key (`crate::file_key`) that is not a file of the
+/// graph: the extension set's digest and the `[[restrict]]` tables' digest.
+/// An edited restriction therefore checks every body again.
+fn shared_key(extensions: &blake3::Hash, restrictions: Option<[u8; 32]>) -> blake3::Hash {
     let mut hasher = blake3::Hasher::new();
     hasher.update(extensions.as_bytes());
     if let Some(digest) = restrictions {
         hasher.update(&digest);
-    }
-    for path in lent {
-        hasher.update(path.as_os_str().as_encoded_bytes());
-        hasher.update(&[0]);
-    }
-    for file in files {
-        let src = file.src;
-        hasher.update(parses.key_of(src).as_os_str().as_encoded_bytes());
-        hasher.update(&[0]);
-        hasher.update(&src.id().index().to_le_bytes());
-        match parses.hashes(src) {
-            Some((_, rows)) => hasher.update(rows.digest().as_bytes()),
-            None => hasher.update(blake3::hash(src.text().as_bytes()).as_bytes()),
-        };
     }
     hasher.finalize()
 }
 
 /// The built-in components' manifests, then the manifests of the extension set the tree beside
 /// `path` resolves to, read and never instantiated
-/// (`rule:packaging/extension-calls-are-statically-typed`), with the digest the graph key hashes.
+/// (`rule:packaging/extension-calls-are-statically-typed`), with the digest every file's key hashes.
 /// Every program is typed against the built-in components whether or not a tree is found
 /// (`rule:packaging/the-first-party-components-are-built-in`), as `nvs check` types it.
 ///

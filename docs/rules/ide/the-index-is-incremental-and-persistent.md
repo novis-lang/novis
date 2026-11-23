@@ -21,7 +21,7 @@ fixture's only property is its shape.
   is kept with the size and modification time of every path its reader touched: each file it read, each
   file it looked for and did not find, and each directory it listed. An extension set is
   kept per list of `.nvsx` paths and their `sha256`, with each `.nvsx` file's size and time, and with the
-  BLAKE3 digest the graph key hashes in place of the set. A lookup reads the metadata of those paths and
+  BLAKE3 digest every file's key hashes in place of the set. A lookup reads the metadata of those paths and
   uses the kept answer only when all of them match, so an edit to `nvs.toml` reaches the next analysis. The
   snapshot for the document is built from the kept tree each time, because an `[[app]]` block matches one
   file. It costs one kept tree per distinct list of root files and one kept set per distinct list of entries,
@@ -39,8 +39,10 @@ fixture's only property is its shape.
   the files it is given and folds every other file's cached output, then runs every whole-graph pass over
   the folded result. Signatures and the whole-graph tables are built every time. `check_program_loaded` is
   the same call with every file walked, so there is one code path. An output is valid for its file's
-  content hash, the combined surface hash of every other file of the graph, the extension set and the
-  configuration, and the anonymous-function count the file starts at.
+  id and content hash, the surface rows of every declaration its walk used, whether each name it failed
+  to find is declared now, every row of every class above the classes it declares, the extension set and
+  the configuration, and the anonymous-function count the file starts at (`crates/nvs-lsp/src/file_key.rs`).
+  Which other files are in the graph is not in it, so a file read by many entries has one key.
 - **A declaration surface** (`crates/nvs-lsp/src/surface.rs`) hashes what another file can see: the
   namespace, the imports, every type's header, attributes and member signatures, every function's
   signature, every file-scope constant, and every `require` and `autoload`. It leaves out bodies, spans,
@@ -115,6 +117,4 @@ leaves the tree. `crates/nvs-lsp/src/session.rs` gives the measured bytes per fi
   one idle turn's work.
 - **Parsed statements on disk.** The format would mirror the whole syntax tree, and the open document's
   graph parses quickly enough to be the cold path.
-- **A per-file dependency set in the check output's key.** A surface edit is much rarer than a body edit,
-  and one combined surface hash is simpler to trust against the fresh-analysis oracle.
 - **A stat-based skip of the file read in the parse cache.** The read is not the measured cost.

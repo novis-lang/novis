@@ -10,20 +10,18 @@
 //! # Decision: a checked output is valid for one key
 //!
 //! A file's bodies are checked again when its key differs from the key its
-//! output was stored under. The key is the hash of the file's own text and of
-//! its graph's key. The graph's key hashes the extension set, the files whose
-//! `autoload` declarations the analysis borrowed, and the path, id and
-//! declaration surface (`crate::surface`) of every file of the graph, in the
-//! order the graph has them. A body-only edit keeps every surface, so it
-//! checks the edited file's bodies alone. A surface edit, a file added to the
-//! graph or a file that left it moves every file's key, and the settle after
-//! it checks each file once. A finer key, the surfaces
-//! a body actually reads, is not built: a surface edit is much rarer than a
-//! body edit, and one combined hash is simpler to trust. The count of
-//! anonymous functions before a file is the one input `nvs_types` checks
-//! itself.
+//! output was stored under. The key is the file's own text and the surface
+//! rows (`crate::surface`) of what the file's last check used and failed to
+//! find, and of every class above the classes it declares. `crate::file_key`
+//! says what it hashes. The key is computed from the uses its stored output
+//! recorded, so a check stores it after the walk. A body-only edit keeps every
+//! row, so it checks the edited file's bodies alone. A surface edit checks the
+//! files that read the rows it changed. A file added to the graph, a file
+//! that left it, a graph row and an attribute move every file's key, and the
+//! settle after them checks each file once. The count of anonymous functions
+//! before a file is the one input `nvs_types` checks itself.
 //!
-//! Two entries whose graphs differ have different graph keys. So an analysis
+//! Two entries whose graphs differ have different keys. So an analysis
 //! checks only the bodies of the files it will own: the index's analysis of
 //! an entry leaves out every file another entry indexed, and an open
 //! document's analysis leaves out every file but the document
@@ -81,10 +79,12 @@
 use std::path::Path;
 use std::rc::Rc;
 
-use nvs_diagnostics::SourceId;
+use nvs_diagnostics::{SourceFile, SourceId};
+use nvs_hir::ClassGraph;
 use nvs_types::{CheckCache, TypeInterner};
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::file_key::Surfaces;
 use crate::parse_cache::ParseCache;
 
 /// The parses, the checked outputs and the interner one server keeps across
@@ -105,18 +105,24 @@ pub(crate) struct Session {
     rebuilds: usize,
 }
 
-/// The keys of one analysis's files, and the files whose bodies it checks.
-pub(crate) struct Keys {
-    keys: Vec<(SourceId, blake3::Hash)>,
-    pub(crate) bodies: FxHashSet<SourceId>,
-}
-
 impl Session {
-    /// The cache and the interner a check runs against. The interner is
-    /// copied first if a kept analysis still shares it. It is dropped, with
-    /// every checked output, once it has grown to twice its size at the last
-    /// settle.
-    pub(crate) fn check_parts(&mut self) -> (&mut CheckCache, &mut TypeInterner) {
+    /// Runs `check` with the files of `files` whose key moved, the cache and
+    /// the interner, and then stores the key of every file it walked. `base`
+    /// and `graph` are what [`Surfaces::new`] takes. A file in `left_out` is
+    /// not walked, so it keeps the key it had, and the next analysis that
+    /// owns it checks it.
+    ///
+    /// The interner is copied first if a kept analysis still shares it. It is
+    /// dropped, with every checked output, once it has grown to twice its
+    /// size at the last settle.
+    pub(crate) fn check<R>(
+        &mut self,
+        files: &[&SourceFile],
+        base: &blake3::Hash,
+        graph: &ClassGraph,
+        left_out: &FxHashSet<SourceId>,
+        check: impl FnOnce(&FxHashSet<SourceId>, &mut CheckCache, &mut TypeInterner) -> R,
+    ) -> R {
         let len = self.interner.own_len();
         if self.settled_len > 0 && len >= 2 * self.settled_len {
             self.interner = Rc::default();
@@ -125,7 +131,23 @@ impl Session {
             self.settled_len = 0;
             self.rebuilds += 1;
         }
-        (&mut self.checks, Rc::make_mut(&mut self.interner))
+        let surfaces = Surfaces::new(&self.parses, files.iter().copied(), base, graph);
+        let bodies: FxHashSet<SourceId> = files
+            .iter()
+            .map(|src| src.id())
+            .filter(|id| match (self.keys.get(id), self.checks.get(*id)) {
+                (Some(stored), Some(output)) => surfaces.key(*id, output.uses()) != *stored,
+                _ => true,
+            })
+            .collect();
+        let out = check(&bodies, &mut self.checks, Rc::make_mut(&mut self.interner));
+        for id in bodies.iter().filter(|id| !left_out.contains(id)) {
+            match self.checks.get(*id) {
+                Some(output) => self.keys.insert(*id, surfaces.key(*id, output.uses())),
+                None => self.keys.remove(id),
+            };
+        }
+        out
     }
 
     /// The session's interner, for an analysis to keep.
@@ -141,37 +163,6 @@ impl Session {
     /// The interner's own size.
     pub(crate) fn interner_len(&self) -> usize {
         self.interner.own_len()
-    }
-
-    /// The key of each of `files`, which share the graph key `graph`, and the
-    /// files whose key differs from the one their output was stored under.
-    pub(crate) fn keys(&self, graph: &blake3::Hash, files: &[(SourceId, [u8; 32])]) -> Keys {
-        let keys: Vec<(SourceId, blake3::Hash)> = files
-            .iter()
-            .map(|(id, text)| {
-                let mut hasher = blake3::Hasher::new();
-                hasher.update(graph.as_bytes());
-                hasher.update(text);
-                (*id, hasher.finalize())
-            })
-            .collect();
-        let bodies = keys
-            .iter()
-            .filter(|(id, key)| self.keys.get(id) != Some(key))
-            .map(|(id, _)| *id)
-            .collect();
-        Keys { keys, bodies }
-    }
-
-    /// Stores the keys of a check that ran, so the next check of the same
-    /// inputs takes every output. A file in `left_out` whose key moved was
-    /// not checked, so its key is not stored.
-    pub(crate) fn store(&mut self, keys: Keys, left_out: &FxHashSet<SourceId>) {
-        let Keys { keys, bodies } = keys;
-        self.keys.extend(
-            keys.into_iter()
-                .filter(|(id, _)| !(bodies.contains(id) && left_out.contains(id))),
-        );
     }
 
     /// Frees the parse and the checked output of every file `keep` says has

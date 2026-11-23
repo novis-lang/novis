@@ -2393,6 +2393,7 @@ pub(crate) fn record_codec_uses(
         chain.push(class);
         for class in chain {
             output.uses.class(&class);
+            output.uses.properties(&class);
             let Some(sig) = signatures.declared(&class) else {
                 continue;
             };

@@ -687,6 +687,133 @@ fn replace(from: &'static str, to: &'static str) -> Edit {
     })
 }
 
+/// One edit of `Part5` per row of the goal's reach table, at each visibility
+/// where the row has one. `Part4` calls `Part5::value`, and `Child` extends
+/// `Part5` and calls its `helper`, so each edit changes what another file
+/// reports.
+fn reach_edits() -> Vec<(&'static str, Edit)> {
+    let before_next = |added: &'static str| -> Edit {
+        Box::new(move |text: &str| {
+            let at = "    public function next(";
+            assert!(text.contains(at), "the edit finds `next`");
+            text.replacen(at, &format!("{added}{at}"), 1)
+        })
+    };
+    vec![
+        (
+            "subclass named",
+            before_next(
+                "    public function child(): int\n    {\n        Child $child = new Child();\n        \
+                 return $child->value(1);\n    }\n\n",
+            ),
+        ),
+        (
+            "protected method a subclass failed to find added",
+            before_next("    protected function helper(): int\n    {\n        return 1;\n    }\n\n"),
+        ),
+        (
+            "protected method made private",
+            replace("protected function helper(", "private function helper("),
+        ),
+        (
+            "private method's signature",
+            replace(
+                "private function helper(): int\n    {\n        return 1;",
+                "private function helper(): string\n    {\n        return 'one';",
+            ),
+        ),
+        (
+            "private method made public",
+            replace("private function helper(", "public function helper("),
+        ),
+        (
+            "public method made protected",
+            replace("public function helper(", "protected function helper("),
+        ),
+        (
+            "public method another file calls made protected",
+            replace("public function value(", "protected function value("),
+        ),
+        (
+            "protected method another file calls made private",
+            replace("protected function value(", "private function value("),
+        ),
+        (
+            "private method another file calls made public",
+            replace("private function value(", "public function value("),
+        ),
+        (
+            "public method removed",
+            replace("public function value(", "public function worth("),
+        ),
+        (
+            "public method another file failed to find added",
+            replace("public function worth(", "public function value("),
+        ),
+        (
+            "default reads a constant",
+            replace("int $m = 0)", "int $m = self::LIMIT)"),
+        ),
+        (
+            "constant a default reads made private",
+            replace("public const int LIMIT", "private const int LIMIT"),
+        ),
+        (
+            "private constant made protected",
+            replace("private const int LIMIT", "protected const int LIMIT"),
+        ),
+        (
+            "protected constant's value",
+            replace("LIMIT = 4;", "LIMIT = 5;"),
+        ),
+        (
+            "protected constant made public",
+            replace("protected const int LIMIT", "public const int LIMIT"),
+        ),
+        (
+            "private property added",
+            replace("class Part5\n{\n", "class Part5\n{\n    private int $count = 0;\n\n"),
+        ),
+        (
+            "private property's type",
+            replace("private int $count = 0;", "private ?int $count = null;"),
+        ),
+        (
+            "private property made protected",
+            replace("private ?int $count", "protected ?int $count"),
+        ),
+        (
+            "protected property made public",
+            replace("protected ?int $count", "public ?int $count"),
+        ),
+        (
+            "abstract method added",
+            Box::new(move |text: &str| {
+                replace("class Part5\n", "abstract class Part5\n")(&before_next(
+                    "    abstract public function size(): int;\n\n",
+                )(text))
+            }),
+        ),
+        (
+            "abstract method removed",
+            Box::new(|text: &str| {
+                replace("abstract class Part5\n", "class Part5\n")(&replace(
+                    "    abstract public function size(): int;\n\n",
+                    "",
+                )(text))
+            }),
+        ),
+        (
+            "class header",
+            replace("class Part5\n", "final class Part5\n"),
+        ),
+        (
+            "class header restored",
+            replace("final class Part5\n", "class Part5\n"),
+        ),
+    ]
+}
+
 /// A cached parse and a cached check give what a store with neither gives,
 /// after every kind of edit that changes what a file's bodies may read.
 #[test]
@@ -711,6 +838,40 @@ fn a_cached_analysis_reports_what_a_fresh_one_does_after_every_kind_of_edit() {
             ),
         ),
         ("constant value", replace("LIMIT = 3;", "LIMIT = 4;")),
+    ];
+    for (kind, edit) in edits {
+        keystroke(&mut index, &mut documents, &path, edit);
+        agrees_with_a_fresh_store(&dir, &documents, &index, &path, kind);
+    }
+
+    // A subclass in another file, which calls a method of its parent that
+    // the parent does not declare yet. The reach edits run while every file
+    // passes the declaration phase, so each one is type checked.
+    let child = dir.at("lib/Framework/Child.nvs");
+    fs::write(
+        &child,
+        "<?nvs\nnamespace Framework;\n\nclass Child extends Part5\n{\n    \
+         public function value(int $n, int $m = 0): int\n    {\n        \
+         return $n + $this->helper();\n    }\n}\n",
+    )
+    .expect("a writable scratch file");
+    index.refresh(&documents, &child);
+    index.settle(&documents);
+    for (kind, edit) in reach_edits() {
+        keystroke(&mut index, &mut documents, &path, edit);
+        agrees_with_a_fresh_store(&dir, &documents, &index, &path, kind);
+        if kind == "protected method a subclass failed to find added" {
+            let main = dir.at("Blog/main.nvs");
+            let analysed = nvs_lsp::analyse_file(&documents, &main, 1).expect("the entry analyses");
+            assert!(
+                !analysed.diags.has_errors(),
+                "the reach edits start from a tree with no error: {:#?}",
+                reported(&analysed)
+            );
+        }
+    }
+
+    let edits: Vec<(&str, Edit)> = vec![
         (
             "route added",
             replace(
@@ -728,12 +889,19 @@ fn a_cached_analysis_reports_what_a_fresh_one_does_after_every_kind_of_edit() {
                 format!("{text}\n$twice = function (int $x): int {{\n    return $x * 2;\n}};\n")
             }),
         ),
+        (
+            "closure removed",
+            replace("\n$twice = function (int $x): int {\n    return $x * 2;\n};\n", ""),
+        ),
         ("class renamed", replace("class Part5\n", "class Part5b\n")),
     ];
     for (kind, edit) in edits {
         keystroke(&mut index, &mut documents, &path, edit);
         agrees_with_a_fresh_store(&dir, &documents, &index, &path, kind);
     }
+    fs::remove_file(&child).expect("the subclass is there");
+    index.refresh(&documents, &child);
+    index.settle(&documents);
 
     fs::write(
         &extra,
@@ -1289,10 +1457,18 @@ fn a_cold_settle_parses_each_file_once_on_any_number_of_workers() {
     }
 }
 
-/// A signature edit in a library class that every program reads checks the
-/// bodies of each file once, not once for each program that reads it.
+/// A signature edit of a public method in a library class that every program
+/// reads checks the bodies of the class and of the files that call the
+/// method, once each: `Part4`, whose `next` calls it, and each program's
+/// `Helper` that calls it. Every other file keeps its output. This pins the
+/// reach table's row for a public member.
+///
+/// On workers, every file is still checked once. A worker's session is freed
+/// when the queue empties, and an output names its types in one session's
+/// interner, so no output a worker stored is there for the next edit.
 #[test]
 fn a_surface_edit_read_by_every_program_checks_each_file_once() {
+    let callers = 1 + (0..PROGRAMS).filter(|p| (p + 1) % LIBRARY == 5).count();
     for workers in [0, 4] {
         let dir = tree(PROGRAMS, LIBRARY);
         let (mut documents, mut index) = planned(&dir, workers);
@@ -1302,9 +1478,10 @@ fn a_surface_edit_read_by_every_program_checks_each_file_once() {
         let work = keystroke(&mut index, &mut documents, &path, |text| {
             text.replacen("value(int $n): int", "value(int $n, int $m = 0): int", 1)
         });
+        let expected = if workers == 0 { 1 + callers } else { FILES };
         assert_eq!(
-            work.checked, FILES,
-            "a surface edit on {workers} workers checked {} files' bodies, not {FILES}",
+            work.checked, expected,
+            "a surface edit on {workers} workers checked {} files' bodies, not {expected}",
             work.checked
         );
     }
@@ -1395,18 +1572,30 @@ fn a_cold_index_of_many_programs_plans_on_every_worker() {
 }
 
 /// A cold index checks each program's bodies once, and the class the
-/// extension carries once for each program that reads it. A plan checks no
-/// body, and only the first part of an entry checks the extension's class.
+/// extension carries at most once for each program that reads it. A plan
+/// checks no body, and only the first part of an entry checks the extension's
+/// class.
+///
+/// The class has no path, so each program's map gives it the next free id.
+/// Its key has the id, so on this thread every program checks it again. A
+/// worker's session takes the output another program stored under the same
+/// id and text, so how many times the workers check it depends on which
+/// worker takes which program.
 #[test]
 fn a_cold_index_checks_each_body_once() {
-    for workers in [0, 4] {
-        let work = singles_work(workers);
-        assert_eq!(
-            work.checked,
-            2 * SINGLES,
-            "a cold index on {workers} workers checked {} bodies, not {}",
-            work.checked,
-            2 * SINGLES
-        );
-    }
+    let work = singles_work(0);
+    assert_eq!(
+        work.checked,
+        2 * SINGLES,
+        "a cold index on this thread checked {} bodies, not {}",
+        work.checked,
+        2 * SINGLES
+    );
+    let work = singles_work(4);
+    assert!(
+        (SINGLES + 1..=2 * SINGLES).contains(&work.checked),
+        "a cold index on 4 workers checked {} bodies, not one per program and the \
+         extension's class at least once",
+        work.checked
+    );
 }

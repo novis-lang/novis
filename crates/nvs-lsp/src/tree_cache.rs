@@ -31,7 +31,8 @@
 //!
 //! An extension set is kept per list of entries, each a `.nvsx` path and its
 //! `sha256`, with the metadata of every `.nvsx` it read. Its digest is hashed
-//! once, when it is read, and the graph key of every analysis takes the digest.
+//! once, when it is read, and every file's key (`crate::file_key`) takes the
+//! digest.
 //!
 //! A file written twice within the file system's time resolution with the same
 //! size is the one change a lookup misses, the same trade the index file's stamp
@@ -56,7 +57,7 @@ use nvs_config::trust::Untrusted;
 use nvs_diagnostics::SourceMap;
 use nvs_ext::manifest::Manifest;
 
-/// One extension set, and the digest the graph key hashes in its place.
+/// One extension set, and the digest every file's key hashes in its place.
 #[derive(Clone, Debug)]
 pub(crate) struct Extensions {
     /// The built-in components' manifests, then the tree's.

@@ -80,6 +80,12 @@ impl Uses {
         }
     }
 
+    /// Records a use of `owner`'s list of properties, in order, as a derived
+    /// codec reads it. Its name is `Owner::$`, which no property has.
+    pub fn properties(&mut self, owner: &QName) {
+        self.member(owner, "$");
+    }
+
     /// Records a member found on `owner` and looked up on `receiver`. When
     /// the two differ, the lookup also missed the member on `receiver`.
     pub fn member_through(&mut self, receiver: &QName, owner: &QName, member: &str) {
