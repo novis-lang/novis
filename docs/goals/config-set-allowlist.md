@@ -173,14 +173,21 @@ decision below is mine.
   (`website/src/lib/reference.ts:36`) gives one of three lines: only `nvs.toml` sets it; a request may
   change it, up to the ceiling where it has one; a request may only set it to `false`. A block page
   whose keys differ lists which keys a request may change.
-- **The `set` page lists all the keys.** `docs/examples/core/Config/set/about.md` gets a table of the
-  settable keys by block, with how each may change. The reference card (`config.rs:217-240`) names the
-  blocks in one sentence and says the editor and `nvs help` show the full list. A Rust test beside the
-  card reads `about.md` and fails when a listed key is missing from it or an unlisted key is in its
-  table, so the page cannot drift from the list.
-- **Example `02-a-change-that-is-not-allowed.nvs` changes.** Its literal `opcache.file_cache_dir` and
-  `my.own.setting` lines no longer compile. It builds the name at run time instead, and a new
-  example shows the compile error's case in a comment, not in code.
+- **The `set` page lists all the keys, one line per block.** `docs/examples/core/Config/set/about.md`
+  writes `` - `[block]`: `leaf`, `leaf` `` for each block, and says in prose which keys have a
+  ceiling and which take only `false`. A table of 37 rows was 551 words, and an `about.md` is
+  bounded at 200. The reference card (`config.rs`) names the blocks in one sentence and says the
+  editor offers each key and the `set` page lists them; there is no `nvs help` for a member.
+  `the_set_page_and_card_name_every_settable_key` (`config.rs`) fails when the page's lines name
+  another set of keys than `SETTABLE`, or the card misses a block.
+- **Example `02-a-change-that-is-not-allowed.nvs` keeps its names in variables**, and its comment says
+  a name written in the call does not compile. That comment is the compile error's example: the
+  page already has three examples, and a fourth that cannot compile would show nothing.
+- **The shipped file says who may change each key in words.** `default.toml`'s comments are each
+  directive's help card, and every `Runtime` and `System` in them became "A request may change this
+  with `Core\Config::set`" or "Only `nvs.toml` sets this".
+- **Every directive feature gets one `changed` entry.** Removing the class moved every directive's
+  tests, and each directive page's line about `set` changed, so one entry names all 45.
 - **Out of scope:** `nvs config dump` marking the settable keys (backlog), and any change to which keys
   are settable beyond dropping one the effect test shows does nothing.
 - **Trade-offs, for the change entries and the rule.** Security and request isolation: better, a key
@@ -259,22 +266,24 @@ brief. The session writes the module, `request.rs` and the two new tests.
 **Split:** the citation sweep of the old rule id (45 files, `bun nv brief --where three-changeability`)
 goes to one writing subagent once the fragment is renamed. The session writes the rest.
 
-- [ ] `docs/rules/config/three-changeability-classes.md` renamed to `set-changes-only-listed-keys.md`
+- [x] `docs/rules/config/three-changeability-classes.md` renamed to `set-changes-only-listed-keys.md`
   and rewritten per *Standing decisions*; `bun nv rules --render`. Cite it from `settable.rs`.
-- [ ] `crates/nvs-stdlib/src/config.rs:217-240` `SET_DOC` and `:243` `RESTORE_DOC`: what can be
+- [x] `crates/nvs-stdlib/src/config.rs:217-240` `SET_DOC` and `:243` `RESTORE_DOC`: what can be
   changed, in user words. The drift test beside them reads `about.md`.
-- [ ] `docs/examples/core/Config/set/about.md`: the table of keys by block. `02-a-change-that-is-not-allowed.nvs`
+- [x] `docs/examples/core/Config/set/about.md`: the table of keys by block. `02-a-change-that-is-not-allowed.nvs`
   per *Standing decisions*, and its `.out`.
-- [ ] `crates/nvs-cli/src/meta.rs:241`, `:369`: the `settable` roster, and no `class`.
+- [x] `crates/nvs-cli/src/meta.rs:241`, `:369`: the `settable` roster, and no `class`.
   `tools/nv/renderers/website-reference.ts:77-97`, `tools/nv/test/render.test.ts:181`,
   `website/src/lib/reference.ts:36` and `website/src/pages/reference/[area]/[...slug].astro:66`: the
   per-key line. `bun nv render --website`.
-- [ ] `website/src/content/docs/guides/how-to-use/configuration.mdx:212-215` and
+- [x] `website/src/content/docs/guides/how-to-use/configuration.mdx:212-215` and
   `website/src/content/docs/guides/how-to-use/limits.mdx`: one sentence and a link to the `set` page.
-- [ ] `website/src/data/changes.json`: `changed`, `breaking: true` for `Core\Config::set` and
+- [x] `website/src/data/changes.json`: `changed`, `breaking: true` for `Core\Config::set` and
   `restore`, with an `instead`; `new` for `E0667` and `W1037`. Every page `bun nv site --check stale`
   names is reread and stamped.
 - [ ] `bun nv proofs --owed --goal config-set-allowlist` names nothing.
+  - [x] every proof but `reviewed` is paid
+  - [ ] the newcomer review of the 86 features it names, and their stamps
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -287,43 +296,41 @@ goes to one writing subagent once the fragment is renamed. The session writes th
 
 ### State
 
-Stages 1 to 3 are done. `SETTABLE` (`crates/nvs-config/src/settable.rs`, 37 rows) is the one
-allowlist, with `how`, `row`, `package_may_change` and `by_block` beside it.
+Stages 1 to 3 are done, and stage 4 is done but for its newcomer review. `SETTABLE`
+(`crates/nvs-config/src/settable.rs`, 37 rows) is the one allowlist. The compiler gives `E0667` and
+`W1037` (`reject_unsettable_name`, `crates/nvs-types/src/capability.rs`), and the editor offers and
+hovers the keys (`Named::settable`, `crates/nvs-lsp/src/arguments.rs`).
 
-The compiler: `reject_unsettable_name` (`crates/nvs-types/src/capability.rs`) gives `E0667` for a
-literal name no row lists (outside `limits.` in a package) and `W1037` for a template no row fits.
-145 `.nvs` files, 6 conformance cases and 2 reference blocks now keep the name in a variable.
+Stage 4 landed:
 
-The editor: `Named::settable` (`crates/nvs-lsp/src/arguments.rs`) is true at the first argument
-of `set` and `restore`. Completion offers `Value::settable_keys()` (`completion_files.rs`) split on
-`.`, and the `settable_key` hover arm (`hover.rs`) gives `settable_sentence` for a listed key.
-`get` offers nothing.
+- The rule is `rule:config/set-changes-only-listed-keys`, and every citation moved to it.
+- The `set` page (`docs/examples/core/Config/set/about.md`) lists the keys, one line per block.
+  The `set` and `restore` cards say what may change. `the_set_page_and_card_name_every_settable_key`
+  (`crates/nvs-stdlib/src/config.rs`) ran once, green.
+- `nvs meta`'s `settable` roster feeds the website: `changedBy` (`website/src/lib/reference.ts`)
+  gives each key's line, and a block key lists its settable keys. `bun nv reference` places a
+  `settable` table in `docs/reference/tools/20-config.md`. `tools/nv/test/render.test.ts` ran green.
+- `default.toml`'s comments, which are each directive's help card, say in words who may change a
+  key. The guides, the editor chapter and four `about.md` pages say a written name does not compile.
+- `changes.json` has the entries, and `site --check changes` and `site --check stale` are green.
 
-The checks `compiler`, `compiler-conformance` and `editor` each ran once, green. Build, clippy and
-fmt are green. The sweep's nightly run `45166887327` was cancelled by hand and did not fail.
+Build and clippy are green. The sweep's nightly run `45166887327` was cancelled by hand and did not
+fail, so it needs nothing.
 
-Tests expected to go red until fixed:
-
-- `tools/nv/cmd/reference.ts:365-369` and `tools/nv/renderers/website-reference.ts:97` still read a
-  directive's `class` from `nvs meta`, which no longer has it. Stage 4 rewrites them.
+No test is expected to go red.
 
 ### Next
 
-Stage 4. Each item stands under its stage above, with its anchors.
-
-- [ ] Stage 4, the editor's share: `docs/reference/tools/40-editor.md:24` and the editor's website
-  page may list what a string argument offers (zones, completion files). Add the settable keys there
-  if they do. `bun nv proofs --owed --goal config-set-allowlist` says whether the editor feature
-  owes a `.lspt` case or an example. `settable_sentence` (`crates/nvs-lsp/src/completion_files.rs`)
-  is text a user reads. Reread it in the newcomer review.
-- [ ] Stage 4 `docs/examples/tools/config/mode/about.md:13`, beyond its listed items: three
-  `about.md` pages still show a literal call that no longer compiles, that one (`set("mode", …)`),
-  `docs/examples/config/regex-backtracking/about.md:18` and `docs/examples/core/Config/set/about.md:1`. Say there that a
-  written name is a compile error. The `02-a-change-that-is-not-allowed.nvs` example already keeps
-  its names in variables; stage 4 adds the new example that shows the compile error in a comment.
-  `settable.rs:1`, both new code docs, the new conformance case and `CONFIG` in
-  `crates/nvs-lsp/src/arguments.rs` cite
-  the old rule id, which the citation sweep moves.
+- [ ] Stage 4's last checkpoint: the newcomer review (`docs/agent/prose.md:20`). `bun nv proofs --owed --goal config-set-allowlist --limit 0` names 86 features, every
+  one owing `reviewed` alone. `bun nv site --review` lists their texts. Batch them by 20 to `reader`
+  subagents, fix each finding, and stamp with `bun nv site --review --stamp`. Use `xargs -d '\n'`
+  for a key list, because a plain `xargs` drops the `\` of `Core\Config::set`. Read
+  `settable_sentence` (`crates/nvs-lsp/src/completion_files.rs:368`), the `E0667` and `W1037` cards,
+  and the `default.toml` comments (`crates/nvs-config/src/default.toml:64`) with care: they were
+  written in this goal. Then `bun nv proofs --gate --goal config-set-allowlist` is green, and stage 4
+  is done.
+- [ ] Stage 5: the stage's check, as the pack names it (`docs/goals/config-set-allowlist.md:288`).
+  Stage 5's newcomer item is the review above.
 
 ### Backlog
 
