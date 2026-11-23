@@ -130,8 +130,7 @@ This section shows what comes next for Novis. There are no dates. The
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
 The work is in the order it is planned. The order can change.
 
-1. **Editor support for attribute declarations.** *Working on it now.* The editor colours, completes and outlines an attribute declaration the same way it does a class. Go to definition, rename and signature help also work for its fields.
-2. **Faster checks in the editor after an edit.** After you edit a file, the editor checks again only the files that use what you changed. An edit inside a method body checks no other file.
+1. **Faster checks in the editor after an edit.** *Working on it now.* After you edit a file, the editor checks again only the files that use what you changed. An edit inside a method body checks no other file.
 <!-- roadmap:end -->
 
 ## Contributing
