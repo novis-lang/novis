@@ -16,7 +16,9 @@ declarations and `'Ns\*'` for every depth below, as `rule:security/longest-prefi
 subtree. Novis has no top-level function, so a method is the only callable a `use` names. `allow`
 is required and lists the places that may use it. An entry matches a use when it names the use's
 enclosing namespace (exact, or a `\*` subtree), its enclosing class, or its enclosing
-`Class::method`. `allow = []` allows no place. `note` is optional Markdown, shown in the error and on
+`Class::method`. An `allow` entry that names a class matches that class alone: a namespace written
+with the same name, such as `Shop\Cart\Item`'s under an allowed class `Shop\Cart`, is another place.
+`allow = []` allows no place. `note` is optional Markdown, shown in the error and on
 hover, and is text an end user reads. `replace` is optional, one Novis expression with the target's
 parameters and `$this` as its placeholders, exactly as `#[Core\Deprecated]`'s `replace` is
 (`rule:attributes/a-deprecation-names-its-replacement-as-code`), and only on a method target. An
@@ -34,7 +36,10 @@ namespace alone.
 **What is checked where it is written** (`E0665`, at the entry's line): a `use` or an `allow` entry
 that is not a declaration name, a `\*` anywhere but at the end, a field `nvs` does not know, a
 `replace` on a target that is not a method or a function, and, in a package's file, an `allow` entry
-that does not lie under the package's own name. A `Core` target that names no `Core` declaration is
+that does not lie under the package's own name and a `use` that lies under neither the package's own
+name nor `Core`. A package restricts its own code, and `Core`'s, which it may wrap, as the example
+above does. It never restricts another package's code or the application's, because that would add
+compile errors to code its author does not own. A `Core` target that names no `Core` declaration is
 `E0665` too, since `Core` is always known. Any other target that names no declaration of the program
 is `W1031` in the application's file and silent in a package's, where it often names code the
 current program does not load. A `use` that names a method which overrides or implements another one
@@ -55,11 +60,22 @@ filled in as its fix, through the same filling as a deprecation's
 read, so a left-out parameter the template uses leaves the help and no fix.
 
 **What counts as a use.** A call (static, instance, `parent::`), a method reference
-(`Name::method`), `new`, a property read or write, a class constant, an enum case, and a
-reflective act on the member. A type position, an `is` test and `catch` are not uses, so allowed
-code can pass a restricted object through typed signatures. A restriction on a method holds for
+(`Name::method`), `new`, a property read or write, a class constant, `static::NAME` (the constant
+of the class that declares the method), an enum case, and a reflective act on the member. A route
+link or route test written as a call is a use of the method it names. A call or property access on
+a receiver whose type is a union is a use of the member on every class of the union.
+`Core\Program::implementing`, `implementingWith` and `constructors` are a use of each class they
+construct and its constructor. A property default, a parameter default and an attribute's payload
+are read as a body is, so a constant or a case named there is a use too, on an anonymous function's
+parameter as well. A type position, an `is` test and `catch` are not uses, so allowed
+code can pass a restricted object through typed signatures. The checker keeps one reader for every
+expression kind it records, and each kind either names the declarations it uses or names none
+(`crates/nvs-types/src/deprecated/template.rs` `resolved`). A restriction on a method holds for
 every override and implementation of it, so a call through a subclass or an interface meets the same
-check. An entry on a class holds every use of its members too, and an entry on a namespace every
+check. The reverse does not hold: an entry on a class's member does not hold a call through an
+interface or a parent type, which is a use of that type's member, because the checker cannot know
+which body runs. For the same reason `new $cls()` through a `class<Base>` is held by the entries on
+`Base`. An entry on a class holds every use of its members too, and an entry on a namespace every
 use of its classes and their members, so `$object->method()` on a restricted class is refused
 outside the allowed places. A use inside the restricted declaration itself, its own class or its own
 namespace, is always allowed, so restricted code can call itself. A use outside every allowed place
