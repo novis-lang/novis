@@ -492,6 +492,24 @@ fn reserved(len: usize, capacity: usize, additional: usize, stride: usize) -> us
         .saturating_mul(stride)
 }
 
+#[cfg(debug_assertions)]
+thread_local! {
+    /// Monotonic: how many keys this thread has read as an integer — see
+    /// [`key_parses`].
+    static KEY_PARSES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// How many keys this thread has read as an integer key, never decreasing.
+/// A walk over an array's keys reads each one, so a guard that an operation
+/// walks nothing reads this around it, as it reads
+/// [`crate::budget::allocations`]. It exists only under `debug_assertions`,
+/// so a release build pays nothing for it.
+#[cfg(debug_assertions)]
+#[must_use]
+pub fn key_parses() -> usize {
+    KEY_PARSES.with(std::cell::Cell::get)
+}
+
 /// The `i64` a canonical decimal key denotes, or `None` if the key is not one.
 ///
 /// Canonical means what PHP means by it: an optional `-`, then either `0` or a
@@ -499,6 +517,8 @@ fn reserved(len: usize, capacity: usize, additional: usize, stride: usize) -> us
 /// `"-0"` are therefore ordinary string keys that collide with nothing, which
 /// is `rule:types/arrays`'s "which subscripts collide does not change".
 fn integer_key(bytes: &[u8]) -> Option<i64> {
+    #[cfg(debug_assertions)]
+    KEY_PARSES.with(|c| c.set(c.get().wrapping_add(1)));
     let (negative, digits) = match bytes.split_first() {
         Some((b'-', rest)) => (true, rest),
         _ => (false, bytes),
@@ -872,6 +892,26 @@ impl Table {
         }
     }
 
+    /// The bytes a change that ends as a list of `additional` more entries
+    /// asks for: a list's own growth, and on a map the list [`Table::renumber`]
+    /// builds and that list's growth. The map's store is freed after, and is
+    /// not asked for. A map that is asked its own growth here asks about a
+    /// store that is never allocated.
+    fn list_cost(&self, additional: usize) -> usize {
+        match &self.shape {
+            Shape::Packed(_) => self.reserve_cost(additional),
+            Shape::Hashed(hashed) => hashed
+                .live
+                .saturating_mul(size_of::<Value>())
+                .saturating_add(reserved(
+                    hashed.live,
+                    hashed.live,
+                    additional,
+                    size_of::<Value>(),
+                )),
+        }
+    }
+
     /// The bytes a copy-on-write separation of this table asks for: the live
     /// entries and no room past them, which is what [`Table::separate`]
     /// reserves.
@@ -1026,26 +1066,6 @@ impl Table {
                 hashed.live = 0;
                 hashed.first = 0;
                 values
-            }
-        }
-    }
-
-    /// The append counter an array built from these entries alone would
-    /// have: one past the largest integer key, counted as
-    /// [`Table::note_key`] counts. One step on a list, and a walk over the
-    /// keys on a map.
-    fn fresh_counter(&self) -> Option<i64> {
-        match &self.shape {
-            Shape::Packed(values) => list_counter(values.len()),
-            Shape::Hashed(hashed) => {
-                let mut counter: Option<i64> = None;
-                for entry in hashed.entries.iter().flatten() {
-                    if let Some(number) = integer_key(entry.key.as_bytes()) {
-                        let after = number.saturating_add(1);
-                        counter = Some(counter.map_or(after, |current| current.max(after)));
-                    }
-                }
-                counter
             }
         }
     }
@@ -1254,9 +1274,32 @@ impl Table {
     /// its value into the earlier entry, as `$a[$k] = $v` would, and leaves a
     /// hole. The append counter is the one these keys give. Hands `keys` back
     /// where its length is not the count. O(n).
+    ///
+    /// The result has the shape a build from these keys has: keys a list
+    /// would take one by one ([`list_length`]) make a list, and any other
+    /// keys a map. So a later cut appends where it does on a built array.
     fn rekey(&mut self, keys: Vec<NvsStr>) -> Result<(), Vec<NvsStr>> {
         if keys.len() != self.len() {
             return Err(keys);
+        }
+        if let Some(length) = list_length(&keys) {
+            let values = self.take_values();
+            let list = if length == values.len() {
+                // Every key is new and in order, so the values are the list.
+                VecDeque::from(values)
+            } else {
+                let mut list = VecDeque::with_capacity(length);
+                for (key, value) in keys.iter().zip(values) {
+                    let slot = packed_index(key.as_bytes()).unwrap_or(usize::MAX);
+                    if let Some(old) = replace_or_push(&mut list, slot, value) {
+                        release_taken(old);
+                    }
+                }
+                list
+            };
+            self.shape = Shape::Packed(list);
+            self.next_index = list_counter(length);
+            return Ok(());
         }
         self.next_index = None;
         for key in &keys {
@@ -1265,6 +1308,23 @@ impl Table {
         self.hashed_mut().rekey(keys);
         Ok(())
     }
+}
+
+/// The length of the list a build that writes `keys` one by one ends with,
+/// where every write keeps it a list: each key is a position already written
+/// or the next one. `None` where one key would make it a map. O(n).
+fn list_length(keys: &[NvsStr]) -> Option<usize> {
+    let mut length = 0usize;
+    for key in keys {
+        let slot = packed_index(key.as_bytes())?;
+        if slot > length {
+            return None;
+        }
+        if slot == length {
+            length = length.saturating_add(1);
+        }
+    }
+    Some(length)
 }
 
 /// The append counter of a list of `len` entries: the next append writes
@@ -2461,6 +2521,34 @@ impl NvsArray {
         true
     }
 
+    /// [`NvsArray::reserve_within_budget`] for a change whose result is a
+    /// list: the ask is the list it allocates ([`Table::list_cost`]), and
+    /// only a list reserves its room here. A map's room is reserved when it
+    /// is renumbered.
+    #[must_use]
+    fn reserve_list_within_budget(&mut self, additional: usize) -> bool {
+        let ask = {
+            let table = self.header().table.borrow();
+            let list = table.list_cost(additional);
+            if self.refcount() == 1 {
+                list
+            } else {
+                size_of::<ArrayHeader>()
+                    .saturating_add(table.separation_cost())
+                    .saturating_add(list)
+            }
+        };
+        if !crate::budget::affords(ask) {
+            return false;
+        }
+        self.make_unique();
+        let mut table = self.header().table.borrow_mut();
+        if let Shape::Packed(values) = &mut table.shape {
+            let _reserved = values.try_reserve(additional);
+        }
+        true
+    }
+
     /// Removes `key` if present, separating first if this handle is not the
     /// only owner — `unset($a[$k])`.
     pub fn unset(&mut self, key: &[u8]) {
@@ -2555,26 +2643,6 @@ impl NvsArray {
         self.header().table.borrow().slot_of_position(position)
     }
 
-    /// The integer key the next append would write in an array built from
-    /// these entries alone: one past the largest integer key present, or `0`
-    /// where none is. A removed key leaves no trace here, as it does in
-    /// [`Self::next_append_index`]. One step on a list, and a walk over the
-    /// keys on a map.
-    #[must_use]
-    pub fn fresh_append_index(&self) -> i64 {
-        self.header().table.borrow().fresh_counter().unwrap_or(0)
-    }
-
-    /// Sets the append counter to what [`Self::fresh_append_index`] gives,
-    /// so the array appends where a fresh build of its entries would.
-    /// `Core\Arr::append` calls it before it appends in place. Its cost is
-    /// [`Self::fresh_append_index`]'s.
-    pub fn recount_append_index(&mut self) {
-        self.make_unique();
-        let mut table = self.header().table.borrow_mut();
-        table.next_index = table.fresh_counter();
-    }
-
     /// Raises the append counter to `other`'s, so an array built from some
     /// of `other`'s entries appends where `other` cut in place would. Every
     /// key here is one of `other`'s, so the counter stays above each of
@@ -2633,10 +2701,10 @@ impl NvsArray {
     /// doubling, so both ends of a list grow in O(1) amortized for each
     /// entry. A map is renumbered into a list first, in O(n).
     ///
-    /// The growth is asked of the request's memory ceiling first. A refusal
-    /// hands `values` back and changes nothing.
+    /// The list it ends as is asked of the request's memory ceiling first.
+    /// A refusal hands `values` back and changes nothing.
     pub fn prepend(&mut self, values: Vec<Value>) -> Result<(), Vec<Value>> {
-        if !self.reserve_within_budget(values.len()) {
+        if !self.reserve_list_within_budget(values.len()) {
             return Err(values);
         }
         self.header().table.borrow_mut().prepend(values);
@@ -2651,15 +2719,15 @@ impl NvsArray {
     /// **Cost:** O(the entries replaced, added and after the window) on a
     /// list, and O(n) on a map, which is renumbered first.
     ///
-    /// The growth is asked of the request's memory ceiling first. A refusal
-    /// hands `values` back and changes nothing.
+    /// The list it ends as is asked of the request's memory ceiling first.
+    /// A refusal hands `values` back and changes nothing.
     pub fn replace_window(
         &mut self,
         start: usize,
         end: usize,
         values: Vec<Value>,
     ) -> Result<(), Vec<Value>> {
-        if !self.reserve_within_budget(values.len()) {
+        if !self.reserve_list_within_budget(values.len()) {
             return Err(values);
         }
         self.make_unique();
@@ -2706,8 +2774,9 @@ impl NvsArray {
     /// reference. A key that repeats an earlier one writes its value into
     /// the earlier entry, as `$a[$k] = $v` would. The next append follows
     /// the new keys. Hands `keys` back where its length is not the count.
-    /// **Cost:** O(n). A map rebuilds its index in the same storage, and a
-    /// list becomes a map once.
+    /// **Cost:** O(n). Keys that a build would keep as a list make a list,
+    /// with no index. Other keys make a map: a map rebuilds its index in the
+    /// same storage, and a list becomes a map once.
     pub fn rekey(&mut self, keys: Vec<NvsStr>) -> Result<(), Vec<NvsStr>> {
         self.make_unique();
         self.header().table.borrow_mut().rekey(keys)
@@ -4226,6 +4295,22 @@ crate::nvs_helper! {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A map that has room asks nothing for its own growth, yet a prepend
+    /// renumbers it into a list it allocates whole. The ask is that list.
+    #[test]
+    fn a_change_that_ends_as_a_list_asks_for_the_list() {
+        let mut map = NvsArray::with_capacity(64);
+        for n in 0..8i64 {
+            map.set(NvsStr::new(format!("k{n}").as_bytes()), Value::int(n));
+        }
+        let table = map.header().table.borrow();
+        assert_eq!(table.reserve_cost(1), 0, "the map's own store has room");
+        assert!(
+            table.list_cost(1) >= 9 * size_of::<Value>(),
+            "the list the prepend allocates is asked for"
+        );
+    }
     use crate::counting_alloc::{allocated_bytes, live_bytes};
 
     fn key(text: &str) -> NvsStr {

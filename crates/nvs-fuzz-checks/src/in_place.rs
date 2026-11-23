@@ -12,8 +12,9 @@
 //! target (a local, an element, a static property, a property or an element
 //! of a property), the replacing form (an owning `Core` member, one with a
 //! callback, a Novis function that is safe, can fail, reads the slot before or
-//! after its change, or writes it, a concatenation, an interpolation, a spread
-//! and an append), and the context (straight, a loop, a `try` with a `catch`,
+//! after its change, or writes it, a concatenation, an interpolation, a spread,
+//! an append, and a member that gives new keys followed by a cut and an
+//! append), and the context (straight, a loop, a `try` with a `catch`,
 //! a `finally` and a generator). A step may first share its target with a
 //! second variable, which it prints after the change, and a function that can
 //! fail fails only inside a `try`, whose `catch` prints the target.
@@ -143,7 +144,11 @@ final class Box {
 
 final class Lib {
     public static function show(array<int> $items): string {
-        return Core\Str::join(Core\Arr::map($items, fn(int $v): string => $v as string), ",");
+        var $out = "";
+        foreach ($items as string $k => int $v) {
+            $out = $out . $k . "=" . ($v as string) . ",";
+        }
+        return $out;
     }
 
     public static function addSafe(array<int> $items, int $x): array<int> {
@@ -296,7 +301,7 @@ fn statement(
         draw.one(&["3", "4"])
     };
     match kind {
-        Kind::Array => match draw.pick(10) {
+        Kind::Array => match draw.pick(11) {
             0 => format!("{target} = Core\\Arr::append({target}, {n});"),
             1 => format!("{target} = Core\\Arr::reverse({target});"),
             2 => format!("{target} = Core\\Arr::slice({target}, 1);"),
@@ -316,6 +321,27 @@ fn statement(
             }
             6 => format!("{target} = [...{target}, {n}];"),
             7 => format!("{target}[] = {n};"),
+            8 => {
+                // A member that gives new keys, then a cut, then an append:
+                // the append lands where it lands on the built array.
+                let member = draw.one(&[
+                    r"Core\Arr::mapKeys({t}, fn(int $v, string $k): string => $k)",
+                    r"Core\Arr::mapKeys({t}, fn(int $v): int => $v)",
+                    r"Core\Arr::values({t})",
+                ]);
+                let cut = draw.one(&[
+                    r"Core\Arr::withoutLast({t})",
+                    r"Core\Arr::withoutFirst({t})",
+                    r"Core\Arr::filter({t}, fn(int $v): bool => $v % 2 == 0)",
+                ]);
+                let append = draw.one(&["{t}[] = {n};", r"{t} = Core\Arr::append({t}, {n});"]);
+                format!(
+                    "{target} = {}; {target} = {}; {}",
+                    member.replace("{t}", target),
+                    cut.replace("{t}", target),
+                    append.replace("{t}", target).replace("{n}", n),
+                )
+            }
             _ => format!("{target} = Lib::addFails({target}, {n});"),
         },
         Kind::Str => match draw.pick(9) {

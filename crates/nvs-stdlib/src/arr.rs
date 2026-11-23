@@ -3750,43 +3750,41 @@ nvs_runtime::nvs_helper! {
     /// `array_push` and giving `$a[] = $v` a form that is an expression.
     ///
     /// **Every key of the subject is kept**, and each added value lands under
-    /// the next free integer key — which is what `$a[] = $v` does, and is the
-    /// whole reason this member can claim to replace it. The two part in
-    /// exactly one place, and it is R3's purity rather than a different rule
-    /// about keys: `$a[] = $v` mutates one array and inherits its counter,
-    /// which survives an `unset` exactly as PHP's does, while this member
-    /// returns a *fresh* array whose counter is derived from the entries
-    /// copied into it — one past the largest integer key actually present. So
-    /// after `unset($a["9"])` the statement lands on 10 and the member on 6.
-    /// `tests/conformance/core/arr-append-derives-the-next-free-key-from-the-entries-it-copies.nvst`
-    /// pins both halves. PHP also has `array_pop` *lowering* the
-    /// counter to the key it removed, which nothing here reproduces. That is
-    /// not a
-    /// key-type-dependent rule of the kind
-    /// `rule:types/preserve-keys` removes: the key chosen is one counter's next value whatever the
-    /// existing keys look like, so it never has to ask what type they were.
-    /// It is also why this member takes no `preserveKeys` option — appending
-    /// invents no key that could collide with one already there, so there is
-    /// nothing to choose. [`nvs_core_arr_prepend`] is the side where there is.
+    /// the next free integer key. That is what `$a[] = $v` does, and is the
+    /// whole reason this member can claim to replace it. The result keeps the
+    /// subject's append counter, as every member whose result keeps the
+    /// subject's keys does, so the member and the statement append at the
+    /// same key: after `unset($a["9"])` both land on 10, which is PHP's rule
+    /// for `$a[] = $v`.
+    /// `tests/conformance/core/arr-append-keeps-the-counter-a-removed-key-left.nvst`
+    /// pins it. PHP also has `array_pop` *lowering* the counter to the key it
+    /// removed, which nothing here reproduces. That is not a key-type-dependent
+    /// rule of the kind `rule:types/preserve-keys` removes: the key chosen is
+    /// one counter's next value whatever the existing keys look like, so it
+    /// never has to ask what type they were. It is also why this member takes
+    /// no `preserveKeys` option — appending invents no key that could collide
+    /// with one already there, so there is nothing to choose.
+    /// [`nvs_core_arr_prepend`] is the side where there is.
     ///
     /// A call with no trailing values at all is the subject, entry for entry.
     ///
     /// **The one refusal is the one `$a[] = $v` has**, and for the same
-    /// reason: a subject already holding `i64::MAX` as a key has no next
-    /// integer key to derive, so a call adding a value to it throws the
-    /// `LogicError` that statement throws, with that statement's message.
+    /// reason: a subject whose counter has reached `i64::MAX` has no next
+    /// integer key, so a call adding a value to it throws the `LogicError`
+    /// that statement throws, with that statement's message.
     /// [`append_borrowed_or_refuse`] is where the two meet, and the subject
     /// is unchanged by a refusal.
     ///
-    /// A sole subject takes the values in place: its counter is set to the
-    /// fresh build's ([`NvsArray::recount_append_index`]), and each value is
-    /// appended. On a list that is O(1) for each value. On a map the recount
-    /// walks its keys once per call. A shared subject is copied whole.
+    /// A sole subject takes the values in place, at O(1) for each value on a
+    /// list and on a map: the counter is the one the subject already has, so
+    /// nothing walks its keys. A queue loop of `first`, `withoutFirst` and
+    /// `append` costs the same per round at every size. A shared subject is
+    /// copied whole, and the copy keeps the subject's counter.
     fn nvs_core_arr_append(_ctx, args: [2])-> Appended, owns NvsArray {
         let base = subject(args, "append")?;
         let values = Retained::trailing(&args[1], "append")?;
         let added = i64::try_from(values.0.len()).unwrap_or(i64::MAX);
-        if base.fresh_append_index().checked_add(added).is_some() {
+        if base.next_append_index().checked_add(added).is_some() {
             return Ok(Appended::Values(values));
         }
         // The last integer key is reached on the way, so an append may find
@@ -3794,6 +3792,7 @@ nvs_runtime::nvs_helper! {
         // thrown.
         let mut out = NvsArray::new();
         copy_all(&base, &mut out);
+        out.keep_append_index_of(&base);
         for_each_trailing(&args[1], "append", |value| {
             append_borrowed_or_refuse(&mut out, value)
         })?;
@@ -3805,7 +3804,6 @@ nvs_runtime::nvs_helper! {
         };
         if subject.is_sole() {
             let mut subject = subject;
-            subject.recount_append_index();
             for value in values {
                 subject.append(value);
             }
@@ -3813,6 +3811,7 @@ nvs_runtime::nvs_helper! {
         }
         let mut out = NvsArray::with_capacity(subject.count() + values.len());
         copy_all(&subject, &mut out);
+        out.keep_append_index_of(&subject);
         for value in values {
             out.append(value);
         }
