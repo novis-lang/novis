@@ -1815,9 +1815,14 @@ not compiled; its first request compiles it, as it always does.
   with `SO_PEERCRED` on Linux and `getpeereid` on macOS, and any other peer is closed unanswered.
 - **Windows:** a named pipe with a random 128-bit name, written into a file at that path. The pipe's
   DACL admits the serving account, `Administrators` and `SYSTEM`, and it is created with
-  `PIPE_REJECT_REMOTE_CLIENTS` and `FILE_FLAG_FIRST_PIPE_INSTANCE`.
-- **No TCP and no HTTP.** A request cannot reach the endpoint: the data folder is outside every
-  grant a program can hold.
+  `PIPE_REJECT_REMOTE_CLIENTS` and `FILE_FLAG_FIRST_PIPE_INSTANCE`. Every account can list pipe
+  names, and a name outlives a server that was killed, so the command asks
+  `GetNamedPipeServerProcessId` who serves the pipe. A process other than the one in the file's
+  name is reported as unreachable, and its file is left alone.
+- **No TCP and no HTTP.** A request cannot reach the endpoint. Every door that takes a path
+  throws for a path under the data folder's `cache/` or `run/`, whatever a grant covers. The path
+  is resolved and compared as a grant's root is, so a case, a separator, a `..` or a link does not
+  get around it.
 
 The endpoint is removed in the drain. A command that finds the endpoint of a process that is no
 longer running skips it and removes it.
@@ -1827,7 +1832,17 @@ bytes and closes any other request without a reply. It answers with one JSON lin
 configuration outcome (`applied`, `refused` or `unchanged`), the restart keys, the swapped program
 count, and every refusal with its file, line and message. Only the serving account or an
 administrator can read the reply, and both can read the log already, so it carries the error text
-the `reload` event leaves out. The 64-byte bound is a constant, not a setting.
+the `reload` event leaves out. The 64-byte bound is a constant, not a setting. A server that is
+draining replies `{"stopping":true}` and checks nothing. A check that panics replies a refusal of
+kind `server`, and the panic goes to the log. So every request read in full gets a line, and a
+connection that closes with none is a failed server.
+
+**One deadline bounds what the peer controls.** The request must arrive within 5 s of the accept,
+and the reply must be written within 5 s again. The check between them has none, because it waits
+for compiles. A peer past the deadline is cut off, by a socket shutdown on Unix and `CancelIoEx` on
+Windows. An accept that fails is logged and the endpoint accepts again. The command reads at most
+64 KiB of a reply, and a longer one is a failed server. It prints every text a server sent with its
+control characters escaped, so a reply cannot drive the terminal.
 
 **Two reloads at once share one check.** A reply only ever comes from a check that began after the
 reload arrived, because a check that began earlier may have read the files before the caller's
@@ -1837,11 +1852,18 @@ next check and its reply, so a burst of reloads costs at most two checks.
 
 **The command.** `nvs reload [--config <path>]... [--data <dir>] [--json]` resolves the data folder
 as `nvs serve` does and reaches every endpoint in it, so several servers that share one data folder
-each get the reload, and the command reports each. It exits `0` when every server applied
-everything, `1` when any configuration file or program was refused, and `2` when no server
-answered. The requests that reach a refused program fail
+each get the reload, and the command reports each.
+
+| Exit | When |
+|---|---|
+| `0` | every server replied and applied everything |
+| `1` | a configuration file or program was refused, or a server could not be reached or did not answer |
+| `2` | no server replied |
+
+A server that replied it is stopping changes none of the three. The requests that reach a refused program fail
 ([`config/a-broken-edit-fails-the-requests-that-resolve-it`](config.md#config-a-broken-edit-fails-the-requests-that-resolve-it)). `--json` prints one document, in
-the shape `nvs cache --json` prints. A server that stops during a reload is reported as stopped.
+the shape `nvs cache --json` prints. Each server's `state` is `replied`, `stopped`, `silent` or
+`unreachable`.
 
 **Only `nvs serve` has an endpoint.** `nvs run` and `nvs test` start a new process that compiles
 from disk, so they need no reload, and a long `nvs run` worker is not reached.
@@ -1858,7 +1880,8 @@ and every `nvs reload`, is one reload outcome for `on = "reload"` entries
 that does not compile now, so a program that stays broken keeps the outcome `refused`.
 
 - **Memory:** per process, one endpoint and one blocked accept, on a thread the server already has
-  or one small thread of its own, and one 64-byte read buffer per connection while it is read. A
+  or one small thread of its own, and one 64-byte read buffer and one deadline thread per
+  connection while it is answered. The command holds at most 64 KiB of each reply. A
   reload holds one reply until it is written. Nothing on the request path and nothing per request.
 - **Latency:** none on the request path. A reload compiles the programs a timed pass would have
   compiled, sooner, on the same compile pool.
@@ -1875,7 +1898,7 @@ that does not compile now, so a program that stays broken keeps the outcome `ref
   platform, and the manager learns nothing it can report
   ([`packaging/a-service-answers-its-manager`](packaging.md#packaging-a-service-answers-its-manager)).
 - **A `--timeout`.** Every compile is bounded by its own limits, and a server that stops during a
-  reload is reported as stopped.
+  reload replies that it stops or closes the connection.
 - **A `never` value for `revalidate_freq` or `validate`.** A forgotten reload would then pin the old
   code until a restart; a long interval gives the same quiet with a bound
   ([`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class)).

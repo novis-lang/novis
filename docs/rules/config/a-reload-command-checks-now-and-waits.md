@@ -24,8 +24,10 @@ not compiled; its first request compiles it, as it always does.
   names, and a name outlives a server that was killed, so the command asks
   `GetNamedPipeServerProcessId` who serves the pipe. A process other than the one in the file's
   name is reported as unreachable, and its file is left alone.
-- **No TCP and no HTTP.** A request cannot reach the endpoint: the data folder is outside every
-  grant a program can hold.
+- **No TCP and no HTTP.** A request cannot reach the endpoint. Every door that takes a path
+  throws for a path under the data folder's `cache/` or `run/`, whatever a grant covers. The path
+  is resolved and compared as a grant's root is, so a case, a separator, a `..` or a link does not
+  get around it.
 
 The endpoint is removed in the drain. A command that finds the endpoint of a process that is no
 longer running skips it and removes it.

@@ -255,11 +255,67 @@ pub fn working_dir(ctx: &Ctx, member: &str) -> Result<PathBuf, Fault> {
 /// and not a file, so [`relative_refusal`] has nothing to say about it. Both ask this rather than
 /// re-deriving the sentence, so the message a denial prints has exactly one author whichever door
 /// produced it.
+///
+/// A path that is granted is then asked [`data_folder_refusal`], so a grant that covers the data
+/// folder still does not reach its `cache/` or `run/`.
 pub fn refusal(ctx: &Ctx, cap: Cap, scope: Scope<'_>, member: &str) -> Option<String> {
-    if granted(ctx, cap, scope) {
+    if !granted(ctx, cap, scope) {
+        return Some(denial(cap, scope, member));
+    }
+    let Scope::Path(path) = scope else {
+        return None;
+    };
+    if reserved_folders().is_empty() {
         return None;
     }
-    Some(denial(cap, scope, member))
+    nvs_config::capability::resolved(path, &nvs_config::resolve::Disk)
+        .and_then(|at| data_folder_refusal(&at, path, member))
+}
+
+/// The data folder's `cache/` and `run/`, each resolved the way a grant's root is, with the name
+/// a refusal prints. Empty when this process has no data folder.
+///
+/// `rule:config/a-reload-command-checks-now-and-waits` says a request cannot reach the reload
+/// endpoint under `run/`, and the compiled-code cache under `cache/` is code every program of the
+/// process runs. A grant an operator wrote for the data folder, or for a folder above it, must not
+/// reach either.
+///
+/// Resolved once per process: the data folder is set once, at startup. A folder that does not
+/// exist yet keeps its missing names as written, which is how it is spelled once it is created.
+fn reserved_folders() -> &'static [(PathBuf, &'static str)] {
+    static FOLDERS: std::sync::OnceLock<Vec<(PathBuf, &'static str)>> = std::sync::OnceLock::new();
+    FOLDERS.get_or_init(|| {
+        nvs_config::data::current().map_or_else(Vec::new, |folder| {
+            [(folder.cache(), "cache"), (folder.run(), "run")]
+                .into_iter()
+                .filter_map(|(dir, name)| {
+                    nvs_config::capability::resolved(&dir, &nvs_config::resolve::Disk)
+                        .map(|at| (at, name))
+                })
+                .collect()
+        })
+    })
+}
+
+/// The refusal of a resolved path `at` under one of [`reserved_folders`], whatever a grant covers.
+/// `shown` is the path as the program wrote it, for the message.
+///
+/// `at` and each folder are resolved by the same function the grant check uses, and compared by
+/// whole components as a grant's prefix is. So a different case or separator on Windows, a `..` or
+/// a link resolves to the same path before the comparison.
+///
+/// **Cost:** one resolution of the path per granted door call that takes a path, beside the one
+/// the grant check makes. A door that resolved the path already ([`allow`]) passes its result
+/// and resolves nothing again.
+fn data_folder_refusal(at: &Path, shown: &Path, member: &str) -> Option<String> {
+    let (_, name) = reserved_folders()
+        .iter()
+        .find(|(folder, _)| at.starts_with(folder))?;
+    Some(format!(
+        "{member} cannot use the path {}: it is inside the `{name}/` folder of the Novis data \
+         folder. No program can use this folder, whatever its grants say.",
+        shown.display()
+    ))
 }
 
 /// `rule:security/capability-question-is-grant-and-scope`'s question as a `bool`, with no message
@@ -894,6 +950,9 @@ fn allow(
         if !allowed {
             return Err(Fault::thrown(denial(cap, Scope::Path(path), member)));
         }
+    }
+    if let Some(message) = data_folder_refusal(&at, path, member) {
+        return Err(Fault::thrown(message));
     }
     Ok(at)
 }

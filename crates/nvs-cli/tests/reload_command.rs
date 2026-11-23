@@ -556,6 +556,44 @@ fn a_request_cannot_reach_the_endpoint() {
     );
 }
 
+/// A grant that covers the whole data folder still does not reach its `run/`: the read throws
+/// before anything is opened. On Windows the path is read in capitals, which names the same file.
+// covers: tools:server/nvs-reload
+#[test]
+fn a_grant_over_the_data_folder_does_not_reach_the_endpoint() {
+    let data = data_folder();
+    let root = data.path().display().to_string().replace('\\', "/");
+    assert!(!root.contains('"'), "the path {root} has a quote");
+    let config = format!("{CONFIG}\n[capabilities.fs]\nread = [\"{root}\"]\n");
+    let served = Served::launch("granted", &config, &[], Arc::new(data));
+    let mut target = served.endpoint().display().to_string().replace('\\', "/");
+    if cfg!(windows) {
+        target = target.to_uppercase();
+    }
+    assert!(!target.contains('\''), "the path {target} has a quote");
+    write_file(
+        &served.dir.join("app.nvs"),
+        &format!(
+            "<?nvs\ntry {{\n    echo Core\\IO::read('{target}');\n}} catch (RuntimeError $error) {{\n    \
+             echo 'denied: ', $error->message;\n}}\n"
+        ),
+    );
+    let last = std::cell::RefCell::new(String::new());
+    wait(
+        "the edit that reads the endpoint",
+        || {
+            *last.borrow_mut() = served.get();
+            last.borrow().starts_with("denied: ")
+        },
+        || format!("{}\nthe last body: {}", served.said(), last.borrow()),
+    );
+    let body = last.into_inner();
+    assert!(
+        body.contains("inside the `run/` folder"),
+        "the read was not refused for the data folder: {body}"
+    );
+}
+
 /// A reload compiles an edit at once and replies once it is live. The program check runs once an
 /// hour, so nothing else can be the cause.
 // covers: tools:server/nvs-reload

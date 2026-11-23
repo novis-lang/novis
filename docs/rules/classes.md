@@ -1730,6 +1730,11 @@ payload whose recorded property set does not exactly match the target class's cu
 one added, removed or retyped — is refused, naming the mismatch, never coerced and never filled with a
 default.
 
+A revocable class's hidden slot ([`classes/revocable-objects`](classes.md#classes-revocable-objects)) is not a property: `encode` writes
+no name and no node for it, and `decode` reads none and leaves it empty, so the object is in no
+collection. A payload that records a node for it has another layout and is refused. Reading and
+checking such a node is declined, because no value from outside is a valid membership pointer.
+
 Every value the decode builds is checked before the result is returned. A field's value is checked
 against the field's declared type by the same check an erased write makes
 ([`types/erased-member-access`](types.md#types-erased-member-access)): its tag, its class and an array's elements. A `string` node and a
