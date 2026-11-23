@@ -1281,8 +1281,8 @@ const APPEND_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "The entries of `$a` under their own keys, then each value under the next free \
-          integer key. That key is one past the largest key present. With no values, the result \
-          is `$a` itself.",
+          integer key. That key is the one `$a[] = $v` would use on `$a`. With no values, the \
+          result is `$a` itself.",
     errors: &[],
 };
 
