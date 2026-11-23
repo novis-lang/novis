@@ -197,6 +197,16 @@ decision below is mine.
 - **Lanes:** stage 1 runs first. Stages 2 and 3 touch disjoint crates and may run side by side once
   `settable::how` exists. Stage 4 follows all three.
 
+- **A directive's review text is its help card, carried by the binary.** `tools/nv/proofs/roster.ts:352`
+  sets every directive's `card` to its `nvs meta` row as JSON, and `tools/nv/lib/texts.ts:337` hashes
+  that card. So a stamp on `help:directive:log.keep` never goes stale when the card's prose in
+  `crates/nvs-config/src/default.toml` changes, and a block with no card shows its JSON row to the
+  reader. The fix: `directive_json` (`crates/nvs-cli/src/meta.rs:372`) adds a `help` field with the
+  card `nvs agent show` prints (adding a field keeps `rule:tooling/meta-json`), the roster's `card`
+  becomes that `help`, and a directive with no `help` gets no `help:` text. *What it spends:* the
+  cards' text once more in `nvs meta --json`'s output, and nothing at run time. The same roster row's
+  `summary` still reads the removed `class` field, so it prints `None directive`; it drops that word.
+
 ## Stages
 
 ### 1. one allowlist decides what set changes
@@ -302,41 +312,69 @@ Stages 1 to 3 are done, and stage 4 but its newcomer review. `SETTABLE`
 The rule, the `set` page and cards, `nvs meta`'s `settable` roster, the website and `changes.json`
 are written, and `site --check changes` and `stale` are green.
 
-The review's first round read all 176 texts. Fixed: the unexplained "a name written in the call
-does not compile" line in 90 examples and attacks, the cards and the pages (each now names
-`Core\Config::set('<key>', ...)`); 45 help cards in `default.toml`; the `Core\Config` chapter,
-which named the removed `System` class; the `deferred.deadline` page. No text is stamped `reviewed`.
+The first review round's findings are all fixed (commit `fb0b3d41c2`), and so are the `E0667` and
+`W1037` cards. The second round read all 179 texts in ten briefs. Its findings are not fixed yet,
+and no text is stamped `reviewed`. They are listed under *Next*.
+
+The second round showed a tooling defect: a directive's review text is its JSON row, not its help
+card. *Standing decisions* has the diagnosis and the fix. Until it lands, a stamp on a
+`help:directive:` key proves nothing, so stamp none of them.
 
 The cancelled nightly run `45166887327` was cancelled by hand and needs nothing.
 
-A block directive (`[log]`, `[http]`, `[session]`, ...) has no help card, so its "text" in the
-brief is its `nvs meta` row as JSON (`tools/nv/lib/texts.ts:146`). There is no prose to fix there.
-
-No test is expected to go red.
+No test is expected to go red. The directive help fix changes `nvs meta --json`'s directive rows, so
+a test that pins that row's exact shape (`crates/nvs-cli/tests/`, `tools/nv/test/render.test.ts`)
+may need the new `help` field.
 
 ### Next
 
-- [ ] `tests/hostile/core/Debug/startCoverage/01-branch-coverage-the-mode-does-not-allow.nvs:7`: the
-  first round's open findings, then a second round. Fix these, one line each:
-  - `startCoverage/01`: "Each step catches its error ..." is written twice (`:7`, `:18`).
-  - `tests/hostile/config/deferred-max_concurrent/01-*.nvs`: the top says each call returns `false`, and
-    step 3 says each try throws. Make them agree with the code.
-  - `tests/hostile/tools/config/limits-and-limits-hard/01-*.nvs`: say where `48M` comes from.
-  - `tests/hostile/config/trace/01-*.nvs`: "all four `[trace]` keys" names none of them.
-  - `docs/examples/config/log-handler_reserve_time/01-*.nvs`: "These two reserves" names one.
-  - `docs/examples/config/log-handler/01-*.nvs`: "This function" has no referent.
-  - `docs/examples/config/capabilities/01-*.nvs`: "take a right away", "give a right back".
-  - `docs/examples/config/http/about.md`: write out CORS once, and replace "answer".
-  - `docs/examples/config/regex-backtracking/about.md`: "**The example below**", and define
-    lookaround and backreference in a few words.
-  - `docs/examples/config/queue-max_attempts/01-*.nvs`: define the dead-letter table.
-- [ ] `docs/agent/prose.md:20`: the second round. Run `bun nv site --review`, batch the keys by 20 with
-  `.agent-tmp/` and `xargs -d '\n' bun tools/nv/main.ts site --review --brief`, and send each brief to
-  a `reader` (the prompt names the brief's file and says to read no other). The second round
-  reads the new wording, so stamp only what it passes, with `bun nv site --review --stamp`. Also read
-  `settable_sentence` (`crates/nvs-lsp/src/completion_files.rs:368`) and the `E0667` and `W1037`
-  cards: they were not on the review list. Then `bun nv proofs --gate --goal config-set-allowlist`
-  is green, and stage 4 is done.
+- [ ] `crates/nvs-cli/src/meta.rs:372`: the directive help fix in *Standing decisions*, with
+  `tools/nv/proofs/roster.ts:352` and `tools/nv/lib/texts.ts:337`. Then `bun nv site --review` lists
+  no block without a card, and each listed directive's text is its prose card.
+- [ ] `docs/examples/config/log-max_size/01-how-large-a-log-file-grows.nvs:1`: the sentence every
+  reader read twice, in 76 files (`grep -rl "The compiler checks a setting name written as text"
+  docs/examples tests/hostile`). It never says why a name in a variable compiles. Write it the same
+  way everywhere, in two short lines: "`Core\Config::set('<key>', ...)` does not compile, because a
+  program may not change `<key>`." and "A name in a variable is checked only when the program runs.
+  Then `set` returns `false`." Split the files over two or three writing subagents by directory; each
+  runs `bun nv proofs --comments` on its files.
+- [ ] `tests/hostile/config/debug-listen/01-opening-the-debug-viewer-to-the-network.nvs:1`: every
+  attack says "restore the setting after each try" where each try fails. Say "and call
+  `Core\Config::restore` after each try" or drop the restore half. Same sweep as above.
+- [ ] `docs/examples/core/Config/set/about.md:1`: the second round's per-text findings, one line each:
+  - `help:Core\Config::set` (`crates/nvs-stdlib/src/config.rs:217`): "They are in `[mode]`, `[limits]`,
+    ..." reads as whole blocks; say "some keys of". "the value the program started with" is unclear.
+    Name the editor ("your editor").
+  - `set/about.md`: "starting value" means the value in `nvs.toml`; say so.
+  - `tests/hostile/core/Config/set/01-*.nvs`: "refused", fragments, and the long compile line.
+  - `tests/hostile/core/Env/mode/01-*.nvs`: "asks for", "Every answer".
+  - `docs/examples/tools/config/mode/about.md`: "When `ceiling` is not set, it is the same as
+    `default`" means no switch up is possible; say that.
+  - `docs/examples/tools/config/trust/01-*.nvs`: "this program" means this request.
+  - `docs/examples/config/queue-workers/01-*.nvs`: says the value is `1`, the card's default is `4`;
+    check which and make the comment say where `1` comes from.
+  - `docs/examples/config/queue-max_attempts/about.md`: "A change applies to the next job" means a
+    change to `nvs.toml`; say so. Define "worker" once.
+  - `docs/examples/config/log-handler_reserve_time/01-*.nvs` and `log-handler_reserve_memory/01-*.nvs`:
+    a limit "runs" nothing; say the reserve is the time and memory the handler gets.
+  - `docs/examples/config/log-client_ip/01-*.nvs` and `log-keep/01-*.nvs`: the top sentence is two ideas.
+  - `docs/examples/config/limits-memory_high_water/01-*.nvs`: a setting does not write; say Novis writes.
+  - `docs/examples/config/mode-ceiling/01-*.nvs`: "most open mode"; say `development` allows more.
+  - `website/src/data/changes.json`: one entry writes `CoreConfig::set` without the backslash.
+  - Debug attacks (`tests/hostile/config/debug-*/01-*.nvs`): "a key with 10,000 parts" means a name
+    with 10,000 dot-separated parts; "which folder" in `tls_cert_file` and `tls_key_file`.
+  - Cards in `crates/nvs-config/src/default.toml`: `debug.mode` ("It then counts", "stops the
+    start"), `debug.tls_cert_file` ("there", and "key" for a setting beside a TLS key),
+    `debug.spool_max` (define a spool file), `server.watchdog_margin` ("the waits above"),
+    `server.socket_mode` ("gives its own client address" means it carries no client address),
+    `opcache.file_cache_dir` ("above"), `limits.fatal_reserve_time` ("the same handler"),
+    `log.handler_reserve_time` ("the same reason"), `regex.backtracking` and `errors.deprecated`
+    ("both modes of `[mode] default`": name them).
+- [ ] `docs/agent/prose.md:20`: a third round over what changed, in briefs of 20 as before
+  (`bun nv site --review`, then `bun tools/nv/main.ts site --review --brief <keys>` per batch, each
+  brief to a `reader` that reads only that file). Stamp only what it passes, with
+  `bun nv site --review --stamp`. Then `bun nv proofs --gate --goal config-set-allowlist` is green,
+  and stage 4 is done.
 - [ ] Stage 5: the stage's check, as the pack names it (`docs/goals/config-set-allowlist.md:288`).
   Stage 5's newcomer item is the review above.
 
@@ -347,8 +385,10 @@ No test is expected to go red.
   `docs/examples/config/limits/01-what-a-request-starts-with-and-may-change.nvs`). A reader takes it
   for a word the prose rules forbid. `not allowed`, as the `set` example prints, needs each `.out`
   changed with it.
-- `tools/nv/lib/texts.ts:146` gives a block directive with no help card its JSON row as its text,
-  so a change to `nvs meta`'s row shape puts every block back on the review list.
+- The second round flagged texts this goal did not write: `nvs lsp`'s help (dense, dashes, many
+  terms), `changes.json` entries of other goals ("now", "no longer"), and the `nvs meta --json` help.
+  They are on this goal's list only because the review reads every unreviewed text of a reached
+  feature. Fix what the third round still names; a whole rewrite of `nvs lsp`'s help is its own goal.
 - `log.access` set by a request: the access line could read the request's overlay at
   `crates/nvs-server/src/serve.rs:1994`, so a route can turn its own line off. It needs a goal of its
   own, which then puts the key back on `SETTABLE` with a probe.
