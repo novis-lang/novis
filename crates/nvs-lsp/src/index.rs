@@ -503,6 +503,10 @@ pub struct SymbolIndex {
     /// [`refresh`](Self::refresh) found reading the changed file and did not
     /// analyse at once. One path per entry, freed as it is settled.
     pending: BTreeSet<PathBuf>,
+    /// The entries in [`pending`](Self::pending) whose turn analyses only some
+    /// of the files they own: the files a refresh's edit reaches. An entry
+    /// queued whole is not here. One path per reached file, freed at its turn.
+    partial: BTreeMap<PathBuf, BTreeSet<PathBuf>>,
     /// The work of every analysis [`absorb`](Self::absorb) ran since the last
     /// [`take_work`](Self::take_work): those of [`refresh`](Self::refresh)
     /// and of [`settle_one`](Self::settle_one) alike, because queued work is
@@ -741,7 +745,8 @@ impl SymbolIndex {
         // the reach sees the whole saved tree.
         for (key, old, new) in &moved {
             let readers = index.readers_of(key);
-            stale.extend(index.reached_entries(key, old, new.as_ref(), &readers));
+            let reached = index.reached_entries(key, old, new.as_ref(), &readers);
+            stale.extend(reached.into_iter().map(|(entry, _)| entry));
         }
         for key in &gone {
             stale.extend(index.readers_of(key));
@@ -870,7 +875,7 @@ impl SymbolIndex {
         // An entry that panicked on a worker recorded no reads, so it is no
         // reader of its own file. Its file changed, so it waits again.
         if self.panicked.remove(&key) {
-            self.pending.insert(key.clone());
+            self.queue_whole(key.clone());
         }
         if self.workers.is_some() {
             self.changed.insert(key.clone(), self.change);
@@ -899,7 +904,9 @@ impl SymbolIndex {
         // so they all wait. An open one is re-indexed below, and its readers
         // wait only if what they can see of it changed.
         if !reindexed {
-            self.pending.extend(held.iter().cloned());
+            for entry in &held {
+                self.queue_whole(entry.clone());
+            }
         }
         let before = self.files.get(&key).map(|indexed| indexed.rows.clone());
         let read_before = self.read_set(&key);
@@ -913,7 +920,7 @@ impl SymbolIndex {
         dropped.dedup();
         let mut analysed = Vec::new();
         for entry in now {
-            self.pending.remove(&entry);
+            self.unqueue(&entry);
             let Some(document) = open_document(documents, &entry) else {
                 continue;
             };
@@ -935,10 +942,14 @@ impl SymbolIndex {
                 Some(before) if !graph_moved => {
                     if Some(before.digest()) != after.map(crate::surface::Rows::digest) {
                         let reached = self.reached_entries(&key, &before, after, &held);
-                        self.pending.extend(reached);
+                        self.queue_reached(reached);
                     }
                 }
-                _ => self.pending.extend(held),
+                _ => {
+                    for entry in held {
+                        self.queue_whole(entry);
+                    }
+                }
             }
         }
         Refreshed { dropped, analysed }
@@ -964,9 +975,12 @@ impl SymbolIndex {
         let Some(entry) = self.pending.pop_first() else {
             return false;
         };
-        if !self.skips(&entry) {
-            self.drop_owned(std::slice::from_ref(&entry));
+        if self.skips(&entry) {
+            self.partial.remove(&entry);
+        } else {
+            let before = self.drop_for_turn(&entry);
             self.analyse_here(documents, &entry);
+            self.after_turn(&entry, before);
         }
         if self.pending.is_empty() {
             // The tree is settled, so a parse kept for a file no entry indexed
@@ -1125,15 +1139,16 @@ impl SymbolIndex {
                 break;
             }
             if self.skips(&head) {
-                self.pending.remove(&head);
+                self.unqueue(&head);
                 continue;
             }
             match self.send(documents, pool, &head) {
                 Sent::Plan | Sent::Parts => break,
                 Sent::Nothing | Sent::Failed => {
                     self.pending.remove(&head);
-                    self.drop_owned(std::slice::from_ref(&head));
+                    let before = self.drop_for_turn(&head);
                     self.analyse_here(documents, &head);
+                    self.after_turn(&head, before);
                 }
             }
         }
@@ -1264,7 +1279,12 @@ impl SymbolIndex {
                 }
             },
         };
-        let owned = self.owned_by(entry);
+        // A partial entry checks again only the files the edit reached, and
+        // its other files keep their records.
+        let owned = match self.partial.get(entry) {
+            Some(reached) => reached.iter().cloned().collect(),
+            None => self.owned_by(entry),
+        };
         let mut free: Vec<PathBuf> = graph
             .iter()
             .filter(|file| {
@@ -1325,14 +1345,16 @@ impl SymbolIndex {
         }
         self.pending.remove(entry);
         if self.skips(entry) {
+            self.partial.remove(entry);
             return;
         }
-        self.drop_owned(&[entry.to_path_buf()]);
+        let before = self.drop_for_turn(entry);
         if parts.iter().all(Option::is_none) {
             return;
         }
         if parts.iter().any(Option::is_none) {
             self.analyse_here(documents, entry);
+            self.after_turn(entry, before);
             return;
         }
         let mut records: Vec<(PathBuf, Indexed)> = Vec::new();
@@ -1351,6 +1373,7 @@ impl SymbolIndex {
             .any(|key| !recorded.contains(key) && !self.files.contains_key(key))
         {
             self.analyse_here(documents, entry);
+            self.after_turn(entry, before);
             return;
         }
         // In the order the graph loaded them, which is the serial analysis's.
@@ -1367,6 +1390,7 @@ impl SymbolIndex {
             skipped: Vec::new(),
             work: Work::default(),
         });
+        self.after_turn(entry, before);
     }
 
     /// The entry points that are waiting for [`settle_one`](Self::settle_one),
@@ -1448,7 +1472,8 @@ impl SymbolIndex {
     }
 
     /// The entries among `readers` that own a file which an edit of `key`
-    /// from `old` to `new` rows reaches, in path order.
+    /// from `old` to `new` rows reaches, in path order, each with the files it
+    /// owns that the edit reaches, or `None` where it is analysed whole.
     ///
     /// A file is reached when its check output's key reads a row the edit
     /// moved (`crate::file_key`): a name it used, a name it failed to find
@@ -1456,24 +1481,25 @@ impl SymbolIndex {
     /// A graph row or an attribute that moved, and no new rows, reach every
     /// reader: routes, commands, links and the graph are read across the
     /// whole graph. A reader that owns a file with no recorded uses is
-    /// always queued. `readers` is in path order.
+    /// always analysed whole. `readers` is in path order.
     fn reached_entries(
         &self,
         key: &Path,
         old: &crate::surface::Rows,
         new: Option<&crate::surface::Rows>,
         readers: &[PathBuf],
-    ) -> Vec<PathBuf> {
+    ) -> Vec<(PathBuf, Option<BTreeSet<PathBuf>>)> {
         use crate::surface::{How, Kind};
+        let every = || readers.iter().map(|entry| (entry.clone(), None)).collect();
         let Some(new) = new else {
-            return readers.to_vec();
+            return every();
         };
         let changes = crate::surface::diff(old, new);
         if changes
             .iter()
             .any(|change| matches!(change.kind, Kind::Graph | Kind::Attributes))
         {
-            return readers.to_vec();
+            return every();
         }
         let mut files: BTreeSet<&Path> = BTreeSet::new();
         for change in &changes {
@@ -1512,25 +1538,105 @@ impl SymbolIndex {
             }
         }
         files.remove(key);
-        let mut entries: BTreeSet<&Path> = files
-            .iter()
-            .filter_map(|file| self.files.get(*file))
-            .map(|indexed| indexed.entry.as_path())
-            .collect();
+        let mut entries: BTreeMap<&Path, Option<BTreeSet<PathBuf>>> = BTreeMap::new();
+        for file in files {
+            if let Some(indexed) = self.files.get(file) {
+                let reached = entries
+                    .entry(indexed.entry.as_path())
+                    .or_insert_with(|| Some(BTreeSet::new()));
+                if let Some(reached) = reached {
+                    reached.insert(file.to_path_buf());
+                }
+            }
+        }
         for reader in readers {
             if self
                 .owned_by(reader)
                 .iter()
                 .any(|file| self.files.get(file).is_some_and(|indexed| indexed.uses.is_none()))
             {
-                entries.insert(reader);
+                entries.insert(reader, None);
             }
         }
         readers
             .iter()
-            .filter(|reader| entries.contains(reader.as_path()))
-            .cloned()
+            .filter_map(|reader| {
+                let reached = entries.remove(reader.as_path())?;
+                Some((reader.clone(), reached))
+            })
             .collect()
+    }
+
+    /// Queues `entry` for a whole analysis.
+    fn queue_whole(&mut self, entry: PathBuf) {
+        self.partial.remove(&entry);
+        self.pending.insert(entry);
+    }
+
+    /// Queues `entry` to analyse again only the files in `reached`, which it
+    /// owns. An entry already waiting for a whole analysis stays whole.
+    fn queue_part(&mut self, entry: PathBuf, reached: BTreeSet<PathBuf>) {
+        if self.pending.contains(&entry) && !self.partial.contains_key(&entry) {
+            return;
+        }
+        self.partial.entry(entry.clone()).or_default().extend(reached);
+        self.pending.insert(entry);
+    }
+
+    /// Queues each of `reached` as [`reached_entries`](Self::reached_entries)
+    /// gave it.
+    fn queue_reached(&mut self, reached: Vec<(PathBuf, Option<BTreeSet<PathBuf>>)>) {
+        for (entry, files) in reached {
+            match files {
+                Some(files) => self.queue_part(entry, files),
+                None => self.queue_whole(entry),
+            }
+        }
+    }
+
+    /// Takes `entry` out of the queue, whole or partial.
+    fn unqueue(&mut self, entry: &Path) {
+        self.partial.remove(entry);
+        self.pending.remove(entry);
+    }
+
+    /// Drops what `entry`'s turn analyses again: the files a partial queueing
+    /// reached that it still owns, or else every file it owns. Returns the
+    /// files it read before, where the turn is partial.
+    fn drop_for_turn(&mut self, entry: &Path) -> Option<BTreeSet<PathBuf>> {
+        let Some(reached) = self.partial.remove(entry) else {
+            self.drop_owned(&[entry.to_path_buf()]);
+            return None;
+        };
+        let before = self.read_set(entry);
+        for path in reached {
+            if self.files.get(&path).is_some_and(|indexed| indexed.entry == entry)
+                && let Some(indexed) = self.files.remove(&path)
+            {
+                self.unpost(&path, &indexed);
+            }
+        }
+        before
+    }
+
+    /// After a partial turn of `entry`: where its analysis read other files
+    /// than before, every entry that reads a file it owns waits for a whole
+    /// analysis, as a graph that moved does in a refresh.
+    fn after_turn(&mut self, entry: &Path, before: Option<BTreeSet<PathBuf>>) {
+        let Some(before) = before else {
+            return;
+        };
+        if self.read_set(entry).is_none_or(|now| now == before) {
+            return;
+        }
+        let mut readers = BTreeSet::new();
+        for file in self.owned_by(entry) {
+            readers.extend(self.readers_of(&file));
+        }
+        readers.remove(entry);
+        for reader in readers {
+            self.queue_whole(reader);
+        }
     }
 
     /// Adds to `files` every indexed file `postings` has under `name`.

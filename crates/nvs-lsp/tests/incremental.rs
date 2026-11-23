@@ -1463,9 +1463,8 @@ fn a_cold_settle_parses_each_file_once_on_any_number_of_workers() {
 /// `Helper` that calls it. Every other file keeps its output. This pins the
 /// reach table's row for a public member.
 ///
-/// On workers, every file is still checked once. A worker's session is freed
-/// when the queue empties, and an output names its types in one session's
-/// interner, so no output a worker stored is there for the next edit.
+/// On workers, the count is the same. A queued entry's part checks only the
+/// files the edit reached, and its other files keep their records.
 #[test]
 fn a_surface_edit_read_by_every_program_checks_each_file_once() {
     let callers = 1 + (0..PROGRAMS).filter(|p| (p + 1) % LIBRARY == 5).count();
@@ -1478,7 +1477,7 @@ fn a_surface_edit_read_by_every_program_checks_each_file_once() {
         let work = keystroke(&mut index, &mut documents, &path, |text| {
             text.replacen("value(int $n): int", "value(int $n, int $m = 0): int", 1)
         });
-        let expected = if workers == 0 { 1 + callers } else { FILES };
+        let expected = 1 + callers;
         assert_eq!(
             work.checked, expected,
             "a surface edit on {workers} workers checked {} files' bodies, not {expected}",
