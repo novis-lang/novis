@@ -2723,8 +2723,10 @@ impl Cut {
     }
 }
 
-/// The subject with only `cut` kept. A sole subject keeps its allocation and
-/// no kept byte moves. A shared one is copied, and only the kept bytes are.
+/// The subject with only `cut` kept. A sole subject that keeps at least half
+/// of its capacity keeps its allocation, and no kept byte moves. A shorter cut
+/// and a shared subject are copied, and only the kept bytes are
+/// ([`NvsStr::keep`]).
 #[expect(
     clippy::disallowed_methods,
     reason = "a cut on character boundaries of a `string` leaves UTF-8"

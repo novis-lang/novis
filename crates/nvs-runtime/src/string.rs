@@ -1418,16 +1418,20 @@ impl NvsStr {
     /// Keeps only the bytes in `range`, consuming this handle and giving the
     /// result's — the in-place cut every `Core` member that cuts calls.
     ///
-    /// A sole string keeps its allocation, and no live byte moves: the front
-    /// is dropped by moving `start`, and the back by shortening `len`. A shared
-    /// one is copied, and only `range` is. `removed` is how many grapheme
-    /// clusters the cut takes away, where the caller counted them. The result
-    /// keeps a known count less `removed`, and is uncounted otherwise. Its
-    /// digest is reset.
+    /// A sole string that keeps at least half of its capacity keeps its
+    /// allocation, and no live byte moves: the front is dropped by moving
+    /// `start`, and the back by shortening `len`. A shared one is copied, and
+    /// only `range` is, and so is a sole one cut to less than half of its
+    /// capacity, whose old allocation is then freed. `removed` is how many
+    /// grapheme clusters the cut takes away, where the caller counted them.
+    /// The result keeps a known count less `removed`, and is uncounted
+    /// otherwise. Its digest is reset.
     ///
     /// # Memory
     ///
-    /// None. A sole string cut short keeps the allocation it already held.
+    /// A kept cut holds at most twice its length. What it spends to hold
+    /// that: a copy of at most half the old capacity, where a sole string is
+    /// cut short, so a cut a step at a time copies each byte O(1) times.
     ///
     /// # Panics
     ///
@@ -1446,7 +1450,8 @@ impl NvsStr {
             .known_count()
             .zip(removed)
             .and_then(|(held, gone)| held.checked_sub(gone));
-        if !self.is_sole() {
+        let kept = range.end - range.start;
+        if !self.is_sole() || kept.saturating_mul(2) < self.capacity() {
             let fresh = Self::new(&self.as_bytes()[range]);
             if let Some(count) = count {
                 remember_count(fresh.header(), count);
@@ -1455,7 +1460,7 @@ impl NvsStr {
         }
         let header = self.header();
         header.start.set(header.start.get() + range.start);
-        header.len.set(range.end - range.start);
+        header.len.set(kept);
         header.graphemes.set(count.unwrap_or(COUNT_UNKNOWN));
         header.digest.set(DIGEST_UNKNOWN);
         self
@@ -3817,20 +3822,25 @@ mod tests {
         }
     }
 
-    /// A sole string's cut moves `start` and `len` and nothing else: the
-    /// allocation and the address of every kept byte stay. A shared one is
-    /// copied, and the other holder still reads the whole string.
+    /// A sole string's cut that keeps at least half of its capacity moves
+    /// `start` and `len` and nothing else: the allocation and the address of
+    /// every kept byte stay. A shorter cut is copied into an allocation of
+    /// its own length. A shared one is copied, and the other holder still
+    /// reads the whole string.
     #[test]
     fn a_sole_string_drops_its_front_in_place() {
         let s = NvsStr::new(b"hello, world");
         let at = s.as_bytes().as_ptr();
-        let cut = s.drop_front(7, None);
-        assert_eq!(cut.as_bytes(), b"world");
-        assert_eq!(cut.as_bytes().as_ptr(), at.wrapping_add(7), "no byte moved");
+        let cut = s.drop_front(4, None);
+        assert_eq!(cut.as_bytes(), b"o, world");
+        assert_eq!(cut.as_bytes().as_ptr(), at.wrapping_add(4), "no byte moved");
         assert_eq!(cut.capacity(), 12, "the allocation is the same one");
         let cut = cut.drop_back(2, None);
-        assert_eq!(cut.as_bytes(), b"wor");
-        assert_eq!(cut.as_bytes().as_ptr(), at.wrapping_add(7));
+        assert_eq!(cut.as_bytes(), b"o, wor");
+        assert_eq!(cut.as_bytes().as_ptr(), at.wrapping_add(4));
+        let short = cut.drop_front(3, None);
+        assert_eq!(short.as_bytes(), b"wor");
+        assert_eq!(short.capacity(), 3, "a cut under half is copied out");
         let both = NvsStr::new(b"[abc]").keep(1..4, None);
         assert_eq!(both.as_bytes(), b"abc");
 
