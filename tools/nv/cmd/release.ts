@@ -23,14 +23,18 @@
 // `newest=true` when no release tag is ahead of `VERSION`, which is what lets the promote workflow
 // publish the VS Code extension to the Marketplace: an old draft published late moves no listing back.
 //
-// **`--fixes-built SHA` is the gate between the notes and the binaries.** The binaries are built from
-// the commit the release was dispatched at, and `publish` renders the notes and cuts the tag from the
-// tip of `main`, which an unattended loop may have moved since. A `fix` commit that landed in between
-// is listed in the notes, and is in the tag, but is not in the binaries. An advisory that says "fixed
-// in this version" would then be false for the archive a user downloads. So `--fixes-built` names every
-// `fix` commit the notes cover that `SHA` does not contain, and fails if there is one. The operator
-// dispatches the release again. Only fixes are held to it, because a fix is what an advisory cites: a
-// feature that missed the build is a smaller claim, and would fail most releases while the loop runs.
+// **`--fixes-built SHA` is the gate between the tag and the binaries.** The binaries and the extension
+// are built from `SHA`, the commit the release was dispatched at. `publish` then resets to the tip of
+// `main`, which an unattended loop may have moved since, and tags the release commit it makes on that
+// tip. So the tag holds every commit that landed in between, and the archives hold none of them. A
+// user who builds from the tag, or reads an advisory that says "fixed in this version", is told about
+// code the archive they downloaded does not have. So `--fixes-built` reads every commit in
+// `SHA..HEAD`, whatever its type, and fails when one changes a path in `SHIPPED`: the source the
+// binaries and the extension are built from. A `perf`, a `refactor` or a commit with no conventional
+// subject changes shipped code as much as a `fix` does. A commit that touches only docs, tests outside
+// the crates, the website or the tools changes nothing a user downloads, so it passes, which keeps the
+// release possible while the loop runs. A merge is read as its diff against its first parent. The
+// operator dispatches the release again.
 //
 // **`--tested SHA` decides whether the release runs the full suite.** It is the release's longest
 // step, and the commit's own push run has already run it. So `--tested` looks for a run of `ci.yml`
@@ -835,15 +839,57 @@ export async function notesFor(version: string, previousTag: string, cap: number
   return renderNotes(version, previousTag, parseLog(raw).map(classify), repoUrl(), today, cap, readChanges(ROOT).entries);
 }
 
-/** The `fix` commits among `entries`: the ones `--fixes-built` holds a build to. */
-export function fixesIn(entries: Entry[]): Entry[] {
-  return entries.filter((e) => e.type === "fix");
+/**
+ * The paths a release's archives and extension are built from. A directory ends in `/`; any other
+ * entry is one file at the root. `--fixes-built` fails on a commit after the build that changes one.
+ */
+export const SHIPPED = ["crates/", "extensions/", "vendor/", "editors/vscode/", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml"];
+
+/** Whether `path`, relative to the root and written with `/`, is one `SHIPPED` covers. */
+export function isShipped(path: string): boolean {
+  return SHIPPED.some((s) => (s.endsWith("/") ? path.startsWith(s) : path === s));
 }
 
-/** Every `fix` commit since `previousTag` that `HEAD` has and `built` does not, oldest first. */
-async function fixesMissingFrom(built: string, previousTag: string): Promise<Entry[]> {
-  const raw = await git(["log", "--reverse", "--no-merges", "--format=%H%x1f%s%x1f%b%x1e", `${built}..HEAD`, `^${previousTag}`]);
-  return fixesIn(parseLog(raw).map(classify));
+/** A commit and the paths it changed. */
+export interface Touched {
+  sha: string;
+  subject: string;
+  paths: string[];
+}
+
+/** The format `--fixes-built` reads `git log --name-only` in: a record separator, the sha and the subject. */
+export const TOUCHED_FORMAT = "%x1e%H%x1f%s";
+
+/** The records of `git log --name-only --format=TOUCHED_FORMAT`, in git's order. */
+export function parseTouched(raw: string): Touched[] {
+  const out: Touched[] = [];
+  for (const record of raw.split("\x1e")) {
+    if (record.trim() === "") continue;
+    const [head = "", ...rest] = record.split("\n");
+    const [sha = "", subject = ""] = head.split("\x1f");
+    const paths = rest.map((p) => p.trim()).filter((p) => p !== "");
+    out.push({ sha: sha.trim(), subject: subject.trim(), paths });
+  }
+  return out;
+}
+
+/** The commits among `commits` that change shipped code, each with only its shipped paths. */
+export function shippedChanges(commits: Touched[]): Touched[] {
+  return commits.map((c) => ({ ...c, paths: c.paths.filter(isShipped) })).filter((c) => c.paths.length > 0);
+}
+
+/**
+ * The `git log` arguments that list every commit `HEAD` has and `built` does not, oldest first, with
+ * the paths each changed. `--first-parent -m`: a merge is read as its diff against the branch it
+ * landed on, so a merge that brings shipped code in is named, once.
+ */
+export function shippedLogArgs(built: string): string[] {
+  return ["log", "--reverse", "--first-parent", "-m", "--name-only", `--format=${TOUCHED_FORMAT}`, `${built}..HEAD`];
+}
+
+/** Every commit `HEAD` has and `built` does not that changes shipped code, oldest first. */
+async function shippedSince(built: string): Promise<Touched[]> {
+  return shippedChanges(parseTouched(await git(shippedLogArgs(built))));
 }
 
 /**
@@ -992,7 +1038,7 @@ function help(): string {
     "  --check                        the manifests, the tags and the changelog agree",
     "  --docker-tags VERSION          the registry tags one image variant claims (`dev`: a push's image)",
     "  --newest VERSION               newest=true if no release tag is ahead of VERSION",
-    "  --fixes-built SHA              fail if a fix the notes cover is not in SHA, the commit that was built",
+    "  --fixes-built SHA              fail if a commit after SHA, the commit that was built, changes shipped code",
     "  --tested SHA                   tested=true if SHA has a green full run of ci.yml, or a green release.yml run",
     "",
     "options:",
@@ -1119,13 +1165,16 @@ export async function run(args: string[]): Promise<number> {
 
       case "--fixes-built": {
         const built = values.get("--fixes-built")!.trim();
-        const missing = await fixesMissingFrom(built, await previousTag(values.get("--since")));
-        for (const fix of missing) console.error(`nv release: in the notes, not in the binaries: ${fix.sha.slice(0, 8)} ${fix.subject}`);
+        const missing = await shippedSince(built);
+        for (const c of missing) {
+          console.error(`nv release: in the tag, not in the binaries: ${c.sha.slice(0, 8)} ${c.subject}`);
+          for (const p of c.paths) console.error(`    ${p}`);
+        }
         if (missing.length > 0) {
-          console.error(`nv release: ${missing.length} fix(es) landed on main after ${built.slice(0, 8)} was built. Dispatch the release again.`);
+          console.error(`nv release: ${missing.length} commit(s) changed shipped code on main after ${built.slice(0, 8)} was built. Dispatch the release again.`);
           return 1;
         }
-        console.log(`nv release: every fix the notes cover is in ${built.slice(0, 8)}, the commit that was built.`);
+        console.log(`nv release: no commit after ${built.slice(0, 8)}, the commit that was built, changes shipped code.`);
         return 0;
       }
 

@@ -222,7 +222,9 @@ jobs:
           file="nvs-${TAG#v}.vsix"
           mkdir -p "$RUNNER_TEMP/vsix"
           gh release download "$TAG" --repo "$REPO" --pattern "$file" --dir "$RUNNER_TEMP/vsix"
-          gh attestation verify "$RUNNER_TEMP/vsix/$file" --repo "$REPO"
+          # The extension is attested by `build.yml`, which `release.yml` calls, so that is the
+          # signer. Without it, an attestation from any workflow of this repository would pass.
+          gh attestation verify "$RUNNER_TEMP/vsix/$file" --repo "$REPO" --signer-workflow "$REPO/.github/workflows/build.yml"
 
       # `vsce` and `ovsx` at the versions the checked-out lockfile pins. `--ignore-scripts`, because
       # no install script should run in a job that is about to hold a publish credential, and

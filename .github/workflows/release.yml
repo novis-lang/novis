@@ -341,11 +341,12 @@ jobs:
           VERSION: ${{ needs.plan.outputs.version }}
         run: bun nv release --notes "$VERSION" --out "$RUNNER_TEMP/notes.md"
 
-      # The binaries are `github.sha`'s, and the notes and the tag are the tip's. A fix that landed
-      # in between would be claimed by the notes, and by any advisory that cites this version, while
-      # the archives lack it. This stops the release before anything is written, and the operator
-      # dispatches it again. `tools/nv/cmd/release.ts` § `--fixes-built` says why only fixes.
-      - name: Every fix in the notes is in the binaries
+      # The binaries and the extension are `github.sha`'s, and the tag is made on the release commit
+      # this job adds to the tip. A commit that landed in between and changed shipped code would be in
+      # the tag, and in any advisory that cites this version, while the archives lack it. This stops
+      # the release before anything is written, and the operator dispatches it again.
+      # `tools/nv/cmd/release.ts` § `--fixes-built` says which paths count as shipped.
+      - name: No shipped code landed after the build
         env:
           BUILT: ${{ github.sha }}
         run: bun nv release --fixes-built "$BUILT"
