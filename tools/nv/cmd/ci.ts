@@ -61,8 +61,8 @@
 // nothing twice. What it spends: one `git diff` and `git ls-files` for the signature, and one `cargo
 // metadata` and the change's git calls for the store's verdicts. The push itself starts
 // the push's `CI` and `Website` runs, so the command starts no run. It then
-// cancels every run of a workflow in `ONE_RUN_ON_MAIN` still going on `main` for an older commit, so each
-// workflow has one run going on `main` at a time (`rule:testing/one-run-on-main`); `ci.yml`'s own
+// cancels every push run of a workflow in `ONE_RUN_ON_MAIN` still going on `main` for an older commit, so each
+// workflow has one push run going on `main` at a time (`rule:testing/one-run-on-main`); `ci.yml`'s own
 // concurrency group cancels an older push's `CI` run too. Every `CI` run runs every job, the build legs
 // and the `dev` image included (`rule:testing/every-run-runs-every-job`).
 //
@@ -79,7 +79,7 @@
 // `origin/main` itself is red: GitHub cancels a job that passes its `timeout-minutes`, and keeps no log
 // of it, so the job's annotations are printed instead. It polls the jobs of each run in progress every
 // `POLL_BUSY_MS`. A run waiting on an environment's approval is printed once and polled every
-// `POLL_IDLE_MS`, and its verdict comes once it goes on. Each poll cancels every run of
+// `POLL_IDLE_MS`, and its verdict comes once it goes on. Each poll cancels every push run of
 // a workflow in `ONE_RUN_ON_MAIN` still going beside a newer one, such as a push run the nightly run started after. It exits 1 the moment a job
 // fails, or at once when a newest run already ended red, and prints each failed job, its failed step,
 // its URL and the end of its log. The whole log is kept under `.agent-tmp/ci/`. It exits 0 when every
@@ -588,16 +588,17 @@ function runLine(r: Run): string {
 }
 
 /**
- * The runs of each workflow of `workflows` still going that a newer run replaces: every one but the newest,
- * and with `head` given, every one on another commit too, since its run may not be listed yet. It never
- * names a `Release` run: a cancelled `publish` is the torn state `release.yml`'s `concurrency` exists to
- * prevent.
+ * The push runs of each workflow of `workflows` still going that a newer run replaces: every one but the
+ * newest, and with `head` given, every one on another commit too, since its run may not be listed yet. It
+ * never names a `Release` run: a cancelled `publish` is the torn state `release.yml`'s `concurrency` exists
+ * to prevent. It never names a scheduled or dispatched run either: those run the jobs a push run leaves out,
+ * miri over every crate and the unsafe audit, so no newer push run replaces them.
  */
 export function superseded(runs: Run[], head?: string, workflows: readonly string[] = ONE_RUN_ON_MAIN): Run[] {
   const out: Run[] = [];
   for (const w of workflows.filter((x) => x !== RELEASE)) {
     const going = runs.filter((x) => x.name === w && !done(x)).sort((a, b) => b.id - a.id);
-    out.push(...going.filter((r, i) => i > 0 || (head !== undefined && r.head_sha !== head)));
+    out.push(...going.filter((r, i) => r.event === "push" && (i > 0 || (head !== undefined && r.head_sha !== head))));
   }
   return out;
 }

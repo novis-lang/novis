@@ -522,6 +522,15 @@ describe("bun nv ci --push", () => {
     expect(runAsked(w)).toEqual([["run", "cancel", "40"], ["run", "cancel", "41"]]);
   });
 
+  test("a scheduled or dispatched run on an older commit is left going", async () => {
+    const w = seams("push-nightly", () => ({
+      runs: [runOf(71, "CI", "in_progress", null, "schedule", "old"), runOf(70, "CI", "in_progress", null, "workflow_dispatch", "old")],
+      jobs: {},
+    }), heads("new", "old"));
+    expect(await ci(["--push"], w.s)).toBe(0);
+    expect(runAsked(w)).toEqual([]);
+  });
+
   test("the run of the pushed commit is left going, and a second run beside it is cancelled", async () => {
     const w = seams("push-kept", () => ({
       runs: [runOf(51, "CI", "in_progress", null, "workflow_dispatch", "new"), runOf(50, "CI", "in_progress", null, "push", "new")],

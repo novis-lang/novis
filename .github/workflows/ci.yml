@@ -36,8 +36,8 @@ env:
 # `github.event_name` is in the group so a nightly run and a push run never cancel or wait for each
 # other. A newer push to `main` cancels the older push's run still going, and a newer commit to a pull
 # request cancels its older run. Every run runs every job, so the newer run tests every commit the
-# cancelled one did. A scheduled or dispatched run is never cancelled by the group. `bun nv ci --push` and `--watch` cancel
-# a push run that a newer nightly run replaces, and `bun nv ci --dispatch dry-run` cancels the push runs of
+# cancelled one did. A scheduled or dispatched run is never cancelled, by the group or by a command. `bun nv ci --push` and `--watch` cancel
+# an older push run that a newer run replaces, and `bun nv ci --dispatch dry-run` cancels the push runs of
 # the commit its release run tests. `rule:testing/one-run-on-main`.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
