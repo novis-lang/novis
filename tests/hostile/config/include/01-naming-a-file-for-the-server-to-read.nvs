@@ -41,9 +41,9 @@ array<string> $paths = [
     Core\Str::repeat('/', 100000),
 ];
 foreach ($paths as string $value) {
-    Core\Config::set($include,$value);
-    Core\Config::set($includePath,$value);
-    Core\Config::set($includeDir,$value);
+    Core\Config::set($include, $value);
+    Core\Config::set($includePath, $value);
+    Core\Config::set($includeDir, $value);
     // Each write fails, so each read returns `null`. A path here would be a
     // file the server reads its settings from.
     Core\Config::get('include');
@@ -78,26 +78,26 @@ foreach ($spellings as string $key) {
 
 // 3. Tries entries that are not allowed in a file: `path` and `dir` together,
 //    and `optional` with no file named.
-Core\Config::set($includePath,'/tmp/attacker.toml');
-Core\Config::set($includeDir,'/tmp/conf.d');
+Core\Config::set($includePath, '/tmp/attacker.toml');
+Core\Config::set($includeDir, '/tmp/conf.d');
 Core\Config::get('include.path');
 Core\Config::restore($includePath);
 Core\Config::restore($includeDir);
-Core\Config::set($includeOptional,'true');
-Core\Config::set($includeOptional,'1');
-Core\Config::set($includeOptional,'yes');
+Core\Config::set($includeOptional, 'true');
+Core\Config::set($includeOptional, '1');
+Core\Config::set($includeOptional, 'yes');
 Core\Config::get('include.optional');
 Core\Config::restore($includeOptional);
 
 // 4. Tries a file that includes itself, then a directory path 64 levels deep.
-Core\Config::set($includePath,'nvs.toml');
+Core\Config::set($includePath, 'nvs.toml');
 Core\Config::get('include.path');
 Core\Config::restore($includePath);
 uint $depth = 0;
 string $chain = 'conf.d';
 while ($depth < 64) {
     $chain = $chain . '/deeper';
-    Core\Config::set($includeDir,$chain);
+    Core\Config::set($includeDir, $chain);
     Core\Config::get('include.dir');
     $depth = $depth + 1;
 }
@@ -108,7 +108,7 @@ Core\Config::restore($includeDir);
 Core\Config::restore($include);
 uint $i = 0;
 while ($i < 100000) {
-    Core\Config::set($include,'conf.d/attacker.toml');
+    Core\Config::set($include, 'conf.d/attacker.toml');
     $i = $i + 1;
 }
 echo Core\Config::get('include') ?? '(nothing)', "\n";

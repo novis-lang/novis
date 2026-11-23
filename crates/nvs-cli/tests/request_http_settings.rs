@@ -328,7 +328,8 @@ fn quoted(text: &str) -> String {
 /// what `set` returned and, for an outbound key, what `get` returns, separated by `|`.
 fn program(probes: &[(String, &'static str, Expect)]) -> String {
     let mut text = String::from(
-        "<?nvs\nvar $n = Core\\Request::query('n') ?? '';\nvar $ok = 'none';\nvar $got = '';\n",
+        "<?nvs\nvar $n = Core\\Request::query('n') ?? '';\nvar $ok = 'none';\nvar $got = '';\n\
+         var $key = '';\n",
     );
     for (index, (key, value, expect)) in probes.iter().enumerate() {
         let (key, value) = (quoted(key), quoted(value));
@@ -338,8 +339,15 @@ fn program(probes: &[(String, &'static str, Expect)]) -> String {
         } else {
             String::new()
         };
+        // A written name no row lists is E0667, so a refused key goes through a variable and
+        // reaches the run-time `false` this test pins.
+        let (bind, name) = if matches!(expect, Expect::Refused) {
+            (format!("    $key = {key};\n"), "$key".to_owned())
+        } else {
+            (String::new(), key)
+        };
         text.push_str(&format!(
-            "if ($n == '{index}') {{\n    $ok = Core\\Config::set({key}, {value}) ? 'true' : 'false';\n{got}}}\n"
+            "if ($n == '{index}') {{\n{bind}    $ok = Core\\Config::set({name}, {value}) ? 'true' : 'false';\n{got}}}\n"
         ));
     }
     text.push_str("Core\\Response::addCookie('probe', '1');\necho $ok, '|', $got;\n");

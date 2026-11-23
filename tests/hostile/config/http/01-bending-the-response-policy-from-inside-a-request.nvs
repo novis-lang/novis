@@ -71,12 +71,12 @@ Core\Config::set('http.cookies.same_site', 'None');
 Core\Config::set('http.cookies.secure', 'false');
 Core\Config::set('http.cors.origins', '*');
 Core\Config::set('http.cors.credentials', 'true');
-Core\Config::set($corsMaxAge,'99999999999999999999h');
+Core\Config::set($corsMaxAge, '99999999999999999999h');
 Core\Config::set('http.headers.hsts', '0');
 Core\Config::set('http.headers.hsts', '-1');
 Core\Config::set('http.headers.content_type_options', 'false');
-Core\Config::set($errorsDetail,'full');
-Core\Config::set($errorsDetail,'everything');
+Core\Config::set($errorsDetail, 'full');
+Core\Config::set($errorsDetail, 'everything');
 
 // 5. Set names that are almost the real names, and a name with 10,000 parts separated by dots.
 array<string> $nearby = [
