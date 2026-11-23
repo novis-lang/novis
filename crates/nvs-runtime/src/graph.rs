@@ -236,6 +236,12 @@ trait Carrier {
     /// `Core` class that `decode` could not check slot by slot.
     const DOOR: Door;
 
+    /// Whether the walk leaves out a revocable class's hidden slot. The
+    /// encoder does: a payload names no node for it, and `decode` gives it its
+    /// fresh value, because no value from outside is a valid memberships
+    /// pointer. The live carrier walks the slot as `null`.
+    const SKIPS_HIDDEN: bool = false;
+
     /// May this allocation be reused rather than rebuilt? See the module docs
     /// on a move at refcount 1 being the semantics rather than an optimisation.
     fn adopt(&mut self, value: Value) -> bool;
@@ -442,6 +448,9 @@ fn walk<C: Carrier>(
             let holder = carrier.open_object(class, adopt.then_some(value));
             seen.insert(ptr, holder.clone());
             for index in 0..object.field_count() {
+                if C::SKIPS_HIDDEN && class.is_hidden_slot(index) {
+                    continue;
+                }
                 // A revocable class's hidden slot is copied as `null`: the
                 // copy is in no collection, and a shared memberships list
                 // would be freed twice.
@@ -793,6 +802,8 @@ impl Carrier for Encode {
 
     const DOOR: Door = Door::Bytes;
 
+    const SKIPS_HIDDEN: bool = true;
+
     fn adopt(&mut self, _value: Value) -> bool {
         false
     }
@@ -867,13 +878,15 @@ impl Carrier for Encode {
         self.put_byte(node::OBJECT);
         let name = class.name().as_bytes().to_vec();
         self.blob(&name);
-        self.varint(length(class.field_count()));
+        let written = written_slots(class);
+        self.varint(length(written.clone().count()));
         // Every declared property's name, *before* any of their values — which
         // is what lets a decode check `rule:classes/serialize-is-a-closed-format`'s
         // "recorded property set does not
         // exactly match the target class's current declarations" before
-        // it builds anything at all.
-        for index in 0..class.field_count() {
+        // it builds anything at all. A revocable class's hidden slot is not a
+        // property, so it has no name here and no node below.
+        for index in written {
             let field = class
                 .field_name(index)
                 .unwrap_or_default()
@@ -1130,14 +1143,15 @@ impl Reader<'_> {
         // Asked before the property comparison, so a refused class's layout is
         // never printed and nothing of it is built.
         refusable(class, Door::Bytes)?;
-        if class.field_count() != recorded.len() {
+        let written = written_slots(class);
+        let declares = written.clone().count();
+        if declares != recorded.len() {
             return Err(GraphError(format!(
-                "`{name}` declares {} properties and the payload records {}",
-                class.field_count(),
+                "`{name}` declares {declares} properties and the payload records {}",
                 recorded.len()
             )));
         }
-        for (index, held) in recorded.iter().enumerate() {
+        for (index, held) in written.clone().zip(&recorded) {
             let declared = class.field_name(index).unwrap_or_default();
             if declared != held {
                 return Err(GraphError(format!(
@@ -1156,13 +1170,21 @@ impl Reader<'_> {
         let object = unsafe { NvsObj::new(desc) };
         let value = Value::object(object);
         self.objects.push(value);
-        for index in 0..class.field_count() {
+        // A revocable class's hidden slot keeps the `null` the object was
+        // made with: the payload holds no node for it.
+        for index in written {
             let child = self.node(depth + 1)?;
             borrow_object(value).set_field(index, child);
         }
         retain(value);
         Ok(value)
     }
+}
+
+/// The slots of `class` a payload writes, in slot order: every slot but a
+/// revocable class's hidden one.
+fn written_slots(class: &ClassDesc) -> impl Iterator<Item = usize> + Clone + '_ {
+    (0..class.field_count()).filter(|index| !class.is_hidden_slot(*index))
 }
 
 /// `rule:classes/serialize-is-a-closed-format`'s `Core\Serialize::decode`: the closed format read back, or a refusal.

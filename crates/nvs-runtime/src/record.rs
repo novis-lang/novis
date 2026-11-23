@@ -402,10 +402,17 @@ fn object_body(
             properties: Vec::new(),
         };
     }
+    // A revocable class's hidden slot is not a property, so the dump starts
+    // after it.
+    let first = if desc.is_revocable() {
+        crate::revoke::HIDDEN_SLOT + 1
+    } else {
+        0
+    };
     Node::Object {
         class,
         id,
-        properties: properties_of(value, &object, desc, caps, depth, seen, 0),
+        properties: properties_of(value, &object, desc, caps, depth, seen, first),
     }
 }
 

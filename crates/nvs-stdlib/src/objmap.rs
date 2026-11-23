@@ -543,15 +543,35 @@ nvs_runtime::nvs_helper! {
         if revoke::is_revoked_value(key) || revoke::is_revoked_value(value) {
             return Ok(Value::null());
         }
+        // The value this write replaces is kept alive across the write, so
+        // its membership can be removed once the write has landed.
         let old = held_under(receiver, key, "set")?;
         if let Some(old) = old {
-            revoke::unlink(old, receiver, MembershipKind::MapValue, key);
+            #[expect(unsafe_code, reason = "borrowed from the store, which holds it")]
+            unsafe {
+                old.retain();
+            }
         }
-        write_pair(receiver, key, value)?;
-        if old.is_none() {
-            revoke::link(key, receiver, MembershipKind::MapKey, Value::null());
+        let written = write_pair(receiver, key, value).and_then(|()| {
+            // A write the memory ceiling refused leaves the map as it was, so
+            // it links and unlinks nothing.
+            Ok(held_under(receiver, key, "set")?.is_some_and(|held| same(held, value)))
+        });
+        if let Ok(true) = written {
+            if let Some(old) = old {
+                revoke::unlink(old, receiver, MembershipKind::MapValue, key);
+            } else {
+                revoke::link(key, receiver, MembershipKind::MapKey, Value::null());
+            }
+            revoke::link(value, receiver, MembershipKind::MapValue, key);
         }
-        revoke::link(value, receiver, MembershipKind::MapValue, key);
+        if let Some(old) = old {
+            #[expect(unsafe_code, reason = "gives up the reference taken above")]
+            unsafe {
+                old.release();
+            }
+        }
+        written?;
         Ok(Value::null())
     }
 }
@@ -614,18 +634,43 @@ fn each_pair(receiver: *mut ObjHeader, member: &str, mut visit: impl FnMut(Value
     }
 }
 
+/// Whether `a` and `b` are the same value: the same object, or equal bits for
+/// anything else.
+fn same(a: Value, b: Value) -> bool {
+    match (a.obj_ptr(), b.obj_ptr()) {
+        (Some(a), Some(b)) => std::ptr::eq(a, b),
+        _ => a.bits() == b.bits(),
+    }
+}
+
 /// Takes `key`'s entry out of `receiver`, and the memberships of its key and
 /// its value with it. What `remove` and a revoke run.
+///
+/// With `only`, the entry is taken out only when the value under `key` is
+/// that object: a revoked value removes its own entry and never another.
 ///
 /// # Errors
 ///
 /// [`store::borrow`]'s and [`store::edit`]'s, unchanged.
-fn remove_entry(receiver: *mut ObjHeader, key: Value, member: &str) -> Result<(), Fault> {
-    if revoke::in_use()
-        && let Some(value) = held_under(receiver, key, member)?
-    {
-        revoke::unlink(value, receiver, MembershipKind::MapValue, key);
-        revoke::unlink(key, receiver, MembershipKind::MapKey, Value::null());
+fn remove_entry(
+    receiver: *mut ObjHeader,
+    key: Value,
+    only: Option<Value>,
+    member: &str,
+) -> Result<(), Fault> {
+    // Only a program with a revocable class looks the value up first, and
+    // `only` comes from a revoke, so it is always such a program.
+    if revoke::in_use() {
+        let held = held_under(receiver, key, member)?;
+        if let Some(only) = only
+            && !held.is_some_and(|held| same(held, only))
+        {
+            return Ok(());
+        }
+        if let Some(value) = held {
+            revoke::unlink(value, receiver, MembershipKind::MapValue, key);
+            revoke::unlink(key, receiver, MembershipKind::MapKey, Value::null());
+        }
     }
     remove_pair(receiver, key, member)
 }
@@ -637,12 +682,12 @@ pub(crate) const HOOKS: revoke::CollectionHooks = revoke::CollectionHooks {
         let Some(receiver) = map.obj_ptr() else {
             return;
         };
-        let key = if kind == MembershipKind::MapKey {
-            object
+        let (key, only) = if kind == MembershipKind::MapKey {
+            (object, None)
         } else {
-            key
+            (key, Some(object))
         };
-        let _ = remove_entry(receiver, key, "revoke");
+        let _ = remove_entry(receiver, key, only, "revoke");
     },
     unlink_all: |map| {
         let Some(receiver) = map.obj_ptr() else {
@@ -820,7 +865,7 @@ nvs_runtime::nvs_helper! {
     /// this module's alignment invariant.
     fn nvs_core_object_map_remove(_ctx, args: [2]) {
         let receiver = map_of(args[0], "remove")?;
-        remove_entry(receiver, args[1], "remove")?;
+        remove_entry(receiver, args[1], None, "remove")?;
         Ok(Value::null())
     }
 }
