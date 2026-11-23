@@ -56,7 +56,9 @@ fn a_zone_offset_with_two_signs_does_not_compile() {
     for zone in ["+-5:00", "-+5:00", "+05:+3", "+ 5:00"] {
         let errors = errors_of(&in_zone(zone));
         assert!(
-            errors.iter().any(|message| message.contains("is not a zone offset")),
+            errors
+                .iter()
+                .any(|message| message.contains("is not a zone offset")),
             "`{zone}` compiled: {errors:?}"
         );
     }
@@ -92,7 +94,10 @@ var $rest = ($millis - $seconds * 1000) as uint;
 var $again = Core\Time\Instant::fromEpoch($seconds, {nanos: $rest * 1000000});
 echo $again->compareTo($half), "\n";
 "#;
-    assert_eq!(output_of(source), "-1 -500 -500000\n-1 -1 -1\n1 1500 1500000\n0\n");
+    assert_eq!(
+        output_of(source),
+        "-1 -500 -500000\n-1 -1 -1\n1 1500 1500000\n0\n"
+    );
 }
 
 #[test]
