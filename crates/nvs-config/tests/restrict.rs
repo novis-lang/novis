@@ -226,7 +226,12 @@ fn a_package_allow_outside_its_own_name_is_an_error() {
 // covers: tools:packages/restrictions-where-a-class-or-method-may-be-used
 #[test]
 fn a_package_use_outside_its_own_name_or_core_is_an_error() {
-    for outside in ["Shop\\Cart", "Shop\\Cart::total", "Framework\\Corel", "Shop\\*"] {
+    for outside in [
+        "Shop\\Cart",
+        "Shop\\Cart::total",
+        "Framework\\Corel",
+        "Shop\\*",
+    ] {
         let text = format!(
             "[package]\nname = 'Framework\\Core'\n\n[[restrict]]\nuse = '{outside}'\nallow = []\n"
         );

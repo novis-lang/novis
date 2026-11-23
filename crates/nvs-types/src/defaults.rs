@@ -574,6 +574,58 @@ pub(crate) fn fold_const_reference(
     }
 }
 
+/// Records `expr`, a property or parameter default, in the expression table as a body's read of
+/// the same constant records it: [`ExprInfo::EnumCase`] for a case and [`ExprInfo::ClassConst`]
+/// for a class constant. Called inside the member's [`crate::deprecated::window`], so a default
+/// is a use for the restriction, deprecation and test code checks, as a body is. A default is
+/// folded in the signatures pass, before those checks are built, which is why it is recorded a
+/// second time here. Reports nothing: the signatures pass already reported what is wrong, and a
+/// default that does not fold records nothing. `static::NAME` has no compile-time value and was
+/// refused there. Memory: one table entry per named default, per check, never per request.
+///
+/// [`ExprInfo::EnumCase`]: crate::expr_table::ExprInfo::EnumCase
+/// [`ExprInfo::ClassConst`]: crate::expr_table::ExprInfo::ClassConst
+pub(crate) fn record_default_use(expr: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    use crate::expr_table::ExprInfo;
+    let ExprKind::ClassConstAccess { class, name } = &expr.kind else {
+        return;
+    };
+    if matches!(class.kind, ExprKind::StaticExpr) {
+        return;
+    }
+    let Some(qname) = crate::expr::resolve_class_expr(class, ctx, env) else {
+        return;
+    };
+    let member = crate::span_text(env.src, *name).to_owned();
+    if let Some(value) = env.enums.case(&qname, &member) {
+        let info = ExprInfo::EnumCase {
+            value,
+            enum_: qname,
+            case: member,
+        };
+        env.exprs.record(expr.span, info);
+        return;
+    }
+    let found = if qname.is_core() {
+        crate::core_lib::constant(&qname, &member, env.interner)
+            .map(|(ty, value)| (qname, ty, value))
+    } else {
+        crate::signatures::resolve_const_owned(&qname, &member, env.signatures, env.graph)
+            .and_then(|(owner, sig)| Some((owner, sig.ty, sig.value.clone()?)))
+    };
+    let Some((class, ty, value)) = found else {
+        return;
+    };
+    let enum_backing = crate::expr::members::enum_backing(ty, env);
+    let info = ExprInfo::ClassConst {
+        class,
+        name: member,
+        value,
+        enum_backing,
+    };
+    env.exprs.record(expr.span, info);
+}
+
 /// One already-folded constant against the property's own declared type —
 /// [`literal_default`]'s grid, with the literal's syntax already gone.
 ///

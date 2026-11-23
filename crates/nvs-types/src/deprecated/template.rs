@@ -703,7 +703,11 @@ pub(crate) fn resolved(info: &ExprInfo, env: &Env<'_>) -> Vec<(QName, Member, Vi
             // redeclaration below it is reached only at run time.
             ExprInfo::ClassConstLate { class, name, .. } => {
                 out.push((class.clone(), Member::Type, Visibility::Public));
-                out.push((class.clone(), Member::Const(name.clone()), Visibility::Public));
+                out.push((
+                    class.clone(),
+                    Member::Const(name.clone()),
+                    Visibility::Public,
+                ));
             }
             // The receiver's class is known only at run time: `record_acts`
             // lists these sites and the lowering checks them when they run.

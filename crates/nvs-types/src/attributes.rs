@@ -974,18 +974,23 @@ fn check_attribute(
     // it, so `'clear'` at `'clear'|'keep'` is that single-value type, the check
     // a retrieval makes, and a payload accepted here is the payload
     // `Core\Attributes::get<Name>` finds.
-    let mut live = Live::default();
-    let scope = LocalScope::new();
-    let actual = check_anon_object(attr.span, &attr.fields, None, &mut live, &scope, ctx, env);
-    let actual = crate::retrieval::with_requested_literals(
-        &attr.fields,
-        actual,
-        shape,
-        &mut live,
-        &scope,
-        ctx,
-        env,
-    );
+    // The payload is read inside a window, as a body is, so a constant or a case it names is a
+    // use for the restriction, deprecation and test code checks. Its place is the class the
+    // attribute is on.
+    let actual = crate::deprecated::window(ctx.namespace, ctx.current_class, None, env, |env| {
+        let mut live = Live::default();
+        let scope = LocalScope::new();
+        let actual = check_anon_object(attr.span, &attr.fields, None, &mut live, &scope, ctx, env);
+        crate::retrieval::with_requested_literals(
+            &attr.fields,
+            actual,
+            shape,
+            &mut live,
+            &scope,
+            ctx,
+            env,
+        )
+    });
     // A written name at a `property<C>` field is checked once, here, at the
     // literal (`rule:attributes/a-declaration-names-its-class-with-static`).
     if let Ty::Shape(requested) = env.interner.get(shape).clone() {

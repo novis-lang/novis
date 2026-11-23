@@ -350,7 +350,7 @@ pub(crate) fn method_reference(
 
 /// The backing of the enum `ty` is, or `None` when `ty` is not an enum —
 /// [`ExprInfo::ClassConst`]'s `enum_backing` for a constant declared as one.
-fn enum_backing(ty: TypeId, env: &Env<'_>) -> Option<crate::enums::EnumBacking> {
+pub(crate) fn enum_backing(ty: TypeId, env: &Env<'_>) -> Option<crate::enums::EnumBacking> {
     match env.interner.get(ty) {
         Ty::Enum(_, backing) => Some(*backing),
         _ => None,

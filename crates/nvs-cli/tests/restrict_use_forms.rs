@@ -11,9 +11,7 @@ use std::process::Command;
 
 /// The entry: both autoloads, then `body`.
 fn entry(body: &str) -> String {
-    format!(
-        "<?nvs\nautoload 'Framework' from 'framework';\nautoload 'Shop' from 'shop';\n\n{body}"
-    )
+    format!("<?nvs\nautoload 'Framework' from 'framework';\nautoload 'Shop' from 'shop';\n\n{body}")
 }
 
 /// A fresh program folder with `files` written under it, each `(path, text)`.
@@ -124,6 +122,57 @@ fn a_late_static_constant_read_uses_the_constant() {
         ],
         "Framework\\Base::LIMIT",
         "Child.nvs:8",
+    );
+}
+
+#[test]
+fn a_property_default_uses_the_constant_it_reads() {
+    let base = "<?nvs\nnamespace Framework;\n\nclass Base\n{\n    public const int LIMIT = 3;\n}\n";
+    let cart =
+        "<?nvs\nnamespace Shop;\n\nclass Cart\n{\n    public int $n = Framework\\Base::LIMIT;\n}\n";
+    let main = entry("echo new Shop\\Cart()->n, \"\\n\";\n");
+    refused_only_when_restricted(
+        &[
+            ("main.nvs", &main),
+            ("framework/Base.nvs", base),
+            ("shop/Cart.nvs", cart),
+        ],
+        "Framework\\Base::LIMIT",
+        "Cart.nvs:6",
+    );
+}
+
+#[test]
+fn a_parameter_default_uses_the_constant_it_reads() {
+    let base = "<?nvs\nnamespace Framework;\n\nclass Base\n{\n    public const int LIMIT = 3;\n}\n";
+    let cart = "<?nvs\nnamespace Shop;\n\nclass Cart\n{\n    public static function take(int $n = Framework\\Base::LIMIT): int\n    {\n        return $n;\n    }\n}\n";
+    let main = entry("echo Shop\\Cart::take(), \"\\n\";\n");
+    refused_only_when_restricted(
+        &[
+            ("main.nvs", &main),
+            ("framework/Base.nvs", base),
+            ("shop/Cart.nvs", cart),
+        ],
+        "Framework\\Base::LIMIT",
+        "Cart.nvs:6",
+    );
+}
+
+#[test]
+fn an_attribute_payload_uses_the_constant_it_reads() {
+    let base = "<?nvs\nnamespace Framework;\n\nclass Base\n{\n    public const int LIMIT = 3;\n}\n";
+    let size = "<?nvs\nnamespace Shop;\n\nattribute Size on method { n: int }\n";
+    let cart = "<?nvs\nnamespace Shop;\n\nclass Cart\n{\n    #[Size(n: Framework\\Base::LIMIT)]\n    public static function take(): int\n    {\n        return 1;\n    }\n}\n";
+    let main = entry("echo Shop\\Cart::take(), \"\\n\";\n");
+    refused_only_when_restricted(
+        &[
+            ("main.nvs", &main),
+            ("framework/Base.nvs", base),
+            ("shop/Size.nvs", size),
+            ("shop/Cart.nvs", cart),
+        ],
+        "Framework\\Base::LIMIT",
+        "Cart.nvs:6",
     );
 }
 

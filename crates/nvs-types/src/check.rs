@@ -1200,6 +1200,9 @@ fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
                     if let Some(class) = ctx.current_class {
                         crate::deprecated::warn_override(class, &name, m.name, env);
                     }
+                    for default in m.params.iter().filter_map(|param| param.default.as_ref()) {
+                        crate::defaults::record_default_use(default, ctx, env);
+                    }
                     check_method(m, ctx, env);
                 });
             }
@@ -1211,6 +1214,9 @@ fn check_members(members: &[ClassMember], ctx: &Ctx<'_>, env: &mut Env<'_>) {
                     Some(Member::Property(name)),
                     env,
                     |env| {
+                        if let Some(default) = &p.default {
+                            crate::defaults::record_default_use(default, ctx, env);
+                        }
                         check_property_hooks(p, ctx, env);
                     },
                 );
