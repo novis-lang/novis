@@ -1461,7 +1461,7 @@ fn graph_key(
         hasher.update(&[0]);
         hasher.update(&src.id().index().to_le_bytes());
         match parses.hashes(src) {
-            Some((_, surface)) => hasher.update(surface.as_bytes()),
+            Some((_, rows)) => hasher.update(rows.digest().as_bytes()),
             None => hasher.update(blake3::hash(src.text().as_bytes()).as_bytes()),
         };
     }

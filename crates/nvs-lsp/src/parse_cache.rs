@@ -53,9 +53,10 @@
 //!
 //! Per file of the tree, for as long as the file is in it: the file's
 //! statements, its trivia and syntax index (an analysis of the file as an open
-//! document needs both), the diagnostics its parse reported, two 32-byte
-//! hashes (its text and its declaration surface, `crate::surface`), and one
-//! pinned path. Every map the cache builds holds one empty source file
+//! document needs both), the diagnostics its parse reported, the 32-byte hash
+//! of its text, the rows of its declaration surface (`crate::surface`: a
+//! symbol and two 32-byte hashes per declaration, and one hash of them all),
+//! and one pinned path. Every map the cache builds holds one empty source file
 //! per pinned path that analysis does not load, and the whole tree is pinned
 //! once the workers run. [`ParseCache::retain`] frees a file once it leaves
 //! the tree. On the generated tree of `tests/incremental.rs` (100 files of
@@ -118,8 +119,8 @@ pub(crate) struct ParseCache {
 pub(crate) struct Entry {
     id: SourceId,
     hash: Digest,
-    /// [`crate::surface::of`] the statements, computed once per text.
-    surface: Digest,
+    /// [`crate::surface::rows`] of the statements, computed once per text.
+    rows: Arc<crate::surface::Rows>,
     stmts: Arc<Vec<Stmt>>,
     trivia: Vec<Trivia>,
     index: SyntaxIndex,
@@ -291,12 +292,12 @@ impl ParseCache {
         ids
     }
 
-    /// The hash of `src`'s text and of its declaration surface, where the
-    /// cache holds the parse of that text at `src`'s id.
-    pub(crate) fn hashes(&self, src: &SourceFile) -> Option<(Digest, Digest)> {
+    /// The hash of `src`'s text and the rows of its declaration surface,
+    /// where the cache holds the parse of that text at `src`'s id.
+    pub(crate) fn hashes(&self, src: &SourceFile) -> Option<(Digest, &crate::surface::Rows)> {
         let key = self.key_of(src);
         let entry = self.find(&key, src.id(), None)?;
-        Some((entry.hash, entry.surface))
+        Some((entry.hash, &entry.rows))
     }
 
     /// The parse of `key` at `id`, and of the text that hashes to `hash` where
@@ -328,14 +329,14 @@ impl ParseCache {
                 index,
             } = parse(src, &mut own);
             check_declarations(&stmts, src, &mut own);
-            let surface = crate::surface::of(&stmts, &trivia, src.text());
+            let rows = Arc::new(crate::surface::rows(&stmts, &trivia, src.text()));
             let key: Arc<Path> = Arc::from(key.as_path());
             Arc::make_mut(&mut self.files).insert(
                 Arc::clone(&key),
                 Arc::new(Entry {
                     id: src.id(),
                     hash,
-                    surface,
+                    rows,
                     stmts: Arc::new(stmts),
                     trivia,
                     index,

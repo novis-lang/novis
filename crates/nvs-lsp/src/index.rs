@@ -1891,10 +1891,10 @@ pub(crate) fn analyse_entry(
         // The parse cache took the surface hash when it parsed this text, and
         // the analysis parsed through it, so it holds that parse now.
         let src = analysed.map.file(loaded.id);
-        let surface = session
-            .parses
-            .hashes(src)
-            .map_or_else(|| crate::surface::of_source(text), |(_, surface)| surface);
+        let surface = session.parses.hashes(src).map_or_else(
+            || crate::surface::of_source(text),
+            |(_, rows)| rows.digest(),
+        );
         let indexed = record(&analysed, loaded, &key, stamp, surface, entry.key);
         records.push((key, indexed));
     }
