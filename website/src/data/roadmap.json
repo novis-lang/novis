@@ -4,5 +4,13 @@
     "csrf-cookieless-visitor",
     "ci-green"
   ],
-  "themes": []
+  "themes": [
+    {
+      "title": "Editor support for attribute declarations",
+      "text": "The editor colours, completes and outlines an attribute declaration the same way it does a class. Go to definition, rename and signature help also work for its fields.",
+      "goals": [
+        "attribute-editor-support"
+      ]
+    }
+  ]
 }

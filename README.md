@@ -128,7 +128,9 @@ This section shows what comes next for Novis. There are no dates. The
 [roadmap page](https://novis-lang.org/in-depth/roadmap/) shows the same.
 
 <!-- roadmap:start (bun nv site --roadmap writes this list from website/src/data/roadmap.json) -->
-Nothing is planned after the current release yet.
+The work is in the order it is planned. The order can change.
+
+1. **Editor support for attribute declarations.** *Working on it now.* The editor colours, completes and outlines an attribute declaration the same way it does a class. Go to definition, rename and signature help also work for its fields.
 <!-- roadmap:end -->
 
 ## Contributing

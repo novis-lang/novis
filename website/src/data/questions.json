@@ -4062,11 +4062,11 @@
   },
   "/reference/core/csrf/token/": {
     "feature": "Core\\Csrf::token",
-    "hash": "7ccad229654001bc",
+    "hash": "08d455f8ac041c1e",
     "questions": [
       "Get the CSRF token for the current visitor session",
       "Which form field name should the CSRF token use?",
-      "Send a CSRF token in a link as a query parameter",
+      "Does a CSRF token for a new visitor save session data?",
       "Send the CSRF token in a header from JavaScript",
       "Why does my form post get status 403?",
       "Why does Csrf::token throw an error in a command-line program?"
