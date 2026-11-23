@@ -1,0 +1,17 @@
+<?nvs
+attribute Job on method, class { queue: string }
+
+/// Sets how a value is cached.
+repeatable attribute Cache on method {
+    /// How long the value is kept, in seconds.
+    ttlSeconds: int,
+    key?: string,
+}
+
+class Storable
+{
+    attribute Column on property, parameter { length?: int }
+
+    #[Column(length: 20)]
+    public string $name = '';
+}
