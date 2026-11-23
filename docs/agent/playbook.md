@@ -638,6 +638,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 ## Splitting a file
 
 ## Writing Novis
+- **A new `Core\Str` member needs its symbol in `str.rs`'s `address` match as well as its
+  `CoreMethod` row.** The unit test calls the helper directly and passes, but every program then
+  panics at registry build ("registers `…` with no implementation address"), so a suite run shows
+  thousands of cases red at once. Add the `"nvs_core_str_…" => return Some(….entry())` arm beside
+  its neighbour's. `until: gone crates/nvs-stdlib/src/lib.rs:with no implementation address`
 - **The published corpus calls `Core\Test::answerHttp`, `answerSocket`, `tlsSession` and
   `scriptAnswers` at the top of `nvs run` programs.** Hundreds of examples, attacks and benches answer
   their own outbound calls that way, so a goal item to make them throw "outside a test" broke them
