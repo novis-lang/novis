@@ -1972,7 +1972,11 @@ member is `E0405`, and it gets the same help line and fix. The fix writes the ne
 class and the member as written, a short name a `use` brought in included, because the checker already
 resolved that name to the old class. A member whose arguments changed as it moved, such as `Core\Time::at`
 and `Core\Time\Date::atStartOfDay`, gets the help line alone, and the help gives the call to write as code.
-No fix can write that call, because the old arguments do not map onto the new ones one to one.
+No fix can write that call, because the old arguments do not map onto the new ones one to one. A member
+removed with no one replacement, such as `Core\Session::set`, gets a help line that names every member to
+choose from (`setShortLived` and `setLongLived`), and no fix, because the choice is the program's. A
+class-scoped type moved out of its class, such as `Core\Time\DateTime::Weekday`, is a member row whose new
+name is the type `Core\Time\Weekday`.
 
 **One table lists every move.** `crates/nvs-stdlib/src/moved.rs` has one row per move: the old name, the
 new name, the release that moved it, and for a member whose arguments changed the call to write. A test

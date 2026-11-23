@@ -1017,7 +1017,7 @@ some other way changes nothing.
 
 `rule:http-server/a-session-store-answers-five-operations`
 
-A session is a set of keys in a store that can answer *did I issue this id*. A backend answers five
+A session is a set of keys in a store that can answer *did I issue this id*. A backend answers six
 operations and no more:
 
 - `issue` creates a session under an identifier drawn for it, and fails for an id that is live.
@@ -1025,27 +1025,36 @@ operations and no more:
 - `save` applies one request's changes — the keys it set, the keys it removed, and whether it called
   `clear` — to a session that is **still live**, refreshes its expiry, and writes nothing for one
   that is gone.
+- `take` deletes one key of a live session at once, only while it still holds the value the request
+  loaded, and answers whether it did. Of two requests that take the same key, exactly one is
+  answered *yes*. It is what makes a `Core\Passkey` challenge single-use across parallel requests,
+  which the write-back at the end of a request cannot: both requests would have loaded the key.
 - `move` renames a live session to a new identifier, and answers *done*, *the new one is taken* or
   *the old one is gone*.
 - `destroy` deletes the session and answers whether there was one.
 
 `issue` is the only operation that creates a session, so a destroyed session stays destroyed
 ([`http-server/a-session-is-loaded-once-and-written-back-per-key`](http-server.md#http-server-a-session-is-loaded-once-and-written-back-per-key)). Each operation is one atomic
-step, and none needs a read before it, so no request holds anything between two of them.
+step, and none needs a read before it, so no request holds anything between two of them. A session
+this request drew, and a key this request wrote itself, are not in the store yet, so `take` of one is
+the request's own removal alone.
 
 | Operation | Shared store: one Redis hash per session | `db` store: a head row and one row per key | Replay after a lost reply |
 |---|---|---|---|
 | `issue` | `EVAL` of the issue script: `0` if the key exists, else `HSET` and `PEXPIRE` | `INSERT` of the head, over an expired one | only if never sent |
 | `load` | `HGETALL` | one `SELECT`, a live head `LEFT JOIN` its entries | always |
-| `save` | `EVAL` of the write-back script | one transaction: `UPDATE` of a live head's expiry, then the deletes and upserts | always: a second run leaves the same session |
+| `save` | `EVAL` of the write-back script | one transaction: `UPDATE` of a live head's clocks, then the deletes and upserts, then its expiry | always: a second run leaves the same session |
+| `take` | `EVAL` of the take script: `HDEL` of the field that holds the value, and `m` lowered by its size | one `DELETE` of the entry with that value, under a live head | only if never sent |
 | `move` | `RENAMENX`, which keeps the expiry | one transaction: insert the new head, re-point the entries, delete the old head | only if never sent |
 | `destroy` | `DEL` | delete the head and its entries | always |
 
-On the shared store the session's hash lives under `nvs:session-keys:`, so an entry an earlier build
-wrote as a string is never read as a hash. Each session key is the field `k:` followed by its bytes,
-and the one field `m` holds the total length of the `k:` fields: the write-back script checks the
-ceiling against it, and it keeps a session with no keys in the store, since Redis deletes a hash when
-its last field goes. A program cannot reach `m`, because every field a program writes is prefixed.
+On the shared store the session's hash lives under `nvs:session-lives:`, so an entry an earlier build
+wrote is never read as this layout. Each session key is a field of its lifetime's prefix, `s:` or
+`l:`, followed by its bytes. The field `m` holds the session's counted size: each key's field name,
+its value and 32 bytes of framing. The write-back script checks the ceiling against it, `take` lowers
+it, and it keeps a session with no keys in the store, since Redis deletes a hash when its last field
+goes. The fields `x` and `y` are the two clocks and `t` the short token. A program cannot reach any
+of them, because every field a program writes is prefixed.
 The shared tier is one Redis server, so `RENAMENX` over two keys is allowed; cluster support would
 give the session key a hash tag.
 
@@ -1278,9 +1287,12 @@ for a sweep.
 
 **A write-back always moves the short clock.** The long clock moves only where the identifier
 cookie is sent with it, so the store and the browser forget the record together: at the first
-long-lived write, at a long-lived write past half of its time, and by the half rule below. Each
-clock only moves forward, so a request that loaded an older record never shortens one another
-request refreshed. **A read refreshes a clock when less than half of its time is
+long-lived write, at a long-lived write past half of its time, and by the half rule below. A save
+moves the long clock forward only, so a request that loaded an older record never shortens one
+another request refreshed. **A save also holds each clock to now plus its lifetime**: the short
+clock becomes now plus `short_lived`, and the long clock is never left past now plus `long_lived`.
+A clock stored far ahead, by a host whose clock ran fast or a lifetime later made shorter, comes down
+at the next save rather than keeping the record past its lifetime. **A read refreshes a clock when less than half of its time is
 left**, and then the session counts as changed, so the end of the request writes it back. A signed-in
 user who only reads stays signed in while they keep reading. The half rule costs at most one write per
 clock per half-lifetime of an active session, and a request that reads a fresh session still makes one
