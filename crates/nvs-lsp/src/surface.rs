@@ -21,23 +21,33 @@
 //! - every other file-scope statement whose text has the word `require`, which
 //!   is every file-scope `require`.
 //!
-//! The hash is of text, so it also changes for a comment or a space between
-//! two members. That costs a reader's analysis, and never a wrong answer.
+//! The text is written without its whitespace and its `//`, `#` and `/* */`
+//! comments, which the grammar never reads. Each run of them between two
+//! tokens is written as one gap byte, so `public function` and
+//! `publicfunction` still differ. A blank line, an indent, a space at the end
+//! of a line or a comment between two members therefore leaves the hash as it
+//! was, and queues no reader. A space between two tokens that had none, such
+//! as `f (` for `f(`, still changes it: that costs a reader's analysis, and
+//! never a wrong answer. A `///` doc comment is written whole, because the
+//! checker reads its tags.
 //!
 //! # What it leaves out
 //!
-//! Every function, method and hook body, every span, and every other statement
-//! at file scope. A body stays in the hash when its text has the word
-//! `require`, because a `require` anywhere loads a file into the graph, and
-//! whether a body yields is in the hash, because a generator's return type
-//! is not its body's business alone. Where it is unclear whether something is
-//! visible, it is in the hash: one that holds too much costs time, and one that
-//! misses something gives a wrong answer.
+//! Every function, method and hook body, every span, every whitespace run and
+//! comment the grammar skips, and every other statement at file scope. A body
+//! stays in the hash when its text has the word `require`, because a `require`
+//! anywhere loads a file into the graph, and whether a body yields is in the
+//! hash, because a generator's return type is not its body's business alone.
+//! Where it is unclear whether something is visible, it is in the hash: one
+//! that holds too much costs time, and one that misses something gives a wrong
+//! answer.
 //!
 //! # What it costs
 //!
-//! One pass over a file's declarations and one BLAKE3 hash of their text, per
-//! file an analysis indexes, and 32 bytes per indexed file.
+//! One pass over a file's declarations and over the trivia inside them, and
+//! one BLAKE3 hash of their text, per parse of a file: the parse cache keeps
+//! the hash beside the parse, and the index reads it from there. 32 bytes per
+//! indexed file.
 
 use nvs_config::cache::{Digest, content_hash};
 use nvs_diagnostics::{Diagnostics, SourceMap, Span};
@@ -45,12 +55,20 @@ use nvs_syntax::ast::{
     Block, ClassMember, ClassMemberKind, DocComment, PropertyHookBody, Stmt, StmtKind,
     is_generator_body,
 };
+use nvs_syntax::{Trivia, TriviaKind};
 
-/// The declaration-surface hash of `stmts`, parsed from `text`.
+/// The byte written for each run of skipped whitespace and comments between
+/// two tokens. The text of a token never has it outside a literal, and a
+/// literal is never trivia.
+const GAP: u8 = 2;
+
+/// The declaration-surface hash of `stmts`, parsed from `text` with `trivia`,
+/// the whitespace runs and comments of that parse in source order.
 #[must_use]
-pub fn of(stmts: &[Stmt], text: &str) -> Digest {
+pub fn of(stmts: &[Stmt], trivia: &[Trivia], text: &str) -> Digest {
     let mut surface = Surface {
         text,
+        trivia,
         out: Vec::new(),
     };
     surface.file_scope(stmts);
@@ -64,12 +82,14 @@ pub fn of_source(text: &str) -> Digest {
     let id = map.add("surface.nvs", text);
     let mut diags = Diagnostics::new();
     let parsed = nvs_syntax::parse(map.file(id), &mut diags);
-    of(&parsed.stmts, text)
+    of(&parsed.stmts, &parsed.trivia, text)
 }
 
 /// The text written so far, and the source it is cut from.
 struct Surface<'a> {
     text: &'a str,
+    /// Every whitespace run and comment of the parse, in source order.
+    trivia: &'a [Trivia],
     out: Vec<u8>,
 }
 
@@ -81,22 +101,60 @@ impl<'a> Surface<'a> {
             .unwrap_or_default()
     }
 
+    /// Writes the text from `start` to `end` without the whitespace and the
+    /// comments the grammar skips. A run of them between two pieces of text
+    /// is one [`GAP`], and a run at either end writes nothing, since a marker
+    /// stands there.
+    fn write_text(&mut self, start: u32, end: u32) {
+        let first = self
+            .trivia
+            .partition_point(|trivia| trivia.span.end <= start);
+        let mut at = start;
+        // Whether a piece of this range was written, and so whether a skipped
+        // run is a gap before the next piece.
+        let mut wrote = false;
+        for trivia in &self.trivia[first..] {
+            if trivia.span.start >= end {
+                break;
+            }
+            if trivia.kind == TriviaKind::DocComment {
+                continue;
+            }
+            let skip_from = trivia.span.start.max(at);
+            if skip_from > at {
+                self.write_piece(at, skip_from, wrote);
+                wrote = true;
+            }
+            at = at.max(trivia.span.end.min(end));
+        }
+        let gap = wrote;
+        if end > at {
+            self.write_piece(at, end, gap);
+        }
+    }
+
+    /// Writes the text from `start` to `end`, after a [`GAP`] when `gap`.
+    fn write_piece(&mut self, start: u32, end: u32, gap: bool) {
+        if gap {
+            self.out.push(GAP);
+        }
+        let text = self
+            .text
+            .get(start as usize..end as usize)
+            .unwrap_or_default();
+        self.out.extend_from_slice(text.as_bytes());
+    }
+
     /// Writes the text of `span` with each of `cuts` replaced by a marker.
     /// `cuts` is in source order and inside `span`.
     fn write_cut(&mut self, span: Span, cuts: &[Span]) {
         let mut at = span.start;
         for cut in cuts {
-            let before = Span {
-                end: cut.start,
-                start: at,
-                ..span
-            };
-            self.out.extend_from_slice(self.slice(before).as_bytes());
+            self.write_text(at, cut.start);
             self.out.push(1);
             at = cut.end;
         }
-        let rest = Span { start: at, ..span };
-        self.out.extend_from_slice(self.slice(rest).as_bytes());
+        self.write_text(at, span.end);
         self.out.push(0);
     }
 

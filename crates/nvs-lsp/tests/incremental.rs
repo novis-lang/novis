@@ -344,6 +344,71 @@ fn a_body_only_edit_keeps_the_surface_hash() {
     );
 }
 
+/// Whitespace and the comments the grammar skips are not on the surface: a
+/// blank line, an indent, a space at a line's end, a line ending and a `//` or
+/// `/* */` comment between members keep the hash.
+#[test]
+fn a_whitespace_or_comment_edit_keeps_the_surface_hash() {
+    let text = library_class(0, 40);
+    let base = surface::of_source(&text);
+    let edits: [(&str, &str, &str); 6] = [
+        (
+            "blank line",
+            "    }\n\n    public function next(",
+            "    }\n\n\n    public function next(",
+        ),
+        (
+            "indent",
+            "    public function next(",
+            "        public function next(",
+        ),
+        ("space at a line's end", "class Part0\n", "class Part0  \n"),
+        ("line ending", "class Part0\n{\n", "class Part0\r\n{\r\n"),
+        (
+            "line comment",
+            "    public function next(",
+            "    // The next part.\n    public function next(",
+        ),
+        (
+            "block comment",
+            "value(int $n): int",
+            "value(int /* a count */ $n): int",
+        ),
+    ];
+    for (kind, from, to) in edits {
+        assert!(text.contains(from), "the {kind} edit finds its text");
+        assert_eq!(
+            surface::of_source(&text.replacen(from, to, 1)),
+            base,
+            "a {kind} edit changes the surface hash"
+        );
+    }
+}
+
+/// Two tokens never run together on the surface, and whitespace inside a
+/// literal is the literal's: both change the hash.
+#[test]
+fn a_space_that_splits_a_token_or_sits_in_a_literal_changes_the_surface_hash() {
+    let text = library_class(0, 40).replacen(
+        "    public function value(",
+        "    public const string LABEL = 'a b';\n\n    public function value(",
+        1,
+    );
+    let base = surface::of_source(&text);
+    let edits: [(&str, &str, &str); 2] = [
+        ("split name", "function value(", "function val ue("),
+        ("literal", "'a b'", "'a  b'"),
+    ];
+    for (kind, from, to) in edits {
+        assert!(text.contains(from), "the {kind} edit finds its text");
+        assert_ne!(
+            surface::of_source(&text.replacen(from, to, 1)),
+            base,
+            "a {kind} edit keeps the surface hash"
+        );
+    }
+}
+
 /// An edit another file can see changes the hash: a signature, a constant's
 /// value, an attribute, a `require`, a new method and a doc comment.
 #[test]
@@ -426,6 +491,31 @@ fn a_body_only_keystroke_re_queues_no_reader() {
     assert!(
         index.pending().is_empty(),
         "a body-only edit queued readers: {:?}",
+        index.pending()
+    );
+}
+
+/// A blank line and a comment typed between two members of a library file
+/// change nothing another file can see, so no reader waits.
+#[test]
+fn a_blank_line_or_comment_between_members_re_queues_no_reader() {
+    let dir = tree(2, 40);
+    let (mut documents, mut index) = index_of(&dir);
+    let path = dir.at(&part(5));
+    open(&mut index, &mut documents, &path);
+
+    let uri = uri_of(&path).expect("a temp path is UTF-8");
+    let text = documents.get(&uri).expect("open").text().replacen(
+        "    public function next(",
+        "\n    // The next part.\n    public function next(",
+        1,
+    );
+    assert!(documents.change(&uri, 2, text));
+    documents.resurvey(&path);
+    index.refresh(&documents, &path);
+    assert!(
+        index.pending().is_empty(),
+        "a blank line and a comment between members queued readers: {:?}",
         index.pending()
     );
 }

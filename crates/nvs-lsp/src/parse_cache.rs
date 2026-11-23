@@ -328,7 +328,7 @@ impl ParseCache {
                 index,
             } = parse(src, &mut own);
             check_declarations(&stmts, src, &mut own);
-            let surface = crate::surface::of(&stmts, src.text());
+            let surface = crate::surface::of(&stmts, &trivia, src.text());
             let key: Arc<Path> = Arc::from(key.as_path());
             Arc::make_mut(&mut self.files).insert(
                 Arc::clone(&key),

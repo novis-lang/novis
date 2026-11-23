@@ -43,10 +43,13 @@ fixture's only property is its shape.
   configuration, and the anonymous-function count the file starts at.
 - **A declaration surface** (`crates/nvs-lsp/src/surface.rs`) hashes what another file can see: the
   namespace, the imports, every type's header, attributes and member signatures, every function's
-  signature, every file-scope constant, and every `require` and `autoload`. It leaves out bodies and spans.
-  Where visibility is unclear, a thing goes in the hash: too much costs time, too little gives a wrong
-  answer. A body-only edit keeps the hash and re-queues no reader; any other edit re-queues every entry
-  whose reads include the file.
+  signature, every file-scope constant, and every `require` and `autoload`. It leaves out bodies, spans,
+  whitespace and the `//`, `#` and `/* */` comments the grammar skips; each skipped run between two tokens
+  is one gap byte, so two tokens never run together. A `///` doc comment stays, because the checker reads
+  its tags. Where visibility is unclear, a thing goes in the hash: too much costs time, too little gives a
+  wrong answer. A body-only edit, and a blank line, an indent or a comment between members, keep the hash
+  and re-queue no reader; any other edit re-queues every entry whose reads include the file. The parse
+  cache takes the hash once per parse, and the index reads it from there.
 - **The index file** (`crates/nvs-lsp/src/disk_index.rs`) is every `Indexed` field and the index's reads,
   under `nvs_config::data::Folder::lsp_index()`, named for the BLAKE3 hash of the canonical workspace root.
 
