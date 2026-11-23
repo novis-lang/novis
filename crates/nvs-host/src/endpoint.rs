@@ -44,6 +44,8 @@ mod sys {
     pub(super) struct Listener;
     #[derive(Debug)]
     pub(super) struct Stream;
+    #[derive(Debug)]
+    pub(super) struct Breaker;
 
     fn unsupported() -> io::Error {
         io::Error::new(
@@ -63,6 +65,12 @@ mod sys {
     pub(super) fn connect(_path: &Path) -> io::Result<Stream> {
         Err(unsupported())
     }
+
+    pub(super) fn breaker(_stream: &Stream) -> io::Result<Breaker> {
+        Err(unsupported())
+    }
+
+    pub(super) fn break_now(_breaker: &Breaker) {}
 
     impl io::Read for Stream {
         fn read(&mut self, _buf: &mut [u8]) -> io::Result<usize> {
@@ -104,6 +112,16 @@ pub fn is_name(file: &str) -> bool {
         part.is_some_and(|text| !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit()))
     };
     digits(parts.next()) && digits(parts.next()) && parts.next().is_none()
+}
+
+/// The pid in an endpoint's file name, `serve-<pid>-<start>`, or `None` where the name is not one.
+#[must_use]
+pub fn pid_of(path: &Path) -> Option<u32> {
+    let file = path.file_name()?.to_str()?;
+    if !is_name(file) {
+        return None;
+    }
+    file.strip_prefix(PREFIX)?.split('-').next()?.parse().ok()
 }
 
 /// One serving process's endpoint, bound and reachable.
@@ -182,7 +200,39 @@ impl Write for Connection {
     }
 }
 
+impl Connection {
+    /// A [`Breaker`] for this connection.
+    ///
+    /// # Errors
+    ///
+    /// The platform's error for duplicating the socket or the pipe handle.
+    pub fn breaker(&self) -> io::Result<Breaker> {
+        sys::breaker(&self.0).map(Breaker)
+    }
+}
+
+/// Ends a connection's blocked read or write from another thread.
+///
+/// On Unix, [`Breaker::break_now`] shuts the socket down both ways, so the read or write that
+/// waits now ends and every later one ends at once. On Windows it cancels the read or write that
+/// waits now, and nothing more: a caller that cannot know whether the other thread waits yet calls
+/// it again until that thread is done.
+#[derive(Debug)]
+pub struct Breaker(sys::Breaker);
+
+impl Breaker {
+    /// Ends the connection's blocked read or write. A connection that is closed already is no
+    /// error.
+    pub fn break_now(&self) {
+        sys::break_now(&self.0);
+    }
+}
+
 /// Connects to the endpoint at `path`.
+///
+/// On Windows, the process that serves the pipe must be the one whose pid is in the file's name
+/// ([`pid_of`]). Any other process is `PermissionDenied`, which is not stale, so [`reach_all`]
+/// reports it and leaves its file alone.
 ///
 /// # Errors
 ///
@@ -246,5 +296,12 @@ mod tests {
         assert!(!is_name("serve-42"));
         assert!(!is_name("serve--1"));
         assert!(!is_name("other-42-1"));
+    }
+
+    #[test]
+    fn the_pid_is_read_from_an_endpoint_name() {
+        assert_eq!(pid_of(Path::new("run/serve-42-1700000000000")), Some(42));
+        assert_eq!(pid_of(Path::new("run/serve-42-1.new")), None);
+        assert_eq!(pid_of(Path::new("run/other-42-1")), None);
     }
 }

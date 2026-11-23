@@ -6,17 +6,22 @@
 //! `nvs serve`'s does, from `--data` or beside the binary, and [`nvs_host::endpoint::reach_all`]
 //! connects to each live endpoint there and removes every stale one. The command sends
 //! [`crate::reload_endpoint::REQUEST`] to every server first and then reads each reply, so
-//! several servers of one folder check at the same time. A connection that closes before its
-//! line is a server that was stopping, and is reported as stopped.
+//! several servers of one folder check at the same time.
+//!
+//! **Every server says what it did.** A server replies with its outcome, or with
+//! [`crate::reload_endpoint::STOPPING`] when it drains. A connection that closes with no line is a
+//! failed server, and so is a reply over [`REPLY_LIMIT`] bytes. Every text a server sent is
+//! printed with its control characters escaped, so a reply cannot move the terminal's cursor.
 //!
 //! **Exit codes.** `0` when every server replied with nothing refused, `1` when a configuration
-//! file or a program was refused or a server could not be reached, and `2` when no server
-//! replied. There is no timeout: each compile has its own limits, and a server that stops
-//! closes the connection.
+//! file or a program was refused or a server could not be reached or did not answer, and `2` when
+//! no server replied. A server that is stopping is neither: it changes nothing. There is no
+//! timeout: each compile has its own limits, and a server that stops closes the connection.
 //!
-//! Cost: one connection per server and one short line each way. Nothing here runs in a server.
+//! Cost: one connection per server, one short line out, and at most [`REPLY_LIMIT`] bytes back
+//! from each. Nothing here runs in a server.
 
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -25,13 +30,17 @@ use serde::{Deserialize, Serialize};
 
 use crate::reload_endpoint::REQUEST;
 
+/// The most of one reply the command reads. A reply is one line per refused file, and a longer
+/// one is a failed server.
+const REPLY_LIMIT: u64 = 64 * 1024;
+
 /// Make every running server use the files on disk now.
 ///
 /// Every `nvs serve` process that uses this data folder checks its
 /// configuration and every program it has loaded. The command waits until each
 /// changed program is compiled, then prints what each server did. It exits with
-/// 0 when everything is in use, with 1 when a file has an error, and with 2 when
-/// no server is running.
+/// 0 when everything is in use, with 1 when a file has an error or a server did
+/// not answer, and with 2 when no server is running.
 #[derive(clap::Args)]
 pub(crate) struct Args {
     /// Print the result as JSON.
@@ -90,45 +99,51 @@ fn reload_all(run: &Path) -> std::io::Result<Vec<Server>> {
     Ok(sent
         .into_iter()
         .map(|(path, sent)| Server {
-            pid: pid_of(&path),
+            pid: endpoint::pid_of(&path),
             outcome: sent.map_or_else(|outcome| outcome, read_reply),
         })
         .collect())
 }
 
-/// The reply line on `connection`, or how the connection ended without one.
-fn read_reply(connection: Connection) -> Outcome {
+/// The reply line on `reader`, read up to [`REPLY_LIMIT`] bytes, or how the connection ended
+/// without one.
+fn read_reply(reader: impl Read) -> Outcome {
     let mut line = String::new();
-    match BufReader::new(connection).read_line(&mut line) {
-        Ok(_) if !line.ends_with('\n') => Outcome::Stopped,
-        Ok(_) => serde_json::from_str(&line).map_or_else(
-            |error| Outcome::Unreachable(format!("the reply is not valid: {error}")),
-            Outcome::Replied,
-        ),
+    match BufReader::new(reader.take(REPLY_LIMIT)).read_line(&mut line) {
+        Ok(_) if line.ends_with('\n') => parse(&line),
+        Ok(_) if line.len() as u64 >= REPLY_LIMIT => Outcome::Unreachable(format!(
+            "the reply is longer than {} KiB",
+            REPLY_LIMIT / 1024
+        )),
+        Ok(_) => Outcome::Silent,
         Err(error) => closed_or(&error),
     }
 }
 
-/// `Stopped` where `error` is the server closing the connection, and `Unreachable` otherwise.
+/// The outcome one reply line gives.
+fn parse(line: &str) -> Outcome {
+    let value: serde_json::Value = match serde_json::from_str(line) {
+        Ok(value) => value,
+        Err(error) => return Outcome::Unreachable(format!("the reply is not valid: {error}")),
+    };
+    if value.get("stopping") == Some(&serde_json::Value::Bool(true)) {
+        return Outcome::Stopping;
+    }
+    serde_json::from_value(value).map_or_else(
+        |error| Outcome::Unreachable(format!("the reply is not valid: {error}")),
+        Outcome::Replied,
+    )
+}
+
+/// `Silent` where `error` is the server closing the connection, and `Unreachable` otherwise.
 fn closed_or(error: &std::io::Error) -> Outcome {
     use std::io::ErrorKind;
     match error.kind() {
         ErrorKind::BrokenPipe | ErrorKind::ConnectionReset | ErrorKind::UnexpectedEof => {
-            Outcome::Stopped
+            Outcome::Silent
         }
         _ => Outcome::Unreachable(error.to_string()),
     }
-}
-
-/// The pid in an endpoint's name, `serve-<pid>-<start>`.
-fn pid_of(path: &Path) -> Option<u32> {
-    path.file_name()?
-        .to_str()?
-        .strip_prefix(endpoint::PREFIX)?
-        .split('-')
-        .next()?
-        .parse()
-        .ok()
 }
 
 /// One server the command reached.
@@ -141,8 +156,10 @@ struct Server {
 enum Outcome {
     /// The server replied.
     Replied(Reply),
-    /// The connection closed with no reply: the server was stopping.
-    Stopped,
+    /// The server replied that it is stopping, and checked nothing.
+    Stopping,
+    /// The connection closed with no reply.
+    Silent,
     /// The server could not be reached, or its reply could not be read.
     Unreachable(String),
 }
@@ -193,8 +210,8 @@ struct Document<'a> {
     servers: Vec<ServerJson<'a>>,
 }
 
-/// The exit code for `servers`: `2` when none replied, `1` when any refused something or could
-/// not be reached, and `0` otherwise.
+/// The exit code for `servers`: `1` when any refused something, could not be reached or did not
+/// answer, `2` when none replied, and `0` otherwise.
 fn exit_code(servers: &[Server]) -> u8 {
     let mut replied = false;
     let mut failed = false;
@@ -204,14 +221,14 @@ fn exit_code(servers: &[Server]) -> u8 {
                 replied = true;
                 failed |= reply.refused();
             }
-            Outcome::Unreachable(_) => failed = true,
-            Outcome::Stopped => {}
+            Outcome::Unreachable(_) | Outcome::Silent => failed = true,
+            Outcome::Stopping => {}
         }
     }
-    if !replied {
-        2
-    } else if failed {
+    if failed {
         1
+    } else if !replied {
+        2
     } else {
         0
     }
@@ -237,7 +254,8 @@ fn document(servers: &[Server]) -> String {
             .map(|server| {
                 let (state, error, reply) = match &server.outcome {
                     Outcome::Replied(reply) => ("replied", None, Some(reply)),
-                    Outcome::Stopped => ("stopped", None, None),
+                    Outcome::Stopping => ("stopped", None, None),
+                    Outcome::Silent => ("silent", None, None),
                     Outcome::Unreachable(error) => ("unreachable", Some(error.as_str()), None),
                 };
                 ServerJson {
@@ -254,7 +272,8 @@ fn document(servers: &[Server]) -> String {
     text
 }
 
-/// The text a person reads: one line per server, then one line per error and restart.
+/// The text a person reads: one line per server, then one line per error and restart. Every
+/// text from a server is [`shown`] escaped.
 fn lines(servers: &[Server]) -> String {
     use std::fmt::Write as _;
     let mut text = String::new();
@@ -263,39 +282,52 @@ fn lines(servers: &[Server]) -> String {
             .pid
             .map_or_else(|| "server".to_owned(), |pid| format!("server {pid}"));
         match &server.outcome {
-            Outcome::Stopped => {
-                let _ = writeln!(text, "{name}: stopped before it replied");
+            Outcome::Stopping => {
+                let _ = writeln!(text, "{name}: is stopping, so it did not reload");
+            }
+            Outcome::Silent => {
+                let _ = writeln!(text, "{name}: closed the connection without a reply");
             }
             Outcome::Unreachable(error) => {
-                let _ = writeln!(text, "{name}: could not be reached: {error}");
+                let _ = writeln!(text, "{name}: could not be reached: {}", shown(error));
             }
             Outcome::Replied(reply) => {
                 let _ = writeln!(
                     text,
                     "{name}: configuration {}, {} reloaded, {} with errors",
-                    reply.config,
+                    shown(&reply.config),
                     count(reply.programs, "program"),
                     count(reply.failed, "program"),
                 );
                 for refusal in &reply.refusals {
                     let place = match (&refusal.file, refusal.line) {
-                        (Some(file), Some(line)) => format!("{file}:{line}"),
-                        (Some(file), None) => file.clone(),
-                        (None, _) => refusal.kind.clone(),
+                        (Some(file), Some(line)) => format!("{}:{line}", shown(file)),
+                        (Some(file), None) => shown(file),
+                        (None, _) => shown(&refusal.kind),
                     };
-                    let _ = writeln!(text, "  error: {place}: {}", refusal.message);
+                    let _ = writeln!(text, "  error: {place}: {}", shown(&refusal.message));
                 }
                 if !reply.restart.is_empty() {
-                    let _ = writeln!(
-                        text,
-                        "  a restart is needed to change: {}",
-                        reply.restart.join(", ")
-                    );
+                    let keys: Vec<String> = reply.restart.iter().map(|key| shown(key)).collect();
+                    let _ = writeln!(text, "  a restart is needed to change: {}", keys.join(", "));
                 }
             }
         }
     }
     text
+}
+
+/// `text` with every control character written as its escape, such as `\n` or `\u{1b}`.
+fn shown(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    for c in text.chars() {
+        if c.is_control() {
+            out.extend(c.escape_default());
+        } else {
+            out.push(c);
+        }
+    }
+    out
 }
 
 /// `n` and `noun`, with an `s` when `n` is not one.
@@ -324,30 +356,57 @@ mod tests {
         }
     }
 
-    /// The exit code is `0` when every reply refused nothing, `1` with any refusal or
-    /// unreachable server, and `2` when no server replied.
+    fn server(outcome: Outcome) -> Server {
+        Server {
+            pid: Some(8),
+            outcome,
+        }
+    }
+
+    /// The exit code is `0` when every reply refused nothing, `1` with any refusal, unreachable
+    /// or silent server, and `2` when no server replied.
     #[test]
     fn the_exit_code_follows_the_replies() {
         assert_eq!(exit_code(&[]), 2);
-        let stopped = Server {
-            pid: None,
-            outcome: Outcome::Stopped,
-        };
-        assert_eq!(exit_code(&[stopped]), 2);
+        assert_eq!(exit_code(&[server(Outcome::Stopping)]), 2);
         assert_eq!(exit_code(&[replied(0, "applied")]), 0);
+        assert_eq!(
+            exit_code(&[replied(0, "applied"), server(Outcome::Stopping)]),
+            0
+        );
         assert_eq!(exit_code(&[replied(1, "unchanged")]), 1);
         assert_eq!(exit_code(&[replied(0, "refused")]), 1);
-        let unreachable = Server {
-            pid: Some(8),
-            outcome: Outcome::Unreachable("denied".to_owned()),
-        };
-        assert_eq!(exit_code(&[replied(0, "applied"), unreachable]), 1);
+        let unreachable = || server(Outcome::Unreachable("denied".to_owned()));
+        assert_eq!(exit_code(&[replied(0, "applied"), unreachable()]), 1);
+        assert_eq!(exit_code(&[unreachable()]), 1);
+        assert_eq!(exit_code(&[server(Outcome::Silent)]), 1);
+        assert_eq!(
+            exit_code(&[replied(0, "applied"), server(Outcome::Silent)]),
+            1
+        );
     }
 
-    /// An endpoint's name gives its server's pid.
+    /// A connection that ends with no line is silent, a stopping line is stopping, and a reply
+    /// over the limit is a failure.
     #[test]
-    fn the_pid_is_read_from_the_endpoint_name() {
-        assert_eq!(pid_of(Path::new("run/serve-42-1700000000000")), Some(42));
-        assert_eq!(pid_of(Path::new("run/other-42-1")), None);
+    fn a_reply_is_read_up_to_its_limit() {
+        assert!(matches!(read_reply(&b""[..]), Outcome::Silent));
+        assert!(matches!(read_reply(&b"{\"config\""[..]), Outcome::Silent));
+        assert!(matches!(
+            read_reply(&b"{\"stopping\":true}\n"[..]),
+            Outcome::Stopping
+        ));
+        let long = vec![b'x'; 2 * 1024 * 1024];
+        match read_reply(&long[..]) {
+            Outcome::Unreachable(error) => assert!(error.contains("64 KiB"), "{error}"),
+            _ => panic!("a reply over the limit is a failure"),
+        }
+    }
+
+    /// A control character in a server's text is printed as its escape.
+    #[test]
+    fn a_server_text_is_printed_escaped() {
+        assert_eq!(shown("a\x1b[2Jb\nc"), "a\\u{1b}[2Jb\\nc");
+        assert_eq!(shown("plain é"), "plain é");
     }
 }

@@ -274,10 +274,13 @@ windows-sys = { version = "0.61", features = [
     # peak working set is what Windows keeps in its place. `crates/nvs-runtime/src/os.rs` is the one
     # caller, and it takes the `kernel32` entry point so that no import library is added with it.
     "Win32_System_ProcessStatus",
-    # `CreatePipe`: the anonymous pipe `crates/nvs-cli/src/dispatch.rs` creates is the one caller.
+    # `CreatePipe`: the anonymous pipe `crates/nvs-cli/src/dispatch.rs` creates. The reload
+    # endpoint's named pipe, and `GetNamedPipeServerProcessId`, which checks who serves it, in
+    # `crates/nvs-host/src/endpoint/windows.rs`.
     "Win32_System_Pipes",
     # `IO_STATUS_BLOCK`: the out-parameter `NtCreateFile` fills in.
-    # `crates/nvs-runtime/src/beneath.rs` is the one caller.
+    # `crates/nvs-runtime/src/beneath.rs`. `CancelIoEx`: the reload endpoint's deadline ends a
+    # blocked pipe read with it, in `crates/nvs-host/src/endpoint/windows.rs`.
     "Win32_System_IO",
     # `CreateServiceW`, `ChangeServiceConfig2W`, `ControlService` and `QueryServiceStatusEx`:
     # a Windows service's registration is the SCM's own state and has no file to write

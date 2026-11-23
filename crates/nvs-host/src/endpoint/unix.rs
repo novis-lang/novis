@@ -3,25 +3,36 @@
 //! [`bind`] listens under the staged name, sets the socket file to `0600` and renames it into
 //! place, so the path exists only once it accepts. [`accept`] reads each peer's uid from the
 //! kernel (`SO_PEERCRED` on Linux, `getpeereid` on macOS) and closes every peer that is neither
-//! this process's effective uid nor `0`; a uid it cannot read closes the peer too. An accepted
-//! stream reads and writes under a 5 s timeout, so a silent peer cannot hold the endpoint's
-//! thread. Cost: one socket and two syscalls per connection, nothing on the request path.
+//! this process's effective uid nor `0`; a uid it cannot read closes the peer too. A silent peer
+//! is ended by the caller's deadline through a [`Breaker`], which shuts the socket down. Cost: one
+//! socket and two syscalls per connection, nothing on the request path.
 
 use std::io;
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::io::AsRawFd;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::Path;
-use std::time::Duration;
-
-/// How long an accepted connection waits on one read or write before it fails.
-const PEER_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug)]
 pub(super) struct Listener(UnixListener);
 
 #[derive(Debug)]
 pub(super) struct Stream(UnixStream);
+
+/// A second handle to a connection's socket, which shuts it down.
+#[derive(Debug)]
+pub(super) struct Breaker(UnixStream);
+
+/// A second handle to `stream`'s socket.
+pub(super) fn breaker(stream: &Stream) -> io::Result<Breaker> {
+    stream.0.try_clone().map(Breaker)
+}
+
+/// Shuts the socket down both ways: a blocked read returns the end, a blocked write fails, and
+/// every later one does the same at once.
+pub(super) fn break_now(breaker: &Breaker) {
+    let _ = breaker.0.shutdown(std::net::Shutdown::Both);
+}
 
 /// Listens at `staged`, then renames it to `path`. A `path` that already exists is
 /// `AlreadyExists`, and every failure after the bind removes `staged`. A path longer than
@@ -65,11 +76,6 @@ pub(super) fn accept(listener: &Listener) -> io::Result<Stream> {
         };
         let allowed = peer_uid(&stream).is_ok_and(|uid| uid == own || uid == 0);
         if !allowed {
-            continue;
-        }
-        if stream.set_read_timeout(Some(PEER_TIMEOUT)).is_err()
-            || stream.set_write_timeout(Some(PEER_TIMEOUT)).is_err()
-        {
             continue;
         }
         return Ok(Stream(stream));

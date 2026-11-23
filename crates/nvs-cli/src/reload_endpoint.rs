@@ -28,7 +28,8 @@
 //! (`configuration` or `program`), the program's `entry`, and the `file`, `line` and `message`
 //! of its first error; `line` is `null` where the error has no place in a file. The reply carries
 //! the error text because only the serving account or an administrator can connect, and both
-//! can read the log already. A draining process closes the connection without a reply.
+//! can read the log already. A draining process replies [`STOPPING`], and a check that panics
+//! replies [`PANICKED`], a refusal of kind `server`, so every request read in full gets a line.
 //!
 //! **Two reloads at once share one check.** A reply only comes from a check that began after the
 //! reload arrived, because an earlier one may have read the files before the caller wrote them.
@@ -37,17 +38,24 @@
 //! check runs beside a reload: the configuration half waits on the one reload lock, and a program
 //! both compile is compiled once and waited behind.
 //!
-//! Each connection is answered on a thread of its own, so a client that sends nothing holds only
-//! that thread, and at most [`CONNECTIONS`] are answered at once. Cost: one thread per process,
-//! blocked in its accept, one socket or pipe instance, and one short thread per connection while
-//! it is answered. Nothing on the request path.
+//! Each connection is answered on a thread of its own, and at most [`CONNECTIONS`] are answered
+//! at once. **One deadline bounds what the peer controls** ([`Deadline`]): the request must
+//! arrive within [`PEER_DEADLINE`] of the accept, and the reply must be written within as long
+//! again. The check between them has no deadline, because it waits for compiles. A peer past the
+//! deadline is cut off by a [`nvs_host::endpoint::Breaker`], on Unix and on Windows alike. An
+//! error from the accept is logged and the accept goes on.
+//!
+//! Cost: one thread per process, blocked in its accept, one socket or pipe instance, and two short
+//! threads per connection while it is answered: the answer and its deadline. Nothing on the
+//! request path.
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
+use std::time::{Duration, Instant};
 
-use nvs_host::endpoint::{self, Connection, Endpoint};
+use nvs_host::endpoint::{self, Breaker, Connection, Endpoint};
 
 use crate::reload::{Configured, Process};
 use crate::script::Rechecked;
@@ -60,6 +68,21 @@ pub(crate) const REQUEST: &[u8] = b"reload 1\n";
 
 /// How many connections are answered at once. A connection over it is closed at once.
 const CONNECTIONS: usize = 16;
+
+/// How long a peer has to send its request, and again to take the reply.
+const PEER_DEADLINE: Duration = Duration::from_secs(5);
+
+/// How often a deadline that passed cuts the connection again, until its answer ends. On Windows
+/// a cut ends only the read or write that waits at that moment.
+const RECUT: Duration = Duration::from_millis(50);
+
+/// The reply of a process that is draining: it checked nothing.
+pub(crate) const STOPPING: &str = "{\"stopping\":true}\n";
+
+/// The reply of a check that panicked. The panic itself is in the server's log.
+const PANICKED: &str = "{\"config\":\"error\",\"restart\":[],\"programs\":0,\"failed\":0,\
+    \"refusals\":[{\"kind\":\"server\",\"entry\":null,\"file\":null,\"line\":null,\
+    \"message\":\"the server stopped its check with an internal error. Its log has the details.\"}]}\n";
 
 /// This process's endpoint, removed when the value is dropped.
 pub(crate) struct Opened {
@@ -127,10 +150,30 @@ struct Server {
     open: AtomicUsize,
 }
 
-/// Accepts until the endpoint fails, which ends the thread, and answers each connection on a
-/// thread of its own.
+/// Accepts for as long as the process runs, and answers each connection on a thread of its own.
+/// An accept error is logged and the accept goes on, after [`RECUT`] so a lasting error cannot
+/// spin. The same error twice in a row is logged once.
 fn accept(endpoint: &Endpoint, server: &Arc<Server>) {
-    while let Ok(connection) = endpoint.accept() {
+    let mut last_error = None;
+    loop {
+        let connection = match endpoint.accept() {
+            Ok(connection) => {
+                last_error = None;
+                connection
+            }
+            Err(err) => {
+                let text = err.to_string();
+                if last_error.as_ref() != Some(&text) {
+                    eprintln!(
+                        "warning: the reload endpoint `{}` could not accept a connection: {text}",
+                        endpoint.path().display()
+                    );
+                    last_error = Some(text);
+                }
+                std::thread::sleep(RECUT);
+                continue;
+            }
+        };
         if server.open.fetch_add(1, Ordering::AcqRel) >= CONNECTIONS {
             server.open.fetch_sub(1, Ordering::AcqRel);
             continue;
@@ -148,20 +191,101 @@ fn accept(endpoint: &Endpoint, server: &Arc<Server>) {
     }
 }
 
-/// Reads one request from `connection` and writes the reply of the check it shares. Anything but
-/// [`REQUEST`] is closed without a reply.
+/// Reads one request from `connection` and writes the reply of the check it shares, each under
+/// the [`Deadline`]. Anything but [`REQUEST`] is closed without a reply, and so is a connection
+/// whose deadline cannot be set.
 fn answer(server: &Server, mut connection: Connection) {
+    let Some(deadline) = connection.breaker().ok().and_then(Deadline::start) else {
+        return;
+    };
+    deadline.set(Some(Instant::now() + PEER_DEADLINE));
     if read_line(&mut connection).as_deref() != Some(REQUEST) {
         return;
     }
-    let Some(reply) = server.rounds.shared(|| check(&server.process)) else {
-        return;
-    };
+    deadline.set(None);
+    let reply = server.rounds.shared(|| check(&server.process));
+    deadline.set(Some(Instant::now() + PEER_DEADLINE));
     drop(
         connection
             .write_all(reply.as_bytes())
             .and_then(|()| connection.flush()),
     );
+}
+
+/// The deadline of one connection: a thread that cuts the connection once the time set passes,
+/// and again every [`RECUT`] until the answer ends. Dropping it ends the thread.
+struct Deadline {
+    shared: Arc<(Mutex<Watch>, Condvar)>,
+}
+
+/// What the deadline's thread waits for.
+enum Watch {
+    /// The connection is cut at this moment.
+    Until(Instant),
+    /// The check runs, and nothing is cut.
+    Paused,
+    /// The answer ended.
+    Done,
+}
+
+impl Deadline {
+    /// Starts the deadline's thread, paused, or `None` where the thread cannot start.
+    fn start(breaker: Breaker) -> Option<Self> {
+        let shared = Arc::new((Mutex::new(Watch::Paused), Condvar::new()));
+        let watching = Arc::clone(&shared);
+        std::thread::Builder::new()
+            .name("nvs-reload-deadline".to_owned())
+            .spawn(move || watch(&watching, &breaker))
+            .ok()?;
+        Some(Self { shared })
+    }
+
+    /// Cuts the connection at `at`, or never with `None`.
+    fn set(&self, at: Option<Instant>) {
+        let (state, changed) = &*self.shared;
+        *state.lock().unwrap_or_else(PoisonError::into_inner) =
+            at.map_or(Watch::Paused, Watch::Until);
+        changed.notify_one();
+    }
+}
+
+impl Drop for Deadline {
+    fn drop(&mut self) {
+        let (state, changed) = &*self.shared;
+        *state.lock().unwrap_or_else(PoisonError::into_inner) = Watch::Done;
+        changed.notify_one();
+    }
+}
+
+/// The deadline's thread: waits for the time set and cuts the connection with `breaker` once it
+/// passed, until the answer ends.
+fn watch(shared: &(Mutex<Watch>, Condvar), breaker: &Breaker) {
+    let (state, changed) = shared;
+    let mut watch = state.lock().unwrap_or_else(PoisonError::into_inner);
+    loop {
+        let wait = match *watch {
+            Watch::Done => return,
+            Watch::Paused => None,
+            Watch::Until(at) => {
+                let now = Instant::now();
+                if now >= at {
+                    breaker.break_now();
+                    Some(RECUT)
+                } else {
+                    Some(at - now)
+                }
+            }
+        };
+        watch = match wait {
+            None => changed.wait(watch).unwrap_or_else(PoisonError::into_inner),
+            Some(wait) => {
+                changed
+                    .wait_timeout(watch, wait)
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .0
+            }
+        };
+    }
 }
 
 /// The bytes up to and including the first newline, or `None` where the connection closes first,
@@ -182,17 +306,19 @@ fn read_line(connection: &mut impl Read) -> Option<Vec<u8>> {
     None
 }
 
-/// One reload: the configuration, then every loaded program, as the reply line. `None` is a
-/// process that is draining.
-fn check(process: &Process) -> Option<String> {
-    let configured = process.reload_now()?;
+/// One reload: the configuration, then every loaded program, as the reply line. A process that
+/// is draining replies [`STOPPING`].
+fn check(process: &Process) -> String {
+    let Some(configured) = process.reload_now() else {
+        return STOPPING.to_owned();
+    };
     let programs = process.compiler().revalidate_now();
     let swapped = programs
         .iter()
         .filter(|program| matches!(program, Rechecked::Swapped { .. }))
         .count();
     process.reloaded(&configured, swapped, programs.len() - swapped);
-    Some(reply(&configured, &programs))
+    reply(&configured, &programs)
 }
 
 /// The reply line of one reload, ending in a newline.
@@ -268,7 +394,7 @@ struct Round {
     running: bool,
     /// The number of the last check that ended, and its reply.
     finished: u64,
-    reply: Option<Arc<str>>,
+    reply: Arc<str>,
     /// How many reloads wait for a check to end.
     waiting: usize,
 }
@@ -276,8 +402,9 @@ struct Round {
 impl Rounds {
     /// The reply of the first check that begins after this call: `run` on this thread, where no
     /// check is running and nobody began that one yet, and otherwise the reply of the check this
-    /// call waits for. A later check's reply also began after this call, so it answers too.
-    fn shared(&self, run: impl FnOnce() -> Option<String>) -> Option<Arc<str>> {
+    /// call waits for. A later check's reply also began after this call, so it answers too. A
+    /// check that panics replies [`PANICKED`].
+    fn shared(&self, run: impl FnOnce() -> String) -> Arc<str> {
         let mut round = self.state.lock().unwrap_or_else(PoisonError::into_inner);
         let mine = round.started + 1;
         loop {
@@ -288,11 +415,11 @@ impl Rounds {
                 round.started = mine;
                 round.running = true;
                 drop(round);
-                // A panic in a check is that check's failure and ends no waiter.
-                let reply = std::panic::catch_unwind(std::panic::AssertUnwindSafe(run))
-                    .ok()
-                    .flatten()
-                    .map(Arc::<str>::from);
+                // A panic in a check is that check's failure, replied as one, and ends no waiter.
+                let reply = Arc::<str>::from(
+                    std::panic::catch_unwind(std::panic::AssertUnwindSafe(run))
+                        .unwrap_or_else(|_| PANICKED.to_owned()),
+                );
                 let mut round = self.state.lock().unwrap_or_else(PoisonError::into_inner);
                 round.running = false;
                 round.finished = mine;
@@ -336,7 +463,7 @@ mod tests {
                 rounds.shared(|| {
                     began.send(()).expect("the test waits");
                     hold.recv().expect("the test releases the check");
-                    Some("first".to_owned())
+                    "first".to_owned()
                 })
             })
         };
@@ -349,7 +476,7 @@ mod tests {
                 std::thread::spawn(move || {
                     rounds.shared(|| {
                         checks.fetch_add(1, Ordering::SeqCst);
-                        Some("second".to_owned())
+                        "second".to_owned()
                     })
                 })
             })
@@ -360,15 +487,28 @@ mod tests {
             std::thread::yield_now();
         }
         release.send(()).expect("the first check waits");
-        assert_eq!(first.join().expect("no panic").as_deref(), Some("first"));
+        assert_eq!(&*first.join().expect("no panic"), "first");
         for waiter in waiters {
-            assert_eq!(waiter.join().expect("no panic").as_deref(), Some("second"));
+            assert_eq!(&*waiter.join().expect("no panic"), "second");
         }
         assert_eq!(
             checks.load(Ordering::SeqCst),
             1,
             "the three shared one check"
         );
+    }
+
+    /// A check that panics replies as a refused server, and the next check runs as usual.
+    #[test]
+    fn a_check_that_panics_is_a_reply() {
+        let rounds = Rounds::default();
+        let reply = rounds.shared(|| panic!("a check failed"));
+        let doc: serde_json::Value = serde_json::from_str(&reply).expect("the reply is JSON");
+        assert_eq!(doc["config"], "error");
+        assert_eq!(doc["refusals"][0]["kind"], "server");
+        assert_eq!(&*rounds.shared(|| "next".to_owned()), "next");
+        let stopping: serde_json::Value = serde_json::from_str(STOPPING).expect("JSON");
+        assert_eq!(stopping["stopping"], true);
     }
 
     #[test]

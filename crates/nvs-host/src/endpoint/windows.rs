@@ -11,8 +11,15 @@
 //! The name file is written under the staged name and renamed into place once the pipe exists.
 //! It inherits the private DACL of the `run/` folder it lives in.
 //!
-//! Cost: one pending pipe instance with 4 KiB buffers each way, one name file, and a DACL built
-//! from SDDL once per accepted connection.
+//! **A client checks who serves the pipe.** A pipe's name is visible to every local account, and
+//! the name outlives a server that was killed. So [`connect`] reads the server's process id with
+//! `GetNamedPipeServerProcessId` and needs the pid in the name file's own name. Another process is
+//! `PermissionDenied`.
+//!
+//! A [`Breaker`] cancels a blocked read or write with `CancelIoEx`, from another thread.
+//!
+//! Cost: one pending pipe instance with 4 KiB buffers each way, one name file, a DACL built
+//! from SDDL once per accepted connection, and one more call per connect.
 
 use std::fs::{File, OpenOptions};
 use std::io::{self, Read, Write};
@@ -37,10 +44,11 @@ use windows_sys::Win32::Security::{
 use windows_sys::Win32::Storage::FileSystem::{
     FILE_FLAG_FIRST_PIPE_INSTANCE, PIPE_ACCESS_DUPLEX, SECURITY_IDENTIFICATION,
 };
+use windows_sys::Win32::System::IO::CancelIoEx;
 use windows_sys::Win32::System::Pipes::{
-    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, PIPE_READMODE_BYTE,
-    PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES, PIPE_WAIT,
-    WaitNamedPipeW,
+    ConnectNamedPipe, CreateNamedPipeW, DisconnectNamedPipe, GetNamedPipeServerProcessId,
+    PIPE_READMODE_BYTE, PIPE_REJECT_REMOTE_CLIENTS, PIPE_TYPE_BYTE, PIPE_UNLIMITED_INSTANCES,
+    PIPE_WAIT, WaitNamedPipeW,
 };
 use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
@@ -141,7 +149,10 @@ pub(super) fn connect(path: &Path) -> io::Result<Stream> {
             .security_qos_flags(SECURITY_IDENTIFICATION)
             .open(&text);
         match opened {
-            Ok(file) => return Ok(Stream(file)),
+            Ok(file) => {
+                served_by_named_process(&file, path)?;
+                return Ok(Stream(file));
+            }
             Err(err) if is(&err, ERROR_PIPE_BUSY) && tries < BUSY_TRIES => {
                 tries += 1;
                 wait_for_instance(&text)?;
@@ -149,6 +160,59 @@ pub(super) fn connect(path: &Path) -> io::Result<Stream> {
             Err(err) => return Err(err),
         }
     }
+}
+
+/// `Ok` when the process that serves the pipe `file` is the one whose pid is in `path`'s name,
+/// and `PermissionDenied` otherwise.
+#[expect(
+    unsafe_code,
+    reason = "one `GetNamedPipeServerProcessId` on a pipe handle `file` owns, writing one stack \
+              `u32`"
+)]
+fn served_by_named_process(file: &File, path: &Path) -> io::Result<()> {
+    let denied = |why: String| io::Error::new(io::ErrorKind::PermissionDenied, why);
+    let Some(named) = super::pid_of(path) else {
+        return Err(denied(format!(
+            "`{}` does not name the process that serves its pipe",
+            path.display()
+        )));
+    };
+    let mut served = 0_u32;
+    // SAFETY: the handle is a live client pipe handle `file` owns, and `served` is a live,
+    // exclusively borrowed stack value of the type the call writes.
+    if unsafe { GetNamedPipeServerProcessId(file.as_raw_handle(), &raw mut served) } == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    if served == named {
+        return Ok(());
+    }
+    Err(denied(format!(
+        "the pipe named in `{}` is served by process {served}, not by process {named}",
+        path.display()
+    )))
+}
+
+/// A second handle to a connection's pipe, which cancels its blocked read or write.
+#[derive(Debug)]
+pub(super) struct Breaker(OwnedHandle);
+
+/// A second handle to `stream`'s pipe.
+pub(super) fn breaker(stream: &Stream) -> io::Result<Breaker> {
+    stream
+        .0
+        .try_clone()
+        .map(|file| Breaker(OwnedHandle::from(file)))
+}
+
+/// Cancels the read or write that waits on the pipe now. One that starts later is not cancelled.
+#[expect(
+    unsafe_code,
+    reason = "one `CancelIoEx` on a pipe handle the breaker owns, with no `OVERLAPPED`"
+)]
+pub(super) fn break_now(breaker: &Breaker) {
+    // SAFETY: the handle is a live pipe handle the breaker owns, and a null `OVERLAPPED` cancels
+    // every request on it.
+    unsafe { CancelIoEx(breaker.0.as_raw_handle(), std::ptr::null()) };
 }
 
 impl Read for Stream {
@@ -426,11 +490,13 @@ mod tests {
     #[test]
     fn a_line_goes_each_way_and_two_connections_are_accepted_in_turn() {
         let dir = nvs_repo::scratch("endpoint-pipe-round-trip");
-        let path = dir.join("serve-1-1");
-        let listener = bind(&path, &dir.join("serve-1-1.new")).unwrap();
+        let own = super::super::name(std::process::id(), 1);
+        let path = dir.join(&own);
+        let staged = dir.join(format!("{own}.new"));
+        let listener = bind(&path, &staged).unwrap();
         let name = std::fs::read_to_string(&path).unwrap();
         assert!(name.starts_with(PREFIX) && name.len() == PREFIX.len() + 32);
-        assert!(!dir.join("serve-1-1.new").exists());
+        assert!(!staged.exists());
         let server = std::thread::spawn(move || {
             for reply in ["first", "second"] {
                 let mut stream = accept(&listener).unwrap();
@@ -446,6 +512,41 @@ mod tests {
             assert_eq!(line(&mut client), want);
         }
         server.join().unwrap();
+    }
+
+    /// A name file whose pipe another process serves is refused, and is not stale.
+    #[test]
+    fn a_pipe_served_by_another_process_is_refused() {
+        let dir = nvs_repo::scratch("endpoint-pipe-other-process");
+        let path = dir.join(super::super::name(std::process::id() + 1, 1));
+        let _listener = bind(&path, &dir.join("other.new")).unwrap();
+        let err = connect(&path).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied, "{err}");
+        assert!(!super::super::is_stale(&err));
+    }
+
+    /// A breaker ends a read that waits on another thread.
+    #[test]
+    fn a_breaker_ends_a_blocked_read() {
+        let dir = nvs_repo::scratch("endpoint-pipe-breaker");
+        let path = dir.join(super::super::name(std::process::id(), 2));
+        let listener = bind(&path, &dir.join("breaker.new")).unwrap();
+        let client = std::thread::spawn(move || connect(&path).unwrap());
+        let mut stream = accept(&listener).unwrap();
+        let _client = client.join().unwrap();
+        let breaker = super::breaker(&stream).unwrap();
+        let (done, ended) = std::sync::mpsc::channel();
+        let reader = std::thread::spawn(move || {
+            let read = stream.read(&mut [0_u8; 8]);
+            done.send(()).unwrap();
+            read
+        });
+        // The read may not have started yet, so the cancel repeats until the reader is done.
+        while ended.try_recv().is_err() {
+            super::break_now(&breaker);
+            std::thread::yield_now();
+        }
+        assert!(reader.join().unwrap().is_err(), "the read was cancelled");
     }
 
     #[test]
