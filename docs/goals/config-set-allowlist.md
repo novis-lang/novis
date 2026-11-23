@@ -296,45 +296,59 @@ goes to one writing subagent once the fragment is renamed. The session writes th
 
 ### State
 
-Stages 1 to 3 are done, and stage 4 is done but for its newcomer review. `SETTABLE`
-(`crates/nvs-config/src/settable.rs`, 37 rows) is the one allowlist. The compiler gives `E0667` and
-`W1037` (`reject_unsettable_name`, `crates/nvs-types/src/capability.rs`), and the editor offers and
-hovers the keys (`Named::settable`, `crates/nvs-lsp/src/arguments.rs`).
+Stages 1 to 3 are done, and stage 4 but its newcomer review. `SETTABLE`
+(`crates/nvs-config/src/settable.rs`) is the one allowlist; `E0667` and `W1037` are in
+`crates/nvs-types/src/capability.rs`; the editor offers the keys (`crates/nvs-lsp/src/arguments.rs`).
+The rule, the `set` page and cards, `nvs meta`'s `settable` roster, the website and `changes.json`
+are written, and `site --check changes` and `stale` are green.
 
-Stage 4 landed:
+The review's first round read all 176 texts. Fixed: the unexplained "a name written in the call
+does not compile" line in 90 examples and attacks, the cards and the pages (each now names
+`Core\Config::set('<key>', ...)`); 45 help cards in `default.toml`; the `Core\Config` chapter,
+which named the removed `System` class; the `deferred.deadline` page. No text is stamped `reviewed`.
 
-- The rule is `rule:config/set-changes-only-listed-keys`, and every citation moved to it.
-- The `set` page (`docs/examples/core/Config/set/about.md`) lists the keys, one line per block.
-  The `set` and `restore` cards say what may change. `the_set_page_and_card_name_every_settable_key`
-  (`crates/nvs-stdlib/src/config.rs`) ran once, green.
-- `nvs meta`'s `settable` roster feeds the website: `changedBy` (`website/src/lib/reference.ts`)
-  gives each key's line, and a block key lists its settable keys. `bun nv reference` places a
-  `settable` table in `docs/reference/tools/20-config.md`. `tools/nv/test/render.test.ts` ran green.
-- `default.toml`'s comments, which are each directive's help card, say in words who may change a
-  key. The guides, the editor chapter and four `about.md` pages say a written name does not compile.
-- `changes.json` has the entries, and `site --check changes` and `site --check stale` are green.
+The cancelled nightly run `45166887327` was cancelled by hand and needs nothing.
 
-Build and clippy are green. The sweep's nightly run `45166887327` was cancelled by hand and did not
-fail, so it needs nothing.
+A block directive (`[log]`, `[http]`, `[session]`, ...) has no help card, so its "text" in the
+brief is its `nvs meta` row as JSON (`tools/nv/lib/texts.ts:146`). There is no prose to fix there.
 
 No test is expected to go red.
 
 ### Next
 
-- [ ] Stage 4's last checkpoint: the newcomer review (`docs/agent/prose.md:20`). `bun nv proofs --owed --goal config-set-allowlist --limit 0` names 86 features, every
-  one owing `reviewed` alone. `bun nv site --review` lists their texts. Batch them by 20 to `reader`
-  subagents, fix each finding, and stamp with `bun nv site --review --stamp`. Use `xargs -d '\n'`
-  for a key list, because a plain `xargs` drops the `\` of `Core\Config::set`. Read
-  `settable_sentence` (`crates/nvs-lsp/src/completion_files.rs:368`), the `E0667` and `W1037` cards,
-  and the `default.toml` comments (`crates/nvs-config/src/default.toml:64`) with care: they were
-  written in this goal. Then `bun nv proofs --gate --goal config-set-allowlist` is green, and stage 4
-  is done.
+- [ ] `tests/hostile/core/Debug/startCoverage/01-branch-coverage-the-mode-does-not-allow.nvs:7`: the
+  first round's open findings, then a second round. Fix these, one line each:
+  - `startCoverage/01`: "Each step catches its error ..." is written twice (`:7`, `:18`).
+  - `tests/hostile/config/deferred-max_concurrent/01-*.nvs`: the top says each call returns `false`, and
+    step 3 says each try throws. Make them agree with the code.
+  - `tests/hostile/tools/config/limits-and-limits-hard/01-*.nvs`: say where `48M` comes from.
+  - `tests/hostile/config/trace/01-*.nvs`: "all four `[trace]` keys" names none of them.
+  - `docs/examples/config/log-handler_reserve_time/01-*.nvs`: "These two reserves" names one.
+  - `docs/examples/config/log-handler/01-*.nvs`: "This function" has no referent.
+  - `docs/examples/config/capabilities/01-*.nvs`: "take a right away", "give a right back".
+  - `docs/examples/config/http/about.md`: write out CORS once, and replace "answer".
+  - `docs/examples/config/regex-backtracking/about.md`: "**The example below**", and define
+    lookaround and backreference in a few words.
+  - `docs/examples/config/queue-max_attempts/01-*.nvs`: define the dead-letter table.
+- [ ] `docs/agent/prose.md:20`: the second round. Run `bun nv site --review`, batch the keys by 20 with
+  `.agent-tmp/` and `xargs -d '\n' bun tools/nv/main.ts site --review --brief`, and send each brief to
+  a `reader` (the prompt names the brief's file and says to read no other). The second round
+  reads the new wording, so stamp only what it passes, with `bun nv site --review --stamp`. Also read
+  `settable_sentence` (`crates/nvs-lsp/src/completion_files.rs:368`) and the `E0667` and `W1037`
+  cards: they were not on the review list. Then `bun nv proofs --gate --goal config-set-allowlist`
+  is green, and stage 4 is done.
 - [ ] Stage 5: the stage's check, as the pack names it (`docs/goals/config-set-allowlist.md:288`).
   Stage 5's newcomer item is the review above.
 
 ### Backlog
 
 - `nvs config dump` could mark each key a request may change.
+- About 30 examples print `refused` when `set` returns `false` (for example
+  `docs/examples/config/limits/01-what-a-request-starts-with-and-may-change.nvs`). A reader takes it
+  for a word the prose rules forbid. `not allowed`, as the `set` example prints, needs each `.out`
+  changed with it.
+- `tools/nv/lib/texts.ts:146` gives a block directive with no help card its JSON row as its text,
+  so a change to `nvs meta`'s row shape puts every block back on the review list.
 - `log.access` set by a request: the access line could read the request's overlay at
   `crates/nvs-server/src/serve.rs:1994`, so a route can turn its own line off. It needs a goal of its
   own, which then puts the key back on `SETTABLE` with a probe.
