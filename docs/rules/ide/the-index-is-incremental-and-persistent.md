@@ -1,6 +1,7 @@
 The language server keeps what it learned about every file of the tree for the whole session, and on disk
 between sessions, so a keystroke costs what changed and not the project. A body-only keystroke in a library
 that many programs autoload parses one file and checks one file's bodies, whatever the number of programs.
+Any other keystroke checks that file and the files that can see what it changed, and no others.
 A cold start with a valid index file analyses the open document's entry and the files that changed, and
 nothing more. The editor still reports what `nvs check` reports for the open file: a cached analysis and a
 fresh one agree after every kind of edit, which `a_cached_analysis_reports_what_a_fresh_one_does_after_every_kind_of_edit`
@@ -43,15 +44,43 @@ fixture's only property is its shape.
   to find is declared now, every row of every class above the classes it declares, the extension set and
   the configuration, and the anonymous-function count the file starts at (`crates/nvs-lsp/src/file_key.rs`).
   Which other files are in the graph is not in it, so a file read by many entries has one key.
-- **A declaration surface** (`crates/nvs-lsp/src/surface.rs`) hashes what another file can see: the
-  namespace, the imports, every type's header, attributes and member signatures, every function's
-  signature, every file-scope constant, and every `require` and `autoload`. It leaves out bodies, spans,
-  whitespace and the `//`, `#` and `/* */` comments the grammar skips; each skipped run between two tokens
-  is one gap byte, so two tokens never run together. A `///` doc comment stays, because the checker reads
-  its tags. Where visibility is unclear, a thing goes in the hash: too much costs time, too little gives a
-  wrong answer. A body-only edit, and a blank line, an indent or a comment between members, keep the hash
-  and re-queue no reader; any other edit re-queues every entry whose reads include the file. The parse
-  cache takes the hash once per parse, and the index reads it from there.
+- **A declaration surface** (`crates/nvs-lsp/src/surface.rs`) is what another file can see, one hashed
+  row per declaration, keyed by its symbol as the index writes it (`App\User::greet`). The graph row is
+  the namespace, imports, `require` and `autoload` lines. Each type has a header row, an enum a cases row,
+  a class a properties row of its property names in order, and each method, property, constant and case
+  a member row with its doc comment, modifiers, type, default and signature. Each row hashes its
+  attributes apart. A row leaves out bodies, spans, whitespace and the `//`, `#` and `/* */` comments the
+  grammar skips; each skipped run between two tokens is one gap byte, so two tokens never run together. A
+  `///` doc comment stays, because the checker reads its tags. Where visibility is unclear, a thing goes
+  in a row: too much costs time, too little gives a wrong answer. The parse cache cuts the rows once per
+  parse, and the index keeps them, with what each file's check used and failed to find, in `Indexed` and
+  the index file.
+- **An edit reaches the files that can see what changed.** `surface::diff` gives each row an edit added,
+  removed or changed, and `SymbolIndex::reached_entries` (`crates/nvs-lsp/src/index.rs`) gives the files
+  each reaches, besides its own:
+
+  | What changed | The files it reaches |
+  |---|---|
+  | a private method or constant | the subclasses, whose finality and redeclaration checks read it |
+  | a private property, or the properties row | the subclasses, and every file whose JSON or database codec reaches the class |
+  | a protected member | the subclasses, at any depth |
+  | a public member or enum case | the files that used it, and the subclasses |
+  | an added member, case or type | the files that failed to find its name on the class or a class below, and the subclasses |
+  | a class header or the cases row | every file that used the class or a member of it, and the subclasses |
+  | a removed symbol | the files that used it, and the subclasses |
+  | an attribute, or the graph row | every reader of the file: routes, commands, links and the graph are read across it |
+
+  A use of a member is a use of every type its signature names and every constant its defaults read, so
+  an edit to a constant a default reads reaches every caller. An edit queues only the entries that own a
+  reached file, and each such entry's analysis checks the reached files it owns and leaves out the rest,
+  whose records stay. A body-only edit, and a blank line, an indent or a comment between members, move no
+  row and reach no other file. An entry that owns a file with no recorded uses, which an index file
+  written before the uses existed has, is analysed whole. A closed file changed on disk is diffed against
+  its kept rows at a start's load, and a refresh of a closed file that no analysis parsed yet queues every
+  reader. `crates/nvs-lsp/tests/reach.rs` counts each row on a generated tree of 200 entry points.
+  Measured with `bun nv lsp-start --copies 12 --cold --edits 5 --kind <kind>` (972 files), five edits'
+  runs check, before this reach and after it: `member` 4861 and 0, `private` 4861 and 0, `public` 4861
+  and 11, `comment` 0 and 0. The memory it spends is in `crates/nvs-lsp/src/session.rs`.
 - **The index file** (`crates/nvs-lsp/src/disk_index.rs`) is every `Indexed` field and the index's reads,
   under `nvs_config::data::Folder::lsp_index()`, named for the BLAKE3 hash of the canonical workspace root.
 
@@ -118,3 +147,7 @@ leaves the tree. `crates/nvs-lsp/src/session.rs` gives the measured bytes per fi
 - **Parsed statements on disk.** The format would mirror the whole syntax tree, and the open document's
   graph parses quickly enough to be the cold path.
 - **A stat-based skip of the file read in the parse cache.** The read is not the measured cost.
+- **A key per body.** A file's walk is one synthesized frame, and the anonymous-function count threads
+  from file to file, so a key per body would need a second numbering. A reached file is one file's check,
+  a few milliseconds. Reopen only if `bun nv lsp-start` shows one file's check again over 20 ms on the
+  972-file tree.

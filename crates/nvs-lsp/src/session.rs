@@ -70,9 +70,21 @@
 //! keep about one copy of the tree's. On twelve copies of the tree
 //! `bun nv lsp-start` generates (972 files) with 15 workers, a cold index
 //! checks 972 files and peaks at 786 MB paged. When every worker's session
-//! checked every body its entries read, it peaked at 5752 MB. A surface edit
-//! checks the 972 files once more and peaks at about 1 GB paged, and the live
-//! bytes after it are the settled 228 MB (`crate::workers` gives the rest).
+//! checked every body its entries read, it peaked at 5752 MB. The live bytes
+//! of a settled tree are about 228 MB (`crate::workers` gives the rest).
+//!
+//! The rows of each file and what its check used and failed to find
+//! (`crate::file_key`) cost memory for the time they buy. On the same tree,
+//! measured with `bun nv lsp-start --copies 12 --cold --edits 5 --kind <kind>`
+//! on a build before them and on one after, four runs each: after the cold
+//! index, the server held about 460 MB private and peaked at about 900 MB
+//! paged before, and about 550 MB and 1015 MB after. That is about 90 MB, or
+//! 95 KB a file, which does not grow with edits. Before, five edits to a
+//! member, a private constant or a public constant each checked the 972 files
+//! again, 4861 files in all, and the server then held 680 to 1000 MB. After,
+//! a new member and a private constant check no other file, five edits to a
+//! public constant that one file reads check 11, and the server then holds
+//! about 500 MB. Five comment edits check no other file on either build.
 //!
 //! [`Analysed`]: crate::Analysed
 
