@@ -177,6 +177,22 @@ fn an_attribute_payload_uses_the_constant_it_reads() {
 }
 
 #[test]
+fn a_route_link_uses_the_method_it_calls() {
+    let pages = "<?nvs\nnamespace Framework;\n\nclass Pages\n{\n    #[Core\\Route(path: \"/home\", method: Core\\Http\\Method::Get)]\n    #[Core\\Access(allow: Core\\Audience::Public)]\n    public static function home(): string\n    {\n        return \"home\";\n    }\n}\n";
+    let cart = "<?nvs\nnamespace Shop;\n\nclass Cart\n{\n    public static function link(): string\n    {\n        return Core\\Router::url(Framework\\Pages::home);\n    }\n}\n";
+    let main = entry("echo Shop\\Cart::link(), \"\\n\";\n");
+    refused_only_when_restricted(
+        &[
+            ("main.nvs", &main),
+            ("framework/Pages.nvs", pages),
+            ("shop/Cart.nvs", cart),
+        ],
+        "Core\\Router::url",
+        "Cart.nvs:8",
+    );
+}
+
+#[test]
 fn an_allowed_class_does_not_allow_a_namespace_of_the_same_name() {
     let tax = "<?nvs\nnamespace Framework;\n\nclass Tax\n{\n    public static function rate(): int\n    {\n        return 20;\n    }\n}\n";
     let cart = "<?nvs\nnamespace Shop;\n\nclass Cart\n{\n    public static function rate(): int\n    {\n        return Framework\\Tax::rate();\n    }\n}\n";
