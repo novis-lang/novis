@@ -3,13 +3,5 @@
   "internal": [
     "ci-green"
   ],
-  "themes": [
-    {
-      "title": "Text cut on whole characters",
-      "text": "Every `Core\\Str` method finds and cuts text on whole graphemes (what a person counts as one character). Cutting a prefix or a suffix from a string is one call.",
-      "goals": [
-        "whole-grapheme-cuts"
-      ]
-    }
-  ]
+  "themes": []
 }
