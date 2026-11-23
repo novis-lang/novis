@@ -18,7 +18,7 @@ stages:
     context: [docs/rules/packaging/a-restriction-limits-where-a-declaration-is-used.md, crates/nvs-types/src/restrict.rs]
   - id: 4
     title: "the reload command says what each server did, and only the server it names answers it"
-    status: open
+    status: done
     context: [docs/rules/config/a-reload-command-checks-now-and-waits.md, crates/nvs-cli/src/reload_cmd.rs, crates/nvs-cli/src/reload_endpoint.rs]
   - id: 5
     title: the development host check asks about the socket peer and tells the browser what to do
@@ -368,14 +368,14 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
   the accept loop at `:133` goes on after an error, and `answer` at `:169` holds the one deadline.
 - [x] `crates/nvs-cli/src/reload_cmd.rs:102`: the bounded read, and escaped text at `:270`.
 - [x] `crates/nvs-host/src/endpoint/windows.rs:127`: the server process check. *check first.*
-- [ ] `crates/nvs-cli/src/cache.rs:1447`: a private shard folder, and a private artifact at `:1584`.
+- [x] `crates/nvs-cli/src/cache.rs:1447`: a private shard folder, and a private artifact at `:1584`.
   *check first*, in WSL with `bun nv linux-test`.
-- [ ] `crates/nvs-runtime/src/capability.rs:102`: `require_as` refuses a path under the data folder's
+- [x] `crates/nvs-runtime/src/capability.rs:102`: `require_as` refuses a path under the data folder's
   `cache/` and `run/`. *check first.*
 - [x] `crates/nvs-cli/tests/reload_outcomes.rs:1`: the check's three cases and a reply of 1 MiB. It
   runs once, by name, and in WSL with `bun nv linux-test`.
 - [x] `docs/rules/config/a-reload-command-checks-now-and-waits.md:45`: the exit table.
-- [ ] `cargo build` and clippy are green.
+- [x] `cargo build` and clippy are green.
 
 ### 5. the development host check asks about the socket peer and tells the browser what to do
 
@@ -502,32 +502,35 @@ Stages 1, 2 and 3 are done (tests `task_child_limits`, `hidden_slot`, `restrict_
 `crates/nvs-types/tests/attributes.rs`). `Live::adopt` and the retrieval `static` item were not
 found.
 
-Stage 4: the reload items, the Windows check, the test and the exit table are in. A draining
-server replies `reload_endpoint::STOPPING`, and a panicked check replies `PANICKED` (a refusal of
-kind `server`). A silent or unreachable server exits 1 before 2 is considered. `nvs_host::endpoint`
-has `Breaker` (Unix shutdown, Windows `CancelIoEx`) and `pid_of`. `Deadline` gives 5 s for the
-request and 5 s for the reply, paused during the check. Windows `connect` checks
-`GetNamedPipeServerProcessId`. `reload_outcomes` passed on Windows (4) and in WSL (3).
-The `require_as` item was found: with `[capabilities.fs] read` on the data folder, `nvs run` read
-a file under `<data>/run/`. The cache item was not tried yet.
+Stage 4 is done. A draining server replies `reload_endpoint::STOPPING`, and a panicked check
+replies `PANICKED` (a refusal of kind `server`). A silent or unreachable server exits 1 before 2 is
+considered. `nvs_host::endpoint` has `Breaker` and `pid_of`, and Windows `connect` checks
+`GetNamedPipeServerProcessId`. `reload_outcomes` passed on Windows and in WSL.
+`capability::refusal` (`crates/nvs-runtime/src/capability.rs`) and `allow` now call
+`data_folder_refusal`: a granted path that resolves under the data folder's `cache/` or `run/`
+throws. The folders are resolved once per process (`reserved_folders`). Test
+`a_grant_over_the_data_folder_does_not_reach_the_endpoint` in `reload_command.rs` passed on
+Windows, reading the path in capitals. The cache item was found in WSL (shard `0755`):
+`publish` now uses `create_private_root`, and `write_temp` opens `create_new` with `0600`. Test
+`cache::tests::a_shard_and_its_artifact_are_private` passed in WSL. `bun nv rules --render`
+also rewrote `classes.md`, `security.md` and `packaging.md`, which earlier sessions left stale.
 
-Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, one.
+Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, two.
 
 ### Next
 
-Stage 4's last two items, then tick `cargo build` and clippy and set the stage done:
+Stage 5, the development host check:
 
-- `crates/nvs-runtime/src/capability.rs:102` (`require_as`): refuse a `Scope::Path` under
-  `nvs_config::data::current()`'s `cache/` and `run/`, beside `relative_refusal`. Compare the
-  path the way the grant check compares a prefix, so case and separators on Windows cannot get
-  around it. Add a test in the shape of `a_request_cannot_reach_the_endpoint`
-  (`crates/nvs-cli/tests/reload_command.rs:530`), with a grant that covers the data folder.
-- `crates/nvs-cli/src/cache.rs:1447` (`publish`): one attempt in WSL first. With a configured
-  `file_cache_dir` outside the data folder, `fs::create_dir_all(shard)` follows the umask (0755)
-  and `File::create` in `write_temp` (`:1584`) gives 0644. The fix is
-  `nvs_config::data::create_private_root(shard)` and a `0600` open on Unix.
+- `crates/nvs-cli/src/serve.rs:1194`: `table.select` gets the socket peer, and `refuses_host`
+  (`crates/nvs-server/src/mount.rs:438`) reads it, whatever `X-Forwarded-For` gives.
+  Read `rule:http-server/a-development-server-answers-the-hosts-it-knows` first.
+- `crates/nvs-server/src/serve.rs:849`: the 421 text body in development, naming
+  `[server] development_hosts` and the host to add.
+- `crates/nvs-server/src/trace.rs:468`: the log line once per host per minute, host escaped.
+- `crates/nvs-cli/tests/rebinding_guard.rs`: new, the acceptance check `rebinding-guard`.
+- The rule's "Who is asked" paragraph and `crates/nvs-config/src/default.toml:608`.
 
-Stages 5, 6, 8, 9, 10 and 11 touch disjoint files, so another session may take one of them beside it.
+Stages 6, 8, 9, 10 and 11 touch disjoint files, so another session may take one of them beside it.
 
 Tests that may go red: a `reload_command.rs` case that expected exit 2 with only an unreachable
 server now gets 1. Its `state` for a closed connection is `silent`, no longer `stopped`. A
@@ -537,7 +540,8 @@ there. An attribute on an anonymous function's parameter that names no attribute
 one that does not fit a parameter, now fails to compile. An editor completion or `E0664` case that
 relied on a class's allowed name matching a namespace of the same name. Stage 1's arming may move
 where a task's allocation over the ceiling stops in a conformance or group test. A dump of a
-revocable object no longer prints a `#revocable` line.
+revocable object no longer prints a `#revocable` line. A test or example whose program is granted
+a folder above the data folder and reads or writes under its `cache/` or `run/` now throws.
 
 ### Backlog
 
