@@ -8,7 +8,8 @@ calls get no answer until you name the allowed origins. Cookies are `Secure`, `H
 A program may change most of these values with `Core\Config::set`. The change applies only to the
 response of the request it is handling. The next request uses the values from the file again.
 
-`Core\Config::set` returns `false` for the settings a program cannot change:
+The page of `Core\Config::set` lists the settings a program may change. `Core\Config::set`
+returns `false` for every other setting, such as these:
 
 - `http.csrf_key` and `http.csrf_key_file`, the key that signs cross-site request tokens.
 - `http.errors.detail`, because the error page is sent before the program starts.

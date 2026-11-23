@@ -5,7 +5,7 @@ When `[limits]` does not set `memory`, every program may use `128M`. When it doe
 `cpu_time`, a request, a connection, a scheduled script and a queued job may use `30s`. `nvs run`
 and `nvs test` have no `cpu_time` limit unless you set one. `false` removes a limit.
 
-A program can lower its own limits with `Core\Config::set`. A limit a program set for itself still
+A program can lower most of its limits with `Core\Config::set`. A limit a program set for itself still
 stops it. This stops a runaway program early.
 
 On a server, a program can raise a limit only up to the ceiling in `[limits.hard]`, which the
