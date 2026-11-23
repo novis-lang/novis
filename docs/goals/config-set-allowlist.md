@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-config/tests/request.rs, crates/nvs-config/tests/directives.rs, crates/nvs-cli/tests/request_http_settings.rs, crates/nvs-config/src/default.toml]
   - id: 2
     title: "the compiler names a set that can never change anything"
-    status: open
+    status: done
     context: [crates/nvs-types/src/capability.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-diagnostics/src/code/config.rs, crates/nvs-diagnostics/src/code/warnings.rs]
   - id: 3
     title: "the editor offers the settable keys"
@@ -225,18 +225,18 @@ brief. The session writes the module, `request.rs` and the two new tests.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-diagnostics/src/code/config.rs:952`: `E_NOT_SETTABLE` after `E_BAD_RESTRICTION_REPLACE`,
+- [x] `crates/nvs-diagnostics/src/code/config.rs:952`: `E_NOT_SETTABLE` after `E_BAD_RESTRICTION_REPLACE`,
   with a card in user words.
-- [ ] `crates/nvs-diagnostics/src/code/warnings.rs:375`: `W_SET_NEVER_FITS = Code::new("W1037")` with a
+- [x] `crates/nvs-diagnostics/src/code/warnings.rs:375`: `W_SET_NEVER_FITS = Code::new("W1037")` with a
   card in user words.
-- [ ] `crates/nvs-types/src/capability.rs:178`, beside `prepare_config_set`: `reject_unsettable_name`
+- [x] `crates/nvs-types/src/capability.rs:178`, beside `prepare_config_set`: `reject_unsettable_name`
   for `set` and `restore`, per *Standing decisions*, and its call at
   `crates/nvs-types/src/expr/calls.rs:819`.
-- [ ] Its test module, `config_set_names`: the three tests the check `compiler` names, plus a package
+- [x] Its test module, `config_set_names`: the three tests the check `compiler` names, plus a package
   literal outside `limits.`. Run the check `compiler` once.
-- [ ] `tests/conformance/core/config-set-a-name-that-cannot-be-set-does-not-compile.nvst:1`. Run the
+- [x] `tests/conformance/core/config-set-a-name-that-cannot-be-set-does-not-compile.nvst:1`. Run the
   check `compiler-conformance` once.
-- [ ] Every `.nvs` in the tree that the new error stops (`bun nv check` names them) builds its name at
+- [x] Every `.nvs` in the tree that the new error stops (`bun nv check` names them) builds its name at
   run time or drops the call.
 
 ### 3. the editor offers the settable keys
@@ -287,17 +287,22 @@ goes to one writing subagent once the fragment is renamed. The session writes th
 
 ### State
 
-Stage 1 is done. `SETTABLE` (`crates/nvs-config/src/settable.rs`) is the one allowlist, now 37
-rows: `log.access` is dropped, per *Standing decisions*. `cargo test --test directives` is green
-(57 + 8), and the comments that named `RuntimeTighten` or `System` in the crates and two conformance
-cases now name `SETTABLE`. The `effect` check ran once, green, in 17 s. It runs one `nvs serve` with
-one probe per row, set and unset, and a Rust peer in the test process for the outbound
-`http.client.*` keys: a slow answer, redirects, a paused or dripped body, WebSocket, and a proxy
-that opens its tunnel late. `nvs-cli` gains the dev-dependency `tungstenite`. `cargo build`,
-`cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` are green.
+Stages 1 and 2 are done. `SETTABLE` (`crates/nvs-config/src/settable.rs`) is the one allowlist,
+37 rows. It now also has `package_may_change` (a listed `limits.*` key) and `by_block` (the help
+line's list, block by block, `(only false)` after an `OffOnly` key).
 
-The nightly CI run the acceptance sweep reported (`45166887327`) was cancelled by hand by the
-repository owner. No job failed, so nothing in the tree needs a fix.
+Stage 2: `reject_unsettable_name` (`crates/nvs-types/src/capability.rs`, after
+`prepare_config_set`) is called beside it in `crates/nvs-types/src/expr/calls.rs`. A literal name
+no row lists, or in a package's namespace one outside `limits.`, is `E0667`. A template no row
+fits is `W1037`; a template with no dot is also tried against the bare limit names. A heredoc, a
+variable, a call and a concatenation get nothing. The name argument is the first positional one or
+`name:`. `W1036` stays a hole for `whole-grapheme-cuts`, with a comment saying it is held. The
+check `compiler` (4 tests in `capability::config_set_names`) and `compiler-conformance` ran once
+each, green. `cargo build`, clippy and fmt are green.
+
+The new error stopped 145 `.nvs` files (64 examples, 81 attacks), 6 conformance cases and 2 code
+blocks in `docs/reference/`. Each now keeps the name in a variable, so the run-time `false` still
+runs. Every example prints its `.out` unchanged, and `bun nv proofs --comments` passes on all 145.
 
 Tests expected to go red until fixed:
 
@@ -306,15 +311,18 @@ Tests expected to go red until fixed:
 
 ### Next
 
-Stages 2 and 3, which may run side by side (disjoint crates). Each item stands under its stage
-above, with its anchors.
+Stage 3, then stage 4. Each item stands under its stage above, with its anchors.
 
-- [ ] Stage 2: `E0667` in `crates/nvs-diagnostics/src/code/config.rs:952`, `W1037` in
-  `crates/nvs-diagnostics/src/code/warnings.rs:375`, `reject_unsettable_name` beside
-  `prepare_config_set` in `crates/nvs-types/src/capability.rs:178` and its call at
-  `crates/nvs-types/src/expr/calls.rs:819`, its `config_set_names` tests and the conformance case.
 - [ ] Stage 3: `names_a_settable_key` beside `names_a_zone` (`crates/nvs-lsp/src/arguments.rs:362`),
-  the completion and hover arms, and `set_offers_only_the_settable_keys`.
+  the completion and hover arms, and `set_offers_only_the_settable_keys`. A new completion function
+  needs a row in `SOURCED` (`crates/nvs-lsp/tests/completion.rs`).
+- [ ] Stage 4 `docs/examples/tools/config/mode/about.md:13`, beyond its listed items: three
+  `about.md` pages still show a literal call that no longer compiles, that one (`set("mode", …)`),
+  `docs/examples/config/regex-backtracking/about.md:18` and `docs/examples/core/Config/set/about.md:1`. Say there that a
+  written name is a compile error. The `02-a-change-that-is-not-allowed.nvs` example already keeps
+  its names in variables; stage 4 adds the new example that shows the compile error in a comment.
+  `settable.rs:1`, both new code docs and the new conformance case cite
+  `rule:config/three-changeability-classes`, which the citation sweep moves.
 
 ### Backlog
 
