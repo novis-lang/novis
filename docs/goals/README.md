@@ -1,6 +1,6 @@
 ---
 looper: 1
-chain: [review-hardening, ci-green]
+chain: [review-hardening, csrf-cookieless-visitor, ci-green]
 floor:
   - id: ci-check
     name: "every check the full gate's push runs is green"
@@ -33,12 +33,13 @@ ungated: [taint-fail-closed, windows-rust-lld]
 
 # Goals
 
-The chain holds 2 goal(s). `review-hardening` is live.
+The chain holds 3 goal(s). `review-hardening` is live.
 
 | # | Goal | Reached when | Stages |
 |---|---|---|---|
 | 1 | [`review-hardening`](review-hardening.md) **live** | Reached when a task child keeps its request's grants and memory ceiling, a decoded payload never writes a hidden slot, a restriction holds every use form the checker records, the reload command and its endpoint report what happened, a test request on the wire is armed like every other, an in-place result is the same as a built one and frees what it cut, the small time, JSON, client and editor defects are fixed, the release tags the commit it built, and every item is ticked as fixed or as declined with its reason. | 1 ✓ a task child keeps its request's grants and its memory ceiling · 2 ✓ a decoded payload and a refused write leave no membership that points nowhere · 3 ✓ a restriction holds every use form the checker records · 4 ✓ the reload command says what each server did, and only the server it names answers it · 5 ✓ the development host check asks about the socket peer and tells the browser what to do · 6 ✓ a test request on the wire is armed like every other, and --since never runs fewer tests than the change reaches · 7 ✓ an in-place result equals the built one, and a cut frees what it no longer needs · 8 ✓ the time classes read their text and their epoch one way · 9 ✓ a typed decode bounds its issue list, and a passkey challenge is taken once · 10 ✓ a chunked reply is pooled after its last byte, and a worker panic stays on the worker · 11 ✓ a release refuses a tip that holds shipped code its build did not have · 12 ✓ the features that moved have their proofs, their pages and their change entries · **13 the goal is verified once, and every failure is fixed** |
-| 2 | [`ci-green`](ci-green.md) | Reached when origin/main holds every commit of the chain that a CI run builds, and the push runs of CI and Website on that commit ended green. The session pushes, watches the run, fixes every red job and pushes again until that holds. | 1 ✓ the goal is verified once, then pushed, watched and fixed until the run is green |
+| 2 | [`csrf-cookieless-visitor`](csrf-cookieless-visitor.md) | Reached when a page that renders Core\Csrf::token() for 1,000 requests with no cookie leaves no session row in the store, the door still accepts each token on the visitor's next request, an identifier the server never issued is still rejected, and the gap record csrf-token-makes-a-session-per-visitor is deleted. | **1 a token for a new visitor sends its cookie and stores no row** · 2 the feature's proofs, pages and change entry · 3 the goal is verified once, and every failure is fixed |
+| 3 | [`ci-green`](ci-green.md) | Reached when origin/main holds every commit of the chain that a CI run builds, and the push runs of CI and Website on that commit ended green. The session pushes, watches the run, fixes every red job and pushes again until that holds. | 1 ✓ the goal is verified once, then pushed, watched and fixed until the run is green |
 
 Off the chain (side goals): [`release-green`](release-green.md), [`zip-writer`](zip-writer.md).
 

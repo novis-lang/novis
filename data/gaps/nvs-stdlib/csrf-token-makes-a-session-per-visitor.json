@@ -2,5 +2,5 @@
   "module": "crates/nvs-stdlib/src/session.rs",
   "title": "`Core\\Csrf::token` stores one session for every visitor with no cookie, so a crawler or a flood of cookieless requests writes one store row per request.",
   "text": "`sent_id` draws an identifier for a session that has none and marks the record changed, so the write-back issues a head under it even while it is empty. A page that renders a token for every request therefore writes one row per cookieless request, and each row lives for `[session] short_lived`, two hours by default. By the code path, 1,000 cookieless requests to such a page leave 1,000 session heads. That count was read from the code, not measured: a probe page served with `nvs serve` returned 500 before it could be counted. The fix is a design of its own, such as a token bound to a signed cookie with no stored session until the first real write, so `review-hardening` stage 9 records it and does not build it. Measure the rows first: serve a page that prints `Core\\Csrf::token()`, send 1,000 requests with no cookie, and count `nvs_session_heads` in the data folder's `session.sqlite`.",
-  "goal": "review-hardening"
+  "goal": "csrf-cookieless-visitor"
 }
