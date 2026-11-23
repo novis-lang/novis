@@ -54,7 +54,7 @@ stages:
     context: [website/src/data/changes.json]
   - id: 13
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: task-child-limits
@@ -509,49 +509,34 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### 13. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of [prose.md](../agent/prose.md) § *A newcomer reads it* over the texts
+- [x] The newcomer review of [prose.md](../agent/prose.md) § *A newcomer reads it* over the texts
   stage 12 wrote.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 10 are done, each with its acceptance passing; 7 to 9 are summarised in their commits.
-Stage 7's queue loop measured 66, 60 and 66 ms at 5,000, 10,000 and 20,000 rounds. The checks
-`decode-and-passkey` and `chunked-end` run unit tests by name, as their helpers are private. The
-CSRF gap record `data/gaps/nvs-stdlib/csrf-token-makes-a-session-per-visitor.json` is this goal's.
+Every stage is done, each summarised in its commits, and `bun nv close --goal review-hardening`
+exits 0. Sessions per stage: two for stages 2, 3, 4, 6 and 9, one for every other.
 
-Stages 10 and 11 are summarised in their commits. Stage 11's *check first*: `publish` resets to
-`origin/main` and tags the release commit it adds there, while the binaries are `github.sha`'s.
-`--fixes-built` now fails on any commit in `SHA..HEAD` that changes a path in `SHIPPED`.
-`release-fixes-built.test.ts` passes (3 tests, one in a scratch repository with a merge).
+Stage 13: the newcomer review was done in stage 12 (`cfc321bd7f`, `c64711704c`). The build, clippy
+and every test this goal wrote pass, run by name: the eleven integration targets of the acceptance
+list, `decode-and-passkey`, `chunked-end` and `release-fixes-built.test.ts`. `moved.rs`'s
+`every_move_points_from_a_missing_name_to_a_registered_one` was red and is fixed in `886e343197`:
+its type row was compared with members, so `DateTime::Weekday` met the method `weekday`.
 
-Stage 12 is done, and stage 11 with it: `bun nv ci --check` exits 0,
-`bun nv proofs --gate --goal review-hardening` owes nothing, and `site --check stale changes review
-questions` is green. Every feature stages 1 to 10 moved is reread, reviewed and stamped, and has a
-`changes.json` entry (the last 19). Seven features had moved only through Rust tests, so
-`tests/conformance/core/time-an-epoch-reader-rounds-down-and-a-zone-keeps-its-database-name.nvst`
-is new and `arr-append-keeps-the-counter-a-removed-key-left.nvst` gained `// covers:`. Both pass,
-run once by name. The example `Time-Instant/toEpochSeconds/02-...` prints `-1` now, and its `.out`
-says so. The rule is now `a-session-store-answers-six-operations`, with every citation. 240 perf
-records are new; `Core\Test::assertSame` is recorded with `--no-callgrind` as `growth: unclear`,
-because its callgrind ramp read startup noise as slope 1.86 twice (the playbook's known case).
-
-Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, two; stage 5, one; stage 6,
-two; stage 7, one; stage 8, one; stage 9, two; stage 10, one; stage 11, one; stage 12, one.
+The CSRF gap record is owned by the new goal `csrf-cookieless-visitor`, before `ci-green` and
+internal on the roadmap. Every standing decision is stated in its rule or module doc
+(`dbf0d6a4db`).
 
 ### Next
 
-Stage 13: the newcomer review is already done over every text stage 12 wrote (two reviewers, each
-finding fixed and stamped), so tick that item after one look at `git show cfc321bd7f c64711704c`.
-Then the pack's check for this stage, and `bun nv close --goal review-hardening`. Its `owners` must
-give the CSRF gap record `data/gaps/nvs-stdlib/csrf-token-makes-a-session-per-visitor.json` another
-owner before this goal's file is deleted, and each standing decision only this file holds moves to
-a rule or a module doc first.
+Nothing: the goal is reached, and the driver retires this file. The next goal is
+`csrf-cookieless-visitor`, stage 1 (`docs/goals/csrf-cookieless-visitor.md`).
 
-Tests that may go red: a conformance or example that printed `0` for `toEpochSeconds` half a second
+For the chain's full gate, which `ci-green` takes, these tests may go red: a conformance or example that printed `0` for `toEpochSeconds` half a second
 before 1970. Also: a transport test whose pooled fake connection reports bytes waiting, or a
 chunked reply case whose source ends after `0
 ` with more octets after the trailer (it is no longer
@@ -591,11 +576,4 @@ test that expects a bodiless `421`, or a `421` from a loopback proxy to pass thr
 
 ### Backlog
 
-- A release of the last reference to a suspended generator runs its `finally` bodies
-  (`crates/nvs-runtime/src/object.rs:5126`, `unwind_abandoned`). An `InstKind::Release` counts as no
-  program code (`rule:types/a-replaced-value-is-changed-in-place` § *What a quiet call is*), so a
-  lend may cross a release that runs a `finally` which writes the lent slot. Found by
-  `safety-holes`' stage 2 reader; not reproduced.
-- A class constant's initializer, `public const int N = Framework\Base::LIMIT;`, is folded in the
-  signatures pass and records no `ExprInfo`, so a restricted constant there is probably not checked.
-  It is the same shape as stage 3's defaults item and was not part of it. Not reproduced.
+Its two items moved to `csrf-cookieless-visitor`'s `### Backlog`.

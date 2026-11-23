@@ -124,3 +124,14 @@ The goal is written; no stage has started.
 Stage 1, its first item: the measurement, with the probe under `.agent-tmp/`.
 
 ### Backlog
+
+Two items `review-hardening` left unreproduced, carried here so they stay visible. Neither is this
+goal's work.
+
+- A release of the last reference to a suspended generator runs its `finally` bodies
+  (`crates/nvs-runtime/src/object.rs:5126`, `unwind_abandoned`). An `InstKind::Release` counts as no
+  program code (`rule:types/a-replaced-value-is-changed-in-place` § *What a quiet call is*), so a
+  lend may cross a release that runs a `finally` which writes the lent slot. Not reproduced.
+- A class constant's initializer, `public const int N = Framework\Base::LIMIT;`, is folded in the
+  signatures pass and records no `ExprInfo`, so a restricted constant there is probably not checked.
+  Not reproduced.
