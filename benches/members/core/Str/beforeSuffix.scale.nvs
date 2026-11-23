@@ -1,0 +1,21 @@
+<?nvs
+// Measures `Core\Str::beforeSuffix` on one file name, at growing name lengths.
+// bench: start 256
+// bench: max 4096
+
+class Bench
+{
+    public static function run(uint $size): uint
+    {
+        string $file = Core\Str::repeat('f', $size) . '.csv';
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < 64) {
+            $total = $total + Core\Str::length(Core\Str::beforeSuffix($file, '.csv') ?? '');
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

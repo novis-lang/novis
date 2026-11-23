@@ -1,0 +1,17 @@
+<?nvs
+// Shows that a prefix matches only whole characters.
+
+// "e" followed by a combining accent (U+0301) is one character: "é".
+string $word = "e\u{301}cole";
+
+// The prefix "e" ends inside that character, so the result is `null`.
+// This prints `(none)`.
+echo Core\Str::afterPrefix($word, 'e') ?? '(none)', "\n";
+
+// The prefix "e" plus the accent is the whole character, so the cut works.
+// This prints `cole`.
+echo Core\Str::afterPrefix($word, "e\u{301}") ?? '(none)', "\n";
+
+// `Core\Str::startsWith` gives the same answer for the same two strings.
+// This prints `false`.
+echo Core\Str::startsWith($word, 'e') ? 'true' : 'false', "\n";

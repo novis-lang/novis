@@ -1,0 +1,27 @@
+<?nvs
+// Takes the number after "openingHours-" in a form field name, as a program does when it reads a form.
+// bench: iterations 256
+// bench: calls 1
+// bench: complexity linear
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $keys = ['openingHours-12', 'name', 'openingHours-3', 'openingHoursNote'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?string $day = Core\Str::afterPrefix($keys[($total % 4) as int], 'openingHours-');
+            if ($day != null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 5;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1039,8 +1039,9 @@ const AFTER_PREFIX_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "prefix",
-            desc: "The text to remove from the start of `$s`. The check is case-sensitive, and \
-                   it is the same check `Core\\Str::startsWith` makes.",
+            desc: "The text to remove from the start of `$s`. The check is case-sensitive. \
+                   `$prefix` must end after a whole character: `\"e\"` does not match the start \
+                   of `\"e\\u{301}\"`.",
             shape: &[],
         },
     ],
@@ -1062,8 +1063,9 @@ const BEFORE_SUFFIX_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "suffix",
-            desc: "The text to remove from the end of `$s`. The check is case-sensitive, and it \
-                   is the same check `Core\\Str::endsWith` makes.",
+            desc: "The text to remove from the end of `$s`. The check is case-sensitive. \
+                   `$suffix` must start at a whole character: `\"\\u{301}\"` does not match the \
+                   end of `\"e\\u{301}\"`.",
             shape: &[],
         },
     ],

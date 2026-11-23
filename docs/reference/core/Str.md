@@ -8,7 +8,9 @@ changes its argument. Every position, length and count is in **graphemes** — u
 characters — so `length("👍🏽")` is `1`, no `slice` or `chunk` ever splits a character, and a byte
 count is `Core\Bytes::length`. A string has no `$s[0]` and no `<`/`>`: `Core\Str::at`,
 `Core\Str::slice` and `Core\Str::compare` are those spellings. A position or a cut that does not
-exist is `null` — `indexOf`, `lastIndexOf`, `before`, `after` — never `false`.
+exist is `null` — `indexOf`, `lastIndexOf`, `before`, `after` — never `false`. In the same way,
+`afterPrefix` and `beforeSuffix` remove a given start or end and return the rest, or `null` when the
+string does not start or end with it.
 
 ```nvs
 <?nvs

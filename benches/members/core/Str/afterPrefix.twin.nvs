@@ -1,0 +1,30 @@
+<?nvs
+// Measures the same cut as the `afterPrefix` bench, written with `Core\Str::startsWith` and `Core\Str::slice`.
+// bench: iterations 256
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $keys = ['openingHours-12', 'name', 'openingHours-3', 'openingHoursNote'];
+        string $prefix = 'openingHours-';
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $key = $keys[($total % 4) as int];
+            ?string $day = null;
+            if (Core\Str::startsWith($key, $prefix)) {
+                $day = Core\Str::slice($key, Core\Str::length($prefix) as int);
+            }
+            if ($day != null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 5;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

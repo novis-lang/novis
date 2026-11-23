@@ -1,0 +1,44 @@
+<?nvs
+// Attack: `Core\Str::beforeSuffix` gets very long strings and suffixes that almost match.
+// Each call should return a result or stop at a limit, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Uses a 32 MiB suffix that matches every byte of the string but the first one.
+    public static function missAtTheFirstByte(uint $mib): string
+    {
+        var $s = Core\Str::repeat(Core\Str::repeat('a', 1048576), $mib);
+        var $suffix = 'b' . Core\Str::slice($s, 1);
+        return Core\Str::beforeSuffix('x' . $s, $suffix) ?? '(none)';
+    }
+
+    /// 2. Uses a suffix that starts inside a character: a combining accent without its "e".
+    public static function startsInsideACharacter(uint $rounds): uint
+    {
+        var $s = Core\Str::repeat("e\u{301}", 1000);
+        var $suffix = "\u{301}" . Core\Str::repeat("e\u{301}", 999);
+        uint $found = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if (Core\Str::beforeSuffix($s, $suffix) != null || Core\Str::beforeSuffix("x\r\n", "\n") != null) {
+                $found = $found + 1;
+            }
+            $i = $i + 1;
+        }
+        return $found;
+    }
+
+    /// 3. Uses a 32 MiB suffix that is the whole string, and one that is a byte longer.
+    public static function suffixAsLongAsTheString(uint $mib): string
+    {
+        var $s = Core\Str::repeat(Core\Str::repeat("\u{e9}", 524288), $mib);
+        ?string $all = Core\Str::beforeSuffix($s, $s);
+        ?string $longer = Core\Str::beforeSuffix($s, 'x' . $s);
+        return '[' . ($all ?? '(none)') . '] ' . ($longer ?? '(none)');
+    }
+}
+
+echo Attack::missAtTheFirstByte(32), "\n";
+echo Attack::startsInsideACharacter(100000), "\n";
+echo Attack::suffixAsLongAsTheString(32), "\n";

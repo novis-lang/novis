@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read a number out of form field names that share a start.
+
+array<string> $keys = ['openingHours-12', 'name', 'openingHours-3', 'openingHoursNote'];
+
+foreach ($keys as string $key) {
+    // `Core\Str::afterPrefix` returns the text after "openingHours-".
+    // A key that does not start with it gives `null`, so the loop skips it.
+    ?string $day = Core\Str::afterPrefix($key, 'openingHours-');
+    if ($day == null) {
+        echo $key, ": skipped\n";
+        continue;
+    }
+    // This prints `day 12` for the first key.
+    echo $key, ': day ', $day, "\n";
+}

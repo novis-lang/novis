@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to remove one trailing "/" from a path, so "/shop/" and "/shop" are the same.
+
+array<string> $paths = ['/shop/', '/shop', '/'];
+
+foreach ($paths as string $path) {
+    // A path without a trailing "/" gives `null`, and `??` keeps the path as it is.
+    // The path "/" gives an empty string. This prints `[/shop]`, `[/shop]` and `[]`.
+    string $clean = Core\Str::beforeSuffix($path, '/') ?? $path;
+    echo '[', $clean, "]\n";
+}

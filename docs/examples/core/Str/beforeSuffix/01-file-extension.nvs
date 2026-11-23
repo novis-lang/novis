@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to take a file name without its ".csv" extension.
+
+array<string> $files = ['orders.csv', 'notes.txt', 'backup.csv.tmp', 'PRICES.CSV'];
+
+foreach ($files as string $file) {
+    // "orders.csv" ends with ".csv", so this prints `orders`.
+    // The other names do not end with ".csv", so the result is `null`.
+    ?string $name = Core\Str::beforeSuffix($file, '.csv');
+    echo $file, ': ', $name ?? '(not a CSV file)', "\n";
+}

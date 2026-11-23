@@ -1,0 +1,44 @@
+<?nvs
+// Attack: `Core\Str::afterPrefix` gets very long strings and prefixes that almost match.
+// Each call should return a result or stop at a limit, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    /// 1. Uses a 32 MiB prefix that matches every byte of the string but the last one.
+    public static function missAtTheLastByte(uint $mib): string
+    {
+        var $s = Core\Str::repeat(Core\Str::repeat('a', 1048576), $mib);
+        var $prefix = Core\Str::slice($s, 0, (Core\Str::length($s) - 1) as int) . 'b';
+        return Core\Str::afterPrefix($s . 'x', $prefix) ?? '(none)';
+    }
+
+    /// 2. Uses a prefix that ends inside a character: an "e" without its combining accent.
+    public static function endsInsideACharacter(uint $rounds): uint
+    {
+        var $s = Core\Str::repeat("e\u{301}", 1000);
+        var $prefix = Core\Str::repeat("e\u{301}", 999) . 'e';
+        uint $found = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if (Core\Str::afterPrefix($s, $prefix) != null || Core\Str::afterPrefix("\r\nx", "\r") != null) {
+                $found = $found + 1;
+            }
+            $i = $i + 1;
+        }
+        return $found;
+    }
+
+    /// 3. Uses a 32 MiB prefix that is the whole string, and one that is a byte longer.
+    public static function prefixAsLongAsTheString(uint $mib): string
+    {
+        var $s = Core\Str::repeat(Core\Str::repeat("\u{e9}", 524288), $mib);
+        ?string $all = Core\Str::afterPrefix($s, $s);
+        ?string $longer = Core\Str::afterPrefix($s, $s . 'x');
+        return '[' . ($all ?? '(none)') . '] ' . ($longer ?? '(none)');
+    }
+}
+
+echo Attack::missAtTheLastByte(32), "\n";
+echo Attack::endsInsideACharacter(100000), "\n";
+echo Attack::prefixAsLongAsTheString(32), "\n";

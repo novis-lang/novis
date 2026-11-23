@@ -1,0 +1,4 @@
+Bearer abc123: token abc123
+Basic dXNlcjpwYXNz: no token
+bearer abc123: no token
+[]

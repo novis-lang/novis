@@ -1,0 +1,17 @@
+<?nvs
+// Shows that a suffix matches only whole characters.
+
+// "\r\n" is one character, so a suffix of "\n" alone starts inside it.
+// The result is `null`, and this prints `(none)`.
+echo Core\Str::beforeSuffix("total: 3\r\n", "\n") ?? '(none)', "\n";
+
+// The suffix "\r\n" is the whole character, so this prints `total: 3`.
+echo Core\Str::beforeSuffix("total: 3\r\n", "\r\n") ?? '(none)', "\n";
+
+// "e" followed by a combining accent (U+0301) is one character: "é".
+// The accent alone is not a whole character, so this prints `(none)`.
+echo Core\Str::beforeSuffix("cafe\u{301}", "\u{301}") ?? '(none)', "\n";
+
+// `Core\Str::endsWith` gives the same answer for the same two strings.
+// This prints `false`.
+echo Core\Str::endsWith("cafe\u{301}", "\u{301}") ? 'true' : 'false', "\n";

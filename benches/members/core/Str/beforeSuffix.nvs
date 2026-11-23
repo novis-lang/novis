@@ -1,0 +1,27 @@
+<?nvs
+// Takes a file name without its ".csv" extension, as a program does when it lists uploaded files.
+// bench: iterations 256
+// bench: calls 1
+// bench: complexity linear
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        array<string> $files = ['orders.csv', 'notes.txt', 'prices.csv', 'backup.csv.tmp'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?string $name = Core\Str::beforeSuffix($files[($total % 4) as int], '.csv');
+            if ($name != null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 5;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the token out of an `Authorization` header.
+
+array<string> $headers = ['Bearer abc123', 'Basic dXNlcjpwYXNz', 'bearer abc123'];
+
+foreach ($headers as string $header) {
+    // The first header starts with "Bearer ", so this prints `token abc123`.
+    // The check is case-sensitive, so "bearer abc123" gives `null`.
+    ?string $token = Core\Str::afterPrefix($header, 'Bearer ');
+    echo $header, ': ', $token == null ? 'no token' : 'token ' . $token, "\n";
+}
+
+// The prefix is the whole string, so the result is an empty string.
+// This prints `[]`.
+echo '[', Core\Str::afterPrefix('Bearer ', 'Bearer ') ?? '(none)', "]\n";
