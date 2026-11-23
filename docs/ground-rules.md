@@ -547,7 +547,7 @@ One line per rule, and the link to the rule that owns it. Generated from `docs/r
 - **The historical leg runs under callgrind on Linux or WSL, and nowhere else** — The historical leg runs under `valgrind --tool=callgrind`, which has no native Windows build, so it runs on Linux or WSL and nowhere else. ([`testing/valgrind-on-wsl`](rules/testing.md#testing-valgrind-on-wsl))
 - **Every run of CI runs every job, and a green run on `main` is the release's proof** — Every run of `ci.yml` runs every job that gates anything, whatever its event and whatever its diff touched. ([`testing/every-run-runs-every-job`](rules/testing.md#testing-every-run-runs-every-job))
 - **A fuzz search gates nothing; `cargo test` replays every input it found** — A fuzz search finds new failing inputs. ([`testing/a-fuzz-search-gates-nothing`](rules/testing.md#testing-a-fuzz-search-gates-nothing))
-- **Each workflow has one run going on `main` at a time** — A run on `main` that a newer run of the same workflow replaces is cancelled, so `CI` and `Website` each have one run going on `main` at a time. ([`testing/one-run-on-main`](rules/testing.md#testing-one-run-on-main))
+- **Each workflow has one run going on `main` at a time** — A push run on `main` that a newer run of the same workflow replaces is cancelled, so `CI` and `Website` each have one push run going on `main` at a time. ([`testing/one-run-on-main`](rules/testing.md#testing-one-run-on-main))
 
 ## Security and isolation
 
