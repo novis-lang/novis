@@ -38,7 +38,7 @@ stages:
     context: [docs/rules/core-classes/a-time-class-builds-its-own-values.md]
   - id: 9
     title: a typed decode bounds its issue list, and a passkey challenge is taken once
-    status: open
+    status: done
     context: []
   - id: 10
     title: "a chunked reply is pooled after its last byte, and a worker panic stays on the worker"
@@ -105,7 +105,7 @@ checks:
   - id: decode-and-passkey
     stage: 9
     name: "a list of many bad elements ends in a bounded issue list, and two parallel finishes of one challenge give one success"
-    run: [cargo, test, --test, decode_and_passkey]
+    run: [cargo, test, --test, decode_and_passkey, --lib, --, bounded_issue_list, exactly_the_bound_lists_every_issue, two_requests_that_take_one_key_get_its_bytes_once_on_any_store]
     timeout: 1800
   - id: chunked-end
     stage: 10
@@ -460,9 +460,11 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 - [x] `data/gaps/`: the record for sessions a CSRF token makes (`sent_id`,
   `crates/nvs-stdlib/src/session.rs:2047`), with the rows 1,000 requests with no cookie make.
 - [x] `crates/nvs-config/src/tree.rs:1544`: the comment says what the code does.
-- [ ] `crates/nvs-stdlib/tests/decode_and_passkey.rs:1`. It runs once, by name.
+- [x] `crates/nvs-codegen/tests/decode_and_passkey.rs:1`. It runs once, by name.
   - [x] The decode half: `crates/nvs-codegen/tests/decode_and_passkey.rs`, two cases, passed.
-  - [ ] The passkey half reachable by the acceptance command `cargo test --test decode_and_passkey`.
+  - [x] The passkey half: the acceptance command also runs the unit test
+    `two_requests_that_take_one_key_get_its_bytes_once_on_any_store`, whose store helpers are
+    private to `nvs-stdlib`.
 - [x] `cargo build` and clippy are green.
 
 ### 10. a chunked reply is pooled after its last byte, and a worker panic stays on the worker
