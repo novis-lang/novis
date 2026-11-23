@@ -8,8 +8,8 @@ var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
 // 1. The last moment in time, read in the zone farthest ahead. This prints 9999-12-30T22:00:00Z.
 echo Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in($ahead)->toInstant()->toIso(), "\n";
 
-// 2. The first moment in time, read in the zone farthest behind. This prints -009999-01-02T01:59:59Z.
-echo Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in($behind)->toInstant()->toIso(), "\n";
+// 2. The first moment in time, read in the zone farthest behind. This prints -9999-01-02T01:59:59Z.
+echo Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z')->in($behind)->toInstant()->toIso(), "\n";
 
 // 3. A local time that does not exist, because the clocks moved forward. The result is still one moment.
 var $gap = Core\Time\DateTime::fromIso('2024-03-31 02:30', 'Europe/Berlin');

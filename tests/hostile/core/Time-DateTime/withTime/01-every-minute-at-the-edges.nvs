@@ -6,7 +6,7 @@
 // In UTC, the range ends at 22:00:00 on 30 December 9999, so later minutes throw.
 var $lastUtc = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::UTC);
 var $lastEast = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
-var $firstWest = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+var $firstWest = Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
 int $refused = 0;
 int $built = 0;
 uint $hour = 0;

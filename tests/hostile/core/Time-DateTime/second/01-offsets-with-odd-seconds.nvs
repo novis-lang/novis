@@ -48,5 +48,5 @@ while ($step < 240) {
 var $ahead = Core\Time\Zone::fixed(25h59m59s);
 var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
 Expect::same('step 4', Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in($ahead)->second() as string, '59');
-Expect::same('step 4', Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in($behind)->second() as string, '0');
+Expect::same('step 4', Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z')->in($behind)->second() as string, '0');
 echo "all seconds are right\n";

@@ -5,7 +5,7 @@
 
 // 1. The widest fixed offsets. The name of each zone is its offset.
 var $ahead = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
-var $behind = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+var $behind = Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
 echo $ahead->format('VV'), ' ', $behind->format('VV'), "\n";
 echo $ahead->toInstant()->in($ahead->zone())->format('uuuu-MM-dd HH:mm:ss'), "\n";
 echo $behind->toInstant()->in($behind->zone())->format('uuuu-MM-dd HH:mm:ss'), "\n";

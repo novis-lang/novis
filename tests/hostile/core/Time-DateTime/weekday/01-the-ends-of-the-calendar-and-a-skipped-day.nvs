@@ -4,7 +4,7 @@
 
 // 1. The last day of the calendar is a Friday, and the first is a Monday.
 var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
-var $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+var $first = Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
 echo $last->weekday() as int, ' ', $first->weekday() as int, "\n";
 
 // 2. Samoa skipped Friday 30 December 2011. Every hour from 29 to 31 December is read.

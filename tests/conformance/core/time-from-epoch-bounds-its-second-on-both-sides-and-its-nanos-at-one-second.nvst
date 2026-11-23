@@ -100,8 +100,8 @@ echo Core\Time\Instant::fromEpoch($top, {nanos: 999999999})->toIso(), "|",
 6|4|
 6|4|
 9999-12-30T22:00:00Z|refused|
--009999-01-02T01:59:59Z|refused|
+-9999-01-02T01:59:59Z|refused|
 yes|yes|
 4|3|
 Core\Time\Instant::fromEpoch(): `nanos` is a subsecond count, so it is below 1000000000|
-9999-12-30T22:00:00.999999999Z|-009999-01-02T01:59:59.999999999Z|
+9999-12-30T22:00:00.999999999Z|-9999-01-02T01:59:59.999999999Z|

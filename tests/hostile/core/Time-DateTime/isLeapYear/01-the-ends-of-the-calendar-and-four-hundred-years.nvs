@@ -4,7 +4,7 @@
 
 // 1. The year 9999 is not a leap year. The year -9999 is not one either.
 var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
-var $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
+var $first = Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated()));
 echo $last->isLeapYear() ? 'leap' : 'common', ' ', $first->isLeapYear() ? 'leap' : 'common', "\n";
 
 // 2. A cycle of 400 years has 97 leap years. Each year is read on 1 March.

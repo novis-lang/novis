@@ -16,7 +16,7 @@ try {
 }
 
 // 2. The first moment in time, read in the zone farthest behind, is on the first day of the calendar.
-var $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in($behind)->date();
+var $first = Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z')->in($behind)->date();
 echo $first->format('yyyy-MM-dd'), "\n";
 try {
     $first->minus(1, Core\Unit::Day);

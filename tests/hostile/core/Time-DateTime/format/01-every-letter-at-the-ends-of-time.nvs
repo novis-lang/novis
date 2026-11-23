@@ -5,7 +5,7 @@
 // 1. The last and the first moment, at the widest fixed offsets, and one moment in a named zone.
 array<Core\Time\DateTime> $moments = [
     Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s)),
-    Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated())),
+    Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z')->in(Core\Time\Zone::fixed(25h59m59s->negated())),
     Core\Time\Instant::fromIso('2024-03-31T01:30:00Z')->in(Core\Time\Zone::of('Pacific/Chatham')),
 ];
 foreach ($moments as Core\Time\DateTime $moment) {

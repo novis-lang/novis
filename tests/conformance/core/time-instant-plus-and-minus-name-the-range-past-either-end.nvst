@@ -22,7 +22,7 @@ try { $last->minus((1ns)->negated()); }
 catch (RuntimeError $forward) { echo $forward->message, "\n"; }
 --EXPECT--
 9999-12-30T22:00:00.999999999Z
--009999-01-02T01:59:59Z
+-9999-01-02T01:59:59Z
 Core\Time\Instant::plus(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
 Core\Time\Instant::minus(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
 Core\Time\Instant::plus(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z

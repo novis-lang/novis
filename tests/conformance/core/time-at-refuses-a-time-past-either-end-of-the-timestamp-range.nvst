@@ -22,7 +22,7 @@ echo Core\Time\DateTime::at(Core\Time\Date::at(9999, 12, 30), Core\Time\TimeOfDa
 --EXPECT--
 9999-12-30 22:00:00
 Core\Time\DateTime::at(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
--009999-01-02T01:59:59Z
+-9999-01-02T01:59:59Z
 Core\Time\DateTime::at(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
 Core\Time\DateTime::at(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
 9999-12-30T22:00:00Z

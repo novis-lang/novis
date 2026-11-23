@@ -18,7 +18,7 @@ final class Expect
 var $ahead = Core\Time\Zone::fixed(25h59m59s);
 var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
 Expect::same('step 1', Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in($ahead)->day() as string, '31');
-Expect::same('step 1', Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in($behind)->day() as string, '1');
+Expect::same('step 1', Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z')->in($behind)->day() as string, '1');
 
 // 2. Samoa skipped 30 December 2011. Every hour from 28 December to 1 January is read.
 // No hour is on day 30, and the day after 29 December is 31 December.

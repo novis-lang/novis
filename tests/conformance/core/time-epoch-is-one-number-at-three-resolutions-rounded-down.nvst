@@ -1,5 +1,5 @@
 --TEST--
-`Core\Time\Instant`'s three epoch readings are one number at three resolutions, each truncated toward zero rather than floored — so below the epoch the coarser reading is the later one, and the seconds scale covers a two-second interval around zero — and `Core\Time\Instant::fromEpoch` bounds its seconds against the representable range and its `nanos` below one second, both sides of both bounds named
+`Core\Time\Instant`'s three epoch readings are one number at three resolutions, each rounded down — so below the epoch the coarser reading is the earlier one, and every seconds reading covers exactly one second — and `Core\Time\Instant::fromEpoch` bounds its seconds against the representable range and its `nanos` below one second, both sides of both bounds named
 --FILE--
 <?nvs
 // covers: Core\Time\Instant::toEpochSeconds, Core\Time\Instant::toEpochMillis, Core\Time\Instant::toEpochMicros
@@ -7,23 +7,17 @@
 // micros since the epoch. What a case can assert about three members returning
 // three different numbers is that they are the *same* number at three
 // resolutions — so each is checked against the other two rather than against a
-// figure written down here, and a member that floored where its neighbours
-// truncated fails the relation while its own line still reads plausibly.
+// figure written down here, and a member that truncated toward zero where its
+// neighbours rounded down fails the relation while its own line still reads
+// plausibly.
 class Scale {
     // The relation between two resolutions: the finer reading minus the
-    // coarser one scaled up is the part the coarser one dropped, so it is
-    // smaller than one step of the coarser scale and it points the same way
-    // the instant does. That second half is the whole of "toward zero": a
-    // floored reading would drop a *negative* remainder below the epoch and
-    // leave this difference positive there.
-    public static function drops(int $dropped, int $step, int $sign): bool {
-        if ($dropped >= $step || $dropped <= 0 - $step) {
-            return false;
-        }
-        if ($sign < 0) {
-            return $dropped <= 0;
-        }
-        return $dropped >= 0;
+    // coarser one scaled up is the part the coarser one dropped. Rounding down
+    // drops a part that is at least zero and smaller than one step of the
+    // coarser scale, on both sides of the epoch. A reading truncated toward
+    // zero would drop a *negative* part below the epoch and fail here.
+    public static function drops(int $dropped, int $step): bool {
+        return $dropped >= 0 && $dropped < $step;
     }
 }
 
@@ -46,26 +40,23 @@ for (; $row < 10; $row = $row + 1) {
     int $seconds = $instant->toEpochSeconds();
     int $millis = $instant->toEpochMillis();
     int $micros = $instant->toEpochMicros();
-    int $sign = $micros;
-    if (Scale::drops($millis - $seconds * 1000, 1000, $sign)) {
+    if (Scale::drops($millis - $seconds * 1000, 1000)) {
         $millisAgree = $millisAgree + 1;
     }
-    if (Scale::drops($micros - $millis * 1000, 1000, $sign)) {
+    if (Scale::drops($micros - $millis * 1000, 1000)) {
         $microsAgree = $microsAgree + 1;
     }
-    if (Scale::drops($micros - $seconds * 1000000, 1000000, $sign)) {
+    if (Scale::drops($micros - $seconds * 1000000, 1000000)) {
         $wholeAgree = $wholeAgree + 1;
     }
 }
 echo "rows=", $row as string, " millis=", $millisAgree as string,
     " micros=", $microsAgree as string, " whole=", $wholeAgree as string, "|\n";
 
-// What truncation toward zero looks like where it is visible: seven instants a
-// half-second apart across the epoch. Every other seconds reading covers one
-// second and is sampled twice; 0 covers two — everything from -0.5 up to +0.5
-// — and is sampled three times, which is the whole of the difference between
-// truncating and flooring, and is why the coarser reading of a negative instant
-// is the *later* point rather than the earlier one.
+// What rounding down looks like where it is visible: seven instants a
+// half-second apart across the epoch, from -2.0 to 1.0. Every seconds reading
+// covers one second and is sampled twice, 0 included: -0.5 reads -1, not 0.
+// Truncating toward zero would give 0 three times, from -0.5 to 0.5.
 array<int> $walkSeconds = [-2, -2, -1, -1, 0, 0, 1];
 array<int> $walkNanos = [0, 500000000, 0, 500000000, 0, 500000000, 0];
 int $step = 0;
@@ -83,7 +74,7 @@ for (; $step < 7; $step = $step + 1) {
 }
 echo "walk=", $reading, "|\n";
 echo "zeros=", $zeros as string, "|\n";
-// And the ISO rendering, which does not truncate, tells the two apart.
+// And the ISO rendering, which keeps the fraction, tells -0.5 and 0.5 apart.
 echo "iso=", Core\Time\Instant::fromEpoch(-1, {nanos: 500000000})->toIso(),
     " ", Core\Time\Instant::fromEpoch(0, {nanos: 500000000})->toIso(), "|\n";
 
@@ -99,7 +90,8 @@ try {
 }
 // The seconds bound is the representable range itself, and it is not symmetric
 // about the epoch: it is the calendar's own ends, less the widest zone offset
-// each way, which is why the top is not a round number of days.
+// each way, which is why the top is not a round number of days. The bottom's
+// year is written in `fromIso`'s four-digit form.
 echo "seconds-top=", Core\Time\Instant::fromEpoch(253402207200)->toIso(),
     " seconds-bottom=", Core\Time\Instant::fromEpoch(-377705023201)->toIso(), "|\n";
 int $refusals = 0;
@@ -120,10 +112,10 @@ try {
 echo "seconds-past=", $refusals as string, "|\n";
 --EXPECT--
 rows=10 millis=10 micros=10 whole=10|
-walk=-2 -1 -1 0 0 0 1 |
-zeros=3|
+walk=-2 -2 -1 -1 0 0 1 |
+zeros=2|
 iso=1969-12-31T23:59:59.5Z 1970-01-01T00:00:00.5Z|
 nanos-last=1970-01-01T00:00:00.999999999Z|
 nanos-past=Core\Time\Instant::fromEpoch(): `nanos` is a subsecond count, so it is below 1000000000|
-seconds-top=9999-12-30T22:00:00Z seconds-bottom=-009999-01-02T01:59:59Z|
+seconds-top=9999-12-30T22:00:00Z seconds-bottom=-9999-01-02T01:59:59Z|
 seconds-past=2|

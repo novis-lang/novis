@@ -19,7 +19,7 @@ var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
 // 1. The last moment in time, read in the zone farthest ahead, is in the year 9999.
 // The first moment in time, read in the zone farthest behind, is in the year -9999.
 var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in($ahead);
-var $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in($behind);
+var $first = Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z')->in($behind);
 Expect::same('step 1', $last->year() as string, '9999');
 Expect::same('step 1', $first->year() as string, '-9999');
 

@@ -30,7 +30,7 @@ echo Try::fixed(1ns), ' ', Try::fixed((0s)->minus(1ns)), "\n";
 Core\Time\Zone $east = Core\Time\Zone::fixed(Core\Time\Duration::seconds(93599));
 Core\Time\Zone $west = Core\Time\Zone::fixed(Core\Time\Duration::seconds(-93599));
 echo Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in($east)->format('uuuu-MM-dd HH:mm:ss'), "\n";
-echo Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in($west)->format('uuuu-MM-dd HH:mm:ss'), "\n";
+echo Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z')->in($west)->format('uuuu-MM-dd HH:mm:ss'), "\n";
 
 // 4. Many zones are made and thrown away, one for every offset in steps of seven seconds.
 int $made = 0;

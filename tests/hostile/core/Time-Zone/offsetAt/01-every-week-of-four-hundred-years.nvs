@@ -4,7 +4,7 @@
 
 // 1. Zones with summer time, and the widest fixed zones, at the first and the last instant.
 array<string> $names = ['Europe/Berlin', 'America/New_York', 'Australia/Lord_Howe', 'Pacific/Kiritimati'];
-array<string> $ends = ['-009999-01-02T01:59:59Z', '9999-12-30T22:00:00Z'];
+array<string> $ends = ['-9999-01-02T01:59:59Z', '9999-12-30T22:00:00Z'];
 foreach ($ends as string $end) {
     Core\Time\Instant $edge = Core\Time\Instant::fromIso($end);
     foreach ($names as string $name) {

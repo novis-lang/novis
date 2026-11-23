@@ -3772,8 +3772,27 @@ fn instant_built(at: Timestamp) -> Value {
 /// type is this spelling and a document carrying anything else is a bad
 /// document: it belongs in the issue list beside every other field that did not
 /// fit, rather than ending the decode where it was met.
+///
+/// It reads with [`iso_instant`], the grammar `fromIso` reads with, so every
+/// text [`instant_iso`] writes is read back, the first instant's
+/// `-9999-01-02T01:59:59Z` among them.
 pub(crate) fn instant_from_iso(text: &str) -> Option<Value> {
-    text.parse::<Timestamp>().ok().map(instant_built)
+    iso_instant(text).ok().map(instant_built)
+}
+
+/// `at`'s RFC 3339 text in UTC, with the year in `fromIso`'s one form: four
+/// digits, and a `-` before them for a year before year 1.
+///
+/// jiff writes a year outside `0000`..=`9999` as a sign and six digits, so the
+/// first instant would be `-009999-01-02T01:59:59Z`, a text [`iso_instant`]
+/// refuses. The range ends at year `-9999`, so those six digits always start
+/// with `00`, and dropping them is the four-digit year.
+fn iso_text(at: Timestamp) -> String {
+    let text = at.to_string();
+    match text.strip_prefix("-00") {
+        Some(rest) => format!("-{rest}"),
+        None => text,
+    }
 }
 
 // ============================================================================
@@ -4025,7 +4044,7 @@ fn iso_datetime(text: &str) -> Result<civil::DateTime, String> {
 /// [`instant_of`]'s own unreachable-from-source guard seen through an
 /// [`Option`]: the caller is an encoder and has no member to name in a fault.
 pub(crate) fn instant_iso(value: Value) -> Option<String> {
-    Some(instant_of(&[value], 0, "toIso").ok()?.to_string())
+    Some(iso_text(instant_of(&[value], 0, "toIso").ok()?))
 }
 
 /// The fields of the record `class` crosses as, read from the instance `value`, for
@@ -4828,9 +4847,11 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `$i->toIso(): string` — RFC 3339 in UTC, which is `date(DATE_ATOM)`'s
     /// replacement and the one rendering that needs no zone argument.
+    /// [`iso_text`] writes the year in the form `fromIso` reads, so
+    /// `fromIso($i->toIso())` is `$i` at both ends of the range.
     fn nvs_core_time_instant_to_iso(_ctx, args: [1]) {
         let at = instant_of(args, 0, "toIso")?;
-        Ok(Value::text(&at.to_string()))
+        Ok(Value::text(&iso_text(at)))
     }
 }
 
@@ -6533,7 +6554,8 @@ mod tests {
 
     /// `fromIso` applies the offset, keeps the fraction, accepts the last
     /// instant of the range, and throws a time past either end in its own
-    /// sentence while a text that is not a timestamp keeps `jiff`'s.
+    /// sentence while a text that is not in the `YYYY-MM-DDTHH:MM:SSZ` form
+    /// says where it leaves that form.
     // covers: Core\Time\Instant::fromIso
     #[test]
     fn from_iso_applies_the_offset_and_refuses_past_the_range_plainly() {
@@ -6551,7 +6573,7 @@ mod tests {
         );
 
         let past = r"Core\Time\Instant::fromIso(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z";
-        for text in ["9999-12-31T23:59:59Z", "-009999-01-01T00:00:00Z"] {
+        for text in ["9999-12-31T23:59:59Z", "-9999-01-01T00:00:00Z"] {
             assert_eq!(built_from_iso(text), Err(past.to_owned()));
         }
         for text in [
@@ -7568,8 +7590,8 @@ mod tests {
     }
 
     /// `toIso` writes RFC 3339 in UTC: no fraction for a whole second, the
-    /// fraction for any other, and a six-digit signed year at the first
-    /// instant. Every instant renders, so there is nothing to throw.
+    /// fraction for any other, and a four-digit year with a `-` before it at
+    /// the first instant. Every instant renders, so there is nothing to throw.
     // covers: Core\Time\Instant::toIso
     #[test]
     fn instant_to_iso_is_utc_text_at_both_ends_of_the_range() {
@@ -7593,8 +7615,58 @@ mod tests {
         assert_eq!(iso(at(1_709_294_400, 0)), "2024-03-01T12:00:00Z");
         assert_eq!(iso(at(0, -1)), "1969-12-31T23:59:59.999999999Z");
         assert_eq!(iso(at(0, 500_000_000)), "1970-01-01T00:00:00.5Z");
-        assert_eq!(iso(Timestamp::MIN), "-009999-01-02T01:59:59Z");
+        assert_eq!(iso(Timestamp::MIN), "-9999-01-02T01:59:59Z");
         assert_eq!(iso(Timestamp::MAX), "9999-12-30T22:00:00.999999999Z");
+    }
+
+    /// `fromIso` reads back every text `toIso` writes: the first and the last
+    /// instant, the last nanosecond of year `-0001`, year `0000` and a time
+    /// before 1970 with a fraction. The JSON reader reads the same texts.
+    // covers: Core\Time\Instant::toIso, Core\Time\Instant::fromIso
+    #[test]
+    fn instant_to_iso_round_trips_through_from_iso_at_both_ends() {
+        let year_zero = second_of("0000-01-01T00:00:00Z");
+        let cases = [
+            (Timestamp::MIN, "-9999-01-02T01:59:59Z"),
+            (
+                Timestamp::new(Timestamp::MIN.as_second(), 999_999_999).expect("in range"),
+                "-9999-01-02T01:59:59.999999999Z",
+            ),
+            (
+                Timestamp::new(year_zero - 1, 999_999_999).expect("in range"),
+                "-0001-12-31T23:59:59.999999999Z",
+            ),
+            (
+                Timestamp::new(year_zero, 0).expect("in range"),
+                "0000-01-01T00:00:00Z",
+            ),
+            (
+                Timestamp::new(-1, 250_000_000).expect("in range"),
+                "1969-12-31T23:59:59.25Z",
+            ),
+            (Timestamp::MAX, "9999-12-30T22:00:00.999999999Z"),
+        ];
+        for (at, written) in cases {
+            assert_eq!(iso_text(at), written);
+            let read = (at.as_second(), i64::from(at.subsec_nanosecond()));
+            assert_eq!(built_from_iso(&iso_text(at)), Ok(read), "{written}");
+            let decoded = instant_from_iso(written).expect("the JSON reader reads it");
+            let held = crate::instance::receiver(decoded, &INSTANT, "test").expect("an `Instant`");
+            assert_eq!(
+                crate::instance::slot(held, INSTANT_SECONDS_SLOT).as_int(),
+                Some(read.0),
+                "{written}"
+            );
+            assert_eq!(
+                crate::instance::slot(held, INSTANT_NANOS_SLOT).as_int(),
+                Some(read.1),
+                "{written}"
+            );
+            #[expect(unsafe_code, reason = "this frame owns the decoded `Instant`")]
+            unsafe {
+                decoded.release();
+            }
+        }
     }
 
     /// `in` answers the receiver's own instant on the zone's clock, at the
@@ -7654,13 +7726,14 @@ mod tests {
         );
     }
 
-    /// The three epoch readings are one number at three scales, truncated
-    /// toward zero on both sides of the epoch, and all three read the first
-    /// and last instants exactly — so none of them has an input it throws on,
-    /// and the cards promise no error.
+    /// The three epoch readings are one number at three scales, rounded down
+    /// on both sides of the epoch, so an instant before 1970 reads back the
+    /// counts `fromEpoch` built it from. All three read the first and last
+    /// instants exactly — so none of them has an input it throws on, and the
+    /// cards promise no error.
     // covers: Core\Time\Instant::toEpochSeconds, Core\Time\Instant::toEpochMillis, Core\Time\Instant::toEpochMicros
     #[test]
-    fn instant_epoch_readings_truncate_toward_zero_and_reach_both_ends() {
+    fn instant_epoch_readings_round_down_and_reach_both_ends() {
         let int = |read: Result<Value, i32>| {
             read.expect("every instant has an epoch reading")
                 .as_int()
@@ -7697,8 +7770,8 @@ mod tests {
             read(at(1_700_000_000, 123_456_789)),
             (1_700_000_000, 1_700_000_000_123, 1_700_000_000_123_456)
         );
-        assert_eq!(read(at(-1, -500_000_000)), (-1, -1_500, -1_500_000));
-        assert_eq!(read(at(0, -1)), (0, 0, 0));
+        assert_eq!(read(at(-1, -500_000_000)), (-2, -1_500, -1_500_000));
+        assert_eq!(read(at(0, -1)), (-1, -1, -1));
         for end in [Timestamp::MIN, Timestamp::MAX] {
             let (second, nanos) = (end.as_second(), i64::from(end.subsec_nanosecond()));
             assert_eq!(

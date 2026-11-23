@@ -38,28 +38,36 @@ if (Core\Math::intDiv($micros, 1000) == $millis) { $fromMicros = $fromMicros + 1
 if (Core\Math::intDiv($micros, 1000000) == $seconds) { $fromMicros = $fromMicros + 1; }
 echo "scaled=", $fromMicros as string, "/2\n";
 
-// Both sides of the epoch, because a reading derived by division parts from
-// one derived by flooring exactly at a negative instant and nowhere else. This
-// instant is 1.5 seconds before the epoch, and the three readings truncate
-// *toward zero* rather than flooring: the second reading is -1, not the -2 a
-// floor would give. That is what keeps `scaled` above true on this side too —
-// the coarse reading stays the fine one divided, at the cost of the second
-// reading not being the second the instant falls inside.
+// Both sides of the epoch, because rounding down and truncating toward zero
+// part exactly at a negative instant and nowhere else. This instant is 1.5
+// seconds before the epoch, and the three readings round down: the second
+// reading is -2, the second the instant falls inside, not the -1 a truncation
+// would give. The coarse reading is the fine one divided and rounded down, so
+// the check uses `Scale::floorDiv`. `Core\Math::intDiv` truncates toward zero.
+class Scale {
+    public static function floorDiv(int $count, int $by): int {
+        int $q = Core\Math::intDiv($count, $by);
+        if ($count - $q * $by < 0) {
+            return $q - 1;
+        }
+        return $q;
+    }
+}
 var $before = Core\Time\Instant::fromEpoch(-2, {nanos: 500000000});
 echo $before->toEpochSeconds() as string, " ",
      $before->toEpochMillis() as string, " ",
      $before->toEpochMicros() as string, "\n";
 
 int $scaledBefore = 0;
-if (Core\Math::intDiv($before->toEpochMicros(), 1000) == $before->toEpochMillis()) {
+if (Scale::floorDiv($before->toEpochMicros(), 1000) == $before->toEpochMillis()) {
     $scaledBefore = $scaledBefore + 1;
 }
-if (Core\Math::intDiv($before->toEpochMicros(), 1000000) == $before->toEpochSeconds()) {
+if (Scale::floorDiv($before->toEpochMicros(), 1000000) == $before->toEpochSeconds()) {
     $scaledBefore = $scaledBefore + 1;
 }
 echo "scaledBefore=", $scaledBefore as string, "/2\n";
 --EXPECT--
 steady=3/3
 scaled=2/2
--1 -1500 -1500000
+-2 -1500 -1500000
 scaledBefore=2/2

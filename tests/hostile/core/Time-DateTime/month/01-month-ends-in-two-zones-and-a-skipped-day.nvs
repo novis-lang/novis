@@ -18,7 +18,7 @@ final class Expect
 var $ahead = Core\Time\Zone::fixed(25h59m59s);
 var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
 Expect::same('step 1', Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in($ahead)->month() as string, '12');
-Expect::same('step 1', Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in($behind)->month() as string, '1');
+Expect::same('step 1', Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z')->in($behind)->month() as string, '1');
 
 // 2. One moment is read in Tokyo and in New York. It is February in Tokyo and January in New York.
 var $moment = Core\Time\Instant::fromIso('2024-01-31T23:30:00Z');

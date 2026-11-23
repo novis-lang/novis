@@ -6,7 +6,7 @@
 // The first refused second at each end, written in UTC and with an offset.
 // All four throw the same sentence, so the text is printed once and the
 // sentences are counted for agreement.
-array<string> $past = ["9999-12-30T22:00:01Z", "9999-12-31T23:59:59+01:00", "-009999-01-02T01:59:58Z", "-009999-01-01T00:00:00-01:00"];
+array<string> $past = ["9999-12-30T22:00:01Z", "9999-12-31T23:59:59+01:00", "-9999-01-02T01:59:58Z", "-9999-01-01T00:00:00-01:00"];
 array<tainted string> $sentences = [];
 foreach ($past as string $text) {
     try {
@@ -25,9 +25,10 @@ foreach ($sentences as tainted string $sentence) {
 }
 echo $same as string, " of 4 agree\n";
 
-// The last accepted second at each end, beside them, still builds.
-echo Core\Time\Instant::fromIso("9999-12-30T22:00:00Z")->toIso(), "|", Core\Time\Instant::fromIso("-009999-01-02T01:59:59Z")->toIso(), "\n";
+// The last accepted second at each end, beside them, still builds, and
+// `toIso` writes each back as the text it was read from.
+echo Core\Time\Instant::fromIso("9999-12-30T22:00:00Z")->toIso(), "|", Core\Time\Instant::fromIso("-9999-01-02T01:59:59Z")->toIso(), "\n";
 --EXPECT--
 Core\Time\Instant::fromIso(): the time is outside -9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z
 4 of 4 agree
-9999-12-30T22:00:00Z|-009999-01-02T01:59:59Z
+9999-12-30T22:00:00Z|-9999-01-02T01:59:59Z

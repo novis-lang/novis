@@ -15,7 +15,7 @@ final class Expect
 
 // 1. The last nanosecond of the first second in time, read in the zone farthest behind.
 var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
-var $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59.999999999Z')->in($behind);
+var $first = Core\Time\Instant::fromIso('-9999-01-02T01:59:59.999999999Z')->in($behind);
 Expect::same('step 1', $first->nanos() as string, '999999999');
 Expect::same('step 1', $first->year() as string, '-9999');
 

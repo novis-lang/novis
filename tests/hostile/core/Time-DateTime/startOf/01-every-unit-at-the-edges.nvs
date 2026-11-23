@@ -24,7 +24,7 @@ array<Core\Time\Zone> $zones = [
 ];
 
 // 1. Every unit, at the first and the last moment, in every zone.
-var $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z');
+var $first = Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z');
 var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00.999999999Z');
 int $built = 0;
 int $refused = 0;

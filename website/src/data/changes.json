@@ -1,6 +1,15 @@
 {
   "entries": [
     {
+      "kind": "fixed",
+      "features": [
+        "Core\\Time\\Instant::toIso"
+      ],
+      "text": "`Instant::toIso` writes a year before year 1 with four digits, such as `-9999-01-02T01:59:59Z`. `Instant::fromIso` reads this text back. JSON reads an `Instant` with the same rules as `Instant::fromIso`.",
+      "breaking": true,
+      "instead": "Read a year before year 1 as four digits after the `-`."
+    },
+    {
       "kind": "new",
       "features": [
         "tools:editor/nvs-lsp"
@@ -264,7 +273,7 @@
       "features": [
         "Core\\Time\\Instant::fromIso"
       ],
-      "text": "`Instant::fromIso` reads an upper-case `T` and `Z`, a `.` before the fraction, and an offset with a colon, such as `+02:00`. A lower-case `t` or `z`, a comma, the second `60` or an offset like `+0100` throws a `ParseError`.",
+      "text": "`Instant::fromIso` reads an upper-case `T` and `Z`, a `.` before the fraction, and an offset with a colon, such as `+02:00`. A lower-case `t` or `z`, a comma, the second `60` or an offset like `+0100` throws a `ParseError`. So does a year that does not have four digits, such as `-009999`.",
       "breaking": true,
       "instead": "Write `T`, `Z`, a `.` before the fraction, and an offset with a colon, such as `+01:00`."
     },
@@ -361,12 +370,12 @@
       "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process\\Handle::kill` does is unchanged."
     },
     "Core\\Time\\Instant::fromEpoch": {
-      "hash": "b0c3bcf7f6b61df4",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Time\\Instant::fromEpoch` does is unchanged."
+      "hash": "c5387760802fc2b6",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers, and the first instant's year as `-9999`, which the `Instant::toIso` entry covers. What `Core\\Time\\Instant::fromEpoch` does is unchanged."
     },
     "Core\\Time\\Instant::fromIso": {
-      "hash": "c5c20307b0a1a0a8",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Time\\Instant::fromIso` does is unchanged."
+      "hash": "4bdc44481667138e",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers, and a year with more than four digits, which the `Instant::fromIso` entry covers."
     },
     "Core\\Time\\DateTime::with": {
       "hash": "d2c973f6c6772755",
@@ -603,6 +612,82 @@
     "tools:php-differences/the-short-list": {
       "hash": "7cb576dbbb950406",
       "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `tools:php-differences/the-short-list` does is unchanged."
+    },
+    "Core\\Time\\DateTime::at": {
+      "hash": "22d2193b5da3551d",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::at` does is unchanged."
+    },
+    "Core\\Time\\DateTime::date": {
+      "hash": "15c35eb37e3cc53a",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::date` does is unchanged."
+    },
+    "Core\\Time\\DateTime::day": {
+      "hash": "08bd59d95f94c375",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::day` does is unchanged."
+    },
+    "Core\\Time\\DateTime::dayOfYear": {
+      "hash": "850ac9d01a17a8e4",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::dayOfYear` does is unchanged."
+    },
+    "Core\\Time\\DateTime::difference": {
+      "hash": "a8cc7529a83b95e2",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::difference` does is unchanged."
+    },
+    "Core\\Time\\DateTime::hour": {
+      "hash": "08bd59d95f94c375",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::hour` does is unchanged."
+    },
+    "Core\\Time\\DateTime::isLeapYear": {
+      "hash": "bd7c8b5a3839f7f5",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::isLeapYear` does is unchanged."
+    },
+    "Core\\Time\\DateTime::minute": {
+      "hash": "08bd59d95f94c375",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::minute` does is unchanged."
+    },
+    "Core\\Time\\DateTime::month": {
+      "hash": "08bd59d95f94c375",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::month` does is unchanged."
+    },
+    "Core\\Time\\DateTime::nanos": {
+      "hash": "08bd59d95f94c375",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::nanos` does is unchanged."
+    },
+    "Core\\Time\\DateTime::second": {
+      "hash": "08bd59d95f94c375",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::second` does is unchanged."
+    },
+    "Core\\Time\\DateTime::timeOfDay": {
+      "hash": "53b26a673c148345",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::timeOfDay` does is unchanged."
+    },
+    "Core\\Time\\DateTime::toInstant": {
+      "hash": "3cf47ecdca1c2a29",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::toInstant` does is unchanged."
+    },
+    "Core\\Time\\DateTime::weekday": {
+      "hash": "a55473d74f9603e4",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::weekday` does is unchanged."
+    },
+    "Core\\Time\\DateTime::year": {
+      "hash": "08bd59d95f94c375",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::year` does is unchanged."
+    },
+    "Core\\Time\\DateTime::zone": {
+      "hash": "8c6119bba398459d",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::zone` does is unchanged."
+    },
+    "Core\\Time\\Instant::in": {
+      "hash": "e5a2ae33b831768f",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\Instant::in` does is unchanged."
+    },
+    "Core\\Time\\Instant::minus": {
+      "hash": "e60eff9392336c31",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\Instant::minus` does is unchanged."
+    },
+    "Core\\Time\\Instant::plus": {
+      "hash": "3880aa57a108d209",
+      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\Instant::plus` does is unchanged."
     }
   }
 }

@@ -37,6 +37,11 @@ part of a unit reads one less than a reader that truncates toward zero gives.
 - `Instant::fromIso` reads a date, `T` or one space, a time as `TimeOfDay::fromIso` reads it, and
   `Z` or a `±HH:MM` offset. A leap second `60`, a lower-case `t` or `z`, a comma before the fraction
   and a basic offset such as `+0100` throw.
+- A year is four digits, with a `-` before a year before year 1. The expanded `±YYYYYY` form throws,
+  so there is one text per year.
+- `Instant::toIso` writes RFC 3339 in UTC with the year in that same form, so the first instant is
+  `-9999-01-02T01:59:59Z` and `fromIso($i->toIso())` is `$i` at both ends of the range. JSON writes
+  and reads an `Instant` as that text.
 - A text outside the format throws `ParseError` naming the part that is wrong.
 
 **A literal text is checked while compiling.** A string literal at the text argument of every `fromIso`

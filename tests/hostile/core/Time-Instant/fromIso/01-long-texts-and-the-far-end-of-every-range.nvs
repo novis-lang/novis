@@ -32,7 +32,7 @@ try {
 } catch (ParseError $highError) {
     $refused = $refused + 1;
 }
-string $low = '-009999-01-02T01:59:58Z';
+string $low = '-9999-01-02T01:59:58Z';
 try {
     Core\Time\Instant::fromIso($low);
 } catch (ParseError $lowError) {
@@ -68,7 +68,7 @@ echo $refused, " refused\n";
 
 // 5. The last second at each end of the range, with the largest offsets.
 echo Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->toIso(), "\n";
-echo Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->toIso(), "\n";
+echo Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z')->toIso(), "\n";
 echo Core\Time\Instant::fromIso('2024-06-01T09:30:00+25:59')->toIso(), "\n";
 echo Core\Time\Instant::fromIso('2024-06-01T09:30:00-25:59')->toIso(), "\n";
 

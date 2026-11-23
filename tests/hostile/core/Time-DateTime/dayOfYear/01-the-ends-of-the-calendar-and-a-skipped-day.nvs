@@ -9,7 +9,7 @@ var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
 echo Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in($ahead)->dayOfYear(), "\n";
 
 // 2. The first moment in time, read in the zone farthest behind, is 1 January -9999. This prints 1.
-echo Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z')->in($behind)->dayOfYear(), "\n";
+echo Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z')->in($behind)->dayOfYear(), "\n";
 
 // 3. Samoa skipped 30 December 2011, which is day 364. Every hour of the last four days is read.
 var $apia = Core\Time\Zone::of('Pacific/Apia');

@@ -2,7 +2,7 @@
 // Attack: the first and the last instant are shown in the zones furthest from UTC. The dates
 // are the very first and very last days there are. Nothing should crash or leak.
 
-Core\Time\Instant $first = Core\Time\Instant::fromIso('-009999-01-02T01:59:59Z');
+Core\Time\Instant $first = Core\Time\Instant::fromIso('-9999-01-02T01:59:59Z');
 Core\Time\Instant $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00.999999999Z');
 Core\Time\Zone $east = Core\Time\Zone::fixed(Core\Time\Duration::seconds(93599));
 Core\Time\Zone $west = Core\Time\Zone::fixed(Core\Time\Duration::seconds(-93599));
