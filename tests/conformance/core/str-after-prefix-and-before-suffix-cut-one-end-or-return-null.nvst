@@ -1,0 +1,44 @@
+--TEST--
+`Core\Str::afterPrefix` and `Core\Str::beforeSuffix` return the rest of the string when it starts or ends with the text, and `null` otherwise: an empty text gives the whole string, a text that ends inside a grapheme is no match, and a tainted subject gives a tainted rest
+--FILE--
+<?nvs
+// A form key `openingHours-12` gives the day number `12`.
+?string $day = Core\Str::afterPrefix("openingHours-12", "openingHours-");
+echo $day ?? "<null>", "\n";
+
+// A key without the prefix gives `null`, so one call both tests and cuts.
+?string $other = Core\Str::afterPrefix("closedOn-3", "openingHours-");
+echo $other ?? "<null>", "\n";
+
+// `beforeSuffix` cuts the end the same way.
+echo Core\Str::beforeSuffix("report.csv", ".csv") ?? "<null>", " ";
+echo Core\Str::beforeSuffix("report.csv", ".txt") ?? "<null>", "\n";
+
+// An empty text gives the whole string. The whole string gives an empty one.
+echo "[", Core\Str::afterPrefix("abc", "") ?? "<null>", "] ";
+echo "[", Core\Str::afterPrefix("abc", "abc") ?? "<null>", "] ";
+echo "[", Core\Str::beforeSuffix("abc", "abc") ?? "<null>", "]\n";
+
+// `e` followed by a combining accent is one grapheme. A cut inside it is no match.
+echo Core\Str::afterPrefix("e\u{301}x", "e") ?? "<null>", " ";
+echo Core\Str::afterPrefix("e\u{301}x", "e\u{301}") ?? "<null>", " ";
+echo Core\Str::beforeSuffix("cafe\u{301}", "\u{301}") ?? "<null>", " ";
+echo Core\Str::beforeSuffix("x\r\n", "\n") ?? "<null>", "\n";
+
+// Each call agrees with `startsWith` and `endsWith`.
+echo Core\Str::startsWith("e\u{301}x", "e") ? "yes" : "no", " ";
+echo Core\Str::endsWith("cafe\u{301}", "\u{301}") ? "yes" : "no", "\n";
+
+// The rest of a tainted string is tainted too.
+tainted string $input = "id-42";
+?tainted string $id = Core\Str::afterPrefix($input, "id-");
+?tainted string $base = Core\Str::beforeSuffix($input, "-42");
+echo $id ?? "<null>", " ", $base ?? "<null>", "\n";
+--EXPECT--
+12
+<null>
+report <null>
+[abc] [] []
+<null> x <null> <null>
+no no
+42 id

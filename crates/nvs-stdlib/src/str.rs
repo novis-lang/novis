@@ -375,6 +375,32 @@ pub const CLASS: CoreClass = CoreClass {
             doc: Some(&AFTER_DOC),
         },
         CoreMethod {
+            name: "afterPrefix",
+            names: &["s", "prefix"],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Text(Qual::Contagious),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            text: TextOrigin::Derived,
+            symbol: "nvs_core_str_after_prefix",
+            doc: Some(&AFTER_PREFIX_DOC),
+        },
+        CoreMethod {
+            name: "beforeSuffix",
+            names: &["s", "suffix"],
+            params: &[
+                CoreTy::Text(Qual::Contagious),
+                CoreTy::Text(Qual::Contagious),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            text: TextOrigin::Derived,
+            symbol: "nvs_core_str_before_suffix",
+            doc: Some(&BEFORE_SUFFIX_DOC),
+        },
+        CoreMethod {
             name: "join",
             names: &["parts", "separator"],
             params: &[
@@ -998,6 +1024,52 @@ const AFTER_DOC: MethodDoc = MethodDoc {
     ],
     ret: "The text after the needle. If the needle is not in `$s`, the result is `null`. If \
           the needle is at the end, the result is an empty string.",
+    errors: &[],
+};
+
+/// `Core\Str::afterPrefix`'s reference card — `rule:core-api/reference-card`.
+const AFTER_PREFIX_DOC: MethodDoc = MethodDoc {
+    short: "Returns `$s` without `$prefix` at its start. If `$s` does not start with `$prefix`, \
+            the result is `null`.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to cut.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "prefix",
+            desc: "The text to remove from the start of `$s`. The check is case-sensitive, and \
+                   it is the same check `Core\\Str::startsWith` makes.",
+            shape: &[],
+        },
+    ],
+    ret: "The rest of `$s` after `$prefix`. If `$s` does not start with `$prefix`, the result \
+          is `null`. An empty `$prefix` gives `$s`, and a `$prefix` equal to `$s` gives an \
+          empty string.",
+    errors: &[],
+};
+
+/// `Core\Str::beforeSuffix`'s reference card — `rule:core-api/reference-card`.
+const BEFORE_SUFFIX_DOC: MethodDoc = MethodDoc {
+    short: "Returns `$s` without `$suffix` at its end. If `$s` does not end with `$suffix`, the \
+            result is `null`.",
+    params: &[
+        ParamDoc {
+            name: "s",
+            desc: "The string to cut.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "suffix",
+            desc: "The text to remove from the end of `$s`. The check is case-sensitive, and it \
+                   is the same check `Core\\Str::endsWith` makes.",
+            shape: &[],
+        },
+    ],
+    ret: "The part of `$s` before `$suffix`. If `$s` does not end with `$suffix`, the result \
+          is `null`. An empty `$suffix` gives `$s`, and a `$suffix` equal to `$s` gives an \
+          empty string.",
     errors: &[],
 };
 
@@ -1757,6 +1829,8 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_str_compare" => (nvs_core_str_compare as *const ()).cast(),
         "nvs_core_str_before" => return Some(nvs_core_str_before::entry()),
         "nvs_core_str_after" => return Some(nvs_core_str_after::entry()),
+        "nvs_core_str_after_prefix" => return Some(nvs_core_str_after_prefix::entry()),
+        "nvs_core_str_before_suffix" => return Some(nvs_core_str_before_suffix::entry()),
         "nvs_core_str_reverse" => return Some(nvs_core_str_reverse::entry()),
         "nvs_core_str_wrap" => return Some(nvs_core_str_wrap::entry()),
         "nvs_core_str_join" => (nvs_core_str_join as *const ()).cast(),
@@ -4183,6 +4257,42 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\Str::afterPrefix(string $s, string $prefix): ?string` — the rest
+    /// of `$s` where `startsWith($s, $prefix)` holds, otherwise `null`.
+    ///
+    /// The match is `startsWith`'s own: the prefix's bytes, then a grapheme
+    /// boundary at the cut, so a prefix that ends inside a grapheme is no
+    /// match. One byte compare and one `on_boundary`, then the cut `after`
+    /// makes; there is no search and no walk.
+    fn nvs_core_str_after_prefix(_ctx, args: [2]) -> Option<Cut>, owns NvsStr {
+        let subject = text(&args[0], "afterPrefix", "the subject")?;
+        let prefix = text(&args[1], "afterPrefix", "the prefix")?;
+        Ok((subject.starts_with(prefix) && on_boundary(subject, prefix.len()))
+            .then(|| Cut::window(subject, prefix.len(), subject.len())))
+    } apply(cut, subject) {
+        cut.map_or_else(Value::null, |cut| kept(cut, subject))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Str::beforeSuffix(string $s, string $suffix): ?string` — the part
+    /// of `$s` before `$suffix` where `endsWith($s, $suffix)` holds, otherwise
+    /// `null`.
+    ///
+    /// The match is `endsWith`'s own, so a suffix that starts inside a
+    /// grapheme (a mark alone, the second half of a flag) is no match.
+    fn nvs_core_str_before_suffix(_ctx, args: [2]) -> Option<Cut>, owns NvsStr {
+        let subject = text(&args[0], "beforeSuffix", "the subject")?;
+        let suffix = text(&args[1], "beforeSuffix", "the suffix")?;
+        let at = subject.len().wrapping_sub(suffix.len());
+        Ok((subject.ends_with(suffix) && on_boundary(subject, at))
+            .then(|| Cut::window(subject, 0, at)))
+    } apply(cut, subject) {
+        cut.map_or_else(Value::null, |cut| kept(cut, subject))
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `Core\Str::reverse(string $s): string` — replacing PHP's `strrev`.
     ///
     /// **Grapheme-aware**, which PHP's byte-wise `strrev` is not: reversing
@@ -6092,6 +6202,53 @@ mod tests {
         assert_eq!(after("ab", "abc", true), None);
         // Multi-byte text is cut on the needle's own bytes.
         assert_eq!(after("größe: 5", "ß", false).as_deref(), Some("e: 5"));
+    }
+
+    /// `afterPrefix` and `beforeSuffix` return the rest at a whole-grapheme
+    /// match at their end, and `null` otherwise: no match, a needle longer
+    /// than the subject, and a needle that ends or starts inside a grapheme.
+    /// The empty needle gives the subject, the whole subject gives `""`.
+    /// Taint is the checker's, so a tainted subject is the conformance case's.
+    // covers: Core\Str::afterPrefix
+    // covers: Core\Str::beforeSuffix
+    #[test]
+    fn after_prefix_and_before_suffix_cut_one_end_or_return_null() {
+        type Member = unsafe extern "C" fn(*mut Ctx, *const Value, *mut Value) -> i32;
+        let cut = |helper: Member, subject: &str, needle: &str| -> Option<String> {
+            let result = run(helper, &[s(subject), s(needle)]).expect("the cut never fails");
+            match result.tag() {
+                Some(nvs_runtime::Tag::Null) => None,
+                _ => Some(taken(result)),
+            }
+        };
+        let prefix = |subject: &str, needle: &str| -> Option<String> {
+            cut(super::nvs_core_str_after_prefix, subject, needle)
+        };
+        let suffix = |subject: &str, needle: &str| -> Option<String> {
+            cut(super::nvs_core_str_before_suffix, subject, needle)
+        };
+        assert_eq!(prefix("openingHours-12", "openingHours-").as_deref(), Some("12"));
+        assert_eq!(suffix("report.csv", ".csv").as_deref(), Some("report"));
+        assert_eq!(prefix("report.csv", "csv"), None);
+        assert_eq!(suffix("report.csv", "report"), None);
+        assert_eq!(prefix("ab", "abc"), None);
+        assert_eq!(suffix("ab", "zab"), None);
+        assert_eq!(prefix("Name", "name"), None);
+        assert_eq!(prefix("abc", "").as_deref(), Some("abc"));
+        assert_eq!(suffix("abc", "").as_deref(), Some("abc"));
+        assert_eq!(prefix("", "").as_deref(), Some(""));
+        assert_eq!(prefix("abc", "abc").as_deref(), Some(""));
+        assert_eq!(suffix("abc", "abc").as_deref(), Some(""));
+        // A prefix that ends inside a grapheme is no match: the mark belongs to `e`.
+        assert_eq!(prefix("e\u{301}x", "e"), None);
+        assert_eq!(prefix("e\u{301}x", "e\u{301}").as_deref(), Some("x"));
+        assert_eq!(prefix("\r\nx", "\r"), None);
+        // A suffix that starts inside a grapheme is no match either.
+        assert_eq!(suffix("cafe\u{301}", "\u{301}"), None);
+        assert_eq!(suffix("cafe\u{301}", "e\u{301}").as_deref(), Some("caf"));
+        assert_eq!(suffix("\u{1f1e6}\u{1f1f9}", "\u{1f1f9}"), None);
+        assert_eq!(suffix("x\r\n", "\n"), None);
+        assert_eq!(suffix("größe", "ße").as_deref(), Some("grö"));
     }
 
     /// `at` answers one grapheme, counting from the end for a negative index,
