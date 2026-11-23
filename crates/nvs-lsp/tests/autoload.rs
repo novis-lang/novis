@@ -450,7 +450,7 @@ fn a_braced_prefix_segment_hovers_as_the_directory_name_it_reaches() {
 /// with that type's kind, and every file with a route handler, with its routes
 /// (`rule:ide/a-file-shows-what-it-declares`).
 ///
-/// The four kinds each have a file under the autoload root. The framework
+/// The five kinds each have a file under the autoload root. The framework
 /// class outside the workspace is in the list because the program reaches it.
 /// The test file is reached by `require` and declares one class, so it is in
 /// the list too. The two entry points declare nothing, and the script with a
@@ -472,6 +472,10 @@ fn a_file_that_declares_one_type_is_listed_with_its_kind() {
     dir.write(
         "app/src/Post.nvs",
         "<?nvs\nnamespace Blog;\n\ntype Post = {title: string};\n",
+    );
+    dir.write(
+        "app/src/Cached.nvs",
+        "<?nvs\nnamespace Blog;\n\nattribute Cached on method { seconds: int }\n",
     );
     dir.write("app/bin/tool.nvs", "<?nvs\nclass Tool { }\necho 1;\n");
     dir.write(
@@ -510,6 +514,7 @@ fn a_file_that_declares_one_type_is_listed_with_its_kind() {
         listed,
         vec![
             plain("ApplicationTest.nvs", "class"),
+            plain("Cached.nvs", "attribute"),
             plain("Index.nvs", "class"),
             plain("Kernel.nvs", "class"),
             plain("Page.nvs", "interface"),

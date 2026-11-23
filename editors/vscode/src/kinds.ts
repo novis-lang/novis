@@ -2,7 +2,7 @@
 // (`rule:ide/a-file-shows-what-it-declares`).
 //
 // The server answers `nvs/fileKinds` with every file that declares exactly one class, interface,
-// enum or `type` alias and nothing else, which is the shape an autoloaded file must have, and with
+// enum, `type` alias or attribute and nothing else, which is the shape an autoloaded file must have, and with
 // every file that has a route handler, with its routes. A file with routes shows `R` whatever else
 // it declares, because serving requests is the more useful thing to see in a list of files. This
 // file turns one answer into badges and says which files changed between two answers. `badges.ts`
@@ -19,8 +19,8 @@ export const METHOD = "nvs/fileKinds";
 /** What the server sends once it has read every waiting file, so the client asks again. */
 export const CHANGED = "nvs/fileKindsChanged";
 
-/** The four words the server answers with. */
-export type Kind = "class" | "interface" | "enum" | "type";
+/** The five words the server answers with. */
+export type Kind = "class" | "interface" | "enum" | "type" | "attribute";
 
 /**
  * One entry of the server's answer. `kind` is absent for a file that declares anything but one
@@ -44,6 +44,7 @@ export const BADGES: Readonly<Record<Kind, Badge>> = {
   interface: { letter: "I", tooltip: "This file declares an interface." },
   enum: { letter: "E", tooltip: "This file declares an enum." },
   type: { letter: "T", tooltip: "This file declares a type alias." },
+  attribute: { letter: "A", tooltip: "This file declares an attribute." },
 };
 
 /** The letter of a file with routes. */
@@ -52,7 +53,7 @@ export const ROUTES = "R";
 /** How many routes a tooltip names before it gives the count of the others. */
 export const NAMED = 5;
 
-/** Whether `word` is one of the four kinds. A newer server may answer a word this client does not know. */
+/** Whether `word` is one of the five kinds. A newer server may answer a word this client does not know. */
 export function isKind(word: string | undefined): word is Kind {
   return word !== undefined && Object.prototype.hasOwnProperty.call(BADGES, word);
 }

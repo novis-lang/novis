@@ -605,7 +605,7 @@ interfaces the framework owns, rather than on each other's concrete classes, are
 `rule:programs/one-declaration-per-autoloaded-file`
 
 A file loaded through an autoload root contains exactly one top-level declaration — class, interface,
-enum or `type` alias — whose qualified name is the one the map found the file by: the prefix, the
+enum, `type` alias or attribute declaration — whose qualified name is the one the map found the file by: the prefix, the
 directories under the root, and the file's base name. Anything else, a namespace that differs
 included, is `E_AUTOLOAD_FILE_SHAPE`.
 

@@ -3,8 +3,8 @@
 //! `nvs/fileKinds` is the seventh request of Novis's own
 //! (`rule:ide/the-request-set-is-closed`), and it is
 //! `rule:ide/a-file-shows-what-it-declares`: every file the index holds that
-//! declares exactly one class, interface, enum or `type` alias and nothing
-//! else, with that kind, and every file with a route handler in it, with its
+//! declares exactly one class, interface, enum, `type` alias or attribute and
+//! nothing else, with that kind, and every file with a route handler in it, with its
 //! routes. The editor shows the kind, or that the file serves routes, beside
 //! the file's name.
 //!
@@ -97,17 +97,18 @@ pub fn answer(index: &SymbolIndex) -> Vec<FileKind> {
         .collect()
 }
 
-/// The word the wire carries for a type-level kind, and `None` for a member,
-/// which no file declares on its own. An attribute declaration is `None` too:
-/// the wire's four words are the ones the editor's list shows.
+/// The word the wire carries for a kind a file may declare on its own, and
+/// `None` for a member, which no file declares on its own. An attribute
+/// declaration is `attribute`. A client that does not know that word draws
+/// nothing for the file, so an older client needs no version check.
 const fn word(kind: DeclKind) -> Option<&'static str> {
     match kind {
         DeclKind::Class => Some("class"),
         DeclKind::Interface => Some("interface"),
         DeclKind::Enum => Some("enum"),
         DeclKind::TypeAlias => Some("type"),
-        DeclKind::Attribute
-        | DeclKind::Method
+        DeclKind::Attribute => Some("attribute"),
+        DeclKind::Method
         | DeclKind::Property
         | DeclKind::Const
         | DeclKind::EnumCase => None,

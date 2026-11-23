@@ -3298,13 +3298,13 @@ computed in `editors/vscode/src/tasktree.ts`
 
 <a id="ide-a-file-shows-what-it-declares"></a>
 
-## A file that declares one class, interface, enum or `type` alias and nothing else shows that kind beside its name as a letter, and a file with a route handler shows `R`, as a file decoration with no colour that the server's `nvs/fileKinds` feeds
+## A file that declares one class, interface, enum, `type` alias or attribute and nothing else shows that kind beside its name as a letter, and a file with a route handler shows `R`, as a file decoration with no colour that the server's `nvs/fileKinds` feeds
 
 `rule:ide/a-file-shows-what-it-declares`
 
-A file whose only declaration is one class, interface, enum or `type` alias, beside nothing but
-`namespace` and `use`, shows that kind in the editor's file list as a letter beside its name: `C`, `I`,
-`E` or `T`. That is the shape every autoloaded file
+A file whose only declaration is one class, interface, enum, `type` alias or attribute declaration,
+beside nothing but `namespace` and `use`, shows that kind in the editor's file list as a letter beside
+its name: `C`, `I`, `E`, `T` or `A`. That is the shape every autoloaded file
 has ([`programs/one-declaration-per-autoloaded-file`](programs.md#programs-one-declaration-per-autoloaded-file)), and `nvs_hir::autoload::sole_declaration` is
 the one scan both the shape check and this list read, so the shape the editor shows and the shape the
 compiler accepts cannot disagree. A file reached by `require` with the same shape is listed as well: it
@@ -3319,10 +3319,11 @@ because a route in a script with other statements serves requests just as one in
 does.
 
 The server answers `nvs/fileKinds` with every such file its index holds. The request takes no
-parameters and answers `[{uri, kind?, routes?}]`, `kind` being `class`, `interface`, `enum` or `type`
-and absent for a file of another shape, and `routes` every route a method in the file handles, in
+parameters and answers `[{uri, kind?, routes?}]`, `kind` being `class`, `interface`, `enum`, `type` or
+`attribute` and absent for a file of another shape, and `routes` every route a method in the file handles, in
 source order, as `GET /users/{id}`, and absent when there is none. Both fields are optional so that a
-client which knows only `kind` draws what it drew before, and nothing for a file with routes alone. The
+client which knows only `kind` draws what it drew before, and nothing for a file with routes alone. A
+client draws nothing for a `kind` word it does not know, so a new kind needs no version check. The
 index records the kind as it reads the file, and each method's routes off the route table of the
 analysis that indexed it, so an answer is one pass over its file map and no analysis. The client never finds the kind itself by matching `class` or `enum` in the text, because
 every judgement about the language stays in the server ([`ide/one-server-two-thin-clients`](ide.md#ide-one-server-two-thin-clients)). The
