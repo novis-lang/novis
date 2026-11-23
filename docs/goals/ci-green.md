@@ -145,7 +145,7 @@ Once verify is green, every session runs this cycle until the run is green or th
 
 ### State
 
-**`looper verify` was green** (fourth run). Pushes so far: **3**.
+**`looper verify` was green** (fourth run). Pushes so far: **5**.
 
 1. Push 1, `5151abf52`, CI run 44934736208: **red** on all four `test` legs. Website green.
    - `nvs-fmt::identity`, every leg: six new `Core\Test\RunResult` proof files were not formatted.
@@ -160,13 +160,37 @@ Once verify is green, every session runs this cycle until the run is green or th
 3. Push 3, `33d4a8eb1`: two side-loop commits (`b37214606c`, `33d4a8eb1c`) that local `main` had
    after `a477b5804`. CI run 44945274371 and Website run 44945274362: **green**, and
    `bun nv ci --green` exits 0 on `33d4a8eb1`.
-
-`LogRecord` and `SentMail` readers have a `perf` skip: their values exist only under `nvs test`.
+4. Side loops then pushed `5e7fe8240`: CI run 45170425507 **red** on `docs`
+   (`docs/rules/tooling.md` stale). The nightly 45166887327 on `c6c8111e4` had its miri and unsafe
+   audit jobs cancelled by a manual `gh run cancel` from the owner's account 20 s after that push
+   (the annotation says "canceled by"), not by `ci.ts`, whose `superseded` never names a scheduled
+   run. Its failed jobs were rerun with `gh run rerun --failed`: **green**.
+5. Push 4, `cfed21f50` (96 commits; local `rules --render --check` green). CI run 45269411282:
+   **red**, Website green. The goals `whole-grapheme-cuts` and the `Config::set` E0667 work closed
+   without a full gate, and left five tests and two attacks red on every leg:
+   - `conformance_coverage` floor: `Str::afterPrefix`/`beforeSuffix` had one case each. Two
+     cases in `f85947fe8d`.
+   - `in_place::every_string_member_has_a_row_here`, and the LSP stub cases (definition line,
+     `Core\Str` hover card): `fb0f707be2`.
+   - `request_http_settings`: written refused keys became E0667. Through `$key` in `d874156aa4`,
+     with `nvs-fmt` over two config attacks (`nvs-fmt::identity`).
+   - Attacks 08 and 09 of `grants-what-each-namespace-may-do`: the `Acme\Limits` fixture wrote
+     cookie keys. Variables in `7e6df38207`, reviewed in `9996071ef`.
+   - Windows proofs part 2/2 only: `tests/hostile/core/Response/sendFile/01-...` ran past its
+     `timeout-ms 30000`, first time in five runs. Alone it takes 15 to 17 s here in release: its
+     100,000 `sendFile` calls each make the `beneath` no-follow walk (`isFile` alone is about
+     120 µs a call on Windows, `isReadable` 46 µs). Treated as load. Not changed.
+6. Push 5, `9996071ef`: being watched. and `SentMail` readers have a `perf` skip: their values exist only under `nvs test`.
 
 ### Next
 
-The goal is reached: the driver's acceptance check `main-tip-is-green` runs `bun nv ci --green`,
-and then the goal is retired. No test is expected to go red.
+Read push 5's verdict with `bun nv ci --status` (CI and Website on `9996071ef`). Pass
+`--past "publish the VS Code extension"` to `--watch`: that is the old v0.0.4 `Promote release
+images` dispatch, which this goal never reruns. Green means `bun nv ci --green` exits 0 and the goal
+is `DONE`. If the `sendFile` attack times out on Windows a second time, it is not load: fix the
+per-call cost (`crates/nvs-stdlib/src/response.rs` `nvs_core_response_send_file` resolves the path
+in `metadata` and again in `readable`, and walks every folder above it) rather than the bound. No
+test is expected to go red.
 
 ### Backlog
 
@@ -183,5 +207,12 @@ and then the goal is retired. No test is expected to go red.
   code-warm-index. Not CI work: a later goal owns it, and this note moves there when one is written.
 - `Core\Http\Client`'s `deadline` does not bound name resolution: `http://0x7f000001/` with
   `deadline: 100ms` ran 2,689 ms on Windows. A latency bug on the request path; a goal of its own.
+- `crates/nvs-runtime/src/capability.rs` `refusal`: since `97d3e8f5a8`, a granted path is resolved
+  twice when the process has a data folder, once in `granted` and once for `data_folder_refusal`.
+  `allow` already shares one resolution. A request-path latency fix: resolve once, then
+  `allows_resolved`.
+- `bun nv ci --watch` stops on the failed v0.0.4 `Promote release images` dispatch (run
+  43690608397), though a later `release` run of that workflow is green. Each watch needs
+  `--past "publish the VS Code extension"`.
 - About 211 image proof programs take 11 s each in the proofs pool and 1.25 s alone, about 39 of the
   Linux leg's 72 program minutes. Read why (threads per program, or a repeated compile) first.
