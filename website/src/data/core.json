@@ -7901,8 +7901,8 @@
           "options": [],
           "returnType": "string",
           "doc": {
-            "shortHtml": "Returns a CSRF token for the visitor's session. Put it in a form field named <code>_csrf</code>, in the <code>x-csrf-token</code> header or in a <code>_csrf</code> query parameter. The server checks it on the next request. If the visitor has no session yet, this call creates one and sends its cookie.",
-            "returnHtml": "A different string on every call. Each one is valid for the whole session. It uses only <code>A-Za-z0-9-_</code>, so a form field, a header and a URL carry it unchanged.",
+            "shortHtml": "Returns a token that protects a form against CSRF (cross-site request forgery: another site sends a form in the visitor's name). Put it in a form field named <code>_csrf</code>, in the <code>x-csrf-token</code> header or in a <code>_csrf</code> query parameter. The server checks it on the next request, and a request without a valid token gets the status <code>403</code>. For a new visitor, the response sends a session cookie with the token. The server saves session data only when your program writes a value.",
+            "returnHtml": "The token. Every call returns a different string, and each one is valid for the whole session. It uses only <code>A-Za-z0-9-_</code>, so you can put it in a form field, a header or a URL without encoding it.",
             "errors": [
               {
                 "error": "LogicError",

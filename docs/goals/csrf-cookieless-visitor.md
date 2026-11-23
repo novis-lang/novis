@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-server/src/route.rs, docs/rules/core-classes/a-session-opens-on-its-first-use.md]
   - id: 2
     title: "the feature's proofs, pages and change entry"
-    status: open
+    status: done
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -113,14 +113,14 @@ in the same request, for a presented identifier with no row, is refused on the n
 
 **Does:** pays what the change owes the website.
 
-- [ ] `docs/examples/core/Csrf/token/about.md` says a new visitor's token stores no session.
-- [ ] A `website/src/data/changes.json` entry, `changed` `Core\Csrf::token`.
-- [ ] `bun nv proofs --owed --goal csrf-cookieless-visitor` names nothing, and `bun nv site --check
+- [x] `docs/examples/core/Csrf/token/about.md` says a new visitor's token stores no session.
+- [x] A `website/src/data/changes.json` entry, `changed` `Core\Csrf::token`.
+- [x] `bun nv proofs --owed --goal csrf-cookieless-visitor` names nothing, and `bun nv site --check
   stale changes review` is green.
 
 ### 3. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of [prose.md](../agent/prose.md) § *A newcomer reads it* over the texts
+- [x] The newcomer review of [prose.md](../agent/prose.md) § *A newcomer reads it* over the texts
   stage 2 wrote.
 - [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
@@ -129,25 +129,29 @@ in the same request, for a presented identifier with no row, is refused on the n
 
 ### State
 
-Stage 1 is done and committed. Measured before the fix: 1,000 cookieless requests to a token page
-left 1,000 rows in `nvs_session_heads` (1,001 with one marker write), with no `500`. After it, 0.
-`verified` (`crates/nvs-server/src/route.rs:356`) reads the cookie and the key only, never the store,
-so the plain design holds and the safe default was not needed. `sent_id`
-(`crates/nvs-stdlib/src/session.rs`, `@sent_id`) sets no `dirty`, and reuses a presented `issuable`
-cookie for a session with no row (see the standing decision). `crates/nvs-cli/tests/csrf_cookieless.rs`
-has four tests, all green. Both rules and the `csrf.rs` module doc say it; the gap record is deleted.
+Stages 1 and 2 are done and committed. Stage 1: 1,000 cookieless requests to a token page left 1,000
+rows in `nvs_session_heads` before the fix and 0 after it; `sent_id`
+(`crates/nvs-stdlib/src/session.rs`, `@sent_id`) sets no `dirty`, and
+`crates/nvs-cli/tests/csrf_cookieless.rs` has four green tests, each now marked
+`// covers: Core\Csrf::token`. Stage 2: `docs/examples/core/Csrf/token/about.md`, the help card
+(`crates/nvs-stdlib/src/csrf.rs`, `TOKEN_DOC`) and example 01's comment say a new visitor gets a
+cookie and no saved session data; `website/src/data/changes.json` has a `changed` entry; all three
+texts and the help card passed a newcomer review and are stamped; `core.json` and `llms-full.txt` are
+re-rendered. The twelve `Core\Session` benches went stale with `session.rs` and are re-recorded.
+`Core\Session::get`'s first run failed its growth check (slope 1.34 over a 240M-instruction
+constant); the rerun recorded `unclear`, as its two earlier records did, so it is noise.
+`proofs --gate` and `site --check stale changes review` are green.
 
 ### Next
 
-Stage 2: `docs/examples/core/Csrf/token/about.md` says a new visitor's token stores no session and a
-returning visitor keeps their cookie; a `website/src/data/changes.json` entry, `changed`
-`Core\Csrf::token`; then `bun nv proofs --owed --goal csrf-cookieless-visitor` and
-`bun nv site --check stale changes review`. The new Rust test may need a `// covers: Core\Csrf::token`
-marker for `site --check changes` to count the feature as moved.
+Stage 3: run a build and the goal's own tests by name (`cargo test --test csrf_cookieless`,
+`cargo test --lib a_first_requests_token_passes_the_door_with_the_cookie_it_sent`, and the conformance
+case `csrf-token-for-a-returning-visitor-sends-no-new-cookie`), then `bun nv close --goal
+csrf-cookieless-visitor` and fix each red it names. This goal is not the chain's full gate unless
+the pack says so. The newcomer review item is already ticked.
 
-Tests that may go red at the gate: none expected. `csrf-token-for-a-returning-visitor-sends-no-new-cookie`
-and `csrf.rs`'s `a_first_requests_token_passes_the_door_with_the_cookie_it_sent` (updated) cover
-the change; the first was not run this session.
+Tests that may go red: none expected. `Core\Session::get`'s bench growth is borderline, so a later
+`--record-perf` may flag it again.
 
 ### Backlog
 

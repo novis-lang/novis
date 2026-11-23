@@ -1,6 +1,13 @@
 {
   "entries": [
     {
+      "kind": "changed",
+      "features": [
+        "Core\\Csrf::token"
+      ],
+      "text": "`Core\\Csrf::token` saves no session data for a new visitor. The response still sends the session cookie, and the server accepts the token on the next request. The server saves session data only when the program writes a value with `Core\\Session`."
+    },
+    {
       "kind": "fixed",
       "features": [
         "lang:classes/revocable-objects",

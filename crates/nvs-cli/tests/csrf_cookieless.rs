@@ -290,6 +290,7 @@ fn write_file(path: &Path, text: &str) {
 /// bound to, and leave no row in the store. A later write proves the store is
 /// in use, so the count is read from the store every request reaches. A token
 /// from the flood passes the door with its cookie, and is refused without it.
+// covers: Core\Csrf::token
 #[test]
 fn a_flood_of_cookieless_token_pages_stores_no_session() {
     let server = Server::start("flood");
@@ -339,6 +340,7 @@ fn a_flood_of_cookieless_token_pages_stores_no_session() {
 /// A token and a session write in one request name one identifier, in both
 /// orders: the answer sends one identifier, the store's row is under it, and
 /// the token passes the door with it.
+// covers: Core\Csrf::token
 #[test]
 fn a_token_and_a_write_in_one_request_name_the_same_session() {
     let server = Server::start("same");
@@ -364,6 +366,7 @@ fn a_token_and_a_write_in_one_request_name_the_same_session() {
 /// row, gets a token bound to that cookie and no new cookie. Every token they
 /// were shown passes with the one cookie, so a form in another tab still
 /// works, and the store still has no row.
+// covers: Core\Csrf::token
 #[test]
 fn a_returning_visitor_with_no_row_keeps_the_cookie_a_token_page_sent() {
     let server = Server::start("returning");
@@ -393,6 +396,7 @@ fn a_returning_visitor_with_no_row_keeps_the_cookie_a_token_page_sent() {
 /// identifier, and the presented one stays without a row. A token rendered
 /// before that write is refused with the new identifier, as a form from an
 /// expired session is.
+// covers: Core\Csrf::token
 #[test]
 fn an_identifier_the_store_never_issued_opens_a_fresh_session() {
     let server = Server::start("forged");

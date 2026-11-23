@@ -42,7 +42,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     var $page = Core\Test::request(Method::Get, '/contact');
     echo 'status: ', $page->status(), "\n";
 
-    // `token()` created the session, so the response sets the `nvsid` cookie. This prints `yes`.
+    // `token()` makes a session identifier. The response sends it in the `nvsid` cookie, so this prints `yes`.
     string $session = $page->cookies()['nvsid'] ?? '';
     echo 'session cookie sent: ', $session != '' ? 'yes' : 'no', "\n";
 

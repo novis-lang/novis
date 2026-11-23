@@ -717,7 +717,7 @@
     "Core\\Csrf::issue": "c47367ff5468d9d2"
   },
   "docs/examples/core/Csrf/token/about.md": {
-    "Core\\Csrf::token": "9d725044529ce14d"
+    "Core\\Csrf::token": "bc93c32ff830b892"
   },
   "docs/examples/core/Csrf/verify/about.md": {
     "Core\\Csrf::verify": "fc2b304c5c0a1661"
@@ -5523,7 +5523,7 @@
     "Core\\Csrf::issue": "765836672504acc8"
   },
   "help:Core\\Csrf::token": {
-    "Core\\Csrf::token": "154c7594be16b5ff"
+    "Core\\Csrf::token": "a5bccdaf021fa1e0"
   },
   "help:Core\\Csrf::verify": {
     "Core\\Csrf::verify": "464c985c765d00c2"

@@ -1,18 +1,20 @@
-Returns a CSRF token for the visitor's session. You put it in a form, and the server checks it when
-the form comes back.
+Returns a CSRF token for the visitor's session. CSRF (cross-site request forgery) is an attack where
+another website sends a form in the visitor's name. You put the token in your form, and the server
+checks it when the form comes back.
 
-Set `[http] csrf_key` in `nvs.toml`. Without it, `token()` throws a `RuntimeError`. If the visitor
-has no session yet, the call creates one and the response sends its cookie. A login form for a new
-visitor works the same way. A program that answers no web request has no session, so there
-`token()` throws a `LogicError`.
+Set `[http] csrf_key` in `nvs.toml`. Without it, `token()` throws a `RuntimeError`. Outside a web
+request, `token()` throws a `LogicError`.
 
-Send the token back in a form field named `_csrf`, in the `x-csrf-token` header or in a `_csrf`
-query parameter. The server checks it before your route method runs. A request without a valid
-token gets the status `403`, and your gate's `refused` method receives `Core\Router\Refusal::Csrf`.
-A token works only together with the session cookie it was created for.
+For a new visitor, the response sends a session cookie with the token. The server saves no session
+data until your program writes a value with `Core\Session`. So a login form for a new visitor also
+has a valid token.
 
-Every call returns a different token, and each one is valid for the whole session. A form open in a
-second browser tab still works.
+Send the token back in a form field named `_csrf` or in the `x-csrf-token` header. The server checks
+it before your route method runs. A request without a valid token gets the status `403`. The token is
+valid only with the session cookie that was sent with it.
+
+Every call returns a different token. All of them stay valid, so a form open in a second tab still
+works.
 
 **The examples below** show a form for a new visitor, the form sent back with and without its token,
 and the error in a command-line program.

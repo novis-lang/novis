@@ -199,13 +199,16 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Csrf::token`'s reference card — `rule:core-api/reference-card`.
 const TOKEN_DOC: MethodDoc = MethodDoc {
-    short: "Returns a CSRF token for the visitor's session. Put it in a form field named \
+    short: "Returns a token that protects a form against CSRF (cross-site request forgery: \
+            another site sends a form in the visitor's name). Put it in a form field named \
             `_csrf`, in the `x-csrf-token` header or in a `_csrf` query parameter. The server \
-            checks it on the next request. If the visitor has no session yet, this call creates \
-            one and sends its cookie.",
+            checks it on the next request, and a request without a valid token gets the status \
+            `403`. For a new visitor, the response sends a session cookie with the token. The \
+            server saves session data only when your program writes a value.",
     params: &[],
-    ret: "A different string on every call. Each one is valid for the whole session. It uses \
-          only `A-Za-z0-9-_`, so a form field, a header and a URL carry it unchanged.",
+    ret: "The token. Every call returns a different string, and each one is valid for the \
+          whole session. It uses only `A-Za-z0-9-_`, so you can put it in a form field, a \
+          header or a URL without encoding it.",
     errors: &[
         crate::session::NO_REQUEST,
         ErrorDoc {

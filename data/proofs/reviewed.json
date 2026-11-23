@@ -37,6 +37,8 @@
   "docs/examples/core/Bytes/at/about.md": "c3e526f6c853e65a",
   "docs/examples/core/Bytes/join/about.md": "5ac426adbb12a2c9",
   "docs/examples/core/Cache/memory/about.md": "cda10121d046925c",
+  "docs/examples/core/Csrf/token/01-a-token-on-a-first-visit.nvs": "03e7e060b623c078",
+  "docs/examples/core/Csrf/token/about.md": "21715ad2dd1aff81",
   "docs/examples/core/Db-Connection/serverVersion/about.md": "77c5bca4b50b81ae",
   "docs/examples/core/Html/later/about.md": "e2c5916435de52e2",
   "docs/examples/core/Json/decodeAs/about.md": "ea540c1a7d4efeeb",
@@ -253,6 +255,7 @@
   "help:Core\\Arr::append": "d2d744657e849acc",
   "help:Core\\Bytes::at": "2380f8387e1c1229",
   "help:Core\\Bytes::join": "7ef31f22978f466d",
+  "help:Core\\Csrf::token": "1430733d2d3cf63d",
   "help:Core\\Db\\Connection::serverVersion": "432c895403192b34",
   "help:Core\\Html::later": "38bea2ef1b73f6d2",
   "help:Core\\Json::decodeAs": "5d6d7ef21a7b4ef3",
@@ -385,5 +388,5 @@
   "website/src/content/docs/syntax/testing/writing-tests.mdx": "663309b50d56941f",
   "website/src/content/docs/tools/editor/index.mdx": "98ba1c152bd2b46e",
   "website/src/content/docs/tools/test-runner/index.mdx": "45d778040ee466bb",
-  "website/src/data/changes.json": "05d1fac55688879c"
+  "website/src/data/changes.json": "e7674b120720a129"
 }
