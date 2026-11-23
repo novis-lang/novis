@@ -293,7 +293,9 @@ goes to one writing subagent once the fragment is renamed. The session writes th
   names is reread and stamped.
 - [ ] `bun nv proofs --owed --goal config-set-allowlist` names nothing.
   - [x] every proof but `reviewed` is paid
-  - [ ] the newcomer review of the 86 features it names, and their stamps
+  - [x] the third review round: 9 briefs read, findings fixed, 166 texts stamped
+  - [ ] `nvs lsp`'s help rewritten to the prose rules, reviewed and stamped
+  - [ ] `website/src/data/changes.json` reviewed and stamped
 
 ### 5. the goal is verified once, and every failure is fixed
 
@@ -306,51 +308,48 @@ goes to one writing subagent once the fragment is renamed. The session writes th
 
 ### State
 
-Stages 1 to 3 are done, and stage 4 but its newcomer review. `SETTABLE`
+Stages 1 to 3 are done, and stage 4 but two texts of its review. `SETTABLE`
 (`crates/nvs-config/src/settable.rs`) is the one allowlist; `E0667` and `W1037` are in
 `crates/nvs-types/src/capability.rs`; the editor offers the keys (`crates/nvs-lsp/src/arguments.rs`).
-The rule, the `set` page and cards, `nvs meta`'s `settable` roster, the website and `changes.json`
-are written, and `site --check changes` and `stale` are green.
 
-The first and second review rounds' findings are all fixed, and no text is stamped `reviewed` yet.
+The third review round's fixes and 166 stamps are committed: the "name in a variable" sentence in 75
+files, `not allowed` in the 25 reviewed examples and their `.out` files, nine `default.toml` cards,
+the long sentences of two chapter sections, three `about.md` pages under 200 words, and the
+`log-client_ip` example renamed.
 
-- `851534d109`: the directive help fix in *Standing decisions* landed. `nvs meta --json`'s directive
-  rows carry `help` (`crates/nvs-cli/src/agent.rs` `config_cards`), the roster and `texts.ts` hash
-  it, and a whole-block row has no help text. `bun nv site --review` lists 47 `help:directive:` keys,
-  each with its prose card. A stamp on one of them is now meaningful.
-- `f6195126f4`: the `set` card and page, the `changes.json` backslash and the ten `default.toml` cards.
-- `a49e6db5c0`: the 76-file sentence sweep, the eight restore steps, the 10,000-parts steps and the
-  per-file findings. `bun nv proofs --comments` passes on all 86 changed files.
-
-The cancelled nightly run `45166887327` was cancelled by hand and needs nothing.
+`bun nv site --check stale changes` is green. `site --check review` and `proofs --gate` name only
+`help:tools:editor/nvs-lsp` and `website/src/data/changes.json`.
 
 No test is expected to go red. `the_set_page_and_card_name_every_settable_key` ran green after the
-card change, and `bun nv directives --check-template` is green.
+page trim, and `bun nv directives --check-template` is green.
+
+The acceptance sweep's cancelled nightly jobs are run `45166887327`, cancelled by hand; nothing to do.
 
 ### Next
 
-- [ ] `docs/agent/prose.md:20`: the third review round over every unreviewed text. Run
-  `bun nv site --review` (about 200 keys under their features), split them into briefs of at most 20
-  keeping a feature's texts together, print each with `bun tools/nv/main.ts site --review --brief
-  <keys>` into a file under `.agent-tmp/`, and send each to a `reader` that reads only that file,
-  several at once. Check each answer against the feature's `about.md`, fix every finding, and stamp
-  only what passes with `bun nv site --review --stamp <keys>`. Texts this goal did not write go by
-  the *Backlog* item on them. Then `bun nv proofs --gate --goal config-set-allowlist` is green, and
-  stage 4 is done.
-- [ ] `docs/goals/config-set-allowlist.md:298`: stage 5, the stage's check as the pack names it.
-  Its newcomer item is the review above.
+- [ ] `docs/reference/tools/40-editor.md:8`: `# nvs lsp` (about 240 lines) is `help:tools:editor/nvs-lsp`,
+  and the proofs gate needs it reviewed. The third round found dashes joining sentences, sentences
+  over 25 words (the hover, completion, resolve and documentLink rows, the phase gate and semantic
+  tokens paragraphs, the redactions paragraphs), the words `member`, `registry`, `answers`, `asks`,
+  `binding`, `marked`, `rather than`, and idioms ("would buy nothing", "the walk runs in full").
+  Rewrite it to AGENTS.md § *Text an end user reads* with the same facts, one writing subagent per
+  half if it does not fit. Check that `nvs help lsp` and `bun nv render --website` still build from it,
+  send the new text to one `reader` (`site --review --brief help:tools:editor/nvs-lsp`), fix, stamp.
+- [ ] `website/src/data/changes.json:1`: one review. The third round flagged entries of other goals
+  for "now", "no longer", "Before this change", "hidden internal value" and three sentences over 25
+  words (the `decodeAs` one, the `tainted` parameter one). Rewrite those sentences in place, keeping
+  each entry's facts, then one `reader` and the stamp.
+- [ ] `docs/goals/config-set-allowlist.md:298`: stage 5 once `bun nv proofs --gate --goal
+  config-set-allowlist` and `bun nv site --check review` are green: the check the pack names.
 
 ### Backlog
 
 - `nvs config dump` could mark each key a request may change.
-- About 30 examples print `refused` when `set` returns `false` (for example
-  `docs/examples/config/limits/01-what-a-request-starts-with-and-may-change.nvs`). A reader takes it
-  for a word the prose rules forbid. `not allowed`, as the `set` example prints, needs each `.out`
-  changed with it.
-- The second round flagged texts this goal did not write: `nvs lsp`'s help (dense, dashes, many
-  terms), `changes.json` entries of other goals ("now", "no longer"), and the `nvs meta --json` help.
-  They are on this goal's list only because the review reads every unreviewed text of a reached
-  feature. Fix what the third round still names; a whole rewrite of `nvs lsp`'s help is its own goal.
+- About 560 files outside this goal's reviewed set print or say `refused` (mostly attacks of file,
+  crypto and HTTP features). A sweep to `not allowed` changes each `.out` with it.
+- The third round's minor findings were judged and left: card first lines that are noun phrases
+  ("The largest size of …"), "Good to know" on other pages, and attack file names in the first
+  person.
 - `log.access` set by a request: the access line could read the request's overlay at
   `crates/nvs-server/src/serve.rs:1994`, so a route can turn its own line off. It needs a goal of its
   own, which then puts the key back on `SETTABLE` with a probe.
