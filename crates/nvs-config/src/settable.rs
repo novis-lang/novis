@@ -15,7 +15,7 @@
 //! `crates/nvs-cli/tests/request_http_settings.rs` checks that setting each one changes what the
 //! request does, so a row whose key nothing reads is found.
 //!
-//! Cost: one `&'static` slice of 38 rows, no allocation. A lookup is a linear scan, run once per
+//! Cost: one `&'static` slice of 37 rows, no allocation. A lookup is a linear scan, run once per
 //! `set` and once per `set` or `restore` call site while compiling.
 
 /// How a request may change a key on [`SETTABLE`].
@@ -69,12 +69,12 @@ pub const SETTABLE: &[Settable] = &[
     Settable { key: "limits.max_multipart_parts", how: How::UpToCeiling },
     Settable { key: "limits.max_tasks", how: How::UpToCeiling },
     Settable { key: "limits.max_regex_steps", how: How::UpToCeiling },
-    // `rule:config/a-mode-is-five-defaults`: the log's format and level are rows of the mode table,
-    // and the access line is this request's own. Where the log goes, its bounds, the handler and
-    // the client address are the operator's.
+    // `rule:config/a-mode-is-five-defaults`: the log's format and level are rows of the mode table.
+    // The access line is not listed: it is written once the program has ended, from the file's
+    // value (`nvs_server::trace::access_on`), so a request's own value would change nothing. Where
+    // the log goes, its bounds, the handler and the client address are the operator's.
     Settable { key: "log.format", how: How::UpToCeiling },
     Settable { key: "log.level", how: How::UpToCeiling },
-    Settable { key: "log.access", how: How::UpToCeiling },
     // `rule:errors/a-use-of-deprecated-code-may-log-or-throw`: a test or one request turns it on for itself.
     Settable { key: "errors.deprecated", how: How::UpToCeiling },
     // `rule:concurrency/deferred-is-bounded-by-two-directives`: the deadline is a per-request
@@ -124,5 +124,8 @@ pub const SETTABLE: &[Settable] = &[
 #[must_use]
 pub fn how(name: &str) -> Option<How> {
     let key = crate::request::canonical(name);
-    SETTABLE.iter().find(|row| row.key == key).map(|row| row.how)
+    SETTABLE
+        .iter()
+        .find(|row| row.key == key)
+        .map(|row| row.how)
 }

@@ -169,6 +169,10 @@ region.workspace = true
 # `tests/openapi.rs`'s strict check of the generated document against the
 # vendored OpenAPI 3.1 schema.
 jsonschema.workspace = true
+# `tests/request_http_settings.rs`'s WebSocket peer, which an outbound socket of a
+# served program connects to. The workspace's one WebSocket crate, already built
+# for `nvs-server`.
+tungstenite.workspace = true
 
 # What tells a long-running `nvs serve` that it has been asked to stop, which
 # `src/stop.rs` turns into `rule:concurrency/a-drain-closes-a-connection-cleanly`'s

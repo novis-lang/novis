@@ -1726,7 +1726,13 @@ mod tests {
                 assert!(member["returns"].is_string(), "{member}");
             }
         }
-        for roster in ["exceptions", "interfaces", "attributes", "directives", "settable"] {
+        for roster in [
+            "exceptions",
+            "interfaces",
+            "attributes",
+            "directives",
+            "settable",
+        ] {
             assert!(
                 !document[roster].as_array().expect("an array").is_empty(),
                 "{roster} is empty"

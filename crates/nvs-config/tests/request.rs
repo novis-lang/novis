@@ -10,8 +10,8 @@ use std::sync::Arc;
 
 use nvs_config::capability::{Cap, Scope};
 use nvs_config::directive::DIRECTIVES;
-use nvs_config::settable::{How, SETTABLE};
 use nvs_config::resolve::{Files, Roots, resolve};
+use nvs_config::settable::{How, SETTABLE};
 use nvs_config::snapshot::Snapshot;
 use nvs_config::trust::Untrusted;
 use nvs_config::{Request, Setting};
@@ -558,11 +558,12 @@ fn every_derived_default_names_a_directive_the_registry_holds() {
     for row in nvs_config::mode::DERIVED {
         nvs_config::directive::lookup(row.key)
             .unwrap_or_else(|| panic!("`{}` is a default for a directive nobody spelled", row.key));
-        // `http.errors.detail` is the one derived key a request may not set: it shapes only the
-        // page of a request that never got a frame, so no program runs to set it, and a flip
-        // derives it for `get` alone.
+        // Two derived keys a request may not set, and a flip derives each for `get` alone.
+        // `http.errors.detail` shapes only the page of a request that never got a frame, so no
+        // program runs to set it. `log.access` is read once the program has ended, from the file.
         assert!(
-            nvs_config::settable::how(row.key).is_some() || row.key == "http.errors.detail",
+            nvs_config::settable::how(row.key).is_some()
+                || matches!(row.key, "http.errors.detail" | "log.access"),
             "`{}` is derived per request, so a key no request may set would make the mode's own \
              default unreachable",
             row.key
@@ -960,7 +961,6 @@ fn a_valid_value(key: &str) -> &'static str {
         "limits.max_regex_steps" => "1000",
         "log.format" => "text",
         "log.level" => "Warn",
-        "log.access" => "true",
         "errors.deprecated" => "throw",
         "http.headers.frame_ancestors" => "https://c.example",
         "http.headers.referrer_policy" => "no-referrer",
@@ -994,12 +994,19 @@ fn set_accepts_only_the_keys_on_the_allowlist() {
         let value = a_valid_value(key);
         let listed = nvs_config::settable::how(key).is_some();
         if request.set(key, value) != listed {
-            wrong.push(format!("`{key}` = `{value}`: listed {listed}, `set` says {}", !listed));
+            wrong.push(format!(
+                "`{key}` = `{value}`: listed {listed}, `set` says {}",
+                !listed
+            ));
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
     // Every row names a key the file writes, so no row is a key nothing could ever set.
     for row in SETTABLE {
-        assert!(keys.contains(row.key), "`{}` is listed and the default file does not write it", row.key);
+        assert!(
+            keys.contains(row.key),
+            "`{}` is listed and the default file does not write it",
+            row.key
+        );
     }
 }

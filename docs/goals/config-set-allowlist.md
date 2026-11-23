@@ -6,7 +6,7 @@ context: [crates/nvs-config/src/directive.rs, crates/nvs-config/src/request.rs, 
 stages:
   - id: 1
     title: "one allowlist decides what set changes"
-    status: open
+    status: done
     context: [crates/nvs-config/tests/request.rs, crates/nvs-config/tests/directives.rs, crates/nvs-cli/tests/request_http_settings.rs, crates/nvs-config/src/default.toml]
   - id: 2
     title: "the compiler names a set that can never change anything"
@@ -129,11 +129,17 @@ decision below is mine.
   practice, so they are simply not listed. Every test assertion on `row.class` becomes an assertion on
   `settable::how(<leaf key>)`. A test that asserted a whole block was settable picks one leaf key of
   that block and says which in its doc.
-- **The list is today's 38 keys, and each one proves its effect.** Stage 1's effect test sets each key
-  in a request and checks that something the request does changes. A key with no effect is removed
-  from `SETTABLE`, and a gap record under `data/gaps/` names it when a program has a clear use for it.
-  `log.access` and `limits.request_body` are the two to watch: one may be read only after the program
-  ends, the other only before it starts.
+- **The list is 37 keys, and each one proves its effect.** Stage 1's effect test sets each key in a
+  request and checks that something the request does changes. A key with no effect is removed from
+  `SETTABLE`. `limits.request_body` has an effect: the limit applies when the program reads the body.
+- **`log.access` is not on the list.** The access line is written once the program has ended, from
+  the snapshot's value (`crates/nvs-server/src/serve.rs:1994`, `crates/nvs-server/src/trace.rs:394`),
+  so a request's own `set` changed nothing while it returned `true`.
+  `docs/rules/http-server/the-access-log-is-a-mode-default.md:7` already says so. A program has a use
+  for it (a health route turning its own line off), but no goal on the chain owns a gap record for
+  it, so it is a backlog item, not a `data/gaps/` record. Making it work means reading the request's
+  overlay at `serve.rs:1994`, where the context is still alive, and that is a new feature with its
+  own goal.
 - **A package is unchanged.** `set_as_package` still accepts only `limits.*` keys, lower only. Those
   keys must also be on the list.
 - **The rule is renamed.** `rule:config/three-changeability-classes` becomes
@@ -156,9 +162,9 @@ decision below is mine.
     `{...}` part matches one or more characters that are not a dot.
   - A plain variable, a call, a concatenation and a spread get no diagnostic. The checker cannot know
     the value, and the author cannot fix it.
-  - *What it spends:* one lookup in 38 rows per `set` or `restore` call site while compiling, and
+  - *What it spends:* one lookup in 37 rows per `set` or `restore` call site while compiling, and
     nothing at run time.
-- **The editor offers the 38 keys at the first argument of `set` and `restore`**, the way it offers zone
+- **The editor offers the 37 keys at the first argument of `set` and `restore`**, the way it offers zone
   names (`names_a_zone`, `crates/nvs-lsp/src/arguments.rs:362`). Hover on a written key says how it may
   change. `get` offers nothing new: its 337 keys are the reference's job.
 - **The binary prints the list.** `nvs meta` gains a `"settable"` roster of `{ key, how }`
@@ -209,7 +215,7 @@ brief. The session writes the module, `request.rs` and the two new tests.
 - [x] `crates/nvs-config/tests/request.rs`: `set_accepts_only_the_keys_on_the_allowlist` walks
   `request::keys()` and checks `set` with a valid value is `true` only for a listed key. Run the check
   `allowlist` once.
-- [ ] `crates/nvs-cli/tests/request_http_settings.rs`: `every_settable_key_changes_what_a_request_does`,
+- [x] `crates/nvs-cli/tests/request_http_settings.rs`: `every_settable_key_changes_what_a_request_does`,
   one probe per listed key. Drop any key that shows no effect, per *Standing decisions*. Run the check
   `effect` once.
 
@@ -281,44 +287,38 @@ goes to one writing subagent once the fragment is renamed. The session writes th
 
 ### State
 
-Stage 1 is built except its effect test. `SETTABLE` (`crates/nvs-config/src/settable.rs`) is the
-one allowlist, and `set_checked` asks `settable::how` first. `Class`, `UNREAD_BY_A_REQUEST` and
-`TIGHTEN_FLAGS` are gone, and the `directive.rs` row comments no longer name a class. `nvs meta`
-already emits the `settable` roster and no directive `class` (stage 4's `meta.rs` item is done).
-Every reader of the class compiles against `settable::how`. `cargo build` and `cargo clippy
---all-targets -- -D warnings` are green, and the `allowlist` check ran once, green.
+Stage 1 is done. `SETTABLE` (`crates/nvs-config/src/settable.rs`) is the one allowlist, now 37
+rows: `log.access` is dropped, per *Standing decisions*. `cargo test --test directives` is green
+(57 + 8), and the comments that named `RuntimeTighten` or `System` in the crates and two conformance
+cases now name `SETTABLE`. The `effect` check ran once, green, in 17 s. It runs one `nvs serve` with
+one probe per row, set and unset, and a Rust peer in the test process for the outbound
+`http.client.*` keys: a slow answer, redirects, a paused or dripped body, WebSocket, and a proxy
+that opens its tunnel late. `nvs-cli` gains the dev-dependency `tungstenite`. `cargo build`,
+`cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` are green.
 
-The nightly CI run the acceptance sweep reported (`45166887327`) was cancelled by hand (its
-annotation: "The run was canceled by" the repository owner). No job failed, and the geiger
-warnings also appear on the last green nightly, so nothing in the tree needs a fix.
+The nightly CI run the acceptance sweep reported (`45166887327`) was cancelled by hand by the
+repository owner. No job failed, so nothing in the tree needs a fix.
 
 Tests expected to go red until fixed:
 
-- `crates/nvs-config/tests/directives.rs`: a subagent rewrote about 47 tests against
-  `settable::how` and the new helper `governs_a_settable_key`, and renamed 11 of them. None of them
-  has run yet. Expect some red where a picked leaf key or a census does not hold.
 - `tools/nv/cmd/reference.ts:365-369` and `tools/nv/renderers/website-reference.ts:97` still read a
   directive's `class` from `nvs meta`, which no longer has it. Stage 4 rewrites them.
 
 ### Next
 
-Stage 1's last item, then stages 2 and 3, which may run side by side.
+Stages 2 and 3, which may run side by side (disjoint crates). Each item stands under its stage
+above, with its anchors.
 
-- [ ] `crates/nvs-cli/tests/request_http_settings.rs:237`: `every_settable_key_changes_what_a_request_does`.
-  One probe per `SETTABLE` row. The 14 `[http]` response probes (`response_probe`, `:71`) can be
-  reused. The others need a program effect: a limit set low, then work that passes the limit; a
-  `log.*` key and the server's log output; `errors.deprecated = throw` and a call to deprecated code;
-  `mode.default` and `Core\Env::mode`; and an outbound call for `http.client.*`. Drop a key that
-  shows no effect, per *Standing decisions*. Run the `effect` check once.
-- [ ] `crates/nvs-config/tests/directives.rs:1`: run `cargo test --test directives` once by name,
-  and fix what the rewrite got wrong.
-- [ ] Comments that still name the old classes, all text only: `crates/nvs-config/src/debug.rs:18`,
-  `crates/nvs-config/src/tree.rs:316`, `:544`, `:565`, `crates/nvs-config/src/default.toml:387`,
-  `crates/nvs-stdlib/src/debug.rs:54`, `:463`, `crates/nvs-runtime/src/ctx/isolate.rs:369`, and
-  `tests/conformance/config/debug-store-and-its-bounds-are-read-and-a-program-cannot-set-them.nvst:8`,
-  `tests/conformance/isolate/a-child-inherits-a-narrowed-capability-and-cannot-widen-it.nvst:56`.
-  The rule files and pages are stage 4's.
+- [ ] Stage 2: `E0667` in `crates/nvs-diagnostics/src/code/config.rs:952`, `W1037` in
+  `crates/nvs-diagnostics/src/code/warnings.rs:375`, `reject_unsettable_name` beside
+  `prepare_config_set` in `crates/nvs-types/src/capability.rs:178` and its call at
+  `crates/nvs-types/src/expr/calls.rs:819`, its `config_set_names` tests and the conformance case.
+- [ ] Stage 3: `names_a_settable_key` beside `names_a_zone` (`crates/nvs-lsp/src/arguments.rs:362`),
+  the completion and hover arms, and `set_offers_only_the_settable_keys`.
 
 ### Backlog
 
 - `nvs config dump` could mark each key a request may change.
+- `log.access` set by a request: the access line could read the request's overlay at
+  `crates/nvs-server/src/serve.rs:1994`, so a route can turn its own line off. It needs a goal of its
+  own, which then puts the key back on `SETTABLE` with a probe.

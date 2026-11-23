@@ -1363,10 +1363,7 @@ fn the_one_http_row_answers_for_a_response_and_its_exceptions_are_shared_or_secr
 
     let socket = governing("http.client.socket");
     assert_eq!(
-        (
-            socket.key,
-            settable::how("http.client.socket.max_message")
-        ),
+        (socket.key, settable::how("http.client.socket.max_message")),
         ("http.client.socket", Some(How::UpToCeiling)),
         "the one row under `[http.client]` that is not an exception governs a settable key, as the \
          blanket does, and a census reading a row there as not settable would pass against a list \
@@ -1557,8 +1554,7 @@ fn the_outbound_pools_count_is_the_operators_because_a_core_holds_it_not_a_reque
         let dotted = format!("http.client.{per_call}");
         let row = governing(&dotted);
         assert_eq!(
-            row.key,
-            "http",
+            row.key, "http",
             "`{dotted}` resolves through `{}`, and it bounds the single call this request is \
              making — the ground for the pool's caps is whose memory is held, not which block the \
              key is written in",
@@ -1631,8 +1627,7 @@ fn the_pools_timeout_is_its_own_row_and_not_the_counts_suffix() {
     // load-bearing rather than a longer spelling of the first.
     let near_miss = governing("http.client.pool_idlex");
     assert_eq!(
-        near_miss.key,
-        "http",
+        near_miss.key, "http",
         "`http.client.pool_idlex` resolves through `{}`, so the registry matches a row by text \
          rather than on dot boundaries — under which the count would govern the timeout, the \
          second row could be deleted with nothing failing, and a key nobody wrote would inherit a \
@@ -2537,8 +2532,7 @@ fn the_temporary_root_is_the_operators_and_a_new_one_applies_to_the_next_directo
 
     let keep = governing("debug.keep_temporary");
     assert_eq!(
-        keep.key,
-        "debug.keep_temporary",
+        keep.key, "debug.keep_temporary",
         "`{}` governs the key that turns the per-script sweep off, and it is not settable, as the \
          root is not, for the same reason — both are the operator deciding what happens to scratch \
          files that are not the program's to decide about",
@@ -3024,8 +3018,9 @@ fn both_halves_of_the_decompression_bound_answer_the_same_way_in_two_different_q
 /// The block the escalation ladder is configured in, and the one row of this group a request may
 /// write. What is asserted is where the line between the two halves falls rather than the
 /// settability of any single key: `rule:config/a-mode-is-five-defaults`'s mode table holds three of
-/// these keys — `format`, `level` and `access` — and every key in that table is settable, so a
-/// program that wants its own run traced turns its own level down — while a program able to send
+/// these keys — `format`, `level` and `access` — and the first two are settable, so a program that
+/// wants its own run traced turns its own level down. `access` is not: the access line is written
+/// once the program has ended, from the file's value. Meanwhile a program able to send
 /// the record of its own failure somewhere nobody reads is what every other key here is not
 /// settable to prevent. The block's settable key this case picks is `log.level`.
 ///
@@ -3040,8 +3035,7 @@ fn the_log_blanket_is_a_requests_and_exactly_the_mode_tables_rows_stay_that_way(
         (block.key, settable::how("log.level"), block.apply),
         ("log", Some(How::UpToCeiling), Apply::Reload),
         "`[log]` resolves through `{}`: the block's own row is what answers for `format`, `level` \
-         and `access`, which are `rule:config/a-mode-is-five-defaults`'s rows and so are a \
-         request's to set",
+         and `access`, which are `rule:config/a-mode-is-five-defaults`'s rows",
         block.key,
     );
     for written in ["log.format", "log.level", "log.access"] {
@@ -3059,14 +3053,11 @@ fn the_log_blanket_is_a_requests_and_exactly_the_mode_tables_rows_stay_that_way(
     movable.sort();
     assert_eq!(
         movable,
-        vec![
-            "access".to_string(),
-            "format".to_string(),
-            "level".to_string()
-        ],
-        "a key of `[log]` that is not one of the mode table's three is settable, so a rung of the \
-         ladder is a request's to move: every other key in this block names the script run when a \
-         request fails, what is held back for that script, or where the record itself goes",
+        vec!["format".to_string(), "level".to_string()],
+        "a key of `[log]` other than the mode table's format and level is settable, so a rung of \
+         the ladder is a request's to move: every other key in this block names the script run \
+         when a request fails, what is held back for that script, where the record itself goes, \
+         or the access line, which is written once the program has ended",
     );
 
     assert!(
@@ -3765,11 +3756,7 @@ fn every_key_of_the_opcache_block_is_not_settable_because_it_has_no_safe_directi
 fn the_artifact_directory_is_one_reload_row_in_its_block_and_has_no_second_spelling() {
     let directory = governing("opcache.file_cache_dir");
     assert_eq!(
-        (
-            directory.key,
-            settable::how(directory.key),
-            directory.apply
-        ),
+        (directory.key, settable::how(directory.key), directory.apply),
         ("opcache.file_cache_dir", None, Apply::Reload),
         "`opcache.file_cache_dir` resolves through `{}`: the next compile reads and writes the \
          directory a reload publishes, and a reload that cannot use it has to name this key",
@@ -3831,14 +3818,8 @@ fn request_body_and_upload_total_resolve_to_their_defaults() {
         );
         assert_eq!(unit_of(key), Some(Unit::Bytes), "`{key}` is a size");
     }
-    assert_eq!(
-        settable::how("limits.request_body"),
-        Some(How::UpToCeiling)
-    );
-    assert_eq!(
-        settable::how("limits.upload_total"),
-        Some(How::UpToCeiling)
-    );
+    assert_eq!(settable::how("limits.request_body"), Some(How::UpToCeiling));
+    assert_eq!(settable::how("limits.upload_total"), Some(How::UpToCeiling));
     assert_eq!(settable::how("limits.hard.request_body"), None);
     assert_eq!(settable::how("limits.hard.upload_total"), None);
     // A written ceiling does not move the value it bounds.
