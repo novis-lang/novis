@@ -1268,7 +1268,8 @@ pub(crate) fn analyse_through(
             .map(|src| src.id())
             .collect();
         let walked = session.checks.walked();
-        let sources: Vec<&nvs_diagnostics::SourceFile> = files.iter().map(|file| file.src).collect();
+        let sources: Vec<&nvs_diagnostics::SourceFile> =
+            files.iter().map(|file| file.src).collect();
         // Each file's bodies are checked only where its key moved
         // (`crate::session`). The enum table is kept for the lowering below,
         // and the expression table for every cursor request.

@@ -432,7 +432,11 @@ impl LookedUp {
     fn of(uses: &nvs_hir::Uses) -> Option<Self> {
         uses.is_on().then(|| Self {
             used: uses.used_sorted().into_iter().map(str::to_owned).collect(),
-            missed: uses.missed_sorted().into_iter().map(str::to_owned).collect(),
+            missed: uses
+                .missed_sorted()
+                .into_iter()
+                .map(str::to_owned)
+                .collect(),
         })
     }
 }
@@ -1521,7 +1525,9 @@ impl SymbolIndex {
                     }
                 }
                 Kind::Cases => self.posted_files(&self.by_used, class, &mut files),
-                Kind::Properties => self.posted_files(&self.by_used, &format!("{class}::$"), &mut files),
+                Kind::Properties => {
+                    self.posted_files(&self.by_used, &format!("{class}::$"), &mut files)
+                }
                 _ => {
                     self.posted_files(&self.by_used, &change.symbol, &mut files);
                     if change.how != How::Changed
@@ -1531,7 +1537,11 @@ impl SymbolIndex {
                         for receiver in
                             std::iter::once(class).chain(below.iter().map(String::as_str))
                         {
-                            self.posted_files(&self.by_missed, &format!("{receiver}::{name}"), &mut files);
+                            self.posted_files(
+                                &self.by_missed,
+                                &format!("{receiver}::{name}"),
+                                &mut files,
+                            );
                         }
                     }
                 }
@@ -1550,11 +1560,11 @@ impl SymbolIndex {
             }
         }
         for reader in readers {
-            if self
-                .owned_by(reader)
-                .iter()
-                .any(|file| self.files.get(file).is_some_and(|indexed| indexed.uses.is_none()))
-            {
+            if self.owned_by(reader).iter().any(|file| {
+                self.files
+                    .get(file)
+                    .is_some_and(|indexed| indexed.uses.is_none())
+            }) {
                 entries.insert(reader, None);
             }
         }
@@ -1579,7 +1589,10 @@ impl SymbolIndex {
         if self.pending.contains(&entry) && !self.partial.contains_key(&entry) {
             return;
         }
-        self.partial.entry(entry.clone()).or_default().extend(reached);
+        self.partial
+            .entry(entry.clone())
+            .or_default()
+            .extend(reached);
         self.pending.insert(entry);
     }
 
@@ -1610,7 +1623,10 @@ impl SymbolIndex {
         };
         let before = self.read_set(entry);
         for path in reached {
-            if self.files.get(&path).is_some_and(|indexed| indexed.entry == entry)
+            if self
+                .files
+                .get(&path)
+                .is_some_and(|indexed| indexed.entry == entry)
                 && let Some(indexed) = self.files.remove(&path)
             {
                 self.unpost(&path, &indexed);
@@ -2054,7 +2070,12 @@ impl SymbolIndex {
                 add(&mut self.by_used_on, owner, (Arc::clone(&key), at));
             }
         }
-        for (at, name) in indexed.uses.iter().flat_map(|uses| &uses.missed).enumerate() {
+        for (at, name) in indexed
+            .uses
+            .iter()
+            .flat_map(|uses| &uses.missed)
+            .enumerate()
+        {
             add(&mut self.by_missed, name, (Arc::clone(&key), at));
             if let Some(owner) = owner_of(name) {
                 add(&mut self.by_missed_on, owner, (Arc::clone(&key), at));
@@ -2090,7 +2111,12 @@ impl SymbolIndex {
                 remove(&mut self.by_used_on, owner, &posting);
             }
         }
-        for (at, name) in indexed.uses.iter().flat_map(|uses| &uses.missed).enumerate() {
+        for (at, name) in indexed
+            .uses
+            .iter()
+            .flat_map(|uses| &uses.missed)
+            .enumerate()
+        {
             let posting = (Arc::clone(&key), at);
             remove(&mut self.by_missed, name, &posting);
             if let Some(owner) = owner_of(name) {

@@ -520,10 +520,12 @@ fn a_blank_line_or_comment_between_members_re_queues_no_reader() {
     );
 }
 
-/// An edit to what other files can see of a library file queues every entry
-/// that read it.
+/// An edit to what other files can see of a library file queues the entries
+/// that own a file it reaches, and no other reader. `Part5::value` is called
+/// by `Part4` alone, and `Blog` owns the library, so `Shop`, which reads the
+/// file but names nothing in it, keeps its records.
 #[test]
-fn a_surface_edit_re_queues_the_entries_that_read_the_file() {
+fn a_surface_edit_re_queues_the_entries_that_own_a_file_it_reaches() {
     let dir = tree(2, 40);
     let (mut documents, mut index) = index_of(&dir);
     let path = dir.at(&part(5));
@@ -543,12 +545,10 @@ fn a_surface_edit_re_queues_the_entries_that_read_the_file() {
         .iter()
         .map(|entry| entry.to_string_lossy().replace('\\', "/"))
         .collect();
-    for program in ["Blog/main.nvs", "Shop/main.nvs"] {
-        assert!(
-            queued.iter().any(|entry| entry.ends_with(program)),
-            "{program} read the file and was not queued: {queued:?}"
-        );
-    }
+    assert!(
+        queued.len() == 1 && queued[0].ends_with("Blog/main.nvs"),
+        "only the entry that owns the library waits: {queued:?}"
+    );
 }
 
 /// A body-only keystroke in a library file that both programs read parses
@@ -719,7 +719,9 @@ fn reach_edits() -> Vec<(&'static str, Edit)> {
         ),
         (
             "protected method a subclass failed to find added",
-            before_next("    protected function helper(): int\n    {\n        return 1;\n    }\n\n"),
+            before_next(
+                "    protected function helper(): int\n    {\n        return 1;\n    }\n\n",
+            ),
         ),
         (
             "protected method made private",
@@ -782,7 +784,10 @@ fn reach_edits() -> Vec<(&'static str, Edit)> {
         ),
         (
             "private property added",
-            replace("class Part5\n{\n", "class Part5\n{\n    private int $count = 0;\n\n"),
+            replace(
+                "class Part5\n{\n",
+                "class Part5\n{\n    private int $count = 0;\n\n",
+            ),
         ),
         (
             "private property's type",
@@ -1012,7 +1017,10 @@ fn a_cached_analysis_reports_what_a_fresh_one_does_after_every_kind_of_edit() {
         ),
         (
             "closure removed",
-            replace("\n$twice = function (int $x): int {\n    return $x * 2;\n};\n", ""),
+            replace(
+                "\n$twice = function (int $x): int {\n    return $x * 2;\n};\n",
+                "",
+            ),
         ),
         ("class renamed", replace("class Part5\n", "class Part5b\n")),
     ];
@@ -1249,10 +1257,12 @@ fn a_file_changed_on_disk_queues_its_entry_again() {
     assert!(index.holds(&path), "the settled index has the file again");
 }
 
-/// A file whose surface changed since the index was written sends every
-/// entry that read it back to the queue.
+/// A file whose surface changed since the index was written sends the
+/// entries that own a file the change reaches back to the queue. A new method
+/// nobody names reaches only its own file, so the entry that owns it waits,
+/// and `Shop`, which also read the file, does not.
 #[test]
-fn a_surface_changed_on_disk_queues_every_entry_that_read_it() {
+fn a_surface_changed_on_disk_queues_the_entries_that_own_a_file_it_reaches() {
     let dir = tree(2, 40);
     let (built, file) = saved(&dir);
     let path = dir.at(&part(5));
@@ -1270,8 +1280,8 @@ fn a_surface_changed_on_disk_queues_every_entry_that_read_it() {
     assert!(readers.len() >= 2, "both programs read the library file");
     assert_eq!(
         index.pending().iter().cloned().collect::<Vec<_>>(),
-        readers,
-        "every entry that read the file waits, and no other"
+        readers[..1],
+        "the entry that owns the file waits, and no other reader"
     );
 }
 

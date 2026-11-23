@@ -110,7 +110,11 @@ impl<'a> Surfaces<'a> {
             let declares = surfaces.declares.entry(id).or_default();
             for row in rows.iter().filter(|row| row.kind != Kind::Graph) {
                 let symbol = row.symbol.as_str();
-                surfaces.by_symbol.entry(symbol).or_default().push((id, row));
+                surfaces
+                    .by_symbol
+                    .entry(symbol)
+                    .or_default()
+                    .push((id, row));
                 match symbol.split_once("::") {
                     Some((owner, member)) => {
                         surfaces.by_owner.entry(owner).or_default().push((id, row));
@@ -184,7 +188,10 @@ impl<'a> Surfaces<'a> {
             ),
             Some((owner, _)) => {
                 rows(hasher, of(name));
-                rows(hasher, of(owner).filter(|(_, row)| row.kind == Kind::Header));
+                rows(
+                    hasher,
+                    of(owner).filter(|(_, row)| row.kind == Kind::Header),
+                );
             }
             None => rows(
                 hasher,
@@ -209,10 +216,7 @@ impl<'a> Surfaces<'a> {
                         .is_some_and(|owners| owners.binary_search(&class).is_ok())
                 };
                 let found = declares(receiver)
-                    || self
-                        .ancestors(receiver)
-                        .iter()
-                        .any(|class| declares(class));
+                    || self.ancestors(receiver).iter().any(|class| declares(class));
                 hasher.update(&[u8::from(found)]);
             }
             None => {
