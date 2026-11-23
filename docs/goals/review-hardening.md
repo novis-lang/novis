@@ -514,37 +514,32 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### State
 
-Stages 1 to 8 are done, each with its acceptance test passing. `Live::adopt` and the retrieval
-`static` item were not found. Stage 7 is summarised in its commits (`in_place_results`); the queue
-loop measured 66, 60 and 66 ms at 5,000, 10,000 and 20,000 rounds.
+Stages 1 to 10 are done, each with its acceptance passing; 7 to 9 are summarised in their commits.
+Stage 7's queue loop measured 66, 60 and 66 ms at 5,000, 10,000 and 20,000 rounds. The checks
+`decode-and-passkey` and `chunked-end` run unit tests by name, as their helpers are private. The
+CSRF gap record `data/gaps/nvs-stdlib/csrf-token-makes-a-session-per-visitor.json` is this goal's.
 
-Stage 8 is summarised in its commits (`time_text`). Stage 9 landed its code in one session (three commits):
+Stage 10, in one session:
 
-- *Check first* (decode) was shown by a probe: 1,000,000 bad elements filled the 256 MB limit with
-  issues. `gather` and `MAX_ISSUES` in `json.rs` now bound every frame. The 65th issue ends the list
-  with one issue at path `""`, and the message says "more than 64". The rule fragment
-  `derive-reports-every-field` records the bound.
-- *Check first* (passkey) was read from the code, not reproduced: `take_bytes` removed the key only
-  in the request's copy. A new store operation `take` (`TAKE` script, SQLite `take`) deletes the key
-  only when the store still has the bytes this request loaded. The SAVE script gained `ARGV[4]`, the
-  long ceiling, and each later index moved by one. Tests: `two_requests_that_take_one_key_get_its_
-  bytes_once_on_any_store` and `a_save_brings_a_clock_stored_far_ahead_down_to_its_lifetime_on_any_
-  store` in `session.rs`, passed; the 16 `on_any_store` cases passed.
-- The CSRF gap record is `data/gaps/nvs-stdlib/csrf-token-makes-a-session-per-visitor.json`, owned
-  by this goal. Its count, 1,000 heads, is read from the code. A probe under `nvs serve` returned 500
-  with no log reason, and was not followed.
+- *Check first* (chunked) was read from the code: `dechunk` ended the body at the `0` chunk header,
+  so a trailer in a later segment stayed on the pooled socket. It now reads the trailer to its empty
+  line (`in_trailer`). A close inside the trailer ends a whole body. `finished` pools nothing when
+  octets follow the body. `pool::take` closes a match where `Connection::has_waiting` is true (one
+  non-blocking peek; for TLS also the session's unread records). Its two unit tests in
+  `transport.rs` pass, and `chunked-end` runs them by name.
+- The worker panic: a job now sends `Found::Panicked`, with `adopt` and `take_made` inside the guard.
+  The index skips the entry in every turn until a refresh of its own file, which queues it again.
+  The server logs the path to stderr and as a `window/logMessage` error (`log_panicked` in
+  `server.rs`). `crates/nvs-lsp/tests/worker_panic.rs` passes, with the switch
+  `nvs_lsp::panic_on_worker`.
 
 Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, two; stage 5, one; stage 6,
-two; stage 7, one; stage 8, one; stage 9, one.
+two; stage 7, one; stage 8, one; stage 9, two; stage 10, one.
 
 ### Next
 
-Stage 9's last item: the acceptance `decode-and-passkey` runs `cargo test --test decode_and_passkey`
-(`crates/nvs-codegen/tests/decode_and_passkey.rs`), which has only the decode half. Its fixtures have
-no session store. Either add a passkey case there that drives two contexts over one stored session,
-or change the check's command to also run the unit test
-`two_requests_that_take_one_key_get_its_bytes_once_on_any_store` (pick the second if the first needs
-`pub` items in `nvs-stdlib`). Then set stage 9 done. Stages 10 and 11 touch disjoint files.
+Stage 11 (`tools/nv/cmd/release.ts:26`, `.github/workflows/release-promote.yml:207`, the bun test
+`tools/nv/test/release-fixes-built.test.ts`). Then stage 12 and stage 13.
 
 Stage 13's `owners` must give the CSRF gap record another owner before this goal's file is deleted.
 The rule id `a-session-store-answers-five-operations` and `docs/ground-rules.md:991` still say five
@@ -558,7 +553,10 @@ card rereads for `Core\Time\Instant::toEpochSeconds`, `toEpochMillis`, `toEpochM
 `Core\Time\Date::fromIso` and `Core\Time\Zone::of`, and the example
 `docs/examples/core/Time-Date/at/01-building-a-date.nvs` reread.
 
-Tests that may go red: any `session.rs` or `sqlite.rs` test that reads the SAVE script's arguments
+Tests that may go red: a transport test whose pooled fake connection reports bytes waiting, or a
+chunked reply case whose source ends after `0
+` with more octets after the trailer (it is no longer
+pooled); an LSP case that expected a worker panic to be analysed on the server's thread. Also any `session.rs` or `sqlite.rs` test that reads the SAVE script's arguments
 by index, or a stored clock past now plus its lifetime; a passkey or session case whose second
 request takes a key another request already took; a JSON case with more than 64 issues, whose
 message now says "more than 64"; the `Core\Json::decodeAs` and `isValid` cards' change. Also
