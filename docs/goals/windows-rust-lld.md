@@ -18,7 +18,7 @@ stages:
     context: [.github/workflows/ci.yml, crates/nvs-host/src/scheduler.rs]
   - id: 4
     title: "the change is pushed, its run is green, and the Windows build times are recorded"
-    status: open
+    status: done
     context: [docs/goals/ci-green.md]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -163,12 +163,12 @@ Only when stage 2 adopted rust-lld.
 
 ### 4. the change is pushed, its run is green, and the Windows build times are recorded
 
-- [ ] `bun nv ci --check`, then `bun nv ci --push`. Then `bun nv ci --watch --next` with
+- [x] `bun nv ci --check`, then `bun nv ci --push`. Then `bun nv ci --watch --next` with
   `run_in_background` and a timeout of 7200000, and end the turn.
-- [ ] A red job is fixed as `ci-green`'s decisions say. A job that is red only under rust-lld gets the
+- [x] A red job is fixed as `ci-green`'s decisions say. A job that is red only under rust-lld gets the
   safe default.
-- [ ] `bun nv ci --green` exits 0.
-- [ ] `bun nv ci --dispatch full`, watched as above. Its `bun nv ci --times <id>`: each Windows
+- [x] `bun nv ci --green` exits 0.
+- [x] `bun nv ci --dispatch full`, watched as above. Its `bun nv ci --times <id>`: each Windows
   leg's build step against run 44940832132, under `### State`.
 
 ### 5. the goal is verified once, and every failure is fixed
@@ -180,26 +180,30 @@ Only when stage 2 adopted rust-lld.
 
 ### State
 
-Stages 1 to 3 are done. rust-lld is adopted: stage 2's figures are in `.cargo/config.toml`'s comment,
-which names `rust-lld.exe` for every Windows profile. rustc finds it in the toolchain's sysroot, not
-on PATH. Linux links with rust-lld already (rustc 1.99.1's default for `x86_64-unknown-linux-gnu`).
-Nightly Miri run 44894790665 tested 7e97fa8444, older than its fix 156f11a7ca; the next one proves it.
+Stages 1 to 4 are done. rust-lld links every Windows profile (`.cargo/config.toml`), and no safe
+default was needed. Push run 45080779341 on c6c8111e4 is green, Website too, and `bun nv ci --green`
+exits 0. The first push run's reds all came from taint-fail-closed, none from the linker; they are
+fixed in fa4bc3f965, a47f3eb473, 3d4b3d4408 and c6c8111e4a.
+Windows build steps, warm run 45084959508 against link.exe run 44940832132, in minutes:
 
-Under rust-lld, each once: `cargo build` and clippy green. The new
-`crates/nvs-cli/tests/panic_location.rs` passed; its doc says why it panics its own child, not `nvs`.
-`forced_unwind` on the proof profile, 5 passed. `builtin` and `image_guest`, 9 and 5 passed.
-`bun nv pe-flags --bin target/release/nvs.exe` green, and the file properties show `Novis 0.0.5`.
-Integration tests link with `/DEBUG:NONE` (`tools/build/tests_without_pdb.rs`), so a backtrace was
-checked by hand with `NVS_TEST_PDB=1`: rust-lld's PDB names `tests\panic_location.rs:29`.
-No safe default was needed.
+| Leg | Step | link.exe | rust-lld |
+|---|---|---|---|
+| build windows-x86_64 | Build (release) | 18.6 | 13.7 |
+| tests 1/3 | `cargo build --workspace --all-targets` | 20.8 | 19.7 |
+| tests 2/3 | `cargo build --workspace --all-targets` | 20.7 | 14.5 |
+| tests 3/3 | `cargo build --workspace --all-targets` | 21.1 | 19.4 |
+| proofs | `cargo build --profile proof --bin nvs` | 10.4 | 10.6 and 14.1 (two parts now) |
+| debug nvs | `cargo build -p nvs-cli` | 6.6 | 7.0 |
 
-Sessions per stage: stage 1, one. Stage 2, one. Stage 3, one. Stage 4, none yet.
+The proofs job was split in two between the runs, so its row is not like for like.
+
+Sessions per stage: stage 1, one. Stage 2, one. Stage 3, one. Stage 4, one.
 
 ### Next
 
-Stage 4 from its first item, at `docs/goals/windows-rust-lld.md` § *4. the change is pushed*:
-`bun nv ci --check`, then `bun nv ci --push`, then `bun nv ci --watch --next` in the background. The
-first run's Windows legs may start on a cold Rust cache, because the linker changed. Expected red:
-none. A red Windows job that names a link error is the safe default's case.
+Stage 5, at `docs/goals/windows-rust-lld.md` § *5. the goal is verified once*: the pack names whether
+this goal takes the full gate or only closes. A close is a build, clippy, `cargo test --test
+panic_location`, `bun test tools/nv/test/pe-flags.test.ts`, then `bun nv close --goal
+windows-rust-lld`. Expected red: none.
 
 ### Backlog

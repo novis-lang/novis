@@ -271,6 +271,12 @@ session the bullets it ranks highest for the live goal, and names how many more 
   See `benches/members/README.md` and `benches/members/core/Session/get.scale.nvs`.
 
 ## Running things
+- **A goal that makes a type stricter can be closed without a gate, and `ci --check` is green while
+  CI is red.** taint-fail-closed made an error's message and several `Core` answers tainted and was
+  retired in a chain. `ci --check` does not run the Rust tests, the conformance tree or the hostile
+  proofs, so 17 jobs went red on the next push. `bun nv ci --watch --next` stops at the first red
+  job: wait for the whole run with `gh run watch <id>`, then fix every red in one pass. See
+  `tools/nv/cmd/ci.ts`.
 - **`bun nv verify` stops at its first red step, so a full gate that only reruns it finds one
   failure per run.** A gate spent three runs on `render --check`, `rules --render --check` and
   `layout --check` in turn. After a red doc step, run the rest of `DOC_CHECKS` by hand before the
