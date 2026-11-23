@@ -581,8 +581,10 @@ program file outside its test classes and bodies. A statement in an anonymous fu
 counts for the method it is written in. A coverage flag, `--mutate` and `--since` write the map, so a
 `--since` run has its coverage probes on. A run with none of them writes nothing and pays nothing.
 
-A method is changed when a changed line is in its body after the line of its `{`, or when its body's
-hash differs from the map's. A test runs when it reached a changed method, when a line of its own
+`--since` runs more tests when it cannot tell, never fewer. A method is changed when a changed line
+is in its body after the line of its `{`, when its body's hash differs from the map's, or when the map
+has it and the program does not, as for a deleted file or method. A rename is read as a delete and an
+add (`git diff --no-renames`). A test runs when it reached a changed method, when a line of its own
 method changed, or when the map does not name it. A changed line in a test class outside its tests,
 or a class hash that differs, runs every test of that class. **Every selected test runs**, and the
 run prints one line saying why, when:
@@ -593,7 +595,12 @@ run prints one line saying why, when:
   override changes which code a call reaches, on lines no test reached before;
 - a program file is not in the map, or its hash differs;
 - a file in the program's folder that is not a `.nvs` file changed or was deleted, such as `nvs.toml`
-  or a data file a test reads.
+  or a data file a test reads;
+- a file outside the program's folder that is not a program file changed, or a changed path could
+  not be resolved, such as a deleted file whose folder is gone.
+
+A run that left a test out keeps that test's entry, and the stored hash of each method, class and
+file it depends on, so a change it did not run against still selects it at the next run.
 
 A line that was only deleted sits between two lines, and is in a body only when both are. The hashes
 keep the map honest when it was written from a working tree that has changed since: an edit put back
@@ -1055,15 +1062,20 @@ certificates, leaf first, each over a fresh P-256 key, because a real server sen
 intermediate and a `peerChain()` example should show that order. A prefix row whose URL names no
 scheme is not checked for `http://`.
 
-Neither member refuses a call outside a test, for the reason `answerHttp` already gives: nothing
-trusts what they build, a reply that reports the session came from the program's own table, which has
-already taken it off the network, and no request input reaches the certificate issuer.
+`answerHttp`, `tlsSession`, `answerSocket` and `Core\Test::scriptAnswers` throw a `LogicError` in work
+a server runs: a request, a connection, a scheduled fire and a job, outside `nvs test`. A test left in a
+served program would otherwise give it replies no host sent. A test, a request or run a test makes, and
+a CLI program may call them, because every example and attack that calls a host runs under `nvs run`
+and answers itself from this table.
 
 - **Memory:** one copy of a described chain, about 1 KB, per registered answer that names a session,
   for the life of the test's context, and a fresh `Core\Http\TlsInfo` per reply that answer serves,
   released with the reply. A program outside a test pays nothing.
 
 **Declined:**
+- **Refusing the four members everywhere outside `nvs test`.** Every example, attack and bench that
+  calls a host would need a test class around it, and a CLI program that fakes its own calls harms
+  nobody but itself.
 - **Skipping the Novis proofs for `Core\Http\TlsInfo`.** Rust tests alone leave seven public members
   with no example a reader can learn from, and the audit test above still could not be written.
 - **A local TLS test server beside `Core\Test::serverUrl`.** A real handshake would need a certificate

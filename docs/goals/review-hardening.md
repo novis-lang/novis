@@ -30,7 +30,7 @@ stages:
     context: [crates/nvs-cli/src/runner/reach.rs, crates/nvs-cli/src/runner/since.rs]
   - id: 7
     title: "an in-place result equals the built one, and a cut frees what it no longer needs"
-    status: open
+    status: done
     context: [docs/rules/types/a-replaced-value-is-changed-in-place.md]
   - id: 8
     title: the time classes read their text and their epoch one way
@@ -417,19 +417,19 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### 7. an in-place result equals the built one, and a cut frees what it no longer needs
 
-- [ ] `crates/nvs-stdlib/src/arr.rs:3419`: `kept_counter` and the in-place `rekey`
+- [x] `crates/nvs-stdlib/src/arr.rs:3419`: `kept_counter` and the in-place `rekey`
   (`crates/nvs-runtime/src/array.rs:1265`) give the build path's next key.
   `rule:types/a-replaced-value-is-changed-in-place` *run.*
-- [ ] `crates/nvs-runtime/src/string.rs:1456`: `keep` copies out under half. *run.*
-- [ ] `crates/nvs-runtime/src/array.rs:1037`: the counter is kept, with no walk. *run.* The loop of
+- [x] `crates/nvs-runtime/src/string.rs:1456`: `keep` copies out under half. *run.*
+- [x] `crates/nvs-runtime/src/array.rs:1037`: the counter is kept, with no walk. *run.* The loop of
   § *Why* at 5,000, 10,000 and 20,000 rounds, in a scratch file under `.agent-tmp/`, on
   `target/release/nvs.exe` after `bun nv relink --build`.
-- [ ] `crates/nvs-runtime/src/array.rs:2639`: the budget is asked about the store that is allocated.
+- [x] `crates/nvs-runtime/src/array.rs:2639`: the budget is asked about the store that is allocated.
   *check first.*
-- [ ] `crates/nvs-fuzz-checks/src/in_place.rs:1`: the new shape.
-- [ ] `crates/nvs-codegen/tests/in_place_results.rs:1`: the three programs of § *Why*. The queue case
+- [x] `crates/nvs-fuzz-checks/src/in_place.rs:1`: the new shape.
+- [x] `crates/nvs-codegen/tests/in_place_results.rs:1`: the three programs of § *Why*. The queue case
   counts allocations or key parses per round at two sizes, never time. It runs once, by name.
-- [ ] `cargo build` and clippy are green.
+- [x] `cargo build` and clippy are green.
 
 ### 8. the time classes read their text and their epoch one way
 
@@ -506,38 +506,44 @@ the same in-place code. Gate: `crates/nvs-codegen/tests/operand_moves.rs` exists
 
 ### State
 
-Stages 1 to 5 are done, each with its acceptance test passing. `Live::adopt` and the retrieval
+Stages 1 to 7 are done, each with its acceptance test passing. `Live::adopt` and the retrieval
 `static` item were not found.
 
-Stage 6 is done. Its first session landed the arming, the `Core\Test` members, the double and the
-`sendFile` read (`wire_request_is_armed` passed). Its second landed `--since`:
+Stage 7 landed in one session (`in_place_results`, three cases, passed):
 
-- `reach::select` runs every test for an unresolved path or a non-program file outside the folder,
-  and a function the map has and the program lacks selects its tests. `reach::kept_hashes` keeps
-  the stored hashes skipped tests depend on. `since::changed` passes `--no-renames` and keeps
-  `Changed::unresolved`. The rule fragment `tags-and-shards-select-what-runs` says so.
-- `crates/nvs-cli/tests/since_selection.rs`: five cases, all passed, run as `nvs test .` over a
-  directory of programs at `lib/app/` in a scratch checkout.
+- `Table::rekey` gives a list when a build of the same keys is a list (`list_length`), so
+  `mapKeys` or `flip`, then a cut, then an append land on the build path's key.
+- `NvsStr::keep` copies a sole cut under half its capacity into its own allocation.
+- `Core\Arr::append` keeps the subject's counter, as `$a[] = $v` does. `fresh_counter`,
+  `fresh_append_index` and `recount_append_index` are deleted. The conformance case is renamed
+  `arr-append-keeps-the-counter-a-removed-key-left.nvst`, and `rule:types/arrays` says so. The
+  queue loop on the release binary, whole process: 66 ms at 5,000 rounds, 60 ms at 10,000, 66 ms
+  at 20,000 (993, 4,742 and 15,837 ms before).
+- The *check first* item was found by reading: `prepend` and `replace_window` on a map asked the
+  map's growth and reserved map room, then allocated a list unasked. They now ask
+  `Table::list_cost` (`reserve_list_within_budget`); the unit test
+  `a_change_that_ends_as_a_list_asks_for_the_list` shows the old ask was 0.
+- A debug-only `nvs_runtime::array::key_parses` counter backs the queue case.
+- The in-place fuzz check prints keys, and draws a member, a cut and an append as one shape.
 
 Sessions per stage: stage 1, one; stage 2, two; stage 3, two; stage 4, two; stage 5, one; stage 6,
-two.
+two; stage 7, one.
 
 ### Next
 
-Stage 7 (its gate, `crates/nvs-codegen/tests/operand_moves.rs`, exists):
+Stage 8: the time classes (`docs/rules/core-classes/a-time-class-builds-its-own-values.md`), per the
+standing decision *An epoch reader floors*, with its test `time_text`. Stages 9, 10 and 11 touch
+disjoint files, so another session may take one of them beside it.
 
-- `crates/nvs-stdlib/src/arr.rs:3419` `kept_counter` and `crates/nvs-runtime/src/array.rs:1265`
-  `rekey`: the next appended key is the build path's.
-- `crates/nvs-runtime/src/string.rs:1456` `keep`: a cut under half its capacity is copied out.
-- `crates/nvs-runtime/src/array.rs:1037`: the append counter is kept with no walk; measure the
-  queue loop at 5,000, 10,000 and 20,000 rounds on the release binary.
-- `crates/nvs-runtime/src/array.rs:2639` (*check first*), `crates/nvs-fuzz-checks/src/in_place.rs`,
-  and the new `crates/nvs-codegen/tests/in_place_results.rs`.
+Stage 12 owes `tools:cli/nvs-test` its change entry and page reread for the `--since` change, and
+`Core\Arr::append` its change entry, its reference card reread and `website/src/data/core.json`
+regenerated for the counter change and the new help text.
 
-Stages 8, 9, 10 and 11 touch disjoint files, so another session may take one of them beside it.
-Stage 12 owes `tools:cli/nvs-test` its change entry and page reread for the `--since` change.
-
-Tests that may go red: a `--since` case in `crates/nvs-cli/tests/test_command.rs` whose checkout
+Tests that may go red: a program that calls `Core\Arr::append` on an array that lost its highest
+integer key (by `unset`, `withoutLast`, `filter` or a slice) now appends after the removed key, as
+`$a[] = $v` does. A test that reads a sole string's address or capacity after a short cut. A
+`mapKeys` or `flip` result whose new keys are `0` to `n-1` is now a list, so a bench or a count of
+its storage may move. A `--since` case in `crates/nvs-cli/tests/test_command.rs` whose checkout
 holds a changed file outside the program's folder now runs every test. A filtered run beside
 `--since` now leaves the hashes of the tests it skipped as they were, so the next `--since` run may
 select more tests than before. A program served by `nvs serve`, or a job or schedule, that calls
