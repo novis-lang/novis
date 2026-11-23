@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-types/src/capability.rs, crates/nvs-types/src/expr/calls.rs, crates/nvs-diagnostics/src/code/config.rs, crates/nvs-diagnostics/src/code/warnings.rs]
   - id: 3
     title: "the editor offers the settable keys"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/arguments.rs, crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/tests/completion_file_values.rs]
   - id: 4
     title: "the reference card, the examples, the rule and the website list the keys"
@@ -245,11 +245,11 @@ brief. The session writes the module, `request.rs` and the two new tests.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-lsp/src/arguments.rs:362`, beside `names_a_zone`: `names_a_settable_key` for the first
+- [x] `crates/nvs-lsp/src/arguments.rs:362`, beside `names_a_zone`: `names_a_settable_key` for the first
   argument of `Core\Config::set` and `restore`.
-- [ ] `crates/nvs-lsp/src/completion.rs` and `crates/nvs-lsp/src/hover.rs`, at the zone arms: offer the
+- [x] `crates/nvs-lsp/src/completion.rs` and `crates/nvs-lsp/src/hover.rs`, at the zone arms: offer the
   listed keys, and hover a written key with how it may change.
-- [ ] `crates/nvs-lsp/tests/completion_file_values.rs`: `set_offers_only_the_settable_keys`, and that
+- [x] `crates/nvs-lsp/tests/completion_file_values.rs`: `set_offers_only_the_settable_keys`, and that
   `get` offers none. Run the check `editor` once.
 
 ### 4. the reference card, the examples, the rule and the website list the keys
@@ -287,22 +287,20 @@ goes to one writing subagent once the fragment is renamed. The session writes th
 
 ### State
 
-Stages 1 and 2 are done. `SETTABLE` (`crates/nvs-config/src/settable.rs`) is the one allowlist,
-37 rows. It now also has `package_may_change` (a listed `limits.*` key) and `by_block` (the help
-line's list, block by block, `(only false)` after an `OffOnly` key).
+Stages 1 to 3 are done. `SETTABLE` (`crates/nvs-config/src/settable.rs`, 37 rows) is the one
+allowlist, with `how`, `row`, `package_may_change` and `by_block` beside it.
 
-Stage 2: `reject_unsettable_name` (`crates/nvs-types/src/capability.rs`, after
-`prepare_config_set`) is called beside it in `crates/nvs-types/src/expr/calls.rs`. A literal name
-no row lists, or in a package's namespace one outside `limits.`, is `E0667`. A template no row
-fits is `W1037`; a template with no dot is also tried against the bare limit names. A heredoc, a
-variable, a call and a concatenation get nothing. The name argument is the first positional one or
-`name:`. `W1036` stays a hole for `whole-grapheme-cuts`, with a comment saying it is held. The
-check `compiler` (4 tests in `capability::config_set_names`) and `compiler-conformance` ran once
-each, green. `cargo build`, clippy and fmt are green.
+The compiler: `reject_unsettable_name` (`crates/nvs-types/src/capability.rs`) gives `E0667` for a
+literal name no row lists (outside `limits.` in a package) and `W1037` for a template no row fits.
+145 `.nvs` files, 6 conformance cases and 2 reference blocks now keep the name in a variable.
 
-The new error stopped 145 `.nvs` files (64 examples, 81 attacks), 6 conformance cases and 2 code
-blocks in `docs/reference/`. Each now keeps the name in a variable, so the run-time `false` still
-runs. Every example prints its `.out` unchanged, and `bun nv proofs --comments` passes on all 145.
+The editor: `Named::settable` (`crates/nvs-lsp/src/arguments.rs`) is true at the first argument
+of `set` and `restore`. Completion offers `Value::settable_keys()` (`completion_files.rs`) split on
+`.`, and the `settable_key` hover arm (`hover.rs`) gives `settable_sentence` for a listed key.
+`get` offers nothing.
+
+The checks `compiler`, `compiler-conformance` and `editor` each ran once, green. Build, clippy and
+fmt are green. The sweep's nightly run `45166887327` was cancelled by hand and did not fail.
 
 Tests expected to go red until fixed:
 
@@ -311,17 +309,20 @@ Tests expected to go red until fixed:
 
 ### Next
 
-Stage 3, then stage 4. Each item stands under its stage above, with its anchors.
+Stage 4. Each item stands under its stage above, with its anchors.
 
-- [ ] Stage 3: `names_a_settable_key` beside `names_a_zone` (`crates/nvs-lsp/src/arguments.rs:362`),
-  the completion and hover arms, and `set_offers_only_the_settable_keys`. A new completion function
-  needs a row in `SOURCED` (`crates/nvs-lsp/tests/completion.rs`).
+- [ ] Stage 4, the editor's share: `docs/reference/tools/40-editor.md:24` and the editor's website
+  page may list what a string argument offers (zones, completion files). Add the settable keys there
+  if they do. `bun nv proofs --owed --goal config-set-allowlist` says whether the editor feature
+  owes a `.lspt` case or an example. `settable_sentence` (`crates/nvs-lsp/src/completion_files.rs`)
+  is text a user reads. Reread it in the newcomer review.
 - [ ] Stage 4 `docs/examples/tools/config/mode/about.md:13`, beyond its listed items: three
   `about.md` pages still show a literal call that no longer compiles, that one (`set("mode", …)`),
   `docs/examples/config/regex-backtracking/about.md:18` and `docs/examples/core/Config/set/about.md:1`. Say there that a
   written name is a compile error. The `02-a-change-that-is-not-allowed.nvs` example already keeps
   its names in variables; stage 4 adds the new example that shows the compile error in a comment.
-  `settable.rs:1`, both new code docs and the new conformance case cite
+  `settable.rs:1`, both new code docs, the new conformance case and `CONFIG` in
+  `crates/nvs-lsp/src/arguments.rs` cite
   `rule:config/three-changeability-classes`, which the citation sweep moves.
 
 ### Backlog
