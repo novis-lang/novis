@@ -13,4 +13,11 @@ class Orders
 
 repeatable attribute Tagged on parameter, property { label: string }
 $attribute = $hooks->on($attribute);
+attribute Indexed on class, method {
+    /// The column names.
+    columns: string,
+    unique?: bool,
+}
+attribute Wrong on hook { level: int }
+$after = 1;
 ?>

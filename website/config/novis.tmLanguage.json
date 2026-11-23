@@ -476,8 +476,8 @@
       ]
     },
     "attribute-declaration": {
-      "match": "^\\s*(?:(repeatable)\\s+)?(attribute)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(on)\\b",
-      "captures": {
+      "begin": "^\\s*(?:(repeatable)\\s+)?(attribute)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(on)\\b",
+      "beginCaptures": {
         "1": {
           "name": "storage.modifier.nvs"
         },
@@ -490,7 +490,32 @@
         "4": {
           "name": "keyword.other.nvs"
         }
-      }
+      },
+      "end": "(?<=\\})|(?=[^\\s{/])",
+      "patterns": [
+        {
+          "include": "#attribute-sites"
+        },
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#shape-type"
+        }
+      ]
+    },
+    "attribute-sites": {
+      "begin": "\\G",
+      "end": "(?=\\{)|$",
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "name": "keyword.other.nvs",
+          "match": "(?<![$\\w\\\\])(?:class|method|property|parameter)\\b"
+        }
+      ]
     },
     "signature": {
       "begin": "(?<![$\\w])(function|fn)\\s*([A-Za-z_][A-Za-z0-9_]*)?\\s*(?=\\()",
@@ -565,7 +590,10 @@
       "end": "\\}",
       "patterns": [
         {
-          "match": "([A-Za-z_][A-Za-z0-9_]*)\\s*(?=:)",
+          "include": "#comments"
+        },
+        {
+          "match": "([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\??\\s*:)",
           "captures": {
             "1": {
               "name": "variable.other.property.nvs"

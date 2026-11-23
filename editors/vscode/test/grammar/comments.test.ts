@@ -129,7 +129,9 @@ describe("the names inside an attribute", () => {
 
   it("colours each argument's name as the property it sets, on its own line too", () => {
     for (const text of ["path", "tags", "method", "allow", "reason"]) {
-      assert.ok(span(spans, text).scopes.includes(PROPERTY), `${text} is not a property`);
+      // The first `method` is the argument. The declaration below the class has one after `on`.
+      const found = spans.find((s) => s.text === text);
+      assert.ok(found?.scopes.includes(PROPERTY), `${text} is not a property`);
     }
   });
 
@@ -151,11 +153,52 @@ describe("the names inside an attribute", () => {
     // `repeatable attribute Tagged on parameter, property { … }` declares the attribute the
     // `#[…]` above would use.
     assert.ok(span(spans, "repeatable").scopes.includes("storage.modifier.nvs"));
-    assert.ok(span(spans, "attribute").scopes.includes("storage.type.nvs"));
+    for (const found of spans.filter((s) => s.text === "attribute")) {
+      assert.ok(found.scopes.includes("storage.type.nvs"), "`attribute` is not a storage type");
+    }
     assert.ok(span(spans, "Tagged").scopes.includes(TYPE_NAME));
     const on = spans.filter((s) => s.text === "on");
-    assert.equal(on.length, 2);
-    assert.ok(on[0].scopes.includes("keyword.other.nvs"), "the header's `on` is not a keyword");
+    assert.equal(on.length, 4);
+    for (const i of [0, 2, 3]) {
+      assert.ok(on[i].scopes.includes("keyword.other.nvs"), "a header's `on` is not a keyword");
+    }
+  });
+
+  it("colours the four site words after `on`, and leaves a rejected one alone", () => {
+    // The declarations of `Tagged`, `Indexed` and `Wrong` are the only lines with these words
+    // after `on`. `class` and `method` also appear earlier in the file, so each word is found
+    // after its declaration's name.
+    const after = (name: string, word: string) =>
+      spans.slice(spans.indexOf(span(spans, name))).find((s) => s.text.trim() === word);
+    for (const [name, words] of [
+      ["Tagged", ["parameter", "property"]],
+      ["Indexed", ["class", "method"]],
+    ] as const) {
+      for (const word of words) {
+        const found = after(name, word);
+        assert.ok(found?.scopes.includes("keyword.other.nvs"), `\`${word}\` is not a keyword`);
+      }
+    }
+    const hook = after("Wrong", "hook");
+    assert.ok(hook, "no `hook` span");
+    assert.equal(hook.scopes.includes("keyword.other.nvs"), false, "`hook` is a keyword");
+  });
+
+  it("colours a declaration's fields as properties and their types as types, over many lines", () => {
+    for (const text of ["label", "columns", "unique", "level"]) {
+      assert.ok(span(spans, text).scopes.includes(PROPERTY), `${text} is not a property`);
+    }
+    for (const text of ["string", "bool", "int"]) {
+      for (const found of spans.filter((s) => s.text === text)) {
+        assert.equal(found.scopes.includes("comment.line.documentation.nvs"), false);
+      }
+    }
+    const doc = spans.find((s) => s.text.includes("The column names."));
+    assert.ok(doc?.scopes.includes("comment.line.documentation.nvs"), "a field's doc is not a doc");
+  });
+
+  it("ends the declaration at its `}`, so the code after it is code", () => {
+    assert.ok(span(spans, "$after").scopes.includes("variable.other.nvs"), "`$after` is not a variable");
   });
 
   it("leaves the same words alone outside a declaration's header", () => {

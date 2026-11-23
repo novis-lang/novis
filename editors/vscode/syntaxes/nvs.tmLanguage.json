@@ -302,14 +302,32 @@
       "patterns": [{ "include": "#type" }]
     },
     "attribute-declaration": {
-      "comment": "`[repeatable] attribute Name on <site>, …` (rule:attributes/an-attribute-is-declared-with-its-sites), at file scope or in a class or interface body. `attribute`, `repeatable` and `on` are contextual words, so the pattern reads only the header's whole shape from the start of a line: a `$attribute` variable or a method called `on` is never offered it. The name is coloured as a `type` alias's is, and the server's layer colours it as a decorator. The site words and the `{ field: T }` body after the header are left to `#code`.",
-      "match": "^\\s*(?:(repeatable)\\s+)?(attribute)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(on)\\b",
-      "captures": {
+      "comment": "`[repeatable] attribute Name on <site>, … { field: T, … }` (rule:attributes/an-attribute-is-declared-with-its-sites), at file scope or in a class or interface body. `attribute`, `repeatable` and `on` are contextual words, so the region opens only on the header's whole shape from the start of a line: a `$attribute` variable or a method called `on` is never offered it. The name is coloured as a `type` alias's is, and the server's layer colours it as a decorator. After `on`, `#attribute-sites` colours the site words up to the `{` or the end of the line. The body is a shape's field list, so `#shape-type` colours it, over as many lines as it takes. The region ends after the body's `}`, or at the first thing that is neither a comment nor a `{`, so a header with no body leaves the code after it alone.",
+      "begin": "^\\s*(?:(repeatable)\\s+)?(attribute)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s+(on)\\b",
+      "beginCaptures": {
         "1": { "name": "storage.modifier.nvs" },
         "2": { "name": "storage.type.nvs" },
         "3": { "name": "entity.name.type.nvs" },
         "4": { "name": "keyword.other.nvs" }
-      }
+      },
+      "end": "(?<=\\})|(?=[^\\s{/])",
+      "patterns": [
+        { "include": "#attribute-sites" },
+        { "include": "#comments" },
+        { "include": "#shape-type" }
+      ]
+    },
+    "attribute-sites": {
+      "comment": "The site list after `on`, from the header up to the `{` or the end of the line. Only `class`, `method`, `property` and `parameter` are coloured, with the scope of `on`. The parser reads five more words, but a program that uses one of them gets E1004, so they get no colour (rule:ide/rejected-syntax-gets-no-colour). The commas between the words are inside the region and keep the text colour.",
+      "begin": "\\G",
+      "end": "(?=\\{)|$",
+      "patterns": [
+        { "include": "#comments" },
+        {
+          "name": "keyword.other.nvs",
+          "match": "(?<![$\\w\\\\])(?:class|method|property|parameter)\\b"
+        }
+      ]
     },
     "signature": {
       "comment": "A `function` or `fn`, the name it introduces where there is one, and the parameter list that has to follow it — held open until the body starts. The region exists for the return type: `):` introduces one inside a signature and closes a ternary's condition everywhere else (`$n is uint ? $sum as float : parent::total($n)`), and no lookbehind reaches back far enough to tell the two colons apart from the colon itself. It carries the declaration's own name for the reason the declarations in `#names` do — the pattern consumes the keyword that introduces it, so `fn` and an anonymous `function (` colour the keyword alone. Its body is `#code`, so a default value is ordinary code, and both ends are lookaheads: the `{` it stops at is still the body's to open, and it steps over one that opens a shape type instead.",
@@ -362,12 +380,13 @@
       ]
     },
     "shape-type": {
-      "comment": "The inline `{name: T}` shape (rule:types/shape-type). A field name carries the scope a member carries everywhere else, because that is what it is, and the type after it recurses — so a shape nested in a shape needs nothing of its own.",
+      "comment": "The inline `{name: T}` shape (rule:types/shape-type), and the body of an attribute declaration, which is the same field list. A field name carries the scope a member carries everywhere else, because that is what it is, and an optional field's `?` before the colon does not change that. The type after it recurses, so a shape nested in a shape needs nothing of its own. Comments come first, because a `///` doc above a field is written inside the braces.",
       "begin": "\\{",
       "end": "\\}",
       "patterns": [
+        { "include": "#comments" },
         {
-          "match": "([A-Za-z_][A-Za-z0-9_]*)\\s*(?=:)",
+          "match": "([A-Za-z_][A-Za-z0-9_]*)\\s*(?=\\??\\s*:)",
           "captures": { "1": { "name": "variable.other.property.nvs" } }
         },
         { "include": "#type" }
