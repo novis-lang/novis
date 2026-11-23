@@ -29,22 +29,27 @@
 //! property hook or a property's default, counts for no function: a change
 //! there is outside a body, so it runs every test anyway. A run that left a
 //! test out keeps that test's entry from the stored map, so a `--since` run
-//! never forgets the tests it did not run. An entry for a test the program no
-//! longer has is dropped.
+//! never forgets the tests it did not run. It keeps the stored hashes those
+//! tests depend on as well ([`kept_hashes`]), so a change they did not run
+//! against is still a change at the next run. An entry for a test the
+//! program no longer has is dropped.
 //!
 //! # What `--since` selects
 //!
-//! A function is changed when a changed line is inside its body, after the
-//! line its `{` is on, or when its body's hash differs from the map's. A test
+//! `--since` runs more tests when it cannot tell, never fewer. A function is
+//! changed when a changed line is inside its body, after the line its `{` is
+//! on, when its body's hash differs from the map's, or when the map has it
+//! and the program does not, as for a deleted file or method. A test
 //! runs when it reached a changed function, when the map does not name it,
 //! or when a line of its own method changed. A changed line in a test class
 //! outside its test methods, such as a hook, a fixture or a property, runs
 //! every test of that class, and so does a class hash that differs. Every
 //! selected test runs, and [`select`] says why, when there is no map, when a
 //! changed line that is not blank is outside every method body and test
-//! class, when a program file is not in the map or its hash differs, or when
-//! a file in the program's folder that is not a `.nvs` file changed or was
-//! deleted. The first line of a method is outside its body, because a
+//! class, when a program file is not in the map or its hash differs, when a
+//! file in the program's folder that is not a `.nvs` file changed or was
+//! deleted, when a file outside the folder that is not a program file
+//! changed, or when a changed path could not be resolved. The first line of a method is outside its body, because a
 //! signature or an attribute changes which code a call reaches. A line that
 //! was only deleted sits between two lines, and is inside a body only when
 //! both are.
@@ -421,8 +426,8 @@ pub(super) fn read(file: &Path) -> Option<Map> {
 
 /// Writes the map of this run to `file`: each test of `cases` with the
 /// functions it reached, each test the program still has and this run left
-/// out with its entry from the stored map, and every program file's hash. A
-/// write that fails is a warning, never a verdict.
+/// out with its entry from the stored map, and the hashes [`kept_hashes`]
+/// gives. A write that fails is a warning, never a verdict.
 pub(super) fn record(
     file: &Path,
     layout: &Layout,
@@ -444,18 +449,27 @@ pub(super) fn record(
         map.tests
             .insert(format!("{}::{}", case.class, case.method), labels);
     }
-    if let Some(stored) = read(file) {
-        let current: BTreeSet<String> = super::listing(checked, &super::Selection::default())
-            .into_iter()
-            .map(|test| format!("{}::{}", test.class, test.method))
-            .collect();
-        for (test, labels) in stored.tests {
-            if current.contains(&test) && !map.tests.contains_key(&test) {
-                map.tests.insert(test, labels);
+    let now = layout.hashes(checked);
+    map.hashes = match read(file) {
+        Some(stored) => {
+            let current: BTreeSet<String> = super::listing(checked, &super::Selection::default())
+                .into_iter()
+                .map(|test| format!("{}::{}", test.class, test.method))
+                .collect();
+            let mut unrun = Unrun::default();
+            for (test, labels) in stored.tests {
+                if current.contains(&test) && !map.tests.contains_key(&test) {
+                    if let Some((class, _)) = test.rsplit_once("::") {
+                        unrun.classes.insert(class.to_owned());
+                    }
+                    unrun.functions.extend(labels.iter().cloned());
+                    map.tests.insert(test, labels);
+                }
             }
+            kept_hashes(now, stored.hashes, &unrun)
         }
-    }
-    map.hashes = layout.hashes(checked);
+        None => now,
+    };
     let mut text = format!("{HEADER}\n");
     for (test, labels) in &map.tests {
         text.push_str(&format!("test {test}\n"));
@@ -484,6 +498,51 @@ pub(super) fn record(
     }
 }
 
+/// What the tests a run left out reached, by the stored map.
+#[derive(Default)]
+struct Unrun {
+    /// The class of each test the run left out.
+    classes: BTreeSet<String>,
+    /// Each function a test the run left out reached.
+    functions: BTreeSet<String>,
+}
+
+/// The hashes a run writes. Each hash a test the run left out depends on
+/// keeps its stored value, so a later `--since` run still sees that change
+/// and runs that test. A function any left-out test reached and a left-out
+/// test's class keep theirs. While any test was left out, every file keeps
+/// its stored hash, because a change outside a body reaches every test. Such
+/// a hash the stored map does not have is not written, so it counts as
+/// changed, and a stored one for what is gone stays, so it counts as missing.
+fn kept_hashes(now: Hashes, stored: Hashes, unrun: &Unrun) -> Hashes {
+    fn keep<K: Ord + Clone>(
+        now: BTreeMap<K, String>,
+        stored: &BTreeMap<K, String>,
+        left_out: impl Fn(&K) -> bool,
+    ) -> BTreeMap<K, String> {
+        let mut kept: BTreeMap<K, String> =
+            now.into_iter().filter(|(key, _)| !left_out(key)).collect();
+        // A stored hash a left-out test depends on stays, even for a function or file that is
+        // gone, so a later run still finds it missing.
+        for (key, old) in stored {
+            if left_out(key) {
+                kept.insert(key.clone(), old.clone());
+            }
+        }
+        kept
+    }
+    let any = !unrun.classes.is_empty();
+    Hashes {
+        files: keep(now.files, &stored.files, |_| any),
+        classes: keep(now.classes, &stored.classes, |label| {
+            unrun.classes.contains(label)
+        }),
+        functions: keep(now.functions, &stored.functions, |label| {
+            unrun.functions.contains(label)
+        }),
+    }
+}
+
 /// The tests `changed` can reach, by `map`. `folder` is the program's folder,
 /// canonical. `Err` is why every selected test runs, as a sentence's end.
 pub(super) fn select(
@@ -496,11 +555,25 @@ pub(super) fn select(
     let map = map.ok_or("no earlier run recorded which code each test reached")?;
     let mut pick = Pick::default();
     let mut functions: BTreeSet<&str> = BTreeSet::new();
+    if let Some(path) = changed.unresolved().next() {
+        return Err(format!(
+            "`{}` changed, and its path could not be resolved",
+            shown(path, folder)
+        ));
+    }
     for (path, lines) in changed.files() {
         let Some(id) = layout.file_of(path) else {
             let ours = path.starts_with(folder);
             let nvs = path.extension().is_some_and(|ext| ext == "nvs");
-            if ours && !nvs {
+            if !ours {
+                return Err(format!(
+                    "`{}` changed, and it is outside the program's folder",
+                    path.display()
+                ));
+            }
+            // A deleted program file is in the stored map. Its functions are missing below,
+            // and they select the tests that reached them.
+            if !nvs {
                 return Err(format!(
                     "`{}` changed, and it is not a `.nvs` file",
                     shown(path, folder)
@@ -598,6 +671,12 @@ pub(super) fn select(
     }
     for (label, hash) in &now.functions {
         if map.hashes.functions.get(label) != Some(hash) {
+            functions.insert(label);
+        }
+    }
+    // A function the map has and the program no longer has was deleted, with its file or alone.
+    for label in map.hashes.functions.keys() {
+        if !now.functions.contains_key(label) {
             functions.insert(label);
         }
     }

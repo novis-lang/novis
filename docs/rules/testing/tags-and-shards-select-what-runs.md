@@ -35,8 +35,10 @@ program file outside its test classes and bodies. A statement in an anonymous fu
 counts for the method it is written in. A coverage flag, `--mutate` and `--since` write the map, so a
 `--since` run has its coverage probes on. A run with none of them writes nothing and pays nothing.
 
-A method is changed when a changed line is in its body after the line of its `{`, or when its body's
-hash differs from the map's. A test runs when it reached a changed method, when a line of its own
+`--since` runs more tests when it cannot tell, never fewer. A method is changed when a changed line
+is in its body after the line of its `{`, when its body's hash differs from the map's, or when the map
+has it and the program does not, as for a deleted file or method. A rename is read as a delete and an
+add (`git diff --no-renames`). A test runs when it reached a changed method, when a line of its own
 method changed, or when the map does not name it. A changed line in a test class outside its tests,
 or a class hash that differs, runs every test of that class. **Every selected test runs**, and the
 run prints one line saying why, when:
@@ -47,7 +49,12 @@ run prints one line saying why, when:
   override changes which code a call reaches, on lines no test reached before;
 - a program file is not in the map, or its hash differs;
 - a file in the program's folder that is not a `.nvs` file changed or was deleted, such as `nvs.toml`
-  or a data file a test reads.
+  or a data file a test reads;
+- a file outside the program's folder that is not a program file changed, or a changed path could
+  not be resolved, such as a deleted file whose folder is gone.
+
+A run that left a test out keeps that test's entry, and the stored hash of each method, class and
+file it depends on, so a change it did not run against still selects it at the next run.
 
 A line that was only deleted sits between two lines, and is in a body only when both are. The hashes
 keep the map honest when it was written from a working tree that has changed since: an edit put back

@@ -11,12 +11,18 @@
 //! 2. `git rev-parse --verify --quiet --end-of-options <ref>^{commit}` judges
 //!    the ref, so a ref git does not know is its own error.
 //! 3. `git diff --no-ext-diff --no-color --no-textconv --no-relative
-//!    --unified=0 --src-prefix=a/ --dst-prefix=b/ --end-of-options <ref> --`
-//!    gives the added and modified lines of the working tree. The prefixes and
-//!    `--no-relative` are spelled out so a user's `diff.noprefix` or
-//!    `diff.relative` setting cannot move a path.
+//!    --no-renames --unified=0 --src-prefix=a/ --dst-prefix=b/
+//!    --end-of-options <ref> --` gives the added and modified lines of the
+//!    working tree. The prefixes and `--no-relative` are spelled out so a
+//!    user's `diff.noprefix` or `diff.relative` setting cannot move a path.
+//!    `--no-renames` makes a renamed file a deleted one and an added one, so
+//!    the old path is named too, whatever `diff.renames` says.
 //! 4. `git ls-files -z --others --exclude-standard --full-name` gives the
 //!    untracked files, and each counts as changed on every line.
+//!
+//! A changed path that has no canonical path, such as a deleted file whose
+//! folder is gone, is kept as unresolved, and the test selection runs every
+//! test for it.
 //!
 //! # A ref is never read as an option
 //!
@@ -42,6 +48,9 @@ use std::process::Command;
 #[derive(Debug, Default)]
 pub(crate) struct Changed {
     files: BTreeMap<PathBuf, Lines>,
+    /// Each changed path that has no canonical path, joined to the
+    /// checkout's root. A deleted file whose folder is gone is one.
+    unresolved: Vec<PathBuf>,
 }
 
 /// The changed lines of one file.
@@ -78,6 +87,11 @@ impl Changed {
         self.files
             .iter()
             .map(|(path, lines)| (path.as_path(), lines))
+    }
+
+    /// Every changed path that could not be resolved to a canonical path.
+    pub(crate) fn unresolved(&self) -> impl Iterator<Item = &Path> {
+        self.unresolved.iter().map(PathBuf::as_path)
     }
 }
 
@@ -122,6 +136,7 @@ pub(crate) fn changed(folder: &Path, reference: &str) -> Result<Changed, String>
             "--no-color",
             "--no-textconv",
             "--no-relative",
+            "--no-renames",
             "--unified=0",
             "--src-prefix=a/",
             "--dst-prefix=b/",
@@ -147,16 +162,20 @@ pub(crate) fn changed(folder: &Path, reference: &str) -> Result<Changed, String>
     for (path, hunk) in hunks(&String::from_utf8_lossy(&diff)) {
         let path = root.join(path);
         match hunk {
-            Some(Hunks { added, deleted }) => {
-                if let Ok(path) = std::fs::canonicalize(path) {
+            Some(Hunks { added, deleted }) => match std::fs::canonicalize(&path) {
+                Ok(path) => {
                     changed.files.insert(path, Lines::Ranges { added, deleted });
                 }
-            }
+                Err(_) => changed.unresolved.push(path),
+            },
             None => {
                 // A deleted file has no canonical path of its own, and its folder may still.
                 let folder = path.parent().and_then(|p| std::fs::canonicalize(p).ok());
-                if let (Some(folder), Some(name)) = (folder, path.file_name()) {
-                    changed.files.insert(folder.join(name), Lines::Gone);
+                match (folder, path.file_name()) {
+                    (Some(folder), Some(name)) => {
+                        changed.files.insert(folder.join(name), Lines::Gone);
+                    }
+                    _ => changed.unresolved.push(path),
                 }
             }
         }
@@ -166,8 +185,11 @@ pub(crate) fn changed(folder: &Path, reference: &str) -> Result<Changed, String>
         .filter(|path| !path.is_empty())
     {
         let path = root.join(String::from_utf8_lossy(path).as_ref());
-        if let Ok(path) = std::fs::canonicalize(path) {
-            changed.files.insert(path, Lines::Whole);
+        match std::fs::canonicalize(&path) {
+            Ok(path) => {
+                changed.files.insert(path, Lines::Whole);
+            }
+            Err(_) => changed.unresolved.push(path),
         }
     }
     Ok(changed)
