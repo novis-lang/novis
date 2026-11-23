@@ -248,4 +248,13 @@ Stage 1, its first item: the grammar's header rule.
 
 ### Backlog
 
-Nothing yet.
+Two items `review-hardening` left unreproduced, carried here from `csrf-cookieless-visitor` so they
+stay visible. Neither is this goal's work.
+
+- A release of the last reference to a suspended generator runs its `finally` bodies
+  (`crates/nvs-runtime/src/object.rs:5126`, `unwind_abandoned`). An `InstKind::Release` counts as no
+  program code (`rule:types/a-replaced-value-is-changed-in-place` § *What a quiet call is*), so a
+  lend may cross a release that runs a `finally` which writes the lent slot. Not reproduced.
+- A class constant's initializer, `public const int N = Framework\Base::LIMIT;`, is folded in the
+  signatures pass and records no `ExprInfo`, so a restricted constant there is probably not checked.
+  Not reproduced.

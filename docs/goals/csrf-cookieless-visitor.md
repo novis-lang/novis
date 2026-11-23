@@ -13,7 +13,7 @@ stages:
     status: done
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: cookieless-token
@@ -122,8 +122,8 @@ in the same request, for a presented identifier with no row, is refused on the n
 
 - [x] The newcomer review of [prose.md](../agent/prose.md) § *A newcomer reads it* over the texts
   stage 2 wrote.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
@@ -142,26 +142,22 @@ re-rendered. The twelve `Core\Session` benches went stale with `session.rs` and 
 constant); the rerun recorded `unclear`, as its two earlier records did, so it is noise.
 `proofs --gate` and `site --check stale changes review` are green.
 
+Stage 3 is done, and the goal is reached. The build, `cargo test --test csrf_cookieless` (4 passed),
+`cargo test --lib a_first_requests_token_passes_the_door_with_the_cookie_it_sent` (1 passed) and the
+conformance case `csrf-token-for-a-returning-visitor-sends-no-new-cookie` (`nvs test`, 1 passed) are
+green. The first `bun nv close` had two reds in the website stale guard. The token page's search
+questions were stale; one about a query-parameter link the page no longer shows became one about a
+new visitor's session data, and the page is stamped. The roadmap had no theme for
+`attribute-editor-support`; it now has a public theme, and `README.md` is rewritten from it. The
+second `close` is green. The gap record `csrf-token-makes-a-session-per-visitor` is gone from the tree.
+
 ### Next
 
-Stage 3: run a build and the goal's own tests by name (`cargo test --test csrf_cookieless`,
-`cargo test --lib a_first_requests_token_passes_the_door_with_the_cookie_it_sent`, and the conformance
-case `csrf-token-for-a-returning-visitor-sends-no-new-cookie`), then `bun nv close --goal
-csrf-cookieless-visitor` and fix each red it names. This goal is not the chain's full gate unless
-the pack says so. The newcomer review item is already ticked.
+Nothing: the goal is reached. The loop retires it and walks on to `attribute-editor-support`.
 
 Tests that may go red: none expected. `Core\Session::get`'s bench growth is borderline, so a later
 `--record-perf` may flag it again.
 
 ### Backlog
 
-Two items `review-hardening` left unreproduced, carried here so they stay visible. Neither is this
-goal's work.
-
-- A release of the last reference to a suspended generator runs its `finally` bodies
-  (`crates/nvs-runtime/src/object.rs:5126`, `unwind_abandoned`). An `InstKind::Release` counts as no
-  program code (`rule:types/a-replaced-value-is-changed-in-place` § *What a quiet call is*), so a
-  lend may cross a release that runs a `finally` which writes the lent slot. Not reproduced.
-- A class constant's initializer, `public const int N = Framework\Base::LIMIT;`, is folded in the
-  signatures pass and records no `ExprInfo`, so a restricted constant there is probably not checked.
-  Not reproduced.
+The two unreproduced `review-hardening` items moved to `attribute-editor-support`'s backlog.
