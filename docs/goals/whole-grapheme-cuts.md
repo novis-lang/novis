@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-ir/src/rereads.rs, crates/nvs-ir/src/lower/mod.rs, crates/nvs-ir/src/ir.rs, crates/nvs-diagnostics/src/code/warnings.rs, crates/nvs-cli/src/main.rs, crates/nvs-lsp/src/document.rs]
   - id: 4
     title: "the rules, the examples, the proofs and the website"
-    status: open
+    status: done
     context: [docs/agent/prose.md, docs/rules/types.md, website/src/data/changes.json]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -279,76 +279,74 @@ and pays every proof the goal owes.
 fragments are written, with [prose.md](../agent/prose.md) in its brief. The session writes the rules and
 the change entries.
 
-- [ ] `docs/rules/types.md:529` `rule:types/string-is-utf8` (its fragment under `docs/rules/types/`):
+- [x] `docs/rules/types.md:529` `rule:types/string-is-utf8` (its fragment under `docs/rules/types/`):
   every `Core\Str` member that matches or cuts does so at grapheme boundaries, and the trim set is read
   per *Standing decisions*. The six members and `lines`' exception are named.
-- [ ] A new fragment under `docs/rules/expressions/` for `W1036`: the shapes, the fix rule, the measured
+- [x] A new fragment under `docs/rules/expressions/` for `W1036`: the shapes, the fix rule, the measured
   counts of stage 2, and a Declined list: "a fix for every shape" (it would pick a variable name) and
   "a row of the cheaper-forms table" (its reason is not speed). Cite it from `hand_cuts.rs`. Then
   `bun nv rules --render`.
-- [ ] `docs/rules/core-api/symmetric-names.md:2`: add `afterPrefix`/`beforeSuffix`.
-- [ ] `docs/examples/core/Str/startsWith/about.md`, `endsWith/about.md`, `replaceAll/about.md` and
+- [x] `docs/rules/core-api/symmetric-names.md:2`: add `afterPrefix`/`beforeSuffix`.
+- [x] `docs/examples/core/Str/startsWith/about.md`, `endsWith/about.md`, `replaceAll/about.md` and
   `trim/about.md` (with `trimStart` and `trimEnd` if they have their own) say in one sentence that a
   match never splits a character, with an example where it shows.
-- [ ] `website/src/data/changes.json`: `new` for `Core\Str::afterPrefix` and `Core\Str::beforeSuffix`;
+- [x] `website/src/data/changes.json`: `new` for `Core\Str::afterPrefix` and `Core\Str::beforeSuffix`;
   `fixed`, `breaking: true` for `Core\Str::startsWith`, `endsWith`, `replaceAll`, `trim`, `trimStart`
   and `trimEnd`, with an `instead`; `new` for the `W1036` warning. Every page `bun nv site --check stale`
   names is reread and stamped (`bun nv site --stamp`).
-- [ ] `bun nv proofs --owed --goal whole-grapheme-cuts` names nothing.
+- [x] `bun nv proofs --owed --goal whole-grapheme-cuts` names nothing.
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of the change entries, the two new `about.md` files and the `W1036` card
+- [x] The newcomer review of the change entries, the two new `about.md` files and the `W1036` card
   ([prose.md](../agent/prose.md) § *A newcomer reads it*).
 - [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
-
 ## Handoff
 
 ### State
 
-Stages 1, 2 and 3 are done. `W1036` is `code::W_HAND_CUT`
-(`crates/nvs-diagnostics/src/code/warnings.rs:381`), raised by `crates/nvs-ir/src/hand_cuts.rs` from
-`Program::hand_cuts`, beside `W1035` in `nvs check` (`crates/nvs-cli/src/main.rs:1523`) and the editor
-(`crates/nvs-lsp/src/document.rs:1407`). It reuses `rereads.rs`'s walkers (`blocks_of`,
-`stmt_parts`, `children`, `plain`, now `pub(crate)`). Its three tests are in
-`crates/nvs-ir/src/lower/tests.rs` beside the `W1035` test, not in `hand_cuts.rs`, because the
-lowering fixture `lower_whole_file_with_src` is private to `lower::tests`. Their names start with
-`hand_cuts_`, so the check `warning` (`cargo test --lib hand_cuts`) runs them, and it is green. The fix
-test applies the fix and lowers the result again, so the fixed text is known to compile.
+Stages 1 to 4 are done. Stage 4 landed in four commits:
 
-The tree's cuts moved to `afterPrefix` (commit `bc419e2aaa`): the registry app, the image and
-spreadsheet extensions, five examples and two attacks. Each changed example and attack prints what it
-printed before (`bun nv proofs --run --id` per feature, and a before/after diff of each attack).
-`afterPrefix.twin.nvs` keeps its warning on purpose (*Standing decisions*). `Feeds.nvs:62` stays: it
-cuts a longer prefix than it tests. Per op, the twin is 9.00 statements and 2.00 calls, and
-`afterPrefix` is 6.00 statements and 1.00 calls, with the same 0.50 allocations and 24.75 bytes
-(`nvs run --count`; the ledger's twin ratio is 1.29x). Stage 4's `W1036` fragment states these.
+- The rules (`6b0b504ae7`). `docs/rules/types/string-is-utf8.md` names the six members, the trim set,
+  the `
+` pair and what it does not cover. The new
+  `rule:expressions/a-prefix-or-suffix-cut-written-by-hand-warns` states `W1036`'s shapes, its fix,
+  the twin, the counts and its Declined list. `hand_cuts.rs` and `W_HAND_CUT` cite it.
+  `rule:core-api/symmetric-names` lists `before`/`after` and `afterPrefix`/`beforeSuffix`.
+- The pages, the help and the change entries (`48b391c95b`). The help of `startsWith`, `endsWith`
+  and `replaceAll` has one sentence on whole characters (`crates/nvs-stdlib/src/str.rs:793`).
+  W1036's entry names `tools:editor/nvs-lsp` alone: `site --check changes` rejects
+  `tools:cli/nvs-check`, whose behaviour has not moved since v0.0.5. Fifteen `unseen` records cover
+  the spreadsheet, `Csv::format` and `Str::contains` tests, which only name the `
+` pair or a
+  tainted message.
+- The new pages' questions (`ad661626e2`), and the review of 16 texts, fixed (`127cd0ee88`).
+- The perf of every `Core\Str` member (`ef4aa5c400`). `replaceAll` failed the sweep as growing
+  (clock slope 1.58) and recorded flat alone, as the playbook's load bullet says.
 
-The acceptance sweep's nightly CI jobs (`unsafe audit` and `miri units (nvs-stdlib 1/12 … 12/12)`)
-were `cancelled` because a push started a newer CI run (`45170425507`) 24 minutes in. They did not fail.
-That push run's one red, `docs`, was a stale `docs/rules/tooling.md`, and `bun nv rules --render
---check` is green at this tree. No test is expected red.
+`bun nv proofs --gate --goal whole-grapheme-cuts` is green. So are `site --check stale`, `changes`,
+`review` and `questions`, `rules --check` and `render --check`. The nightly CI jobs the sweep named were
+`cancelled` by a newer push run, and none of them failed. No test is expected red.
 
 ### Next
 
-Stage 4, split as its `**Split:**` line says. The session writes the rules and change entries.
+Stage 5 closes the goal. The goal is not the chain's full gate, so the close is the build, clippy and
+the goal's own tests by name.
 
-- [ ] `docs/rules/types/string-is-utf8.md:1`: the six members match and cut on grapheme
-  boundaries, the trim set rule, `lines`' exception.
-- [ ] `docs/rules/expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named.md:1` is the
-  neighbour: a new fragment beside it for `W1036`, cited from `crates/nvs-ir/src/hand_cuts.rs:1`
-  (which cites the cheaper-forms rule now). State the shapes, the
-  `&&`/`||` widening and the twin's warning from *Standing decisions*, the counts above, and the
-  Declined list. Then `bun nv rules --render`.
-- [ ] `docs/rules/core-api/symmetric-names.md:2`: `afterPrefix`/`beforeSuffix`.
-- [ ] `docs/examples/core/Str/startsWith/about.md:1` and the `endsWith`, `replaceAll` and `trim`
-  pages beside it: the four rewrites go to one writing subagent with `docs/agent/prose.md` in its brief.
-- [ ] `website/src/data/changes.json:1` entries, then `bun nv site --check stale`, reread and
-  `bun nv site --stamp`. Then `bun nv proofs --owed --goal whole-grapheme-cuts`.
+- [ ] `crates/nvs-stdlib/src/str.rs:1`: `cargo clippy --all-targets -- -D warnings`, then the
+  acceptance checks by name: `boundaries`, `boundaries-conformance`, `members`,
+  `members-conformance`, `warning` and `proofs` (`looper check --name <text>`).
+- [ ] `docs/goals/whole-grapheme-cuts.md:1`: `bun nv close --goal whole-grapheme-cuts`, and fix each
+  red. Move any decision only this file holds into a rule first. Every *Standing decision* is now
+  in `rule:types/string-is-utf8`, the W1036 rule or `hand_cuts.rs`. Then delete the file and run
+  `bun nv relink --build`.
 
 ### Backlog
 
 - `W1036` could also name `Str::slice(S, N)` after `startsWith(S, P)` where the literal `N` is **not**
   the prefix's length: that is a bug, not a style point (`docs/rules/expressions/`).
 - `Core\Regex` could offer a grapheme mode (`\X` or a flag) for patterns that must not split one.
+- The help cards of the three trims say "code points" without defining it, as the review found.
+  It is a term programmers know. A fix edits `str.rs`, which makes every `Core\Str` perf figure
+  stale again, so it waits for the next goal that edits that file.
