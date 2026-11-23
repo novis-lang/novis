@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/actions.rs, crates/nvs-lsp/src/generate.rs, crates/nvs-types/src/attributes.rs]
   - id: 6
     title: "the feature's proofs, pages and change entries"
-    status: open
+    status: done
   - id: 7
     title: "the goal is verified once, and every failure is fixed"
     status: open
@@ -130,6 +130,14 @@ first, as every generator's is.
 **No quick fix adds a missing required field.** The value is not determined, so the rule above does not
 allow writing one. Key completion and signature help show what is missing.
 
+**The change entries name `tools:editor/nvs-lsp`.** `site --check changes` accepts an entry only for
+a feature whose `covers:`-marked tests moved, and it reads markers in `.nvst` cases and Rust tests
+alone. The grammar and Explorer-letter tests are TypeScript, and the `.lspt` cases carry no marker,
+so `tools:editor/the-vs-code-extension` and `tools:cli/nvs-code` did not move. The server sends the
+`attribute` file kind, the field tokens and the member order, so `nvs-lsp` is a true owner of every
+entry. Teaching the proofs tool to read TypeScript markers would change what counts as a Rust proof,
+a wider change than this goal.
+
 **Lanes.** Stages 1 and 2 touch disjoint files and may run as side goals. Stages 3, 4 and 5 all edit
 `crates/nvs-lsp/src/completion.rs` or `server.rs` and run in order. Stage 6 follows them all.
 
@@ -225,13 +233,13 @@ allow writing one. Key completion and signature help show what is missing.
 
 **Does:** pays what the change owes the website.
 
-- [ ] `website/src/content/docs/tools/editor/index.mdx` names the `A` badge, the outline and folding of a
+- [x] `website/src/content/docs/tools/editor/index.mdx` names the `A` badge, the outline and folding of a
   declaration, the keyword completion, signature help in `#[Name(` and the quick fix. Reread and
   stamped with `bun nv site --stamp`.
-- [ ] `website/src/data/changes.json` entries: `new` for the badge, the quick fix and signature help;
+- [x] `website/src/data/changes.json` entries: `new` for the badge, the quick fix and signature help;
   `changed` for colouring, the outline, folding, completion, field navigation and member order. The
   member-order entry says that `nvs code order` now moves a class-scoped declaration to the top.
-- [ ] `bun nv proofs --owed --goal attribute-editor-support` names nothing, and
+- [x] `bun nv proofs --owed --goal attribute-editor-support` names nothing, and
   `bun nv site --check stale changes review` is green.
 
 ### 7. the goal is verified once, and every failure is fixed
@@ -245,29 +253,30 @@ allow writing one. Key completion and signature help show what is missing.
 
 ### State
 
-Stages 1 to 5 are done. Stage 5 built signature help in `#[Name(` (`attribute_decls.rs`
-`signature_help`, reached from `hover::help_at` when no call is at the cursor) and *Declare the
-attribute* (`generate.rs` `declare_attribute`) on `E0303`. The `.lspt` suite gained a
-`signatureHelp` request, with cases under `tests/lsp/signature/`, and three action cases are
-`tests/lsp/actions/an-undeclared-attribute-*`. All ran by name and are green.
+Stages 1 to 6 are done. Stage 6 added `## Attribute declarations` to
+`website/src/content/docs/tools/editor/index.mdx` (after *Quick fixes and generated code*) and eight
+entries at the top of `website/src/data/changes.json`, all naming `tools:editor/nvs-lsp` (see the
+standing decision *The change entries name `tools:editor/nvs-lsp`*). To move that feature's
+behaviour hash, `crates/nvs-lsp/tests/completion_edits.rs`
+`an_attribute_declaration_word_writes_the_whole_declaration` now carries `// covers:
+tools:editor/nvs-lsp`. Its `about.md` and help card were reread, still true, and restamped. The
+page and `changes.json` got the newcomer review and are stamped in `data/proofs/reviewed.json`.
+`bun nv proofs --gate --goal attribute-editor-support`, `bun nv site --check stale changes review
+prose` and `cargo build` are green.
 
 Stage 4 left field navigation with its safe default: a read on a retrieval's result is not linked,
 so rename refuses where an indexed file writes `->field` the index holds no use for.
 
 Possibly red at the gate: the `.lspt` coverage matrix, which has a new `signatureHelp` row; a
 `lens/` or workspace-symbol case over a file with an attribute declaration, since each field is now
-a declaration (a grep found none).
-
-Stage 6 owes the editor page and `changes.json` entries for the colours, the badge, the outline,
-the order, the keyword completion, field navigation, signature help and the quick fix. The
-uncommitted `docs/rules/tooling.md` hunk is not this goal's.
+a declaration (a grep found none). The uncommitted `docs/rules/tooling.md` hunk is not this goal's.
 
 ### Next
 
-Stage 6, its first item: `website/src/content/docs/tools/editor/index.mdx`, then the
-`website/src/data/changes.json` entries, then `bun nv proofs --owed --goal attribute-editor-support`
-and `bun nv site --check stale changes review`. Every text there follows AGENTS.md § *Text an end
-user reads*.
+Stage 7: the newcomer review of the stage 6 texts is done and stamped, so tick it after a reread
+of `index.mdx` § *Attribute declarations*. Then run the check the pack names (a close: build,
+clippy, this goal's tests by name, `bun nv close --goal attribute-editor-support`; a full gate:
+`looper verify`).
 
 ### Backlog
 
