@@ -1010,24 +1010,32 @@ mod tests {
         assert!(set(&mut request, "cpu_time", "10s"), "lowering is allowed");
     }
 
-    /// The `set` page's table and the card's list of blocks follow
-    /// `nvs_config::settable::SETTABLE`. The table names every listed key and
-    /// no other, and the card names every block a listed key is in, so
-    /// neither text drifts from the list `set` reads.
+    /// The `set` page's list and the card's list of blocks follow
+    /// `nvs_config::settable::SETTABLE`. Each line of the page's list is
+    /// `` - `[block]`: `leaf`, `leaf` ``, and together the lines name every
+    /// listed key and no other. The card names every block a listed key is
+    /// in. So neither text drifts from the list `set` reads.
     // covers: Core\Config::set
     #[test]
     fn the_set_page_and_card_name_every_settable_key() {
         let page = include_str!("../../../docs/examples/core/Config/set/about.md");
-        let table: std::collections::BTreeSet<&str> = page
-            .lines()
-            .filter_map(|line| line.strip_prefix("| `"))
-            .filter_map(|rest| rest.split_once('`').map(|(key, _)| key))
-            .collect();
-        let listed: std::collections::BTreeSet<&str> = nvs_config::settable::SETTABLE
+        let mut on_page = std::collections::BTreeSet::new();
+        for line in page.lines() {
+            let Some((block, leaves)) = line
+                .strip_prefix("- `[")
+                .and_then(|rest| rest.split_once("]`: "))
+            else {
+                continue;
+            };
+            for leaf in leaves.split(", ") {
+                on_page.insert(format!("{block}.{}", leaf.trim_matches('`')));
+            }
+        }
+        let listed: std::collections::BTreeSet<String> = nvs_config::settable::SETTABLE
             .iter()
-            .map(|row| row.key)
+            .map(|row| row.key.to_owned())
             .collect();
-        assert_eq!(table, listed, "the `set` page's table is not SETTABLE");
+        assert_eq!(on_page, listed, "the `set` page's list is not SETTABLE");
 
         let name = super::SET_DOC.params[0].desc;
         for row in nvs_config::settable::SETTABLE {

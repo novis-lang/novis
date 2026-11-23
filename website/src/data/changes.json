@@ -3,6 +3,85 @@
     {
       "kind": "changed",
       "features": [
+        "Core\\Config::set",
+        "Core\\Config::restore"
+      ],
+      "text": "`Core\\Config::set` changes only the settings on one list, and the page of `Core\\Config::set` shows the list. A name you write in the call that is not on the list gives the error `E0667`. A template string that no name on the list fits gives the warning `W1037`.",
+      "breaking": true,
+      "instead": "Remove a call that sets a name not on the list. It returned `false` and changed nothing.",
+      "security": true
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:config/reading-and-changing-it-from-a-program-core-config",
+        "directive:app",
+        "directive:cache.memory",
+        "directive:cache.shared",
+        "directive:capabilities",
+        "directive:debug.index_age",
+        "directive:debug.index_max",
+        "directive:debug.inline",
+        "directive:debug.keep_temporary",
+        "directive:debug.spool_max",
+        "directive:debug.store",
+        "directive:deferred.deadline",
+        "directive:deferred.max_concurrent",
+        "directive:extension",
+        "directive:http",
+        "directive:http.client.pool_idle",
+        "directive:http.client.pool_idle_timeout",
+        "directive:http.client.proxy",
+        "directive:http.client.socket",
+        "directive:http.client.tls",
+        "directive:http.csrf_key",
+        "directive:http.csrf_key_file",
+        "directive:include",
+        "directive:io.temp_root",
+        "directive:limits",
+        "directive:limits.fatal_reserve_memory",
+        "directive:limits.fatal_reserve_time",
+        "directive:limits.hard",
+        "directive:limits.max_decompressed",
+        "directive:limits.max_decompression_ratio",
+        "directive:limits.max_script_depth",
+        "directive:limits.memory_high_water",
+        "directive:log",
+        "directive:log.client_ip",
+        "directive:log.handler",
+        "directive:log.handler_reserve_memory",
+        "directive:log.handler_reserve_time",
+        "directive:log.keep",
+        "directive:log.max_size",
+        "directive:log.target",
+        "directive:metrics",
+        "directive:mode.ceiling",
+        "directive:mode.default",
+        "directive:opcache",
+        "directive:opcache.file_cache_dir",
+        "directive:trace"
+      ],
+      "text": "The page of each setting says whether a request may change it with `Core\\Config::set`. A page for a block lists the settings in it that a request may change."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:packages/grants-what-each-namespace-may-do"
+      ],
+      "text": "In a package, a name you write in `Core\\Config::set` or `Core\\Config::restore` that is not in `[limits]` gives the error `E0667`.",
+      "breaking": true,
+      "instead": "Remove the call. In a package, it returned `false` and changed nothing."
+    },
+    {
+      "kind": "new",
+      "features": [
+        "tools:editor/nvs-lsp"
+      ],
+      "text": "Inside the name you pass to `Core\\Config::set` or `Core\\Config::restore`, the editor lists the settings a request may change. The hover on a name says how a request may change that setting."
+    },
+    {
+      "kind": "changed",
+      "features": [
         "tools:editor/nvs-lsp"
       ],
       "text": "After an edit, the editor checks fewer files again. A change inside a method body or a comment checks only the file you edit. A change to a `public` method checks the files that call it and the subclasses, and a `private` method only the subclasses."

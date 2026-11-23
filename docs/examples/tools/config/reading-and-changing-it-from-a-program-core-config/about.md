@@ -10,7 +10,7 @@ with no default, a table or a list.
 it. `set` never throws. It returns `false` and changes nothing when the change is not allowed.
 `restore` removes the change for one name. `all` returns every value, sorted by name.
 
-`set` changes only the settings in the table on the page of `Core\Config::set`. Only the file sets
+`set` changes only the settings in the list on the page of `Core\Config::set`. Only the file sets
 every other setting. A name you write in the call that `set` may never change does not compile.
 
 **Good to know:** a program may raise a limit up to its ceiling in `[limits.hard]`. Without a
