@@ -2360,6 +2360,50 @@ pub(crate) fn check_encode_sites(
     }
 }
 
+/// Records in `output`'s uses every class its codec sites reach, as a use of
+/// the class and of each of its properties, private ones included
+/// (`nvs_hir::uses`). A derived codec reads every property of the class and
+/// of its ancestors, and the class of each property's type in turn, so an
+/// edit to any of them reaches the file that wrote the site.
+///
+/// Called once per walked file of a partial check. It costs one walk of the
+/// classes the sites reach, each visited once.
+pub(crate) fn record_codec_uses(
+    output: &mut crate::FileOutput,
+    signatures: &crate::signatures::SignatureTable,
+    graph: &nvs_hir::ClassGraph,
+    interner: &crate::ty::TypeInterner,
+) {
+    let mut queue: Vec<QName> = Vec::new();
+    queue.extend(output.row_sites.iter().map(|site| site.class.clone()));
+    queue.extend(output.json_sites.iter().map(|site| site.class.clone()));
+    queue.extend(output.decode_sites.iter().map(|site| site.class.clone()));
+    for site in &output.encode_sites {
+        classes_reached(site.ty, interner, &mut queue);
+    }
+    for site in &output.codec_sites {
+        classes_reached(site.declared, interner, &mut queue);
+    }
+    let mut seen = rustc_hash::FxHashSet::default();
+    while let Some(class) = queue.pop() {
+        if class.is_core() || !seen.insert(class.clone()) {
+            continue;
+        }
+        let mut chain = crate::test_inherit::ancestors(&class, graph);
+        chain.push(class);
+        for class in chain {
+            output.uses.class(&class);
+            let Some(sig) = signatures.declared(&class) else {
+                continue;
+            };
+            for (name, ty) in &sig.properties {
+                output.uses.member(&class, &format!("${name}"));
+                classes_reached(*ty, interner, &mut queue);
+            }
+        }
+    }
+}
+
 /// Every class label a value of `ty` can hold: the class itself, an array's
 /// elements, a shape's fields, and each arm of a union, at any depth. The
 /// decode checks and the encode check walk a type with this one function, so

@@ -144,7 +144,8 @@ impl ConstTable {
         name: &str,
         graph: &nvs_hir::ClassGraph,
     ) -> Option<&ConstValue> {
-        self.lookup(qname, name, graph).map(|entry| &entry.value)
+        self.lookup(qname, name, graph)
+            .map(|(_, entry)| &entry.value)
     }
 
     /// Whether `qname::name`'s own declaration annotates it with `rule:security/secret-qualifier`
@@ -155,7 +156,19 @@ impl ConstTable {
     #[must_use]
     pub fn is_secret(&self, qname: &QName, name: &str, graph: &nvs_hir::ClassGraph) -> bool {
         self.lookup(qname, name, graph)
-            .is_some_and(|entry| entry.secret)
+            .is_some_and(|(_, entry)| entry.secret)
+    }
+
+    /// The class whose declaration `qname::name` means: `qname` or the
+    /// ancestor [`Self::get`] finds it on.
+    #[must_use]
+    pub fn declaring(
+        &self,
+        qname: &QName,
+        name: &str,
+        graph: &nvs_hir::ClassGraph,
+    ) -> Option<&QName> {
+        self.lookup(qname, name, graph).map(|(class, _)| class)
     }
 
     /// The one ancestor walk both public questions are asked through, so they
@@ -165,7 +178,7 @@ impl ConstTable {
         qname: &QName,
         name: &str,
         graph: &nvs_hir::ClassGraph,
-    ) -> Option<&ConstEntry> {
+    ) -> Option<(&QName, &ConstEntry)> {
         // Bounded by the same depth `crate::lower` bounds an `array<...>` at,
         // for the same reason: a cyclic `extends` is `nvs_hir::hierarchy`'s
         // diagnostic, and this walk must terminate whether or not it fired.
@@ -173,8 +186,10 @@ impl ConstTable {
         for _ in 0..MAX_ANCESTOR_DEPTH {
             let mut next = Vec::new();
             for class in &frontier {
-                if let Some(entry) = self.by_class.get(class).and_then(|m| m.get(name)) {
-                    return Some(entry);
+                if let Some((class, entries)) = self.by_class.get_key_value(class)
+                    && let Some(entry) = entries.get(name)
+                {
+                    return Some((class, entry));
                 }
                 if let Some(links) = graph.get(class) {
                     next.extend(links.extends.iter().cloned());

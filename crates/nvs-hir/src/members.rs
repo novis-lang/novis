@@ -418,6 +418,28 @@ impl<'a> MemberResolver<'a> {
         strict_docs: bool,
         diags: &mut Diagnostics,
     ) {
+        self.check_recording(
+            stmts,
+            src,
+            (symbols, graph),
+            strict_docs,
+            &mut crate::uses::Uses::off(),
+            diags,
+        );
+    }
+
+    /// [`Self::check`], recording into `uses` each class, member and doc
+    /// tag target the file names, and each one it failed to find
+    /// (`crate::uses`).
+    pub fn check_recording(
+        &self,
+        stmts: &[Stmt],
+        src: &SourceFile,
+        (symbols, graph): (&SymbolTable, &ClassGraph),
+        strict_docs: bool,
+        uses: &mut crate::uses::Uses,
+        diags: &mut Diagnostics,
+    ) {
         let mut env = Env {
             symbols,
             graph,
@@ -428,6 +450,7 @@ impl<'a> MemberResolver<'a> {
             fn_self: None,
             strict_docs,
             links: &self.links,
+            uses,
             diags,
         };
         check_stmts(stmts, src, None, &[], &FxHashMap::default(), &mut env);
@@ -477,6 +500,8 @@ struct Env<'a> {
     /// above it. False everywhere but `nvs check --strict-docs`, which is what
     /// makes the language silent about documentation by default.
     strict_docs: bool,
+    /// What the file found and failed to find (`crate::uses`).
+    uses: &'a mut crate::uses::Uses,
     diags: &'a mut Diagnostics,
 }
 
@@ -1044,8 +1069,14 @@ fn check_throws(
     } else if resolved.is_core() {
         Some(resolved)
     } else {
+        env.uses.missed_class(&resolved);
         None
     };
+    if let Some(class) = &class
+        && env.symbols.contains(class)
+    {
+        env.uses.class(class);
+    }
     let throwable = QName::parse(crate::errors::ROOT);
     let is_throwable = class.as_ref().is_some_and(|class| {
         env.graph.get(class).is_none() && class.is_core()
@@ -1246,6 +1277,11 @@ fn check_see(tag: &DocTag, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             .and_then(|links| links.extends.first().cloned()),
         _ => {
             let resolved = resolve_ref(class_text, ctx.namespace, ctx.imports);
+            if env.symbols.contains(&resolved) {
+                env.uses.class(&resolved);
+            } else if !resolved.is_core() {
+                env.uses.missed_class(&resolved);
+            }
             (resolved.is_core() || env.symbols.contains(&resolved)).then_some(resolved)
         }
     };
@@ -1274,14 +1310,17 @@ fn check_see(tag: &DocTag, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         );
         return;
     }
-    let found = [
+    let kinds = [
         MemberKind::Method,
         MemberKind::Const,
         MemberKind::StaticProp,
         MemberKind::Prop,
-    ]
-    .into_iter()
-    .any(|kind| member_declared(&class, member, kind, env.table, env.graph));
+    ];
+    let found = kinds
+        .into_iter()
+        .any(|kind| record_member(&class, member, kind, env));
+    // A miss is recorded for each kind tried, so a property or a method of
+    // this name added later reaches the file.
     if !found {
         env.diags.report(
             Diagnostic::error(
@@ -1667,7 +1706,10 @@ fn links_root_target(
         );
         return true;
     }
-    if !target.methods.iter().any(|method| method == name) {
+    if target.methods.iter().any(|method| method == name) {
+        env.uses.member(&qname, name);
+    } else {
+        env.uses.missed_member(Some(&qname), name);
         env.diags.report(
             Diagnostic::error(
                 code::E_UNDEFINED_MEMBER,
@@ -2105,8 +2147,10 @@ fn check_member_ref(
                 return;
             }
             if let Some(key) = crate::resolve::owned_enum(&owner, member, env.symbols) {
+                env.uses.class(&key);
                 Some(key)
             } else {
+                env.uses.missed_member(Some(&owner), member);
                 report_missing_owned_enum(&owner, member, class_expr.span, env);
                 None
             }
@@ -2117,7 +2161,7 @@ fn check_member_ref(
     let Some(qname) = qname else {
         return;
     };
-    if member_declared(&qname, name, kind, env.table, env.graph) {
+    if record_member(&qname, name, kind, env) {
         return;
     }
     let mut diag = Diagnostic::error(
@@ -2143,12 +2187,18 @@ fn resolve_class_name(
 ) -> Option<QName> {
     let text = name_text(src, class_name);
     if let Some(key) = crate::resolve::owned_enum_in_scope(text, ctx.current_class, env.symbols) {
+        env.uses.class(&key);
         return Some(key);
     }
     let resolved = resolve_ref(text, ctx.namespace, ctx.imports);
-    if resolved.is_core() || env.symbols.contains(&resolved) {
+    if env.symbols.contains(&resolved) {
+        env.uses.class(&resolved);
         return Some(resolved);
     }
+    if resolved.is_core() {
+        return Some(resolved);
+    }
+    env.uses.missed_class(&resolved);
     if let Some(diagnostic) = crate::hierarchy::undeclared_name(
         crate::hierarchy::Undeclared {
             qname: &resolved,
@@ -2225,7 +2275,7 @@ fn check_property_ref(name: &str, span: Span, ctx: &Ctx<'_>, env: &mut Env<'_>) 
     let Some(current) = ctx.current_class else {
         return;
     };
-    if member_declared(current, name, MemberKind::Prop, env.table, env.graph) {
+    if record_member(current, name, MemberKind::Prop, env) {
         return;
     }
     env.diags.report(
@@ -2237,30 +2287,52 @@ fn check_property_ref(name: &str, span: Span, ctx: &Ctx<'_>, env: &mut Env<'_>) 
     );
 }
 
-pub(crate) fn member_declared(
-    qname: &QName,
+/// Looks `name` up on `qname` with [`member_declared`], and records the
+/// member it found, or the miss, into the file's uses (`crate::uses`). A
+/// member of a `Core` class records nothing: no edit to the program changes it.
+fn record_member(qname: &QName, name: &str, kind: MemberKind, env: &mut Env<'_>) -> bool {
+    let owner = member_declared(qname, name, kind, env.table, env.graph);
+    if env.uses.is_on() {
+        let written = match kind {
+            MemberKind::StaticProp | MemberKind::Prop => format!("${name}"),
+            MemberKind::Method | MemberKind::Const => name.to_owned(),
+        };
+        match owner {
+            Some(owner) if owner.is_core() => {}
+            Some(owner) => env.uses.member_through(qname, owner, &written),
+            None => env.uses.missed_member(Some(qname), &written),
+        }
+    }
+    owner.is_some()
+}
+
+/// The class that declares `qname`'s member `name`: `qname` itself or the
+/// first ancestor that does, or `qname` when it is a `Core` class, whose
+/// members are trusted. `None` when no class in the chain declares it.
+pub(crate) fn member_declared<'a>(
+    qname: &'a QName,
     name: &str,
     kind: MemberKind,
     table: &MemberTable,
-    graph: &ClassGraph,
-) -> bool {
+    graph: &'a ClassGraph,
+) -> Option<&'a QName> {
     let mut seen = FxHashSet::default();
     member_declared_rec(qname, name, kind, table, graph, &mut seen)
 }
 
-fn member_declared_rec(
-    qname: &QName,
+fn member_declared_rec<'a>(
+    qname: &'a QName,
     name: &str,
     kind: MemberKind,
     table: &MemberTable,
-    graph: &ClassGraph,
+    graph: &'a ClassGraph,
     seen: &mut FxHashSet<QName>,
-) -> bool {
+) -> Option<&'a QName> {
     if qname.is_core() {
-        return true;
+        return Some(qname);
     }
     if !seen.insert(qname.clone()) {
-        return false;
+        return None;
     }
     if let Some(members) = table.get(qname) {
         let found = match kind {
@@ -2270,17 +2342,15 @@ fn member_declared_rec(
             MemberKind::Prop => members.props.contains(name),
         };
         if found {
-            return true;
+            return Some(qname);
         }
     }
-    let Some(links) = graph.get(qname) else {
-        return false;
-    };
+    let links = graph.get(qname)?;
     links
         .extends
         .iter()
         .chain(links.implements.iter())
-        .any(|parent| member_declared_rec(parent, name, kind, table, graph, seen))
+        .find_map(|parent| member_declared_rec(parent, name, kind, table, graph, seen))
 }
 
 /// The member `name` was probably meant to be, or `None` when nothing

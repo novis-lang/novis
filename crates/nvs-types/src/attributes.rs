@@ -402,6 +402,39 @@ pub(crate) enum Lookup<'e> {
     Reported,
 }
 
+/// Records what an attribute name `text`, resolved to `qname`, found and failed
+/// to find (`nvs_hir::uses`). A short name inside a class body is looked up on
+/// the class and its ancestors first, so it is a miss on that class unless an
+/// ancestor declares it: an attribute added there later is found first.
+fn record_attribute_lookup(
+    qname: &nvs_hir::QName,
+    text: &str,
+    owned: Option<&nvs_hir::AttributeDef>,
+    scoped: bool,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if !env.uses.is_on() {
+        return;
+    }
+    if let Some(def) = owned {
+        env.uses.class(&def.name);
+    }
+    if let Some(class) = ctx.current_class.filter(|_| !text.contains('\\'))
+        && owned.is_none_or(|def| def.owner.as_ref() != Some(class))
+    {
+        env.uses.missed_member(Some(class), text);
+    }
+    if owned.is_some() || qname.is_core() {
+        return;
+    }
+    if scoped || env.symbols.contains(qname) || env.aliases.get(qname).is_some() {
+        env.uses.class(qname);
+    } else {
+        env.uses.missed_class(qname);
+    }
+}
+
 /// Resolves the name `name`, or `name::member` when `member` is written, to the
 /// declaration it names. See this module's docs for the two scopes. An
 /// undeclared name and a name two scopes give are reported here. What is
@@ -418,10 +451,13 @@ pub(crate) fn lookup<'e>(
     if let Some(member) = member {
         let owner = nvs_hir::resolve_ref(&text, ctx.namespace, ctx.imports);
         let short = span_text(env.src, member);
-        if let Some(def) = aliases.attribute(&nvs_hir::QName::member(&owner, short)) {
+        let declared = nvs_hir::QName::member(&owner, short);
+        if let Some(def) = aliases.attribute(&declared) {
+            env.uses.class(&declared);
             return Lookup::Declared(def);
         }
         if aliases.get_member(&owner, short).is_some() {
+            env.uses.class(&declared);
             return Lookup::NotAnAttribute("a `type` alias");
         }
         // The type position's lowering reports an owner or a member that
@@ -451,6 +487,7 @@ pub(crate) fn lookup<'e>(
                 aliases.attribute(&nvs_hir::QName::member(ancestor, &text))
             })
         });
+    record_attribute_lookup(&qname, &text, owned, scoped.is_some(), ctx, env);
     match (owned, scoped.is_some() || recognized.is_some()) {
         (Some(owned), true) => {
             report_two_scopes(name.span, owned, &qname, env);

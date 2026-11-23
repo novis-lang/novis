@@ -90,4 +90,4 @@ pub use resolve::{
     resolve_file_with_extensions,
 };
 pub use symbol::{ExtensionClass, ExtensionFile, Symbol, SymbolKind, SymbolTable};
-pub use uses::Uses;
+pub use uses::{FileUses, Uses};

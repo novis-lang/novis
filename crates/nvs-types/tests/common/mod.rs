@@ -19,6 +19,22 @@ use nvs_types::check::check_program;
 use nvs_types::expr_table::ExprTypeTable;
 use nvs_types::ty::TypeInterner;
 
+/// A parse cache that keeps nothing: each file is parsed and checked as a
+/// whole check parses it.
+struct Fresh;
+
+impl nvs_hir::Parses for Fresh {
+    fn parse(
+        &mut self,
+        src: &nvs_diagnostics::SourceFile,
+        diags: &mut Diagnostics,
+    ) -> std::sync::Arc<Vec<nvs_syntax::ast::Stmt>> {
+        let stmts = parse_file(src, diags);
+        nvs_syntax::check_declarations(&stmts, src, diags);
+        std::sync::Arc::new(stmts)
+    }
+}
+
 /// Wraps `body` inside `class T { function m(): void { ... } }` and
 /// checks it — the common shape for a definite-assignment/expression
 /// fixture that doesn't need its own class.
@@ -468,7 +484,15 @@ impl Program {
         let closed = nvs_stdlib::registry::closed_interfaces();
         let sealed = nvs_stdlib::registry::sealed_classes();
         let imports = nvs_types::core_lib::importable();
-        let (module, loaded, _autoload) = nvs_hir::resolve_program(
+        // A partial check is the language server's, and the server passes a
+        // parse cache, which turns on what `nvs_hir` records for it.
+        let mut fresh = Fresh;
+        let parses: Option<&mut dyn nvs_hir::Parses> = if partial.is_some() {
+            Some(&mut fresh)
+        } else {
+            None
+        };
+        let (module, loaded, _autoload) = nvs_hir::resolve_program_borrowing(
             entry,
             stmts,
             &mut map,
@@ -479,6 +503,8 @@ impl Program {
                 imports: &imports,
             },
             &mut diags,
+            &[],
+            parses,
         );
         let name_of = |id: nvs_diagnostics::SourceId| -> String {
             map.file(id)

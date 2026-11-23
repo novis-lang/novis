@@ -18,7 +18,21 @@ const LIB: &str = "<?nvs\nnamespace Framework;\n\
 /// Checks `main` beside the library, walking `main.nvs` alone, and returns the
 /// sorted names it used and missed.
 fn uses_of(name: &str, main: &str) -> (Vec<String>, Vec<String>) {
-    let mut program = Program::new(name, &[("main.nvs", main), ("lib.nvs", LIB)]);
+    uses_beside(name, main, LIB)
+}
+
+/// A second library: a class with a JSON codec and a private property, an
+/// attribute, and a method whose parameter default reads a constant.
+const CODEC_LIB: &str = "<?nvs\nnamespace Framework;\n\
+    attribute Column on property { column: string }\n\
+    #[Core\\Json\\Derive]\n\
+    class Note {\n  public string $title = \"\";\n  private int $rank = 0;\n}\n\
+    class Limits {\n  public const int LOW = 3;\n  \
+    public static function clamp(int $n = self::LOW): int { return $n; }\n}\n";
+
+/// [`uses_of`], beside the library `lib`.
+fn uses_beside(name: &str, main: &str, lib: &str) -> (Vec<String>, Vec<String>) {
+    let mut program = Program::new(name, &[("main.nvs", main), ("lib.nvs", lib)]);
     let mut interner = TypeInterner::new();
     let mut cache = CheckCache::new();
     let checked = program.check("main.nvs", &mut interner, Some((&["main.nvs"], &mut cache)));
@@ -110,6 +124,92 @@ fn an_enum_case_is_a_use_and_an_unknown_case_is_a_miss() {
     assert!(
         missed.contains(&"Framework\\Status::Gone".to_owned()),
         "{missed:?}"
+    );
+}
+
+#[test]
+fn an_unknown_member_on_an_unknown_type_is_a_miss_on_no_class() {
+    let (_, missed) = uses_of(
+        "uses-unknown-receiver",
+        &main_with("var $m = new Framework\\Missing();\necho $m->title();"),
+    );
+    assert!(missed.contains(&"::title".to_owned()), "{missed:?}");
+}
+
+#[test]
+fn a_subclass_file_uses_its_parent_and_misses_an_unknown_one() {
+    let (used, missed) = uses_of(
+        "uses-subclass",
+        &main_with("class Mine extends Child {}\nclass Other extends Gone {}"),
+    );
+    assert!(used.contains(&"Framework\\Child".to_owned()), "{used:?}");
+    assert!(missed.contains(&"Gone".to_owned()), "{missed:?}");
+}
+
+#[test]
+fn a_doc_tag_uses_what_it_names_and_misses_an_unknown_member() {
+    let (used, missed) = uses_of(
+        "uses-see",
+        &main_with(
+            "class Page {\n  /// Shows the page.\n  /// @see Base::greet\n  /// @see Base::gone\n  \
+             public static function show(): void {}\n}",
+        ),
+    );
+    assert!(
+        used.contains(&"Framework\\Base::greet".to_owned()),
+        "{used:?}"
+    );
+    assert!(
+        missed.contains(&"Framework\\Base::gone".to_owned()),
+        "{missed:?}"
+    );
+}
+
+#[test]
+fn a_decode_uses_every_property_of_the_class_private_ones_included() {
+    let (used, _) = uses_beside(
+        "uses-decode",
+        "<?nvs\nrequire 'lib.nvs';\nuse Framework\\Note;\n\
+         var $note = Core\\Json::decodeAs<Note>(\"{}\");\n",
+        CODEC_LIB,
+    );
+    for name in [
+        "Framework\\Note",
+        "Framework\\Note::$title",
+        "Framework\\Note::$rank",
+    ] {
+        assert!(used.contains(&name.to_owned()), "{name}: {used:?}");
+    }
+}
+
+#[test]
+fn an_attribute_is_a_use_and_an_unknown_one_is_a_miss() {
+    let (used, missed) = uses_beside(
+        "uses-attribute",
+        "<?nvs\nrequire 'lib.nvs';\nuse Framework\\Column;\n\
+         class Row {\n  #[Column(column: \"id\")]\n  public string $id = \"\";\n  \
+         #[Gone]\n  public string $name = \"\";\n}\n",
+        CODEC_LIB,
+    );
+    assert!(used.contains(&"Framework\\Column".to_owned()), "{used:?}");
+    assert!(missed.contains(&"Gone".to_owned()), "{missed:?}");
+    assert!(missed.contains(&"Row::Gone".to_owned()), "{missed:?}");
+}
+
+#[test]
+fn a_call_uses_the_constants_its_parameter_defaults_read() {
+    let (used, _) = uses_beside(
+        "uses-default",
+        "<?nvs\nrequire 'lib.nvs';\nuse Framework\\Limits;\necho Limits::clamp();\n",
+        CODEC_LIB,
+    );
+    assert!(
+        used.contains(&"Framework\\Limits::clamp".to_owned()),
+        "{used:?}"
+    );
+    assert!(
+        used.contains(&"Framework\\Limits::LOW".to_owned()),
+        "{used:?}"
     );
 }
 

@@ -231,6 +231,14 @@ pub(crate) fn infer_method_call(
     // checked above, so the call reports nothing and gives the error type
     // again (`rule:types/one-mistake-reports-once`).
     if env.interner.is_error(receiver_ty) {
+        // The method is missed on no class. A method of that name added to
+        // any class reaches this file (`nvs_hir::uses`).
+        if let MemberName::Ident(name_span) = method
+            && env.uses.is_on()
+        {
+            let name = span_text(env.src, *name_span).to_owned();
+            env.uses.missed_member(None, &name);
+        }
         return env.interner.error();
     }
     // `rule:types/erased-member-access`'s deferral, and the one receiver the refusal above

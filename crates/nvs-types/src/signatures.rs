@@ -794,6 +794,13 @@ pub struct SignatureTable {
     /// there sees every one without a caller passing anything. It is `None`
     /// at every other time, and then a lookup pays one flag test.
     lookups: std::cell::RefCell<Option<nvs_hir::Uses>>,
+    /// What each member's declaration looked up while its types and its
+    /// value were lowered, keyed by the member as `Owner::name`, `Owner::$name`
+    /// or `Owner::NAME`. Filled only when [`build_signatures`] records. A
+    /// lookup that finds the member records these too, because a constant's
+    /// value is inlined at each read and a parameter's type is checked at each
+    /// call. So `B = self::A` read in another file is a use of `A` as well.
+    member_reads: FxHashMap<Box<str>, nvs_hir::Uses>,
     by_class: FxHashMap<QName, ClassSignature>,
     property_default_types: Vec<(Span, TypeId)>,
     /// The name of every instance property some class declares `covariant`.
@@ -832,10 +839,23 @@ impl SignatureTable {
         if let Some(uses) = self.lookups.borrow_mut().as_mut() {
             let member = format!("{sigil}{}", member.trim_start_matches('$'));
             match owner {
-                Some(owner) => uses.member_through(receiver, owner, &member),
+                Some(owner) => {
+                    uses.member_through(receiver, owner, &member);
+                    if let Some(reads) =
+                        self.member_reads.get(format!("{owner}::{member}").as_str())
+                    {
+                        uses.absorb(reads.clone());
+                    }
+                }
                 None => uses.missed_member(Some(receiver), &member),
             }
         }
+    }
+
+    /// The signatures of a class the program declares, read without
+    /// recording a use. `None` for a `Core` class.
+    pub(crate) fn declared(&self, qname: &QName) -> Option<&ClassSignature> {
+        self.by_class.get(qname)
     }
 
     /// One declaration's own signatures, if any were collected under this
@@ -1546,281 +1566,314 @@ fn collect_members(
         .is_some_and(|sym| sym.kind == SymbolKind::Interface);
     reject_members_declared_twice(members, qname, env);
     for member in members {
-        match &member.kind {
-            ClassMemberKind::Property(p) => {
-                let ty = lower_type(&p.ty, ctx, env);
-                let text = span_text(env.src, p.name);
-                let name = strip_sigil(text).to_owned();
-                let void_or_never = reject_void_or_never_property(p, ty, env);
-                if p.covariant && p.modifiers.contains(&Modifier::Static) {
-                    report_misplaced_covariant(p.ty.span, "a static property", env);
-                } else if p.covariant && p.modifiers.contains(&Modifier::Readonly) {
-                    report_misplaced_covariant(p.ty.span, "a `readonly` property", env);
-                } else if p.covariant {
-                    table.record_narrowed(name.clone());
+        // Each member's lookups go into a set of their own while it is
+        // collected, so a lookup of the member can replay them.
+        let reads = member_symbol(member, qname, env.src).filter(|_| env.uses.is_on());
+        let file_uses = reads
+            .is_some()
+            .then(|| std::mem::replace(env.uses, nvs_hir::Uses::recording()));
+        collect_member(member, qname, is_interface, ctx, table, env);
+        if let (Some(symbol), Some(file_uses)) = (reads, file_uses) {
+            let own = std::mem::replace(env.uses, file_uses);
+            env.uses.absorb(own.clone());
+            table.member_reads.insert(symbol.into(), own);
+        }
+    }
+}
+
+/// The symbol `member` is written as in a uses set (`nvs_hir::uses`), or
+/// `None` for a member that is not a property, a method or a constant.
+fn member_symbol(member: &ClassMember, qname: &QName, src: &SourceFile) -> Option<String> {
+    let (sigil, name) = match &member.kind {
+        ClassMemberKind::Property(p) => ("$", strip_sigil(span_text(src, p.name))),
+        ClassMemberKind::Method(m) => ("", span_text(src, m.name)),
+        ClassMemberKind::Const(c) => ("", span_text(src, c.name)),
+        _ => return None,
+    };
+    Some(format!("{qname}::{sigil}{name}"))
+}
+
+/// Collects one member of `qname` into `table`.
+fn collect_member(
+    member: &ClassMember,
+    qname: &QName,
+    is_interface: bool,
+    ctx: &Ctx<'_>,
+    table: &mut SignatureTable,
+    env: &mut Env<'_>,
+) {
+    match &member.kind {
+        ClassMemberKind::Property(p) => {
+            let ty = lower_type(&p.ty, ctx, env);
+            let text = span_text(env.src, p.name);
+            let name = strip_sigil(text).to_owned();
+            let void_or_never = reject_void_or_never_property(p, ty, env);
+            if p.covariant && p.modifiers.contains(&Modifier::Static) {
+                report_misplaced_covariant(p.ty.span, "a static property", env);
+            } else if p.covariant && p.modifiers.contains(&Modifier::Readonly) {
+                report_misplaced_covariant(p.ty.span, "a `readonly` property", env);
+            } else if p.covariant {
+                table.record_narrowed(name.clone());
+            }
+            let is_lateinit = p.modifiers.contains(&Modifier::Lateinit);
+            if is_lateinit {
+                check_lateinit_property(p, env);
+            }
+            let hooks = declared_hooks(p);
+            // A hooked property needs a value in its slot when something
+            // reads the slot: a plain read where there is no `get` hook,
+            // or a hook that reads `$this->name`. A property whose hooks
+            // compute the value from other properties reads no slot.
+            let reads_own_slot = p.hooks.is_none() || hooks_read_own_slot(p, &name, env.src);
+            // A `set`-only redeclaration may inherit its parent's `get`
+            // hook, which [`own_required_properties`] asks once every
+            // class is known.
+            let read_without_get = !reads_own_slot && hooks.set && !hooks.get;
+            let slot_read = reads_own_slot || read_without_get;
+            // A `void` or `never` property is already refused above, and
+            // no value could initialize it or be its default.
+            let required = p.default.is_none()
+                && !void_or_never
+                && slot_read
+                && !is_lateinit
+                && !env.interner.is_nullable(ty);
+            let visibility = declared_visibility(&p.modifiers);
+            // Evaluated here rather than at check time because this is
+            // the one pass that holds the declared type and the written
+            // expression together, and because it must happen exactly
+            // once: `crate::defaults` reports a bad default, and a second
+            // walk would report it twice.
+            let default = p
+                .default
+                .as_ref()
+                .filter(|_| !void_or_never)
+                .and_then(|expr| crate::defaults::eval_property_default(expr, ty, ctx, env));
+            // A `static` property occupies no instance slot, so its
+            // constant goes to the other vector — the one
+            // `nvs_runtime::Ctx` arms once per request rather than once
+            // per `new`. See `ClassSignature::static_property_defaults`.
+            let is_static_property = p.modifiers.contains(&Modifier::Static);
+            // The initializer paired with the type it is written into —
+            // see `SignatureTable::property_default_types` for why it is
+            // collected here and not recorded into `env.exprs`, which this
+            // pass deliberately points at a table that is thrown away.
+            if let Some(default) = p.default.as_ref().filter(|_| !void_or_never) {
+                table.property_default_types.push((default.span, ty));
+            }
+            let sig = table.entry(qname.clone());
+            sig.properties.insert(name.clone(), ty);
+            if let Some(level) = visibility {
+                sig.property_visibility.insert(name.clone(), level);
+            }
+            if let Some(level) = declared_set_visibility(&p.modifiers) {
+                sig.property_set_visibility.insert(name.clone(), level);
+            }
+            if hooks != PropertyHooks::default() {
+                sig.hooked_properties.insert(name.clone(), hooks);
+            }
+            if is_static_property {
+                sig.static_properties.push((name.clone(), default));
+            } else if let Some(default) = default {
+                sig.property_defaults.push((name.clone(), default));
+            }
+            // A static property is deliberately **not** an `rule:classes/definite-property-initialization`
+            // obligation: its storage is the request's rather than any
+            // instance's, so no constructor can discharge one and the
+            // declaration is the only place it can be initialized. Same
+            // test, its own diagnostic, and reported here because this is
+            // the pass that holds the type and the written default
+            // together.
+            if required && is_static_property {
+                env.diags.report(
+                    Diagnostic::error(
+                        code::E_UNINITIALIZED_PROPERTY,
+                        format!(
+                            "the static property `${name}` has no initializer, and no \
+                                 constructor can give it one"
+                        ),
+                    )
+                    .with_primary(p.name, "never initialized")
+                    .with_help(
+                        "give it a value here (`= 0`), or declare it nullable so it starts \
+                             each request at `null`",
+                    ),
+                );
+            } else if required {
+                sig.required_properties.push((name.clone(), p.name));
+                if read_without_get {
+                    sig.read_without_get.insert(name.clone());
                 }
-                let is_lateinit = p.modifiers.contains(&Modifier::Lateinit);
-                if is_lateinit {
-                    check_lateinit_property(p, env);
-                }
-                let hooks = declared_hooks(p);
-                // A hooked property needs a value in its slot when something
-                // reads the slot: a plain read where there is no `get` hook,
-                // or a hook that reads `$this->name`. A property whose hooks
-                // compute the value from other properties reads no slot.
-                let reads_own_slot = p.hooks.is_none() || hooks_read_own_slot(p, &name, env.src);
-                // A `set`-only redeclaration may inherit its parent's `get`
-                // hook, which [`own_required_properties`] asks once every
-                // class is known.
-                let read_without_get = !reads_own_slot && hooks.set && !hooks.get;
-                let slot_read = reads_own_slot || read_without_get;
-                // A `void` or `never` property is already refused above, and
-                // no value could initialize it or be its default.
-                let required = p.default.is_none()
-                    && !void_or_never
-                    && slot_read
-                    && !is_lateinit
-                    && !env.interner.is_nullable(ty);
-                let visibility = declared_visibility(&p.modifiers);
-                // Evaluated here rather than at check time because this is
-                // the one pass that holds the declared type and the written
-                // expression together, and because it must happen exactly
-                // once: `crate::defaults` reports a bad default, and a second
-                // walk would report it twice.
-                let default = p
-                    .default
-                    .as_ref()
-                    .filter(|_| !void_or_never)
-                    .and_then(|expr| crate::defaults::eval_property_default(expr, ty, ctx, env));
-                // A `static` property occupies no instance slot, so its
-                // constant goes to the other vector — the one
-                // `nvs_runtime::Ctx` arms once per request rather than once
-                // per `new`. See `ClassSignature::static_property_defaults`.
-                let is_static_property = p.modifiers.contains(&Modifier::Static);
-                // The initializer paired with the type it is written into —
-                // see `SignatureTable::property_default_types` for why it is
-                // collected here and not recorded into `env.exprs`, which this
-                // pass deliberately points at a table that is thrown away.
-                if let Some(default) = p.default.as_ref().filter(|_| !void_or_never) {
-                    table.property_default_types.push((default.span, ty));
-                }
-                let sig = table.entry(qname.clone());
-                sig.properties.insert(name.clone(), ty);
-                if let Some(level) = visibility {
-                    sig.property_visibility.insert(name.clone(), level);
-                }
-                if let Some(level) = declared_set_visibility(&p.modifiers) {
-                    sig.property_set_visibility.insert(name.clone(), level);
-                }
-                if hooks != PropertyHooks::default() {
-                    sig.hooked_properties.insert(name.clone(), hooks);
-                }
-                if is_static_property {
-                    sig.static_properties.push((name.clone(), default));
-                } else if let Some(default) = default {
-                    sig.property_defaults.push((name.clone(), default));
-                }
-                // A static property is deliberately **not** an `rule:classes/definite-property-initialization`
-                // obligation: its storage is the request's rather than any
-                // instance's, so no constructor can discharge one and the
-                // declaration is the only place it can be initialized. Same
-                // test, its own diagnostic, and reported here because this is
-                // the pass that holds the type and the written default
-                // together.
-                if required && is_static_property {
+            }
+            if p.modifiers.contains(&Modifier::Readonly) {
+                sig.readonly_properties.insert(name.clone());
+            }
+            if is_lateinit {
+                sig.lateinit_properties.insert(name);
+            }
+        }
+        ClassMemberKind::Method(m) => {
+            if let Some(property) = returned_property(m, env.src) {
+                let method = span_text(env.src, m.name).to_owned();
+                table
+                    .entry(qname.clone())
+                    .property_getters
+                    .insert(method, property);
+            }
+            for p in &m.params {
+                if p.modifiers.contains(&Modifier::Lateinit) {
                     env.diags.report(
                         Diagnostic::error(
-                            code::E_UNINITIALIZED_PROPERTY,
-                            format!(
-                                "the static property `${name}` has no initializer, and no \
-                                 constructor can give it one"
-                            ),
+                            code::E_LATEINIT_PROMOTED_PARAM,
+                            "`lateinit` cannot be used on a constructor parameter",
                         )
-                        .with_primary(p.name, "never initialized")
+                        .with_primary(p.name, "declared `lateinit` here")
                         .with_help(
-                            "give it a value here (`= 0`), or declare it nullable so it starts \
-                             each request at `null`",
+                            "binding a parameter already assigns it — `lateinit` has \
+                                 nothing left to defer",
                         ),
                     );
-                } else if required {
-                    sig.required_properties.push((name.clone(), p.name));
-                    if read_without_get {
-                        sig.read_without_get.insert(name.clone());
-                    }
-                }
-                if p.modifiers.contains(&Modifier::Readonly) {
-                    sig.readonly_properties.insert(name.clone());
-                }
-                if is_lateinit {
-                    sig.lateinit_properties.insert(name);
                 }
             }
-            ClassMemberKind::Method(m) => {
-                if let Some(property) = returned_property(m, env.src) {
-                    let method = span_text(env.src, m.name).to_owned();
-                    table
-                        .entry(qname.clone())
-                        .property_getters
-                        .insert(method, property);
-                }
-                for p in &m.params {
-                    if p.modifiers.contains(&Modifier::Lateinit) {
-                        env.diags.report(
-                            Diagnostic::error(
-                                code::E_LATEINIT_PROMOTED_PARAM,
-                                "`lateinit` cannot be used on a constructor parameter",
-                            )
-                            .with_primary(p.name, "declared `lateinit` here")
-                            .with_help(
-                                "binding a parameter already assigns it — `lateinit` has \
-                                 nothing left to defer",
-                            ),
+            let params: Vec<TypeId> = m
+                .params
+                .iter()
+                .map(|p| lower_optional_type(p.ty.as_ref(), ctx, env))
+                .collect();
+            reject_void_or_never_params(&m.params, &params, env);
+            let param_names: Vec<String> = m
+                .params
+                .iter()
+                .map(|p| strip_sigil(span_text(env.src, p.name)).to_owned())
+                .collect();
+            let inout: Vec<bool> = m.params.iter().map(|p| p.inout).collect();
+            let covariant: Vec<bool> = if m.params.iter().any(|p| p.covariant) {
+                m.params.iter().map(|p| p.covariant).collect()
+            } else {
+                Vec::new()
+            };
+            let param_text = crate::paths::declared_text(&m.params, ctx, env);
+            let route_slots = crate::route_params::declared_slots(&m.params, ctx, env);
+            let variadic = m.params.last().is_some_and(|p| p.variadic);
+            let mut defaults = collect_defaults(&m.params, &params, ctx, env);
+            crate::paths::resolve_defaults(&m.params, &param_text, &mut defaults, env);
+            let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
+            let returns_static = writes_static_return(m.return_type.as_ref());
+            let mut params_bind_static: Vec<bool> = m
+                .params
+                .iter()
+                .map(|p| static_use(p.ty.as_ref(), qname, env.src).binds)
+                .collect();
+            if !params_bind_static.contains(&true) {
+                params_bind_static.clear();
+            }
+            let return_binds_static = static_use(m.return_type.as_ref(), qname, env.src).binds;
+            let interface_private = is_interface && m.modifiers.contains(&Modifier::Private);
+            let visibility = declared_visibility(&m.modifiers).unwrap_or(Visibility::Public);
+            let is_static = m.modifiers.contains(&Modifier::Static);
+            let name = span_text(env.src, m.name).to_owned();
+            if m.modifiers.contains(&Modifier::Final) {
+                table
+                    .entry(qname.clone())
+                    .final_methods
+                    .insert(name.clone());
+            }
+            // A `Core\Test::double` of this interface, or of one that extends it, may give
+            // its own body for a public default method (`rule:testing/doubles`). The
+            // double's class is made at run time, so no declaration in the graph says so,
+            // and [`mark_overridden_methods`] cannot see it. A call that resolves to the
+            // default body therefore always looks at the receiver's class. **What it
+            // spends:** one method lookup per call to an interface's default method.
+            if is_interface && m.body.is_some() && !interface_private && !is_static {
+                table
+                    .entry(qname.clone())
+                    .overridden_methods
+                    .insert(name.clone());
+            }
+            if name == "constructor" {
+                for p in m.params.iter().filter(|p| p.covariant) {
+                    if !p.is_promoted() {
+                        report_misplaced_covariant(
+                            p.span,
+                            "a constructor parameter that is not a property",
+                            env,
                         );
+                    } else if p.modifiers.contains(&Modifier::Readonly) {
+                        report_misplaced_covariant(p.span, "a `readonly` property", env);
+                    } else {
+                        table.record_narrowed(strip_sigil(span_text(env.src, p.name)).to_owned());
                     }
                 }
-                let params: Vec<TypeId> = m
-                    .params
-                    .iter()
-                    .map(|p| lower_optional_type(p.ty.as_ref(), ctx, env))
-                    .collect();
-                reject_void_or_never_params(&m.params, &params, env);
-                let param_names: Vec<String> = m
-                    .params
-                    .iter()
-                    .map(|p| strip_sigil(span_text(env.src, p.name)).to_owned())
-                    .collect();
-                let inout: Vec<bool> = m.params.iter().map(|p| p.inout).collect();
-                let covariant: Vec<bool> = if m.params.iter().any(|p| p.covariant) {
-                    m.params.iter().map(|p| p.covariant).collect()
-                } else {
-                    Vec::new()
-                };
-                let param_text = crate::paths::declared_text(&m.params, ctx, env);
-                let route_slots = crate::route_params::declared_slots(&m.params, ctx, env);
-                let variadic = m.params.last().is_some_and(|p| p.variadic);
-                let mut defaults = collect_defaults(&m.params, &params, ctx, env);
-                crate::paths::resolve_defaults(&m.params, &param_text, &mut defaults, env);
-                let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
-                let returns_static = writes_static_return(m.return_type.as_ref());
-                let mut params_bind_static: Vec<bool> = m
-                    .params
-                    .iter()
-                    .map(|p| static_use(p.ty.as_ref(), qname, env.src).binds)
-                    .collect();
-                if !params_bind_static.contains(&true) {
-                    params_bind_static.clear();
-                }
-                let return_binds_static = static_use(m.return_type.as_ref(), qname, env.src).binds;
-                let interface_private = is_interface && m.modifiers.contains(&Modifier::Private);
-                let visibility = declared_visibility(&m.modifiers).unwrap_or(Visibility::Public);
-                let is_static = m.modifiers.contains(&Modifier::Static);
-                let name = span_text(env.src, m.name).to_owned();
-                if m.modifiers.contains(&Modifier::Final) {
-                    table
-                        .entry(qname.clone())
-                        .final_methods
-                        .insert(name.clone());
-                }
-                // A `Core\Test::double` of this interface, or of one that extends it, may give
-                // its own body for a public default method (`rule:testing/doubles`). The
-                // double's class is made at run time, so no declaration in the graph says so,
-                // and [`mark_overridden_methods`] cannot see it. A call that resolves to the
-                // default body therefore always looks at the receiver's class. **What it
-                // spends:** one method lookup per call to an interface's default method.
-                if is_interface && m.body.is_some() && !interface_private && !is_static {
-                    table
-                        .entry(qname.clone())
-                        .overridden_methods
-                        .insert(name.clone());
-                }
-                if name == "constructor" {
-                    for p in m.params.iter().filter(|p| p.covariant) {
-                        if !p.is_promoted() {
-                            report_misplaced_covariant(
-                                p.span,
-                                "a constructor parameter that is not a property",
-                                env,
-                            );
-                        } else if p.modifiers.contains(&Modifier::Readonly) {
-                            report_misplaced_covariant(p.span, "a `readonly` property", env);
-                        } else {
-                            table.record_narrowed(
-                                strip_sigil(span_text(env.src, p.name)).to_owned(),
-                            );
-                        }
-                    }
-                    record_promoted_properties(&m.params, &params, qname, table, env);
-                } else {
-                    reject_promotion_outside_constructor(&m.params, &name, env);
-                }
-                table.entry(qname.clone()).methods.insert(
-                    name,
-                    MethodSig {
-                        params,
-                        param_names,
-                        inout,
-                        covariant,
-                        variadic,
-                        defaults,
-                        // `rule:security/unclassified-parameter-refuses-tainted` classifies a registry row's parameters,
-                        // and nothing classifies a user-declared one — see
-                        // `MethodSig::param_quals`.
-                        param_quals: Vec::new(),
-                        param_text,
-                        route_slots,
-                        core_class: None,
-                        // `rule:types/declaration`: a user-declared method
-                        // has no type parameters to write.
-                        type_params: Vec::new(),
-                        type_bounds: Vec::new(),
-                        return_ty,
-                        contagious_return: None,
-                        returns_static,
-                        params_bind_static,
-                        return_binds_static,
-                        is_static,
-                        interface_private,
-                        visibility,
-                        has_body: m.body.is_some(),
-                        generator: m
-                            .body
-                            .as_ref()
-                            .is_some_and(nvs_syntax::ast::is_generator_body),
-                    },
-                );
+                record_promoted_properties(&m.params, &params, qname, table, env);
+            } else {
+                reject_promotion_outside_constructor(&m.params, &name, env);
             }
-            // `rule:classes/no-free-functions-or-constants`'s class constant. Evaluated here for the reason a
-            // property default is evaluated here — this is the one pass that
-            // holds the declared type and the written value together — and
-            // typed here because the alternative, `crate::consts`, runs before
-            // there is an interner to intern an annotation with. See
-            // [`ConstSig`].
-            ClassMemberKind::Const(c) => {
-                let name = span_text(env.src, c.name).to_owned();
-                let ty = match &c.ty {
-                    Some(written) => lower_type(written, ctx, env),
-                    None => folded_const_ty(qname, &name, env),
-                };
-                let value = crate::defaults::eval_const_value(&c.value, ty, env);
-                // An unannotated constant is already `E0246`, and its type is
-                // read off the value, so only a written type is checked.
-                let refused = value.is_none()
-                    && c.ty.is_some()
-                    && reject_const_value_of_another_type(c, &name, ty, env);
-                let visibility = declared_visibility(&c.modifiers).unwrap_or(Visibility::Public);
-                table.entry(qname.clone()).constants.insert(
-                    name,
-                    ConstSig {
-                        ty,
-                        value,
-                        refused,
-                        visibility,
-                    },
-                );
-            }
-            ClassMemberKind::Error => {}
-            _ => {}
+            table.entry(qname.clone()).methods.insert(
+                name,
+                MethodSig {
+                    params,
+                    param_names,
+                    inout,
+                    covariant,
+                    variadic,
+                    defaults,
+                    // `rule:security/unclassified-parameter-refuses-tainted` classifies a registry row's parameters,
+                    // and nothing classifies a user-declared one — see
+                    // `MethodSig::param_quals`.
+                    param_quals: Vec::new(),
+                    param_text,
+                    route_slots,
+                    core_class: None,
+                    // `rule:types/declaration`: a user-declared method
+                    // has no type parameters to write.
+                    type_params: Vec::new(),
+                    type_bounds: Vec::new(),
+                    return_ty,
+                    contagious_return: None,
+                    returns_static,
+                    params_bind_static,
+                    return_binds_static,
+                    is_static,
+                    interface_private,
+                    visibility,
+                    has_body: m.body.is_some(),
+                    generator: m
+                        .body
+                        .as_ref()
+                        .is_some_and(nvs_syntax::ast::is_generator_body),
+                },
+            );
         }
+        // `rule:classes/no-free-functions-or-constants`'s class constant. Evaluated here for the reason a
+        // property default is evaluated here — this is the one pass that
+        // holds the declared type and the written value together — and
+        // typed here because the alternative, `crate::consts`, runs before
+        // there is an interner to intern an annotation with. See
+        // [`ConstSig`].
+        ClassMemberKind::Const(c) => {
+            let name = span_text(env.src, c.name).to_owned();
+            let ty = match &c.ty {
+                Some(written) => lower_type(written, ctx, env),
+                None => folded_const_ty(qname, &name, env),
+            };
+            let value = crate::defaults::eval_const_value(&c.value, ty, env);
+            // An unannotated constant is already `E0246`, and its type is
+            // read off the value, so only a written type is checked.
+            let refused = value.is_none()
+                && c.ty.is_some()
+                && reject_const_value_of_another_type(c, &name, ty, env);
+            let visibility = declared_visibility(&c.modifiers).unwrap_or(Visibility::Public);
+            table.entry(qname.clone()).constants.insert(
+                name,
+                ConstSig {
+                    ty,
+                    value,
+                    refused,
+                    visibility,
+                },
+            );
+        }
+        ClassMemberKind::Error => {}
+        _ => {}
     }
 }
 

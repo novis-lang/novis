@@ -424,6 +424,11 @@ fn check_files(
                     if let Some(declared) = signatures.uses.get(&id) {
                         output.uses.absorb(declared.clone());
                     }
+                    // What `nvs_hir` found resolving the file's links,
+                    // member references and doc tags.
+                    if let Some(resolved) = module.uses.get(id) {
+                        output.uses.absorb(resolved.clone());
+                    }
                 }
                 let mut file_diags = Diagnostics::new();
                 if output.uses.is_on() {
@@ -432,6 +437,12 @@ fn check_files(
                 let end_seq = walk_file(file, &shared, &mut output, interner, &mut file_diags);
                 if let Some(lookups) = signatures.take_lookups() {
                     output.uses.absorb(lookups);
+                    crate::derive::record_codec_uses(
+                        &mut output,
+                        &signatures,
+                        &module.graph,
+                        interner,
+                    );
                 }
                 output.end_seq = end_seq;
                 output.diags = file_diags.take();

@@ -422,6 +422,19 @@ impl<'a> HierarchyResolver<'a> {
     /// [`Self::collect_links`].
     #[must_use]
     pub fn resolve(self, symbols: &SymbolTable, diags: &mut Diagnostics) -> ClassGraph {
+        self.resolve_recording(symbols, diags, &mut crate::uses::FileUses::off())
+    }
+
+    /// [`Self::resolve`], recording into `uses` each parent and interface a
+    /// link names, or the name it failed to find, under the file of the class
+    /// that wrote the link.
+    #[must_use]
+    pub fn resolve_recording(
+        self,
+        symbols: &SymbolTable,
+        diags: &mut Diagnostics,
+        uses: &mut crate::uses::FileUses,
+    ) -> ClassGraph {
         let mut graph = ClassGraph::default();
         seed_exception_tree(&mut graph);
         let revocable = QName::parse(crate::interfaces::REVOCABLE);
@@ -441,6 +454,7 @@ impl<'a> HierarchyResolver<'a> {
                     symbols,
                     self.core,
                     ("extend", &extends_kinds),
+                    uses.at(raw.span.file),
                     diags,
                 ) {
                     if qname == revocable {
@@ -459,6 +473,7 @@ impl<'a> HierarchyResolver<'a> {
                     symbols,
                     self.core,
                     ("implement", &implements_kinds),
+                    uses.at(raw.span.file),
                     diags,
                 ) {
                     if qname == revocable && !pending.extends.is_empty() {
@@ -829,9 +844,19 @@ fn resolve_supertype(
     symbols: &SymbolTable,
     core: CoreRoster<'_>,
     (verb, expected): (&str, &[SymbolKind]),
+    uses: &mut crate::uses::Uses,
     diags: &mut Diagnostics,
 ) -> Option<QName> {
     let qname = resolve_ref(&raw.text, &pending.namespace, &pending.imports);
+    // A `Core` name and a reserved global one are the same in every program,
+    // so an edit never changes what they resolve to.
+    if uses.is_on() && !qname.is_core() {
+        if symbols.contains(&qname) {
+            uses.class(&qname);
+        } else if !qname.is_reserved_global_interface() && !qname.is_reserved_global_class() {
+            uses.missed_class(&qname);
+        }
+    }
     // A name under `Core` is asked of the roster, since `symbols` cannot hold
     // one. The two reserved global rosters keep their spelling test instead:
     // `crate::interfaces::RESERVED` and `crate::errors::TREE` are data this

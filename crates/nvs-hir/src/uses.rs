@@ -30,7 +30,8 @@
 //! and every compile record nothing. A recording check keeps one string per
 //! distinct name per file, for as long as the check's output is kept.
 
-use rustc_hash::FxHashSet;
+use nvs_diagnostics::SourceId;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::QName;
 
@@ -139,6 +140,65 @@ impl Uses {
         let mut out: Vec<&str> = self.missed().collect();
         out.sort_unstable();
         out
+    }
+}
+
+/// One [`Uses`] per file, for a pass that checks several files at once, such
+/// as the class graph's `extends` and `implements` links. A record goes to the
+/// file whose code made the lookup.
+#[derive(Clone, Debug, Default)]
+pub struct FileUses {
+    on: bool,
+    files: FxHashMap<SourceId, Uses>,
+    /// The set [`Self::at`] gives when nothing records. It stays empty.
+    off: Uses,
+}
+
+impl FileUses {
+    /// A map that records nothing.
+    #[must_use]
+    pub fn off() -> Self {
+        Self::default()
+    }
+
+    /// An empty map that records.
+    #[must_use]
+    pub fn recording() -> Self {
+        Self {
+            on: true,
+            ..Self::default()
+        }
+    }
+
+    /// Whether this map records.
+    #[must_use]
+    pub const fn is_on(&self) -> bool {
+        self.on
+    }
+
+    /// The set of `file`, made on first use. When nothing records, a set that
+    /// records nothing.
+    pub fn at(&mut self, file: SourceId) -> &mut Uses {
+        if !self.on {
+            return &mut self.off;
+        }
+        self.files.entry(file).or_insert_with(Uses::recording)
+    }
+
+    /// The set of `file`, if a lookup in it recorded anything.
+    #[must_use]
+    pub fn get(&self, file: SourceId) -> Option<&Uses> {
+        self.files.get(&file)
+    }
+
+    /// Adds every set of `other` to this map's set of the same file.
+    pub fn absorb(&mut self, other: Self) {
+        for (file, uses) in other.files {
+            self.files
+                .entry(file)
+                .or_insert_with(Uses::recording)
+                .absorb(uses);
+        }
     }
 }
 

@@ -2404,8 +2404,14 @@ pub(crate) fn check_property_member(
             return ty;
         }
         // The receiver already reported its mistake
-        // (`rule:types/one-mistake-reports-once`).
-        Ty::Error => return env.interner.error(),
+        // (`rule:types/one-mistake-reports-once`). The property is missed on
+        // no class (`nvs_hir::uses`).
+        Ty::Error => {
+            if env.uses.is_on() {
+                env.uses.missed_member(None, &format!("${name}"));
+            }
+            return env.interner.error();
+        }
         Ty::Object | Ty::Mixed => {
             // An erased receiver promises no field at all, so every name it
             // carries is the optional case above with nothing static to read

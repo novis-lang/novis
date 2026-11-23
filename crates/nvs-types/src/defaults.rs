@@ -440,6 +440,7 @@ fn const_reference_default(
     let qname = crate::expr::resolve_class_expr(class, ctx, env)?;
     let member = crate::span_text(env.src, *name).to_owned();
     if let Some(case) = env.enums.case(&qname, &member) {
+        env.uses.member(&qname, &member);
         let names_it = match env.interner.get(declared) {
             Ty::Enum(declared_enum, _) => *declared_enum == qname,
             Ty::EnumCase(declared_enum, _, declared_case) => {
@@ -477,6 +478,12 @@ fn const_reference_default(
                 );
             }
             return None;
+        }
+        // The value is inlined, so the constant is a use wherever it is read.
+        let consts = env.consts;
+        match consts.declaring(&qname, &member, env.graph) {
+            Some(owner) => env.uses.member_through(&qname, owner, &member),
+            None => env.uses.missed_member(Some(&qname), &member),
         }
         match env.consts.get(&qname, &member, env.graph) {
             Some(crate::consts::ConstValue::Bool(value)) => Some(ConstArg::Bool(*value)),

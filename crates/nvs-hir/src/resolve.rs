@@ -54,6 +54,11 @@ pub struct Module {
     /// Every class a link names under an `autoload links` root, read for its
     /// routes and never compiled (see [`crate::link_targets`]).
     pub link_targets: crate::link_targets::LinkTargets,
+    /// What each file's links, member references and doc tags found and
+    /// failed to find (`crate::uses`). It records only when
+    /// [`crate::requires::resolve_program`] gets a parse cache, which is the
+    /// language server's path. Every other check leaves it off and empty.
+    pub uses: crate::uses::FileUses,
 }
 
 /// Resolves parsed files' top-level namespace/`use`/declaration structure

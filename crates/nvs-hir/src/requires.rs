@@ -679,19 +679,27 @@ fn walk(
 
     resolver.resolve_imports_linking(core, &link_targets, diags);
     let mut module = resolver.into_module();
-    module.graph = hierarchy.resolve(&module.symbols, diags);
+    // Only the language server passes a parse cache, and only it reads what
+    // each file used (`crate::uses`).
+    let mut uses = if parses.is_some() {
+        crate::uses::FileUses::recording()
+    } else {
+        crate::uses::FileUses::off()
+    };
+    module.graph = hierarchy.resolve_recording(&module.symbols, diags, &mut uses);
 
     members.link_to(&link_targets);
     for file in &loaded {
-        members.check(
+        members.check_recording(
             &file.stmts,
             map.file(file.id),
-            &module.symbols,
-            &module.graph,
+            (&module.symbols, &module.graph),
             strict_docs,
+            uses.at(file.id),
             diags,
         );
     }
+    module.uses = uses;
     module.members = members.into_table();
     module.aliases = aliases.resolve(diags);
     link_targets.mark_links_only(diags);
