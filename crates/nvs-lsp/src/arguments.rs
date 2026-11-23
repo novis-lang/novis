@@ -35,7 +35,9 @@
 //! values is offered with no file at all (`rule:types/single-value-types`).
 //! It also says whether the literal names a time zone, at a parameter typed
 //! `Core\Time\Zone` or as `Zone::of`'s argument, read off the same signature
-//! so it holds while the text is no zone yet.
+//! so it holds while the text is no zone yet, and whether it is the first
+//! argument of `Core\Config::set` or `restore`, which names a key a request
+//! may change.
 //! [`named_in_document`] names every such literal the
 //! document writes, which the diagnostics read a completion file's `strict`
 //! against.
@@ -120,7 +122,15 @@ pub(crate) struct Named {
     /// whose parameter is a `string`. Read off the signature, so it holds while
     /// the text is not a zone yet.
     pub zone: bool,
+    /// Whether the literal names a key a request may change: it is the first
+    /// argument of `Core\Config::set` or `restore`, whose parameter is a
+    /// `string`. The keys are `nvs_config::settable::SETTABLE`'s.
+    pub settable: bool,
 }
+
+/// The class whose `set` and `restore` take a key a request may change
+/// (`rule:config/three-changeability-classes`).
+const CONFIG: &str = "Core\\Config";
 
 /// The class a string literal names a time zone of, at a parameter of its
 /// type (`rule:core-classes/a-time-class-builds-its-own-values`).
@@ -353,7 +363,17 @@ fn name(analysed: &Analysed, literal: Span, holders: &[Holder]) -> Option<Named>
             .get(index)
             .and_then(|ty| hole_kind(analysed, *ty)),
         zone: names_a_zone(analysed, call, index),
+        settable: names_a_settable_key(call, index),
     })
+}
+
+/// Whether a string literal at parameter `index` of `call` names a key a
+/// request may change: the call is `Core\Config::set` or `restore`, and the
+/// parameter its first. `get` reads every key, so it is not one of them.
+fn names_a_settable_key(call: &ResolvedCall, index: usize) -> bool {
+    index == 0
+        && matches!(call.method.as_str(), "set" | "restore")
+        && call.class.to_string() == CONFIG
 }
 
 /// Whether a string literal at parameter `index` of `call` names a time zone:

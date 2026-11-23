@@ -123,11 +123,16 @@ pub const SETTABLE: &[Settable] = &[
 /// is the `[limits]` key of that name (`crate::request`'s module doc).
 #[must_use]
 pub fn how(name: &str) -> Option<How> {
+    row(name).map(|row| row.how)
+}
+
+/// The row of [`SETTABLE`] the key `name` names, or `None` where a request may not change it.
+/// `name` is read as in [`how`], so `memory` gives the `limits.memory` row, whose
+/// [`key`](Settable::key) is the whole dotted key the editor prints.
+#[must_use]
+pub fn row(name: &str) -> Option<&'static Settable> {
     let key = crate::request::canonical(name);
-    SETTABLE
-        .iter()
-        .find(|row| row.key == key)
-        .map(|row| row.how)
+    SETTABLE.iter().find(|row| row.key == key)
 }
 
 /// Whether code in a package's namespace may change the key `name` names: a `limits.*` row of

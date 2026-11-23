@@ -16,7 +16,9 @@
 //! their text names, the way that class's name does ([`written_class_name`]). An
 //! argument at a path parameter answers the absolute path it names and
 //! whether anything is there ([`path_argument`]). A written time zone answers
-//! its id and its offset from UTC now ([`written_zone`]). Each is asked before the
+//! its id and its offset from UTC now ([`written_zone`]), and a written key in
+//! `Core\Config::set` or `restore` how a request may change it
+//! ([`settable_key`]). Each is asked before the
 //! walk over the nodes, because a literal records no name and the walk would
 //! step out to what holds it.
 //!
@@ -183,6 +185,7 @@ pub fn answer(
         .or_else(|| property_segment(analysed, offset))
         .or_else(|| path_argument(analysed, offset))
         .or_else(|| written_zone(analysed, offset))
+        .or_else(|| settable_key(analysed, offset))
         .or_else(|| file_value(analysed, files, offset))
         .or_else(|| attribute_card(analysed, offset))
         .or_else(|| attribute_key(analysed, offset))
@@ -749,6 +752,25 @@ fn written_zone(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> 
     Some((
         format!("The time zone `{id}`. Its offset from UTC is now `{now}`."),
         string.span,
+    ))
+}
+
+/// How a request may change the key a string literal names, and that literal's
+/// span, for a cursor inside the first argument of `Core\Config::set` or
+/// `restore`. The key is looked up in `nvs_config::settable::SETTABLE`, so a
+/// bare limit name such as `memory` is its `[limits]` key. A key the list does
+/// not have gets no hover: the compiler already reports it.
+fn settable_key(analysed: &Analysed, offset: BytePos) -> Option<(String, Span)> {
+    let named = crate::arguments::named_at(analysed, offset)?;
+    if !named.settable {
+        return None;
+    }
+    let text =
+        nvs_syntax::string_lit::cook_string_literal(analysed.map.file(analysed.entry), named.span);
+    let row = nvs_config::settable::row(&text)?;
+    Some((
+        crate::completion_files::settable_sentence(row.key, row.how),
+        named.span,
     ))
 }
 

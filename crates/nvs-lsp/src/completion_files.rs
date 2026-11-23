@@ -270,6 +270,38 @@ impl Value {
         })
     }
 
+    /// The values no completion file declares at the first argument of
+    /// `Core\Config::set` and `restore`: every key of
+    /// [`nvs_config::settable::SETTABLE`], split on `.`, each with how a
+    /// request may change it ([`settable_sentence`]).
+    ///
+    /// Built on the first call and kept for the process. **What it spends:**
+    /// one value per listed key, 37, once per editor process that offers one.
+    #[must_use]
+    pub fn settable_keys() -> &'static [Arc<Self>] {
+        static KEYS: OnceLock<Vec<Arc<Value>>> = OnceLock::new();
+        KEYS.get_or_init(|| {
+            nvs_config::settable::SETTABLE
+                .iter()
+                .map(|row| {
+                    let how = match row.how {
+                        nvs_config::settable::How::OffOnly => "only false",
+                        nvs_config::settable::How::UpToCeiling if has_ceiling(row.key) => {
+                            "up to its ceiling"
+                        }
+                        nvs_config::settable::How::UpToCeiling => "any valid value",
+                    };
+                    Arc::new(Self {
+                        separator: Some('.'),
+                        label_description: Some(how.to_owned()),
+                        documentation: Some(settable_sentence(row.key, row.how)),
+                        ..Self::member(row.key.to_owned())
+                    })
+                })
+                .collect()
+        })
+    }
+
     /// A value no completion file declares: the name of one of the public
     /// properties a `property<T>` may hold, offered as `property` with its
     /// declared type at the right.
@@ -322,6 +354,34 @@ impl Value {
         out.push_str(rest);
         Some(out)
     }
+}
+
+/// Whether the listed key `key` has a ceiling a request may not go above: a
+/// `[limits]` key has `[limits.hard]`, and `mode.default` has `[mode] ceiling`.
+fn has_ceiling(key: &str) -> bool {
+    key.starts_with("limits.") || key == "mode.default"
+}
+
+/// How a request may change the listed key `key`, as the editor says it in a
+/// completion's popup and in a hover. User-facing text.
+#[must_use]
+pub fn settable_sentence(key: &str, how: nvs_config::settable::How) -> String {
+    let change = match how {
+        nvs_config::settable::How::OffOnly => {
+            format!("A request may set `{key}` to `false` for itself. No other value is allowed.")
+        }
+        nvs_config::settable::How::UpToCeiling if key == "mode.default" => {
+            "A request may change its own mode, up to `[mode] ceiling`.".to_owned()
+        }
+        nvs_config::settable::How::UpToCeiling if has_ceiling(key) => format!(
+            "A request may change `{key}` for itself, up to its ceiling. \
+             `[limits.hard]` sets the ceiling. Without it, the ceiling is the value from `nvs.toml`."
+        ),
+        nvs_config::settable::How::UpToCeiling => {
+            format!("A request may change `{key}` for itself, to any valid value.")
+        }
+    };
+    format!("{change} `Core\\Config::restore` sets it back to the value from `nvs.toml`.")
 }
 
 /// An attachment's condition on another argument of the same call.

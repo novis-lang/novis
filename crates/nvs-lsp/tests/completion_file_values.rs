@@ -5,7 +5,9 @@
 //! (`rule:ide/completion-files-offer-values-at-named-parameters`). A parameter typed as a union of
 //! string literals offers its members with no file, and merged with a file's values
 //! (`rule:types/single-value-types`). A string at a `Core\Time\Zone` parameter, or in `Zone::of`,
-//! offers every zone name split on `/`, and a written zone hovers as its offset from UTC. A string
+//! offers every zone name split on `/`, and a written zone hovers as its offset from UTC. The first
+//! argument of `Core\Config::set` and `restore` offers the keys a request may change, split on `.`,
+//! and a written one hovers as how a request may change it; `get` offers none. A string
 //! at a `property<static>` field of an attribute's payload offers the public properties of the
 //! class the attribute is on, and jumps to the one it names
 //! (`rule:attributes/a-declaration-names-its-class-with-static`).
@@ -1188,6 +1190,102 @@ fn a_string_at_a_zone_parameter_offers_every_zone_name() {
     // A `string` parameter of another method offers no zone.
     let (items, _) = offered(&workspace, &files, "Label::text('Eu<|>');");
     assert!(items.is_empty(), "{items:?}");
+}
+
+/// The distinct `.` segments that follow `prefix` in the keys a request may change, sorted.
+fn settable_segments(prefix: &str) -> Vec<&'static str> {
+    let mut out: Vec<&str> = nvs_config::settable::SETTABLE
+        .iter()
+        .filter_map(|row| row.key.strip_prefix(prefix))
+        .map(|rest| rest.split('.').next().expect("a segment"))
+        .collect();
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+/// `labels`, sorted.
+fn sorted(items: &[CompletionItem]) -> Vec<&str> {
+    let mut out = labels(items);
+    out.sort_unstable();
+    out
+}
+
+#[test]
+fn set_offers_only_the_settable_keys() {
+    let workspace = Workspace::new("settable");
+    let files = workspace.load();
+
+    // The first segment of every listed key, and nothing else: no key `set` cannot change.
+    let (items, _) = offered(&workspace, &files, "Core\\Config::set('<|>', '1');");
+    assert_eq!(sorted(&items), settable_segments(""));
+    assert!(!labels(&items).contains(&"server"), "{:?}", labels(&items));
+
+    // After `limits.`, the listed limits, and only the segment after the dot is replaced.
+    let call = "Core\\Config::set('limits.<|>', '1');";
+    let (items, triggered) = offered(&workspace, &files, call);
+    assert!(triggered, "`.` opens the list");
+    assert_eq!(sorted(&items), settable_segments("limits."));
+    assert!(!labels(&items).contains(&"hard"), "{:?}", labels(&items));
+    let open = u32::try_from(call.find("'limits").expect("a quote")).expect("short");
+    assert_eq!(
+        edit(&items, "memory"),
+        ("memory".to_owned(), between(open + 7, 0))
+    );
+
+    // How each key may change is at the item's right.
+    let (items, _) = offered(&workspace, &files, "Core\\Config::set('debug.<|>', false);");
+    let inline = named(&items, "inline");
+    assert_eq!(
+        inline
+            .label_details
+            .as_ref()
+            .and_then(|details| details.description.as_deref()),
+        Some("only false")
+    );
+
+    // `restore` offers the same keys.
+    let (items, _) = offered(&workspace, &files, "Core\\Config::restore('<|>');");
+    assert_eq!(sorted(&items), settable_segments(""));
+
+    // `get` reads every key, and offers none of these.
+    let (items, _) = offered(&workspace, &files, "Core\\Config::get('<|>');");
+    assert!(items.is_empty(), "{items:?}");
+}
+
+#[test]
+fn hover_on_a_settable_key_says_how_a_request_may_change_it() {
+    let workspace = Workspace::new("settable-hover");
+    let files = workspace.load();
+
+    // A bare limit name is its `[limits]` key.
+    let (text, _) = hovered(&workspace, &files, "Core\\Config::set('mem<|>ory', '1G');")
+        .expect("a listed key hovers");
+    assert!(
+        text.starts_with("A request may change `limits.memory` for itself, up to its ceiling."),
+        "{text}"
+    );
+    let (text, _) = hovered(
+        &workspace,
+        &files,
+        "Core\\Config::restore('debug.in<|>line');",
+    )
+    .expect("`restore`'s key hovers");
+    assert!(text.contains("to `false`"), "{text}");
+
+    // A key the list does not have, and any key in `get`, has no such hover.
+    for call in [
+        "Core\\Config::set('server.li<|>sten', '1');",
+        "Core\\Config::get('limits.me<|>mory');",
+    ] {
+        let hover = hovered(&workspace, &files, call);
+        assert!(
+            hover
+                .as_ref()
+                .is_none_or(|(text, _)| !text.starts_with("A request may")),
+            "{call}: {hover:?}"
+        );
+    }
 }
 
 #[test]
