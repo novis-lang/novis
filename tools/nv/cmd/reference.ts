@@ -338,7 +338,8 @@ function renderEnums(enums: Json[], lines: string[]): void {
     lines.push(anchor(anchorId("enum", e.name)), `#### \`${e.name}\``, "");
     if (doc.short) lines.push(doc.short, "");
     lines.push("| Case | Meaning |", "|---|---|");
-    for (const c of doc.cases ?? []) lines.push(`| \`${e.name}::${c.name}\` | ${esc(c.desc)} |`);
+    // A component's enum case has a name and no description, since its manifest lists names only.
+    for (const c of doc.cases ?? []) lines.push(`| \`${e.name}::${c.name}\` | ${esc(c.desc ?? "")} |`);
     lines.push("");
   }
 }

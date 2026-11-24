@@ -59855,6 +59855,14 @@ An image file format. `Image::format` sets the format that `encode` writes.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Image\Format::Jpeg` |  |
+| `Novis\Image\Format::Png` |  |
+| `Novis\Image\Format::Webp` |  |
+| `Novis\Image\Format::Gif` |  |
+| `Novis\Image\Format::Avif` |  |
+| `Novis\Image\Format::Jxl` |  |
+| `Novis\Image\Format::Svg` |  |
+| `Novis\Image\Format::Pdf` |  |
 
 <a id="enum-novis-image-image-gravity"></a>
 #### `Novis\Image\Image::Gravity`
@@ -59863,6 +59871,15 @@ A position in an image, as a direction from the center. `resize` uses it to choo
 
 | Case | Meaning |
 |---|---|
+| `Novis\Image\Image::Gravity::Center` |  |
+| `Novis\Image\Image::Gravity::North` |  |
+| `Novis\Image\Image::Gravity::NorthEast` |  |
+| `Novis\Image\Image::Gravity::East` |  |
+| `Novis\Image\Image::Gravity::SouthEast` |  |
+| `Novis\Image\Image::Gravity::South` |  |
+| `Novis\Image\Image::Gravity::SouthWest` |  |
+| `Novis\Image\Image::Gravity::West` |  |
+| `Novis\Image\Image::Gravity::NorthWest` |  |
 
 <a id="enum-novis-image-image-fit"></a>
 #### `Novis\Image\Image::Fit`
@@ -59871,6 +59888,11 @@ How `resize` fits an image into the width and height you give.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Image\Image::Fit::Cover` |  |
+| `Novis\Image\Image::Fit::Contain` |  |
+| `Novis\Image\Image::Fit::Fill` |  |
+| `Novis\Image\Image::Fit::Inside` |  |
+| `Novis\Image\Image::Fit::Outside` |  |
 
 <a id="enum-novis-image-image-filter"></a>
 #### `Novis\Image\Image::Filter`
@@ -59879,6 +59901,11 @@ The filter `resize` uses to calculate the new pixels. The default is `Lanczos3`.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Image\Image::Filter::Nearest` |  |
+| `Novis\Image\Image::Filter::Bilinear` |  |
+| `Novis\Image\Image::Filter::CatmullRom` |  |
+| `Novis\Image\Image::Filter::Mitchell` |  |
+| `Novis\Image\Image::Filter::Lanczos3` |  |
 
 <a id="enum-novis-image-image-axis"></a>
 #### `Novis\Image\Image::Axis`
@@ -59887,6 +59914,8 @@ The direction `flip` mirrors an image in.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Image\Image::Axis::Horizontal` |  |
+| `Novis\Image\Image::Axis::Vertical` |  |
 
 <a id="enum-novis-image-image-blend"></a>
 #### `Novis\Image\Image::Blend`
@@ -59895,6 +59924,12 @@ How the pixels of one image are mixed with the pixels of the image below it.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Image\Image::Blend::Normal` |  |
+| `Novis\Image\Image::Blend::Multiply` |  |
+| `Novis\Image\Image::Blend::Screen` |  |
+| `Novis\Image\Image::Blend::Overlay` |  |
+| `Novis\Image\Image::Blend::Darken` |  |
+| `Novis\Image\Image::Blend::Lighten` |  |
 
 <a id="enum-novis-image-image-align"></a>
 #### `Novis\Image\Image::Align`
@@ -59903,6 +59938,9 @@ How the lines of a text are aligned.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Image\Image::Align::Left` |  |
+| `Novis\Image\Image::Align::Center` |  |
+| `Novis\Image\Image::Align::Right` |  |
 
 <a id="enum-novis-image-image-output"></a>
 #### `Novis\Image\Image::Output`
@@ -59911,6 +59949,9 @@ What `Codec::run` returns: the encoded file, the RGBA8 pixels, or the size alone
 
 | Case | Meaning |
 |---|---|
+| `Novis\Image\Image::Output::Encoded` |  |
+| `Novis\Image\Image::Output::Raw` |  |
+| `Novis\Image\Image::Output::Size` |  |
 
 <a id="enum-novis-image-image-hashkind"></a>
 #### `Novis\Image\Image::HashKind`
@@ -59919,6 +59960,9 @@ The kind of hash `Image::hash` returns. A `Perceptual` hash is 8 bytes, a `Diffe
 
 | Case | Meaning |
 |---|---|
+| `Novis\Image\Image::HashKind::Perceptual` |  |
+| `Novis\Image\Image::HashKind::Difference` |  |
+| `Novis\Image\Image::HashKind::Average` |  |
 
 <a id="enum-novis-image-image-placeholderkind"></a>
 #### `Novis\Image\Image::PlaceholderKind`
@@ -59927,6 +59971,8 @@ The kind of placeholder `Image::placeholder` returns. A `BlurHash` is 28 charact
 
 | Case | Meaning |
 |---|---|
+| `Novis\Image\Image::PlaceholderKind::BlurHash` |  |
+| `Novis\Image\Image::PlaceholderKind::ThumbHash` |  |
 
 <a id="enum-novis-image-qrcode-level"></a>
 #### `Novis\Image\QrCode::Level`
@@ -59935,6 +59981,10 @@ How much of a QR code can be damaged and still be read: about 7, 15, 25 or 30 pe
 
 | Case | Meaning |
 |---|---|
+| `Novis\Image\QrCode::Level::Low` |  |
+| `Novis\Image\QrCode::Level::Medium` |  |
+| `Novis\Image\QrCode::Level::Quartile` |  |
+| `Novis\Image\QrCode::Level::High` |  |
 
 <a id="enum-novis-image-barcode-symbology"></a>
 #### `Novis\Image\Barcode::Symbology`
@@ -59943,6 +59993,14 @@ The type of barcode `Barcode::render` and `Barcode::svg` draw. `DataMatrix` is a
 
 | Case | Meaning |
 |---|---|
+| `Novis\Image\Barcode::Symbology::Code128` |  |
+| `Novis\Image\Barcode::Symbology::Gs1128` |  |
+| `Novis\Image\Barcode::Symbology::Ean13` |  |
+| `Novis\Image\Barcode::Symbology::Ean8` |  |
+| `Novis\Image\Barcode::Symbology::UpcA` |  |
+| `Novis\Image\Barcode::Symbology::Code39` |  |
+| `Novis\Image\Barcode::Symbology::Itf14` |  |
+| `Novis\Image\Barcode::Symbology::DataMatrix` |  |
 
 <a id="enum-novis-intl-collator-strength"></a>
 #### `Novis\Intl\Collator::Strength`
@@ -59951,6 +60009,11 @@ Which differences between two strings change their order. `Primary` compares let
 
 | Case | Meaning |
 |---|---|
+| `Novis\Intl\Collator::Strength::Primary` |  |
+| `Novis\Intl\Collator::Strength::Secondary` |  |
+| `Novis\Intl\Collator::Strength::Tertiary` |  |
+| `Novis\Intl\Collator::Strength::Quaternary` |  |
+| `Novis\Intl\Collator::Strength::Identical` |  |
 
 <a id="enum-novis-intl-collator-casefirst"></a>
 #### `Novis\Intl\Collator::CaseFirst`
@@ -59959,6 +60022,9 @@ Whether uppercase or lowercase letters sort first. `Off`, the default, uses the 
 
 | Case | Meaning |
 |---|---|
+| `Novis\Intl\Collator::CaseFirst::Off` |  |
+| `Novis\Intl\Collator::CaseFirst::Upper` |  |
+| `Novis\Intl\Collator::CaseFirst::Lower` |  |
 
 <a id="enum-novis-intl-numberformat-style"></a>
 #### `Novis\Intl\NumberFormat::Style`
@@ -59967,6 +60033,10 @@ How `Icu::formatNumbers` writes a number. Each `NumberFormat` method uses one st
 
 | Case | Meaning |
 |---|---|
+| `Novis\Intl\NumberFormat::Style::Decimal` |  |
+| `Novis\Intl\NumberFormat::Style::Percent` |  |
+| `Novis\Intl\NumberFormat::Style::Currency` |  |
+| `Novis\Intl\NumberFormat::Style::Compact` |  |
 
 <a id="enum-novis-intl-numberformat-currencydisplay"></a>
 #### `Novis\Intl\NumberFormat::CurrencyDisplay`
@@ -59975,6 +60045,9 @@ How a currency is written: as its symbol, such as "US$", as its short symbol, su
 
 | Case | Meaning |
 |---|---|
+| `Novis\Intl\NumberFormat::CurrencyDisplay::Symbol` |  |
+| `Novis\Intl\NumberFormat::CurrencyDisplay::Narrow` |  |
+| `Novis\Intl\NumberFormat::CurrencyDisplay::Name` |  |
 
 <a id="enum-novis-intl-numberformat-compactdisplay"></a>
 #### `Novis\Intl\NumberFormat::CompactDisplay`
@@ -59983,6 +60056,8 @@ How a compact number is written: "1.2K" is `Short`, the default, and "1.2 thousa
 
 | Case | Meaning |
 |---|---|
+| `Novis\Intl\NumberFormat::CompactDisplay::Short` |  |
+| `Novis\Intl\NumberFormat::CompactDisplay::Long` |  |
 
 <a id="enum-novis-intl-pluralrules-kind"></a>
 #### `Novis\Intl\PluralRules::Kind`
@@ -59991,6 +60066,8 @@ Which plural rules `Icu::pluralCategories` uses: the rules for counting, such as
 
 | Case | Meaning |
 |---|---|
+| `Novis\Intl\PluralRules::Kind::Cardinal` |  |
+| `Novis\Intl\PluralRules::Kind::Ordinal` |  |
 
 <a id="enum-novis-intl-pluralrules-category"></a>
 #### `Novis\Intl\PluralRules::Category`
@@ -59999,6 +60076,12 @@ A plural category of the locale. `PluralRules` returns these as `Core\Cldr::Plur
 
 | Case | Meaning |
 |---|---|
+| `Novis\Intl\PluralRules::Category::Zero` |  |
+| `Novis\Intl\PluralRules::Category::One` |  |
+| `Novis\Intl\PluralRules::Category::Two` |  |
+| `Novis\Intl\PluralRules::Category::Few` |  |
+| `Novis\Intl\PluralRules::Category::Many` |  |
+| `Novis\Intl\PluralRules::Category::Other` |  |
 
 <a id="enum-novis-intl-dateformat-length"></a>
 #### `Novis\Intl\DateFormat::Length`
@@ -60007,6 +60090,9 @@ How long a formatted date is. The default is `Medium`.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Intl\DateFormat::Length::Short` |  |
+| `Novis\Intl\DateFormat::Length::Medium` |  |
+| `Novis\Intl\DateFormat::Length::Long` |  |
 
 <a id="enum-novis-intl-dateformat-zonestyle"></a>
 #### `Novis\Intl\DateFormat::ZoneStyle`
@@ -60015,6 +60101,10 @@ How a formatted date and time shows its time zone: not at all, as its UTC offset
 
 | Case | Meaning |
 |---|---|
+| `Novis\Intl\DateFormat::ZoneStyle::None` |  |
+| `Novis\Intl\DateFormat::ZoneStyle::Offset` |  |
+| `Novis\Intl\DateFormat::ZoneStyle::Location` |  |
+| `Novis\Intl\DateFormat::ZoneStyle::Generic` |  |
 
 <a id="enum-novis-intl-relativetime-unit"></a>
 #### `Novis\Intl\RelativeTime::Unit`
@@ -60023,6 +60113,14 @@ The unit of an amount of time in `RelativeTime::format`.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Intl\RelativeTime::Unit::Second` |  |
+| `Novis\Intl\RelativeTime::Unit::Minute` |  |
+| `Novis\Intl\RelativeTime::Unit::Hour` |  |
+| `Novis\Intl\RelativeTime::Unit::Day` |  |
+| `Novis\Intl\RelativeTime::Unit::Week` |  |
+| `Novis\Intl\RelativeTime::Unit::Month` |  |
+| `Novis\Intl\RelativeTime::Unit::Quarter` |  |
+| `Novis\Intl\RelativeTime::Unit::Year` |  |
 
 <a id="enum-novis-intl-width"></a>
 #### `Novis\Intl\Width`
@@ -60031,6 +60129,9 @@ How many words a formatted text uses. `Wide`, the default, writes words in full.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Intl\Width::Wide` |  |
+| `Novis\Intl\Width::Short` |  |
+| `Novis\Intl\Width::Narrow` |  |
 
 <a id="enum-novis-intl-relativetime-numeric"></a>
 #### `Novis\Intl\RelativeTime::Numeric`
@@ -60039,6 +60140,8 @@ Whether a relative time is always written with a number. `Always`, the default, 
 
 | Case | Meaning |
 |---|---|
+| `Novis\Intl\RelativeTime::Numeric::Always` |  |
+| `Novis\Intl\RelativeTime::Numeric::Auto` |  |
 
 <a id="enum-novis-intl-listformat-type"></a>
 #### `Novis\Intl\ListFormat::Type`
@@ -60047,6 +60150,9 @@ The words that join a list: "a, b and c" is `And`, the default, "a, b or c" is `
 
 | Case | Meaning |
 |---|---|
+| `Novis\Intl\ListFormat::Type::And` |  |
+| `Novis\Intl\ListFormat::Type::Or` |  |
+| `Novis\Intl\ListFormat::Type::Unit` |  |
 
 <a id="enum-novis-intl-locale-service"></a>
 #### `Novis\Intl\Locale::Service`
@@ -60055,6 +60161,13 @@ The data `Icu::resolveLocales` checks: the rules for sorting, numbers, plurals, 
 
 | Case | Meaning |
 |---|---|
+| `Novis\Intl\Locale::Service::Collation` |  |
+| `Novis\Intl\Locale::Service::Numbers` |  |
+| `Novis\Intl\Locale::Service::Plurals` |  |
+| `Novis\Intl\Locale::Service::Dates` |  |
+| `Novis\Intl\Locale::Service::RelativeTime` |  |
+| `Novis\Intl\Locale::Service::Lists` |  |
+| `Novis\Intl\Locale::Service::Segmentation` |  |
 
 <a id="enum-novis-pdf-document-standard"></a>
 #### `Novis\Pdf\Document::Standard`
@@ -60063,6 +60176,9 @@ A PDF standard the file follows. `PdfA2b` and `PdfA3b` are for archiving, and `P
 
 | Case | Meaning |
 |---|---|
+| `Novis\Pdf\Document::Standard::PdfA2b` |  |
+| `Novis\Pdf\Document::Standard::PdfA3b` |  |
+| `Novis\Pdf\Document::Standard::PdfUa1` |  |
 
 <a id="enum-novis-spreadsheet-style-line"></a>
 #### `Novis\Spreadsheet\Style::Line`
@@ -60071,6 +60187,12 @@ The kind of line a border has.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Spreadsheet\Style::Line::Thin` |  |
+| `Novis\Spreadsheet\Style::Line::Medium` |  |
+| `Novis\Spreadsheet\Style::Line::Thick` |  |
+| `Novis\Spreadsheet\Style::Line::Dashed` |  |
+| `Novis\Spreadsheet\Style::Line::Dotted` |  |
+| `Novis\Spreadsheet\Style::Line::Double` |  |
 
 <a id="enum-novis-spreadsheet-style-underline"></a>
 #### `Novis\Spreadsheet\Style::Underline`
@@ -60079,6 +60201,8 @@ One or two lines under the text.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Spreadsheet\Style::Underline::Single` |  |
+| `Novis\Spreadsheet\Style::Underline::Double` |  |
 
 <a id="enum-novis-spreadsheet-style-align"></a>
 #### `Novis\Spreadsheet\Style::Align`
@@ -60087,6 +60211,11 @@ Where the text sits from left to right in its cell.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Spreadsheet\Style::Align::Left` |  |
+| `Novis\Spreadsheet\Style::Align::Center` |  |
+| `Novis\Spreadsheet\Style::Align::Right` |  |
+| `Novis\Spreadsheet\Style::Align::Fill` |  |
+| `Novis\Spreadsheet\Style::Align::Justify` |  |
 
 <a id="enum-novis-spreadsheet-style-valign"></a>
 #### `Novis\Spreadsheet\Style::Valign`
@@ -60095,6 +60224,9 @@ Where the text sits from top to bottom in its cell.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Spreadsheet\Style::Valign::Top` |  |
+| `Novis\Spreadsheet\Style::Valign::Center` |  |
+| `Novis\Spreadsheet\Style::Valign::Bottom` |  |
 
 <a id="enum-novis-spreadsheet-reader-visibility"></a>
 #### `Novis\Spreadsheet\Reader::Visibility`
@@ -60103,6 +60235,9 @@ Whether a sheet is shown. A person can show a `Hidden` sheet again in Excel. Onl
 
 | Case | Meaning |
 |---|---|
+| `Novis\Spreadsheet\Reader::Visibility::Visible` |  |
+| `Novis\Spreadsheet\Reader::Visibility::Hidden` |  |
+| `Novis\Spreadsheet\Reader::Visibility::VeryHidden` |  |
 
 <a id="enum-novis-spreadsheet-sheet-rulekind"></a>
 #### `Novis\Spreadsheet\Sheet::RuleKind`
@@ -60111,6 +60246,12 @@ What a data validation checks: a value from a list, a whole number, a decimal nu
 
 | Case | Meaning |
 |---|---|
+| `Novis\Spreadsheet\Sheet::RuleKind::List` |  |
+| `Novis\Spreadsheet\Sheet::RuleKind::Whole` |  |
+| `Novis\Spreadsheet\Sheet::RuleKind::Decimal` |  |
+| `Novis\Spreadsheet\Sheet::RuleKind::Date` |  |
+| `Novis\Spreadsheet\Sheet::RuleKind::Length` |  |
+| `Novis\Spreadsheet\Sheet::RuleKind::Formula` |  |
 
 <a id="enum-novis-spreadsheet-sheet-operator"></a>
 #### `Novis\Spreadsheet\Sheet::Operator`
@@ -60119,6 +60260,14 @@ How a value is compared with the values of a rule. `Between` and `NotBetween` ne
 
 | Case | Meaning |
 |---|---|
+| `Novis\Spreadsheet\Sheet::Operator::Between` |  |
+| `Novis\Spreadsheet\Sheet::Operator::NotBetween` |  |
+| `Novis\Spreadsheet\Sheet::Operator::Equal` |  |
+| `Novis\Spreadsheet\Sheet::Operator::NotEqual` |  |
+| `Novis\Spreadsheet\Sheet::Operator::Greater` |  |
+| `Novis\Spreadsheet\Sheet::Operator::GreaterOrEqual` |  |
+| `Novis\Spreadsheet\Sheet::Operator::Less` |  |
+| `Novis\Spreadsheet\Sheet::Operator::LessOrEqual` |  |
 
 <a id="enum-novis-spreadsheet-sheet-totalfunction"></a>
 #### `Novis\Spreadsheet\Sheet::TotalFunction`
@@ -60127,6 +60276,11 @@ The function the totals row of a table uses for a column.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Spreadsheet\Sheet::TotalFunction::Sum` |  |
+| `Novis\Spreadsheet\Sheet::TotalFunction::Average` |  |
+| `Novis\Spreadsheet\Sheet::TotalFunction::Count` |  |
+| `Novis\Spreadsheet\Sheet::TotalFunction::Min` |  |
+| `Novis\Spreadsheet\Sheet::TotalFunction::Max` |  |
 
 <a id="enum-novis-spreadsheet-sheet-conditionalkind"></a>
 #### `Novis\Spreadsheet\Sheet::ConditionalKind`
@@ -60135,6 +60289,15 @@ The kind of a conditional format rule.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Spreadsheet\Sheet::ConditionalKind::Cell` |  |
+| `Novis\Spreadsheet\Sheet::ConditionalKind::Formula` |  |
+| `Novis\Spreadsheet\Sheet::ConditionalKind::ColorScale` |  |
+| `Novis\Spreadsheet\Sheet::ConditionalKind::DataBar` |  |
+| `Novis\Spreadsheet\Sheet::ConditionalKind::IconSet` |  |
+| `Novis\Spreadsheet\Sheet::ConditionalKind::Top` |  |
+| `Novis\Spreadsheet\Sheet::ConditionalKind::Bottom` |  |
+| `Novis\Spreadsheet\Sheet::ConditionalKind::Duplicates` |  |
+| `Novis\Spreadsheet\Sheet::ConditionalKind::Unique` |  |
 
 <a id="enum-novis-spreadsheet-chart-kind"></a>
 #### `Novis\Spreadsheet\Chart::Kind`
@@ -60143,6 +60306,13 @@ The type of a chart.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Spreadsheet\Chart::Kind::Column` |  |
+| `Novis\Spreadsheet\Chart::Kind::Bar` |  |
+| `Novis\Spreadsheet\Chart::Kind::Line` |  |
+| `Novis\Spreadsheet\Chart::Kind::Area` |  |
+| `Novis\Spreadsheet\Chart::Kind::Pie` |  |
+| `Novis\Spreadsheet\Chart::Kind::Doughnut` |  |
+| `Novis\Spreadsheet\Chart::Kind::Scatter` |  |
 
 <a id="enum-novis-spreadsheet-chart-legend"></a>
 #### `Novis\Spreadsheet\Chart::Legend`
@@ -60151,6 +60321,11 @@ Where a chart shows its legend. `Hidden` shows no legend.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Spreadsheet\Chart::Legend::Hidden` |  |
+| `Novis\Spreadsheet\Chart::Legend::Top` |  |
+| `Novis\Spreadsheet\Chart::Legend::Right` |  |
+| `Novis\Spreadsheet\Chart::Legend::Bottom` |  |
+| `Novis\Spreadsheet\Chart::Legend::Left` |  |
 
 <a id="enum-novis-spreadsheet-sheet-orientation"></a>
 #### `Novis\Spreadsheet\Sheet::Orientation`
@@ -60159,6 +60334,8 @@ Whether a printed page is tall or wide.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Spreadsheet\Sheet::Orientation::Portrait` |  |
+| `Novis\Spreadsheet\Sheet::Orientation::Landscape` |  |
 
 <a id="enum-novis-spreadsheet-reader-sheetkind"></a>
 #### `Novis\Spreadsheet\Reader::SheetKind`
@@ -60167,6 +60344,8 @@ Whether a sheet has cells or only a chart.
 
 | Case | Meaning |
 |---|---|
+| `Novis\Spreadsheet\Reader::SheetKind::Worksheet` |  |
+| `Novis\Spreadsheet\Reader::SheetKind::Chartsheet` |  |
 
 <a id="enum-novis-spreadsheet-cellerror"></a>
 #### `Novis\Spreadsheet\CellError`
@@ -60175,6 +60354,16 @@ The error a cell shows: `#NULL!`, `#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`, `#NUM
 
 | Case | Meaning |
 |---|---|
+| `Novis\Spreadsheet\CellError::Null` |  |
+| `Novis\Spreadsheet\CellError::DivZero` |  |
+| `Novis\Spreadsheet\CellError::Value` |  |
+| `Novis\Spreadsheet\CellError::Ref` |  |
+| `Novis\Spreadsheet\CellError::Name` |  |
+| `Novis\Spreadsheet\CellError::Num` |  |
+| `Novis\Spreadsheet\CellError::NotAvailable` |  |
+| `Novis\Spreadsheet\CellError::GettingData` |  |
+| `Novis\Spreadsheet\CellError::Spill` |  |
+| `Novis\Spreadsheet\CellError::Calc` |  |
 
 # Part C — The toolchain
 
