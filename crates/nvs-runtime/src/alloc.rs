@@ -399,6 +399,63 @@ mod tests {
         Layout::from_size_align(size, 8).expect("a valid test layout")
     }
 
+    /// The best of five timed runs of `rounds` calls of `step`, in
+    /// nanoseconds per call.
+    fn best_ns(rounds: u32, step: &dyn Fn()) -> f64 {
+        (0..5)
+            .map(|_| {
+                let start = std::time::Instant::now();
+                for _ in 0..rounds {
+                    step();
+                }
+                start.elapsed().as_secs_f64() * 1e9 / f64::from(rounds)
+            })
+            .fold(f64::INFINITY, f64::min)
+    }
+
+    /// A timing probe, not a guard: it prints the counted round trip the
+    /// registered allocator makes next to the platform heap's, and asserts
+    /// nothing. The goal that merged the cache's and the counters' thread
+    /// locals ran it before and after, to catch a merge that got slower.
+    /// Run it in a release build, by name, with `--ignored -- --nocapture`.
+    #[test]
+    #[ignore = "a timing probe: run it by name in a release build"]
+    #[expect(clippy::print_stdout, reason = "a probe's figures are its output")]
+    fn the_counted_round_trip_is_timed_beside_the_platform_heap() {
+        const ROUNDS: u32 = 2_000_000;
+        let small = layout(48);
+        let counted = best_ns(ROUNDS, &|| {
+            #[expect(unsafe_code, reason = "freed on the next line, with its layout")]
+            unsafe {
+                let block = crate::budget::Accounting.alloc(std::hint::black_box(small));
+                crate::budget::Accounting.dealloc(std::hint::black_box(block), small);
+            }
+        });
+        let grown = best_ns(ROUNDS, &|| {
+            #[expect(
+                unsafe_code,
+                reason = "grown across classes, then freed with the grown layout"
+            )]
+            unsafe {
+                let block = crate::budget::Accounting.alloc(std::hint::black_box(layout(16)));
+                let block = crate::budget::Accounting.realloc(block, layout(16), 200);
+                crate::budget::Accounting.dealloc(std::hint::black_box(block), layout(200));
+            }
+        });
+        let platform = best_ns(ROUNDS, &|| {
+            #[expect(unsafe_code, reason = "freed on the next line, with its layout")]
+            unsafe {
+                let block = System.alloc(std::hint::black_box(small));
+                System.dealloc(std::hint::black_box(block), small);
+            }
+        });
+        println!(
+            "counted round trip {counted:.2} ns, counted grow {grown:.2} ns, \
+             platform round trip {platform:.2} ns, ratio {:.2}",
+            counted / platform
+        );
+    }
+
     #[test]
     fn a_released_cache_keeps_no_block() {
         let _ = round_trip(layout(48));

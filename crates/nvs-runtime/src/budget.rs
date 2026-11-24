@@ -246,7 +246,6 @@
 //! default one: every Rust test runs under it, and a test that needs a larger
 //! heap sets its own limit and says why.
 
-#[cfg(not(test))]
 use std::alloc::{GlobalAlloc, Layout};
 use std::cell::Cell;
 
@@ -265,9 +264,9 @@ pub use gauge::{
 /// see freed, and the `sanitizer` feature takes the pool out for the same
 /// reason. Counting is orthogonal to both: it sits outside whichever backing
 /// allocator is chosen, so [`live_bytes`] means the same thing in every build.
-#[cfg(all(not(test), not(debug_assertions), not(feature = "sanitizer")))]
+#[cfg(all(any(test, not(debug_assertions)), not(feature = "sanitizer")))]
 use crate::alloc::Pooled as Backing;
-#[cfg(all(not(test), any(debug_assertions, feature = "sanitizer")))]
+#[cfg(not(all(any(test, not(debug_assertions)), not(feature = "sanitizer"))))]
 use std::alloc::System as Backing;
 
 /// The cells every allocation and every free on this thread reads or writes,
@@ -2022,18 +2021,19 @@ fn shift(counters: &Counters, bytes: isize) {
 }
 
 /// The size a layout charges, saturating rather than wrapping.
-#[cfg(not(test))]
 fn charge(bytes: usize) -> isize {
     isize::try_from(bytes).unwrap_or(isize::MAX)
 }
 
 /// `Backing`, plus the per-thread byte count above — the global allocator every
 /// build that is not a test build registers.
-#[cfg(not(test))]
+///
+/// A test build compiles it too and registers `counting_alloc` instead, so
+/// `crate::alloc`'s timing probe can time the counted round trip a release
+/// build runs.
 #[derive(Debug)]
 pub(crate) struct Accounting;
 
-#[cfg(not(test))]
 #[expect(
     unsafe_code,
     reason = "a global allocator's contract is inherently unsafe to implement; \
