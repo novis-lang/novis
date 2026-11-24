@@ -4,7 +4,7 @@
 import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { instanceCalls, keepClasses, readRenames, rewrite, run } from "../cmd/api-rename.ts";
+import { instanceCalls, keepClasses, oldNames, readRenames, rewrite, run } from "../cmd/api-rename.ts";
 import { ROOT } from "../lib/paths.ts";
 
 const GOAL = [
@@ -42,6 +42,15 @@ test("a qualified static call is rewritten", () => {
   expect(rust).toEqual({ text: 'let src = "Fixture\\\\Reply::sendJson($x)";\n', count: 1 });
   const page = rewrite("Call `Reply::json` or `Fixture\\Shape\\Picture->resize`.\n", ".md", RENAMES);
   expect(page.text).toBe("Call `Reply::sendJson` or `Fixture\\Shape\\Picture->resized`.\n");
+});
+
+test("an instance member's feature id is a full name, found and rewritten", () => {
+  const nvst = "<?nvs\n// covers: Fixture\\Shape\\Picture::resize\n";
+  expect(oldNames(nvst, ".nvst", RENAMES).map((h) => [h.line, h.text])).toEqual([[2, "Fixture\\Shape\\Picture::resize"]]);
+  expect(rewrite(nvst, ".nvst", RENAMES)).toEqual({ text: "<?nvs\n// covers: Fixture\\Shape\\Picture::resized\n", count: 1 });
+  const json = '{ "feature": "Fixture\\\\Shape\\\\Picture::resize" }\n';
+  expect(rewrite(json, ".json", RENAMES).text).toBe('{ "feature": "Fixture\\\\Shape\\\\Picture::resized" }\n');
+  expect(oldNames("Fixture\\Shape\\Picture::resizeAll\n", ".md", RENAMES)).toEqual([]);
 });
 
 test("a short name brought in by use is rewritten", () => {

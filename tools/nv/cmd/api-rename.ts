@@ -11,7 +11,8 @@
 // Without `--check` it rewrites, in every text file of the tree (`TEXT_EXTENSIONS`):
 //
 //   * every name written in full, `Shop\Reply::json` or `Shop\Feed->retry`, with a leading `\` or not, and
-//     with the separators doubled as a Rust or TypeScript string writes them (`Shop\\Reply::json`);
+//     with the separators doubled as a Rust or TypeScript string writes them (`Shop\\Reply::json`). An
+//     instance member's feature id, `Shop\Feed::retry`, is a full name too;
 //   * in a `.nvs`, `.nvst` or `.lspt` file, `Reply::json` where the file has `use Shop\Reply;`, and
 //     `R::json` where it has `use Shop\Reply as R;`;
 //   * in a prose file (`.md`, `.mdx`, `.astro`), the short form a page writes, `Reply::json` and
@@ -109,16 +110,23 @@ function fullClass(cls: string): string {
   return `(?<![\\w\\\\])(\\\\{0,2})${cls.split("\\").map(escape).join("(\\\\{1,2})")}`;
 }
 
-/** The full form of `r`'s old name, with a group for each separator so a rewrite keeps the spelling. */
-function fullPattern(r: Rename): RegExp {
-  return new RegExp(`${fullClass(r.oldClass)}${escape(sep(r))}${escape(r.oldMember)}(?!\\w)`, "g");
+/**
+ * The full form of `r`'s old name, with a group for each separator so a rewrite keeps the spelling. `via`
+ * is the separator matched: an instance member's feature id is written `Shop\Feed::retry`, so its rename
+ * is also matched with `::`.
+ */
+function fullPattern(r: Rename, via: string = sep(r)): RegExp {
+  return new RegExp(`${fullClass(r.oldClass)}${escape(via)}${escape(r.oldMember)}(?!\\w)`, "g");
 }
 
-/** `r`'s new full name, written with the separators `groups` matched. */
-function fullReplacement(r: Rename, groups: string[]): string {
+/** The separators each full form of `r` is written with: `->` and `::` for an instance member. */
+const fullSeps = (r: Rename) => (r.instance ? ["->", "::"] : ["::"]);
+
+/** `r`'s new full name, written with the separators `groups` matched and with `via`. */
+function fullReplacement(r: Rename, groups: string[], via: string = sep(r)): string {
   const lead = groups[0] ?? "";
   const middle = groups[1] ?? "\\";
-  return `${lead}${r.newClass.split("\\").join(middle)}${sep(r)}${r.newMember}`;
+  return `${lead}${r.newClass.split("\\").join(middle)}${via}${r.newMember}`;
 }
 
 /** `Short::old` or `Short->old`, the class written by the name `alias`. */
@@ -148,10 +156,12 @@ export function rewrite(text: string, ext: string, renames: Rename[]): { text: s
   let count = 0;
   let out = text;
   for (const r of renames) {
-    out = out.replace(fullPattern(r), (...m) => {
-      count++;
-      return fullReplacement(r, m.slice(1, 1 + r.oldClass.split("\\").length) as string[]);
-    });
+    for (const via of fullSeps(r)) {
+      out = out.replace(fullPattern(r, via), (...m) => {
+        count++;
+        return fullReplacement(r, m.slice(1, 1 + r.oldClass.split("\\").length) as string[], via);
+      });
+    }
     const aliases = NOVIS.has(ext) && !r.instance ? importedNames(out, r.oldClass) : PROSE.has(ext) ? [short(r.oldClass)] : [];
     for (const alias of new Set(aliases)) {
       out = out.replace(shortPattern(alias, r), () => {
@@ -182,7 +192,7 @@ export function oldNames(text: string, ext: string, renames: Rename[]): Hit[] {
   const out: Hit[] = [];
   const code = ext === ".rs" || ext === ".ts";
   for (const r of renames) {
-    const forms = [fullPattern(r)];
+    const forms = fullSeps(r).map((via) => fullPattern(r, via));
     if (!code) forms.push(shortPattern(short(r.oldClass), r));
     if (NOVIS.has(ext)) for (const alias of importedNames(text, r.oldClass)) forms.push(shortPattern(alias, r));
     const seen = new Set<number>();
