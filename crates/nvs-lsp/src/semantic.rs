@@ -81,6 +81,13 @@
 //! no modifier, which is the same silence a document that does not compile gets
 //! everywhere else here.
 //!
+//! A doc comment's `@see` class or member target and its `@throws` name are
+//! the same read of another record: the checker resolved each tag and kept
+//! what it named (`nvs_hir::doc_targets`), and [`Named::doc_targets`] colours
+//! each by that, on every documented declaration of the entry document. A
+//! file target gets no token, because the TextMate grammar already colours
+//! it as a link.
+//!
 //! [`Kind::EnumMember`] on the member half of `Status::Draft` is the same read
 //! one step further: `nvs_types::ExprInfo::EnumCase` is recorded against an
 //! access the checker resolved to a case and against no other, so
@@ -312,7 +319,32 @@ fn of_stmts(
         analysed,
     };
     named.stmts(stmts);
+    if let Some(analysed) = analysed {
+        named.doc_targets(analysed, file);
+    }
     encode(named.tokens, file, encoding, keep)
+}
+
+/// The token a resolved class name gets, and [`Modifier::DefaultLibrary`] for
+/// a `Core` one: an interface or an enum the program or `Core` declares is
+/// coloured as one, and every other class as a class.
+fn class_kind(analysed: &Analysed, class: &nvs_hir::QName) -> (Kind, u32) {
+    if let Some(symbol) = analysed.module.symbols.get(class) {
+        let kind = match symbol.kind {
+            nvs_hir::SymbolKind::Interface => Kind::Interface,
+            nvs_hir::SymbolKind::Enum => Kind::Enum,
+            _ => Kind::Class,
+        };
+        return (kind, 0);
+    }
+    let name = class.to_string();
+    if registry::core_enum(&name).is_some() {
+        return (Kind::Enum, Modifier::DefaultLibrary.bit());
+    }
+    if registry::class(&name).is_some() {
+        return (Kind::Class, Modifier::DefaultLibrary.bit());
+    }
+    (Kind::Class, 0)
 }
 
 /// Delta-encodes the collected names, in source order.
@@ -406,6 +438,55 @@ impl Named<'_> {
     fn push_with(&mut self, span: Span, kind: Kind, modifiers: u32) {
         if span.start < span.end {
             self.tokens.push((span, kind, modifiers));
+        }
+    }
+
+    /// Records every `@see` class or member target and every `@throws` name
+    /// the entry document's doc comments wrote, by what the checker resolved
+    /// it to (`nvs_hir::doc_targets`). A class is coloured as a class,
+    /// interface or enum, a method as a method, a property as a property and
+    /// an enum case as one. A class constant and a file target get no token:
+    /// the legend has no kind for the first, and the TextMate grammar colours
+    /// the second.
+    fn doc_targets(&mut self, analysed: &Analysed, file: &SourceFile) {
+        use nvs_hir::doc_targets::{MemberKind as Recorded, Resolved};
+        for target in analysed.module.doc_targets.in_file(analysed.entry) {
+            match &target.resolved {
+                Resolved::Class(class) => {
+                    let (kind, modifiers) = class_kind(analysed, class);
+                    self.push_with(target.span, kind, modifiers);
+                }
+                Resolved::Member {
+                    class, owner, kind, ..
+                } => {
+                    let mut start = target.span.start;
+                    if let Some(span) = target.class_span {
+                        let (class_kind, modifiers) = class_kind(analysed, class);
+                        self.push_with(span, class_kind, modifiers);
+                        start = span.end + 2;
+                    }
+                    let written = file
+                        .text()
+                        .get(start as usize..target.span.end as usize)
+                        .unwrap_or_default();
+                    let name = written.strip_suffix("()").unwrap_or(written);
+                    let span = Span {
+                        file: target.span.file,
+                        start,
+                        end: start + u32::try_from(name.len()).unwrap_or(0),
+                    };
+                    let token = match kind {
+                        Recorded::Method => Some(Kind::Method),
+                        Recorded::Prop | Recorded::StaticProp => Some(Kind::Property),
+                        Recorded::Const => (class_kind(analysed, owner).0 == Kind::Enum)
+                            .then_some(Kind::EnumMember),
+                    };
+                    if let Some(token) = token {
+                        self.push(span, token);
+                    }
+                }
+                Resolved::File { .. } => {}
+            }
         }
     }
 
