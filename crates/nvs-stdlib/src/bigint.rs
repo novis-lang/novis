@@ -517,14 +517,13 @@ const MUL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\BigInt::dividedBy`'s reference card — `rule:core-api/reference-card`.
 const DIV_DOC: MethodDoc = MethodDoc {
-    short: "Returns the quotient of this value and `$divisor`, rounded toward zero. `intdiv` \
-            rounds an `int` quotient the same way.",
+    short: "Returns the quotient of this value and `$divisor`, rounded toward zero.",
     params: &[ParamDoc {
         name: "divisor",
         desc: "The value to divide by.",
         shape: &[],
     }],
-    ret: "A `BigInt` quotient. `-7` divided by `2` is `-3`, the same result `intdiv` gives.",
+    ret: "A `BigInt` quotient. `-7` divided by `2` is `-3`, and `7` divided by `-2` is also `-3`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
         desc: "`$divisor` is zero.",

@@ -744,13 +744,14 @@ const DURATION_TO_CLOCK_DOC: MethodDoc = MethodDoc {
     short: "Writes the duration as hours and minutes, such as `1:30`. The hours do not stop at \
             24, so 25 hours and 30 minutes is `25:30`.",
     params: &[ParamDoc {
-        name: "options",
-        desc: "Set `seconds` to `true` to add the seconds, such as `25:30:00`. By default, the \
-               text ends at the minutes.",
+        name: "seconds",
+        desc: "With `{ seconds: true }`, the text also has the seconds, such as `25:30:00`. By \
+               default, the text ends at the minutes.",
         shape: &[],
     }],
-    ret: "The text. Anything smaller than the last part written is cut off, not rounded. So 1 \
-          hour, 30 minutes and 59 seconds is `1:30`. A negative duration starts with `-`, such \
+    ret: "The text. The seconds are dropped when the text ends at the minutes, and the part \
+          below a second is always dropped. Nothing is rounded, so 1 hour, 30 minutes and 59 \
+          seconds is `1:30`. A negative duration starts with `-`, such \
           as `-1:15`. `Duration::fromClock` reads the text back.",
     errors: &[],
 };
@@ -3376,17 +3377,18 @@ const DATE_RANGE_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "to",
             desc: "The last date the list may contain. With a step of one day, `$to` is always \
-                   in the list. With a larger step, `$to` is in the list only when the dates \
-                   reach it exactly.",
+                   in the list. With a larger step, `$to` is in the list only when one of the \
+                   steps lands on it.",
             shape: &[],
         },
         ParamDoc {
-            name: "options",
-            desc: "The third argument, such as `{ step: Unit::Week }`. `step` is the distance \
-                   between two dates: `Unit::Day` (the default), `Unit::Week`, `Unit::Month`, \
+            name: "step",
+            desc: "The distance between two dates, such as `{ step: Unit::Week }`. It is \
+                   `Unit::Day` (the default), `Unit::Week`, `Unit::Month`, \
                    `Unit::Quarter` (three months) or `Unit::Year`. A unit smaller than a day, \
-                   such as `Unit::Hour`, does not compile. A month is counted from `$from`. From \
-                   31 January 2026, the next dates are 28 February, 31 March and 30 April.",
+                   such as `Unit::Hour`, does not compile. Each date is a number of steps after \
+                   `$from`, not one step after the date before it. So from 31 January 2026, a \
+                   month step gives 28 February, 31 March and 30 April.",
             shape: &[],
         },
     ],

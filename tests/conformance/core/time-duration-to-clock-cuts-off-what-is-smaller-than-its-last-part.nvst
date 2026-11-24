@@ -1,0 +1,28 @@
+--TEST--
+`Core\Time\Duration::toClock` cuts off what is smaller than the last part it writes and does not round it, writes no `-` for a negative duration that is zero after the cut, and reaches the longest `Duration` — `rule:core-classes/a-time-class-builds-its-own-values`
+--FILE--
+<?nvs
+// covers: Core\Time\Duration::toClock, Core\Time\Duration::fromClock
+// 1 hour, 30 minutes and 59 seconds is `1:30`. The seconds are cut off.
+echo Core\Time\Duration::fromClock('1:30:59')->toClock(), "\n";
+echo Core\Time\Duration::fromClock('1:30:59')->toClock({seconds: true}), "\n";
+echo 90m->toClock(), "\n";
+// Less than one minute is `0:00`, also when the duration is negative.
+echo 59s->toClock(), "\n";
+echo 59s->negated()->toClock(), "\n";
+echo 59s->negated()->toClock({seconds: true}), "\n";
+// Part of a second is cut off too.
+echo 1500ms->toClock({seconds: true}), "\n";
+// The longest `Duration` is 2562047 hours, 47 minutes and 16 seconds.
+echo 2562047h47m16s->toClock({seconds: true}), "\n";
+echo Core\Time\Duration::fromClock('-2562047:47:16')->toClock(), "\n";
+--EXPECT--
+1:30
+1:30:59
+1:30
+0:00
+0:00
+-0:00:59
+0:00:01
+2562047:47:16
+-2562047:47

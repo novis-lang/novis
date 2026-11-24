@@ -231,9 +231,9 @@ fn a_secret_operand_at_log_write_fields_is_refused_despite_the_open_type() {
 #[test]
 fn a_secret_argument_to_push_is_refused_where_the_call_is_written() {
     // `rule:security/secret-sinks-refuse`'s serialiser bullet reached one
-    // member further on: `Core\Queue::push` encodes its `args` payload into a
+    // member further on: `Core\Queue::push` encodes its `arguments` payload into a
     // durable row with `Core\Json::encode`'s own encoder, so it reports that
-    // bullet's code — and it has to report it *here*, because `args` is
+    // bullet's code — and it has to report it *here*, because `arguments` is
     // declared `mixed` and the bag arrives as the registry's own `CoreShape`,
     // which is why no declared type below the call site can tell.
     let named = check_in_method(

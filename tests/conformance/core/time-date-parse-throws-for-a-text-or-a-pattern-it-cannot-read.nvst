@@ -1,0 +1,39 @@
+--TEST--
+`Core\Time\Date::parse` throws a `ParseError` for a text that does not match its pattern or names no real date, and a `LogicError` for a pattern with a time or zone letter — `rule:core-classes/a-time-class-builds-its-own-values`
+--FILE--
+<?nvs
+// covers: Core\Time\Date::parse
+// No text below matches the pattern `dd.MM.yyyy`, so each line prints `ParseError`.
+// The day, the end, the separator, the month or the whole text is wrong.
+array<string> $texts = ['30.02.2026', '5.01.2026', '05.01.2026 ', '05-01-2026', '05.13.2026', ''];
+foreach ($texts as string $text) {
+    try {
+        echo Core\Time\Date::parse($text, 'dd.MM.yyyy')->toIso(), "\n";
+    } catch (ParseError $e) {
+        echo "ParseError\n";
+    }
+}
+
+// A `Date` has no time and no zone, so `HH` and `XXX` are not allowed in the pattern.
+// These patterns are variables, so the error is thrown when the program runs.
+array<string> $patterns = ['dd.MM.yyyy HH:mm', 'yyyy-MM-dd XXX'];
+foreach ($patterns as string $pattern) {
+    try {
+        echo Core\Time\Date::parse('05.01.2026', $pattern)->toIso(), "\n";
+    } catch (LogicError $wrong) {
+        echo $wrong->message, "\n";
+    }
+}
+
+// The same text with a matching pattern is a date.
+echo Core\Time\Date::parse('05.01.2026', 'dd.MM.yyyy')->toIso(), "\n";
+--EXPECT--
+ParseError
+ParseError
+ParseError
+ParseError
+ParseError
+ParseError
+Core\Time\Date::parse(): a pattern that parses a date names only date letters — a `Core\Time\Date` has no time of day and no zone
+Core\Time\Date::parse(): a pattern that parses a date names only date letters — a `Core\Time\Date` has no time of day and no zone
+2026-01-05

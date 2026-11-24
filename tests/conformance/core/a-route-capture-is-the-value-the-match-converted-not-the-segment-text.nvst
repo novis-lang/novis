@@ -26,7 +26,7 @@ if ($matched != null) {
 
 --EXPECTF-ERROR--
 error[E0401]: expected `tainted string`, found `uint|int|decimal|tainted string|Core\Uuid|Parses`
-   --> case.nvs:18:36
+   --> case.nvs:18:40
 %A
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.

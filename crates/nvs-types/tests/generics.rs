@@ -384,14 +384,13 @@ fn a_new_object_set_is_keyed_by_its_exact_element_type() {
     );
 }
 
-/// Key types whose every value is an object, which the collection stores by
-/// identity: a class, a subclass, an interface, `object`, a `Core` class, a
-/// shape and a callable.
+/// Key types whose every value is an object that `==` compares by identity,
+/// which the collection stores by identity: a class, a subclass, an interface,
+/// a `Core` class, a shape and a callable.
 const OBJECT_KEY_TYPES: &[&str] = &[
     "Animal",
     "Dog",
     "Named",
-    "object",
     "Core\\Html\\Markup",
     "{name: string}",
     "callable",
@@ -400,6 +399,11 @@ const OBJECT_KEY_TYPES: &[&str] = &[
 /// Key types that can hold a value that is not an object, which keep the
 /// chain: an enum, a nullable class, a union with a scalar, and `mixed`.
 const NOT_ONLY_OBJECT_KEY_TYPES: &[&str] = &["Color", "?Animal", "Animal|int", "mixed"];
+
+/// Key types whose every value is an object, but which may hold a `Core\Time`
+/// value class that `==` compares by value, so they keep the chain: `object`
+/// and the value class itself (`rule:expressions/object-identity-equality`).
+const VALUE_OBJECT_KEY_TYPES: &[&str] = &["object", "Core\\Time\\Date"];
 
 /// `new Core\ObjectMap<K, V>()` and `new Core\ObjectSet<T>()` with a key type
 /// whose every value is an object record the identity keying.
@@ -421,6 +425,21 @@ fn a_collection_keyed_by_a_type_with_a_value_that_is_no_object_keeps_the_chain()
     );
     assert_eq!(
         keyings_of("ObjectSet", "", NOT_ONLY_OBJECT_KEY_TYPES),
+        expected
+    );
+}
+
+/// A key type that may hold a `Core\Time` value keeps the chain, in both
+/// collections, because the chain finds a key with `==`.
+#[test]
+fn a_collection_keyed_by_a_type_that_may_hold_a_time_value_keeps_the_chain() {
+    let expected = vec![nvs_types::CoreKeying::Chain; VALUE_OBJECT_KEY_TYPES.len()];
+    assert_eq!(
+        keyings_of("ObjectMap", ", int", VALUE_OBJECT_KEY_TYPES),
+        expected
+    );
+    assert_eq!(
+        keyings_of("ObjectSet", "", VALUE_OBJECT_KEY_TYPES),
         expected
     );
 }

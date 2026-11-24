@@ -477,14 +477,17 @@ mod tests {
             .fold(f64::INFINITY, f64::min)
     }
 
-    /// A timing probe, not a guard: it prints the counted round trip the
+    /// A timing probe, not a guard: it prints to standard error the counted round trip the
     /// registered allocator makes next to the platform heap's, and asserts
     /// nothing. The goal that merged the cache's and the counters' thread
     /// locals ran it before and after, to catch a merge that got slower.
     /// Run it in a release build, by name, with `--ignored -- --nocapture`.
     #[test]
     #[ignore = "a timing probe: run it by name in a release build"]
-    #[expect(clippy::print_stdout, reason = "a probe's figures are its output")]
+    #[expect(
+        clippy::print_stderr,
+        reason = "a probe's figures are its output, and stdout is the language server's"
+    )]
     fn the_counted_round_trip_is_timed_beside_the_platform_heap() {
         const ROUNDS: u32 = 2_000_000;
         let small = layout(48);
@@ -513,7 +516,7 @@ mod tests {
                 System.dealloc(std::hint::black_box(block), small);
             }
         });
-        println!(
+        eprintln!(
             "counted round trip {counted:.2} ns, counted grow {grown:.2} ns, \
              platform round trip {platform:.2} ns, ratio {:.2}",
             counted / platform

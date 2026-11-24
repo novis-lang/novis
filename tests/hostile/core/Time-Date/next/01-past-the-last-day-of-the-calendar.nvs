@@ -5,8 +5,13 @@
 use Core\Time\Weekday;
 
 array<Weekday> $weekdays = [
-    Weekday::Monday, Weekday::Tuesday, Weekday::Wednesday, Weekday::Thursday,
-    Weekday::Friday, Weekday::Saturday, Weekday::Sunday,
+    Weekday::Monday,
+    Weekday::Tuesday,
+    Weekday::Wednesday,
+    Weekday::Thursday,
+    Weekday::Friday,
+    Weekday::Saturday,
+    Weekday::Sunday,
 ];
 
 // 1. Each of the last seven days looks for each weekday.

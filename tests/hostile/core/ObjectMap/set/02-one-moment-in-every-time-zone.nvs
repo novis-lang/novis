@@ -20,8 +20,18 @@ while ($minutes <= 1080) {
 echo 'fixed offsets: ', $byMoment->count(), " key\n";
 
 // 2. The same moment in named zones. This moment is a summer time change in Europe.
-array<string> $names = ['UTC', 'Europe/Berlin', 'Europe/London', 'America/New_York', 'Asia/Tokyo',
-    'Asia/Kolkata', 'Australia/Lord_Howe', 'Pacific/Chatham', 'America/St_Johns', 'Pacific/Kiritimati'];
+array<string> $names = [
+    'UTC',
+    'Europe/Berlin',
+    'Europe/London',
+    'America/New_York',
+    'Asia/Tokyo',
+    'Asia/Kolkata',
+    'Australia/Lord_Howe',
+    'Pacific/Chatham',
+    'America/St_Johns',
+    'Pacific/Kiritimati',
+];
 foreach ($names as string $name) {
     $byMoment->set($moment->in(Core\Time\Zone::of($name)), 0);
 }

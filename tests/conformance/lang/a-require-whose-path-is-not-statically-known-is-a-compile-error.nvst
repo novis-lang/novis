@@ -17,7 +17,7 @@ error[E0330]: the path of this `require` is not known while compiling
   --> %s:2:9
   |
 2 | require Core\Path::thisDirectory() . '/lib/setup.nvs';
-  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no file can be loaded for this path
+  |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ no file can be loaded for this path
   = help: write the path as text, such as `require './autoload.nvs';`. A relative path starts from the folder of the file that contains the `require`
 
 error[E0330]: the path of this `require` is not known while compiling

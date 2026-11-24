@@ -1,0 +1,45 @@
+--TEST--
+`Core\Reflect\PropertyInfo::isLateInit` and `isReadonly` read the declaration of each property, an inherited or promoted one too, and the parent class's own roster gives the same answers — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// covers: Core\Reflect\PropertyInfo::isLateInit, Core\Reflect\PropertyInfo::isReadonly
+class Base {
+    public readonly string $id;
+    protected lateinit string $note;
+
+    public function constructor(string $id) {
+        $this->id = $id;
+    }
+}
+
+class Order extends Base {
+    public int $count = 0;
+    public lateinit Order $next;
+    private readonly int $total;
+
+    public function constructor(public readonly string $code, int $total) {
+        $this->total = $total;
+        parent::constructor("o-1");
+    }
+}
+
+// Each property of an `Order`, with the two properties it gets from `Base` first.
+foreach (Core\Reflect::forObject(new Order("A7", 3))->properties() as Core\Reflect\PropertyInfo $property) {
+    echo $property->name(), ' lateinit=', $property->isLateInit() ? 'yes' : 'no',
+        ' readonly=', $property->isReadonly() ? 'yes' : 'no', "\n";
+}
+
+// `Base` itself gives the same answers for its two properties.
+foreach (Core\Reflect::forClass("Base")?->properties() ?? [] as Core\Reflect\PropertyInfo $property) {
+    echo $property->name(), ' lateinit=', $property->isLateInit() ? 'yes' : 'no',
+        ' readonly=', $property->isReadonly() ? 'yes' : 'no', "\n";
+}
+--EXPECT--
+id lateinit=no readonly=yes
+note lateinit=yes readonly=no
+count lateinit=no readonly=no
+next lateinit=yes readonly=no
+total lateinit=no readonly=yes
+code lateinit=no readonly=yes
+id lateinit=no readonly=yes
+note lateinit=yes readonly=no

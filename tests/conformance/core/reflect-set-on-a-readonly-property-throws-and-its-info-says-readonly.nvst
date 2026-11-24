@@ -1,0 +1,30 @@
+--TEST--
+`Core\Reflect\ClassInfo::set` throws a `RuntimeError` for each property whose `PropertyInfo::isReadonly` is `true`, writes each other public one, and writes a `lateinit` one the program has not written yet — `rule:core-classes/reflect`, `rule:security/reflection-enforces-visibility`
+--FILE--
+<?nvs
+// covers: Core\Reflect\PropertyInfo::isReadonly, Core\Reflect\PropertyInfo::isLateInit
+class Ticket {
+    public string $status = "open";
+    public lateinit string $owner;
+
+    public function constructor(public readonly string $code) {
+    }
+}
+
+var $ticket = new Ticket("T-1");
+var $described = Core\Reflect::forObject($ticket);
+// The loop tries to write "changed" into every property.
+foreach ($described->properties() as Core\Reflect\PropertyInfo $property) {
+    try {
+        $described->set($ticket, $property->name(), "changed");
+        echo $property->name(), ' written', $property->isLateInit() ? ' (lateinit)' : '', "\n";
+    } catch (RuntimeError $e) {
+        echo $property->name(), ' readonly=', $property->isReadonly() ? 'yes' : 'no', ': ', $e->message, "\n";
+    }
+}
+echo $ticket->status, ' ', $ticket->owner, ' ', $ticket->code, "\n";
+--EXPECT--
+status written
+owner written (lateinit)
+code readonly=yes: cannot modify `readonly` property `Ticket::$code`
+changed changed T-1

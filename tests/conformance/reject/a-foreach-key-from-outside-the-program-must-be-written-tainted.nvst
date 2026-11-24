@@ -42,7 +42,7 @@ error[E0851]: this key can come from outside the program, so it must be `tainted
   --> case.nvs:5:52
 %A
 error[E0851]: this key can come from outside the program, so it must be `tainted string`
-  --> case.nvs:7:48
+  --> case.nvs:7:53
 %A
 error[E0851]: this key can come from outside the program, so it must be `tainted string`
   --> case.nvs:9:37

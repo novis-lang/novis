@@ -24,10 +24,11 @@ echo Ledger::total(), "\n";
 echo "a ledger\n";
 --EXPECTF-ERROR--
 error[E0323]: `Ledger` has no member named `missing` for `@see` to resolve
-  --> %s:8:10
+  --> %s:8:18
   |
 8 | /// @see Ledger::missing
-  |          ^^^^^^^^^^^^^^^ no such member
+  |                  ^^^^^^^ no such member
+  = help: name a member `Ledger` declares or inherits
 
 error[E0324]: `examples/nothing-is-here.nvs` names no file
    --> %s:10:14

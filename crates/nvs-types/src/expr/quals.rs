@@ -2191,7 +2191,7 @@ fn class_fields_outside(
 }
 
 /// The same serialiser sink one member further on: `Core\Queue::push`'s
-/// `args:` payload is encoded into a durable row that a *worker process*
+/// `arguments:` payload is encoded into a durable row that a *worker process*
 /// decodes later, by the encoder [`reject_secret_encoded_argument`] refuses at
 /// — `nvs_stdlib::queue`'s `payload_of` hands `crate::json::Encodable` to
 /// `serde_json` — so it reports that bullet's code rather than one of its own.
@@ -2199,7 +2199,7 @@ fn class_fields_outside(
 /// an encoded document is on its way to, and this is the spelling where the
 /// encode is inside the member rather than at a call the program wrote.
 ///
-/// A call-site rule for every sibling's reason: `args` is declared `mixed`,
+/// A call-site rule for every sibling's reason: `arguments` is declared `mixed`,
 /// which takes a `secret` value at a `Core` option, so the written option is
 /// the last place the qualifier is visible at all. It is also the one option
 /// asked about, on [`is_fields_argument`]'s split — `queue` and `key` are
@@ -2211,7 +2211,7 @@ fn class_fields_outside(
 /// **The qualifier is read off [`Env::secret_options`]**, never off
 /// `arg_types`: the bag arrives as the
 /// [`Ty::CoreShape`](crate::ty::Ty::CoreShape) the *registry* declared, whose
-/// `args` field is `mixed`, so nothing of the argument's own type survives on
+/// `arguments` field is `mixed`, so nothing of the argument's own type survives on
 /// the slot. The options check records each value whose own type carries
 /// `secret`, and a literal written there keeps a `secret` element on its type
 /// ([`check_array_literal`](super::literals::check_array_literal)), so a
@@ -2242,12 +2242,12 @@ pub(crate) fn reject_secret_enqueued_argument(
             continue;
         };
         for field in fields {
-            let is_args = span_text(env.src, field.name)
+            let is_arguments = span_text(env.src, field.name)
                 .trim()
                 .trim_end_matches(':')
                 .trim()
-                == "args";
-            if is_args && env.secret_options.contains(&field.value.span) {
+                == "arguments";
+            if is_arguments && env.secret_options.contains(&field.value.span) {
                 report_secret_enqueued(field.value.span, env);
             }
         }
@@ -2259,7 +2259,7 @@ fn report_secret_enqueued(span: Span, env: &mut Env<'_>) {
     env.diags.report(
         Diagnostic::error(
             code::E_SECRET_ENCODED,
-            "a `secret` value cannot be passed to `Core\\Queue::push`. The `args` payload is \
+            "a `secret` value cannot be passed to `Core\\Queue::push`. The `arguments` payload is \
              stored in the jobs table, and a worker reads it later",
         )
         .with_primary(span, "secret value enqueued here")

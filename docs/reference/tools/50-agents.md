@@ -332,8 +332,8 @@ $
 
 The command prints nothing, and the exit status is `0`. `nvs agent find` searches the index. The
 index is a list of everything built in, such as each `Core` method and enum, each command and
-setting, and each heading of this reference. Nothing in the index is called `strlen`. So the agent searches for
-the word `length` instead:
+setting, and each heading of this reference. Nothing in the index has that name. So the agent
+searches for the word "length" instead:
 
 ```text
 $ nvs agent find length
@@ -359,11 +359,12 @@ returns:
   The number of graphemes. The empty string gives `0`.
 ```
 
-A combining accent is an accent stored as a separate Unicode code point after its letter. The two
-dots on `ë` can be stored this way.
+Unicode stores text as code points, one number for each letter or mark. A combining accent is a mark
+stored as its own code point after its letter. The two dots on `ë` can be stored this way. Then `ë`
+is two code points, but it is still one grapheme.
 
 If the agent had written the program first, `nvs check` would have reported an error at the call.
-Novis has no function called `strlen`. The error message says where the built-in functions are:
+Novis has no function with that name. The error message says where the built-in functions are:
 
 ```nvs error
 <?nvs
@@ -375,7 +376,8 @@ echo strlen($name), "\n";
 The built-in functions are in the `Core` namespace
 ```
 
-In both cases, the agent ends with the same program, and `nvs check` finds no error in it:
+The agent may search first or write the program first. Either way, it ends with the same program,
+and `nvs check` finds no error in it. `Zoë` has three graphemes, so the program prints `3`:
 
 ```nvs
 <?nvs
@@ -388,15 +390,16 @@ echo Core\Str::length($name), "\n";
 ```
 
 Next, the agent needs to know whether Novis can load class files automatically. It searches for the
-word it knows for this, `autoload`. In Novis, `autoload` is a statement. It is not a method or a
-function, so no method in the index has this name. The result lists the matches in two groups:
+word it knows for this, "autoload". In Novis, this word is the name of a statement, not of a
+method. So the result has no method. It lists headings and a flag instead, in two groups:
 
-- First come the lines whose own name contains `autoload`. The first line is a heading of this
+- First come the lines whose own name contains the word. The first line is a heading of this
   reference. The second line is the flag `--autoload-map` of `nvs check`.
-- After them come the sections of this reference that contain `autoload` only in their text.
+- After them come the sections of this reference that contain the word as code in their text.
 
-The agent needs the heading on the first line. It passes the first word of that line to
-`nvs agent show`, which prints the section:
+The agent wants the section on the first line. Each line of a section starts with its id, such as
+`programs#autoload-find-a-class-by-its-namespace`. The agent passes that id to `nvs agent show`,
+which prints the section:
 
 ```text
 $ nvs agent find autoload

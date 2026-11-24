@@ -127,9 +127,9 @@ fn the_primer_names_the_capability_model_and_the_smallest_grant() {
     let primer = primer();
     for wanted in [
         "A command-line run (`nvs run`, `nvs test`) may read and write every",
-        "Server work may read the files in its app folder, but no dot-file",
+        "Server work may read the files in its app folder, except `nvs.toml` and files whose name",
         "It may write only in the directories `Core\\IO::createTemporaryDirectory` made for it.",
-        "The default for every other capability is **denied** until a grant is written.",
+        "Every other capability is **denied** until you write a grant for it.",
         "`fs.read`",
         "[capabilities.fs]",
         "read = [\"data\"]",

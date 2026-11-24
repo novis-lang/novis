@@ -523,6 +523,10 @@ fn sources() -> Vec<Source> {
 /// listing the compiler resolves a `discover` glob with. It walks no tree and
 /// looks for no convention, so what it offers is what resolution would find.
 ///
+/// The heading arm of a `@see` file target reads the Markdown file through
+/// `nvs_hir::members::see_anchor_text`, the read the checker matches an
+/// anchor against, so every slug it offers is one the checker accepts.
+///
 /// The two name-literal arms read tables already named here. An `autoload`
 /// prefix is offered the namespaces of the workspace index's declarations and
 /// the analysis's symbol table. The operand of `as class<T>` is offered the
@@ -569,7 +573,7 @@ fn sources() -> Vec<Source> {
 /// An `@param` target reads the parameters of the method the parser attached
 /// the comment to, and an `@throws` target the hierarchy walk the checker holds
 /// that tag to.
-const SOURCED: [(&str, &str); 52] = [
+const SOURCED: [(&str, &str); 53] = [
     ("tagged", "analysed.deprecated"),
     ("named_type", "..item("),
     ("type_row", "..named_type("),
@@ -583,6 +587,7 @@ const SOURCED: [(&str, &str); 52] = [
     ("open_tags", "OPEN_TAGS"),
     ("doc_tag_names", "DocTagKind::ALL"),
     ("see_targets", "members_of("),
+    ("see_headings", "members::see_anchor_text("),
     ("param_targets", "documented_at("),
     ("throws_targets", "hierarchy::implements_interface("),
     ("paths", "autoload::entries_of("),

@@ -21,7 +21,7 @@ error[E0769]: this text is not valid for this function: a series name is `[a-z][
   --> case.nvs:8:23
 %A
 error[E0769]: this text is not valid for this function: a series name starts with `a`-`z`, and `_queue_depth` starts with `_`
-  --> case.nvs:9:21
+  --> case.nvs:9:24
 %A
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

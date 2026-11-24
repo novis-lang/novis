@@ -133,6 +133,11 @@ macro_rules! flag_helpers {
         const READERS: &[(nvs_runtime::NvsFn, &str, &str)] =
             &[$($(($symbol, $class.name, $name),)*)*];
 
+        /// Each reader's symbol beside the name of the flag it reads. A
+        /// reader's own name says what the flag means, so it is not the flag's.
+        #[cfg(test)]
+        pub(super) const FLAG_OF: &[(&str, &str)] = &[$($((stringify!($symbol), $name),)*)*];
+
         /// The address of one of this module's symbols, or `None` for a
         /// symbol that belongs to another module. See [`crate::address`].
         pub(super) fn address(symbol: &str) -> Option<*const u8> {

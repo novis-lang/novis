@@ -225,7 +225,10 @@
 //! that resolves **without** a `use` line, because a `@see` is not a read of
 //! an import and a line added for one would be reported unused. The path of an
 //! `@example` is offered the way a `require` path is, from the file's own
-//! directory, which is where the compiler resolves it from.
+//! directory, which is where the compiler resolves it from. After a `@see`
+//! file target's `#`, the heading slugs of that Markdown file are offered. The
+//! file is read through `nvs_hir::members::see_anchor_text`, the read the
+//! checker matches an anchor against, and not by a filesystem call here.
 //!
 //! # What a namespace separator offers
 //!
@@ -2807,7 +2810,9 @@ fn inside_the_project(cursor: &Cursor<'_>, written: &str) -> bool {
 /// each replacing the `anchor` text written after the `#`. Nothing for a file
 /// that is not Markdown, or that cannot be read.
 ///
-/// The file is read when the list is asked for.
+/// The file is read when the list is asked for, by the checker's own reader
+/// (`nvs_hir::members::see_anchor_text`), so the slugs offered are the ones
+/// the checker matches an anchor against.
 fn see_headings(cursor: &Cursor<'_>, path: &str, anchor: &str) -> Vec<CompletionItem> {
     if !nvs_syntax::doc_target::is_markdown(path) || !inside_the_project(cursor, path) {
         return Vec::new();
@@ -2816,7 +2821,7 @@ fn see_headings(cursor: &Cursor<'_>, path: &str, anchor: &str) -> Vec<Completion
     let Some(base) = file.path().and_then(std::path::Path::parent) else {
         return Vec::new();
     };
-    let Ok(text) = std::fs::read_to_string(base.join(path)) else {
+    let Some(text) = nvs_hir::members::see_anchor_text(&base.join(path)) else {
         return Vec::new();
     };
     nvs_syntax::doc_target::heading_slugs(&text)

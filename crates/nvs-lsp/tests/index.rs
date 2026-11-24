@@ -193,19 +193,19 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
 
 /// The index's read-only methods that answer nobody's feature: how much it
 /// holds, whether it holds one file, how many of its files had errors, which
-/// entry points read one file, which entry points wait to be settled, how
-/// much work its analyses did, whether it changed since it was written to disk,
-/// and the write itself.
+/// entry points read one file, which doc comment tags name a file, which entry
+/// points wait to be settled, how much work its analyses did, whether it
+/// changed since it was written to disk, and the write itself.
 ///
 /// The refresh path, the server's loop, `nvs code`, a file move's `require`
-/// rewrite and this suite ask these; a feature asks the queries beside them,
+/// and doc comment file target rewrite and this suite ask these; a feature asks the queries beside them,
 /// which is what [`every_reader_queries_the_one_index`] counts. `work` is
 /// asked by `tests/incremental.rs` alone, `generation` and `save_to` by the
 /// server's idle write and that suite, and `workers_running` by that suite's
 /// test that a settled index runs no worker. `all_declarations` is the walk of
 /// the stored entries that completion lists types from, which `files` and
 /// `declarations_in` gave it before. None of them looks a name up.
-const BOOKKEEPING: [&str; 12] = [
+const BOOKKEEPING: [&str; 13] = [
     "files",
     "all_declarations",
     "holds",
@@ -213,6 +213,7 @@ const BOOKKEEPING: [&str; 12] = [
     "is_empty",
     "files_with_errors",
     "readers",
+    "linked",
     "pending",
     "work",
     "generation",
@@ -246,9 +247,12 @@ fn every_reader_queries_the_one_index() {
     let readers: [(&str, &[&str]); 8] = [
         (
             "textDocument/references",
-            &["occurrences", "declaration", "imports_of"],
+            &["occurrences", "declaration", "imports_of", "mentions_of"],
         ),
-        ("textDocument/documentHighlight", &["occurrences_in"]),
+        (
+            "textDocument/documentHighlight",
+            &["occurrences_in", "mentions_in"],
+        ),
         (
             "textDocument/codeLens",
             &[

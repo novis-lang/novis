@@ -1,5 +1,5 @@
 --TEST--
-`Core\Time\Instant::compareTo` is a total order on the timeline, asserted by counting trichotomy, antisymmetry, agreement with `<` and `<=>` over every pair and transitivity over every triple; it answers the first and the last representable instants and two instants one nanosecond apart, and `==` stays identity where it answers `0` — `rule:classes/comparable`
+`Core\Time\Instant::compareTo` is a total order on the timeline, asserted by counting trichotomy, antisymmetry, agreement with `<` and `<=>` over every pair and transitivity over every triple; it answers the first and the last representable instants and two instants one nanosecond apart, and `==` agrees with it where it answers `0`, because `==` compares two `Core\Time` values by value — `rule:classes/comparable`
 --FILE--
 <?nvs
 // covers: Core\Time\Instant::compareTo
@@ -78,11 +78,11 @@ echo "transitive=", $transitive, " chains=", $chains, "|\n";
 echo $table[1]->compareTo($table[6]), " ", $table[6]->compareTo($table[1]), "\n";
 echo $table[5]->compareTo($table[3]), " ", $table[4]->compareTo($table[3]), "\n";
 
-// The same moment is not the same object: `==` on two objects is identity.
+// Two objects for one moment are `==`, because `==` compares an `Instant` by value.
 echo ($table[0] == $table[2]) ? "same" : "distinct", " ", $table[0]->compareTo($table[2]), "\n";
 --EXPECT--
 trichotomy=100 zero=16 antisym=100 operator=100 spaceship=100|
 transitive=1000 chains=258|
 -1 1
 -1 1
-distinct 0
+same 0

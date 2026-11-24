@@ -56,7 +56,7 @@ tags a,b
 color red
 one red shoes
 absent 0
-deep Core\Request::queryParameters(): a value under this name has a second pair of brackets. Read nested values with `queryAs`
+deep Core\Request::queryParameters(): a value under this name has a second pair of brackets. Read nested values with `queryParametersAs`
 name Ada
 item null
 items pen,book

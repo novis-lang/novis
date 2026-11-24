@@ -49,7 +49,7 @@ error[E0769]: this text is not valid for this function: the authority's port is 
    --> case.nvs:14:32
 %A
 error[E0769]: this text is not valid for this function: %s
-   --> case.nvs:15:58
+   --> case.nvs:15:62
 %A
 error[E0769]: this text is not valid for this function: %s
    --> case.nvs:16:39

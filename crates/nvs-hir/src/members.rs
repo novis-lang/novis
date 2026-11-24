@@ -1523,7 +1523,7 @@ fn check_see_file(at: Span, path: &str, anchor: Option<&str>, src: &SourceFile, 
         return;
     }
     nvs_footprint::file(&canonical);
-    let text = std::fs::read_to_string(&canonical).unwrap_or_default();
+    let text = see_anchor_text(&canonical).unwrap_or_default();
     let slugs = nvs_syntax::doc_target::heading_slugs(&text);
     if let Some((_, line)) = slugs.iter().find(|(slug, _)| slug == anchor) {
         env.targets.push(DocTarget {
@@ -1548,6 +1548,18 @@ fn check_see_file(at: Span, path: &str, anchor: Option<&str>, src: &SourceFile, 
         ),
     };
     env.diags.report(diag);
+}
+
+/// The text of the Markdown file at `path` that a `@see` anchor names, or
+/// `None` for a file that cannot be read.
+///
+/// This is the one read the checker matches an anchor against, through
+/// [`nvs_syntax::doc_target::heading_slugs`]. The editor's completion after a
+/// `#` reads the file here too, so it offers exactly the headings the checker
+/// accepts.
+#[must_use]
+pub fn see_anchor_text(path: &Path) -> Option<String> {
+    std::fs::read_to_string(path).ok()
 }
 
 /// Whether the written `@see` path leaves the project on its text alone:

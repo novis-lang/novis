@@ -1,0 +1,34 @@
+--TEST--
+`Core\Reflect\PropertyInfo::isLateInit` is `true` for a `lateinit` property before and after the program writes it, because it reads the declaration and not the value — `rule:core-classes/reflect`, `rule:classes/an-unwritten-property-read-throws`
+--FILE--
+<?nvs
+// covers: Core\Reflect\PropertyInfo::isLateInit, Core\Reflect\PropertyInfo::isReadonly
+class Node {
+    public lateinit Node $next;
+    public readonly string $label;
+
+    public function constructor(string $label) {
+        $this->label = $label;
+    }
+
+    public static function show(Node $node): void {
+        foreach (Core\Reflect::forObject($node)->properties() as Core\Reflect\PropertyInfo $property) {
+            echo $property->name(), ' lateinit=', $property->isLateInit() ? 'yes' : 'no',
+                ' readonly=', $property->isReadonly() ? 'yes' : 'no', "\n";
+        }
+    }
+}
+
+var $node = new Node("first");
+// `$next` has no value yet.
+Node::show($node);
+$node->next = new Node("second");
+// `$next` has a value now. The answers are the same.
+Node::show($node);
+echo $node->next->label, "\n";
+--EXPECT--
+next lateinit=yes readonly=no
+label lateinit=no readonly=yes
+next lateinit=yes readonly=no
+label lateinit=no readonly=yes
+second

@@ -10,7 +10,7 @@ array<Core\Time\DateTime> $departures = [
 // `Core\Arr::sort` uses `compareTo` to put the earliest departure first. In UTC, the flights
 // leave at 07:00 from Paris, 10:00 from Tokyo and 18:00 from New York, in this order.
 array<Core\Time\DateTime> $sorted = Core\Arr::sort($departures, {
-    comparator: fn (Core\Time\DateTime $a, Core\Time\DateTime $b): int => $a->compareTo($b),
+    comparator: fn(Core\Time\DateTime $a, Core\Time\DateTime $b): int => $a->compareTo($b),
 });
 foreach ($sorted as Core\Time\DateTime $departure) {
     echo $departure->toIso(), "\n";

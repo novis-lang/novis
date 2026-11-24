@@ -1,0 +1,32 @@
+--TEST--
+`Core\Time\Duration::fromClock` reads `H:MM` and `H:MM:SS`, the hours do not stop at 24, and `toClock` writes the same text back, with the seconds when its option asks for them — `rule:core-classes/a-time-class-builds-its-own-values`
+--FILE--
+<?nvs
+// covers: Core\Time\Duration::fromClock, Core\Time\Duration::toClock
+// 25 hours and 30 minutes is `25:30`.
+echo Core\Time\Duration::fromClock('25:30')->toClock(), "\n";
+echo Core\Time\Duration::fromClock('1:30')->toSeconds(), "\n";
+echo Core\Time\Duration::fromClock('1:30:15')->toClock({seconds: true}), "\n";
+// A `-` at the start makes the duration negative.
+echo Core\Time\Duration::fromClock('-1:15')->toClock(), "\n";
+// The hours may have leading zeros. `toClock` writes them without.
+echo Core\Time\Duration::fromClock('007:05:09')->toClock({seconds: true}), "\n";
+echo Core\Time\Duration::fromClock('0:00')->toClock({seconds: true}), "\n";
+
+// Each text below gives a duration, and `toClock` writes the same text back.
+array<string> $texts = ['0:01:00', '9:59:59', '24:00:00', '100:00:01', '-12:34:56'];
+int $same = 0;
+foreach ($texts as string $text) {
+    if (Core\Time\Duration::fromClock($text)->toClock({seconds: true}) == $text) {
+        $same = $same + 1;
+    }
+}
+echo $same, ' of ', Core\Arr::count($texts), "\n";
+--EXPECT--
+25:30
+5400
+1:30:15
+-1:15
+7:05:09
+0:00:00
+5 of 5

@@ -9,10 +9,10 @@ echo Core\Path::thisDirectory($part), "\n";
 
 --EXPECTF-ERROR--
 error[E0837]: `Core\Path::thisDirectory($part)` needs a relative path written in quotes
-  --> case.nvs:4:25
+  --> case.nvs:4:31
   |
 4 | echo Core\Path::thisDirectory($part), "\n";
-  |                         ^^^^^ not a relative path in quotes
+  |                               ^^^^^ not a relative path in quotes
   = help: the folder is joined while the program compiles. Write a relative path in quotes, such as `'data'`. For a path the program builds, write `Core\Path::join(Core\Path::thisDirectory(), $part)`
 
 error: aborting due to 1 error

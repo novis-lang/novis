@@ -13,8 +13,11 @@ foreach ($years as int $year) {
         var $first = Core\Time\Date::at($year, $month, 1);
         var $last = $first->endOf(Core\Unit::Month);
         uint $expected = (Core\Math::quotient($month as int - 1, 3) + 1) as uint;
-        if ($first->quarter() == $expected && $last->quarter() == $expected
-            && $first->startOf(Core\Unit::Quarter)->quarter() == $expected) {
+        if (
+            $first->quarter() == $expected
+            && $last->quarter() == $expected
+            && $first->startOf(Core\Unit::Quarter)->quarter() == $expected
+        ) {
             $good = $good + 1;
         } else {
             $bad = $bad + 1;

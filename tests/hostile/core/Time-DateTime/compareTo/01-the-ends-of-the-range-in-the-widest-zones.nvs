@@ -26,7 +26,7 @@ while ($i < 20000) {
     $i = $i + 1;
 }
 array<Core\Time\DateTime> $sorted = Core\Arr::sort($values, {
-    comparator: fn (Core\Time\DateTime $p, Core\Time\DateTime $q): int => $p->compareTo($q),
+    comparator: fn(Core\Time\DateTime $p, Core\Time\DateTime $q): int => $p->compareTo($q),
 });
 int $wrong = 0;
 Core\Time\DateTime $previous = $first->in(Core\Time\Zone::UTC);

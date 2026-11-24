@@ -85,7 +85,7 @@ pub(crate) const OUTCOME: CoreClass = CoreClass {
             &OUTCOME_FAILURES_DOC,
         ),
     ],
-    slots: &["class", "name", "attempt", "passed", "failures"],
+    slots: &["class", "name", "attempt", "hasPassed", "failures"],
     constants: &[],
 };
 

@@ -7,4 +7,4 @@ echo "made";
 --REQUEST--
 definition
 --EXPECT--
-stubs/Core/ObjectSet.nvs:64:13
+stubs/Core/ObjectSet.nvs:66:13

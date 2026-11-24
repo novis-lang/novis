@@ -1,0 +1,29 @@
+--TEST--
+`Core\Time\Duration::fromClock` throws a `ParseError` for minutes or seconds above `59`, for a part that is not two digits, for text with no hours or no minutes, and for a duration longer than the longest one, and the message names the part — `rule:core-classes/a-time-class-builds-its-own-values`
+--FILE--
+<?nvs
+// covers: Core\Time\Duration::fromClock, Core\Time\Duration::toClock
+// Every text below is wrong in one place, and the message says where.
+array<string> $texts = ['1:60', '1:30:60', '1:5', '1:30:', ':30', '+1:00', ' 1:30', '1', '1h', '2562047:47:17'];
+foreach ($texts as string $text) {
+    try {
+        echo Core\Time\Duration::fromClock($text)->toClock({seconds: true}), "\n";
+    } catch (ParseError $e) {
+        echo $e->message, "\n";
+    }
+}
+
+// The longest duration is still read.
+echo Core\Time\Duration::fromClock('2562047:47:16')->toClock({seconds: true}), "\n";
+--EXPECT--
+Core\Time\Duration::fromClock(): the minutes in `1:60` are 60, and the largest is 59
+Core\Time\Duration::fromClock(): the seconds in `1:30:60` are 60, and the largest is 59
+Core\Time\Duration::fromClock(): the minutes in `1:5` are not two digits, such as `05`
+Core\Time\Duration::fromClock(): the seconds in `1:30:` are not two digits, such as `05`
+Core\Time\Duration::fromClock(): `:30` does not start with the hours, such as `1:30`
+Core\Time\Duration::fromClock(): `+1:00` does not start with the hours, such as `1:30`
+Core\Time\Duration::fromClock(): ` 1:30` does not start with the hours, such as `1:30`
+Core\Time\Duration::fromClock(): `1` has no minutes, and clock text is `H:MM` or `H:MM:SS`
+Core\Time\Duration::fromClock(): `1h` has no minutes, and clock text is `H:MM` or `H:MM:SS`
+Core\Time\Duration::fromClock(): this duration is longer than `Core\Time\Duration` can hold
+2562047:47:16

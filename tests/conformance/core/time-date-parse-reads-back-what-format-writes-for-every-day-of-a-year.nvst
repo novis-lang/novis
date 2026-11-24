@@ -1,0 +1,41 @@
+--TEST--
+`Core\Time\Date::parse` reads back what `format` writes with the same pattern, for every day `Core\Time\Date::range` lists in the leap year 2024 and for five patterns — `rule:core-classes/a-time-class-builds-its-own-values`
+--FILE--
+<?nvs
+// covers: Core\Time\Date::parse, Core\Time\Date::range
+// `Date::range` returns every day of 2024, which is 366 dates.
+var $days = Core\Time\Date::range(Core\Time\Date::at(2024, 1, 1), Core\Time\Date::at(2024, 12, 31));
+array<string> $patterns = ['yyyy-MM-dd', 'dd.MM.yyyy', 'd MMMM yyyy', 'EEEE, d MMM yyyy', 'yyyyMMdd'];
+foreach ($patterns as string $pattern) {
+    int $same = 0;
+    foreach ($days as Core\Time\Date $day) {
+        if (Core\Time\Date::parse($day->format($pattern), $pattern) == $day) {
+            $same = $same + 1;
+        }
+    }
+    echo $pattern, ': ', $same, ' of ', Core\Arr::count($days), "\n";
+}
+
+// `MM/yyyy` has no day, so each date that `parse` returns is the first day of its month.
+var $months = Core\Time\Date::range(Core\Time\Date::at(2024, 1, 15), Core\Time\Date::at(2024, 12, 15), {step: Core\Unit::Month});
+foreach ($months as Core\Time\Date $month) {
+    echo Core\Time\Date::parse($month->format('MM/yyyy'), 'MM/yyyy')->toIso(), "\n";
+}
+--EXPECT--
+yyyy-MM-dd: 366 of 366
+dd.MM.yyyy: 366 of 366
+d MMMM yyyy: 366 of 366
+EEEE, d MMM yyyy: 366 of 366
+yyyyMMdd: 366 of 366
+2024-01-01
+2024-02-01
+2024-03-01
+2024-04-01
+2024-05-01
+2024-06-01
+2024-07-01
+2024-08-01
+2024-09-01
+2024-10-01
+2024-11-01
+2024-12-01

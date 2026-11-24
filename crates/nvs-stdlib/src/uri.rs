@@ -110,11 +110,11 @@
 //! carried a table of them would answer differently as the table grew — while
 //! a caller who wants that reading can write it in one `with` call.
 //!
-//! **`==` is still identity.** `rule:expressions/object-identity-equality` makes `$a == $b` on two objects ask whether they are the same object
-//! and closes the door on a per-class equality hook, so `compareTo` is the
-//! named spelling that rule itself points at for content equality — the same
-//! answer [`crate::time`] gives for an `Instant`. Two references are the same
-//! URI when `$a->compareTo($b) == 0`.
+//! **`==` is identity.** `rule:expressions/object-identity-equality` makes `$a == $b` on two
+//! objects ask whether they are the same object, and only the six `Core\Time` value classes
+//! of [`crate::time`] compare by value. A `Uri` is not among them, so `compareTo` is the
+//! way that rule points at for content equality: two references are the same URI when
+//! `$a->compareTo($b) == 0`.
 //!
 //! The order the member defines is component-lexicographic in the class's own
 //! slot order (scheme, userInfo, host, port, path, query, fragment), with an

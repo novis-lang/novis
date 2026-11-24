@@ -2,8 +2,8 @@
 // Attack: `startOf` gets the first days of the calendar, where a week, month, quarter or year could start before the year -9999.
 // Each call should return a date that exists, or throw a `RuntimeError`, and nothing should crash.
 
-use Core\Unit;
 use Core\Time\Date;
+use Core\Unit;
 
 class Check
 {

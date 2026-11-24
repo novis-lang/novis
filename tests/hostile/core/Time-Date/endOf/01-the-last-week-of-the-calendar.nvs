@@ -2,8 +2,8 @@
 // Attack: `endOf` gets the last days of the calendar, where the week ends after the year 9999.
 // That call should throw a `RuntimeError`, every other call should return a date that exists, and nothing should leak.
 
-use Core\Unit;
 use Core\Time\Date;
+use Core\Unit;
 
 class Check
 {

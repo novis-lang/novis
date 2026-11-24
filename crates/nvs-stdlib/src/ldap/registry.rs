@@ -3136,8 +3136,13 @@ mod tests {
             let readers: Vec<&str> = class
                 .instance
                 .iter()
-                .map(|row| row.name)
-                .filter(|name| !["bits", "with", "mustChangePassword"].contains(name))
+                .filter(|row| !["bits", "with", "mustChangePassword"].contains(&row.name))
+                .map(|row| {
+                    super::super::flags::FLAG_OF
+                        .iter()
+                        .find(|(symbol, _)| *symbol == row.symbol)
+                        .map_or(row.name, |(_, flag)| *flag)
+                })
                 .collect();
             let named: Vec<&str> = flags.iter().map(|flag| flag.name).collect();
             assert_eq!(readers, named, "{}", class.name);

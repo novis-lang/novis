@@ -3143,12 +3143,12 @@ mod tests {
             // member names the sink it launders for. `instruction` is not on
             // the roster: XML escapes nothing inside an instruction, so its
             // parameters are sinks and refuse a tainted value outright.
+            (r"Core\Xml\Writer::startElement", false),
             (r"Core\Xml\Writer::writeAttribute", false),
             (r"Core\Xml\Writer::writeCdata", false),
             (r"Core\Xml\Writer::writeComment", false),
-            (r"Core\Xml\Writer::writeText", false),
             (r"Core\Xml\Writer::writeDoctype", false),
-            (r"Core\Xml\Writer::startElement", false),
+            (r"Core\Xml\Writer::writeText", false),
         ];
 
         let mut roster: Vec<(String, bool)> = CLASSES

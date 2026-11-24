@@ -27,10 +27,10 @@ error[E0401]: expected `string`, found `tainted string`
   --> case.nvs:5:52
 %A
 error[E0401]: expected `string`, found `tainted string`
-   --> case.nvs:14:17
+   --> case.nvs:14:22
 %A
 error[E0401]: expected `string`, found `tainted string`
-   --> case.nvs:15:35
+   --> case.nvs:15:40
 %A
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

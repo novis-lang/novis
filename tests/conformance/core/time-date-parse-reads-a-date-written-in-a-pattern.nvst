@@ -1,0 +1,36 @@
+--TEST--
+`Core\Time\Date::parse` reads a date written in a CLDR pattern, a pattern with no day or no month reads `1` for it, and the calendar readers of the result agree with a `DateTime` on the same day — `rule:core-classes/a-time-class-builds-its-own-values`
+--FILE--
+<?nvs
+// covers: Core\Time\Date::parse, Core\Time\Date::quarter, Core\Time\Date::daysInMonth, Core\Time\Date::isoWeek, Core\Time\Date::isoWeekYear
+// covers: Core\Time\DateTime::quarter, Core\Time\DateTime::daysInMonth, Core\Time\DateTime::isoWeek, Core\Time\DateTime::isoWeekYear
+// `Date::parse` reads the text with the pattern and returns a `Date`.
+echo Core\Time\Date::parse('05.01.2026', 'dd.MM.yyyy')->toIso(), "\n";
+echo Core\Time\Date::parse('5 March 2024', 'd MMMM yyyy')->toIso(), "\n";
+echo Core\Time\Date::parse('Dec 31, 2026', 'MMM d, yyyy')->toIso(), "\n";
+echo Core\Time\Date::parse('29.02.2024', 'dd.MM.yyyy')->toIso(), "\n";
+
+// The pattern has no day here, so the day is `1`.
+echo Core\Time\Date::parse('2024/12', 'yyyy/MM')->toIso(), "\n";
+// The pattern has only a year, so the month and the day are `1`.
+echo Core\Time\Date::parse('2027', 'yyyy')->toIso(), "\n";
+
+// 31 December 2024 is in week 1 of 2025. A `DateTime` on the same day prints the same numbers.
+var $date = Core\Time\Date::parse('31.12.2024', 'dd.MM.yyyy');
+echo $date->quarter(), ' ', $date->daysInMonth(), ' ', $date->isoWeek(), ' ', $date->isoWeekYear(), "\n";
+var $noon = Core\Time\DateTime::at($date, Core\Time\TimeOfDay::at(12, 0), "UTC");
+echo $noon->quarter(), ' ', $noon->daysInMonth(), ' ', $noon->isoWeek(), ' ', $noon->isoWeekYear(), "\n";
+
+// February of a leap year has 29 days.
+var $leap = Core\Time\Date::parse('2024-02', 'yyyy-MM');
+echo $leap->toIso(), ' ', $leap->quarter(), ' ', $leap->daysInMonth(), ' ', $leap->isoWeek(), ' ', $leap->isoWeekYear(), "\n";
+--EXPECT--
+2026-01-05
+2024-03-05
+2026-12-31
+2024-02-29
+2024-12-01
+2027-01-01
+4 31 1 2025
+4 31 1 2025
+2024-02-01 1 29 5 2024

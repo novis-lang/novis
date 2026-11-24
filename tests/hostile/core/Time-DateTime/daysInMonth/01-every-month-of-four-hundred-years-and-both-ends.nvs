@@ -31,7 +31,7 @@ while ($minutes < 1500) {
     uint $n = $evening->in(Core\Time\Zone::fixed(Core\Time\Duration::minutes($minutes)))->daysInMonth();
     if ($n == 29) {
         $february = $february + 1;
-    } else if ($n == 31) {
+    } elseif ($n == 31) {
         $march = $march + 1;
     }
     $minutes = $minutes + 15;

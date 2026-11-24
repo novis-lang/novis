@@ -42,7 +42,8 @@ echo $n . \"/\" . $m . \"/\" . $a[\"1\"];
 fn a_written_duration_is_a_constant_and_reads_back_its_count() {
     // `rule:types/duration`: the unit carries the finished instance, so its
     // class word and its one slot have to be the ones `Duration::nanoseconds`
-    // builds. Every member below reads one or the other.
+    // builds. Every member below reads one or the other, and `==` reads the
+    // slot, so `90m` and `1h30m` are equal (`rule:expressions/object-identity-equality`).
     let source = "<?nvs
 class Job {
     public static function wait(): Core\\Time\\Duration {
@@ -55,7 +56,7 @@ echo $d->compareTo(Core\\Time\\Duration::minutes(90)), \" \";
 echo ($d is Core\\Time\\Duration) ? \"duration\" : \"other\", \" \";
 echo (Job::wait() == Job::wait()) ? \"same\" : \"distinct\", \" \", (90m == 1h30m) ? \"same\" : \"distinct\";
 ";
-    assert_eq!(output_of(source), "5400 1h30m30s 0 duration same distinct");
+    assert_eq!(output_of(source), "5400 1h30m30s 0 duration same same");
 
     let program = lower(source);
     let kinds = || {

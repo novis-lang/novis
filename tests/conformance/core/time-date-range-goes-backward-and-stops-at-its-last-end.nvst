@@ -1,0 +1,42 @@
+--TEST--
+`Core\Time\Date::range` lists the dates backward when `$from` is after `$to`, has one date when the two ends are the same, and has `$to` only when a step lands on it exactly — `rule:core-classes/a-time-class-builds-its-own-values`
+--FILE--
+<?nvs
+// covers: Core\Time\Date::range
+use Core\Unit;
+
+// `$from` is after `$to`, so the list goes backward.
+foreach (Core\Time\Date::range(Core\Time\Date::at(2026, 1, 3), Core\Time\Date::at(2026, 1, 1)) as Core\Time\Date $day) {
+    echo $day->toIso(), "\n";
+}
+
+// Backward by month from 31 May. A shorter month gets its last day.
+foreach (Core\Time\Date::range(Core\Time\Date::at(2026, 5, 31), Core\Time\Date::at(2026, 1, 1), {step: Unit::Month}) as Core\Time\Date $month) {
+    echo $month->toIso(), "\n";
+}
+
+// The two ends are the same date, so the list has one date.
+echo Core\Arr::count(Core\Time\Date::range(Core\Time\Date::at(2026, 1, 1), Core\Time\Date::at(2026, 1, 1))), "\n";
+
+// One week is longer than these six days, so only `$from` is in the list.
+echo Core\Arr::count(Core\Time\Date::range(Core\Time\Date::at(2026, 1, 1), Core\Time\Date::at(2026, 1, 6), {step: Unit::Week})), "\n";
+
+// Exactly two weeks: `$to` is in the list.
+var $fortnight = Core\Time\Date::range(Core\Time\Date::at(2026, 1, 1), Core\Time\Date::at(2026, 1, 15), {step: Unit::Week});
+echo Core\Arr::count($fortnight), ' ', $fortnight[2]->toIso(), "\n";
+
+// A leap year has 366 days, and the list has every one of them.
+echo Core\Arr::count(Core\Time\Date::range(Core\Time\Date::at(2024, 1, 1), Core\Time\Date::at(2024, 12, 31))), "\n";
+--EXPECT--
+2026-01-03
+2026-01-02
+2026-01-01
+2026-05-31
+2026-04-30
+2026-03-31
+2026-02-28
+2026-01-31
+1
+1
+3 2026-01-15
+366
