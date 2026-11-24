@@ -7,7 +7,7 @@ parameters, return type and documentation. `directives` lists every key of `nvs.
 
 With a file, as in `nvs meta --json cart.nvs`, the command also reads that program. It adds the key
 `program` with the classes, enums and type aliases of the program. The documentation of a
-declaration is the `///` comment above it. The signature of a property has its `readonly` and
-`lateinit` words before the type, as in `lateinit ?Customer $buyer`.
+declaration is the `///` comment above it. In the signature of a property, `readonly` and
+`lateinit` come before the type, as in `lateinit ?Customer $buyer`.
 
 **Good to know:** `--json` is required. A method that is not in `capabilities` needs no permission.

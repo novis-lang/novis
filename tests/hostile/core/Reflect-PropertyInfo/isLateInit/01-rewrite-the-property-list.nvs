@@ -1,7 +1,7 @@
 <?nvs
-// Attack: a program writes into the list that `properties()` returns, many times. It tries to
-// change what `isLateInit` returns for the class. Every write should change only the
-// program's own copy, and a new call to `properties()` should return the first list.
+// Attack: a program changes the list of properties that `properties()` returns.
+// It tries to change what a later call returns for the class.
+// Each change should only change the program's own copy of the list.
 
 class Order
 {
@@ -33,8 +33,8 @@ class Count
 
 array<Core\Reflect\PropertyInfo> $others = Core\Reflect::forClass('Other')?->properties() ?? [];
 
-// 1. Replace each item of the list with a `lateinit` property of another class, 50000 times.
-// The program's own copy changes, so this prints 3.
+// 1. Replace the three items of the list with the three `lateinit` properties of `Other`.
+// This prints the number of `lateinit` items in the changed copy, which is 3.
 array<Core\Reflect\PropertyInfo> $list = Core\Reflect::forObject(new Order())->properties();
 uint $i = 0;
 while ($i < 50000) {
@@ -46,8 +46,8 @@ echo Count::lateInit($list), "\n";
 // 2. Describe `Order` again. Only `invoiceNumber` is `lateinit`, so this prints 1.
 echo Count::lateInit(Core\Reflect::forObject(new Order())->properties()), "\n";
 
-// 3. Add 50000 items to a new copy of the list. A new call still returns
-// three properties, so this prints 50003, then 3 and 1.
+// 3. Add 50000 items to a new copy of the list. This prints its length, 50003.
+// Then a new call returns 3 properties, and 1 of them is `lateinit`, so this prints 3 and 1.
 array<Core\Reflect\PropertyInfo> $grown = Core\Reflect::forObject(new Order())->properties();
 $i = 0;
 while ($i < 50000) {

@@ -16,7 +16,8 @@ class Patch
     {
         var $info = Core\Reflect::forObject($object);
         foreach ($info->properties() as Core\Reflect\PropertyInfo $property) {
-            // `set` throws a `RuntimeError` for a `readonly` property, so the loop skips it.
+            // `Core\Reflect\ClassInfo::set` writes a property. It throws a `RuntimeError`
+            // for a `readonly` property, so the loop skips it.
             if ($property->isReadonly() || !Core\Arr::hasKey($changes, $property->name())) {
                 continue;
             }

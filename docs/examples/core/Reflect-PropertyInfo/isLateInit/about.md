@@ -4,8 +4,8 @@ Tells you whether a property is declared `lateinit`.
 other property. A `lateinit` property that a class inherits from its parent class returns `true`
 too.
 
-A `lateinit` property may have no value yet. If your program reads it then, the read throws a
-`LogicError`. Checking `isLateInit()` first lets your program skip those properties.
+A `lateinit` property has no default value, and the constructor does not have to set it. Your
+program sets it later. Until then, a read of the property throws a `LogicError`. Checking `isLateInit()` first lets your program skip those properties.
 
 **The examples below** print which properties of a class are `lateinit`, show a `lateinit`
 property from a parent class, and save an object as text without its `lateinit` properties.

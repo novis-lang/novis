@@ -21,7 +21,8 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            // Which property is checked comes from last round's total, so no round can be reused.
+            // The total from the last pass of the loop selects the property.
+            // So the compiler cannot reuse the result of an earlier pass.
             if ($list[($total % 3) as int]->isReadonly()) {
                 $total = $total + 1;
             } else {

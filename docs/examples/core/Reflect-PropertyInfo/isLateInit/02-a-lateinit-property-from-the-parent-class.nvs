@@ -12,7 +12,7 @@ class BlogPage extends Page
     public string $author = 'Ada';
 }
 
-// `BlogPage` has the properties of `Page` too.
+// `BlogPage` extends `Page`, so it inherits the properties of `Page`.
 // This prints `title: no`, `html: yes` and `author: no`.
 foreach (Core\Reflect::forObject(new BlogPage())->properties() as Core\Reflect\PropertyInfo $property) {
     echo $property->name(), ': ', $property->isLateInit() ? 'yes' : 'no', "\n";

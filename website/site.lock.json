@@ -2298,13 +2298,13 @@
     "Core\\Reflect\\ParameterInfo::type": "716405becae6637f"
   },
   "docs/examples/core/Reflect-PropertyInfo/isLateInit/about.md": {
-    "Core\\Reflect\\PropertyInfo::isLateInit": "f17b29f62fa3f199"
+    "Core\\Reflect\\PropertyInfo::isLateInit": "3ececffd71f6a5de"
   },
   "docs/examples/core/Reflect-PropertyInfo/isPublic/about.md": {
     "Core\\Reflect\\PropertyInfo::isPublic": "1528948aab64c852"
   },
   "docs/examples/core/Reflect-PropertyInfo/isReadonly/about.md": {
-    "Core\\Reflect\\PropertyInfo::isReadonly": "c0e8ce76a8347772"
+    "Core\\Reflect\\PropertyInfo::isReadonly": "14e763f42d75479e"
   },
   "docs/examples/core/Reflect-PropertyInfo/name/about.md": {
     "Core\\Reflect\\PropertyInfo::name": "9050ea7d13d009b9"
@@ -7194,13 +7194,13 @@
     "Core\\Reflect\\ParameterInfo::type": "fff8d2425289662c"
   },
   "help:Core\\Reflect\\PropertyInfo::isLateInit": {
-    "Core\\Reflect\\PropertyInfo::isLateInit": "d0308c850323157f"
+    "Core\\Reflect\\PropertyInfo::isLateInit": "adf8f9395604f8f2"
   },
   "help:Core\\Reflect\\PropertyInfo::isPublic": {
     "Core\\Reflect\\PropertyInfo::isPublic": "fa4612504902e76a"
   },
   "help:Core\\Reflect\\PropertyInfo::isReadonly": {
-    "Core\\Reflect\\PropertyInfo::isReadonly": "813500423ac0c73f"
+    "Core\\Reflect\\PropertyInfo::isReadonly": "e450b0d797a2505a"
   },
   "help:Core\\Reflect\\PropertyInfo::name": {
     "Core\\Reflect\\PropertyInfo::name": "640a5ac57cc980ac"
@@ -9318,7 +9318,7 @@
     "tools:cli/nvs-info": "e836ca7c16350246"
   },
   "help:tools:cli/nvs-meta-json": {
-    "tools:cli/nvs-meta-json": "7616ac29cf1aa499"
+    "tools:cli/nvs-meta-json": "b42ce8428f075bad"
   },
   "help:tools:cli/nvs-run": {
     "tools:cli/nvs-run": "5a8f3516af77b75c"

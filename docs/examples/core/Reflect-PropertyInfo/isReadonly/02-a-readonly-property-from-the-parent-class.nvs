@@ -12,7 +12,7 @@ class Customer extends Entity
     public string $name = 'Ada';
 }
 
-// `Customer` has the `id` property of `Entity` too.
+// `Customer` extends `Entity`, so it inherits the `id` property of `Entity`.
 // This prints `id: yes` and `name: no`.
 foreach (Core\Reflect::forObject(new Customer(7))->properties() as Core\Reflect\PropertyInfo $property) {
     echo $property->name(), ': ', $property->isReadonly() ? 'yes' : 'no', "\n";

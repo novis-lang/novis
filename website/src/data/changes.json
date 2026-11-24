@@ -32,7 +32,7 @@
         "Core\\Reflect\\AttributeInfo::fields",
         "Core\\Reflect\\AttributeInfo::field"
       ],
-      "text": "`Core\\Reflect::forClass`, `Core\\Reflect::forObject` and `Core\\Reflect\\EnumInfo::of` allocate no memory, because each class is described once, when the server loads your program. Two calls for the same class return the same object, so `forClass('Order') === forClass('Order')` is `true`. A list such as `properties()` or `methods()` is built once per request."
+      "text": "The server now builds the description of each class once, when it loads your program. `Core\\Reflect::forClass`, `Core\\Reflect::forObject` and `Core\\Reflect\\EnumInfo::of` return that description, so two calls for the same class return the same object. A list such as `properties()` or `methods()` is built once per request."
     },
     {
       "kind": "changed",
