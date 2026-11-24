@@ -5,7 +5,7 @@ follows every `..` and every symbolic link. If the final path is inside `$base`,
 returns it. If it is outside, the method throws a `RuntimeError`. The file itself does not need
 to exist yet, so you can check a name before you create the file.
 
-Use it when a file name comes from a user, for example from a form or a URL. A name like
+Use it for a file name that comes from a form or a URL. A name like
 `../../config.toml` then cannot reach a file outside the folder. The returned path is safe to
 pass to `Core\IO::readText`, `Core\IO::write` and the other file methods.
 

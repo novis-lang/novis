@@ -2,6 +2,7 @@
 `Core\Response::sendBytes` sends its buffer verbatim, including octets no text-shaped body member could carry -- `rule:security/response-body-is-one-typed-member`, `rule:types/bytes`
 --FILE--
 <?nvs
+// covers: Core\Test\Response::bytes
 // `rule:security/response-body-is-one-typed-member`'s fourth row is the member for a body that is not text, so the
 // edge worth pinning is the one `text` cannot reach: a buffer holding a NUL,
 // control bytes and a byte that is not valid UTF-8 goes out unchanged. The

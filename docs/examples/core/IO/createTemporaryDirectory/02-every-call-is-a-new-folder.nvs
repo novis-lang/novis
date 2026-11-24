@@ -12,8 +12,7 @@ Core\IO::write(Core\Path::join($first, 'a.txt'), 'a');
 echo 'in the second: ', Core\IO::exists(Core\Path::join($second, 'a.txt')) ? 'yes' : 'no', "\n";
 
 // Novis deletes both folders when the program ends. You can also delete one yourself.
-// `removeDirectory` needs an empty folder, so the file is removed first.
-// This prints "first exists: no".
+// `removeDirectory` needs an empty folder, so the file is removed first. This prints "first exists: no".
 Core\IO::remove(Core\Path::join($first, 'a.txt'));
 Core\IO::removeDirectory($first);
 echo 'first exists: ', Core\IO::exists($first) ? 'yes' : 'no', "\n";

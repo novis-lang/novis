@@ -1176,6 +1176,14 @@
       "hash": "42e90f35e27a3834",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
+    "Core\\Http\\Response::bytes": {
+      "hash": "8da9809393653da2",
+      "why": "the tests only gained a covers marker for the renamed member"
+    },
+    "Core\\Http\\Response::text": {
+      "hash": "88e551942244143e",
+      "why": "the tests only gained a covers marker for the renamed member"
+    },
     "Core\\Http\\Response::tls": {
       "hash": "33109f3fed7b4bc9",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
@@ -1465,8 +1473,8 @@
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Router\\Match::is": {
-      "hash": "7366d77da75b57f4",
-      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+      "hash": "e98550bcb09809d4",
+      "why": "the tests only gained a covers marker for the renamed member"
     },
     "Core\\Router\\Match::method": {
       "hash": "ad8bf5ded0bd838e",
@@ -1531,6 +1539,10 @@
     "Core\\Test\\Outcome::name": {
       "hash": "5d45698ec23cce7f",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Test\\Response::bytes": {
+      "hash": "ad7cbfcbe12758b6",
+      "why": "the tests only gained a covers marker for the renamed member"
     },
     "Core\\Test\\Response::cookies": {
       "hash": "cc3c54f422b4475d",

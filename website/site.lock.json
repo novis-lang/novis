@@ -1116,7 +1116,7 @@
     "Core\\Http\\Part::file": "28e9d2f16d5685d6"
   },
   "docs/examples/core/Http-Response/bytes/about.md": {
-    "Core\\Http\\Response::bytes": "e4e2528ae5c1a329"
+    "Core\\Http\\Response::bytes": "57a2353f6dfbef2d"
   },
   "docs/examples/core/Http-Response/header/about.md": {
     "Core\\Http\\Response::header": "19142e8b7f6c4bc4"
@@ -1131,7 +1131,7 @@
     "Core\\Http\\Response::status": "23453fa82d0b455d"
   },
   "docs/examples/core/Http-Response/text/about.md": {
-    "Core\\Http\\Response::text": "de4f48664325ca93"
+    "Core\\Http\\Response::text": "52c424b40db3af03"
   },
   "docs/examples/core/Http-Response/tls/about.md": {
     "Core\\Http\\Response::tls": "971fe569b9250792"
@@ -1203,7 +1203,7 @@
     "Core\\IO::copy": "0df7f087f0bf2655"
   },
   "docs/examples/core/IO/createTemporaryDirectory/about.md": {
-    "Core\\IO::createTemporaryDirectory": "b37331d80b1a8f8e"
+    "Core\\IO::createTemporaryDirectory": "a627f24f2df22a93"
   },
   "docs/examples/core/IO/exists/about.md": {
     "Core\\IO::exists": "264f3a13a5e61345"
@@ -2517,16 +2517,16 @@
     "Core\\Router\\Match::attribute": "24a7d83958877251"
   },
   "docs/examples/core/Router-Match/is/about.md": {
-    "Core\\Router\\Match::is": "52a9c0cb0b649dfd"
+    "Core\\Router\\Match::is": "9d72ca38de99a117"
   },
   "docs/examples/core/Router-Match/method/about.md": {
     "Core\\Router\\Match::method": "54381c59985403c5"
   },
   "docs/examples/core/Router-Match/parameter/about.md": {
-    "Core\\Router\\Match::parameter": "1d75ee609f8aede0"
+    "Core\\Router\\Match::parameter": "287cbb2463a418c8"
   },
   "docs/examples/core/Router-Match/parameters/about.md": {
-    "Core\\Router\\Match::parameters": "97e7795dc5508135"
+    "Core\\Router\\Match::parameters": "47f033a9ccefdbe6"
   },
   "docs/examples/core/Script/arguments/about.md": {
     "Core\\Script::arguments": "de32203abe884c1d"
@@ -2940,7 +2940,7 @@
     "Core\\Test\\Response::body": "832ef13f10dc1577"
   },
   "docs/examples/core/Test-Response/bytes/about.md": {
-    "Core\\Test\\Response::bytes": "f35a747f8e21c71c"
+    "Core\\Test\\Response::bytes": "ba0f1b8df6253f1b"
   },
   "docs/examples/core/Test-Response/cookies/about.md": {
     "Core\\Test\\Response::cookies": "724f49228f9b4fff"
@@ -5973,7 +5973,7 @@
     "Core\\Http\\Part::file": "599ec54305a8235a"
   },
   "help:Core\\Http\\Response::bytes": {
-    "Core\\Http\\Response::bytes": "94f9f9c332c70856"
+    "Core\\Http\\Response::bytes": "2bb2f206dcada9f8"
   },
   "help:Core\\Http\\Response::header": {
     "Core\\Http\\Response::header": "fd36fd187200d0a7"
@@ -5988,7 +5988,7 @@
     "Core\\Http\\Response::status": "7917732d6a2f0df7"
   },
   "help:Core\\Http\\Response::text": {
-    "Core\\Http\\Response::text": "60566eba6e6a8faf"
+    "Core\\Http\\Response::text": "aa659943eee2cd67"
   },
   "help:Core\\Http\\Response::tls": {
     "Core\\Http\\Response::tls": "6648ae33cc6a81a8"
@@ -6060,7 +6060,7 @@
     "Core\\IO::copy": "6b967c6656bae724"
   },
   "help:Core\\IO::createTemporaryDirectory": {
-    "Core\\IO::createTemporaryDirectory": "d21e7ef90bf01dff"
+    "Core\\IO::createTemporaryDirectory": "e8ca53244eb8433b"
   },
   "help:Core\\IO::exists": {
     "Core\\IO::exists": "a5428889549cb303"
@@ -6129,7 +6129,7 @@
     "Core\\IO::walk": "2c4c85d7140dca5a"
   },
   "help:Core\\IO::within": {
-    "Core\\IO::within": "79e1dc521b94c754"
+    "Core\\IO::within": "1f42573c6c7e5ee3"
   },
   "help:Core\\IO::write": {
     "Core\\IO::write": "bb86e77f0953d2c4"
@@ -7419,16 +7419,16 @@
     "Core\\Router\\Match::attribute": "5a7ab3ab0f8c0726"
   },
   "help:Core\\Router\\Match::is": {
-    "Core\\Router\\Match::is": "3d2a344ad2561811"
+    "Core\\Router\\Match::is": "a442361b53665a6b"
   },
   "help:Core\\Router\\Match::method": {
     "Core\\Router\\Match::method": "f16697222555c142"
   },
   "help:Core\\Router\\Match::parameter": {
-    "Core\\Router\\Match::parameter": "c94f2ac65c85af26"
+    "Core\\Router\\Match::parameter": "bdcbb1b45bf7e554"
   },
   "help:Core\\Router\\Match::parameters": {
-    "Core\\Router\\Match::parameters": "58db22a59e92acae"
+    "Core\\Router\\Match::parameters": "a79a49af0b95790f"
   },
   "help:Core\\Router\\Refusal": {
     "Core\\Router\\Refusal": "4710cc2fa35f3d5c"
@@ -7485,7 +7485,7 @@
     "Core\\Session::clearAll": "e361e4d46b350fcf"
   },
   "help:Core\\Session::clearLongLived": {
-    "Core\\Session::clearLongLived": "c359be8918988568"
+    "Core\\Session::clearLongLived": "5e89c04c11bb8588"
   },
   "help:Core\\Session::clearShortLived": {
     "Core\\Session::clearShortLived": "747e5d4d804ace25"
@@ -7860,7 +7860,7 @@
     "Core\\Test\\Response::body": "b74b5b24aae418b3"
   },
   "help:Core\\Test\\Response::bytes": {
-    "Core\\Test\\Response::bytes": "45b8fbce08198883"
+    "Core\\Test\\Response::bytes": "e0e46edf3ae40413"
   },
   "help:Core\\Test\\Response::cookies": {
     "Core\\Test\\Response::cookies": "ca60132fc97d5c92"

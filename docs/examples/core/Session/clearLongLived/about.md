@@ -15,5 +15,5 @@ It throws a `LogicError` outside a request, or inside `Core\Html::later` or
 the server keeps session data) cannot be opened. It throws an `IOError` when the store cannot be
 reached.
 
-**The examples below** show preferences that are deleted while the user stays signed in. Then they
-show a key that gets the lifetime of its last write, and a button that withdraws a cookie consent.
+**The examples below** delete preferences and keep the user signed in. They also show the lifetime
+of the last write, and a button that withdraws a cookie consent.

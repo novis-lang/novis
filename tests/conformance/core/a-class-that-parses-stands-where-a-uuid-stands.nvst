@@ -46,7 +46,7 @@ class Posts
     }
 }
 
-// The user's class. `Core\Router\Match::param` answers the union every capture
+// The user's class. `Core\Router\Match::parameter` answers the union every capture
 // converts to, and `Parses` is its last arm, so the value narrows to the class
 // the route declared before anything reads it -- not to the text the peer wrote.
 ?Core\Router\Match $mine = Core\Router::match(Core\Http\Method::Get, "/posts/hello-world");

@@ -26,7 +26,7 @@ if ($matched != null) {
     }
     string $segment = $matched->parameter("id") ?? "0";
 }
-// covers: Core\Router\Match::is, Core\Router\Match::params, Core\Router\Match::param
+// covers: Core\Router\Match::is, Core\Router\Match::parameters, Core\Router\Match::parameter
 --EXPECT--
 
 --EXPECTF-ERROR--

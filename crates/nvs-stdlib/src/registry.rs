@@ -7274,7 +7274,7 @@ mod tests {
     ///
     /// A written list for [`EXCEPTION_TREE`]'s reason exactly, and a rare thing
     /// for the same reason: a member answers an interface only where the set of
-    /// classes it means is open. `Core\Router\Match::params` is the row that
+    /// classes it means is open. `Core\Router\Match::parameters` is the row that
     /// wanted it first — a capture typed as a class built from text is any
     /// implementor of `Parses`, and no registered class names that set.
     const GLOBAL_INTERFACES: &[&str] = &[crate::router::PARSES_NAME];

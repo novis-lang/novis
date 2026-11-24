@@ -2,6 +2,7 @@
 `Core\Http\Response::text` and `::bytes` read one slot, so for every reply that is text at all the two answer the same octets — `rule:types/bytes`
 --FILE--
 <?nvs
+// covers: Core\Http\Response::text, Core\Http\Response::bytes
 // The claim is *invariance over a sweep*, asserted by counting rather than
 // read off a line: a reply whose body is text has two readers, and what is
 // pinned is that they never disagree. A `bytes` that answered a re-encoding
