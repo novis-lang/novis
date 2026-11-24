@@ -1,7 +1,7 @@
 ---
 looper: 1
-title: "A query value may be absent, the time values and a bool cross a route as text, the value types cross JSON as text, and parse in a final class may return an existing object"
-summary: "Reached when a #[Core\\Query] parameter declared ?T $x = null is optional and null when its key is absent, a bool query value reads 1 or 0, Date, TimeOfDay and Instant convert as path captures and query values and DateTime as a query value, read by the matcher itself, Core\\Router::url writes each as its ISO text, Date, TimeOfDay, DateTime, Duration, Zone and Core\\Uuid cross JSON as text like Instant, a final class's parse may return an existing object of its class, the query example shows the string fallback, and the rules, the API document, the feature proofs and the website say so."
+title: "A query value may be absent, the time values and a bool cross a route as text, the value types cross JSON as text, parse in a final class may return an existing object, and a link writes every value its route reads"
+summary: "Reached when a #[Core\\Query] parameter declared ?T $x = null is optional and null when its key is absent, a bool query value reads 1 or 0, Date, TimeOfDay and Instant convert as path captures and query values and DateTime as a query value, read by the matcher itself, Core\\Router::url writes each as its ISO text, a Parses class writes itself back with format and Core\\Router::url calls it, Core\\Router::url refuses when the program compiles a written value whose type its parameter cannot take, Date, TimeOfDay, DateTime, Duration, Zone and Core\\Uuid cross JSON as text like Instant, a final class's parse may return an existing object of its class, the query example shows the string fallback, and the rules, the API document, the feature proofs and the website say so."
 context: [docs/rules/security/route-capture-is-laundered-by-its-type.md, docs/rules/routing/a-query-parameter-is-declared-like-a-capture.md]
 stages:
   - id: 1
@@ -33,14 +33,18 @@ stages:
     status: open
     context: [crates/nvs-types/src/derive.rs, crates/nvs-stdlib/src/json.rs, crates/nvs-runtime/src/object.rs, crates/nvs-cli/src/openapi.rs, docs/rules/core-classes/derive-property-list.md, docs/rules/core-classes/db-column-types.md]
   - id: 8
+    title: "a Parses class writes itself with format, Core\\Router::url calls it, and url checks the type of each value written in its call"
+    status: open
+    context: [crates/nvs-types/src/iter_lib.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/router.rs, crates/nvs-stdlib/src/uri.rs, crates/nvs-types/src/links.rs, crates/nvs-diagnostics/src/code/types_e07.rs, docs/rules/routing/link-target-and-params-are-checked.md, docs/rules/expressions/try-parse.md]
+  - id: 9
     title: "stages 1 to 4 have their feature proofs, and the query example shows the string fallback"
     status: open
     context: [docs/examples/lang/attributes/core-route-and-core-access-the-route-table/about.md, docs/examples/lang/classes/parses/about.md]
-  - id: 9
-    title: "stages 5 to 7 have their feature proofs, and the website says what changed"
+  - id: 10
+    title: "stages 5 to 8 have their feature proofs, and the website says what changed"
     status: open
     context: [website/src/content/docs/syntax/attributes/routes.mdx, website/src/content/docs/syntax/attributes/json.mdx, website/src/data/changes.json]
-  - id: 10
+  - id: 11
     title: "the goal is verified once, and every failure is fixed"
     status: open
     gate: true
@@ -116,19 +120,29 @@ checks:
     name: "a derived codec, decodeAs and shapeAs carry Date, TimeOfDay, DateTime, Duration, Zone and Core\\Uuid as text, and a Core class with no JSON form is still E0756"
     run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/a-derived-codec-carries-dates-durations-zones-and-uuids-as-text.nvst, --case, tests/conformance/core/decode-as-and-shape-as-read-the-value-types-from-text.nvst, --case, tests/conformance/reject/a-json-derive-field-of-a-core-value-type-with-no-json-form-is-refused.nvst]
     timeout: 1800
+  - id: parses-links
+    stage: 8
+    name: "a Parses class must declare format, Core\\Router::url and Core\\Uri::buildQuery write a Parses value as its format text, the route matches that link, and any other object still throws naming Parses"
+    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/core/a-link-writes-a-parses-value-as-its-format-text-and-its-route-matches-it.nvst, --case, tests/conformance/reject/a-parses-class-without-format-does-not-compile.nvst]
+    timeout: 1800
+  - id: link-types
+    stage: 8
+    name: "a value written in a Core\\Router::url call whose type its parameter cannot take does not compile, and a string, a mixed value and a computed params array still compile"
+    run: [bun, nv, suite, tests/conformance/, --case, tests/conformance/reject/a-link-value-whose-type-its-parameter-cannot-take-does-not-compile.nvst, --case, tests/conformance/core/a-link-value-of-text-or-mixed-type-still-compiles.nvst]
+    timeout: 1800
   - id: proofs
-    stage: 9
+    stage: 10
     name: "every feature the goal's work reached has its feature proofs"
     run: [bun, nv, proofs, --gate, --goal, route-values]
     timeout: 1800
   - id: close
-    stage: 10
+    stage: 11
     name: "the goal-end check is green: ci --check's checks of the tree's files, the owners and the goal's proofs"
     run: [bun, nv, close, --goal, route-values]
     timeout: 900
 ---
 
-# A query value may be absent, the time values and a bool cross a route as text, the value types cross JSON as text, and parse in a final class may return an existing object
+# A query value may be absent, the time values and a bool cross a route as text, the value types cross JSON as text, parse in a final class may return an existing object, and a link writes every value its route reads
 
 ## Why
 
@@ -149,6 +163,14 @@ A route that takes a date range or a page number from the query string meets fou
 
 `rule:routing/a-bad-query-value-is-a-400` keeps its decline of a lenient mode, and the user docs do
 not yet show the string fallback that rule names.
+
+The link is the other half of the route, and it writes no object. A `Parses` class can be a capture
+or a query value, but `Core\Router::url` throws `RuntimeError` for its value, a `Stringable` one
+included: `segment_text` (`crates/nvs-stdlib/src/router.rs:1370`) calls `value_to_string`, which
+writes no object, and never `toString`. So every link writes the class's text by hand, in the form
+the route reads. A value whose type its parameter cannot take, such as a `Date` for a `uint`
+capture, compiles and throws only when the call runs, because `literal_args`
+(`crates/nvs-types/src/links.rs:482`) reads folded literals alone.
 
 ## Standing decisions
 
@@ -194,6 +216,29 @@ not yet show the string fallback that rule names.
   (`router.rs:2840`) and `parameters` (`router.rs:2687`) read a query value by its parameter's name.
   `Core\Request::route()` outside `dispatch` converts no query value, so it reads `null` for one, and
   the rule and the card say so.
+
+**The user's calls on the link (2026-11-24, later that day).**
+
+- **`Parses` gains a second required member, `format(): string`**, an instance method that writes the
+  text `parse` reads. The pair is `parse`/`format` by `rule:core-api/symmetric-names`. `Core\Router::url`
+  and `Core\Uri::buildQuery` call it for a value whose class implements `Parses`, and write its text
+  like any other: percent-encoded into its own segment, form-encoded in a query string. An object of
+  any other class still throws, and the message names `Parses` and `format`. A `Stringable` object is
+  not written through `toString`. Every `Parses` class in the tree gains the method, and the commit
+  carries `BREAKING CHANGE`. `Core\Uuid` and the `Core` queue's id class, the two classes
+  `implements_parses` (`crates/nvs-stdlib/src/registry.rs:4717`) finds, gain a `format()` that writes
+  their `toString` text, and that check also needs `format`, so the roster stays those two.
+- **`Core\Router::url` checks the static type of each value written in a `$params` array literal**,
+  for a key that names a capture or a `#[Core\Query]` parameter. A value whose type is known and
+  cannot be the parameter's is a compile error at the value: a `Date` for a `uint`, an `int` for a
+  `Date`, one `Parses` class for another. A value passes when its type is the parameter's type or a
+  subtype of it, when it is a `string` of any qualifier or `mixed`, or when it is a scalar whose text
+  the parameter's conversion reads: `int` and `uint` for `int`, `uint` and `decimal`, `float` for
+  `decimal`, any scalar or enum for `string`, and its backing type for a backed enum. The `null` part
+  of a value's type is stage 1's to judge, not this check's. A computed `$params` stays unchecked, and
+  the literal check of `rule:routing/link-target-and-params-are-checked` runs as before on what
+  passes. The code is new, beside `E0772` (`crates/nvs-diagnostics/src/code/types_e07.rs:1287`), and
+  its card names both types; `E0772` stays the code for a literal its conversion refuses.
 
 **Calls the authoring session made (2026-11-24), each with its fallback.** The user has not confirmed
 these; a session builds on them and files a `looper decision ask --built-on <n>` only if the code
@@ -298,6 +343,9 @@ forces the opposite.
 | A zone written another way in a path, such as `Europe~Vienna` | A spelling no other tool reads; `Instant` in the path or `DateTime` in the query already say the same moment | `rule:security/route-capture-is-laundered-by-its-type` |
 | Percent-decoding a time capture before it converts | Two spellings of one URL, which the `uint` rule already refuses | `rule:security/route-capture-is-laundered-by-its-type` |
 | `?T $x = 1`, a nullable query value with a default that is not `null` | A query string cannot carry `null`, so the `?` says nothing | `rule:routing/a-query-parameter-is-declared-like-a-capture` |
+| `Core\Router::url` writing an object through `Stringable` | `toString` is the text a person reads, and it may differ from the text `parse` reads. A link written from it is a `404` | `rule:routing/link-target-and-params-are-checked` |
+| A second interface beside `Parses` that only writes the text | A class could then be a capture that no link can be built to, and the language gains a name for half a contract | `rule:routing/link-target-and-params-are-checked` |
+| Refusing a `string` value for a `uint` or a `Date` parameter | A program often has the text already, such as a value read from a form. The route checks that text when the link is followed | `rule:routing/link-target-and-params-are-checked` |
 
 **What it spends, and which priority it buys.**
 
@@ -322,6 +370,11 @@ forces the opposite.
   same holds for a query value of such a class, which now reaches `allows` too.
 - *Query values on the match*: one array entry per bound query value per matched request, the value
   `dispatch` already holds. Buys security: `allows` sees every input the route method will see.
+- *`Parses::format`*: one method call per `Parses` value per link built, charged to the request that
+  builds it, and one more method in every `Parses` class. Buys simplicity: one class carries both
+  directions, so a change to its text changes the reader and the writer together.
+- *The link type check*: compile time only, one type comparison per written key. Buys usability: a
+  link its route cannot read fails when the program compiles, not when it runs.
 
 **What stops it.** One attempt per item and two sessions per stage. An item that cannot land in one
 attempt is recorded in the handoff with what failed, and the stage goes on. A count, never a timing,
@@ -335,7 +388,9 @@ beside stages 1 and 2. Stage 4 changes `crates/nvs-stdlib/src/router.rs` and
 `crates/nvs-types/src/routes.rs`, so it follows stage 2, and its test of a `final` class's `parse`
 needs stage 3. Stage 5 waits on the gate above and on stage 4, whose files it shares. Stage 6
 follows stage 5. Stage 7 waits on the gate and on stage 5, because both change
-`crates/nvs-stdlib/src/time.rs`. Stage 8 needs stages 1 to 4, and stage 9 needs everything.
+`crates/nvs-stdlib/src/time.rs`. Stage 8 follows stages 6 and 7: it shares `router.rs`, `uri.rs` and
+the link rule with stage 6, and `types_e07.rs` with stage 7. It does not wait on the gate. Stage 9
+needs stages 1 to 4, and stage 10 needs everything.
 
 ## Stages
 
@@ -533,7 +588,37 @@ each, before the first edit.
   are reachable. `docs/rules/core-classes/db-column-types.md:1` does not change, and its list stays the
   row door's.
 
-### 8. stages 1 to 4 have their feature proofs, and the query example shows the string fallback
+### 8. a Parses class writes itself with format, Core\Router::url calls it, and url checks the type of each value written in its call
+
+**Split:** none for the code. Once the interface change has landed, one writing subagent adds
+`format` to every `Parses` class in the tree, and the session builds when it ends.
+
+- [ ] The failing cases first, at the paths the checks `parses-links` and `link-types` name, each run
+  once by name and red.
+- [ ] `crates/nvs-types/src/iter_lib.rs:134` (the seeded `Parses`): a third member, `format(): string`,
+  required, not `static`. `PARSES`'s doc (`crates/nvs-hir/src/interfaces.rs:69`) and the docs at
+  `crates/nvs-types/tests/routes.rs:77` and `crates/nvs-types/tests/commands.rs:25` say three members.
+- [ ] `crates/nvs-stdlib/src/registry.rs:4717` (`implements_parses`) also needs a `format` with no
+  parameters that returns `string`. `crates/nvs-stdlib/src/uuid.rs:214` and
+  `crates/nvs-stdlib/src/queue.rs:2785` gain a `format` row beside `toString`, writing the same text.
+  The test at `registry.rs:5828` pins that the roster is still those two classes.
+- [ ] `crates/nvs-stdlib/src/router.rs:1370` (`segment_text`) and `crates/nvs-stdlib/src/uri.rs:2483`
+  (`scalar_text`): an object whose class implements `Parses` is written as its `format()` text, called
+  the way `stringify` (`crates/nvs-runtime/src/helpers.rs:2327`) calls `toString`, so both writers need
+  the context it takes. Any other object throws, and the message names `Parses` and `format`.
+- [ ] `crates/nvs-types/src/links.rs:482` (`literal_args`) records each value's static type, and a check
+  beside `converts` (`links.rs:1057`) refuses a value its parameter cannot take, by the list in
+  § *Standing decisions*, with the new code and its card.
+- [ ] Every `Parses` class in the tree declares `format()`: the files
+  `git grep -lE "implements[^{]*\bParses\b"` lists, about 26. Each `.out` that changes is read.
+- [ ] `docs/rules/routing/link-target-and-params-are-checked.md:25`: a value is held to its
+  parameter's type where its type is known, a `Parses` value is written as its `format` text, the
+  sentence on what is not checked names what is left, and the three Declined rows of this stage.
+  `docs/rules/expressions/try-parse.md:1`: `Parses` has `format` beside `parse`.
+  `docs/rules/routing/a-leftover-link-key-is-a-query-string.md:1`: a `Parses` value in the query
+  string is its `format` text.
+
+### 9. stages 1 to 4 have their feature proofs, and the query example shows the string fallback
 
 **Split:** after the session lists the owed proofs, two writing subagents in disjoint folders: one for
 `docs/examples/lang/attributes/core-route-and-core-access-the-route-table/` and
@@ -563,7 +648,7 @@ each file against AGENTS.md § *Text an end user reads* and runs `bun nv proofs 
   paths it prints, such as `lang:classes/methods-self-static-and-parent`'s example of `static` in a
   `final` class.
 
-### 9. stages 5 to 7 have their feature proofs, and the website says what changed
+### 10. stages 5 to 8 have their feature proofs, and the website says what changed
 
 **Split:** three writing subagents in disjoint folders: one for the route-table folder,
 `docs/examples/core/Router/url/` and `docs/examples/core/Uri/buildQuery/` with the route-table hostile
@@ -577,6 +662,12 @@ website.
   (a `Date` capture, an `Instant` capture, a `#[Core\Query] DateTime`, and the links
   `Core\Router::url` builds for them) and `about.md`'s paragraph on time values, including that a
   `DateTime` is a query value only.
+- [ ] `docs/examples/core/Router/url/05-a-link-to-a-route-that-reads-a-class.nvs:1`: a `Parses` class
+  `Isbn` with `parse` and `format`, a route that reads it, and the link `Core\Router::url` builds.
+  `docs/examples/lang/classes/parses/about.md:1` says that `format` writes the text `parse` reads,
+  and that a link uses it. The `Core\Router::url` reference card says so too.
+- [ ] `tests/hostile/lang/classes/parses/03-a-format-that-writes-a-slash.nvs:1`: a `format` that
+  returns `../admin?x=1` stays in its own segment, and the link does not reach another route.
 - [ ] `tests/hostile/lang/attributes/core-route-and-core-access-the-route-table/04-time-values-written-another-way.nvs:1`:
   `%3A` for `:`, a tenth fraction digit, `[!Europe/Vienna]`, a `+` typed into a query value, a zone
   name of many thousand bytes and a `DateTime` with no `[Zone]`, each a `404` or a `400`.
@@ -596,15 +687,16 @@ website.
   `lang:attributes/core-route-and-core-access-the-route-table` (optional query value, `bool` query
   value, time values), `Core\Router::url`, `Core\Uri::buildQuery`,
   `lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec`,
-  `Core\Json::encode`, `Core\Json::decodeAs`, `Core\Arr::shapeAs`, `lang:classes/parses`,
+  `Core\Json::encode`, `Core\Json::decodeAs`, `Core\Arr::shapeAs`, `lang:classes/parses` (every
+  `Parses` class needs `format`),
   `Core\Router\Match::parameter` and `Core\Router\Match::parameters` (they read query values),
   `lang:attributes/core-api-and-the-openapi-document` and
   `lang:attributes/core-command-and-core-option-the-command-table`.
 - [ ] `bun nv proofs --owed --goal route-values` names nothing.
 
-### 10. the goal is verified once, and every failure is fixed
+### 11. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stages 8 and 9 touched.
+- [ ] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stages 9 and 10 touched.
 - [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
@@ -615,7 +707,7 @@ website.
 Written by the interactive session that wrote the goal on 2026-11-24, from the user's decisions of
 that day. Nothing is built. Every anchor above was read on that day. Expected red once built:
 `tests/conformance/reject/a-json-derive-field-of-a-core-value-type-with-no-json-form-is-refused.nvst`
-(stage 7 moves it to `Core\Uri`).
+(stage 7 moves it to `Core\Uri`). Stage 8 was added later that day from the user's calls on the link.
 
 ### Next
 
