@@ -7,10 +7,10 @@ whole number, the sum of what every run changed. An empty second argument writes
 result is `0`.
 
 Every set must bind the same number of values, because there is only one statement. Two sets that
-need a statement of a different length are two calls. There is no id for a new row here, and no rows
-come back: a batch has no single run for either to belong to.
+need a statement of a different length are two calls. The result has no id of a new row, and no
+rows. A batch has many runs, so no single run's id or rows can be returned.
 
-A batch is not a transaction. Each run stands on its own, so a failure in the middle leaves the
+A batch is not a transaction. Each run is separate, so a failure in the middle leaves the
 earlier writes in place. Wrap the call in `Core\Db\Connection::runTransaction` when you need all of it
 or none of it.
 

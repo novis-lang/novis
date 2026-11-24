@@ -1,5 +1,5 @@
 <?nvs
-// Attack: a request builds conditional formats from user data, with hostile values, colours and operators, and very many rules.
+// Attack: a request builds conditional formats from user data, with hostile values, colors and operators, and very many rules.
 // `addConditionalFormat` should write each value as data, and throw an error for a rule Excel cannot open.
 use Novis\Spreadsheet\Style;
 use Novis\Spreadsheet\Workbook;

@@ -1,5 +1,5 @@
 <?nvs
-// Shows the `Chart::Kind` of the chart that each start method makes.
+// Shows the `Chart::Kind` of a column chart, a pie chart, a scatter chart and a combined chart.
 use Novis\Spreadsheet\Chart;
 
 class Kinds

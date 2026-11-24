@@ -7,7 +7,7 @@ var $book = Workbook::createInMemory();
 var $sheet = $book->addSheet('Sales');
 $sheet->addRows([['month' => 'January', 'sales' => 1200, 'costs' => 800], ['month' => 'February', 'sales' => 1450, 'costs' => 900]]);
 
-// A combined chart uses two of column, line and area, so `addChart` throws a `LogicError`.
+// Only column, line and area charts can be combined. A pie chart cannot, so `addChart` throws a `LogicError`.
 var $chart = Chart::pie()->withSeries($sheet->column('sales'))->combinedWith(Chart::line()->withSeries($sheet->column('costs')));
 try {
     $sheet->addChart('E2', $chart);

@@ -349,11 +349,11 @@ pub(crate) const NO_REQUEST: ErrorDoc = ErrorDoc {
 /// The error every method lists for a store it cannot open or reach at the first call.
 pub(crate) const NO_STORE: ErrorDoc = ErrorDoc {
     error: "RuntimeError",
-    desc: "The session store cannot be opened. This happens only at the first call in the request \
-           that uses the session. The server has \
-           no data folder for the default store. With `[session] backend = \"shared\"`, \
-           `[cache.shared] url` is not set, or the program does not have the `cache.shared` \
-           capability.",
+    desc: "The session store, where the server keeps session data, cannot be opened. This \
+           happens only at the first call in the request that uses the session. With the \
+           default store, the cause is that the server has no data folder. With `[session] \
+           backend = \"shared\"`, `[cache.shared] url` is not set, or the program does not have \
+           the `cache.shared` capability.",
 };
 
 /// The error every method lists for a store that does not answer.

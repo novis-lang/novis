@@ -1,7 +1,7 @@
 <?nvs
 // Shows that a reply with an error code is returned like any other reply.
 
-// The server does not have this file, so it answers with 404.
+// The server does not have this file, so it replies with 404.
 Core\Test::answerHttp('https://files.example.com/missing.txt', 404, { body: 'not found' });
 
 // `Core\Http\Client::openStream` does not throw an error for a 404.

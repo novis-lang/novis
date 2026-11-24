@@ -4,9 +4,9 @@
 // The timestamp has nine digits after the seconds.
 var $received = Core\Time\Instant::fromIso('2024-03-05T10:15:30.123456789Z')->in('UTC');
 
-// `second` is 30, and `nanoseconds` is the rest. This prints 30 and then 123456789.
+// `second` is 30, and `nanoseconds` is the part after the seconds. This prints 30 and then 123456789.
 echo $received->second(), "\n";
 echo $received->nanoseconds(), "\n";
 
-// `.5` is half a second. This prints 500000000.
+// This timestamp ends in `.5`, which is half a second. This prints 500000000.
 echo Core\Time\Instant::fromIso('2024-03-05T10:15:30.5Z')->in('UTC')->nanoseconds(), "\n";

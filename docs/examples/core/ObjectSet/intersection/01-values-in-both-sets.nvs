@@ -31,5 +31,5 @@ foreach ($shared as Tag $tag) {
     echo $tag->name, "\n";
 }
 
-// `$shirt` and `$scarf` do not change. This prints "3 2".
+// `$shirt` and `$scarf` do not change. This prints their sizes, "3 2".
 echo $shirt->count(), ' ', $scarf->count(), "\n";

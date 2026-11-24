@@ -6,7 +6,7 @@ var $corp = Core\Ldap::connect('corp');
 var $type = $corp->read('CN=Newsletter,OU=Company,DC=example,DC=test', { select: ['groupType'] })?->groupType();
 
 if ($type != null) {
-    // `with` returns a copy with the flag `0x10` added to the number 2.
+    // The group type of `Newsletter` is `2`. `with` returns a copy with the flag `0x10` added.
     var $app = $type->with({ appBasic: true });
 
     // This prints `appBasic: true` and then `18`.

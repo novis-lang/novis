@@ -1,16 +1,14 @@
 Which hashing algorithm a `Core\Hash` call computes.
 
-`Core\Hash::Digest` is declared in the class `Core\Hash`. `Core\Hash::of`, `Core\Hash::hmac` and
+`Core\Hash::Digest` is an enum inside the class `Core\Hash`. `Core\Hash::of`, `Core\Hash::hmac` and
 `Core\Hash::stream` take it as an argument.
 
-The algorithm is an argument rather than part of the member's name, so one member stands where other
-languages have a function per algorithm. The list holds every algorithm interop needs: the checksums,
-the two broken ones, the SHA-2 and SHA-3 families, and BLAKE3. `Sha256` is the one to reach for when
-nothing else decides it for you.
+You pass the algorithm as an argument, so one method works for every algorithm. The list has the
+checksums, the two broken algorithms `Md5` and `Sha1`, the SHA-2 and SHA-3 families, and BLAKE3. Use
+`Sha256` when nothing else decides the choice for you.
 
-`Crc32`, `Md5` and `Sha1` are in the list on purpose. A legacy database column, an ETag, a package
-manifest or somebody else's signature scheme names one of them, and a language that refuses to
-compute them does not stop anyone using them — it only makes the program do it some worse way.
+`Crc32`, `Md5` and `Sha1` are in the list because other systems still use them. An old database
+column, an ETag, a package manifest or another program's signature can need one of them.
 
-**Good to know:** where the choice is a security one, the type system decides for you. `Core\Hash::hmac`
+**Good to know:** where the choice matters for security, the types decide for you. `Core\Hash::hmac`
 takes only the ten SHA-2 and SHA-3 cases, so a broken algorithm there does not compile.

@@ -10,8 +10,8 @@ and -7 shifted by 1 place is -4.
 You may shift by more places than the number is wide. A positive number then gives 0, and a negative
 number gives -1. Shifting by 0 places gives the number back.
 
-`shiftedRight` throws no error at all. The answer is never wider than the number you started with,
-so there is no width to run into.
+`shiftedRight` never throws an error. The result is never wider than the number you started with,
+so it never reaches the width limit.
 
 `shiftedRight` is a method because `>>` does not work on an object. To shift the other way, use
 `Core\BigInt::shiftedLeft`.

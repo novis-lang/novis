@@ -623,7 +623,7 @@ pub(crate) const READER: CoreClass = CoreClass {
 
 /// `Core\Xml::reader`'s reference card — `rule:core-api/reference-card`.
 const READER_DOC: MethodDoc = MethodDoc {
-    short: "Returns a reader that goes through `$document` one node at a time. Call `read` \
+    short: "Returns a reader that reads `$document` one node at a time. Call `read` \
             until it returns `null`. The reader does not build a tree. \
             It keeps the current node and the names of the elements that are open. This call \
             reads nothing yet. The first `read` reads the first node.",

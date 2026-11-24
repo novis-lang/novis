@@ -12,5 +12,5 @@ also set `retryIdempotencyKey`, or the program does not compile. The key is sent
 `Idempotency-Key` header. It is the same on every attempt, so the server can see that a request is a
 repeat.
 
-**Good to know:** the examples run without a network, so every request in them is refused before it
-is sent.
+**Good to know:** the examples run without a network, so every request in them throws an error before
+it is sent.

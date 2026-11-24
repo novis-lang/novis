@@ -1,5 +1,6 @@
 <?nvs
-// This is the file one-failure-child.nvs. With `arguments: true`, it calls itself until the call stack is too deep.
+// This is the file one-failure-child.nvs. When the parent starts it with `arguments: true`,
+// a method calls itself until the call stack is too deep.
 class Down
 {
     public static function forever(int $n): int

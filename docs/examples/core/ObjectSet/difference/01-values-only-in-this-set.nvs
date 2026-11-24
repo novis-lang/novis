@@ -25,7 +25,7 @@ $used->add($blue);
 
 // `difference` returns a new set without the values of `$used`.
 Core\ObjectSet<Tag> $unused = $all->difference($used);
-// This prints red and green, one on each line.
+// This prints the values of the new set, red and green, one on each line.
 foreach ($unused as Tag $tag) {
     echo $tag->name, "\n";
 }

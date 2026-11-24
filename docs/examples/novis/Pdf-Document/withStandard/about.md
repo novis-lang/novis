@@ -1,7 +1,7 @@
 Sets the PDF standard that the file follows: `PdfA2b`, `PdfA3b` or `PdfUa1`.
 
-Every PDF file that a render makes is tagged. A tagged file has its headings, tables and image text
-marked, so a screen reader can read it. A standard adds strict checks on top of that.
+Every PDF file that `render` makes has tags. Tags tell a screen reader which parts of a page are
+headings, tables or images. A standard adds strict checks to the file.
 
 - `Document::Standard::PdfA2b` and `PdfA3b` are PDF/A, for files kept in an archive for many years.
   A PDF/A file needs a creation time, which you set with `withCreationTime`. It cannot have a

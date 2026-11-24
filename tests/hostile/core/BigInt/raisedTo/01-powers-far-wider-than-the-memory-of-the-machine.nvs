@@ -27,13 +27,13 @@ try {
     echo "refused\n";
 }
 
-// 3. The power 0 and the power 1 on that same wide number. Both answer at
+// 3. The power 0 and the power 1 on that same wide number. Both return at
 //    once and neither builds anything larger.
 echo $wide->raisedTo(0), "\n";
 echo Core\Str::length($wide->raisedTo(1)->toString()), "\n";
 
 // 4. Two hundred thousand small powers, each thrown away again. The memory the
-//    program holds must not grow with the rounds.
+//    program uses must not grow with the rounds.
 uint $round = 0;
 int $signs = 0;
 while ($round < 200000) {

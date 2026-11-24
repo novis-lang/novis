@@ -1,16 +1,16 @@
-The error a question raises when there is nobody there to answer it.
+The error a question throws when nobody is there to answer it.
 
-A command-line program that asks something — a name, a yes or no, a choice from a list — can be
-started where no person is watching: a nightly job, a build step, a queue worker. Novis never blocks
-there waiting for an answer that will never arrive. A question that was given a fallback answer takes
-it and carries on; a question that was not raises this error straight away.
+A command-line program can ask a question, such as a name, a yes or no, or a choice from a list.
+It can also run where no person is watching, such as a nightly job, a build step or a queue worker.
+Novis does not wait there for an answer that never comes. A question with a `default` returns that
+value and the program goes on. A question without a `default` throws this error at once.
 
-That makes the choice yours and makes it explicit. A program that should keep working unattended
-names a fallback for every question it asks. A program that must not guess — anything that deletes,
-sends or charges — catches this instead and stops, saying what it needed.
+So you decide what happens. A program that should run without a person gives every question a
+`default`. A program that must not guess catches this error and stops, and says what it needed.
+For example, a program that deletes data, sends messages or charges money must not guess.
 
-**Good to know:** a question is put to the terminal the program was started from, not to its standard
-input, so a program reading piped data can still ask one.
+**Good to know:** a question is shown on the terminal the program was started from, not read from its
+standard input. So a program that reads piped data can still ask a question.
 
-**The examples below** show a question nobody answers, the same question given a fallback, and a
-release script that refuses to guess.
+**The examples below** show a question nobody answers, the same question with a `default`, and a
+release script that stops when nobody answers.

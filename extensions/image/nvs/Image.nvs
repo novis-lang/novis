@@ -126,7 +126,7 @@ final class Image
     }
 
     /// `resized` returns a scaled copy of the image. With only `width` or only `height`, the image keeps its proportions.
-    /// With both, `fit` decides how the image fills that size. The default is `Fit::Cover`.
+    /// With both, `fit` sets how the image fills that size. The default is `Fit::Cover`.
     /// The image does not grow larger than it is, unless `upscale` is `true`.
     public function resized(Resize $options): Image
     {

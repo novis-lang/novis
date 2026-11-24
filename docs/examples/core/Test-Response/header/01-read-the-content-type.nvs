@@ -12,6 +12,6 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // This part is the test.
     var $response = Test::request(Method::Get, '/health');
 
-    // Upper and lower case do not matter. This prints `application/json`.
+    // Upper and lower case do not matter in a header name. This prints `application/json`.
     echo $response->header('content-type'), "\n";
 }

@@ -2236,27 +2236,28 @@ const PEER_CHAIN_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Http\TlsInfo::subject`'s reference card — `rule:core-api/reference-card`.
 const SUBJECT_DOC: MethodDoc = MethodDoc {
-    short: "Returns the subject of the leaf certificate, written as an RFC 4514 distinguished \
-            name.",
+    short: "Returns the subject of the leaf certificate (the server's own certificate), written \
+            as an RFC 4514 distinguished name.",
     params: &[],
     ret: "The same text that `openssl x509 -subject` prints, such as `CN=api.example.com`. It is \
-          `tainted`, for the same reason as `peerChain`.",
+          `tainted`, because the server chose this text.",
     errors: &[LEAF_ERROR],
 };
 
 /// `Core\Http\TlsInfo::issuer`'s reference card — `rule:core-api/reference-card`.
 const ISSUER_DOC: MethodDoc = MethodDoc {
-    short: "Returns the issuer of the leaf certificate, written as an RFC 4514 distinguished \
-            name.",
+    short: "Returns the issuer of the leaf certificate (the server's own certificate), written \
+            as an RFC 4514 distinguished name.",
     params: &[],
-    ret: "Who signed the leaf certificate, in the same format as `subject`. It is `tainted` for \
-          the same reason.",
+    ret: "Who signed the leaf certificate, in the same format as `subject`. It is `tainted`, \
+          because the server chose this text.",
     errors: &[LEAF_ERROR],
 };
 
 /// `Core\Http\TlsInfo::expiry`'s reference card — `rule:core-api/reference-card`.
 const EXPIRY_DOC: MethodDoc = MethodDoc {
-    short: "Returns when the leaf certificate stops being valid. This is its `notAfter` field.",
+    short: "Returns when the leaf certificate (the server's own certificate) stops being valid. \
+            This is its `notAfter` field.",
     params: &[],
     ret: "The instant when the server's certificate expires. Operators often want a program to \
           check this for the services it calls.",

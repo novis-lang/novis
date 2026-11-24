@@ -778,7 +778,7 @@ const LIVE_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "Exactly what `$body` returned, with the same type. The terminal is restored however \
-          `$body` ends: a return, a throw, a fatal error or an internal panic. If the output is \
+          `$body` ends: a return, a throw or a fatal error. If the output is \
           not a terminal, nothing is drawn, so no escape sequences are written.",
     errors: &[],
 };
@@ -843,13 +843,13 @@ const SET_DOC: MethodDoc = MethodDoc {
                a wrapped row would stop the area from being redrawn.",
         shape: &[],
     }],
-    ret: "Nothing. The rows are drawn now, or together with the next update. A program cannot \
-          tell which. The last rows given are always drawn before the area closes.",
+    ret: "Nothing. The rows are drawn now, or together with the next update. Your program \
+          cannot see the difference. The last rows given are always drawn before the area closes.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "This area is not the active one on the terminal. It has closed, or an inner \
-               `Core\\Cli::showLive` is open inside it. A `Cli\\Live` belongs to the call that made \
-               it. Using it outside that call is a bug in the program.",
+               `Core\\Cli::showLive` is open inside it. A `Core\\Cli\\Live` works only inside the \
+               call that made it. Using it outside that call is a bug in the program.",
     }],
 };
 

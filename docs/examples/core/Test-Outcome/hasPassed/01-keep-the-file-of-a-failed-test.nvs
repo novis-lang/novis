@@ -42,5 +42,5 @@ class ExportTest
     }
 }
 
-// This prints the file the test writes.
+// This prints the CSV text that the test writes to the file.
 echo Export::csv(['Ada', 'Linus']);

@@ -275,7 +275,8 @@ const ENV_DOC: ParamDoc = ParamDoc {
 const TIMEOUT_DOC: ParamDoc = ParamDoc {
     name: "timeout",
     desc: "The longest time the program may run, counted from the start. When it passes, the \
-           program is stopped and a `TimeoutError` is thrown.",
+           program is stopped. `run` then throws a `TimeoutError`. After `spawn`, the next \
+           call on the handle throws it.",
     shape: &[],
 };
 
@@ -347,8 +348,9 @@ const SPAWN_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "path",
-            desc: "The program to start, as an absolute path or a path relative to the working \
-                   directory. `PATH` is not searched.",
+            desc: "The program to start, as an absolute path. A relative path must be a string \
+                   written directly in the code. It is joined to the folder of the file that \
+                   contains it. `PATH` is not searched.",
             shape: &[],
         },
         ParamDoc {
@@ -363,7 +365,8 @@ const SPAWN_DOC: MethodDoc = MethodDoc {
     ],
     ret: "A `Core\\Process\\Handle` for the running program. Other requests keep running while this \
           one waits on the handle. Call `wait` or `kill` on it before your script or request \
-          ends. A program that is still running then is stopped, and Novis reports an error.",
+          ends. If the program is still running when the script or request ends, it is \
+          stopped and Novis reports an error.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",

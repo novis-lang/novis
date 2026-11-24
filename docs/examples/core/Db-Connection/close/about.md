@@ -5,7 +5,7 @@ opens the database, and gives it back when the request ends. `close` gives it ba
 another request can use it while your program does the rest of its work.
 
 After `close`, the connection is no longer usable. Every method that needs it throws a
-`LogicError`. `isOpen` still answers, and it answers `false`. A second `close` does nothing and
+`LogicError`. `isOpen` still works, and it returns `false`. A second `close` does nothing and
 is not an error, so a cleanup step may run twice.
 
 The name is free again after a close. `Core\Db::connect` with the same name opens the database

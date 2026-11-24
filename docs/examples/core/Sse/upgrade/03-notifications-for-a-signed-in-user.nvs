@@ -17,7 +17,7 @@ class Notifications
     }
 }
 
-// The server knows each session and the user it belongs to.
+// This array gives the user for each session identifier in the `session` cookie.
 array<string> $users = ['c81f02' => 'ana', '5be9d4' => 'ben'];
 tainted string $session = Core\Request::cookie('session') ?? '';
 string $user = $users[$session] ?? '';

@@ -836,10 +836,10 @@ const HTML_DOC: MethodDoc = MethodDoc {
             charset=utf-8`.",
     params: &[ParamDoc {
         name: "body",
-        desc: "The page to send. It is a `Core\\Html\\Markup`, which is HTML that is already safe: \
-               an html template, ``html`…` ``, escaped the values in its `{...}`, or \
-               `Core\\Html::escape` made it. It is sent as it is and nothing is escaped again. \
-               A `string` does not compile.",
+        desc: "The page to send. It is a `Core\\Html\\Markup`, which is HTML that is already safe. \
+               An html template, ``html`…` ``, makes one and escapes the values in its `{...}`. \
+               `Core\\Html::escape` also makes one. It is sent as it is and nothing is escaped \
+               again. A `string` does not compile.",
         shape: &[],
     }],
     ret: "Nothing. Using this and `echo` in one response does not compile.",

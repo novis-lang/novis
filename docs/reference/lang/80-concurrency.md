@@ -1047,7 +1047,7 @@ A child can start its own child. A task in `Core\Task::all` can start a child an
 
 ```nvs file=jobs/add-up.nvs
 <?nvs
-// This file reads the value the parent gave in `arguments:`.
+// This file reads the numbers the parent gave in `arguments:` and returns their sum.
 array<int> $numbers = Core\Script::arguments() as array<int>;
 int $total = 0;
 foreach ($numbers as int $n) {
@@ -1136,7 +1136,7 @@ it printed: read the order file
 
 ```nvs file=jobs/add-up.nvs
 <?nvs
-// This file reads the value the parent gave in `arguments:`.
+// This file reads the numbers the parent gave in `arguments:` and returns their sum.
 array<int> $numbers = Core\Script::arguments() as array<int>;
 int $total = 0;
 foreach ($numbers as int $n) {
@@ -1219,7 +1219,7 @@ items to show: 8
 
 ```nvs file=jobs/add-up.nvs
 <?nvs
-// This file reads the value the parent gave in `arguments:`.
+// This file reads the numbers the parent gave in `arguments:` and returns their sum.
 array<int> $numbers = Core\Script::arguments() as array<int>;
 int $total = 0;
 foreach ($numbers as int $n) {
@@ -1303,7 +1303,7 @@ if ($report->ok) {
 
 ```nvs file=jobs/add-up.nvs
 <?nvs
-// This file reads the value the parent gave in `arguments:`.
+// This file reads the numbers the parent gave in `arguments:` and returns their sum.
 array<int> $numbers = Core\Script::arguments() as array<int>;
 int $total = 0;
 foreach ($numbers as int $n) {
@@ -1387,7 +1387,7 @@ ok: true
 
 ```nvs file=jobs/add-up.nvs
 <?nvs
-// This file reads the value the parent gave in `arguments:`.
+// This file reads the numbers the parent gave in `arguments:` and returns their sum.
 array<int> $numbers = Core\Script::arguments() as array<int>;
 int $total = 0;
 foreach ($numbers as int $n) {

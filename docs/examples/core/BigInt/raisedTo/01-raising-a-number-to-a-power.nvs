@@ -4,7 +4,7 @@
 // `raisedTo` raises the number to the power you give it. This prints 1024.
 echo Core\BigInt::of(2)->raisedTo(10), "\n";
 
-// The answer may be far larger than an `int` holds. This prints
+// The answer may be far larger than an `int` can store. This prints
 // 18446744073709551616.
 echo Core\BigInt::of(2)->raisedTo(64), "\n";
 

@@ -8,9 +8,8 @@ UTF-8. Use `bytes()` for such a body. `Core\Test::assertEquals` compares it with
 expect.
 
 A request fails when the program throws an error that it does not catch. Then the result is empty
-`bytes`, because the server sends no body for a failed request. A test gets the same response as a
-real visitor. A `HEAD` request
-also gives empty `bytes`.
+`bytes`, because the server sends no body for a failed request. A real visitor gets the same empty
+body. A `HEAD` request has no body either, so the result is also empty `bytes`.
 
 You can call `bytes()` as often as you like. Each call returns the same bytes.
 

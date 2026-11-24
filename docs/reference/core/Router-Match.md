@@ -15,10 +15,10 @@ and the `405`.
 `is(Shop::show)` returns `true` when the route belongs to that method. You write the method the way
 `Core\Router::url` takes it: `Class::method` with no `(...)`, for a static or an instance method. A
 method from a variable, such as an `array<callable>` or `$shop->show(...)`, is checked while the
-program runs, and `is` throws an error when that method has no route. `params()` is
-every capture the path filled, keyed by the parameter it binds, and `param()` is that array read at
-one key — `null` for a name the route does not declare, including an optional `{name?}` the request
-left off. A capture is `tainted string` where the route declared `string`, still percent-encoded,
+program runs, and `is` throws an error when that method has no route. `parameters()`
+returns every value the path filled, keyed by the name of its parameter. `parameter()` returns one of
+them by name. It returns `null` for a name the route does not declare, and for an optional `{name?}`
+the request did not include. A capture is `tainted string` where the route declared `string`, still percent-encoded,
 and the `int`, `uint`, `decimal` or `Core\Uuid` the match already converted where it declared one of
 those, so a handler never parses a segment the router has parsed already — and a segment that would
 not convert did not match the route in the first place.

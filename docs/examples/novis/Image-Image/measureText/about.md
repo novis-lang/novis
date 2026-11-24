@@ -1,8 +1,8 @@
 Returns the size in pixels that a text needs, without drawing it.
 
 `Image::measureText` takes the text, a `Font` and the options `size`, `maxWidth` and `align`. `withText`
-takes the same options. The result has a `width` and a `height` in pixels. `withText` draws the same text
-in a box of exactly this size.
+takes the same options. The result has a `width` and a `height` in pixels. With the same text and options,
+the text that `withText` draws is exactly this size.
 
 `size` is the font size in pixels. A line feed starts a new line. With `maxWidth`, lines also break at
 spaces, and each extra line adds to the `height`. A word wider than `maxWidth` is not broken, so the
@@ -14,5 +14,5 @@ Text with nothing to draw throws a `LogicError`. A font file with broken tables 
 **Good to know:** use it to make an image exactly as big as its text, or to choose a font size that
 fits a space.
 
-**The examples below** make an image the size of a label, count the lines of a wrapped text, and find
-the biggest font size for a banner.
+**The examples below** make an image the size of a label, and count the lines of a wrapped text. The
+last one finds the biggest font size for a banner.

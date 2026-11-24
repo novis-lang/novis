@@ -22,7 +22,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // `Core\Response::sendText` sends each body exactly as it is written here.
     var $path = Core\Request::path();
     if ($path == '/deep') {
-        // One folder inside the next, 1000 levels deep.
+        // One `Folder` object inside the next, 1000 levels deep.
         Core\Response::sendText(Core\Str::repeat('{"name":"f","inner":', 1000) . 'null' . Core\Str::repeat('}', 1000));
     }
     if ($path == '/list') {
@@ -35,7 +35,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         Core\Response::sendText('[1, 2, 3]');
     }
 } else {
-    // 1. 1000 folders inside each other. The body is deeper than `maxDepth: 64`,
+    // 1. 1000 `Folder` objects inside each other. The body is deeper than `maxDepth: 64`,
     // so this throws a `ParseError`. It is caught, so the next step still runs.
     var $deep = Test::request(Method::Get, '/deep');
     try {
@@ -55,7 +55,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         echo "deep: not read\n";
     }
 
-    // 3. A list of 100000 folders, read 3 times.
+    // 3. A list of 100000 `Folder` objects, read 3 times.
     var $list = Test::request(Method::Get, '/list');
     uint $total = 0;
     uint $i = 0;

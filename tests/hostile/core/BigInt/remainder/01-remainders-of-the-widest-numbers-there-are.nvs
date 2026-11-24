@@ -16,7 +16,7 @@ while ($round < 1000) {
 echo $small->sign(), "\n";
 
 // 2. The divisor is one bit narrower, so the result is nearly as wide as the
-//    number itself. Only the last one is kept, so the memory held must not grow.
+//    number itself. Only the last one is kept, so the memory the program uses must not grow.
 var $half = Core\BigInt::of(1)->shiftedLeft(999999);
 var $rest = $wide;
 int $again = 0;

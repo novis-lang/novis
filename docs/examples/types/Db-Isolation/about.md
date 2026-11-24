@@ -1,13 +1,14 @@
 How much of other transactions' unfinished work your own transaction is allowed to see.
 
-A database runs many transactions at once, and the isolation level is the promise it makes to yours
-about the others while they are still going. The five cases run from `ReadUncommitted`, where a
-statement may read a row nobody has committed yet, to `Serializable`, where the result has to match
-some order in which the transactions ran one at a time. You pass one as the `isolation` option of
-`runTransaction`, and leaving it out is the usual thing to do: the transaction then runs at whatever
-level the database was set up with.
+A database runs many transactions at the same time. The isolation level says what your transaction
+sees of the others while they are still running. The five cases go from `ReadUncommitted` to
+`Serializable`. With `ReadUncommitted`, a statement may read a row that nobody has committed yet.
+With `Serializable`, the result is the same as if the transactions ran one after another.
 
-**Good to know:** the cases are a list and not a ranking. `Snapshot` is not simply stronger or weaker
-than the levels written either side of it, because backends put it in different places, so pick the
-one that describes the work rather than reaching for the next one along. A database that cannot offer
-the level you asked for says so, instead of quietly running your work at a weaker one.
+You pass a case as the `isolation` option of `runTransaction`. Most programs leave it out. The
+transaction then uses the level the database is configured with.
+
+**Good to know:** the order of the cases is not a ranking. Databases do not agree on where
+`Snapshot` belongs, so it is not stronger or weaker than the cases next to it. Pick the case that
+describes the work you need. A database that does not support the level you choose throws an error.
+It does not run your work at a weaker level.

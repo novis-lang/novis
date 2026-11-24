@@ -16,7 +16,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         return html`<ul><li>first entry</li></ul>`;
     });
 
-    // Both pages have the same form.
+    // Both pages print the same heading and list.
     echo html`<h1>{$path}</h1>`, "\n", $list, "\n";
 } else {
     // From the command line, this part sends two requests.

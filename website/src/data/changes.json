@@ -784,13 +784,13 @@
       "kind": "fixed",
       "features": [
         "Core\\Request::jsonAs",
-        "Core\\Request::queryAs",
-        "Core\\Request::postAs",
+        "Core\\Request::queryParametersAs",
+        "Core\\Request::formFieldsAs",
         "Core\\Json::decodeAs",
         "Core\\Json::decodeEach",
         "Core\\Arr::shapeAs"
       ],
-      "text": "Some decoders take a type, such as `Core\\Json::decodeAs` and `Core\\Request::jsonAs`. They check every class inside a shape or an array of that type, at any depth. `Core\\Request::jsonAs`, `queryAs` and `postAs` give the error `E0810` when such a class has a plain `string` property.",
+      "text": "Some decoders take a type, such as `Core\\Json::decodeAs` and `Core\\Request::jsonAs`. They check every class inside a shape or an array of that type, at any depth. `Core\\Request::jsonAs`, `queryParametersAs` and `formFieldsAs` give the error `E0810` when such a class has a plain `string` property.",
       "breaking": true,
       "instead": "Write `tainted string` on each string property of a class that a request decoder reads.",
       "security": true
@@ -837,11 +837,11 @@
       "features": [
         "Novis\\Image\\Image::encode",
         "Novis\\Image\\Image::raw",
-        "Novis\\Image\\Image::variants",
+        "Novis\\Image\\Image::encodeVariants",
         "Novis\\Pdf\\Pages::merge",
         "Novis\\Image\\Font::fromBytes"
       ],
-      "text": "`Image::encode`, the pixels of `Image::raw`, each file of `Image::variants` and the result of `Pages::merge` are `tainted bytes`. An image or a PDF file may be an upload. `Font::fromBytes` takes `tainted bytes`.",
+      "text": "`Image::encode`, the pixels of `Image::raw`, each file of `Image::encodeVariants` and the result of `Pages::merge` are `tainted bytes`. An image or a PDF file may be an upload. `Font::fromBytes` takes `tainted bytes`.",
       "breaking": true,
       "instead": "Write `tainted bytes` on the variable that keeps the result. A response body, a file and storage all take `tainted bytes`.",
       "security": true
@@ -1249,23 +1249,23 @@
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Ldap\\Ad\\AccountFlags::bits": {
-      "hash": "f956b0a2fa7cfcd7",
+      "hash": "578420cb8a9e5f24",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Ldap\\Ad\\AccountFlags::mustChangePassword": {
-      "hash": "c70ae3b7f55cd576",
+      "hash": "7a3a6a278fb2c9de",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Ldap\\Ad\\AccountFlags::with": {
-      "hash": "cd2a2f13af654501",
+      "hash": "5ec3476db7ba6464",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Ldap\\Ad\\GroupType::bits": {
-      "hash": "2c80d0949e51f344",
+      "hash": "d75429a15731a39d",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Ldap\\Ad\\GroupType::with": {
-      "hash": "52f08d9170b58ab8",
+      "hash": "f4fff308ede5d2ff",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Ldap\\Changes::cookie": {

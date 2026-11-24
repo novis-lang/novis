@@ -64,14 +64,14 @@ try {
 }
 echo 'step 3: done', "\n";
 
-// 4. A string of ten million characters, and a list of two hundred thousand numbers, with both
-// options on.
+// 4. A string of ten million characters with `escapeUnicode`, and a list of two hundred thousand
+// numbers with `pretty`.
 string $long = Core\Str::repeat('é', 10000000);
 if (Core\Str::length(Core\Json::encode($long, { escapeUnicode: true })) != 60000002) {
     throw new LogicError('the long string was cut');
 }
 array<int> $numbers = Core\Arr::fill(200000, 7);
-// Each number is on its own line, with two spaces in front: the text has 1000002 characters.
+// `pretty` puts each number on its own line, after two spaces. The text has 1000002 characters.
 if (Core\Str::length(Core\Json::encode($numbers, { pretty: true })) != 1000002) {
     throw new LogicError('the long list was cut');
 }

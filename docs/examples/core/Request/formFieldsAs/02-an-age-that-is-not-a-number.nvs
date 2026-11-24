@@ -7,7 +7,7 @@ try {
     var $form = Core\Request::formFieldsAs<tainted { name: string, email: string, age: uint }>();
     echo 'welcome, ', $form->name, "\n";
 } catch (ParseError $error) {
-    // `issues` has one entry for each wrong field. This prints two lines:
+    // The error's `issues` property has one entry for each wrong field. This prints two lines:
     // "age: expected uint, found a string" and "email: required field missing".
     foreach ($error->issues as { path: string, message: string } $issue) {
         echo $issue->path, ': ', $issue->message, "\n";

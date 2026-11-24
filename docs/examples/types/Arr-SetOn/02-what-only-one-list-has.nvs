@@ -10,5 +10,5 @@ echo 'values:  ', Core\Json::encode(Core\Arr::difference($mine, $theirs)), "\n";
 echo 'names:   ', Core\Json::encode(Core\Arr::difference($mine, $theirs, { on: Core\Arr::SetOn::Keys })), "\n";
 echo 'both:    ', Core\Json::encode(Core\Arr::difference($mine, $theirs, { on: Core\Arr::SetOn::Both })), "\n";
 
-// With `Both`, the result has every entry. No entry matches on key and value together.
+// With `Both`, the result has every entry, because no entry has the same key and value in both.
 // `z` is in both arrays, but its value is `3` in one and `9` in the other.

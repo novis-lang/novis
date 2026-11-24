@@ -150,15 +150,16 @@ stock
 A PHP project usually installs a set of development tools with Composer. Novis has their work built
 into the toolchain or into the language itself:
 
-- **PHPUnit** → `#[Test]` methods, `Core\Test` assertions and `nvs test` are the framework — data
-  rows, fixtures, skip-with-reason, retries, JUnit and JSON output. See [testing](#lang-testing).
-- **PHPStan / Psalm** → `nvs check` is the compiler, and it already checks what their strictest
-  levels check: every variable typed, every method resolved at compile time, every path returning,
-  every property initialized — plus `tainted`/`secret` flow, which is Psalm's taint mode as a type
-  rule. There are no levels and no baseline file, because there is no untyped code to bridge.
-- **PHP CS Fixer / PHP_CodeSniffer** → the style rules that catch bugs are compile errors here —
-  identifier casing, a written visibility on every member, one way to write each construct — with
-  no suppression and nothing to configure.
+- **PHPUnit** → `#[Test]` methods, `Core\Test` assertions and `nvs test` are the test framework.
+  They have data rows, fixtures, a skip with a reason, retries, and JUnit and JSON output. See
+  [testing](#lang-testing).
+- **PHPStan / Psalm** → `nvs check` runs the compiler. It checks what their strictest levels check:
+  every variable has a type, every method is found at compile time, every path returns, and every
+  property is set. It also checks where `tainted` and `secret` values go. All code has types, so
+  there are no levels and no baseline file.
+- **PHP CS Fixer / PHP_CodeSniffer** → the style rules that catch bugs are compile errors in Novis.
+  Examples are the case of a name, a written visibility on every method and property, and one way to
+  write each language feature. You cannot turn them off, and there is nothing to configure.
 
 A test is a method with `#[Test]` in any class. `nvs test` runs this file and reports three tests:
 one for each `#[TestWith]` row, and one that is skipped with its reason.

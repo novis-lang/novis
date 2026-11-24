@@ -20,12 +20,12 @@ over bytes the door already charged for, and no memory at all.
 **A part is a file part iff its `Content-Disposition` carries a `filename`**, which is RFC 7578's own
 distinction and not a second one invented here. Every other part is an ordinary form field: the walk
 buffers those as it passes them, and `Core\Request::formField()` reads them back afterwards. That is why
-`post()` on a `multipart/form-data` request is called **after** this walk and never before — the fields
+`formField()` on a `multipart/form-data` request is called **after** this walk and never before — the fields
 are behind the uploads on the wire, and reading them first would mean draining the uploads to reach them.
 
 The walk is empty where the request declared no `multipart/form-data` body, which is what a request
 carrying no upload is. It throws `LogicError` where the program is not answering a request, or where
-`body()`, `bodyStream()` or `post()` already read this body; `ParseError` where the request declared a
+`body()`, `bodyStream()` or `formField()` already read this body; `ParseError` where the request declared a
 multipart body and then did not say how to read one — no `boundary`, two of them, or one outside the
 grammar — since an ambiguous body is refused rather than guessed at; and `IOError` where the connection
 failed under the body or the peer stopped short of the length it declared.

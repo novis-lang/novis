@@ -2,7 +2,7 @@ Reads one file out of a zip archive and returns its content as bytes, already de
 
 You name the file exactly as `Core\Zip::entries` lists it. A name that is not in the archive throws
 a `ParseError`. The whole archive is checked first, so an archive with one unsafe name throws even
-when you ask for a safe file.
+when the file you name is safe.
 
 The archive can be `bytes`, an open file, an uploaded `Core\Request\Part` or a
 `Core\Request\BodyStream`. `read` reads the table of contents and then only the file you name. An

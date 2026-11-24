@@ -1,6 +1,6 @@
 <?nvs
-// Shows how to work out the number of pages a list of results needs. The count
-// of the rows and the size of a page are all the arithmetic takes.
+// Shows how to work out the number of pages a list of results needs. The
+// calculation needs only the number of rows and the size of a page.
 
 var $db = Core\Db::connect('notes');
 $db->execute('create table products (id integer primary key, title text not null)', []);
@@ -16,8 +16,8 @@ var $rows = $db->query('select id, title from products order by id', []);
 int $perPage = 10;
 int $found = $rows->count() as int;
 
-// A last page that is not full still needs a page of its own, which is what
-// adding nine before the division does. This prints `47 products on 5 pages`.
+// A last page that is not full still needs a page of its own. Adding nine
+// before the division counts it. This prints `47 products on 5 pages`.
 int $pages = Core\Math::quotient($found + $perPage - 1, $perPage);
 echo $found, ' products on ', $pages, " pages\n";
 

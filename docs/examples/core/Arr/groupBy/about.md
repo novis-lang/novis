@@ -1,5 +1,5 @@
 Sorts the values of an array into groups. A function names the group each value belongs to, and the
-result holds one array per group.
+result has one array per group.
 
 You give `Core\Arr::groupBy` an array and a function. The function receives the value and the key,
 and returns the name of the group. A function that needs only the value declares only that one

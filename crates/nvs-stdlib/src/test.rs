@@ -1389,9 +1389,9 @@ const SCRIPT_ANSWERS_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "The call runs in a server, such as in a request, a connection, a scheduled \
-               task or a queued job. A test may call it. Code that a test starts may call it \
-               too, such as a request sent with `Core\\Test::request`. A command-line program \
-               may also call it.",
+               task or a queued job. There is one exception: a request that a test sends with \
+               `Core\\Test::request` may call it. Tests and command-line programs may always \
+               call it.",
     }],
 };
 
@@ -1728,9 +1728,9 @@ const ANSWER_HTTP_DOC: MethodDoc = MethodDoc {
         desc: "The call gives both `json` and `body`, which are two ways to write one body. Or \
                the status is not from `100` to `999`. Or the call gives a `tls` session for an \
                `http://` URL, which has no TLS. Or the call runs in a server, such as in a \
-               request, a connection, a scheduled task or a queued job. A test may call it. \
-               Code that a test starts may call it too, such as a request sent with \
-               `Core\\Test::request`. A command-line program may also call it.",
+               request, a connection, a scheduled task or a queued job. There is one \
+               exception: a request that a test sends with `Core\\Test::request` may call it. \
+               Tests and command-line programs may always call it.",
     }],
 };
 
@@ -1777,8 +1777,8 @@ const TLS_SESSION_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "expiry",
             desc: "The date and time when the leaf certificate expires. It is kept in whole \
-                   seconds. The default is 90 days after `Core\\Time::now()`. So a test that \
-                   sets its clock to a fixed time gets the same value every run.",
+                   seconds. The default is 90 days after `Core\\Time::now()`. A test that sets \
+                   its clock to a fixed time gets the same default every run.",
             shape: &[],
         },
     ],
@@ -1791,8 +1791,8 @@ const TLS_SESSION_DOC: MethodDoc = MethodDoc {
                supports for that version. Or a subject or issuer is not written as `KEY=value` \
                pairs with the keys above. Or the expiry is before 1950 or after 9999. Or the \
                call runs in a server, such as in a request, a connection, a scheduled task or \
-               a queued job. A test may call it. Code that a test starts may call it too, such \
-               as a request sent with `Core\\Test::request`. A command-line program may also \
+               a queued job. There is one exception: a request that a test sends with \
+               `Core\\Test::request` may call it. Tests and command-line programs may always \
                call it.",
     }],
 };
@@ -1849,9 +1849,9 @@ const ANSWER_SOCKET_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "The call runs in a server, such as in a request, a connection, a scheduled \
-               task or a queued job. A test may call it. Code that a test starts may call it \
-               too, such as a request sent with `Core\\Test::request`. A command-line program \
-               may also call it.",
+               task or a queued job. There is one exception: a request that a test sends with \
+               `Core\\Test::request` may call it. Tests and command-line programs may always \
+               call it.",
     }],
 };
 

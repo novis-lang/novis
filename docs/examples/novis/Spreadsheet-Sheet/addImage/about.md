@@ -6,10 +6,10 @@ size. `offsetX` and `offsetY` move the image right and down from the top left co
 pixels.
 
 **Good to know:** any other format throws a `LogicError`, so check an image from an upload before
-you add it. A file that is cut short also throws. So does an image that ends after the last column
-(`XFD`) or the last row (1,048,576). An image added after the first row is kept in memory until the
-sheet is finished, so a report with many images adds them before its rows. The same image added
+you add it. A file with bytes missing at the end also throws. So does an image that ends after the last column
+(`XFD`) or the last row (1,048,576). An image added after the first row stays in memory until the
+sheet is finished. To use less memory, add many images before the first row. The same image added
 again is stored in the file once. A CSV file has no images, so `addImage` does nothing there.
 
-**The examples below** put a logo at the top of a report, add a picture for each product, and show
-the error for a file that is not an image.
+**The examples below** put a logo at the top of a report, and add a picture for each product. The
+last one shows the error for a file that is not an image.

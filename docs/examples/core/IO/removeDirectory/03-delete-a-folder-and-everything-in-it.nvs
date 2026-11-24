@@ -3,7 +3,7 @@
 
 class Folder
 {
-    // Deletes every file in the folder, and every folder in it the same way.
+    // This deletes every file in the folder, and every inner folder the same way.
     // Then the folder is empty, and `removeDirectory` deletes it.
     public static function deleteAll(string $folder): void
     {

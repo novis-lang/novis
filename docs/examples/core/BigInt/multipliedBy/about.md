@@ -1,14 +1,14 @@
 Returns the product of this number and another one, as a new `Core\BigInt`.
 
-There is no size at which the product stops being exact. Multiplying two `int` values whose product
-is too large for an `int` throws an error, and `Core\BigInt` is what you use instead when a product
-may grow that far.
+The product is always exact, however large the numbers are. When the product of two `int` values is
+too large for an `int`, the multiplication throws an error. Use `Core\BigInt` when a product may
+grow that far.
 
 The sign follows the usual rule: two numbers with the same sign give a positive product, and two
 with different signs give a negative one.
 
-Both numbers stay as they were. `multipliedBy` returns a new number, so a running product is the
-number you get back from it, not the one you called it on.
+`multipliedBy` does not change either number. It returns the result as a new number, so keep that
+result in a variable.
 
 **Good to know:** `$a * $b` does not work on two `Core\BigInt` values, because `*` is only for plain
 numbers. `multipliedBy` is how you write it.

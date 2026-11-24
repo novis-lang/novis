@@ -40,11 +40,11 @@ echo Core\BigInt::of(5)->raisedToModulo($huge, Core\BigInt::of(1)), "\n";
 echo Core\BigInt::of(5)->raisedToModulo(Core\BigInt::of(13), Core\BigInt::of(-497)), "\n";
 
 // 5. A base of ten thousand digits raised to a power of ten thousand digits.
-//    The memory this holds must stay about the size of the modulus.
+//    The memory this call uses must stay about the size of the modulus.
 echo Core\Str::length($huge->raisedToModulo($huge, $prime)->toString()), "\n";
 
 // 6. Fifty thousand small modular powers, each thrown away again. The memory
-//    the program holds must not grow with the rounds.
+//    the program uses must not grow with the rounds.
 uint $round = 0;
 int $signs = 0;
 while ($round < 50000) {

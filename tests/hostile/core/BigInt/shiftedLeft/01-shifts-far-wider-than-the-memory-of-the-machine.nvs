@@ -33,7 +33,7 @@ echo Core\Str::length($wide->shiftedLeft(0)->toString()), "\n";
 echo $wide->shiftedLeft(1015356)->sign(), "\n";
 
 // 4. Two hundred thousand small shifts, each thrown away again. The memory the
-//    program holds must not grow with the rounds.
+//    program uses must not grow with the rounds.
 uint $round = 0;
 int $signs = 0;
 while ($round < 200000) {

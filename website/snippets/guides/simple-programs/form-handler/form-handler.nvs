@@ -15,7 +15,7 @@ class Contact
     }
 }
 
-// `postAs` fills a `Contact` from the form fields with the same names.
+// `formFieldsAs` fills a `Contact` from the form fields with the same names.
 // Text from a form is `tainted`, because it comes from outside the program.
 Contact $form = Core\Request::formFieldsAs<Contact>();
 

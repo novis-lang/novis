@@ -3,12 +3,12 @@ Joins a path to the folder the program was started from, and returns the full pa
 A command-line tool uses it for a file name the user typed, such as `report.txt` in
 `nvs run tool.nvs report.txt`. The user means a file in the folder they are working in, and
 `fromWorkingDirectory` gives the full path of that file. `.` and `..` are removed from the result.
-A path that is already full is returned without the folder.
+A path that is already full is not joined to the folder. It is returned with `.` and `..` removed.
 
 **Good to know:** `fromWorkingDirectory` throws a `RuntimeError` while the program answers a web
 request. A server's working folder is not the folder of your app. Write the path in your program as
 a string in quotes instead. A path written in quotes starts at the folder of the file that contains
 it.
 
-**The examples below** turn a typed file name into a full path, show that `.` and `..` are
-removed, and build export paths below the starting folder.
+**The examples below** turn a typed file name into a full path and show that `.` and `..` are
+removed. The last one builds export paths below the starting folder.

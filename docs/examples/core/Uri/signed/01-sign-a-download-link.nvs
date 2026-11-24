@@ -8,7 +8,7 @@ array<secret bytes> $keys = [$key];
 Core\Uri $link = Core\Uri::parse('https://files.example.com/download?file=report.pdf')
     ->signed({ keys: $keys, until: Core\Time::now()->plus(1h) });
 
-// This prints true, report.pdf and verified.
+// These three lines print true, report.pdf and verified.
 echo Core\Str::startsWith($link->toString(), 'https://files.example.com/download?file=report.pdf&_sig=') ? 'true' : 'false', "\n";
 echo $link->queryParameter('file') as string, "\n";
 $link->verifySignature($keys);

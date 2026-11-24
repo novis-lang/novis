@@ -3,8 +3,9 @@ Returns the files that a form uploaded. A `foreach` loop reads them one at a tim
 type and the content.
 
 Read the content while the loop is on that file. `readAll` returns it as one value, `content`
-returns it in pieces, and `saveTo` writes it to a file. A file that you skip is read past. The file
-name and the type are tainted, which means they came from outside your program.
+returns it in pieces, and `saveTo` writes it to a file. When you skip a file, the loop reads and
+discards its content. The file name and the type are tainted, which means they came from outside
+your program.
 
 The text fields of the form are not in the loop. Read them with `Core\Request::formField` after the
 loop. When the request has no `multipart/form-data` body, the loop runs zero times.

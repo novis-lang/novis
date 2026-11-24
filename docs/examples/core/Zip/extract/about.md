@@ -4,7 +4,7 @@ folder and every folder the archive names inside it are created if they do not e
 On a server, a program may write only in the folders that `Core\IO::createTemporaryDirectory` made for it. Any
 other folder needs the `fs.read` and `fs.write` capabilities.
 
-The whole archive is checked before anything is written. An archive with one unsafe name, such as
+Every name in the archive is checked before anything is written. An archive with one unsafe name, such as
 `../config.ini`, throws a `ParseError` and writes no file. A name that already exists on the disk
 throws an `IOError`.
 

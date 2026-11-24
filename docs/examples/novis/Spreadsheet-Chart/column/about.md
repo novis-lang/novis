@@ -5,7 +5,7 @@ Every option is optional. `title` is the title of the chart. `xTitle` is the tit
 and `yTitle` is the title beside them. `legend` is `'right'`, `'top'`, `'bottom'`, `'left'` or
 `'hidden'`, and the default is `'right'`. `labels: true` shows the value of each bar.
 
-**Good to know:** a `legend` with other text throws a `LogicError`. A chart does not change: each
+**Good to know:** a `legend` with other text throws a `LogicError`. A chart does not change. Each
 method returns a new chart. `combinedWith` can draw a line or an area on the same axes as the columns.
 
 **The examples below** draw the sales of each month, add axis titles and values, and show the error

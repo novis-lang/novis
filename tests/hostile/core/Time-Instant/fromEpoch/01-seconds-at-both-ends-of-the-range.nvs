@@ -43,7 +43,7 @@ echo $refused, " refused\n";
 echo Core\Time\Instant::fromEpoch(253402207200, { nanoseconds: 999999999 })->toIso(), "\n";
 echo Core\Time\Instant::fromEpoch(-377705023201)->toIso(), "\n";
 
-// 4. Many refused calls in a loop. Every error is caught and freed.
+// 4. Many calls that throw an error, in a loop. Every error is caught and freed.
 uint $i = 0;
 int $caught = 0;
 while ($i < 100000) {

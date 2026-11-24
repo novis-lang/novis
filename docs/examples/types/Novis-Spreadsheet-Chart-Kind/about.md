@@ -1,6 +1,6 @@
 The type of a chart.
 
-Each case has a method of `Chart` that starts a chart of that type:
+Each case of the enum has a method of `Chart` that makes a chart of that type:
 
 - `Column` is `Chart::column`, vertical bars.
 - `Bar` is `Chart::bar`, horizontal bars.
@@ -10,4 +10,5 @@ Each case has a method of `Chart` that starts a chart of that type:
 - `Scatter` is `Chart::scatter`, points with an x value and a y value.
 
 The property `kind` of a `Chart` is its type. A chart made with `combinedWith` keeps the type of the first
-chart. You can combine two of `Column`, `Line` and `Area`.
+chart. Only `Column`, `Line` and `Area` charts can be combined. A combined chart has two different
+types from these three.

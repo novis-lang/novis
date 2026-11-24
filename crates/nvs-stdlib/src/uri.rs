@@ -1072,8 +1072,9 @@ const RESOLVE_DOC: MethodDoc = MethodDoc {
           not change.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The base has no scheme, such as `/blog/post`. The link has a character that is \
-               not allowed in an address, such as a space. Or the base has no `/` after its \
+        desc: "The base has no scheme (the part before `:`, such as `https`), as in \
+               `/blog/post`. The link has a character that is not allowed in an address, such \
+               as a space. Or the base has no `/` after its \
                scheme, such as `mailto:ann@example.com`, so there is no path to add the link to.",
     }],
 };
@@ -1156,10 +1157,10 @@ const VERIFY_SIGNATURE_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "RuntimeError",
-            desc: "The link was not signed with these keys. This is the case when a parameter \
-                   was added, removed or changed, when the token was changed, when the key was \
-                   removed from the list, when there is no `_sig`, and when there are two. All of \
-                   these give the same message. An expired link gives a different message.",
+            desc: "The link was not signed with these keys. A parameter was added, removed or \
+                   changed, or the `_sig` value was changed. Or the key is no longer in the list. \
+                   Or the link has no `_sig`, or two of them. All of these give the same message. \
+                   An expired link gives a different message.",
         },
     ],
 };

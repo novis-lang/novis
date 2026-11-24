@@ -12,8 +12,8 @@ foreach ($names as string $name) {
     Core\Time::sleep(Core\Time\Duration::milliseconds(50));
 }
 
-// The program starts with the first file. Then one `metadata` call for each file,
-// and the loop keeps the name with the latest time.
+// The program starts with the first file. The loop calls `metadata` once for each
+// file and keeps the name with the latest time.
 array<string> $files = Core\IO::list($dir);
 string $newest = $files[0];
 Core\Time\Instant $latest = Core\IO::metadata(Core\Path::join($dir, $newest))->modifiedAt();

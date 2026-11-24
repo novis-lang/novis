@@ -1352,8 +1352,8 @@ WebSocket upgrade arrives as a `Get`.
 
 The server checks the `Origin` header before it looks for a route. A `POST`, `PUT`, `PATCH` or
 `DELETE` from another origin gets `Core\Router\Refusal::Csrf` and the status `403`. This is also true
-when no route has its path. So `NotFound` is a request from the same origin, a request with no
-`Origin`, or a request with `Get`, `Head` or `Options`.
+when no route has its path. So a request gets `NotFound` only when it comes from the same origin,
+has no `Origin`, or uses `Get`, `Head` or `Options`.
 
 A fixed segment is tried before a capture, so `/users/new` matches the route `/users/new` and not
 `/users/{id}`. The order of the two routes in the code does not matter.

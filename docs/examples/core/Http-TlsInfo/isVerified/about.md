@@ -4,8 +4,8 @@ was not.
 When a program calls an `https` address, the client checks two things. The certificate must be
 signed by an authority the client trusts, and it must be for the server name in the address. Only
 when both checks run does `isVerified()` return `true`. A configuration can turn a check off for one
-server, for example a test server with a self-signed certificate. `isVerified()` is how a program or
-a test sees that: every other call should still return `true`.
+server, for example a test server with a self-signed certificate. A program or a test uses
+`isVerified()` to see that. Every other call should still return `true`.
 
 You get a `Core\Http\TlsInfo` from `Core\Http\Response::tls()`. That method returns `null` for a
 reply that did not come over TLS, so check for `null` first.

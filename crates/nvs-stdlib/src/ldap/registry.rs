@@ -2614,7 +2614,7 @@ const AF_MNS_LOGON_ACCOUNT_DOC: MethodDoc =
 const AF_SMARTCARD_REQUIRED_DOC: MethodDoc =
     flag_doc("Checks the bit `0x40000`: the user must log in with a smart card.");
 const AF_TRUSTED_FOR_DELEGATION_DOC: MethodDoc = flag_doc(
-    "Checks the bit `0x80000`: a service on this account may act for any user it receives.",
+    "Checks the bit `0x80000`: a service on this account may act for every user who logs in to it.",
 );
 const AF_NOT_DELEGATED_DOC: MethodDoc =
     flag_doc("Checks the bit `0x100000`: no service may act for this user, even a trusted one.");
@@ -2700,8 +2700,8 @@ const AF_WITH_OPTIONS: &[CoreOption] = &[
 /// `Ldap\Ad\AccountFlags::with`'s reference card — `rule:core-api/reference-card`.
 const AF_WITH_DOC: MethodDoc = MethodDoc {
     short: "Returns a copy with the flags you name set or cleared, such as \
-            `$flags->with({ disabled: true })`. Every other bit stays as it is. `lockedOut` and \
-            `passwordExpired` are not options, because Active Directory computes them.",
+            `$flags->with({ disabled: true })`. Every other bit stays as it is. There is no option \
+            for `isLockedOut` or `isPasswordExpired`, because Active Directory computes them.",
     params: &[
         flag_option_doc("script"),
         flag_option_doc("disabled"),
@@ -2804,8 +2804,10 @@ pub(crate) const GROUP_TYPE: CoreClass = CoreClass {
 const GT_SYSTEM_DOC: MethodDoc = flag_doc("Checks the bit `0x1`: the system created the group.");
 const GT_GLOBAL_DOC: MethodDoc =
     flag_doc("Checks the bit `0x2`: the group is global. Its members are from its own domain.");
-const GT_DOMAIN_LOCAL_DOC: MethodDoc =
-    flag_doc("Checks the bit `0x4`: the group is domain local. It is used only in its own domain.");
+const GT_DOMAIN_LOCAL_DOC: MethodDoc = flag_doc(
+    "Checks the bit `0x4`: the group is domain local. It can be given permissions only in \
+     its own domain.",
+);
 const GT_UNIVERSAL_DOC: MethodDoc =
     flag_doc("Checks the bit `0x8`: the group is universal. It can have members from any domain.");
 const GT_APP_BASIC_DOC: MethodDoc =

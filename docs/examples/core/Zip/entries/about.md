@@ -11,7 +11,7 @@ The archive can be `bytes`, an open file, an uploaded `Core\Request\Part` or a
 `Core\Request\BodyStream`. A file is read in small pieces. An upload is kept in memory while it is
 read.
 
-**Good to know:** listing reads only the table of contents at the end of the archive, so a large
-archive lists as quickly as a small one.
+**Good to know:** listing reads only the table of contents at the end of the archive. So the time
+depends on the number of files in the archive, not on their size.
 
 **The examples below** list an archive file, catch an unsafe archive, and check an upload.

@@ -675,8 +675,7 @@ const WRITE_STREAM_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "Nothing. If a write fails part-way through, the partial file is removed before the error \
-          is thrown. A later reader never finds a cut-off file that the program thinks is \
-          complete.",
+          is thrown. So a later reader never finds a partial file that looks complete.",
     errors: &[
         ErrorDoc {
             error: "RuntimeError",
@@ -898,7 +897,7 @@ const COPY_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "to",
             desc: "The file to create. Anything already at this path is replaced, as `write` \
-                   replaces it. The program names this path itself, together with the source.",
+                   replaces it.",
             shape: &[],
         },
     ],
@@ -978,9 +977,9 @@ const MAKE_DIR_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The capability allowed the call, but the operating system did not. The path \
-                   is empty, a part of the path exists and is a file, or the process may not \
-                   create a directory there.",
+            desc: "The capability allowed the call, but the operating system did not. A part \
+                   of the path exists and is a file, or the process may not create a directory \
+                   there.",
         },
     ],
 };
@@ -1076,7 +1075,8 @@ const WALK_DOC: MethodDoc = MethodDoc {
     }],
     ret: "One `string` per entry anywhere under `$path`. Each one is a path *relative to* `$path`, \
           written with `Core\\Path::SEPARATOR`. The caller joins it to `$path`, and `within` makes \
-          that join safe. All entries of a directory come before any entry inside them. Within \
+          that join safe. The entries directly in a directory come before the entries of its \
+          subdirectories. Within \
           one directory, the order is the operating system's own.",
     errors: &[
         ErrorDoc {
@@ -1775,8 +1775,8 @@ const FILE_SEEK_DOC: MethodDoc = MethodDoc {
 /// `Core\IO\File::tell`'s reference card — `rule:core-api/reference-card`.
 const FILE_TELL_DOC: MethodDoc = MethodDoc {
     short: "Returns the handle's position, in bytes from the start of the file. The next `read` or \
-            `write` happens at this position. Every method of this class leaves the position just \
-            after the bytes it used.",
+            `write` happens at this position. Each `read`, `readBytes`, `readLine` and `write` \
+            moves the position to just after the bytes it used.",
     params: &[],
     ret: "The position, as a `uint`. Zero on a handle nothing has read or written yet, unless \
           `FileMode::Append` put it at the end.",
@@ -1831,8 +1831,8 @@ const FILE_FLUSH_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "IOError",
-            desc: "The flush itself failed in the operating system. No method of this class \
-                   causes this error now, but the operating system may still report one.",
+            desc: "The flush itself failed in the operating system. This is rare, because no \
+                   data waits in the handle. The operating system may still report an error.",
         },
     ],
 };

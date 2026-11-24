@@ -9,7 +9,8 @@ var $two = Core\BigInt::of(2);
 echo $seven->remainder($two), "\n";
 echo $seven->negated()->remainder($two), "\n";
 
-// The sign of the divisor is not used, so this prints 1 as well.
+// The sign of the divisor is not used. 7 with a divisor of -2 also gives 1,
+// so this prints 1.
 echo $seven->remainder($two->negated()), "\n";
 
 // A divisor of zero is not allowed. `remainder` throws an `ArithmeticError`, and the

@@ -515,8 +515,8 @@ const ID_DOC: MethodDoc = MethodDoc {
     short: "Returns the last event id the server set. A program that resumes a stream sends it \
             back in the `Last-Event-ID` header.",
     params: &[],
-    ret: "The id, `tainted`, or `null` when no id was set. The format ignores an id that \
-          contains a NUL byte, so the result is `null`.",
+    ret: "The id, `tainted`, or `null` when no id was set. The server-sent events format ignores an `id` line \
+          that contains a NUL byte, so the id from before that line stays.",
     errors: &[],
 };
 

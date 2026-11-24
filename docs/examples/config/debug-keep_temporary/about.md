@@ -1,10 +1,10 @@
-Keeps the scratch directories a program asked for, instead of deleting them the moment it ends.
+Keeps the temporary directories of a program after it ends. Without this setting, they are deleted.
 
-A program that needs somewhere to put working files gets its own directory, and that directory is
-deleted when the program finishes — whether it ended normally, stopped early or died of an error.
-Switch this on and nothing is deleted; each kept directory is written to the log instead, so you can
-go and look at what a failing run left behind. Switch it off again afterwards, because nothing else
-ever cleans those directories up.
+A program gets its own directory for working files with `Core\IO::createTemporaryDirectory`. Novis deletes that directory when the program
+ends. This happens when the program ends normally, stops early or stops with an error. With this
+setting on, Novis deletes nothing and writes each kept directory to the log. You can then look at the
+files that a failing run left. Turn the setting off again afterwards, because nothing else deletes
+those directories.
 
-**Good to know:** only an operator can set it. A program cannot exempt its own files from the
-cleanup, because a program that could would be one an attacker could talk into filling the disk.
+**Good to know:** only the person who runs Novis can set it, in `nvs.toml`. A program cannot keep its
+own files this way. If it could, an attacker could make a program fill the disk.

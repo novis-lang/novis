@@ -11,4 +11,5 @@ it, `download` and `save` take the format from the file name, and the others wri
 `csv` sets the `separator`, the `quote` and the `charset`.
 
 **Good to know:** a generator can be read only once, so a second write of its `Export` throws a
-`LogicError`. For more sheets, use a `create` method and call `addSheet` for each one.
+`LogicError`. For more sheets, use one of the `create` methods, such as `createInMemory`, and call
+`addSheet` for each sheet.

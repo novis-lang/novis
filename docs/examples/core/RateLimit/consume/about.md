@@ -5,12 +5,12 @@ key may use in a period, such as 5 per 15 minutes. Each call uses one unit, or t
 `cost`. The result is a `Core\RateLimit\Decision`. It says whether the call was allowed, and how long
 to wait when it was not.
 
-The count is kept in the shared store that the person who runs the server sets up, so every server
+The count is kept in the shared store that the person who runs the server sets up. So every server
 process and every machine counts together. When that store cannot be reached, `consume` throws an
-error. Your program then decides what that means: refuse, for a login limit, or allow, for a plan quota.
+error. Your program then decides what to do. A login limit stops the call, and a plan quota allows it.
 
 **Good to know:** `Core\RateLimit::consumeLocally` takes the same arguments and counts in one server process only.
 It needs no store, and its limit is less exact.
 
-**The examples below** show the settings `consume` needs, then a login limit that refuses when the
-store cannot be reached, then an API quota that writes response headers.
+**The examples below** show the settings `consume` needs. Then they show a login limit that stops the
+login when the store cannot be reached, and an API quota that writes response headers.

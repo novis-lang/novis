@@ -6,7 +6,7 @@ var $columns = Chart::column({ title: 'Sales' })->withSeries('B2:B4');
 var $line = Chart::line({ title: 'Costs' })->withSeries('C2:C4');
 var $both = $columns->combinedWith($line);
 
-// `combined` is the list of the types that `combinedWith` added.
+// `combined` has one entry for each chart that `combinedWith` added. This prints `0` and `1`.
 echo 'columns: ', Core\Arr::count($columns->combined), " added\n";
 echo 'both: ', Core\Arr::count($both->combined), " added\n";
 

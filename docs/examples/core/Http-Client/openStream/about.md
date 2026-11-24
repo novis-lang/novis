@@ -6,9 +6,9 @@ The call returns as soon as the status and the headers have arrived. The result 
 and `saveTo()` writes the body to a file. The body can be read only once.
 
 You choose the method, for example `Core\Http\Method::Post`. The URL is checked before anything is
-sent. Two more options limit a slow body: `idle` is the longest pause between two pieces, and
+sent. Two more options limit a slow body. `idle` is the longest pause between two pieces.
 `maxDuration` is the most time the whole body may take.
 
-**Good to know:** the examples run without a network, so every request in them is refused before it
-is sent. They show a feed of live events, the two time limits, and a job that imports orders one
+**Good to know:** the examples run without a network, so every request in them throws an error before
+it is sent. They show a feed of live events, the two time limits, and a job that imports orders one
 line at a time.

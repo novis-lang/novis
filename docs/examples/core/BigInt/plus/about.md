@@ -1,11 +1,10 @@
 Returns the sum of this number and another one, as a new `Core\BigInt`.
 
-There is no size at which the sum stops being exact. Adding two `int` values whose total is too
-large for an `int` throws an error, and `Core\BigInt` is what you use instead when a total may grow
-that far.
+The sum is always exact, however large the numbers are. When the sum of two `int` values is too
+large for an `int`, the addition throws an error. Use `Core\BigInt` when a total may grow that far.
 
-Both numbers stay as they were. `plus` returns a new number, so a running total is the number you
-get back from it, not the one you called it on.
+`plus` does not change either number. It returns the result as a new number, so keep that result in
+a variable.
 
 **Good to know:** `$a + $b` does not work on two `Core\BigInt` values, because `+` is only for plain
 numbers. `plus` is how you write it. To take a number away, use `minus`, or add a negative number.

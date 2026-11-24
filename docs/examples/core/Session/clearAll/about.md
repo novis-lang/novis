@@ -1,5 +1,6 @@
-`Core\Session::clearAll()` deletes the whole session of the current request from the store at once.
-The response tells the browser to delete both session cookies.
+`Core\Session::clearAll()` deletes the whole session of the current request at once. It deletes it
+from the session store, the place where the server keeps session data. The response tells the
+browser to delete both session cookies.
 
 After it, `Core\Session::get()` returns `null` for every key. You can save values again in the same
 request. The first new value starts a new session with a new identifier.
@@ -12,5 +13,5 @@ To sign a user out and keep their choices, use `Core\Session::clearShortLived()`
 inside `Core\Html::later` and `Core\Task::runAfterResponse`, where most such calls do not compile. If
 the store cannot be reached, it throws an `IOError`, and the data stays in the store.
 
-**The examples below** show a session with both kinds of values deleted, a session used again after
-`clearAll()`, and a page that deletes a visitor's data.
+**The examples below** show a session with both kinds of values deleted, and a session used again
+after `clearAll()`. The last one is a page that deletes a visitor's data.

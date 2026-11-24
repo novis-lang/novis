@@ -13,5 +13,6 @@ try {
 // `Core\Math::divide` returns a value. This prints INF.
 echo Core\Math::divide(5.0, $zero), "\n";
 
-// Zero can have a minus sign, and the result has the sign of both numbers. This prints -INF.
+// `-$zero` is a zero with a minus sign. A positive number divided by it is
+// negative, so this prints -INF.
 echo Core\Math::divide(5.0, -$zero), "\n";

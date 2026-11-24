@@ -1,6 +1,6 @@
 <?nvs
 // Shows a running product: the factorial of 25, which is the number of orders
-// 25 items can be put in. It is far larger than an `int` holds.
+// 25 items can be put in. It is far larger than an `int` can store.
 
 var $product = Core\BigInt::of(1);
 int $n = 2;

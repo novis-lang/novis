@@ -54,8 +54,9 @@ final class Page
         return $this->valuesOn($name, $this->number, $this->number);
     }
 
+    /// A mark is a named value that a page records while it is drawn.
     /// `marksUpTo` returns the values of the marks with this name on this page and every page before it.
-    /// A carried-forward total adds these values up.
+    /// Add these values up to show a running total on each page.
     public function marksUpTo(string $name): array<string>
     {
         return $this->valuesOn($name, 1, $this->number);

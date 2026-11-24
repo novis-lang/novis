@@ -10,7 +10,7 @@ import PageNow from '../../../../components/walkthrough/scenes/PageNow.astro'
 Most sites load the slow parts of a page with a script and an API route for each part. In Novis, the
 page and its slow parts come in one request, and you write no script.
 [`Core\Html::later`](/reference/core/html/later/) runs a slow part of a page.
-[`Core\Response::sendSlotted()`](/reference/core/response/slotted/) sends the page before that part is
+[`Core\Response::sendSlotted()`](/reference/core/response/sendslotted/) sends the page before that part is
 done. Press play to see each step.
 
 <PageNow />

@@ -4,7 +4,7 @@ Starts a new sheet in a workbook and returns it, so you can add rows to it.
 control character, and cannot start or end with `'`. Excel keeps the name `History` for itself, so
 it is not allowed. Each sheet needs its own name. A name that breaks these rules throws a
 `LogicError`. The sheets are written one after another. When you start a new sheet, the
-sheet before it is finished, and adding a row to it throws a `LogicError`. `position` sets where the
+sheet before it is finished. Adding a row to a finished sheet throws a `LogicError`. `position` sets where the
 tab shows, so a summary written last can still be the first tab.
 
 When the rows have keys, the first row shows the keys in bold, with a filter, and stays at the top

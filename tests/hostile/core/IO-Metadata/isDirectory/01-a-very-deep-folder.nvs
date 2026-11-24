@@ -1,6 +1,6 @@
 <?nvs
-// Attack: a program makes a folder 100 levels deep and asks `isDirectory` at every level.
-// It also asks about the root of the temporary folder and about a path with `..` in it.
+// Attack: a program makes a folder 100 levels deep and calls `isDirectory` at every level.
+// It also checks the root of the temporary folder and a path with `..` in it.
 // Each step must return the right answer or throw an error, and must not crash.
 // hostile: timeout-ms 60000
 
@@ -8,7 +8,7 @@ string $root = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack-meta
 Core\IO::makeDirectory($root);
 
 // 1. The folder gets one level deeper 100 times. The path gets very long, so the
-// operating system may refuse it. Then `makeDirectory` or `metadata` throws an `IOError`.
+// operating system may not allow it. Then `makeDirectory` or `metadata` throws an `IOError`.
 string $path = $root;
 uint $depth = 0;
 try {

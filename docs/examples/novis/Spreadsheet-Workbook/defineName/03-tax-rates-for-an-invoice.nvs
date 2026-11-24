@@ -10,7 +10,7 @@ $book->addSheet('Rates')->addRows([['rate' => 'standard', 'value' => 0.2], ['rat
 // `defineName` returns the workbook, so you can define several names in a row.
 $book->defineName('Standard', "Rates!\$B\$2")->defineName('Reduced', "Rates!\$B\$3");
 
-// `cached` is the result a program that reads the file sees. Excel calculates the formula again.
+// `cached` is the result that a program sees when it reads the file. Excel calculates the formula again.
 var $invoice = $book->addSheet('Invoice');
 $invoice->addRow(['item' => 'Book', 'price' => 20.0, 'tax' => Formula::of('B2*Reduced', { cached: 1.0 })]);
 $invoice->addRow(['item' => 'Lamp', 'price' => 40.0, 'tax' => Formula::of('B3*Standard', { cached: 8.0 })]);

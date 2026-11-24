@@ -7,8 +7,8 @@ value can be text, a number, a date, a `Formula` or a `Cell`.
 `$options` changes how the row looks. `height` is the row height in points. `hidden: true` hides the
 row. `level` puts the row in an outline group. `style` is a `Style` for every cell of the row.
 
-**Good to know:** the rows are written in order, and a row cannot be changed after you add it. When
-the workbook starts the next sheet, this sheet is finished, and `addRow` throws a `LogicError`. A
+**Good to know:** the rows are written in order, and a row cannot be changed after you add it. A
+sheet is finished when the workbook starts the next sheet. After that, `addRow` throws a `LogicError`. A
 CSV file has no heights, styles or hidden rows, so these options do nothing there. A number that is
 NaN or an infinity throws a `LogicError` that names its cell, in every format.
 

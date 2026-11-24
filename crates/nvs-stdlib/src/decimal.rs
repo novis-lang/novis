@@ -222,7 +222,8 @@ const DIV_EXACT_DOC: MethodDoc = MethodDoc {
 /// `Core\Decimal::divideRounded`'s reference card — `rule:core-api/reference-card`.
 const DIV_ROUND_DOC: MethodDoc = MethodDoc {
     short: "Divides `$value` by `$divisor` and rounds the result to `$scale` digits with `$mode`. \
-            The `/` operator always rounds half to even. Use this method to choose the rounding.",
+            The `/` operator always rounds a value exactly between two results to the even one. \
+            Use this method to choose the rounding.",
     params: &[
         ParamDoc {
             name: "value",
@@ -243,8 +244,8 @@ const DIV_ROUND_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "mode",
             desc: "How a value exactly between two results is rounded. It is the same \
-                   `Core\\RoundMode` that `Core\\Math::round` takes. It is applied to the exact \
-                   result of the division.",
+                   `Core\\RoundMode` that `Core\\Math::round` takes. The division is exact, and \
+                   its result is rounded only once.",
             shape: &[],
         },
     ],
@@ -304,8 +305,8 @@ const POW_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "exponent",
             desc: "How many times to multiply it by itself. Zero gives `1`. A negative exponent \
-                   is not allowed. For the reciprocal, write `Core\\Decimal::divideRounded(1, \
-                   Core\\Decimal::power($b, $n), $scale, $mode)`.",
+                   is not allowed. To get `$b` to the power `-$n`, divide 1 by the power: \
+                   `Core\\Decimal::divideRounded(1, Core\\Decimal::power($b, $n), $scale, $mode)`.",
             shape: &[],
         },
     ],
@@ -314,7 +315,7 @@ const POW_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "ArithmeticError",
         desc: "When the power does not fit in a `decimal`. That happens with more than 28 \
-               digits after the point, or more than a 96-bit mantissa.",
+               digits after the point, or more than about 28 digits in total.",
     }],
 };
 

@@ -490,7 +490,7 @@ manager. The server accepts no new connection, finishes the work it has, and the
 A WebSocket is closed with the code `1001` (`going away`), so its client can connect again.
 
 `drain_timeout` is the longest time that a connection with no request stays open after it sees
-the drain. `false` and `0` are not allowed:
+the drain. You cannot set it to `false` or `0`:
 
 ```toml
 [server]

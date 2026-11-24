@@ -4,7 +4,7 @@
 
 class Checks
 {
-    // Returns the folder that contains `$path`. `Core\Path::parent` writes the folder
+    // `folderOf` returns the folder that contains `$path`. `Core\Path::parent` writes the folder
     // with `\` on Windows, so every `\` is replaced with `/`.
     public static function folderOf(tainted string $path): tainted string
     {

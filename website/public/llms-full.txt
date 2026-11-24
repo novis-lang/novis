@@ -20382,7 +20382,7 @@ one of these enums accepts only its cases. A wrong value is an error when the pr
 text a visitor sent into a sort order. Example 04 shows that a number in place of a case does not
 compile.
 
-A number where a member needs a `Core` enum is the error `E0401`, such as `{ order: 1 }` for
+A number where a `Core` method needs a `Core` enum is the error `E0401`, such as `{ order: 1 }` for
 `Core\Arr::sort`. A case of another enum is `E0401` too. `Core\Arr::Order::Desc` passed to
 `Core\Decimal::divideRounded` needs a `Core\RoundMode`, so it does not compile.
 
@@ -25392,7 +25392,7 @@ A child can start its own child. A task in `Core\Task::all` can start a child an
 
 ```nvs file=jobs/add-up.nvs
 <?nvs
-// This file reads the value the parent gave in `arguments:`.
+// This file reads the numbers the parent gave in `arguments:` and returns their sum.
 array<int> $numbers = Core\Script::arguments() as array<int>;
 int $total = 0;
 foreach ($numbers as int $n) {
@@ -25481,7 +25481,7 @@ it printed: read the order file
 
 ```nvs file=jobs/add-up.nvs
 <?nvs
-// This file reads the value the parent gave in `arguments:`.
+// This file reads the numbers the parent gave in `arguments:` and returns their sum.
 array<int> $numbers = Core\Script::arguments() as array<int>;
 int $total = 0;
 foreach ($numbers as int $n) {
@@ -25564,7 +25564,7 @@ items to show: 8
 
 ```nvs file=jobs/add-up.nvs
 <?nvs
-// This file reads the value the parent gave in `arguments:`.
+// This file reads the numbers the parent gave in `arguments:` and returns their sum.
 array<int> $numbers = Core\Script::arguments() as array<int>;
 int $total = 0;
 foreach ($numbers as int $n) {
@@ -25648,7 +25648,7 @@ if ($report->ok) {
 
 ```nvs file=jobs/add-up.nvs
 <?nvs
-// This file reads the value the parent gave in `arguments:`.
+// This file reads the numbers the parent gave in `arguments:` and returns their sum.
 array<int> $numbers = Core\Script::arguments() as array<int>;
 int $total = 0;
 foreach ($numbers as int $n) {
@@ -25732,7 +25732,7 @@ ok: true
 
 ```nvs file=jobs/add-up.nvs
 <?nvs
-// This file reads the value the parent gave in `arguments:`.
+// This file reads the numbers the parent gave in `arguments:` and returns their sum.
 array<int> $numbers = Core\Script::arguments() as array<int>;
 int $total = 0;
 foreach ($numbers as int $n) {
@@ -27910,8 +27910,8 @@ WebSocket upgrade arrives as a `Get`.
 
 The server checks the `Origin` header before it looks for a route. A `POST`, `PUT`, `PATCH` or
 `DELETE` from another origin gets `Core\Router\Refusal::Csrf` and the status `403`. This is also true
-when no route has its path. So `NotFound` is a request from the same origin, a request with no
-`Origin`, or a request with `Get`, `Head` or `Options`.
+when no route has its path. So a request gets `NotFound` only when it comes from the same origin,
+has no `Origin`, or uses `Get`, `Head` or `Options`.
 
 A fixed segment is tried before a capture, so `/users/new` matches the route `/users/new` and not
 `/users/{id}`. The order of the two routes in the code does not matter.
@@ -31147,7 +31147,7 @@ no test, or for a class that `--filter` leaves out.
 What a class hook prints with `echo` is part of the report, under the class name. What
 `#[AfterEachTest]` prints belongs to the test, so it is shown only when the test fails.
 
-`#[AfterEachTest]` runs after every attempt. It sees the properties the test set on the object.
+`#[AfterEachTest]` runs after every attempt of a test, so also after each retry. It sees the properties the test set on the object.
 
 `Core\Test\Outcome` has `class()`, `name()`, `attempt()`, `hasPassed()` and `failures()`, the messages
 of the failed assertions. `Core\Test\Summary` has `class()`, `passed()`, `failed()`, `skipped()`,
@@ -31156,7 +31156,7 @@ of the failed assertions. `Core\Test\Summary` has `class()`, `passed()`, `failed
 When `#[BeforeClass]` throws an error, each test fails. The message names the hook and gives the
 error's message. `#[AfterClass]` still runs.
 
-When `#[AfterClass]` throws an error, the report has a line marked `✗` with the hook's name, and
+When `#[AfterClass]` throws an error, the report has a line with `✗` and the hook's name, and
 the exit status is `1`. When `#[AfterEachTest]` throws an error, that attempt fails.
 
 A subclass runs the tests, the fixtures and the hooks of its parent under its own name. The parent
@@ -32926,7 +32926,7 @@ one, so a form, a query string or a decoded document is converted **once, at the
 failure is still a `400` — and nothing downstream is left holding a `mixed` to check. A field that is
 absent, or that holds a value `as` refuses for its declared type, throws `ParseError` carrying every
 field that failed at its own dotted path, rather than the first of them. `{ name?: T }` marks a key that
-may be absent, and `??` and `isset` read one without throwing. `Core\Request::queryParametersAs` and `postAs`
+may be absent, and `??` and `isset` read one without throwing. `Core\Request::queryParametersAs` and `formFieldsAs`
 are this member over what a request carried. Text that came from outside the program, such as a form
 or an `array<mixed>`, is `tainted`. A text field it fills must then be declared `tainted` too.
 
@@ -33799,7 +33799,7 @@ Returns every value of `$a`, then of each array in `$others`, under new keys.
 Core\Arr::difference(array<T> $a, array<T> $b, { on?: Core\Arr::SetOn, by?: callable, comparator?: callable }): array<T>
 ```
 
-Returns the entries of `$a` that `$b` does not have. Entries are compared by strict identity. The options choose what is compared, and how.
+Returns the entries of `$a` that `$b` does not have. Two entries are the same only when they have the same type and the same value. The options choose what is compared, and how.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -33820,7 +33820,7 @@ Returns the entries of `$a` that `$b` does not have. Entries are compared by str
 Core\Arr::intersection(array<T> $a, array<T> $b, { on?: Core\Arr::SetOn, by?: callable, comparator?: callable }): array<T>
 ```
 
-Returns the entries of `$a` that `$b` also has. Entries are compared by strict identity. The options choose what is compared, and how.
+Returns the entries of `$a` that `$b` also has. Two entries are the same only when they have the same type and the same value. The options choose what is compared, and how.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -33848,7 +33848,7 @@ Counts how many entries have each distinct value. With `by`, it counts how many 
 | `$a` | `array<T>` | The array to count over. |
 | `{ by: … }` | `callable` (default `null`) | Called once per entry as `($value, $key)`, and may declare fewer parameters. It returns the group's name, an `int` or a `string`. Without it, the value itself is the group. |
 
-**Returns** `array<uint>` — One `uint` per distinct group, keyed by the group in first-occurrence order. `1` and `"1"` are the same group.
+**Returns** `array<uint>` — One `uint` per distinct group, keyed by the group, in the order each group first appears. `1` and `"1"` are the same group.
 
 <a id="core-core-arr-unique"></a>
 #### `Core\Arr::unique`
@@ -34976,14 +34976,14 @@ Divides `$value` by `$divisor` and returns the exact result. If the result is no
 Core\Decimal::divideRounded(decimal $value, decimal $divisor, uint $scale, Core\RoundMode $mode): decimal
 ```
 
-Divides `$value` by `$divisor` and rounds the result to `$scale` digits with `$mode`. The `/` operator always rounds half to even. Use this method to choose the rounding.
+Divides `$value` by `$divisor` and rounds the result to `$scale` digits with `$mode`. The `/` operator always rounds a value exactly between two results to the even one. Use this method to choose the rounding.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$value` | `decimal` | The dividend. |
 | `$divisor` | `decimal` | What to divide it by. |
 | `$scale` | `uint` | The number of digits after the decimal point, at most 28. The result always has exactly this many, so a rounded price keeps its trailing zeros. |
-| `$mode` | `Core\RoundMode` | How a value exactly between two results is rounded. It is the same `Core\RoundMode` that `Core\Math::round` takes. It is applied to the exact result of the division. |
+| `$mode` | `Core\RoundMode` | How a value exactly between two results is rounded. It is the same `Core\RoundMode` that `Core\Math::round` takes. The division is exact, and its result is rounded only once. |
 
 **Returns** `decimal` — The result, with exactly `$scale` digits after the point.
 
@@ -35019,11 +35019,11 @@ Multiplies `$base` by itself `$exponent` times and returns the exact result. The
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$base` | `decimal` | The value to raise. |
-| `$exponent` | `uint` | How many times to multiply it by itself. Zero gives `1`. A negative exponent is not allowed. For the reciprocal, write `Core\Decimal::divideRounded(1, Core\Decimal::power($b, $n), $scale, $mode)`. |
+| `$exponent` | `uint` | How many times to multiply it by itself. Zero gives `1`. A negative exponent is not allowed. To get `$b` to the power `-$n`, divide 1 by the power: `Core\Decimal::divideRounded(1, Core\Decimal::power($b, $n), $scale, $mode)`. |
 
 **Returns** `decimal` — The exact power. The digits after the point add up with each multiplication, so `2.50` squared is `6.2500`.
 
-**Throws** `ArithmeticError` — When the power does not fit in a `decimal`. That happens with more than 28 digits after the point, or more than a 96-bit mantissa.
+**Throws** `ArithmeticError` — When the power does not fit in a `decimal`. That happens with more than 28 digits after the point, or more than about 28 digits in total.
 
 <a id="core-core-decimal-floor"></a>
 #### `Core\Decimal::floor`
@@ -35370,7 +35370,7 @@ Returns this value multiplied by 2 to the power `$bits`. This is a left shift. I
 |---|---|---|
 | `$bits` | `uint` | How many bits to shift by. |
 
-**Returns** `Core\BigInt` — A `BigInt` that is `$bits` bits wider than this value.
+**Returns** `Core\BigInt` — A new `BigInt`. Unless this value is `0`, it is `$bits` bits wider than this value.
 
 **Throws** `ArithmeticError` — The result would be wider than 1 048 576 bits.
 
@@ -35381,13 +35381,13 @@ Returns this value multiplied by 2 to the power `$bits`. This is a left shift. I
 $bigInt->shiftedRight(uint $bits): Core\BigInt
 ```
 
-Returns this value divided by 2 to the power `$bits`, rounded toward negative infinity. This is an arithmetic right shift.
+Returns this value divided by 2 to the power `$bits`, rounded toward negative infinity. So `-7` shifted by 1 is `-4`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$bits` | `uint` | How many bits to shift by. If it is larger than the width of this value, the result is `0` or `-1`. |
 
-**Returns** `Core\BigInt` — A `BigInt` that is `$bits` bits narrower than this value.
+**Returns** `Core\BigInt` — A new `BigInt`, with the bits of this value moved `$bits` places to the right.
 
 <a id="core-core-bigint-sign"></a>
 #### `Core\BigInt->sign`
@@ -36733,7 +36733,7 @@ Returns the folder that contains `$path`. The option `levels` goes up more than 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$path` | `string` | The path. `/` and `\` are both separators on every platform. |
-| `{ levels: … }` | `uint` (default `1`) | How many parts to remove from the end. The default is `1`. With `0`, the result is the path with its separators cleaned up. A number larger than the path stops at the root. |
+| `{ levels: … }` | `uint` (default `1`) | How many parts to remove from the end. The default is `1`. With `0`, the result is the path with its separators cleaned up. If the number is larger than the count of parts, the result is the root, or `.` for a relative path. |
 
 **Returns** `string` — The folder, written with `Path::SEPARATOR`. When nothing is left, the result is the root for an absolute path and `.` for a relative one. `parent('')` is `.`.
 
@@ -36845,7 +36845,7 @@ Returns the path that leads from the folder `$base` to `$path`. The `.` and `..`
 | `$path` | `string` | The place the result leads to. |
 | `$base` | `string` | The folder the result starts from. The result has one `..` for each folder of `$base` that `$path` does not share. |
 
-**Returns** `?string` — A relative path, written with `Core\Path::SEPARATOR`. It is `.` when both paths name the same place. It is `null` when no relative path exists: one path is absolute and the other is not, the paths start at different roots, or `$base` starts with more `..` parts than `$path` does. Folder names are compared byte for byte. A drive letter and a server name ignore upper and lower case.
+**Returns** `?string` — A relative path, written with `Core\Path::SEPARATOR`. It is `.` when both paths name the same place. It is `null` when no relative path exists. That happens when one path is absolute and the other is not, or when the paths start at different roots. It also happens when `$base` starts with more `..` parts than `$path` does. Folder names are compared byte for byte. A drive letter and a server name ignore upper and lower case.
 
 <a id="core-core-path-fromworkingdirectory"></a>
 #### `Core\Path::fromWorkingDirectory`
@@ -37070,7 +37070,7 @@ Writes a sequence of `bytes` chunks to `$path` as they arrive. Only one chunk is
 | `{ max: … }` | `uint` (default `18446744073709551615`) | The most bytes to accept across the whole stream. When it is not given, there is no limit. Nothing else limits the size of a file on disk, so this is the only limit. |
 | `{ overwrite: … }` | `bool` (default `false`) | Whether an existing file may be replaced. It is `false` by default, because the file name usually comes from a client. |
 
-**Returns** `void` — Nothing. If a write fails part-way through, the partial file is removed before the error is thrown. A later reader never finds a cut-off file that the program thinks is complete.
+**Returns** `void` — Nothing. If a write fails part-way through, the partial file is removed before the error is thrown. So a later reader never finds a partial file that looks complete.
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path, or the stream ran past `max` bytes.; `IOError` — Something is already at the path and `overwrite` is `false`. Or the operating system did not allow the file to be created or written.
 
@@ -37222,7 +37222,7 @@ Copies a file. It needs `fs.read` for the source and `fs.write` for the destinat
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$from` | `string` (sink) | The file to read. It is left exactly as it was. |
-| `$to` | `string` (sink) | The file to create. Anything already at this path is replaced, as `write` replaces it. The program names this path itself, together with the source. |
+| `$to` | `string` (sink) | The file to create. Anything already at this path is replaced, as `write` replaces it. |
 
 **Returns** `void` — Nothing. A failure throws an error. It never returns `false`, so a caller that ignores the result does not miss a failure.
 
@@ -37278,7 +37278,7 @@ Makes sure a directory exists at `$path`. It also creates every missing parent d
 
 **Returns** `void` — Nothing. A directory that already exists is a success, not an error. The method only promises that the directory exists afterwards, so a caller needs no `exists` check first. `removeDirectory` works differently. It does not delete directories recursively.
 
-**Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path. This is checked before anything is created, so the failed call leaves no directory behind.; `IOError` — The capability allowed the call, but the operating system did not. The path is empty, a part of the path exists and is a file, or the process may not create a directory there.
+**Throws** `RuntimeError` — The configuration does not grant `fs.write` for this path. This is checked before anything is created, so the failed call leaves no directory behind.; `IOError` — The capability allowed the call, but the operating system did not. A part of the path exists and is a file, or the process may not create a directory there.
 
 <a id="core-core-io-removedirectory"></a>
 #### `Core\IO::removeDirectory`
@@ -37327,7 +37327,7 @@ Returns every entry in the tree under `$path`, as an `Iterable<string>` of paths
 |---|---|---|
 | `$path` | `string` (sink) | The directory the walk starts at. A file throws an error, as it does for `list`. |
 
-**Returns** `Core\IO\Walk` — One `string` per entry anywhere under `$path`. Each one is a path *relative to* `$path`, written with `Core\Path::SEPARATOR`. The caller joins it to `$path`, and `within` makes that join safe. All entries of a directory come before any entry inside them. Within one directory, the order is the operating system's own.
+**Returns** `Core\IO\Walk` — One `string` per entry anywhere under `$path`. Each one is a path *relative to* `$path`, written with `Core\Path::SEPARATOR`. The caller joins it to `$path`, and `within` makes that join safe. The entries directly in a directory come before the entries of its subdirectories. Within one directory, the order is the operating system's own.
 
 **Throws** `RuntimeError` — The configuration does not grant `fs.read` for a directory the walk tried to read. The message names the directory where the walk stopped. That is the start directory, unless the capability covers only part of the tree.; `IOError` — The capability allowed the call, but the operating system did not. Nothing is at the path, it is not a directory, or a directory inside the walk could not be read to the end.
 
@@ -37695,7 +37695,7 @@ Moves the handle to `$offset` bytes from the start of the file. You can move pas
 $file->tell(): uint
 ```
 
-Returns the handle's position, in bytes from the start of the file. The next `read` or `write` happens at this position. Every method of this class leaves the position just after the bytes it used.
+Returns the handle's position, in bytes from the start of the file. The next `read` or `write` happens at this position. Each `read`, `readBytes`, `readLine` and `write` moves the position to just after the bytes it used.
 
 **Returns** `uint` — The position, as a `uint`. Zero on a handle nothing has read or written yet, unless `FileMode::Append` put it at the end.
 
@@ -37729,7 +37729,7 @@ Sends everything written on this handle to the operating system. Novis writes di
 
 **Returns** `void` — Nothing. This method does not wait until the data is on the disk.
 
-**Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The flush itself failed in the operating system. No method of this class causes this error now, but the operating system may still report one.
+**Throws** `RuntimeError` — The handle has already been closed.; `IOError` — The flush itself failed in the operating system. This is rare, because no data waits in the handle. The operating system may still report an error.
 
 <a id="core-core-io-file-lock"></a>
 #### `Core\IO\File->lock`
@@ -37838,7 +37838,7 @@ Runs the program at `$path` with the arguments in `$argv`, and waits until it en
 | `$argv` | `array<string>` | The arguments, one in each element: `["-n", "1", $host]`. An element with a space, a quote or a `;` in it is still one argument, on every platform. |
 | `{ workingDirectory: … }` | `string` (default `null`, sink) | The folder the program starts in, as an absolute path. A relative path must be written directly in the code, and is joined to the folder of this file. Without it, the program starts in the same folder as this program. |
 | `{ env: … }` | `array<string>` (default `null`) | The environment variables of the program, as name => value. This replaces all of them, so a variable that is not in the array is not set. Without it, the program gets only these variables from this program: `PATH`, `HOME` or `USERPROFILE`, `TEMP`, `TMP`, `LANG`, and `SYSTEMROOT` on Windows. A `secret` value must be revealed first. |
-| `{ timeout: … }` | `Core\Time\Duration` (default `null`) | The longest time the program may run, counted from the start. When it passes, the program is stopped and a `TimeoutError` is thrown. |
+| `{ timeout: … }` | `Core\Time\Duration` (default `null`) | The longest time the program may run, counted from the start. When it passes, the program is stopped. `run` then throws a `TimeoutError`. After `spawn`, the next call on the handle throws it. |
 
 **Returns** `Core\Process\Result` — A `Core\Process\Result` with the exit code and everything the program wrote to its output and to its error output. The program cannot write to this program's own output, so the two never mix.
 
@@ -37855,13 +37855,13 @@ Starts the program at `$path` with the arguments in `$argv`, and returns at once
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$path` | `string` (sink) | The program to start, as an absolute path or a path relative to the working directory. `PATH` is not searched. |
+| `$path` | `string` (sink) | The program to start, as an absolute path. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. `PATH` is not searched. |
 | `$argv` | `array<string>` | The arguments, one in each element. An element with a space, a quote or a `;` in it is still one argument, on every platform. |
 | `{ workingDirectory: … }` | `string` (default `null`, sink) | The folder the program starts in, as an absolute path. A relative path must be written directly in the code, and is joined to the folder of this file. Without it, the program starts in the same folder as this program. |
 | `{ env: … }` | `array<string>` (default `null`) | The environment variables of the program, as name => value. This replaces all of them, so a variable that is not in the array is not set. Without it, the program gets only these variables from this program: `PATH`, `HOME` or `USERPROFILE`, `TEMP`, `TMP`, `LANG`, and `SYSTEMROOT` on Windows. A `secret` value must be revealed first. |
-| `{ timeout: … }` | `Core\Time\Duration` (default `null`) | The longest time the program may run, counted from the start. When it passes, the program is stopped and a `TimeoutError` is thrown. |
+| `{ timeout: … }` | `Core\Time\Duration` (default `null`) | The longest time the program may run, counted from the start. When it passes, the program is stopped. `run` then throws a `TimeoutError`. After `spawn`, the next call on the handle throws it. |
 
-**Returns** `Core\Process\Handle` — A `Core\Process\Handle` for the running program. Other requests keep running while this one waits on the handle. Call `wait` or `kill` on it before your script or request ends. A program that is still running then is stopped, and Novis reports an error.
+**Returns** `Core\Process\Handle` — A `Core\Process\Handle` for the running program. Other requests keep running while this one waits on the handle. Call `wait` or `kill` on it before your script or request ends. If the program is still running when the script or request ends, it is stopped and Novis reports an error.
 
 **Throws** `RuntimeError` — `process.exec` does not allow this program, or it is a `.bat`, `.cmd` or `.ps1` file. Those are not allowed on any platform, because Windows starts them through a shell. It is also thrown when `workingDirectory` is a relative path, or when `timeout` is zero or shorter. An `env` name that is empty or has a `=` in it throws it too.; `IOError` — The program could not be started. For example, nothing is at the path, the file is not a program, or the `workingDirectory` folder does not exist.
 
@@ -38138,12 +38138,12 @@ Builds the instant at a Unix timestamp. The `nanoseconds` option is added after 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$seconds` | `int` | Whole seconds since `1970-01-01T00:00:00Z`; negative before it. |
-| `{ nanoseconds: … }` | `uint` (default `0`) | Nanoseconds to add on top of the second, below `1000000000`; the default is `0`. |
+| `$seconds` | `int` | Whole seconds since `1970-01-01T00:00:00Z`. A time before that is negative. |
+| `{ nanoseconds: … }` | `uint` (default `0`) | Nanoseconds to add after the second, from `0` to `999999999`. The default is `0`. |
 
 **Returns** `Core\Time\Instant` — The `Instant`.
 
-**Throws** `RuntimeError` — `nanoseconds` is not below `1000000000`, or `$seconds` is outside `-377705023201..=253402207200`. That is the time from `-9999-01-02T01:59:59Z` to `9999-12-30T22:00:00Z`.
+**Throws** `RuntimeError` — `nanoseconds` is `1000000000` or more. Or `$seconds` is not from `-377705023201` to `253402207200`. These are the times `-9999-01-02T01:59:59Z` and `9999-12-30T22:00:00Z`.
 
 <a id="core-core-time-instant-fromiso"></a>
 #### `Core\Time\Instant::fromIso`
@@ -38274,7 +38274,7 @@ Checks which of two instants comes first, as `Comparable` requires. The operator
 |---|---|---|
 | `$other` | `Core\Time\Instant` | The instant to compare against. |
 
-**Returns** `int` — `-1` when the receiver is earlier than `$other`, `0` when they are the same instant, `1` when it is later.
+**Returns** `int` — `-1` when this instant is earlier than `$other`, `0` when they are the same instant, `1` when it is later.
 
 <a id="core-core-time-instant-toiso"></a>
 #### `Core\Time\Instant->toIso`
@@ -38568,21 +38568,21 @@ Finds the last day before this one that falls on `$w`. The time of day stays the
 $dateTime->with({ year?: int, month?: uint, day?: uint, hour?: uint, minute?: uint, second?: uint, nanoseconds?: uint }): Core\Time\DateTime
 ```
 
-Replaces any of the seven date and time fields and keeps the others. If the zone skips the new time, the result moves forward past the gap.
+Replaces the parts of the date and time that you name, and keeps the others. When the clocks move forward, one hour of that day does not exist. A new time in that hour moves one hour later.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `{ year: … }` | `int` (default `null`) | The new year, within `-9999..=9999`; omitted leaves the field alone. |
-| `{ month: … }` | `uint` (default `null`) | The new month, `1` to `12`; omitted leaves the field alone. |
-| `{ day: … }` | `uint` (default `null`) | The new day of the month; omitted leaves the field alone. |
-| `{ hour: … }` | `uint` (default `null`) | The new hour, `0` to `23`; omitted leaves the field alone. |
-| `{ minute: … }` | `uint` (default `null`) | The new minute, `0` to `59`; omitted leaves the field alone. |
-| `{ second: … }` | `uint` (default `null`) | The new second, `0` to `59`; omitted leaves the field alone. |
-| `{ nanoseconds: … }` | `uint` (default `null`) | The new subsecond nanoseconds, below `1000000000`; omitted leaves the field alone. |
+| `{ year: … }` | `int` (default `null`) | The new year, from `-9999` to `9999`. Leave it out to keep the year. |
+| `{ month: … }` | `uint` (default `null`) | The new month, from `1` to `12`. Leave it out to keep the month. |
+| `{ day: … }` | `uint` (default `null`) | The new day of the month. Leave it out to keep the day. |
+| `{ hour: … }` | `uint` (default `null`) | The new hour, from `0` to `23`. Leave it out to keep the hour. |
+| `{ minute: … }` | `uint` (default `null`) | The new minute, from `0` to `59`. Leave it out to keep the minute. |
+| `{ second: … }` | `uint` (default `null`) | The new second, from `0` to `59`. Leave it out to keep the second. |
+| `{ nanoseconds: … }` | `uint` (default `null`) | The new part of a second, in nanoseconds, from `0` to `999999999`. Leave it out to keep it. |
 
-**Returns** `Core\Time\DateTime` — A new `DateTime` in the same zone; the receiver is unchanged.
+**Returns** `Core\Time\DateTime` — A new `DateTime` in the same zone. The value you call `with` on does not change.
 
-**Throws** `RuntimeError` — An option is outside its field's range, or the fields together are not a date that exists — `{ day: 31 }` on a June value.
+**Throws** `RuntimeError` — A value is outside its range. Or the parts together are not a date that exists, such as `{ day: 31 }` on a date in June.
 
 <a id="core-core-time-datetime-withtime"></a>
 #### `Core\Time\DateTime->withTime`
@@ -38646,10 +38646,10 @@ Counts the whole units of `$unit` from this value to `$other`, in this value's z
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$other` | `Core\Time\DateTime` | The value to count to; it is read in the receiver's zone, so the two may differ in zone. |
+| `$other` | `Core\Time\DateTime` | The value to count to. It is read in this value's zone, so the two values may have different zones. |
 | `$unit` | `Core\Unit` | The calendar unit to count in. |
 
-**Returns** `int` — The whole count, truncated toward zero — negative when `$other` is earlier, `0` within one unit.
+**Returns** `int` — The whole count, truncated toward zero. It is negative when `$other` is earlier, and `0` when the two values are less than one unit apart.
 
 **Throws** `RuntimeError` — The count does not fit in an `int`. Only `Unit::Nanosecond` can reach this, for two values more than about 292 years apart.
 
@@ -39148,7 +39148,7 @@ Makes a time of day from an hour and a minute. The seconds and the nanoseconds a
 
 **Returns** `Core\Time\TimeOfDay` — The new `TimeOfDay`.
 
-**Throws** `RuntimeError` — A field is outside its range, for example an hour of `24`.
+**Throws** `RuntimeError` — A value is outside its range, for example an hour of `24`.
 
 <a id="core-core-time-timeofday-fromiso"></a>
 #### `Core\Time\TimeOfDay::fromIso`
@@ -39165,7 +39165,7 @@ Reads a time of day in the ISO 8601 form, such as `09:30` or `09:30:15.5`. A `$t
 
 **Returns** `Core\Time\TimeOfDay` — The `TimeOfDay`.
 
-**Throws** `ParseError` — `$text` is not in this form, or a field is outside its range, such as `24:00`. The error says which part is wrong.
+**Throws** `ParseError` — `$text` is not in this form, or a part is outside its range, such as `24:00`. The error says which part is wrong.
 
 <a id="core-core-time-timeofday-format"></a>
 #### `Core\Time\TimeOfDay->format`
@@ -39227,7 +39227,7 @@ Moves the time back by `$count` steps of `$unit`. The result wraps around at mid
 $timeOfDay->with({ hour?: uint, minute?: uint, second?: uint, nanoseconds?: uint }): Core\Time\TimeOfDay
 ```
 
-Returns a copy of the time with the fields you give changed. The fields you leave out keep their value.
+Returns a copy of the time with the parts you name changed. The parts you leave out keep their value.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -39238,7 +39238,7 @@ Returns a copy of the time with the fields you give changed. The fields you leav
 
 **Returns** `Core\Time\TimeOfDay` — A new `TimeOfDay`. The original does not change.
 
-**Throws** `RuntimeError` — A field is outside its range, for example a minute of `60`.
+**Throws** `RuntimeError` — A value is outside its range, for example a minute of `60`.
 
 <a id="core-core-time-timeofday-compareto"></a>
 #### `Core\Time\TimeOfDay->compareTo`
@@ -39253,7 +39253,7 @@ Checks which of two times comes first in the day, as `Comparable` requires. The 
 |---|---|---|
 | `$other` | `Core\Time\TimeOfDay` | The time to compare against. |
 
-**Returns** `int` — `-1` when the receiver is earlier in the day than `$other`, `0` when both are the same time, `1` when it is later.
+**Returns** `int` — `-1` when this time is earlier in the day than `$other`, `0` when both are the same time, `1` when it is later.
 
 <a id="core-core-time-timeofday-hour"></a>
 #### `Core\Time\TimeOfDay->hour`
@@ -41347,7 +41347,7 @@ Turns a link found on a page into a full address, the way a browser does. The ad
 
 **Returns** `Core\Uri` — A new `Uri` with a scheme. The fragment of the base is not used. The base itself does not change.
 
-**Throws** `RuntimeError` — The base has no scheme, such as `/blog/post`. The link has a character that is not allowed in an address, such as a space. Or the base has no `/` after its scheme, such as `mailto:ann@example.com`, so there is no path to add the link to.
+**Throws** `RuntimeError` — The base has no scheme (the part before `:`, such as `https`), as in `/blog/post`. The link has a character that is not allowed in an address, such as a space. Or the base has no `/` after its scheme, such as `mailto:ann@example.com`, so there is no path to add the link to.
 
 <a id="core-core-uri-compareto"></a>
 #### `Core\Uri->compareTo`
@@ -41396,7 +41396,7 @@ Checks the signature in the `_sig` query parameter with the keys in `$keys`, and
 
 **Returns** `void` — Nothing. When the method returns, the link is valid and has not expired.
 
-**Throws** `LogicError` — `$keys` is empty, or one of its keys is not 32 bytes long.; `RuntimeError` — The link was not signed with these keys. This is the case when a parameter was added, removed or changed, when the token was changed, when the key was removed from the list, when there is no `_sig`, and when there are two. All of these give the same message. An expired link gives a different message.
+**Throws** `LogicError` — `$keys` is empty, or one of its keys is not 32 bytes long.; `RuntimeError` — The link was not signed with these keys. A parameter was added, removed or changed, or the `_sig` value was changed. Or the key is no longer in the list. Or the link has no `_sig`, or two of them. All of these give the same message. An expired link gives a different message.
 
 <a id="core-core-router"></a>
 ### `Core\Router`
@@ -41593,13 +41593,13 @@ Lists the HTTP methods that the routes of `$path` accept, in the order the route
 Core\Router::dispatch(Core\Router\Gate $gate): void
 ```
 
-Calls the method of the route that the request matched. First, `$gate->allows()` checks the request. When no route method runs, `dispatch` sets the status and calls `$gate->refused()`. When the method throws an error, `dispatch` sets the status `500` and calls `$gate->failed()`.
+Calls the method of the route that the request matched. Each value captured from the path goes to the method parameter with the same name. First, `$gate->allows()` checks the request. When no route method runs, `dispatch` sets the status and calls `$gate->refused()`. When the method throws an error, `dispatch` sets the status `500` and calls `$gate->failed()`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$gate` | `Core\Router\Gate` | An instance of your class that implements `Core\Router\Gate`. |
 
-**Returns** `void` — Nothing. The route method or the gate writes the response, for example with `echo` or `Core\Response::sendHtml`. When the gate implements `Core\Router\Responder`, `dispatch` passes the value that a route method returns to `$gate->respond()`. Otherwise `dispatch` does not send that value. Each value captured from the path goes to the method parameter with the same name. An error that `refused()`, `failed()` or `respond()` throws is thrown by `dispatch`.
+**Returns** `void` — Nothing. The route method or the gate writes the response, for example with `echo` or `Core\Response::sendHtml`. When the gate implements `Core\Router\Responder`, `dispatch` passes the value that a route method returns to `$gate->respond()`. Otherwise `dispatch` does not send that value. An error that `refused()`, `failed()` or `respond()` throws is thrown by `dispatch`.
 
 **Throws** `LogicError` — When the program has no `#[Route]`. When the program is not handling a request, for example a command-line program, a job or a test. When the route method has a parameter that no value in the path fills, such as a `#[Query]` parameter or an optional capture that the path does not have.
 
@@ -41620,10 +41620,10 @@ and the `405`.
 `is(Shop::show)` returns `true` when the route belongs to that method. You write the method the way
 `Core\Router::url` takes it: `Class::method` with no `(...)`, for a static or an instance method. A
 method from a variable, such as an `array<callable>` or `$shop->show(...)`, is checked while the
-program runs, and `is` throws an error when that method has no route. `params()` is
-every capture the path filled, keyed by the parameter it binds, and `param()` is that array read at
-one key — `null` for a name the route does not declare, including an optional `{name?}` the request
-left off. A capture is `tainted string` where the route declared `string`, still percent-encoded,
+program runs, and `is` throws an error when that method has no route. `parameters()`
+returns every value the path filled, keyed by the name of its parameter. `parameter()` returns one of
+them by name. It returns `null` for a name the route does not declare, and for an optional `{name?}`
+the request did not include. A capture is `tainted string` where the route declared `string`, still percent-encoded,
 and the `int`, `uint`, `decimal` or `Core\Uuid` the match already converted where it declared one of
 those, so a handler never parses a segment the router has parsed already — and a segment that would
 not convert did not match the route in the first place.
@@ -42764,7 +42764,7 @@ Gives the answers for the next questions your program asks with `Core\Cli`, such
 
 **Returns** `void` — Nothing. A second call adds its answers to the end of the list. When the list is empty, a prompt returns the `default` you gave it. A prompt with no `default` throws `Core\Cli\NotInteractive`.
 
-**Throws** `LogicError` — The call runs in a server, such as in a request, a connection, a scheduled task or a queued job. A test may call it. Code that a test starts may call it too, such as a request sent with `Core\Test::request`. A command-line program may also call it.
+**Throws** `LogicError` — The call runs in a server, such as in a request, a connection, a scheduled task or a queued job. There is one exception: a request that a test sends with `Core\Test::request` may call it. Tests and command-line programs may always call it.
 
 <a id="core-core-test-request"></a>
 #### `Core\Test::request`
@@ -42855,7 +42855,7 @@ Gives a fake reply for one URL that your program calls. After the first call to 
 
 **Returns** `void` — Nothing. Each call adds one more reply, so a test can give a reply for each call it makes. An exact URL wins over a prefix, and the longest prefix wins among prefixes.
 
-**Throws** `LogicError` — The call gives both `json` and `body`, which are two ways to write one body. Or the status is not from `100` to `999`. Or the call gives a `tls` session for an `http://` URL, which has no TLS. Or the call runs in a server, such as in a request, a connection, a scheduled task or a queued job. A test may call it. Code that a test starts may call it too, such as a request sent with `Core\Test::request`. A command-line program may also call it.
+**Throws** `LogicError` — The call gives both `json` and `body`, which are two ways to write one body. Or the status is not from `100` to `999`. Or the call gives a `tls` session for an `http://` URL, which has no TLS. Or the call runs in a server, such as in a request, a connection, a scheduled task or a queued job. There is one exception: a request that a test sends with `Core\Test::request` may call it. Tests and command-line programs may always call it.
 
 <a id="core-core-test-tlssession"></a>
 #### `Core\Test::tlsSession`
@@ -42873,11 +42873,11 @@ Builds a TLS session for a test. TLS is the encryption that an `https://` connec
 | `{ verified: … }` | `bool` (default `true`) | What `isVerified()` returns. The default is `true`. |
 | `{ subject: … }` | `string` (default `null`, neutral) | The subject of the server's own certificate, which is called the leaf certificate. The subject names who the certificate is for. Write it as `subject()` returns it: `KEY=value` pairs such as `CN=api.example.com, O=Shop`, with the keys `CN`, `O`, `OU`, `C`, `ST` and `L`. The default is `CN=example.com`. |
 | `{ issuer: … }` | `string` (default `null`, neutral) | The subject of the certificate authority (CA) that signed the leaf certificate. `issuer()` returns it. Write it like `subject`. The default is `CN=Novis Test CA`. |
-| `{ expiry: … }` | `Core\Time\Instant` (default `null`) | The date and time when the leaf certificate expires. It is kept in whole seconds. The default is 90 days after `Core\Time::now()`. So a test that sets its clock to a fixed time gets the same value every run. |
+| `{ expiry: … }` | `Core\Time\Instant` (default `null`) | The date and time when the leaf certificate expires. It is kept in whole seconds. The default is 90 days after `Core\Time::now()`. A test that sets its clock to a fixed time gets the same default every run. |
 
 **Returns** `Core\Http\TlsInfo` — A `Core\Http\TlsInfo`. Its `peerChain()` returns two certificates: the leaf certificate, then the CA certificate that signed it. Pass the result to `Core\Test::answerHttp` as `tls`, and the fake reply reports this session.
 
-**Throws** `LogicError` — The version is not `TLSv1.3` or `TLSv1.2`. Or the cipher is not one this build supports for that version. Or a subject or issuer is not written as `KEY=value` pairs with the keys above. Or the expiry is before 1950 or after 9999. Or the call runs in a server, such as in a request, a connection, a scheduled task or a queued job. A test may call it. Code that a test starts may call it too, such as a request sent with `Core\Test::request`. A command-line program may also call it.
+**Throws** `LogicError` — The version is not `TLSv1.3` or `TLSv1.2`. Or the cipher is not one this build supports for that version. Or a subject or issuer is not written as `KEY=value` pairs with the keys above. Or the expiry is before 1950 or after 9999. Or the call runs in a server, such as in a request, a connection, a scheduled task or a queued job. There is one exception: a request that a test sends with `Core\Test::request` may call it. Tests and command-line programs may always call it.
 
 <a id="core-core-test-senthttp"></a>
 #### `Core\Test::sentHttp`
@@ -42907,7 +42907,7 @@ Gives a fake WebSocket server for one URL, so this test does not use the network
 
 **Returns** `void` — Nothing. Each call adds one more peer, so a test can give a peer for each socket it opens. An exact URL wins over a prefix, and the longest prefix wins among prefixes. Two sockets opened to one URL each receive all of that peer's frames, from the first one.
 
-**Throws** `LogicError` — The call runs in a server, such as in a request, a connection, a scheduled task or a queued job. A test may call it. Code that a test starts may call it too, such as a request sent with `Core\Test::request`. A command-line program may also call it.
+**Throws** `LogicError` — The call runs in a server, such as in a request, a connection, a scheduled task or a queued job. There is one exception: a request that a test sends with `Core\Test::request` may call it. Tests and command-line programs may always call it.
 
 <a id="core-core-test-sentsocket"></a>
 #### `Core\Test::sentSocket`
@@ -44346,7 +44346,7 @@ Runs `$body` with a live area open on the terminal, and returns what `$body` ret
 |---|---|---|
 | `$body` | `callable(Core\Cli\Live): T` | The work to do while the area is open. Its return value is the return value of this method. |
 
-**Returns** `T` — Exactly what `$body` returned, with the same type. The terminal is restored however `$body` ends: a return, a throw, a fatal error or an internal panic. If the output is not a terminal, nothing is drawn, so no escape sequences are written.
+**Returns** `T` — Exactly what `$body` returned, with the same type. The terminal is restored however `$body` ends: a return, a throw or a fatal error. If the output is not a terminal, nothing is drawn, so no escape sequences are written.
 
 <a id="core-core-cli-showprogress"></a>
 #### `Core\Cli::showProgress`
@@ -44556,9 +44556,9 @@ Replaces the area's rows with `$lines`. The runtime controls the cursor. It redr
 |---|---|---|
 | `$lines` | `array<Core\Cli\Text>` | The area's new rows, one `Core\Cli\Text` each. They replace the old rows. A row wider than the terminal is cut to the terminal width. It is not wrapped, because a wrapped row would stop the area from being redrawn. |
 
-**Returns** `void` — Nothing. The rows are drawn now, or together with the next update. A program cannot tell which. The last rows given are always drawn before the area closes.
+**Returns** `void` — Nothing. The rows are drawn now, or together with the next update. Your program cannot see the difference. The last rows given are always drawn before the area closes.
 
-**Throws** `LogicError` — This area is not the active one on the terminal. It has closed, or an inner `Core\Cli::showLive` is open inside it. A `Cli\Live` belongs to the call that made it. Using it outside that call is a bug in the program.
+**Throws** `LogicError` — This area is not the active one on the terminal. It has closed, or an inner `Core\Cli::showLive` is open inside it. A `Core\Cli\Live` works only inside the call that made it. Using it outside that call is a bug in the program.
 
 <a id="core-core-cli-progress"></a>
 ### `Core\Cli\Progress`
@@ -45005,14 +45005,14 @@ Returns the memory limit that `memoryHeld()` and `memoryPeak()` are measured aga
 
 Keywords: request, query string, query parameters, form fields, POST data, cookies, headers, request body, JSON body, multipart, upload, HEAD, request method, path, tainted input, method, isHead, path, queryParameter, queryParameters, queryParametersAs, header, headers, cookie, body, bytes, json, jsonAs, bodyStream, files, formField, formFields, formFieldsAs, clientIp, scheme, host, route, mount
 
-`Core\Request` is the whole of what arrived: `method`, `isHead`, `path`, `query`, `header`, `headers`,
+`Core\Request` is the whole of what arrived: `method`, `isHead`, `path`, `queryParameter`, `header`, `headers`,
 `cookie` and the body readers, plus `route` and `mount` for where the router put it. The host never
 fills a variable for the program. No lookup merges the query, the form fields and the cookies into
 one. Every member throws `LogicError` in a program that is
 not answering a request, so a CLI run, a scheduled script and a job worker say "no request arrived"
 rather than answering empty.
 
-**The body is read once, and every reader is one of two kinds.** `body()`, `post()`, `postAs<T>()`,
+**The body is read once, and every reader is one of two kinds.** `body()`, `formField()`, `formFieldsAs<T>()`,
 `json()` and `jsonAs<T>()` **buffer**: the first of them fills the request's hold, bounded by
 `[limits] request_body`, and any of the five may follow any other in any order and answer the same
 octets. `bodyStream()` and
@@ -45027,14 +45027,13 @@ declared — a header is what a peer wrote, not what a body is — and both thro
 document that is malformed, too deep, or absent altogether. `json()` keeps what it decoded and
 `jsonAs<T>()` hydrates per call, so writing to what a second call answered leaves the first alone.
 
-`queryAs<T>()` and `postAs<T>()` are that idea over the parameters rather than the body: each reads what
-`query()` and `post()` parse as the type written at the call site — an inline shape, `{ page: uint }`, or a
-class carrying `#[Core\Json\Derive]` — converting every named field with `as` and leaving the keys the
-type does not name behind. Called with nothing, the whole parameter set is the subject, and that is the
-only way a program reaches it: there is no `query(): array<mixed>`. Called with
-`{ name: "filter" }`, the subject is the one bracket-named subtree under that name. A field that is absent,
-or that holds a value `as` refuses for its declared type, is a `ParseError` listing every field that
-failed at its own path — so a form reports the whole list rather than the first item of it.
+`queryParametersAs<T>()` and `formFieldsAs<T>()` do the same for the query string and the form. Each
+reads what `queryParameter()` and `formField()` read as the type `T` that you write at the call. `T` is an
+inline shape, such as `{ page: uint }`, or a class with `#[Core\Json\Derive]`. Each field that `T` names
+is converted with `as`, and the other keys are left out. Without arguments, the method reads every
+parameter. This is the only way to read all of them at once. With `{ name: "filter" }`, it reads the
+nested values under that one name. A field that is missing, or that `as` cannot convert, gives a
+`ParseError`. The error lists every wrong field at its own path, so a form can show all of them.
 
 Everything a peer chose is `tainted`, including the path, every header and the body, so it reaches a
 sink only through a launderer named for that sink — `echo` escapes for HTML on its own. A class hydrated
@@ -45326,7 +45325,7 @@ Returns the files that a form uploaded, one at a time in a `foreach` loop.
 
 **Returns** `Core\Request\Files` — An `Iterable<Core\Request\Part>`. Each loop step gives the next file as it arrives. The text fields are not in the loop, and `formField` reads them after it. The loop runs zero times when the request has no `multipart/form-data` body.
 
-**Throws** `LogicError` — The program is not handling a request. Or `body`, `bodyStream` or `formField` already read the body. After this call, `body`, `bytes`, `bodyStream` and `json` throw this error too. `formField` still works after the loop.; `ParseError` — The request says it has a `multipart/form-data` body, but its `boundary` is missing, given twice or not valid. Or the body does not have the form that the request declared. Or the name, file name or `Content-Type` of a part is not valid UTF-8.; `IOError` — The connection failed while the loop read the body, or the body ended before its last boundary.
+**Throws** `LogicError` — The program is not handling a request. Or `body`, `bodyStream` or `formField` already read the body. Once `files` is called, `body`, `bytes`, `bodyStream` and `json` throw this error too. You can still call `formField` after the loop.; `ParseError` — The request says it has a `multipart/form-data` body, but its `boundary` is missing, given twice or not valid. Or the body does not have the form that the request declared. Or the name, file name or `Content-Type` of a part is not valid UTF-8.; `IOError` — The connection failed while the loop read the body, or the body ended before its last boundary.
 
 <a id="core-core-request-formfield"></a>
 #### `Core\Request::formField`
@@ -45553,7 +45552,7 @@ request carried no body at all.
 still starts at the first byte. Call it before the loop starts: after that it throws `LogicError`.
 
 **Naming the walk is the reading.** `bodyStream()` claims the body when the walk is built, long before a
-single byte moves, so `body()`, `post()`, `json()`, `jsonAs<T>()` or `files()` after it is refused with
+single byte moves, so `body()`, `formField()`, `json()`, `jsonAs<T>()` or `files()` after it is refused with
 `LogicError` whether or not the loop ever ran — and refused the same way in the other direction. That
 refusal is a defect in the program, never something a peer can provoke; the split between the readers
 that share the body and the ones that consume it is
@@ -45641,12 +45640,12 @@ over bytes the door already charged for, and no memory at all.
 **A part is a file part iff its `Content-Disposition` carries a `filename`**, which is RFC 7578's own
 distinction and not a second one invented here. Every other part is an ordinary form field: the walk
 buffers those as it passes them, and `Core\Request::formField()` reads them back afterwards. That is why
-`post()` on a `multipart/form-data` request is called **after** this walk and never before — the fields
+`formField()` on a `multipart/form-data` request is called **after** this walk and never before — the fields
 are behind the uploads on the wire, and reading them first would mean draining the uploads to reach them.
 
 The walk is empty where the request declared no `multipart/form-data` body, which is what a request
 carrying no upload is. It throws `LogicError` where the program is not answering a request, or where
-`body()`, `bodyStream()` or `post()` already read this body; `ParseError` where the request declared a
+`body()`, `bodyStream()` or `formField()` already read this body; `ParseError` where the request declared a
 multipart body and then did not say how to read one — no `boundary`, two of them, or one outside the
 grammar — since an ambiguous body is refused rather than guessed at; and `IOError` where the connection
 failed under the body or the peer stopped short of the length it declared.
@@ -45956,7 +45955,7 @@ Sends the HTML page `$body` and adds the header `Content-Type: text/html; charse
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$body` | `Core\Html\Markup` | The page to send. It is a `Core\Html\Markup`, which is HTML that is already safe: an html template, ``html`…` ``, escaped the values in its `{...}`, or `Core\Html::escape` made it. It is sent as it is and nothing is escaped again. A `string` does not compile. |
+| `$body` | `Core\Html\Markup` | The page to send. It is a `Core\Html\Markup`, which is HTML that is already safe. An html template, ``html`…` ``, makes one and escapes the values in its `{...}`. `Core\Html::escape` also makes one. It is sent as it is and nothing is escaped again. A `string` does not compile. |
 
 **Returns** `void` — Nothing. Using this and `echo` in one response does not compile.
 
@@ -46239,7 +46238,7 @@ Saves a short-lived value under one key in the session of this request. Use it f
 
 **Returns** `void` — Nothing. When the request ends, the keys it changed are saved to the store. The first short-lived value in a session also sends a second cookie. Its name is `[session] cookie` with `-short` added. Two requests that change different keys at the same time keep both changes. If they change the same key, the request that ends last wins.
 
-**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::runAfterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$value` cannot be saved: it is a callable or a resource, or it contains one.; `RuntimeError` — `[session] cookie` is not a valid cookie name. It is thrown when the call must send the cookie.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::runAfterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$value` cannot be saved: it is a callable or a resource, or it contains one.; `RuntimeError` — `[session] cookie` is not a valid cookie name. It is thrown when the call must send the cookie.
 
 <a id="core-core-session-setlonglived"></a>
 #### `Core\Session::setLongLived`
@@ -46257,7 +46256,7 @@ Saves a long-lived value under one key in the session of this request. Use it fo
 
 **Returns** `void` — Nothing. When the request ends, the keys it changed are saved to the store. While the session has a long-lived value, the session cookie has a `Max-Age`, so the browser keeps it after it closes. Do not save a login here: it would stay signed in after the browser closes.
 
-**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::runAfterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$value` cannot be saved: it is a callable or a resource, or it contains one.; `RuntimeError` — `[session] cookie` is not a valid cookie name. It is thrown when the call must send the cookie.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::runAfterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$value` cannot be saved: it is a callable or a resource, or it contains one.; `RuntimeError` — `[session] cookie` is not a valid cookie name. It is thrown when the call must send the cookie.
 
 <a id="core-core-session-get"></a>
 #### `Core\Session::get`
@@ -46274,7 +46273,7 @@ Returns the value saved under one key in the session of this request. The value 
 
 **Returns** `mixed` — The value saved under `$key`, or `null`. A short-lived value is `null` after the browser was closed, or after the visitor was inactive for `[session] short_lived`.
 
-**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `ParseError` — The value under `$key` contains an object of a class this program does not declare. This happens when another program saved it.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `ParseError` — The value under `$key` contains an object of a class this program does not declare. This happens when another program saved it.
 
 <a id="core-core-session-remove"></a>
 #### `Core\Session::remove`
@@ -46291,7 +46290,7 @@ Deletes one key and its value from the session of this request. The value can be
 
 **Returns** `void` — Nothing. After it, `get()` returns `null` for `$key`. The other keys keep their values.
 
-**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::runAfterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::runAfterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.
 
 <a id="core-core-session-clearshortlived"></a>
 #### `Core\Session::clearShortLived`
@@ -46362,7 +46361,7 @@ Saves a short-lived secret, such as an access token, in the session of this requ
 
 **Returns** `void` — Nothing. The secret is saved to the store when the request ends. It is deleted with the other short-lived values.
 
-**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::runAfterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$keys` is empty, or its first key is not 32 bytes long.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::runAfterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$keys` is empty, or its first key is not 32 bytes long.
 
 <a id="core-core-session-setlonglivedsecret"></a>
 #### `Core\Session::setLongLivedSecret`
@@ -46381,7 +46380,7 @@ Saves a long-lived secret in the session of this request. The secret is encrypte
 
 **Returns** `void` — Nothing. The secret is saved to the store when the request ends, and it is kept for `[session] long_lived`. Anybody with the session cookie can use it, also after the browser closes. Save a secret that belongs to a login with `setShortLivedSecret()`.
 
-**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::runAfterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$keys` is empty, or its first key is not 32 bytes long.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::runAfterResponse`. The response headers are already sent there, so the session cannot change. Most of these calls do not compile.; `RuntimeError` — The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$keys` is empty, or its first key is not 32 bytes long.
 
 <a id="core-core-session-getsecret"></a>
 #### `Core\Session::getSecret`
@@ -46399,7 +46398,7 @@ Reads a secret that `setShortLivedSecret()` or `setLongLivedSecret()` saved in t
 
 **Returns** `?secret string` — The secret saved under `$key`, or `null`. The result is `null` when nothing is saved under `$key`, when no key in `$keys` decrypts it, and when the saved bytes were changed.
 
-**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$keys` is empty, or a key in it is not 32 bytes long.; `ParseError` — The value under the secret's key contains an object of a class this program does not declare. This happens only when a program saved a plain value there.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — `$keys` is empty, or a key in it is not 32 bytes long.; `ParseError` — The value under the secret's key contains an object of a class this program does not declare. This happens only when a program saved a plain value there.
 
 <a id="core-core-session-openwithidentifier"></a>
 #### `Core\Session::openWithIdentifier`
@@ -46416,7 +46415,7 @@ Opens the session of this request under an identifier that your program read, fo
 
 **Returns** `void` — Nothing. No cookie is read for this session. Short-lived values need only the identifier, because there is no browser that could close.
 
-**Throws** `LogicError` — Another method of this class was already called in this request, so the session is already open. The message names that method. It is also thrown when the program is not handling a request.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.
+**Throws** `LogicError` — Another method of this class was already called in this request, so the session is already open. The message names that method. It is also thrown when the program is not handling a request.; `RuntimeError` — The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.
 
 <a id="core-core-socket"></a>
 ### `Core\Socket`
@@ -46731,13 +46730,13 @@ Sends one event to the client. The event has the data, an optional event name an
 $sse->setRetryDelay(Core\Time\Duration $after): void
 ```
 
-Tells the client how long to wait before it reconnects. It is sent as a separate block, and the client sees no event.
+Tells the client how long to wait before it reconnects. It is sent as a `retry:` line in the stream. It is not an event, so the client's event handlers do not run.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$after` | `Core\Time\Duration` | How long the client waits before it reconnects. It is sent in whole milliseconds. A wait shorter than one millisecond is sent as `0`, without an error. |
 
-**Returns** `void` — Nothing. The block is added to the response body.
+**Returns** `void` — Nothing. The `retry:` line is added to the response body.
 
 **Throws** `LogicError` — `$after` is negative. A wait cannot be shorter than zero.
 
@@ -47893,7 +47892,7 @@ Returns a token that protects a form against CSRF (cross-site request forgery: a
 
 **Returns** `string` — The token. Every call returns a different string, and each one is valid for the whole session. It uses only `A-Za-z0-9-_`, so you can put it in a form field, a header or a URL without encoding it.
 
-**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — `[http] csrf_key` is not set.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — The call runs inside a function passed to `Core\Task::runAfterResponse`, after the response was sent. The session cookie cannot be sent then.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — `[http] csrf_key` is not set.; `RuntimeError` — The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — The call runs inside a function passed to `Core\Task::runAfterResponse`, after the response was sent. The session cookie cannot be sent then.
 
 <a id="core-core-csrf-issue"></a>
 #### `Core\Csrf::issue`
@@ -48010,7 +48009,7 @@ Returns the options for `navigator.credentials.create()` as JSON. The options co
 
 **Returns** `string` — A JSON string. In the browser, pass it to `PublicKeyCredential.parseCreationOptionsFromJSON()`, and pass the result to `navigator.credentials.create()`.
 
-**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::runAfterResponse`. The response headers are already sent there, so the challenge cannot be saved in the session.; `LogicError` — `$rpId` is empty, or `$userId` is empty or longer than 64 bytes.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::runAfterResponse`. The response headers are already sent there, so the challenge cannot be saved in the session.; `LogicError` — `$rpId` is empty, or `$userId` is empty or longer than 64 bytes.
 
 <a id="core-core-passkey-verifyregistration"></a>
 #### `Core\Passkey::verifyRegistration`
@@ -48029,7 +48028,7 @@ Checks the browser's answer to `registerOptions` and returns the new passkey. Sa
 
 **Returns** `Core\Passkey\Credential` — The new passkey, with its id, its public key, its algorithm and its sign counter.
 
-**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `RuntimeError` — No registration is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the challenge, the origin, the domain, the user verification and the key algorithm. An answer longer than 64 KB also throws.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `RuntimeError` — No registration is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the challenge, the origin, the domain, the user verification and the key algorithm. An answer longer than 64 KB also throws.
 
 <a id="core-core-passkey-signinoptions"></a>
 #### `Core\Passkey::signInOptions`
@@ -48047,7 +48046,7 @@ Returns the options for `navigator.credentials.get()` as JSON. The options conta
 
 **Returns** `string` — A JSON string. In the browser, pass it to `PublicKeyCredential.parseRequestOptionsFromJSON()`, and pass the result to `navigator.credentials.get()`.
 
-**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::runAfterResponse`. The response headers are already sent there, so the challenge cannot be saved in the session.; `LogicError` — `$rpId` is empty.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `LogicError` — The call is inside `Core\Html::later` or `Core\Task::runAfterResponse`. The response headers are already sent there, so the challenge cannot be saved in the session.; `LogicError` — `$rpId` is empty.
 
 <a id="core-core-passkey-credentialid"></a>
 #### `Core\Passkey::credentialId`
@@ -48084,7 +48083,7 @@ Checks the browser's answer to `signInOptions` against the saved passkey. It ret
 
 **Returns** `Core\Passkey\Credential` — The passkey with its new sign counter.
 
-**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `RuntimeError` — No sign-in is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the passkey id, the challenge, the origin, the domain, the user verification, the signature and the sign counter. An answer longer than 64 KB also throws.
+**Throws** `LogicError` — The program is not handling a request. A command-line program, a job and a test have no session.; `RuntimeError` — The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With `[session] backend = "shared"`, `[cache.shared] url` is not set, or the program does not have the `cache.shared` capability.; `IOError` — The store cannot be reached. The user may still have a session there, so do not treat them as signed out.; `RuntimeError` — No sign-in is waiting, or the challenge is older than five minutes. It is also thrown when a check fails. The checks are the passkey id, the challenge, the origin, the domain, the user verification, the signature and the sign counter. An answer longer than 64 KB also throws.
 
 <a id="core-core-passkey-credential"></a>
 ### `Core\Passkey\Credential`
@@ -49151,7 +49150,7 @@ Reads a whole XML document and returns its document node. A document that is not
 Core\Xml::reader(string|Core\Bytes::Source|Core\Bytes::Chunks $document): Core\Xml\Reader
 ```
 
-Returns a reader that goes through `$document` one node at a time. Call `read` until it returns `null`. The reader does not build a tree. It keeps the current node and the names of the elements that are open. This call reads nothing yet. The first `read` reads the first node.
+Returns a reader that reads `$document` one node at a time. Call `read` until it returns `null`. The reader does not build a tree. It keeps the current node and the names of the elements that are open. This call reads nothing yet. The first `read` reads the first node.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -50400,9 +50399,9 @@ Returns the certificate chain the server sent, as PEM, leaf first.
 $tlsInfo->subject(): tainted string
 ```
 
-Returns the subject of the leaf certificate, written as an RFC 4514 distinguished name.
+Returns the subject of the leaf certificate (the server's own certificate), written as an RFC 4514 distinguished name.
 
-**Returns** `tainted string` — The same text that `openssl x509 -subject` prints, such as `CN=api.example.com`. It is `tainted`, for the same reason as `peerChain`.
+**Returns** `tainted string` — The same text that `openssl x509 -subject` prints, such as `CN=api.example.com`. It is `tainted`, because the server chose this text.
 
 **Throws** `RuntimeError` — The server sent no certificate, or its leaf certificate is not X.509 that this method can read. `version`, `cipher`, `isVerified` and `peerChain` still work, because they do not read inside a certificate.
 
@@ -50413,9 +50412,9 @@ Returns the subject of the leaf certificate, written as an RFC 4514 distinguishe
 $tlsInfo->issuer(): tainted string
 ```
 
-Returns the issuer of the leaf certificate, written as an RFC 4514 distinguished name.
+Returns the issuer of the leaf certificate (the server's own certificate), written as an RFC 4514 distinguished name.
 
-**Returns** `tainted string` — Who signed the leaf certificate, in the same format as `subject`. It is `tainted` for the same reason.
+**Returns** `tainted string` — Who signed the leaf certificate, in the same format as `subject`. It is `tainted`, because the server chose this text.
 
 **Throws** `RuntimeError` — The server sent no certificate, or its leaf certificate is not X.509 that this method can read. `version`, `cipher`, `isVerified` and `peerChain` still work, because they do not read inside a certificate.
 
@@ -50426,7 +50425,7 @@ Returns the issuer of the leaf certificate, written as an RFC 4514 distinguished
 $tlsInfo->expiry(): Core\Time\Instant
 ```
 
-Returns when the leaf certificate stops being valid. This is its `notAfter` field.
+Returns when the leaf certificate (the server's own certificate) stops being valid. This is its `notAfter` field.
 
 **Returns** `Core\Time\Instant` — The instant when the server's certificate expires. Operators often want a program to check this for the services it calls.
 
@@ -50676,7 +50675,7 @@ $event->id(): ?tainted string
 
 Returns the last event id the server set. A program that resumes a stream sends it back in the `Last-Event-ID` header.
 
-**Returns** `?tainted string` — The id, `tainted`, or `null` when no id was set. The format ignores an id that contains a NUL byte, so the result is `null`.
+**Returns** `?tainted string` — The id, `tainted`, or `null` when no id was set. The server-sent events format ignores an `id` line that contains a NUL byte, so the id from before that line stays.
 
 <a id="core-core-http-events"></a>
 ### `Core\Http\Events`
@@ -51539,7 +51538,7 @@ Charges `$cost` units against the allowance of `$key`, which is `$limit` per `$p
 Core\RateLimit::consumeLocally(string $key, uint $limit, Core\Time\Duration $per, { burst?: uint, cost?: uint }): Core\RateLimit\Decision
 ```
 
-Charges `$cost` units against the allowance of `$key`, which is `$limit` per `$per`. The count is kept in the memory of this server process. The result says if this call is inside the limit. Use it to drop load. Use `consume` for a limit you promised to somebody.
+Charges `$cost` units against the allowance of `$key`, which is `$limit` per `$per`. The count is kept in the memory of this server process. The result says if this call is inside the limit. Use it to protect a server from too much load. Use `consume` for a limit you promised to somebody.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -51637,7 +51636,7 @@ Adds to a counter. The first call with `$name` makes that name a counter, and it
 
 **Returns** `void` — Nothing. A program cannot read a metric back. Only the monitoring system that collects the metrics can read them.
 
-**Throws** `LogicError` — The name is already a different kind of metric, or it already has other label names. The message shows the first call and this one. A new series above the `max_series` limit is **not** an error. Novis does not record it and counts it, and the call returns normally.
+**Throws** `LogicError` — The name is already a different kind of metric, or it already has other label names. The message shows the first call and this one. A new series above the `max_series` limit is **not** an error. Novis does not record that series, but counts how many it did not record. The call returns normally.
 
 <a id="core-core-metrics-observe"></a>
 #### `Core\Metrics::observe`
@@ -51656,7 +51655,7 @@ Records one measurement in a histogram, such as a duration or a size. The first 
 
 **Returns** `void` — Nothing. A program cannot read a metric back, the same as with `increment`.
 
-**Throws** `LogicError` — The name is already a different kind of metric, or it already has other label names. The message shows the first call and this one. A new series above the `max_series` limit is **not** an error. Novis does not record it and counts it, and the call returns normally.
+**Throws** `LogicError` — The name is already a different kind of metric, or it already has other label names. The message shows the first call and this one. A new series above the `max_series` limit is **not** an error. Novis does not record that series, but counts how many it did not record. The call returns normally.
 
 <a id="core-core-metrics-setgauge"></a>
 #### `Core\Metrics::setGauge`
@@ -51675,7 +51674,7 @@ Sets a gauge to `$value`. A gauge is a level that goes up and down, such as the 
 
 **Returns** `void` — Nothing. A program cannot read a metric back, the same as with `increment`.
 
-**Throws** `LogicError` — The name is already a different kind of metric, or it already has other label names. The message shows the first call and this one. A new series above the `max_series` limit is **not** an error. Novis does not record it and counts it, and the call returns normally.
+**Throws** `LogicError` — The name is already a different kind of metric, or it already has other label names. The message shows the first call and this one. A new series above the `max_series` limit is **not** an error. Novis does not record that series, but counts how many it did not record. The call returns normally.
 
 <a id="core-core-reflect"></a>
 ### `Core\Reflect`
@@ -52429,7 +52428,7 @@ Opens the database connection that a `[db.<name>]` block of `nvs.toml` describes
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (sink) | The block to open. It must match exactly: `"main"` is `[db.main]`. Two blocks for the same server give two connections, because whoever wrote two blocks wanted two. |
+| `$name` | `string` (sink) | The block to open. It must match exactly: `"main"` is `[db.main]`. Two blocks for the same server give two separate connections. |
 | `{ shared: … }` | `bool` (default `true`) | Whether this call may return the connection that an earlier call opened. `false` opens a separate connection. You need one for a write that must stay after a rollback, for a session lock, or for a second statement during a `queryEach` loop. |
 | `{ timeout: … }` | `Core\Time\Duration` (default `null`) | How long opening the connection may take, including the DNS lookup and TLS. Without it, only the server and the network limit the time. |
 
@@ -52534,7 +52533,7 @@ Runs one statement with its values bound, and reads every row it returns into me
 $connection->queryAs<T>(string $sql, array<mixed> $params, { timeout?: Core\Time\Duration }): Core\Db\Rows<T>
 ```
 
-Runs one statement as `query` does and returns each row as an object of the class written at the call site. `#[Db\Derive]` generates the mapping from the class's declared properties.
+Runs one statement as `query` does and returns each row as an object of the class you write in angle brackets. `#[Db\Derive]` reads each column into the class property with the same name.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -52591,7 +52590,7 @@ Runs one statement once for each set of values and returns how many rows the who
 $connection->queryEach(string $sql, array<mixed> $params, { timeout?: Core\Time\Duration }): Core\Db\Stream<Core\Db\Row>
 ```
 
-Runs one statement and gives its rows one at a time to a `foreach` loop. The connection stays open until the loop ends. The memory used stays the same however many rows there are. Use it instead of `query` for a large result.
+Runs one statement and gives its rows one at a time to a `foreach` loop. The connection is busy until the loop ends. The memory used stays the same however many rows there are. Use it instead of `query` for a large result.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -52610,7 +52609,7 @@ Runs one statement and gives its rows one at a time to a `foreach` loop. The con
 $connection->queryEachAs<T>(string $sql, array<mixed> $params, { timeout?: Core\Time\Duration }): Core\Db\Stream<T>
 ```
 
-Reads a result one row at a time as `queryEach` does, and builds each row into an object of the class written at the call site, as `queryAs` does. The memory used stays the same however many rows there are.
+Reads a result one row at a time as `queryEach` does, and builds each row into an object of the class you write in angle brackets, as `queryAs` does. The memory used stays the same however many rows there are.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -52732,7 +52731,7 @@ Runs one statement with its values bound, and reads every row it returns into me
 $transaction->queryAs<T>(string $sql, array<mixed> $params, { timeout?: Core\Time\Duration }): Core\Db\Rows<T>
 ```
 
-Runs one statement as `query` does and returns each row as an object of the class written at the call site. `#[Db\Derive]` generates the mapping from the class's declared properties.
+Runs one statement as `query` does and returns each row as an object of the class you write in angle brackets. `#[Db\Derive]` reads each column into the class property with the same name.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -52789,7 +52788,7 @@ Runs one statement once for each set of values and returns how many rows the who
 $transaction->queryEach(string $sql, array<mixed> $params, { timeout?: Core\Time\Duration }): Core\Db\Stream<Core\Db\Row>
 ```
 
-Runs one statement and gives its rows one at a time to a `foreach` loop. The connection stays open until the loop ends. The memory used stays the same however many rows there are. Use it instead of `query` for a large result.
+Runs one statement and gives its rows one at a time to a `foreach` loop. The connection is busy until the loop ends. The memory used stays the same however many rows there are. Use it instead of `query` for a large result.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -52808,7 +52807,7 @@ Runs one statement and gives its rows one at a time to a `foreach` loop. The con
 $transaction->queryEachAs<T>(string $sql, array<mixed> $params, { timeout?: Core\Time\Duration }): Core\Db\Stream<T>
 ```
 
-Reads a result one row at a time as `queryEach` does, and builds each row into an object of the class written at the call site, as `queryAs` does. The memory used stays the same however many rows there are.
+Reads a result one row at a time as `queryEach` does, and builds each row into an object of the class you write in angle brackets, as `queryAs` does. The memory used stays the same however many rows there are.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -52847,7 +52846,7 @@ Runs `$fn` inside a transaction and returns what `$fn` returns. If `$fn` returns
 $transaction->rollBack(string $reason): void
 ```
 
-Rolls back this transaction. It records `$reason` and throws `Core\Db\RolledBack` with it. You cannot request a rollback and then continue in the same transaction. So no code has to remember to check a flag such as `setRollbackOnly`.
+Rolls back this transaction. It records `$reason` and throws `Core\Db\RolledBack` with it. Code after the call does not run, and the transaction cannot continue. So no other code has to check whether the transaction was given up.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -53358,7 +53357,7 @@ Returns the type the column was declared with, as a `Core\Db\Column::Type` case.
 $column->isNullable(): bool
 ```
 
-Checks whether the column can contain NULL. On PostgreSQL this is always `true`. The server does not send a NOT NULL flag with the result. Only an extra catalog query for each statement could find it, and this driver does not run one.
+Checks whether the column can contain NULL. On PostgreSQL this is always `true`. The server does not send a NOT NULL flag with the result. Only an extra query on the table's definition could find it, and this driver does not run one.
 
 **Returns** `bool` — `true` for every column this driver describes, so treat every column as nullable. The typed methods of `Core\Db\Row` already do this, and each returns `?T`. A database that sends the flag gives its value here.
 
@@ -55022,7 +55021,7 @@ Checks the bit `0x40000`: the user must log in with a smart card.
 $accountFlags->isTrustedForDelegation(): bool
 ```
 
-Checks the bit `0x80000`: a service on this account may act for any user it receives.
+Checks the bit `0x80000`: a service on this account may act for every user who logs in to it.
 
 **Returns** `bool` — `true` when the bit is set, and `false` when it is not.
 
@@ -55121,7 +55120,7 @@ Checks whether the user must change the password at the next login. This is true
 $accountFlags->with({ script?: bool, disabled?: bool, homeDirectoryRequired?: bool, passwordNotRequired?: bool, reversibleEncryption?: bool, temporaryDuplicateAccount?: bool, normalAccount?: bool, interdomainTrustAccount?: bool, workstationTrustAccount?: bool, serverTrustAccount?: bool, passwordNeverExpires?: bool, mnsLogonAccount?: bool, smartcardRequired?: bool, trustedForDelegation?: bool, notDelegated?: bool, useDesKeyOnly?: bool, noPreauthRequired?: bool, trustedToAuthenticateForDelegation?: bool, partialSecretsAccount?: bool }): Core\Ldap\Ad\AccountFlags
 ```
 
-Returns a copy with the flags you name set or cleared, such as `$flags->with({ disabled: true })`. Every other bit stays as it is. `lockedOut` and `passwordExpired` are not options, because Active Directory computes them.
+Returns a copy with the flags you name set or cleared, such as `$flags->with({ disabled: true })`. Every other bit stays as it is. There is no option for `isLockedOut` or `isPasswordExpired`, because Active Directory computes them.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -55193,7 +55192,7 @@ Checks the bit `0x2`: the group is global. Its members are from its own domain.
 $groupType->isDomainLocal(): bool
 ```
 
-Checks the bit `0x4`: the group is domain local. It is used only in its own domain.
+Checks the bit `0x4`: the group is domain local. It can be given permissions only in its own domain.
 
 **Returns** `bool` — `true` when the bit is set, and `false` when it is not.
 
@@ -55823,8 +55822,8 @@ the structural similarity of the two images, `1.0` for identical images
 Novis\Image\Comparison::?bytes $differenceImage
 ```
 
-a PNG image with the differing pixels in red.
-It is `null` unless `render` is `true`.
+a PNG image with the differing pixels in red, or `null`.
+`Image::compare` draws it only with the option `render: true`.
 
 **Returns** `void`
 
@@ -55859,7 +55858,7 @@ Novis\Image\Font::fromBytes(tainted bytes $data): Font
 `Font::fromBytes` makes a `Font` from the bytes of a `.ttf` or `.otf` file.
 Bytes that do not start like a font file throw a `ParseError`.
 A font file with broken tables throws a `ParseError` when the image is drawn.
-`$data` may be an uploaded file. An image drawn with the font is then `tainted bytes` too.
+`$data` may be an uploaded file. The file that `encode` returns for an image with this font is `tainted bytes`.
 
 **Returns** `Font`
 
@@ -56012,7 +56011,7 @@ $image->resized(Resize $options): Image
 ```
 
 `resized` returns a scaled copy of the image. With only `width` or only `height`, the image keeps its proportions.
-With both, `fit` decides how the image fills that size. The default is `Fit::Cover`.
+With both, `fit` sets how the image fills that size. The default is `Fit::Cover`.
 The image does not grow larger than it is, unless `upscale` is `true`.
 
 **Returns** `Image`
@@ -57195,7 +57194,7 @@ $document->withSlots(callable(Page): array<Core\Html\Markup> $fn): Document
 ```
 
 `withSlots` sets a function that fills each `<slot name="...">` in a table row. `render` calls it once for each page.
-It returns the HTML for each slot name. Nothing on the page moves, and HTML too tall for its cell is listed in `Rendered::overflows`.
+It returns the HTML for each slot name. A slot does not change the layout of the page. HTML too tall for its cell is listed in `Rendered::overflows`.
 
 **Returns** `Document`
 
@@ -57324,8 +57323,9 @@ An element may have several marks, separated by `;`.
 $page->marksUpTo(string $name): array<string>
 ```
 
+A mark is a named value that a page records while it is drawn.
 `marksUpTo` returns the values of the marks with this name on this page and every page before it.
-A carried-forward total adds these values up.
+Add these values up to show a running total on each page.
 
 **Returns** `array<string>`
 
@@ -57447,7 +57447,7 @@ $reader->text(uint $page): tainted string
 
 `text` returns the text of one page, in the order the file stores it. Pages count from 1.
 Tables and columns are not rebuilt. A page number past the end throws a `LogicError`.
-The file is read from the reader, so a call does not copy it again.
+`text` uses the file that `Reader::open` read. It does not read or copy the file again.
 
 **Returns** `tainted string`
 
@@ -57827,7 +57827,7 @@ the title of the vertical axis, or `null`
 Novis\Spreadsheet\Chart::Legend $legend
 ```
 
-the place of the legend, such as `Legend::Right`, or `Legend::Hidden` for no legend
+where the legend is, such as `Legend::Right`, or `Legend::Hidden` for no legend
 
 **Returns** `void`
 
@@ -57940,7 +57940,7 @@ $chart->combinedWith(Chart $other): Chart
 ```
 
 `combinedWith` returns the chart with the type and the series of `$other` drawn on the same axes.
-You can combine two of column, line and area, such as columns of sales with a line of costs. The title and the legend come from this chart.
+Only column, line and area charts combine, and the two types must be different, such as columns of sales with a line of costs. The title and the legend come from this chart.
 
 **Returns** `Chart`
 
@@ -58305,8 +58305,8 @@ Keywords: constructor, addRow, addRows, cell, column, mergeCells, addLink, addNo
 new Novis\Spreadsheet\Sheet(uint $index, Writer $writer, callable(uint, array<mixed>, RowOptions): void $add, callable(uint, ?uint, bool): void $ready, callable(bytes): void $send, callable(uint, string): uint $position, callable(uint, uint): string $columnRange)
 ```
 
-`new Sheet` makes a sheet of a workbook. `Workbook::addSheet` makes one for you.
-`$add` adds a row. `$ready` sends the rows that wait, checks that the sheet is open, and with `true` last checks for a data row. `$position` returns the column of a key.
+`new Sheet` makes a sheet of a workbook. Do not call it yourself. `Workbook::addSheet` makes the sheet and returns it.
+The other values are the functions of the workbook that write the rows and the other parts of the sheet to its file.
 
 <a id="core-novis-spreadsheet-sheet-addrow"></a>
 #### `Novis\Spreadsheet\Sheet->addRow`
@@ -58409,8 +58409,8 @@ $sheet->addValidation(string $range, Validation $rule): Sheet
 $sheet->addOutlineGroup(string $rows, ?{ collapsed?: bool } $options = null): Sheet
 ```
 
-`addOutlineGroup` puts the rows `$rows`, such as `'5:9'`, or the columns, such as `'B:D'`, in an outline group.
-Add a group of rows before its rows, and a group of columns before the first row. `collapsed` hides the group.
+`addOutlineGroup` puts rows, such as `'5:9'`, or columns, such as `'B:D'`, in a group. A person can hide and show the group in Excel with one click.
+Add a group of rows before the rows in it, and a group of columns before the first row. `collapsed` hides the group when the file opens.
 
 **Returns** `Sheet`
 
@@ -58445,7 +58445,7 @@ $sheet->addConditionalFormat(string $range, Conditional $rule): Sheet
 $sheet->addImage(string $cell, bytes $data, ?{ width?: float, height?: float, offsetX?: float, offsetY?: float } $options = null): Sheet
 ```
 
-`addImage` puts the PNG, JPEG or GIF image `$data` at the cell `$cell`. Any other format, or a file that is cut short, throws a `LogicError`.
+`addImage` puts the PNG, JPEG or GIF image `$data` at the cell `$cell`. Any other format, or a file with bytes missing at the end, throws a `LogicError`.
 `width` and `height` are in pixels. `offsetX` and `offsetY` move the image from the corner of the cell. An image that ends after column `XFD` or row 1,048,576 throws.
 
 **Returns** `Sheet`
@@ -58458,7 +58458,7 @@ $sheet->addChart(string $cell, Chart $chart, ?{ width?: float, height?: float } 
 ```
 
 `addChart` puts `$chart` at the cell `$cell`. `width` and `height` are in pixels. The chart is 480 by 288 pixels if you do not set them.
-A series range from `column` grows with the sheet, so a chart you add before the last row still shows every row.
+With a series range from `column`, the chart also shows the rows you add after it.
 
 **Returns** `Sheet`
 
@@ -59851,7 +59851,7 @@ The state of a background job, as `Core\Queue::status` returns it. There are fiv
 <a id="enum-novis-image-format"></a>
 #### `Novis\Image\Format`
 
-An image file format. `Avif` is the AVIF format, and `Jxl` is the JPEG XL format. `Image::format` sets the format of the file that `encode` returns. `encode` runs every step you added to the image and returns the finished file. `Image::open` reads all eight formats. `encode` writes only `Jpeg`, `Png`, `Webp`, `Gif` and `Avif`.
+An image file format. `Avif` is the AVIF format, and `Jxl` is the JPEG XL format. `Image::withFormat` sets the format of the file that `encode` returns. `encode` runs every step you added to the image and returns the finished file. `Image::open` reads all eight formats. `encode` writes only `Jpeg`, `Png`, `Webp`, `Gif` and `Avif`.
 
 | Case | Meaning |
 |---|---|
@@ -59867,7 +59867,7 @@ An image file format. `Avif` is the AVIF format, and `Jxl` is the JPEG XL format
 <a id="enum-novis-image-image-gravity"></a>
 #### `Novis\Image\Image::Gravity`
 
-A position in an image, written as a direction from the center. Image programs call this position the gravity. `North` is the top, `East` is the right, `South` is the bottom and `West` is the left. `resize`, `composite` and `text` use it to place the image or the text. When `resize` cuts off part of the image, it keeps the part at this position. The default is `Center`.
+A position in an image, written as a direction from the center. Image programs call this position the gravity. `North` is the top, `East` is the right, `South` is the bottom and `West` is the left. `resized`, `withOverlay` and `withText` use it to place the image or the text. When `resized` cuts off part of the image, it keeps the part at this position. The default is `Center`.
 
 | Case | Meaning |
 |---|---|
@@ -59884,7 +59884,7 @@ A position in an image, written as a direction from the center. Image programs c
 <a id="enum-novis-image-image-fit"></a>
 #### `Novis\Image\Image::Fit`
 
-How `resize` fits an image into a box of the width and height you give. `Cover` fills the whole box and cuts off what does not fit. It is the default. `Contain` shows the whole image in the box, and the empty part is transparent. `Fill` stretches the image to the size of the box, so its shape changes. `Inside` keeps the whole image and its shape, and the result is no larger than the box. `Outside` keeps the whole image and its shape, and the result is no smaller than the box.
+How `resized` fits an image into a box of the width and height you give. `Cover` fills the whole box and cuts off what does not fit. It is the default. `Contain` shows the whole image in the box, and the empty part is transparent. `Fill` stretches the image to the size of the box, so its shape changes. `Inside` keeps the whole image and its shape, and the result is no larger than the box. `Outside` keeps the whole image and its shape, and the result is no smaller than the box.
 
 | Case | Meaning |
 |---|---|
@@ -59897,7 +59897,7 @@ How `resize` fits an image into a box of the width and height you give. `Cover` 
 <a id="enum-novis-image-image-filter"></a>
 #### `Novis\Image\Image::Filter`
 
-The filter `resize` uses to calculate the new pixels. A faster filter gives a softer result, and a slower filter keeps more detail. `Nearest` is the fastest. It copies the closest pixel and keeps hard edges, so it suits pixel art. `Bilinear` is fast, and the result is a little soft. `CatmullRom` and `Mitchell` are slower and sharper than `Bilinear`. `Lanczos3` is the slowest and keeps the most detail. It is the default.
+The filter `resized` uses to calculate the new pixels. A faster filter gives a softer result, and a slower filter keeps more detail. `Nearest` is the fastest. It copies the closest pixel and keeps hard edges, so it suits pixel art. `Bilinear` is fast, and the result is a little soft. `CatmullRom` and `Mitchell` are slower and sharper than `Bilinear`. `Lanczos3` is the slowest and keeps the most detail. It is the default.
 
 | Case | Meaning |
 |---|---|
@@ -59910,7 +59910,7 @@ The filter `resize` uses to calculate the new pixels. A faster filter gives a so
 <a id="enum-novis-image-image-axis"></a>
 #### `Novis\Image\Image::Axis`
 
-The direction `flip` mirrors an image in.
+The direction in which `flipped` mirrors an image. `Horizontal` swaps left and right, and `Vertical` swaps top and bottom.
 
 | Case | Meaning |
 |---|---|
@@ -59920,7 +59920,7 @@ The direction `flip` mirrors an image in.
 <a id="enum-novis-image-image-blend"></a>
 #### `Novis\Image\Image::Blend`
 
-How `composite` mixes the colours of the image on top with the colours of the image below it. `Normal` puts the top image over the lower one. It is the default. `Multiply` makes the result darker. White on top changes nothing. `Screen` makes the result lighter. Black on top changes nothing. `Overlay` makes dark parts darker and light parts lighter, so the contrast is higher. `Darken` keeps the darker of the two values for each of red, green and blue. `Lighten` keeps the lighter of the two values for each of red, green and blue.
+How `withOverlay` mixes the colours of the image on top with the colours of the image below it. `Normal` puts the top image over the lower one. It is the default. `Multiply` makes the result darker. White on top changes nothing. `Screen` makes the result lighter. Black on top changes nothing. `Overlay` makes dark parts darker and light parts lighter, so the contrast is higher. `Darken` keeps the darker of the two values for each of red, green and blue. `Lighten` keeps the lighter of the two values for each of red, green and blue.
 
 | Case | Meaning |
 |---|---|
@@ -59934,7 +59934,7 @@ How `composite` mixes the colours of the image on top with the colours of the im
 <a id="enum-novis-image-image-align"></a>
 #### `Novis\Image\Image::Align`
 
-How the lines of a text are aligned.
+How `withText` and `Image::measureText` line up the lines of a text. The default is `Left`.
 
 | Case | Meaning |
 |---|---|
@@ -60172,7 +60172,7 @@ The kind of data that `Locale::resolve` checks. For each locale tag, such as `de
 <a id="enum-novis-pdf-document-standard"></a>
 #### `Novis\Pdf\Document::Standard`
 
-The set of rules that a PDF file follows. PDF/A is for files kept in an archive for many years. PDF/UA is for files that a screen reader (a program that reads text aloud) can read. `PdfA2b` and `PdfA3b` are PDF/A, and `PdfUa1` is PDF/UA. Only `PdfA3b` can contain an electronic invoice. This is an invoice as an XML file that a program can read. `Document::invoiceXml` attaches this XML file to the document.
+The set of rules that a PDF file follows. PDF/A is for files kept in an archive for many years. PDF/UA is for files that a screen reader (a program that reads text aloud) can read. `PdfA2b` and `PdfA3b` are PDF/A, and `PdfUa1` is PDF/UA. Only `PdfA3b` can contain an electronic invoice. An electronic invoice is an invoice as an XML file that a program can read. `Document::withInvoiceXml` attaches this XML file to the document.
 
 | Case | Meaning |
 |---|---|
@@ -60975,7 +60975,7 @@ headers and body, and the response's status, headers and body. The values of `Au
 `Cookie`, `Set-Cookie` and `Proxy-Authorization` are replaced with `[redacted]`. A body is stored
 as the program read it, up to `[limits] request_body`. A longer body is cut at that size. A body the
 program did not read is not stored. A program can read a body into a class with
-`Core\Request::jsonAs<X>()` or `postAs<X>()`. The decoder fills each `secret` property of `X`, and
+`Core\Request::jsonAs<X>()` or `formFieldsAs<X>()`. The decoder fills each `secret` property of `X`, and
 the stored body has `[redacted]` in place of that value. If Novis cannot find those values in the
 body, the body is not stored. That is the case for a multipart form, for example. A body the program
 read another way is stored as it was read, so a password in it is in the index. The files are in a
@@ -62192,10 +62192,10 @@ command-line switch sets a directive: what the file says is what is in force.
   unless you changed it. After you change it, Novis never touches it again.
 - `--config <path>` (on any subcommand) names the file to read instead. Then `nvs` reads neither
   `nvs.toml`. Repeat it to read several files in order.
-- Every relative path inside a file — an include, a capability root, an `[[app]]` key, a secret
-  file — resolves against the directory of the file it is written in.
-- A key the binary does not know refuses the run before the program starts (`E0601`), naming the
-  block and the keys it expected. A typo can never read as "granted nothing".
+- A relative path inside a file starts at the folder of that file. This is true for an include, a
+  capability folder, an `[[app]]` key and a secret file.
+- An unknown key stops the run before the program starts, with the error `E0601`. The error names
+  the block and the keys it expected. So a misspelled key always gives an error.
 
 ```toml file=nvs.toml
 [limits]
@@ -62375,12 +62375,13 @@ allowed hosts, and `[server] development_hosts` adds more.
 
 ### `[capabilities]`
 
-Every effect outside a program's own memory is guarded by a named capability: reading a file,
-writing one, starting another script. Some capabilities have a default by run kind, below.
+A capability is a named permission. A program needs one for every effect outside its own memory,
+such as reading a file, writing a file or starting another script. Some capabilities have a default
+that depends on how the program runs: on the command line or in a server.
 
 Files have their own defaults. A command-line run (`nvs run`, `nvs test`) may read and write every
-file. Server work may read the files in its app folder, but no dot-file (such as `.env`) and no
-`nvs.toml`. It may write only in the directories `Core\IO::createTemporaryDirectory` made for it.
+file. Server work may read the files in its app folder, except `nvs.toml` and files whose name
+starts with `.` (such as `.env`). It may write only in the directories `Core\IO::createTemporaryDirectory` made for it.
 
 Outbound connections have a default too. Every run may connect to any public host. A loopback
 address (`127.0.0.1`, `::1`) is allowed on a command-line run, and in server work when the
@@ -62397,8 +62398,9 @@ or a directory `Core\IO::createTemporaryDirectory` made. A script anywhere else 
 Every run may read environment variables. A package may read them only when its `[grants]` line
 lists `"env"`.
 
-The default for every other capability is **denied** until a grant is written. A written key
-replaces its default, so `false` and an empty list both deny. The roster is closed:
+Every other capability is **denied** until you write a grant for it. A grant is a key under
+`[capabilities]`. A key you write replaces its default, so `false` and an empty list both deny.
+This table is the complete list of capabilities:
 
 | Capability | Guards | Scope of a grant |
 |---|---|---|
@@ -62406,21 +62408,21 @@ replaces its default, so `false` and an empty list both deny. The roster is clos
 | `fs.write` | `Core\IO::write` and every other write | the directories writable |
 | `script.spawn` | `spawn script` | the directories a target script may live under |
 | `net.connect` | outbound connections | the hosts reachable |
-| `net.listen` | binding an endpoint | the `address:port` endpoints bindable, matched exactly; it carries no address policy, and `net.connect` does not imply it |
-| `net.local` | connecting to or binding a socket path | the paths or directories reachable; it follows from `net.connect` no more than `net.connect` follows from it |
+| `net.listen` | binding an endpoint | the `address:port` endpoints bindable, matched exactly. A `net.connect` grant does not give it |
+| `net.local` | connecting to or binding a socket path | the paths or directories reachable. `net.connect` and `net.local` are separate grants |
 | `process.exec` | starting a subprocess | the programs runnable |
 | `debug.trace`, `debug.profile` | writing a trace or a profile | where it may be written |
 | `db.connect`, `db.open` | opening a `[db.<name>]` block; a program-supplied database address | the block names; the hosts |
-| `db.schema` | issuing DDL — `Core\Db\Schema::applySafe` and its risky twin | the block names |
+| `db.schema` | changing tables with `Core\Db\Schema::applySafe` and `applyIncludingRisky` | the block names |
 | `mail.send` | sending through a `[mail.<name>]` block | the block names |
-| `cache.shared` | reaching the store `[cache.shared] url` names — `Core\Cache::shared()` and `Core\RateLimit::consume` | unscoped: a deployment has one shared store |
-| `queue.purge` | removing a queue's rows — `Core\Queue::delete` and `purge` | the queue names |
-| `env` | reading environment variables — `Core\Env::get`, `secret` and `all` — and `Core\Config::secret` | unscoped; write `env = true` under `[capabilities]` |
+| `cache.shared` | the store that `[cache.shared] url` names, used by `Core\Cache::shared()` and `Core\RateLimit::consume` | `true` or `false`: a deployment has one shared store |
+| `queue.purge` | removing a queue's rows with `Core\Queue::delete` and `purge` | the queue names |
+| `env` | reading environment variables with `Core\Env::get`, `secret` and `all`, and `Core\Config::secret` | `true` or `false`; write `env = true` under `[capabilities]` |
 
-A capability whose member has not landed yet is still accepted here rather than refused, so a grant
-written today keeps meaning the same thing on the build that starts asking for it.
+Every capability in the table is accepted in `nvs.toml`, also one that no method of this version
+checks yet.
 
-A grant is spelled one of three ways, and a dotted key is the same as a nested block:
+A grant is a list or `true` or `false`. A dotted key is the same as a nested block:
 
 ```toml
 [capabilities.fs]
@@ -62431,12 +62433,13 @@ write = false                         # denied (the same as an empty list)
 script.spawn = true                   # unrestricted
 ```
 
-A path is checked after it is canonicalized, then by whole path components: `data/../etc` is not
-under `data`, and `data2` is not under `data`. Being able to read a file is not permission to run
-it as a script.
+Novis first turns a path into its full form, without `..` or links. It then compares whole folder
+names. So `data/../etc` is not under `data`, and `data2` is not under `data`. A grant to read a file
+does not allow running it as a script.
 
-**A denial is an ordinary `RuntimeError`**, thrown at the call, naming the member, the capability
-and the argument — so a program can catch it and carry on, unlike a limit breach:
+**A denied call throws an ordinary `RuntimeError`.** Its message names the method, the capability
+and the argument. A program can catch it and go on. In this example, the program catches two
+denied calls:
 
 ```toml file=nvs.toml
 [capabilities.fs]
@@ -63413,7 +63416,7 @@ manager. The server accepts no new connection, finishes the work it has, and the
 A WebSocket is closed with the code `1001` (`going away`), so its client can connect again.
 
 `drain_timeout` is the longest time that a connection with no request stays open after it sees
-the drain. `false` and `0` are not allowed:
+the drain. You cannot set it to `false` or `0`:
 
 ```toml
 [server]
@@ -63796,15 +63799,16 @@ stock
 A PHP project usually installs a set of development tools with Composer. Novis has their work built
 into the toolchain or into the language itself:
 
-- **PHPUnit** → `#[Test]` methods, `Core\Test` assertions and `nvs test` are the framework — data
-  rows, fixtures, skip-with-reason, retries, JUnit and JSON output. See [testing](#lang-testing).
-- **PHPStan / Psalm** → `nvs check` is the compiler, and it already checks what their strictest
-  levels check: every variable typed, every method resolved at compile time, every path returning,
-  every property initialized — plus `tainted`/`secret` flow, which is Psalm's taint mode as a type
-  rule. There are no levels and no baseline file, because there is no untyped code to bridge.
-- **PHP CS Fixer / PHP_CodeSniffer** → the style rules that catch bugs are compile errors here —
-  identifier casing, a written visibility on every member, one way to write each construct — with
-  no suppression and nothing to configure.
+- **PHPUnit** → `#[Test]` methods, `Core\Test` assertions and `nvs test` are the test framework.
+  They have data rows, fixtures, a skip with a reason, retries, and JUnit and JSON output. See
+  [testing](#lang-testing).
+- **PHPStan / Psalm** → `nvs check` runs the compiler. It checks what their strictest levels check:
+  every variable has a type, every method is found at compile time, every path returns, and every
+  property is set. It also checks where `tainted` and `secret` values go. All code has types, so
+  there are no levels and no baseline file.
+- **PHP CS Fixer / PHP_CodeSniffer** → the style rules that catch bugs are compile errors in Novis.
+  Examples are the case of a name, a written visibility on every method and property, and one way to
+  write each language feature. You cannot turn them off, and there is nothing to configure.
 
 A test is a method with `#[Test]` in any class. `nvs test` runs this file and reports three tests:
 one for each `#[TestWith]` row, and one that is skipped with its reason.
@@ -64306,7 +64310,7 @@ Changes since package.lock:
 The report lists each new version, each capability a package now requests or no longer requests, a
 change of owners and a change of repository. A new package and a package that is no longer needed are
 listed too. The report changes no grant line, so a capability that a package now requests stays
-refused until you add it.
+denied until you add it.
 
 When two packages need different major versions of a third package, the higher version is used. The
 report then names the packages that asked for the older version. Your program is checked when it

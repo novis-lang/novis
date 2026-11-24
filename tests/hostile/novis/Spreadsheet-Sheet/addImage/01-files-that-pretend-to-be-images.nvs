@@ -39,7 +39,7 @@ Attack::attempt(3, $png, 0.0);
 Attack::attempt(3, $png, -50.0);
 Attack::attempt(3, $png, 10000000.0);
 
-// 4. A good image at a cell outside the sheet, and at a range.
+// 4. A good image at a cell outside the sheet, and at a range such as `A1:B2` instead of one cell.
 try {
     var $book = Workbook::createInMemory();
     $book->addSheet('Shop')->addImage('XFE1', $png);

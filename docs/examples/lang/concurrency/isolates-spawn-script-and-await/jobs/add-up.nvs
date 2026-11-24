@@ -1,5 +1,5 @@
 <?nvs
-// This file reads the value the parent gave in `arguments:`.
+// This file reads the numbers the parent gave in `arguments:` and returns their sum.
 array<int> $numbers = Core\Script::arguments() as array<int>;
 int $total = 0;
 foreach ($numbers as int $n) {

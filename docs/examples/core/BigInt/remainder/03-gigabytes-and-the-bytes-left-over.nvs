@@ -1,6 +1,6 @@
 <?nvs
-// Shows a report line for a number of bytes that is larger than an `int` holds:
-// how many whole gigabytes it is, and how many bytes are left over.
+// Shows a number of bytes that is too large for an `int`, as whole gigabytes
+// and the bytes that are left over.
 
 var $perGigabyte = Core\BigInt::parse('1073741824');
 var $written = Core\BigInt::parse('98765432109876543210');

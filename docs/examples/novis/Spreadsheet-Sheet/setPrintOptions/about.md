@@ -10,5 +10,5 @@ tall (`height`) the sheet is printed on, and `0` means as many as needed. `margi
 throws a `LogicError`. Any other `orientation` throws a `LogicError`. A CSV file has no page setup,
 so `setPrintOptions` does nothing there.
 
-**The examples below** print a wide report on one page, repeat the header row on every page, and
-show the error for a fit set after the first row.
+**The examples below** print a wide report on one page, and repeat the header row on every page. The
+last one shows the error for a `fitToPage` set after the first row.

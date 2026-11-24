@@ -11,6 +11,6 @@ development mode.
 `headers` sets the request headers, and a header with a line break throws a `RuntimeError`. Every
 request has a time limit, `deadline`.
 
-**Good to know:** the examples run without a network, so every request in them is refused before it
-is sent. They show one refused address, a header with a line break, and a shop that uses a saved
-exchange rate when the rate service cannot be reached.
+**Good to know:** the examples run without a network, so every request in them throws an error before
+it is sent. They show one address that is not allowed, and a header with a line break. The last one is a shop
+that uses a saved exchange rate when the rate service cannot be reached.

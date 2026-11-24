@@ -5,7 +5,7 @@ this standard set.
 
 - `PdfA2b` is PDF/A-2b, for files kept in an archive for many years.
 - `PdfA3b` is PDF/A-3b. It is also for archives. It is the only standard that can contain an
-  electronic invoice. This is an invoice as an XML file that a program can read.
+  electronic invoice. An electronic invoice is an invoice as an XML file that a program can read.
   `Document::withInvoiceXml` returns a copy of the document with this XML file attached.
 - `PdfUa1` is PDF/UA-1, for files that a screen reader (a program that reads text aloud) can read.
   The HTML of the document needs a `<title>` element, and every image needs `alt` text.

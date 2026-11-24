@@ -1,7 +1,7 @@
 Removes the colours of an image and keeps how light or dark each pixel is.
 
-Every pixel gets the same red, green and blue value. The value is the light of the pixel as a person
-sees it, so green counts more than red, and red counts more than blue. Transparency does not change.
+Every pixel gets the same red, green and blue value. The value is how light the pixel looks to a
+person. Green counts more than red, and red counts more than blue. Transparency does not change.
 
 `grayscaled` returns a new `Image` and does not change the one you called it on. The work happens
 when `encode`, `encodeVariants` or `raw` runs.

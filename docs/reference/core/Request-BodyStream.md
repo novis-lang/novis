@@ -20,7 +20,7 @@ request carried no body at all.
 still starts at the first byte. Call it before the loop starts: after that it throws `LogicError`.
 
 **Naming the walk is the reading.** `bodyStream()` claims the body when the walk is built, long before a
-single byte moves, so `body()`, `post()`, `json()`, `jsonAs<T>()` or `files()` after it is refused with
+single byte moves, so `body()`, `formField()`, `json()`, `jsonAs<T>()` or `files()` after it is refused with
 `LogicError` whether or not the loop ever ran — and refused the same way in the other direction. That
 refusal is a defect in the program, never something a peer can provoke; the split between the readers
 that share the body and the ones that consume it is

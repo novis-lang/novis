@@ -12,7 +12,7 @@ array<int> $chosen = Core\Cli::selectMany('Which reports should run?', $hours, {
     labels: fn(int $hour): string => Core\Str::format('every %d hour(s)', $hour),
 });
 
-// The result holds the numbers themselves, so you can calculate with them. The
+// The result contains the numbers themselves, so you can calculate with them. The
 // chosen numbers are 1 and 24, so this prints 25.
 int $total = 0;
 foreach ($chosen as int $hour) {

@@ -1,5 +1,5 @@
 <?nvs
-// Attack: a program takes very large sets away from each other, and a set away from itself.
+// Attack: a program calls `difference` on very large sets, and on a set with itself.
 // It keeps every result until memory runs out. The program should stop at its memory limit and must not crash.
 // hostile: ends-early 5 FATAL
 // hostile: timeout-ms 20000

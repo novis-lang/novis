@@ -1,6 +1,6 @@
 <?nvs
 // Shows how to report a balance that is stored in its smallest unit. One coin
-// is 1000000000000000000 of those units, which is more than an `int` holds.
+// is 1000000000000000000 of those units, which is more than an `int` can store.
 
 var $perCoin = Core\BigInt::parse('1000000000000000000');
 array<string> $balances = [

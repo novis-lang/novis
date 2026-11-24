@@ -11,8 +11,8 @@ final class Comparison
     /// @param $differingPixels the number of pixels with a delta above `tolerance`
     /// @param $maxDelta the largest difference in one channel, from 0 to 255
     /// @param $ssim the structural similarity of the two images, `1.0` for identical images
-    /// @param $differenceImage a PNG image with the differing pixels in red.
-    /// It is `null` unless `render` is `true`.
+    /// @param $differenceImage a PNG image with the differing pixels in red, or `null`.
+    /// `Image::compare` draws it only with the option `render: true`.
     public function constructor(
         public readonly bool $identical,
         public readonly uint $differingPixels,

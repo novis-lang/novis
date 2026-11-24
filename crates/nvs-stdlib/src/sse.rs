@@ -444,15 +444,15 @@ const SEND_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Sse->setRetryDelay`'s reference card — `rule:core-api/reference-card`.
 const RETRY_DOC: MethodDoc = MethodDoc {
-    short: "Tells the client how long to wait before it reconnects. It is sent as a separate \
-            block, and the client sees no event.",
+    short: "Tells the client how long to wait before it reconnects. It is sent as a `retry:` \
+            line in the stream. It is not an event, so the client's event handlers do not run.",
     params: &[ParamDoc {
         name: "after",
         desc: "How long the client waits before it reconnects. It is sent in whole milliseconds. \
                A wait shorter than one millisecond is sent as `0`, without an error.",
         shape: &[],
     }],
-    ret: "Nothing. The block is added to the response body.",
+    ret: "Nothing. The `retry:` line is added to the response body.",
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "`$after` is negative. A wait cannot be shorter than zero.",

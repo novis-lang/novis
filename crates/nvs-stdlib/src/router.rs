@@ -612,7 +612,8 @@ const METHODS_FOR_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Router::dispatch`'s reference card — `rule:core-api/reference-card`.
 const DISPATCH_DOC: MethodDoc = MethodDoc {
-    short: "Calls the method of the route that the request matched. First, `$gate->allows()` \
+    short: "Calls the method of the route that the request matched. Each value captured from \
+            the path goes to the method parameter with the same name. First, `$gate->allows()` \
             checks the request. When no route method runs, `dispatch` sets the status and calls \
             `$gate->refused()`. When the method throws an error, `dispatch` sets the status \
             `500` and calls `$gate->failed()`.",
@@ -624,8 +625,7 @@ const DISPATCH_DOC: MethodDoc = MethodDoc {
     ret: "Nothing. The route method or the gate writes the response, for example with `echo` \
           or `Core\\Response::sendHtml`. When the gate implements `Core\\Router\\Responder`, \
           `dispatch` passes the value that a route method returns to `$gate->respond()`. \
-          Otherwise `dispatch` does not send that value. Each value captured from the path goes \
-          to the method parameter with the same name. An error that `refused()`, `failed()` or \
+          Otherwise `dispatch` does not send that value. An error that `refused()`, `failed()` or \
           `respond()` throws is thrown by `dispatch`.",
     errors: &[ErrorDoc {
         error: "LogicError",

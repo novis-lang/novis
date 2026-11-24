@@ -1,5 +1,5 @@
 <?nvs
-// Attack: `nanoseconds` reads the last nanosecond of the day, the wrap at midnight, and values that are too large.
+// Attack: `nanoseconds` reads the last nanosecond of the day, the change to midnight, and values that are too large.
 // Each result should be from 0 to 999999999 and match the time. A wrong result throws an error.
 
 final class Expect
@@ -37,7 +37,7 @@ foreach ($tooLarge as uint $n) {
 }
 Expect::same('step 2', $thrown as string, '4');
 
-// 3. Steps of 999999937 nanoseconds go past midnight many times.
+// 3. The time moves in steps of 999999937 nanoseconds and passes midnight many times.
 // After each step, `nanoseconds` must match the sum of the steps, and `with` must give the same time back.
 var $clock = $last;
 int $want = 999999999;
@@ -51,6 +51,6 @@ while ($step < 200000) {
     $step = $step + 1;
 }
 
-// 4. The largest number of nanoseconds, forward. 9223372036854775807 nanoseconds ends in 854775807.
+// 4. Midnight plus the largest `int` number of nanoseconds. That number ends in 854775807, so the result is 854775807.
 Expect::same('step 4', Core\Time\TimeOfDay::at(0, 0)->plus(9223372036854775807, Core\Unit::Nanosecond)->nanoseconds() as string, '854775807');
 echo "all nanoseconds are right\n";

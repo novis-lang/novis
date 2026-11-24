@@ -4,8 +4,8 @@ with `echo`, in order. When the program used a method such as `Core\Response::se
 what that method sent. If the program wrote nothing, the result is an empty string.
 
 A request fails when the program throws an error that it does not catch. Then the result is also
-an empty string, because the server sends no body for a failed request. A test gets the same
-response as a real visitor. A `HEAD` request also gives an empty string.
+an empty string, because the server sends no body for a failed request. A real visitor gets the
+same empty body. A `HEAD` request has no body either, so the result is also an empty string.
 
 You can call `body()` as often as you like. Each call returns the same text.
 

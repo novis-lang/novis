@@ -13,7 +13,7 @@ pass to `Core\IO::readText`, `Core\IO::write` and the other file methods.
 
 A program you start from the command line may read any path. On a server, a program may read only
 the files in its application folder, except `nvs.toml` and names that start with `.`. Any other
-path needs the `fs.read` capability, for both paths.
+path needs the `fs.read` capability. This holds for `$base` and for the joined path.
 
-**In plain words:** it is a guard at the door of one folder. A name that leads out of the folder
-does not get past it.
+**In plain words:** it checks that a name stays inside one folder. A name that leads out of the
+folder throws an error.

@@ -8,4 +8,4 @@ two numbers does not change it either. When one of them is zero the result is th
 because every number divides zero exactly. Two zeroes give 0.
 
 **Good to know:** `Core\Math::gcd` does the same for plain `int` values. Use `Core\BigInt::gcd` when
-a number may grow past what an `int` holds.
+a number may grow too large for an `int`.

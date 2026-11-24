@@ -5,8 +5,8 @@ use Novis\Spreadsheet\Workbook;
 var $book = Workbook::createInMemory();
 $book->addSheet('Prices')->addRow(['Pen', 1.5]);
 
-// `C3` is a cell, `1st` starts with a digit, and `Price list` has a space.
-// Excel does not see a difference between capital and small letters, so the last name is used twice.
+// `C3` is a cell, `1st` starts with a digit, and `Price list` has a space. `Prices.pen` is allowed.
+// Excel ignores capital letters, so `PRICES.PEN` repeats `Prices.pen` and throws a `LogicError`.
 array<string> $names = ['C3', '1st', 'Price list', 'Prices.pen', 'PRICES.PEN'];
 foreach ($names as string $name) {
     try {

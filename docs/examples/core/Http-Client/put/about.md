@@ -11,6 +11,6 @@ development mode.
 A `PUT` request sent twice gives the same result, so `retryAttempts` can try it again with no other
 option. `retryBackoff` is the wait between two tries.
 
-**Good to know:** the examples run without a network, so every request in them is refused before it
-is sent. They show one refused address, the wait between two tries, and a job that saves stock
+**Good to know:** the examples run without a network, so every request in them throws an error before
+it is sent. They show one address that is not allowed, the wait between two tries, and a job that saves stock
 counts on a warehouse server.

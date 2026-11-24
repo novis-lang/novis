@@ -1,5 +1,5 @@
 <?nvs
-// Shows that `isSecurityGroup` reads the flag of the object you call it on, also of a changed copy.
+// Shows that `isSecurityGroup` also works on a copy made with `with`, and the original does not change.
 // requires: samba-ad
 
 var $corp = Core\Ldap::connect('corp');

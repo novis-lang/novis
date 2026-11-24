@@ -1787,8 +1787,9 @@ const APPEND_ALL_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::difference`'s reference card — `rule:core-api/reference-card`.
 const DIFF_DOC: MethodDoc = MethodDoc {
-    short: "Returns the entries of `$a` that `$b` does not have. Entries are compared by strict \
-            identity. The options choose what is compared, and how.",
+    short: "Returns the entries of `$a` that `$b` does not have. Two entries are the same only \
+            when they have the same type and the same value. The options choose what is \
+            compared, and how.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1830,8 +1831,9 @@ const DIFF_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Arr::intersection`'s reference card — `rule:core-api/reference-card`.
 const INTERSECT_DOC: MethodDoc = MethodDoc {
-    short: "Returns the entries of `$a` that `$b` also has. Entries are compared by strict \
-            identity. The options choose what is compared, and how.",
+    short: "Returns the entries of `$a` that `$b` also has. Two entries are the same only when \
+            they have the same type and the same value. The options choose what is compared, \
+            and how.",
     params: &[
         ParamDoc {
             name: "a",
@@ -1889,8 +1891,8 @@ const COUNT_BY_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "One `uint` per distinct group, keyed by the group in first-occurrence order. `1` and \
-          `\"1\"` are the same group.",
+    ret: "One `uint` per distinct group, keyed by the group, in the order each group first \
+          appears. `1` and `\"1\"` are the same group.",
     errors: &[],
 };
 

@@ -4,8 +4,8 @@
 
 class Notifier
 {
-    // Sends the message to each stored subscription. A subscription is kept when its send
-    // succeeds or fails, and deleted when `isGone()` returns `true`. Returns the subscriptions to keep.
+    // Sends the message to each subscription and returns the ones to keep. A failed
+    // send keeps its subscription. Only a send whose `isGone()` is `true` deletes it.
     public static function notify(array<string> $stored, string $text, Core\Crypto\KeyPair $vapid): array<string>
     {
         bytes $payload = Core\Encoding::encodeText($text, Core\Charset::Utf8);

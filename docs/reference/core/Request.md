@@ -3,14 +3,14 @@ summary: the request a program is answering — query, form fields, cookies, hea
 keywords: request, query string, query parameters, form fields, POST data, cookies, headers, request body, JSON body, multipart, upload, HEAD, request method, path, tainted input
 ---
 
-`Core\Request` is the whole of what arrived: `method`, `isHead`, `path`, `query`, `header`, `headers`,
+`Core\Request` is the whole of what arrived: `method`, `isHead`, `path`, `queryParameter`, `header`, `headers`,
 `cookie` and the body readers, plus `route` and `mount` for where the router put it. The host never
 fills a variable for the program. No lookup merges the query, the form fields and the cookies into
 one. Every member throws `LogicError` in a program that is
 not answering a request, so a CLI run, a scheduled script and a job worker say "no request arrived"
 rather than answering empty.
 
-**The body is read once, and every reader is one of two kinds.** `body()`, `post()`, `postAs<T>()`,
+**The body is read once, and every reader is one of two kinds.** `body()`, `formField()`, `formFieldsAs<T>()`,
 `json()` and `jsonAs<T>()` **buffer**: the first of them fills the request's hold, bounded by
 `[limits] request_body`, and any of the five may follow any other in any order and answer the same
 octets. `bodyStream()` and
@@ -25,14 +25,13 @@ declared — a header is what a peer wrote, not what a body is — and both thro
 document that is malformed, too deep, or absent altogether. `json()` keeps what it decoded and
 `jsonAs<T>()` hydrates per call, so writing to what a second call answered leaves the first alone.
 
-`queryAs<T>()` and `postAs<T>()` are that idea over the parameters rather than the body: each reads what
-`query()` and `post()` parse as the type written at the call site — an inline shape, `{ page: uint }`, or a
-class carrying `#[Core\Json\Derive]` — converting every named field with `as` and leaving the keys the
-type does not name behind. Called with nothing, the whole parameter set is the subject, and that is the
-only way a program reaches it: there is no `query(): array<mixed>`. Called with
-`{ name: "filter" }`, the subject is the one bracket-named subtree under that name. A field that is absent,
-or that holds a value `as` refuses for its declared type, is a `ParseError` listing every field that
-failed at its own path — so a form reports the whole list rather than the first item of it.
+`queryParametersAs<T>()` and `formFieldsAs<T>()` do the same for the query string and the form. Each
+reads what `queryParameter()` and `formField()` read as the type `T` that you write at the call. `T` is an
+inline shape, such as `{ page: uint }`, or a class with `#[Core\Json\Derive]`. Each field that `T` names
+is converted with `as`, and the other keys are left out. Without arguments, the method reads every
+parameter. This is the only way to read all of them at once. With `{ name: "filter" }`, it reads the
+nested values under that one name. A field that is missing, or that `as` cannot convert, gives a
+`ParseError`. The error lists every wrong field at its own path, so a form can show all of them.
 
 Everything a peer chose is `tainted`, including the path, every header and the body, so it reaches a
 sink only through a launderer named for that sink — `echo` escapes for HTML on its own. A class hydrated

@@ -21,10 +21,10 @@ command-line switch sets a directive: what the file says is what is in force.
   unless you changed it. After you change it, Novis never touches it again.
 - `--config <path>` (on any subcommand) names the file to read instead. Then `nvs` reads neither
   `nvs.toml`. Repeat it to read several files in order.
-- Every relative path inside a file — an include, a capability root, an `[[app]]` key, a secret
-  file — resolves against the directory of the file it is written in.
-- A key the binary does not know refuses the run before the program starts (`E0601`), naming the
-  block and the keys it expected. A typo can never read as "granted nothing".
+- A relative path inside a file starts at the folder of that file. This is true for an include, a
+  capability folder, an `[[app]]` key and a secret file.
+- An unknown key stops the run before the program starts, with the error `E0601`. The error names
+  the block and the keys it expected. So a misspelled key always gives an error.
 
 ```toml file=nvs.toml
 [limits]
@@ -205,12 +205,13 @@ allowed hosts, and `[server] development_hosts` adds more.
 <!-- primer -->
 # `[capabilities]`
 
-Every effect outside a program's own memory is guarded by a named capability: reading a file,
-writing one, starting another script. Some capabilities have a default by run kind, below.
+A capability is a named permission. A program needs one for every effect outside its own memory,
+such as reading a file, writing a file or starting another script. Some capabilities have a default
+that depends on how the program runs: on the command line or in a server.
 
 Files have their own defaults. A command-line run (`nvs run`, `nvs test`) may read and write every
-file. Server work may read the files in its app folder, but no dot-file (such as `.env`) and no
-`nvs.toml`. It may write only in the directories `Core\IO::createTemporaryDirectory` made for it.
+file. Server work may read the files in its app folder, except `nvs.toml` and files whose name
+starts with `.` (such as `.env`). It may write only in the directories `Core\IO::createTemporaryDirectory` made for it.
 
 Outbound connections have a default too. Every run may connect to any public host. A loopback
 address (`127.0.0.1`, `::1`) is allowed on a command-line run, and in server work when the
@@ -227,8 +228,9 @@ or a directory `Core\IO::createTemporaryDirectory` made. A script anywhere else 
 Every run may read environment variables. A package may read them only when its `[grants]` line
 lists `"env"`.
 
-The default for every other capability is **denied** until a grant is written. A written key
-replaces its default, so `false` and an empty list both deny. The roster is closed:
+Every other capability is **denied** until you write a grant for it. A grant is a key under
+`[capabilities]`. A key you write replaces its default, so `false` and an empty list both deny.
+This table is the complete list of capabilities:
 
 | Capability | Guards | Scope of a grant |
 |---|---|---|
@@ -236,21 +238,21 @@ replaces its default, so `false` and an empty list both deny. The roster is clos
 | `fs.write` | `Core\IO::write` and every other write | the directories writable |
 | `script.spawn` | `spawn script` | the directories a target script may live under |
 | `net.connect` | outbound connections | the hosts reachable |
-| `net.listen` | binding an endpoint | the `address:port` endpoints bindable, matched exactly; it carries no address policy, and `net.connect` does not imply it |
-| `net.local` | connecting to or binding a socket path | the paths or directories reachable; it follows from `net.connect` no more than `net.connect` follows from it |
+| `net.listen` | binding an endpoint | the `address:port` endpoints bindable, matched exactly. A `net.connect` grant does not give it |
+| `net.local` | connecting to or binding a socket path | the paths or directories reachable. `net.connect` and `net.local` are separate grants |
 | `process.exec` | starting a subprocess | the programs runnable |
 | `debug.trace`, `debug.profile` | writing a trace or a profile | where it may be written |
 | `db.connect`, `db.open` | opening a `[db.<name>]` block; a program-supplied database address | the block names; the hosts |
-| `db.schema` | issuing DDL — `Core\Db\Schema::applySafe` and its risky twin | the block names |
+| `db.schema` | changing tables with `Core\Db\Schema::applySafe` and `applyIncludingRisky` | the block names |
 | `mail.send` | sending through a `[mail.<name>]` block | the block names |
-| `cache.shared` | reaching the store `[cache.shared] url` names — `Core\Cache::shared()` and `Core\RateLimit::consume` | unscoped: a deployment has one shared store |
-| `queue.purge` | removing a queue's rows — `Core\Queue::delete` and `purge` | the queue names |
-| `env` | reading environment variables — `Core\Env::get`, `secret` and `all` — and `Core\Config::secret` | unscoped; write `env = true` under `[capabilities]` |
+| `cache.shared` | the store that `[cache.shared] url` names, used by `Core\Cache::shared()` and `Core\RateLimit::consume` | `true` or `false`: a deployment has one shared store |
+| `queue.purge` | removing a queue's rows with `Core\Queue::delete` and `purge` | the queue names |
+| `env` | reading environment variables with `Core\Env::get`, `secret` and `all`, and `Core\Config::secret` | `true` or `false`; write `env = true` under `[capabilities]` |
 
-A capability whose member has not landed yet is still accepted here rather than refused, so a grant
-written today keeps meaning the same thing on the build that starts asking for it.
+Every capability in the table is accepted in `nvs.toml`, also one that no method of this version
+checks yet.
 
-A grant is spelled one of three ways, and a dotted key is the same as a nested block:
+A grant is a list or `true` or `false`. A dotted key is the same as a nested block:
 
 ```toml
 [capabilities.fs]
@@ -261,12 +263,13 @@ write = false                         # denied (the same as an empty list)
 script.spawn = true                   # unrestricted
 ```
 
-A path is checked after it is canonicalized, then by whole path components: `data/../etc` is not
-under `data`, and `data2` is not under `data`. Being able to read a file is not permission to run
-it as a script.
+Novis first turns a path into its full form, without `..` or links. It then compares whole folder
+names. So `data/../etc` is not under `data`, and `data2` is not under `data`. A grant to read a file
+does not allow running it as a script.
 
-**A denial is an ordinary `RuntimeError`**, thrown at the call, naming the member, the capability
-and the argument — so a program can catch it and carry on, unlike a limit breach:
+**A denied call throws an ordinary `RuntimeError`.** Its message names the method, the capability
+and the argument. A program can catch it and go on. In this example, the program catches two
+denied calls:
 
 ```toml file=nvs.toml
 [capabilities.fs]

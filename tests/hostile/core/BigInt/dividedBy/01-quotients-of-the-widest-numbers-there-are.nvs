@@ -4,7 +4,7 @@
 // of the machine. The program should run to its last line.
 
 // 1. A number of about a million bits is divided by 1, a thousand times. Only
-//    the last result is kept, so the memory held must not grow.
+//    the last result is kept, so the memory the program uses must not grow.
 var $wide = Core\BigInt::of(1)->shiftedLeft(1000000)->minus(Core\BigInt::of(1));
 var $one = Core\BigInt::of(1);
 var $quotient = $wide;

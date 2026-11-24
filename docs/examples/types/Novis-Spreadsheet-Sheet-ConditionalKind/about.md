@@ -6,7 +6,7 @@ You set it with the option `kind` of `Sheet::addConditionalFormat`. The method t
 - `'cell'` is `Cell`. It compares each cell with `values`, using `operator`.
 - `'formula'` is `Formula`. A cell matches when the formula in `values` is true.
 - `'colorScale'` is `ColorScale`. It colors each cell by its value, from the `colors` you give.
-- `'dataBar'` is `DataBar`. It draws a bar in each cell, as long as its value.
+- `'dataBar'` is `DataBar`. It draws a bar in each cell. A larger value gives a longer bar.
 - `'iconSet'` is `IconSet`. It shows an icon from the set `icons` in each cell.
 - `'top'` and `'bottom'` are `Top` and `Bottom`. They match the `rank` highest or lowest values.
 - `'duplicates'` and `'unique'` are `Duplicates` and `Unique`.

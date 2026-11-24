@@ -1,7 +1,7 @@
 <?nvs
 // Shows that `isGone()` is `true` only for the status codes 404 and 410.
 
-// Four fixed replies, so the example runs without a network.
+// `Core\Test::answerHttp` gives four fixed replies, so the example runs without a network.
 Core\Test::answerHttp('https://push.example.com/send/201', 201, {});
 Core\Test::answerHttp('https://push.example.com/send/404', 404, {});
 Core\Test::answerHttp('https://push.example.com/send/410', 410, {});

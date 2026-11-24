@@ -220,8 +220,8 @@ const LABELS_DESC: &str = "The label values of this series, with the label name 
 const MISMATCH_DESC: &str = "The name is already a different kind of metric, or it already has \
                              other label names. The message shows the first call and this one. \
                              A new series above the `max_series` limit is **not** an error. \
-                             Novis does not record it and counts it, and the call returns \
-                             normally.";
+                             Novis does not record that series, but counts how many it did not \
+                             record. The call returns normally.";
 
 /// `Core\Metrics::increment`'s reference card — `rule:core-api/reference-card`.
 const INCREMENT_DOC: MethodDoc = MethodDoc {

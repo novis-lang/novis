@@ -13,8 +13,8 @@ The result is `tainted string`, because the server sends this text. Write `taint
 variable that keeps it.
 
 The text is never empty, and Novis never changes it. A version such as `14.10 (Debian 14.10-1)`
-keeps the part in brackets, because that is what the other side sent. A closed connection throws a
+keeps the part in brackets, because that is what the server sent. A closed connection throws a
 `LogicError`.
 
-The examples read the version, take the main number out of it to see what the database can do, and
-store it beside a change to the schema.
+The examples read the version, and take the main number out of it to see what the database can do.
+The last one stores the version beside a change to the schema.

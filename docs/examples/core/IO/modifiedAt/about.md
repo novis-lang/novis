@@ -5,7 +5,7 @@ Returns the time a file was last changed.
 moment everywhere. Use `->in($zone)` to show it as a date and a time of day.
 
 You can compare two instants with `compareTo`, and measure the time between them with `since`. This
-is how a program finds out whether one file is newer than another, or how old a file is.
+is how a program checks whether one file is newer than another, or how old a file is.
 
 A folder has a modification time too. When there is nothing at the path, `modifiedAt` throws an
 `IOError`.

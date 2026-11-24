@@ -35,7 +35,7 @@ Attack::attempt(2, 'https://example.com/"><script>alert(1)</script>', '<b>Open</
 Attack::attempt(2, "https://example.com/a\r\nSet-Cookie: x=1", "Open\r\nnow");
 Attack::attempt(2, 'mailto:shop@example.com?subject=<x>', '=HYPERLINK("x")');
 
-// 3. An address of 100,000 characters, and a cell of a sheet name with quotes.
+// 3. An address of 100,000 characters, and a cell on a sheet whose name has quotes.
 Attack::attempt(3, 'https://example.com/' . Core\Str::repeat('a', 100000), 'Open');
 Attack::attempt(3, "'Blog''s ''sheet'!A1", 'Open');
 

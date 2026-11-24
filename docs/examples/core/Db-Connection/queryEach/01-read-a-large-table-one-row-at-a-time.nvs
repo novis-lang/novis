@@ -12,7 +12,7 @@ foreach ($db->queryEach('select id, text from notes order by id', []) as Core\Db
     echo $row->int('id') ?? 0, ': ', $row->string('text') ?? '', "\n";
 }
 
-// The last row ended the walk, so the connection is free for this statement.
+// The loop read the last row, so the connection is free for this statement.
 echo 'rows: ', $db->query('select count(*) as n from notes', [])->first()?->int('n') ?? 0, "\n";
 
 $db->close();

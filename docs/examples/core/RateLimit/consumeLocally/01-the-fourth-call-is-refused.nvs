@@ -1,5 +1,5 @@
 <?nvs
-// Shows a limit of 3 calls per minute for one key. The fourth call is refused.
+// Shows a limit of 3 calls per minute for one key. The fourth call is not allowed.
 
 uint $call = 1;
 while ($call <= 4) {

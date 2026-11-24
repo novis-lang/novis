@@ -280,7 +280,7 @@ mod tests {
     #[test]
     fn every_reader_reads_its_own_bit_and_with_keeps_the_rest() {
         let mut ctx = Ctx::new(OutputSink::Sink);
-        // `0x40` is named by no reader. `lockedOut` is set only in the
+        // `0x40` is named by no reader. `isLockedOut` is set only in the
         // computed attribute, so its reader must read that one.
         let account = account_flags_value(0x202 | 0x40, Some(0x10), true);
         let group = group_type_value(-2_147_483_646);

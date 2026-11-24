@@ -8,10 +8,10 @@ no answer throws a `LogicError`. So a test never reaches a real service by mista
 A URL that ends in `*` matches every URL that starts with the text before it. An exact URL wins, and
 then the longest prefix wins.
 
-You can call `answerHttp` in a test and in a command-line program. In a server, it throws a
-`LogicError`. This includes requests, connections, scheduled tasks and queued jobs. So test code left
-in your program cannot fake a real service. Code that a test starts may still call it, such as a
-request sent with `Core\Test::request`.
+You can call `answerHttp` in a test and in a command-line program. In server code, it throws a
+`LogicError`. Server code is a request, a connection, a scheduled task or a queued job. So test code
+left in your program cannot fake a real service. There is one exception: a request that a test
+sends with `Core\Test::request` may call it.
 
 **The examples below** show a reply with JSON, which answer a URL gets, and a client that handles
 error statuses.

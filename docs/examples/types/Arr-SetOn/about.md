@@ -3,11 +3,10 @@ them has.
 
 `Core\Arr::SetOn` is declared in the class `Core\Arr`. `Core\Arr::difference` and `Core\Arr::intersection`
 take it as the `on` option, and compare the values by default. `Values` compares values
-alone, `Keys` compares names alone, and `Both` counts an entry as matching only when the name and the
+alone, `Keys` compares keys alone, and `Both` counts an entry as matching only when the key and the
 value both match.
 
-The answer always keeps the first array's names and its order, so the result reads like the list you
-started with, minus or plus whatever the question asked about.
+The result always keeps the keys of the first array and their order.
 
-**Good to know:** the option decides what is compared, and a key function passed alongside it maps
-that same part. Under `Keys` a key function is handed the name, not the value.
+**Good to know:** the `by` option changes the part that `on` selects before it is compared. Under
+`Keys`, the `by` function changes the key, not the value.

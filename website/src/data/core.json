@@ -2192,7 +2192,7 @@
           ],
           "returnType": "array<T>",
           "doc": {
-            "shortHtml": "Returns the entries of <code>$a</code> that <code>$b</code> does not have. Entries are compared by strict identity. The options choose what is compared, and how.",
+            "shortHtml": "Returns the entries of <code>$a</code> that <code>$b</code> does not have. Two entries are the same only when they have the same type and the same value. The options choose what is compared, and how.",
             "params": [
               {
                 "name": "a",
@@ -2268,7 +2268,7 @@
           ],
           "returnType": "array<T>",
           "doc": {
-            "shortHtml": "Returns the entries of <code>$a</code> that <code>$b</code> also has. Entries are compared by strict identity. The options choose what is compared, and how.",
+            "shortHtml": "Returns the entries of <code>$a</code> that <code>$b</code> also has. Two entries are the same only when they have the same type and the same value. The options choose what is compared, and how.",
             "params": [
               {
                 "name": "a",
@@ -2339,7 +2339,7 @@
                 "descHtml": "Called once per entry as <code>($value, $key)</code>, and may declare fewer parameters. It returns the group's name, an <code>int</code> or a <code>string</code>. Without it, the value itself is the group."
               }
             ],
-            "returnHtml": "One <code>uint</code> per distinct group, keyed by the group in first-occurrence order. <code>1</code> and <code>&quot;1&quot;</code> are the same group."
+            "returnHtml": "One <code>uint</code> per distinct group, keyed by the group, in the order each group first appears. <code>1</code> and <code>&quot;1&quot;</code> are the same group."
           },
           "slug": "groupcounts",
           "url": "/reference/core/arr/groupcounts/",
@@ -2630,7 +2630,7 @@
       "url": "/reference/core/arr/",
       "summaryBlocks": [
         {
-          "html": "<p>Works with arrays. It finds, sorts, changes and combines elements. Every method returns a new array, and the array you pass in does not change.</p>\n<p><code>Core\\Arr</code> has the array functions as static methods. Each one returns a <strong>new</strong> array and never changes its argument. <code>Core\\Arr::sort</code> returns the sorted array, and <code>append</code> returns the longer one. Keys are always <code>string</code>: <code>$a[0]</code> and <code>$a[&quot;0&quot;]</code> are the same entry, <code>keys</code> returns <code>array&lt;string&gt;</code>, and a callback's key parameter is <code>string</code>. A callback receives <code>($value, $key)</code> and may declare fewer parameters. <code>reduce</code> passes the carry first. A missing value is <code>null</code>: <code>first</code>, <code>last</code>, <code>find</code>, <code>keyOf</code> and <code>min</code> return <code>null</code> for an empty array. <code>count</code> returns a <code>uint</code>. <code>$a + $b</code> does not compile. <code>overlay</code> and <code>underlay</code> combine maps, and <code>appendAll</code> joins lists.</p>\n<p><code>shapeAs&lt;T&gt;</code> is the one member that answers something other than an array. It reads its subject as the type written at the call site — an inline shape, <code>{ name: string, score: int }</code>, or a class carrying <code>#[Core\\Json\\Derive]</code> — converting every named field with <code>as</code> and leaving every key the type does not name behind, so a form carrying a CSRF token does not break a handler reading two fields out of it. That is the whole story for loose input: an <code>array&lt;T&gt;</code> is homogeneous and there is no per-key-typed one, so a form, a query string or a decoded document is converted <strong>once, at the boundary</strong>, where a failure is still a <code>400</code> — and nothing downstream is left holding a <code>mixed</code> to check. A field that is absent, or that holds a value <code>as</code> refuses for its declared type, throws <code>ParseError</code> carrying every field that failed at its own dotted path, rather than the first of them. <code>{ name?: T }</code> marks a key that may be absent, and <code>??</code> and <code>isset</code> read one without throwing. <code>Core\\Request::queryParametersAs</code> and <code>postAs</code> are this member over what a request carried. Text that came from outside the program, such as a form or an <code>array&lt;mixed&gt;</code>, is <code>tainted</code>. A text field it fills must then be declared <code>tainted</code> too.</p>"
+          "html": "<p>Works with arrays. It finds, sorts, changes and combines elements. Every method returns a new array, and the array you pass in does not change.</p>\n<p><code>Core\\Arr</code> has the array functions as static methods. Each one returns a <strong>new</strong> array and never changes its argument. <code>Core\\Arr::sort</code> returns the sorted array, and <code>append</code> returns the longer one. Keys are always <code>string</code>: <code>$a[0]</code> and <code>$a[&quot;0&quot;]</code> are the same entry, <code>keys</code> returns <code>array&lt;string&gt;</code>, and a callback's key parameter is <code>string</code>. A callback receives <code>($value, $key)</code> and may declare fewer parameters. <code>reduce</code> passes the carry first. A missing value is <code>null</code>: <code>first</code>, <code>last</code>, <code>find</code>, <code>keyOf</code> and <code>min</code> return <code>null</code> for an empty array. <code>count</code> returns a <code>uint</code>. <code>$a + $b</code> does not compile. <code>overlay</code> and <code>underlay</code> combine maps, and <code>appendAll</code> joins lists.</p>\n<p><code>shapeAs&lt;T&gt;</code> is the one member that answers something other than an array. It reads its subject as the type written at the call site — an inline shape, <code>{ name: string, score: int }</code>, or a class carrying <code>#[Core\\Json\\Derive]</code> — converting every named field with <code>as</code> and leaving every key the type does not name behind, so a form carrying a CSRF token does not break a handler reading two fields out of it. That is the whole story for loose input: an <code>array&lt;T&gt;</code> is homogeneous and there is no per-key-typed one, so a form, a query string or a decoded document is converted <strong>once, at the boundary</strong>, where a failure is still a <code>400</code> — and nothing downstream is left holding a <code>mixed</code> to check. A field that is absent, or that holds a value <code>as</code> refuses for its declared type, throws <code>ParseError</code> carrying every field that failed at its own dotted path, rather than the first of them. <code>{ name?: T }</code> marks a key that may be absent, and <code>??</code> and <code>isset</code> read one without throwing. <code>Core\\Request::queryParametersAs</code> and <code>formFieldsAs</code> are this member over what a request carried. Text that came from outside the program, such as a form or an <code>array&lt;mixed&gt;</code>, is <code>tainted</code>. A text field it fills must then be declared <code>tainted</code> too.</p>"
         },
         {
           "code": "<?nvs\narray<int> $scores = ['ada' => 92, 'bo' => 67, 'cy' => 85, 'di' => 74];\nvar $passed = Core\\Arr::filter($scores, fn(int $n): bool => $n >= 70);\necho Core\\Json::encode($passed), \"\\n\";\nvar $ranked = Core\\Arr::sort($passed, { order: Core\\Arr::Order::Desc, preserveKeys: true });\necho Core\\Json::encode(Core\\Arr::keys($ranked)), \"\\n\";\necho Core\\Arr::first($ranked) ?? 0, ' ', Core\\Arr::firstKey($ranked) ?? '-', \"\\n\";\nvar $labels = Core\\Arr::map($scores, fn(int $n, string $k): string => $k . ':' . ($n as string));\necho Core\\Str::join(Core\\Arr::values($labels), ' '), \"\\n\";\necho Core\\Arr::sum($scores), ' ', Core\\Arr::count($scores), ' ', Core\\Arr::average($scores) ?? 0, \"\\n\";\nint $total = Core\\Arr::reduce($scores, fn(int $carry, int $n): int => $carry + $n, 0);\necho $total, ' ', Core\\Arr::max($scores) ?? 0, \"\\n\";\narray<int> $evens = Core\\Arr::filter(Core\\Arr::range(1, 10), fn(int $n): bool => $n % 2 == 0);\necho Core\\Json::encode(Core\\Arr::values($evens)), ' ', Core\\Arr::contains($evens, 4) ? 'yes' : 'no', \"\\n\";\nvar $byLength = Core\\Arr::groupBy(['fig', 'pear', 'kiwi', 'plum'], fn(string $w): int => Core\\Str::length($w) as int);\necho Core\\Json::encode($byLength), \"\\n\";\necho Core\\Json::encode($scores), \"\\n\";\nvar $entry = Core\\Arr::shapeAs<{ name: string, score: int, note?: string }>(['name' => 'ada', 'score' => '92', 'csrf' => 't0ken']);\necho $entry->name, ' ', $entry->score as string, ' ', $entry->note ?? 'no note', \"\\n\";",
@@ -3497,7 +3497,7 @@
                 "descHtml": "How many bits to shift by."
               }
             ],
-            "returnHtml": "A <code>BigInt</code> that is <code>$bits</code> bits wider than this value.",
+            "returnHtml": "A new <code>BigInt</code>. Unless this value is <code>0</code>, it is <code>$bits</code> bits wider than this value.",
             "errors": [
               {
                 "error": "ArithmeticError",
@@ -3529,14 +3529,14 @@
           "options": [],
           "returnType": "Core\\BigInt",
           "doc": {
-            "shortHtml": "Returns this value divided by 2 to the power <code>$bits</code>, rounded toward negative infinity. This is an arithmetic right shift.",
+            "shortHtml": "Returns this value divided by 2 to the power <code>$bits</code>, rounded toward negative infinity. So <code>-7</code> shifted by 1 is <code>-4</code>.",
             "params": [
               {
                 "name": "bits",
                 "descHtml": "How many bits to shift by. If it is larger than the width of this value, the result is <code>0</code> or <code>-1</code>."
               }
             ],
-            "returnHtml": "A <code>BigInt</code> that is <code>$bits</code> bits narrower than this value."
+            "returnHtml": "A new <code>BigInt</code>, with the bits of this value moved <code>$bits</code> places to the right."
           },
           "slug": "shiftedright",
           "url": "/reference/core/bigint/shiftedright/",
@@ -5690,7 +5690,7 @@
                 "descHtml": "The work to do while the area is open. Its return value is the return value of this method."
               }
             ],
-            "returnHtml": "Exactly what <code>$body</code> returned, with the same type. The terminal is restored however <code>$body</code> ends: a return, a throw, a fatal error or an internal panic. If the output is not a terminal, nothing is drawn, so no escape sequences are written."
+            "returnHtml": "Exactly what <code>$body</code> returned, with the same type. The terminal is restored however <code>$body</code> ends: a return, a throw or a fatal error. If the output is not a terminal, nothing is drawn, so no escape sequences are written."
           },
           "slug": "showlive",
           "url": "/reference/core/cli/showlive/",
@@ -5973,11 +5973,11 @@
                 "descHtml": "The area's new rows, one <code>Core\\Cli\\Text</code> each. They replace the old rows. A row wider than the terminal is cut to the terminal width. It is not wrapped, because a wrapped row would stop the area from being redrawn."
               }
             ],
-            "returnHtml": "Nothing. The rows are drawn now, or together with the next update. A program cannot tell which. The last rows given are always drawn before the area closes.",
+            "returnHtml": "Nothing. The rows are drawn now, or together with the next update. Your program cannot see the difference. The last rows given are always drawn before the area closes.",
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "This area is not the active one on the terminal. It has closed, or an inner <code>Core\\Cli::showLive</code> is open inside it. A <code>Cli\\Live</code> belongs to the call that made it. Using it outside that call is a bug in the program."
+                "descHtml": "This area is not the active one on the terminal. It has closed, or an inner <code>Core\\Cli::showLive</code> is open inside it. A <code>Core\\Cli\\Live</code> works only inside the call that made it. Using it outside that call is a bug in the program."
               }
             ]
           },
@@ -7914,7 +7914,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+                "descHtml": "The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -8404,7 +8404,7 @@
             "params": [
               {
                 "name": "name",
-                "descHtml": "The block to open. It must match exactly: <code>&quot;main&quot;</code> is <code>[db.main]</code>. Two blocks for the same server give two connections, because whoever wrote two blocks wanted two."
+                "descHtml": "The block to open. It must match exactly: <code>&quot;main&quot;</code> is <code>[db.main]</code>. Two blocks for the same server give two separate connections."
               },
               {
                 "name": "shared",
@@ -8694,7 +8694,7 @@
           "options": [],
           "returnType": "bool",
           "doc": {
-            "shortHtml": "Checks whether the column can contain NULL. On PostgreSQL this is always <code>true</code>. The server does not send a NOT NULL flag with the result. Only an extra catalog query for each statement could find it, and this driver does not run one.",
+            "shortHtml": "Checks whether the column can contain NULL. On PostgreSQL this is always <code>true</code>. The server does not send a NOT NULL flag with the result. Only an extra query on the table's definition could find it, and this driver does not run one.",
             "returnHtml": "<code>true</code> for every column this driver describes, so treat every column as nullable. The typed methods of <code>Core\\Db\\Row</code> already do this, and each returns <code>?T</code>. A database that sends the flag gives its value here."
           },
           "slug": "isnullable",
@@ -8821,7 +8821,7 @@
           ],
           "returnType": "Core\\Db\\Rows<T>",
           "doc": {
-            "shortHtml": "Runs one statement as <code>query</code> does and returns each row as an object of the class written at the call site. <code>#[Db\\Derive]</code> generates the mapping from the class's declared properties.",
+            "shortHtml": "Runs one statement as <code>query</code> does and returns each row as an object of the class you write in angle brackets. <code>#[Db\\Derive]</code> reads each column into the class property with the same name.",
             "params": [
               {
                 "name": "sql",
@@ -9021,7 +9021,7 @@
           ],
           "returnType": "Core\\Db\\Stream<Core\\Db\\Row>",
           "doc": {
-            "shortHtml": "Runs one statement and gives its rows one at a time to a <code>foreach</code> loop. The connection stays open until the loop ends. The memory used stays the same however many rows there are. Use it instead of <code>query</code> for a large result.",
+            "shortHtml": "Runs one statement and gives its rows one at a time to a <code>foreach</code> loop. The connection is busy until the loop ends. The memory used stays the same however many rows there are. Use it instead of <code>query</code> for a large result.",
             "params": [
               {
                 "name": "sql",
@@ -9089,7 +9089,7 @@
           ],
           "returnType": "Core\\Db\\Stream<T>",
           "doc": {
-            "shortHtml": "Reads a result one row at a time as <code>queryEach</code> does, and builds each row into an object of the class written at the call site, as <code>queryAs</code> does. The memory used stays the same however many rows there are.",
+            "shortHtml": "Reads a result one row at a time as <code>queryEach</code> does, and builds each row into an object of the class you write in angle brackets, as <code>queryAs</code> does. The memory used stays the same however many rows there are.",
             "params": [
               {
                 "name": "sql",
@@ -10538,7 +10538,7 @@
           ],
           "returnType": "Core\\Db\\Rows<T>",
           "doc": {
-            "shortHtml": "Runs one statement as <code>query</code> does and returns each row as an object of the class written at the call site. <code>#[Db\\Derive]</code> generates the mapping from the class's declared properties.",
+            "shortHtml": "Runs one statement as <code>query</code> does and returns each row as an object of the class you write in angle brackets. <code>#[Db\\Derive]</code> reads each column into the class property with the same name.",
             "params": [
               {
                 "name": "sql",
@@ -10738,7 +10738,7 @@
           ],
           "returnType": "Core\\Db\\Stream<Core\\Db\\Row>",
           "doc": {
-            "shortHtml": "Runs one statement and gives its rows one at a time to a <code>foreach</code> loop. The connection stays open until the loop ends. The memory used stays the same however many rows there are. Use it instead of <code>query</code> for a large result.",
+            "shortHtml": "Runs one statement and gives its rows one at a time to a <code>foreach</code> loop. The connection is busy until the loop ends. The memory used stays the same however many rows there are. Use it instead of <code>query</code> for a large result.",
             "params": [
               {
                 "name": "sql",
@@ -10806,7 +10806,7 @@
           ],
           "returnType": "Core\\Db\\Stream<T>",
           "doc": {
-            "shortHtml": "Reads a result one row at a time as <code>queryEach</code> does, and builds each row into an object of the class written at the call site, as <code>queryAs</code> does. The memory used stays the same however many rows there are.",
+            "shortHtml": "Reads a result one row at a time as <code>queryEach</code> does, and builds each row into an object of the class you write in angle brackets, as <code>queryAs</code> does. The memory used stays the same however many rows there are.",
             "params": [
               {
                 "name": "sql",
@@ -10941,7 +10941,7 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "Rolls back this transaction. It records <code>$reason</code> and throws <code>Core\\Db\\RolledBack</code> with it. You cannot request a rollback and then continue in the same transaction. So no code has to remember to check a flag such as <code>setRollbackOnly</code>.",
+            "shortHtml": "Rolls back this transaction. It records <code>$reason</code> and throws <code>Core\\Db\\RolledBack</code> with it. Code after the call does not run, and the transaction cannot continue. So no other code has to check whether the transaction was given up.",
             "params": [
               {
                 "name": "reason",
@@ -11464,7 +11464,7 @@
           "options": [],
           "returnType": "decimal",
           "doc": {
-            "shortHtml": "Divides <code>$value</code> by <code>$divisor</code> and rounds the result to <code>$scale</code> digits with <code>$mode</code>. The <code>/</code> operator always rounds half to even. Use this method to choose the rounding.",
+            "shortHtml": "Divides <code>$value</code> by <code>$divisor</code> and rounds the result to <code>$scale</code> digits with <code>$mode</code>. The <code>/</code> operator always rounds a value exactly between two results to the even one. Use this method to choose the rounding.",
             "params": [
               {
                 "name": "value",
@@ -11480,7 +11480,7 @@
               },
               {
                 "name": "mode",
-                "descHtml": "How a value exactly between two results is rounded. It is the same <code>Core\\RoundMode</code> that <code>Core\\Math::round</code> takes. It is applied to the exact result of the division."
+                "descHtml": "How a value exactly between two results is rounded. It is the same <code>Core\\RoundMode</code> that <code>Core\\Math::round</code> takes. The division is exact, and its result is rounded only once."
               }
             ],
             "returnHtml": "The result, with exactly <code>$scale</code> digits after the point.",
@@ -11586,14 +11586,14 @@
               },
               {
                 "name": "exponent",
-                "descHtml": "How many times to multiply it by itself. Zero gives <code>1</code>. A negative exponent is not allowed. For the reciprocal, write <code>Core\\Decimal::divideRounded(1, Core\\Decimal::power($b, $n), $scale, $mode)</code>."
+                "descHtml": "How many times to multiply it by itself. Zero gives <code>1</code>. A negative exponent is not allowed. To get <code>$b</code> to the power <code>-$n</code>, divide 1 by the power: <code>Core\\Decimal::divideRounded(1, Core\\Decimal::power($b, $n), $scale, $mode)</code>."
               }
             ],
             "returnHtml": "The exact power. The digits after the point add up with each multiplication, so <code>2.50</code> squared is <code>6.2500</code>.",
             "errors": [
               {
                 "error": "ArithmeticError",
-                "descHtml": "When the power does not fit in a <code>decimal</code>. That happens with more than 28 digits after the point, or more than a 96-bit mantissa."
+                "descHtml": "When the power does not fit in a <code>decimal</code>. That happens with more than 28 digits after the point, or more than about 28 digits in total."
               }
             ]
           },
@@ -15485,7 +15485,7 @@
           "returnType": "?tainted string",
           "doc": {
             "shortHtml": "Returns the last event id the server set. A program that resumes a stream sends it back in the <code>Last-Event-ID</code> header.",
-            "returnHtml": "The id, <code>tainted</code>, or <code>null</code> when no id was set. The format ignores an id that contains a NUL byte, so the result is <code>null</code>."
+            "returnHtml": "The id, <code>tainted</code>, or <code>null</code> when no id was set. The server-sent events format ignores an <code>id</code> line that contains a NUL byte, so the id from before that line stays."
           },
           "slug": "id",
           "url": "/reference/core/http-event/id/",
@@ -16624,8 +16624,8 @@
           "options": [],
           "returnType": "tainted string",
           "doc": {
-            "shortHtml": "Returns the subject of the leaf certificate, written as an RFC 4514 distinguished name.",
-            "returnHtml": "The same text that <code>openssl x509 -subject</code> prints, such as <code>CN=api.example.com</code>. It is <code>tainted</code>, for the same reason as <code>peerChain</code>.",
+            "shortHtml": "Returns the subject of the leaf certificate (the server's own certificate), written as an RFC 4514 distinguished name.",
+            "returnHtml": "The same text that <code>openssl x509 -subject</code> prints, such as <code>CN=api.example.com</code>. It is <code>tainted</code>, because the server chose this text.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -16648,8 +16648,8 @@
           "options": [],
           "returnType": "tainted string",
           "doc": {
-            "shortHtml": "Returns the issuer of the leaf certificate, written as an RFC 4514 distinguished name.",
-            "returnHtml": "Who signed the leaf certificate, in the same format as <code>subject</code>. It is <code>tainted</code> for the same reason.",
+            "shortHtml": "Returns the issuer of the leaf certificate (the server's own certificate), written as an RFC 4514 distinguished name.",
+            "returnHtml": "Who signed the leaf certificate, in the same format as <code>subject</code>. It is <code>tainted</code>, because the server chose this text.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -16672,7 +16672,7 @@
           "options": [],
           "returnType": "Core\\Time\\Instant",
           "doc": {
-            "shortHtml": "Returns when the leaf certificate stops being valid. This is its <code>notAfter</code> field.",
+            "shortHtml": "Returns when the leaf certificate (the server's own certificate) stops being valid. This is its <code>notAfter</code> field.",
             "returnHtml": "The instant when the server's certificate expires. Operators often want a program to check this for the services it calls.",
             "errors": [
               {
@@ -16979,7 +16979,7 @@
                 "descHtml": "Whether an existing file may be replaced. It is <code>false</code> by default, because the file name usually comes from a client."
               }
             ],
-            "returnHtml": "Nothing. If a write fails part-way through, the partial file is removed before the error is thrown. A later reader never finds a cut-off file that the program thinks is complete.",
+            "returnHtml": "Nothing. If a write fails part-way through, the partial file is removed before the error is thrown. So a later reader never finds a partial file that looks complete.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -17367,7 +17367,7 @@
               },
               {
                 "name": "to",
-                "descHtml": "The file to create. Anything already at this path is replaced, as <code>write</code> replaces it. The program names this path itself, together with the source."
+                "descHtml": "The file to create. Anything already at this path is replaced, as <code>write</code> replaces it."
               }
             ],
             "returnHtml": "Nothing. A failure throws an error. It never returns <code>false</code>, so a caller that ignores the result does not miss a failure.",
@@ -17519,7 +17519,7 @@
               },
               {
                 "error": "IOError",
-                "descHtml": "The capability allowed the call, but the operating system did not. The path is empty, a part of the path exists and is a file, or the process may not create a directory there."
+                "descHtml": "The capability allowed the call, but the operating system did not. A part of the path exists and is a file, or the process may not create a directory there."
               }
             ]
           },
@@ -17640,7 +17640,7 @@
                 "descHtml": "The directory the walk starts at. A file throws an error, as it does for <code>list</code>."
               }
             ],
-            "returnHtml": "One <code>string</code> per entry anywhere under <code>$path</code>. Each one is a path <em>relative to</em> <code>$path</code>, written with <code>Core\\Path::SEPARATOR</code>. The caller joins it to <code>$path</code>, and <code>within</code> makes that join safe. All entries of a directory come before any entry inside them. Within one directory, the order is the operating system's own.",
+            "returnHtml": "One <code>string</code> per entry anywhere under <code>$path</code>. Each one is a path <em>relative to</em> <code>$path</code>, written with <code>Core\\Path::SEPARATOR</code>. The caller joins it to <code>$path</code>, and <code>within</code> makes that join safe. The entries directly in a directory come before the entries of its subdirectories. Within one directory, the order is the operating system's own.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -18238,7 +18238,7 @@
           "options": [],
           "returnType": "uint",
           "doc": {
-            "shortHtml": "Returns the handle's position, in bytes from the start of the file. The next <code>read</code> or <code>write</code> happens at this position. Every method of this class leaves the position just after the bytes it used.",
+            "shortHtml": "Returns the handle's position, in bytes from the start of the file. The next <code>read</code> or <code>write</code> happens at this position. Each <code>read</code>, <code>readBytes</code>, <code>readLine</code> and <code>write</code> moves the position to just after the bytes it used.",
             "returnHtml": "The position, as a <code>uint</code>. Zero on a handle nothing has read or written yet, unless <code>FileMode::Append</code> put it at the end.",
             "errors": [
               {
@@ -18318,7 +18318,7 @@
               },
               {
                 "error": "IOError",
-                "descHtml": "The flush itself failed in the operating system. No method of this class causes this error now, but the operating system may still report one."
+                "descHtml": "The flush itself failed in the operating system. This is rare, because no data waits in the handle. The operating system may still report an error."
               }
             ]
           },
@@ -20377,7 +20377,7 @@
           "options": [],
           "returnType": "bool",
           "doc": {
-            "shortHtml": "Checks the bit <code>0x80000</code>: a service on this account may act for any user it receives.",
+            "shortHtml": "Checks the bit <code>0x80000</code>: a service on this account may act for every user who logs in to it.",
             "returnHtml": "<code>true</code> when the bit is set, and <code>false</code> when it is not."
           },
           "slug": "istrustedfordelegation",
@@ -20616,7 +20616,7 @@
           ],
           "returnType": "Core\\Ldap\\Ad\\AccountFlags",
           "doc": {
-            "shortHtml": "Returns a copy with the flags you name set or cleared, such as <code>$flags-&gt;with({ disabled: true })</code>. Every other bit stays as it is. <code>lockedOut</code> and <code>passwordExpired</code> are not options, because Active Directory computes them.",
+            "shortHtml": "Returns a copy with the flags you name set or cleared, such as <code>$flags-&gt;with({ disabled: true })</code>. Every other bit stays as it is. There is no option for <code>isLockedOut</code> or <code>isPasswordExpired</code>, because Active Directory computes them.",
             "params": [
               {
                 "name": "script",
@@ -20772,7 +20772,7 @@
           "options": [],
           "returnType": "bool",
           "doc": {
-            "shortHtml": "Checks the bit <code>0x4</code>: the group is domain local. It is used only in its own domain.",
+            "shortHtml": "Checks the bit <code>0x4</code>: the group is domain local. It can be given permissions only in its own domain.",
             "returnHtml": "<code>true</code> when the bit is set, and <code>false</code> when it is not."
           },
           "slug": "isdomainlocal",
@@ -26098,7 +26098,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "The name is already a different kind of metric, or it already has other label names. The message shows the first call and this one. A new series above the <code>max_series</code> limit is <strong>not</strong> an error. Novis does not record it and counts it, and the call returns normally."
+                "descHtml": "The name is already a different kind of metric, or it already has other label names. The message shows the first call and this one. A new series above the <code>max_series</code> limit is <strong>not</strong> an error. Novis does not record that series, but counts how many it did not record. The call returns normally."
               }
             ]
           },
@@ -26158,7 +26158,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "The name is already a different kind of metric, or it already has other label names. The message shows the first call and this one. A new series above the <code>max_series</code> limit is <strong>not</strong> an error. Novis does not record it and counts it, and the call returns normally."
+                "descHtml": "The name is already a different kind of metric, or it already has other label names. The message shows the first call and this one. A new series above the <code>max_series</code> limit is <strong>not</strong> an error. Novis does not record that series, but counts how many it did not record. The call returns normally."
               }
             ]
           },
@@ -26218,7 +26218,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "The name is already a different kind of metric, or it already has other label names. The message shows the first call and this one. A new series above the <code>max_series</code> limit is <strong>not</strong> an error. Novis does not record it and counts it, and the call returns normally."
+                "descHtml": "The name is already a different kind of metric, or it already has other label names. The message shows the first call and this one. A new series above the <code>max_series</code> limit is <strong>not</strong> an error. Novis does not record that series, but counts how many it did not record. The call returns normally."
               }
             ]
           },
@@ -27517,7 +27517,7 @@
           "name": "$differenceImage",
           "access": "$comparison->differenceImage",
           "type": "?bytes",
-          "descHtml": "a PNG image with the differing pixels in red.\nIt is <code>null</code> unless <code>render</code> is <code>true</code>."
+          "descHtml": "a PNG image with the differing pixels in red, or <code>null</code>.\n<code>Image::compare</code> draws it only with the option <code>render: true</code>."
         }
       ],
       "members": [
@@ -27593,7 +27593,7 @@
               },
               {
                 "name": "differenceImage",
-                "descHtml": "a PNG image with the differing pixels in red.\nIt is <code>null</code> unless <code>render</code> is <code>true</code>."
+                "descHtml": "a PNG image with the differing pixels in red, or <code>null</code>.\n<code>Image::compare</code> draws it only with the option <code>render: true</code>."
               }
             ]
           },
@@ -27652,7 +27652,7 @@
           "options": [],
           "returnType": "Font",
           "doc": {
-            "shortHtml": "<code>Font::fromBytes</code> makes a <code>Font</code> from the bytes of a <code>.ttf</code> or <code>.otf</code> file.\nBytes that do not start like a font file throw a <code>ParseError</code>.\nA font file with broken tables throws a <code>ParseError</code> when the image is drawn.\n<code>$data</code> may be an uploaded file. An image drawn with the font is then <code>tainted bytes</code> too."
+            "shortHtml": "<code>Font::fromBytes</code> makes a <code>Font</code> from the bytes of a <code>.ttf</code> or <code>.otf</code> file.\nBytes that do not start like a font file throw a <code>ParseError</code>.\nA font file with broken tables throws a <code>ParseError</code> when the image is drawn.\n<code>$data</code> may be an uploaded file. The file that <code>encode</code> returns for an image with this font is <code>tainted bytes</code>."
           },
           "slug": "frombytes",
           "url": "/reference/core/novis-image-font/frombytes/",
@@ -27688,7 +27688,7 @@
           ],
           "raw": "Gravity { Center, North, NorthEast, East, SouthEast, South, SouthWest, West, NorthWest }",
           "doc": {
-            "shortHtml": "A position in an image, written as a direction from the center. Image programs call this position the gravity. <code>North</code> is the top, <code>East</code> is the right, <code>South</code> is the bottom and <code>West</code> is the left. <code>resize</code>, <code>composite</code> and <code>text</code> use it to place the image or the text. When <code>resize</code> cuts off part of the image, it keeps the part at this position. The default is <code>Center</code>."
+            "shortHtml": "A position in an image, written as a direction from the center. Image programs call this position the gravity. <code>North</code> is the top, <code>East</code> is the right, <code>South</code> is the bottom and <code>West</code> is the left. <code>resized</code>, <code>withOverlay</code> and <code>withText</code> use it to place the image or the text. When <code>resized</code> cuts off part of the image, it keeps the part at this position. The default is <code>Center</code>."
           }
         },
         {
@@ -27702,7 +27702,7 @@
           ],
           "raw": "Fit { Cover, Contain, Fill, Inside, Outside }",
           "doc": {
-            "shortHtml": "How <code>resize</code> fits an image into a box of the width and height you give. <code>Cover</code> fills the whole box and cuts off what does not fit. It is the default. <code>Contain</code> shows the whole image in the box, and the empty part is transparent. <code>Fill</code> stretches the image to the size of the box, so its shape changes. <code>Inside</code> keeps the whole image and its shape, and the result is no larger than the box. <code>Outside</code> keeps the whole image and its shape, and the result is no smaller than the box."
+            "shortHtml": "How <code>resized</code> fits an image into a box of the width and height you give. <code>Cover</code> fills the whole box and cuts off what does not fit. It is the default. <code>Contain</code> shows the whole image in the box, and the empty part is transparent. <code>Fill</code> stretches the image to the size of the box, so its shape changes. <code>Inside</code> keeps the whole image and its shape, and the result is no larger than the box. <code>Outside</code> keeps the whole image and its shape, and the result is no smaller than the box."
           }
         },
         {
@@ -27716,7 +27716,7 @@
           ],
           "raw": "Filter { Nearest, Bilinear, CatmullRom, Mitchell, Lanczos3 }",
           "doc": {
-            "shortHtml": "The filter <code>resize</code> uses to calculate the new pixels. A faster filter gives a softer result, and a slower filter keeps more detail. <code>Nearest</code> is the fastest. It copies the closest pixel and keeps hard edges, so it suits pixel art. <code>Bilinear</code> is fast, and the result is a little soft. <code>CatmullRom</code> and <code>Mitchell</code> are slower and sharper than <code>Bilinear</code>. <code>Lanczos3</code> is the slowest and keeps the most detail. It is the default."
+            "shortHtml": "The filter <code>resized</code> uses to calculate the new pixels. A faster filter gives a softer result, and a slower filter keeps more detail. <code>Nearest</code> is the fastest. It copies the closest pixel and keeps hard edges, so it suits pixel art. <code>Bilinear</code> is fast, and the result is a little soft. <code>CatmullRom</code> and <code>Mitchell</code> are slower and sharper than <code>Bilinear</code>. <code>Lanczos3</code> is the slowest and keeps the most detail. It is the default."
           }
         },
         {
@@ -27727,7 +27727,7 @@
           ],
           "raw": "Axis { Horizontal, Vertical }",
           "doc": {
-            "shortHtml": "The direction <code>flip</code> mirrors an image in."
+            "shortHtml": "The direction in which <code>flipped</code> mirrors an image. <code>Horizontal</code> swaps left and right, and <code>Vertical</code> swaps top and bottom."
           }
         },
         {
@@ -27742,7 +27742,7 @@
           ],
           "raw": "Blend { Normal, Multiply, Screen, Overlay, Darken, Lighten }",
           "doc": {
-            "shortHtml": "How <code>composite</code> mixes the colours of the image on top with the colours of the image below it. <code>Normal</code> puts the top image over the lower one. It is the default. <code>Multiply</code> makes the result darker. White on top changes nothing. <code>Screen</code> makes the result lighter. Black on top changes nothing. <code>Overlay</code> makes dark parts darker and light parts lighter, so the contrast is higher. <code>Darken</code> keeps the darker of the two values for each of red, green and blue. <code>Lighten</code> keeps the lighter of the two values for each of red, green and blue."
+            "shortHtml": "How <code>withOverlay</code> mixes the colours of the image on top with the colours of the image below it. <code>Normal</code> puts the top image over the lower one. It is the default. <code>Multiply</code> makes the result darker. White on top changes nothing. <code>Screen</code> makes the result lighter. Black on top changes nothing. <code>Overlay</code> makes dark parts darker and light parts lighter, so the contrast is higher. <code>Darken</code> keeps the darker of the two values for each of red, green and blue. <code>Lighten</code> keeps the lighter of the two values for each of red, green and blue."
           }
         },
         {
@@ -27754,7 +27754,7 @@
           ],
           "raw": "Align { Left, Center, Right }",
           "doc": {
-            "shortHtml": "How the lines of a text are aligned."
+            "shortHtml": "How <code>withText</code> and <code>Image::measureText</code> line up the lines of a text. The default is <code>Left</code>."
           }
         },
         {
@@ -28011,7 +28011,7 @@
           "options": [],
           "returnType": "Image",
           "doc": {
-            "shortHtml": "<code>resized</code> returns a scaled copy of the image. With only <code>width</code> or only <code>height</code>, the image keeps its proportions.\nWith both, <code>fit</code> decides how the image fills that size. The default is <code>Fit::Cover</code>.\nThe image does not grow larger than it is, unless <code>upscale</code> is <code>true</code>."
+            "shortHtml": "<code>resized</code> returns a scaled copy of the image. With only <code>width</code> or only <code>height</code>, the image keeps its proportions.\nWith both, <code>fit</code> sets how the image fills that size. The default is <code>Fit::Cover</code>.\nThe image does not grow larger than it is, unless <code>upscale</code> is <code>true</code>."
           },
           "slug": "resized",
           "url": "/reference/core/novis-image-image/resized/",
@@ -29876,7 +29876,7 @@
           ],
           "raw": "Standard { PdfA2b, PdfA3b, PdfUa1 }",
           "doc": {
-            "shortHtml": "The set of rules that a PDF file follows. PDF/A is for files kept in an archive for many years. PDF/UA is for files that a screen reader (a program that reads text aloud) can read. <code>PdfA2b</code> and <code>PdfA3b</code> are PDF/A, and <code>PdfUa1</code> is PDF/UA. Only <code>PdfA3b</code> can contain an electronic invoice. This is an invoice as an XML file that a program can read. <code>Document::invoiceXml</code> attaches this XML file to the document."
+            "shortHtml": "The set of rules that a PDF file follows. PDF/A is for files kept in an archive for many years. PDF/UA is for files that a screen reader (a program that reads text aloud) can read. <code>PdfA2b</code> and <code>PdfA3b</code> are PDF/A, and <code>PdfUa1</code> is PDF/UA. Only <code>PdfA3b</code> can contain an electronic invoice. An electronic invoice is an invoice as an XML file that a program can read. <code>Document::withInvoiceXml</code> attaches this XML file to the document."
           }
         }
       ],
@@ -30136,7 +30136,7 @@
           "options": [],
           "returnType": "Document",
           "doc": {
-            "shortHtml": "<code>withSlots</code> sets a function that fills each <code>&lt;slot name=&quot;...&quot;&gt;</code> in a table row. <code>render</code> calls it once for each page.\nIt returns the HTML for each slot name. Nothing on the page moves, and HTML too tall for its cell is listed in <code>Rendered::overflows</code>."
+            "shortHtml": "<code>withSlots</code> sets a function that fills each <code>&lt;slot name=&quot;...&quot;&gt;</code> in a table row. <code>render</code> calls it once for each page.\nIt returns the HTML for each slot name. A slot does not change the layout of the page. HTML too tall for its cell is listed in <code>Rendered::overflows</code>."
           },
           "slug": "withslots",
           "url": "/reference/core/novis-pdf-document/withslots/",
@@ -30397,7 +30397,7 @@
           "options": [],
           "returnType": "array<string>",
           "doc": {
-            "shortHtml": "<code>marksUpTo</code> returns the values of the marks with this name on this page and every page before it.\nA carried-forward total adds these values up."
+            "shortHtml": "A mark is a named value that a page records while it is drawn.\n<code>marksUpTo</code> returns the values of the marks with this name on this page and every page before it.\nAdd these values up to show a running total on each page."
           },
           "slug": "marksupto",
           "url": "/reference/core/novis-pdf-page/marksupto/",
@@ -30605,7 +30605,7 @@
           "options": [],
           "returnType": "tainted string",
           "doc": {
-            "shortHtml": "<code>text</code> returns the text of one page, in the order the file stores it. Pages count from 1.\nTables and columns are not rebuilt. A page number past the end throws a <code>LogicError</code>.\nThe file is read from the reader, so a call does not copy it again."
+            "shortHtml": "<code>text</code> returns the text of one page, in the order the file stores it. Pages count from 1.\nTables and columns are not rebuilt. A page number past the end throws a <code>LogicError</code>.\n<code>text</code> uses the file that <code>Reader::open</code> read. It does not read or copy the file again."
           },
           "slug": "text",
           "url": "/reference/core/novis-pdf-reader/text/",
@@ -31032,7 +31032,7 @@
           "name": "$legend",
           "access": "$chart->legend",
           "type": "Legend",
-          "descHtml": "the place of the legend, such as <code>Legend::Right</code>, or <code>Legend::Hidden</code> for no legend"
+          "descHtml": "where the legend is, such as <code>Legend::Right</code>, or <code>Legend::Hidden</code> for no legend"
         },
         {
           "name": "$labels",
@@ -31146,7 +31146,7 @@
               },
               {
                 "name": "legend",
-                "descHtml": "the place of the legend, such as <code>Legend::Right</code>, or <code>Legend::Hidden</code> for no legend"
+                "descHtml": "where the legend is, such as <code>Legend::Right</code>, or <code>Legend::Hidden</code> for no legend"
               },
               {
                 "name": "labels",
@@ -31394,7 +31394,7 @@
           "options": [],
           "returnType": "Chart",
           "doc": {
-            "shortHtml": "<code>combinedWith</code> returns the chart with the type and the series of <code>$other</code> drawn on the same axes.\nYou can combine two of column, line and area, such as columns of sales with a line of costs. The title and the legend come from this chart."
+            "shortHtml": "<code>combinedWith</code> returns the chart with the type and the series of <code>$other</code> drawn on the same axes.\nOnly column, line and area charts combine, and the two types must be different, such as columns of sales with a line of costs. The title and the legend come from this chart."
           },
           "slug": "combinedwith",
           "url": "/reference/core/novis-spreadsheet-chart/combinedwith/",
@@ -32260,7 +32260,7 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "<code>new Sheet</code> makes a sheet of a workbook. <code>Workbook::addSheet</code> makes one for you.\n<code>$add</code> adds a row. <code>$ready</code> sends the rows that wait, checks that the sheet is open, and with <code>true</code> last checks for a data row. <code>$position</code> returns the column of a key."
+            "shortHtml": "<code>new Sheet</code> makes a sheet of a workbook. Do not call it yourself. <code>Workbook::addSheet</code> makes the sheet and returns it.\nThe other values are the functions of the workbook that write the rows and the other parts of the sheet to its file."
           },
           "slug": "constructor",
           "url": "/reference/core/novis-spreadsheet-sheet/constructor/",
@@ -32558,7 +32558,7 @@
           "options": [],
           "returnType": "Sheet",
           "doc": {
-            "shortHtml": "<code>addOutlineGroup</code> puts the rows <code>$rows</code>, such as <code>'5:9'</code>, or the columns, such as <code>'B:D'</code>, in an outline group.\nAdd a group of rows before its rows, and a group of columns before the first row. <code>collapsed</code> hides the group."
+            "shortHtml": "<code>addOutlineGroup</code> puts rows, such as <code>'5:9'</code>, or columns, such as <code>'B:D'</code>, in a group. A person can hide and show the group in Excel with one click.\nAdd a group of rows before the rows in it, and a group of columns before the first row. <code>collapsed</code> hides the group when the file opens."
           },
           "slug": "addoutlinegroup",
           "url": "/reference/core/novis-spreadsheet-sheet/addoutlinegroup/",
@@ -32668,7 +32668,7 @@
           "options": [],
           "returnType": "Sheet",
           "doc": {
-            "shortHtml": "<code>addImage</code> puts the PNG, JPEG or GIF image <code>$data</code> at the cell <code>$cell</code>. Any other format, or a file that is cut short, throws a <code>LogicError</code>.\n<code>width</code> and <code>height</code> are in pixels. <code>offsetX</code> and <code>offsetY</code> move the image from the corner of the cell. An image that ends after column <code>XFD</code> or row 1,048,576 throws."
+            "shortHtml": "<code>addImage</code> puts the PNG, JPEG or GIF image <code>$data</code> at the cell <code>$cell</code>. Any other format, or a file with bytes missing at the end, throws a <code>LogicError</code>.\n<code>width</code> and <code>height</code> are in pixels. <code>offsetX</code> and <code>offsetY</code> move the image from the corner of the cell. An image that ends after column <code>XFD</code> or row 1,048,576 throws."
           },
           "slug": "addimage",
           "url": "/reference/core/novis-spreadsheet-sheet/addimage/",
@@ -32710,7 +32710,7 @@
           "options": [],
           "returnType": "Sheet",
           "doc": {
-            "shortHtml": "<code>addChart</code> puts <code>$chart</code> at the cell <code>$cell</code>. <code>width</code> and <code>height</code> are in pixels. The chart is 480 by 288 pixels if you do not set them.\nA series range from <code>column</code> grows with the sheet, so a chart you add before the last row still shows every row."
+            "shortHtml": "<code>addChart</code> puts <code>$chart</code> at the cell <code>$cell</code>. <code>width</code> and <code>height</code> are in pixels. The chart is 480 by 288 pixels if you do not set them.\nWith a series range from <code>column</code>, the chart also shows the rows you add after it."
           },
           "slug": "addchart",
           "url": "/reference/core/novis-spreadsheet-sheet/addchart/",
@@ -34332,7 +34332,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+                "descHtml": "The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -34411,7 +34411,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+                "descHtml": "The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -34474,7 +34474,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+                "descHtml": "The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -34604,7 +34604,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+                "descHtml": "The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -35064,7 +35064,7 @@
               },
               {
                 "name": "levels",
-                "descHtml": "How many parts to remove from the end. The default is <code>1</code>. With <code>0</code>, the result is the path with its separators cleaned up. A number larger than the path stops at the root."
+                "descHtml": "How many parts to remove from the end. The default is <code>1</code>. With <code>0</code>, the result is the path with its separators cleaned up. If the number is larger than the count of parts, the result is the root, or <code>.</code> for a relative path."
               }
             ],
             "returnHtml": "The folder, written with <code>Path::SEPARATOR</code>. When nothing is left, the result is the root for an absolute path and <code>.</code> for a relative one. <code>parent('')</code> is <code>.</code>."
@@ -35340,7 +35340,7 @@
                 "descHtml": "The folder the result starts from. The result has one <code>..</code> for each folder of <code>$base</code> that <code>$path</code> does not share."
               }
             ],
-            "returnHtml": "A relative path, written with <code>Core\\Path::SEPARATOR</code>. It is <code>.</code> when both paths name the same place. It is <code>null</code> when no relative path exists: one path is absolute and the other is not, the paths start at different roots, or <code>$base</code> starts with more <code>..</code> parts than <code>$path</code> does. Folder names are compared byte for byte. A drive letter and a server name ignore upper and lower case."
+            "returnHtml": "A relative path, written with <code>Core\\Path::SEPARATOR</code>. It is <code>.</code> when both paths name the same place. It is <code>null</code> when no relative path exists. That happens when one path is absolute and the other is not, or when the paths start at different roots. It also happens when <code>$base</code> starts with more <code>..</code> parts than <code>$path</code> does. Folder names are compared byte for byte. A drive letter and a server name ignore upper and lower case."
           },
           "slug": "relativeto",
           "url": "/reference/core/path/relativeto/",
@@ -35536,7 +35536,7 @@
               },
               {
                 "name": "timeout",
-                "descHtml": "The longest time the program may run, counted from the start. When it passes, the program is stopped and a <code>TimeoutError</code> is thrown."
+                "descHtml": "The longest time the program may run, counted from the start. When it passes, the program is stopped. <code>run</code> then throws a <code>TimeoutError</code>. After <code>spawn</code>, the next call on the handle throws it."
               }
             ],
             "returnHtml": "A <code>Core\\Process\\Result</code> with the exit code and everything the program wrote to its output and to its error output. The program cannot write to this program's own output, so the two never mix.",
@@ -35604,7 +35604,7 @@
             "params": [
               {
                 "name": "path",
-                "descHtml": "The program to start, as an absolute path or a path relative to the working directory. <code>PATH</code> is not searched."
+                "descHtml": "The program to start, as an absolute path. A relative path must be a string written directly in the code. It is joined to the folder of the file that contains it. <code>PATH</code> is not searched."
               },
               {
                 "name": "argv",
@@ -35620,10 +35620,10 @@
               },
               {
                 "name": "timeout",
-                "descHtml": "The longest time the program may run, counted from the start. When it passes, the program is stopped and a <code>TimeoutError</code> is thrown."
+                "descHtml": "The longest time the program may run, counted from the start. When it passes, the program is stopped. <code>run</code> then throws a <code>TimeoutError</code>. After <code>spawn</code>, the next call on the handle throws it."
               }
             ],
-            "returnHtml": "A <code>Core\\Process\\Handle</code> for the running program. Other requests keep running while this one waits on the handle. Call <code>wait</code> or <code>kill</code> on it before your script or request ends. A program that is still running then is stopped, and Novis reports an error.",
+            "returnHtml": "A <code>Core\\Process\\Handle</code> for the running program. Other requests keep running while this one waits on the handle. Call <code>wait</code> or <code>kill</code> on it before your script or request ends. If the program is still running when the script or request ends, it is stopped and Novis reports an error.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -37302,7 +37302,7 @@
     {
       "id": "RateLimit",
       "name": "Core\\RateLimit",
-      "summary": "Limits how often something may happen for one key, such as one account or one API key. `consume` counts in the shared store, so every server gives the same answer. `consumeLocally` counts in the memory of this server process only, to drop load quickly. Both return a `Core\\RateLimit\\Decision`.",
+      "summary": "Limits how often something may happen for one key, such as one account or one API key. `consume` counts in the shared store, so every server gives the same result. `consumeLocally` counts in the memory of this server process only. It is faster, and it is useful to turn away extra requests when the server is busy. Both return a `Core\\RateLimit\\Decision`.",
       "enums": [],
       "types": [],
       "constants": [],
@@ -37437,7 +37437,7 @@
           ],
           "returnType": "Core\\RateLimit\\Decision",
           "doc": {
-            "shortHtml": "Charges <code>$cost</code> units against the allowance of <code>$key</code>, which is <code>$limit</code> per <code>$per</code>. The count is kept in the memory of this server process. The result says if this call is inside the limit. Use it to drop load. Use <code>consume</code> for a limit you promised to somebody.",
+            "shortHtml": "Charges <code>$cost</code> units against the allowance of <code>$key</code>, which is <code>$limit</code> per <code>$per</code>. The count is kept in the memory of this server process. The result says if this call is inside the limit. Use it to protect a server from too much load. Use <code>consume</code> for a limit you promised to somebody.",
             "params": [
               {
                 "name": "key",
@@ -37477,7 +37477,7 @@
       "url": "/reference/core/ratelimit/",
       "summaryBlocks": [
         {
-          "html": "<p>Limits how often something may happen for one key, such as one account or one API key. <code>consume</code> counts in the shared store, so every server gives the same answer. <code>consumeLocally</code> counts in the memory of this server process only, to drop load quickly. Both return a <code>Core\\RateLimit\\Decision</code>.</p>"
+          "html": "<p>Limits how often something may happen for one key, such as one account or one API key. <code>consume</code> counts in the shared store, so every server gives the same result. <code>consumeLocally</code> counts in the memory of this server process only. It is faster, and it is useful to turn away extra requests when the server is busy. Both return a <code>Core\\RateLimit\\Decision</code>.</p>"
         }
       ],
       "returnedBy": []
@@ -40013,7 +40013,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "The program is not handling a request. Or <code>body</code>, <code>bodyStream</code> or <code>formField</code> already read the body. After this call, <code>body</code>, <code>bytes</code>, <code>bodyStream</code> and <code>json</code> throw this error too. <code>formField</code> still works after the loop."
+                "descHtml": "The program is not handling a request. Or <code>body</code>, <code>bodyStream</code> or <code>formField</code> already read the body. Once <code>files</code> is called, <code>body</code>, <code>bytes</code>, <code>bodyStream</code> and <code>json</code> throw this error too. You can still call <code>formField</code> after the loop."
               },
               {
                 "error": "ParseError",
@@ -40303,7 +40303,7 @@
       "url": "/reference/core/request/",
       "summaryBlocks": [
         {
-          "html": "<p>The request your program is handling: its method, path, query, headers, cookies and body. Text the client sent, such as a header or the body, is <code>tainted</code>. A program that answers no request, such as a command-line program, gets a <code>LogicError</code> from every method.</p>\n<p><code>Core\\Request</code> is the whole of what arrived: <code>method</code>, <code>isHead</code>, <code>path</code>, <code>query</code>, <code>header</code>, <code>headers</code>, <code>cookie</code> and the body readers, plus <code>route</code> and <code>mount</code> for where the router put it. The host never fills a variable for the program. No lookup merges the query, the form fields and the cookies into one. Every member throws <code>LogicError</code> in a program that is not answering a request, so a CLI run, a scheduled script and a job worker say &quot;no request arrived&quot; rather than answering empty.</p>\n<p><strong>The body is read once, and every reader is one of two kinds.</strong> <code>body()</code>, <code>post()</code>, <code>postAs&lt;T&gt;()</code>, <code>json()</code> and <code>jsonAs&lt;T&gt;()</code> <strong>buffer</strong>: the first of them fills the request's hold, bounded by <code>[limits] request_body</code>, and any of the five may follow any other in any order and answer the same octets. <code>bodyStream()</code> and <code>files()</code> <strong>stream</strong>: they hand the octets over as they arrive, keep none, and so consume the body — a reader after one of those is refused, naming the member that consumed it. That refusal is a defect in the program, never something a peer can provoke.</p>\n<p><code>json()</code> decodes the body as one JSON document and answers <code>mixed</code>; <code>jsonAs&lt;T&gt;()</code> hydrates it straight into a class carrying <code>#[Core\\Json\\Derive]</code>, exactly as <code>Core\\Json::decodeAs</code> does, so a handler names the shape it expects instead of walking an array. Neither consults the <code>Content-Type</code> the peer declared — a header is what a peer wrote, not what a body is — and both throw <code>ParseError</code> on a document that is malformed, too deep, or absent altogether. <code>json()</code> keeps what it decoded and <code>jsonAs&lt;T&gt;()</code> hydrates per call, so writing to what a second call answered leaves the first alone.</p>\n<p><code>queryAs&lt;T&gt;()</code> and <code>postAs&lt;T&gt;()</code> are that idea over the parameters rather than the body: each reads what <code>query()</code> and <code>post()</code> parse as the type written at the call site — an inline shape, <code>{ page: uint }</code>, or a class carrying <code>#[Core\\Json\\Derive]</code> — converting every named field with <code>as</code> and leaving the keys the type does not name behind. Called with nothing, the whole parameter set is the subject, and that is the only way a program reaches it: there is no <code>query(): array&lt;mixed&gt;</code>. Called with <code>{ name: &quot;filter&quot; }</code>, the subject is the one bracket-named subtree under that name. A field that is absent, or that holds a value <code>as</code> refuses for its declared type, is a <code>ParseError</code> listing every field that failed at its own path — so a form reports the whole list rather than the first item of it.</p>\n<p>Everything a peer chose is <code>tainted</code>, including the path, every header and the body, so it reaches a sink only through a launderer named for that sink — <code>echo</code> escapes for HTML on its own. A class hydrated from a body declares that on the fields receiving it: an unqualified <code>string</code> property is a compile error at the <code>jsonAs&lt;T&gt;()</code> call rather than a silent laundering.</p>"
+          "html": "<p>The request your program is handling: its method, path, query, headers, cookies and body. Text the client sent, such as a header or the body, is <code>tainted</code>. A program that answers no request, such as a command-line program, gets a <code>LogicError</code> from every method.</p>\n<p><code>Core\\Request</code> is the whole of what arrived: <code>method</code>, <code>isHead</code>, <code>path</code>, <code>queryParameter</code>, <code>header</code>, <code>headers</code>, <code>cookie</code> and the body readers, plus <code>route</code> and <code>mount</code> for where the router put it. The host never fills a variable for the program. No lookup merges the query, the form fields and the cookies into one. Every member throws <code>LogicError</code> in a program that is not answering a request, so a CLI run, a scheduled script and a job worker say &quot;no request arrived&quot; rather than answering empty.</p>\n<p><strong>The body is read once, and every reader is one of two kinds.</strong> <code>body()</code>, <code>formField()</code>, <code>formFieldsAs&lt;T&gt;()</code>, <code>json()</code> and <code>jsonAs&lt;T&gt;()</code> <strong>buffer</strong>: the first of them fills the request's hold, bounded by <code>[limits] request_body</code>, and any of the five may follow any other in any order and answer the same octets. <code>bodyStream()</code> and <code>files()</code> <strong>stream</strong>: they hand the octets over as they arrive, keep none, and so consume the body — a reader after one of those is refused, naming the member that consumed it. That refusal is a defect in the program, never something a peer can provoke.</p>\n<p><code>json()</code> decodes the body as one JSON document and answers <code>mixed</code>; <code>jsonAs&lt;T&gt;()</code> hydrates it straight into a class carrying <code>#[Core\\Json\\Derive]</code>, exactly as <code>Core\\Json::decodeAs</code> does, so a handler names the shape it expects instead of walking an array. Neither consults the <code>Content-Type</code> the peer declared — a header is what a peer wrote, not what a body is — and both throw <code>ParseError</code> on a document that is malformed, too deep, or absent altogether. <code>json()</code> keeps what it decoded and <code>jsonAs&lt;T&gt;()</code> hydrates per call, so writing to what a second call answered leaves the first alone.</p>\n<p><code>queryParametersAs&lt;T&gt;()</code> and <code>formFieldsAs&lt;T&gt;()</code> do the same for the query string and the form. Each reads what <code>queryParameter()</code> and <code>formField()</code> read as the type <code>T</code> that you write at the call. <code>T</code> is an inline shape, such as <code>{ page: uint }</code>, or a class with <code>#[Core\\Json\\Derive]</code>. Each field that <code>T</code> names is converted with <code>as</code>, and the other keys are left out. Without arguments, the method reads every parameter. This is the only way to read all of them at once. With <code>{ name: &quot;filter&quot; }</code>, it reads the nested values under that one name. A field that is missing, or that <code>as</code> cannot convert, gives a <code>ParseError</code>. The error lists every wrong field at its own path, so a form can show all of them.</p>\n<p>Everything a peer chose is <code>tainted</code>, including the path, every header and the body, so it reaches a sink only through a launderer named for that sink — <code>echo</code> escapes for HTML on its own. A class hydrated from a body declares that on the fields receiving it: an unqualified <code>string</code> property is a compile error at the <code>jsonAs&lt;T&gt;()</code> call rather than a silent laundering.</p>"
         },
         {
           "code": "<?nvs\n#[Core\\Json\\Derive]\nclass Author\n{\n    public tainted string $name;\n    public int $tags;\n\n    public function constructor(tainted string $name, int $tags)\n    {\n        $this->name = $name;\n        $this->tags = $tags;\n    }\n}\n\nif (Core\\Request::method() == Core\\Http\\Method::Post) {\n    Author $author = Core\\Request::jsonAs<Author>();\n    echo 'hello ', $author->name, \"\\n\";\n}",
@@ -40380,7 +40380,7 @@
       "url": "/reference/core/request-bodystream/",
       "summaryBlocks": [
         {
-          "html": "<p>The request body, read in pieces as it arrives. <code>Core\\Request::bodyStream</code> returns it. Use it in a <code>foreach</code> loop to get each piece as <code>tainted</code> bytes, so the whole body is never in memory at once.</p>\n<p><code>Core\\Request\\BodyStream</code> is what <code>Core\\Request::bodyStream()</code> answers with: an <code>Iterable&lt;tainted bytes&gt;</code> that a <code>foreach</code> walks once. It holds nothing but the chunk the loop body is looking at, so a body far larger than the machine's memory passes through a program that never has more than one chunk of it resident. That is the whole difference from <code>body()</code>, which fills the request's hold under <code>[limits] request_body</code> and can be read back any number of times. This walk is under no such cap, because what a program keeps out of it is the program's own decision and its own bill.</p>\n<p><strong>A chunk boundary is the wire's, and carries no meaning.</strong> It is where the octets happened to arrive, so a program that needs lines, records or frames finds them itself, across chunks; nothing here aligns a chunk to anything the sender wrote. Each chunk is copied out as the loop body receives it and stays valid after the next pull, so keeping one keeps bytes the wire cannot revoke. The walk is empty where the request carried no body at all.</p>\n<p><code>peek($max)</code> returns the first <code>$max</code> bytes of the body and does not use them up, so the loop after it still starts at the first byte. Call it before the loop starts: after that it throws <code>LogicError</code>.</p>\n<p><strong>Naming the walk is the reading.</strong> <code>bodyStream()</code> claims the body when the walk is built, long before a single byte moves, so <code>body()</code>, <code>post()</code>, <code>json()</code>, <code>jsonAs&lt;T&gt;()</code> or <code>files()</code> after it is refused with <code>LogicError</code> whether or not the loop ever ran — and refused the same way in the other direction. That refusal is a defect in the program, never something a peer can provoke; the split between the readers that share the body and the ones that consume it is <code>rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it</code>, and <code>Core\\Request</code> is where all five readers are named together.</p>\n<p>Every chunk is <code>tainted bytes</code>, like everything else a peer chose, so it reaches a sink only through a launderer named for that sink. The common destination is disk, and <code>Core\\IO::writeStream</code> takes this walk directly — it is where every stream reaches a file, under a byte bound of its own, and it removes the partial file if a write fails, so there is no half-written upload to clean up after.</p>"
+          "html": "<p>The request body, read in pieces as it arrives. <code>Core\\Request::bodyStream</code> returns it. Use it in a <code>foreach</code> loop to get each piece as <code>tainted</code> bytes, so the whole body is never in memory at once.</p>\n<p><code>Core\\Request\\BodyStream</code> is what <code>Core\\Request::bodyStream()</code> answers with: an <code>Iterable&lt;tainted bytes&gt;</code> that a <code>foreach</code> walks once. It holds nothing but the chunk the loop body is looking at, so a body far larger than the machine's memory passes through a program that never has more than one chunk of it resident. That is the whole difference from <code>body()</code>, which fills the request's hold under <code>[limits] request_body</code> and can be read back any number of times. This walk is under no such cap, because what a program keeps out of it is the program's own decision and its own bill.</p>\n<p><strong>A chunk boundary is the wire's, and carries no meaning.</strong> It is where the octets happened to arrive, so a program that needs lines, records or frames finds them itself, across chunks; nothing here aligns a chunk to anything the sender wrote. Each chunk is copied out as the loop body receives it and stays valid after the next pull, so keeping one keeps bytes the wire cannot revoke. The walk is empty where the request carried no body at all.</p>\n<p><code>peek($max)</code> returns the first <code>$max</code> bytes of the body and does not use them up, so the loop after it still starts at the first byte. Call it before the loop starts: after that it throws <code>LogicError</code>.</p>\n<p><strong>Naming the walk is the reading.</strong> <code>bodyStream()</code> claims the body when the walk is built, long before a single byte moves, so <code>body()</code>, <code>formField()</code>, <code>json()</code>, <code>jsonAs&lt;T&gt;()</code> or <code>files()</code> after it is refused with <code>LogicError</code> whether or not the loop ever ran — and refused the same way in the other direction. That refusal is a defect in the program, never something a peer can provoke; the split between the readers that share the body and the ones that consume it is <code>rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it</code>, and <code>Core\\Request</code> is where all five readers are named together.</p>\n<p>Every chunk is <code>tainted bytes</code>, like everything else a peer chose, so it reaches a sink only through a launderer named for that sink. The common destination is disk, and <code>Core\\IO::writeStream</code> takes this walk directly — it is where every stream reaches a file, under a byte bound of its own, and it removes the partial file if a write fails, so there is no half-written upload to clean up after.</p>"
         },
         {
           "code": "<?nvs\nint $total = 0;\nforeach (Core\\Request::bodyStream() as tainted bytes $chunk) {\n    $total = $total + Core\\Bytes::length($chunk);\n}\necho 'read ', $total, \" bytes\\n\";",
@@ -40425,7 +40425,7 @@
       "url": "/reference/core/request-files/",
       "summaryBlocks": [
         {
-          "html": "<p>The files uploaded with a multipart request, which <code>Core\\Request::files</code> returns. Use it in a <code>foreach</code> loop to get each file as a <code>Core\\Request\\Part</code>.</p>\n<p><code>Core\\Request\\Files</code> is what <code>Core\\Request::files()</code> answers with: an <code>Iterable&lt;Core\\Request\\Part&gt;</code> that a <code>foreach</code> walks once, yielding each uploaded part as it comes off the wire. It has no members — the walk is everything it does — and it is the only way a program receives an upload. There is no temporary file and no directory the host chose: nothing lands on disk until the program names a path it holds the <code>fs.write</code> capability for, so an upload nobody saves has cost the machine nothing but the bytes that crossed the socket.</p>\n<p><strong>The parse runs as the loop does.</strong> The next part does not exist when the walk is named, so <code>files()</code> holds one part at a time and nothing accumulates. A part is valid only while it is the walk's current one: keeping one past the iteration that opened the next is holding a name for bytes the parse has already drained, and it is refused rather than answered with the wrong part's content. Advancing past a part the loop body never read simply drains it — skipping an upload the application does not recognise costs a walk over bytes the door already charged for, and no memory at all.</p>\n<p>**A part is a file part iff its <code>Content-Disposition</code> carries a <code>filename</code>**, which is RFC 7578's own distinction and not a second one invented here. Every other part is an ordinary form field: the walk buffers those as it passes them, and <code>Core\\Request::formField()</code> reads them back afterwards. That is why <code>post()</code> on a <code>multipart/form-data</code> request is called <strong>after</strong> this walk and never before — the fields are behind the uploads on the wire, and reading them first would mean draining the uploads to reach them.</p>\n<p>The walk is empty where the request declared no <code>multipart/form-data</code> body, which is what a request carrying no upload is. It throws <code>LogicError</code> where the program is not answering a request, or where <code>body()</code>, <code>bodyStream()</code> or <code>post()</code> already read this body; <code>ParseError</code> where the request declared a multipart body and then did not say how to read one — no <code>boundary</code>, two of them, or one outside the grammar — since an ambiguous body is refused rather than guessed at; and <code>IOError</code> where the connection failed under the body or the peer stopped short of the length it declared.</p>\n<p><strong>What bounds it is the server, not this walk.</strong> <code>[limits] request_body</code> bounds what is parsed into memory and has nothing to say about a streamed body; the server carries at most 256M of one request body, declared or chunked, refusing an oversize before the program runs and stopping a chunked one at the part being read. That number is a constant today — the directive that makes it settable per deployment is not on disk yet.</p>"
+          "html": "<p>The files uploaded with a multipart request, which <code>Core\\Request::files</code> returns. Use it in a <code>foreach</code> loop to get each file as a <code>Core\\Request\\Part</code>.</p>\n<p><code>Core\\Request\\Files</code> is what <code>Core\\Request::files()</code> answers with: an <code>Iterable&lt;Core\\Request\\Part&gt;</code> that a <code>foreach</code> walks once, yielding each uploaded part as it comes off the wire. It has no members — the walk is everything it does — and it is the only way a program receives an upload. There is no temporary file and no directory the host chose: nothing lands on disk until the program names a path it holds the <code>fs.write</code> capability for, so an upload nobody saves has cost the machine nothing but the bytes that crossed the socket.</p>\n<p><strong>The parse runs as the loop does.</strong> The next part does not exist when the walk is named, so <code>files()</code> holds one part at a time and nothing accumulates. A part is valid only while it is the walk's current one: keeping one past the iteration that opened the next is holding a name for bytes the parse has already drained, and it is refused rather than answered with the wrong part's content. Advancing past a part the loop body never read simply drains it — skipping an upload the application does not recognise costs a walk over bytes the door already charged for, and no memory at all.</p>\n<p>**A part is a file part iff its <code>Content-Disposition</code> carries a <code>filename</code>**, which is RFC 7578's own distinction and not a second one invented here. Every other part is an ordinary form field: the walk buffers those as it passes them, and <code>Core\\Request::formField()</code> reads them back afterwards. That is why <code>formField()</code> on a <code>multipart/form-data</code> request is called <strong>after</strong> this walk and never before — the fields are behind the uploads on the wire, and reading them first would mean draining the uploads to reach them.</p>\n<p>The walk is empty where the request declared no <code>multipart/form-data</code> body, which is what a request carrying no upload is. It throws <code>LogicError</code> where the program is not answering a request, or where <code>body()</code>, <code>bodyStream()</code> or <code>formField()</code> already read this body; <code>ParseError</code> where the request declared a multipart body and then did not say how to read one — no <code>boundary</code>, two of them, or one outside the grammar — since an ambiguous body is refused rather than guessed at; and <code>IOError</code> where the connection failed under the body or the peer stopped short of the length it declared.</p>\n<p><strong>What bounds it is the server, not this walk.</strong> <code>[limits] request_body</code> bounds what is parsed into memory and has nothing to say about a streamed body; the server carries at most 256M of one request body, declared or chunked, refusing an oversize before the program runs and stopping a chunked one at the part being read. That number is a constant today — the directive that makes it settable per deployment is not on disk yet.</p>"
         },
         {
           "code": "<?nvs\nforeach (Core\\Request::files() as Core\\Request\\Part $part) {\n    string $path = Core\\IO::within('uploads', $part->filename());\n    $part->saveTo($path);\n    echo $part->name(), \" saved\\n\";\n}",
@@ -40900,7 +40900,7 @@
             "params": [
               {
                 "name": "body",
-                "descHtml": "The page to send. It is a <code>Core\\Html\\Markup</code>, which is HTML that is already safe: an html template, `<code>html</code>…<code> </code><code>, escaped the values in its </code>{...}<code>, or </code>Core\\Html::escape<code> made it. It is sent as it is and nothing is escaped again. A </code>string` does not compile."
+                "descHtml": "The page to send. It is a <code>Core\\Html\\Markup</code>, which is HTML that is already safe. An html template, `<code>html</code>…<code> </code><code>, makes one and escapes the values in its </code>{...}<code>. </code>Core\\Html::escape<code> also makes one. It is sent as it is and nothing is escaped again. A </code>string` does not compile."
               }
             ],
             "returnHtml": "Nothing. Using this and <code>echo</code> in one response does not compile."
@@ -41899,14 +41899,14 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "Calls the method of the route that the request matched. First, <code>$gate-&gt;allows()</code> checks the request. When no route method runs, <code>dispatch</code> sets the status and calls <code>$gate-&gt;refused()</code>. When the method throws an error, <code>dispatch</code> sets the status <code>500</code> and calls <code>$gate-&gt;failed()</code>.",
+            "shortHtml": "Calls the method of the route that the request matched. Each value captured from the path goes to the method parameter with the same name. First, <code>$gate-&gt;allows()</code> checks the request. When no route method runs, <code>dispatch</code> sets the status and calls <code>$gate-&gt;refused()</code>. When the method throws an error, <code>dispatch</code> sets the status <code>500</code> and calls <code>$gate-&gt;failed()</code>.",
             "params": [
               {
                 "name": "gate",
                 "descHtml": "An instance of your class that implements <code>Core\\Router\\Gate</code>."
               }
             ],
-            "returnHtml": "Nothing. The route method or the gate writes the response, for example with <code>echo</code> or <code>Core\\Response::sendHtml</code>. When the gate implements <code>Core\\Router\\Responder</code>, <code>dispatch</code> passes the value that a route method returns to <code>$gate-&gt;respond()</code>. Otherwise <code>dispatch</code> does not send that value. Each value captured from the path goes to the method parameter with the same name. An error that <code>refused()</code>, <code>failed()</code> or <code>respond()</code> throws is thrown by <code>dispatch</code>.",
+            "returnHtml": "Nothing. The route method or the gate writes the response, for example with <code>echo</code> or <code>Core\\Response::sendHtml</code>. When the gate implements <code>Core\\Router\\Responder</code>, <code>dispatch</code> passes the value that a route method returns to <code>$gate-&gt;respond()</code>. Otherwise <code>dispatch</code> does not send that value. An error that <code>refused()</code>, <code>failed()</code> or <code>respond()</code> throws is thrown by <code>dispatch</code>.",
             "errors": [
               {
                 "error": "LogicError",
@@ -42116,7 +42116,7 @@
       "url": "/reference/core/router-match/",
       "summaryBlocks": [
         {
-          "html": "<p>The route that a path matched. <code>Core\\Request::route()</code> returns the match of the request being served, and <code>Core\\Router::match()</code> returns the match of a path you choose. <code>is()</code> checks which method the route belongs to. <code>parameters()</code> and <code>parameter()</code> return the values captured from the path, and <code>method()</code> returns the route's HTTP method. <code>accessAs&lt;E&gt;()</code> returns the route's access rule as a case of the enum <code>E</code>, and <code>access()</code> returns the same rule as its name. <code>attribute&lt;T&gt;()</code> returns an attribute of the route's method.</p>\n<p>A <code>Core\\Router\\Match</code> is what <code>Core\\Request::route()</code> answers (<code>null</code> when nothing in the route table claimed this method and path); it is never constructed by hand. The server matches the incoming request against the compiled table <strong>once</strong>, before any of the program runs, and this is that result travelling on the request — so a handler never matches its own path a second time. Matching is not dispatching: nothing here calls the annotated method, and a match has nothing that can be called. The program calls the method itself, after it checks which method matched with <code>is()</code>; the attributes chapter shows that check, and how the program sends the <code>404</code> and the <code>405</code>.</p>\n<p><code>is(Shop::show)</code> returns <code>true</code> when the route belongs to that method. You write the method the way <code>Core\\Router::url</code> takes it: <code>Class::method</code> with no <code>(...)</code>, for a static or an instance method. A method from a variable, such as an <code>array&lt;callable&gt;</code> or <code>$shop-&gt;show(...)</code>, is checked while the program runs, and <code>is</code> throws an error when that method has no route. <code>params()</code> is every capture the path filled, keyed by the parameter it binds, and <code>param()</code> is that array read at one key — <code>null</code> for a name the route does not declare, including an optional <code>{name?}</code> the request left off. A capture is <code>tainted string</code> where the route declared <code>string</code>, still percent-encoded, and the <code>int</code>, <code>uint</code>, <code>decimal</code> or <code>Core\\Uuid</code> the match already converted where it declared one of those, so a handler never parses a segment the router has parsed already — and a segment that would not convert did not match the route in the first place.</p>\n<p><code>access()</code> is the route's <code>#[Core\\Access(allow: …)]</code> as a <code>string</code>: the full name of the constant, such as <code>Core\\Audience::Public</code> or <code>App\\Role::Admin</code>. The server does not enforce it. A program that calls route methods checks it once, before the <code>switch</code>, so the check also covers a route added later. Treat <code>null</code> as access denied. <code>method()</code> is the verb the matched <code>#[Core\\Route]</code> declares, which tells apart the routes of one method that serves several verbs.</p>\n<p>Reading it needs a request. Off the command line — and in a scheduled script, a job worker or a test — there is none, and the reader refuses rather than answering <code>null</code>, because &quot;no request arrived&quot; and &quot;nothing matched&quot; are different facts.</p>"
+          "html": "<p>The route that a path matched. <code>Core\\Request::route()</code> returns the match of the request being served, and <code>Core\\Router::match()</code> returns the match of a path you choose. <code>is()</code> checks which method the route belongs to. <code>parameters()</code> and <code>parameter()</code> return the values captured from the path, and <code>method()</code> returns the route's HTTP method. <code>accessAs&lt;E&gt;()</code> returns the route's access rule as a case of the enum <code>E</code>, and <code>access()</code> returns the same rule as its name. <code>attribute&lt;T&gt;()</code> returns an attribute of the route's method.</p>\n<p>A <code>Core\\Router\\Match</code> is what <code>Core\\Request::route()</code> answers (<code>null</code> when nothing in the route table claimed this method and path); it is never constructed by hand. The server matches the incoming request against the compiled table <strong>once</strong>, before any of the program runs, and this is that result travelling on the request — so a handler never matches its own path a second time. Matching is not dispatching: nothing here calls the annotated method, and a match has nothing that can be called. The program calls the method itself, after it checks which method matched with <code>is()</code>; the attributes chapter shows that check, and how the program sends the <code>404</code> and the <code>405</code>.</p>\n<p><code>is(Shop::show)</code> returns <code>true</code> when the route belongs to that method. You write the method the way <code>Core\\Router::url</code> takes it: <code>Class::method</code> with no <code>(...)</code>, for a static or an instance method. A method from a variable, such as an <code>array&lt;callable&gt;</code> or <code>$shop-&gt;show(...)</code>, is checked while the program runs, and <code>is</code> throws an error when that method has no route. <code>parameters()</code> returns every value the path filled, keyed by the name of its parameter. <code>parameter()</code> returns one of them by name. It returns <code>null</code> for a name the route does not declare, and for an optional <code>{name?}</code> the request did not include. A capture is <code>tainted string</code> where the route declared <code>string</code>, still percent-encoded, and the <code>int</code>, <code>uint</code>, <code>decimal</code> or <code>Core\\Uuid</code> the match already converted where it declared one of those, so a handler never parses a segment the router has parsed already — and a segment that would not convert did not match the route in the first place.</p>\n<p><code>access()</code> is the route's <code>#[Core\\Access(allow: …)]</code> as a <code>string</code>: the full name of the constant, such as <code>Core\\Audience::Public</code> or <code>App\\Role::Admin</code>. The server does not enforce it. A program that calls route methods checks it once, before the <code>switch</code>, so the check also covers a route added later. Treat <code>null</code> as access denied. <code>method()</code> is the verb the matched <code>#[Core\\Route]</code> declares, which tells apart the routes of one method that serves several verbs.</p>\n<p>Reading it needs a request. Off the command line — and in a scheduled script, a job worker or a test — there is none, and the reader refuses rather than answering <code>null</code>, because &quot;no request arrived&quot; and &quot;nothing matched&quot; are different facts.</p>"
         },
         {
           "code": "<?nvs\ntry {\n    Core\\Request::route();\n} catch (LogicError $why) {\n    echo \"no request here\\n\";\n}",
@@ -42708,7 +42708,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+                "descHtml": "The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -42779,7 +42779,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+                "descHtml": "The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -42834,7 +42834,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+                "descHtml": "The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -42889,7 +42889,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+                "descHtml": "The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -43108,7 +43108,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+                "descHtml": "The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -43187,7 +43187,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+                "descHtml": "The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -43250,7 +43250,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+                "descHtml": "The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -43305,7 +43305,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The session store cannot be opened. This happens only at the first call in the request that uses the session. The server has no data folder for the default store. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
+                "descHtml": "The session store, where the server keeps session data, cannot be opened. This happens only at the first call in the request that uses the session. With the default store, the cause is that the server has no data folder. With <code>[session] backend = &quot;shared&quot;</code>, <code>[cache.shared] url</code> is not set, or the program does not have the <code>cache.shared</code> capability."
               },
               {
                 "error": "IOError",
@@ -44280,14 +44280,14 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "Tells the client how long to wait before it reconnects. It is sent as a separate block, and the client sees no event.",
+            "shortHtml": "Tells the client how long to wait before it reconnects. It is sent as a <code>retry:</code> line in the stream. It is not an event, so the client's event handlers do not run.",
             "params": [
               {
                 "name": "after",
                 "descHtml": "How long the client waits before it reconnects. It is sent in whole milliseconds. A wait shorter than one millisecond is sent as <code>0</code>, without an error."
               }
             ],
-            "returnHtml": "Nothing. The block is added to the response body.",
+            "returnHtml": "Nothing. The <code>retry:</code> line is added to the response body.",
             "errors": [
               {
                 "error": "LogicError",
@@ -47745,7 +47745,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "The call runs in a server, such as in a request, a connection, a scheduled task or a queued job. A test may call it. Code that a test starts may call it too, such as a request sent with <code>Core\\Test::request</code>. A command-line program may also call it."
+                "descHtml": "The call runs in a server, such as in a request, a connection, a scheduled task or a queued job. There is one exception: a request that a test sends with <code>Core\\Test::request</code> may call it. Tests and command-line programs may always call it."
               }
             ]
           },
@@ -48057,7 +48057,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "The call gives both <code>json</code> and <code>body</code>, which are two ways to write one body. Or the status is not from <code>100</code> to <code>999</code>. Or the call gives a <code>tls</code> session for an <code>http://</code> URL, which has no TLS. Or the call runs in a server, such as in a request, a connection, a scheduled task or a queued job. A test may call it. Code that a test starts may call it too, such as a request sent with <code>Core\\Test::request</code>. A command-line program may also call it."
+                "descHtml": "The call gives both <code>json</code> and <code>body</code>, which are two ways to write one body. Or the status is not from <code>100</code> to <code>999</code>. Or the call gives a <code>tls</code> session for an <code>http://</code> URL, which has no TLS. Or the call runs in a server, such as in a request, a connection, a scheduled task or a queued job. There is one exception: a request that a test sends with <code>Core\\Test::request</code> may call it. Tests and command-line programs may always call it."
               }
             ]
           },
@@ -48125,14 +48125,14 @@
               },
               {
                 "name": "expiry",
-                "descHtml": "The date and time when the leaf certificate expires. It is kept in whole seconds. The default is 90 days after <code>Core\\Time::now()</code>. So a test that sets its clock to a fixed time gets the same value every run."
+                "descHtml": "The date and time when the leaf certificate expires. It is kept in whole seconds. The default is 90 days after <code>Core\\Time::now()</code>. A test that sets its clock to a fixed time gets the same default every run."
               }
             ],
             "returnHtml": "A <code>Core\\Http\\TlsInfo</code>. Its <code>peerChain()</code> returns two certificates: the leaf certificate, then the CA certificate that signed it. Pass the result to <code>Core\\Test::answerHttp</code> as <code>tls</code>, and the fake reply reports this session.",
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "The version is not <code>TLSv1.3</code> or <code>TLSv1.2</code>. Or the cipher is not one this build supports for that version. Or a subject or issuer is not written as <code>KEY=value</code> pairs with the keys above. Or the expiry is before 1950 or after 9999. Or the call runs in a server, such as in a request, a connection, a scheduled task or a queued job. A test may call it. Code that a test starts may call it too, such as a request sent with <code>Core\\Test::request</code>. A command-line program may also call it."
+                "descHtml": "The version is not <code>TLSv1.3</code> or <code>TLSv1.2</code>. Or the cipher is not one this build supports for that version. Or a subject or issuer is not written as <code>KEY=value</code> pairs with the keys above. Or the expiry is before 1950 or after 9999. Or the call runs in a server, such as in a request, a connection, a scheduled task or a queued job. There is one exception: a request that a test sends with <code>Core\\Test::request</code> may call it. Tests and command-line programs may always call it."
               }
             ]
           },
@@ -48210,7 +48210,7 @@
             "errors": [
               {
                 "error": "LogicError",
-                "descHtml": "The call runs in a server, such as in a request, a connection, a scheduled task or a queued job. A test may call it. Code that a test starts may call it too, such as a request sent with <code>Core\\Test::request</code>. A command-line program may also call it."
+                "descHtml": "The call runs in a server, such as in a request, a connection, a scheduled task or a queued job. There is one exception: a request that a test sends with <code>Core\\Test::request</code> may call it. Tests and command-line programs may always call it."
               }
             ]
           },
@@ -50547,42 +50547,42 @@
           ],
           "returnType": "Core\\Time\\DateTime",
           "doc": {
-            "shortHtml": "Replaces any of the seven date and time fields and keeps the others. If the zone skips the new time, the result moves forward past the gap.",
+            "shortHtml": "Replaces the parts of the date and time that you name, and keeps the others. When the clocks move forward, one hour of that day does not exist. A new time in that hour moves one hour later.",
             "params": [
               {
                 "name": "year",
-                "descHtml": "The new year, within <code>-9999..=9999</code>; omitted leaves the field alone."
+                "descHtml": "The new year, from <code>-9999</code> to <code>9999</code>. Leave it out to keep the year."
               },
               {
                 "name": "month",
-                "descHtml": "The new month, <code>1</code> to <code>12</code>; omitted leaves the field alone."
+                "descHtml": "The new month, from <code>1</code> to <code>12</code>. Leave it out to keep the month."
               },
               {
                 "name": "day",
-                "descHtml": "The new day of the month; omitted leaves the field alone."
+                "descHtml": "The new day of the month. Leave it out to keep the day."
               },
               {
                 "name": "hour",
-                "descHtml": "The new hour, <code>0</code> to <code>23</code>; omitted leaves the field alone."
+                "descHtml": "The new hour, from <code>0</code> to <code>23</code>. Leave it out to keep the hour."
               },
               {
                 "name": "minute",
-                "descHtml": "The new minute, <code>0</code> to <code>59</code>; omitted leaves the field alone."
+                "descHtml": "The new minute, from <code>0</code> to <code>59</code>. Leave it out to keep the minute."
               },
               {
                 "name": "second",
-                "descHtml": "The new second, <code>0</code> to <code>59</code>; omitted leaves the field alone."
+                "descHtml": "The new second, from <code>0</code> to <code>59</code>. Leave it out to keep the second."
               },
               {
                 "name": "nanoseconds",
-                "descHtml": "The new subsecond nanoseconds, below <code>1000000000</code>; omitted leaves the field alone."
+                "descHtml": "The new part of a second, in nanoseconds, from <code>0</code> to <code>999999999</code>. Leave it out to keep it."
               }
             ],
-            "returnHtml": "A new <code>DateTime</code> in the same zone; the receiver is unchanged.",
+            "returnHtml": "A new <code>DateTime</code> in the same zone. The value you call <code>with</code> on does not change.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "An option is outside its field's range, or the fields together are not a date that exists — <code>{ day: 31 }</code> on a June value."
+                "descHtml": "A value is outside its range. Or the parts together are not a date that exists, such as <code>{ day: 31 }</code> on a date in June."
               }
             ]
           },
@@ -50739,14 +50739,14 @@
             "params": [
               {
                 "name": "other",
-                "descHtml": "The value to count to; it is read in the receiver's zone, so the two may differ in zone."
+                "descHtml": "The value to count to. It is read in this value's zone, so the two values may have different zones."
               },
               {
                 "name": "unit",
                 "descHtml": "The calendar unit to count in."
               }
             ],
-            "returnHtml": "The whole count, truncated toward zero — negative when <code>$other</code> is earlier, <code>0</code> within one unit.",
+            "returnHtml": "The whole count, truncated toward zero. It is negative when <code>$other</code> is earlier, and <code>0</code> when the two values are less than one unit apart.",
             "errors": [
               {
                 "error": "RuntimeError",
@@ -51728,18 +51728,18 @@
             "params": [
               {
                 "name": "seconds",
-                "descHtml": "Whole seconds since <code>1970-01-01T00:00:00Z</code>; negative before it."
+                "descHtml": "Whole seconds since <code>1970-01-01T00:00:00Z</code>. A time before that is negative."
               },
               {
                 "name": "nanoseconds",
-                "descHtml": "Nanoseconds to add on top of the second, below <code>1000000000</code>; the default is <code>0</code>."
+                "descHtml": "Nanoseconds to add after the second, from <code>0</code> to <code>999999999</code>. The default is <code>0</code>."
               }
             ],
             "returnHtml": "The <code>Instant</code>.",
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "<code>nanoseconds</code> is not below <code>1000000000</code>, or <code>$seconds</code> is outside <code>-377705023201..=253402207200</code>. That is the time from <code>-9999-01-02T01:59:59Z</code> to <code>9999-12-30T22:00:00Z</code>."
+                "descHtml": "<code>nanoseconds</code> is <code>1000000000</code> or more. Or <code>$seconds</code> is not from <code>-377705023201</code> to <code>253402207200</code>. These are the times <code>-9999-01-02T01:59:59Z</code> and <code>9999-12-30T22:00:00Z</code>."
               }
             ]
           },
@@ -52017,7 +52017,7 @@
                 "descHtml": "The instant to compare against."
               }
             ],
-            "returnHtml": "<code>-1</code> when the receiver is earlier than <code>$other</code>, <code>0</code> when they are the same instant, <code>1</code> when it is later."
+            "returnHtml": "<code>-1</code> when this instant is earlier than <code>$other</code>, <code>0</code> when they are the same instant, <code>1</code> when it is later."
           },
           "slug": "compareto",
           "url": "/reference/core/time-instant/compareto/",
@@ -52157,7 +52157,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "A field is outside its range, for example an hour of <code>24</code>."
+                "descHtml": "A value is outside its range, for example an hour of <code>24</code>."
               }
             ]
           },
@@ -52196,7 +52196,7 @@
             "errors": [
               {
                 "error": "ParseError",
-                "descHtml": "<code>$text</code> is not in this form, or a field is outside its range, such as <code>24:00</code>. The error says which part is wrong."
+                "descHtml": "<code>$text</code> is not in this form, or a part is outside its range, such as <code>24:00</code>. The error says which part is wrong."
               }
             ]
           },
@@ -52381,7 +52381,7 @@
           ],
           "returnType": "Core\\Time\\TimeOfDay",
           "doc": {
-            "shortHtml": "Returns a copy of the time with the fields you give changed. The fields you leave out keep their value.",
+            "shortHtml": "Returns a copy of the time with the parts you name changed. The parts you leave out keep their value.",
             "params": [
               {
                 "name": "hour",
@@ -52404,7 +52404,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "A field is outside its range, for example a minute of <code>60</code>."
+                "descHtml": "A value is outside its range, for example a minute of <code>60</code>."
               }
             ]
           },
@@ -52439,7 +52439,7 @@
                 "descHtml": "The time to compare against."
               }
             ],
-            "returnHtml": "<code>-1</code> when the receiver is earlier in the day than <code>$other</code>, <code>0</code> when both are the same time, <code>1</code> when it is later."
+            "returnHtml": "<code>-1</code> when this time is earlier in the day than <code>$other</code>, <code>0</code> when both are the same time, <code>1</code> when it is later."
           },
           "slug": "compareto",
           "url": "/reference/core/time-timeofday/compareto/",
@@ -53616,7 +53616,7 @@
             "errors": [
               {
                 "error": "RuntimeError",
-                "descHtml": "The base has no scheme, such as <code>/blog/post</code>. The link has a character that is not allowed in an address, such as a space. Or the base has no <code>/</code> after its scheme, such as <code>mailto:ann@example.com</code>, so there is no path to add the link to."
+                "descHtml": "The base has no scheme (the part before <code>:</code>, such as <code>https</code>), as in <code>/blog/post</code>. The link has a character that is not allowed in an address, such as a space. Or the base has no <code>/</code> after its scheme, such as <code>mailto:ann@example.com</code>, so there is no path to add the link to."
               }
             ]
           },
@@ -53743,7 +53743,7 @@
               },
               {
                 "error": "RuntimeError",
-                "descHtml": "The link was not signed with these keys. This is the case when a parameter was added, removed or changed, when the token was changed, when the key was removed from the list, when there is no <code>_sig</code>, and when there are two. All of these give the same message. An expired link gives a different message."
+                "descHtml": "The link was not signed with these keys. A parameter was added, removed or changed, or the <code>_sig</code> value was changed. Or the key is no longer in the list. Or the link has no <code>_sig</code>, or two of them. All of these give the same message. An expired link gives a different message."
               }
             ]
           },
@@ -54588,7 +54588,7 @@
           "options": [],
           "returnType": "Core\\Xml\\Reader",
           "doc": {
-            "shortHtml": "Returns a reader that goes through <code>$document</code> one node at a time. Call <code>read</code> until it returns <code>null</code>. The reader does not build a tree. It keeps the current node and the names of the elements that are open. This call reads nothing yet. The first <code>read</code> reads the first node.",
+            "shortHtml": "Returns a reader that reads <code>$document</code> one node at a time. Call <code>read</code> until it returns <code>null</code>. The reader does not build a tree. It keeps the current node and the names of the elements that are open. This call reads nothing yet. The first <code>read</code> reads the first node.",
             "params": [
               {
                 "name": "document",

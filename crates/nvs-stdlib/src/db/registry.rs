@@ -2085,8 +2085,7 @@ pub(super) const CONNECT_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "name",
             desc: "The block to open. It must match exactly: `\"main\"` is `[db.main]`. Two \
-                   blocks for the same server give two connections, because whoever wrote two \
-                   blocks wanted two.",
+                   blocks for the same server give two separate connections.",
             shape: &[],
         },
         ParamDoc {
@@ -2351,8 +2350,8 @@ const TIMEOUT_PARAM_DOC: ParamDoc = ParamDoc {
 /// `Core\Db\Connection::queryAs`'s reference card — `rule:core-api/reference-card`.
 pub(super) const QUERY_AS_DOC: MethodDoc = MethodDoc {
     short: "Runs one statement as `query` does and returns each row as an object of the class \
-            written at the call site. `#[Db\\Derive]` generates the mapping from the class's \
-            declared properties.",
+            you write in angle brackets. `#[Db\\Derive]` reads each column into the class \
+            property with the same name.",
     params: &[
         ParamDoc {
             name: "sql",
@@ -2486,7 +2485,7 @@ pub(super) const EXECUTE_MANY_DOC: MethodDoc = MethodDoc {
 /// `Core\Db\Queryable::queryEach`'s reference card — `rule:core-api/reference-card`.
 pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
     short: "Runs one statement and gives its rows one at a time to a `foreach` loop. The connection \
-            stays open until the loop ends. The memory used stays the same however many rows \
+            is busy until the loop ends. The memory used stays the same however many rows \
             there are. Use it instead of `query` for a large result.",
     params: &[
         ParamDoc {
@@ -2541,7 +2540,7 @@ pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
 /// `Core\Db\Queryable::queryEachAs`'s reference card — `rule:core-api/reference-card`.
 pub(super) const STREAM_AS_DOC: MethodDoc = MethodDoc {
     short: "Reads a result one row at a time as `queryEach` does, and builds each row into an object \
-            of the class written at the call site, as `queryAs` does. The memory used stays the \
+            of the class you write in angle brackets, as `queryAs` does. The memory used stays the \
             same however many rows there are.",
     params: &[
         ParamDoc {
@@ -2670,8 +2669,8 @@ pub(super) const TRANSACTION_DOC: MethodDoc = MethodDoc {
 /// `Core\Db\Transaction::rollBack`'s reference card — `rule:core-api/reference-card`.
 pub(super) const ROLL_BACK_DOC: MethodDoc = MethodDoc {
     short: "Rolls back this transaction. It records `$reason` and throws `Core\\Db\\RolledBack` \
-            with it. You cannot request a rollback and then continue in the same transaction. \
-            So no code has to remember to check a flag such as `setRollbackOnly`.",
+            with it. Code after the call does not run, and the transaction cannot continue. \
+            So no other code has to check whether the transaction was given up.",
     params: &[ParamDoc {
         name: "reason",
         desc: "Why the work is stopped. It becomes the `reason` property and the message of the \
@@ -2787,8 +2786,8 @@ pub(super) const COLUMN_DECLARED_DOC: MethodDoc = MethodDoc {
 /// `Core\Db\Column::isNullable`'s reference card — `rule:core-api/reference-card`.
 pub(super) const COLUMN_NULLABLE_DOC: MethodDoc = MethodDoc {
     short: "Checks whether the column can contain NULL. On PostgreSQL this is always `true`. The \
-            server does not send a NOT NULL flag with the result. Only an extra catalog query \
-            for each statement could find it, and this driver does not run one.",
+            server does not send a NOT NULL flag with the result. Only an extra query on the \
+            table's definition could find it, and this driver does not run one.",
     params: &[],
     ret: "`true` for every column this driver describes, so treat every column as nullable. \
           The typed methods of `Core\\Db\\Row` already do this, and each returns `?T`. A \

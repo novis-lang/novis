@@ -27,8 +27,8 @@ final class Sheet
         |{ password: ?string, allow: array<string> };
     type PrintOptions = { orientation?: string, fitToPage?: { width?: uint, height?: uint }, margins?: { top: float, right: float, bottom: float, left: float }, header?: string, footer?: string, repeatRows?: string, area?: string };
 
-    /// `new Sheet` makes a sheet of a workbook. `Workbook::addSheet` makes one for you.
-    /// `$add` adds a row. `$ready` sends the rows that wait, checks that the sheet is open, and with `true` last checks for a data row. `$position` returns the column of a key.
+    /// `new Sheet` makes a sheet of a workbook. Do not call it yourself. `Workbook::addSheet` makes the sheet and returns it.
+    /// The other values are the functions of the workbook that write the rows and the other parts of the sheet to its file.
     public function constructor(
         private readonly uint $index,
         private readonly Writer $writer,
@@ -183,8 +183,8 @@ final class Sheet
         });
     }
 
-    /// `addOutlineGroup` puts the rows `$rows`, such as `'5:9'`, or the columns, such as `'B:D'`, in an outline group.
-    /// Add a group of rows before its rows, and a group of columns before the first row. `collapsed` hides the group.
+    /// `addOutlineGroup` puts rows, such as `'5:9'`, or columns, such as `'B:D'`, in a group. A person can hide and show the group in Excel with one click.
+    /// Add a group of rows before the rows in it, and a group of columns before the first row. `collapsed` hides the group when the file opens.
     public function addOutlineGroup(string $rows, ?{ collapsed?: bool } $options = null): Sheet
     {
         return $this->part({ grouped: $rows, collapsed: $options?->collapsed ?? false });
@@ -238,7 +238,7 @@ final class Sheet
         });
     }
 
-    /// `addImage` puts the PNG, JPEG or GIF image `$data` at the cell `$cell`. Any other format, or a file that is cut short, throws a `LogicError`.
+    /// `addImage` puts the PNG, JPEG or GIF image `$data` at the cell `$cell`. Any other format, or a file with bytes missing at the end, throws a `LogicError`.
     /// `width` and `height` are in pixels. `offsetX` and `offsetY` move the image from the corner of the cell. An image that ends after column `XFD` or row 1,048,576 throws.
     public function addImage(string $cell, bytes $data, ?{ width?: float, height?: float, offsetX?: float, offsetY?: float } $options = null): Sheet
     {
@@ -253,7 +253,7 @@ final class Sheet
     }
 
     /// `addChart` puts `$chart` at the cell `$cell`. `width` and `height` are in pixels. The chart is 480 by 288 pixels if you do not set them.
-    /// A series range from `column` grows with the sheet, so a chart you add before the last row still shows every row.
+    /// With a series range from `column`, the chart also shows the rows you add after it.
     public function addChart(string $cell, Chart $chart, ?{ width?: float, height?: float } $options = null): Sheet
     {
         array<{ kind: Chart::Kind, series: array<{ values: string, categories: ?string, name: ?string, color: ?string }> }> $layers = [{ kind: $chart->kind, series: $chart->series }];

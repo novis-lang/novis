@@ -5,9 +5,9 @@ chart can use it.
 header row is not in the range, so the range starts at the first row of data.
 
 **Good to know:** the range ends at the last row you added before the call. Call `column` after the
-last row to get every row. A chart is the one exception: a series range from `column` grows with the
-sheet, so a chart you add before the last row still shows every row. Before the first row of data, `column` throws a
-`LogicError`. When the workbook starts the next sheet, this sheet is finished, and `column` throws a
+last row to get every row. A chart is the one exception. A chart with a series range from `column`
+also shows the rows you add after it. Before the first row of data, `column` throws a `LogicError`.
+A sheet is finished when the workbook starts the next sheet. After that, `column` throws a
 `LogicError`.
 
 **The examples below** find the range of a column, add a total row with `SUM`, and show how the

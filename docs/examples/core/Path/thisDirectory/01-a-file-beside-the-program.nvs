@@ -7,5 +7,6 @@ string $about = Core\Path::thisDirectory('about.md');
 // The path starts at a root, so this prints `true`.
 echo Core\Path::isAbsolute($about) ? 'true' : 'false', "\n";
 
-// The folder of the path is the folder of this file. This prints `thisDirectory`.
+// `about.md` is in the folder of this file, and that folder is named `thisDirectory`.
+// So this prints `thisDirectory`.
 echo Core\Path::fileName(Core\Path::parent($about)), "\n";

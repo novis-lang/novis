@@ -7,8 +7,8 @@ remove all of it, so a photo you publish does not show where a user lives.
 `keepingMetadata` returns a copy that writes the EXIF data back into the output. This works for
 JPEG, PNG and WebP files. An AVIF file never has EXIF data.
 
-When `open` turns a photo upright, it also sets the orientation in the kept EXIF data to 1. So the
-photo is not turned a second time when somebody opens the file.
+When `open` turns a photo upright, it also sets the orientation in the kept EXIF data to 1. Because of this, the
+photo is not turned a second time when a program opens the file.
 
 **Good to know:** only keep the metadata when you need it, for example for a photo archive. For an
 image that strangers will see, the default is the safe choice.

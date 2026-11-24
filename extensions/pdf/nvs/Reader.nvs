@@ -47,7 +47,7 @@ final class Reader
 
     /// `text` returns the text of one page, in the order the file stores it. Pages count from 1.
     /// Tables and columns are not rebuilt. A page number past the end throws a `LogicError`.
-    /// The file is read from the reader, so a call does not copy it again.
+    /// `text` uses the file that `Reader::open` read. It does not read or copy the file again.
     public function text(uint $page): tainted string
     {
         return Engine::readText($this->file, { maxBytes: null, maxRatio: null }, [$page])[0];

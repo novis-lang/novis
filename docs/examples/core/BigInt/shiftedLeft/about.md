@@ -8,8 +8,8 @@ The sign stays what it was. A negative number stays negative, so -3 shifted by 4
 
 Every place makes the number one bit wider. One call may produce a number of at most 1048576 bits,
 and a wider answer throws an `ArithmeticError`. The width you start with counts toward that bound.
-`shiftedLeft` tests the width before it shifts, so the large number is never built and your program
-keeps its memory.
+`shiftedLeft` tests the width before it shifts, so the large number is never built and no memory is
+used for it.
 
 `shiftedLeft` is a method because `<<` does not work on an object. To shift the other way, use
 `Core\BigInt::shiftedRight`.

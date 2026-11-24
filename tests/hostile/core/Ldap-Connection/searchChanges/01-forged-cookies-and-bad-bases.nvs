@@ -1,6 +1,6 @@
 <?nvs
-// Attack: a program leaves many loops early, and calls `searchChanges` with forged cookies, bad bases
-// and bad attribute names. Each call must return entries or throw an error, and nothing may crash.
+// Attack: a program stops many loops early, and calls `searchChanges` with forged cookies, wrong bases
+// and wrong attribute names. Each call must return entries or throw an error, and nothing may crash.
 // hostile: timeout-ms 120000
 // requires: samba-ad
 
@@ -20,7 +20,7 @@ class Count
 var $corp = Core\Ldap::connect('corp');
 var $units = Core\Ldap\Filter::equals('objectClass', 'organizationalUnit');
 
-// 1. Twenty calls, each left after its first entry. Nothing may be left behind.
+// 1. Twenty loops, each stopped with `break` after its first entry. The next call must still work.
 uint $i = 0;
 uint $found = 0;
 uint $threw = 0;
@@ -63,7 +63,7 @@ foreach ($cookies as tainted bytes $cookie) {
 }
 echo '2 threw: ', $threw, "\n";
 
-// 3. Bases that are not the root of the domain, and attribute names that are not names.
+// 3. Bases that are not the root of the domain, and attribute names that are not valid.
 $threw = 0;
 try {
     Count::all($corp->searchChanges($units, { base: 'OU=Company,DC=example,DC=test' }));

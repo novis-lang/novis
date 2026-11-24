@@ -862,8 +862,8 @@ const FILES_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "LogicError",
             desc: "The program is not handling a request. Or `body`, `bodyStream` or `formField` \
-                   already read the body. After this call, `body`, `bytes`, `bodyStream` and \
-                   `json` throw this error too. `formField` still works after the loop.",
+                   already read the body. Once `files` is called, `body`, `bytes`, `bodyStream` \
+                   and `json` throw this error too. You can still call `formField` after the loop.",
         },
         ErrorDoc {
             error: "ParseError",

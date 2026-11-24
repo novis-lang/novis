@@ -7,7 +7,8 @@ place you asked for. From `/srv/shop/views`, the path to `/srv/shop/logs/app.log
 `.` and `..` parts removed first, as `Core\Path::normalize` does.
 
 The result is `null` when no relative path exists. That happens when one path is absolute and the
-other is not, or when they start at different roots, such as two drives.
+other is not, or when they start at different roots, such as two drives. It also happens when
+`$base` starts with more `..` parts than the other path.
 
 **The examples below** find a relative path, show when the result is `null`, and write the links
 between the pages of a website.

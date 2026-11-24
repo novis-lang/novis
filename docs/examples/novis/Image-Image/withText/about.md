@@ -9,9 +9,9 @@ lines line up, and the default is `Image::Align::Left`. `Image::measureText` ret
 text.
 
 There are no system fonts. Make a `Font` with `Font::fromBytes`. Text in any script is drawn as the
-font defines it, so Arabic letters join and a line of Arabic or Hebrew runs from right to left. The
+font defines it. Arabic letters join, and a line of Arabic or Hebrew runs from right to left. The
 font must contain the letters of the text. Text with nothing to draw throws a `LogicError`, and a
 font file with broken tables throws a `ParseError`. Both happen when `encode` or `raw` runs.
 
-**The examples below** draw a label on a badge, place a letter at `x` and `y`, and write a caption
-at the bottom of a photo.
+**The examples below** draw a label on a badge, and place a letter at `x` and `y`. The last one writes
+a caption at the bottom of a photo.

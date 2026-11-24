@@ -19,7 +19,7 @@ echo $widest->shiftedRight(9223372036854775807), "\n";
 echo $widest->negated()->shiftedRight(9223372036854775807), "\n";
 
 // 3. That same number shifted down 1024 bits at a time until nothing is left.
-//    Each round builds a new number and drops the one before it.
+//    Each round builds a new number and frees the one before it.
 var $left = $widest;
 uint $rounds = 0;
 while ($left->sign() != 0) {
@@ -29,7 +29,7 @@ while ($left->sign() != 0) {
 echo $rounds, "\n";
 
 // 4. Two hundred thousand small shifts, each thrown away again. The memory the
-//    program holds must not grow with the rounds.
+//    program uses must not grow with the rounds.
 uint $round = 0;
 int $signs = 0;
 while ($round < 200000) {

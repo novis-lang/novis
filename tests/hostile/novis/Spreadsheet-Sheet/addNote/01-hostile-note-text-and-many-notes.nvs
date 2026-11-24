@@ -22,7 +22,7 @@ class Attack
     }
 }
 
-// 1. Markup, a formula, a zero byte and text that closes the XML of the note.
+// 1. Markup, a formula, a zero byte and text that tries to end the note early in the file.
 Attack::attempt(1, 'A1', '<script>alert(1)</script>', 'Ann');
 Attack::attempt(1, 'A1', '=cmd|calc!A0', '=1+1');
 Attack::attempt(1, 'A1', "before\u{0}after", 'Ann');

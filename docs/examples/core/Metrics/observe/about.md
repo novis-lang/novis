@@ -6,7 +6,7 @@ their number and their sum. With these, your monitoring system can show the aver
 slowest requests were. Give the value in the unit the name ends with: seconds for `_seconds`, bytes
 for `_bytes`.
 
-The first use decides that this name is a histogram. Calling `increment` or `gauge` with the same
+After the first call, this name is a histogram. Calling `increment` or `setGauge` with the same
 name later throws a `LogicError`. Labels split one histogram into several, for example one per
 database table.
 

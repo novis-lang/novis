@@ -8,7 +8,7 @@ var $sold = Core\BigInt::of(325);
 // This prints 675.
 echo $stock->minus($sold), "\n";
 
-// `$stock` still holds what it did before. This prints 1000.
+// `$stock` still has the same value. This prints 1000.
 echo $stock, "\n";
 
 // When the second number is the larger one, the result is negative. This

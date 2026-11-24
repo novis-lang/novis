@@ -5,9 +5,9 @@ are the same when their values are identical: the same type and the same content
 conversion. The number 3 and the text "3" are different values here.
 
 You can change what is compared. The `on` option takes `Core\Arr::SetOn::Values` (the default),
-`Core\Arr::SetOn::Keys` or `Core\Arr::SetOn::Both`. The `by` option is a function that maps the part
-being compared, and it changes the comparison only, never the entries you get back. The `comparator`
+`Core\Arr::SetOn::Keys` or `Core\Arr::SetOn::Both`. The `by` option is a function that changes the
+part being compared. It changes the comparison only, never the entries you get back. The `comparator`
 option replaces the comparison itself.
 
-The examples show three of these: which values a second list is missing, which keys are new, and a
-comparison that treats upper and lower case as the same.
+The examples show three of these. They find which values a second list is missing and which keys are
+new. The third uses a comparison that treats upper and lower case as the same.

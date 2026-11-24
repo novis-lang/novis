@@ -13,7 +13,7 @@ final class Expect
     }
 }
 
-// 1. The last nanosecond of the first second in time, read in the zone farthest behind.
+// 1. The last nanosecond of the earliest second a time can have, in a zone 25h59m59s behind UTC.
 var $behind = Core\Time\Zone::fixed(25h59m59s->negated());
 var $first = Core\Time\Instant::fromIso('-9999-01-02T01:59:59.999999999Z')->in($behind);
 Expect::same('step 1', $first->nanoseconds() as string, '999999999');
@@ -36,7 +36,7 @@ var $next = $paris->plus(1, Core\Unit::Nanosecond);
 Expect::same('step 3', $next->nanoseconds() as string, '0');
 Expect::same('step 3', $next->year() as string, '1871');
 
-// 4. Steps of 999999937 nanoseconds go through the Berlin hour that happens twice in autumn.
+// 4. The time moves in steps of 999999937 nanoseconds, across the hour that Berlin has twice in autumn.
 // After each step, `nanoseconds` must match the sum of the steps, and `with` must give the same moment back.
 var $clock = Core\Time\Instant::fromIso('2024-10-26T23:00:00Z')->in($berlin);
 int $want = 0;

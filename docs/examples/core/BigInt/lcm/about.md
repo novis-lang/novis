@@ -8,4 +8,4 @@ The result is never negative, and the sign of the two numbers does not change it
 two numbers does not change it either. When one of them is zero the result is 0.
 
 **Good to know:** the result can be far larger than either number. Two numbers that share no divisor
-above 1 give their product, which is how a value grows past what an `int` holds.
+above 1 give their product, so the result can quickly grow too large for an `int`.

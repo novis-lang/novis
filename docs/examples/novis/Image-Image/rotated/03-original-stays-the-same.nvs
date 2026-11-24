@@ -7,7 +7,8 @@ Image $photo = Image::create(300, 200, Color::hex('#22aa55'));
 Image $left = $photo->rotated(-90.0);
 Image $right = $photo->rotated(90.0);
 
-// `$photo` has no steps, so it keeps its size. This prints 300x200, 200x300 and 200x300.
+// `rotated` does not change `$photo`, so `$photo` is still 300x200.
+// This prints 300x200, 200x300 and 200x300.
 array<Image> $versions = [$photo, $left, $right];
 foreach ($versions as Image $version) {
     var $raw = $version->raw();

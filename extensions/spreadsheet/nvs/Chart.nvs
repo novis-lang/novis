@@ -20,7 +20,7 @@ final class Chart
     /// @param $title the title of the chart, or `null`
     /// @param $xTitle the title of the horizontal axis, or `null`
     /// @param $yTitle the title of the vertical axis, or `null`
-    /// @param $legend the place of the legend, such as `Legend::Right`, or `Legend::Hidden` for no legend
+    /// @param $legend where the legend is, such as `Legend::Right`, or `Legend::Hidden` for no legend
     /// @param $labels `true` when the chart shows each value on it
     public function constructor(
         public readonly Kind $kind,
@@ -92,7 +92,7 @@ final class Chart
     }
 
     /// `combinedWith` returns the chart with the type and the series of `$other` drawn on the same axes.
-    /// You can combine two of column, line and area, such as columns of sales with a line of costs. The title and the legend come from this chart.
+    /// Only column, line and area charts combine, and the two types must be different, such as columns of sales with a line of costs. The title and the legend come from this chart.
     public function combinedWith(Chart $other): Chart
     {
         array<Layer> $combined = $this->combined;

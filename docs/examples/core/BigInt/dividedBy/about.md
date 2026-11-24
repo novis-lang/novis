@@ -7,6 +7,5 @@ The fraction is dropped. A positive and a negative result are both cut toward ze
 Dividing by zero throws an `ArithmeticError`. Check the divisor with `sign` first when it may be
 zero.
 
-Both numbers stay as they were. `dividedBy` returns a new number, so the result is the number you
-get back, not the one you called it on. To get what the division left over, use `remainder` on the
-same two numbers.
+`dividedBy` does not change either number. It returns the result as a new number. To get what the
+division left over, use `remainder` on the same two numbers.

@@ -1,8 +1,7 @@
 An image file format.
 
-`Image::withFormat` returns a copy of the image with this format set. `encode` writes the file in that
-format. `encode` runs every step you added
-to the image and returns the finished file. `Codec::info` gives the format of a file that you read.
+`Image::withFormat` returns a copy of the image with this format set. `encode` runs every step you
+added to the image and returns the finished file in that format. `Codec::info` gives the format of a file that you read.
 The cases are `Jpeg`, `Png`, `Webp`, `Gif`, `Avif`, `Jxl`, `Svg` and `Pdf`. `Avif` is the AVIF format,
 and `Jxl` is the JPEG XL format.
 

@@ -1,9 +1,8 @@
 Makes one sheet of a workbook. You do not call `new Sheet` in your program: `Workbook::addSheet`
 makes the sheet and returns it.
 
-The constructor stores the position of the sheet in the workbook, and the functions of the workbook
-that write the rows and the other parts of the sheet. So every row you add goes to the file of the
-workbook that made the sheet, in the order you add it.
+Every row you add goes to the file of the workbook that made the sheet. The rows are written in the
+order you add them.
 
 **Good to know:** a sheet is finished when the workbook starts the next sheet or when you call
 `Workbook::finish`. After that, `addRow` and the other methods of the sheet throw a `LogicError`.

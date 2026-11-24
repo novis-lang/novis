@@ -1,6 +1,6 @@
 <?nvs
-// Attack: a program tries to mark a valid password as expired, or an expired one as valid, with
-// `with`. `isPasswordExpired` must only come from the server, and nothing may crash.
+// Attack: a program changes the flags around the expired bit with `with`, and tries to change that bit too.
+// `isPasswordExpired` must only come from the server, and nothing may crash.
 // hostile: timeout-ms 60000
 // requires: samba-ad
 

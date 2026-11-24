@@ -7,7 +7,7 @@ array that maps each slot name to an `html` template.
 `$page->marksUpTo("amount")` returns the `data-mark="amount:..."` values up to this page.
 `$page->marks("amount")` returns those on this page only.
 
-A fill does not use the document's styles, so set its font size with a `<style>`. A slot never
+The HTML of a slot does not use the document's styles, so set its font size with a `<style>`. A slot never
 changes the height of its row. HTML that is too tall is cut off and listed in `Rendered::overflows`.
 
 A table without a `width` is as wide as its content. Give it one, such as `width: 100%`, so the
@@ -15,5 +15,5 @@ slot's column has room.
 
 `withSlots` returns a new `Document` and does not change the one you called it on.
 
-**The examples below** carry a total forward, add up the hours of each page, and find a fill that
-does not fit.
+**The examples below** show a running total on each page, add up the hours of each page, and find
+slot HTML that does not fit.

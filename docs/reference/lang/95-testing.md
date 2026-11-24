@@ -1510,7 +1510,7 @@ no test, or for a class that `--filter` leaves out.
 What a class hook prints with `echo` is part of the report, under the class name. What
 `#[AfterEachTest]` prints belongs to the test, so it is shown only when the test fails.
 
-`#[AfterEachTest]` runs after every attempt. It sees the properties the test set on the object.
+`#[AfterEachTest]` runs after every attempt of a test, so also after each retry. It sees the properties the test set on the object.
 
 `Core\Test\Outcome` has `class()`, `name()`, `attempt()`, `hasPassed()` and `failures()`, the messages
 of the failed assertions. `Core\Test\Summary` has `class()`, `passed()`, `failed()`, `skipped()`,
@@ -1519,7 +1519,7 @@ of the failed assertions. `Core\Test\Summary` has `class()`, `passed()`, `failed
 When `#[BeforeClass]` throws an error, each test fails. The message names the hook and gives the
 error's message. `#[AfterClass]` still runs.
 
-When `#[AfterClass]` throws an error, the report has a line marked `✗` with the hook's name, and
+When `#[AfterClass]` throws an error, the report has a line with `✗` and the hook's name, and
 the exit status is `1`. When `#[AfterEachTest]` throws an error, that attempt fails.
 
 A subclass runs the tests, the fixtures and the hooks of its parent under its own name. The parent

@@ -10,9 +10,9 @@ returns the messages your program sent.
 After the first call, the program makes no network connections. A URL that ends in `*` matches
 every URL that starts with the text before it. An exact URL wins, and then the longest prefix wins.
 
-A test and a command-line program can call `answerSocket`. In a server, it throws a
-`LogicError`. This includes requests, connections, scheduled tasks and queued jobs. Code that a test
-starts may still call it, such as a request sent with `Core\Test::request`.
+A test and a command-line program can call `answerSocket`. In server code, it throws a
+`LogicError`. Server code is a request, a connection, a scheduled task or a queued job. There is one
+exception: a request that a test sends with `Core\Test::request` may call it.
 
 **The examples below** show a service that sends messages, which service a URL gets, and a price
 feed client.

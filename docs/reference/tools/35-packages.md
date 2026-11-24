@@ -449,7 +449,7 @@ Changes since package.lock:
 The report lists each new version, each capability a package now requests or no longer requests, a
 change of owners and a change of repository. A new package and a package that is no longer needed are
 listed too. The report changes no grant line, so a capability that a package now requests stays
-refused until you add it.
+denied until you add it.
 
 When two packages need different major versions of a third package, the higher version is used. The
 report then names the packages that asked for the older version. Your program is checked when it

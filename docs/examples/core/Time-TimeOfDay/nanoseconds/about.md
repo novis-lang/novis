@@ -8,4 +8,5 @@ The result has the same name and type as the `nanoseconds` option of `with`. So
 `nanoseconds` option must be from 0 to 999999999, and a value outside that range throws a
 `RuntimeError`.
 
-**Good to know:** to show the part of a second, use `format` with `S`. `SSS` prints milliseconds.
+**Good to know:** to show the part of a second, use `format`. Each `S` in the pattern prints one
+digit of the fraction, so `SSS` prints milliseconds.

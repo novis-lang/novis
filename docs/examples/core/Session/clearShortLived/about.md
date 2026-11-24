@@ -9,9 +9,9 @@ The session also gets a new identifier, and the response sends it in the session
 old cookie no longer finds the session. The session stays open, so you can save new values at once.
 
 It throws a `LogicError` outside a request, or inside `Core\Html::later` or
-`Core\Task::runAfterResponse`. It throws a `RuntimeError` when the store cannot be opened. It throws an
-`IOError` when the store cannot be reached. The old identifier may then still work, so do not treat
-the user as signed out.
+`Core\Task::runAfterResponse`. It throws a `RuntimeError` when the session store (the place where
+the server keeps session data) cannot be opened. It throws an `IOError` when the store cannot be
+reached. The old identifier may then still work, so do not treat the user as signed out.
 
 **The examples below** show a sign-out that keeps a preference, a session that is used again at once,
 and a sign-out page.

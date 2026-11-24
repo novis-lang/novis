@@ -232,8 +232,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// `Core\RateLimit`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Limits how often something may happen for one key, such as one account or one API \
-            key. `consume` counts in the shared store, so every server gives the same answer. \
-            `consumeLocally` counts in the memory of this server process only, to drop load quickly. Both \
+            key. `consume` counts in the shared store, so every server gives the same result. \
+            `consumeLocally` counts in the memory of this server process only. It is faster, \
+            and it is useful to turn away extra requests when the server is busy. Both \
             return a `Core\\RateLimit\\Decision`.",
 };
 
@@ -299,8 +300,8 @@ const CONSUME_DOC: MethodDoc = MethodDoc {
 const CONSUME_LOCALLY_DOC: MethodDoc = MethodDoc {
     short: "Charges `$cost` units against the allowance of `$key`, which is `$limit` per `$per`. \
             The count is kept in the memory of this server process. The result says if this call \
-            is inside the limit. Use it to drop load. Use `consume` for a limit you promised to \
-            somebody.",
+            is inside the limit. Use it to protect a server from too much load. Use `consume` for \
+            a limit you promised to somebody.",
     params: &[
         ParamDoc {
             name: "key",

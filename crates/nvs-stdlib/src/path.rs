@@ -298,8 +298,8 @@ const DIRNAME_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "levels",
             desc: "How many parts to remove from the end. The default is `1`. With `0`, the result \
-                   is the path with its separators cleaned up. A number larger than the path \
-                   stops at the root.",
+                   is the path with its separators cleaned up. If the number is larger than \
+                   the count of parts, the result is the root, or `.` for a relative path.",
             shape: &[],
         },
     ],
@@ -438,9 +438,10 @@ const RELATIVE_TO_DOC: MethodDoc = MethodDoc {
         },
     ],
     ret: "A relative path, written with `Core\\Path::SEPARATOR`. It is `.` when both paths \
-          name the same place. It is `null` when no relative path exists: one path is \
-          absolute and the other is not, the paths start at different roots, or `$base` \
-          starts with more `..` parts than `$path` does. Folder names are compared byte for \
+          name the same place. It is `null` when no relative path exists. That happens when \
+          one path is absolute and the other is not, or when the paths start at different \
+          roots. It also happens when `$base` starts with more `..` parts than `$path` does. \
+          Folder names are compared byte for \
           byte. A drive letter and a server name ignore upper and lower case.",
     errors: &[],
 };

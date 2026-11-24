@@ -4,7 +4,7 @@ The server compares the request with every route once, before your program start
 returns the result of that comparison, so your program does not compare the path again.
 
 The result is a `Core\Router\Match`. Its method `is(Users::show)` checks whether the route belongs
-to the method `Users::show`. `param("id")` returns the value of the part `{id}` in the path. That
+to the method `Users::show`. `parameter("id")` returns the value of the part `{id}` in the path. That
 value already has the type that the handler declares, so `/users/42` gives the number `42` for a
 `uint $id`.
 

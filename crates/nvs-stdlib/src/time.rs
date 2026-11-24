@@ -1475,7 +1475,7 @@ const INSTANT_COMPARE_TO_DOC: MethodDoc = MethodDoc {
         desc: "The instant to compare against.",
         shape: &[],
     }],
-    ret: "`-1` when the receiver is earlier than `$other`, `0` when they are the same instant, \
+    ret: "`-1` when this instant is earlier than `$other`, `0` when they are the same instant, \
           `1` when it is later.",
     errors: &[],
 };
@@ -1502,12 +1502,12 @@ const INSTANT_FROM_EPOCH_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "seconds",
-            desc: "Whole seconds since `1970-01-01T00:00:00Z`; negative before it.",
+            desc: "Whole seconds since `1970-01-01T00:00:00Z`. A time before that is negative.",
             shape: &[],
         },
         ParamDoc {
             name: "nanoseconds",
-            desc: "Nanoseconds to add on top of the second, below `1000000000`; the default is \
+            desc: "Nanoseconds to add after the second, from `0` to `999999999`. The default is \
                    `0`.",
             shape: &[],
         },
@@ -1515,9 +1515,9 @@ const INSTANT_FROM_EPOCH_DOC: MethodDoc = MethodDoc {
     ret: "The `Instant`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`nanoseconds` is not below `1000000000`, or `$seconds` is outside \
-               `-377705023201..=253402207200`. That is the time from `-9999-01-02T01:59:59Z` to \
-               `9999-12-30T22:00:00Z`.",
+        desc: "`nanoseconds` is `1000000000` or more. Or `$seconds` is not from \
+               `-377705023201` to `253402207200`. These are the times \
+               `-9999-01-02T01:59:59Z` and `9999-12-30T22:00:00Z`.",
     }],
 };
 
@@ -2191,51 +2191,52 @@ const DATETIME_PREVIOUS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\DateTime::with`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_WITH_DOC: MethodDoc = MethodDoc {
-    short: "Replaces any of the seven date and time fields and keeps the others. If the zone skips \
-            the new time, the result moves forward past the gap.",
+    short: "Replaces the parts of the date and time that you name, and keeps the others. When \
+            the clocks move forward, one hour of that day does not exist. A new time in that \
+            hour moves one hour later.",
     params: &[
         ParamDoc {
             name: "year",
-            desc: "The new year, within `-9999..=9999`; omitted leaves the field alone.",
+            desc: "The new year, from `-9999` to `9999`. Leave it out to keep the year.",
             shape: &[],
         },
         ParamDoc {
             name: "month",
-            desc: "The new month, `1` to `12`; omitted leaves the field alone.",
+            desc: "The new month, from `1` to `12`. Leave it out to keep the month.",
             shape: &[],
         },
         ParamDoc {
             name: "day",
-            desc: "The new day of the month; omitted leaves the field alone.",
+            desc: "The new day of the month. Leave it out to keep the day.",
             shape: &[],
         },
         ParamDoc {
             name: "hour",
-            desc: "The new hour, `0` to `23`; omitted leaves the field alone.",
+            desc: "The new hour, from `0` to `23`. Leave it out to keep the hour.",
             shape: &[],
         },
         ParamDoc {
             name: "minute",
-            desc: "The new minute, `0` to `59`; omitted leaves the field alone.",
+            desc: "The new minute, from `0` to `59`. Leave it out to keep the minute.",
             shape: &[],
         },
         ParamDoc {
             name: "second",
-            desc: "The new second, `0` to `59`; omitted leaves the field alone.",
+            desc: "The new second, from `0` to `59`. Leave it out to keep the second.",
             shape: &[],
         },
         ParamDoc {
             name: "nanoseconds",
-            desc: "The new subsecond nanoseconds, below `1000000000`; omitted leaves the field \
-                   alone.",
+            desc: "The new part of a second, in nanoseconds, from `0` to `999999999`. Leave it \
+                   out to keep it.",
             shape: &[],
         },
     ],
-    ret: "A new `DateTime` in the same zone; the receiver is unchanged.",
+    ret: "A new `DateTime` in the same zone. The value you call `with` on does not change.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "An option is outside its field's range, or the fields together are not a date \
-               that exists — `{ day: 31 }` on a June value.",
+        desc: "A value is outside its range. Or the parts together are not a date that exists, \
+               such as `{ day: 31 }` on a date in June.",
     }],
 };
 
@@ -2300,8 +2301,8 @@ const DATETIME_DIFFERENCE_DOC: MethodDoc = MethodDoc {
     params: &[
         ParamDoc {
             name: "other",
-            desc: "The value to count to; it is read in the receiver's zone, so the two may \
-                   differ in zone.",
+            desc: "The value to count to. It is read in this value's zone, so the two values \
+                   may have different zones.",
             shape: &[],
         },
         ParamDoc {
@@ -2310,8 +2311,8 @@ const DATETIME_DIFFERENCE_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The whole count, truncated toward zero — negative when `$other` is earlier, `0` \
-          within one unit.",
+    ret: "The whole count, truncated toward zero. It is negative when `$other` is earlier, \
+          and `0` when the two values are less than one unit apart.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "The count does not fit in an `int`. Only `Unit::Nanosecond` can reach this, for \
@@ -3370,7 +3371,7 @@ const TIME_OF_DAY_AT_DOC: MethodDoc = MethodDoc {
     ret: "The new `TimeOfDay`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A field is outside its range, for example an hour of `24`.",
+        desc: "A value is outside its range, for example an hour of `24`.",
     }],
 };
 
@@ -3386,7 +3387,7 @@ const TIME_OF_DAY_FROM_ISO_DOC: MethodDoc = MethodDoc {
     ret: "The `TimeOfDay`.",
     errors: &[ErrorDoc {
         error: "ParseError",
-        desc: "`$text` is not in this form, or a field is outside its range, such as `24:00`. \
+        desc: "`$text` is not in this form, or a part is outside its range, such as `24:00`. \
                The error says which part is wrong.",
     }],
 };
@@ -3472,7 +3473,7 @@ const TIME_OF_DAY_MINUS_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\TimeOfDay::with`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_WITH_DOC: MethodDoc = MethodDoc {
-    short: "Returns a copy of the time with the fields you give changed. The fields you \
+    short: "Returns a copy of the time with the parts you name changed. The parts you \
             leave out keep their value.",
     params: &[
         ParamDoc {
@@ -3502,7 +3503,7 @@ const TIME_OF_DAY_WITH_DOC: MethodDoc = MethodDoc {
     ret: "A new `TimeOfDay`. The original does not change.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "A field is outside its range, for example a minute of `60`.",
+        desc: "A value is outside its range, for example a minute of `60`.",
     }],
 };
 
@@ -3517,7 +3518,7 @@ const TIME_OF_DAY_COMPARE_TO_DOC: MethodDoc = MethodDoc {
         desc: "The time to compare against.",
         shape: &[],
     }],
-    ret: "`-1` when the receiver is earlier in the day than `$other`, `0` when both are the \
+    ret: "`-1` when this time is earlier in the day than `$other`, `0` when both are the \
           same time, `1` when it is later.",
     errors: &[],
 };

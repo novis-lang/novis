@@ -654,7 +654,7 @@ const SHL_DOC: MethodDoc = MethodDoc {
         desc: "How many bits to shift by.",
         shape: &[],
     }],
-    ret: "A `BigInt` that is `$bits` bits wider than this value.",
+    ret: "A new `BigInt`. Unless this value is `0`, it is `$bits` bits wider than this value.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
         desc: "The result would be wider than 1 048 576 bits.",
@@ -664,14 +664,14 @@ const SHL_DOC: MethodDoc = MethodDoc {
 /// `Core\BigInt::shiftedRight`'s reference card — `rule:core-api/reference-card`.
 const SHR_DOC: MethodDoc = MethodDoc {
     short: "Returns this value divided by 2 to the power `$bits`, rounded toward negative \
-            infinity. This is an arithmetic right shift.",
+            infinity. So `-7` shifted by 1 is `-4`.",
     params: &[ParamDoc {
         name: "bits",
         desc: "How many bits to shift by. If it is larger than the width of this value, the result \
                is `0` or `-1`.",
         shape: &[],
     }],
-    ret: "A `BigInt` that is `$bits` bits narrower than this value.",
+    ret: "A new `BigInt`, with the bits of this value moved `$bits` places to the right.",
     errors: &[],
 };
 

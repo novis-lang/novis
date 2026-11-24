@@ -1,6 +1,6 @@
 <?nvs
-// Shows a running total that grows past what an `int` holds: the number of bytes
-// three jobs have written, reported as text and added up.
+// Shows a running total that grows too large for an `int`. Three jobs report the
+// number of bytes they wrote as text, and the program adds them up.
 
 array<string> $written = [
     '8070450532247928832',

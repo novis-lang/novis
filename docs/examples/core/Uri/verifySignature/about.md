@@ -6,8 +6,8 @@ You give it the same list of keys that `signed` used. A link signed with any key
 accepted. To change to a new key, put the new key first and keep the old one for a while. Links
 signed with the old key keep working until you remove it.
 
-A changed parameter, a changed token, a missing `_sig` and a wrong key all give the same error
-message. An expired link gives a different message, so you can tell the user to ask for a new link.
+A changed parameter, a changed `_sig` value, a missing `_sig` and a wrong key all give the same
+error message. An expired link gives a different message, so you can tell the user to ask for a new link.
 
-**The examples below** check a link and a changed copy of it, change to a new key, and answer an
-expired download link differently from a changed one.
+**The examples below** check a link and a changed copy of it, and change to a new key. The last one
+gives one reply to an expired download link and another reply to a changed one.

@@ -6,7 +6,8 @@ Removing a key that the session does not have is allowed. It does not throw an e
 change the session.
 
 You do not need to open the session first. The first call to any `Core\Session` method opens it.
-The changed session is saved to the store when the request ends.
+The changed session is saved to the session store when the request ends. The session store is
+the place where the server keeps session data.
 
 `remove()` throws a `LogicError` when the program is not handling a request, for example a
 command-line program. It also throws a `LogicError` inside `Core\Html::later` and

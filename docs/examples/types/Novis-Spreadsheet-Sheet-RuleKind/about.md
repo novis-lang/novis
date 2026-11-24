@@ -4,9 +4,9 @@ You add a validation with `Sheet::addValidation`. Its rule has exactly one of th
 option gives the `Sheet::RuleKind` case:
 
 - `list` is `List`. The value must be one of the strings in the list.
-- `whole` is `Whole`, a whole number.
-- `decimal` is `Decimal`, any number.
-- `date` is `Date`, a date.
+- `whole` is `Whole`. The value must be a whole number.
+- `decimal` is `Decimal`. The value must be a number, with or without a fraction.
+- `date` is `Date`. The value must be a date.
 - `length` is `Length`. It checks the number of characters of the text.
 - `formula` is `Formula`. The value is allowed when the formula is true.
 

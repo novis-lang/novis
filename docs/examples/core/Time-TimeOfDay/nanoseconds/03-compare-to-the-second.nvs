@@ -5,7 +5,7 @@
 Core\Time\TimeOfDay $sensor = Core\Time\TimeOfDay::at(6, 45, { second: 20, nanoseconds: 318000000 });
 Core\Time\TimeOfDay $typed = Core\Time\TimeOfDay::at(6, 45, { second: 20 });
 
-// With the nanoseconds, the sensor time is later. This prints 1.
+// `compareTo` returns 1 when the first time is later. The sensor time has more nanoseconds, so this prints 1.
 echo $sensor->compareTo($typed), "\n";
 
 // `with({ nanoseconds: 0 })` sets the part of a second to 0. Now the times are equal, so this prints 0.

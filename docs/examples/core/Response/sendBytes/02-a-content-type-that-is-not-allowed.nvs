@@ -11,5 +11,6 @@ try {
     $answer = $error->message;
 }
 
-// This content type is allowed, so this body is sent. It prints the error message.
+// This second call uses an allowed content type, so its body is sent.
+// The body is the error message from the first call.
 Core\Response::sendBytes(($answer . "\n") as bytes, 'text/plain; charset=utf-8');
