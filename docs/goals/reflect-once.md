@@ -199,12 +199,12 @@ rule is rewritten.
 **Split:** none, one session. Start by rewriting `reflect.rs`'s module doc decisions (`reflect.rs:5`
 to `:50`) to this file's design, then build to them.
 
-- [ ] `crates/nvs-runtime/src/object.rs:2519`: the `ClassTable` storage for descriptions and their
+- [x] `crates/nvs-runtime/src/object.rs:2519`: the `ClassTable` storage for descriptions and their
   rows, freed with the table, and the unit stamp.
-- [ ] `crates/nvs-stdlib/src/reflect.rs:1940` and `:2068`: `build_descriptions` writes every
+- [x] `crates/nvs-stdlib/src/reflect.rs:1940` and `:2068`: `build_descriptions` writes every
   description and row immortal; `describe` and `describe_enum` remain for `Core` descriptors only.
-- [ ] `crates/nvs-codegen/src/lib.rs:3275` and `:1710`: both builders call it before the `Arc`.
-- [ ] `reflect.rs:2306`, `:2424`, `:2968`: `forClass`, `forObject` and `EnumInfo::of` return the
+- [x] `crates/nvs-codegen/src/lib.rs:3275` and `:1710`: both builders call it before the `Arc`.
+- [x] `reflect.rs:2306`, `:2424`, `:2968`: `forClass`, `forObject` and `EnumInfo::of` return the
   built description; every roster member and `AttributeInfo::field` read the Rust-side rows and check
   the stamp.
 - [ ] `crates/nvs-stdlib/tests/allocation_policy.rs:142`: the three tests the check `once` names; the
@@ -250,20 +250,44 @@ rewritten; the session writes the rules and the website entries.
 
 ### State
 
-Stage 1 is done, and its checks `modifiers` and `meta` are green. `PropertyInfo` has five slots
-(`name`, `public`, `type`, `lateinit`, `readonly`), and `crates/nvs-stdlib/src/instance.rs`'s
-`SLOT_TYPES` row for it states all five. `crates/nvs-codegen/tests/late_init.rs`'s
-`a_reflected_property_tells_lateinit_and_readonly_through_the_pipeline` covers the lowering end to end.
-The lateinit bit is its own list, not the `Unset` marker: see *The new members*.
+Stage 2's first four items landed in one commit (`feat(reflect): every description is built once…`).
+`crates/nvs-runtime/src/descriptions.rs` is the storage: an `ImmortalArena` (one allocation per
+immortal object or string, freed with the table), `ClassRows`/`MethodRows`/`AttributeRows`/`EnumRows`,
+and a process-wide `next_stamp()`. `ClassTable::set_descriptions` stores them and points each
+`ClassDesc::description()` at its `ClassInfo`, so `forObject` needs no lookup. `Ctx::unit_table()`
+(`ctx/error.rs`) is how a member reaches the rows. `nvs_stdlib::build_descriptions` (`reflect.rs`,
+`@build_descriptions`) runs in both codegen builders (`into_unit` and `finish`).
+
+`ClassInfo`, `MethodInfo`, `AttributeInfo` and `EnumInfo` hold a class or enum index and a stamp in
+place of arrays (`SLOT_TYPES` in `instance.rs`). One builder, `class_rows`, runs through a `Maker`:
+`Immortal` at unit load, `Mortal` per call for a `Core` class (class `-1`, stamp `0`,
+`description_of` and `rows_of`). A stamp that is not the calling unit's throws a `LogicError`
+(`another_unit`). The module doc's second decision states this design.
+
+**Red until stage 3, by design:** five `reflect.rs` tests assert that a roster array is the same
+object on a second call, and stage 3's per-request memo restores exactly that:
+`class_info_methods_is_one_row_per_declared_method_in_name_order`,
+`class_info_constants_is_one_row_per_constant_with_its_own_visibility_and_fold`,
+`class_info_properties_is_one_row_per_slot_and_lists_the_private_ones`,
+`enum_info_cases_is_every_case_ascending_by_constant_then_by_name`,
+`method_info_parameters_are_in_declaration_order_and_empty_where_nothing_was_written`. Every other
+reflect unit test is green.
 
 ### Next
 
-Stage 2 from its first item: rewrite `reflect.rs`'s module doc decisions first (`reflect.rs:5` to
-`:50`), then `ClassTable`'s description storage (`object.rs`, `@ClassTable`). A row now has five
-slots, so the immortal row writer fills `lateinit` and `readonly` from `field_is_lateinit` and
-`field_is_readonly` as `describe` does (`reflect.rs`, `@describe`). Expect red at the gate: any test
-or golden that pins a `readonly` or `lateinit` property's `nvs meta --json` or `nvs code` signature
-(`crates/nvs-cli/src/meta.rs`, `@property_signature`), and the website's Core reference for
-`PropertyInfo` until stage 4 renders it.
+Stage 2's last two items, then stage 3 in the same session if it fits.
+- `crates/nvs-stdlib/tests/allocation_policy.rs` (`@allocations_of`): the check `once`'s three tests.
+  They need a ctx with a described table: build a `ClassTable` by hand, call
+  `nvs_stdlib::build_descriptions` (now public), and install it with `set_runtime_error_class`.
+  Count with `allocations_of`'s window: `forClass`, `forObject` and `EnumInfo::of` must spend 0.
+- `reflect.rs`'s tests: the check `copy`'s two. Copy a description with the graph copy
+  (`nvs_runtime::graph`, `@walk`'s live carrier) into the same unit and call `properties`; then
+  install a second described table on the ctx and expect `THROWN` with a `LogicError`.
+- Measure `Descriptions::bytes()` for `benches/members/core/Reflect/forClass.nvs`'s class and the
+  build time, and write both figures into the module doc's new § *every description is built once*.
+- Expect red at the gate as well: any golden that pins a `readonly` or `lateinit` property's
+  `nvs meta --json` or `nvs code` signature (`crates/nvs-cli/src/meta.rs`, `@property_signature`), a
+  test anywhere that hand-builds a `MethodInfo`, `AttributeInfo` or `EnumInfo` with the old slots,
+  and the website's Core reference for `PropertyInfo` until stage 4 renders it.
 
 ### Backlog
