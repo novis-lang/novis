@@ -16,5 +16,5 @@ while ($i < 5) {
 // The total is more than 24 hours. This prints "total 40:20".
 echo 'total ', $total->toClock(), "\n";
 
-// The difference to a 40-hour week. This prints "overtime 0:20".
+// `minus(40h)` gives the time worked past a 40-hour week. This prints "overtime 0:20".
 echo 'overtime ', $total->minus(40h)->toClock(), "\n";

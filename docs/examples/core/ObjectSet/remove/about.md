@@ -7,7 +7,7 @@ that was added. An object with equal property values is a different object, and 
 change. A `Core\Time` value such as a `Date` is compared by its value, so an equal `Date` is removed.
 If the value is not in the set, `remove` does nothing and does not throw an error.
 
-The set stops keeping the value alive. An object that nothing else uses is deleted at that point.
+After `remove`, the set no longer uses the value. If nothing else uses it, it is freed.
 
 The examples show the set before and after `remove`, a value that is not in the set, and a common
 use: a list of users who are online, where a user is removed when they log out.

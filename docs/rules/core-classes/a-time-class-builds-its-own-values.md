@@ -23,7 +23,8 @@ included, and counts down when the first is later, as `Core\Arr::range` does wit
 `step`. The step is `Day`, `Week`, `Month`, `Quarter` or `Year`, a closed subset in the signature
 (`rule:types/single-value-types`). Entry `k` is the first date plus `k` steps, so a month step from
 the 31st gives each shorter month's last day, as `Date::plus` does. **What it spends:** one `Date`
-per entry and the list, charged to the request, and the list is asked of the memory ceiling once.
+per entry and the list, charged to the request. The list and every `Date` in it are asked of the memory ceiling once, before
+any is built.
 
 **An epoch reader floors.** `toEpochSeconds`, `toEpochMillis` and `toEpochMicros` give the largest
 whole count at or before the instant, so `fromEpoch` of the count and the remainder builds the same

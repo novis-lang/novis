@@ -9504,24 +9504,26 @@
   },
   "/reference/core/novis-intl-dateformat/dates/": {
     "feature": "Novis\\Intl\\DateFormat::dates",
-    "hash": "977fe80da5e8e7d5",
+    "hash": "f69fd798328b18a6",
     "questions": [
       "How do I write a date as 24.12.2026 for German users?",
       "Show a date with the month name in the user's language",
       "Short, medium or long date format",
       "Print a birthday date in the visitor's language",
-      "Day, month and year in the right order for a country"
+      "Day, month and year in the right order for a country",
+      "Show only the month and year, like December 2026"
     ]
   },
   "/reference/core/novis-intl-dateformat/datetimes/": {
     "feature": "Novis\\Intl\\DateFormat::dateTimes",
-    "hash": "9f37a6b925d1e9fd",
+    "hash": "0d9e010c0b6176d7",
     "questions": [
       "How do I show a date and time with the time zone?",
       "Show when an order was placed, with date and hour",
       "Add the GMT offset to a formatted timestamp",
       "Format a date with time and seconds for a locale",
-      "Convert a time to the reader's zone before formatting it"
+      "Show only the month and year with a time in a formatted text",
+      "Why does a time with only month and year throw an error?"
     ]
   },
   "/reference/core/novis-intl-dateformat/times/": {
@@ -10830,11 +10832,12 @@
   },
   "/reference/core/objectmap/": {
     "feature": "Core\\ObjectMap",
-    "hash": "6a77df17e6278482",
+    "hash": "4812fa7ce673f96d",
     "questions": [
       "How do I use objects as keys in a map?",
       "Store extra data for each object without changing its class",
-      "Map that finds keys by identity, not by equal fields",
+      "Map where my own objects match only the same object",
+      "Use dates as keys so that equal dates find the same entry",
       "Dictionary with object keys that keeps insertion order",
       "Attach a value to an object instance"
     ]
@@ -10851,7 +10854,7 @@
   },
   "/reference/core/objectmap/count/": {
     "feature": "Core\\ObjectMap::count",
-    "hash": "38f968d8c3d2fd01",
+    "hash": "c809485bb62ee39c",
     "questions": [
       "How many entries are in my object map?",
       "Get the number of objects used as keys",
@@ -10861,22 +10864,23 @@
   },
   "/reference/core/objectmap/get/": {
     "feature": "Core\\ObjectMap::get",
-    "hash": "78c029541e70fbce",
+    "hash": "b3df42f5d875f80b",
     "questions": [
       "How do I read the value stored for an object?",
       "Look up a value by object key with a default",
       "Cache a computed result for each object",
-      "What happens when I read a missing object key?"
+      "What happens when I read a missing object key?",
+      "Find a holiday by a date read from text"
     ]
   },
   "/reference/core/objectmap/has/": {
     "feature": "Core\\ObjectMap::has",
-    "hash": "9a72b239881e7b8b",
+    "hash": "279f34f44021d66e",
     "questions": [
       "How do I check if an object is a key in the map?",
       "Tell a missing key apart from a key with a null value",
       "Do some work only once for each object",
-      "Test whether a map contains this exact object"
+      "Check if a map has an entry for a given day"
     ]
   },
   "/reference/core/objectmap/isempty/": {
@@ -10901,22 +10905,23 @@
   },
   "/reference/core/objectmap/remove/": {
     "feature": "Core\\ObjectMap::remove",
-    "hash": "2aacc48b1512324b",
+    "hash": "74b3adf12890a4a6",
     "questions": [
       "How do I delete one object from an object map?",
       "Stop tracking a job after it finishes",
-      "Remove a key and its value by object identity",
+      "Delete an entry by the same object or by an equal date",
       "Is it an error to remove a key that is not there?"
     ]
   },
   "/reference/core/objectmap/set/": {
     "feature": "Core\\ObjectMap::set",
-    "hash": "80c230cc0c8a0930",
+    "hash": "22fbdc663e5ca5da",
     "questions": [
       "How do I store a value for an object key?",
       "Replace the value for an object that is already in the map",
       "Count how many times each object appears",
-      "Why do two equal objects get two separate entries?"
+      "Why do two equal objects get two separate entries?",
+      "Why does a second Date for the same day replace the first value?"
     ]
   },
   "/reference/core/objectmap/values/": {
@@ -10931,22 +10936,24 @@
   },
   "/reference/core/objectset/": {
     "feature": "Core\\ObjectSet",
-    "hash": "b7ebd3a8034c5c1a",
+    "hash": "fd36c5062789a8df",
     "questions": [
       "How do I keep a collection of unique objects?",
-      "Set of objects compared by identity",
+      "Set where my own objects are equal only to themselves",
       "Collection where each object appears only once",
+      "Keep one entry for each day in a set of dates",
       "Combine, compare and subtract groups of objects"
     ]
   },
   "/reference/core/objectset/add/": {
     "feature": "Core\\ObjectSet::add",
-    "hash": "9f96d1dc89d7cf74",
+    "hash": "9e89945009fe1f91",
     "questions": [
       "How do I put an object into a set?",
       "Add an item only if it is not already there",
       "Find the distinct customers in a list of orders",
-      "What happens when I add the same object twice?"
+      "What happens when I add the same object twice?",
+      "Keep each day only once when I add dates to a set"
     ]
   },
   "/reference/core/objectset/clear/": {
@@ -10971,7 +10978,7 @@
   },
   "/reference/core/objectset/difference/": {
     "feature": "Core\\ObjectSet::difference",
-    "hash": "b1373af38e838a20",
+    "hash": "7fda8d3abfc52cef",
     "questions": [
       "How do I find objects in one set but not in another?",
       "Which guests have not answered the invitation yet?",
@@ -10981,17 +10988,17 @@
   },
   "/reference/core/objectset/has/": {
     "feature": "Core\\ObjectSet::has",
-    "hash": "db1f5d4c7aaa1f6b",
+    "hash": "f24d36fef4f3fa9d",
     "questions": [
       "How do I check if an object is in a set?",
       "Skip a job that was already done",
-      "Test if this exact object was added before",
+      "Check if a day is already booked in a set of dates",
       "Why is an equal object not found in my set?"
     ]
   },
   "/reference/core/objectset/intersection/": {
     "feature": "Core\\ObjectSet::intersection",
-    "hash": "68a66ff5aa64a32d",
+    "hash": "23b3a745ef8afa0e",
     "questions": [
       "How do I find objects that are in both sets?",
       "Common values of two object sets",
@@ -11011,7 +11018,7 @@
   },
   "/reference/core/objectset/remove/": {
     "feature": "Core\\ObjectSet::remove",
-    "hash": "4c0b65ef6f7810c9",
+    "hash": "fd84c40c1c553579",
     "questions": [
       "How do I take an object out of a set?",
       "Remove a user from the online list when they log out",
@@ -11021,7 +11028,7 @@
   },
   "/reference/core/objectset/union/": {
     "feature": "Core\\ObjectSet::union",
-    "hash": "40e9d396fd449852",
+    "hash": "990489249571642f",
     "questions": [
       "How do I combine two sets of objects into one?",
       "Merge two lists of people without duplicates",
@@ -15539,7 +15546,7 @@
   },
   "/reference/core/time-date/": {
     "feature": "Core\\Time\\Date",
-    "hash": "d69e27ad6665651f",
+    "hash": "0a8156ea3c115711",
     "questions": [
       "How do I store a date without a time?",
       "Work with birthdays and due dates",
@@ -15550,7 +15557,7 @@
   },
   "/reference/core/time-date/at/": {
     "feature": "Core\\Time\\Date::at",
-    "hash": "db3b45950ed0a65e",
+    "hash": "f856b289125e7552",
     "questions": [
       "How do I create a date from year, month and day?",
       "Check whether a date typed into a form exists",
@@ -15561,13 +15568,14 @@
   },
   "/reference/core/time-date/compareto/": {
     "feature": "Core\\Time\\Date::compareTo",
-    "hash": "0a27750e5d5964db",
+    "hash": "0fca7eb920f788a3",
     "questions": [
       "How do I check which of two dates comes first?",
       "Compare two dates without times",
       "Sort a list of dates from earliest to latest",
       "Check whether a coupon is still valid on the order date",
-      "Are two dates the same day?"
+      "Are two dates the same day?",
+      "Can I use < and == to compare two dates?"
     ]
   },
   "/reference/core/time-date/day/": {
@@ -15588,6 +15596,36 @@
       "Get the day number from 1 to 366 for a date",
       "Count the days since 1 January for a date",
       "Day of the year for a date with no time"
+    ]
+  },
+  "/reference/core/time-date/daysinmonth/": {
+    "feature": "Core\\Time\\Date::daysInMonth",
+    "hash": "8b561535e6b04c89",
+    "questions": [
+      "How many days are in the month of a date?",
+      "Check how many days February has this year",
+      "Loop over every day of a month",
+      "Share a monthly amount over the days of the month"
+    ]
+  },
+  "/reference/core/time-date/difference/": {
+    "feature": "Core\\Time\\Date::difference",
+    "hash": "1f517cf7329f4e70",
+    "questions": [
+      "How many days are there between two dates?",
+      "Calculate the age of a person in years from a birthday",
+      "How many whole months does a contract last?",
+      "Why is 31 January to 29 February zero months?"
+    ]
+  },
+  "/reference/core/time-date/endof/": {
+    "feature": "Core\\Time\\Date::endOf",
+    "hash": "b252ffa8469935df",
+    "questions": [
+      "Find the last day of the month, including February in a leap year",
+      "Get the Sunday that ends the week of a date",
+      "Find the last day of the quarter for a report",
+      "Get the last day of the year for a date"
     ]
   },
   "/reference/core/time-date/format/": {
@@ -15622,6 +15660,26 @@
       "Does the year of a date have 366 days?"
     ]
   },
+  "/reference/core/time-date/isoweek/": {
+    "feature": "Core\\Time\\Date::isoWeek",
+    "hash": "27d7169e26927a6b",
+    "questions": [
+      "What is the week number of a date?",
+      "Find the ISO week of a calendar day",
+      "Why is 1 January sometimes in week 53?",
+      "Print a week number like 2026-W53"
+    ]
+  },
+  "/reference/core/time-date/isoweekyear/": {
+    "feature": "Core\\Time\\Date::isoWeekYear",
+    "hash": "416120c360f63410",
+    "questions": [
+      "Which year does an ISO week belong to?",
+      "Why is the week year different from the year at New Year?",
+      "Label a week with the right year",
+      "Which year is 30 December in for week numbers?"
+    ]
+  },
   "/reference/core/time-date/minus/": {
     "feature": "Core\\Time\\Date::minus",
     "hash": "4430198445a4aea4",
@@ -15643,6 +15701,27 @@
       "Group dates by month"
     ]
   },
+  "/reference/core/time-date/next/": {
+    "feature": "Core\\Time\\Date::next",
+    "hash": "76a9a845ab52ff18",
+    "questions": [
+      "Find the first Friday after a date",
+      "How do I get the date of next Monday?",
+      "Get the first date after today that is on a given weekday",
+      "How do I include the date itself when searching for a weekday?"
+    ]
+  },
+  "/reference/core/time-date/parse/": {
+    "feature": "Core\\Time\\Date::parse",
+    "hash": "9ef0edebdc56b949",
+    "questions": [
+      "How do I read a date from text like 05.01.2026?",
+      "Parse a date written day first with dots",
+      "Why does my date pattern with a time letter not compile?",
+      "Read a month and year only, such as 03/2026",
+      "What happens when the text is not a real date?"
+    ]
+  },
   "/reference/core/time-date/plus/": {
     "feature": "Core\\Time\\Date::plus",
     "hash": "406f21825f668e22",
@@ -15652,6 +15731,56 @@
       "Calculate a due date two weeks from a given date",
       "What is 31 January plus one month?",
       "Move a date forward by a year or a quarter"
+    ]
+  },
+  "/reference/core/time-date/previous/": {
+    "feature": "Core\\Time\\Date::previous",
+    "hash": "d25571bdc7e6a87c",
+    "questions": [
+      "Find the last Monday before a date",
+      "Get the date of the previous Friday",
+      "Get the last date before today that is on a given weekday",
+      "How do I include the date itself when searching backward for a weekday?"
+    ]
+  },
+  "/reference/core/time-date/quarter/": {
+    "feature": "Core\\Time\\Date::quarter",
+    "hash": "4bdcbccd50daecec",
+    "questions": [
+      "Which quarter of the year is a date in?",
+      "Group sales or invoices by quarter",
+      "Is a date in the first or second half of the year?",
+      "Convert a month into quarter 1 to 4"
+    ]
+  },
+  "/reference/core/time-date/range/": {
+    "feature": "Core\\Time\\Date::range",
+    "hash": "9e9b52f45b19b20b",
+    "questions": [
+      "List every day between two dates",
+      "Make a list of dates a week or a month apart",
+      "Why is a step of one month from 31 January the last day?",
+      "Count down days by listing dates backward"
+    ]
+  },
+  "/reference/core/time-date/startof/": {
+    "feature": "Core\\Time\\Date::startOf",
+    "hash": "326046e654d87328",
+    "questions": [
+      "Find the first day of the month of a date",
+      "Find the Monday that starts the week of a date",
+      "Get the first day of the quarter or the year",
+      "Get the first and last day for a report"
+    ]
+  },
+  "/reference/core/time-date/toiso/": {
+    "feature": "Core\\Time\\Date::toIso",
+    "hash": "882216f33245e06e",
+    "questions": [
+      "Write a date as text to save in a database",
+      "Turn a date into 2026-05-20 text",
+      "How do I store a date in JSON so it sorts correctly?",
+      "Why does a year like 5 print as 0005?"
     ]
   },
   "/reference/core/time-date/weekday/": {
@@ -15687,7 +15816,7 @@
   },
   "/reference/core/time-datetime/": {
     "feature": "Core\\Time\\DateTime",
-    "hash": "b4f116064eb35bc1",
+    "hash": "8e4c127a086a7339",
     "questions": [
       "How do I work with a date and time in a time zone?",
       "Store a local time such as a meeting in Berlin",
@@ -15705,6 +15834,16 @@
       "Combine a date and a time from separate form fields",
       "What happens when the time does not exist because of summer time?",
       "Get midnight of a date in a time zone"
+    ]
+  },
+  "/reference/core/time-datetime/compareto/": {
+    "feature": "Core\\Time\\DateTime::compareTo",
+    "hash": "dc2547ede41d6599",
+    "questions": [
+      "How do I check which of two moments with time zones comes first?",
+      "Are 10:00 in Berlin and 09:00 in London the same moment?",
+      "Can I use < and == to compare two dates with times?",
+      "Sort a list of meetings that are in different time zones"
     ]
   },
   "/reference/core/time-datetime/date/": {
@@ -15737,6 +15876,16 @@
       "Count the days left until the end of the year",
       "Pick a different tip for each day of the year",
       "Get 1 to 366 for a date"
+    ]
+  },
+  "/reference/core/time-datetime/daysinmonth/": {
+    "feature": "Core\\Time\\DateTime::daysInMonth",
+    "hash": "1b4d85869e441145",
+    "questions": [
+      "How many days are in the month of a date with a time?",
+      "Find the last day of the month for a bill with a time zone",
+      "Does the month length depend on the time zone?",
+      "Set a timestamp to the last day of its month"
     ]
   },
   "/reference/core/time-datetime/difference/": {
@@ -15774,13 +15923,14 @@
   },
   "/reference/core/time-datetime/fromiso/": {
     "feature": "Core\\Time\\DateTime::fromIso",
-    "hash": "79d07d18367ccbd7",
+    "hash": "658f290e2c5991db",
     "questions": [
       "How do I create a date and time from text in a time zone?",
       "Turn 2024-03-01 09:30 into a date and time in Berlin",
       "Get the start of a day from a date written as text",
-      "Why does a text with Z or +01:00 throw an error?",
-      "Read a local meeting time from a calendar form"
+      "Why does a text with only Z or +01:00 throw an error?",
+      "Read a local meeting time from a calendar form",
+      "Read text with an offset and a zone name like +02:00[Europe/Berlin]"
     ]
   },
   "/reference/core/time-datetime/hour/": {
@@ -15802,6 +15952,26 @@
       "Is the year 366 days long?",
       "Split a yearly price into a price per day",
       "Leap year rules for 1900, 2000 and 2024"
+    ]
+  },
+  "/reference/core/time-datetime/isoweek/": {
+    "feature": "Core\\Time\\DateTime::isoWeek",
+    "hash": "8c58b643b0bc587f",
+    "questions": [
+      "What is the week number of a timestamp with a time zone?",
+      "Find the ISO week of a local meeting time",
+      "Which week does a date with a time zone belong to?",
+      "Use European week numbers for a business report with times"
+    ]
+  },
+  "/reference/core/time-datetime/isoweekyear/": {
+    "feature": "Core\\Time\\DateTime::isoWeekYear",
+    "hash": "9f59733e30cb3b8a",
+    "questions": [
+      "Which year does the week of a timestamp belong to?",
+      "Write a week label for a date with a time zone",
+      "Why is a timestamp in early January in the old year's week?",
+      "Print a week like 2026-W53 from a date with a time"
     ]
   },
   "/reference/core/time-datetime/minus/": {
@@ -15889,6 +16059,16 @@
       "Go back to the last Sunday"
     ]
   },
+  "/reference/core/time-datetime/quarter/": {
+    "feature": "Core\\Time\\DateTime::quarter",
+    "hash": "80a850fdfff3fcbc",
+    "questions": [
+      "Which quarter is a timestamp with a time zone in?",
+      "Group orders with a time and zone by quarter",
+      "Can the quarter differ between New York and Berlin?",
+      "Print the quarter of a meeting time as Q2"
+    ]
+  },
   "/reference/core/time-datetime/second/": {
     "feature": "Core\\Time\\DateTime::second",
     "hash": "28a902d01fbe6f88",
@@ -15930,6 +16110,16 @@
       "Get the exact moment of a local date and time",
       "Measure the real time a flight takes across time zones",
       "Are 09:00 in London and 18:00 in Tokyo the same moment?"
+    ]
+  },
+  "/reference/core/time-datetime/toiso/": {
+    "feature": "Core\\Time\\DateTime::toIso",
+    "hash": "76288d38b7f6678a",
+    "questions": [
+      "Write a date with a time and zone as text to save it",
+      "Turn a meeting time into text with offset and zone name",
+      "How do I store a timestamp with a time zone in a database?",
+      "Why does the text show +01:00 and a zone in brackets?"
     ]
   },
   "/reference/core/time-datetime/weekday/": {
@@ -15988,7 +16178,7 @@
   },
   "/reference/core/time-duration/": {
     "feature": "Core\\Time\\Duration",
-    "hash": "69771a954ddadab0",
+    "hash": "7cfb550aa71f2645",
     "questions": [
       "How do I store a length of time like 30 seconds?",
       "Work with durations such as timeouts and delays",
@@ -15999,12 +16189,12 @@
   },
   "/reference/core/time-duration/compareto/": {
     "feature": "Core\\Time\\Duration::compareTo",
-    "hash": "e4840a84272eb1c6",
+    "hash": "8b10e87e75294971",
     "questions": [
       "How do I check which of two durations is longer?",
       "Compare two lengths of time",
       "Test if two durations have the same length",
-      "Why is 90m == 1h30m false?",
+      "Is 90m equal to 1h30m with ==?",
       "Sort timeouts from shortest to longest"
     ]
   },
@@ -16016,6 +16206,17 @@
       "Create a length of time of N days from a setting",
       "Turn a day count into a duration of 24-hour days",
       "Is a duration day always 24 hours?"
+    ]
+  },
+  "/reference/core/time-duration/fromclock/": {
+    "feature": "Core\\Time\\Duration::fromClock",
+    "hash": "6c9fc33301419946",
+    "questions": [
+      "How do I read a time like 1:30 as a duration?",
+      "Turn hours and minutes typed in a form into a duration",
+      "Read a timesheet entry such as 25:30 as a length of time",
+      "Which texts throw an error when I read a clock-style duration?",
+      "Read a negative duration such as -1:15 from text"
     ]
   },
   "/reference/core/time-duration/hours/": {
@@ -16129,6 +16330,17 @@
       "Build a length of time of N seconds at run time"
     ]
   },
+  "/reference/core/time-duration/toclock/": {
+    "feature": "Core\\Time\\Duration::toClock",
+    "hash": "fb0f961070adad9d",
+    "questions": [
+      "How do I show a duration as hours and minutes like 1:30?",
+      "Print the hours worked in a week as text",
+      "Write a duration longer than 24 hours as 25:30",
+      "Show a duration with seconds as 1:30:15",
+      "Are seconds rounded or cut off when I show hours and minutes?"
+    ]
+  },
   "/reference/core/time-duration/tomicroseconds/": {
     "feature": "Core\\Time\\Duration::toMicroseconds",
     "hash": "399360af5d6c0c6c",
@@ -16202,12 +16414,13 @@
   },
   "/reference/core/time-instant/compareto/": {
     "feature": "Core\\Time\\Instant::compareTo",
-    "hash": "68f262a2e1be3d04",
+    "hash": "a7e6a182404cbda0",
     "questions": [
       "How do I check which of two moments comes first?",
       "Compare two timestamps",
       "Test if two timestamps are the same moment",
-      "Check if a moment is before or after another one"
+      "Check if a moment is before or after another one",
+      "Are 13:00 with +01:00 and 12:00 UTC the same timestamp?"
     ]
   },
   "/reference/core/time-instant/fromepoch/": {
@@ -16223,13 +16436,14 @@
   },
   "/reference/core/time-instant/fromiso/": {
     "feature": "Core\\Time\\Instant::fromIso",
-    "hash": "a3e07ea58a299fc8",
+    "hash": "0949b064c23a3600",
     "questions": [
       "How do I read an ISO 8601 timestamp?",
       "Convert text like 2024-03-01T12:00:00Z into a time",
       "Read a time with a UTC offset from a JSON API",
       "Parse an RFC 3339 date string",
-      "Why does a timestamp without an offset throw an error?"
+      "Why does a timestamp without an offset throw an error?",
+      "Why does a lower-case t or z in a timestamp throw an error?"
     ]
   },
   "/reference/core/time-instant/in/": {
@@ -16315,7 +16529,7 @@
   },
   "/reference/core/time-timeofday/": {
     "feature": "Core\\Time\\TimeOfDay",
-    "hash": "29587649652401cf",
+    "hash": "2d754edd5f9bbbcb",
     "questions": [
       "How do I store a clock time without a date?",
       "Work with times of day like opening hours",
@@ -16335,7 +16549,7 @@
   },
   "/reference/core/time-timeofday/compareto/": {
     "feature": "Core\\Time\\TimeOfDay::compareTo",
-    "hash": "2a2f1be64045b117",
+    "hash": "03af93325ca286cf",
     "questions": [
       "How do I check which clock time is earlier in the day?",
       "Compare two times of day",
@@ -16423,6 +16637,16 @@
       "Check whether a clock time has zero seconds"
     ]
   },
+  "/reference/core/time-timeofday/toiso/": {
+    "feature": "Core\\Time\\TimeOfDay::toIso",
+    "hash": "7ec64d31eb23b53b",
+    "questions": [
+      "How do I save a time of day as text in a file or database?",
+      "Convert a clock time to ISO 8601 text such as 08:30:00",
+      "Send a time of day to another program as a string",
+      "Is a fraction of a second written in the text of a clock time?"
+    ]
+  },
   "/reference/core/time-timeofday/with/": {
     "feature": "Core\\Time\\TimeOfDay::with",
     "hash": "5f770458a90f42ec",
@@ -16445,22 +16669,24 @@
   },
   "/reference/core/time-zone/fixed/": {
     "feature": "Core\\Time\\Zone::fixed",
-    "hash": "79e70687d5f1a013",
+    "hash": "2d75430838959a00",
     "questions": [
       "How do I make a time zone from a UTC offset?",
       "Create a zone of +05:30 with no summer time",
       "Use a fixed offset when there is no zone name",
-      "Time zone that is always the same distance from UTC"
+      "Time zone that is always the same distance from UTC",
+      "Are two zones with the same fixed offset equal?"
     ]
   },
   "/reference/core/time-zone/of/": {
     "feature": "Core\\Time\\Zone::of",
-    "hash": "5e29eaca767bc1c1",
+    "hash": "b8ef273387d2be71",
     "questions": [
       "How do I get a time zone by its name?",
       "Use Europe/Berlin or America/New_York as a time zone",
       "Load an IANA time zone",
-      "What happens with a misspelled time zone name?"
+      "What happens with a misspelled time zone name?",
+      "Does a lower-case time zone name such as europe/berlin work?"
     ]
   },
   "/reference/core/time-zone/offsetat/": {
@@ -18039,9 +18265,21 @@
       "Do Hiragana and Katakana count as different when sorting Japanese text?"
     ]
   },
+  "/reference/types/novis-intl-dateformat-fields/": {
+    "feature": "Novis\\Intl\\DateFormat::Fields",
+    "hash": "9c19b41d72d6e525",
+    "questions": [
+      "How do I show only the month and year of a date?",
+      "Show the day of the week together with the date",
+      "Which parts of a date can I choose to show?",
+      "Show only the year or only the month name",
+      "Why does formatting a date with a time fail for month and year only?",
+      "What is the default set of date parts in a formatted date?"
+    ]
+  },
   "/reference/types/novis-intl-dateformat-length/": {
     "feature": "Novis\\Intl\\DateFormat::Length",
-    "hash": "3d8aa8af1b6b4a04",
+    "hash": "64c9fd603aae85fd",
     "questions": [
       "How do I show a date with the full month name?",
       "Format a date as short digits like 3/1/26",
@@ -18512,7 +18750,7 @@
   },
   "/reference/types/unit/": {
     "feature": "Core\\Unit",
-    "hash": "4bf1f85f6104b078",
+    "hash": "cb1570358a0df6ee",
     "questions": [
       "How do I add one month to a date?",
       "Get the start of the week or the quarter for a date",
@@ -18719,7 +18957,7 @@
   },
   "/syntax/classes/objects/": {
     "feature": "syntax/classes/objects.mdx",
-    "hash": "a40ab0cda180ad06",
+    "hash": "70c254e0aafe8a8b",
     "questions": [
       "Why does changing one variable change the other object too?",
       "How do I copy an object?",
@@ -18775,7 +19013,7 @@
   },
   "/syntax/classes/standard-interfaces/": {
     "feature": "syntax/classes/standard-interfaces.mdx",
-    "hash": "e2dcbfd38c13764a",
+    "hash": "e0ba0ec226e9cab4",
     "questions": [
       "How do I print an object with echo?",
       "Compare two objects with less than and greater than",
@@ -19044,13 +19282,14 @@
   },
   "/syntax/operators/comparison/": {
     "feature": "syntax/operators/comparison.mdx",
-    "hash": "6b0a38ecac459f71",
+    "hash": "82d3c85b186c1dba",
     "questions": [
       "How do I check if two values are equal?",
       "Why does comparing a number with a string not compile?",
       "How do I combine two conditions with and or or?",
       "Are two copies of an object equal?",
-      "Why can I not use less than on strings?"
+      "Why can I not use less than on strings?",
+      "Are two dates or durations with the same value equal with ==?"
     ]
   },
   "/syntax/operators/null-coalescing/": {
@@ -19203,7 +19442,7 @@
   },
   "/syntax/values/enums/": {
     "feature": "syntax/values/enums.mdx",
-    "hash": "cc5b44cf497b9c24",
+    "hash": "efcbbfb3e52b1cd6",
     "questions": [
       "How do I declare an enum in Novis?",
       "Convert an enum case to its number and back",

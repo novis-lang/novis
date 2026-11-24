@@ -7,7 +7,7 @@ class Bench
 {
     public static function run(uint $rounds): int
     {
-        // The texts are 4, 4, 5 and 5 characters long, so every round picks the next duration.
+        // The total of the rounds before picks which duration each round writes.
         array<Core\Time\Duration> $worked = [5m, 1h30m, 25h30m, 40h20m];
         int $total = 0;
         uint $i = 0;

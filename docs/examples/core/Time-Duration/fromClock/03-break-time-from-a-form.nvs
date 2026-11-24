@@ -3,7 +3,8 @@
 
 class Timesheet
 {
-    // Returns the time worked without the break, or an error message for the form.
+    // `net` returns the time worked minus the break. If a text is not a clock time,
+    // `net` returns an error message for the form.
     public static function net(string $worked, string $break): string
     {
         try {

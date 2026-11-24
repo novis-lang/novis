@@ -9,8 +9,8 @@ the value. A `DateTime` is compared by its moment. The same moment in two time z
 
 The value can be `null`, and the key is still in the map.
 
-The map keeps the key and the value alive while they are in it. `remove` and `clear` free them
-again.
+A key and its value are not freed while they are in the map. After `remove` or `clear`, they are
+freed if nothing else uses them.
 
 The examples show adding and replacing a value, two equal objects as two keys, and a common use:
 counting how many times each object appears.

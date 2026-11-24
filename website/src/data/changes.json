@@ -22,7 +22,7 @@
         "Core\\ObjectSet::has",
         "Core\\ObjectSet::remove"
       ],
-      "text": "`Core\\ObjectMap` and `Core\\ObjectSet` find a key with `==`. A `Core\\Time` value that is equal to a key is the same key, so `Date::at(2026, 3, 9)` finds the entry of another `Date` for that day. Objects of your own classes are still found only by identity."
+      "text": "`Core\\ObjectMap` and `Core\\ObjectSet` find a key with `==`. An equal `Core\\Time` value is the same key, so `Date::at(2026, 3, 9)` finds the entry of another `Date` for that day. Objects of your own classes are still found only by identity."
     },
     {
       "kind": "changed",
@@ -49,7 +49,7 @@
         "Core\\Time\\Date::next",
         "Core\\Time\\Date::previous"
       ],
-      "text": "`Core\\Time\\Date::startOf` and `endOf` return the first or last day of its week, month, quarter or year. `difference` counts whole days, weeks, months, quarters or years between two dates. `next` and `previous` find the nearest date on a given weekday."
+      "text": "`Core\\Time\\Date::startOf` and `endOf` return the first or last day of the date's week, month, quarter or year. `difference` counts whole days, weeks, months, quarters or years between two dates. `next` and `previous` find the nearest date on a given weekday."
     },
     {
       "kind": "new",

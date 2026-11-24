@@ -1,8 +1,8 @@
 <?nvs
-// Attack: `fromClock` gets the longest duration and one second more, texts of one million characters,
-// and one million valid texts. Each bad text should throw a `ParseError`, and nothing should crash or leak.
+// Attack: `fromClock` reads texts past its limits, texts of one million characters, and one million
+// valid texts. Each bad text should throw a `ParseError`. The program should not crash or use more memory over time.
 
-// 1. The longest and shortest texts that fit, one second past each, and texts in the wrong form.
+// 1. Texts at the longest positive and negative durations, one second past each, and texts in the wrong form.
 array<string> $edges = [
     '2562047:47:16',
     '2562047:47:17',
@@ -29,7 +29,7 @@ foreach ($edges as string $text) {
     }
 }
 
-// 2. Texts of one million characters: hour digits, zeros before the hours, and many colons.
+// 2. Texts of one million characters: a very long hour number, many zeros before `1:30`, and many colons.
 array<string> $long = [
     Core\Str::repeat('9', 1000000) . ':00',
     Core\Str::repeat('0', 1000000) . '1:30',
