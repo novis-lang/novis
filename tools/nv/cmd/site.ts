@@ -25,6 +25,10 @@
 //                                          what a release does with `changes.json`: each entry joins the
 //                                          changelog of every feature it names, the entries and `unseen`
 //                                          are emptied, and the snapshot is taken again as `vVERSION`
+//     bun nv site --changes --unseen [--why TEXT] ID...
+//                                          record each ID in `changes.json`'s `unseen` at its behaviour
+//                                          hash now, for tests that moved where a user sees no change;
+//                                          a record already there keeps its reason without --why
 //     bun nv site --review                 every user text that is not reviewed, one key per line, under
 //                                          the feature it belongs to (`lib/texts.ts` says what one is)
 //     bun nv site --review --brief KEY...  what a reader is given: the prose rules, the three questions,
@@ -360,7 +364,7 @@ import {
   writeReviewBaseline,
   type UserText,
 } from "../lib/texts.ts";
-import { changesProblems, readChanges, readReleased, releaseChanges, snapshot, writeReleased } from "../lib/changes.ts";
+import { changesProblems, readChanges, readReleased, recordUnseen, releaseChanges, snapshot, writeReleased } from "../lib/changes.ts";
 import { styleProblems } from "../lib/site-css.ts";
 import { diagramProblems } from "../lib/site-diagrams.ts";
 import { pruneRetired, roadmapProblems, writeRoadmap } from "../lib/site-roadmap.ts";
@@ -371,7 +375,7 @@ import { ABOUT, EXAMPLES, examplesDir, introFile, memberPath, metaJson, roster, 
 import { DATA_FILE, renderWebsiteCore } from "../renderers/website-core.ts";
 import { REFERENCE_FILE, type Page as RefPage } from "../renderers/website-reference.ts";
 
-export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp KEY... | --stamp --baseline | --check [PART...] | --bless SNIPPET... | --bless-apps [APP/FILE...] | --shoot [SHOT...] | --build | --changes --snapshot SINCE | --release VERSION | --review [--brief KEY... | --stamp KEY... | --baseline] | --roadmap | --questions --status | --owed [AREA] | --stamp URL...";
+export const summary = "the website's stale guard, checks and build: nv site --stale | --stamp KEY... | --stamp --baseline | --check [PART...] | --bless SNIPPET... | --bless-apps [APP/FILE...] | --shoot [SHOT...] | --build | --changes --snapshot SINCE | --release VERSION | --unseen [--why TEXT] ID... | --review [--brief KEY... | --stamp KEY... | --baseline] | --roadmap | --questions --status | --owed [AREA] | --stamp URL...";
 
 export { DOCS, SNIPPETS };
 export const LOCK = "website/site.lock.json";
@@ -2621,15 +2625,32 @@ async function reviewMode(w: World, nvs: string, operands: string[], root: strin
   return 0;
 }
 
-/** `--changes --snapshot SINCE | --release VERSION`. */
+/** `--changes --snapshot SINCE | --release VERSION | --unseen [--why TEXT] ID...`. */
 function changesMode(w: World, operands: string[], root: string = ROOT): number {
   const [sub, name, ...more] = operands;
-  if ((sub !== "--snapshot" && sub !== "--release") || !name || more.length) {
-    console.error("nv site: --changes needs --snapshot SINCE or --release VERSION");
-    return 2;
-  }
   const hashes = new Hashes(root, w.meta);
   const behaviour = (e: Entry) => hashes.behaviour(e);
+  if (sub === "--unseen") {
+    const args = operands.slice(1);
+    const at = args.indexOf("--why");
+    const why = at >= 0 ? args[at + 1] : undefined;
+    const ids = at >= 0 ? [...args.slice(0, at), ...args.slice(at + 2)] : args;
+    if (ids.length === 0 || (at >= 0 && !why)) {
+      console.error("nv site: --changes --unseen needs [--why TEXT] and one ID or more");
+      return 2;
+    }
+    const problems = recordUnseen(root, ids, why, w.entries, behaviour);
+    if (problems.length) {
+      report("nv site: --changes --unseen wrote nothing", problems);
+      return 1;
+    }
+    console.log(`nv site: recorded ${ids.length} feature(s) as unseen at their behaviour hash now`);
+    return 0;
+  }
+  if ((sub !== "--snapshot" && sub !== "--release") || !name || more.length) {
+    console.error("nv site: --changes needs --snapshot SINCE, --release VERSION or --unseen [--why TEXT] ID...");
+    return 2;
+  }
   if (sub === "--snapshot") {
     writeReleased(root, snapshot(w.entries, behaviour, name));
     console.log(`nv site: wrote the behaviour hash of ${w.entries.length} feature(s) as ${name} to data/proofs/released.json`);

@@ -106,6 +106,13 @@ const mayNameUnmoved = (e: ChangeEntry) => e.kind === "faster" || e.highlight ==
 const CLEARS: Record<"new" | "removed" | "moved", Kind[]> = { new: ["new"], removed: ["removed"], moved: ["changed", "fixed"] };
 
 /**
+ * Whether `entry` clears a feature of `move`. A rename is one change a user reads once, so a `changed`
+ * entry with `breaking: true` also clears the old name it removes and the new name it adds.
+ */
+const clears = (entry: ChangeEntry, move: "new" | "removed" | "moved") =>
+  CLEARS[move].includes(entry.kind) || (move !== "moved" && entry.kind === "changed" && entry.breaking === true);
+
+/**
  * Every problem with `changes` against the roster now and the snapshot: a moved feature with no entry,
  * an entry that breaks its shape, and an `unseen` record that does not hold. `prose` is the countable
  * bounds of `--check prose`, which gives `line: problem` per problem.
@@ -163,9 +170,9 @@ export function changesProblems(
     if (typeof record.why !== "string" || record.why.trim() === "") problems.push(`${CHANGES} unseen: ${id} says no \`why\``);
   }
 
-  const named = (id: string, kinds: Kind[]) => changes.entries.some((e) => kinds.includes(e.kind) && Array.isArray(e.features) && e.features.includes(id));
+  const named = (id: string, move: "new" | "removed" | "moved") => changes.entries.some((e) => clears(e, move) && Array.isArray(e.features) && e.features.includes(id));
   for (const [id, move] of [...moves].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
-    if (named(id, CLEARS[move])) continue;
+    if (named(id, move)) continue;
     if (move === "moved" && changes.unseen[id]?.hash === now.get(id)) continue;
     if (move === "new") problems.push(`new: ${id} is not in the snapshot of ${released.since}, and no \`new\` entry names it`);
     else if (move === "removed") problems.push(`removed: ${id} is no longer on the roster, and no \`removed\` entry names it`);
@@ -197,6 +204,32 @@ export function notesSections(entries: ChangeEntry[]): string[] {
     lines.push(`### ${title}`, "", ...ordered.map((e) => `- ${[e.text, e.instead].filter(Boolean).join(" ")}`), "");
   }
   return lines;
+}
+
+/**
+ * Records each of `ids` in `unseen` at its behaviour hash now: a move whose tests changed and whose
+ * behaviour a user cannot see, such as a test that calls a renamed member. `why` replaces the record's
+ * reason; without it a record already there keeps its own, and a new one needs it. An id the roster
+ * does not have, or that an entry already names, is returned as a problem and nothing is written.
+ */
+export function recordUnseen(root: string, ids: string[], why: string | undefined, entries: Entry[], behaviour: (e: Entry) => string): string[] {
+  const changes = readChanges(root);
+  const byId = new Map(entries.map((e) => [e.id, e]));
+  const problems: string[] = [];
+  for (const id of ids) {
+    const e = byId.get(id);
+    if (e === undefined) problems.push(`${id} is not on the roster`);
+    else if (changes.entries.some((x) => x.features.includes(id))) problems.push(`${id} is named by an entry, which already records its move`);
+    else if (why === undefined && changes.unseen[id] === undefined) problems.push(`${id} has no record yet, so it needs --why`);
+  }
+  if (problems.length) return problems;
+  for (const id of ids) {
+    const record = { hash: behaviour(byId.get(id)!), why: why ?? changes.unseen[id]!.why };
+    changes.unseen[id] = record;
+  }
+  changes.unseen = Object.fromEntries(Object.entries(changes.unseen).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+  writeChanges(root, changes);
+  return [];
 }
 
 /** The key a feature's changelog has in `core-changelog.json`, the one its reference page reads: a

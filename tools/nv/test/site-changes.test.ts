@@ -5,7 +5,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { changesProblems, CHANGES, CORE_CHANGELOG, notesSections, releaseChanges, RELEASED, type ChangeEntry, type Changes, type Released } from "../lib/changes.ts";
+import { changesProblems, CHANGES, CORE_CHANGELOG, notesSections, recordUnseen, releaseChanges, RELEASED, type ChangeEntry, type Changes, type Released } from "../lib/changes.ts";
 import { proseProblems } from "../cmd/site.ts";
 import { renderNotes } from "../cmd/release.ts";
 import type { Entry } from "../proofs/roster.ts";
@@ -55,6 +55,16 @@ describe("site --check changes", () => {
     expect(problems).toEqual([]);
   });
 
+  test("a breaking changed entry clears the old name it removes and the new name it adds, and a plain one does not", () => {
+    const base = snap({ "Core\\Str::length": "aaaa", "Core\\Str::slice": "bbbb", "Core\\Str::strip": "cccc" });
+    const rename = entry("changed", ["Core\\Str::strip", "Core\\Str::trim"], { breaking: true, instead: "Write `Core\\Str::trim`." });
+    expect(check(base, changes([rename]))).toEqual([]);
+    expect(check(base, changes([{ ...rename, breaking: undefined, instead: undefined }]))).toEqual([
+      "removed: Core\\Str::strip is no longer on the roster, and no `removed` entry names it",
+      "new: Core\\Str::trim is not in the snapshot of v0.0.4, and no `new` entry names it",
+    ]);
+  });
+
   test("an unseen record clears a feature only at the hash it names", () => {
     const base = snap({ "Core\\Str::length": "aaaa", "Core\\Str::slice": "0000", "Core\\Str::trim": "cccc" });
     expect(check(base, changes([], { "Core\\Str::slice": { hash: "bbbb", why: "a test was renamed" } }))).toEqual([]);
@@ -102,6 +112,30 @@ describe("site --check changes", () => {
       entry("fixed", ["Core\\Str::length"], { security: true }),
     ];
     expect(check(base, changes(allowed))).toEqual([]);
+  });
+});
+
+describe("site --changes --unseen", () => {
+  let s: Scratch | null = null;
+  afterEach(() => {
+    s?.cleanup();
+    s = null;
+  });
+
+  test("each id is recorded at its hash now, a record keeps its reason without --why, and a bad id writes nothing", () => {
+    s = scratch();
+    s.put(CHANGES, JSON.stringify({ entries: [entry("new", ["Core\\Str::trim"])], unseen: { "Core\\Str::slice": { hash: "0000", why: "a test was renamed" } } }));
+    expect(recordUnseen(s.root, ["Core\\Str::slice", "Core\\Str::trim", "Core\\Str::pad"], undefined, roster, behaviour)).toEqual([
+      "Core\\Str::trim is named by an entry, which already records its move",
+      "Core\\Str::pad is not on the roster",
+    ]);
+    expect(recordUnseen(s.root, ["Core\\Str::length"], undefined, roster, behaviour)).toEqual(["Core\\Str::length has no record yet, so it needs --why"]);
+    expect(recordUnseen(s.root, ["Core\\Str::slice"], undefined, roster, behaviour)).toEqual([]);
+    expect(recordUnseen(s.root, ["Core\\Str::length"], "a caller was renamed", roster, behaviour)).toEqual([]);
+    expect(JSON.parse(readFileSync(join(s.root, CHANGES), "utf8")).unseen).toEqual({
+      "Core\\Str::length": { hash: "aaaa", why: "a caller was renamed" },
+      "Core\\Str::slice": { hash: "bbbb", why: "a test was renamed" },
+    });
   });
 });
 
