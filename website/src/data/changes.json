@@ -1,6 +1,553 @@
 {
   "entries": [
     {
+      "kind": "changed",
+      "features": [
+        "Core\\Response::json",
+        "Core\\Response::html",
+        "Core\\Response::text",
+        "Core\\Response::bytes",
+        "Core\\Response::slotted",
+        "Core\\Response::stream",
+        "Core\\Response::sendJson",
+        "Core\\Response::sendHtml",
+        "Core\\Response::sendText",
+        "Core\\Response::sendBytes",
+        "Core\\Response::sendSlotted",
+        "Core\\Response::startStream"
+      ],
+      "text": "The `Core\\Response` methods that send a body now start with `send`: `sendJson`, `sendHtml`, `sendText`, `sendBytes` and `sendSlotted`. `startStream` starts a streamed response. The old names were `json`, `html`, `text`, `bytes`, `slotted` and `stream`.",
+      "breaking": true,
+      "instead": "Write `Core\\Response::sendJson($data)` where you wrote `Core\\Response::json($data)`, and the same for the other five methods."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Request::query",
+        "Core\\Request::queryArray",
+        "Core\\Request::queryAs",
+        "Core\\Request::post",
+        "Core\\Request::postArray",
+        "Core\\Request::postAs",
+        "Core\\Request::queryParameter",
+        "Core\\Request::queryParameters",
+        "Core\\Request::queryParametersAs",
+        "Core\\Request::formField",
+        "Core\\Request::formFields",
+        "Core\\Request::formFieldsAs"
+      ],
+      "text": "`Core\\Request::queryParameter`, `queryParameters` and `queryParametersAs` read the query string. `formField`, `formFields` and `formFieldsAs` read a submitted form. The old names were `query`, `queryArray`, `queryAs`, `post`, `postArray` and `postAs`.",
+      "breaking": true,
+      "instead": "Write `Core\\Request::queryParameter('page')` where you wrote `Core\\Request::query('page')`, and `Core\\Request::formField('email')` where you wrote `Core\\Request::post('email')`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Sse::stream",
+        "Core\\Sse::retry",
+        "Core\\Sse::startStream",
+        "Core\\Sse::setRetryDelay"
+      ],
+      "text": "`Core\\Sse::startStream` starts an event stream, and `setRetryDelay` sets how long a browser waits before it connects again. The old names were `stream` and `retry`.",
+      "breaking": true,
+      "instead": "Write `Core\\Sse::startStream()` where you wrote `Core\\Sse::stream()`, and `$stream->setRetryDelay($after)` where you wrote `$stream->retry($after)`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Metrics::gauge",
+        "Core\\Metrics::setGauge"
+      ],
+      "text": "`Core\\Metrics::setGauge` sets the value of a gauge. The old name was `gauge`.",
+      "breaking": true,
+      "instead": "Write `Core\\Metrics::setGauge(...)` where you wrote `Core\\Metrics::gauge(...)`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Task::afterResponse",
+        "Core\\Task::runAfterResponse"
+      ],
+      "text": "`Core\\Task::runAfterResponse` runs a function after the response is sent. The old name was `afterResponse`.",
+      "breaking": true,
+      "instead": "Write `Core\\Task::runAfterResponse(...)` where you wrote `Core\\Task::afterResponse(...)`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Router\\Match::params",
+        "Core\\Router\\Match::param",
+        "Core\\Router\\Match::parameters",
+        "Core\\Router\\Match::parameter"
+      ],
+      "text": "`Core\\Router\\Match` reads the values of a route with `parameters()` and `parameter($name)`. The old names were `params` and `param`.",
+      "breaking": true,
+      "instead": "Write `$match->parameter('id')` where you wrote `$match->param('id')`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Script::args",
+        "Core\\Script::arguments"
+      ],
+      "text": "`Core\\Script::arguments()` returns the value a script was started with. The option of a spawned script's `with()` is now `arguments:` too. The old name was `args` in both places.",
+      "breaking": true,
+      "instead": "Write `Core\\Script::arguments()` and `with(arguments: ...)` where you wrote `Core\\Script::args()` and `with(args: ...)`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Cli::secret",
+        "Core\\Cli::live",
+        "Core\\Cli::progress",
+        "Core\\Cli::multiSelect",
+        "Core\\Cli::askSecret",
+        "Core\\Cli::showLive",
+        "Core\\Cli::showProgress",
+        "Core\\Cli::selectMany"
+      ],
+      "text": "The `Core\\Cli` methods that prompt or draw now say so: `askSecret`, `showLive`, `showProgress` and `selectMany`. The old names were `secret`, `live`, `progress` and `multiSelect`.",
+      "breaking": true,
+      "instead": "Write `Core\\Cli::askSecret(...)` where you wrote `Core\\Cli::secret(...)`, and the same for the other three methods."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Test::scriptAnswers",
+        "Core\\Test::answerCli",
+        "Core\\Test\\Outcome::passed",
+        "Core\\Test\\Outcome::hasPassed"
+      ],
+      "text": "`Core\\Test::answerCli` gives the answers for the prompts of a test. `Core\\Test\\Outcome->hasPassed()` checks whether a test passed. The old names were `scriptAnswers` and `passed`.",
+      "breaking": true,
+      "instead": "Write `Core\\Test::answerCli([...])` where you wrote `Core\\Test::scriptAnswers([...])`, and `$outcome->hasPassed()` where you wrote `$outcome->passed()`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Xml\\Writer::content",
+        "Core\\Xml\\Writer::attribute",
+        "Core\\Xml\\Writer::comment",
+        "Core\\Xml\\Writer::cdata",
+        "Core\\Xml\\Writer::instruction",
+        "Core\\Xml\\Writer::doctype",
+        "Core\\Xml\\Writer::writeText",
+        "Core\\Xml\\Writer::writeAttribute",
+        "Core\\Xml\\Writer::writeComment",
+        "Core\\Xml\\Writer::writeCdata",
+        "Core\\Xml\\Writer::writeInstruction",
+        "Core\\Xml\\Writer::writeDoctype"
+      ],
+      "text": "Every `Core\\Xml\\Writer` method that writes a part of the document now starts with `write`. For example, `writeText` writes text and `writeAttribute` writes an attribute. The old names were `content`, `attribute`, `comment`, `cdata`, `instruction` and `doctype`.",
+      "breaking": true,
+      "instead": "Write `$writer->writeText('...')` where you wrote `$writer->content('...')`, and add `write` to the other five method names."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\IO::temporaryDir",
+        "Core\\IO::makeDir",
+        "Core\\IO::removeDir",
+        "Core\\IO::isDir",
+        "Core\\IO::stat",
+        "Core\\IO::createTemporaryDirectory",
+        "Core\\IO::makeDirectory",
+        "Core\\IO::removeDirectory",
+        "Core\\IO::isDirectory",
+        "Core\\IO::metadata",
+        "Core\\IO\\Metadata::isDir",
+        "Core\\IO\\Metadata::isDirectory"
+      ],
+      "text": "`Core\\IO` writes the word \"directory\" in full: `createTemporaryDirectory`, `makeDirectory`, `removeDirectory` and `isDirectory`. `Core\\IO::metadata` returns the `Core\\IO\\Metadata` of a file. The old names were `temporaryDir`, `makeDir`, `removeDir`, `isDir` and `stat`.",
+      "breaking": true,
+      "instead": "Write `Core\\IO::makeDirectory($path)` where you wrote `Core\\IO::makeDir($path)`, and `Core\\IO::metadata($path)` where you wrote `Core\\IO::stat($path)`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Path::dirname",
+        "Core\\Path::basename",
+        "Core\\Path::fromCwd",
+        "Core\\Path::thisDir",
+        "Core\\Path::parent",
+        "Core\\Path::fileName",
+        "Core\\Path::fromWorkingDirectory",
+        "Core\\Path::thisDirectory"
+      ],
+      "text": "`Core\\Path::parent` returns the folder of a path, and `Core\\Path::fileName` returns its last part. `fromWorkingDirectory` and `thisDirectory` write their words in full. The old names were `dirname`, `basename`, `fromCwd` and `thisDir`.",
+      "breaking": true,
+      "instead": "Write `Core\\Path::parent($path)` where you wrote `Core\\Path::dirname($path)`, and `Core\\Path::fileName($path)` where you wrote `Core\\Path::basename($path)`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\BigInt::add",
+        "Core\\BigInt::sub",
+        "Core\\BigInt::mul",
+        "Core\\BigInt::div",
+        "Core\\BigInt::mod",
+        "Core\\BigInt::pow",
+        "Core\\BigInt::powMod",
+        "Core\\BigInt::neg",
+        "Core\\BigInt::shl",
+        "Core\\BigInt::shr",
+        "Core\\BigInt::plus",
+        "Core\\BigInt::minus",
+        "Core\\BigInt::multipliedBy",
+        "Core\\BigInt::dividedBy",
+        "Core\\BigInt::remainder",
+        "Core\\BigInt::raisedTo",
+        "Core\\BigInt::raisedToModulo",
+        "Core\\BigInt::negated",
+        "Core\\BigInt::shiftedLeft",
+        "Core\\BigInt::shiftedRight"
+      ],
+      "text": "Each `Core\\BigInt` method that computes a new number is named for its result: `plus`, `minus`, `multipliedBy`, `dividedBy`, `remainder`, `raisedTo`, `raisedToModulo`, `negated`, `shiftedLeft` and `shiftedRight`. The old names were `add`, `sub`, `mul`, `div`, `mod`, `pow`, `powMod`, `neg`, `shl` and `shr`.",
+      "breaking": true,
+      "instead": "Write `$a->plus($b)` where you wrote `$a->add($b)`, and the same for the other nine methods."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Decimal::divExact",
+        "Core\\Decimal::divRound",
+        "Core\\Decimal::pow",
+        "Core\\Decimal::divideExact",
+        "Core\\Decimal::divideRounded",
+        "Core\\Decimal::power"
+      ],
+      "text": "`Core\\Decimal::divideExact`, `divideRounded` and `power` write their words in full. The old names were `divExact`, `divRound` and `pow`.",
+      "breaking": true,
+      "instead": "Write `Core\\Decimal::divideRounded(...)` where you wrote `Core\\Decimal::divRound(...)`, and the same for the other two."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Math::intDiv",
+        "Core\\Math::fdiv",
+        "Core\\Math::mod",
+        "Core\\Math::quotient",
+        "Core\\Math::divide",
+        "Core\\Math::remainder"
+      ],
+      "text": "`Core\\Math::quotient` divides two whole numbers, `divide` divides two floats, and `remainder` returns what is left after a division. The old names were `intDiv`, `fdiv` and `mod`.",
+      "breaking": true,
+      "instead": "Write `Core\\Math::quotient($a, $b)` where you wrote `Core\\Math::intDiv($a, $b)`, and the same for the other two."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Arr::diff",
+        "Core\\Arr::intersect",
+        "Core\\Arr::countBy",
+        "Core\\Arr::difference",
+        "Core\\Arr::intersection",
+        "Core\\Arr::groupCounts"
+      ],
+      "text": "`Core\\Arr::difference` and `Core\\Arr::intersection` compare two arrays. `Core\\Arr::groupCounts` counts the elements of each group. The old names were `diff`, `intersect` and `countBy`.",
+      "breaking": true,
+      "instead": "Write `Core\\Arr::difference($a, $b)` where you wrote `Core\\Arr::diff($a, $b)`, and the same for the other two."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\ObjectSet::intersect",
+        "Core\\ObjectSet::diff",
+        "Core\\ObjectSet::intersection",
+        "Core\\ObjectSet::difference"
+      ],
+      "text": "`Core\\ObjectSet->intersection()` and `difference()` return a new set. The old names were `intersect` and `diff`.",
+      "breaking": true,
+      "instead": "Write `$a->intersection($b)` where you wrote `$a->intersect($b)`, and `$a->difference($b)` where you wrote `$a->diff($b)`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Uri::resolve",
+        "Core\\Uri::sign",
+        "Core\\Uri::resolved",
+        "Core\\Uri::signed"
+      ],
+      "text": "`Core\\Uri->resolved()` and `signed()` return a new address and leave the original unchanged. The old names were `resolve` and `sign`.",
+      "breaking": true,
+      "instead": "Write `$base->resolved($link)` where you wrote `$base->resolve($link)`, and `$uri->signed(...)` where you wrote `$uri->sign(...)`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Time\\DateTime::nanos",
+        "Core\\Time\\DateTime::nanoseconds",
+        "Core\\Time\\TimeOfDay::nanos",
+        "Core\\Time\\TimeOfDay::nanoseconds"
+      ],
+      "text": "`Core\\Time\\DateTime->nanoseconds()` and `Core\\Time\\TimeOfDay->nanoseconds()` return the part of the second in nanoseconds. The option of `with()` is `nanoseconds` too. The old name was `nanos` in both places.",
+      "breaking": true,
+      "instead": "Write `$time->nanoseconds()` and `with(nanoseconds: ...)` where you wrote `$time->nanos()` and `with(nanos: ...)`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Db\\Connection::stream",
+        "Core\\Db\\Connection::streamAs",
+        "Core\\Db\\Connection::transaction",
+        "Core\\Db\\Connection::queryEach",
+        "Core\\Db\\Connection::queryEachAs",
+        "Core\\Db\\Connection::runTransaction",
+        "Core\\Db\\Transaction::stream",
+        "Core\\Db\\Transaction::streamAs",
+        "Core\\Db\\Transaction::transaction",
+        "Core\\Db\\Transaction::queryEach",
+        "Core\\Db\\Transaction::queryEachAs",
+        "Core\\Db\\Transaction::runTransaction",
+        "Core\\Db\\Column::nullable",
+        "Core\\Db\\Column::isNullable"
+      ],
+      "text": "`queryEach` and `queryEachAs` run a query and read its rows one at a time. `runTransaction` runs a function in a transaction, and `Core\\Db\\Column->isNullable()` checks a column. The old names were `stream`, `streamAs`, `transaction` and `nullable`.",
+      "breaking": true,
+      "instead": "Write `$db->queryEach(...)` where you wrote `$db->stream(...)`, and `$db->runTransaction(...)` where you wrote `$db->transaction(...)`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Http\\Client::stream",
+        "Core\\Http\\Client::openStream",
+        "Core\\Http\\TlsInfo::verified",
+        "Core\\Http\\TlsInfo::isVerified"
+      ],
+      "text": "`Core\\Http\\Client::openStream` opens a streamed request, and `Core\\Http\\TlsInfo->isVerified()` checks the certificate. The old names were `stream` and `verified`.",
+      "breaking": true,
+      "instead": "Write `Core\\Http\\Client::openStream(...)` where you wrote `Core\\Http\\Client::stream(...)`, and `$tls->isVerified()` where you wrote `$tls->verified()`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Ldap\\Connection::compare",
+        "Core\\Ldap\\Connection::changes",
+        "Core\\Ldap\\Connection::hasValue",
+        "Core\\Ldap\\Connection::searchChanges",
+        "Core\\Ldap\\Filter::approx",
+        "Core\\Ldap\\Filter::approximately"
+      ],
+      "text": "`Core\\Ldap\\Connection->hasValue()` checks whether an entry has a value, and `searchChanges()` reads the entries that changed. `Core\\Ldap\\Filter::approximately` builds an approximate match. The old names were `compare`, `changes` and `approx`.",
+      "breaking": true,
+      "instead": "Write `$ldap->hasValue(...)` where you wrote `$ldap->compare(...)`, and the same for the other two."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Ldap\\Ad\\AccountFlags::script",
+        "Core\\Ldap\\Ad\\AccountFlags::disabled",
+        "Core\\Ldap\\Ad\\AccountFlags::homeDirectoryRequired",
+        "Core\\Ldap\\Ad\\AccountFlags::lockedOut",
+        "Core\\Ldap\\Ad\\AccountFlags::passwordNotRequired",
+        "Core\\Ldap\\Ad\\AccountFlags::reversibleEncryption",
+        "Core\\Ldap\\Ad\\AccountFlags::temporaryDuplicateAccount",
+        "Core\\Ldap\\Ad\\AccountFlags::normalAccount",
+        "Core\\Ldap\\Ad\\AccountFlags::interdomainTrustAccount",
+        "Core\\Ldap\\Ad\\AccountFlags::workstationTrustAccount",
+        "Core\\Ldap\\Ad\\AccountFlags::serverTrustAccount",
+        "Core\\Ldap\\Ad\\AccountFlags::passwordNeverExpires",
+        "Core\\Ldap\\Ad\\AccountFlags::mnsLogonAccount",
+        "Core\\Ldap\\Ad\\AccountFlags::smartcardRequired",
+        "Core\\Ldap\\Ad\\AccountFlags::trustedForDelegation",
+        "Core\\Ldap\\Ad\\AccountFlags::notDelegated",
+        "Core\\Ldap\\Ad\\AccountFlags::useDesKeyOnly",
+        "Core\\Ldap\\Ad\\AccountFlags::noPreauthRequired",
+        "Core\\Ldap\\Ad\\AccountFlags::passwordExpired",
+        "Core\\Ldap\\Ad\\AccountFlags::trustedToAuthForDelegation",
+        "Core\\Ldap\\Ad\\AccountFlags::partialSecretsAccount",
+        "Core\\Ldap\\Ad\\AccountFlags::hasLogonScript",
+        "Core\\Ldap\\Ad\\AccountFlags::isDisabled",
+        "Core\\Ldap\\Ad\\AccountFlags::isHomeDirectoryRequired",
+        "Core\\Ldap\\Ad\\AccountFlags::isLockedOut",
+        "Core\\Ldap\\Ad\\AccountFlags::isPasswordNotRequired",
+        "Core\\Ldap\\Ad\\AccountFlags::allowsReversibleEncryption",
+        "Core\\Ldap\\Ad\\AccountFlags::isTemporaryDuplicateAccount",
+        "Core\\Ldap\\Ad\\AccountFlags::isNormalAccount",
+        "Core\\Ldap\\Ad\\AccountFlags::isInterdomainTrustAccount",
+        "Core\\Ldap\\Ad\\AccountFlags::isWorkstationTrustAccount",
+        "Core\\Ldap\\Ad\\AccountFlags::isServerTrustAccount",
+        "Core\\Ldap\\Ad\\AccountFlags::hasNonExpiringPassword",
+        "Core\\Ldap\\Ad\\AccountFlags::isMnsLogonAccount",
+        "Core\\Ldap\\Ad\\AccountFlags::isSmartcardRequired",
+        "Core\\Ldap\\Ad\\AccountFlags::isTrustedForDelegation",
+        "Core\\Ldap\\Ad\\AccountFlags::isNotDelegated",
+        "Core\\Ldap\\Ad\\AccountFlags::usesDesKeyOnly",
+        "Core\\Ldap\\Ad\\AccountFlags::isPreauthNotRequired",
+        "Core\\Ldap\\Ad\\AccountFlags::isPasswordExpired",
+        "Core\\Ldap\\Ad\\AccountFlags::isTrustedToAuthenticateForDelegation",
+        "Core\\Ldap\\Ad\\AccountFlags::isPartialSecretsAccount"
+      ],
+      "text": "Every `Core\\Ldap\\Ad\\AccountFlags` method that checks a flag now starts with `is`, `has`, `allows` or `uses`, for example `isDisabled()` and `hasNonExpiringPassword()`. The field `trustedToAuthForDelegation` of `with()` is now `trustedToAuthenticateForDelegation`.",
+      "breaking": true,
+      "instead": "Write `$flags->isDisabled()` where you wrote `$flags->disabled()`. The page of `Core\\Ldap\\Ad\\AccountFlags` lists every new name."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Ldap\\Ad\\GroupType::system",
+        "Core\\Ldap\\Ad\\GroupType::global",
+        "Core\\Ldap\\Ad\\GroupType::domainLocal",
+        "Core\\Ldap\\Ad\\GroupType::universal",
+        "Core\\Ldap\\Ad\\GroupType::appBasic",
+        "Core\\Ldap\\Ad\\GroupType::appQuery",
+        "Core\\Ldap\\Ad\\GroupType::security",
+        "Core\\Ldap\\Ad\\GroupType::isSystemGroup",
+        "Core\\Ldap\\Ad\\GroupType::isGlobal",
+        "Core\\Ldap\\Ad\\GroupType::isDomainLocal",
+        "Core\\Ldap\\Ad\\GroupType::isUniversal",
+        "Core\\Ldap\\Ad\\GroupType::isAppBasicGroup",
+        "Core\\Ldap\\Ad\\GroupType::isAppQueryGroup",
+        "Core\\Ldap\\Ad\\GroupType::isSecurityGroup"
+      ],
+      "text": "Every `Core\\Ldap\\Ad\\GroupType` method that checks a flag now starts with `is`, for example `isGlobal()` and `isSecurityGroup()`. The old names were `system`, `global`, `domainLocal`, `universal`, `appBasic`, `appQuery` and `security`.",
+      "breaking": true,
+      "instead": "Write `$type->isGlobal()` where you wrote `$type->global()`, and the same for the other six methods."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\RateLimit::shed",
+        "Core\\RateLimit::consumeLocally",
+        "Core\\RateLimit\\Decision::allowed",
+        "Core\\RateLimit\\Decision::isAllowed"
+      ],
+      "text": "`Core\\RateLimit::consumeLocally` counts a request in the memory of this server process. `Core\\RateLimit\\Decision->isAllowed()` checks the result. The old names were `shed` and `allowed`.",
+      "breaking": true,
+      "instead": "Write `Core\\RateLimit::consumeLocally(...)` where you wrote `Core\\RateLimit::shed(...)`, and `$decision->isAllowed()` where you wrote `$decision->allowed()`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\WebPush\\Sent::gone",
+        "Core\\WebPush\\Sent::isGone"
+      ],
+      "text": "`Core\\WebPush\\Sent->isGone()` checks whether the browser removed the subscription. The old name was `gone`.",
+      "breaking": true,
+      "instead": "Write `$sent->isGone()` where you wrote `$sent->gone()`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Process::run",
+        "Core\\Process::spawn"
+      ],
+      "text": "The option `cwd` of `Core\\Process::run` and `Core\\Process::spawn` is now `workingDirectory`. The option `args` of `Core\\Queue::push` is now `arguments`.",
+      "breaking": true,
+      "instead": "Write `{ workingDirectory: '...' }` where you wrote `{ cwd: '...' }`, and `{ arguments: [...] }` where you wrote `{ args: [...] }`."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Novis\\Image\\Image::resize",
+        "Novis\\Image\\Image::crop",
+        "Novis\\Image\\Image::trim",
+        "Novis\\Image\\Image::rotate",
+        "Novis\\Image\\Image::flip",
+        "Novis\\Image\\Image::flatten",
+        "Novis\\Image\\Image::sharpen",
+        "Novis\\Image\\Image::blur",
+        "Novis\\Image\\Image::tint",
+        "Novis\\Image\\Image::grayscale",
+        "Novis\\Image\\Image::composite",
+        "Novis\\Image\\Image::brightness",
+        "Novis\\Image\\Image::contrast",
+        "Novis\\Image\\Image::gamma",
+        "Novis\\Image\\Image::text",
+        "Novis\\Image\\Image::format",
+        "Novis\\Image\\Image::metadata",
+        "Novis\\Image\\Image::variants",
+        "Novis\\Image\\Image::resized",
+        "Novis\\Image\\Image::cropped",
+        "Novis\\Image\\Image::trimmed",
+        "Novis\\Image\\Image::rotated",
+        "Novis\\Image\\Image::flipped",
+        "Novis\\Image\\Image::flattened",
+        "Novis\\Image\\Image::sharpened",
+        "Novis\\Image\\Image::blurred",
+        "Novis\\Image\\Image::tinted",
+        "Novis\\Image\\Image::grayscaled",
+        "Novis\\Image\\Image::withOverlay",
+        "Novis\\Image\\Image::withBrightness",
+        "Novis\\Image\\Image::withContrast",
+        "Novis\\Image\\Image::withGamma",
+        "Novis\\Image\\Image::withText",
+        "Novis\\Image\\Image::withFormat",
+        "Novis\\Image\\Image::keepingMetadata",
+        "Novis\\Image\\Image::encodeVariants",
+        "Novis\\Image\\Image::compare",
+        "Novis\\Image\\Diff::constructor",
+        "Novis\\Image\\Comparison::constructor"
+      ],
+      "text": "Each `Novis\\Image\\Image` method that returns a new image is named for it, for example `resized()`, `blurred()` and `withText()`. `keepingMetadata()` replaces `metadata({ keep: true })`, and `encodeVariants()` replaces `variants()`. `Image::compare` returns a `Comparison` with the property `differenceImage`, which was `Diff` with `diff`.",
+      "breaking": true,
+      "instead": "Write `$image->resized(width: 800)` where you wrote `$image->resize(width: 800)`. The page of `Novis\\Image\\Image` lists every new name."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Novis\\Pdf\\Document::asset",
+        "Novis\\Pdf\\Document::standard",
+        "Novis\\Pdf\\Document::invoiceXml",
+        "Novis\\Pdf\\Document::password",
+        "Novis\\Pdf\\Document::created",
+        "Novis\\Pdf\\Document::header",
+        "Novis\\Pdf\\Document::footer",
+        "Novis\\Pdf\\Document::slots",
+        "Novis\\Pdf\\Document::withAsset",
+        "Novis\\Pdf\\Document::withStandard",
+        "Novis\\Pdf\\Document::withInvoiceXml",
+        "Novis\\Pdf\\Document::withPassword",
+        "Novis\\Pdf\\Document::withCreationTime",
+        "Novis\\Pdf\\Document::withHeader",
+        "Novis\\Pdf\\Document::withFooter",
+        "Novis\\Pdf\\Document::withSlots"
+      ],
+      "text": "Each `Novis\\Pdf\\Document` method that returns a new document now starts with `with`, for example `withHeader()` and `withPassword()`. `created()` is now `withCreationTime()`.",
+      "breaking": true,
+      "instead": "Write `$document->withHeader(...)` where you wrote `$document->header(...)`, and add `with` to the other method names."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Novis\\Spreadsheet\\Sheet::add",
+        "Novis\\Spreadsheet\\Sheet::addAll",
+        "Novis\\Spreadsheet\\Sheet::merge",
+        "Novis\\Spreadsheet\\Sheet::link",
+        "Novis\\Spreadsheet\\Sheet::note",
+        "Novis\\Spreadsheet\\Sheet::validate",
+        "Novis\\Spreadsheet\\Sheet::group",
+        "Novis\\Spreadsheet\\Sheet::table",
+        "Novis\\Spreadsheet\\Sheet::conditional",
+        "Novis\\Spreadsheet\\Sheet::image",
+        "Novis\\Spreadsheet\\Sheet::chart",
+        "Novis\\Spreadsheet\\Sheet::print",
+        "Novis\\Spreadsheet\\Sheet::addRow",
+        "Novis\\Spreadsheet\\Sheet::addRows",
+        "Novis\\Spreadsheet\\Sheet::mergeCells",
+        "Novis\\Spreadsheet\\Sheet::addLink",
+        "Novis\\Spreadsheet\\Sheet::addNote",
+        "Novis\\Spreadsheet\\Sheet::addValidation",
+        "Novis\\Spreadsheet\\Sheet::addOutlineGroup",
+        "Novis\\Spreadsheet\\Sheet::addTable",
+        "Novis\\Spreadsheet\\Sheet::addConditionalFormat",
+        "Novis\\Spreadsheet\\Sheet::addImage",
+        "Novis\\Spreadsheet\\Sheet::addChart",
+        "Novis\\Spreadsheet\\Sheet::setPrintOptions",
+        "Novis\\Spreadsheet\\Workbook::sheet",
+        "Novis\\Spreadsheet\\Workbook::define",
+        "Novis\\Spreadsheet\\Workbook::addSheet",
+        "Novis\\Spreadsheet\\Workbook::defineName",
+        "Novis\\Spreadsheet\\Chart::series",
+        "Novis\\Spreadsheet\\Chart::combine",
+        "Novis\\Spreadsheet\\Chart::withSeries",
+        "Novis\\Spreadsheet\\Chart::combinedWith"
+      ],
+      "text": "Each `Novis\\Spreadsheet\\Sheet` and `Workbook` method that adds to the file says what it adds, for example `addRow()`, `addChart()` and `addSheet()`. `setPrintOptions()` replaces `print()`. `Chart->withSeries()` and `combinedWith()` return a new chart.",
+      "breaking": true,
+      "instead": "Write `$sheet->addRow([...])` where you wrote `$sheet->add([...])`. The pages of `Sheet`, `Workbook` and `Chart` list every new name."
+    },
+    {
       "kind": "fixed",
       "features": [
         "lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec"
@@ -473,105 +1020,465 @@
     }
   ],
   "unseen": {
-    "Novis\\Pdf\\Pages::of": {
-      "hash": "008f5bb2e70cb465",
-      "why": "A test now declares the merged PDF as `tainted bytes`, because `Core\\IO::readBytes` returns tainted bytes. What `Pages::of` does is unchanged."
+    "ArithmeticError": {
+      "hash": "3f5c248e48178ac4",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `ArithmeticError` does is unchanged."
     },
-    "Novis\\Pdf\\Reader::open": {
-      "hash": "4f9ad0f01b5e351f",
-      "why": "A test now declares the merged PDF as `tainted bytes`, because `Core\\IO::readBytes` returns tainted bytes. What `Reader::open` does is unchanged."
+    "Core\\Arr::SetOn": {
+      "hash": "7e47e83c481ad6fe",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "tools:cli/nvs-code": {
-      "hash": "9c7b5f35fa50d9c2",
-      "why": "A test sets its files' modification time to an hour ago, so it gives the same result under load. What `nvs code` does is unchanged."
+    "Core\\Arr::groupBy": {
+      "hash": "f709c09d7d6efbcc",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\BigInt::add": {
-      "hash": "c59f47ef753e030b",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\BigInt::add` does is unchanged."
+    "Core\\BigInt::abs": {
+      "hash": "67d68773dfcd37a0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\BigInt::mul": {
-      "hash": "f9f835d9d6575363",
-      "why": "Only the note on where its returned text comes from changed. What `Core\\BigInt::mul` does is unchanged."
+    "Core\\BigInt::compareTo": {
+      "hash": "1f7fde69efcb3ca4",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\BigInt::format": {
+      "hash": "f3abd461cf06d445",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\BigInt::gcd": {
+      "hash": "14615e0d66fcce82",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\BigInt::lcm": {
+      "hash": "56142c0f8992ab96",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\BigInt::parse": {
+      "hash": "0222eba7efdc3bd7",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\BigInt::sign": {
+      "hash": "5f50bd19c269f31f",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\BigInt::sqrt": {
+      "hash": "65e97dd2dce1f1b0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\BigInt::toInt": {
+      "hash": "71410c3b0cdc962d",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\BigInt::toString": {
+      "hash": "9a363e51bbaba49d",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\BigInt::toUint": {
+      "hash": "0e6c4561f5cd22c6",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Cli\\NotInteractive": {
+      "hash": "6a6b259c67e956a0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Crypto\\KeyKind": {
+      "hash": "ad82812c6318c7a4",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Crypto\\KeyKind` does is unchanged."
+    },
+    "Core\\Csv::format": {
+      "hash": "18c77ce35714f5bc",
+      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Core\\Csv::format` does is unchanged."
+    },
+    "Core\\Db\\Column::Type": {
+      "hash": "09287b525b987f16",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Db\\Connection::close": {
+      "hash": "52ca0cc6b8ad6e88",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Db\\Connection::driver": {
+      "hash": "9adb35cef363f94a",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Db\\Connection::query": {
+      "hash": "ec6adaaed1b56e0b",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Db\\Connection::queryAs": {
+      "hash": "f8fce3fd6bc18ab5",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Db\\DbError": {
+      "hash": "10c7b37c9d6f452d",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Db\\DbError` does is unchanged."
+    },
+    "Core\\Db\\Isolation": {
+      "hash": "d36219dc97bd41e1",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Db\\RolledBack": {
+      "hash": "310c5b0870c7bc8a",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Db\\RolledBack` does is unchanged."
+    },
+    "Core\\Db\\Transaction::execute": {
+      "hash": "9753a2b5582dfe9c",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Db\\Transaction::executeMany": {
+      "hash": "d388a199bf29c608",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Db\\Transaction::query": {
+      "hash": "80f8ee964484589d",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Db\\Transaction::queryAs": {
+      "hash": "a40a676efdc8ba8b",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Db\\Transaction::rollBack": {
+      "hash": "557f20e2ef308a61",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Decimal::ceil": {
+      "hash": "92df5cf619b2dfec",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Decimal::floor": {
+      "hash": "92df5cf619b2dfec",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Decimal::round": {
+      "hash": "92df5cf619b2dfec",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Decimal::truncate": {
+      "hash": "92df5cf619b2dfec",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Html::later": {
+      "hash": "cf5e46f24d3a4201",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Http\\Event::data": {
+      "hash": "7c95796bfe19662f",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Http\\Event::id": {
+      "hash": "d9df53362c287d6d",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Http\\Event::name": {
+      "hash": "b37d5266bdaab030",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Http\\Method": {
+      "hash": "42e90f35e27a3834",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Http\\Response::tls": {
+      "hash": "33109f3fed7b4bc9",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Http\\Stream::header": {
+      "hash": "b5eb182171ede884",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Http\\Stream::headers": {
+      "hash": "bd648b53acc09669",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Http\\Stream::status": {
+      "hash": "cf29e50deac93b08",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Http\\TlsInfo::cipher": {
+      "hash": "280c6f5f34d7bf47",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Http\\TlsInfo::expiry": {
+      "hash": "2a26cf818b4ad019",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Http\\TlsInfo::issuer": {
+      "hash": "3981407b9a6f509a",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Http\\TlsInfo::peerChain": {
+      "hash": "618792dbd8406943",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Http\\TlsInfo::subject": {
+      "hash": "a7237ffb45714fe1",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Http\\TlsInfo::version": {
+      "hash": "47024fb5a79cbcd0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\IO::copy": {
+      "hash": "03a227da39c9a5e4",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\IO::remove": {
+      "hash": "7381d51c04a9d59c",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\IO\\File::read": {
+      "hash": "8896bbeb80a384c6",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\IO\\File::write": {
+      "hash": "7810ff929bc622f1",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\IO\\Metadata::isFile": {
+      "hash": "f2b700fd8711452f",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\IO\\Metadata::modifiedAt": {
+      "hash": "6ff26dd4a85ab521",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\IO\\Metadata::size": {
+      "hash": "eae1ec829fd78b7e",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Json::encodeEach": {
-      "hash": "1dd848b1b1e6a9d5",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Json::encodeEach` does is unchanged."
+      "hash": "01b7577e597f782b",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Process::run": {
-      "hash": "bd02aa2d24d6e29c",
-      "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process::run` does is unchanged."
+    "Core\\Ldap\\Ad\\AccountFlags::bits": {
+      "hash": "f956b0a2fa7cfcd7",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Process::spawn": {
-      "hash": "5fd3dd89559931ec",
-      "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process::spawn` does is unchanged."
+    "Core\\Ldap\\Ad\\AccountFlags::mustChangePassword": {
+      "hash": "c70ae3b7f55cd576",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Process\\Result::exitCode": {
-      "hash": "fc444bc52efd41a3",
-      "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process\\Result::exitCode` does is unchanged."
+    "Core\\Ldap\\Ad\\AccountFlags::with": {
+      "hash": "cd2a2f13af654501",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Process\\Handle::writeStdin": {
-      "hash": "e1586fe6b7462c0a",
-      "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process\\Handle::writeStdin` does is unchanged."
+    "Core\\Ldap\\Ad\\GroupType::bits": {
+      "hash": "2c80d0949e51f344",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Process\\Handle::wait": {
-      "hash": "14bf7f54fa876f64",
-      "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process\\Handle::wait` does is unchanged."
+    "Core\\Ldap\\Ad\\GroupType::with": {
+      "hash": "52f08d9170b58ab8",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Ldap\\Changes::cookie": {
+      "hash": "67a74d7fe6137629",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Ldap\\Connection::authenticate": {
+      "hash": "6759e1657cff07e8",
+      "why": "A test writes `tainted string` on the result of `whoami`, which an entry covers. What `Core\\Ldap\\Connection::authenticate` does is unchanged."
+    },
+    "Core\\Ldap\\Entry::AccountType": {
+      "hash": "edde068739618a3e",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Ldap\\Entry::accountFlags": {
+      "hash": "106489ee287fdde1",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Ldap\\Entry::accountType": {
+      "hash": "90df8045ea8fce3a",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Ldap\\Entry::groupType": {
+      "hash": "90df8045ea8fce3a",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Ldap\\Filter::atLeast": {
+      "hash": "33e0ba2ab0123622",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Ldap\\Filter::atMost": {
+      "hash": "33e0ba2ab0123622",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Ldap\\Filter::contains": {
+      "hash": "94089da36fda55e0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Ldap\\Filter::endsWith": {
+      "hash": "94089da36fda55e0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Ldap\\Filter::present": {
+      "hash": "94089da36fda55e0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Ldap\\LdapError": {
+      "hash": "f5f4af59ccd268a4",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Ldap\\LdapError` does is unchanged."
+    },
+    "Core\\Ldap\\LdapError::Kind": {
+      "hash": "f5f4af59ccd268a4",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Ldap\\LdapError::Kind` does is unchanged."
+    },
+    "Core\\Log::write": {
+      "hash": "75fd269be700917a",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\ObjectSet::has": {
+      "hash": "3da8c1c31dcc9eff",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\ObjectSet::remove": {
+      "hash": "2311d35119757863",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\ObjectSet::union": {
+      "hash": "1634d171d7bcf4de",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Passkey::registerOptions": {
+      "hash": "7a62ab9d5588f270",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Passkey::registerOptions` does is unchanged."
+    },
+    "Core\\Passkey::signInOptions": {
+      "hash": "c9dd3a3cd4f653be",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Passkey::signInOptions` does is unchanged."
+    },
+    "Core\\Passkey::verifyRegistration": {
+      "hash": "7a62ab9d5588f270",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Passkey::verifyRegistration` does is unchanged."
+    },
+    "Core\\Passkey::verifySignIn": {
+      "hash": "c9dd3a3cd4f653be",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Passkey::verifySignIn` does is unchanged."
+    },
+    "Core\\Path::thisFile": {
+      "hash": "c5bef8e2f4a941c4",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Process\\Handle::kill": {
       "hash": "1ea546690adc096b",
       "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process\\Handle::kill` does is unchanged."
     },
-    "Core\\Time\\Instant::fromEpoch": {
-      "hash": "c5387760802fc2b6",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers, and the first instant's year as `-9999`, which the `Instant::toIso` entry covers. What `Core\\Time\\Instant::fromEpoch` does is unchanged."
+    "Core\\Process\\Handle::wait": {
+      "hash": "51c3f1ec39befd74",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Time\\Instant::fromIso": {
-      "hash": "4bdc44481667138e",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers, and a year with more than four digits, which the `Instant::fromIso` entry covers."
+    "Core\\Process\\Handle::writeStdin": {
+      "hash": "e1586fe6b7462c0a",
+      "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process\\Handle::writeStdin` does is unchanged."
     },
-    "Core\\Time\\DateTime::with": {
-      "hash": "d2c973f6c6772755",
-      "why": "Only the note on where its returned text comes from changed. What `Core\\Time\\DateTime::with` does is unchanged."
+    "Core\\Process\\Result::exitCode": {
+      "hash": "fc444bc52efd41a3",
+      "why": "Its tests write `tainted` on the output of a child process, which an entry covers. What `Core\\Process\\Result::exitCode` does is unchanged."
     },
-    "Core\\Time\\Date::with": {
-      "hash": "7ed4f0ce4cc488f4",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Time\\Date::with` does is unchanged."
+    "Core\\Program::implementing": {
+      "hash": "3746b216fa75877b",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Time\\TimeOfDay::with": {
-      "hash": "631950014c5f803b",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Time\\TimeOfDay::with` does is unchanged."
+    "Core\\Queue\\Stats::claimed": {
+      "hash": "d7939531abae14ca",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Random\\Seeded::int": {
-      "hash": "3eaa28d4fcee8957",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Random\\Seeded::int` does is unchanged."
+    "Core\\Queue\\Stats::deadLettered": {
+      "hash": "d0f610867c527480",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Queue\\Stats::nonTransactional": {
+      "hash": "38b24405a5c186f5",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Queue\\Stats::pending": {
+      "hash": "a9d84120012aa325",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Random\\Seeded::bytes": {
-      "hash": "55f5964721b19b09",
-      "why": "Only the note on where its returned text comes from changed. What `Core\\Random\\Seeded::bytes` does is unchanged."
+      "hash": "2a5294f10a7473ec",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Random\\Seeded::token": {
-      "hash": "17ab836cb5af9ed5",
-      "why": "Only the note on where its returned text comes from changed. What `Core\\Random\\Seeded::token` does is unchanged."
+    "Core\\Random\\Seeded::float": {
+      "hash": "0e0b577c6263cab6",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Random\\Seeded::int": {
+      "hash": "a5b6e99671990128",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Random\\Seeded::pick": {
-      "hash": "457cf34ba990a768",
-      "why": "Only the note on where its returned text comes from changed. What `Core\\Random\\Seeded::pick` does is unchanged."
+      "hash": "8b77ea03becd9241",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Random\\Seeded::sample": {
-      "hash": "6177da7a46f6a66d",
-      "why": "Only the note on where its returned text comes from changed. What `Core\\Random\\Seeded::sample` does is unchanged."
+      "hash": "99b9c1bb1bba1a96",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Random\\Seeded::shuffle": {
-      "hash": "7dbf10c5d2a5148d",
-      "why": "Only the note on where its returned text comes from changed. What `Core\\Random\\Seeded::shuffle` does is unchanged."
+      "hash": "a81c01a3e2b485ad",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Uri::sign": {
-      "hash": "50ebad7e7b32864e",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Uri::sign` does is unchanged."
+    "Core\\Random\\Seeded::token": {
+      "hash": "8d1f3f5d382807a9",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Uri::verifySignature": {
-      "hash": "50ebad7e7b32864e",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Uri::verifySignature` does is unchanged."
+    "Core\\RateLimit::consume": {
+      "hash": "b4aaef4ea8957bd2",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\RateLimit\\Decision::limit": {
+      "hash": "3c5cd5fb5ad75f5d",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\RateLimit\\Decision::remaining": {
+      "hash": "bc97ab81d5d95a90",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\RateLimit\\Decision::retryAfter": {
+      "hash": "bc97ab81d5d95a90",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Request::files": {
+      "hash": "fb60d2e83faddbcc",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Response\\Stream::end": {
+      "hash": "19a8ec88be8dad2a",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Response\\Stream::length": {
+      "hash": "aa4fa17b8a8fef3c",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Response\\Stream::offset": {
+      "hash": "5a317ef7042f90fe",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Response\\Stream::write": {
+      "hash": "aa118620aa9a1fde",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Router::match": {
+      "hash": "aa585abdf4012ba8",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Router\\Match::access": {
+      "hash": "1c862c3cf2a2cbd1",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Router\\Match::is": {
+      "hash": "7366d77da75b57f4",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Router\\Match::method": {
+      "hash": "ad8bf5ded0bd838e",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Router\\Responder": {
+      "hash": "d009653c445d0398",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Script\\ExitReport::error": {
+      "hash": "87d568f28e9f6dea",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Script\\ExitReport::error` does is unchanged."
     },
     "Core\\Script\\ExitReport::reason": {
       "hash": "521b22ab06f924ba",
@@ -581,253 +1488,197 @@
       "hash": "f51f44318d4337a3",
       "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Script\\ExitReport::status` does is unchanged."
     },
-    "Core\\Script\\ExitReport::error": {
-      "hash": "87d568f28e9f6dea",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Script\\ExitReport::error` does is unchanged."
-    },
-    "Core\\Response\\Stream::write": {
-      "hash": "afcaf61d6b0cd7b2",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Response\\Stream::write` does is unchanged."
+    "Core\\Sse::current": {
+      "hash": "c5e0085cda529730",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Sse::receive": {
-      "hash": "dcf18e12c4c315ac",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Sse::receive` does is unchanged."
+      "hash": "68342137e86630f4",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Passkey::registerOptions": {
-      "hash": "7a62ab9d5588f270",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Passkey::registerOptions` does is unchanged."
+    "Core\\Sse::send": {
+      "hash": "863cea27462332b1",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Passkey::verifyRegistration": {
-      "hash": "7a62ab9d5588f270",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Passkey::verifyRegistration` does is unchanged."
+    "Core\\Str::contains": {
+      "hash": "a14d0a50721e40d4",
+      "why": "A test now declares a returned message as `tainted string`. What `Core\\Str::contains` does is unchanged."
     },
-    "Core\\Passkey::signInOptions": {
-      "hash": "c9dd3a3cd4f653be",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Passkey::signInOptions` does is unchanged."
+    "Core\\Test::assertTrue": {
+      "hash": "ba34b5b818ab5218",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Passkey::verifySignIn": {
-      "hash": "c9dd3a3cd4f653be",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Passkey::verifySignIn` does is unchanged."
-    },
-    "Core\\Ldap\\Connection::authenticate": {
-      "hash": "6759e1657cff07e8",
-      "why": "A test writes `tainted string` on the result of `whoami`, which an entry covers. What `Core\\Ldap\\Connection::authenticate` does is unchanged."
-    },
-    "Novis\\Image\\Color::rgba": {
-      "hash": "f7dd9e0f1b27f379",
-      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Color::rgba` does is unchanged."
-    },
-    "Novis\\Image\\Image::trim": {
-      "hash": "f653431d6e8da0d2",
-      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::trim` does is unchanged."
-    },
-    "Novis\\Image\\Image::composite": {
-      "hash": "6fba75a66d5f2809",
-      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::composite` does is unchanged."
-    },
-    "Novis\\Image\\Image::flatten": {
-      "hash": "f653431d6e8da0d2",
-      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::flatten` does is unchanged."
-    },
-    "Novis\\Image\\Image::sharpen": {
-      "hash": "f653431d6e8da0d2",
-      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::sharpen` does is unchanged."
-    },
-    "Novis\\Image\\Image::blur": {
-      "hash": "f653431d6e8da0d2",
-      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::blur` does is unchanged."
-    },
-    "Novis\\Image\\Image::brightness": {
-      "hash": "f653431d6e8da0d2",
-      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::brightness` does is unchanged."
-    },
-    "Novis\\Image\\Image::contrast": {
-      "hash": "f653431d6e8da0d2",
-      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::contrast` does is unchanged."
-    },
-    "Novis\\Image\\Image::gamma": {
-      "hash": "f653431d6e8da0d2",
-      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::gamma` does is unchanged."
-    },
-    "Novis\\Image\\Image::tint": {
-      "hash": "f653431d6e8da0d2",
-      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::tint` does is unchanged."
-    },
-    "Novis\\Image\\Image::metadata": {
-      "hash": "b7fe1b86c6d3266f",
-      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::metadata` does is unchanged."
-    },
-    "Novis\\Pdf\\Document::asset": {
-      "hash": "756376458c3c07fe",
-      "why": "A test builds its logo from a fixed PNG file. What `Novis\\Pdf\\Document::asset` does is unchanged."
-    },
-    "RuntimeError": {
-      "hash": "98ee06d03efb6a86",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `RuntimeError` does is unchanged."
-    },
-    "ArithmeticError": {
-      "hash": "3f5c248e48178ac4",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `ArithmeticError` does is unchanged."
+    "Core\\Test::expectFailure": {
+      "hash": "d64baf3e01a8b875",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Test\\Failure": {
       "hash": "8aba6ecf77a9936a",
       "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Test\\Failure` does is unchanged."
     },
-    "Core\\Db\\DbError": {
-      "hash": "10c7b37c9d6f452d",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Db\\DbError` does is unchanged."
+    "Core\\Test\\Outcome::attempt": {
+      "hash": "5d45698ec23cce7f",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Db\\RolledBack": {
-      "hash": "310c5b0870c7bc8a",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Db\\RolledBack` does is unchanged."
+    "Core\\Test\\Outcome::class": {
+      "hash": "5d45698ec23cce7f",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Ldap\\LdapError": {
-      "hash": "f5f4af59ccd268a4",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Ldap\\LdapError` does is unchanged."
+    "Core\\Test\\Outcome::failures": {
+      "hash": "5d45698ec23cce7f",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Crypto\\KeyKind": {
-      "hash": "ad82812c6318c7a4",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Crypto\\KeyKind` does is unchanged."
+    "Core\\Test\\Outcome::name": {
+      "hash": "5d45698ec23cce7f",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Ldap\\LdapError::Kind": {
-      "hash": "f5f4af59ccd268a4",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Ldap\\LdapError::Kind` does is unchanged."
+    "Core\\Test\\Response::cookies": {
+      "hash": "cc3c54f422b4475d",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Novis\\Image\\Format": {
-      "hash": "ff11e22e7a11992c",
-      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Format` does is unchanged."
+    "Core\\Test\\Response::header": {
+      "hash": "cc3c54f422b4475d",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Novis\\Image\\Image::Align": {
-      "hash": "0b870f834f671ca2",
-      "why": "Its tests write `tainted bytes` on the result of `Image::encode`, which an entry covers. What `Novis\\Image\\Image::Align` does is unchanged."
+    "Core\\Test\\Response::headers": {
+      "hash": "cc3c54f422b4475d",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "LateInit": {
-      "hash": "b7f5edd19602d07c",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `LateInit` does is unchanged."
+    "Core\\Test\\Response::json": {
+      "hash": "9efbf8a76d030fe4",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "lang:types/numbers-bool-int-uint-float-decimal": {
-      "hash": "36c2e0987278c5e7",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/numbers-bool-int-uint-float-decimal` does is unchanged."
+    "Core\\Test\\Response::jsonAs": {
+      "hash": "76f775a8d8ec9812",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "lang:types/text-string-and-bytes": {
-      "hash": "831c660bd2016db8",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/text-string-and-bytes` does is unchanged."
+    "Core\\Test\\Summary::class": {
+      "hash": "be4a1a67af502674",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "lang:types/mixed": {
-      "hash": "71e89ac64e850859",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/mixed` does is unchanged."
+    "Core\\Test\\Summary::failed": {
+      "hash": "be4a1a67af502674",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "lang:types/nullable-union-single-value-and-enum-case-types": {
-      "hash": "2ff829c24ec42cae",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/nullable-union-single-value-and-enum-case-types` does is unchanged."
+    "Core\\Test\\Summary::failedTests": {
+      "hash": "be4a1a67af502674",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "lang:expressions/anonymous-functions": {
-      "hash": "7343228949789310",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:expressions/anonymous-functions` does is unchanged."
+    "Core\\Test\\Summary::flaky": {
+      "hash": "be4a1a67af502674",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "lang:classes/lateinit": {
-      "hash": "3634d97326fd4cd5",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:classes/lateinit` does is unchanged."
+    "Core\\Test\\Summary::passed": {
+      "hash": "be4a1a67af502674",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "lang:classes/comparable": {
-      "hash": "75fce7858c332e3b",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:classes/comparable` does is unchanged."
+    "Core\\Test\\Summary::skipped": {
+      "hash": "be4a1a67af502674",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "lang:classes/object-the-top-of-every-class-type": {
-      "hash": "422dea47f91494b3",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:classes/object-the-top-of-every-class-type` does is unchanged."
+    "Core\\Time\\Date::day": {
+      "hash": "148c0d71708985e1",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "lang:enums/from-an-integer-back-to-a-case": {
-      "hash": "95f7f7dcef38f7b7",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:enums/from-an-integer-back-to-a-case` does is unchanged."
+    "Core\\Time\\Date::month": {
+      "hash": "148c0d71708985e1",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "lang:errors/the-throwable-tree": {
-      "hash": "df7773b7c8af4f38",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:errors/the-throwable-tree` does is unchanged."
+    "Core\\Time\\Date::weekday": {
+      "hash": "148c0d71708985e1",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "lang:errors/try-catch-finally": {
-      "hash": "a34d7ede5c4dceed",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:errors/try-catch-finally` does is unchanged."
+    "Core\\Time\\Date::with": {
+      "hash": "7ed4f0ce4cc488f4",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Time\\Date::with` does is unchanged."
     },
-    "lang:errors/rethrowing": {
-      "hash": "f95a87e984774370",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:errors/rethrowing` does is unchanged."
-    },
-    "lang:concurrency/a-child-s-throw": {
-      "hash": "73cf4ce34507a5c5",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:concurrency/a-child-s-throw` does is unchanged."
-    },
-    "tools:php-differences/the-short-list": {
-      "hash": "7cb576dbbb950406",
-      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `tools:php-differences/the-short-list` does is unchanged."
+    "Core\\Time\\Date::year": {
+      "hash": "148c0d71708985e1",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\DateTime::at": {
-      "hash": "22d2193b5da3551d",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::at` does is unchanged."
+      "hash": "2df1b592550b0575",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\DateTime::date": {
-      "hash": "15c35eb37e3cc53a",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::date` does is unchanged."
+      "hash": "aa3df1f3236640dc",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\DateTime::day": {
-      "hash": "08bd59d95f94c375",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::day` does is unchanged."
+      "hash": "03fbeb9f4d162708",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\DateTime::dayOfYear": {
-      "hash": "850ac9d01a17a8e4",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::dayOfYear` does is unchanged."
+      "hash": "2b608b64e321619d",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\DateTime::difference": {
-      "hash": "a8cc7529a83b95e2",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::difference` does is unchanged."
+      "hash": "64f882b5dd5564e3",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Time\\DateTime::fromIso": {
+      "hash": "4f70c65ec5c2bfae",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\DateTime::hour": {
-      "hash": "08bd59d95f94c375",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::hour` does is unchanged."
+      "hash": "03fbeb9f4d162708",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\DateTime::isLeapYear": {
-      "hash": "bd7c8b5a3839f7f5",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::isLeapYear` does is unchanged."
+      "hash": "a7a500e40b0c16b4",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\DateTime::minute": {
-      "hash": "08bd59d95f94c375",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::minute` does is unchanged."
+      "hash": "03fbeb9f4d162708",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\DateTime::month": {
-      "hash": "08bd59d95f94c375",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::month` does is unchanged."
+      "hash": "03fbeb9f4d162708",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Time\\DateTime::nanos": {
-      "hash": "08bd59d95f94c375",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::nanos` does is unchanged."
+    "Core\\Time\\DateTime::parse": {
+      "hash": "efdb3b6a5a1f88d4",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\DateTime::second": {
-      "hash": "08bd59d95f94c375",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::second` does is unchanged."
+      "hash": "03fbeb9f4d162708",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\DateTime::timeOfDay": {
-      "hash": "53b26a673c148345",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::timeOfDay` does is unchanged."
+      "hash": "fb9f55c7ca299840",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\DateTime::toInstant": {
-      "hash": "3cf47ecdca1c2a29",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::toInstant` does is unchanged."
+      "hash": "eaf7b78c3f3c9c47",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\DateTime::weekday": {
-      "hash": "a55473d74f9603e4",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::weekday` does is unchanged."
+      "hash": "fce727687931e69b",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Time\\DateTime::with": {
+      "hash": "d2c973f6c6772755",
+      "why": "Only the note on where its returned text comes from changed. What `Core\\Time\\DateTime::with` does is unchanged."
     },
     "Core\\Time\\DateTime::year": {
-      "hash": "08bd59d95f94c375",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::year` does is unchanged."
+      "hash": "03fbeb9f4d162708",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\DateTime::zone": {
-      "hash": "8c6119bba398459d",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\DateTime::zone` does is unchanged."
+      "hash": "4e1b0f0795dc4558",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Time\\Instant::compareTo": {
+      "hash": "8bf9d47e38fd39f1",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Time\\Instant::fromEpoch": {
+      "hash": "7aec013e09f9c69c",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\Instant::in": {
-      "hash": "e5a2ae33b831768f",
-      "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\Instant::in` does is unchanged."
+      "hash": "5785eb45bbc0544b",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\Instant::minus": {
       "hash": "e60eff9392336c31",
@@ -837,65 +1688,505 @@
       "hash": "3880aa57a108d209",
       "why": "Its tests write the first instant's year as `-9999`, the form `Instant::fromIso` reads, which the `Instant::fromIso` and `Instant::toIso` entries cover. What `Core\\Time\\Instant::plus` does is unchanged."
     },
+    "Core\\Time\\TimeOfDay::at": {
+      "hash": "fc00ab56ac352ff3",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Time\\TimeOfDay::compareTo": {
+      "hash": "31428adfbd88c0f0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Time\\TimeOfDay::fromIso": {
+      "hash": "1acf343f55bc3b3b",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Time\\TimeOfDay::hour": {
+      "hash": "bcb6ad572ab084b0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Time\\TimeOfDay::minute": {
+      "hash": "bcb6ad572ab084b0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Time\\TimeOfDay::second": {
+      "hash": "bcb6ad572ab084b0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Time\\TimeOfDay::with": {
+      "hash": "631950014c5f803b",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `Core\\Time\\TimeOfDay::with` does is unchanged."
+    },
+    "Core\\Uri::toString": {
+      "hash": "5ed33a7214a30145",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Uri::verifySignature": {
+      "hash": "8c5ac30d41c8b59e",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\WebPush::applicationServerKey": {
+      "hash": "1d9c21414b38a173",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\WebPush::send": {
+      "hash": "349737905abe6c15",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\WebPush\\Sent::status": {
+      "hash": "8736b5542096aa20",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\WebPush\\Subscription::endpoint": {
+      "hash": "96ae92109a9b7ef3",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Xml::writer": {
+      "hash": "0adae502e2093eab",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Core\\Zip::extract": {
+      "hash": "d54be648aa32a21c",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "LateInit": {
+      "hash": "b7f5edd19602d07c",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `LateInit` does is unchanged."
+    },
+    "Novis\\Image\\Color::hex": {
+      "hash": "05f496f7e112925d",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Color::rgba": {
+      "hash": "2ee1c8a711c5f485",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Format": {
+      "hash": "feb1f475d09b1f73",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Image::Align": {
+      "hash": "e8aa68f72fbcded1",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Image::Axis": {
+      "hash": "f8237782b19a50f8",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Image::Blend": {
+      "hash": "f8237782b19a50f8",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Image::Filter": {
+      "hash": "f8237782b19a50f8",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Image::Fit": {
+      "hash": "c3b6800be7abde13",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Image::Gravity": {
+      "hash": "f8237782b19a50f8",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Image::HashKind": {
+      "hash": "c203462ec073eafa",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Image::create": {
+      "hash": "6ee1237232e22bb2",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Image::fromRaw": {
+      "hash": "6ee1237232e22bb2",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Image::hash": {
+      "hash": "4c4c8802610e3f9e",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Image::hashDistance": {
+      "hash": "5887544985718588",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Image::info": {
+      "hash": "fab7b2982467d17e",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Image\\Image::measureText": {
+      "hash": "a20d5e018c808a83",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Pdf\\Document::Standard": {
+      "hash": "d68dcc850671c5c1",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Pdf\\Document::fromHtml": {
+      "hash": "cd7b700654ccca2f",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Pdf\\Document::render": {
+      "hash": "ebba945fd8bd7f18",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Pdf\\Page::constructor": {
+      "hash": "80e887c8ce1d0049",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Pdf\\Page::isFirst": {
+      "hash": "1381d128547d7c44",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Pdf\\Page::isLast": {
+      "hash": "1cee9239fc5d1f08",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Pdf\\Page::marks": {
+      "hash": "5458dc636c98f674",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Pdf\\Page::marksUpTo": {
+      "hash": "7016e8a561588fb5",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Pdf\\Page::string": {
+      "hash": "2c4169950c0c1641",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Pdf\\Pages::of": {
+      "hash": "008f5bb2e70cb465",
+      "why": "A test now declares the merged PDF as `tainted bytes`, because `Core\\IO::readBytes` returns tainted bytes. What `Pages::of` does is unchanged."
+    },
+    "Novis\\Pdf\\Reader::attachments": {
+      "hash": "5f293f7299efc53b",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Pdf\\Reader::invoiceXml": {
+      "hash": "e976928985bd367c",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Pdf\\Reader::open": {
+      "hash": "950e6fb4ad0908ed",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Pdf\\Reader::text": {
+      "hash": "74368ab866d97c99",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Pdf\\Rendered::constructor": {
+      "hash": "66b5426355f67ec2",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
     "Novis\\Spreadsheet\\Cell::constructor": {
-      "hash": "e63bb92935c928e9",
-      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Cell::constructor` does is unchanged."
+      "hash": "35ef1aa858fac666",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Cell::of": {
+      "hash": "3d78418c8c2c16d0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Cell::rich": {
+      "hash": "ee33bbd9f23fdd88",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Chart::Kind": {
+      "hash": "0426d8ea7603c6d0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Chart::Legend": {
+      "hash": "0426d8ea7603c6d0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Chart::area": {
+      "hash": "07228ea2db352e17",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Chart::bar": {
+      "hash": "02ef75b81626c246",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Chart::column": {
+      "hash": "618b9d50d54a98f4",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Chart::constructor": {
+      "hash": "d39f621714978888",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Chart::doughnut": {
+      "hash": "07228ea2db352e17",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Chart::line": {
+      "hash": "618b9d50d54a98f4",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Chart::pie": {
+      "hash": "618b9d50d54a98f4",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Chart::scatter": {
+      "hash": "07228ea2db352e17",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Novis\\Spreadsheet\\Export::bytes": {
-      "hash": "e1d08c38b2776124",
-      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Export::bytes` does is unchanged."
+      "hash": "c93acbd82a04696b",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Novis\\Spreadsheet\\Export::constructor": {
-      "hash": "74854aea78b6ba5a",
-      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Export::constructor` does is unchanged."
+      "hash": "5dd1125d3c0f10e7",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Novis\\Spreadsheet\\Export::download": {
-      "hash": "a55c77891f536e6d",
-      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Export::download` does is unchanged."
+      "hash": "a727a748ba0f265a",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Novis\\Spreadsheet\\Export::save": {
-      "hash": "c78aa65706676c1c",
-      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Export::save` does is unchanged."
+      "hash": "0f95efc8749d9d26",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Novis\\Spreadsheet\\Export::to": {
-      "hash": "eabf99daf1bbfcb1",
-      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Export::to` does is unchanged."
+      "hash": "765bb4ef8648b306",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Novis\\Spreadsheet\\Sheet::add": {
-      "hash": "9fb5b9640e036595",
-      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Sheet::add` does is unchanged."
+    "Novis\\Spreadsheet\\Formula::constructor": {
+      "hash": "69e43921f25f5e04",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Formula::of": {
+      "hash": "6a1f498742e13198",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Reader::SheetKind": {
+      "hash": "794fe67798715c87",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Reader::Visibility": {
+      "hash": "aaff3deaec544526",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Reader::evaluate": {
+      "hash": "598ef5532d772879",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Reader::macros": {
+      "hash": "4128bbddfabe1614",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Reader::merged": {
+      "hash": "327c271e0e8331c8",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Reader::names": {
+      "hash": "8adcd805d46c76f9",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Reader::open": {
+      "hash": "d2cf30f06afdd9f6",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Reader::properties": {
+      "hash": "8b66fbe666f48924",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Reader::rows": {
+      "hash": "8c7fe4fecd36f27d",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Reader::sheets": {
+      "hash": "0e53c690ea7ba597",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Sheet::cell": {
+      "hash": "a858ca2bde371ed1",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Sheet::column": {
+      "hash": "81b634d69481ef2e",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Sheet::constructor": {
+      "hash": "4e49cf2ac719fe66",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Sheet::protect": {
+      "hash": "d5dede6dae33569f",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Style::Align": {
+      "hash": "8ee3d0117a5168cc",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Style::Line": {
+      "hash": "8ee3d0117a5168cc",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Style::Underline": {
+      "hash": "8ee3d0117a5168cc",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Style::Valign": {
+      "hash": "8ee3d0117a5168cc",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Style::constructor": {
+      "hash": "bc0c500f7784a52a",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Style::of": {
+      "hash": "bc0c500f7784a52a",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Template::fill": {
+      "hash": "11fc952b70b23445",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Template::open": {
+      "hash": "9e1a423b391d3b75",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Template::set": {
+      "hash": "16066efd96ced321",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Novis\\Spreadsheet\\Workbook::createForDownload": {
-      "hash": "ebd54212851ebf87",
-      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Workbook::createForDownload` does is unchanged."
+      "hash": "9c8de37209c5d834",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Novis\\Spreadsheet\\Workbook::createForFile": {
-      "hash": "44d313b48c8f1699",
-      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Workbook::createForFile` does is unchanged."
+      "hash": "6cf55bcb89a85c54",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "Novis\\Spreadsheet\\Workbook::createForStream": {
+      "hash": "ff425cee380d3a50",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Novis\\Spreadsheet\\Workbook::createInMemory": {
-      "hash": "e08538a79093d014",
-      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Workbook::createInMemory` does is unchanged."
+      "hash": "575b7c27859f4de5",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Novis\\Spreadsheet\\Workbook::finish": {
-      "hash": "f678215fbfcb5982",
-      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Workbook::finish` does is unchanged."
+      "hash": "1b2f493341e8e958",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Novis\\Spreadsheet\\Workbook::fromRows": {
-      "hash": "ac8e23235462c26d",
-      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Workbook::fromRows` does is unchanged."
+      "hash": "ae59300dcfdf3d9e",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Novis\\Spreadsheet\\Workbook::sheet": {
-      "hash": "93e329c943adf6c7",
-      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Workbook::sheet` does is unchanged."
+    "Novis\\Spreadsheet\\Written::constructor": {
+      "hash": "a796e353b3fe72b0",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
-    "Core\\Csv::format": {
-      "hash": "18c77ce35714f5bc",
-      "why": "A test now names the pair `\"\\r\\n\"` when it shows line ends with `Core\\Str::replaceAll`, which the `replaceAll` entry covers. What `Core\\Csv::format` does is unchanged."
+    "RuntimeError": {
+      "hash": "98ee06d03efb6a86",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `RuntimeError` does is unchanged."
     },
-    "Core\\Str::contains": {
-      "hash": "a14d0a50721e40d4",
-      "why": "A test now declares a returned message as `tainted string`. What `Core\\Str::contains` does is unchanged."
+    "lang:classes/comparable": {
+      "hash": "75fce7858c332e3b",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:classes/comparable` does is unchanged."
+    },
+    "lang:classes/lateinit": {
+      "hash": "3634d97326fd4cd5",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:classes/lateinit` does is unchanged."
+    },
+    "lang:classes/object-the-top-of-every-class-type": {
+      "hash": "422dea47f91494b3",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:classes/object-the-top-of-every-class-type` does is unchanged."
+    },
+    "lang:concurrency/a-child-s-throw": {
+      "hash": "73cf4ce34507a5c5",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:concurrency/a-child-s-throw` does is unchanged."
+    },
+    "lang:enums/from-an-integer-back-to-a-case": {
+      "hash": "95f7f7dcef38f7b7",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:enums/from-an-integer-back-to-a-case` does is unchanged."
+    },
+    "lang:errors/rethrowing": {
+      "hash": "f95a87e984774370",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:errors/rethrowing` does is unchanged."
+    },
+    "lang:errors/the-throwable-tree": {
+      "hash": "df7773b7c8af4f38",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:errors/the-throwable-tree` does is unchanged."
+    },
+    "lang:errors/try-catch-finally": {
+      "hash": "a34d7ede5c4dceed",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:errors/try-catch-finally` does is unchanged."
+    },
+    "lang:expressions/anonymous-functions": {
+      "hash": "7343228949789310",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:expressions/anonymous-functions` does is unchanged."
+    },
+    "lang:expressions/arithmetic": {
+      "hash": "f40f17d76d74d85c",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "lang:expressions/calls": {
+      "hash": "a6f6eea351f7f517",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "lang:expressions/comparison-and-equality": {
+      "hash": "66923891f8d09ce8",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "lang:expressions/logical-operators-and-truth": {
+      "hash": "67db240b4f8509a6",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "lang:programs/code-mode-and-html-mode": {
+      "hash": "4157cc30b8cfae9c",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "lang:programs/file-paths-a-relative-path-starts-at-the-folder-of-its-file": {
+      "hash": "a67e7da38b55e8c2",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "lang:testing/hooks-beforeclass-afterclass-and-aftereachtest": {
+      "hash": "4a51e7c7a8aba7ac",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "lang:types/mixed": {
+      "hash": "71e89ac64e850859",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/mixed` does is unchanged."
+    },
+    "lang:types/nullable-union-single-value-and-enum-case-types": {
+      "hash": "2ff829c24ec42cae",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/nullable-union-single-value-and-enum-case-types` does is unchanged."
+    },
+    "lang:types/numbers-bool-int-uint-float-decimal": {
+      "hash": "36c2e0987278c5e7",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/numbers-bool-int-uint-float-decimal` does is unchanged."
+    },
+    "lang:types/text-string-and-bytes": {
+      "hash": "831c660bd2016db8",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/text-string-and-bytes` does is unchanged."
+    },
+    "tools:agents/nvs-agent-primer": {
+      "hash": "654d64181fa40c53",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "tools:cli/nvs-code": {
+      "hash": "9c7b5f35fa50d9c2",
+      "why": "A test sets its files' modification time to an hour ago, so it gives the same result under load. What `nvs code` does is unchanged."
+    },
+    "tools:cli/nvs-debug-to-test": {
+      "hash": "2902814bd3043be2",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "tools:cli/nvs-meta-json": {
+      "hash": "73cf4226fe2af578",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "tools:php-differences/porting-a-program": {
+      "hash": "cb46f96a46b690d2",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+    },
+    "tools:php-differences/the-short-list": {
+      "hash": "7cb576dbbb950406",
+      "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `tools:php-differences/the-short-list` does is unchanged."
+    },
+    "tools:php-differences/the-tools-you-do-not-install": {
+      "hash": "8dcc1393276e4726",
+      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     }
   }
 }
