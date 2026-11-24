@@ -3424,8 +3424,8 @@ ordering operators read only the sign of that number, and `<=>` returns the numb
 the order once, in one method, and all five operators follow it.
 
 **Good to know:** a class that does not implement `Comparable` cannot be ordered. The comparison
-does not compile, and the message names `Comparable` as the fix. `==` is a separate question and is
-not affected: two objects are equal only when they are the same object. To test whether two values
+does not compile, and the message names `Comparable` as the fix. `==` does not use `compareTo`. Two
+objects of your own class are equal only when they are the same object. To check whether two values
 have the same contents, check that `compareTo` returns zero.
 
 Each of the five operators on objects of a class that does not implement `Comparable` is the error
@@ -3439,7 +3439,9 @@ compared with a number is `E0411` too. So is a value of a type such as `?Version
 Each operator calls `compareTo` once. If `compareTo` throws an error, the comparison throws that
 error.
 
-`==` does not call `compareTo`. `$a == $b` is `true` only when both variables are the same object.
+`==` does not call `compareTo`. For objects of your own class, `$a == $b` is `true` only when both
+variables are the same object. Six `Core\Time` classes, such as `Date` and `Duration`, are compared by
+their value.
 
 ## Example 01: comparing two values with the usual operators
 
@@ -4164,8 +4166,9 @@ property, an array element and a parameter all hold a reference to the object. A
 second variable gives that variable the same object. Passing it to a function gives the function the
 same object. A write through any one of them is seen through all of them.
 
-`==` on two objects tests whether they are the same object. Two separate objects are never equal,
-even when every property in them has the same value.
+`==` on two objects of your own class tests whether they are the same object. Two separate objects
+are never equal, even when every property in them has the same value. Six `Core\Time` classes, such
+as `Date` and `Duration`, are the exception: `==` compares their value.
 
 `clone` makes a new object of the same class and copies every property into it. The copy is one
 level deep. An array property is copied, so the two objects have two arrays. An object property is

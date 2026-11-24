@@ -37,7 +37,7 @@ Conventions the whole file uses:
 
 - A.1 [Programs, files and names](#lang-programs) — what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another *(<?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, doc comment, ///, docblock, @see, @example, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main)*
 - A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every value written in the code, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, property<T>, property key, property name, propertyPath<T>, property path, field path, dynamic property, mixed, object, nullable, ?T, union, single-value type, enum, shape, anonymous object, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, string literal, numeric literal, heredoc, nowdoc, interpolation, duration, html, markup, template, html template, page, escape, xss, as, conversion, cast, convert to int, convert to string, type check, type of a value, widening, narrowing, is, truthy, falsy, tainted, secret)*
-- A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the operators and forms that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, reference, |>, pipeline, pipe, $_, hole, substitution)*
+- A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls, anonymous functions and method references, `match`, arrays and anonymous objects in expression position, and the operators and forms that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, power, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, reference, |>, pipeline, pipe, $_, hole, substitution)*
 - A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `catch` as an expression, `echo`, `unset`, and the statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, catch, echo, print, unset, exit, yield, goto, label, declare, global, static variable)*
 - A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, `LateInit`, guards, observers, `Stringable`, `Comparable`, `Revocable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, isinit, LateInit, initProperty, property hooks, get, set, PropertyGuard, beforePropertySet, beforePropertyUnset, PropertyObserver, Stringable, __toString, Comparable, compareTo, Revocable, revoke, isRevoked, RevokedObjectError, use after delete, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
 - A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what an enum does not have *(enum, case, backed enum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Arr::Order)*
@@ -4243,9 +4243,8 @@ does not implement `Stringable` is the error `E0412`.
 In a heredoc, every line must start with the same spaces as the closing marker. Those spaces are
 removed. A line with less indentation is the error `E0433`.
 
-A duration has the units `ns`, `us`, `ms`, `s`, `m`, `h`, `d` and `w`. A duration is an object, so
-`==` checks whether two variables are the same object. `1h == 1h` is `false`. To compare two
-durations, use `compareTo`, which returns `0` when they are equal.
+A duration has the units `ns`, `us`, `ms`, `s`, `m`, `h`, `d` and `w`. `==` compares two durations
+by their length, so `90m == 1h30m` is `true`. Use `<` and `>` to put two durations in order.
 
 An anonymous object at the start of a statement must be in parentheses: `({ x: 1 });`. Without them
 it is the error `E0117`. The same is true for the body of an arrow function.
@@ -4487,14 +4486,14 @@ echo $wait, ' is ', $wait->toSeconds(), " seconds\n";
 // The other units are `ns`, `us`, `ms`, `s`, `d` and `w`.
 echo 250us->toNanoseconds(), ' ', 1d->toSeconds(), "\n";
 
-// `compareTo` returns `0` when two durations are equal. `==` only checks for the same object.
-echo $wait->compareTo(90m), "\n";
+// `==` compares two durations by their length. This prints "true".
+echo $wait == 90m ? 'true' : 'false', "\n";
 ```
 
 ```output
 1h30m is 5400 seconds
 250000 86400
-0
+true
 ```
 
 #### Example 07: markup joined with a dot
@@ -7669,7 +7668,7 @@ To read what a code means and how to fix it, run `nvs agent show <code>`.
 <a id="lang-expressions"></a>
 ## A.3 Expressions and operators
 
-Keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, reference, |>, pipeline, pipe, $_, hole, substitution
+Keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, power, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ??+=, ??-=, ??.=, defaulting assignment, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, anonymous function, fn, function, use, callable, method reference, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, anonymous object, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, reference, |>, pipeline, pipe, $_, hole, substitution
 
 ### Precedence and associativity
 
@@ -8317,24 +8316,30 @@ Bit shift by negative number
 
 ### Comparison and equality
 
-`==` tests whether two values are equal, and `!=` tests whether they are different. These are the
-only two equality operators.
+`==` tests whether two values are equal, and `!=` tests whether they are different.
 
-Neither operator converts a value. `1 == "1"` does not compile, and the error tells you to convert
-one side first. Numbers of different types do compare, so `1 == 1.0` is true. Two strings are equal
-when they have the same characters. Two arrays are equal when they have the same keys and values in
-the same order. Two objects are equal only when they are the same object, so a copy is not equal to
-the original.
+Neither operator converts a value, so `1 == "1"` does not compile. Numbers of different types do
+compare, so `1 == 1.0` is true. Two arrays are equal when they have the same keys and values in the
+same order. Two objects of your own class are equal only when they are the same object.
 
-`<`, `<=`, `>`, `>=` and `<=>` put two values in order. They work on numbers, on two `bool` values,
-and on two objects of a class that implements `Comparable`. They do not work on strings. Use
-`Core\Str::compare` to order two strings. On numbers, `<=>` returns `-1`, `0` or `1`.
+Dates, times, instants, durations and time zones from `Core\Time` are compared by their value, so
+`90m == 1h30m` is true. A `DateTime` is compared by its moment. 10:00 in `Europe/Berlin` and 09:00 in
+`Europe/London` on the same winter day are equal.
 
-**The examples below** show a number that arrived as text, then arrays, objects and a missing value,
-then two delivery offers put in order by price. The last two show the errors for an `int` compared
-with a string and for `<` on two strings.
+`<`, `<=`, `>`, `>=` and `<=>` put two values in order. They work on numbers, on `bool` values and
+on objects of a class that implements `Comparable`. Use `Core\Str::compare` to order two strings.
 
-Two values whose types can never be equal are the error `E0466`:
+**The examples below** compare text, arrays, objects and a missing value, and put two offers in
+order. Two show compile errors. The last one compares dates and durations.
+
+`==` and `!=` are the only two equality operators.
+
+Six `Core\Time` classes are compared by their value: `Date`, `TimeOfDay`, `Instant`, `Duration`,
+`Zone` and `DateTime`. Two `Date` objects for the same day are equal. A `DateTime` is compared by
+its moment, so the same moment in two time zones is equal.
+
+Two values whose types can never be equal are the error `E0466`. Its message tells you to convert
+one side first. The error covers these pairs:
 
 - an `int` and a string, such as `1 == "1"`
 - an enum case and an `int`. Compare `$e as int` with the number instead.
@@ -8373,7 +8378,7 @@ are the same: a `mixed` `1` is equal to a `mixed` `1.0`.
 A `?int` compiles with `<`. When the value is `null`, the comparison throws a `RuntimeError`, such
 as "no ordering for a `null` against a `int`". Two `mixed` strings throw a `RuntimeError` too.
 
-On two objects, `<` calls `compareTo` and compares its result with `0`. `<=>` returns the result of
+On numbers, `<=>` returns `-1`, `0` or `1`. On two objects, `<` calls `compareTo` and compares its result with `0`. `<=>` returns the result of
 `compareTo` unchanged. So when `compareTo` returns `-40`, `$a <=> $b` is `-40`. `false <=> true` is
 `-1`.
 
@@ -8417,9 +8422,8 @@ echo ($inStock == $price) as string, "\n";
 
 ```nvs
 <?nvs
-// Shows the three results that surprise people: an array compares its
-// contents, an object compares its identity, and a value that may be missing
-// is tested against `null`.
+// Shows `==` on two arrays, on two objects of your own class, and on a value
+// that may be missing.
 
 class Customer
 {
@@ -8427,7 +8431,7 @@ class Customer
     {}
 }
 
-// Two arrays are equal when they hold the same keys in the same order with
+// Two arrays are equal when they have the same keys in the same order with
 // equal values. This prints 1 and then an empty line.
 array<int> $wanted = [2, 1];
 array<int> $picked = [2, 1];
@@ -8435,13 +8439,13 @@ array<int> $reversed = [1, 2];
 echo ($wanted == $picked) as string, "\n";
 echo ($wanted == $reversed) as string, "\n";
 
-// Two objects are equal only when they are the same object. Two customers
+// Two objects of your own class are equal only when they are the same object. Two customers
 // built from the same address are two objects, so this prints an empty line.
 Customer $signedUp = new Customer('ada@example.com');
 Customer $justRead = new Customer('ada@example.com');
 echo ($signedUp == $justRead) as string, "\n";
 
-// To ask whether they describe the same person, compare what they hold. This
+// To check whether they are the same person, compare their properties. This
 // prints 1.
 echo ($signedUp->email == $justRead->email) as string, "\n";
 
@@ -8560,6 +8564,53 @@ error[E0715]: `<` has no meaning for `string`
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+#### Example 06: dates and durations compare by value
+
+```nvs
+<?nvs
+// Shows that `==` compares dates and durations by their value, and objects of your own class by identity.
+
+class Order
+{
+    public function constructor(public int $number)
+    {}
+}
+
+// Two `Date` objects for the same day are equal. This prints "same day".
+var $shipped = Core\Time\Date::at(2026, 3, 9);
+var $delivered = Core\Time\Date::fromIso('2026-03-09');
+echo $shipped == $delivered ? 'same day' : 'other day', "\n";
+
+// Two durations with the same length are equal. This prints "true".
+Core\Time\Duration $planned = 90m;
+Core\Time\Duration $actual = 1h30m;
+echo $planned == $actual ? 'true' : 'false', "\n";
+
+// A `DateTime` is compared by its moment. 10:00 in Berlin is 09:00 in London
+// on this day, so this prints "same moment".
+var $inBerlin = Core\Time\DateTime::at($shipped, Core\Time\TimeOfDay::at(10, 0), 'Europe/Berlin');
+var $inLondon = Core\Time\DateTime::at($shipped, Core\Time\TimeOfDay::at(9, 0), 'Europe/London');
+echo $inBerlin == $inLondon ? 'same moment' : 'other moment', "\n";
+
+// Two objects of your own class are equal only when they are the same object.
+// These two orders have the same number, so this prints "false".
+Order $first = new Order(17);
+Order $second = new Order(17);
+echo $first == $second ? 'true' : 'false', "\n";
+
+// The same object is equal to itself. This prints "true".
+Order $again = $first;
+echo $first == $again ? 'true' : 'false', "\n";
+```
+
+```output
+same day
+true
+same moment
+false
+true
 ```
 
 ### Logical operators and truth
@@ -17093,8 +17144,8 @@ ordering operators read only the sign of that number, and `<=>` returns the numb
 the order once, in one method, and all five operators follow it.
 
 **Good to know:** a class that does not implement `Comparable` cannot be ordered. The comparison
-does not compile, and the message names `Comparable` as the fix. `==` is a separate question and is
-not affected: two objects are equal only when they are the same object. To test whether two values
+does not compile, and the message names `Comparable` as the fix. `==` does not use `compareTo`. Two
+objects of your own class are equal only when they are the same object. To check whether two values
 have the same contents, check that `compareTo` returns zero.
 
 Each of the five operators on objects of a class that does not implement `Comparable` is the error
@@ -17108,7 +17159,9 @@ compared with a number is `E0411` too. So is a value of a type such as `?Version
 Each operator calls `compareTo` once. If `compareTo` throws an error, the comparison throws that
 error.
 
-`==` does not call `compareTo`. `$a == $b` is `true` only when both variables are the same object.
+`==` does not call `compareTo`. For objects of your own class, `$a == $b` is `true` only when both
+variables are the same object. Six `Core\Time` classes, such as `Date` and `Duration`, are compared by
+their value.
 
 #### Example 01: comparing two values with the usual operators
 
@@ -17833,8 +17886,9 @@ property, an array element and a parameter all hold a reference to the object. A
 second variable gives that variable the same object. Passing it to a function gives the function the
 same object. A write through any one of them is seen through all of them.
 
-`==` on two objects tests whether they are the same object. Two separate objects are never equal,
-even when every property in them has the same value.
+`==` on two objects of your own class tests whether they are the same object. Two separate objects
+are never equal, even when every property in them has the same value. Six `Core\Time` classes, such
+as `Date` and `Duration`, are the exception: `==` compares their value.
 
 `clone` makes a new object of the same class and copies every property into it. The copy is one
 level deep. An array property is copied, so the two objects have two arrays. An object property is
@@ -34130,7 +34184,7 @@ Returns every attribute on `$target`, or on the part of it named `$member`, whos
 <a id="core-core-math"></a>
 ### `Core\Math`
 
-Keywords: math, abs, absolute value, min, max, clamp, ceil, floor, round, rounding mode, half up, half even, truncate, integer division, modulo, remainder, sqrt, square root, pow, power, hypot, exp, log, logarithm, sin, cos, tan, trigonometry, degrees, radians, NaN, infinity, base conversion, binary, hexadecimal, octal, number format, thousands separator, gcd, lcm, pi, INT_MAX, EPSILON, abs, sign, min, max, clamp, ceil, floor, truncate, round, quotient, remainder, divide, gcd, lcm, sqrt, cbrt, hypot, exp, log, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, asinh, acosh, atanh, toRadians, toDegrees, isNan, isFinite, toBase, fromBase, format
+Keywords: math, abs, absolute value, min, max, clamp, ceil, floor, round, rounding mode, half up, half even, truncate, integer division, modulo, remainder, sqrt, square root, power, hypot, exp, log, logarithm, sin, cos, tan, trigonometry, degrees, radians, NaN, infinity, base conversion, binary, hexadecimal, octal, number format, thousands separator, gcd, lcm, pi, INT_MAX, EPSILON, abs, sign, min, max, clamp, ceil, floor, truncate, round, quotient, remainder, divide, gcd, lcm, sqrt, cbrt, hypot, exp, log, sin, cos, tan, asin, acos, atan, atan2, sinh, cosh, tanh, asinh, acosh, atanh, toRadians, toDegrees, isNan, isFinite, toBase, fromBase, format
 
 `Core\Math` is the numeric function set; the arithmetic operators `+ - * / % **` and `<=>` are the
 language's and have no member here. `abs`, `sign`, `min`, `max` and `clamp` take an `int`, a
@@ -34858,7 +34912,7 @@ Writes a number as text for a person to read, with a fixed number of decimals. T
 <a id="core-core-decimal"></a>
 ### `Core\Decimal`
 
-Keywords: decimal, division, divideExact, divideRounded, allocate, penny split, remainder, pow, power, rounding, scale, money, currency, banker's rounding, half-even, arbitrary precision, fixed-point, exact, floor, ceil, truncate, round, divideExact, divideRounded, allocate, power, floor, ceil, truncate, round
+Keywords: decimal, division, divideExact, divideRounded, allocate, penny split, remainder, power, rounding, scale, money, currency, banker's rounding, half-even, arbitrary precision, fixed-point, exact, floor, ceil, truncate, round, divideExact, divideRounded, allocate, power, floor, ceil, truncate, round
 
 Novis's `decimal` scalar carries its own arithmetic as operators — `+`, `-`, `*`, `%` and `/` all work
 directly on it, exactly, with no class in the way. Division is the one operation that may be inexact, and
@@ -35294,13 +35348,13 @@ Returns the product of this value and `$other` as a new `BigInt`. You can use it
 $bigInt->dividedBy(Core\BigInt $divisor): Core\BigInt
 ```
 
-Returns the quotient of this value and `$divisor`, rounded toward zero. `intdiv` rounds an `int` quotient the same way.
+Returns the quotient of this value and `$divisor`, rounded toward zero.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$divisor` | `Core\BigInt` | The value to divide by. |
 
-**Returns** `Core\BigInt` — A `BigInt` quotient. `-7` divided by `2` is `-3`, the same result `intdiv` gives.
+**Returns** `Core\BigInt` — A `BigInt` quotient. `-7` divided by `2` is `-3`, and `7` divided by `-2` is also `-3`.
 
 **Throws** `ArithmeticError` — `$divisor` is zero.
 
@@ -39119,8 +39173,8 @@ Returns a list of the dates from `$from` to `$to`. By default, the list has one 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$from` | `Core\Time\Date` | The first date in the list. |
-| `$to` | `Core\Time\Date` | The last date the list may contain. With a step of one day, `$to` is always in the list. With a larger step, `$to` is in the list only when the dates reach it exactly. |
-| `{ step: … }` | `Core\Unit::Day\|Core\Unit::Week\|Core\Unit::Month\|Core\Unit::Quarter\|Core\Unit::Year` (default `Core\Unit::Day`) |  |
+| `$to` | `Core\Time\Date` | The last date the list may contain. With a step of one day, `$to` is always in the list. With a larger step, `$to` is in the list only when one of the steps lands on it. |
+| `{ step: … }` | `Core\Unit::Day\|Core\Unit::Week\|Core\Unit::Month\|Core\Unit::Quarter\|Core\Unit::Year` (default `Core\Unit::Day`) | The distance between two dates, such as `{ step: Unit::Week }`. It is `Unit::Day` (the default), `Unit::Week`, `Unit::Month`, `Unit::Quarter` (three months) or `Unit::Year`. A unit smaller than a day, such as `Unit::Hour`, does not compile. Each date is a number of steps after `$from`, not one step after the date before it. So from 31 January 2026, a month step gives 28 February, 31 March and 30 April. |
 
 **Returns** `array<Core\Time\Date>` — A list of new `Date` values. `Date::range(Date::at(2026, 1, 30), Date::at(2026, 2, 1))` is `2026-01-30`, `2026-01-31` and `2026-02-01`.
 
@@ -40046,9 +40100,9 @@ Writes the duration as hours and minutes, such as `1:30`. The hours do not stop 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `{ seconds: … }` | `bool` (default `false`) |  |
+| `{ seconds: … }` | `bool` (default `false`) | With `{ seconds: true }`, the text also has the seconds, such as `25:30:00`. By default, the text ends at the minutes. |
 
-**Returns** `string` — The text. Anything smaller than the last part written is cut off, not rounded. So 1 hour, 30 minutes and 59 seconds is `1:30`. A negative duration starts with `-`, such as `-1:15`. `Duration::fromClock` reads the text back.
+**Returns** `string` — The text. The seconds are dropped when the text ends at the minutes, and the part below a second is always dropped. Nothing is rounded, so 1 hour, 30 minutes and 59 seconds is `1:30`. A negative duration starts with `-`, such as `-1:15`. `Duration::fromClock` reads the text back.
 
 <a id="core-core-time-zone"></a>
 ### `Core\Time\Zone`
@@ -66336,8 +66390,8 @@ $
 
 The command prints nothing, and the exit status is `0`. `nvs agent find` searches the index. The
 index is a list of everything built in, such as each `Core` method and enum, each command and
-setting, and each heading of this reference. Nothing in the index is called `strlen`. So the agent searches for
-the word `length` instead:
+setting, and each heading of this reference. Nothing in the index has that name. So the agent
+searches for the word "length" instead:
 
 ```text
 $ nvs agent find length
@@ -66363,11 +66417,12 @@ returns:
   The number of graphemes. The empty string gives `0`.
 ```
 
-A combining accent is an accent stored as a separate Unicode code point after its letter. The two
-dots on `ë` can be stored this way.
+Unicode stores text as code points, one number for each letter or mark. A combining accent is a mark
+stored as its own code point after its letter. The two dots on `ë` can be stored this way. Then `ë`
+is two code points, but it is still one grapheme.
 
 If the agent had written the program first, `nvs check` would have reported an error at the call.
-Novis has no function called `strlen`. The error message says where the built-in functions are:
+Novis has no function with that name. The error message says where the built-in functions are:
 
 ```nvs error
 <?nvs
@@ -66379,7 +66434,8 @@ echo strlen($name), "\n";
 The built-in functions are in the `Core` namespace
 ```
 
-In both cases, the agent ends with the same program, and `nvs check` finds no error in it:
+The agent may search first or write the program first. Either way, it ends with the same program,
+and `nvs check` finds no error in it. `Zoë` has three graphemes, so the program prints `3`:
 
 ```nvs
 <?nvs
@@ -66392,15 +66448,16 @@ echo Core\Str::length($name), "\n";
 ```
 
 Next, the agent needs to know whether Novis can load class files automatically. It searches for the
-word it knows for this, `autoload`. In Novis, `autoload` is a statement. It is not a method or a
-function, so no method in the index has this name. The result lists the matches in two groups:
+word it knows for this, "autoload". In Novis, this word is the name of a statement, not of a
+method. So the result has no method. It lists headings and a flag instead, in two groups:
 
-- First come the lines whose own name contains `autoload`. The first line is a heading of this
+- First come the lines whose own name contains the word. The first line is a heading of this
   reference. The second line is the flag `--autoload-map` of `nvs check`.
-- After them come the sections of this reference that contain `autoload` only in their text.
+- After them come the sections of this reference that contain the word as code in their text.
 
-The agent needs the heading on the first line. It passes the first word of that line to
-`nvs agent show`, which prints the section:
+The agent wants the section on the first line. Each line of a section starts with its id, such as
+`programs#autoload-find-a-class-by-its-namespace`. The agent passes that id to `nvs agent show`,
+which prints the section:
 
 ```text
 $ nvs agent find autoload

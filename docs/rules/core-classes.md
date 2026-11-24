@@ -4657,6 +4657,23 @@ also reads a region, so `pt-PT` may differ from `Core\Cldr`'s `pt`. Neither is d
 is the one a template reaches without the sandbox, and `PluralRules` is the one that knows every
 locale.
 
+**`DateFormat` picks its parts with `Fields`, and the locale picks their order.** `dates` and
+`dateTimes` take `fields?: Fields` beside `length`. Its ten cases name the parts from the largest to
+the smallest: `Day`, `MonthDay`, `YearMonthDay` (the default), `Weekday`, `DayWeekday`,
+`MonthDayWeekday`, `YearMonthDayWeekday`, `Month`, `YearMonth` and `Year`. A name says which parts
+appear, never their order, so `YearMonth` in `de` is `Januar 2026`. `Month`, `YearMonth` and `Year` on
+`dateTimes` throw `LogicError` naming `dates` before anything is formatted, because ICU4X has no field
+set that writes a time beside a date with no day, and dropping the time would hide what the caller
+asked for. Both members keep one options type. `format-dates` takes a `date-options` record,
+`{ length, fields }`, as `format-date-times` takes its options. **What it spends:** `Month`,
+`YearMonth` and `Year` load the number formatter once per call, because ICU4X does not load it for
+some calendar-period patterns, such as `pt`'s long year and month. The other seven cases spend
+nothing more.
+
+Each case of an intl enum is described in the enum's one `help` text, so every enum of the component
+names each of its cases. The manifest has no help field per case: that would change every
+component's manifest and `nvs meta` for one card per case.
+
 - **Memory:** nothing until a process first calls the component; then the compiled module, shared by
   every core, and each calling request's instance under that request's cap. The CLDR data is in the
   binary, and the component's module doc states its size. If that size is too large, the answer is a
@@ -4671,6 +4688,10 @@ is the interface it exports.
   carry what one string already carries exactly.
 - **`RelativeTime` from a `Duration`.** A month and a year are not a fixed number of nanoseconds, so the
   unit would be a guess. The program chooses the unit and the count.
+- **A `Full` length on `DateFormat`.** ICU4X 2.4 has `Long`, `Medium` and `Short` only.
+  `YearMonthDayWeekday` with `Long` is the long form with the weekday.
+- **CLDR skeleton strings in place of `Fields`.** A fifth grammar beside the closed four
+  ([`core-api/no-mode-strings`](core-api.md#core-api-no-mode-strings)).
 
 <sub>See also [`core-classes/intl-batch-shape`](core-classes.md#core-classes-intl-batch-shape), [`core-classes/intl-locale-is-an-argument`](core-classes.md#core-classes-intl-locale-is-an-argument), [`core-classes/intl-host-converts-time`](core-classes.md#core-classes-intl-host-converts-time), [`packaging/the-first-party-components-are-built-in`](packaging.md#packaging-the-first-party-components-are-built-in), [`programs/framework-core-half`](programs.md#programs-framework-core-half).</sub>
 
@@ -4788,7 +4809,7 @@ is a static member of the class it returns, so the class a reader looks up is th
 |---|---|
 | `Core\Time` | `now()`, `monotonic()`, `sleep(Duration)` |
 | `Core\Time\Instant` | `fromEpoch(int, {nanoseconds?})`, `fromIso(text)` |
-| `Core\Time\Date` | `at(int, uint, uint)`, `fromIso(text)` |
+| `Core\Time\Date` | `at(int, uint, uint)`, `fromIso(text)`, `parse(text, pattern)`, `range(Date, Date, {step?})` |
 | `Core\Time\TimeOfDay` | `at(uint, uint, {second?, nanoseconds?})`, `fromIso(text)` |
 | `Core\Time\DateTime` | `at(Date, TimeOfDay, Zone)`, `fromIso(text, ?Zone)`, `parse(text, pattern, Zone)` |
 
@@ -4800,12 +4821,33 @@ determinism rules fake the clock through it ([`testing/determinism-declared-on-t
 `Date::atStartOfDay`: `DateTime::at($date, TimeOfDay::at(0, 0), $zone)` is the same value, resolved
 the same way, and `DateTime::fromIso('2024-03-01', $zone)` is its short form.
 
+`Date::parse` reads a date through a CLDR pattern of date letters only, because a `Date` has no time
+of day and no zone to keep. `Date::range` lists the dates from its first argument to its second, both
+included, and counts down when the first is later, as `Core\Arr::range` does with its option name
+`step`. The step is `Day`, `Week`, `Month`, `Quarter` or `Year`, a closed subset in the signature
+([`types/single-value-types`](types.md#types-single-value-types)). Entry `k` is the first date plus `k` steps, so a month step from
+the 31st gives each shorter month's last day, as `Date::plus` does. **What it spends:** one `Date`
+per entry and the list, charged to the request. The list and every `Date` in it are asked of the memory ceiling once, before
+any is built.
+
 **An epoch reader floors.** `toEpochSeconds`, `toEpochMillis` and `toEpochMicros` give the largest
 whole count at or before the instant, so `fromEpoch` of the count and the remainder builds the same
 instant. Half a second before 1970 is second `-1`, millisecond `-500`. Before 1970, an instant with a
 part of a unit reads one less than a reader that truncates toward zero gives.
 
 `Date::at` names its parameters `year`, `month` and `day`, the names of its readers.
+
+**A `Date` moves on the calendar as a `DateTime` does, with no unit below a day.** `Date::startOf` and
+`endOf` take `Week`, `Month`, `Quarter` and `Year`, and a week starts on Monday, as
+`DateTime::startOf(Unit::Week)` does. `Date::difference(Date, Unit)` counts whole `Day`, `Week`,
+`Month`, `Quarter` or `Year` steps as `DateTime::difference` counts them, and `next(Weekday)` and
+`previous(Weekday)` find the nearest such day after or before, never the day itself. Each unit list is
+a closed subset in the signature ([`types/single-value-types`](types.md#types-single-value-types)), so a unit below a day does not
+compile on a `Date`. `Date` and `DateTime` both read four calendar parts no `with` option sets:
+`daysInMonth(): uint` (the name most libraries use, not `lengthOfMonth`), `quarter(): uint` from 1 to
+4, and ISO 8601's `isoWeek(): uint` and `isoWeekYear(): int`, where Monday is first and week 1 holds
+the year's first Thursday. So no program reads a part by parsing `format`'s output. **What it
+spends:** a reader allocates nothing, and every other member one `Date` or one `int` per call.
 
 **One text format per class, the ISO 8601 extended form, and nothing else.** Each class writes the
 text its `fromIso` reads: `Date::toIso`, `TimeOfDay::toIso`, `DateTime::toIso` and `Instant::toIso`,
@@ -4851,11 +4893,11 @@ is a [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-int
 and its offset are checked too, and a literal with no `[Zone]` in a call that writes no `$zone` does
 not compile. The run-time path runs the same parser
 ([`expressions/preparation-preserves-behaviour`](expressions.md#expressions-preparation-preserves-behaviour)). `DateTime::parse` keeps its prepared CLDR
-pattern row under its new owner.
+pattern row under its new owner, and `Date::parse` has one too, which refuses a time or zone letter.
 
 **A written pattern with `Y` and no `w` warns.** `Y` is the year of the ISO week, which differs from
 the calendar year `y` on a few days around New Year: on 2024-12-30, `YYYY` writes `2025`. So a literal
-pattern at `DateTime::format` or `DateTime::parse` with a `Y` and no `w` is warning `W1038`, whose
+pattern at `DateTime::format`, `DateTime::parse` or `Date::parse` with a `Y` and no `w` is warning `W1038`, whose
 help names `y`. A warning and not an error, because `YYYY` beside `ww` is correct and a program may
 mean `Y` alone. A pattern built at run time is not judged.
 
@@ -4918,6 +4960,15 @@ unknown name ([`core-api/no-deprecation-window-before-a-release`](core-api.md#co
   measured before anything changed: one lookup of a name already loaded is about 21 ns and allocates
   nothing, so the two an `->in($zone)` makes are about 2% of its recorded 1,823 ns. A cache would be
   state on the request path for no saving a request sees.
+- **`Date::today()`, `DateTime::now()` and a configured default zone.** `now` stays on `Core\Time`,
+  which reads the world and is faked in tests, and a second way to one value was already declined for
+  `atStartOfDay`. A hidden default zone gives a server a different day than its user's.
+  `Core\Time::now()->in('Europe/Berlin')->date()` is the short form.
+- **A date as an array key.** An array key stays `int` or `string`. `ObjectMap` and `ObjectSet` find a
+  key with `==`, so an equal `Date` is already one key there
+  ([`core-api/collections-drop-revoked-objects`](core-api.md#core-api-collections-drop-revoked-objects)).
+- **A `DateRange` value.** `$from <= $d && $d <= $to` already says "contains", and two such tests say
+  "overlaps". `Date::range` lists the dates when a program needs each one.
 
 <sub>See also [`core-api/one-paradigm-per-operation`](core-api.md#core-api-one-paradigm-per-operation), [`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments), [`types/duration`](types.md#types-duration), [`types/property-key`](types.md#types-property-key), [`core-api/a-moved-name-says-where-it-went`](core-api.md#core-api-a-moved-name-says-where-it-went).</sub>
 

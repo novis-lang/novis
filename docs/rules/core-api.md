@@ -951,6 +951,13 @@ ordered by priority through a comparator or `Comparable` ([`classes/comparable`]
 running loop skips an entry revoked during the loop. `count()` is always exact. A `Heap` skips a
 revoked entry on `pop` and `peek`, and its count drops at the `revoke()`.
 
+**A key is found with `==`.** An `ObjectMap` key and an `ObjectSet` member are found by the same
+comparison `==` makes, and hashed from the same slots. So a `Core\Time` value that compares by value
+is one key with every equal value built elsewhere, and the same moment as a `DateTime` in two zones is
+one key. Every other object is found by identity alone
+([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)). **What it spends:** a key of one of those six classes
+hashes one to four slots in place of its address, and nothing changes for any other key.
+
 **Removal is eager.** Only a revocable class has the hidden slot, the first slot of its root class
 (inherited fields come first in the layout), so it has one offset in every class of the tree. It is
 null until the object first enters a collection. Then it points to the object's memberships, one entry
@@ -1026,6 +1033,9 @@ one enum declaration per mode family, which is also what makes them documentable
   `Duration`, and the one runtime string a program needs is a duration, which `Duration::parse` reads
   in the literal grammar ([`types/duration`](types.md#types-duration)). A date or a time read from text has one ISO form
   per class, read by that class's `fromIso` ([`core-classes/a-time-class-builds-its-own-values`](core-classes.md#core-classes-a-time-class-builds-its-own-values)).
+- **CLDR skeleton strings such as `'yMMMM'` at `Novis\Intl\DateFormat`.** A skeleton is a fifth
+  grammar, and the four are a closed list. `DateFormat::Fields` names each set of parts as an enum case,
+  which the checker checks and the editor completes ([`core-classes/intl-roster`](core-classes.md#core-classes-intl-roster)).
 
 <sub>See also [`core-api/units-are-types`](core-api.md#core-api-units-are-types), [`enums/closed-integer-type`](enums.md#enums-closed-integer-type), [`types/single-value-types`](types.md#types-single-value-types), [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments).</sub>
 

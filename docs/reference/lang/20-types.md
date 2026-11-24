@@ -2068,9 +2068,8 @@ does not implement `Stringable` is the error `E0412`.
 In a heredoc, every line must start with the same spaces as the closing marker. Those spaces are
 removed. A line with less indentation is the error `E0433`.
 
-A duration has the units `ns`, `us`, `ms`, `s`, `m`, `h`, `d` and `w`. A duration is an object, so
-`==` checks whether two variables are the same object. `1h == 1h` is `false`. To compare two
-durations, use `compareTo`, which returns `0` when they are equal.
+A duration has the units `ns`, `us`, `ms`, `s`, `m`, `h`, `d` and `w`. `==` compares two durations
+by their length, so `90m == 1h30m` is `true`. Use `<` and `>` to put two durations in order.
 
 An anonymous object at the start of a statement must be in parentheses: `({ x: 1 });`. Without them
 it is the error `E0117`. The same is true for the body of an arrow function.
@@ -2312,14 +2311,14 @@ echo $wait, ' is ', $wait->toSeconds(), " seconds\n";
 // The other units are `ns`, `us`, `ms`, `s`, `d` and `w`.
 echo 250us->toNanoseconds(), ' ', 1d->toSeconds(), "\n";
 
-// `compareTo` returns `0` when two durations are equal. `==` only checks for the same object.
-echo $wait->compareTo(90m), "\n";
+// `==` compares two durations by their length. This prints "true".
+echo $wait == 90m ? 'true' : 'false', "\n";
 ```
 
 ```output
 1h30m is 5400 seconds
 250000 86400
-0
+true
 ```
 
 ## Example 07: markup joined with a dot

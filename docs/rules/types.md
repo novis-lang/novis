@@ -520,6 +520,10 @@ two objects behind two `mixed`s throw, because `compareTo` is dispatched from th
 named, and an enum case orders as the integer it is even though the written spelling is still refused
 — which is where the author is told to say `as int`.
 
+A `Core\Time\DateTime` orders by its moment, to the nanosecond, and its zone does not count, so
+10:00 in `Europe/Berlin` is before 09:30 in `Europe/London` on one day. It is the same rule `==` uses
+for it ([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)), so `$a <= $b && $b <= $a` and `$a == $b` agree.
+
 `==` and `!=` are a different question and are unaffected by any of this.
 
 <sub>See also [`types/arithmetic`](types.md#types-arithmetic), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed).</sub>
@@ -687,8 +691,8 @@ untyped-until-placed about it ([`types/numeric-literal-placement`](types.md#type
 folded at compile time to a single nanosecond count, so the grammar is never read at run time, and a
 duration beyond `Duration`'s range is a compile error, not a wrap. The compiled program carries each
 written duration as one finished `Duration` object, the value `Duration::nanoseconds` builds from that
-count. Each written duration is its own object, so `90m == 1h30m` is `false`
-([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)).
+count. Each written duration is its own object, and `==` compares a `Duration` by its nanosecond
+count, so `90m == 1h30m` is `true` ([`expressions/object-identity-equality`](expressions.md#expressions-object-identity-equality)).
 
 `1h + 30m` does not compile — there is no operator overloading; write `1h30m` or `$a->plus($b)`. So
 does `1h30m as int`; write `->toSeconds()`. `$n s` is not a duration; a computed count is
@@ -700,6 +704,16 @@ does `1h30m as int`; write `->toSeconds()`. `$n s` is not a duration; a computed
 renders `-1h30m` for a reader, and `parse` refuses that leading `-` **by name** rather than reading a
 positive value out of it. Sharing one parser means a grammar change cannot land in one place and miss
 the others, the property [`expressions/intrinsic-constant-arguments`](expressions.md#expressions-intrinsic-constant-arguments) requires of every intrinsic.
+
+**The clock form is a second text, for a reader and not for the source.** `Duration::toClock()`
+writes hours and minutes, `25:30`, and `toClock({ seconds: true })` adds the seconds, `25:30:00`. The
+hours do not wrap at a day and have at least one digit, so five minutes is `0:05`. A part below the
+last one written is dropped, and the sign is written only when what is left is not zero, so `-1:15`
+and never `-0:00`. `Duration::fromClock` reads `H:MM` or `H:MM:SS` with an optional `-` and any number
+of hour digits, and throws `ParseError` on a minute or second past 59. It is not a literal and not a
+directive form: a timesheet, a video length and a time-tracking export write durations this way,
+and the duration grammar cannot read them. Both live in the same syntax module as the grammar, so one
+module owns every text form of a duration.
 
 The literal exists because [`core-api/units-are-types`](core-api.md#core-api-units-are-types) sends its cost to the call site:
 `Duration::seconds(30)` at every timeout, TTL, sleep and retry is the pressure under which untyped

@@ -1408,16 +1408,16 @@
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Ldap\\Ad\\AccountFlags::bits": {
-      "hash": "578420cb8a9e5f24",
-      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+      "hash": "b8ce2cfc49596e4f",
+      "why": "a test now maps each reader to the flag it reads"
     },
     "Core\\Ldap\\Ad\\AccountFlags::mustChangePassword": {
-      "hash": "7a3a6a278fb2c9de",
-      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+      "hash": "a9430f0e1b112f62",
+      "why": "a test now maps each reader to the flag it reads"
     },
     "Core\\Ldap\\Ad\\AccountFlags::with": {
-      "hash": "5ec3476db7ba6464",
-      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+      "hash": "399c7737c76d71df",
+      "why": "a test now maps each reader to the flag it reads"
     },
     "Core\\Ldap\\Ad\\GroupType::bits": {
       "hash": "d75429a15731a39d",
@@ -1828,8 +1828,8 @@
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "Core\\Time\\Instant::compareTo": {
-      "hash": "8bf9d47e38fd39f1",
-      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+      "hash": "d9f82a58f7c8d774",
+      "why": "a conformance case now expects == on two Instants to compare by value, which the == entry records"
     },
     "Core\\Time\\Instant::fromEpoch": {
       "hash": "7aec013e09f9c69c",
@@ -2324,8 +2324,8 @@
       "why": "Its tests write `tainted string` on an error message, which the `Throwable` entry covers. What `lang:types/text-string-and-bytes` does is unchanged."
     },
     "tools:agents/nvs-agent-primer": {
-      "hash": "654d64181fa40c53",
-      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
+      "hash": "5e925ba98775eabd",
+      "why": "a test pins the reworded capability section of the primer"
     },
     "tools:cli/nvs-code": {
       "hash": "9c7b5f35fa50d9c2",

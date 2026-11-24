@@ -1144,7 +1144,7 @@
   },
   "/reference/cli/a-worked-session/": {
     "feature": "tools:agents/a-worked-session",
-    "hash": "eab41e0e19918332",
+    "hash": "bb5c36d91c9ee267",
     "questions": [
       "How does an AI coding assistant find the right Novis method?",
       "Example of an AI agent looking up a function step by step",
@@ -2723,7 +2723,7 @@
   },
   "/reference/core/bigint/dividedby/": {
     "feature": "Core\\BigInt::dividedBy",
-    "hash": "fbba33e011461721",
+    "hash": "bf8c613b85e37457",
     "questions": [
       "How do I divide two very large integers?",
       "Integer division of big numbers without the fraction",
@@ -15755,7 +15755,7 @@
   },
   "/reference/core/time-date/range/": {
     "feature": "Core\\Time\\Date::range",
-    "hash": "9e9b52f45b19b20b",
+    "hash": "524912d66c571c6a",
     "questions": [
       "List every day between two dates",
       "Make a list of dates a week or a month apart",
@@ -15838,7 +15838,7 @@
   },
   "/reference/core/time-datetime/compareto/": {
     "feature": "Core\\Time\\DateTime::compareTo",
-    "hash": "dc2547ede41d6599",
+    "hash": "0f776a40e0c0e0bc",
     "questions": [
       "How do I check which of two moments with time zones comes first?",
       "Are 10:00 in Berlin and 09:00 in London the same moment?",
@@ -16332,7 +16332,7 @@
   },
   "/reference/core/time-duration/toclock/": {
     "feature": "Core\\Time\\Duration::toClock",
-    "hash": "fb0f961070adad9d",
+    "hash": "0565fad590e2caa1",
     "questions": [
       "How do I show a duration as hours and minutes like 1:30?",
       "Print the hours worked in a week as text",

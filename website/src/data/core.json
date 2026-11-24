@@ -3196,14 +3196,14 @@
           "options": [],
           "returnType": "Core\\BigInt",
           "doc": {
-            "shortHtml": "Returns the quotient of this value and <code>$divisor</code>, rounded toward zero. <code>intdiv</code> rounds an <code>int</code> quotient the same way.",
+            "shortHtml": "Returns the quotient of this value and <code>$divisor</code>, rounded toward zero.",
             "params": [
               {
                 "name": "divisor",
                 "descHtml": "The value to divide by."
               }
             ],
-            "returnHtml": "A <code>BigInt</code> quotient. <code>-7</code> divided by <code>2</code> is <code>-3</code>, the same result <code>intdiv</code> gives.",
+            "returnHtml": "A <code>BigInt</code> quotient. <code>-7</code> divided by <code>2</code> is <code>-3</code>, and <code>7</code> divided by <code>-2</code> is also <code>-3</code>.",
             "errors": [
               {
                 "error": "ArithmeticError",
@@ -49881,11 +49881,11 @@
               },
               {
                 "name": "to",
-                "descHtml": "The last date the list may contain. With a step of one day, <code>$to</code> is always in the list. With a larger step, <code>$to</code> is in the list only when the dates reach it exactly."
+                "descHtml": "The last date the list may contain. With a step of one day, <code>$to</code> is always in the list. With a larger step, <code>$to</code> is in the list only when one of the steps lands on it."
               },
               {
-                "name": "options",
-                "descHtml": "The third argument, such as <code>{ step: Unit::Week }</code>. <code>step</code> is the distance between two dates: <code>Unit::Day</code> (the default), <code>Unit::Week</code>, <code>Unit::Month</code>, <code>Unit::Quarter</code> (three months) or <code>Unit::Year</code>. A unit smaller than a day, such as <code>Unit::Hour</code>, does not compile. A month is counted from <code>$from</code>. From 31 January 2026, the next dates are 28 February, 31 March and 30 April."
+                "name": "step",
+                "descHtml": "The distance between two dates, such as <code>{ step: Unit::Week }</code>. It is <code>Unit::Day</code> (the default), <code>Unit::Week</code>, <code>Unit::Month</code>, <code>Unit::Quarter</code> (three months) or <code>Unit::Year</code>. A unit smaller than a day, such as <code>Unit::Hour</code>, does not compile. Each date is a number of steps after <code>$from</code>, not one step after the date before it. So from 31 January 2026, a month step gives 28 February, 31 March and 30 April."
               }
             ],
             "returnHtml": "A list of new <code>Date</code> values. <code>Date::range(Date::at(2026, 1, 30), Date::at(2026, 2, 1))</code> is <code>2026-01-30</code>, <code>2026-01-31</code> and <code>2026-02-01</code>."
@@ -52287,11 +52287,11 @@
             "shortHtml": "Writes the duration as hours and minutes, such as <code>1:30</code>. The hours do not stop at 24, so 25 hours and 30 minutes is <code>25:30</code>.",
             "params": [
               {
-                "name": "options",
-                "descHtml": "Set <code>seconds</code> to <code>true</code> to add the seconds, such as <code>25:30:00</code>. By default, the text ends at the minutes."
+                "name": "seconds",
+                "descHtml": "With <code>{ seconds: true }</code>, the text also has the seconds, such as <code>25:30:00</code>. By default, the text ends at the minutes."
               }
             ],
-            "returnHtml": "The text. Anything smaller than the last part written is cut off, not rounded. So 1 hour, 30 minutes and 59 seconds is <code>1:30</code>. A negative duration starts with <code>-</code>, such as <code>-1:15</code>. <code>Duration::fromClock</code> reads the text back."
+            "returnHtml": "The text. The seconds are dropped when the text ends at the minutes, and the part below a second is always dropped. Nothing is rounded, so 1 hour, 30 minutes and 59 seconds is <code>1:30</code>. A negative duration starts with <code>-</code>, such as <code>-1:15</code>. <code>Duration::fromClock</code> reads the text back."
           },
           "slug": "toclock",
           "url": "/reference/core/time-duration/toclock/",

@@ -1339,7 +1339,9 @@ implementation.
 `compareTo` is also what every member with a natural ordering reads: `Core\Arr::sort`, `Core\Arr::min`
 and `max`, `Core\Math::min`, `max` and `clamp`, and a `Core\Heap` built without a comparator all order
 two objects by it and throw for a pair whose class does not implement it. A `Core`-owned instance — a
-`Core\BigInt`, a `Core\Time\Instant` — is ordered the same way and through the same one entry point.
+`Core\BigInt`, a `Core\Time\Instant`, a `Core\Time\DateTime` — is ordered the same way and through the same one entry
+point. A `DateTime`'s `compareTo` reads its moment alone, so two values in different zones order as
+the instants they name ([`types/ordering`](types.md#types-ordering)).
 An ordering a class states once is the only one anything in the language reads.
 
 No ordering walks two same-class objects' declared properties in order and takes the first
@@ -1448,6 +1450,14 @@ is decided by their registry entries, and one with no `toString` is refused wher
 
 What it costs is one ordinary method call at each rendering site. PHP's own fallback for an object
 with no `__toString` is a fatal error, so the diagnostic takes nothing permissive away.
+
+`Core\Time`'s `Date`, `TimeOfDay` and `DateTime` do not render. Rendering one is `E0710`, whose help
+names `toIso()` for the one ISO text and `format(...)` for a pattern
+([`core-classes/a-time-class-builds-its-own-values`](core-classes.md#core-classes-a-time-class-builds-its-own-values)).
+
+**Declined:**
+- **`Date` as `Stringable`.** It is a second way to the ISO text, and a page that shows a date usually
+  wants the locale's text, which `Novis\Intl\DateFormat` writes. `E0710` names both ways.
 
 <sub>See also [`classes/no-magic-methods`](classes.md#classes-no-magic-methods), [`classes/comparable`](classes.md#classes-comparable), [`types/conversion`](types.md#types-conversion), [`types/erased-member-access`](types.md#types-erased-member-access).</sub>
 
