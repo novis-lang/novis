@@ -33,7 +33,7 @@ stages:
     status: done
   - id: 8
     title: "the rules, the reference, the examples, the feature proofs and the website say so"
-    status: open
+    status: done
     context: [website/src/data/changes.json]
   - id: 9
     title: "the goal is verified once, and every failure is fixed"
@@ -673,9 +673,9 @@ changes entries.
   - [x] `core.json` and `llms-full.txt` rendered, `site --check changes` green
   - [x] every page and `about.md` `site --check stale` names reread and stamped
   - [x] every text `site --check review` names reviewed and stamped
-- [ ] `bun nv proofs --owed --goal clear-member-names` names nothing.
-  - [ ] the `intro` and `tests` rows it names paid (`Core\Router\Match`, `Core\Test\Response`, `Core\Http\Response`)
-  - [ ] the release binary rebuilt, and every `perf: stale` feature recorded in runs of 100
+- [x] `bun nv proofs --owed --goal clear-member-names` names nothing.
+  - [x] the `intro` and `tests` rows it names paid (`Core\Router\Match`, `Core\Test\Response`, `Core\Http\Response`)
+  - [x] the release binary rebuilt, and every `perf: stale` feature recorded in runs of 100
 
 ### 9. the goal is verified once, and every failure is fixed
 
@@ -687,35 +687,33 @@ changes entries.
 
 ### State
 
-Stage 8 has one item left: the owed proofs. `bun nv site --check stale review changes` is green.
-Nine writing subagents, one per class family, reread the 1192 stale texts and ran the newcomer review
-over the 953 unreviewed ones. The session then had readers review the 85 texts the lanes rewrote, and
-fixed every finding. Fixes beyond wording: old names left in the image and pdf `manifest.json` cards,
-`Image-Image/compare/about.md` (`Diff`), `Request/route/about.md` (`param`), `Metrics/increment` and
-`observe` (`gauge`), the `Router-Match.md`, `Request.md`, `Request-Files.md` and
-`Request-BodyStream.md` intros (`params`, `query`, `post`, `postAs`), `10-cli.md`, and three website
-snippets. Wrong facts were fixed on the cards of `Http\Event::id`, `IO::makeDirectory`, `File::tell`,
-`BigInt->remainder`, `Math::remainder` and two `DateTime` abouts. `bun nv prose` is clean over every
-touched file, and `api-rename --check` is green. `render` and `render --website` ran after the last
-edit, and build and clippy are green. No test ran.
+Stage 8 is done. `bun nv proofs --gate --goal clear-member-names --limit 0` names nothing (1229
+features), and `bun nv site --check stale review changes` is green.
+- The `tests` rows were paid with `// covers:` markers (`http-response-text-and-bytes-read-one-body-and-agree.nvst`,
+  `a-response-bytes-body-sends-octets-no-text-member-carries.nvst`). The `Router\Match` covers line
+  still said `params`/`param`, and so did `docs/rules/routing/matching-is-not-dispatching.md`'s
+  signature block (it also had two lines run together), two case comments and `registry.rs:7277`.
+  `api-rename --check` misses a `Class::member` id of an instance member (stage 3's note).
+- `IO/within` and `Session/clearLongLived` `about.md` were over 200 words, and one
+  `createTemporaryDirectory` example step was over two lines. They were trimmed, reviewed and stamped.
+- All 828 perf rows are recorded with the release binary, in nine runs, each committed. Five bench
+  fixes came first (commit `chore(perf): every feature the renames reached has a current figure`):
+  35 `Core\Ldap` benches now declare `calls 1`, following 66deda307b. `Response/sendFile` sends the
+  renamed bench files. `Spreadsheet-Sheet/addChart` adds rows before `column`. `Http-TlsInfo/isVerified`
+  runs 512 rounds like `cipher`.
+- Build and clippy are green. No test ran.
 
 ### Next
 
-Stage 8's last item, `bun nv proofs --owed --goal clear-member-names --limit 0`: it names 895
-features, 587 of them `perf` only.
-1. Pay the non-perf rows first: `tests` for `Core\Router\Match::parameters`, `parameter`,
-   `Core\Test\Response::bytes`, `Core\Http\Response::text` and `bytes`, and `intro` for the two
-   `Router\Match` members (`docs/reference/core/Router-Match.md:18` now names them; check it
-   clears). Any `reviewed` row left means a text changed after its stamp: rerun
-   `site --check review`.
-2. Make no further edit to a source or `about.md` after this point. Each edit makes a figure stale
-   again (playbook: "Run `bun nv render` before `--record-perf`").
-3. `bun nv relink --build`, then list every `perf: stale` id with
-   `bun nv proofs --gate --goal clear-member-names --limit 0 --nvs target/debug/nvs.exe`. Record them
-   with `xargs -d '\n' -n 100 -a <list> bun nv proofs --record-perf --nvs target/release/nvs.exe
-   --only`, in the foreground, one run of 100 at a time. A full run is about two hours, so it may take
-   two sessions. Commit `data/perf/` after each run.
-4. Tick stage 8, and set its status to done.
+Stage 9, the goal's close (the pack names whether it is the chain's full gate).
+1. The newcomer review over the pages stage 8 touched: `site --check review` is already green, so
+   this is a check that it stays so.
+2. Close it with a build, clippy and `bun nv close --goal clear-member-names`. Fix every red it names
+   in one pass. A source or `about.md` edit makes its feature's perf figure stale again: rerecord only
+   those ids with `bun nv proofs --record-perf --nvs target/release/nvs.exe --only <ids>` after
+   `bun nv relink --build`.
+3. Before `DONE`: move each standing decision only this file holds into a rule or module doc
+   (`docs/rules/core-api/verb-lexicon.md` holds the four parts already), then delete the file.
 
 Expect red at stage 9 if anything was missed: `.lspt` completion cases, `nvs-test`'s
 `TOP_LEVEL_ONLY` cases, `crates/nvs-cli/tests/meta.rs`'s name lists and `ext_world.rs`'s
@@ -733,5 +731,7 @@ conformance case, and any test that pins a help card's wording.
   are still in the dense essay voice. This goal changed only their names. Readers also found
   "series", "label", "passkey", "challenge", "cron", "proxy" and "isolate" undefined on some cards and
   pages. These predate the goal, so a later prose pass takes them.
+- `bun nv api-rename --check` does not find an instance member's old id written as `Class::member`
+  (a `// covers:` line, a rule's signature block). It should check that form for every `->` row.
 - `extensions/*/nvs/*.nvs` doc comments fail `proofs --comments`' step bound (`Image.nvs:59` and
   others). The bound is for example programs, so the command should skip package sources.
