@@ -731,7 +731,17 @@ pub(crate) fn check_call(
         }
         // The member reads the text with the same function, so a literal this
         // accepts is one the call reads, and a refusal is the `ParseError` the
-        // call would have thrown.
+        // call would have thrown. A `DateTime` text with no `[Zone]` needs
+        // `$zone`, so the call is refused only where nothing fills it: a
+        // written `null` there, or a `...` that may fill it, is the run
+        // time's refusal alone.
+        Grammar::Iso(nvs_stdlib::time::IsoForm::DateTime) => {
+            let zone_given = argument_filling(row.at + 1, list, slots).is_some()
+                || list.iter().any(|arg| arg.spread);
+            if let Err(message) = nvs_stdlib::time::validate_datetime_iso(&text, zone_given) {
+                report_malformed(span, &message, env);
+            }
+        }
         Grammar::Iso(form) => {
             if let Err(message) = nvs_stdlib::time::validate_iso(form, &text) {
                 report_malformed(span, &message, env);

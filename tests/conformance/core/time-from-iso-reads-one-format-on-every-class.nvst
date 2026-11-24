@@ -80,8 +80,8 @@ Core\Time\TimeOfDay::fromIso(): the second is `60`, and a second is `00` to `59`
 Core\Time\TimeOfDay::fromIso(): the hour is 2 digits, in the form `HH:MM:SS`|
 Core\Time\TimeOfDay::fromIso(): the fraction of a second is one to nine digits|
 Core\Time\TimeOfDay::fromIso(): the fraction of a second is one to nine digits|
-Core\Time\DateTime::fromIso(): the text has an offset, and the zone is the second argument. Read a text with an offset with `Core\Time\Instant::fromIso`, then call `->in($zone)`|
-Core\Time\DateTime::fromIso(): the text has an offset, and the zone is the second argument. Read a text with an offset with `Core\Time\Instant::fromIso`, then call `->in($zone)`|
+Core\Time\DateTime::fromIso(): the text has an offset `Z` and no zone. Read it with `Core\Time\Instant::fromIso`, then call `->in($zone)`|
+Core\Time\DateTime::fromIso(): the text has an offset and no zone. Write the zone after the offset, such as `[Europe/Vienna]`, or read the text with `Core\Time\Instant::fromIso`, then call `->in($zone)`|
 Core\Time\DateTime::fromIso(): expected `T` or a space at byte 10, between the date and the time|
 Core\Time\DateTime::fromIso(): the hour is 2 digits, in the form `HH:MM:SS`|
 2024-03-01 08:30:00.000 Z|

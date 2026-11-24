@@ -12,8 +12,12 @@ var $pastMidnight = Core\Time\TimeOfDay::fromIso('24:00');
 var $short = Core\Time\Date::fromIso('2024-3-1');
 // The ISO 8601 basic form, with no `-`.
 var $basic = Core\Time\Date::fromIso('20240301');
-// An offset, where the zone is the second argument.
+// An offset with no zone after it.
 var $offset = Core\Time\DateTime::fromIso('2024-03-01T09:30+01:00', $utc);
+// A local time with no zone in the text and no second argument.
+var $noZone = Core\Time\DateTime::fromIso('2024-03-01T09:30');
+// An offset Vienna does not have in January.
+var $wrongOffset = Core\Time\DateTime::fromIso('2026-01-05T08:30:00+02:00[Europe/Vienna]');
 // The same text behind a variable is read at run time, and is not reported.
 var $text = '2024-02-30';
 var $later = Core\Time\Date::fromIso($text);
@@ -30,7 +34,11 @@ error[E0769]: this text is not valid for this function: the month is 2 digits, i
 %A
 error[E0769]: this text is not valid for this function: expected `-` at byte 4, in the form `YYYY-MM-DD`
 %A
-error[E0769]: this text is not valid for this function: the text has an offset, and the zone is the second argument. Read a text with an offset with `Core\Time\Instant::fromIso`, then call `->in($zone)`
+error[E0769]: this text is not valid for this function: the text has an offset and no zone. Write the zone after the offset, such as `[Europe/Vienna]`, or read the text with `Core\Time\Instant::fromIso`, then call `->in($zone)`
 %A
-error: aborting due to 5 errors
+error[E0769]: this text is not valid for this function: the text names no zone. Write one after the time, such as `[Europe/Vienna]`, or pass `$zone`
+%A
+error[E0769]: this text is not valid for this function: the zone has no offset `+02:00` at 2026-01-05T08:30:00. Its offset at that moment is `+01:00`
+%A
+error: aborting due to 7 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -2,7 +2,7 @@
 // Shows what happens when a text has an offset from UTC, and how to read such a text instead.
 
 // The first text is a local time. The second ends in `Z` and the third in `+02:00`.
-// Both throw a `ParseError`, because the time zone is the second argument.
+// Both throw a `ParseError`, because neither text has a time zone name after it.
 array<string> $inputs = ['2024-06-01T09:30:00', '2024-06-01T07:30:00Z', '2024-06-01T09:30:00+02:00'];
 foreach ($inputs as string $text) {
     try {
