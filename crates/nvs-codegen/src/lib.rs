@@ -1706,6 +1706,7 @@ impl Descriptors {
             .map(|(label, (_, shape))| (label.clone(), shape.clone()))
             .collect();
         self.classes.table.keep_code(Arc::new(code));
+        nvs_stdlib::build_descriptions(&mut self.classes.table);
         Unit {
             classes: std::sync::Arc::new(self.classes.table),
             entries,
@@ -3307,6 +3308,9 @@ impl UnitBuilder<JitPages> {
             self.debug_sites.clone(),
             self.mutant_switch.clone(),
         )));
+        // Every `Core\Reflect` description, built once here and never on a
+        // request: `nvs_stdlib::reflect`'s module doc.
+        nvs_stdlib::build_descriptions(&mut self.classes.table);
         Ok(Unit {
             classes: std::sync::Arc::new(self.classes.table),
             entries,

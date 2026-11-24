@@ -20,34 +20,42 @@
 //! nothing for a class reached through a `mixed`, which is the only receiver
 //! shape reflection is for.
 //!
-//! # Decision: `ClassInfo` holds its answers, rather than the described class
+//! # Decision: every description is built once, when the unit is finished
 //!
-//! [`CLASS_INFO`]'s slots are the class's name and its three rosters, all
-//! computed at [`nvs_core_reflect_for_object`] time. A slot holding
-//! the descriptor itself would be smaller and would defer the walk — but
-//! [`crate::instance`]'s first decision is that a `Core` instance is an ordinary
-//! Novis object, so every slot must be a value Novis already holds, and a raw
-//! descriptor pointer is neither that nor something a hot-reload swap
-//! (`rule:config/an-edit-reaches-the-next-request-without-a-restart`) leaves
-//! valid. Holding the answers instead makes the description exactly as inert as
-//! `rule:core-classes/reflect` says it is: nothing it carries can be dereferenced back into the program.
+//! A description is a pure function of the compiled unit, as a string literal
+//! is, so [`build_descriptions`] writes every class's and every enum's
+//! description and every row once, before the unit's table is shared, and
+//! `forClass`, `forObject` and `EnumInfo::of` return that object. Each is
+//! immortal ([`nvs_runtime::descriptions`]), so every core reads the same bytes
+//! and nothing is written to them. Nothing is built during a request, so a
+//! request learns nothing from it: the description is the same in every
+//! request, and there is no first call to time.
+//! `rule:security/no-cross-request-state` is not reversed, because nothing a
+//! request wrote is shared.
 //!
-//! **What it spends:** per `forClass` or `forObject` call, one array and one
-//! [`PROPERTY_INFO`] of five slots per declared property, one array and one
-//! [`METHOD_INFO`] of three slots per declared method, one array and one
-//! [`CONSTANT_INFO`] of three slots per class constant, and the attach-site
-//! roster the attribute decision below prices, charged to the
-//! request that asked and released with the description. A program that
-//! describes the same class in a loop pays per call; the alternative is a
-//! per-core cache keyed by descriptor address, which nothing yet needs. Both
-//! rosters are built eagerly rather than on the first `properties` or `methods`
-//! call because the alternative is a slot holding the descriptor, which the
-//! decision above rules out for every slot alike.
+//! No slot holds an array, because an array read writes its borrow flag. A
+//! roster's rows are a `Vec` beside the description instead, and a roster
+//! member builds the array it returns from them. No slot holds an address
+//! either: a description holds its class's index in the unit's table and the
+//! table's stamp, and a member reads the rows through the calling request's
+//! own table. A copy made by the graph copy keeps both numbers, so it reads the
+//! same rows in the same unit, and a copy that outlived a reload throws a
+//! `LogicError` ([`another_unit`]), because its index would name another
+//! class. A pointer would dangle there instead.
+//!
+//! A `Core` class's descriptor is the process's and in no unit's table, so
+//! `forObject` on a `Core` instance builds its description per call, with
+//! stamp `0`, and [`rows_of`] builds its rows per call from the descriptor.
+//!
+//! **What it spends:** once per process for each loaded unit, one immortal
+//! object per class, property, method, parameter, constant, attach site and
+//! enum, and one immortal string per name, type and folded string, every class
+//! included, whether or not anything reflects on it. Per roster call, one array
+//! of the rows, charged to the request that asked.
 //! [`nvs_core_reflect_class_info_readable_properties`] spends one array of one
-//! string per name it hands back, per call, because what it answers is a
-//! property of the asking site rather than of the description. An acting call
-//! spends one decoded [`nvs_render::Source`] on top, which is two short strings
-//! read out of the unit's own data section.
+//! string per name it returns, per call, because its answer depends on the
+//! calling site. An acting call spends one decoded [`nvs_render::Source`] on
+//! top, which is two short strings read out of the unit's own data section.
 //!
 //! # Decision: every roster is complete, and the readable walk is a member of
 //! its own
@@ -105,7 +113,7 @@
 //! answer two ways off one description. A readable walk is the list a `get` is
 //! about to be made against, so it names what *this* site may read: every
 //! declared property from inside the class, the `public` ones from anywhere
-//! else, filtered out of the roster [`describe`] built. The rosters are the
+//! else, filtered out of the rows [`class_rows`] built. The rosters are the
 //! other half of the same rule and do not move: naming a member is metadata,
 //! which `rule:security/reflection-enforces-visibility` makes always available, and the bit each row carries is what a
 //! caller reads instead.
@@ -142,9 +150,9 @@
 //! second thing to keep in step.
 //!
 //! **What it spends:** one `String` per case per declared enum, once per
-//! process and never per instance — an enum has none. Per `of` call, two
-//! arrays and one string per case, charged to the request that asked and
-//! released with the description, on [`describe`]'s terms exactly.
+//! process and never per instance — an enum has none, plus the description and
+//! one immortal string per case, built with the unit. Per `cases` call, one
+//! array, charged to the request that asked.
 //!
 //! `valueOf` answers a union, `int|uint`, and that is the one place this class
 //! costs a caller something: the backing is a property of the enum the *name*
@@ -157,7 +165,7 @@
 //! # Decision: an attach site is described where it was written, and the
 //! payload is the constant set
 //!
-//! [`ATTRIBUTE_INFO`] is the roster [`describe`] builds from
+//! [`ATTRIBUTE_INFO`] is the roster [`class_rows`] builds from
 //! [`nvs_runtime::ClassDesc::attributes`], and it is **own-only** where the
 //! constants beside it are flattened over the ancestors: a constant is a name a
 //! program may write on this class, which `Foo::BAR` resolves up the chain,
@@ -196,10 +204,10 @@
 //! ever in one to hand back.
 //!
 //! **What it spends:** one [`nvs_runtime::AttributeDesc`] per attach site per
-//! class and one `ConstantValue` per payload field, once per process; per
-//! `forClass` or `forObject` call, one array and one [`ATTRIBUTE_INFO`] of five
-//! slots per attach site, plus two arrays and one string per payload field,
-//! charged to the request that asked and released with the description.
+//! class and one `ConstantValue` per payload field, once per process, and one
+//! immortal [`ATTRIBUTE_INFO`] per attach site built with the unit. Per
+//! `attributes` or `fields` call, one array, charged to the request that
+//! asked.
 
 use nvs_runtime::{ClassDesc, Fault, NvsArray, NvsObj, Tag, ThrownClass, Value};
 
@@ -235,18 +243,14 @@ pub(crate) const ATTRIBUTE_INFO_NAME: &str = "Core\\Reflect\\AttributeInfo";
 /// [`CLASS_INFO`]'s slot holding the described class's name.
 const NAME_SLOT: usize = 0;
 
-/// [`CLASS_INFO`]'s slot holding one [`PROPERTY_INFO`] per declared property.
-const PROPERTIES_SLOT: usize = 1;
+/// [`CLASS_INFO`]'s slot holding the described class's index in its unit's
+/// table, or `-1` for a `Core` class's description, which is built per call.
+const CLASS_INDEX_SLOT: usize = 1;
 
-/// [`CLASS_INFO`]'s slot holding one [`METHOD_INFO`] per declared method.
-const METHODS_SLOT: usize = 2;
-
-/// [`CLASS_INFO`]'s slot holding one [`CONSTANT_INFO`] per class constant.
-const CONSTANTS_SLOT: usize = 3;
-
-/// [`CLASS_INFO`]'s slot holding one [`ATTRIBUTE_INFO`] per attach site the
-/// class's own declaration carries.
-const ATTRIBUTES_SLOT: usize = 4;
+/// [`CLASS_INFO`]'s slot holding the stamp of the unit that built it, or `0`
+/// for a `Core` class's description — [`nvs_runtime::descriptions`]'s second
+/// decision.
+const STAMP_SLOT: usize = 2;
 
 /// [`ATTRIBUTE_INFO`]'s slot holding the full name of the declaration the
 /// attribute is written under.
@@ -260,14 +264,17 @@ const ATTRIBUTE_TARGET_SLOT: usize = 1;
 /// or the empty string for every other attach site.
 const ATTRIBUTE_PARAMETER_SLOT: usize = 2;
 
-/// [`ATTRIBUTE_INFO`]'s slot holding the payload's field names, in source
-/// order.
-const ATTRIBUTE_FIELDS_SLOT: usize = 3;
+/// [`ATTRIBUTE_INFO`]'s slot holding its class's index, as
+/// [`CLASS_INDEX_SLOT`] holds it.
+const ATTRIBUTE_CLASS_SLOT: usize = 3;
 
-/// [`ATTRIBUTE_INFO`]'s slot holding one folded value per name in
-/// [`ATTRIBUTE_FIELDS_SLOT`], in that slot's own order — `null` where the
-/// declaration's value is one Novis does not fold here.
-const ATTRIBUTE_VALUES_SLOT: usize = 4;
+/// [`ATTRIBUTE_INFO`]'s slot holding its unit's stamp, as [`STAMP_SLOT`] holds
+/// it.
+const ATTRIBUTE_STAMP_SLOT: usize = 4;
+
+/// [`ATTRIBUTE_INFO`]'s slot holding the attach site's position in its class's
+/// attribute roster, which is where its payload is.
+const ATTRIBUTE_INDEX_SLOT: usize = 5;
 
 /// [`PROPERTY_INFO`]'s slot holding the property's name.
 const PROPERTY_NAME_SLOT: usize = 0;
@@ -306,10 +313,16 @@ const METHOD_PUBLIC_SLOT: usize = 1;
 /// [`METHOD_INFO`]'s slot holding how many parameters the method declares.
 const METHOD_PARAMETER_COUNT_SLOT: usize = 2;
 
-/// [`METHOD_INFO`]'s slot holding one [`PARAMETER_INFO`] per parameter a
-/// declaration spelled — empty where none did, which is not the same answer as
-/// [`METHOD_PARAMETER_COUNT_SLOT`]'s zero.
-const METHOD_PARAMETERS_SLOT: usize = 3;
+/// [`METHOD_INFO`]'s slot holding its class's index, as [`CLASS_INDEX_SLOT`]
+/// holds it.
+const METHOD_CLASS_SLOT: usize = 3;
+
+/// [`METHOD_INFO`]'s slot holding its unit's stamp, as [`STAMP_SLOT`] holds it.
+const METHOD_STAMP_SLOT: usize = 4;
+
+/// [`METHOD_INFO`]'s slot holding the method's position in its class's method
+/// roster, which is where its parameter rows are.
+const METHOD_INDEX_SLOT: usize = 5;
 
 /// [`PARAMETER_INFO`]'s slot holding the parameter's name.
 const PARAMETER_NAME_SLOT: usize = 0;
@@ -322,18 +335,12 @@ const PARAMETER_TYPE_SLOT: usize = 1;
 /// [`ENUM_INFO`]'s slot holding the described enum's name.
 const ENUM_NAME_SLOT: usize = 0;
 
-/// [`ENUM_INFO`]'s slot holding one string per declared case, ascending by the
-/// case's constant.
-const ENUM_CASES_SLOT: usize = 1;
+/// [`ENUM_INFO`]'s slot holding the enum's index in its unit's table. Its
+/// cases and their constants are rows there, ascending by the constant.
+const ENUM_INDEX_SLOT: usize = 1;
 
-/// [`ENUM_INFO`]'s slot holding each case's constant, in
-/// [`ENUM_CASES_SLOT`]'s order and one entry for one.
-///
-/// A second roster rather than a name-keyed array, because the two answers have
-/// different types: the case list is `array<string>` and a constant is `int` or
-/// `uint` by [`ENUM_UNSIGNED_SLOT`]'s bit, and a single array would have to
-/// admit both in one element type to carry either.
-const ENUM_VALUES_SLOT: usize = 2;
+/// [`ENUM_INFO`]'s slot holding its unit's stamp, as [`STAMP_SLOT`] holds it.
+const ENUM_STAMP_SLOT: usize = 2;
 
 /// [`ENUM_INFO`]'s slot holding whether the backing type is `uint`.
 const ENUM_UNSIGNED_SLOT: usize = 3;
@@ -748,7 +755,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             doc: Some(&CONSTRUCT_DOC),
         },
     ],
-    slots: &["name", "properties", "methods", "constants", "attributes"],
+    slots: &["name", "class", "stamp"],
     constants: &[],
 };
 
@@ -1217,7 +1224,14 @@ pub(crate) const METHOD_INFO: CoreClass = CoreClass {
             doc: Some(&METHOD_PARAMETERS_DOC),
         },
     ],
-    slots: &["name", "public", "parameterCount", "parameters"],
+    slots: &[
+        "name",
+        "public",
+        "parameterCount",
+        "class",
+        "stamp",
+        "index",
+    ],
     constants: &[],
 };
 
@@ -1426,7 +1440,7 @@ pub(crate) const ENUM_INFO: CoreClass = CoreClass {
             doc: Some(&ENUM_IS_UNSIGNED_DOC),
         },
     ],
-    slots: &["name", "cases", "values", "unsigned"],
+    slots: &["name", "index", "stamp", "unsigned"],
     constants: &[],
 };
 
@@ -1654,7 +1668,7 @@ const CONSTANT_INFO_CARD: ClassDoc = ClassDoc {
 /// **No slot holds the value**, and that is
 /// `rule:security/reflection-enforces-visibility`'s division applied to a constant: naming one is metadata and is always
 /// available, reading one is acting and faces the check ordinary code at the
-/// call site faces. A row built by [`describe`] has no site to be judged
+/// call site faces. A row built by [`class_rows`] has no site to be judged
 /// against, so the value is [`nvs_core_reflect_class_info_constant`]'s to hand
 /// back — the same split `properties` and `get` already make.
 ///
@@ -1809,7 +1823,7 @@ pub(crate) const ATTRIBUTE_INFO: CoreClass = CoreClass {
             doc: Some(&ATTRIBUTE_FIELD_DOC),
         },
     ],
-    slots: &["name", "target", "parameter", "fields", "values"],
+    slots: &["name", "target", "parameter", "class", "stamp", "index"],
     constants: &[],
 };
 
@@ -1949,56 +1963,124 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
     })
 }
 
-/// The description of one class — [`CLASS_INFO`]'s slots, filled.
+/// What a description and its rows are built with: immortal objects in the
+/// unit's arena when the unit is finished, or owned objects per call for a
+/// `Core` class, which no unit table describes.
+trait Maker {
+    /// A `string` with `text` as its payload.
+    fn text(&mut self, text: &str) -> Value;
+    /// An instance of `class` with `slots`, which it takes over.
+    fn row<const N: usize>(&mut self, class: &'static CoreClass, slots: [Value; N]) -> Value;
+}
+
+/// Builds into a unit's arena: every value is immortal.
+struct Immortal<'a>(&'a mut nvs_runtime::descriptions::ImmortalArena);
+
+impl Maker for Immortal<'_> {
+    fn text(&mut self, text: &str) -> Value {
+        self.0.string(text)
+    }
+
+    fn row<const N: usize>(&mut self, class: &'static CoreClass, slots: [Value; N]) -> Value {
+        crate::instance::immortal(self.0, class, slots)
+    }
+}
+
+/// Builds owned values, charged to the request that asked.
+struct Mortal;
+
+impl Maker for Mortal {
+    fn text(&mut self, text: &str) -> Value {
+        Value::text(text)
+    }
+
+    fn row<const N: usize>(&mut self, class: &'static CoreClass, slots: [Value; N]) -> Value {
+        crate::instance::build(class, slots)
+    }
+}
+
+/// Writes every class's and every enum's description into `table`, once,
+/// before the table is shared — the module doc's first decision.
 ///
-/// Both doors onto a description share this, which is the point: `forObject`
-/// reaches a descriptor through a value and `forClass` reaches one through the
-/// unit's class table, and *what a description is* must not depend on which
-/// door was used. A slot the descriptor cannot name is skipped rather than
-/// numbered — `field_name` answers `None` only past the last slot, so the loop
-/// bound already excludes it, and a synthesized class reads as having nothing
-/// visible at all.
+/// `nvs-codegen` calls it from both of its builders, after the last write to a
+/// descriptor and before the table goes into its `Arc`. A table a native test
+/// builds by hand calls it too, or every `Core\Reflect` door onto a class of it
+/// is a contained `FATAL`.
+pub fn build_descriptions(table: &mut nvs_runtime::ClassTable) {
+    let stamp = nvs_runtime::descriptions::next_stamp();
+    let mut arena = nvs_runtime::descriptions::ImmortalArena::new();
+    let (classes, enums) = {
+        let mut make = Immortal(&mut arena);
+        let classes = (0..table.len())
+            .filter_map(|index| table.class_at(index).map(|desc| (index, desc)))
+            .map(|(index, desc)| {
+                let index = i64::try_from(index).expect("a unit has fewer than `i64::MAX` classes");
+                class_rows(desc, index, stamp, &mut make)
+            })
+            .collect();
+        let enums = table
+            .enums()
+            .iter()
+            .enumerate()
+            .map(|(index, desc)| {
+                let index = i64::try_from(index).expect("a unit has fewer than `i64::MAX` enums");
+                enum_rows(desc, index, stamp, &mut make)
+            })
+            .collect();
+        (classes, enums)
+    };
+    table.set_descriptions(nvs_runtime::descriptions::Descriptions::new(
+        stamp, arena, classes, enums,
+    ));
+}
+
+/// The description of one class and the rows of every roster.
 ///
-/// Both walks name every member the class declares, each row carrying its own
-/// visibility bit, and the module doc's § *both rosters are complete* owns why.
-/// *Where a property is readable* is a question about the asking site rather
-/// than about the class, so it is not a slot at all:
-/// [`nvs_core_reflect_class_info_readable_properties`] filters this roster per
-/// call, which is the only arrangement that can answer two sites two ways off
-/// one description.
+/// `forObject` reaches a descriptor through a value and `forClass` through the
+/// unit's class table, and both return the description built here, so *what a
+/// description is* does not depend on which door was used. A slot the
+/// descriptor cannot name is skipped rather than numbered — `field_name`
+/// answers `None` only for a hidden slot and past the last one.
+///
+/// Every roster names every member the class declares, each row carrying its
+/// own visibility bit, and the module doc's § *every roster is complete* owns
+/// why. *Where a property is readable* is a question about the asking site, so
+/// [`nvs_core_reflect_class_info_readable_properties`] filters the property
+/// rows per call.
 ///
 /// The one name skipped is a method whose name holds a `#`, which no source can
-/// spell — `nvs_ir::lower`'s generator transform mints those, and a roster
-/// naming one would be naming a rewriting rather than a declaration. A property
-/// slot the descriptor cannot name is skipped for the reason above; a slot it
-/// can name but whose type no declaration spelled keeps its row, with
-/// [`PROPERTY_TYPE_SLOT`] holding `null`. A method row carries one
-/// [`PARAMETER_INFO`] per name [`nvs_runtime::MethodRow::param_names`] holds,
-/// each naming what [`nvs_runtime::MethodRow::param_types`] spells at the same
-/// position, so a member nothing declared in source keeps its row with that
-/// roster empty while [`METHOD_PARAMETER_COUNT_SLOT`] still answers what the
-/// compiled code takes — that field's own doc comment owns which rows those
-/// are.
+/// spell — `nvs_ir::lower`'s generator transform makes those. A property whose
+/// type no declaration spelled keeps its row, with [`PROPERTY_TYPE_SLOT`]
+/// holding `null`. A method has one [`PARAMETER_INFO`] row per name
+/// [`nvs_runtime::MethodRow::param_names`] holds, each with the type
+/// [`nvs_runtime::MethodRow::param_types`] spells at the same position, so a
+/// method nothing declared in source has no parameter rows while
+/// [`METHOD_PARAMETER_COUNT_SLOT`] still gives what the compiled code takes.
 ///
-/// The attach-site roster is the one that is not a walk over the class's
-/// members at all: each [`nvs_runtime::AttributeDesc`] names the declaration it
-/// was written on, so the rows are copied in the order the descriptor holds
-/// them, which is source order. Its payload becomes two parallel slots per row,
-/// and [`constant_value`] is what fills the second.
-fn describe(desc: &ClassDesc) -> Value {
-    let mut properties = NvsArray::new();
+/// The attach-site rows are copied in the order the descriptor holds them,
+/// which is source order, and [`constant_value`] gives each payload value.
+fn class_rows(
+    desc: &ClassDesc,
+    index: i64,
+    stamp: u64,
+    make: &mut impl Maker,
+) -> nvs_runtime::descriptions::ClassRows {
+    let class = Value::int(index);
+    let stamp = Value::uint(stamp);
+    let mut properties = Vec::new();
     for slot in 0..desc.field_count() {
         let Some(name) = desc.field_name(slot) else {
             continue;
         };
         let ty = match desc.field_type(slot) {
-            Some(ty) => Value::text(ty),
+            Some(ty) => make.text(ty),
             None => Value::null(),
         };
-        properties.append(crate::instance::build(
+        let name = make.text(name);
+        properties.push(make.row(
             &PROPERTY_INFO,
             [
-                Value::text(name),
+                name,
                 Value::bool(desc.field_is_public(slot)),
                 ty,
                 Value::bool(desc.field_is_lateinit(slot)),
@@ -2006,40 +2088,41 @@ fn describe(desc: &ClassDesc) -> Value {
             ],
         ));
     }
-    let mut methods = NvsArray::new();
-    for index in 0..desc.method_count() {
-        let Some(row) = desc.method_at(index) else {
+    let mut methods = Vec::new();
+    for at in 0..desc.method_count() {
+        let Some(row) = desc.method_at(at) else {
             continue;
         };
         if row.name.contains('#') {
             continue;
         }
-        let mut parameters = NvsArray::new();
+        let mut parameters = Vec::new();
         for (slot, name) in row.param_names.iter().enumerate() {
             // The two rosters are one declaration read twice, so the type is
             // taken by the name's own position rather than by a second search.
-            // A position the table spelled nothing at answers `null`, which is
-            // the absence [`PARAMETER_TYPE_SLOT`] carries.
             let ty = match row.param_types.get(slot) {
-                Some(ty) if !ty.is_empty() => Value::text(ty),
+                Some(ty) if !ty.is_empty() => make.text(ty),
                 _ => Value::null(),
             };
-            parameters.append(crate::instance::build(
-                &PARAMETER_INFO,
-                [Value::text(name), ty],
-            ));
+            let name = make.text(name);
+            parameters.push(make.row(&PARAMETER_INFO, [name, ty]));
         }
-        methods.append(crate::instance::build(
+        let position = Value::uint(methods.len() as u64);
+        let name = make.text(&row.name);
+        let info = make.row(
             &METHOD_INFO,
             [
-                Value::text(&row.name),
+                name,
                 Value::bool(row.public),
                 Value::uint(u64::from(row.arity)),
-                Value::array(parameters),
+                class,
+                stamp,
+                position,
             ],
-        ));
+        );
+        methods.push(nvs_runtime::descriptions::MethodRows { info, parameters });
     }
-    let mut constants = NvsArray::new();
+    let mut constants = Vec::new();
     // A method reference's class carries `nvs_runtime::CALLABLE_TARGET`, which
     // no program declared, so a description leaves it out.
     for constant in desc
@@ -2047,57 +2130,54 @@ fn describe(desc: &ClassDesc) -> Value {
         .iter()
         .filter(|constant| constant.name != nvs_runtime::CALLABLE_TARGET)
     {
-        constants.append(crate::instance::build(
+        let name = make.text(&constant.name);
+        constants.push(make.row(
             &CONSTANT_INFO,
             [
-                Value::text(&constant.name),
+                name,
                 Value::bool(constant.public),
                 Value::bool(constant.value != nvs_runtime::ConstantValue::Opaque),
             ],
         ));
     }
-    let mut attributes = NvsArray::new();
+    let mut attributes = Vec::new();
     for attribute in desc.attributes() {
-        let mut names = NvsArray::new();
-        let mut values = NvsArray::new();
-        for (name, value) in &attribute.fields {
-            names.append(Value::text(name));
-            values.append(constant_value(value));
-        }
-        attributes.append(crate::instance::build(
+        let fields = attribute
+            .fields
+            .iter()
+            .map(|(name, value)| (make.text(name), constant_value(value, make)))
+            .collect();
+        let position = Value::uint(attributes.len() as u64);
+        let name = make.text(&attribute.name);
+        let target = make.text(&attribute.member);
+        let parameter = make.text(&attribute.parameter);
+        let info = make.row(
             &ATTRIBUTE_INFO,
-            [
-                Value::text(&attribute.name),
-                Value::text(&attribute.member),
-                Value::text(&attribute.parameter),
-                Value::array(names),
-                Value::array(values),
-            ],
-        ));
+            [name, target, parameter, class, stamp, position],
+        );
+        attributes.push(nvs_runtime::descriptions::AttributeRows { info, fields });
     }
-    crate::instance::build(
-        &CLASS_INFO,
-        [
-            Value::text(desc.name()),
-            Value::array(properties),
-            Value::array(methods),
-            Value::array(constants),
-            Value::array(attributes),
-        ],
-    )
+    let name = make.text(desc.name());
+    let info = make.row(&CLASS_INFO, [name, class, stamp]);
+    nvs_runtime::descriptions::ClassRows {
+        info,
+        properties,
+        methods,
+        constants,
+        attributes,
+    }
 }
 
 /// One folded constant as the value a program reads it as, with
-/// [`nvs_runtime::ConstantValue::Opaque`] answering `null`.
+/// [`nvs_runtime::ConstantValue::Opaque`] giving `null`.
 ///
-/// The `null` is a slot's filler and never an answer: it stands in a payload's
-/// value roster so the two slots stay aligned name for name, and
-/// [`nvs_core_reflect_attribute_info_field`] turns reading one into the throw
-/// the bound deserves. No payload value folds to `null` itself — a written
-/// `null` is not one of the four literals — so the two cannot be confused.
-fn constant_value(value: &nvs_runtime::ConstantValue) -> Value {
+/// The `null` is never returned to a program:
+/// [`nvs_core_reflect_attribute_info_field`] throws for it. No payload value
+/// folds to `null` itself, because a written `null` is not one of the four
+/// literals, so the two cannot be confused.
+fn constant_value(value: &nvs_runtime::ConstantValue, make: &mut impl Maker) -> Value {
     match value {
-        nvs_runtime::ConstantValue::Str(text) => Value::text(text),
+        nvs_runtime::ConstantValue::Str(text) => make.text(text),
         nvs_runtime::ConstantValue::Int(value) => Value::int(*value),
         nvs_runtime::ConstantValue::Bool(value) => Value::bool(*value),
         nvs_runtime::ConstantValue::Float(value) => Value::float(*value),
@@ -2106,38 +2186,219 @@ fn constant_value(value: &nvs_runtime::ConstantValue) -> Value {
 }
 
 /// One [`nvs_runtime::EnumDesc`] as the [`ENUM_INFO`] a program reads it
-/// through — [`describe`]'s twin for the type that has no descriptor.
-///
-/// Both rosters are built here rather than on the first `cases` or `valueOf`
-/// call, for [`describe`]'s reason exactly: a slot holding the shape itself
-/// would be a raw pointer, and this module's second decision makes every slot a
-/// value Novis already holds.
-///
-/// **What it spends:** per `of` call, two arrays and one string per declared
-/// case, charged to the request that asked and released with the description.
-fn describe_enum(desc: &nvs_runtime::EnumDesc) -> Value {
-    let mut cases = NvsArray::new();
-    let mut values = NvsArray::new();
-    for (case, value) in desc.cases() {
-        cases.append(Value::text(case));
-        // Both narrowings are exact rather than checked: the widening to `i128`
-        // is what `nvs_ir::lower` did to an `i64` or a `u64` on the way down,
-        // and `rule:enums/one-backing-type` is what says which one it was.
-        values.append(if desc.unsigned() {
-            Value::uint(u64::try_from(*value).expect("a `uint`-backed case widened from a `u64`"))
-        } else {
-            Value::int(i64::try_from(*value).expect("an `int`-backed case widened from an `i64`"))
-        });
-    }
-    crate::instance::build(
+/// through, and its cases — [`class_rows`]' twin for the type that has no
+/// descriptor.
+fn enum_rows(
+    desc: &nvs_runtime::EnumDesc,
+    index: i64,
+    stamp: u64,
+    make: &mut impl Maker,
+) -> nvs_runtime::descriptions::EnumRows {
+    let cases = desc
+        .cases()
+        .iter()
+        .map(|(case, value)| {
+            // Both narrowings are exact rather than checked: the widening to
+            // `i128` is what `nvs_ir::lower` did to an `i64` or a `u64` on the
+            // way down, and `rule:enums/one-backing-type` says which one it was.
+            let value = if desc.unsigned() {
+                Value::uint(
+                    u64::try_from(*value).expect("a `uint`-backed case widened from a `u64`"),
+                )
+            } else {
+                Value::int(
+                    i64::try_from(*value).expect("an `int`-backed case widened from an `i64`"),
+                )
+            };
+            (make.text(case), value)
+        })
+        .collect();
+    let name = make.text(desc.name());
+    let info = make.row(
         &ENUM_INFO,
         [
-            Value::text(desc.name()),
-            Value::array(cases),
-            Value::array(values),
+            name,
+            Value::int(index),
+            Value::uint(stamp),
             Value::bool(desc.unsigned()),
         ],
+    );
+    nvs_runtime::descriptions::EnumRows { info, cases }
+}
+
+/// The description of `desc`, retained for the caller: the one its unit built,
+/// or a `Core` class's built now. A `Core` descriptor is the process's and is in
+/// no unit's table, so its description is a name, `-1` and stamp `0`, and
+/// [`rows_of`] builds its rows per call.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a program's class whose unit built no descriptions,
+/// which is a native test's table that skipped [`build_descriptions`].
+fn description_of(desc: &ClassDesc, member: &str) -> Result<Value, Fault> {
+    if let Some(info) = desc.description() {
+        #[expect(
+            unsafe_code,
+            reason = "the description belongs to the unit's table, which outlives \
+                      this call, and it is handed to the caller"
+        )]
+        unsafe {
+            info.retain();
+        }
+        return Ok(info);
+    }
+    if desc.is_core() {
+        return Ok(crate::instance::build(
+            &CLASS_INFO,
+            [Value::text(desc.name()), Value::int(-1), Value::uint(0)],
+        ));
+    }
+    Err(Fault::fatal(format!(
+        "{member} found no description of `{}`: its unit was not described",
+        desc.name()
+    )))
+}
+
+/// The rows of one class, borrowed from the calling unit's table, or built per
+/// call for a `Core` class and released when this is dropped.
+enum Rows<'a> {
+    Unit(&'a nvs_runtime::descriptions::ClassRows),
+    Core(std::mem::ManuallyDrop<nvs_runtime::descriptions::ClassRows>),
+}
+
+impl std::ops::Deref for Rows<'_> {
+    type Target = nvs_runtime::descriptions::ClassRows;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Rows::Unit(rows) => rows,
+            Rows::Core(rows) => rows,
+        }
+    }
+}
+
+impl Drop for Rows<'_> {
+    fn drop(&mut self) {
+        let Rows::Core(rows) = self else {
+            return;
+        };
+        #[expect(
+            unsafe_code,
+            reason = "`Mortal` built every value in these rows as an owned \
+                      reference, nothing else released them, and `rows` is \
+                      not read again"
+        )]
+        unsafe {
+            let rows = std::mem::ManuallyDrop::take(rows);
+            rows.info.release();
+            for value in rows.properties.into_iter().chain(rows.constants) {
+                value.release();
+            }
+            for method in rows.methods {
+                method.info.release();
+                for value in method.parameters {
+                    value.release();
+                }
+            }
+            for attribute in rows.attributes {
+                attribute.info.release();
+                for (name, value) in attribute.fields {
+                    name.release();
+                    value.release();
+                }
+            }
+        }
+    }
+}
+
+/// The error a description of another unit gets: its index would name another
+/// class here.
+fn another_unit(owner: &str, member: &str) -> Fault {
+    Fault::thrown_as(
+        ThrownClass::Logic,
+        format!(
+            "{owner}::{member}(): this description was made by another version of the program, \
+             so it cannot be read here. Describe the class again."
+        ),
     )
+}
+
+/// The calling unit's descriptions, checked against `stamp`.
+fn unit_descriptions<'a>(
+    ctx: &'a nvs_runtime::Ctx,
+    stamp: Value,
+    owner: &str,
+    member: &str,
+) -> Result<&'a nvs_runtime::descriptions::Descriptions, Fault> {
+    ctx.unit_table()
+        .and_then(nvs_runtime::ClassTable::descriptions)
+        .filter(|descriptions| stamp.as_uint() == Some(descriptions.stamp()))
+        .ok_or_else(|| another_unit(owner, member))
+}
+
+/// The rows of the class a row names in its `slots`, its class's index and its
+/// stamp, with `name` the class's name, which a `Core` class is found by.
+///
+/// A row of the calling unit reads that unit's rows. A `Core` class's row, with
+/// stamp `0`, has its rows built now from the process's descriptor. Any other
+/// stamp throws a `LogicError` ([`another_unit`]).
+fn rows_of<'a>(
+    ctx: &'a nvs_runtime::Ctx,
+    receiver: *mut nvs_runtime::ObjHeader,
+    slots: (usize, usize),
+    name: Option<&str>,
+    owner: &str,
+    member: &str,
+) -> Result<Rows<'a>, Fault> {
+    let class = crate::instance::slot(receiver, slots.0);
+    let stamp = crate::instance::slot(receiver, slots.1);
+    if stamp.as_uint() == Some(0) {
+        #[expect(
+            unsafe_code,
+            reason = "`class_desc` answers with a descriptor live for as long as this context"
+        )]
+        let desc = name
+            .and_then(|name| ctx.class_desc(name))
+            .map(|desc| unsafe { &*desc })
+            .filter(|desc| desc.is_core());
+        let rows = match desc {
+            Some(desc) => class_rows(desc, -1, 0, &mut Mortal),
+            // A `Core` class's method and attach-site rows name no class: no
+            // `Core` method declares a parameter name and no attribute is
+            // written on a `Core` class, so their rosters are empty.
+            None => nvs_runtime::descriptions::ClassRows {
+                info: Value::null(),
+                properties: Vec::new(),
+                methods: Vec::new(),
+                constants: Vec::new(),
+                attributes: Vec::new(),
+            },
+        };
+        return Ok(Rows::Core(std::mem::ManuallyDrop::new(rows)));
+    }
+    let descriptions = unit_descriptions(ctx, stamp, owner, member)?;
+    class
+        .as_int()
+        .and_then(|index| usize::try_from(index).ok())
+        .and_then(|index| descriptions.class(index))
+        .map(Rows::Unit)
+        .ok_or_else(|| another_unit(owner, member))
+}
+
+/// A new array of `rows`, each retained, as a roster member returns it.
+fn roster(rows: impl Iterator<Item = Value>) -> Value {
+    let mut out = NvsArray::new();
+    for row in rows {
+        #[expect(
+            unsafe_code,
+            reason = "the row is live for this call, and the array takes the new reference"
+        )]
+        unsafe {
+            row.retain();
+        }
+        out.append(row);
+    }
+    Value::array(out)
 }
 
 /// The [`TYPE_KIND`] case a tag is, or `None` for a tag no value carries.
@@ -2313,37 +2574,80 @@ fn slot_of(
     Ok(held)
 }
 
-/// One of the receiving description's two rosters, borrowed for a scan.
-///
-/// The three members that walk a roster rather than handing it back share this,
-/// because the refusal is the same one each time: a slot [`describe`] fills
-/// with an array holds an array, so a tag that is not one is this crate's own
-/// mistake and never a program's.
-fn roster_of(
-    receiver: *mut nvs_runtime::ObjHeader,
-    class: &'static CoreClass,
-    index: usize,
+/// The rows of the class a [`CLASS_INFO`] in `value` describes.
+fn class_rows_of<'a>(
+    ctx: &'a nvs_runtime::Ctx,
+    value: Value,
     member: &str,
-) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
-    let held = crate::instance::slot(receiver, index);
-    let Some(ptr) = held.array_ptr() else {
-        return Err(Fault::fatal(format!(
-            "{}::{member} expected {:?} in its roster slot, got tag {}",
-            class.name,
-            Tag::Array,
-            held.tag_byte()
-        )));
-    };
-    Ok(crate::arr::borrowed(ptr))
+) -> Result<Rows<'a>, Fault> {
+    let receiver = crate::instance::receiver(value, &CLASS_INFO, member)?;
+    let name = crate::instance::slot(receiver, NAME_SLOT);
+    rows_of(
+        ctx,
+        receiver,
+        (CLASS_INDEX_SLOT, STAMP_SLOT),
+        name.as_text(),
+        CLASS_INFO_NAME,
+        member,
+    )
 }
 
-/// Row `index` of a borrowed roster, as the object its slots are read off.
-///
-/// By slot rather than by key: [`describe`] builds both rosters with `append`
-/// alone and hands them to nobody who can unset an entry, so their slots are
-/// exactly `0..count` and a scan of them names every row once.
-fn row_at(roster: &NvsArray, index: usize) -> Option<*mut nvs_runtime::ObjHeader> {
-    roster.value_at(index)?.obj_ptr()
+/// The position slot `index` of `receiver` holds, as a `usize`.
+fn position(receiver: *mut nvs_runtime::ObjHeader, index: usize) -> Option<usize> {
+    crate::instance::slot(receiver, index)
+        .as_uint()
+        .and_then(|at| usize::try_from(at).ok())
+}
+
+/// The rows of the enum an [`ENUM_INFO`] in `value` describes.
+fn enum_rows_of<'a>(
+    ctx: &'a nvs_runtime::Ctx,
+    value: Value,
+    member: &str,
+) -> Result<
+    (
+        *mut nvs_runtime::ObjHeader,
+        &'a nvs_runtime::descriptions::EnumRows,
+    ),
+    Fault,
+> {
+    let receiver = crate::instance::receiver(value, &ENUM_INFO, member)?;
+    let stamp = crate::instance::slot(receiver, ENUM_STAMP_SLOT);
+    let descriptions = unit_descriptions(ctx, stamp, ENUM_INFO_NAME, member)?;
+    let rows = crate::instance::slot(receiver, ENUM_INDEX_SLOT)
+        .as_int()
+        .and_then(|index| usize::try_from(index).ok())
+        .and_then(|index| descriptions.enum_rows(index))
+        .ok_or_else(|| another_unit(ENUM_INFO_NAME, member))?;
+    Ok((receiver, rows))
+}
+
+/// The rows of the class an [`ATTRIBUTE_INFO`] at `receiver` was written in.
+fn attribute_rows_of<'a>(
+    ctx: &'a nvs_runtime::Ctx,
+    receiver: *mut nvs_runtime::ObjHeader,
+    member: &str,
+) -> Result<Rows<'a>, Fault> {
+    rows_of(
+        ctx,
+        receiver,
+        (ATTRIBUTE_CLASS_SLOT, ATTRIBUTE_STAMP_SLOT),
+        None,
+        ATTRIBUTE_INFO_NAME,
+        member,
+    )
+}
+
+/// The payload of the attach site at `receiver`, field by field.
+fn attribute_fields<'a>(
+    rows: &'a Rows<'_>,
+    receiver: *mut nvs_runtime::ObjHeader,
+    member: &str,
+) -> Result<&'a [(Value, Value)], Fault> {
+    position(receiver, ATTRIBUTE_INDEX_SLOT)
+        .and_then(|at| rows.attributes.get(at))
+        .map(|attribute| attribute.fields.as_slice())
+        .ok_or_else(|| another_unit(ATTRIBUTE_INFO_NAME, member))
 }
 
 nvs_runtime::nvs_helper! {
@@ -2377,7 +2681,7 @@ nvs_runtime::nvs_helper! {
         ) {
             return Ok(Value::null());
         }
-        Ok(describe(desc))
+        description_of(desc, "Core\\Reflect::forClass")
     }
 }
 
@@ -2388,7 +2692,7 @@ nvs_runtime::nvs_helper! {
     /// `args[1]` is the classes `T` reaches, encoded as `as propertyPath<T>`'s
     /// run-time check reads them (`crate::registry::PATH_GRAPH_MEMBERS`). The
     /// walk over it gives each segment's class, and the row is built from that
-    /// class's descriptor as [`describe`] builds it, so a step's row and a
+    /// class's descriptor as [`class_rows`] builds it, so a step's row and a
     /// description's row are the same row. An array's `@key` and `@value`
     /// read no descriptor: [`array_step_type`] gives their type from the
     /// array node's label, and a shorthand segment on an array node is looked
@@ -2478,7 +2782,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Reflect::forObject(mixed $object): Core\Reflect\ClassInfo` —
     /// `rule:core-classes/reflect`'s description, reached from a value.
     ///
-    /// The walk is the module doc's first decision, and [`describe`] is where
+    /// The walk is the module doc's first decision, and [`class_rows`] is where
     /// it is written: the object's descriptor names every slot, and its
     /// visibility bit says which of them a description is allowed to name.
     fn nvs_core_reflect_for_object(_ctx, args: [1]) {
@@ -2496,11 +2800,11 @@ nvs_runtime::nvs_helper! {
                       by the unit's class table, which outlives every instance of \
                       the class it describes"
         )]
-        let description = unsafe {
+        let desc = unsafe {
             let object = std::mem::ManuallyDrop::new(NvsObj::from_raw(ptr));
-            describe(&*object.class())
+            &*object.class()
         };
-        Ok(description)
+        description_of(desc, "Core\\Reflect::forObject")
     }
 }
 
@@ -2551,8 +2855,9 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_reflect_class_info_get`]'s check. What this call site may read
     /// is [`nvs_core_reflect_class_info_readable_properties`], which is a
     /// question about the site rather than about the class.
-    fn nvs_core_reflect_class_info_properties(_ctx, args: [1]) {
-        slot_of(args, &CLASS_INFO, PROPERTIES_SLOT, "properties")
+    fn nvs_core_reflect_class_info_properties(ctx, args: [1]) {
+        let rows = class_rows_of(ctx, args[0], "properties")?;
+        Ok(roster(rows.properties.iter().copied()))
     }
 }
 
@@ -2598,12 +2903,9 @@ nvs_runtime::nvs_helper! {
         let desc = described
             .and_then(|name| ctx.class_desc(name))
             .map(|desc| unsafe { &*desc });
-        let roster = roster_of(receiver, &CLASS_INFO, PROPERTIES_SLOT, member)?;
+        let rows = class_rows_of(ctx, args[0], member)?;
         let mut names = NvsArray::new();
-        for index in 0..roster.count() {
-            let Some(row) = row_at(&roster, index) else {
-                continue;
-            };
+        for row in rows.properties.iter().filter_map(|row| row.obj_ptr()) {
             let held = crate::instance::slot(row, PROPERTY_NAME_SLOT);
             let Some(name) = held.as_text() else {
                 continue;
@@ -2631,15 +2933,11 @@ nvs_runtime::nvs_helper! {
     /// property, which is the whole point: `rule:core-classes/reflect` asks that
     /// a refusal be distinguishable from a misspelling, and a site that may not
     /// read the property learns here that it exists.
-    fn nvs_core_reflect_class_info_has_property(_ctx, args: [2]) {
-        let member = "hasProperty";
-        let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
+    fn nvs_core_reflect_class_info_has_property(ctx, args: [2]) {
         let name = text_of(&args[1], "Core\\Reflect\\ClassInfo::hasProperty")?;
-        let roster = roster_of(receiver, &CLASS_INFO, PROPERTIES_SLOT, member)?;
-        let found = (0..roster.count()).any(|index| {
-            row_at(&roster, index).is_some_and(|row| {
-                crate::instance::slot(row, PROPERTY_NAME_SLOT).as_text() == Some(name)
-            })
+        let rows = class_rows_of(ctx, args[0], "hasProperty")?;
+        let found = rows.properties.iter().filter_map(|row| row.obj_ptr()).any(|row| {
+            crate::instance::slot(row, PROPERTY_NAME_SLOT).as_text() == Some(name)
         });
         Ok(Value::bool(found))
     }
@@ -2652,10 +2950,10 @@ nvs_runtime::nvs_helper! {
     /// The whole roster, and `rule:security/reflection-enforces-visibility` is why: naming a method reads the program's
     /// *shape*, which is always available, while calling one is acting and goes
     /// through [`nvs_core_reflect_class_info_call`]'s check. Answered off the
-    /// slot [`describe`] filled, so two calls on one description walk nothing
-    /// twice.
-    fn nvs_core_reflect_class_info_methods(_ctx, args: [1]) {
-        slot_of(args, &CLASS_INFO, METHODS_SLOT, "methods")
+    /// rows [`class_rows`] built once, so a call walks no declaration.
+    fn nvs_core_reflect_class_info_methods(ctx, args: [1]) {
+        let rows = class_rows_of(ctx, args[0], "methods")?;
+        Ok(roster(rows.methods.iter().map(|method| method.info)))
     }
 }
 
@@ -2667,9 +2965,10 @@ nvs_runtime::nvs_helper! {
     /// The whole roster, on the two above it terms exactly: naming a constant
     /// reads the program's shape, and reading its value is acting and goes
     /// through [`nvs_core_reflect_class_info_constant`]'s check. Answered off
-    /// the slot [`describe`] filled.
-    fn nvs_core_reflect_class_info_constants(_ctx, args: [1]) {
-        slot_of(args, &CLASS_INFO, CONSTANTS_SLOT, "constants")
+    /// the rows [`class_rows`] built once.
+    fn nvs_core_reflect_class_info_constants(ctx, args: [1]) {
+        let rows = class_rows_of(ctx, args[0], "constants")?;
+        Ok(roster(rows.constants.iter().copied()))
     }
 }
 
@@ -2764,11 +3063,12 @@ nvs_runtime::nvs_helper! {
     /// — `rule:core-classes/reflect`'s fourth roster, and the one no PHP `Reflection*` member
     /// it replaces had an equivalent for.
     ///
-    /// Answered off the slot [`describe`] filled, on `constants`' terms: naming
+    /// Answered off the rows [`class_rows`] built, on `constants`' terms: naming
     /// an attach site reads the program's shape, and reading a payload value is
     /// [`nvs_core_reflect_attribute_info_field`]'s.
-    fn nvs_core_reflect_class_info_attributes(_ctx, args: [1]) {
-        slot_of(args, &CLASS_INFO, ATTRIBUTES_SLOT, "attributes")
+    fn nvs_core_reflect_class_info_attributes(ctx, args: [1]) {
+        let rows = class_rows_of(ctx, args[0], "attributes")?;
+        Ok(roster(rows.attributes.iter().map(|attribute| attribute.info)))
     }
 }
 
@@ -2778,7 +3078,7 @@ nvs_runtime::nvs_helper! {
     /// for an interface and for a class the descriptor table does not name.
     ///
     /// Read off the descriptor at call time, as `construct` finds it, rather
-    /// than off a slot [`describe`] fills: a description that never asks pays
+    /// than off a row [`class_rows`] builds: a description that never asks pays
     /// nothing. **What it spends:** one string per call, charged to the request
     /// that asked.
     fn nvs_core_reflect_class_info_parent(ctx, args: [1]) {
@@ -2833,8 +3133,12 @@ nvs_runtime::nvs_helper! {
 nvs_runtime::nvs_helper! {
     /// `Core\Reflect\AttributeInfo::fields(): array<string>` — the payload's
     /// field names in source order.
-    fn nvs_core_reflect_attribute_info_fields(_ctx, args: [1]) {
-        slot_of(args, &ATTRIBUTE_INFO, ATTRIBUTE_FIELDS_SLOT, "fields")
+    fn nvs_core_reflect_attribute_info_fields(ctx, args: [1]) {
+        let member = "fields";
+        let receiver = crate::instance::receiver(args[0], &ATTRIBUTE_INFO, member)?;
+        let rows = attribute_rows_of(ctx, receiver, member)?;
+        let fields = attribute_fields(&rows, receiver, member)?;
+        Ok(roster(fields.iter().map(|(name, _)| *name)))
     }
 }
 
@@ -2853,18 +3157,17 @@ nvs_runtime::nvs_helper! {
     /// `rule:attributes/payload-is-a-compile-time-constant` refuses a `secret`
     /// value where the payload is written — so there is nothing here to judge
     /// and nothing qualified to launder.
-    fn nvs_core_reflect_attribute_info_field(_ctx, args: [2]) {
+    fn nvs_core_reflect_attribute_info_field(ctx, args: [2]) {
         let member = "field";
         let receiver = crate::instance::receiver(args[0], &ATTRIBUTE_INFO, member)?;
         let name = text_of(&args[1], "Core\\Reflect\\AttributeInfo::field")?;
-        let names = roster_of(receiver, &ATTRIBUTE_INFO, ATTRIBUTE_FIELDS_SLOT, member)?;
-        let values = roster_of(receiver, &ATTRIBUTE_INFO, ATTRIBUTE_VALUES_SLOT, member)?;
-        let found = (0..names.count()).find(|index| {
-            names
-                .value_at(*index)
-                .is_some_and(|held| held.as_text() == Some(name))
-        });
-        let Some(index) = found else {
+        let rows = attribute_rows_of(ctx, receiver, member)?;
+        let fields = attribute_fields(&rows, receiver, member)?;
+        let found = fields
+            .iter()
+            .find(|(held, _)| held.as_text() == Some(name))
+            .map(|(_, value)| *value);
+        let Some(held) = found else {
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
                 format!(
@@ -2873,7 +3176,6 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         };
-        let held = values.value_at(index).unwrap_or_else(Value::null);
         if held.tag() == Some(Tag::Null) {
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
@@ -2887,9 +3189,9 @@ nvs_runtime::nvs_helper! {
         }
         #[expect(
             unsafe_code,
-            reason = "the value's reference belongs to the receiver's roster, which is live for \
-                      the length of the call, and this value is being handed to the caller — \
-                      which is exactly `Value::retain`'s obligation"
+            reason = "the value belongs to the unit's rows, which are live for the length of the \
+                      call, and this value is being handed to the caller — which is exactly \
+                      `Value::retain`'s obligation"
         )]
         unsafe {
             held.retain();
@@ -2937,15 +3239,11 @@ nvs_runtime::nvs_helper! {
     /// point — `rule:core-classes/reflect` asks that a refusal be
     /// distinguishable from a misspelling, and this is the member that
     /// distinguishes them.
-    fn nvs_core_reflect_class_info_has_method(_ctx, args: [2]) {
-        let member = "hasMethod";
-        let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
+    fn nvs_core_reflect_class_info_has_method(ctx, args: [2]) {
         let name = text_of(&args[1], "Core\\Reflect\\ClassInfo::hasMethod")?;
-        let roster = roster_of(receiver, &CLASS_INFO, METHODS_SLOT, member)?;
-        let found = (0..roster.count()).any(|index| {
-            row_at(&roster, index).is_some_and(|row| {
-                crate::instance::slot(row, METHOD_NAME_SLOT).as_text() == Some(name)
-            })
+        let rows = class_rows_of(ctx, args[0], "hasMethod")?;
+        let found = rows.methods.iter().filter_map(|method| method.info.obj_ptr()).any(|row| {
+            crate::instance::slot(row, METHOD_NAME_SLOT).as_text() == Some(name)
         });
         Ok(Value::bool(found))
     }
@@ -2981,13 +3279,31 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_runtime::MethodRow::param_names`] carried down from the
     /// declaration.
     ///
-    /// Answered off the slot [`describe`] filled, on
+    /// Answered off the rows [`class_rows`] built, on
     /// [`nvs_core_reflect_class_info_methods`]' terms exactly. The roster is
     /// empty rather than invented for a method no source wrote, and
     /// [`nvs_core_reflect_method_info_parameter_count`] is the member that
     /// still answers for one.
-    fn nvs_core_reflect_method_info_parameters(_ctx, args: [1]) {
-        slot_of(args, &METHOD_INFO, METHOD_PARAMETERS_SLOT, "parameters")
+    fn nvs_core_reflect_method_info_parameters(ctx, args: [1]) {
+        let member = "parameters";
+        let receiver = crate::instance::receiver(args[0], &METHOD_INFO, member)?;
+        let rows = rows_of(
+            ctx,
+            receiver,
+            (METHOD_CLASS_SLOT, METHOD_STAMP_SLOT),
+            None,
+            METHOD_INFO_NAME,
+            member,
+        )?;
+        // A `Core` class's method declares no parameter name, so its roster is
+        // empty, as `class_rows` would build it.
+        if matches!(rows, Rows::Core(_)) {
+            return Ok(Value::array(NvsArray::new()));
+        }
+        let method = position(receiver, METHOD_INDEX_SLOT)
+            .and_then(|at| rows.methods.get(at))
+            .ok_or_else(|| another_unit(METHOD_INFO_NAME, member))?;
+        Ok(roster(method.parameters.iter().copied()))
     }
 }
 
@@ -3026,10 +3342,31 @@ nvs_runtime::nvs_helper! {
     /// crate does not own, while a `Core` enum is a shape like any other.
     fn nvs_core_reflect_enum_info_of(ctx, args: [1]) {
         let name = text_of(&args[0], "Core\\Reflect\\EnumInfo::of")?;
-        let Some(desc) = ctx.enum_desc(name) else {
+        let Some(table) = ctx.unit_table() else {
             return Ok(Value::null());
         };
-        Ok(describe_enum(desc))
+        let Some(index) = table.enum_index(name) else {
+            return Ok(Value::null());
+        };
+        let info = table
+            .descriptions()
+            .and_then(|descriptions| descriptions.enum_rows(index))
+            .map(|rows| rows.info)
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{ENUM_INFO_NAME}::of found no description of `{name}`: its unit was not \
+                     described"
+                ))
+            })?;
+        #[expect(
+            unsafe_code,
+            reason = "the description belongs to the unit's table, which outlives \
+                      this call, and it is handed to the caller"
+        )]
+        unsafe {
+            info.retain();
+        }
+        Ok(info)
     }
 }
 
@@ -3042,9 +3379,10 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Reflect\EnumInfo::cases(): array<string>` — every declared case's
-    /// name, in the order [`describe_enum`] built the roster in.
-    fn nvs_core_reflect_enum_info_cases(_ctx, args: [1]) {
-        slot_of(args, &ENUM_INFO, ENUM_CASES_SLOT, "cases")
+    /// name, in the order [`enum_rows`] built them in.
+    fn nvs_core_reflect_enum_info_cases(ctx, args: [1]) {
+        let (_, rows) = enum_rows_of(ctx, args[0], "cases")?;
+        Ok(roster(rows.cases.iter().map(|(name, _)| *name)))
     }
 }
 
@@ -3066,17 +3404,16 @@ nvs_runtime::nvs_helper! {
     /// all. It is a throw and not a `null`, unlike `of`'s: `cases` is the list
     /// that cannot be wrong, so a name that is not on it is a mistake in the
     /// asking rather than a fact about the enum.
-    fn nvs_core_reflect_enum_info_value_of(_ctx, args: [2]) {
+    fn nvs_core_reflect_enum_info_value_of(ctx, args: [2]) {
         let member = "valueOf";
-        let receiver = crate::instance::receiver(args[0], &ENUM_INFO, member)?;
         let wanted = text_of(&args[1], "Core\\Reflect\\EnumInfo::valueOf")?;
-        let cases = roster_of(receiver, &ENUM_INFO, ENUM_CASES_SLOT, member)?;
-        let at = (0..cases.count()).find(|index| {
-            cases
-                .value_at(*index)
-                .is_some_and(|value| value.as_text() == Some(wanted))
-        });
-        let Some(at) = at else {
+        let (receiver, rows) = enum_rows_of(ctx, args[0], member)?;
+        let found = rows
+            .cases
+            .iter()
+            .find(|(name, _)| name.as_text() == Some(wanted))
+            .map(|(_, value)| *value);
+        let Some(held) = found else {
             let name = crate::instance::slot(receiver, ENUM_NAME_SLOT);
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
@@ -3087,16 +3424,10 @@ nvs_runtime::nvs_helper! {
                 ),
             ));
         };
-        let values = roster_of(receiver, &ENUM_INFO, ENUM_VALUES_SLOT, member)?;
-        let held = values.value_at(at).ok_or_else(|| {
-            Fault::fatal(format!(
-                "{ENUM_INFO_NAME}::{member} found case {at} with no constant beside it"
-            ))
-        })?;
         #[expect(
             unsafe_code,
-            reason = "the constant's reference belongs to the receiver, which is live \
-                      for the length of the call, and this value is being handed to the \
+            reason = "the constant is a scalar of the unit's rows, which are live for \
+                      the length of the call, and this value is being handed to the \
                       caller — which is exactly `Value::retain`'s obligation"
         )]
         unsafe {
@@ -3496,6 +3827,12 @@ mod tests {
 
     use super::{TYPE_KIND, kind_of};
 
+    /// `table` with every description built, shared as a unit's table is.
+    fn described(mut table: ClassTable) -> std::sync::Arc<ClassTable> {
+        super::build_descriptions(&mut table);
+        std::sync::Arc::new(table)
+    }
+
     /// What [`vault_open`] answers with, so the assertion that the public half
     /// still runs reads as a value and not as an absence of a throw.
     const OPENED: u64 = 11;
@@ -3567,7 +3904,7 @@ mod tests {
             by_reference: false,
         };
         classes.set_methods(id, vec![row("open", true), row("sealed", false)]);
-        let classes = std::sync::Arc::new(classes);
+        let classes = described(classes);
         let desc = classes.desc(id);
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(ErrorClass::new(classes, id));
@@ -3739,7 +4076,7 @@ mod tests {
                 }],
             );
         }
-        let classes = std::sync::Arc::new(classes);
+        let classes = described(classes);
         let (base_desc, heir_desc) = (classes.desc(base), classes.desc(heir));
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(ErrorClass::new(classes, base));
@@ -3928,7 +4265,7 @@ mod tests {
                 by_reference: false,
             }],
         );
-        let classes = std::sync::Arc::new(classes);
+        let classes = described(classes);
         let desc = classes.desc(id);
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(ErrorClass::new(classes, id));
@@ -4089,7 +4426,7 @@ mod tests {
                 }],
             );
         }
-        let classes = std::sync::Arc::new(classes);
+        let classes = described(classes);
         let desc = classes.desc(id);
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(ErrorClass::new(classes, id));
@@ -4270,7 +4607,7 @@ mod tests {
                 code: (gauge_reading as NvsFn) as *const u8,
             }],
         );
-        let classes = std::sync::Arc::new(classes);
+        let classes = described(classes);
         let desc = classes.desc(id);
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(ErrorClass::new(classes, id));
@@ -4492,7 +4829,7 @@ mod tests {
         table.set_no_instances(iface);
         table.define("Unset", &[] as &[&str], &[]);
         let mut ctx = Ctx::new(OutputSink::Sink);
-        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(table), plain));
+        ctx.set_runtime_error_class(ErrorClass::new(described(table), plain));
 
         for (name, expected) in [
             (r"App\Leaf", Some(r"App\Middle")),
@@ -4540,7 +4877,7 @@ mod tests {
         table.define("Task$gen", &["x"], &[]);
         table.define("$callable", &[] as &[&str], &[]);
         let mut ctx = Ctx::new(OutputSink::Sink);
-        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(table), plain));
+        ctx.set_runtime_error_class(ErrorClass::new(described(table), plain));
         ctx.set_core_classes(crate::instance::core_class_desc);
         ctx
     }
@@ -4657,7 +4994,7 @@ mod tests {
     }
 
     /// The five `AttributeInfo` members **agree** on one row, built the way
-    /// `describe` builds it for `#[Route(path: "/show", limit: 3, cap:
+    /// `build_descriptions` builds it for `#[Route(path: "/show", limit: 3, cap:
     /// Limits::MAX)]` before a parameter `$id` of `show`: the three site slots
     /// read back as written, and every name `fields` lists is one `field`
     /// recognises. That last half is what tells the two refusals apart — `cap`
@@ -4672,27 +5009,29 @@ mod tests {
     // covers: Core\Reflect\AttributeInfo::field
     #[test]
     fn attribute_info_reads_its_site_and_every_listed_field_is_one_field_recognises() {
-        let mut ctx = Ctx::buffered();
-        let mut names = NvsArray::new();
-        let mut values = NvsArray::new();
-        for (name, value) in [
-            ("path", Value::text("/show")),
-            ("limit", Value::int(3)),
-            ("cap", Value::null()),
-        ] {
-            names.append(Value::text(name));
-            values.append(value);
-        }
-        let info = crate::instance::build(
-            &super::ATTRIBUTE_INFO,
-            [
-                Value::text("Route"),
-                Value::text("show"),
-                Value::text("id"),
-                Value::array(names),
-                Value::array(values),
-            ],
+        let mut classes = ClassTable::new();
+        let page = classes.define("Page", &[] as &[&str], &[]);
+        classes.set_class_attributes(
+            page,
+            vec![AttributeDesc {
+                member: "show".to_owned(),
+                parameter: "id".to_owned(),
+                name: "Route".to_owned(),
+                fields: vec![
+                    ("path".to_owned(), ConstantValue::Str("/show".to_owned())),
+                    ("limit".to_owned(), ConstantValue::Int(3)),
+                    ("cap".to_owned(), ConstantValue::Opaque),
+                ],
+            }],
         );
+        let classes = described(classes);
+        let mut ctx = Ctx::buffered();
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::clone(&classes), page));
+        let info = classes
+            .descriptions()
+            .and_then(|descriptions| descriptions.class(0))
+            .map(|rows| rows.attributes[0].info)
+            .expect("`Page` is described with one attach site");
 
         let name = attribute_text(&mut ctx, super::nvs_core_reflect_attribute_info_name, info);
         let target = attribute_text(
@@ -4838,6 +5177,8 @@ mod tests {
                 .collect(),
         );
         let mut ctx = Ctx::buffered();
+        let classes = described(classes);
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::clone(&classes), page));
 
         let roster_of = |ctx: &mut Ctx, id| {
             #[expect(
@@ -4845,7 +5186,8 @@ mod tests {
                 reason = "`classes` outlives this Rust closure's every call, and the table never \
                           moves a descriptor it handed out"
             )]
-            let info = super::describe(unsafe { &*classes.desc(id) });
+            let info = super::description_of(unsafe { &*classes.desc(id) }, "a test")
+                .expect("the unit is described");
             let roster = call(super::nvs_core_reflect_class_info_attributes, ctx, &[info])
                 .expect("the roster always answers");
             #[expect(
@@ -4943,13 +5285,14 @@ mod tests {
                 constant("BLOB", true, false, ConstantValue::Opaque),
             ],
         );
-        let classes = std::sync::Arc::new(classes);
+        let classes = described(classes);
         #[expect(
             unsafe_code,
             reason = "the table is held by the context below for the rest of the test, and never \
                       moves a descriptor it handed out"
         )]
-        let info = super::describe(unsafe { &*classes.desc(id) });
+        let info = super::description_of(unsafe { &*classes.desc(id) }, "a test")
+            .expect("the unit is described");
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(ErrorClass::new(classes, id));
         let (_blob, within) = inside("Vault::open");
@@ -5026,6 +5369,8 @@ mod tests {
                 .collect(),
         );
         let mut ctx = Ctx::buffered();
+        let classes = described(classes);
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::clone(&classes), limits));
         let bit = |ctx: &mut Ctx, member: NvsFn, row: Value| {
             call(member, ctx, &[row])
                 .expect("a bit slot always answers")
@@ -5038,7 +5383,8 @@ mod tests {
             reason = "`classes` outlives every use below, and the table never moves a descriptor \
                       it handed out"
         )]
-        let info = super::describe(unsafe { &*classes.desc(limits) });
+        let info = super::description_of(unsafe { &*classes.desc(limits) }, "a test")
+            .expect("the unit is described");
         let listed = call(
             super::nvs_core_reflect_class_info_constants,
             &mut ctx,
@@ -5097,7 +5443,8 @@ mod tests {
             reason = "`classes` outlives every use below, and the table never moves a descriptor \
                       it handed out"
         )]
-        let bare = super::describe(unsafe { &*classes.desc(plain) });
+        let bare = super::description_of(unsafe { &*classes.desc(plain) }, "a test")
+            .expect("the unit is described");
         let empty = call(
             super::nvs_core_reflect_class_info_constants,
             &mut ctx,
@@ -5170,13 +5517,16 @@ mod tests {
             ],
         );
         let mut ctx = Ctx::buffered();
+        let classes = described(classes);
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::clone(&classes), router));
 
         #[expect(
             unsafe_code,
             reason = "`classes` outlives every use below, and the table never moves a descriptor \
                       it handed out"
         )]
-        let info = super::describe(unsafe { &*classes.desc(router) });
+        let info = super::description_of(unsafe { &*classes.desc(router) }, "a test")
+            .expect("the unit is described");
         let listed = call(
             super::nvs_core_reflect_class_info_methods,
             &mut ctx,
@@ -5240,7 +5590,8 @@ mod tests {
             reason = "`classes` outlives every use below, and the table never moves a descriptor \
                       it handed out"
         )]
-        let bare = super::describe(unsafe { &*classes.desc(plain) });
+        let bare = super::description_of(unsafe { &*classes.desc(plain) }, "a test")
+            .expect("the unit is described");
         let empty = call(
             super::nvs_core_reflect_class_info_methods,
             &mut ctx,
@@ -5375,13 +5726,16 @@ mod tests {
                 .collect(),
         );
         let mut ctx = Ctx::buffered();
+        let classes = described(classes);
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::clone(&classes), limits));
 
         #[expect(
             unsafe_code,
             reason = "`classes` outlives every use below, and the table never moves a descriptor \
                       it handed out"
         )]
-        let info = super::describe(unsafe { &*classes.desc(limits) });
+        let info = super::description_of(unsafe { &*classes.desc(limits) }, "a test")
+            .expect("the unit is described");
         let listed = call(
             super::nvs_core_reflect_class_info_constants,
             &mut ctx,
@@ -5459,13 +5813,14 @@ mod tests {
         let id = classes.define("Vault", &[] as &[&str], &[]);
         let names: Vec<String> = rows.iter().map(|row| row.name.clone()).collect();
         classes.set_class_constants(id, rows);
-        let classes = std::sync::Arc::new(classes);
+        let classes = described(classes);
         #[expect(
             unsafe_code,
             reason = "the table is held by the context below for the rest of the test, and never \
                       moves a descriptor it handed out"
         )]
-        let info = super::describe(unsafe { &*classes.desc(id) });
+        let info = super::description_of(unsafe { &*classes.desc(id) }, "a test")
+            .expect("the unit is described");
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(ErrorClass::new(classes, id));
         let listed = call(
@@ -5814,7 +6169,7 @@ mod tests {
         let mut classes = ClassTable::new();
         let entry = classes.define("Blog\\Entry", &[] as &[&str], &[]);
         let post = classes.define("Blog\\Post", &[] as &[&str], &[entry]);
-        let classes = std::sync::Arc::new(classes);
+        let classes = described(classes);
         let post_desc = classes.desc(post);
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(ErrorClass::new(classes, entry));
@@ -5914,14 +6269,16 @@ mod tests {
         let other = classes.define("Other", &["code"], &[]);
         classes.set_public_fields(other, vec![true]);
         let plain = classes.define("Plain", &[] as &[&str], &[]);
-        let classes = std::sync::Arc::new(classes);
+        let classes = described(classes);
         #[expect(
             unsafe_code,
             reason = "each descriptor belongs to `classes`, which is alive for the whole call, \
                       and `describe` copies what it reads rather than keeping the descriptor"
         )]
-        let described =
-            [ledger, audit, other, plain].map(|id| super::describe(unsafe { &*classes.desc(id) }));
+        let described = [ledger, audit, other, plain].map(|id| {
+            super::description_of(unsafe { &*classes.desc(id) }, "a test")
+                .expect("the unit is described")
+        });
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(ErrorClass::new(classes, ledger));
         (ctx, described)
@@ -6211,7 +6568,7 @@ mod tests {
         );
         classes.define_enum("Shop\\Nothing", false, Vec::new());
         let mut ctx = Ctx::new(OutputSink::Sink);
-        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), anchor));
+        ctx.set_runtime_error_class(ErrorClass::new(described(classes), anchor));
         let infos = ["Shop\\Status", "Shop\\Level", "Shop\\Nothing"].map(|name| {
             let asked = Value::text(name);
             let info = call(super::nvs_core_reflect_enum_info_of, &mut ctx, &[asked])
@@ -6546,7 +6903,7 @@ mod tests {
                 row("audit", (false, false), 1, &["who"], &["?string"]),
             ],
         );
-        let classes = std::sync::Arc::new(classes);
+        let classes = described(classes);
         let mut ctx = Ctx::buffered();
         ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::clone(&classes), mailer));
         #[expect(
@@ -6554,7 +6911,8 @@ mod tests {
             reason = "the context holds the table for as long as it lives, and the table never \
                       moves a descriptor it handed out"
         )]
-        let info = super::describe(unsafe { &*classes.desc(mailer) });
+        let info = super::description_of(unsafe { &*classes.desc(mailer) }, "a test")
+            .expect("the unit is described");
         let listed = call(
             super::nvs_core_reflect_class_info_methods,
             &mut ctx,
@@ -6912,13 +7270,14 @@ mod tests {
                 .map(str::to_owned)
                 .to_vec(),
         );
-        let classes = std::sync::Arc::new(classes);
+        let classes = described(classes);
         #[expect(
             unsafe_code,
             reason = "the descriptor belongs to `classes`, which is alive for the whole call, and \
                       `describe` copies what it reads rather than keeping the descriptor"
         )]
-        let info = super::describe(unsafe { &*classes.desc(order) });
+        let info = super::description_of(unsafe { &*classes.desc(order) }, "a test")
+            .expect("the unit is described");
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(ErrorClass::new(classes, order));
 
@@ -6985,7 +7344,7 @@ mod tests {
         classes.set_public_fields(customer, vec![true, false]);
         classes.set_field_types(customer, vec!["string".to_owned(), "string".to_owned()]);
         let mut ctx = Ctx::new(OutputSink::Sink);
-        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), order));
+        ctx.set_runtime_error_class(ErrorClass::new(described(classes), order));
 
         // `Customer`'s node starts at byte 0x21, after `Order`'s three lines and
         // the empty line that ends it. The private `secret` is not a step.
@@ -7056,7 +7415,7 @@ mod tests {
         classes.set_public_fields(author, vec![true]);
         classes.set_field_types(author, vec!["string".to_owned()]);
         let mut ctx = Ctx::new(OutputSink::Sink);
-        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(classes), book));
+        ctx.set_runtime_error_class(ErrorClass::new(described(classes), book));
 
         // The array node starts at byte 0x17, after `Book`'s node, and
         // `Author`'s at 0x44, after the array node's `@key`, `@value` and the
@@ -7138,13 +7497,16 @@ mod tests {
         classes.set_public_fields(article, vec![true, true, true, true]);
         classes.set_lateinit_fields(article, vec![false, true, false, false]);
         classes.set_readonly_fields(article, vec![false, false, true, false]);
-        let classes = std::sync::Arc::new(classes);
+        let classes = described(classes);
         #[expect(
             unsafe_code,
             reason = "each descriptor belongs to `classes`, which is alive for the whole call, \
                       and `describe` copies what it reads rather than keeping the descriptor"
         )]
-        let described = [post, article].map(|id| super::describe(unsafe { &*classes.desc(id) }));
+        let described = [post, article].map(|id| {
+            super::description_of(unsafe { &*classes.desc(id) }, "a test")
+                .expect("the unit is described")
+        });
         let mut ctx = Ctx::new(OutputSink::Sink);
         ctx.set_runtime_error_class(ErrorClass::new(classes, post));
         (ctx, described)

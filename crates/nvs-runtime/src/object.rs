@@ -765,6 +765,12 @@ pub struct ClassDesc {
     /// [`ClassTable::set_core`] writes it. **Cost:** one `bool` per class,
     /// once per process, not per instance.
     is_core: bool,
+    /// This class's `Core\Reflect\ClassInfo`, an immortal object owned by
+    /// the table's [`crate::descriptions::Descriptions`], or `null` before
+    /// [`ClassTable::set_descriptions`] ran. `forObject` returns it, so a
+    /// description reached from an instance needs no lookup. **Cost:** one
+    /// [`Value`] per class, once per compiled unit.
+    description: Value,
     /// Whether the class can have no instances: an `abstract` class or an
     /// interface. `nvs_ir::ir::Class::no_instances` carries `new`'s own answer
     /// down, and [`ClassTable::set_no_instances`] writes it. A class a native
@@ -1835,6 +1841,14 @@ impl ClassDesc {
         self.is_core
     }
 
+    /// This class's `Core\Reflect\ClassInfo`, built once when the unit was
+    /// finished, or `None` for a descriptor no unit table described: a `Core`
+    /// class's, and one a native test built by hand.
+    #[must_use]
+    pub fn description(&self) -> Option<Value> {
+        (self.description.tag() == Some(Tag::Object)).then_some(self.description)
+    }
+
     /// Whether the class can have no instances — see the field.
     #[must_use]
     pub fn has_no_instances(&self) -> bool {
@@ -2564,6 +2578,10 @@ pub struct ClassTable {
     /// enum, so compiled code never reaches this at all. The one reader is `Core\Reflect\EnumInfo::of`,
     /// which arrives by name.
     enums: Vec<EnumDesc>,
+    /// Every class's and enum's `Core\Reflect` description, written once by
+    /// [`Self::set_descriptions`] before the table is shared. `None` for a
+    /// table a native test built by hand.
+    descriptions: Option<crate::descriptions::Descriptions>,
     /// Whatever keeps the code every [`MethodRow::code`] address points into
     /// mapped, handed over by [`Self::keep_code`]. The pages go when the last
     /// handle to this table goes, so they live exactly as long as the
@@ -2613,6 +2631,11 @@ impl fmt::Debug for CodeOwner {
 ///   doc is the home of that invariant) and each box is individually allocated,
 ///   so the address a reader follows is alive for exactly as long as the handle
 ///   it followed it from.
+/// - **A description is never written after it is built.** Each
+///   [`crate::descriptions::Descriptions`] object and string is immortal, so a
+///   retain and a release compare its count and write nothing, and no member
+///   writes one of its slots. Its `Cell`s are read-only memory in practice,
+///   for `crate::object`'s § *An immortal instance is on no list at all*.
 /// - **A [`MethodRow::code`] address is in executable pages this table keeps
 ///   mapped** through the `Send + Sync` owner [`Self::keep_code`] took, and
 ///   moving the address between threads is not the operation that needs a
@@ -2797,6 +2820,7 @@ impl ClassTable {
             holds_host_handle: false,
             compiler_made,
             is_core: false,
+            description: Value::null(),
             no_instances: false,
             revocable: false,
             parent: None,
@@ -3626,6 +3650,49 @@ impl ClassTable {
             unsigned,
             cases,
         });
+    }
+
+    /// Writes every description, and points each class's descriptor at its
+    /// own — `nvs_stdlib::reflect::build_descriptions` is the one caller, and
+    /// it runs before the table is shared.
+    ///
+    /// # Panics
+    ///
+    /// If `descriptions` has not one class per class in this table.
+    pub fn set_descriptions(&mut self, descriptions: crate::descriptions::Descriptions) {
+        for (index, desc) in self.classes.iter_mut().enumerate() {
+            desc.description = descriptions
+                .class(index)
+                .expect("one description per class")
+                .info;
+        }
+        self.descriptions = Some(descriptions);
+    }
+
+    /// Every description of this unit, or `None` before
+    /// [`Self::set_descriptions`] ran.
+    #[must_use]
+    pub const fn descriptions(&self) -> Option<&crate::descriptions::Descriptions> {
+        self.descriptions.as_ref()
+    }
+
+    /// The class at `index`, or `None` past the last one. The description
+    /// builder walks the table with it, and a description finds its class by it.
+    #[must_use]
+    pub fn class_at(&self, index: usize) -> Option<&ClassDesc> {
+        self.classes.get(index).map(|desc| &**desc)
+    }
+
+    /// Every enum this unit carries, in the order [`Self::enum_index`] counts.
+    #[must_use]
+    pub fn enums(&self) -> &[EnumDesc] {
+        &self.enums
+    }
+
+    /// The index of the enum named `name`, for [`Self::enum_desc`]'s scan.
+    #[must_use]
+    pub fn enum_index(&self, name: &str) -> Option<usize> {
+        self.enums.iter().position(|desc| desc.name == name)
     }
 
     /// The enum named `name`, or `None` if this unit declares none.

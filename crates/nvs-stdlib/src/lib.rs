@@ -266,6 +266,10 @@ pub use nvs_runtime::holes;
 /// stays beside the table it reads.
 pub use instance::class_descriptors;
 
+/// Every class's and enum's `Core\Reflect` description, written into a unit's
+/// table once before it is shared. `nvs-codegen` calls it from both builders.
+pub use reflect::build_descriptions;
+
 /// The checker's question about a `Core` class's identity: whether a value can
 /// be an instance of one at all, which is what `nvs_types` admits a written
 /// name as a downcast target on. Re-exported beside the roster above because

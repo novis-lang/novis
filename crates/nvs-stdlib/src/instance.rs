@@ -589,7 +589,9 @@ const SLOT_TYPES: &[(&CoreClass, Slots)] = &[
             CoreTy::Str,
             CoreTy::Bool,
             CoreTy::Uint,
-            CoreTy::Array(&CoreTy::Instance(r"Core\Reflect\ParameterInfo")),
+            CoreTy::Int,
+            CoreTy::Uint,
+            CoreTy::Uint,
         ]),
     ),
     (
@@ -610,26 +612,22 @@ const SLOT_TYPES: &[(&CoreClass, Slots)] = &[
         &crate::reflect::CONSTANT_INFO,
         Slots::Typed(&[CoreTy::Str, CoreTy::Bool, CoreTy::Bool]),
     ),
-    // `field` throws where the two arrays do not line up.
+    // A row's class, stamp and index are checked against the calling unit
+    // where they are read, so a decoded row that names no row throws there.
     (
         &crate::reflect::ATTRIBUTE_INFO,
         Slots::Typed(&[
             CoreTy::Str,
             CoreTy::Str,
             CoreTy::Str,
-            CoreTy::Array(&CoreTy::Str),
-            CoreTy::Array(&CoreTy::Mixed),
+            CoreTy::Int,
+            CoreTy::Uint,
+            CoreTy::Uint,
         ]),
     ),
-    // `valueOf` throws where the two arrays do not line up.
     (
         &crate::reflect::ENUM_INFO,
-        Slots::Typed(&[
-            CoreTy::Str,
-            CoreTy::Array(&CoreTy::Str),
-            CoreTy::Array(&CoreTy::Union(&[CoreTy::Int, CoreTy::Uint])),
-            CoreTy::Bool,
-        ]),
+        Slots::Typed(&[CoreTy::Str, CoreTy::Int, CoreTy::Uint, CoreTy::Bool]),
     ),
     // `nodes()` walks the children with no bound, and bytes can make them a
     // cycle.
@@ -1542,6 +1540,36 @@ pub(crate) fn build<const N: usize>(class: &'static CoreClass, slots: [Value; N]
         );
     }
     Value::object(object)
+}
+
+/// An immortal instance of `class` in `arena`, its slots filled from `slots` in
+/// declaration order — [`build`]'s twin for a value built once when a unit is
+/// finished and read by every core (`crate::reflect`'s descriptions).
+///
+/// # Panics
+///
+/// As [`build`] does, for a slot count that is not the class's.
+pub(crate) fn immortal<const N: usize>(
+    arena: &mut nvs_runtime::descriptions::ImmortalArena,
+    class: &'static CoreClass,
+    slots: [Value; N],
+) -> Value {
+    assert_eq!(
+        N,
+        class.slots.len(),
+        "{} has {} slots, filled with {N} values",
+        class.name,
+        class.slots.len()
+    );
+    #[expect(
+        unsafe_code,
+        reason = "the descriptor is owned by this crate's leaked table, so it \
+                  outlives the arena; the count is checked above, and every slot \
+                  the one caller writes is a scalar or a value of the same arena"
+    )]
+    unsafe {
+        arena.object(descriptor(class), &slots)
+    }
 }
 
 /// The process's *shape* descriptors — see [`shape`]. A second table beside

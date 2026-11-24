@@ -414,6 +414,14 @@ impl Ctx {
             .and_then(|class| class.enum_desc(name))
     }
 
+    /// The running unit's class table, or `None` for a context that runs no
+    /// program. `Core\Reflect` reads its descriptions here, and a description's
+    /// stamp is checked against this table's.
+    #[must_use]
+    pub fn unit_table(&self) -> Option<&ClassTable> {
+        self.runtime_error_class.as_ref().map(ErrorClass::table)
+    }
+
     /// The same table as a **handle that keeps it alive by itself** — one
     /// [`ErrorClass`] is a handle on the whole table, since `sibling` reaches
     /// any class in it by name.
