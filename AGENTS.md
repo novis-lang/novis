@@ -31,6 +31,9 @@ When choosing between designs:
   than O(requests served). Growth with total traffic is a leak, not a trade-off.
 - Bytes *moved* are not cheap. An allocation or extra cache miss on a hot path is a latency question,
   not a footprint one.
+- A change that provably does less work for the same result is taken, whether or not a timing shows a
+  gain. The proof is a count, never a clock, and a timing only catches a slowdown
+  ([`rule:programs/less-work-is-taken`](docs/rules/programs.md#programs-less-work-is-taken)).
 - Saving memory at the cost of an invariant every future contributor must remember is the wrong direction —
   that is the account the unsafe modules are already drawing on.
 

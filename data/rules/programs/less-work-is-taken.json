@@ -1,0 +1,10 @@
+{
+  "title": "A change that provably does less work is taken, whether or not a timing shows a gain",
+  "status": "shipped",
+  "seeAlso": [
+    "programs/memory-priority",
+    "testing/perf-two-mechanisms",
+    "testing/bench-counters"
+  ],
+  "guardedBy": []
+}
