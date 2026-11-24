@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-lsp/src/links.rs, crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/semantic.rs, editors/vscode/syntaxes/nvs.tmLanguage.json, docs/rules/ide/the-request-set-is-closed.md]
   - id: 4
     title: "the editor finds, renames and quick-fixes @see targets, and moves them with a renamed file"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/rename.rs, crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/render.rs, crates/nvs-lsp/src/capabilities.rs, docs/rules/ide/five-features-are-one-reference-index.md]
   - id: 5
     title: nvs meta --json and nvs doc write a file target as a link
@@ -325,18 +325,18 @@ each has its own test file, so they may run side by side too. Stage 6 runs after
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-lsp/src/index.rs:579`: `@see` member targets and `@throws` names become occurrences,
+- [x] `crates/nvs-lsp/src/index.rs:579`: `@see` member targets and `@throws` names become occurrences,
   marked so the CodeLens count and unused-member dimming leave them out; `crates/nvs-lsp/src/disk_index.rs:81`
   `FORMAT` raised.
-- [ ] `crates/nvs-lsp/src/rename.rs:157`: rename and prepareRename cover a `@see` target and a
+- [x] `crates/nvs-lsp/src/rename.rs:157`: rename and prepareRename cover a `@see` target and a
   `@throws` name; the module doc's list (`rename.rs:10`) gains them.
-- [ ] `crates/nvs-lsp/src/capabilities.rs:240`: the file filter becomes `**/*`, and its comment at
+- [x] `crates/nvs-lsp/src/capabilities.rs:240`: the file filter becomes `**/*`, and its comment at
   `:229` says why.
-- [ ] `crates/nvs-lsp/src/server.rs:1815` and `crates/nvs-lsp/src/render.rs:283`: `willRenameFiles`
+- [x] `crates/nvs-lsp/src/server.rs:1815` and `crates/nvs-lsp/src/render.rs:283`: `willRenameFiles`
   rewrites `@see` file targets and `@example` paths from the record, keeping the anchor, and answers
   `null` without a file read when no target names the moved path.
-- [ ] `crates/nvs-lsp/tests/handshake.rs:170`: the declared filter updated.
-- [ ] `crates/nvs-lsp/tests/see_edits.rs:1` (new): the tests the check `editor-edit` names, then
+- [x] `crates/nvs-lsp/tests/handshake.rs:170`: the declared filter updated.
+- [x] `crates/nvs-lsp/tests/see_edits.rs:1` (new): the tests the check `editor-edit` names, then
   `cargo test --test see_edits` and `cargo test --test handshake` once.
 
 ### 5. nvs meta --json and nvs doc write a file target as a link
@@ -360,8 +360,8 @@ the session writes the rules, the reference, the editor page and the website ent
   file form, the project bound, the anchor rule and the suggestion; the Declined list gains URL, line
   anchor, HTML anchor and a sixth tag; § *Memory* says what the check reads.
 - [ ] `docs/rules/ide/the-request-set-is-closed.md:9`: `hover`, `definition`, `completion` and
-  `documentLink`'s lists gain doc-tag targets. `docs/rules/ide/five-features-are-one-reference-index.md:1`:
-  doc-tag occurrences are listed and renamed, not counted, with their memory. The editor's Declined
+  `documentLink`'s lists gain doc-tag targets. `docs/rules/ide/five-features-are-one-reference-index.md:1`
+  already says doc-tag occurrences are listed and renamed, not counted, with their memory (stage 4). The editor's Declined
   items above go into one of the two.
 - [ ] `crates/nvs-hir/src/members.rs:1250`: `check_see`'s doc says both shapes.
 - [ ] `docs/reference/lang/10-programs.md:411` and `:424`, `docs/examples/lang/programs/doc-comments/about.md:7`
@@ -384,33 +384,31 @@ the session writes the rules, the reference, the editor page and the website ent
 
 ### State
 
-Stages 1, 2 and 3 are done; `checker`, `pack` and `editor-read` are green.
+Stages 1 to 4 are done; `checker`, `pack`, `editor-read`, `editor-edit` and `handshake` are green.
 
 - The record is `nvs_hir::doc_targets::DocTargets` on `Module::doc_targets`, filled on the language
   server's path only. `Resolved::{Class, Member { class, owner, name, kind }, File { path, heading }}`;
   `@throws` records `Class`, `@example` a `File`. `nvs_syntax::doc_target` is the one classifier.
-- The editor reads it through `crates/nvs-lsp/src/definition.rs`: `doc_named_at` (a cursor; the
-  class half of `Class::member` answers the class), `doc_named_at_target` (a whole entry) and
-  `doc_declared` (where it goes). Hover's `doc_tag_target` and `see_link` (a card's links, through
-  `hover::markdown_linked`) and `links::for_document` read it too.
-- `links::PathLink::line` is the heading's line: the server sends `file:…#L<n>`, the `.lspt` runner
-  `target#L<n>`. `semantic.rs` `Named::doc_targets` colours the entry's class and member targets.
-- `completion.rs` `see_targets` lists paths behind `inside_the_project` and headings in
-  `see_headings`; `/` and `.` in a `@see` or `@example` argument answer a trigger.
-- The grammar scopes an `@example` path and a `@see` file target `markup.underline.link.nvs`.
-- `@see`'s completion detail now ends "enum case or file", and
-  `tests/lsp/completion/a-property-is-not-offered-param.lspt` changed with it.
+- The editor reads it through `crates/nvs-lsp/src/definition.rs` `doc_named_at`; hover, links,
+  completion and semantic tokens read it as stage 3 left them.
+- The index keeps two lists per file beside `imports`: `index::Mention` (a `@see` class or member
+  target, the class half of `Class::member`, an `@throws` name; the site is the segment a rename
+  changes) and `index::Linked` (a file target's path without its anchor). `index::doc_mentions` builds
+  both; a class written as `self`, `static` or `parent` is not kept. `disk_index::FORMAT` is 5.
+- `SymbolIndex::mentions_of` is read by `query::references` (as `UseKind::Doc`, printed `doc` by
+  `nvs code refs`) and `rename::sites_of`; `mentions_in` by highlight (`server.rs` `uses_in`) and by
+  `rename::subject` for a cursor in a doc comment. `index::doc_symbol_at` is `symbol_at`'s last
+  fallback, so implementation and the hierarchies answer on a `@see` target too.
+- `rename::moved` rewrites each `Linked` from the index alone through `rewritten_path`; a move no
+  `require` edge and no tag names analyses nothing. `willRenameFiles` is declared over `**/*` files.
+- The rule `five-features-are-one-reference-index` already says doc tags are listed, not counted.
 
 ### Next
 
-The next session takes stage 4 from its first item; stage 5 may run beside it (Lanes). Stage 4
-reads the record as stage 3 does: `analysed.module.doc_targets.in_file(file)`, with
-`definition::doc_named_at` for a cursor (`rename.rs`'s prepareRename on a `@see` target). The index
-work starts at `crates/nvs-lsp/src/index.rs:579`. Stage 5 starts at `crates/nvs-cli/src/meta.rs:1515`,
-where `see` and `example` are written as text today.
+The next session takes stage 5 from its first item: `crates/nvs-cli/src/meta.rs:1503`, where `see`
+and `example` are written as text today, then `crates/nvs-cli/src/doc.rs:373`. Stage 6 follows.
 
-No test is expected to go red from stages 1 to 3: no existing `@see` in the corpus has a `/` or a
-`.`, no package source in the tree writes an `@example`, and the one `.lspt` case that froze the
-`@see` detail text was updated with it.
+No test is expected to go red: no `.lspt` case freezes the `willRenameFiles` filter, and the index
+file of an earlier format is discarded and rebuilt on load.
 
 ### Backlog
