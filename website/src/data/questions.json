@@ -1420,14 +1420,14 @@
   },
   "/reference/cli/nvs-meta-json/": {
     "feature": "tools:cli/nvs-meta-json",
-    "hash": "86fe51b730f84deb",
+    "hash": "1b6fd9c9d1e17980",
     "questions": [
       "Export the standard library documentation as JSON",
       "Get a machine-readable list of every Core class and method",
       "Which standard library functions need a permission?",
-      "List every configuration key in a JSON file",
       "Generate API documentation from my own classes and doc comments",
-      "Get the JSON schema of each class that encodes itself to JSON"
+      "Get the JSON schema of each class that encodes itself to JSON",
+      "Show which properties are readonly or lateinit in the API JSON"
     ]
   },
   "/reference/cli/nvs-reload/": {
@@ -12487,12 +12487,23 @@
   },
   "/reference/core/reflect-propertyinfo/": {
     "feature": "Core\\Reflect\\PropertyInfo",
-    "hash": "8bc7a0061ae55302",
+    "hash": "e98eab1a05bf4144",
     "questions": [
       "Information about one property of a class",
       "Describe a field: name, type and visibility",
       "Inspect each property of a class",
-      "What do I know about a class field at runtime?"
+      "What do I know about a class field at runtime?",
+      "Check whether a property is readonly or lateinit"
+    ]
+  },
+  "/reference/core/reflect-propertyinfo/islateinit/": {
+    "feature": "Core\\Reflect\\PropertyInfo::isLateInit",
+    "hash": "6efcbf147bb88e9f",
+    "questions": [
+      "Is this property declared lateinit?",
+      "Find the properties a constructor may leave unset",
+      "Skip properties that have no value yet",
+      "Which fields of a class are set later?"
     ]
   },
   "/reference/core/reflect-propertyinfo/ispublic/": {
@@ -12503,6 +12514,16 @@
       "Read only the public fields of an object",
       "Which fields may an API send back to a client?",
       "Can code outside the class write this field?"
+    ]
+  },
+  "/reference/core/reflect-propertyinfo/isreadonly/": {
+    "feature": "Core\\Reflect\\PropertyInfo::isReadonly",
+    "hash": "b82baf4b31bdad33",
+    "questions": [
+      "Is this property readonly?",
+      "Find the properties that cannot change after the constructor",
+      "Skip readonly fields before setting values on an object",
+      "Which fields of a class can I still write?"
     ]
   },
   "/reference/core/reflect-propertyinfo/name/": {

@@ -1800,9 +1800,40 @@ What it costs is that a serializer or a container cannot reach state its author 
 is the trade: the alternative is a reflection API that makes every access modifier in the language
 advisory.
 
-**Memory:** each `forClass` or `forObject` call builds one description and one row object per
-declared property, method and constant, charged to the request that asked and freed with the
-description. A program that describes the same class in a loop pays on every call.
+`PropertyInfo::isLateInit(): bool` is true for a property declared `lateinit`, and
+`PropertyInfo::isReadonly(): bool` for one declared `readonly`, an inherited property included. Each
+reads its own per-slot bit on the class's descriptor. `isLateInit` is not read off a slot that starts
+unset: a constructor may leave a slot unset while an observer runs, and that slot is not `lateinit`.
+
+**Memory:** every class's and enum's description, and every row of it, is built once per process,
+when the compiled unit is finished and before it is shared, as immortal objects every core reads.
+`forClass`, `forObject` and `EnumInfo::of` return that object and allocate nothing, so
+`forClass('A') === forClass('A')` is true, and so is `forObject` on two instances of one class. A
+description is a pure function of the compiled unit, as a string literal is. That is why
+[`security/no-cross-request-state`](security.md#security-no-cross-request-state) does not apply: nothing a request wrote is shared, nothing is
+built during a request, and a request learns nothing from it, not even a first-call timing.
+
+No word two cores can reach is ever written, so a description holds no array, since an array read
+writes its borrow flag, and no address. Each slot is a scalar or an immortal string. A roster's rows
+live beside the description, and the description holds its class's index in the unit's table and the
+table's stamp. A member reads the rows through the calling request's own table, and a description
+whose stamp is not that table's, such as a copy that outlived a reload, throws a `LogicError`, because
+its index would name another class. A copy sent to a task keeps both numbers and reads the same rows.
+A `Core` class's descriptor is in no unit's table, so `forObject` on a `Core` instance builds its
+description per call, with stamp `0`.
+
+Each roster member, `properties()`, `methods()`, `constants()`, `attributes()`, `parameters()` and
+`cases()`, builds its array on its first call in a request and returns the same array after that, and
+so is a `Core` instance's description. The kept array is freed when the request ends. A program that
+writes to it separates by copy-on-write, so the kept array never changes. `readableProperties()` is
+built per call, because its answer depends on the calling site.
+
+What it spends: once per process for each loaded unit, one immortal object per class, property,
+method, parameter, constant, attach site and enum, and one immortal string per name, type and folded
+string, for every class, including one nothing reflects on. A class with two typed properties is about
+600 bytes, and a whole unit of 31 classes and 44 enums about 45 KB, built in under half a millisecond
+at load. Per request, one array and one map entry per roster the request reads, O(classes described),
+never O(requests served). `readableProperties()` spends one array per call.
 
 `ClassInfo::attributes()` lists only the attributes written on the described class's own
 declaration and members. `ClassInfo::parent(): ?string` returns the full name of the class the
@@ -1819,9 +1850,16 @@ extends one, held once per process.
 - **An `attributes()` that includes the parents' attributes.** It reverses the own-only reading, an
   existing caller would get more rows than before, and the runtime would have to invent an order for
   an attribute written at two levels. The loop over `parent()` lets the program choose that order.
-- **A `parent()` that returns a `ClassInfo`.** A description builds one row object per property,
-  method and constant, which a caller that only wants the name pays for nothing. A name matches
-  `name()`, and `forClass` turns it into a description when the caller wants one.
+- **A `parent()` that returns a `ClassInfo`.** A name matches `name()`, and `forClass` turns it into
+  a description when the caller wants one, so a second way to reach a description adds nothing.
+- **A per-request cache of whole descriptions.** It builds each description once per request; the
+  per-process build costs nothing on the request path.
+- **Building a description on its first use, behind a lock.** It is work on the request path, and
+  the first request after a reload is slower than the rest.
+- **Lazy rosters through a descriptor pointer in a slot.** A reload leaves the pointer dangling; the
+  stamp fails closed instead.
+- **More modifiers on `PropertyInfo`: `static`, a default value, an observer.** Nobody asked, and each
+  is a slot on every row.
 
 <sub>See also [`core-classes/ast-is-inert`](core-classes.md#core-classes-ast-is-inert), [`enums/reflection`](enums.md#enums-reflection), [`types/erased-member-access`](types.md#types-erased-member-access).</sub>
 

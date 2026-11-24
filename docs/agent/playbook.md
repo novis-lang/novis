@@ -27,6 +27,11 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **`site --check questions` owes a new member's page only once `render --website` has written
+  `core.json`.** In `reflect-once`'s close, the render and the questions were red together, and the
+  questions named only the stale class page. After the render, two owed member pages appeared and
+  cost a second round. Run `NVS_BIN=target/debug/nvs.exe bun nv render --website` before reading
+  the questions list. See `tools/nv/cmd/site.ts` `questionSources`.
 - **A rename of a common member name finds its calls with `nvs check`, not with a grep, and the
   unknown-method error's span covers the receiver, not the name.** `api-rename` listed 4,234
   `->add(`/`->format(` calls for stage 6, most on other classes. Renaming the declaration and then

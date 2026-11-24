@@ -38747,7 +38747,7 @@
     {
       "id": "Reflect.PropertyInfo",
       "name": "Core\\Reflect\\PropertyInfo",
-      "summary": "One property of a class, as `Core\\Reflect\\ClassInfo::properties` returns it. `name` and `isPublic` describe the declaration. `type` returns the type the property is declared with.",
+      "summary": "One property of a class, as `Core\\Reflect\\ClassInfo::properties` returns it. `name`, `isPublic`, `isLateInit` and `isReadonly` describe the declaration. `type` returns the type the property is declared with.",
       "enums": [],
       "types": [],
       "constants": [],
@@ -38806,13 +38806,49 @@
           "slug": "type",
           "url": "/reference/core/reflect-propertyinfo/type/",
           "examples": "core/Reflect-PropertyInfo/type"
+        },
+        {
+          "id": "Reflect.PropertyInfo.isLateInit",
+          "name": "isLateInit",
+          "static": false,
+          "receiver": "propertyInfo",
+          "generics": null,
+          "signature": "isLateInit(): bool",
+          "params": [],
+          "options": [],
+          "returnType": "bool",
+          "doc": {
+            "shortHtml": "Tells you whether the property is declared <code>lateinit</code>.",
+            "returnHtml": "<code>true</code> for a property declared <code>lateinit</code>, also when a parent class declares it. A <code>lateinit</code> property may stay unset after the constructor. Use <code>isinit</code> to check if it has a value."
+          },
+          "slug": "islateinit",
+          "url": "/reference/core/reflect-propertyinfo/islateinit/",
+          "examples": "core/Reflect-PropertyInfo/isLateInit"
+        },
+        {
+          "id": "Reflect.PropertyInfo.isReadonly",
+          "name": "isReadonly",
+          "static": false,
+          "receiver": "propertyInfo",
+          "generics": null,
+          "signature": "isReadonly(): bool",
+          "params": [],
+          "options": [],
+          "returnType": "bool",
+          "doc": {
+            "shortHtml": "Tells you whether the property is declared <code>readonly</code>.",
+            "returnHtml": "<code>true</code> for a property declared <code>readonly</code>, also when a parent class declares it. After the constructor sets a <code>readonly</code> property, <code>Core\\Reflect\\ClassInfo::set</code> on it throws a <code>RuntimeError</code>."
+          },
+          "slug": "isreadonly",
+          "url": "/reference/core/reflect-propertyinfo/isreadonly/",
+          "examples": "core/Reflect-PropertyInfo/isReadonly"
         }
       ],
       "slug": "reflect-propertyinfo",
       "url": "/reference/core/reflect-propertyinfo/",
       "summaryBlocks": [
         {
-          "html": "<p>One property of a class, as <code>Core\\Reflect\\ClassInfo::properties</code> returns it. <code>name</code> and <code>isPublic</code> describe the declaration. <code>type</code> returns the type the property is declared with.</p>"
+          "html": "<p>One property of a class, as <code>Core\\Reflect\\ClassInfo::properties</code> returns it. <code>name</code>, <code>isPublic</code>, <code>isLateInit</code> and <code>isReadonly</code> describe the declaration. <code>type</code> returns the type the property is declared with.</p>"
         }
       ],
       "returnedBy": []

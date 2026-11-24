@@ -52094,13 +52094,15 @@ Returns the parameters of the method, in the order they are written.
 <a id="core-core-reflect-propertyinfo"></a>
 ### `Core\Reflect\PropertyInfo`
 
-Keywords: name, isPublic, type
+Keywords: name, isPublic, type, isLateInit, isReadonly
 
 | Member | Signature |
 |---|---|
 | [`Core\Reflect\PropertyInfo->name`](#core-core-reflect-propertyinfo-name) | `name(): string` |
 | [`Core\Reflect\PropertyInfo->isPublic`](#core-core-reflect-propertyinfo-ispublic) | `isPublic(): bool` |
 | [`Core\Reflect\PropertyInfo->type`](#core-core-reflect-propertyinfo-type) | `type(): ?string` |
+| [`Core\Reflect\PropertyInfo->isLateInit`](#core-core-reflect-propertyinfo-islateinit) | `isLateInit(): bool` |
+| [`Core\Reflect\PropertyInfo->isReadonly`](#core-core-reflect-propertyinfo-isreadonly) | `isReadonly(): bool` |
 
 <a id="core-core-reflect-propertyinfo-name"></a>
 #### `Core\Reflect\PropertyInfo->name`
@@ -52134,6 +52136,28 @@ $propertyInfo->type(): ?string
 Returns the type the property is declared with, written the way the class writes it.
 
 **Returns** `?string` — The type as a string, such as `int`, `?int`, `array<string>` or `Customer`. The properties of a built-in error class, such as `message` on `LogicError`, have no written type, so the result is `null`. To find the type of a value, use `Core\Reflect::typeOf`.
+
+<a id="core-core-reflect-propertyinfo-islateinit"></a>
+#### `Core\Reflect\PropertyInfo->isLateInit`
+
+```nvs skip
+$propertyInfo->isLateInit(): bool
+```
+
+Tells you whether the property is declared `lateinit`.
+
+**Returns** `bool` — `true` for a property declared `lateinit`, also when a parent class declares it. A `lateinit` property may stay unset after the constructor. Use `isinit` to check if it has a value.
+
+<a id="core-core-reflect-propertyinfo-isreadonly"></a>
+#### `Core\Reflect\PropertyInfo->isReadonly`
+
+```nvs skip
+$propertyInfo->isReadonly(): bool
+```
+
+Tells you whether the property is declared `readonly`.
+
+**Returns** `bool` — `true` for a property declared `readonly`, also when a parent class declares it. After the constructor sets a `readonly` property, `Core\Reflect\ClassInfo::set` on it throws a `RuntimeError`.
 
 <a id="core-core-reflect-parameterinfo"></a>
 ### `Core\Reflect\ParameterInfo`
