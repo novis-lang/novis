@@ -745,12 +745,13 @@ const DURATION_TO_CLOCK_DOC: MethodDoc = MethodDoc {
             24, so 25 hours and 30 minutes is `25:30`.",
     params: &[ParamDoc {
         name: "options",
-        desc: "Set `seconds` to `true` to add the seconds, such as `25:30:00`. Without it, the \
-               seconds are dropped.",
+        desc: "Set `seconds` to `true` to add the seconds, such as `25:30:00`. By default, the \
+               text ends at the minutes.",
         shape: &[],
     }],
-    ret: "The text. A part smaller than the last one written is dropped. A negative duration \
-          starts with `-`, such as `-1:15`. `Duration::fromClock` reads the text back.",
+    ret: "The text. Anything smaller than the last part written is cut off, not rounded. So 1 \
+          hour, 30 minutes and 59 seconds is `1:30`. A negative duration starts with `-`, such \
+          as `-1:15`. `Duration::fromClock` reads the text back.",
     errors: &[],
 };
 
@@ -760,16 +761,16 @@ const DURATION_FROM_CLOCK_DOC: MethodDoc = MethodDoc {
             and seconds, such as `1:30:15`.",
     params: &[ParamDoc {
         name: "text",
-        desc: "The hours, then `:` and two digits of minutes, then an optional `:` and two digits \
-               of seconds. The hours may have any number of digits. A `-` at the start makes the \
-               duration negative.",
+        desc: "The text starts with the hours, which may have any number of digits. Next come \
+               `:` and the minutes as two digits, such as `05`. The seconds are optional, also \
+               as `:` and two digits. A `-` at the start makes the duration negative.",
         shape: &[],
     }],
     ret: "A new `Duration`. `Duration::fromClock('25:30')` is 25 hours and 30 minutes.",
     errors: &[ErrorDoc {
         error: "ParseError",
         desc: "`$text` is not in this form, or the minutes or the seconds are larger than `59`. \
-               It is also thrown when the duration is longer than a `Duration` can hold.",
+               `ParseError` is also thrown above `2562047:47:16`, the longest `Duration`.",
     }],
 };
 
@@ -1256,8 +1257,8 @@ const ZONE_FIXED_DOC: MethodDoc = MethodDoc {
             and no zone name, such as `2024-03-05T10:00:00+05:30`.",
     params: &[ParamDoc {
         name: "offset",
-        desc: "The distance from UTC as a whole number of seconds. It is negative for a zone \
-               west of UTC.",
+        desc: "The distance from UTC as a `Duration`, such as `5h30m`. It is negative for a \
+               zone west of UTC.",
         shape: &[],
     }],
     ret: "A `Zone` whose name is the offset, written `+HH:MM`, or `+HH:MM:SS` when it has \
@@ -2494,7 +2495,8 @@ const DATETIME_COMPARE_TO_DOC: MethodDoc = MethodDoc {
     short: "Checks which of two date-times is earlier, as `Comparable` requires. It compares \
             the moment, to the nanosecond. The zone does not count, so 10:00 in \
             `Europe/Berlin` and 09:00 in `Europe/London` on the same day are equal. The \
-            operators `<`, `>`, `<=`, `>=` and `<=>` use this method too.",
+            operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` also compares \
+            the moment, so it is `true` for those two values.",
     params: &[ParamDoc {
         name: "other",
         desc: "The date-time to compare against.",
@@ -3322,21 +3324,23 @@ const DATE_FROM_ISO_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Time\Date::parse`'s reference card — `rule:core-api/reference-card`.
 const DATE_PARSE_DOC: MethodDoc = MethodDoc {
-    short: "Reads a date with a CLDR pattern, such as `dd.MM.yyyy`. A `$format` written directly \
-            in the code is checked when the program compiles. A part the pattern does not \
-            contain is set to the start of its range.",
+    short: "Reads a date from text. `$format` is a pattern that says how the text is written, \
+            such as `dd.MM.yyyy`. It uses the CLDR pattern letters, the same letters as \
+            `format`. When `$format` is a string literal, the compiler checks it. When the \
+            pattern has no month or no day, the month or the day is `1`.",
     params: &[
         ParamDoc {
             name: "text",
-            desc: "The text to read. The result does not keep a qualifier of the text, such as \
-                   `tainted`.",
+            desc: "The text to read. The result is a `Date`, so it is not `tainted`, even when \
+                   the text is. A `tainted` value comes from outside the program and is not \
+                   checked yet.",
             shape: &[],
         },
         ParamDoc {
             name: "format",
-            desc: "A CLDR pattern with date letters only, such as `d MMMM yyyy`. A time or zone \
-                   letter is not allowed, because a `Date` has no time and no zone. A pattern is \
-                   a small language, so a `tainted` pattern is not allowed.",
+            desc: "A pattern with date letters only, such as `d MMMM yyyy`. A time letter such \
+                   as `HH` or a zone letter such as `XXX` is not allowed, because a `Date` has no \
+                   time and no zone. A `tainted` pattern is not allowed either.",
             shape: &[],
         },
     ],
@@ -3344,23 +3348,25 @@ const DATE_PARSE_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "`$format` is not valid, or it has a time or zone letter. For a `$format` \
-                   written directly in the code, this is error `E0769` and the program does not \
-                   compile.",
+            desc: "`$format` is not a valid pattern, or it has a time or zone letter. When \
+                   `$format` is a string literal, this is error `E0769`, and the program does \
+                   not compile.",
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "`$text` does not match `$format`. Fixed text differs, a number has no digits, \
-                   there is extra text at the end, or the parts together are not a real date, \
-                   such as `30.02.2026`.",
+            desc: "`$text` does not match `$format`. For example, a character such as `.` is \
+                   different, a number is missing, or there is extra text at the end. It is also \
+                   thrown when the date does not exist, such as `30.02.2026`.",
         },
     ],
 };
 
 /// `Core\Time\Date::range`'s reference card — `rule:core-api/reference-card`.
 const DATE_RANGE_DOC: MethodDoc = MethodDoc {
-    short: "Lists the dates from `$from` to `$to`, one per day or per `step`. Both ends are in \
-            the list. When `$from` is after `$to`, the list counts down.",
+    short: "Returns a list of the dates from `$from` to `$to`. By default, the list has one \
+            date for each day. The `step` option changes the distance between two dates. When \
+            `$from` is after `$to`, the list goes backward, from the later date to the earlier \
+            one.",
     params: &[
         ParamDoc {
             name: "from",
@@ -3369,15 +3375,18 @@ const DATE_RANGE_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "to",
-            desc: "The last date the list may reach. It is in the list when a step lands on it.",
+            desc: "The last date the list may contain. With a step of one day, `$to` is always \
+                   in the list. With a larger step, `$to` is in the list only when the dates \
+                   reach it exactly.",
             shape: &[],
         },
         ParamDoc {
             name: "options",
-            desc: "`step` is the distance between two dates: `Unit::Day` (the default), \
-                   `Unit::Week`, `Unit::Month`, `Unit::Quarter` or `Unit::Year`. A smaller unit \
-                   does not compile. A month step from the 31st gives the last day of each \
-                   shorter month.",
+            desc: "The third argument, such as `{ step: Unit::Week }`. `step` is the distance \
+                   between two dates: `Unit::Day` (the default), `Unit::Week`, `Unit::Month`, \
+                   `Unit::Quarter` (three months) or `Unit::Year`. A unit smaller than a day, \
+                   such as `Unit::Hour`, does not compile. A month is counted from `$from`. From \
+                   31 January 2026, the next dates are 28 February, 31 March and 30 April.",
             shape: &[],
         },
     ],
@@ -5972,6 +5981,23 @@ fn span_of(unit: jiff::Unit, value: i64) -> Result<jiff::Span, jiff::Error> {
     }
 }
 
+/// `value` of a calendar `unit` as a [`jiff::Span`], with a month count past
+/// jiff's month field written as years and months.
+///
+/// A span's month field stops at 239,976, which is less than the 239,988
+/// months of the whole date range, so a month list across the calendar would
+/// end early. jiff adds a span's years and months as one count of months
+/// before it clamps the day, so `y` years and `m` months land where `12y + m`
+/// months land, on the 31st and in a leap year alike.
+fn calendar_span(unit: jiff::Unit, value: i64) -> Result<jiff::Span, jiff::Error> {
+    if unit != jiff::Unit::Month {
+        return span_of(unit, value);
+    }
+    jiff::Span::new()
+        .try_years(value / 12)?
+        .try_months(value % 12)
+}
+
 /// `count` steps of the unit in argument slot 2, added to the receiver.
 ///
 /// Both `plus` and `minus` reach here, `minus` with the count negated, so the
@@ -7019,9 +7045,11 @@ nvs_runtime::nvs_helper! {
     /// as `Date::plus` does.
     ///
     /// **What it spends:** one `Date` per entry and the list, charged to the
-    /// request. The list's length is known before the loop, so it is asked of
-    /// the request's memory ceiling once, as `Core\Arr::range` asks it, and a
-    /// range past the ceiling stops there.
+    /// request. The list's length is known before the loop, so the list's slot
+    /// and its `Date` are asked of the request's memory ceiling once per entry,
+    /// before any is built, and a range past the ceiling stops there with
+    /// nothing held. Asking for the slots alone let a whole-calendar list hold
+    /// ten times its ask before the next poll saw it.
     fn nvs_core_time_date_range(_ctx, args: [3]) {
         let label = r"Core\Time\Date::range";
         let from = date_of(args, 0, "range")?;
@@ -7033,16 +7061,19 @@ nvs_runtime::nvs_helper! {
         // bound is one more than the count and one more for `$from` itself.
         let whole = date_whole_units(from, to, unit, label)?.unsigned_abs() / scale.unsigned_abs();
         let count = usize::try_from(whole).ok().and_then(|whole| whole.checked_add(2));
+        let per_entry =
+            size_of::<Value>() + nvs_runtime::FIELDS_OFFSET + 3 * nvs_runtime::FIELD_STRIDE;
         let count = nvs_runtime::affordable(
-            count.and_then(|count| count.checked_mul(size_of::<Value>())),
+            count.and_then(|count| count.checked_mul(per_entry)),
             label,
-        )? / size_of::<Value>();
+        )? / per_entry;
         let mut out = nvs_runtime::NvsArray::with_capacity(count);
         let mut steps: i64 = 0;
         loop {
             // A step past either end of the date range ends the list, as a
             // step past `$to` does.
-            let Ok(next) = span_of(unit, steps).and_then(|span| from.checked_add(span)) else {
+            let Ok(next) = calendar_span(unit, steps).and_then(|span| from.checked_add(span))
+            else {
                 break;
             };
             if (sign > 0 && next > to) || (sign < 0 && next < to) {
@@ -12124,6 +12155,21 @@ mod tests {
             time_gaps_ranged(civil::date(2026, 1, 1), civil::date(2026, 1, 2), 5),
             Err(r"Core\Time\Date::range(): a date takes `Unit::Day` or a larger unit".into())
         );
+    }
+
+    /// A month or quarter list across the whole calendar has every entry. A
+    /// month count past jiff's month field ended it early, with no error.
+    // covers: Core\Time\Date::range
+    #[test]
+    fn time_gaps_date_range_spans_the_whole_calendar() {
+        let months = time_gaps_ranged(civil::date(-9999, 1, 31), civil::date(9999, 12, 31), 8)
+            .expect("a month list across the calendar is built");
+        assert_eq!(months.len(), 239_988);
+        assert_eq!(months.last(), Some(&civil::date(9999, 12, 31)));
+        let quarters = time_gaps_ranged(civil::date(9999, 12, 31), civil::date(-9999, 1, 1), 9)
+            .expect("a quarter list down the calendar is built");
+        assert_eq!(quarters.len(), 79_996);
+        assert_eq!(quarters.last(), Some(&civil::date(-9999, 3, 31)));
     }
 
     /// `toClock` writes hours past a day, at least one hour digit and two
