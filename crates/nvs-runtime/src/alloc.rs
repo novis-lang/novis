@@ -114,7 +114,9 @@ pub(crate) struct Cache([Class; CLASS_COUNT]);
 
 impl std::fmt::Debug for Class {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Class").field("len", &self.len.get()).finish_non_exhaustive()
+        f.debug_struct("Class")
+            .field("len", &self.len.get())
+            .finish_non_exhaustive()
     }
 }
 

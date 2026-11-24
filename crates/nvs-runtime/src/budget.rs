@@ -1266,8 +1266,7 @@ pub fn detached_bytes() -> isize {
 /// balance.
 #[must_use]
 pub fn peak_bytes() -> isize {
-    with_counters(|c| c.peak.get())
-        .wrapping_sub(FOREIGN.with(Cell::get))
+    with_counters(|c| c.peak.get()).wrapping_sub(FOREIGN.with(Cell::get))
 }
 
 /// Starts a fresh mark at the current balance, and hands back the one it
@@ -1278,8 +1277,7 @@ pub fn peak_bytes() -> isize {
 /// carries the enclosing value, so it measures its own allocation and no
 /// caller's.
 pub(crate) fn rebase_peak() -> isize {
-    with_counters(|c| c.peak.replace(c.live.get()))
-        .wrapping_sub(FOREIGN.with(Cell::get))
+    with_counters(|c| c.peak.replace(c.live.get())).wrapping_sub(FOREIGN.with(Cell::get))
 }
 
 /// Starts the mark again at the current balance, keeping the one

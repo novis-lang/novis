@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-runtime/src/budget.rs, crates/nvs-runtime/src/counting_alloc.rs, benches/abi-probe/tests/perf_guards.rs]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: compare-counts
@@ -149,8 +149,8 @@ needs stage 1's counts, so it is taken after stage 1 ends.
 
 ### 3. the goal is verified once, and every failure is fixed
 
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
@@ -176,10 +176,12 @@ the platform heap moved from a median of 1.50 to 1.43, so the merge is not slowe
 Green by name: the alloc, budget and counting_alloc unit tests, and every `a_served_` test in the
 `nvs` binary, at their recorded counts.
 
+Stage 3 closed the goal: build and clippy green, `a_served_compare_case_allocates_its_recorded_count`
+green by name, and `bun nv close --goal allocation-accounting` red only on rustfmt over `alloc.rs`
+and `budget.rs`, which `cargo fmt --all` fixed. No test is expected to go red.
+
 ### Next
 
-Stage 3: close the goal with a build, clippy, the tests this goal wrote by name
-(`a_served_compare_case_allocates_its_recorded_count`, and the probe compiles), then `bun nv close
---goal allocation-accounting`. This goal is not the chain's full gate. No test is expected to go red.
+Nothing: the goal is reached. Its `DONE` runs `compare-counts` and `close`.
 
 ### Backlog
