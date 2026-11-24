@@ -1762,6 +1762,11 @@ a comment of its own inherits one ([`tooling/strict-docs`](tooling.md#tooling-st
 
 **The shapes.**
 - `@see <member>` names a class, member, enum or constant, and must resolve.
+- `@see <path>[#<anchor>]` names a file in the project, and may name a heading inside a Markdown file.
+  A target that contains `/` or `.` is a file target, and every other target is a member target. A
+  class or member name never contains either, so the two forms never overlap, and
+  `nvs_syntax::doc_target` is the one classifier the checker, the language server, `nvs pkg pack`,
+  `nvs meta` and `nvs doc` all call.
 - `@example <path>` names a file that must exist **and must be inside a directory the test corpus walks**,
   so an example that stops compiling fails the build rather than rotting in a page.
 - `@param $name text`: `$name` comes directly after the tag. A variadic parameter is written `$name` too,
@@ -1775,6 +1780,38 @@ can wrap. Each continuation line stays a line of the text, so a `- ` line is a l
 shape parameter's keys are listed under its `@param`, and hover and `nvs doc` show the list inside the
 parameter's own item. The text is required: a tag with no text is an error that says to write what the parameter means.
 That is the error a newly inserted `@param` line shows until its author writes the sentence.
+
+**A `@see` file target.** The path is relative to the writing file's folder, as an `@example` path and
+a `require` are ([`statements/require-is-the-only-inclusion-construct`](statements.md#statements-require-is-the-only-inclusion-construct)). The target must be a regular
+file, and it must stay inside the project.
+- **The project** is the nearest folder at or above the writing file that holds `nvs.toml` or
+  `package.toml`. A file with neither above it has its own folder as the project.
+- **The path is judged before it is joined.** An absolute path, a drive or UNC prefix, and a `..` that
+  climbs past the project are refused on the written text alone. After the join, the canonical path must
+  still start with the canonical project folder, so a symlink cannot leave it either.
+- **Any file may be a target, and only Markdown takes an anchor.** A `.md` or `.markdown` file takes
+  `#<anchor>`, and an anchor on any other file is an error. The anchor must equal the slug of one heading
+  in the file. Slugs follow GitHub's rules, which VS Code's Markdown preview shares: lowercase, every
+  character that is not a letter, a digit, a space, `-` or `_` removed, each space turned into `-`, and a
+  repeated slug suffixed `-1`, `-2` in order. A heading is ATX (`#` to `######`) or setext (a `===` or
+  `---` underline), and nothing inside a fenced code block counts. The scan is `doc_target`'s own and
+  reads no Markdown crate: the stdlib's parser is a run-time crate, and a heading scan is twenty lines.
+- **A package carries its targets.** `nvs pkg pack` and the registry build refuse a package in which a
+  `@see` file target or an `@example` path names a file outside the package's `[package] files`, and the
+  refusal names the tag, the file and the line. The consumer's check then finds every target, so the rule
+  "the target exists" holds the same way in a fetched package as in the project that wrote it.
+- **`nvs meta --json` and `nvs doc`** write a file target as a link. `see` in `nvs meta --json` stays a
+  list of strings, a file target written relative to the program root with `/` separators and its anchor
+  ([`tooling/meta-json-takes-a-program`](tooling.md#tooling-meta-json-takes-a-program)); `nvs doc` writes it as a Markdown link relative to the page.
+
+**Every `@see` failure is one diagnostic, `E0323`,** with a message and help for each case: no such class
+or member, no such file, no such heading, an anchor on a file that is not Markdown, and a path that
+leaves the project. A miss carries a suggestion that replaces the written name with the closest one,
+measured by edit distance, when one is within a third of the written length: the closest member of the
+class, or the closest heading slug of the file. A missing file gets no suggestion. The editor's quick fix
+is that suggestion, translated ([`ide/a-code-action-ships-only-a-fix-a-diagnostic-already-knows`](ide.md#ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows)).
+The checker records what each `@see`, `@example` and `@throws` target resolved to, and every editor
+feature reads that record ([`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed)).
 
 **A tag never carries a type.** The signature is the one place a type is written, and a second copy drifts.
 - After `@param`, anything but `$name` is an error, the parser's: `@param int $x` and JSDoc's
@@ -1818,7 +1855,12 @@ same position, because an override may name its parameters differently. A member
 shows only its own tags. A promoted constructor parameter's `@param` is its property's documentation.
 
 **Memory:** nothing at run time, in speed or in memory. The tags are read by the checker, `nvs meta`,
-`nvs doc` and the language server, and the AST holds two more spans per tag line.
+`nvs doc` and the language server, and the AST holds two more spans per tag line. A `@see` file target
+costs the check one `stat`, as `@example` does. An anchored target also reads the Markdown file once and
+scans its headings; the text is dropped when the tag is checked, and the read is recorded as a footprint
+file so test selection reruns a case when the Markdown file changes. The language server keeps one
+resolved target per tag for as long as the file's analysis is kept, and it rechecks an open `.nvs` file
+when that file is edited, not when the Markdown file changes; `nvs check` is the authority.
 
 **Declined:**
 - **Prose only, with no tags.** A Markdown link and a fenced block buy no check, and signature help has no
@@ -1829,6 +1871,14 @@ shows only its own tags. A promoted constructor parameter's `@param` is its prop
   warning fires only where the author already documented the others.
 - **Swift's Markdown list form** (`- Parameter x:`). A reader cannot tell a structured list from an
   ordinary one.
+- **A URL as a `@see` target.** The checker never touches the network, so a URL cannot be checked, and
+  every tag is checked. A Markdown link in the prose already carries an unchecked URL.
+- **A line anchor, `#L42`.** It points at the wrong line after the next edit above it.
+- **An HTML anchor, `<a id="x">`, as a target.** Only headings: one kind of anchor, one scan.
+- **A sixth tag such as `@link`.** `@see` already means "related", and PHPDoc and Javadoc readers expect
+  it to take a document.
+- **Skipping the tag checks for a fetched package's files.** The consumer's hover and `nvs doc` would
+  then link to a file that is absent.
 - **Dart's checked references in prose only.** They buy a check, but signature help still has no sentence
   per parameter.
 
@@ -1961,7 +2011,8 @@ it inherits by following those same keys to the nearest documented method of the
 comes from. A method inherited from a `Core` class or interface shows no inherited comment, because a
 `Core` member has no page in the run. A name with a page in the same run becomes a link, and one
 without stays code. `parent::` in a `@see` names the page's `extends`, and a member whose `kind` is
-`static` is printed with `static ` in front of its signature.
+`static` is printed with `static ` in front of its signature. A `@see` file target becomes a link from the
+page's folder to the file, through the program root the document wrote it from, with its heading anchor kept.
 
 It renders text the lexer has already accepted, so it needs no bidi check of its own
 ([`security/bidi-boundaries`](security.md#security-bidi-boundaries)). This repository does not itself need it — the one-file reference and the
@@ -2056,6 +2107,8 @@ is emitted in a shape mirroring the registry's own: name, signature, and a `doc`
 card's keys ([`tooling/doc-comment-tags-are-closed-and-checked`](tooling.md#tooling-doc-comment-tags-are-closed-and-checked)). `short` is the doc comment's prose,
 `params` is each `@param` as `{name, desc}` in signature order, `return` is the `@return` sentence, and
 `errors` is each `@throws` as `{error, desc}`, the class as written. `see` and `example` list those tags.
+A `@see` file target in `see` is written relative to the program root, the entry file's folder, with `/`
+separators and its anchor kept, so a consumer finds the file without knowing which source file wrote it.
 Each key is left out when it is empty. A method also carries `names`, its parameters without their `$`, as
 a registry member does. A promoted constructor parameter is listed as a `property` member, and its card's
 `short` is the constructor's `@param` for it. The `Core` half of that shape is the registry's and is

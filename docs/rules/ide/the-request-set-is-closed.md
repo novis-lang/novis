@@ -8,19 +8,27 @@ scope grows. The first nine: `publishDiagnostics` (the existing `nvs check` pipe
 the negotiated encoding, `code` set, phase-gated per `rule:ide/diagnostics-are-phase-gated`); `hover`
 (the declared type, a `Core` member's registry signature row, a declaration's doc-comment run as
 Markdown, an `autoload` prefix's namespace and roots, the class the string of `as class<T>` or a
-class-name argument names, and the absolute path a path argument names and whether anything is there);
-`definition` (the declaring span anywhere in the resolved `require`/`autoload` graph, the string of `as
-class<T>` and a class-name argument included); `completion` (keywords by position, members off a resolved
+class-name argument names, the absolute path a path argument names and whether anything is there, a `@see`
+member target as the member's own hover, and a `@see` file target as its path and, when it names a
+heading, that heading's section up to the next heading, at most 20 lines); `definition` (the declaring
+span anywhere in the resolved `require`/`autoload` graph, the string of `as class<T>` and a class-name
+argument included, and each doc-tag target: a `@see` member target to the member, the class part of
+`Class::member` and a `@throws` name to the class, a `@see` file target to the file at its heading's
+line, and an `@example` path to the file); `completion` (keywords by position, members off a resolved
 receiver including `Core` classes, enum cases after `Type::`, in-scope variables, inside a `require` or
 `autoload` path string or a path argument the entries of the directory its text reaches, inside an
 `autoload` prefix the namespaces the workspace declares, inside the string of `as class<T>` the classes
-that are a `T`, and inside a class-name argument the classes the program declares — no workspace symbol
-search); `semanticTokens/full`; `documentSymbol`; and three that are projections of data the tree already
+that are a `T`, inside a class-name argument the classes the program declares, and inside a `@see`
+argument the members as before and, once the text holds `/` or `.`, the files of the project relative
+to the writing file, with the heading slugs of a Markdown file after `#` — no workspace symbol search);
+`semanticTokens/full` (a `@see` member target coloured by what it resolved to, and a `@throws` name as a
+class); `documentSymbol`; and three that are projections of data the tree already
 holds rather than features built on it — `selectionRange` (the index's ancestor list is the response),
 `foldingRange` (the same walk plus comment blocks out of the trivia layer) and `documentLink` (the
 resolved path string of a `require`, each `autoload` root and `discover` glob, which name the directory
 each resolves to and list, an `autoload` prefix, which names the first of its roots that exists, and a
-path argument, which names the file or directory the checker resolved it to). A path argument is a string
+path argument, which names the file or directory the checker resolved it to, each `@see` file target,
+opened at its heading's line, and each `@example` path). A path argument is a string
 literal at a parameter the registry marks `CoreTy::Path`, at one a program marks `#[Core\Path]`, or at a
 `Core` shape field with the same mark (`rule:programs/relative-paths-resolve-from-their-file`); a
 class-name argument is one at a parameter marked `CoreTy::ClassName`. The mark is read off the call the
@@ -42,9 +50,17 @@ class<T>` and a class-name argument hover and jump as the class whose whole name
 as written, because the run-time lookup resolves no `use` line, so `'\App\User'` and a short name
 answer nothing.
 
+A doc-tag target is read the same way. The checker's `check_see`, `check_example` and the `@throws`
+check record what each tag resolved to in `nvs_hir::doc_targets::DocTargets`, keyed by the argument's
+span, and `definition`, `hover`, `documentLink`, `semanticTokens`, the index and `willRenameFiles` read
+that record. None of them parses a tag again or joins its path. A file target that the checker refused
+gets no link, no hover and no jump; its diagnostic and its quick fix are the answer.
+
 - **Memory:** one span per `autoload` literal and per prefix, and one `Vec` of parameter marks per
   resolved call, per compile, the `Vec` not allocated for a method that marks nothing. In the server,
-  one existence test per literal, root or path argument per link or hover request. Nothing at run time.
+  one existence test per literal, root or path argument per link or hover request, and one resolved
+  target per doc tag for as long as the file's analysis is kept. A hover on an anchored file target
+  reads that Markdown file once. Nothing at run time.
 
 The first non-standard request is `nvs/redactions`
 (`rule:ide/redaction-ranges-come-from-the-server`), non-standard because LSP has no shape for "do not
@@ -110,7 +126,11 @@ The last three standard requests are the rename of `rule:ide/no-refactoring-intr
 they pass the same test. `prepareRename` and `rename` read the reference index for a type and for a
 member, with a method's whole override family, and the type phase's record of each body's bindings for
 a local. `workspace/willRenameFiles` reads the `require` edges the graph walk recorded, the same edges
-`documentLink` underlines, and writes each literal that names a moved file again. A type declared alone
+`documentLink` underlines, and writes each literal that names a moved file again. It writes each `@see`
+file target and `@example` path the doc-target record says named the moved file or a file under the
+moved folder again too, keeping the anchor. Its file filter is every file, `**/*`, because any file may
+be a `@see` target; a move that no literal and no recorded target names is answered `null` from the
+record without reading a file. A type declared alone
 in a file named after it moves that file too, because an `autoload` finds it by that name: the edit is
 `documentChanges`, its text edits first and one `RenameFile` last, with the `require` edits that move
 makes. A rename the server will not carry out is answered `RequestFailed` with a message the editor
@@ -167,5 +187,14 @@ has no `.lspt` vocabulary, and `crates/nvs-lsp/tests/autoload.rs` holds it.
   about.
 - **`definition` on an `autoload` prefix, to its first root.** A `Location` names a file and a range, and
   a directory is neither; the link already gives the same ctrl-click.
+- **Answering requests on Markdown files.** The server registers `.nvs` documents only. Finding the
+  `@see` tags that point at a heading, or renaming a heading together with them, would mean a second
+  server on `.md` documents beside the editor's own Markdown support. A renamed heading is caught by
+  `nvs check`, and the quick fix offers the closest heading.
+- **A preview of a file that is not Markdown in a `@see` hover.** The link opens it, and the first lines
+  of a SQL or TOML file tell the reader little that its name does not.
+- **`#` as a completion trigger character.** `#` starts a comment, so every `#` typed in code would ask
+  the server for a list it answers with nothing. Heading slugs come with the next letter typed, or on
+  ctrl+space.
 - **Resolving the string of `as class<T>` through the file's `use` lines.** The conversion does not, so
   the editor would jump to a class the program then fails to find.

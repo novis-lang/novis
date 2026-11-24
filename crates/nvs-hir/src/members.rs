@@ -1278,6 +1278,11 @@ fn check_missing_params(
 /// trusted the same way [`member_declared`] trusts one anywhere else. A member
 /// that is not found gets the closest member name of the class as its fix
 /// ([`closest_name`]).
+///
+/// Every failure of either shape is `E0323`. What a target resolved to, a
+/// class, a member with its owner and kind, or a file with its heading's line,
+/// goes into [`crate::doc_targets::DocTargets`] keyed by the argument's span,
+/// and the language server reads it from there.
 fn check_see(tag: &DocTag, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let raw = src.span_text(tag.argument).unwrap_or_default();
     let text = raw.trim();
