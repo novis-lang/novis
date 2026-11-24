@@ -915,6 +915,11 @@ fn manifest_class_json(manifest: &nvs_ext::manifest::Manifest) -> Value {
 
 /// A manifest enum under its full name, its owner's when it has one: its cases,
 /// and its `help` as its card.
+///
+/// The card carries the cases under `doc.cases` as well, the shape a `Core`
+/// enum's card has, because `nvs agent show` reads an enum's cases from there
+/// for both. The top-level `cases` is the declaration's own list, which the
+/// website's class pages read.
 fn manifest_enum_json(
     manifest: &nvs_ext::manifest::Manifest,
     declared: &nvs_ext::manifest::Enum,
@@ -926,9 +931,16 @@ fn manifest_enum_json(
         .iter()
         .map(|case| json!({ "name": case }))
         .collect();
-    out.insert("cases".into(), Value::Array(cases));
+    let mut doc = Map::new();
     if let Some(help) = &declared.help {
-        out.insert("doc".into(), json!({ "short": help }));
+        doc.insert("short".into(), Value::from(help.as_str()));
+    }
+    if !cases.is_empty() {
+        doc.insert("cases".into(), Value::Array(cases.clone()));
+    }
+    out.insert("cases".into(), Value::Array(cases));
+    if !doc.is_empty() {
+        out.insert("doc".into(), Value::Object(doc));
     }
     Value::Object(out)
 }

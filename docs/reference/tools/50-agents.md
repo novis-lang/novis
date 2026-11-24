@@ -335,7 +335,7 @@ $ nvs agent find length
 Core\Str::length(string $s): uint
 Core\Bytes::length(bytes $b): uint
 Core\Response\Stream::length(): int
-Novis\Intl\DateFormat::Length  enum
+Novis\Intl\DateFormat::Length  enum {Short, Medium, Long}
 ```
 
 Two functions and an enum, and the card says which function is meant:

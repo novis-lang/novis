@@ -997,6 +997,31 @@ fn show_json_gives_each_part_of_the_card_by_kind() {
     assert!(!card.is_empty() && text.contains(card), "{code}");
 }
 
+/// A built-in component's enum lists its cases, as a `Core` enum does: the
+/// card is where a reader looks up which cases exist, and an empty list sends
+/// them to guess one.
+// covers: tools:agents/nvs-agent
+#[test]
+fn a_component_enum_card_lists_its_cases() {
+    let symbol = r"Novis\Intl\DateFormat::Length";
+    let (card, ok) = agent_json(&["show", symbol]);
+    assert!(ok, "`nvs agent show {symbol} --json` succeeds");
+    assert_eq!(card["kind"], "enum");
+    let cases: Vec<&str> = card["cases"]
+        .as_array()
+        .expect("`cases` is a list")
+        .iter()
+        .filter_map(|case| case["name"].as_str())
+        .collect();
+    assert_eq!(cases, ["Short", "Medium", "Long"], "{card}");
+    let (text, _, ok) = agent(&["show", symbol]);
+    assert!(ok, "`nvs agent show {symbol}` succeeds");
+    assert!(
+        text.contains("\ncases:\n  Short\n  Medium\n  Long"),
+        "the text card lists the cases too:\n{text}"
+    );
+}
+
 /// An unknown symbol fails under `--json` too. The document is still printed on
 /// standard output, as `nvs check --json`'s is, and names what was asked for and
 /// the records nearest to it.
