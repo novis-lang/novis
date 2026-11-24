@@ -6,7 +6,7 @@ context: [crates/nvs-stdlib/src/reflect.rs, docs/rules/core-classes/reflect.md]
 stages:
   - id: 1
     title: "PropertyInfo answers isLateInit and isReadonly, and nvs meta writes both modifiers"
-    status: open
+    status: done
     context: [crates/nvs-cli/src/meta.rs, docs/rules/classes/lateinit.md, docs/rules/tooling/meta-json-takes-a-program.md]
   - id: 2
     title: "every description is built once when the unit loads, as immortal objects"
@@ -148,8 +148,13 @@ array per roster per class described, per request, freed at its end, O(classes),
 instances of one class. The rule fragment says so.
 
 **The new members.** `PropertyInfo::isLateInit(): bool` is true for a property declared `lateinit`,
-read off the descriptor's never-written marker (`FieldDefault::Unset`, `object.rs:1082`, in the
-`defaults` list at `object.rs:466`), inherited properties included. `PropertyInfo::isReadonly(): bool`
+inherited properties included. It reads `ClassDesc::field_is_lateinit`, a per-slot bit list of its
+own (`lateinit_fields`, filled by `ClassTable::set_lateinit_fields` from `nvs_ir::ir::Class::
+lateinit_fields`, which `nvs_ir::lower::lateinit_fields` computes over the class and its ancestors).
+It is not read off the `FieldDefault::Unset` entries in `defaults`: those also arm a slot a
+constructor may leave unset while an observer runs (`ExprTypeTable::pipeline_armed`), and that slot
+is not `lateinit`. **What it spends:** one `bool` per slot per class that has a `lateinit` slot,
+once per process. `PropertyInfo::isReadonly(): bool`
 reads `ClassDesc::field_is_readonly` (`object.rs:2100`). Both are bool slots on the row, built once
 under stage 2. `Core\Reflect::steps` (`reflect.rs:2349`) rows carry them too. `nvs meta --json`'s
 property signature writes `readonly` and `lateinit` before the type, in source order, as
@@ -179,14 +184,14 @@ rule is rewritten.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-runtime/src/object.rs:2100`: `ClassDesc::field_is_lateinit(slot)` beside
-  `field_is_readonly`, read off the `Unset` entries in `defaults`.
-- [ ] `crates/nvs-stdlib/src/reflect.rs:1508`: two slots and two members on `PROPERTY_INFO`, their
+- [x] `crates/nvs-runtime/src/object.rs:2100`: `ClassDesc::field_is_lateinit(slot)` beside
+  `field_is_readonly`, from its own bit list (see *The new members*).
+- [x] `crates/nvs-stdlib/src/reflect.rs:1508`: two slots and two members on `PROPERTY_INFO`, their
   slot constants beside `reflect.rs:273`, natives beside `reflect.rs:3061`, the card and the member
   docs beside `reflect.rs:1552`; `describe` and `steps` fill both.
-- [ ] `reflect.rs`'s tests: the three tests the check `modifiers` names, then
+- [x] `reflect.rs`'s tests: the three tests the check `modifiers` names, then
   `cargo test --lib a_property_info_tells_` once.
-- [ ] `crates/nvs-cli/src/meta.rs:1282`: the modifiers before the type; the test the check `meta`
+- [x] `crates/nvs-cli/src/meta.rs:1282`: the modifiers before the type; the test the check `meta`
   names in `crates/nvs-cli/tests/meta.rs`, run once by name.
 
 ### 2. every description is built once when the unit loads, as immortal objects
@@ -245,11 +250,20 @@ rewritten; the session writes the rules and the website entries.
 
 ### State
 
-Written by the interactive session that settled the design with the user on 2026-11-24. Nothing is
-built. Every anchor above was read that day.
+Stage 1 is done, and its checks `modifiers` and `meta` are green. `PropertyInfo` has five slots
+(`name`, `public`, `type`, `lateinit`, `readonly`), and `crates/nvs-stdlib/src/instance.rs`'s
+`SLOT_TYPES` row for it states all five. `crates/nvs-codegen/tests/late_init.rs`'s
+`a_reflected_property_tells_lateinit_and_readonly_through_the_pipeline` covers the lowering end to end.
+The lateinit bit is its own list, not the `Unset` marker: see *The new members*.
 
 ### Next
 
-Stage 1 from its first item. Every check is red until its stage's tests exist.
+Stage 2 from its first item: rewrite `reflect.rs`'s module doc decisions first (`reflect.rs:5` to
+`:50`), then `ClassTable`'s description storage (`object.rs`, `@ClassTable`). A row now has five
+slots, so the immortal row writer fills `lateinit` and `readonly` from `field_is_lateinit` and
+`field_is_readonly` as `describe` does (`reflect.rs`, `@describe`). Expect red at the gate: any test
+or golden that pins a `readonly` or `lateinit` property's `nvs meta --json` or `nvs code` signature
+(`crates/nvs-cli/src/meta.rs`, `@property_signature`), and the website's Core reference for
+`PropertyInfo` until stage 4 renders it.
 
 ### Backlog
