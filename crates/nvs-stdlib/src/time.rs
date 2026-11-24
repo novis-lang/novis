@@ -81,8 +81,10 @@
 //! A `Date` answers `year`, `month`, `day`, `weekday`, `dayOfYear` and `isLeapYear`
 //! from its three slots. A `DateTime` answers `year`, `month`, `day`, `hour`, `minute`,
 //! `second` and `nanoseconds` from the civil time in its own zone, and a `TimeOfDay` answers
-//! `hour`, `minute`, `second` and `nanoseconds` from its four slots. So no caller reads a field
-//! by parsing `format`'s output. Each
+//! `hour`, `minute`, `second` and `nanoseconds` from its four slots. A `Date` and a
+//! `DateTime` both answer four calendar parts that no `with` option sets: `daysInMonth`,
+//! `quarter`, and ISO 8601's `isoWeek` and `isoWeekYear`. So no caller reads a field
+//! by parsing `format`'s output. Each field
 //! reader has the name and type of the `with` option for the same field — `year` is
 //! `int`, every other field `uint` — so `$d->with({ month: $d->month() + 1 })` is one
 //! vocabulary. A reader allocates nothing. The way from the parts to a `DateTime` is
@@ -1610,7 +1612,9 @@ pub const UNIT: CoreEnum = CoreEnum {
 const UNIT_DOC: EnumDoc = EnumDoc {
     short: "The calendar step a `DateTime`, `Date` or `TimeOfDay` moves by, and the unit \
             `startOf`, `endOf` and `difference` count in. A change to or from summer time, or a \
-            short month, can make one step longer or shorter. The cases are listed smallest first.",
+            short month, can make one step longer or shorter. The cases are listed smallest first. \
+            A `Date` takes `Unit::Day` and larger units. Its `startOf` and `endOf` take \
+            `Unit::Week` and larger units.",
     cases: &[
         CaseDoc {
             name: "Nanosecond",
@@ -2022,6 +2026,46 @@ pub const DATETIME: CoreClass = CoreClass {
             doc: Some(&DATETIME_IS_LEAP_YEAR_DOC),
         },
         CoreMethod {
+            name: "daysInMonth",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_datetime_days_in_month",
+            doc: Some(&DATETIME_DAYS_IN_MONTH_DOC),
+        },
+        CoreMethod {
+            name: "quarter",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_datetime_quarter",
+            doc: Some(&DATETIME_QUARTER_DOC),
+        },
+        CoreMethod {
+            name: "isoWeek",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_datetime_iso_week",
+            doc: Some(&DATETIME_ISO_WEEK_DOC),
+        },
+        CoreMethod {
+            name: "isoWeekYear",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_datetime_iso_week_year",
+            doc: Some(&DATETIME_ISO_WEEK_YEAR_DOC),
+        },
+        CoreMethod {
             name: "year",
             names: &[],
             params: &[],
@@ -2427,6 +2471,42 @@ const DATETIME_IS_LEAP_YEAR_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Time\DateTime::daysInMonth`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_DAYS_IN_MONTH_DOC: MethodDoc = MethodDoc {
+    short: "Returns the number of days in the month of this value, in the value's own time zone.",
+    params: &[],
+    ret: "`28` to `31`. February has `29` days in a leap year.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::quarter`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_QUARTER_DOC: MethodDoc = MethodDoc {
+    short: "Returns the quarter of the year that contains this value, in the value's own time \
+            zone.",
+    params: &[],
+    ret: "`1` for January to March, `2` for April to June, `3` for July to September and `4` for \
+          October to December.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::isoWeek`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_ISO_WEEK_DOC: MethodDoc = MethodDoc {
+    short: "Returns the ISO 8601 week number of this value, in the value's own time zone. A week \
+            starts on Monday. Week `1` contains the first Thursday of the year.",
+    params: &[],
+    ret: "`1` to `53`. The first days of January can be in week `52` or `53` of the year before.",
+    errors: &[],
+};
+
+/// `Core\Time\DateTime::isoWeekYear`'s reference card — `rule:core-api/reference-card`.
+const DATETIME_ISO_WEEK_YEAR_DOC: MethodDoc = MethodDoc {
+    short: "Returns the year that the ISO 8601 week of this value belongs to. Use it together \
+            with `isoWeek()`.",
+    params: &[],
+    ret: "The year of the week. It is different from `year()` for a few days around New Year.",
+    errors: &[],
+};
+
 /// `Core\Time\DateTime::year`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_YEAR_DOC: MethodDoc = MethodDoc {
     short: "Returns the year, as the clock in the value's own time zone shows it.",
@@ -2640,6 +2720,14 @@ fn datetime_address(symbol: &str) -> Option<nvs_runtime::Entry> {
         }
         "nvs_core_time_datetime_zone" => (nvs_core_time_datetime_zone as *const ()).cast(),
         "nvs_core_time_datetime_weekday" => (nvs_core_time_datetime_weekday as *const ()).cast(),
+        "nvs_core_time_datetime_days_in_month" => {
+            (nvs_core_time_datetime_days_in_month as *const ()).cast()
+        }
+        "nvs_core_time_datetime_quarter" => (nvs_core_time_datetime_quarter as *const ()).cast(),
+        "nvs_core_time_datetime_iso_week" => (nvs_core_time_datetime_iso_week as *const ()).cast(),
+        "nvs_core_time_datetime_iso_week_year" => {
+            (nvs_core_time_datetime_iso_week_year as *const ()).cast()
+        }
         "nvs_core_time_datetime_day_of_year" => {
             (nvs_core_time_datetime_day_of_year as *const ()).cast()
         }
@@ -2930,6 +3018,96 @@ pub const DATE: CoreClass = CoreClass {
             doc: Some(&DATE_IS_LEAP_YEAR_DOC),
         },
         CoreMethod {
+            name: "startOf",
+            names: &["unit"],
+            params: &[CoreTy::Union(DATE_PERIOD_UNITS)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATE_NAME),
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_date_start_of",
+            doc: Some(&DATE_START_OF_DOC),
+        },
+        CoreMethod {
+            name: "endOf",
+            names: &["unit"],
+            params: &[CoreTy::Union(DATE_PERIOD_UNITS)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATE_NAME),
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_date_end_of",
+            doc: Some(&DATE_END_OF_DOC),
+        },
+        CoreMethod {
+            name: "difference",
+            names: &["other", "unit"],
+            params: &[CoreTy::Instance(DATE_NAME), CoreTy::Union(DATE_STEP_UNITS)],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_date_difference",
+            doc: Some(&DATE_DIFFERENCE_DOC),
+        },
+        CoreMethod {
+            name: "next",
+            names: &["w"],
+            params: &[CoreTy::Enum(WEEKDAY.name)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATE_NAME),
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_date_next",
+            doc: Some(&DATE_NEXT_DOC),
+        },
+        CoreMethod {
+            name: "previous",
+            names: &["w"],
+            params: &[CoreTy::Enum(WEEKDAY.name)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(DATE_NAME),
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_date_previous",
+            doc: Some(&DATE_PREVIOUS_DOC),
+        },
+        CoreMethod {
+            name: "daysInMonth",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_date_days_in_month",
+            doc: Some(&DATE_DAYS_IN_MONTH_DOC),
+        },
+        CoreMethod {
+            name: "quarter",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_date_quarter",
+            doc: Some(&DATE_QUARTER_DOC),
+        },
+        CoreMethod {
+            name: "isoWeek",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_date_iso_week",
+            doc: Some(&DATE_ISO_WEEK_DOC),
+        },
+        CoreMethod {
+            name: "isoWeekYear",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            text: TextOrigin::Unmarked,
+            symbol: "nvs_core_time_date_iso_week_year",
+            doc: Some(&DATE_ISO_WEEK_YEAR_DOC),
+        },
+        CoreMethod {
             name: "year",
             names: &[],
             params: &[],
@@ -3175,6 +3353,151 @@ const DATE_IS_LEAP_YEAR_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// The `Core\Unit` cases `Date::startOf` and `Date::endOf` take: a date has no
+/// period smaller than a week that is not itself.
+const DATE_PERIOD_UNITS: &[CoreTy] = &[
+    CoreTy::EnumCase(UNIT.name, "Week"),
+    CoreTy::EnumCase(UNIT.name, "Month"),
+    CoreTy::EnumCase(UNIT.name, "Quarter"),
+    CoreTy::EnumCase(UNIT.name, "Year"),
+];
+
+/// The `Core\Unit` cases `Date::difference` counts in: a day and every larger
+/// unit, because a date has no time of day to count.
+const DATE_STEP_UNITS: &[CoreTy] = &[
+    CoreTy::EnumCase(UNIT.name, "Day"),
+    CoreTy::EnumCase(UNIT.name, "Week"),
+    CoreTy::EnumCase(UNIT.name, "Month"),
+    CoreTy::EnumCase(UNIT.name, "Quarter"),
+    CoreTy::EnumCase(UNIT.name, "Year"),
+];
+
+/// `Core\Time\Date::startOf`'s reference card — `rule:core-api/reference-card`.
+const DATE_START_OF_DOC: MethodDoc = MethodDoc {
+    short: "Returns the first day of the week, month, quarter or year that contains this date. \
+            A week starts on Monday.",
+    params: &[ParamDoc {
+        name: "unit",
+        desc: "`Unit::Week`, `Unit::Month`, `Unit::Quarter` or `Unit::Year`. A smaller unit does \
+               not compile.",
+        shape: &[],
+    }],
+    ret: "A new `Date` on or before this date. `Date::at(2026, 5, 20)->startOf(Unit::Quarter)` is \
+          `2026-04-01`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The result is before the year `-9999`.",
+    }],
+};
+
+/// `Core\Time\Date::endOf`'s reference card — `rule:core-api/reference-card`.
+const DATE_END_OF_DOC: MethodDoc = MethodDoc {
+    short: "Returns the last day of the week, month, quarter or year that contains this date. \
+            A week ends on Sunday.",
+    params: &[ParamDoc {
+        name: "unit",
+        desc: "`Unit::Week`, `Unit::Month`, `Unit::Quarter` or `Unit::Year`. A smaller unit does \
+               not compile.",
+        shape: &[],
+    }],
+    ret: "A new `Date` on or after this date. `Date::at(2024, 2, 10)->endOf(Unit::Month)` is \
+          `2024-02-29`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The week ends after the year `9999`.",
+    }],
+};
+
+/// `Core\Time\Date::difference`'s reference card — `rule:core-api/reference-card`.
+const DATE_DIFFERENCE_DOC: MethodDoc = MethodDoc {
+    short: "Counts the whole units of `$unit` from this date to `$other`. It counts the same way \
+            as `DateTime::difference`. Use it for an age in years or a term in months.",
+    params: &[
+        ParamDoc {
+            name: "other",
+            desc: "The date to count to.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "unit",
+            desc: "`Unit::Day`, `Unit::Week`, `Unit::Month`, `Unit::Quarter` or `Unit::Year`. A \
+                   smaller unit does not compile.",
+            shape: &[],
+        },
+    ],
+    ret: "The whole count. It is negative when `$other` is earlier, and `0` when the two dates \
+          are less than one unit apart.",
+    errors: &[],
+};
+
+/// `Core\Time\Date::next`'s reference card — `rule:core-api/reference-card`.
+const DATE_NEXT_DOC: MethodDoc = MethodDoc {
+    short: "Finds the first date after this one that falls on `$w`.",
+    params: &[ParamDoc {
+        name: "w",
+        desc: "The weekday to move to.",
+        shape: &[],
+    }],
+    ret: "A new `Date` one to seven days later. It is seven days later when this date already \
+          falls on `$w`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The result is after the year `9999`.",
+    }],
+};
+
+/// `Core\Time\Date::previous`'s reference card — `rule:core-api/reference-card`.
+const DATE_PREVIOUS_DOC: MethodDoc = MethodDoc {
+    short: "Finds the last date before this one that falls on `$w`.",
+    params: &[ParamDoc {
+        name: "w",
+        desc: "The weekday to move to.",
+        shape: &[],
+    }],
+    ret: "A new `Date` one to seven days earlier. It is seven days earlier when this date already \
+          falls on `$w`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The result is before the year `-9999`.",
+    }],
+};
+
+/// `Core\Time\Date::daysInMonth`'s reference card — `rule:core-api/reference-card`.
+const DATE_DAYS_IN_MONTH_DOC: MethodDoc = MethodDoc {
+    short: "Returns the number of days in the month of this date.",
+    params: &[],
+    ret: "`28` to `31`. February has `29` days in a leap year.",
+    errors: &[],
+};
+
+/// `Core\Time\Date::quarter`'s reference card — `rule:core-api/reference-card`.
+const DATE_QUARTER_DOC: MethodDoc = MethodDoc {
+    short: "Returns the quarter of the year that contains this date.",
+    params: &[],
+    ret: "`1` for January to March, `2` for April to June, `3` for July to September and `4` for \
+          October to December.",
+    errors: &[],
+};
+
+/// `Core\Time\Date::isoWeek`'s reference card — `rule:core-api/reference-card`.
+const DATE_ISO_WEEK_DOC: MethodDoc = MethodDoc {
+    short: "Returns the ISO 8601 week number of this date. A week starts on Monday. Week `1` is \
+            the week that contains the first Thursday of the year.",
+    params: &[],
+    ret: "`1` to `53`. The first days of January can be in week `52` or `53` of the year before.",
+    errors: &[],
+};
+
+/// `Core\Time\Date::isoWeekYear`'s reference card — `rule:core-api/reference-card`.
+const DATE_ISO_WEEK_YEAR_DOC: MethodDoc = MethodDoc {
+    short: "Returns the year that the ISO 8601 week of this date belongs to. Use it together with \
+            `isoWeek()`.",
+    params: &[],
+    ret: "The year of the week. It is different from `year()` for a few days around New Year. \
+          `Date::at(2027, 1, 1)->isoWeekYear()` is `2026`.",
+    errors: &[],
+};
+
 /// `Core\Time\Date::year`'s reference card — `rule:core-api/reference-card`.
 const DATE_YEAR_DOC: MethodDoc = MethodDoc {
     short: "Returns the year of this date.",
@@ -3220,6 +3543,19 @@ fn date_address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_time_date_weekday" => (nvs_core_time_date_weekday as *const ()).cast(),
         "nvs_core_time_date_day_of_year" => (nvs_core_time_date_day_of_year as *const ()).cast(),
         "nvs_core_time_date_is_leap_year" => (nvs_core_time_date_is_leap_year as *const ()).cast(),
+        "nvs_core_time_date_start_of" => (nvs_core_time_date_start_of as *const ()).cast(),
+        "nvs_core_time_date_end_of" => (nvs_core_time_date_end_of as *const ()).cast(),
+        "nvs_core_time_date_difference" => (nvs_core_time_date_difference as *const ()).cast(),
+        "nvs_core_time_date_next" => (nvs_core_time_date_next as *const ()).cast(),
+        "nvs_core_time_date_previous" => (nvs_core_time_date_previous as *const ()).cast(),
+        "nvs_core_time_date_days_in_month" => {
+            (nvs_core_time_date_days_in_month as *const ()).cast()
+        }
+        "nvs_core_time_date_quarter" => (nvs_core_time_date_quarter as *const ()).cast(),
+        "nvs_core_time_date_iso_week" => (nvs_core_time_date_iso_week as *const ()).cast(),
+        "nvs_core_time_date_iso_week_year" => {
+            (nvs_core_time_date_iso_week_year as *const ()).cast()
+        }
         "nvs_core_time_date_year" => (nvs_core_time_date_year as *const ()).cast(),
         "nvs_core_time_date_month" => (nvs_core_time_date_month as *const ()).cast(),
         "nvs_core_time_date_day" => (nvs_core_time_date_day as *const ()).cast(),
@@ -4171,20 +4507,25 @@ fn iso_datetime(text: &str) -> Result<IsoLocal, String> {
         (date.to_datetime(time), start + end)
     };
     if matches!(bytes.get(end), Some(b'Z' | b'z')) {
-        return Err(
-            "the text has an offset `Z` and no zone. Read it with \
+        return Err("the text has an offset `Z` and no zone. Read it with \
              `Core\\Time\\Instant::fromIso`, then call `->in($zone)`"
-                .to_owned(),
-        );
+            .to_owned());
     }
     let mut at = end;
     let offset = if matches!(bytes.get(at), Some(b'+' | b'-')) {
-        let width = if bytes.get(at + 6) == Some(&b':') { 9 } else { 6 };
+        let width = if bytes.get(at + 6) == Some(&b':') {
+            9
+        } else {
+            6
+        };
         let written = text.get(at..at + width).filter(|written| {
-            written.as_bytes()[1..]
-                .iter()
-                .enumerate()
-                .all(|(i, byte)| if i % 3 == 2 { *byte == b':' } else { byte.is_ascii_digit() })
+            written.as_bytes()[1..].iter().enumerate().all(|(i, byte)| {
+                if i % 3 == 2 {
+                    *byte == b':'
+                } else {
+                    byte.is_ascii_digit()
+                }
+            })
         });
         let Some(offset) = written.and_then(parse_offset) else {
             return Err(format!(
@@ -4193,10 +4534,12 @@ fn iso_datetime(text: &str) -> Result<IsoLocal, String> {
         };
         at += width;
         if bytes.get(at) != Some(&b'[') {
-            return Err("the text has an offset and no zone. Write the zone after the offset, \
+            return Err(
+                "the text has an offset and no zone. Write the zone after the offset, \
                         such as `[Europe/Vienna]`, or read the text with \
                         `Core\\Time\\Instant::fromIso`, then call `->in($zone)`"
-                .to_owned());
+                    .to_owned(),
+            );
         }
         Some(offset)
     } else {
@@ -4208,7 +4551,9 @@ fn iso_datetime(text: &str) -> Result<IsoLocal, String> {
         };
         let name = &text[at + 1..close];
         if name.starts_with('!') {
-            return Err("a critical flag `[!...]` is not read. Write the zone name alone".to_owned());
+            return Err(
+                "a critical flag `[!...]` is not read. Write the zone name alone".to_owned(),
+            );
         }
         if name.contains('=') {
             return Err(format!(
@@ -4217,9 +4562,8 @@ fn iso_datetime(text: &str) -> Result<IsoLocal, String> {
             ));
         }
         let id = written_zone(name)?;
-        let zone = resolve_zone(&id).ok_or_else(|| {
-            format!("`{}` is not a time zone name", nvs_runtime::quoted(name))
-        })?;
+        let zone = resolve_zone(&id)
+            .ok_or_else(|| format!("`{}` is not a time zone name", nvs_runtime::quoted(name)))?;
         at = close + 1;
         Some((id, zone))
     } else {
@@ -5460,48 +5804,54 @@ fn stepped(args: &[Value], member: &str, sign: i64) -> Result<Value, Fault> {
         .map_err(|err| out_of_range(&format!(r"Core\Time\DateTime::{member}"), &err.to_string()))
 }
 
+/// `date` truncated down to the start of a calendar `unit`: the zone-free twin
+/// of [`floored`], which calls it for every unit of a day or more. `Date::startOf`
+/// and `Date::endOf` call it directly. A unit of a day or smaller leaves the date
+/// as it is.
+fn floored_date(
+    date: civil::Date,
+    unit: jiff::Unit,
+    scale: i64,
+    class: &str,
+    member: &str,
+) -> Result<civil::Date, Fault> {
+    let failed =
+        |err: jiff::Error| out_of_range(&format!(r"Core\Time\{class}::{member}"), &err.to_string());
+    Ok(match unit {
+        jiff::Unit::Year => civil::Date::new(date.year(), 1, 1).map_err(failed)?,
+        // One `Quarter` is three months, so its start is the first month of
+        // the three the receiver's own month falls in.
+        jiff::Unit::Month if scale == 3 => {
+            let month = (date.month() - 1) / 3 * 3 + 1;
+            civil::Date::new(date.year(), month, 1).map_err(failed)?
+        }
+        jiff::Unit::Month => date.first_of_month(),
+        // ISO-8601's week, which starts on Monday — the same order
+        // `Core\Time\Weekday`'s cases are in.
+        jiff::Unit::Week => date
+            .checked_sub(jiff::Span::new().days(i64::from(date.weekday().to_monday_zero_offset())))
+            .map_err(failed)?,
+        _ => date,
+    })
+}
+
 /// The receiver truncated down to the start of `unit`.
 ///
 /// Computed on the **civil** fields and then placed back in the zone, which is
 /// what makes `startOf(Unit::Day)` the local midnight rather than a fixed
 /// number of hours back: `Core\Time`'s calendar arithmetic is civil arithmetic, and
-/// the zone decides afterwards what instant that names.
+/// the zone decides afterwards what instant that names. A unit of a day or more
+/// is [`floored_date`]'s, at midnight.
 fn floored(at: &Zoned, unit: jiff::Unit, scale: i64, member: &str) -> Result<Zoned, Fault> {
     let civil = at.datetime();
     let (date, time) = (civil.date(), civil.time());
     let floored = match unit {
-        jiff::Unit::Year => civil::DateTime::from_parts(
-            civil::Date::new(date.year(), 1, 1).map_err(|err| {
-                out_of_range(&format!(r"Core\Time\DateTime::{member}"), &err.to_string())
-            })?,
-            civil::Time::midnight(),
-        ),
-        // One `Quarter` is three months, so its start is the first month of
-        // the three the receiver's own month falls in.
-        jiff::Unit::Month if scale == 3 => {
-            let month = (date.month() - 1) / 3 * 3 + 1;
+        jiff::Unit::Year | jiff::Unit::Month | jiff::Unit::Week | jiff::Unit::Day => {
             civil::DateTime::from_parts(
-                civil::Date::new(date.year(), month, 1).map_err(|err| {
-                    out_of_range(&format!(r"Core\Time\DateTime::{member}"), &err.to_string())
-                })?,
+                floored_date(date, unit, scale, "DateTime", member)?,
                 civil::Time::midnight(),
             )
         }
-        jiff::Unit::Month => {
-            civil::DateTime::from_parts(date.first_of_month(), civil::Time::midnight())
-        }
-        // ISO-8601's week, which starts on Monday — the same order
-        // `Core\Time\Weekday`'s cases are in.
-        jiff::Unit::Week => civil::DateTime::from_parts(
-            date.checked_sub(
-                jiff::Span::new().days(i64::from(date.weekday().to_monday_zero_offset())),
-            )
-            .map_err(|err| {
-                out_of_range(&format!(r"Core\Time\DateTime::{member}"), &err.to_string())
-            })?,
-            civil::Time::midnight(),
-        ),
-        jiff::Unit::Day => civil::DateTime::from_parts(date, civil::Time::midnight()),
         jiff::Unit::Hour => civil::DateTime::from_parts(
             date,
             civil::Time::new(time.hour(), 0, 0, 0).unwrap_or(civil::Time::midnight()),
@@ -5879,6 +6229,40 @@ nvs_runtime::nvs_helper! {
     /// where it is built.
     fn nvs_core_time_datetime_is_leap_year(_ctx, args: [1]) {
         Ok(Value::bool(zoned_of(args, 0, "isLeapYear")?.in_leap_year()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->daysInMonth(): uint` — the length of the month that holds the
+    /// value in its own zone. This reader and the three below it read the date
+    /// [`zoned_of`] builds, as [`nvs_core_time_date_days_in_month`] and its
+    /// neighbours read a `Date`.
+    fn nvs_core_time_datetime_days_in_month(_ctx, args: [1]) {
+        let date = zoned_of(args, 0, "daysInMonth")?.date();
+        Ok(Value::uint(date.days_in_month().unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->quarter(): uint` — `1` to `4` in the value's own zone.
+    fn nvs_core_time_datetime_quarter(_ctx, args: [1]) {
+        Ok(Value::uint(quarter_of(zoned_of(args, 0, "quarter")?.date())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->isoWeek(): uint` — ISO 8601's week number in the value's own zone.
+    fn nvs_core_time_datetime_iso_week(_ctx, args: [1]) {
+        let week = zoned_of(args, 0, "isoWeek")?.date().iso_week_date().week();
+        Ok(Value::uint(week.unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->isoWeekYear(): int` — the year the value's ISO week belongs to.
+    fn nvs_core_time_datetime_iso_week_year(_ctx, args: [1]) {
+        let year = zoned_of(args, 0, "isoWeekYear")?.date().iso_week_date().year();
+        Ok(Value::int(i64::from(year)))
     }
 }
 
@@ -6332,6 +6716,161 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+/// The `Core\Unit` case in argument slot `at`, for a `Date` member whose
+/// signature takes a closed subset of the cases: `Day` and up when `day` is
+/// true, `Week` and up when it is false.
+///
+/// The checker refuses any other case where the call is written, so this is
+/// the second check, for a call it could not see. It throws as
+/// [`date_stepped`] does, because a smaller unit has nothing on a date to read.
+fn date_unit_of(
+    args: &[Value],
+    at: usize,
+    label: &str,
+    day: bool,
+) -> Result<(jiff::Unit, i64), Fault> {
+    let (unit, scale) = unit_of(args, at, label)?;
+    match unit {
+        jiff::Unit::Year | jiff::Unit::Month | jiff::Unit::Week => Ok((unit, scale)),
+        jiff::Unit::Day if day => Ok((unit, scale)),
+        _ => Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{label}(): a date takes `Unit::{}` or a larger unit",
+                if day { "Day" } else { "Week" }
+            ),
+        )),
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->startOf(Unit $unit): Date` — the first day of the week, month,
+    /// quarter or year that holds the receiver, as
+    /// [`nvs_core_time_datetime_start_of`] finds it, through [`floored_date`].
+    fn nvs_core_time_date_start_of(_ctx, args: [2]) {
+        let at = date_of(args, 0, "startOf")?;
+        let (unit, scale) = date_unit_of(args, 1, r"Core\Time\Date::startOf", false)?;
+        floored_date(at, unit, scale, "Date", "startOf").map(date_built)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->endOf(Unit $unit): Date` — the last day of the week, month,
+    /// quarter or year that holds the receiver.
+    ///
+    /// A week's last day is its start plus six days. Every other unit ends the
+    /// day before the next one starts, and a month, quarter or year with no next
+    /// start inside the range ends on the last date there is, `9999-12-31`.
+    fn nvs_core_time_date_end_of(_ctx, args: [2]) {
+        let label = r"Core\Time\Date::endOf";
+        let at = date_of(args, 0, "endOf")?;
+        let (unit, scale) = date_unit_of(args, 1, label, false)?;
+        let start = floored_date(at, unit, scale, "Date", "endOf")?;
+        let end = if unit == jiff::Unit::Week {
+            start.checked_add(jiff::Span::new().days(6))
+        } else {
+            span_of(unit, scale)
+                .and_then(|step| start.checked_add(step))
+                .and_then(|next| next.checked_sub(jiff::Span::new().days(1)))
+                .or(Ok(civil::Date::MAX))
+        };
+        end.map(date_built).map_err(|err| out_of_range(label, &err.to_string()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->difference(Date $other, Unit $unit): int` — whole units from the
+    /// receiver **to** `$other`, counted as
+    /// [`nvs_core_time_datetime_difference`] counts them, with the same
+    /// fallback for a month count past jiff's month span. A date has no zone,
+    /// so nothing is moved first, and no count of days or larger can overflow.
+    fn nvs_core_time_date_difference(_ctx, args: [3]) {
+        let label = r"Core\Time\Date::difference";
+        let from = date_of(args, 0, "difference")?;
+        let to = date_of(args, 1, "difference")?;
+        let (unit, scale) = date_unit_of(args, 2, label, true)?;
+        let counted = |largest| from.until(civil::DateDifference::new(to).largest(largest));
+        let span = match counted(unit) {
+            Ok(span) => span,
+            Err(_) if unit == jiff::Unit::Month => counted(jiff::Unit::Year)
+                .map_err(|_| out_of_range(label, TOO_MANY_TO_COUNT))?,
+            Err(_) => return Err(out_of_range(label, TOO_MANY_TO_COUNT)),
+        };
+        let whole = match unit {
+            jiff::Unit::Year => i64::from(span.get_years()),
+            jiff::Unit::Month => i64::from(span.get_years()) * 12 + i64::from(span.get_months()),
+            jiff::Unit::Week => i64::from(span.get_weeks()),
+            _ => i64::from(span.get_days()),
+        };
+        Ok(Value::int(whole / scale))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->next(Weekday $w): Date` — the nearest **strictly later** date with
+    /// that weekday, as [`nvs_core_time_datetime_next`] finds it.
+    fn nvs_core_time_date_next(_ctx, args: [2]) {
+        let at = date_of(args, 0, "next")?;
+        let weekday = weekday_of(args, 1, r"Core\Time\Date::next")?;
+        at.nth_weekday(1, weekday)
+            .map(date_built)
+            .map_err(|err| out_of_range(r"Core\Time\Date::next", &err.to_string()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->previous(Weekday $w): Date` — [`nvs_core_time_date_next`]
+    /// backwards, strictly earlier.
+    fn nvs_core_time_date_previous(_ctx, args: [2]) {
+        let at = date_of(args, 0, "previous")?;
+        let weekday = weekday_of(args, 1, r"Core\Time\Date::previous")?;
+        at.nth_weekday(-1, weekday)
+            .map(date_built)
+            .map_err(|err| out_of_range(r"Core\Time\Date::previous", &err.to_string()))
+    }
+}
+
+/// The quarter `date` falls in, `1` to `4`. `Date::quarter` and
+/// `DateTime::quarter` both read it.
+fn quarter_of(date: civil::Date) -> u64 {
+    u64::from((date.month().unsigned_abs() - 1) / 3 + 1)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->daysInMonth(): uint` — `28` to `31`, the proleptic Gregorian
+    /// length of the receiver's month.
+    fn nvs_core_time_date_days_in_month(_ctx, args: [1]) {
+        Ok(Value::uint(date_of(args, 0, "daysInMonth")?.days_in_month().unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->quarter(): uint` — `1` to `4`, through [`quarter_of`].
+    fn nvs_core_time_date_quarter(_ctx, args: [1]) {
+        Ok(Value::uint(quarter_of(date_of(args, 0, "quarter")?)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->isoWeek(): uint` — ISO 8601's week number, `1` to `53`: weeks
+    /// start on Monday, and week 1 holds the year's first Thursday. jiff's
+    /// ISO week date covers every `Date`, so the reader cannot fail.
+    fn nvs_core_time_date_iso_week(_ctx, args: [1]) {
+        let week = date_of(args, 0, "isoWeek")?.iso_week_date().week();
+        Ok(Value::uint(week.unsigned_abs().into()))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$d->isoWeekYear(): int` — the year [`nvs_core_time_date_iso_week`]'s
+    /// week belongs to, which differs from `year()` for a few days around
+    /// New Year.
+    fn nvs_core_time_date_iso_week_year(_ctx, args: [1]) {
+        let year = date_of(args, 0, "isoWeekYear")?.iso_week_date().year();
+        Ok(Value::int(i64::from(year)))
+    }
+}
+
 // ============================================================================
 // `Core\Time\TimeOfDay` — reading, building and the clock step
 // ============================================================================
@@ -6631,7 +7170,10 @@ mod tests {
             (civil::Date::MAX, "9999-12-31"),
         ];
         for (date, written) in cases {
-            assert_eq!(to_iso_called(nvs_core_time_date_to_iso, date_built(date)), written);
+            assert_eq!(
+                to_iso_called(nvs_core_time_date_to_iso, date_built(date)),
+                written
+            );
             assert_eq!(iso_date(written), Ok(date), "{written}");
         }
     }
@@ -6650,7 +7192,10 @@ mod tests {
             (civil::time(23, 59, 59, 999_999_999), "23:59:59.999999999"),
         ];
         for (time, written) in cases {
-            assert_eq!(to_iso_called(nvs_core_time_of_day_to_iso, clock_built(time)), written);
+            assert_eq!(
+                to_iso_called(nvs_core_time_of_day_to_iso, clock_built(time)),
+                written
+            );
             assert_eq!(iso_time(written), Ok(time), "{written}");
         }
     }
@@ -6674,7 +7219,10 @@ mod tests {
                 zoned("2026-07-05T06:30:00.25Z", "Europe/Vienna"),
                 "2026-07-05T08:30:00.25+02:00[Europe/Vienna]",
             ),
-            (zoned("2026-01-05T08:30:00Z", "UTC"), "2026-01-05T08:30:00+00:00[UTC]"),
+            (
+                zoned("2026-01-05T08:30:00Z", "UTC"),
+                "2026-01-05T08:30:00+00:00[UTC]",
+            ),
             (
                 zoned("2026-01-05T08:30:00Z", "America/New_York"),
                 "2026-01-05T03:30:00-05:00[America/New_York]",
@@ -6697,7 +7245,10 @@ mod tests {
             ),
         ];
         for (at, written) in cases {
-            assert_eq!(to_iso_called(nvs_core_time_datetime_to_iso, datetime_built(&at)), written);
+            assert_eq!(
+                to_iso_called(nvs_core_time_datetime_to_iso, datetime_built(&at)),
+                written
+            );
         }
     }
 
@@ -7724,9 +8275,17 @@ mod tests {
                 "2026-01-05T07:30:00Z",
                 "Europe/Vienna",
             ),
-            ("2026-01-05T08:30[europe/vienna]", "2026-01-05T07:30:00Z", "Europe/Vienna"),
+            (
+                "2026-01-05T08:30[europe/vienna]",
+                "2026-01-05T07:30:00Z",
+                "Europe/Vienna",
+            ),
             ("2026-01-05[UTC]", "2026-01-05T00:00:00Z", "UTC"),
-            ("2026-01-05 08:30:00.5[UTC]", "2026-01-05T08:30:00.5Z", "UTC"),
+            (
+                "2026-01-05 08:30:00.5[UTC]",
+                "2026-01-05T08:30:00.5Z",
+                "UTC",
+            ),
         ] {
             let read = datetime_from_iso_with(text, None).expect(text);
             assert_eq!(read.timestamp(), instant(at), "{text}");
@@ -7746,8 +8305,14 @@ mod tests {
     #[test]
     fn from_iso_datetime_picks_a_repeated_hour_by_its_offset() {
         for (text, at) in [
-            ("2026-10-25T02:30:00+02:00[Europe/Vienna]", "2026-10-25T00:30:00Z"),
-            ("2026-10-25T02:30:00+01:00[Europe/Vienna]", "2026-10-25T01:30:00Z"),
+            (
+                "2026-10-25T02:30:00+02:00[Europe/Vienna]",
+                "2026-10-25T00:30:00Z",
+            ),
+            (
+                "2026-10-25T02:30:00+01:00[Europe/Vienna]",
+                "2026-10-25T01:30:00Z",
+            ),
             ("2026-10-25T02:30:00[Europe/Vienna]", "2026-10-25T00:30:00Z"),
         ] {
             let read = datetime_from_iso_with(text, None).expect(text);
@@ -7812,7 +8377,10 @@ mod tests {
         for (text, said) in [
             ("2026-01-05T08:30[!Europe/Vienna]", "critical flag"),
             ("2026-01-05T08:30[u-ca=iso8601]", "is a tag"),
-            ("2026-01-05T08:30[Europe/Vienna][u-ca=iso8601]", "unexpected text"),
+            (
+                "2026-01-05T08:30[Europe/Vienna][u-ca=iso8601]",
+                "unexpected text",
+            ),
             ("2026-01-05T08:30[Europe/Vienna", "no closing"),
             ("2026-01-05T08:30[Mars/Olympus]", "not a time zone name"),
             ("2026-01-05T08:30+0100[Europe/Vienna]", "the offset at byte"),
@@ -10715,5 +11283,347 @@ mod tests {
             Some(true)
         );
         released(&[set, member, other]);
+    }
+
+    /// `member` called on the `Date` `at` followed by `rest`, the way a
+    /// compiled call site calls it. It answers the value the member returned,
+    /// read by `read` before it is released, or the sentence it threw.
+    fn date_answered<T>(
+        member: nvs_runtime::NvsFn,
+        at: civil::Date,
+        rest: &[Value],
+        read: impl FnOnce(Value) -> T,
+    ) -> Result<T, String> {
+        let mut ctx = Ctx::buffered();
+        let mut args = vec![date_built(at)];
+        args.extend_from_slice(rest);
+        let answer = match nvs_runtime::call(member, &mut ctx, &args) {
+            Ok(value) => {
+                let read = read(value);
+                #[expect(unsafe_code, reason = "this frame owns the value the member returned")]
+                unsafe {
+                    value.release();
+                }
+                Ok(read)
+            }
+            Err(_) => Err(ctx
+                .take_pending()
+                .expect("a refused call leaves its sentence pending")
+                .into_owned()),
+        };
+        for argument in args {
+            #[expect(unsafe_code, reason = "the argument list owns the one reference")]
+            unsafe {
+                argument.release();
+            }
+        }
+        answer
+    }
+
+    /// [`date_answered`] for a member that returns a `Date`.
+    fn date_moved(
+        member: nvs_runtime::NvsFn,
+        at: civil::Date,
+        rest: &[Value],
+    ) -> Result<civil::Date, String> {
+        date_answered(member, at, rest, |moved| {
+            date_of(&[moved], 0, "moved").expect("the member answers a `Date`")
+        })
+    }
+
+    /// The dates the `date_calendar_` tests sample: both ends of a month, a
+    /// quarter and a year, 29 February, a Sunday and a Monday, and year zero.
+    fn date_calendar_samples() -> [civil::Date; 9] {
+        [
+            civil::date(2024, 2, 29),
+            civil::date(2024, 12, 31),
+            civil::date(2025, 1, 1),
+            civil::date(2025, 3, 31),
+            civil::date(2025, 6, 15),
+            civil::date(2026, 1, 4),
+            civil::date(2026, 1, 5),
+            civil::date(0, 7, 1),
+            civil::date(-1, 12, 31),
+        ]
+    }
+
+    /// `Date::startOf` and `Date::endOf` give the date of the `DateTime`
+    /// ones at midnight in UTC, for every unit a date takes. A smaller unit
+    /// throws, and a month, quarter or year that ends the range ends on its
+    /// last day.
+    // covers: Core\Time\Date::startOf, Core\Time\Date::endOf
+    #[test]
+    fn date_calendar_start_and_end_match_datetime() {
+        for at in date_calendar_samples() {
+            let zoned = at
+                .to_datetime(civil::Time::midnight())
+                .to_zoned(TimeZone::UTC)
+                .expect("a date in the range");
+            for unit in [7, 8, 9, 10] {
+                let start = date_moved(nvs_core_time_date_start_of, at, &[Value::int(unit)]);
+                let expected =
+                    datetime_rebuilt(nvs_core_time_datetime_start_of, &zoned, &[Value::int(unit)])
+                        .map(|found| found.date());
+                assert_eq!(start, expected, "startOf {unit} of {at}");
+                let end = date_moved(nvs_core_time_date_end_of, at, &[Value::int(unit)]);
+                let expected =
+                    datetime_rebuilt(nvs_core_time_datetime_end_of, &zoned, &[Value::int(unit)])
+                        .map(|found| found.date());
+                assert_eq!(end, expected, "endOf {unit} of {at}");
+            }
+            for unit in [0, 5, 6] {
+                assert_eq!(
+                    date_moved(nvs_core_time_date_start_of, at, &[Value::int(unit)]),
+                    Err(
+                        r"Core\Time\Date::startOf(): a date takes `Unit::Week` or a larger unit"
+                            .into()
+                    )
+                );
+            }
+        }
+        for unit in [8, 9, 10] {
+            assert_eq!(
+                date_moved(
+                    nvs_core_time_date_end_of,
+                    civil::date(9999, 12, 1),
+                    &[Value::int(unit)]
+                ),
+                Ok(civil::Date::MAX),
+                "endOf {unit} at the end of the range"
+            );
+        }
+        assert!(
+            date_moved(
+                nvs_core_time_date_end_of,
+                civil::Date::MAX,
+                &[Value::int(7)]
+            )
+            .expect_err("the last week runs past the range")
+            .starts_with(r"Core\Time\Date::endOf(): "),
+        );
+    }
+
+    /// `Date::difference` counts what `DateTime::difference` counts between
+    /// the two midnights in UTC, in both directions and for every unit a date
+    /// takes, and counts months across the whole calendar.
+    // covers: Core\Time\Date::difference
+    #[test]
+    fn date_calendar_difference_matches_datetime() {
+        let samples = date_calendar_samples();
+        let midnight = |at: civil::Date| {
+            at.to_datetime(civil::Time::midnight())
+                .to_zoned(TimeZone::UTC)
+                .expect("a date in the range")
+        };
+        for from in samples {
+            for to in samples {
+                for unit in [6, 7, 8, 9, 10] {
+                    let counted = date_answered(
+                        nvs_core_time_date_difference,
+                        from,
+                        &[date_built(to), Value::int(unit)],
+                        |count| count.as_int().expect("`difference` answers an `int`"),
+                    );
+                    assert_eq!(
+                        counted,
+                        datetime_difference(&midnight(from), &midnight(to), unit),
+                        "{from} to {to} in {unit}"
+                    );
+                }
+            }
+        }
+        let months = date_answered(
+            nvs_core_time_date_difference,
+            civil::Date::MIN,
+            &[date_built(civil::Date::MAX), Value::int(8)],
+            |count| count.as_int(),
+        );
+        assert_eq!(months, Ok(Some(19_999 * 12 - 1)));
+        assert_eq!(
+            date_answered(
+                nvs_core_time_date_difference,
+                civil::date(2026, 1, 1),
+                &[date_built(civil::date(2026, 1, 2)), Value::int(5)],
+                |count| count.as_int(),
+            ),
+            Err(r"Core\Time\Date::difference(): a date takes `Unit::Day` or a larger unit".into())
+        );
+    }
+
+    /// `Date::next` and `Date::previous` find the date `DateTime::next` and
+    /// `DateTime::previous` find from midnight in UTC, for every weekday.
+    /// The same weekday is a whole week away.
+    // covers: Core\Time\Date::next, Core\Time\Date::previous
+    #[test]
+    fn date_calendar_next_and_previous_match_datetime() {
+        for at in date_calendar_samples() {
+            let zoned = at
+                .to_datetime(civil::Time::midnight())
+                .to_zoned(TimeZone::UTC)
+                .expect("a date in the range");
+            for weekday in 0..7 {
+                for (date_member, datetime_member) in [
+                    (
+                        nvs_core_time_date_next as nvs_runtime::NvsFn,
+                        nvs_core_time_datetime_next as nvs_runtime::NvsFn,
+                    ),
+                    (nvs_core_time_date_previous, nvs_core_time_datetime_previous),
+                ] {
+                    let found = date_moved(date_member, at, &[Value::int(weekday)])
+                        .expect("a weekday near the middle of the range");
+                    let expected = datetime_to_weekday(datetime_member, &zoned, weekday)
+                        .expect("a weekday near the middle of the range")
+                        .date();
+                    assert_eq!(found, expected, "{at} to weekday {weekday}");
+                    let apart = (found - at).get_days().abs();
+                    assert!((1..=7).contains(&apart), "{at} to {found}");
+                }
+            }
+        }
+        let monday = civil::date(2026, 1, 5);
+        assert_eq!(
+            date_moved(nvs_core_time_date_next, monday, &[Value::int(0)]),
+            Ok(civil::date(2026, 1, 12))
+        );
+        assert_eq!(
+            date_moved(nvs_core_time_date_previous, monday, &[Value::int(6)]),
+            Ok(civil::date(2026, 1, 4))
+        );
+    }
+
+    /// `daysInMonth` is the Gregorian length of the month: February has 29
+    /// days in 2024, 2000 and year zero, and 28 in 1900 and 2025. A
+    /// `DateTime` reads it in its own zone.
+    // covers: Core\Time\Date::daysInMonth, Core\Time\DateTime::daysInMonth
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
+    #[test]
+    fn date_calendar_days_in_month_covers_leap_years() {
+        let table: [((i16, i8), u64); 9] = [
+            ((2024, 2), 29),
+            ((2000, 2), 29),
+            ((0, 2), 29),
+            ((1900, 2), 28),
+            ((2025, 2), 28),
+            ((2025, 1), 31),
+            ((2025, 4), 30),
+            ((-9999, 1), 31),
+            ((9999, 12), 31),
+        ];
+        for ((year, month), days) in table {
+            let at = civil::date(year, month, 1);
+            assert_eq!(
+                date_view(nvs_core_time_date_days_in_month, at, |v| v.as_uint()),
+                Some(days),
+                "{at}"
+            );
+        }
+        // 23:30 UTC on 31 March is 1 April in Berlin, so the two zones read
+        // two different months.
+        let instant: Timestamp = "2026-03-31T23:30:00Z".parse().expect("a valid instant");
+        let berlin = TimeZone::get("Europe/Berlin").expect("a known zone");
+        let utc = instant.to_zoned(TimeZone::UTC);
+        let local = instant.to_zoned(berlin);
+        assert_eq!(
+            datetime_view(nvs_core_time_datetime_days_in_month, &utc, |v| v.as_uint()),
+            Some(31)
+        );
+        assert_eq!(
+            datetime_view(nvs_core_time_datetime_days_in_month, &local, |v| v
+                .as_uint()),
+            Some(30)
+        );
+    }
+
+    /// `quarter` is `1` for January to March through `4` for October to
+    /// December, on every month, and a `DateTime` reads it in its own zone.
+    // covers: Core\Time\Date::quarter, Core\Time\DateTime::quarter
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
+    #[test]
+    fn date_calendar_quarter_of_every_month() {
+        for month in 1..=12_i8 {
+            let at = civil::date(2026, month, 15);
+            let expected = match month {
+                1..=3 => 1,
+                4..=6 => 2,
+                7..=9 => 3,
+                _ => 4,
+            };
+            assert_eq!(
+                date_view(nvs_core_time_date_quarter, at, |v| v.as_uint()),
+                Some(expected),
+                "{at}"
+            );
+            let zoned = at
+                .to_datetime(civil::Time::midnight())
+                .to_zoned(TimeZone::UTC)
+                .expect("a date in the range");
+            assert_eq!(
+                datetime_view(nvs_core_time_datetime_quarter, &zoned, |v| v.as_uint()),
+                Some(expected),
+                "{zoned}"
+            );
+        }
+        let instant: Timestamp = "2026-03-31T23:30:00Z".parse().expect("a valid instant");
+        let berlin = TimeZone::get("Europe/Berlin").expect("a known zone");
+        assert_eq!(
+            datetime_view(
+                nvs_core_time_datetime_quarter,
+                &instant.to_zoned(berlin),
+                |v| { v.as_uint() }
+            ),
+            Some(2)
+        );
+    }
+
+    /// `isoWeek` and `isoWeekYear` follow ISO 8601 around New Year: a week
+    /// starts on Monday, and week 1 holds the first Thursday. A `DateTime`
+    /// reads both in its own zone, and both readers hold at the ends of the
+    /// range.
+    // covers: Core\Time\Date::isoWeek, Core\Time\Date::isoWeekYear, Core\Time\DateTime::isoWeek, Core\Time\DateTime::isoWeekYear
+    #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
+    #[test]
+    fn date_calendar_iso_week_and_year_around_new_year() {
+        let table: [((i16, i8, i8), u64, i64); 8] = [
+            ((2026, 1, 1), 1, 2026),
+            ((2027, 1, 1), 53, 2026),
+            ((2024, 12, 30), 1, 2025),
+            ((2021, 1, 3), 53, 2020),
+            ((2025, 12, 28), 52, 2025),
+            ((2025, 12, 29), 1, 2026),
+            ((-9999, 1, 1), 1, -9999),
+            ((9999, 12, 31), 52, 9999),
+        ];
+        for ((year, month, day), week, week_year) in table {
+            let at = civil::date(year, month, day);
+            assert_eq!(
+                date_view(nvs_core_time_date_iso_week, at, |v| v.as_uint()),
+                Some(week),
+                "{at}"
+            );
+            assert_eq!(
+                date_view(nvs_core_time_date_iso_week_year, at, |v| v.as_int()),
+                Some(week_year),
+                "{at}"
+            );
+        }
+        // 23:30 UTC on Sunday 28 December 2025 is Monday 29 December in
+        // Berlin, the first day of week 1 of 2026.
+        let instant: Timestamp = "2025-12-28T23:30:00Z".parse().expect("a valid instant");
+        let berlin = TimeZone::get("Europe/Berlin").expect("a known zone");
+        for (zoned, week, week_year) in [
+            (instant.to_zoned(TimeZone::UTC), 52, 2025),
+            (instant.to_zoned(berlin), 1, 2026),
+        ] {
+            assert_eq!(
+                datetime_view(nvs_core_time_datetime_iso_week, &zoned, |v| v.as_uint()),
+                Some(week),
+                "{zoned}"
+            );
+            assert_eq!(
+                datetime_view(nvs_core_time_datetime_iso_week_year, &zoned, |v| v.as_int()),
+                Some(week_year),
+                "{zoned}"
+            );
+        }
     }
 }
