@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-lsp/src/index.rs, crates/nvs-lsp/src/rename.rs, crates/nvs-lsp/src/server.rs, crates/nvs-lsp/src/render.rs, crates/nvs-lsp/src/capabilities.rs, docs/rules/ide/five-features-are-one-reference-index.md]
   - id: 5
     title: nvs meta --json and nvs doc write a file target as a link
-    status: open
+    status: done
     context: [crates/nvs-cli/src/meta.rs, crates/nvs-cli/src/doc.rs, docs/rules/tooling/meta-json-takes-a-program.md, docs/rules/tooling/nvs-doc-renders-and-decides-nothing.md]
   - id: 6
     title: "the rules, the reference, the editor page, the example, the feature proofs and the website say so"
@@ -235,7 +235,9 @@ rename reach it; leaving it out would make renaming an error class rewrite `@see
 was given, with `/` separators and its anchor, so a consumer tells the two shapes apart by the same
 `/`-or-`.` rule and finds the file without knowing which source file wrote it. `nvs doc`'s `see`
 (`crates/nvs-cli/src/doc.rs:373`) writes a file target as a Markdown link relative to the output page.
-`rule:tooling/meta-json-takes-a-program` says which root.
+`rule:tooling/meta-json-takes-a-program` says which root: the entry file's folder, the one path the
+command was given, so a target above it is written with `..`. The rewrite runs over the program half
+only; a built-in component's card keeps its tag as written, because it has no program root.
 
 **Feature proofs.** The feature is the `@see` tag's file shape and its editor support. It owes what
 `bun nv proofs --owed --goal see-files` names; at least a sixth example
@@ -343,12 +345,12 @@ each has its own test file, so they may run side by side too. Stage 6 runs after
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-cli/src/meta.rs:1503`: a file target is written relative to the program root, `/`
+- [x] `crates/nvs-cli/src/meta.rs:1503`: a file target is written relative to the program root, `/`
   separators, anchor kept; a member target is unchanged.
-- [ ] `crates/nvs-cli/src/doc.rs:373`: a file target becomes a link relative to the page.
-- [ ] `crates/nvs-cli/tests/meta.rs:756` and `crates/nvs-cli/tests/doc.rs:15`: the two tests the
+- [x] `crates/nvs-cli/src/doc.rs:373`: a file target becomes a link relative to the page.
+- [x] `crates/nvs-cli/tests/meta.rs:756` and `crates/nvs-cli/tests/doc.rs:15`: the two tests the
   checks `meta` and `doc` name, each run once by name.
-- [ ] `docs/rules/tooling/meta-json-takes-a-program.md:15` and
+- [x] `docs/rules/tooling/meta-json-takes-a-program.md:15` and
   `docs/rules/tooling/nvs-doc-renders-and-decides-nothing.md:11`: one sentence each on file targets.
 
 ### 6. the rules, the reference, the editor page, the example, the feature proofs and the website say so
@@ -384,31 +386,32 @@ the session writes the rules, the reference, the editor page and the website ent
 
 ### State
 
-Stages 1 to 4 are done; `checker`, `pack`, `editor-read`, `editor-edit` and `handshake` are green.
+Stages 1 to 5 are done; `checker`, `pack`, `editor-read`, `editor-edit`, `handshake`, `meta` and
+`doc` are green.
+
+- Stage 5: `meta.rs` `Declared::rebase_see` rewrites each program declaration's `doc.see` file target
+  from the writing file's folder to the entry's folder after `collect` (`from_root`,
+  `relative_path`); `put_doc` still writes tags as written. `doc.rs` `root_from` gives each `Page` the
+  prefix from the output folder to the root, and `see` links a file target through it.
+- Stage 5 found and fixed a checker bug: `members.rs` `check_see_file` read a bare entry name
+  (`nvs doc case.nvs`) as the empty folder and refused every file target as leaving the project.
 
 - The record is `nvs_hir::doc_targets::DocTargets` on `Module::doc_targets`, filled on the language
   server's path only. `Resolved::{Class, Member { class, owner, name, kind }, File { path, heading }}`;
   `@throws` records `Class`, `@example` a `File`. `nvs_syntax::doc_target` is the one classifier.
-- The editor reads it through `crates/nvs-lsp/src/definition.rs` `doc_named_at`; hover, links,
-  completion and semantic tokens read it as stage 3 left them.
-- The index keeps two lists per file beside `imports`: `index::Mention` (a `@see` class or member
-  target, the class half of `Class::member`, an `@throws` name; the site is the segment a rename
-  changes) and `index::Linked` (a file target's path without its anchor). `index::doc_mentions` builds
-  both; a class written as `self`, `static` or `parent` is not kept. `disk_index::FORMAT` is 5.
-- `SymbolIndex::mentions_of` is read by `query::references` (as `UseKind::Doc`, printed `doc` by
-  `nvs code refs`) and `rename::sites_of`; `mentions_in` by highlight (`server.rs` `uses_in`) and by
-  `rename::subject` for a cursor in a doc comment. `index::doc_symbol_at` is `symbol_at`'s last
-  fallback, so implementation and the hierarchies answer on a `@see` target too.
-- `rename::moved` rewrites each `Linked` from the index alone through `rewritten_path`; a move no
-  `require` edge and no tag names analyses nothing. `willRenameFiles` is declared over `**/*` files.
+- The editor reads it through `definition.rs` `doc_named_at`. The index keeps `index::Mention` and
+  `index::Linked` per file (`index::doc_mentions`), read by references, highlight, rename and
+  `rename::moved`; `disk_index::FORMAT` is 5, and `willRenameFiles` is declared over `**/*`.
 - The rule `five-features-are-one-reference-index` already says doc tags are listed, not counted.
 
 ### Next
 
-The next session takes stage 5 from its first item: `crates/nvs-cli/src/meta.rs:1503`, where `see`
-and `example` are written as text today, then `crates/nvs-cli/src/doc.rs:373`. Stage 6 follows.
+The next session takes stage 6 from its first item:
+`docs/rules/tooling/doc-comment-tags-are-closed-and-checked.md:25`, then the IDE rules, the reference
+`docs/reference/lang/10-programs.md:411`, and the example, attack and bench by its `**Split:**` line.
+The `meta` and `doc` tests carry `// covers: lang:programs/doc-comments`.
 
-No test is expected to go red: no `.lspt` case freezes the `willRenameFiles` filter, and the index
-file of an earlier format is discarded and rebuilt on load.
+No test is expected to go red: the existing `meta` and `doc` tests name no file target, and a
+`.lspt` case or index file of an earlier format is unaffected.
 
 ### Backlog
