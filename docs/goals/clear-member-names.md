@@ -491,9 +491,10 @@ same four parts, and recorded in this table and the `renames` block.
   and stage 8 regenerates them.
 - **A sweep is run with `--class` for the stage's classes**, and its own examples are made up
   (`Shop\Reply::json`), so a sweep never rewrites the tool's text.
-- **A rule id and a file name that hold an old word keep it until stage 8:** `rule:core-classes/script-args`,
-  the `script-args-*.nvst` cases, `05-give-the-child-a-value-with-args.nvs`. A rule id is cited across
-  the tree, so one pass renames them all.
+- **A rule id and a file name that hold an old word are renamed in one pass, in stage 8.** A rule id is
+  cited across the tree, so stage 8 renamed `rule:core-classes/script-arguments`, the
+  `temporary-directory-*` sweeps and every conformance case at once. An example or hostile file name
+  that uses an old word as plain English (`01-resize-past-every-limit.nvs`) keeps it.
 
 **What stage 7 settled.**
 - **An option field that sets a value keeps an adjective.** Part 4 is about a member that reads a
@@ -506,6 +507,18 @@ same four parts, and recorded in this table and the `renames` block.
   `Codec::compare` still returns `diff`, and `Image::compare` copies it into `differenceImage`.
 - **`api-rename --check` reads the data files** (`.json`, `.toml`, `.out`) and skips the generated
   `core.json`, `core-changelog.json`, `data/proofs/released.json` and the loop's `.looper/` state.
+
+**What stage 8 settled.**
+- **A rename is one breaking `changed` entry that names the old and the new features.** The changes
+  check required a `removed` entry for each old name and a `new` entry for each new one, which tells
+  a user one rename twice. `tools/nv/lib/changes.ts` `clears` now lets a `changed` entry with
+  `breaking: true` clear both, and `releaseChanges` adds its text to the changelog of each.
+- **A feature whose tests only moved to the new names is `unseen`.** `bun nv site --changes --unseen
+  [--why TEXT] ID...` records it at its hash now, so a later rename never edits the file by hand.
+- **A file name that uses an old word as plain English keeps it** (`01-resize-past-every-limit.nvs`,
+  `pdf-a-header-knows-its-page.nvst`). `Math.json`'s search keywords keep PHP's `intdiv`, `fdiv` and
+  `pow`, because a reader coming from PHP searches for them. `calls.mdx`'s `resize(width: 80)` is a
+  made-up call that shows a named argument, and it stays.
 
 **Lanes.** Stages 1 and 2 land first: 3 to 6 need the check and the sweep. Stages 3 to
 6 change disjoint `crates/nvs-stdlib/src/` files but share callers across `docs/examples/`,
@@ -643,13 +656,23 @@ session runs the sweep and hands the leftovers out as stage 3 does.
 directories, held to AGENTS.md § *Text an end user reads*; the session writes the rules and the
 changes entries.
 
-- [ ] Every rule fragment under `docs/rules/` the sweep touched reads as the present, and
+- [x] Every rule fragment under `docs/rules/` the sweep touched reads as the present, and
   `bun nv rules --check` is green.
+  - [x] the rate limit trio and the bare old names in rule prose rewritten
+  - [x] the rule ids and conformance case names that held an old word renamed in one pass
+  - [x] `bun nv rules --render` and `--check` green
 - [ ] Each moved `about.md` and its examples' comments rewritten for the new name; each help card in the
   registry rows reread.
+  - [x] the 152 moved example, hostile and bench directories reread by four writing subagents
+  - [x] the moved benches' `.nvsr` files moved with them
+  - [ ] each help card of a renamed member reread and stamped (the `help:` rows of `site --check stale`)
 - [ ] `website/src/data/changes.json:1`: one `changed` entry per class family in the renames table,
   each naming the new features and, in one sentence, the old names. Each page the sweep touched reread
   and stamped with `bun nv site --stamp`.
+  - [x] 30 breaking `changed` entries, and every test-only move recorded as `unseen`
+  - [x] `core.json` and `llms-full.txt` rendered, `site --check changes` green
+  - [ ] every page and `about.md` `site --check stale` names reread and stamped
+  - [ ] every text `site --check review` names reviewed and stamped
 - [ ] `bun nv proofs --owed --goal clear-member-names` names nothing.
 
 ### 9. the goal is verified once, and every failure is fixed
@@ -662,73 +685,35 @@ changes entries.
 
 ### State
 
-Stages 1 to 7 are done. Stage 7 renamed the eight names `names --check` listed outside the table:
-`Cli::multiSelect` → `selectMany`, `RateLimit::shed` → `consumeLocally`, `Ldap\Filter::approx` →
-`approximately` (a `reads` row), `Process::run`/`spawn`'s option `cwd` → `workingDirectory`,
-`Queue::push`'s option `args` → `arguments`, and the class `Novis\Image\Diff` → `Comparison` with
-its property `diff` → `differenceImage`. Their registry rows, symbols, messages, Rust tests,
-examples, hostile and bench paths, feature ids and callers moved with them, and each caller was
-checked with `nvs check`. `api-rename` now lists `->old<T>(`, reads `.json`, `.toml` and `.out`,
-and skips `.looper/`, so its `--check` found four stale `.out` files (stage 3's
-`Response::sendJson`/`sendBytes`, `Request::queryParameters`, `Sse::startStream`) and
-`default.toml`'s `Task::runAfterResponse`, all fixed. `bun nv names --check` and the unfiltered
-`bun nv api-rename --check --goal clear-member-names` exit 0. Build, clippy, `cargo fmt` and
-`rules --check` are green. Only `api-rename.test.ts` ran (6 pass).
+Stage 8 is half done. The rule prose names the new members, and `rules --check` is green. The rule
+ids `script-arguments`, `temporary-directory-sweep` and `temporary-directory-orphan-sweep` and 61
+conformance cases were renamed, with every citation. Four writing subagents reread the 152 moved
+example, hostile and bench directories, and the renamed Request and Response benches got their `.nvsr`
+files back. `changes.json` has 30 breaking `changed` entries, one per class family, and 292 `unseen`
+records. A new `bun nv site --changes --unseen` writes them, and a breaking `changed` entry now clears
+a rename (stage 8's decision). `core.json`, `llms-full.txt` and `80-concurrency.md` are rendered, and
+`site --check changes` is green. Build and clippy are green. Only `site-changes.test.ts` ran (13 pass).
 
-Expect red at stage 9 if anything was missed: `.lspt` completion cases and `nvs-test`'s
-`TOP_LEVEL_ONLY` cases. The `crates/nvs-cli/tests/meta.rs` name lists and
-`crates/nvs-stdlib/tests/ext_world.rs` `IMAGE_MEMBERS` were edited by hand in stage 6 and have not
-run. `every-prompt-with-nobody-to-ask-throws-not-interactive.nvst` renamed its own `multiSelect`
-method and `--EXPECT--` label together. `core.json`, `core-changelog.json`, `llms-full.txt` and
-`site.lock.json`'s stamps are stale until stage 8, and `questions.json`'s hashes of the moved pages
-may be stale.
+Expect red at stage 9 if anything was missed: `.lspt` completion cases, `nvs-test`'s
+`TOP_LEVEL_ONLY` cases, `crates/nvs-cli/tests/meta.rs`'s name lists and `ext_world.rs`'s
+`IMAGE_MEMBERS` (edited by hand, not run), `path.rs`'s renamed test helpers `file_name` and `parent`,
+and any `.out` of a renamed conformance case. `tests/hostile/core/Math/quotient/01-…nvs` renamed its own
+helper `intDiv` to `quotient`.
 
 ### Next
 
-Stage 8, from its first item, by its split: writing subagents by directory rewrite the moved
-`about.md` files and example comments; the session writes the rules and the changes entries.
-1. Reread every rule fragment the sweep touched (`git log --name-only` over this goal's commits,
-   `docs/rules/**`), including the rate limit trio (`ratelimit-two-members.md`, `ratelimit-gcra.md`,
-   `ratelimit-unreachable-store-throws.md`), whose bare "shed" prose now meets `consumeLocally`.
-   Then `bun nv rules --render` and `--check`.
-2. The backlog's file-name and rule-id pass, in one go.
-3. `website/src/data/changes.json`: one `changed` entry per class family of the renames table.
-   Regenerate `core.json` and `llms-full.txt`, reread and `bun nv site --stamp` each page touched.
-4. `bun nv proofs --owed --goal clear-member-names` names nothing.
+Stage 8, its remaining checkpoints. The work is wide, so it goes to writing subagents by directory.
+1. `bun nv site --check stale review` names 1192 stale stamps and 953 unreviewed texts. Most are the
+   renamed members' `help:` cards, their `about.md` and the pages that cover them. Write the list to
+   `.agent-tmp/`, split it by class family, and give each lane to a subagent that rereads each text
+   against AGENTS.md § *Text an end user reads* and runs `bun nv site --stamp <key>` and
+   `bun nv site --review --stamp <key>` for each. The session checks a sample of each lane.
+2. `bun nv proofs --owed --goal clear-member-names` names nothing; pay what it names.
+3. Tick stage 8, and set its status to done.
 
 ### Backlog
 
-- Stage 3 prose left behind: `docs/examples/core/Response/startStream/01-…nvs:5` and its `about.md`
-  (lines 1, 7, 8) still say `stream`. `docs/examples/core/Sse/startStream/01-…nvs:4` and its
-  `about.md` (lines 6, 10) still say `stream()`. Stage 8 rewrites them.
-- `data/reference/core/Math.json:12` keeps `fdiv`, `intdiv` and `pow` as search keywords, because
-  they are PHP's names. Stage 8 decides whether `quotient` and `divide` join them.
-- `rule:core-classes/script-args`, the `script-args-*.nvst` cases and
-  `05-give-the-child-a-value-with-args.nvs` still say `args`. Stage 8 renames them together.
-- File names and rule ids that still hold an old word, for stage 8's one pass. From stage 4:
-  `rule:core-classes/temporary-dir-sweep`; `tests/conformance/core/test-script-answers-*.nvst` (3),
-  `cli-secret-originates-…`, `io-stat-agrees-…`, `io-a-stat-is-a-snapshot-…`,
-  `io-is-file-and-is-dir-partition-…`, `io-make-dir-*.nvst` (3), `io-temporary-dir-is-refused-…`,
-  `path-dirname-and-basename-…` (named at `path-normalize-has-a-normal-form-…nvst:71`),
-  `path-from-cwd-…`, `path-this-dir-…`, `path-this-file-and-this-dir-…`,
-  `reject/path-a-tainted-path-not-from-cwd-…`; the Rust test `…_and_script_answers_write_the_ledger…`
-  at `crates/nvs-stdlib/src/test.rs:8802`, and the helpers `fn basename`/`fn dirname` in
-  `crates/nvs-stdlib/src/path.rs:1318`. From stage 5: the conformance cases named
-  `bigint-div-and-mod-…`, `decimal-div-round-…`, `db-stream-*`, `db-transaction-stream-*`,
-  `ldap-compare-*`, `ldap-changes-*`, `uri-sign-*`, `uri-resolve-*`, `uri-with-and-resolve`,
-  `time-from-epoch-…-its-nanos-…`, and the playbook file
-  `core-objectsets-union-intersect-and-diff-…md`. From stage 7: `cli-multiselect-answers-…nvst`,
-  the six `ratelimit-shed-*.nvst` cases, the Rust tests `consume_locally_*` keep their wording, and
-  `rule:core-classes/ratelimit-two-members`'s title still says "`consume` and `shed`".
-- `crates/nvs-stdlib/src/request.rs:1872` says "which used to have its own", which is history in a
-  comment. Rewrite it when the file is next open.
-- From stage 6, for stage 8's file-name pass: example and hostile files under the moved
-  `novis/Image-Image/`, `Pdf-Document/` and `Spreadsheet-*/` directories that keep an old word
-  (`01-resize-…`), and the conformance cases `image-composite-draws-…`, `pdf-a-header-…`,
-  `pdf-a-footer-…`, `pdf-a-password-…`, `pdf-a-missing-asset-…`, `spreadsheet-define-*`.
-- `website/src/content/docs/syntax/functions/calls.mdx:18` shows a made-up `resize(width: 80)` call.
-  It is not the `Image` method; stage 8 decides whether it reads as one.
-- `extensions/image/src/text.rs:212,218`: one message serves `withText` and `measureText`, so it
-  names neither. Stage 8 rereads it.
-- `docs/examples/novis/Image-Comparison/constructor/about.md` has lines past the width after the
-  rename. Stage 8 rewraps it with its rewrite.
+- Many hostile and bench `.nvs` top comments are longer than 100 columns. `proofs --comments` passes
+  them, so they are not this goal's.
+- `tests/hostile/core/Decimal/divideRounded/01-…nvs` says "refused" and "asked for" in its steps. The
+  wording predates the rename, and a later prose pass can take it.
