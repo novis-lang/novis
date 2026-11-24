@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-cli/src/package/pack.rs, crates/nvs-cli/src/package/build.rs, docs/rules/packaging/a-package-carries-only-its-source-and-what-it-lists.md]
   - id: 3
     title: "the editor links, follows, hovers, completes and colours every @see target"
-    status: open
+    status: done
     context: [crates/nvs-lsp/src/links.rs, crates/nvs-lsp/src/definition.rs, crates/nvs-lsp/src/hover.rs, crates/nvs-lsp/src/completion.rs, crates/nvs-lsp/src/semantic.rs, editors/vscode/syntaxes/nvs.tmLanguage.json, docs/rules/ide/the-request-set-is-closed.md]
   - id: 4
     title: "the editor finds, renames and quick-fixes @see targets, and moves them with a renamed file"
@@ -247,6 +247,13 @@ examples tooling tolerates an extra `.md` there, and otherwise points at a headi
 **What stops it.** One attempt per item and two sessions per stage. An item that cannot land in one
 attempt is recorded in the handoff with what failed, and the stage goes on.
 
+**No `#` trigger character (stage 3).** Heading slugs are offered after `#` when the list is asked
+for, and on the first letter typed after it, but `#` itself is not added to the server's completion
+trigger characters. A trigger list is `rule:ide/the-request-set-is-closed`'s declared capability that
+`handshake.rs` pins, and `#` starts a comment, so every `#` typed in code would ask the server for a
+list it answers with nothing. `/` and `.` are triggers already and now answer inside a `@see` or
+`@example` argument. Cost: one keystroke (a letter or ctrl+space) before the slugs appear.
+
 **Lanes.** Stage 1 is the keystone: every later stage reads `doc_target` or the record. After it,
 stage 2 (`crates/nvs-cli/src/package/`), stage 5 (`crates/nvs-cli/src/meta.rs`, `doc.rs`) and the
 editor stages touch disjoint files and may run side by side. Stages 3 and 4 both build `nvs-lsp` but
@@ -298,20 +305,20 @@ each has its own test file, so they may run side by side too. Stage 6 runs after
 **Split:** none, one session. `.lspt` cases, where the runner can hold a Markdown fixture beside the
 `.nvs` one, go to one writing subagent after the code lands.
 
-- [ ] `crates/nvs-lsp/src/links.rs:81`: `@see` file targets and `@example` paths from the record, an
+- [x] `crates/nvs-lsp/src/links.rs:81`: `@see` file targets and `@example` paths from the record, an
   anchored one with `#L<line>`; the module doc's list gains both.
-- [ ] `crates/nvs-lsp/src/definition.rs:1`: a cursor on a `@see` target (member, its class part, file),
+- [x] `crates/nvs-lsp/src/definition.rs:1`: a cursor on a `@see` target (member, its class part, file),
   an `@example` path or a `@throws` name goes to what the record says.
-- [ ] `crates/nvs-lsp/src/hover.rs:87` and `:1260`: hover on a member target shows the member's hover;
+- [x] `crates/nvs-lsp/src/hover.rs:87` and `:1260`: hover on a member target shows the member's hover;
   on a file target, the path and the heading's section; a declaration's hover lists its `@see` targets
   as links. The module doc's prose paragraph at `:87` is rewritten to say so.
-- [ ] `crates/nvs-lsp/src/completion.rs:2709`: `see_targets` offers paths once the text has `/` or `.`,
+- [x] `crates/nvs-lsp/src/completion.rs:2709`: `see_targets` offers paths once the text has `/` or `.`,
   with `completion.rs:478`'s lister, and heading slugs after `#`.
-- [ ] `crates/nvs-lsp/src/semantic.rs:809`: tokens for `@see` member targets by resolved kind and for
+- [x] `crates/nvs-lsp/src/semantic.rs:809`: tokens for `@see` member targets by resolved kind and for
   `@throws` names, on methods and on every other documented declaration.
-- [ ] `editors/vscode/syntaxes/nvs.tmLanguage.json:121`: `@see` and `@example` paths scoped
+- [x] `editors/vscode/syntaxes/nvs.tmLanguage.json:121`: `@see` and `@example` paths scoped
   `markup.underline.link`; a case in `editors/vscode/test/grammar/fixtures/doc-tags.nvs:1`.
-- [ ] `crates/nvs-lsp/tests/see_targets.rs:1` (new): the tests the check `editor-read` names, then
+- [x] `crates/nvs-lsp/tests/see_targets.rs:1` (new): the tests the check `editor-read` names, then
   `cargo test --test see_targets` once.
 
 ### 4. the editor finds, renames and quick-fixes @see targets, and moves them with a renamed file
@@ -377,31 +384,33 @@ the session writes the rules, the reference, the editor page and the website ent
 
 ### State
 
-Stages 1 and 2 are done; `checker` and `pack` are green. `pack`'s `run` names `--bin nvs`, where
-`nvs-cli`'s unit tests live.
+Stages 1, 2 and 3 are done; `checker`, `pack` and `editor-read` are green.
 
-- `nvs_syntax::doc_target` has `DocTarget::of`, the one classifier (a `/` or `.` makes a file
-  target, split at the first `#`), `is_markdown`, `heading_slugs` and `slug`.
-- `crates/nvs-hir/src/members.rs` `check_see_file` resolves a file target inside the project found
-  by `nvs_hir::lenders::project_of`. A member or heading miss carries a fix from `closest_name`.
-- The record is `nvs_hir::doc_targets::DocTargets` on `Module::doc_targets`, filled only when
-  `resolve_program` gets a parse cache (the language server's path). Each `DocTarget` has `span`,
-  `class_span`, and `Resolved::{Class, Member { class, owner, name, kind }, File { path, heading }}`.
-  `@throws` records `Class`, `@example` a `File` with no heading. `DocTargets::at(file, offset)`
-  finds the target under a cursor.
-- `crates/nvs-cli/src/package/pack.rs` `check_doc_targets` lexes each packed `.nvs` file, resolves
-  each `@see` file and `@example` path from its folder (`in_package`), and refuses one not in the
-  archive, naming file, line and tag. `pack` and the registry build (`build.rs`) call it. Before it,
-  such a package packed and the consumer's check failed with `E_DOC_EXAMPLE_NOT_FOUND`.
+- The record is `nvs_hir::doc_targets::DocTargets` on `Module::doc_targets`, filled on the language
+  server's path only. `Resolved::{Class, Member { class, owner, name, kind }, File { path, heading }}`;
+  `@throws` records `Class`, `@example` a `File`. `nvs_syntax::doc_target` is the one classifier.
+- The editor reads it through `crates/nvs-lsp/src/definition.rs`: `doc_named_at` (a cursor; the
+  class half of `Class::member` answers the class), `doc_named_at_target` (a whole entry) and
+  `doc_declared` (where it goes). Hover's `doc_tag_target` and `see_link` (a card's links, through
+  `hover::markdown_linked`) and `links::for_document` read it too.
+- `links::PathLink::line` is the heading's line: the server sends `file:…#L<n>`, the `.lspt` runner
+  `target#L<n>`. `semantic.rs` `Named::doc_targets` colours the entry's class and member targets.
+- `completion.rs` `see_targets` lists paths behind `inside_the_project` and headings in
+  `see_headings`; `/` and `.` in a `@see` or `@example` argument answer a trigger.
+- The grammar scopes an `@example` path and a `@see` file target `markup.underline.link.nvs`.
+- `@see`'s completion detail now ends "enum case or file", and
+  `tests/lsp/completion/a-property-is-not-offered-param.lspt` changed with it.
 
 ### Next
 
-Stages 3, 4 and 5 may run side by side (Lanes). The next session takes stage 3 from its first item.
-The editor stages read `Module::doc_targets`: find how `Analysed` keeps the `Module`
-(`crates/nvs-lsp/src/document.rs`) and read `module.doc_targets.in_file(analysed.entry)`. Stage 5
-starts at `crates/nvs-cli/src/meta.rs:1515`, where `see` and `example` are written as text today.
+The next session takes stage 4 from its first item; stage 5 may run beside it (Lanes). Stage 4
+reads the record as stage 3 does: `analysed.module.doc_targets.in_file(file)`, with
+`definition::doc_named_at` for a cursor (`rename.rs`'s prepareRename on a `@see` target). The index
+work starts at `crates/nvs-lsp/src/index.rs:579`. Stage 5 starts at `crates/nvs-cli/src/meta.rs:1515`,
+where `see` and `example` are written as text today.
 
-No test is expected to go red from stages 1 and 2: no existing `@see` in the corpus has a `/` or a
-`.`, and no package source in the tree writes an `@example`.
+No test is expected to go red from stages 1 to 3: no existing `@see` in the corpus has a `/` or a
+`.`, no package source in the tree writes an `@example`, and the one `.lspt` case that froze the
+`@see` detail text was updated with it.
 
 ### Backlog
