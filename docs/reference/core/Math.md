@@ -1,6 +1,6 @@
 ---
 summary: numeric functions over `int`, `float` and `decimal` — magnitude, rounding, integer division, roots, logarithms, trigonometry, base conversion and number formatting, plus the constants
-keywords: math, abs, absolute value, min, max, clamp, ceil, floor, round, rounding mode, half up, half even, truncate, integer division, modulo, remainder, sqrt, square root, pow, power, hypot, exp, log, logarithm, sin, cos, tan, trigonometry, degrees, radians, NaN, infinity, base conversion, binary, hexadecimal, octal, number format, thousands separator, gcd, lcm, pi, INT_MAX, EPSILON
+keywords: math, abs, absolute value, min, max, clamp, ceil, floor, round, rounding mode, half up, half even, truncate, integer division, modulo, remainder, sqrt, square root, power, hypot, exp, log, logarithm, sin, cos, tan, trigonometry, degrees, radians, NaN, infinity, base conversion, binary, hexadecimal, octal, number format, thousands separator, gcd, lcm, pi, INT_MAX, EPSILON
 ---
 
 `Core\Math` is the numeric function set; the arithmetic operators `+ - * / % **` and `<=>` are the

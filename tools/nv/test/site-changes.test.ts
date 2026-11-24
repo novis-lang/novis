@@ -59,7 +59,8 @@ describe("site --check changes", () => {
     const base = snap({ "Core\\Str::length": "aaaa", "Core\\Str::slice": "bbbb", "Core\\Str::strip": "cccc" });
     const rename = entry("changed", ["Core\\Str::strip", "Core\\Str::trim"], { breaking: true, instead: "Write `Core\\Str::trim`." });
     expect(check(base, changes([rename]))).toEqual([]);
-    expect(check(base, changes([{ ...rename, breaking: undefined, instead: undefined }]))).toEqual([
+    const { breaking: _breaking, instead: _instead, ...plain } = rename;
+    expect(check(base, changes([plain]))).toEqual([
       "removed: Core\\Str::strip is no longer on the roster, and no `removed` entry names it",
       "new: Core\\Str::trim is not in the snapshot of v0.0.4, and no `new` entry names it",
     ]);

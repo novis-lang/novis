@@ -1,6 +1,6 @@
 ---
 summary: what a `decimal` reaches for where the operators cannot say it — two divisions that name their own rounding, the split whose parts add back exactly, the exact power, and the four cuts to a scale
-keywords: decimal, division, divideExact, divideRounded, allocate, penny split, remainder, pow, power, rounding, scale, money, currency, banker's rounding, half-even, arbitrary precision, fixed-point, exact, floor, ceil, truncate, round
+keywords: decimal, division, divideExact, divideRounded, allocate, penny split, remainder, power, rounding, scale, money, currency, banker's rounding, half-even, arbitrary precision, fixed-point, exact, floor, ceil, truncate, round
 ---
 
 Novis's `decimal` scalar carries its own arithmetic as operators — `+`, `-`, `*`, `%` and `/` all work

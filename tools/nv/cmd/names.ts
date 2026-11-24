@@ -33,6 +33,7 @@
 
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { newestNvs } from "../lib/nvs-binary.ts";
 import { ROOT } from "../lib/paths.ts";
 import { run as proc } from "../lib/proc.ts";
 
@@ -239,7 +240,7 @@ function packageClasses(root: string): Class[] {
 
 export async function run(args: string[]): Promise<number> {
   let check = false;
-  let nvs = process.env.NVS_BIN ?? join("target", "debug", process.platform === "win32" ? "nvs.exe" : "nvs");
+  let nvs = process.env.NVS_BIN || newestNvs() || "nvs";
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--check") check = true;

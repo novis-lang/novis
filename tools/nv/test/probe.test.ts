@@ -29,7 +29,7 @@ const META: ProbeMeta = {
     },
     {
       name: "Core\\BigInt",
-      members: [{ kind: "instance", name: "add", params: [{ name: "other", type: "Core\\BigInt" }], returns: "Core\\BigInt", signature: "add(Core\\BigInt $other): Core\\BigInt" }],
+      members: [{ kind: "instance", name: "plus", params: [{ name: "other", type: "Core\\BigInt" }], returns: "Core\\BigInt", signature: "plus(Core\\BigInt $other): Core\\BigInt" }],
     },
     {
       name: "Core\\ObjectMap",
