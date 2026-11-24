@@ -3,9 +3,16 @@
     {
       "kind": "fixed",
       "features": [
+        "tools:agents/nvs-agent"
+      ],
+      "text": "`nvs agent show` prints the help of a built-in name. For an enum of `Novis\\Image`, `Novis\\Intl`, `Novis\\Pdf` or `Novis\\Spreadsheet`, it now also lists the enum's cases."
+    },
+    {
+      "kind": "fixed",
+      "features": [
         "Core\\Response::sendFile"
       ],
-      "text": "A request can call `Core\\Response::sendFile` more than once. Each call replaces the file of the call before it, so the request sends only the last file. The earlier files are not sent, and the `max_output` limit under `[limits]` does not count them. Before, this limit counted the size of every file the request named."
+      "text": "When a request calls `Core\\Response::sendFile` more than once, each call replaces the earlier file. The request sends only the last file. The `max_output` limit in `nvs.toml` now counts only that file."
     },
     {
       "kind": "new",

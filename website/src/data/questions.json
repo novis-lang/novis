@@ -18053,7 +18053,7 @@
   },
   "/reference/types/novis-intl-locale-service/": {
     "feature": "Novis\\Intl\\Locale::Service",
-    "hash": "484e7ec65715a481",
+    "hash": "542b0d5e25b860aa",
     "questions": [
       "Which locale is really used for numbers or dates?",
       "How do I tell the user which language my page is shown in?",
