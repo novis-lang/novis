@@ -1283,17 +1283,19 @@ fn exceeds_int(expr: &Expr, env: &Env<'_>) -> bool {
     )
 }
 
-/// Each option a `Core` attribute no longer takes: the attribute as
+/// One option a `Core` attribute no longer takes: the attribute as
 /// [`check_roster`] names it, the option, and the help sentence that names
-/// its replacement. `rule:core-api/no-deprecation-window-before-a-release`
-/// keeps a removed option an error, and this list is how its error says what
-/// to write instead. A row stays while code written before the removal may
-/// still be compiled, and costs one comparison per unknown option.
-const REMOVED_OPTIONS: &[(&str, &str, &str)] = &[(
-    "Route",
-    "name",
-    "A link names the route method itself, as in `Core\\Router::url(Home::show)`",
-)];
+/// its replacement.
+type RemovedOption = (&'static str, &'static str, &'static str);
+
+/// Each option a `Core` attribute no longer takes, with what replaced it
+/// (`rule:core-api/a-moved-name-says-where-it-went`). The list is empty while
+/// Novis is Pre-Alpha: a removed option gets the plain unknown-option error,
+/// and the changelog says what to write instead
+/// (`rule:core-api/no-deprecation-window-before-a-release`). The help branch
+/// stays for the first release after Pre-Alpha, and a test feeds it made-up
+/// rows. An empty list costs one comparison per unknown option.
+const REMOVED_OPTIONS: &[RemovedOption] = &[];
 
 /// One recognized attribute's payload, checked against its roster of options.
 ///
@@ -1335,18 +1337,7 @@ pub(crate) fn check_roster(
         let expected = declared.and_then(|ty| ty.intern(env));
         check_expr(&field.value, expected, &mut live, &scope, ctx, env);
         if declared.is_none() {
-            let removed = REMOVED_OPTIONS
-                .iter()
-                .find(|(on, option, _)| *on == attribute && *option == name);
-            let help = match (removed, crate::routes::option_home(attribute, &name)) {
-                (Some((_, _, instead)), _) => {
-                    format!("`{name}` was removed from `#[{attribute}]`. {instead}")
-                }
-                (None, Some(home)) => format!(
-                    "`{name}` is an option of `#[{home}]`. Write it in the `#[{home}]` of the same method"
-                ),
-                (None, None) => format!("the options are: {}", roster_names(options)),
-            };
+            let help = unknown_option_help(attribute, &name, options, REMOVED_OPTIONS);
             env.diags.report(
                 Diagnostic::error(
                     code::E_UNKNOWN_OPTION,
@@ -1365,6 +1356,29 @@ pub(crate) fn check_roster(
             );
         }
         seen.push(name);
+    }
+}
+
+/// The help line of an unknown option `name` of `#[attribute]`: what replaced
+/// it when `removed` lists it, the attribute it belongs to when it is another
+/// route attribute's option, and the roster otherwise.
+fn unknown_option_help(
+    attribute: &str,
+    name: &str,
+    options: &[(&str, crate::testing::OptionTy)],
+    removed: &[RemovedOption],
+) -> String {
+    let row = removed
+        .iter()
+        .find(|(on, option, _)| *on == attribute && *option == name);
+    match (row, crate::routes::option_home(attribute, name)) {
+        (Some((_, _, instead)), _) => {
+            format!("`{name}` was removed from `#[{attribute}]`. {instead}")
+        }
+        (None, Some(home)) => format!(
+            "`{name}` is an option of `#[{home}]`. Write it in the `#[{home}]` of the same method"
+        ),
+        (None, None) => format!("the options are: {}", roster_names(options)),
     }
 }
 
@@ -1476,5 +1490,32 @@ pub(crate) fn is_constant(expr: &Expr) -> bool {
         // the same span names one mistake twice.
         ExprKind::Error(_) => true,
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Made-up rows: [`REMOVED_OPTIONS`] is empty while Novis is Pre-Alpha.
+    const REMOVED: &[RemovedOption] = &[("Route", "label", "Name the route method itself")];
+
+    /// A listed option's help says what replaced it, and an unlisted one's
+    /// help is the roster.
+    #[test]
+    fn a_removed_option_names_its_replacement_and_another_gets_the_roster() {
+        assert_eq!(
+            unknown_option_help("Route", "label", &[], REMOVED),
+            "`label` was removed from `#[Route]`. Name the route method itself"
+        );
+        assert_eq!(
+            unknown_option_help("Test", "label", &[], REMOVED),
+            "the options are: "
+        );
+        assert_eq!(
+            unknown_option_help("Route", "label", &[], REMOVED_OPTIONS),
+            "the options are: ",
+            "an empty list gives the plain unknown-option help"
+        );
     }
 }

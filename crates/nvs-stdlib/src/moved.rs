@@ -11,9 +11,10 @@
 //! does not. `nvs_types::moved` is the pass that reads the table and adds the
 //! note and the fix to a failed compile.
 //!
-//! A row stays until 1.0. Before then any release may move a `Core` name, and
-//! a project that skips releases meets every move at once. A row is a few
-//! static bytes and is read only on a failed compile.
+//! The table is empty while Novis is Pre-Alpha, and the changelog is the only
+//! record of a move. The mechanism stays for the first release after it, and
+//! `nvs-types`' tests feed the pass made-up rows. A row is a few static bytes
+//! and is read only on a failed compile.
 
 /// One `Core` name that moved.
 #[derive(Clone, Copy, Debug)]
@@ -37,7 +38,8 @@ pub struct Move {
 
 impl Move {
     /// A rename: the arguments stay, so the fix writes the new name.
-    const fn renamed(old: &'static str, new: &'static str) -> Self {
+    #[must_use]
+    pub const fn renamed(old: &'static str, new: &'static str) -> Self {
         Self {
             old,
             new,
@@ -49,7 +51,8 @@ impl Move {
 
     /// A member removed with no one replacement: the help line is `help`,
     /// and no fix is offered.
-    const fn removed(old: &'static str, new: &'static str, help: &'static str) -> Self {
+    #[must_use]
+    pub const fn removed(old: &'static str, new: &'static str, help: &'static str) -> Self {
         Self {
             old,
             new,
@@ -66,63 +69,25 @@ impl Move {
     }
 }
 
-/// Every `Core` name that moved, oldest first.
-pub const MOVES: &[Move] = &[
-    Move::renamed(r"Core\Order", r"Core\Arr::Order"),
-    // rule:core-classes/a-time-class-builds-its-own-values
-    Move::renamed(r"Core\Time::fromEpoch", r"Core\Time\Instant::fromEpoch"),
-    Move::renamed(r"Core\Time::fromIso", r"Core\Time\Instant::fromIso"),
-    Move::renamed(r"Core\Time::parse", r"Core\Time\DateTime::parse"),
-    Move {
-        old: r"Core\Time::at",
-        new: r"Core\Time\DateTime::at",
-        since: None,
-        call: Some(
-            r"Core\Time\DateTime::at(Core\Time\Date::at(…), Core\Time\TimeOfDay::at(…), $zone)",
-        ),
-        help: None,
-    },
-    Move {
-        old: r"Core\Time\Date::atStartOfDay",
-        new: r"Core\Time\DateTime::at",
-        since: None,
-        call: Some(r"Core\Time\DateTime::at($date, Core\Time\TimeOfDay::at(0, 0), $zone)"),
-        help: None,
-    },
-    Move::renamed(r"Core\Time\DateTime::Weekday", r"Core\Time\Weekday"),
-    // rule:core-api/session-roster
-    Move::removed(
-        r"Core\Session::start",
-        r"Core\Session::get",
-        "`Core\\Session::start` was removed. The first call of any `Core\\Session` method, such \
-         as `Core\\Session::get`, opens the session, so delete this call",
-    ),
-    Move::removed(
-        r"Core\Session::set",
-        r"Core\Session::setShortLived",
-        "`Core\\Session::set` was removed. Write `Core\\Session::setShortLived` for a value that \
-         is deleted when the browser closes, or `Core\\Session::setLongLived` for one that stays",
-    ),
-    Move::removed(
-        r"Core\Session::setSecret",
-        r"Core\Session::setShortLivedSecret",
-        "`Core\\Session::setSecret` was removed. Write `Core\\Session::setShortLivedSecret` or \
-         `Core\\Session::setLongLivedSecret`, for the lifetime the secret needs",
-    ),
-    Move::removed(
-        r"Core\Session::clear",
-        r"Core\Session::clearShortLived",
-        "`Core\\Session::clear` was removed. Write `Core\\Session::clearShortLived`, \
-         `Core\\Session::clearLongLived` or `Core\\Session::clearAll`, for the values to delete",
-    ),
-    Move::renamed(r"Core\Session::destroy", r"Core\Session::clearAll"),
-];
+/// Every `Core` name that moved, oldest first. Empty while Novis is
+/// Pre-Alpha: an old name gets the plain unknown-name error, and the
+/// changelog says what to write instead
+/// (`rule:core-api/no-deprecation-window-before-a-release`). The first release
+/// after Pre-Alpha adds its moves here.
+pub const MOVES: &[Move] = &[];
 
 /// The row for `name`, a type or a `Class::member`, matched without regard to
 /// ASCII case as `Core` names are matched everywhere else.
 #[must_use]
 pub fn moved(name: &str) -> Option<&'static Move> {
-    MOVES.iter().find(|row| row.old.eq_ignore_ascii_case(name))
+    moved_in(MOVES, name)
+}
+
+/// The row of `table` for `name`, as [`moved`] reads [`MOVES`]. A test passes
+/// its own made-up rows.
+#[must_use]
+pub fn moved_in(table: &'static [Move], name: &str) -> Option<&'static Move> {
+    table.iter().find(|row| row.old.eq_ignore_ascii_case(name))
 }
 
 #[cfg(test)]

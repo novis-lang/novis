@@ -26,24 +26,35 @@
 //! A member whose arguments changed gets the help line alone, with the call to
 //! write instead.
 //!
+//! `MOVES` is empty while Novis is Pre-Alpha, so the pass adds nothing until
+//! the first release after it. `tests/moved.rs` runs it over made-up rows
+//! through [`note_moves_in`].
+//!
 //! The pass runs on a failed compile, and in the editor on every analysis, where
 //! it costs one comparison per `E0303`, `E0306` and `E0405`. A `use` line of a
 //! moved name costs one lex of its file.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceMap, Span, Suggestion, code};
-use nvs_stdlib::moved::Move;
+use nvs_stdlib::moved::{MOVES, Move, moved_in};
 use nvs_syntax::{Keyword, TokenKind};
 
 /// The row for the name `diagnostic` says is not declared (`E0303`), does not
 /// resolve (`E0306`) or has no such member (`E0405`), if that name moved.
 #[must_use]
 pub fn moved_subject(diagnostic: &Diagnostic) -> Option<&'static Move> {
+    moved_subject_in(MOVES, diagnostic)
+}
+
+/// [`moved_subject`] over the rows of `table`, which a test fills with
+/// made-up rows while [`MOVES`] is empty.
+#[must_use]
+pub fn moved_subject_in(table: &'static [Move], diagnostic: &Diagnostic) -> Option<&'static Move> {
     if let Some((class, member)) = unknown_member_subject(diagnostic) {
-        return nvs_stdlib::moved::moved(&format!("{class}::{member}"));
+        return moved_in(table, &format!("{class}::{member}"));
     }
     let name = nvs_hir::hierarchy::undeclared_subject(diagnostic)
         .or_else(|| nvs_hir::resolve::unresolved_import_subject(diagnostic))?;
-    nvs_stdlib::moved::moved(&name.to_string())
+    moved_in(table, &name.to_string())
 }
 
 /// The class and the member an `E0405` names, read back from the message
@@ -66,8 +77,14 @@ fn unknown_member_subject(diagnostic: &Diagnostic) -> Option<(&str, &str)> {
 /// place and the fix that writes it. `map` holds the files the diagnostics
 /// point into.
 pub fn note_moves(diags: &mut Diagnostics, map: &SourceMap) {
+    note_moves_in(MOVES, diags, map);
+}
+
+/// [`note_moves`] over the rows of `table`, which a test fills with made-up
+/// rows while [`MOVES`] is empty.
+pub fn note_moves_in(table: &'static [Move], diags: &mut Diagnostics, map: &SourceMap) {
     for diagnostic in diags.iter_mut() {
-        let Some(row) = moved_subject(diagnostic) else {
+        let Some(row) = moved_subject_in(table, diagnostic) else {
             continue;
         };
         let import = diagnostic.code == Some(code::E_UNRESOLVED_IMPORT);
