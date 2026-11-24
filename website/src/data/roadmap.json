@@ -4,7 +4,7 @@
   "themes": [
     {
       "title": "Clearer method names",
-      "text": "Every method that changes something has a verb in its name. Every method that returns `bool` reads as a question, such as `isEmpty`. When you use an old name, the compiler tells you the new one.",
+      "text": "Every method that changes something has a verb in its name. Every method that returns `bool` reads as a question, such as `isEmpty`. A method that returns a changed copy says so, such as `resized`. The changelog lists each old name and its new name.",
       "goals": [
         "clear-member-names"
       ]
@@ -31,10 +31,31 @@
       ]
     },
     {
+      "title": "Dates and optional values in routes",
+      "text": "A query parameter with the default `null` is optional. Dates and times can be route parameters and query values, and `Core\\Router::url` writes them as ISO text. Dates, times, durations and UUIDs are written to JSON as text.",
+      "goals": [
+        "route-values"
+      ]
+    },
+    {
       "title": "Extending classes you do not own",
       "text": "An `extend` block adds methods, constants and properties to a class from `Core` or from a package. A file sees the added methods when it imports the block with `use`.",
       "goals": [
         "extend-blocks"
+      ]
+    },
+    {
+      "title": "Callbacks for the calling class",
+      "text": "A parameter of type `callable(static)` takes a function for the class that the call names. The compiler checks each call of that function.",
+      "goals": [
+        "static-in-callables"
+      ]
+    },
+    {
+      "title": "Enums as keys",
+      "text": "A `match` over an enum must cover every case or have a `default`. Constants can contain enum cases. `array<E, T>` is an array whose keys are the cases of the enum `E`. The editor adds the missing `match` arms for you.",
+      "goals": [
+        "enum-tables"
       ]
     }
   ]

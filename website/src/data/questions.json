@@ -105,7 +105,7 @@
   },
   "/guides/cookbook/schedule-job/": {
     "feature": "guides/cookbook/schedule-job.mdx",
-    "hash": "fbdad79c52e01dab",
+    "hash": "777b51750dbbcc55",
     "questions": [
       "How do I run a program every Monday morning?",
       "Example of a weekly report that runs by itself",
@@ -127,7 +127,7 @@
   },
   "/guides/cookbook/signed-url/": {
     "feature": "guides/cookbook/signed-url.mdx",
-    "hash": "53db476dd8e4a4b5",
+    "hash": "67ec6fa9729dd81b",
     "questions": [
       "Example of a temporary download link",
       "Send a link by email that works only for a short time",
@@ -137,7 +137,7 @@
   },
   "/guides/cookbook/upload-file/": {
     "feature": "guides/cookbook/upload-file.mdx",
-    "hash": "f8696d4405cd03ad",
+    "hash": "3dbeb62b3614694c",
     "questions": [
       "Store user uploads safely on the server",
       "Example of a file upload to a folder on the server",
@@ -149,7 +149,7 @@
   },
   "/guides/cookbook/validate-form/": {
     "feature": "guides/cookbook/validate-form.mdx",
-    "hash": "24262379b259a18e",
+    "hash": "87a6f4b5246f1ee4",
     "questions": [
       "Example of checking every field of a contact form",
       "Show all form errors to the user at once",
@@ -170,7 +170,7 @@
   },
   "/guides/example-apps/chat/": {
     "feature": "guides/example-apps/chat.mdx",
-    "hash": "60fbda379f3b1d03",
+    "hash": "1e1ae90b8f32e200",
     "questions": [
       "Example chat app with rooms over WebSockets",
       "How do I send messages from the server to every browser in a room?",
@@ -194,7 +194,7 @@
   },
   "/guides/example-apps/paperwork/": {
     "feature": "guides/example-apps/paperwork.mdx",
-    "hash": "fe3e8e61113d9ba7",
+    "hash": "569a7b33d695b53d",
     "questions": [
       "Example app that makes PDF invoices, reports and tickets",
       "See a sample PDF made with Novis",
@@ -206,7 +206,7 @@
   },
   "/guides/example-apps/poll/": {
     "feature": "guides/example-apps/poll.mdx",
-    "hash": "59db8c61fdd7a22b",
+    "hash": "f7d08672661ba00c",
     "questions": [
       "Example live poll app with server-sent events",
       "Show new votes on every open page without a reload",
@@ -264,7 +264,7 @@
   },
   "/guides/how-to-use/configuration/": {
     "feature": "guides/how-to-use/configuration.mdx",
-    "hash": "a86f7e392b615f19",
+    "hash": "7a1c85472fc54d72",
     "questions": [
       "Override a few settings without editing nvs.toml",
       "How do I create a new configuration file with every setting?",
@@ -298,7 +298,7 @@
   },
   "/guides/how-to-use/live-updates/": {
     "feature": "guides/how-to-use/live-updates.mdx",
-    "hash": "74e8b8d79aea1c18",
+    "hash": "d9a328d637b953a4",
     "questions": [
       "Should I use server-sent events or a WebSocket?",
       "Send live updates to every open page of my app",
@@ -333,7 +333,7 @@
   },
   "/guides/how-to-use/requests/": {
     "feature": "guides/how-to-use/requests.mdx",
-    "hash": "bce05b4868934e4e",
+    "hash": "c067af4296809ccd",
     "questions": [
       "How does my program find the route for a request?",
       "Read query parameters, form fields and headers in a handler",
@@ -344,7 +344,7 @@
   },
   "/guides/how-to-use/tainted-input/": {
     "feature": "guides/how-to-use/tainted-input.mdx",
-    "hash": "0f7f1b832fc5a1a4",
+    "hash": "8fa4af739fbb8a28",
     "questions": [
       "What does tainted string mean?",
       "Why can I not pass request text where a string is needed?",
@@ -377,7 +377,7 @@
   },
   "/guides/production/docker/": {
     "feature": "guides/production/docker.mdx",
-    "hash": "a6720cd6ad27c765",
+    "hash": "c38c5ab7d0c6d469",
     "questions": [
       "How do I run a Novis app in a Docker container?",
       "Which tag of the official Novis image should I deploy?",
@@ -413,7 +413,7 @@
   },
   "/guides/production/run-as-a-service/": {
     "feature": "guides/production/run-as-a-service.mdx",
-    "hash": "ec562008ed84c9ee",
+    "hash": "25a68274a10c1bdd",
     "questions": [
       "How do I keep my Novis server running after a reboot?",
       "Where does a background service write its log?",
@@ -470,7 +470,7 @@
   },
   "/guides/simple-programs/form-handler/": {
     "feature": "guides/simple-programs/form-handler.mdx",
-    "hash": "2364c85f977da07d",
+    "hash": "3507cd2fe7654157",
     "questions": [
       "How do I handle a contact form and reply with HTML?",
       "Example of reading a POST form into an object",
@@ -481,7 +481,7 @@
   },
   "/guides/simple-programs/json-api/": {
     "feature": "guides/simple-programs/json-api.mdx",
-    "hash": "5c93dcee14e12fca",
+    "hash": "3177ec952ecbe574",
     "questions": [
       "Example of a JSON API in Novis",
       "How do I return one product as JSON by its id?",
@@ -493,7 +493,7 @@
   },
   "/guides/simple-programs/scheduled-job/": {
     "feature": "guides/simple-programs/scheduled-job.mdx",
-    "hash": "01754fa21e86d656",
+    "hash": "d3a5dd1df5b94de7",
     "questions": [
       "How do I delete old log files every night?",
       "Keep only the newest three files in a folder",
@@ -538,7 +538,7 @@
   },
   "/guides/testing/test-a-route/": {
     "feature": "guides/testing/test-a-route.mdx",
-    "hash": "df876216ffdb0986",
+    "hash": "0016734e8bb47f9e",
     "questions": [
       "How do I test a page without starting a server?",
       "Check the status code and body of a route in a test",
@@ -689,7 +689,7 @@
   },
   "/guides/walkthroughs/after-response/": {
     "feature": "guides/walkthroughs/after-response.mdx",
-    "hash": "f16b1d05c39e9df5",
+    "hash": "99c7e512dbfd901b",
     "questions": [
       "Send an email after the visitor already has the page",
       "Animation of work that runs after the response",
@@ -699,7 +699,7 @@
   },
   "/guides/walkthroughs/page-now/": {
     "feature": "guides/walkthroughs/page-now.mdx",
-    "hash": "736a29f39290d35a",
+    "hash": "96ada994e7479c1d",
     "questions": [
       "Show the page at once and fill in slow parts later",
       "Load slow parts of a page without a JavaScript fetch or extra API routes",
@@ -1111,7 +1111,7 @@
   },
   "/install/server/": {
     "feature": "install/server.mdx",
-    "hash": "99746e20b2f3c977",
+    "hash": "b7d11b5b52e47cfd",
     "questions": [
       "How do I install Novis on a production server?",
       "Where does Novis keep its cache, logs and config files?",
@@ -1319,7 +1319,7 @@
   },
   "/reference/cli/nvs-debug/": {
     "feature": "tools:cli/nvs-debug",
-    "hash": "73b36a5bf356946f",
+    "hash": "a30ecf2f5a3c19ee",
     "questions": [
       "Read the saved request records into a database I can search",
       "Read a JSON log file into the same database as the requests",
@@ -1331,7 +1331,7 @@
   },
   "/reference/cli/nvs-debug-to-test/": {
     "feature": "tools:cli/nvs-debug-to-test",
-    "hash": "4941c66c86f3237c",
+    "hash": "e4a55e18ba26ab1e",
     "questions": [
       "How do I turn a request my server recorded into a test?",
       "Write a test that checks the status and JSON body of a real request",
@@ -1432,7 +1432,7 @@
   },
   "/reference/cli/nvs-reload/": {
     "feature": "tools:server/nvs-reload",
-    "hash": "5bd5a394eb31b58b",
+    "hash": "51323a0576cd3ce7",
     "questions": [
       "Make my running server use the new code at once",
       "How do I know if a deploy has a compile error?",
@@ -1540,7 +1540,7 @@
   },
   "/reference/cli/profiling/": {
     "feature": "tools:cli/profiling",
-    "hash": "c1eeaaa3521cc23b",
+    "hash": "d9661ba1d6aedc27",
     "questions": [
       "How do I find which function makes my program slow?",
       "Profile a command-line program without changing its code",
@@ -1624,7 +1624,7 @@
   },
   "/reference/config/capabilities/": {
     "feature": "tools:config/capabilities",
-    "hash": "c191e3359593470b",
+    "hash": "2f4d265ceec57c62",
     "questions": [
       "How do I allow a program to read files from a folder?",
       "Why does writing a file throw a RuntimeError about a capability?",
@@ -1636,7 +1636,7 @@
   },
   "/reference/config/debug/": {
     "feature": "directive:debug.keep_temporary",
-    "hash": "bce7789ac0632524",
+    "hash": "2021b344084fe77e",
     "questions": [
       "Keep temporary files after a script fails so I can inspect them",
       "Use my own token file for the debug viewer",
@@ -1648,7 +1648,7 @@
   },
   "/reference/config/deferred/": {
     "feature": "directive:deferred.max_concurrent",
-    "hash": "9ec86b23a723fc1e",
+    "hash": "3c41884a0f6886cf",
     "questions": [
       "How long can background work run after the response is sent?",
       "Set a time limit for tasks that run after replying",
@@ -1738,7 +1738,7 @@
   },
   "/reference/config/io/": {
     "feature": "directive:io.temp_root",
-    "hash": "4acc80fe4a4744ef",
+    "hash": "a24c52a350efeb6d",
     "questions": [
       "Where are temporary files and directories created?",
       "Store temporary files on a faster disk",
@@ -1806,7 +1806,7 @@
   },
   "/reference/config/opcache/": {
     "feature": "directive:opcache",
-    "hash": "22f8a07bd6575067",
+    "hash": "8034ea757726858f",
     "questions": [
       "Why does my code change not show up without a restart?",
       "How often does the server check for changed source files?",
@@ -1852,7 +1852,7 @@
   },
   "/reference/config/schedule/": {
     "feature": "directive:schedule",
-    "hash": "c165825c6f332695",
+    "hash": "ca6e5a29f71804f4",
     "questions": [
       "Run a job every night",
       "How do I run a script at fixed times like cron?",
@@ -1911,7 +1911,7 @@
   },
   "/reference/config/the-file-and-where-it-is-read-from/": {
     "feature": "tools:config/the-file-and-where-it-is-read-from",
-    "hash": "7c12df51f81f50f0",
+    "hash": "22e97816bc9d1b77",
     "questions": [
       "Where does Novis look for its configuration file?",
       "Use a different configuration file for one command",
@@ -1953,7 +1953,7 @@
   },
   "/reference/core/arr/": {
     "feature": "Core\\Arr",
-    "hash": "f81766e90c9e01fa",
+    "hash": "c3e494d396640090",
     "questions": [
       "How do I work with arrays?",
       "Sort, filter and combine lists of values",
@@ -2062,7 +2062,7 @@
   },
   "/reference/core/arr/difference/": {
     "feature": "Core\\Arr::difference",
-    "hash": "a4c6e45e10b9d4bc",
+    "hash": "860c02e6a92e2ba1",
     "questions": [
       "How do I find the values in one array that are not in another?",
       "Get the difference between two lists",
@@ -2196,7 +2196,7 @@
   },
   "/reference/core/arr/groupby/": {
     "feature": "Core\\Arr::groupBy",
-    "hash": "d81899bd681bc637",
+    "hash": "ea7b208b902cfc9b",
     "questions": [
       "How do I group the items of an array by a field?",
       "Split a list of records into groups by category",
@@ -2206,7 +2206,7 @@
   },
   "/reference/core/arr/groupcounts/": {
     "feature": "Core\\Arr::groupCounts",
-    "hash": "cf0816aed2127355",
+    "hash": "296ff9fe522a3ce8",
     "questions": [
       "How do I count how often each value appears in an array?",
       "Count occurrences of every item in a list",
@@ -2228,7 +2228,7 @@
   },
   "/reference/core/arr/intersection/": {
     "feature": "Core\\Arr::intersection",
-    "hash": "654247fa239c1bf7",
+    "hash": "24133a4b75e21176",
     "questions": [
       "How do I find the values two arrays have in common?",
       "Get the intersection of two lists",
@@ -2691,7 +2691,7 @@
   },
   "/reference/core/bigint/": {
     "feature": "Core\\BigInt",
-    "hash": "a5c8b87a7a7ae8b4",
+    "hash": "d7428f9f35b4ae36",
     "questions": [
       "How do I work with numbers too large for an integer?",
       "Arbitrary precision whole number math",
@@ -2702,7 +2702,7 @@
   },
   "/reference/core/bigint/abs/": {
     "feature": "Core\\BigInt::abs",
-    "hash": "89a4c0a458b0aee8",
+    "hash": "58a868cbf07d738a",
     "questions": [
       "How do I get the absolute value of a big number?",
       "Remove the minus sign from a very large integer",
@@ -2712,7 +2712,7 @@
   },
   "/reference/core/bigint/compareto/": {
     "feature": "Core\\BigInt::compareTo",
-    "hash": "29b9aad7ed57d513",
+    "hash": "ca396de8a2cde80b",
     "questions": [
       "How do I compare two big integers?",
       "Which of two huge numbers is larger?",
@@ -2723,7 +2723,7 @@
   },
   "/reference/core/bigint/dividedby/": {
     "feature": "Core\\BigInt::dividedBy",
-    "hash": "7630b83aa23b3cfc",
+    "hash": "fbba33e011461721",
     "questions": [
       "How do I divide two very large integers?",
       "Integer division of big numbers without the fraction",
@@ -2744,7 +2744,7 @@
   },
   "/reference/core/bigint/gcd/": {
     "feature": "Core\\BigInt::gcd",
-    "hash": "263c04d62e5b48da",
+    "hash": "1db417c848fdf4ed",
     "questions": [
       "How do I find the greatest common divisor of two numbers?",
       "Reduce a fraction to its simplest form",
@@ -2754,7 +2754,7 @@
   },
   "/reference/core/bigint/lcm/": {
     "feature": "Core\\BigInt::lcm",
-    "hash": "9b6c6ba4cd6efc9a",
+    "hash": "0d5a912a7a1406ae",
     "questions": [
       "How do I find the least common multiple of two numbers?",
       "Smallest number both values divide into",
@@ -2764,7 +2764,7 @@
   },
   "/reference/core/bigint/minus/": {
     "feature": "Core\\BigInt::minus",
-    "hash": "656851472abcc39a",
+    "hash": "9f2780cedae4477d",
     "questions": [
       "How do I subtract two very large numbers?",
       "Difference between two big integers",
@@ -2774,7 +2774,7 @@
   },
   "/reference/core/bigint/multipliedby/": {
     "feature": "Core\\BigInt::multipliedBy",
-    "hash": "be451836c85b1731",
+    "hash": "50f82b885f4e94c4",
     "questions": [
       "How do I multiply two very large numbers?",
       "Multiply big integers without overflow",
@@ -2784,7 +2784,7 @@
   },
   "/reference/core/bigint/negated/": {
     "feature": "Core\\BigInt::negated",
-    "hash": "a510d4d4def1660a",
+    "hash": "fb4373debe187b25",
     "questions": [
       "How do I flip the sign of a big integer?",
       "Negate a very large number",
@@ -2794,7 +2794,7 @@
   },
   "/reference/core/bigint/of/": {
     "feature": "Core\\BigInt::of",
-    "hash": "85128876034ce40b",
+    "hash": "eb2e653698de220a",
     "questions": [
       "How do I create a big integer from a regular int?",
       "Convert an integer to an arbitrary precision number",
@@ -2804,7 +2804,7 @@
   },
   "/reference/core/bigint/ofuint/": {
     "feature": "Core\\BigInt::ofUint",
-    "hash": "10e9e82482f1b0e6",
+    "hash": "dba6a691dd0d2fc7",
     "questions": [
       "How do I create a big integer from an unsigned int?",
       "Convert a uint larger than the int maximum to a big number",
@@ -2814,7 +2814,7 @@
   },
   "/reference/core/bigint/parse/": {
     "feature": "Core\\BigInt::parse",
-    "hash": "9297d2066910b843",
+    "hash": "c643eec82fece49a",
     "questions": [
       "How do I convert a string of digits to a big integer?",
       "Read a very long number from text",
@@ -2825,7 +2825,7 @@
   },
   "/reference/core/bigint/plus/": {
     "feature": "Core\\BigInt::plus",
-    "hash": "61cf7d0770fe1426",
+    "hash": "617a978aeba86942",
     "questions": [
       "How do I add two very large numbers?",
       "Sum big integers without overflow",
@@ -2835,7 +2835,7 @@
   },
   "/reference/core/bigint/raisedto/": {
     "feature": "Core\\BigInt::raisedTo",
-    "hash": "958f6d61c4d59236",
+    "hash": "edc35027ac685a22",
     "questions": [
       "How do I raise a big number to a power?",
       "Calculate 2 to the power of 1000",
@@ -2846,7 +2846,7 @@
   },
   "/reference/core/bigint/raisedtomodulo/": {
     "feature": "Core\\BigInt::raisedToModulo",
-    "hash": "e9f31126af026a32",
+    "hash": "35e8a57b8f5bda5c",
     "questions": [
       "How do I compute a power modulo a number?",
       "Modular exponentiation for very large numbers",
@@ -2857,7 +2857,7 @@
   },
   "/reference/core/bigint/remainder/": {
     "feature": "Core\\BigInt::remainder",
-    "hash": "f48832df19e4786c",
+    "hash": "d91285196c941ed1",
     "questions": [
       "How do I get the remainder of a big integer division?",
       "Modulo of very large numbers",
@@ -2867,7 +2867,7 @@
   },
   "/reference/core/bigint/shiftedleft/": {
     "feature": "Core\\BigInt::shiftedLeft",
-    "hash": "4fe067ed8081b926",
+    "hash": "1ebdbab764ba705b",
     "questions": [
       "How do I shift a big integer left by some bits?",
       "Multiply a large number by a power of two",
@@ -2877,7 +2877,7 @@
   },
   "/reference/core/bigint/shiftedright/": {
     "feature": "Core\\BigInt::shiftedRight",
-    "hash": "8141a971d4d2a960",
+    "hash": "359d873f60a3ad81",
     "questions": [
       "How do I shift a big integer right by some bits?",
       "Divide a large number by a power of two and round down",
@@ -2887,7 +2887,7 @@
   },
   "/reference/core/bigint/sign/": {
     "feature": "Core\\BigInt::sign",
-    "hash": "f61dc800914fb1c4",
+    "hash": "2780cd6e365b07e7",
     "questions": [
       "How do I check if a big integer is negative?",
       "Is a very large number positive, negative or zero?",
@@ -2897,7 +2897,7 @@
   },
   "/reference/core/bigint/sqrt/": {
     "feature": "Core\\BigInt::sqrt",
-    "hash": "4cd619119914111f",
+    "hash": "c3804e979de6ffcb",
     "questions": [
       "How do I get the square root of a big integer?",
       "Integer square root of a very large number",
@@ -2907,7 +2907,7 @@
   },
   "/reference/core/bigint/todecimal/": {
     "feature": "Core\\BigInt::toDecimal",
-    "hash": "ae47fa52b684ff00",
+    "hash": "0b1eed207b02452b",
     "questions": [
       "How do I convert a big integer to a decimal?",
       "Use a large whole number in money calculations",
@@ -2917,7 +2917,7 @@
   },
   "/reference/core/bigint/toint/": {
     "feature": "Core\\BigInt::toInt",
-    "hash": "62e19c0446c621e3",
+    "hash": "19a41ce7092966ed",
     "questions": [
       "How do I convert a big integer back to a regular int?",
       "Get an int from a large number if it fits",
@@ -2927,7 +2927,7 @@
   },
   "/reference/core/bigint/tostring/": {
     "feature": "Core\\BigInt::toString",
-    "hash": "99f129ecb7286b96",
+    "hash": "9b32e41b3ebd3ed5",
     "questions": [
       "How do I convert a big integer to a string?",
       "Print a very large number with all its digits",
@@ -2937,7 +2937,7 @@
   },
   "/reference/core/bigint/touint/": {
     "feature": "Core\\BigInt::toUint",
-    "hash": "c57411bce097c949",
+    "hash": "d566039f7345de63",
     "questions": [
       "How do I convert a big integer to an unsigned int?",
       "Get a uint from a large number if it fits",
@@ -3295,7 +3295,7 @@
   },
   "/reference/core/cli/": {
     "feature": "Core\\Cli",
-    "hash": "655543a9280d7bb2",
+    "hash": "12e33760a47395d9",
     "questions": [
       "How do I write a command-line program?",
       "Work with the terminal from a script",
@@ -3328,7 +3328,7 @@
   },
   "/reference/core/cli/asksecret/": {
     "feature": "Core\\Cli::askSecret",
-    "hash": "14c8ebfec0efde48",
+    "hash": "f94c8f3dc5554c4d",
     "questions": [
       "How do I ask for a password in the terminal?",
       "Read a password without showing what is typed",
@@ -3403,17 +3403,6 @@
       "Check if the script runs interactively"
     ]
   },
-  "/reference/core/cli/multiselect/": {
-    "feature": "Core\\Cli::selectMany",
-    "hash": "ee19d182349dabdc",
-    "questions": [
-      "How do I let the user pick several options from a list?",
-      "Choose more than one item in a terminal menu",
-      "Ask the user to select multiple choices by number",
-      "Checkbox-style selection in a command-line program",
-      "Let the user choose none, one or many items"
-    ]
-  },
   "/reference/core/cli/select/": {
     "feature": "Core\\Cli::select",
     "hash": "9be1ce8931d7a0e9",
@@ -3425,9 +3414,20 @@
       "Choose one option with a default when Enter is pressed"
     ]
   },
+  "/reference/core/cli/selectmany/": {
+    "feature": "Core\\Cli::selectMany",
+    "hash": "7b1ab1d94ec7f0ba",
+    "questions": [
+      "How do I let the user pick several options from a list?",
+      "Choose more than one item in a terminal menu",
+      "Ask the user to select multiple choices by number",
+      "Checkbox-style selection in a command-line program",
+      "Let the user choose none, one or many items"
+    ]
+  },
   "/reference/core/cli/showlive/": {
     "feature": "Core\\Cli::showLive",
-    "hash": "af0b8c60e61571ad",
+    "hash": "a1aa39cc924cbafb",
     "questions": [
       "How do I update a line in place in the terminal?",
       "Redraw several lines of status while work runs",
@@ -3438,7 +3438,7 @@
   },
   "/reference/core/cli/showprogress/": {
     "feature": "Core\\Cli::showProgress",
-    "hash": "aedee4d16442f551",
+    "hash": "c1de15e49f376d19",
     "questions": [
       "How do I show a progress bar in the terminal?",
       "Display progress while processing many files",
@@ -3502,7 +3502,7 @@
   },
   "/reference/core/cli-live/": {
     "feature": "Core\\Cli\\Live",
-    "hash": "a1f508c135b2d11e",
+    "hash": "b2ebd3ae83851988",
     "questions": [
       "What is a live region in the terminal?",
       "An area of the screen that redraws while work runs",
@@ -3512,7 +3512,7 @@
   },
   "/reference/core/cli-live/set/": {
     "feature": "Core\\Cli\\Live::set",
-    "hash": "7c7a231690dfc16e",
+    "hash": "cde9c9adfec68407",
     "questions": [
       "How do I replace the lines shown in a live display?",
       "Change the text of a status line that updates in place",
@@ -3523,7 +3523,7 @@
   },
   "/reference/core/cli-progress/": {
     "feature": "Core\\Cli\\Progress",
-    "hash": "7fcedd82f1039fdf",
+    "hash": "c84b375d7b2c7b93",
     "questions": [
       "What object controls a progress bar?",
       "Progress bar handle in a command-line program",
@@ -3533,7 +3533,7 @@
   },
   "/reference/core/cli-progress/advance/": {
     "feature": "Core\\Cli\\Progress::advance",
-    "hash": "1c47d51aec9297ba",
+    "hash": "89e0dc4babdec4a5",
     "questions": [
       "How do I move a progress bar forward by one step?",
       "Advance a progress bar by many units at once",
@@ -3661,7 +3661,7 @@
   },
   "/reference/core/compress/compress/": {
     "feature": "Core\\Compress::compress",
-    "hash": "2edbca94e9741c2a",
+    "hash": "7fc561aec7c5d237",
     "questions": [
       "How do I gzip a string?",
       "Compress data before sending it over the network",
@@ -3902,7 +3902,7 @@
   },
   "/reference/core/crypto/generatekeypair/": {
     "feature": "Core\\Crypto::generateKeyPair",
-    "hash": "5c2b401ffae2e606",
+    "hash": "16582ee08664571b",
     "questions": [
       "How do I generate a public and private key pair?",
       "Create a new Ed25519 signing key",
@@ -4063,7 +4063,7 @@
   },
   "/reference/core/csrf/token/": {
     "feature": "Core\\Csrf::token",
-    "hash": "08d455f8ac041c1e",
+    "hash": "4b15150cf2502ca7",
     "questions": [
       "Get the CSRF token for the current visitor session",
       "Which form field name should the CSRF token use?",
@@ -4119,7 +4119,7 @@
   },
   "/reference/core/csv/rows/": {
     "feature": "Core\\Csv::rows",
-    "hash": "b5d66fa619e9f8b7",
+    "hash": "af4a401f8df93131",
     "questions": [
       "How do I read a large CSV file line by line?",
       "Loop over CSV records without loading the whole file",
@@ -4151,7 +4151,7 @@
   },
   "/reference/core/db/connect/": {
     "feature": "Core\\Db::connect",
-    "hash": "d2f7249a62b4bbe2",
+    "hash": "25218870cb36892e",
     "questions": [
       "How do I connect to the database named in my config?",
       "Open a database connection without a password in code",
@@ -4196,7 +4196,7 @@
   },
   "/reference/core/db-column/": {
     "feature": "Core\\Db\\Column",
-    "hash": "d010d6d14b61edb2",
+    "hash": "c4fc3f3ba987269b",
     "questions": [
       "How do I get column information from a query result?",
       "Read the metadata of result columns",
@@ -4206,7 +4206,7 @@
   },
   "/reference/core/db-column/isnullable/": {
     "feature": "Core\\Db\\Column::isNullable",
-    "hash": "2a9585c59464b30c",
+    "hash": "00aea39636c8b575",
     "questions": [
       "How do I check if a result column can be NULL?",
       "Can this database column be empty?",
@@ -4236,7 +4236,7 @@
   },
   "/reference/core/db-connection/": {
     "feature": "Core\\Db\\Connection",
-    "hash": "d01ce25b743d91ff",
+    "hash": "9056c82d6e5f421b",
     "questions": [
       "How do I connect to a database and run SQL?",
       "Work with an open database connection",
@@ -4247,7 +4247,7 @@
   },
   "/reference/core/db-connection/close/": {
     "feature": "Core\\Db\\Connection::close",
-    "hash": "a1583d628bca6fe1",
+    "hash": "80d2cf154d8eaf8d",
     "questions": [
       "How do I close a database connection early?",
       "Give a database connection back to the pool before the request ends",
@@ -4258,7 +4258,7 @@
   },
   "/reference/core/db-connection/driver/": {
     "feature": "Core\\Db\\Connection::driver",
-    "hash": "440a343327adeb2b",
+    "hash": "4a487b062f4f5334",
     "questions": [
       "How do I find out which database system I am connected to?",
       "Check if the connection is Postgres, MySQL or SQLite",
@@ -4281,7 +4281,7 @@
   },
   "/reference/core/db-connection/executemany/": {
     "feature": "Core\\Db\\Connection::executeMany",
-    "hash": "0fae534d6f7692ee",
+    "hash": "dac0d6731893d03d",
     "questions": [
       "How do I insert many rows with one call?",
       "Run the same statement once for each set of values",
@@ -4303,7 +4303,7 @@
   },
   "/reference/core/db-connection/query/": {
     "feature": "Core\\Db\\Connection::query",
-    "hash": "114da92204a3c9bf",
+    "hash": "e45ec6c27c84d9a5",
     "questions": [
       "How do I run a select query and get the rows?",
       "Read rows from a database table",
@@ -4315,7 +4315,7 @@
   },
   "/reference/core/db-connection/queryas/": {
     "feature": "Core\\Db\\Connection::queryAs",
-    "hash": "7fe6862251f9f5ec",
+    "hash": "dca82ed76347de6a",
     "questions": [
       "How do I map query rows to objects of my class?",
       "Read database rows straight into typed objects",
@@ -4326,7 +4326,7 @@
   },
   "/reference/core/db-connection/queryeach/": {
     "feature": "Core\\Db\\Connection::queryEach",
-    "hash": "0c768c4a5eaf5daf",
+    "hash": "6a8f5b1d44fa6a0b",
     "questions": [
       "How do I read a huge query result without running out of memory?",
       "Read rows one at a time from a large table",
@@ -4337,7 +4337,7 @@
   },
   "/reference/core/db-connection/queryeachas/": {
     "feature": "Core\\Db\\Connection::queryEachAs",
-    "hash": "07e5e63db720c6ff",
+    "hash": "f97406cef77dbf05",
     "questions": [
       "How do I read a large table as objects one row at a time?",
       "Stream query results into typed objects without loading them all",
@@ -4348,7 +4348,7 @@
   },
   "/reference/core/db-connection/runtransaction/": {
     "feature": "Core\\Db\\Connection::runTransaction",
-    "hash": "541dca84c25a97a6",
+    "hash": "d2fd14825bed491c",
     "questions": [
       "How do I run several queries in a database transaction?",
       "Commit or roll back a group of database changes",
@@ -4360,7 +4360,7 @@
   },
   "/reference/core/db-connection/serverversion/": {
     "feature": "Core\\Db\\Connection::serverVersion",
-    "hash": "f37f7a50444711d8",
+    "hash": "6a366dcf5aa220fa",
     "questions": [
       "How do I get the database server version?",
       "Which version of the database am I connected to?",
@@ -4646,7 +4646,7 @@
   },
   "/reference/core/db-rows/count/": {
     "feature": "Core\\Db\\Rows::count",
-    "hash": "1e74d3b98723d7ab",
+    "hash": "9303cfaa5ffb53ba",
     "questions": [
       "How do I count the rows a select returned?",
       "How many results did my search find?",
@@ -4748,7 +4748,7 @@
   },
   "/reference/core/db-transaction/": {
     "feature": "Core\\Db\\Transaction",
-    "hash": "91c9f4caef7e586f",
+    "hash": "5f40d728b1de0dd8",
     "questions": [
       "What can I do inside a database transaction?",
       "Save all changes together or none of them",
@@ -4759,7 +4759,7 @@
   },
   "/reference/core/db-transaction/execute/": {
     "feature": "Core\\Db\\Transaction::execute",
-    "hash": "200d99d15e8c7c04",
+    "hash": "8dfe994c052e5247",
     "questions": [
       "How do I insert a row inside a transaction?",
       "Update or delete rows as part of a transaction",
@@ -4770,7 +4770,7 @@
   },
   "/reference/core/db-transaction/executemany/": {
     "feature": "Core\\Db\\Transaction::executeMany",
-    "hash": "1c029f5f7531a94c",
+    "hash": "dbdeb1d085985550",
     "questions": [
       "How do I insert many rows inside a transaction?",
       "Batch insert that is undone completely if one row fails",
@@ -4781,7 +4781,7 @@
   },
   "/reference/core/db-transaction/query/": {
     "feature": "Core\\Db\\Transaction::query",
-    "hash": "0f614145f80531d1",
+    "hash": "1e0090b3c5659d5c",
     "questions": [
       "How do I select rows inside a transaction?",
       "Read the rows I just wrote before the transaction ends",
@@ -4792,7 +4792,7 @@
   },
   "/reference/core/db-transaction/queryas/": {
     "feature": "Core\\Db\\Transaction::queryAs",
-    "hash": "dc7fde5ee72f750b",
+    "hash": "1953b2fbdb2c481e",
     "questions": [
       "How do I read rows as objects inside a transaction?",
       "Load typed objects from a query in a transaction",
@@ -4802,7 +4802,7 @@
   },
   "/reference/core/db-transaction/queryeach/": {
     "feature": "Core\\Db\\Transaction::queryEach",
-    "hash": "c8da4b3a25672a7c",
+    "hash": "7513d5cb22c9d2e0",
     "questions": [
       "How do I read a very large result inside a transaction?",
       "Read rows one at a time while a transaction is open",
@@ -4813,7 +4813,7 @@
   },
   "/reference/core/db-transaction/queryeachas/": {
     "feature": "Core\\Db\\Transaction::queryEachAs",
-    "hash": "8e6d808928c483a9",
+    "hash": "494ccb0f18960825",
     "questions": [
       "How do I read a large result as objects in a transaction?",
       "Build one object per row without loading every row",
@@ -4823,7 +4823,7 @@
   },
   "/reference/core/db-transaction/rollback/": {
     "feature": "Core\\Db\\Transaction::rollBack",
-    "hash": "8e7a6c99a8df961e",
+    "hash": "6e13f6ca82d7b635",
     "questions": [
       "How do I cancel a transaction and give a reason?",
       "Undo all database changes when a check fails",
@@ -4834,7 +4834,7 @@
   },
   "/reference/core/db-transaction/runtransaction/": {
     "feature": "Core\\Db\\Transaction::runTransaction",
-    "hash": "0fef1382b4d63695",
+    "hash": "476fb9a97654658b",
     "questions": [
       "How do I nest a transaction inside another one?",
       "Undo one step and keep the rest of the transaction",
@@ -4900,7 +4900,7 @@
   },
   "/reference/core/debug/coverage/": {
     "feature": "Core\\Debug::coverage",
-    "hash": "f012ae30190de8cf",
+    "hash": "e651b4859e3e3f02",
     "questions": [
       "How many times did each line of my program run?",
       "Check whether a line of code ever ran",
@@ -4932,7 +4932,7 @@
   },
   "/reference/core/debug/startcoverage/": {
     "feature": "Core\\Debug::startCoverage",
-    "hash": "ce24bf418ef53139",
+    "hash": "4f47905f68968d1c",
     "questions": [
       "Start counting lines in the middle of a program",
       "How do I count each side of an if condition?",
@@ -4942,7 +4942,7 @@
   },
   "/reference/core/debug/startprofile/": {
     "feature": "Core\\Debug::startProfile",
-    "hash": "697142de2abee0cc",
+    "hash": "c134c6f940656a30",
     "questions": [
       "Profile one slow part of my program from code",
       "Write a speedscope file from inside a program",
@@ -4952,7 +4952,7 @@
   },
   "/reference/core/debug/starttrace/": {
     "feature": "Core\\Debug::startTrace",
-    "hash": "768a414888eee7f6",
+    "hash": "d49cbb6f73f9d887",
     "questions": [
       "Write every function call to a log file as it returns",
       "Record how long each call took in a JSON lines file",
@@ -4972,7 +4972,7 @@
   },
   "/reference/core/debug/stopprofile/": {
     "feature": "Core\\Debug::stopProfile",
-    "hash": "ecd1e8e55a465f06",
+    "hash": "6c7bfbab012fd94e",
     "questions": [
       "Stop timing calls and close the profile file",
       "Write one profile file for each step of a job",
@@ -4982,7 +4982,7 @@
   },
   "/reference/core/debug/stoptrace/": {
     "feature": "Core\\Debug::stopTrace",
-    "hash": "05e6ef82a4f4b38f",
+    "hash": "d5baf7e0a158a2a7",
     "questions": [
       "Close the trace file so my program can read it",
       "Stop a trace even when a step throws an error",
@@ -4992,7 +4992,7 @@
   },
   "/reference/core/decimal/": {
     "feature": "Core\\Decimal",
-    "hash": "6bc4bbb1466a78e1",
+    "hash": "383ae1cef3e4bffc",
     "questions": [
       "How do I calculate with exact decimal numbers?",
       "Math on money values without floating point errors",
@@ -5013,7 +5013,7 @@
   },
   "/reference/core/decimal/ceil/": {
     "feature": "Core\\Decimal::ceil",
-    "hash": "f6142b6c4cbf1bb0",
+    "hash": "b573b067ab5062ca",
     "questions": [
       "How do I round a decimal number up?",
       "Round up to two digits after the point",
@@ -5023,7 +5023,7 @@
   },
   "/reference/core/decimal/divideexact/": {
     "feature": "Core\\Decimal::divideExact",
-    "hash": "a52e68027c528bfb",
+    "hash": "9d1ad481012e5bcf",
     "questions": [
       "How do I divide and get an error if the result is not exact?",
       "Divide decimals only when the result comes out even",
@@ -5033,7 +5033,7 @@
   },
   "/reference/core/decimal/dividerounded/": {
     "feature": "Core\\Decimal::divideRounded",
-    "hash": "d71562e1fc8eccb6",
+    "hash": "efb4ab6a45acb99b",
     "questions": [
       "How do I divide and round to two decimal places?",
       "Divide money and choose the rounding mode",
@@ -5043,7 +5043,7 @@
   },
   "/reference/core/decimal/floor/": {
     "feature": "Core\\Decimal::floor",
-    "hash": "18bfadc7c386514d",
+    "hash": "6c26e1497503f889",
     "questions": [
       "How do I round a decimal number down?",
       "Round toward the smaller number, also for negative values",
@@ -5053,7 +5053,7 @@
   },
   "/reference/core/decimal/power/": {
     "feature": "Core\\Decimal::power",
-    "hash": "d46408a402cffe4d",
+    "hash": "cd2b58cc08e813af",
     "questions": [
       "How do I raise a decimal number to a power?",
       "Calculate compound interest over several years exactly",
@@ -5063,7 +5063,7 @@
   },
   "/reference/core/decimal/round/": {
     "feature": "Core\\Decimal::round",
-    "hash": "4a980dfa538f292f",
+    "hash": "286586a5f30063e2",
     "questions": [
       "How do I round a decimal to a number of digits?",
       "Round half up or half to even",
@@ -5580,7 +5580,7 @@
   },
   "/reference/core/http-client/": {
     "feature": "Core\\Http\\Client",
-    "hash": "8a6952d99cabc907",
+    "hash": "96968c99ffa733ff",
     "questions": [
       "Which HTTP client does Novis have?",
       "Talk to a REST API from my program",
@@ -5591,7 +5591,7 @@
   },
   "/reference/core/http-client/delete/": {
     "feature": "Core\\Http\\Client::delete",
-    "hash": "e4897c8efb2314d8",
+    "hash": "f0b1303ae80a7e4e",
     "questions": [
       "How do I send a DELETE request?",
       "Remove a record through a REST API",
@@ -5601,7 +5601,7 @@
   },
   "/reference/core/http-client/get/": {
     "feature": "Core\\Http\\Client::get",
-    "hash": "7c76ff749c69b44b",
+    "hash": "a9561c863cc68fef",
     "questions": [
       "How do I fetch a URL?",
       "Download data from an API",
@@ -5613,7 +5613,7 @@
   },
   "/reference/core/http-client/head/": {
     "feature": "Core\\Http\\Client::head",
-    "hash": "83273064fadda01a",
+    "hash": "8bd8c13de3ce14c6",
     "questions": [
       "Check if a URL exists without downloading it",
       "How do I get the size of a remote file?",
@@ -5635,7 +5635,7 @@
   },
   "/reference/core/http-client/openstream/": {
     "feature": "Core\\Http\\Client::openStream",
-    "hash": "e924e14c2a6b847d",
+    "hash": "837a9e9f8c960838",
     "questions": [
       "Read a large response while it is still downloading",
       "How do I receive server-sent events?",
@@ -5646,7 +5646,7 @@
   },
   "/reference/core/http-client/patch/": {
     "feature": "Core\\Http\\Client::patch",
-    "hash": "801139e1210d404c",
+    "hash": "d53b573833281693",
     "questions": [
       "How do I update only some fields of a record?",
       "Send a PATCH request with JSON",
@@ -5656,7 +5656,7 @@
   },
   "/reference/core/http-client/post/": {
     "feature": "Core\\Http\\Client::post",
-    "hash": "f9c5896ed3af36fc",
+    "hash": "8e6178ce3499d4b1",
     "questions": [
       "How do I send JSON to an API?",
       "Submit form data to another server",
@@ -5668,7 +5668,7 @@
   },
   "/reference/core/http-client/put/": {
     "feature": "Core\\Http\\Client::put",
-    "hash": "eaaf865b5ee14e58",
+    "hash": "ca68e5f4943949bb",
     "questions": [
       "How do I replace a whole record with an API call?",
       "Send a PUT request",
@@ -5678,7 +5678,7 @@
   },
   "/reference/core/http-client/request/": {
     "feature": "Core\\Http\\Client::request",
-    "hash": "b06c8b5dfb8dcea1",
+    "hash": "b08179592c11a037",
     "questions": [
       "Send a request with a method chosen at runtime",
       "How do I send an OPTIONS request?",
@@ -5700,7 +5700,7 @@
   },
   "/reference/core/http-event/data/": {
     "feature": "Core\\Http\\Event::data",
-    "hash": "df2beebfe7bcaca4",
+    "hash": "56609b9792a600dd",
     "questions": [
       "How do I read the text of a server-sent event?",
       "Get the payload of one streamed event",
@@ -5711,7 +5711,7 @@
   },
   "/reference/core/http-event/id/": {
     "feature": "Core\\Http\\Event::id",
-    "hash": "ff8ed710be8f4270",
+    "hash": "6cf24f905cb91f4e",
     "questions": [
       "How do I resume an event stream after the connection is lost?",
       "Get the last event id to send back on reconnect",
@@ -5722,7 +5722,7 @@
   },
   "/reference/core/http-event/name/": {
     "feature": "Core\\Http\\Event::name",
-    "hash": "09e7fe8c87f95405",
+    "hash": "01285e83c61c8cff",
     "questions": [
       "How do I tell different kinds of server events apart?",
       "Get the type of a server-sent event",
@@ -5885,7 +5885,7 @@
   },
   "/reference/core/http-response/tls/": {
     "feature": "Core\\Http\\Response::tls",
-    "hash": "919b90922b06acb9",
+    "hash": "fa1f033e735da460",
     "questions": [
       "How do I check if a reply came over HTTPS?",
       "Get the encryption details of a connection",
@@ -5973,7 +5973,7 @@
   },
   "/reference/core/http-stream/chunks/": {
     "feature": "Core\\Http\\Stream::chunks",
-    "hash": "56ebf8c7cdb09956",
+    "hash": "2c34cc87e90bd21c",
     "questions": [
       "How do I read a streamed reply as raw bytes?",
       "Read a download in chunks as they arrive",
@@ -5984,7 +5984,7 @@
   },
   "/reference/core/http-stream/events/": {
     "feature": "Core\\Http\\Stream::events",
-    "hash": "a9716cb56e41bab1",
+    "hash": "ccd8db73f391f730",
     "questions": [
       "How do I parse a text/event-stream reply?",
       "Read server-sent events one at a time",
@@ -5995,7 +5995,7 @@
   },
   "/reference/core/http-stream/header/": {
     "feature": "Core\\Http\\Stream::header",
-    "hash": "ad5f8bbdae9710e8",
+    "hash": "7b7f31aae3316155",
     "questions": [
       "How do I read a header before downloading the body?",
       "Check the content length before a download starts",
@@ -6006,7 +6006,7 @@
   },
   "/reference/core/http-stream/headers/": {
     "feature": "Core\\Http\\Stream::headers",
-    "hash": "84feeeb4eacc177c",
+    "hash": "dd70c333bee86283",
     "questions": [
       "How do I read cookies from a streamed reply?",
       "Get all lines of a repeated header in a stream",
@@ -6017,7 +6017,7 @@
   },
   "/reference/core/http-stream/lines/": {
     "feature": "Core\\Http\\Stream::lines",
-    "hash": "20b57ee070499ed4",
+    "hash": "a885f6bb70c711db",
     "questions": [
       "How do I read a reply one line at a time?",
       "Process a JSON Lines response as it arrives",
@@ -6028,7 +6028,7 @@
   },
   "/reference/core/http-stream/saveto/": {
     "feature": "Core\\Http\\Stream::saveTo",
-    "hash": "08747f31dae7e6a2",
+    "hash": "3474ba6506b030e9",
     "questions": [
       "How do I save a download straight to a file?",
       "Download a file larger than memory",
@@ -6040,7 +6040,7 @@
   },
   "/reference/core/http-stream/status/": {
     "feature": "Core\\Http\\Stream::status",
-    "hash": "e9c6a80adcca9d5a",
+    "hash": "60ca117337b9bfa5",
     "questions": [
       "How do I check the status code before reading a stream?",
       "Get the status of a streamed reply",
@@ -6061,7 +6061,7 @@
   },
   "/reference/core/http-tlsinfo/": {
     "feature": "Core\\Http\\TlsInfo",
-    "hash": "d1c1c8e07b3d8bc6",
+    "hash": "eba14a676b57a81b",
     "questions": [
       "How do I inspect the certificate of a server I call?",
       "Details of an HTTPS connection",
@@ -6083,7 +6083,7 @@
   },
   "/reference/core/http-tlsinfo/expiry/": {
     "feature": "Core\\Http\\TlsInfo::expiry",
-    "hash": "885e04da8415840c",
+    "hash": "cbe55deb32e1d740",
     "questions": [
       "When does a server certificate expire?",
       "How many days until an SSL certificate runs out?",
@@ -6094,7 +6094,7 @@
   },
   "/reference/core/http-tlsinfo/issuer/": {
     "feature": "Core\\Http\\TlsInfo::issuer",
-    "hash": "5431aec9f6684696",
+    "hash": "6d3ff9d49ea6ae5a",
     "questions": [
       "Who signed the certificate of a server?",
       "How do I find the certificate authority of a site?",
@@ -6105,7 +6105,7 @@
   },
   "/reference/core/http-tlsinfo/isverified/": {
     "feature": "Core\\Http\\TlsInfo::isVerified",
-    "hash": "503af8d362957395",
+    "hash": "27b1ba95ebe18084",
     "questions": [
       "Was the server certificate checked for this connection?",
       "How do I know certificate verification was not skipped?",
@@ -6127,7 +6127,7 @@
   },
   "/reference/core/http-tlsinfo/subject/": {
     "feature": "Core\\Http\\TlsInfo::subject",
-    "hash": "4155c1e1829fab37",
+    "hash": "bebbd7ca2683486c",
     "questions": [
       "Which name is written in a server certificate?",
       "How do I read the CN of a certificate?",
@@ -6149,7 +6149,7 @@
   },
   "/reference/core/io/": {
     "feature": "Core\\IO",
-    "hash": "50c6bd7df4b797d8",
+    "hash": "245130e84f10865b",
     "questions": [
       "How do I work with files and folders?",
       "Read, write, copy and delete files",
@@ -6161,7 +6161,7 @@
   },
   "/reference/core/io/append/": {
     "feature": "Core\\IO::append",
-    "hash": "162c7406a3a1e3d3",
+    "hash": "fcccdac24d8250f7",
     "questions": [
       "How do I add text to the end of a file?",
       "Add a line to a log file",
@@ -6173,7 +6173,7 @@
   },
   "/reference/core/io/canonicalize/": {
     "feature": "Core\\IO::canonicalize",
-    "hash": "23aaf4e1ba865579",
+    "hash": "3096d9676b9b7c79",
     "questions": [
       "How do I get the full absolute path of a file?",
       "Resolve symbolic links and dots in a path",
@@ -6184,7 +6184,7 @@
   },
   "/reference/core/io/copy/": {
     "feature": "Core\\IO::copy",
-    "hash": "74e126cf82b3aca1",
+    "hash": "46cc8436d94463f7",
     "questions": [
       "How do I copy a file?",
       "Make a duplicate of a file with a new name",
@@ -6195,7 +6195,7 @@
   },
   "/reference/core/io/createtemporarydirectory/": {
     "feature": "Core\\IO::createTemporaryDirectory",
-    "hash": "f292a06c4fc0d5bf",
+    "hash": "4148b70fbe2f827d",
     "questions": [
       "How do I create a temporary folder?",
       "Where should I put temporary files?",
@@ -6206,7 +6206,7 @@
   },
   "/reference/core/io/exists/": {
     "feature": "Core\\IO::exists",
-    "hash": "61a7289aae2d1b15",
+    "hash": "6c3af35aa957b7dd",
     "questions": [
       "How do I check if a file exists?",
       "Does a file or folder exist at this path?",
@@ -6216,7 +6216,7 @@
   },
   "/reference/core/io/isdirectory/": {
     "feature": "Core\\IO::isDirectory",
-    "hash": "9176eb3467017507",
+    "hash": "495fef4e7a433340",
     "questions": [
       "How do I check if a path is a folder?",
       "Is this path a directory or a file?",
@@ -6226,7 +6226,7 @@
   },
   "/reference/core/io/isfile/": {
     "feature": "Core\\IO::isFile",
-    "hash": "750d862d346bad60",
+    "hash": "a7b85071225d71f7",
     "questions": [
       "How do I check if a path is a regular file?",
       "Make sure a path is a file and not a folder",
@@ -6236,7 +6236,7 @@
   },
   "/reference/core/io/isreadable/": {
     "feature": "Core\\IO::isReadable",
-    "hash": "0ba20d442d575bea",
+    "hash": "5670e29bec1c8146",
     "questions": [
       "How do I check if my program can read a file?",
       "Test read permission on a file",
@@ -6246,7 +6246,7 @@
   },
   "/reference/core/io/iswritable/": {
     "feature": "Core\\IO::isWritable",
-    "hash": "6318fe34bbf7935d",
+    "hash": "d21131f649d9cc1b",
     "questions": [
       "How do I check if I can write to a file?",
       "Test write permission on a folder before creating a file",
@@ -6256,7 +6256,7 @@
   },
   "/reference/core/io/lines/": {
     "feature": "Core\\IO::lines",
-    "hash": "ae5906150124287b",
+    "hash": "6067b947d5bdc5a9",
     "questions": [
       "How do I read a file line by line?",
       "Loop over each line of a text file",
@@ -6268,7 +6268,7 @@
   },
   "/reference/core/io/list/": {
     "feature": "Core\\IO::list",
-    "hash": "5d78634401a63bc2",
+    "hash": "c38e48913e44319c",
     "questions": [
       "How do I list the files in a folder?",
       "Get the names of everything in a directory",
@@ -6280,7 +6280,7 @@
   },
   "/reference/core/io/makedirectory/": {
     "feature": "Core\\IO::makeDirectory",
-    "hash": "1f5cfce6f4b9a134",
+    "hash": "797b06ef6ff89613",
     "questions": [
       "How do I create a folder?",
       "Create a directory and all missing parent folders",
@@ -6290,7 +6290,7 @@
   },
   "/reference/core/io/metadata/": {
     "feature": "Core\\IO::metadata",
-    "hash": "731ff362130ded70",
+    "hash": "35c3ca55eb9c7cbd",
     "questions": [
       "Get file size, change time and type in one call",
       "How do I read the metadata of a file?",
@@ -6300,7 +6300,7 @@
   },
   "/reference/core/io/modifiedat/": {
     "feature": "Core\\IO::modifiedAt",
-    "hash": "044f98d53c8bde62",
+    "hash": "fa202336bd4b76b6",
     "questions": [
       "How do I get the last modified time of a file?",
       "When was this file last changed?",
@@ -6311,7 +6311,7 @@
   },
   "/reference/core/io/move/": {
     "feature": "Core\\IO::move",
-    "hash": "9a2b9a27eb963767",
+    "hash": "11dd044bd847cce0",
     "questions": [
       "How do I rename a file?",
       "Move a file to another folder",
@@ -6322,7 +6322,7 @@
   },
   "/reference/core/io/open/": {
     "feature": "Core\\IO::open",
-    "hash": "4d8eb7fe2d5bac9a",
+    "hash": "787179f53ce7056f",
     "questions": [
       "How do I open a file for reading and writing?",
       "Get a file handle to read part of a file",
@@ -6333,7 +6333,7 @@
   },
   "/reference/core/io/read/": {
     "feature": "Core\\IO::read",
-    "hash": "9e1edca367cd723f",
+    "hash": "20fd66d15e0458b1",
     "questions": [
       "How do I read a whole file into a string?",
       "Load the contents of a text file",
@@ -6345,7 +6345,7 @@
   },
   "/reference/core/io/readbytes/": {
     "feature": "Core\\IO::readBytes",
-    "hash": "e6ef257e0a916f56",
+    "hash": "7ad4e69cc9191c63",
     "questions": [
       "How do I read an image or PDF file as bytes?",
       "Read a binary file into memory",
@@ -6356,7 +6356,7 @@
   },
   "/reference/core/io/readtext/": {
     "feature": "Core\\IO::readText",
-    "hash": "f49c8f9b2358b258",
+    "hash": "76026c5c648d03ad",
     "questions": [
       "How do I read a file saved in Latin-1 or Windows-1252?",
       "Read a text file with a different character encoding",
@@ -6367,7 +6367,7 @@
   },
   "/reference/core/io/remove/": {
     "feature": "Core\\IO::remove",
-    "hash": "bc9c5fa918d56560",
+    "hash": "1a62c5417298d732",
     "questions": [
       "How do I delete a file?",
       "Remove one file from the disk",
@@ -6377,7 +6377,7 @@
   },
   "/reference/core/io/removedirectory/": {
     "feature": "Core\\IO::removeDirectory",
-    "hash": "5b2fd41b4d114535",
+    "hash": "0dec1786e92cfcd8",
     "questions": [
       "How do I delete an empty folder?",
       "Remove a directory from the disk",
@@ -6387,7 +6387,7 @@
   },
   "/reference/core/io/size/": {
     "feature": "Core\\IO::size",
-    "hash": "c13972c8972d8bd9",
+    "hash": "596dcbdad776f457",
     "questions": [
       "How do I get the size of a file?",
       "How many bytes is this file?",
@@ -6419,7 +6419,7 @@
   },
   "/reference/core/io/walk/": {
     "feature": "Core\\IO::walk",
-    "hash": "3c08ca6cc3cebe17",
+    "hash": "a8c50c1a97978b2e",
     "questions": [
       "How do I list all files in a folder and its subfolders?",
       "Go through a directory tree recursively",
@@ -6430,7 +6430,7 @@
   },
   "/reference/core/io/within/": {
     "feature": "Core\\IO::within",
-    "hash": "8c7dea54575d9614",
+    "hash": "59e6e888d668ca8c",
     "questions": [
       "How do I stop path traversal attacks?",
       "Make sure a user file name stays inside a folder",
@@ -6441,7 +6441,7 @@
   },
   "/reference/core/io/write/": {
     "feature": "Core\\IO::write",
-    "hash": "bca9836d1218bfde",
+    "hash": "a917b50d6a0a64c1",
     "questions": [
       "How do I write a string to a file?",
       "Save bytes such as an image to a file",
@@ -6453,7 +6453,7 @@
   },
   "/reference/core/io/writestream/": {
     "feature": "Core\\IO::writeStream",
-    "hash": "54a392fdfe195615",
+    "hash": "5bc2e92f4ce836b0",
     "questions": [
       "How do I save a large upload to disk without using much memory?",
       "Write a file from chunks of data",
@@ -6476,7 +6476,7 @@
   },
   "/reference/core/io-file/close/": {
     "feature": "Core\\IO\\File::close",
-    "hash": "d8b5a9eeb9df34ec",
+    "hash": "cb8cabd42d4678cc",
     "questions": [
       "How do I close an open file?",
       "Do I need to close a file when I am done?",
@@ -6486,7 +6486,7 @@
   },
   "/reference/core/io-file/flush/": {
     "feature": "Core\\IO\\File::flush",
-    "hash": "1e057cd14c4cf5f6",
+    "hash": "f50f6060d291100d",
     "questions": [
       "How do I flush writes to a file?",
       "Make written data visible to other programs right away",
@@ -6496,7 +6496,7 @@
   },
   "/reference/core/io-file/lock/": {
     "feature": "Core\\IO\\File::lock",
-    "hash": "f7eacae0f8902d32",
+    "hash": "921c71a898c0158b",
     "questions": [
       "How do I lock a file so others cannot change it?",
       "Stop two requests from writing the same file at once",
@@ -6507,7 +6507,7 @@
   },
   "/reference/core/io-file/read/": {
     "feature": "Core\\IO\\File::read",
-    "hash": "1ad6a55a5e359ad7",
+    "hash": "39bcefdb6a24ee05",
     "questions": [
       "How do I read a fixed number of bytes from a file?",
       "Read a file in small parts",
@@ -6517,7 +6517,7 @@
   },
   "/reference/core/io-file/readbytes/": {
     "feature": "Core\\IO\\File::readBytes",
-    "hash": "c122fb1533327a21",
+    "hash": "2991f6e851102dda",
     "questions": [
       "How do I read part of a binary file?",
       "Read a file in fixed-size blocks of bytes",
@@ -6528,7 +6528,7 @@
   },
   "/reference/core/io-file/readline/": {
     "feature": "Core\\IO\\File::readLine",
-    "hash": "516470640ab8317e",
+    "hash": "37fc606d6d401992",
     "questions": [
       "How do I read one line from an open file?",
       "Read the next line until the end of the file",
@@ -6538,7 +6538,7 @@
   },
   "/reference/core/io-file/seek/": {
     "feature": "Core\\IO\\File::seek",
-    "hash": "24adb457a8976e9f",
+    "hash": "145f9036ecf9fcae",
     "questions": [
       "How do I jump to a position in a file?",
       "Go back to the start of a file",
@@ -6548,7 +6548,7 @@
   },
   "/reference/core/io-file/tell/": {
     "feature": "Core\\IO\\File::tell",
-    "hash": "1a3dbba0ef74692b",
+    "hash": "36c212c958bb50b8",
     "questions": [
       "How do I get the current position in a file?",
       "Which byte will the next read start at?",
@@ -6558,7 +6558,7 @@
   },
   "/reference/core/io-file/truncate/": {
     "feature": "Core\\IO\\File::truncate",
-    "hash": "224e70905b9f1d8c",
+    "hash": "ca398a9ae9c882bb",
     "questions": [
       "How do I empty a file without deleting it?",
       "Cut a file to a smaller size",
@@ -6568,7 +6568,7 @@
   },
   "/reference/core/io-file/write/": {
     "feature": "Core\\IO\\File::write",
-    "hash": "4ab7dd91efd7aab9",
+    "hash": "dd26f1b9fbaac073",
     "questions": [
       "How do I write to an open file?",
       "Write a large file in many small parts",
@@ -6588,7 +6588,7 @@
   },
   "/reference/core/io-metadata/": {
     "feature": "Core\\IO\\Metadata",
-    "hash": "2856c4ccb28015f9",
+    "hash": "bc63155e2f1e159f",
     "questions": [
       "How do I get information about a file?",
       "Find the size and change time of a file in one call",
@@ -6599,7 +6599,7 @@
   },
   "/reference/core/io-metadata/isdirectory/": {
     "feature": "Core\\IO\\Metadata::isDirectory",
-    "hash": "548ca7586546b7ae",
+    "hash": "04dd294cabeacbeb",
     "questions": [
       "Does the file information I already read describe a folder?",
       "Is this path a directory?",
@@ -6609,7 +6609,7 @@
   },
   "/reference/core/io-metadata/isfile/": {
     "feature": "Core\\IO\\Metadata::isFile",
-    "hash": "1f8ce39bfc6ad2a2",
+    "hash": "fa9ac18acdc5d1da",
     "questions": [
       "Does the file information I already read describe a regular file?",
       "Is this path a normal file and not a folder?",
@@ -6619,7 +6619,7 @@
   },
   "/reference/core/io-metadata/modifiedat/": {
     "feature": "Core\\IO\\Metadata::modifiedAt",
-    "hash": "f83397386e234860",
+    "hash": "9eade63b31907a6f",
     "questions": [
       "How do I get when a file was last changed?",
       "Last modified time of a file",
@@ -6630,7 +6630,7 @@
   },
   "/reference/core/io-metadata/size/": {
     "feature": "Core\\IO\\Metadata::size",
-    "hash": "9439f9763ddc0597",
+    "hash": "68e2fdb5a46825cd",
     "questions": [
       "How do I get the size of a file in bytes?",
       "How big is this file on disk?",
@@ -6696,7 +6696,7 @@
   },
   "/reference/core/json/decodeeach/": {
     "feature": "Core\\Json::decodeEach",
-    "hash": "255f001dd03f2c32",
+    "hash": "d1888b1df9c3038a",
     "questions": [
       "How do I read a JSON file larger than memory?",
       "Read one element of a JSON array at a time",
@@ -6720,7 +6720,7 @@
   },
   "/reference/core/json/encodeeach/": {
     "feature": "Core\\Json::encodeEach",
-    "hash": "98b94cba8d595aae",
+    "hash": "b7073999a2ab60f8",
     "questions": [
       "How do I write a very long list as JSON?",
       "Export database rows to a JSON file without much memory",
@@ -6816,7 +6816,7 @@
   },
   "/reference/core/jwe-key/password/": {
     "feature": "Core\\Jwe\\Key::password",
-    "hash": "c40a48eb815926b7",
+    "hash": "7e49465bb25852df",
     "questions": [
       "How do I encrypt a token with a password?",
       "Protect an exported file with a password",
@@ -7013,7 +7013,7 @@
   },
   "/reference/core/ldap-ad-accountflags/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags",
-    "hash": "1f6874e6a2bf197d",
+    "hash": "e742cdc87c1a00d3",
     "questions": [
       "How do I read Active Directory account flags?",
       "Check the userAccountControl flags of a user",
@@ -7023,7 +7023,7 @@
   },
   "/reference/core/ldap-ad-accountflags/allowsreversibleencryption/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::allowsReversibleEncryption",
-    "hash": "07f4b2f1e2e3d8b7",
+    "hash": "79861625f7b02ca5",
     "questions": [
       "Check if a password is stored with reversible encryption",
       "Find accounts whose password the server can decrypt",
@@ -7033,7 +7033,7 @@
   },
   "/reference/core/ldap-ad-accountflags/bits/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::bits",
-    "hash": "fbe0828899106445",
+    "hash": "c016a6c7e36167f5",
     "questions": [
       "Get the userAccountControl number of an account",
       "Why does a normal account have the value 512?",
@@ -7043,7 +7043,7 @@
   },
   "/reference/core/ldap-ad-accountflags/haslogonscript/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::hasLogonScript",
-    "hash": "4c313bbbe9107e28",
+    "hash": "87a7977e7e2435ad",
     "questions": [
       "Check if a logon script runs for a user",
       "Does this account have a logon script?",
@@ -7053,7 +7053,7 @@
   },
   "/reference/core/ldap-ad-accountflags/hasnonexpiringpassword/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::hasNonExpiringPassword",
-    "hash": "f5b9d19c098046f7",
+    "hash": "9c8e6a255287130f",
     "questions": [
       "Which flag says an account password never expires?",
       "Check if a service account password does not expire",
@@ -7063,7 +7063,7 @@
   },
   "/reference/core/ldap-ad-accountflags/isdisabled/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isDisabled",
-    "hash": "ff43f3874fedcdec",
+    "hash": "c1ed26e182e8c3c0",
     "questions": [
       "How do I check if an AD account is disabled?",
       "Find out if a user can no longer log in",
@@ -7073,7 +7073,7 @@
   },
   "/reference/core/ldap-ad-accountflags/ishomedirectoryrequired/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isHomeDirectoryRequired",
-    "hash": "77f327c4ee59db11",
+    "hash": "0d1bbecd6f600e26",
     "questions": [
       "Check if an account needs a home directory",
       "Does this user need a home folder on a server?",
@@ -7083,7 +7083,7 @@
   },
   "/reference/core/ldap-ad-accountflags/isinterdomaintrustaccount/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isInterdomainTrustAccount",
-    "hash": "1a4ac9a6e59f6949",
+    "hash": "1c237e0c920ae643",
     "questions": [
       "Check if an account is a trust with another domain",
       "How do I find domain trust accounts?",
@@ -7093,7 +7093,7 @@
   },
   "/reference/core/ldap-ad-accountflags/islockedout/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isLockedOut",
-    "hash": "e04a78b1734b6eb2",
+    "hash": "a6eda025529f4066",
     "questions": [
       "How do I check if a user is locked out after wrong passwords?",
       "Find accounts locked by too many failed logins",
@@ -7103,7 +7103,7 @@
   },
   "/reference/core/ldap-ad-accountflags/ismnslogonaccount/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isMnsLogonAccount",
-    "hash": "9b34a4665c795164",
+    "hash": "da3b66b1f3525b57",
     "questions": [
       "What is an MNS logon account?",
       "Check if a Majority Node Set cluster uses this account",
@@ -7113,7 +7113,7 @@
   },
   "/reference/core/ldap-ad-accountflags/isnormalaccount/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isNormalAccount",
-    "hash": "dd5148e75ee53303",
+    "hash": "6de138d1483ff61c",
     "questions": [
       "How do I keep only accounts of people, not computers?",
       "Check if an account is an ordinary user account",
@@ -7123,7 +7123,7 @@
   },
   "/reference/core/ldap-ad-accountflags/isnotdelegated/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isNotDelegated",
-    "hash": "a712bdea5a9801f9",
+    "hash": "9d93c1ef7c0bc57c",
     "questions": [
       "Check if no service may act for this user",
       "Find accounts that are protected from delegation",
@@ -7133,7 +7133,7 @@
   },
   "/reference/core/ldap-ad-accountflags/ispartialsecretsaccount/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isPartialSecretsAccount",
-    "hash": "bf7d98855eb21700",
+    "hash": "59d40e4a83550b3e",
     "questions": [
       "How do I check if an account is a read-only domain controller?",
       "Find read-only domain controllers in the directory",
@@ -7143,7 +7143,7 @@
   },
   "/reference/core/ldap-ad-accountflags/ispasswordexpired/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isPasswordExpired",
-    "hash": "c72730d9034e6cf2",
+    "hash": "54089770a4b9847a",
     "questions": [
       "How do I check if a user's password has expired?",
       "Find users whose password is too old to log in",
@@ -7153,7 +7153,7 @@
   },
   "/reference/core/ldap-ad-accountflags/ispasswordnotrequired/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isPasswordNotRequired",
-    "hash": "37a83f3c62bccb15",
+    "hash": "32fc4388401d34cf",
     "questions": [
       "Find accounts that may have an empty password",
       "Check if an account can log in without a password",
@@ -7163,7 +7163,7 @@
   },
   "/reference/core/ldap-ad-accountflags/ispreauthnotrequired/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isPreauthNotRequired",
-    "hash": "38bec32f47c1eb03",
+    "hash": "3899f4d88f0b1b86",
     "questions": [
       "Find accounts where Kerberos pre-authentication is turned off",
       "Check if Kerberos gives a ticket without checking the password",
@@ -7173,7 +7173,7 @@
   },
   "/reference/core/ldap-ad-accountflags/isservertrustaccount/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isServerTrustAccount",
-    "hash": "ed70b1bba1e07836",
+    "hash": "89c31ae8dcac8b78",
     "questions": [
       "How do I check if an account is a domain controller?",
       "Find all domain controller accounts",
@@ -7183,7 +7183,7 @@
   },
   "/reference/core/ldap-ad-accountflags/issmartcardrequired/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isSmartcardRequired",
-    "hash": "0ed06c3f5848b25e",
+    "hash": "a11c30b4b31be7f7",
     "questions": [
       "Check if a user must log in with a smart card",
       "Find accounts that cannot log in with a password",
@@ -7193,7 +7193,7 @@
   },
   "/reference/core/ldap-ad-accountflags/istemporaryduplicateaccount/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isTemporaryDuplicateAccount",
-    "hash": "d4b794eb1f355769",
+    "hash": "ecf7fde1dfd4b08c",
     "questions": [
       "What is a temporary duplicate account?",
       "Check if an account is a local account for a user from another domain",
@@ -7203,7 +7203,7 @@
   },
   "/reference/core/ldap-ad-accountflags/istrustedfordelegation/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isTrustedForDelegation",
-    "hash": "afe8b6f6a8c7304d",
+    "hash": "255f71ba99404f53",
     "questions": [
       "Check if a service may act for any user",
       "Find accounts trusted for delegation",
@@ -7213,7 +7213,7 @@
   },
   "/reference/core/ldap-ad-accountflags/istrustedtoauthenticatefordelegation/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isTrustedToAuthenticateForDelegation",
-    "hash": "10afa643785ed4ce",
+    "hash": "cece3f628e3f5787",
     "questions": [
       "Check if a service may act for a user without the user's password",
       "Delegation when the user logged in through a web form",
@@ -7223,7 +7223,7 @@
   },
   "/reference/core/ldap-ad-accountflags/isworkstationtrustaccount/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::isWorkstationTrustAccount",
-    "hash": "f64ca62d7849f65f",
+    "hash": "a7aedadc0e35d9a8",
     "questions": [
       "How do I check if an account is a computer joined to the domain?",
       "Find computer accounts in Active Directory",
@@ -7233,7 +7233,7 @@
   },
   "/reference/core/ldap-ad-accountflags/mustchangepassword/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::mustChangePassword",
-    "hash": "4ffc43cefa67cac0",
+    "hash": "8c496a85286a1441",
     "questions": [
       "How do I check if a user must change the password at next login?",
       "Is pwdLastSet zero for this user?",
@@ -7243,7 +7243,7 @@
   },
   "/reference/core/ldap-ad-accountflags/usesdeskeyonly/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::usesDesKeyOnly",
-    "hash": "ddb2bd6cfd79d1ea",
+    "hash": "1d6dfe893b4ae3bf",
     "questions": [
       "Check if an account uses only DES keys for Kerberos",
       "Find accounts with old and unsafe DES encryption",
@@ -7253,7 +7253,7 @@
   },
   "/reference/core/ldap-ad-accountflags/with/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::with",
-    "hash": "91c324d57bb7d3c4",
+    "hash": "fe3ec4507ee61a17",
     "questions": [
       "How do I disable an account by changing its flags?",
       "Set or clear one userAccountControl flag",
@@ -7264,7 +7264,7 @@
   },
   "/reference/core/ldap-ad-grouptype/": {
     "feature": "Core\\Ldap\\Ad\\GroupType",
-    "hash": "3009d3987e794694",
+    "hash": "7ef250731a68d5c5",
     "questions": [
       "How do I read the type of an Active Directory group?",
       "Check the scope and kind of a group",
@@ -7274,7 +7274,7 @@
   },
   "/reference/core/ldap-ad-grouptype/bits/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::bits",
-    "hash": "2c2c232172dfe03f",
+    "hash": "ca27cd0c17f0e509",
     "questions": [
       "Get the groupType number of a group",
       "Why is the groupType of a security group negative?",
@@ -7284,7 +7284,7 @@
   },
   "/reference/core/ldap-ad-grouptype/isappbasicgroup/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::isAppBasicGroup",
-    "hash": "92aad5e96e212cfc",
+    "hash": "e038fd497a7e1905",
     "questions": [
       "Check if a group is an application group",
       "Authorization Manager application group",
@@ -7294,7 +7294,7 @@
   },
   "/reference/core/ldap-ad-grouptype/isappquerygroup/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::isAppQueryGroup",
-    "hash": "2f48706f4a9256d1",
+    "hash": "cd0597661df0c0fd",
     "questions": [
       "Check if a group gets its users from a query",
       "Query based application group",
@@ -7304,7 +7304,7 @@
   },
   "/reference/core/ldap-ad-grouptype/isdomainlocal/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::isDomainLocal",
-    "hash": "55e28e541c17b22d",
+    "hash": "7c736c6e03dcba87",
     "questions": [
       "Check if a group is domain local",
       "Group that can only get permissions in its own domain",
@@ -7314,7 +7314,7 @@
   },
   "/reference/core/ldap-ad-grouptype/isglobal/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::isGlobal",
-    "hash": "d92903f23462f4d1",
+    "hash": "5a3424db06bb69ab",
     "questions": [
       "Check if a group is a global group",
       "Group with users only from its own domain",
@@ -7324,7 +7324,7 @@
   },
   "/reference/core/ldap-ad-grouptype/issecuritygroup/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::isSecurityGroup",
-    "hash": "5daaff08abfcbff2",
+    "hash": "8df3de06f1884832",
     "questions": [
       "Check if a group is a security group or a distribution group",
       "Ignore mailing list groups when checking permissions",
@@ -7334,7 +7334,7 @@
   },
   "/reference/core/ldap-ad-grouptype/issystemgroup/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::isSystemGroup",
-    "hash": "55a93d0aeb2dcc34",
+    "hash": "d661662c11c94949",
     "questions": [
       "Check if Active Directory created a group itself",
       "Find built-in groups such as Administrators",
@@ -7344,7 +7344,7 @@
   },
   "/reference/core/ldap-ad-grouptype/isuniversal/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::isUniversal",
-    "hash": "5d961540f644ff71",
+    "hash": "93c0f30990a098ca",
     "questions": [
       "Check if a group is a universal group",
       "Group with users from any domain and permissions in any domain",
@@ -7354,7 +7354,7 @@
   },
   "/reference/core/ldap-ad-grouptype/with/": {
     "feature": "Core\\Ldap\\Ad\\GroupType::with",
-    "hash": "aedff2e2176fcc93",
+    "hash": "633c528385067620",
     "questions": [
       "Turn a security group into a distribution group",
       "Change the scope of a group from global to universal",
@@ -7414,7 +7414,7 @@
   },
   "/reference/core/ldap-changes/": {
     "feature": "Core\\Ldap\\Changes",
-    "hash": "9405cdfe652c1a9d",
+    "hash": "aeabe6f845860ee9",
     "questions": [
       "Loop over the entries that changed since the last sync",
       "Result of a directory sync",
@@ -7424,7 +7424,7 @@
   },
   "/reference/core/ldap-changes/cookie/": {
     "feature": "Core\\Ldap\\Changes::cookie",
-    "hash": "2e2300380c90c7a2",
+    "hash": "4d00acb2db277eb3",
     "questions": [
       "How do I save the sync position for the next run?",
       "Store the DirSync cookie in a database",
@@ -7434,7 +7434,7 @@
   },
   "/reference/core/ldap-connection/": {
     "feature": "Core\\Ldap\\Connection",
-    "hash": "28aa9367030d4f64",
+    "hash": "382fac3f9f06daaf",
     "questions": [
       "How do I connect to an LDAP directory?",
       "What can I do with an LDAP connection?",
@@ -7485,7 +7485,7 @@
   },
   "/reference/core/ldap-connection/hasvalue/": {
     "feature": "Core\\Ldap\\Connection::hasValue",
-    "hash": "ab0f94ed3ce5de5c",
+    "hash": "ff8c9e49042c8f2a",
     "questions": [
       "Check if an entry has a value without reading it",
       "Is this person in the Sales department?",
@@ -7536,7 +7536,7 @@
   },
   "/reference/core/ldap-connection/searchchanges/": {
     "feature": "Core\\Ldap\\Connection::searchChanges",
-    "hash": "2d8cfb5711a48ded",
+    "hash": "52e2e96989c09592",
     "questions": [
       "How do I sync only the changed entries from Active Directory?",
       "Keep a local copy of the directory up to date",
@@ -7696,7 +7696,7 @@
   },
   "/reference/core/ldap-entry/accountflags/": {
     "feature": "Core\\Ldap\\Entry::accountFlags",
-    "hash": "125a6ed135974a16",
+    "hash": "f93a9f268fbb48b0",
     "questions": [
       "Read userAccountControl of a user as flags",
       "Get account flags from a search result",
@@ -7756,7 +7756,7 @@
   },
   "/reference/core/ldap-entry/grouptype/": {
     "feature": "Core\\Ldap\\Entry::groupType",
-    "hash": "ee4d79f97a625abb",
+    "hash": "e47b45dddd54a46c",
     "questions": [
       "Read the groupType of a group as flags",
       "Get the scope of a group from a search result",
@@ -7866,7 +7866,7 @@
   },
   "/reference/core/ldap-filter/": {
     "feature": "Core\\Ldap\\Filter",
-    "hash": "99852456f5f59795",
+    "hash": "74b03c9f2c160c5f",
     "questions": [
       "How do I build an LDAP search filter?",
       "Prevent LDAP injection in search filters",
@@ -7894,9 +7894,9 @@
       "Find entries that match one of several values"
     ]
   },
-  "/reference/core/ldap-filter/approx/": {
+  "/reference/core/ldap-filter/approximately/": {
     "feature": "Core\\Ldap\\Filter::approximately",
-    "hash": "dc04b160b17863da",
+    "hash": "0ab1f4d18050eb10",
     "questions": [
       "Find names that sound similar in LDAP",
       "Fuzzy name search in a directory",
@@ -8121,7 +8121,7 @@
   },
   "/reference/core/markdown/fromhtml/": {
     "feature": "Core\\Markdown::fromHtml",
-    "hash": "676aabf4087f0e31",
+    "hash": "75a4ec18272af338",
     "questions": [
       "Turn an HTML page back into Markdown",
       "Convert HTML to Markdown",
@@ -8155,7 +8155,7 @@
   },
   "/reference/core/markdown/tohtmleach/": {
     "feature": "Core\\Markdown::toHtmlEach",
-    "hash": "338062458457225e",
+    "hash": "d71130d0a1cd41ce",
     "questions": [
       "Convert a very large Markdown file to HTML",
       "Render a Markdown file bigger than memory",
@@ -8198,7 +8198,7 @@
   },
   "/reference/core/markdown-live/push/": {
     "feature": "Core\\Markdown\\Live::push",
-    "hash": "99dacf2745ccc690",
+    "hash": "3a08472c04083ed5",
     "questions": [
       "Add the next chunk of streamed Markdown text",
       "Can a streamed piece end in the middle of a word?",
@@ -8241,7 +8241,7 @@
   },
   "/reference/core/math/": {
     "feature": "Core\\Math",
-    "hash": "0996f8cbf39957df",
+    "hash": "895ab90d7b4a7d0a",
     "questions": [
       "What math functions are available?",
       "How do I do calculations with numbers?",
@@ -8384,7 +8384,7 @@
   },
   "/reference/core/math/divide/": {
     "feature": "Core\\Math::divide",
-    "hash": "f86409d6a3127c6a",
+    "hash": "b85adad67a1f9ffd",
     "questions": [
       "How do I divide by zero without an error?",
       "Division that returns infinity instead of throwing",
@@ -8438,7 +8438,7 @@
   },
   "/reference/core/math/gcd/": {
     "feature": "Core\\Math::gcd",
-    "hash": "04d8938e72bbb146",
+    "hash": "666cee13fbcf67cd",
     "questions": [
       "How do I find the greatest common divisor?",
       "Reduce a fraction to its smallest terms",
@@ -8458,7 +8458,7 @@
   },
   "/reference/core/math/isfinite/": {
     "feature": "Core\\Math::isFinite",
-    "hash": "edfaafbbfbbecb0e",
+    "hash": "90868cb60692c69e",
     "questions": [
       "How do I check if a number is finite?",
       "Test whether a float is infinity",
@@ -8468,7 +8468,7 @@
   },
   "/reference/core/math/isnan/": {
     "feature": "Core\\Math::isNan",
-    "hash": "a349bab19ca0621d",
+    "hash": "0139b5bcc2a6d634",
     "questions": [
       "How do I check if a value is NaN?",
       "Why does comparing with NaN using == not work?",
@@ -8519,7 +8519,7 @@
   },
   "/reference/core/math/quotient/": {
     "feature": "Core\\Math::quotient",
-    "hash": "afec4b2c9685d811",
+    "hash": "ff401b42609ce376",
     "questions": [
       "How do I divide integers without a fraction?",
       "Integer division without the remainder",
@@ -8529,7 +8529,7 @@
   },
   "/reference/core/math/remainder/": {
     "feature": "Core\\Math::remainder",
-    "hash": "9d01b2dc418b7926",
+    "hash": "32779706ac7fde20",
     "questions": [
       "How do I get the remainder of a float division?",
       "Modulo with decimal numbers",
@@ -8652,7 +8652,7 @@
   },
   "/reference/core/metrics/": {
     "feature": "Core\\Metrics",
-    "hash": "3d1e6921ac7925ec",
+    "hash": "2a05e38006dcd4f5",
     "questions": [
       "How do I add monitoring to my program?",
       "Export metrics for a monitoring system",
@@ -8662,7 +8662,7 @@
   },
   "/reference/core/metrics/increment/": {
     "feature": "Core\\Metrics::increment",
-    "hash": "68cc418b4cfe69e5",
+    "hash": "0e057e32bd89eda9",
     "questions": [
       "How do I count events for monitoring?",
       "Count failed logins",
@@ -8673,7 +8673,7 @@
   },
   "/reference/core/metrics/observe/": {
     "feature": "Core\\Metrics::observe",
-    "hash": "f0a651f93456c927",
+    "hash": "6739d49cc6059157",
     "questions": [
       "How do I measure how long requests take?",
       "Record durations in a histogram",
@@ -8683,7 +8683,7 @@
   },
   "/reference/core/metrics/setgauge/": {
     "feature": "Core\\Metrics::setGauge",
-    "hash": "a34e7a09d92bcaff",
+    "hash": "0d424ede35de2e73",
     "questions": [
       "How do I report a value that goes up and down?",
       "Track how many jobs are waiting",
@@ -8703,7 +8703,7 @@
   },
   "/reference/core/mime/detect/": {
     "feature": "Core\\Mime::detect",
-    "hash": "25f7f72a8ca7a921",
+    "hash": "289b1a6bbe654bf5",
     "questions": [
       "How do I check if an upload is a PNG or a PDF?",
       "Find the file type from the first bytes",
@@ -9009,7 +9009,7 @@
   },
   "/reference/core/novis-image-color/hex/": {
     "feature": "Novis\\Image\\Color::hex",
-    "hash": "9b538a4149b22c65",
+    "hash": "6c9bd05a6dc50173",
     "questions": [
       "How do I use a hex color like #ff8800?",
       "Convert a hex color code to RGB",
@@ -9019,7 +9019,7 @@
   },
   "/reference/core/novis-image-color/rgba/": {
     "feature": "Novis\\Image\\Color::rgba",
-    "hash": "5e53aafc3083d4d7",
+    "hash": "02f2fa6a810c4e69",
     "questions": [
       "How do I make a color from red, green and blue numbers?",
       "Set a half transparent color",
@@ -9027,9 +9027,9 @@
       "Background color to fill a new image"
     ]
   },
-  "/reference/core/novis-image-diff/": {
+  "/reference/core/novis-image-comparison/": {
     "feature": "Novis\\Image\\Comparison",
-    "hash": "8dd0800878240de1",
+    "hash": "1f83b676c1ff55cd",
     "questions": [
       "What does an image comparison return?",
       "Read the result of comparing two pictures",
@@ -9038,20 +9038,20 @@
       "Get the PNG that shows changed pixels in red"
     ]
   },
-  "/reference/core/novis-image-diff/constructor/": {
+  "/reference/core/novis-image-comparison/constructor/": {
     "feature": "Novis\\Image\\Comparison::constructor",
-    "hash": "4a9b31b3b04c880a",
+    "hash": "686c791efd1e3767",
     "questions": [
       "How do I create an image comparison result by hand?",
       "Make a fake image diff in my tests",
       "Build a comparison result without comparing images",
-      "Which parameters does new Diff take, and in what order?",
+      "Which parameters does new Comparison take, and in what order?",
       "Properties of an image comparison result"
     ]
   },
   "/reference/core/novis-image-font/": {
     "feature": "Novis\\Image\\Font",
-    "hash": "05562f5694a40e2b",
+    "hash": "149fa667006f4d36",
     "questions": [
       "How do I use a custom font to draw text on images?",
       "Which fonts can I use to write on a picture?",
@@ -9062,7 +9062,7 @@
   },
   "/reference/core/novis-image-font/frombytes/": {
     "feature": "Novis\\Image\\Font::fromBytes",
-    "hash": "eb209d6f789e0a52",
+    "hash": "ef350863018374bd",
     "questions": [
       "How do I load a TTF or OTF font file?",
       "Load a font once and use it for many images",
@@ -9072,7 +9072,7 @@
   },
   "/reference/core/novis-image-image/": {
     "feature": "Novis\\Image\\Image",
-    "hash": "bf726cd2685e8d4d",
+    "hash": "63d59a3736831f15",
     "questions": [
       "How do I work with images on the server?",
       "Edit uploaded photos in my web app",
@@ -9083,7 +9083,7 @@
   },
   "/reference/core/novis-image-image/blurred/": {
     "feature": "Novis\\Image\\Image::blurred",
-    "hash": "6abefc94da3adf7c",
+    "hash": "ba89a815d509d7a1",
     "questions": [
       "How do I make an image blurry?",
       "Blur a background behind text",
@@ -9093,7 +9093,7 @@
   },
   "/reference/core/novis-image-image/compare/": {
     "feature": "Novis\\Image\\Image::compare",
-    "hash": "3ab0e79c3323a4c1",
+    "hash": "a373e1429921a590",
     "questions": [
       "How do I check if two images are the same?",
       "Compare two screenshots in a visual test",
@@ -9105,7 +9105,7 @@
   },
   "/reference/core/novis-image-image/create/": {
     "feature": "Novis\\Image\\Image::create",
-    "hash": "80eae342025e876c",
+    "hash": "275132b97e2274f1",
     "questions": [
       "How do I make a blank image of one colour?",
       "Create an empty transparent canvas",
@@ -9116,7 +9116,7 @@
   },
   "/reference/core/novis-image-image/cropped/": {
     "feature": "Novis\\Image\\Image::cropped",
-    "hash": "67b50b9d83bbbc7e",
+    "hash": "d7fb6ea8d2705294",
     "questions": [
       "How do I cut out part of an image?",
       "Crop a picture to a box at x and y",
@@ -9126,7 +9126,7 @@
   },
   "/reference/core/novis-image-image/encode/": {
     "feature": "Novis\\Image\\Image::encode",
-    "hash": "9759624f2cb21155",
+    "hash": "2aa53e7dfd661270",
     "questions": [
       "How do I save the edited image as a file?",
       "Get the bytes of the finished image",
@@ -9137,7 +9137,7 @@
   },
   "/reference/core/novis-image-image/encodevariants/": {
     "feature": "Novis\\Image\\Image::encodeVariants",
-    "hash": "8bfb23aa9cba8bc0",
+    "hash": "98a96ccefb767a36",
     "questions": [
       "How do I make several sizes of one image at once?",
       "Create images for responsive srcset widths",
@@ -9147,7 +9147,7 @@
   },
   "/reference/core/novis-image-image/extension/": {
     "feature": "Novis\\Image\\Image::extension",
-    "hash": "aaed90eb4bd307e7",
+    "hash": "aa52ec3c0e87eb22",
     "questions": [
       "Which file extension should an uploaded image get?",
       "Get jpg or png from an image format",
@@ -9157,7 +9157,7 @@
   },
   "/reference/core/novis-image-image/flattened/": {
     "feature": "Novis\\Image\\Image::flattened",
-    "hash": "dd389284c4ec3c56",
+    "hash": "7bf295b10dc57988",
     "questions": [
       "How do I remove transparency from a PNG?",
       "Put a transparent image on a white background",
@@ -9167,7 +9167,7 @@
   },
   "/reference/core/novis-image-image/flipped/": {
     "feature": "Novis\\Image\\Image::flipped",
-    "hash": "958d9c38637e61b2",
+    "hash": "3f21a6c53ffdeb50",
     "questions": [
       "How do I mirror an image?",
       "Flip a picture upside down",
@@ -9177,7 +9177,7 @@
   },
   "/reference/core/novis-image-image/fromraw/": {
     "feature": "Novis\\Image\\Image::fromRaw",
-    "hash": "ccf6524786674f91",
+    "hash": "2aa5ba01e41d6d06",
     "questions": [
       "How do I build an image from pixel data?",
       "Turn an array of RGBA bytes into a PNG",
@@ -9187,7 +9187,7 @@
   },
   "/reference/core/novis-image-image/grayscaled/": {
     "feature": "Novis\\Image\\Image::grayscaled",
-    "hash": "5eef14810f5bbe08",
+    "hash": "0dace64e97290546",
     "questions": [
       "How do I make an image black and white?",
       "Convert a colour photo to gray",
@@ -9197,7 +9197,7 @@
   },
   "/reference/core/novis-image-image/hash/": {
     "feature": "Novis\\Image\\Image::hash",
-    "hash": "86fc43dff558b700",
+    "hash": "8f810be75a885d34",
     "questions": [
       "How do I find duplicate images?",
       "Make a fingerprint of a picture to store in a database",
@@ -9209,7 +9209,7 @@
   },
   "/reference/core/novis-image-image/hashdistance/": {
     "feature": "Novis\\Image\\Image::hashDistance",
-    "hash": "e4e59dd64f7d8158",
+    "hash": "9e9f9f387ad8b584",
     "questions": [
       "How similar are two image fingerprints?",
       "Count the different bits between two hashes",
@@ -9219,7 +9219,7 @@
   },
   "/reference/core/novis-image-image/info/": {
     "feature": "Novis\\Image\\Image::info",
-    "hash": "d8398eedd2dfa537",
+    "hash": "cf4f2d8159aacfd4",
     "questions": [
       "How do I get the width and height of an image?",
       "Read the image size without loading the pixels",
@@ -9231,7 +9231,7 @@
   },
   "/reference/core/novis-image-image/keepingmetadata/": {
     "feature": "Novis\\Image\\Image::keepingMetadata",
-    "hash": "6895c7a0cb97ba72",
+    "hash": "3872f314d229c585",
     "questions": [
       "How do I keep EXIF data in a photo?",
       "Remove GPS location from uploaded photos",
@@ -9241,7 +9241,7 @@
   },
   "/reference/core/novis-image-image/measuretext/": {
     "feature": "Novis\\Image\\Image::measureText",
-    "hash": "6eaf1130ecd541b6",
+    "hash": "302eb60e449f434a",
     "questions": [
       "How wide will my text be in pixels?",
       "Measure a caption before drawing it",
@@ -9252,7 +9252,7 @@
   },
   "/reference/core/novis-image-image/mime/": {
     "feature": "Novis\\Image\\Image::mime",
-    "hash": "d43f957c1337e8a8",
+    "hash": "6b68a8021bf1278a",
     "questions": [
       "What Content-Type header should I send for an image?",
       "Get image/webp from an image format",
@@ -9262,7 +9262,7 @@
   },
   "/reference/core/novis-image-image/open/": {
     "feature": "Novis\\Image\\Image::open",
-    "hash": "25e2185adae09cb1",
+    "hash": "2902e10590c2611c",
     "questions": [
       "How do I load an uploaded image?",
       "Open a JPEG, AVIF or JPEG XL file from disk",
@@ -9274,7 +9274,7 @@
   },
   "/reference/core/novis-image-image/palette/": {
     "feature": "Novis\\Image\\Image::palette",
-    "hash": "374089a8f6624b6b",
+    "hash": "92f154dc8e307ccd",
     "questions": [
       "How do I get the main colours of a photo?",
       "Find the dominant colour of an image",
@@ -9294,7 +9294,7 @@
   },
   "/reference/core/novis-image-image/raw/": {
     "feature": "Novis\\Image\\Image::raw",
-    "hash": "fbe32bc7759be3c4",
+    "hash": "fc5d07ff0f2534e6",
     "questions": [
       "How do I read the colour of one pixel?",
       "Get the RGBA pixel values of an image",
@@ -9304,7 +9304,7 @@
   },
   "/reference/core/novis-image-image/resized/": {
     "feature": "Novis\\Image\\Image::resized",
-    "hash": "450ed622d60428a9",
+    "hash": "f3b8a0cda92dfa27",
     "questions": [
       "How do I resize an image to fit a thumbnail?",
       "Scale a photo to 800 pixels wide and keep proportions",
@@ -9315,7 +9315,7 @@
   },
   "/reference/core/novis-image-image/rotated/": {
     "feature": "Novis\\Image\\Image::rotated",
-    "hash": "877b77895d177158",
+    "hash": "6f8a9508c965974e",
     "questions": [
       "How do I rotate an image 90 degrees?",
       "Turn a picture by any angle",
@@ -9325,7 +9325,7 @@
   },
   "/reference/core/novis-image-image/sharpened/": {
     "feature": "Novis\\Image\\Image::sharpened",
-    "hash": "e3bf784c7d99267b",
+    "hash": "9dd4c02e443fe06e",
     "questions": [
       "How do I make a blurry image sharper?",
       "Make a thumbnail look clear after resizing",
@@ -9335,7 +9335,7 @@
   },
   "/reference/core/novis-image-image/tinted/": {
     "feature": "Novis\\Image\\Image::tinted",
-    "hash": "1f7a20110efa5304",
+    "hash": "2622fe1484913d1d",
     "questions": [
       "How do I colour an image with one colour?",
       "Make a sepia or old brown photo effect",
@@ -9345,7 +9345,7 @@
   },
   "/reference/core/novis-image-image/trimmed/": {
     "feature": "Novis\\Image\\Image::trimmed",
-    "hash": "7a818fcfed57c30a",
+    "hash": "12469c273282d42a",
     "questions": [
       "How do I remove white borders from an image?",
       "Cut off empty space around a picture",
@@ -9355,7 +9355,7 @@
   },
   "/reference/core/novis-image-image/withbrightness/": {
     "feature": "Novis\\Image\\Image::withBrightness",
-    "hash": "eb660e2eed36f3e5",
+    "hash": "4b21e7c2b299ff1b",
     "questions": [
       "How do I make a photo brighter?",
       "Darken an image by half",
@@ -9365,7 +9365,7 @@
   },
   "/reference/core/novis-image-image/withcontrast/": {
     "feature": "Novis\\Image\\Image::withContrast",
-    "hash": "06394ba159233e36",
+    "hash": "c774392ae531992c",
     "questions": [
       "How do I increase the contrast of a photo?",
       "Make dark parts darker and light parts lighter",
@@ -9375,7 +9375,7 @@
   },
   "/reference/core/novis-image-image/withformat/": {
     "feature": "Novis\\Image\\Image::withFormat",
-    "hash": "e13675bcf2eabc52",
+    "hash": "7ac69902523d587f",
     "questions": [
       "How do I convert a PNG to WebP?",
       "Set the JPEG quality of an output image",
@@ -9386,7 +9386,7 @@
   },
   "/reference/core/novis-image-image/withgamma/": {
     "feature": "Novis\\Image\\Image::withGamma",
-    "hash": "d377a5707faf0d37",
+    "hash": "a47c2d5c37f2de6f",
     "questions": [
       "How do I lighten the shadows of a dark photo?",
       "Change the middle tones but keep black and white",
@@ -9396,7 +9396,7 @@
   },
   "/reference/core/novis-image-image/withoverlay/": {
     "feature": "Novis\\Image\\Image::withOverlay",
-    "hash": "bd2add08a4c2cd10",
+    "hash": "74370019e3476c45",
     "questions": [
       "How do I put a watermark on a photo?",
       "Draw a logo in the bottom-right corner of an image",
@@ -9407,7 +9407,7 @@
   },
   "/reference/core/novis-image-image/withtext/": {
     "feature": "Novis\\Image\\Image::withText",
-    "hash": "0af9049173abc89a",
+    "hash": "27eb0027fe555032",
     "questions": [
       "How do I write text on an image?",
       "Add a caption at the bottom of a photo",
@@ -9725,7 +9725,7 @@
   },
   "/reference/core/novis-pdf-document/": {
     "feature": "Novis\\Pdf\\Document",
-    "hash": "eefe30097070f137",
+    "hash": "63920d63c04c6bef",
     "questions": [
       "Create PDF files in Novis",
       "Turn an HTML page into a PDF with images and fonts",
@@ -9735,7 +9735,7 @@
   },
   "/reference/core/novis-pdf-document/fromhtml/": {
     "feature": "Novis\\Pdf\\Document::fromHtml",
-    "hash": "209a035324fc07cb",
+    "hash": "df774d4813047874",
     "questions": [
       "Start a PDF from an HTML string",
       "Escape user text in a PDF with an html template",
@@ -9759,7 +9759,7 @@
   },
   "/reference/core/novis-pdf-document/withasset/": {
     "feature": "Novis\\Pdf\\Document::withAsset",
-    "hash": "422db5f3fc2dbcfe",
+    "hash": "a78f3783fa509a0a",
     "questions": [
       "Add a logo image to a PDF",
       "Why does my PDF render fail for an image file?",
@@ -9770,7 +9770,7 @@
   },
   "/reference/core/novis-pdf-document/withcreationtime/": {
     "feature": "Novis\\Pdf\\Document::withCreationTime",
-    "hash": "b7e2a030b9f778b2",
+    "hash": "75de4f0d2f583173",
     "questions": [
       "Set the creation date of a PDF",
       "Why does PDF/A need a creation time?",
@@ -9780,7 +9780,7 @@
   },
   "/reference/core/novis-pdf-document/withfooter/": {
     "feature": "Novis\\Pdf\\Document::withFooter",
-    "hash": "080b4586834f6487",
+    "hash": "e792e1da36a5fe97",
     "questions": [
       "Add a footer to every PDF page",
       "Show a running total at the bottom of each page",
@@ -9791,7 +9791,7 @@
   },
   "/reference/core/novis-pdf-document/withheader/": {
     "feature": "Novis\\Pdf\\Document::withHeader",
-    "hash": "0e01bfdc3b46f548",
+    "hash": "44808842404fa5c8",
     "questions": [
       "Add a header to every PDF page",
       "Number the pages of a PDF report",
@@ -9802,7 +9802,7 @@
   },
   "/reference/core/novis-pdf-document/withinvoicexml/": {
     "feature": "Novis\\Pdf\\Document::withInvoiceXml",
-    "hash": "baa284e64b66694a",
+    "hash": "7f3a77ce143f359d",
     "questions": [
       "Create a ZUGFeRD or Factur-X invoice PDF",
       "Attach invoice XML to a PDF",
@@ -9814,7 +9814,7 @@
   },
   "/reference/core/novis-pdf-document/withpassword/": {
     "feature": "Novis\\Pdf\\Document::withPassword",
-    "hash": "cc06188bcb2cefb2",
+    "hash": "d149027f63982080",
     "questions": [
       "Protect a PDF with a password",
       "Encrypt a bank statement before sending it by email",
@@ -9824,7 +9824,7 @@
   },
   "/reference/core/novis-pdf-document/withslots/": {
     "feature": "Novis\\Pdf\\Document::withSlots",
-    "hash": "91b8a8f84c793d87",
+    "hash": "dfcc53dc8761f38f",
     "questions": [
       "Carry a total forward in a table that spans pages",
       "Fill a cell in the repeated table header on each page",
@@ -9836,7 +9836,7 @@
   },
   "/reference/core/novis-pdf-document/withstandard/": {
     "feature": "Novis\\Pdf\\Document::withStandard",
-    "hash": "b3455cc9b416d101",
+    "hash": "3a9af86de693ce53",
     "questions": [
       "Make a PDF/A file for long-term archiving",
       "Create an accessible PDF for screen readers",
@@ -9858,7 +9858,7 @@
   },
   "/reference/core/novis-pdf-page/constructor/": {
     "feature": "Novis\\Pdf\\Page::constructor",
-    "hash": "7c6f1f4bb5faf283",
+    "hash": "c01cf33fb1c09233",
     "questions": [
       "Test a footer function without rendering a PDF",
       "Make a page object by hand for a test",
@@ -9869,7 +9869,7 @@
   },
   "/reference/core/novis-pdf-page/isfirst/": {
     "feature": "Novis\\Pdf\\Page::isFirst",
-    "hash": "e061d5b31c980c4b",
+    "hash": "b82b225f2bbfa900",
     "questions": [
       "Hide the header on the first page",
       "Letterhead on the first page only",
@@ -9879,7 +9879,7 @@
   },
   "/reference/core/novis-pdf-page/islast/": {
     "feature": "Novis\\Pdf\\Page::isLast",
-    "hash": "194600b022fa0845",
+    "hash": "35901f4241cf7e80",
     "questions": [
       "Signature line on the last page only",
       "Write continued on the next page",
@@ -9889,7 +9889,7 @@
   },
   "/reference/core/novis-pdf-page/marks/": {
     "feature": "Novis\\Pdf\\Page::marks",
-    "hash": "a7617d8601619671",
+    "hash": "749cb294d55edb8a",
     "questions": [
       "Add up the amounts on one page of a PDF",
       "Count the table rows on each page",
@@ -9899,7 +9899,7 @@
   },
   "/reference/core/novis-pdf-page/marksupto/": {
     "feature": "Novis\\Pdf\\Page::marksUpTo",
-    "hash": "e5325d733e5aee1c",
+    "hash": "655b59bfd7968ac4",
     "questions": [
       "Running total up to the current page",
       "Total of the earlier pages in the header",
@@ -9909,7 +9909,7 @@
   },
   "/reference/core/novis-pdf-page/string/": {
     "feature": "Novis\\Pdf\\Page::string",
-    "hash": "2165c8183b6b32c5",
+    "hash": "1bbc2514e38fccc1",
     "questions": [
       "Read a CSS string-set value in a header",
       "Customer name on every page of a batch of invoices",
@@ -9930,7 +9930,7 @@
   },
   "/reference/core/novis-pdf-pages/merge/": {
     "feature": "Novis\\Pdf\\Pages::merge",
-    "hash": "a458c6a6db57b25a",
+    "hash": "ea47bd9138f227b7",
     "questions": [
       "How do I merge several PDF files into one?",
       "Add terms and conditions to a contract PDF",
@@ -9965,7 +9965,7 @@
   },
   "/reference/core/novis-pdf-reader/attachments/": {
     "feature": "Novis\\Pdf\\Reader::attachments",
-    "hash": "92969a541ad06a3c",
+    "hash": "1a2291c501ab4107",
     "questions": [
       "List the files attached to a PDF",
       "Get embedded files from a PDF",
@@ -9975,7 +9975,7 @@
   },
   "/reference/core/novis-pdf-reader/invoicexml/": {
     "feature": "Novis\\Pdf\\Reader::invoiceXml",
-    "hash": "43bb11b7cd0358e1",
+    "hash": "a5369b7312ca0cca",
     "questions": [
       "Read the XML from a ZUGFeRD or XRechnung invoice",
       "Check if an uploaded PDF is an electronic invoice",
@@ -9985,7 +9985,7 @@
   },
   "/reference/core/novis-pdf-reader/open/": {
     "feature": "Novis\\Pdf\\Reader::open",
-    "hash": "ffff4d26da2c397d",
+    "hash": "1df66f6809f902e6",
     "questions": [
       "Get the page count of an uploaded PDF",
       "Read the title and author of a PDF",
@@ -9997,7 +9997,7 @@
   },
   "/reference/core/novis-pdf-reader/text/": {
     "feature": "Novis\\Pdf\\Reader::text",
-    "hash": "d87cd58a741a0966",
+    "hash": "1f33cce44e22f544",
     "questions": [
       "Extract text from a PDF page",
       "Find the total line on an invoice PDF",
@@ -10020,7 +10020,7 @@
   },
   "/reference/core/novis-pdf-rendered/constructor/": {
     "feature": "Novis\\Pdf\\Rendered::constructor",
-    "hash": "62abcd7b3d779345",
+    "hash": "2d25f8cdca6e8ec8",
     "questions": [
       "Fail a test when the PDF ignores CSS",
       "Make a fake render result for a test",
@@ -10054,7 +10054,7 @@
   },
   "/reference/core/novis-spreadsheet-cell/of/": {
     "feature": "Novis\\Spreadsheet\\Cell::of",
-    "hash": "ed891dfd31b40126",
+    "hash": "d8b7da06efc4612a",
     "questions": [
       "Make a total red in an Excel file",
       "Highlight a name in a spreadsheet row",
@@ -10064,7 +10064,7 @@
   },
   "/reference/core/novis-spreadsheet-cell/rich/": {
     "feature": "Novis\\Spreadsheet\\Cell::rich",
-    "hash": "de5072df100b8993",
+    "hash": "157ee2cfd0a25194",
     "questions": [
       "Make one word bold inside an Excel cell",
       "Use two colors of text in one cell",
@@ -10075,7 +10075,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/": {
     "feature": "Novis\\Spreadsheet\\Chart",
-    "hash": "d12be35d8b8e7ab1",
+    "hash": "85ff0b88fe53d820",
     "questions": [
       "Add a chart to an Excel file",
       "Which chart types can a spreadsheet have?",
@@ -10086,7 +10086,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/area/": {
     "feature": "Novis\\Spreadsheet\\Chart::area",
-    "hash": "2751d33dce994860",
+    "hash": "6596bb1539e9f712",
     "questions": [
       "Area chart in an Excel export",
       "Line chart with the space under the line filled",
@@ -10096,7 +10096,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/bar/": {
     "feature": "Novis\\Spreadsheet\\Chart::bar",
-    "hash": "bfc43631374e0aed",
+    "hash": "7724577daa54d152",
     "questions": [
       "Horizontal bar chart in Excel",
       "Chart for long product or shop names",
@@ -10106,7 +10106,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/column/": {
     "feature": "Novis\\Spreadsheet\\Chart::column",
-    "hash": "eecd88ef470ebd5a",
+    "hash": "a4fae1771fae1cef",
     "questions": [
       "Column chart of monthly sales",
       "Add axis titles to an Excel chart",
@@ -10117,7 +10117,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/combinedwith/": {
     "feature": "Novis\\Spreadsheet\\Chart::combinedWith",
-    "hash": "e8b7642283beadfe",
+    "hash": "d9c64c17ab287aba",
     "questions": [
       "Columns of sales with a line of costs",
       "Two chart types on the same axes",
@@ -10128,7 +10128,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/constructor/": {
     "feature": "Novis\\Spreadsheet\\Chart::constructor",
-    "hash": "9eab06af590b22c2",
+    "hash": "96692e9436760857",
     "questions": [
       "Which parameters does new Chart take?",
       "Read the kind and series of a chart object",
@@ -10139,7 +10139,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/doughnut/": {
     "feature": "Novis\\Spreadsheet\\Chart::doughnut",
-    "hash": "d3fbb66a4a6d253a",
+    "hash": "1a15d569977fe665",
     "questions": [
       "Doughnut chart in Excel",
       "Pie chart with a hole in the middle",
@@ -10149,7 +10149,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/line/": {
     "feature": "Novis\\Spreadsheet\\Chart::line",
-    "hash": "d4f7d744a038b991",
+    "hash": "edc048d0aa03a1ee",
     "questions": [
       "Line chart of visitors per day",
       "Show values over time in Excel",
@@ -10159,7 +10159,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/pie/": {
     "feature": "Novis\\Spreadsheet\\Chart::pie",
-    "hash": "dc95d2584c9d8b4d",
+    "hash": "ccd2ad53742e758e",
     "questions": [
       "Pie chart of sales per shop",
       "Show the value on each pie slice",
@@ -10169,7 +10169,7 @@
   },
   "/reference/core/novis-spreadsheet-chart/scatter/": {
     "feature": "Novis\\Spreadsheet\\Chart::scatter",
-    "hash": "74465a08435cd139",
+    "hash": "c992c0bc06138f21",
     "questions": [
       "Scatter plot of price against units sold",
       "Chart of points with x and y values",
@@ -10179,13 +10179,13 @@
   },
   "/reference/core/novis-spreadsheet-chart/withseries/": {
     "feature": "Novis\\Spreadsheet\\Chart::withSeries",
-    "hash": "5b9cb71f76e3fe23",
+    "hash": "14e73c25c79bcc00",
     "questions": [
       "Add data to an Excel chart",
       "Set the color of a chart line or bar",
       "Name a series in the legend",
       "Chart range from a sheet whose name has a space",
-      "Why keep the chart that series returns?"
+      "Why keep the chart that withSeries returns?"
     ]
   },
   "/reference/core/novis-spreadsheet-export/": {
@@ -10232,7 +10232,7 @@
   },
   "/reference/core/novis-spreadsheet-export/save/": {
     "feature": "Novis\\Spreadsheet\\Export::save",
-    "hash": "790e53a296abf713",
+    "hash": "af77b9228e299fea",
     "questions": [
       "Save a spreadsheet to a file path",
       "Write an xlsx file to disk",
@@ -10243,7 +10243,7 @@
   },
   "/reference/core/novis-spreadsheet-export/to/": {
     "feature": "Novis\\Spreadsheet\\Export::to",
-    "hash": "634534f228483af2",
+    "hash": "4f30e7103db80034",
     "questions": [
       "Write a spreadsheet to an open file",
       "Export into a file I already opened",
@@ -10273,7 +10273,7 @@
   },
   "/reference/core/novis-spreadsheet-formula/of/": {
     "feature": "Novis\\Spreadsheet\\Formula::of",
-    "hash": "f406c15ccb941ff7",
+    "hash": "c2b81fd110ca6f94",
     "questions": [
       "Add a SUM formula to an Excel cell",
       "Can user text run as a formula?",
@@ -10295,7 +10295,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/evaluate/": {
     "feature": "Novis\\Spreadsheet\\Reader::evaluate",
-    "hash": "2eccd3d8f8212c83",
+    "hash": "a257abf588d9cde5",
     "questions": [
       "Compute the formulas of an uploaded Excel file",
       "Check that the saved totals of a report are right",
@@ -10307,7 +10307,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/images/": {
     "feature": "Novis\\Spreadsheet\\Reader::images",
-    "hash": "81b70125facdc15b",
+    "hash": "8dd3f6b58c27e4b7",
     "questions": [
       "Get pictures from an Excel sheet",
       "Extract product images from a spreadsheet",
@@ -10319,7 +10319,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/links/": {
     "feature": "Novis\\Spreadsheet\\Reader::links",
-    "hash": "e29a2b18e0bd975f",
+    "hash": "315383086a586dd1",
     "questions": [
       "Read hyperlinks from an Excel sheet",
       "Tell a website link from a link to a cell",
@@ -10340,7 +10340,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/merged/": {
     "feature": "Novis\\Spreadsheet\\Reader::merged",
-    "hash": "8db98cb1ef9f3e0c",
+    "hash": "bf74b303fe6e7d21",
     "questions": [
       "Find merged cells in a sheet",
       "Why are cells of a merged area null?",
@@ -10350,7 +10350,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/names/": {
     "feature": "Novis\\Spreadsheet\\Reader::names",
-    "hash": "6c6e78da2ea71f38",
+    "hash": "689046344117a02a",
     "questions": [
       "Read defined names of a workbook",
       "Find a named range such as TaxRate",
@@ -10361,7 +10361,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/notes/": {
     "feature": "Novis\\Spreadsheet\\Reader::notes",
-    "hash": "66ddc331a5790634",
+    "hash": "5fc743b24c13b2b5",
     "questions": [
       "Read cell comments from an Excel file",
       "Get the author of a cell note",
@@ -10385,7 +10385,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/properties/": {
     "feature": "Novis\\Spreadsheet\\Reader::properties",
-    "hash": "ecdf56cc4e9c209f",
+    "hash": "9fca2457469fbed6",
     "questions": [
       "Read the title and author of an Excel file",
       "When was this spreadsheet created?",
@@ -10396,7 +10396,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/rows/": {
     "feature": "Novis\\Spreadsheet\\Reader::rows",
-    "hash": "16983a16b555cce4",
+    "hash": "718cee1272089401",
     "questions": [
       "Read rows of an Excel sheet one by one",
       "Use the first row as column names",
@@ -10408,7 +10408,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/sheets/": {
     "feature": "Novis\\Spreadsheet\\Reader::sheets",
-    "hash": "1cc3e0c026d8752f",
+    "hash": "3d84125a8edd179a",
     "questions": [
       "List the sheets of a workbook",
       "Find hidden sheets in an Excel file",
@@ -10420,7 +10420,7 @@
   },
   "/reference/core/novis-spreadsheet-reader/tables/": {
     "feature": "Novis\\Spreadsheet\\Reader::tables",
-    "hash": "5f49c15f2a23bb2d",
+    "hash": "88e9f036dee1fdc7",
     "questions": [
       "Find the Excel tables in a sheet",
       "Read the rows of a named table",
@@ -10453,7 +10453,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/": {
     "feature": "Novis\\Spreadsheet\\Sheet",
-    "hash": "526c8800a6e3d02d",
+    "hash": "8ab1783ef539f1e3",
     "questions": [
       "Add rows, links and notes to a sheet",
       "One sheet of an Excel export",
@@ -10463,7 +10463,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/addchart/": {
     "feature": "Novis\\Spreadsheet\\Sheet::addChart",
-    "hash": "c240d08dbd7b0373",
+    "hash": "e505717793f92b05",
     "questions": [
       "Place a chart at a cell in a sheet",
       "Set the size of a chart in pixels",
@@ -10475,7 +10475,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/addconditionalformat/": {
     "feature": "Novis\\Spreadsheet\\Sheet::addConditionalFormat",
-    "hash": "8f8b6934121fa331",
+    "hash": "228a63654be59dc4",
     "questions": [
       "Mark low stock in red",
       "Conditional formatting in an Excel export",
@@ -10486,7 +10486,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/addimage/": {
     "feature": "Novis\\Spreadsheet\\Sheet::addImage",
-    "hash": "ec07c47175f1c146",
+    "hash": "0d7b06ba6ec85879",
     "questions": [
       "Put a logo at the top of an Excel report",
       "Add a picture for each product",
@@ -10498,7 +10498,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/addlink/": {
     "feature": "Novis\\Spreadsheet\\Sheet::addLink",
-    "hash": "98cb6c3f3dfc134c",
+    "hash": "a658738898296e9d",
     "questions": [
       "Add a hyperlink to a cell",
       "Link to a cell on another sheet",
@@ -10508,7 +10508,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/addnote/": {
     "feature": "Novis\\Spreadsheet\\Sheet::addNote",
-    "hash": "2bc0ed0f1807fe20",
+    "hash": "d08c2df42fcd8f5a",
     "questions": [
       "Add a comment to an Excel cell",
       "Note with an author name",
@@ -10518,7 +10518,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/addoutlinegroup/": {
     "feature": "Novis\\Spreadsheet\\Sheet::addOutlineGroup",
-    "hash": "dbabc010a7377df0",
+    "hash": "6020e9e0ed21e2d4",
     "questions": [
       "Group rows so they can be collapsed",
       "Hide a group of columns",
@@ -10528,19 +10528,19 @@
   },
   "/reference/core/novis-spreadsheet-sheet/addrow/": {
     "feature": "Novis\\Spreadsheet\\Sheet::addRow",
-    "hash": "abd489d5dab5a934",
+    "hash": "108fcf47bb3018b9",
     "questions": [
       "Add one row to an Excel sheet",
       "Set the height of a row",
       "Hide a row in a spreadsheet",
       "Style a whole row",
       "Put a row in an outline group",
-      "Why does add throw a LogicError after the next sheet starts?"
+      "Why does addRow throw a LogicError after the next sheet starts?"
     ]
   },
   "/reference/core/novis-spreadsheet-sheet/addrows/": {
     "feature": "Novis\\Spreadsheet\\Sheet::addRows",
-    "hash": "f0008225a2b13e31",
+    "hash": "4c5a352dbbd33455",
     "questions": [
       "Add many rows to a sheet at once",
       "Write rows from a generator",
@@ -10550,7 +10550,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/addtable/": {
     "feature": "Novis\\Spreadsheet\\Sheet::addTable",
-    "hash": "4276e4ffff3587dd",
+    "hash": "b822939ecd2b5eeb",
     "questions": [
       "Make an Excel table with filter buttons",
       "Add a totals row with sum or average",
@@ -10560,7 +10560,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/addvalidation/": {
     "feature": "Novis\\Spreadsheet\\Sheet::addValidation",
-    "hash": "c37915d383c47167",
+    "hash": "77a81f5dd04800fa",
     "questions": [
       "Limit a whole column to a list of choices",
       "Allow only whole numbers between two limits",
@@ -10572,7 +10572,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/cell/": {
     "feature": "Novis\\Spreadsheet\\Sheet::cell",
-    "hash": "f24703450d0f7990",
+    "hash": "38eaf34f47eaf3b6",
     "questions": [
       "Get the address of a cell such as C7",
       "Use a cell address in a formula",
@@ -10583,7 +10583,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/column/": {
     "feature": "Novis\\Spreadsheet\\Sheet::column",
-    "hash": "613f078354c52e42",
+    "hash": "c8beaf583a3c454b",
     "questions": [
       "Get the range of a column such as C2:C1043",
       "Add a total row with SUM over a column",
@@ -10594,7 +10594,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/constructor/": {
     "feature": "Novis\\Spreadsheet\\Sheet::constructor",
-    "hash": "1849c821da2a5739",
+    "hash": "72c389da08d22c8c",
     "questions": [
       "Can I create a sheet with new Sheet?",
       "How is a sheet connected to its workbook?",
@@ -10604,7 +10604,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/mergecells/": {
     "feature": "Novis\\Spreadsheet\\Sheet::mergeCells",
-    "hash": "8765e36449d24d33",
+    "hash": "8d8adbcd3a4c75d6",
     "questions": [
       "Merge cells for a title over three columns",
       "Join cells A1 to C1",
@@ -10614,7 +10614,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/protect/": {
     "feature": "Novis\\Spreadsheet\\Sheet::protect",
-    "hash": "741c3ff5ef9e5251",
+    "hash": "3d704ccaa1ef5e40",
     "questions": [
       "Lock a sheet so people cannot change it",
       "Allow sorting and filters on a locked sheet",
@@ -10624,7 +10624,7 @@
   },
   "/reference/core/novis-spreadsheet-sheet/setprintoptions/": {
     "feature": "Novis\\Spreadsheet\\Sheet::setPrintOptions",
-    "hash": "2f8be4db5ab34452",
+    "hash": "f414bd91669f6dd5",
     "questions": [
       "Print a wide report on one page",
       "Repeat the header row on every printed page",
@@ -10655,7 +10655,7 @@
   },
   "/reference/core/novis-spreadsheet-style/of/": {
     "feature": "Novis\\Spreadsheet\\Style::of",
-    "hash": "1b193adc47f3accc",
+    "hash": "a5fe3054ed542302",
     "questions": [
       "Make text bold in an Excel cell",
       "Set a background color and border",
@@ -10676,7 +10676,7 @@
   },
   "/reference/core/novis-spreadsheet-template/fill/": {
     "feature": "Novis\\Spreadsheet\\Template::fill",
-    "hash": "226a2dddfe5ccf20",
+    "hash": "baee62ae8619527c",
     "questions": [
       "Fill placeholders with my data",
       "Repeat a row for each item in a list",
@@ -10688,7 +10688,7 @@
   },
   "/reference/core/novis-spreadsheet-template/open/": {
     "feature": "Novis\\Spreadsheet\\Template::open",
-    "hash": "1be44d9d76cae735",
+    "hash": "d76fc4197cb6c060",
     "questions": [
       "Open an xlsx template",
       "Fill the same template for each customer",
@@ -10699,7 +10699,7 @@
   },
   "/reference/core/novis-spreadsheet-template/set/": {
     "feature": "Novis\\Spreadsheet\\Template::set",
-    "hash": "aac92f4d8fbf210c",
+    "hash": "eee5981a33f29b37",
     "questions": [
       "Write a value into one cell of a template",
       "Set a title cell by its address",
@@ -10709,7 +10709,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/": {
     "feature": "Novis\\Spreadsheet\\Workbook",
-    "hash": "b2e85196abb7706a",
+    "hash": "f390554789c0ea14",
     "questions": [
       "Create an Excel file row by row",
       "Write a CSV, xlsx or ods file",
@@ -10720,7 +10720,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/addsheet/": {
     "feature": "Novis\\Spreadsheet\\Workbook::addSheet",
-    "hash": "6b304f7ffc3ad1d3",
+    "hash": "59f773b6126f1a93",
     "questions": [
       "Add a second sheet to a workbook",
       "Rules for sheet names",
@@ -10732,7 +10732,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createfordownload/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createForDownload",
-    "hash": "ec2799cbd967cded",
+    "hash": "2df0cc898fb8c766",
     "questions": [
       "Stream an Excel download to the browser",
       "Large CSV export download without memory problems",
@@ -10743,7 +10743,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createforfile/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createForFile",
-    "hash": "878ae2a69d87da13",
+    "hash": "5f72ef4ac732bb5c",
     "questions": [
       "Write an Excel file to a path row by row",
       "Is the old file kept when writing the new one fails?",
@@ -10755,7 +10755,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createforstream/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createForStream",
-    "hash": "e91cf1816387d9e7",
+    "hash": "3baba62df124700d",
     "questions": [
       "Stream rows into a file I opened myself",
       "Write two exports into one file",
@@ -10765,7 +10765,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/createinmemory/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createInMemory",
-    "hash": "162612c91089ea2e",
+    "hash": "05ae78043711886a",
     "questions": [
       "Make an Excel file in memory",
       "Build a CSV in memory and get the bytes",
@@ -10775,7 +10775,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/definename/": {
     "feature": "Novis\\Spreadsheet\\Workbook::defineName",
-    "hash": "d2279e996b92ba26",
+    "hash": "1575350e23b1361f",
     "questions": [
       "Give a range a name for formulas",
       "Create a named range",
@@ -10787,7 +10787,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/finish/": {
     "feature": "Novis\\Spreadsheet\\Workbook::finish",
-    "hash": "6949d840c0a068dc",
+    "hash": "a5d6e32561d9758e",
     "questions": [
       "End a spreadsheet and get the row count",
       "Why is my Excel file not valid?",
@@ -10797,7 +10797,7 @@
   },
   "/reference/core/novis-spreadsheet-workbook/fromrows/": {
     "feature": "Novis\\Spreadsheet\\Workbook::fromRows",
-    "hash": "2686e177acd1c046",
+    "hash": "fa176ab4c0185f1c",
     "questions": [
       "Export an array of rows to Excel in one call",
       "Quick CSV export from a list",
@@ -10931,7 +10931,7 @@
   },
   "/reference/core/objectset/": {
     "feature": "Core\\ObjectSet",
-    "hash": "ef59d780801c522b",
+    "hash": "b7ebd3a8034c5c1a",
     "questions": [
       "How do I keep a collection of unique objects?",
       "Set of objects compared by identity",
@@ -10971,7 +10971,7 @@
   },
   "/reference/core/objectset/difference/": {
     "feature": "Core\\ObjectSet::difference",
-    "hash": "99141261a756e7b9",
+    "hash": "b1373af38e838a20",
     "questions": [
       "How do I find objects in one set but not in another?",
       "Which guests have not answered the invitation yet?",
@@ -10991,7 +10991,7 @@
   },
   "/reference/core/objectset/intersection/": {
     "feature": "Core\\ObjectSet::intersection",
-    "hash": "89f03d863f906fb9",
+    "hash": "68a66ff5aa64a32d",
     "questions": [
       "How do I find objects that are in both sets?",
       "Common values of two object sets",
@@ -11132,7 +11132,7 @@
   },
   "/reference/core/passkey/registeroptions/": {
     "feature": "Core\\Passkey::registerOptions",
-    "hash": "7e3aef97051d8969",
+    "hash": "da656c744c0ffc0a",
     "questions": [
       "How do I create the options for navigator.credentials.create()?",
       "Start adding a passkey to a user account",
@@ -11142,7 +11142,7 @@
   },
   "/reference/core/passkey/signinoptions/": {
     "feature": "Core\\Passkey::signInOptions",
-    "hash": "f38e4c336d7d9d58",
+    "hash": "1b8e76ddf21310f7",
     "questions": [
       "How do I create the options for navigator.credentials.get()?",
       "Start a passkey sign-in on the server",
@@ -11152,7 +11152,7 @@
   },
   "/reference/core/passkey/verifyregistration/": {
     "feature": "Core\\Passkey::verifyRegistration",
-    "hash": "798ffe42fb0c76fa",
+    "hash": "9d1bf9dd8fde8229",
     "questions": [
       "How do I check a new passkey the browser created?",
       "Verify a WebAuthn registration response on the server",
@@ -11162,7 +11162,7 @@
   },
   "/reference/core/passkey/verifysignin/": {
     "feature": "Core\\Passkey::verifySignIn",
-    "hash": "9a927bd9d4439d1d",
+    "hash": "69fa464ec1b02662",
     "questions": [
       "How do I verify a passkey sign-in?",
       "Check a WebAuthn assertion signature against a saved key",
@@ -11273,7 +11273,7 @@
   },
   "/reference/core/path/": {
     "feature": "Core\\Path",
-    "hash": "749655d56288a80a",
+    "hash": "c53b8304f0d27b04",
     "questions": [
       "How do I work with file paths as text?",
       "Build and take apart file and folder paths",
@@ -11293,7 +11293,7 @@
   },
   "/reference/core/path/filename/": {
     "feature": "Core\\Path::fileName",
-    "hash": "7ad21ec3f74bc357",
+    "hash": "67914067680f32af",
     "questions": [
       "How do I get the file name from a full path?",
       "Get the file name without its extension",
@@ -11303,7 +11303,7 @@
   },
   "/reference/core/path/fromworkingdirectory/": {
     "feature": "Core\\Path::fromWorkingDirectory",
-    "hash": "b36a0576b77c098d",
+    "hash": "9dacc8e8ae06a4f5",
     "questions": [
       "How do I turn a file name the user typed into a full path?",
       "Path relative to the current working directory",
@@ -11343,7 +11343,7 @@
   },
   "/reference/core/path/parent/": {
     "feature": "Core\\Path::parent",
-    "hash": "31cca34619d7a299",
+    "hash": "0f5753c4f9f95773",
     "questions": [
       "How do I get the folder that contains a file?",
       "Go up two folders from a path",
@@ -11353,7 +11353,7 @@
   },
   "/reference/core/path/relativeto/": {
     "feature": "Core\\Path::relativeTo",
-    "hash": "a244f26212298f82",
+    "hash": "347c3430e2e56caf",
     "questions": [
       "How do I get the relative path between two folders?",
       "Path from one file to another",
@@ -11373,7 +11373,7 @@
   },
   "/reference/core/path/thisdirectory/": {
     "feature": "Core\\Path::thisDirectory",
-    "hash": "da2c93f300735f0c",
+    "hash": "7af26e7534cab039",
     "questions": [
       "How do I get the folder of the current script?",
       "Load a data file that sits beside my program",
@@ -11383,7 +11383,7 @@
   },
   "/reference/core/path/thisfile/": {
     "feature": "Core\\Path::thisFile",
-    "hash": "2347404cf346c176",
+    "hash": "60c60261ffda24a0",
     "questions": [
       "How do I get the full path of the current source file?",
       "Print the name of the running script",
@@ -11393,7 +11393,7 @@
   },
   "/reference/core/path/withextension/": {
     "feature": "Core\\Path::withExtension",
-    "hash": "a8b571e4e293baa3",
+    "hash": "b908dd6df53a8941",
     "questions": [
       "How do I change the extension of a file name?",
       "Replace .csv with .xlsx in a path",
@@ -11414,7 +11414,7 @@
   },
   "/reference/core/process/run/": {
     "feature": "Core\\Process::run",
-    "hash": "312bc3a296ccb07c",
+    "hash": "1867ed3212a80dac",
     "questions": [
       "How do I run another program and read its output?",
       "Run a command and wait until it finishes",
@@ -11426,7 +11426,7 @@
   },
   "/reference/core/process/spawn/": {
     "feature": "Core\\Process::spawn",
-    "hash": "5c1064e7bb12164f",
+    "hash": "ddc78658d2d8eb8a",
     "questions": [
       "How do I start a program in the background and keep going?",
       "Read a program's output while it is still running",
@@ -11607,7 +11607,7 @@
   },
   "/reference/core/queue/cancel/": {
     "feature": "Core\\Queue::cancel",
-    "hash": "93f36d63702ec292",
+    "hash": "e5b27d02952428ed",
     "questions": [
       "How do I cancel a background job before it runs?",
       "Stop a scheduled job that has not started",
@@ -11618,7 +11618,7 @@
   },
   "/reference/core/queue/delete/": {
     "feature": "Core\\Queue::delete",
-    "hash": "c9dbab93794c3406",
+    "hash": "8810fcfa5ea19d15",
     "questions": [
       "How do I remove one job row from the database?",
       "Delete the jobs of a user who deleted their account",
@@ -11629,7 +11629,7 @@
   },
   "/reference/core/queue/purge/": {
     "feature": "Core\\Queue::purge",
-    "hash": "030944ec7b2527b2",
+    "hash": "92f31eac837ccc4e",
     "questions": [
       "How do I clean up old finished jobs?",
       "Delete many jobs from a queue at once",
@@ -11640,7 +11640,7 @@
   },
   "/reference/core/queue/push/": {
     "feature": "Core\\Queue::push",
-    "hash": "36df34947b8ed3a9",
+    "hash": "20b11dd323acc44f",
     "questions": [
       "How do I add a job to a background queue?",
       "Schedule a task to run later",
@@ -11652,7 +11652,7 @@
   },
   "/reference/core/queue/stats/": {
     "feature": "Core\\Queue::stats",
-    "hash": "87c600dd2cc599ed",
+    "hash": "fa4b7a4ab75d0c63",
     "questions": [
       "How many jobs are in my queue?",
       "Check the health of a background queue",
@@ -11662,7 +11662,7 @@
   },
   "/reference/core/queue/status/": {
     "feature": "Core\\Queue::status",
-    "hash": "f6defc49ded4967a",
+    "hash": "18d0e78af772b74d",
     "questions": [
       "How do I check if a background job has finished?",
       "Is my job still waiting or running?",
@@ -11695,7 +11695,7 @@
   },
   "/reference/core/queue-id/tostring/": {
     "feature": "Core\\Queue\\Id::toString",
-    "hash": "35cb1cf168fcb686",
+    "hash": "a845178fffd68bc4",
     "questions": [
       "How do I convert a job id to a string?",
       "Put a job id in a link or a JSON response",
@@ -11705,7 +11705,7 @@
   },
   "/reference/core/queue-id/tryparse/": {
     "feature": "Core\\Queue\\Id::tryParse",
-    "hash": "c78e0063ead1556f",
+    "hash": "ba1a6d4a5590e6e7",
     "questions": [
       "How do I check if a string is a valid job id?",
       "Get null instead of an error for a wrong job id",
@@ -11726,7 +11726,7 @@
   },
   "/reference/core/queue-stats/attempts/": {
     "feature": "Core\\Queue\\Stats::attempts",
-    "hash": "650ba01d77d74faf",
+    "hash": "b7b829e31cb3ba3f",
     "questions": [
       "How many times have the jobs in a queue started?",
       "Count retries in a queue",
@@ -11736,7 +11736,7 @@
   },
   "/reference/core/queue-stats/claimed/": {
     "feature": "Core\\Queue\\Stats::claimed",
-    "hash": "75dec107296eaf93",
+    "hash": "67d61ed9b8e7225d",
     "questions": [
       "How many jobs are running right now?",
       "Are all my workers busy?",
@@ -11766,7 +11766,7 @@
   },
   "/reference/core/queue-stats/nontransactional/": {
     "feature": "Core\\Queue\\Stats::nonTransactional",
-    "hash": "4d899d0fd4f2e471",
+    "hash": "44cd1219ea0872f5",
     "questions": [
       "Jobs pushed inside a transaction of another database",
       "Does a rollback remove a job saved on a different connection?",
@@ -11777,7 +11777,7 @@
   },
   "/reference/core/queue-stats/pending/": {
     "feature": "Core\\Queue\\Stats::pending",
-    "hash": "a308e4a4d4c51de1",
+    "hash": "1f0a809901d92d66",
     "questions": [
       "How many jobs are waiting for a worker?",
       "Warn when too many jobs wait in a queue",
@@ -11948,7 +11948,7 @@
   },
   "/reference/core/ratelimit/": {
     "feature": "Core\\RateLimit",
-    "hash": "af19f99f2dc72ed2",
+    "hash": "79a58f2c5a2fba6a",
     "questions": [
       "How do I add rate limiting to my web server?",
       "Throttle requests per user or per API key",
@@ -11959,7 +11959,7 @@
   },
   "/reference/core/ratelimit/consume/": {
     "feature": "Core\\RateLimit::consume",
-    "hash": "19455b329066bf50",
+    "hash": "5b76003b0c0325c2",
     "questions": [
       "How do I limit login attempts to 5 per 15 minutes?",
       "Enforce an API quota across all servers",
@@ -11968,9 +11968,9 @@
       "What happens when the rate limit store is down?"
     ]
   },
-  "/reference/core/ratelimit/shed/": {
+  "/reference/core/ratelimit/consumelocally/": {
     "feature": "Core\\RateLimit::consumeLocally",
-    "hash": "b79f7e391c6093c4",
+    "hash": "bd7f0b6871e5976c",
     "questions": [
       "Shed load quickly when a server gets too many requests",
       "Fast rate limit without a shared store",
@@ -11981,7 +11981,7 @@
   },
   "/reference/core/ratelimit-decision/": {
     "feature": "Core\\RateLimit\\Decision",
-    "hash": "4988719d3a6b5dd8",
+    "hash": "4b30828fd227a7d6",
     "questions": [
       "What does a rate limit check return?",
       "Build RateLimit response headers from a limit result",
@@ -11991,7 +11991,7 @@
   },
   "/reference/core/ratelimit-decision/isallowed/": {
     "feature": "Core\\RateLimit\\Decision::isAllowed",
-    "hash": "9220f2f052bad6d0",
+    "hash": "1c6d9db63afe857a",
     "questions": [
       "How do I check if a request was over the limit?",
       "Was this call inside the rate limit?",
@@ -12001,7 +12001,7 @@
   },
   "/reference/core/ratelimit-decision/limit/": {
     "feature": "Core\\RateLimit\\Decision::limit",
-    "hash": "c77dda8354fdc218",
+    "hash": "a4ae08869db22b98",
     "questions": [
       "Write the RateLimit-Limit header",
       "Get the maximum number of requests from a limit result",
@@ -12011,7 +12011,7 @@
   },
   "/reference/core/ratelimit-decision/remaining/": {
     "feature": "Core\\RateLimit\\Decision::remaining",
-    "hash": "869caed7d31e8e5a",
+    "hash": "8ac8264baacf977a",
     "questions": [
       "How many requests does a user have left?",
       "Write the RateLimit-Remaining header",
@@ -12021,7 +12021,7 @@
   },
   "/reference/core/ratelimit-decision/retryafter/": {
     "feature": "Core\\RateLimit\\Decision::retryAfter",
-    "hash": "f69d73546c83a580",
+    "hash": "199af312da3d202a",
     "questions": [
       "How long must a client wait before trying again?",
       "Set the Retry-After header for status 429",
@@ -12688,7 +12688,7 @@
   },
   "/reference/core/request/": {
     "feature": "Core\\Request",
-    "hash": "7470d4dd948ea199",
+    "hash": "ec5469c50e568228",
     "questions": [
       "How do I read the incoming HTTP request?",
       "Get the method, path, headers and body of a web request",
@@ -12750,7 +12750,7 @@
   },
   "/reference/core/request/files/": {
     "feature": "Core\\Request::files",
-    "hash": "990d7a33c5a7af59",
+    "hash": "907e2e9a0d7a765e",
     "questions": [
       "How do I handle file uploads from a form?",
       "Loop over the files a form uploaded",
@@ -12762,7 +12762,7 @@
   },
   "/reference/core/request/formfield/": {
     "feature": "Core\\Request::formField",
-    "hash": "c8f188110064c07f",
+    "hash": "13c842c38731c157",
     "questions": [
       "How do I read a form field sent by POST?",
       "Get a value from a submitted HTML form",
@@ -12773,7 +12773,7 @@
   },
   "/reference/core/request/formfields/": {
     "feature": "Core\\Request::formFields",
-    "hash": "28e5c0928b2fb0bc",
+    "hash": "15c7c111994b4665",
     "questions": [
       "Read form fields with square brackets in the name",
       "Read a list of values posted from one form field",
@@ -12783,7 +12783,7 @@
   },
   "/reference/core/request/formfieldsas/": {
     "feature": "Core\\Request::formFieldsAs",
-    "hash": "3bced92800cdd850",
+    "hash": "619c52dd149c8458",
     "questions": [
       "How do I read a whole form into a class?",
       "Validate a sign-up form and list every wrong field",
@@ -12890,7 +12890,7 @@
   },
   "/reference/core/request/queryparameter/": {
     "feature": "Core\\Request::queryParameter",
-    "hash": "2f2c768f7adf734a",
+    "hash": "0519a333a48a7a54",
     "questions": [
       "How do I read a URL parameter after the question mark?",
       "Get the search term from ?q= in the address",
@@ -12901,7 +12901,7 @@
   },
   "/reference/core/request/queryparameters/": {
     "feature": "Core\\Request::queryParameters",
-    "hash": "8f8e32fccaf10b57",
+    "hash": "34f6cf0fa01aa411",
     "questions": [
       "Read a list from the query string like tag[]=a",
       "Get several filter values from the URL",
@@ -12911,7 +12911,7 @@
   },
   "/reference/core/request/queryparametersas/": {
     "feature": "Core\\Request::queryParametersAs",
-    "hash": "964b81cbbabc4d49",
+    "hash": "d9e31a5e2a06d550",
     "questions": [
       "How do I read all URL parameters into a class?",
       "Validate search filters from the address",
@@ -12923,7 +12923,7 @@
   },
   "/reference/core/request/route/": {
     "feature": "Core\\Request::route",
-    "hash": "78eb315e85c6dba0",
+    "hash": "ec7304cb49a14982",
     "questions": [
       "How do I know which route this request matched?",
       "Read a URL placeholder like {id} from the route",
@@ -12956,7 +12956,7 @@
   },
   "/reference/core/request-bodystream/peek/": {
     "feature": "Core\\Request\\BodyStream::peek",
-    "hash": "75a1b70bdec9720a",
+    "hash": "f06c8082b318582a",
     "questions": [
       "How do I look at the start of the request body?",
       "Check the header row of a CSV body before saving it",
@@ -13041,7 +13041,7 @@
   },
   "/reference/core/request-part/filename/": {
     "feature": "Core\\Request\\Part::filename",
-    "hash": "b74f607cd16a0072",
+    "hash": "edc6a1457a21c1c3",
     "questions": [
       "How do I get the original name of an uploaded file?",
       "Is the uploaded file name safe to use as a path?",
@@ -13062,7 +13062,7 @@
   },
   "/reference/core/request-part/peek/": {
     "feature": "Core\\Request\\Part::peek",
-    "hash": "bf195ab70d2aab34",
+    "hash": "168ac04b6b82b374",
     "questions": [
       "How do I check the first bytes of an uploaded file?",
       "Read the first line of an uploaded CSV before saving it",
@@ -13085,7 +13085,7 @@
   },
   "/reference/core/request-part/saveto/": {
     "feature": "Core\\Request\\Part::saveTo",
-    "hash": "2f0de8c37e0b81e1",
+    "hash": "8da043c1127e3cdd",
     "questions": [
       "How do I save an uploaded file to disk?",
       "Store a large upload in a file without using much memory",
@@ -13107,7 +13107,7 @@
   },
   "/reference/core/response/": {
     "feature": "Core\\Response",
-    "hash": "677aea017fbf56a4",
+    "hash": "99e55f746c57ce52",
     "questions": [
       "How do I send a response back to the browser?",
       "Set the body, status and headers of an HTTP reply",
@@ -13117,7 +13117,7 @@
   },
   "/reference/core/response/addcookie/": {
     "feature": "Core\\Response::addCookie",
-    "hash": "dc89bd476cbb9de8",
+    "hash": "b7d7cfc3e0ecd7a3",
     "questions": [
       "How do I set a cookie in the browser?",
       "Create a secure HttpOnly session cookie",
@@ -13140,7 +13140,7 @@
   },
   "/reference/core/response/sendbytes/": {
     "feature": "Core\\Response::sendBytes",
-    "hash": "0cc8635052864826",
+    "hash": "d0f6ed6216d308ab",
     "questions": [
       "How do I send an image from memory as the response?",
       "Return a CSV report with a custom content type",
@@ -13150,7 +13150,7 @@
   },
   "/reference/core/response/sendfile/": {
     "feature": "Core\\Response::sendFile",
-    "hash": "73e8f95c34d7e74a",
+    "hash": "a892a41744bdeec8",
     "questions": [
       "How do I send a file from disk to the browser?",
       "What happens when one request sends two files?",
@@ -13162,7 +13162,7 @@
   },
   "/reference/core/response/sendhtml/": {
     "feature": "Core\\Response::sendHtml",
-    "hash": "20ba96f7591ea54f",
+    "hash": "aeebf7ecb9c37b93",
     "questions": [
       "How do I send an HTML page as the response?",
       "Return a web page built from a template",
@@ -13172,7 +13172,7 @@
   },
   "/reference/core/response/sendjson/": {
     "feature": "Core\\Response::sendJson",
-    "hash": "e6e1681f26af6776",
+    "hash": "3a76130b119e8eed",
     "questions": [
       "How do I return JSON from an API endpoint?",
       "Send an array or object as a JSON reply",
@@ -13182,7 +13182,7 @@
   },
   "/reference/core/response/sendslotted/": {
     "feature": "Core\\Response::sendSlotted",
-    "hash": "4d1c8c278cc6c7e3",
+    "hash": "13a7d4827cebc832",
     "questions": [
       "How do I show a page before its slow parts are ready?",
       "Send the page early and fill in late sections afterwards",
@@ -13193,7 +13193,7 @@
   },
   "/reference/core/response/sendtext/": {
     "feature": "Core\\Response::sendText",
-    "hash": "6de5c749a7b231ba",
+    "hash": "859be33e6ef0e79a",
     "questions": [
       "How do I send plain text as the response?",
       "Return a simple health check message",
@@ -13203,7 +13203,7 @@
   },
   "/reference/core/response/setheader/": {
     "feature": "Core\\Response::setHeader",
-    "hash": "c618bf8cfc940d6f",
+    "hash": "c932d5c85eb04412",
     "questions": [
       "How do I add a header to the response?",
       "Turn off browser caching for a page",
@@ -13214,7 +13214,7 @@
   },
   "/reference/core/response/setstatus/": {
     "feature": "Core\\Response::setStatus",
-    "hash": "3a57461b394446da",
+    "hash": "93cd176688802e3b",
     "questions": [
       "How do I return a 404 Not Found status?",
       "Change the HTTP status code of the response",
@@ -13224,7 +13224,7 @@
   },
   "/reference/core/response/startstream/": {
     "feature": "Core\\Response::startStream",
-    "hash": "5a6a8cb0663df9e9",
+    "hash": "81507c8929634cd5",
     "questions": [
       "How do I send a response in parts?",
       "Stream a large CSV export to the browser",
@@ -13234,7 +13234,7 @@
   },
   "/reference/core/response-stream/": {
     "feature": "Core\\Response\\Stream",
-    "hash": "9b2f076448724a53",
+    "hash": "7fdcc22f6477a253",
     "questions": [
       "What object do I get when I start a streamed response?",
       "When does a streamed response body end?",
@@ -13244,7 +13244,7 @@
   },
   "/reference/core/response-stream/end/": {
     "feature": "Core\\Response\\Stream::end",
-    "hash": "1a324aed4386a2cf",
+    "hash": "3b2aa2d787a0cea1",
     "questions": [
       "How do I finish a streamed response early?",
       "Close the response body and keep working",
@@ -13254,7 +13254,7 @@
   },
   "/reference/core/response-stream/length/": {
     "feature": "Core\\Response\\Stream::length",
-    "hash": "50246c1680cf855b",
+    "hash": "be57b62494332345",
     "questions": [
       "How many bytes must I write to the stream?",
       "Size of the part the browser requested",
@@ -13264,7 +13264,7 @@
   },
   "/reference/core/response-stream/offset/": {
     "feature": "Core\\Response\\Stream::offset",
-    "hash": "f5f1be4002c7c01c",
+    "hash": "10f80ebac33c1ef8",
     "questions": [
       "Where should I start writing for a Range request?",
       "Support video seeking in a streamed response",
@@ -13274,7 +13274,7 @@
   },
   "/reference/core/response-stream/write/": {
     "feature": "Core\\Response\\Stream::write",
-    "hash": "09f1c3a7c3be5027",
+    "hash": "14c8efb3c0a4eca2",
     "questions": [
       "How do I send the next piece of a streamed body?",
       "Write one chunk of data to an open response",
@@ -13295,7 +13295,7 @@
   },
   "/reference/core/router/dispatch/": {
     "feature": "Core\\Router::dispatch",
-    "hash": "030a6f7cc3ac0c09",
+    "hash": "995d473efc5b38fa",
     "questions": [
       "How do I call the right handler for each request?",
       "Run a login check before every route",
@@ -13306,7 +13306,7 @@
   },
   "/reference/core/router/match/": {
     "feature": "Core\\Router::match",
-    "hash": "c1cf7026d1b4666f",
+    "hash": "71d657715e194ad7",
     "questions": [
       "How do I find which route handles a given path?",
       "Look up a route from a method and a URL path",
@@ -13326,7 +13326,7 @@
   },
   "/reference/core/router/signedroute/": {
     "feature": "Core\\Router::signedRoute",
-    "hash": "b3a62661f1a6a67e",
+    "hash": "ecbcaeea8ff309dd",
     "questions": [
       "How do I check a signed link when the request arrives?",
       "Reject a link whose values were changed",
@@ -13369,7 +13369,7 @@
   },
   "/reference/core/router-match/": {
     "feature": "Core\\Router\\Match",
-    "hash": "7b266f5fcf840ad0",
+    "hash": "3491f225a6bd3fab",
     "questions": [
       "What information do I get about the matched route?",
       "What does a route match object contain?",
@@ -13410,7 +13410,7 @@
   },
   "/reference/core/router-match/is/": {
     "feature": "Core\\Router\\Match::is",
-    "hash": "bfa2365d9309b47f",
+    "hash": "07c6ab3208977389",
     "questions": [
       "How do I check which method the current route belongs to?",
       "Call different code for each route of my app",
@@ -13431,7 +13431,7 @@
   },
   "/reference/core/router-match/parameter/": {
     "feature": "Core\\Router\\Match::parameter",
-    "hash": "d1071816d8921d85",
+    "hash": "e88d3f2f202408a7",
     "questions": [
       "How do I read one value from the URL path?",
       "Get the id from a path like /users/42",
@@ -13441,7 +13441,7 @@
   },
   "/reference/core/router-match/parameters/": {
     "feature": "Core\\Router\\Match::parameters",
-    "hash": "4ace9c640551762c",
+    "hash": "c96aed60b67ba0c2",
     "questions": [
       "How do I get all values captured from the path?",
       "List every path parameter of a request as an array",
@@ -13451,7 +13451,7 @@
   },
   "/reference/core/script/": {
     "feature": "Core\\Script",
-    "hash": "68d3b8bc23083639",
+    "hash": "15fbc8db08a54f5e",
     "questions": [
       "How do I control the script that is running now?",
       "Run code at the end of a script or stop it early",
@@ -13461,7 +13461,7 @@
   },
   "/reference/core/script/arguments/": {
     "feature": "Core\\Script::arguments",
-    "hash": "0c944197ded68391",
+    "hash": "010dfa79f957f835",
     "questions": [
       "How do I pass data to a script I start from another?",
       "Read the arguments a parent script gave this script",
@@ -13471,7 +13471,7 @@
   },
   "/reference/core/script/finish/": {
     "feature": "Core\\Script::finish",
-    "hash": "18733efd5440090e",
+    "hash": "6f269f0e321d801e",
     "questions": [
       "How do I stop a script early without an error?",
       "End a request handler once the response is complete",
@@ -13596,7 +13596,7 @@
   },
   "/reference/core/serialize/decode/": {
     "feature": "Core\\Serialize::decode",
-    "hash": "1fa1b7146ed637b0",
+    "hash": "3faa2f1bf39e61f6",
     "questions": [
       "How do I load an object back from saved bytes?",
       "Rebuild an array or object from stored data",
@@ -13630,7 +13630,7 @@
   },
   "/reference/core/server/isdraining/": {
     "feature": "Core\\Server::isDraining",
-    "hash": "ddc49366354f4849",
+    "hash": "54b5e16d4d75f9c2",
     "questions": [
       "How do I know if the server is shutting down?",
       "Write a health check for a load balancer",
@@ -13665,7 +13665,7 @@
   },
   "/reference/core/session/clearall/": {
     "feature": "Core\\Session::clearAll",
-    "hash": "e9cf9bff4c39abcb",
+    "hash": "1a907b7d67d1fd35",
     "questions": [
       "How do I delete a session completely?",
       "End the session and delete all of its data",
@@ -13676,7 +13676,7 @@
   },
   "/reference/core/session/clearlonglived/": {
     "feature": "Core\\Session::clearLongLived",
-    "hash": "99add0c783196206",
+    "hash": "e33ea9942c05bad6",
     "questions": [
       "How do I forget the choices a visitor saved?",
       "Reset saved preferences and keep the user signed in",
@@ -13686,7 +13686,7 @@
   },
   "/reference/core/session/clearshortlived/": {
     "feature": "Core\\Session::clearShortLived",
-    "hash": "1f4647d389d0afd4",
+    "hash": "51663dce87d49230",
     "questions": [
       "How do I log a user out?",
       "Build a sign-out page",
@@ -13696,7 +13696,7 @@
   },
   "/reference/core/session/get/": {
     "feature": "Core\\Session::get",
-    "hash": "a1f1decbc7abf4e6",
+    "hash": "09ab731a9334bf81",
     "questions": [
       "How do I read a value saved in the session?",
       "Get a value from the session with a default",
@@ -13707,7 +13707,7 @@
   },
   "/reference/core/session/getsecret/": {
     "feature": "Core\\Session::getSecret",
-    "hash": "23e961075dac0482",
+    "hash": "ed89f33673e35871",
     "questions": [
       "How do I read an encrypted value from the session?",
       "Load the user's access token for this request",
@@ -13717,7 +13717,7 @@
   },
   "/reference/core/session/openwithidentifier/": {
     "feature": "Core\\Session::openWithIdentifier",
-    "hash": "64f53fcbeebea6d5",
+    "hash": "cecab94a81f43d73",
     "questions": [
       "How do I read the session id from a header?",
       "Use sessions in an API without cookies",
@@ -13727,7 +13727,7 @@
   },
   "/reference/core/session/regenerate/": {
     "feature": "Core\\Session::regenerate",
-    "hash": "462cf77210eea262",
+    "hash": "fa224d626c034609",
     "questions": [
       "How do I change the session id after login?",
       "Prevent session fixation attacks",
@@ -13738,7 +13738,7 @@
   },
   "/reference/core/session/remove/": {
     "feature": "Core\\Session::remove",
-    "hash": "e053eeac2811d0ff",
+    "hash": "4c2503dfe7028036",
     "questions": [
       "How do I delete one value from the session?",
       "Show a message only once and then forget it",
@@ -13748,7 +13748,7 @@
   },
   "/reference/core/session/setlonglived/": {
     "feature": "Core\\Session::setLongLived",
-    "hash": "84998294d1a9be06",
+    "hash": "3bb95c492571c0ab",
     "questions": [
       "How do I remember a choice after the browser closes?",
       "Keep the language a visitor chose for months",
@@ -13759,7 +13759,7 @@
   },
   "/reference/core/session/setlonglivedsecret/": {
     "feature": "Core\\Session::setLongLivedSecret",
-    "hash": "605f45e5e73dc6ee",
+    "hash": "5b6bbf0888710177",
     "questions": [
       "How do I keep an encrypted value after the browser closes?",
       "Store an API key for a visitor for months",
@@ -13769,7 +13769,7 @@
   },
   "/reference/core/session/setshortlived/": {
     "feature": "Core\\Session::setShortLived",
-    "hash": "9d66eb24f00941ef",
+    "hash": "0a25d0b48634f3cf",
     "questions": [
       "How do I save a value in the session?",
       "Keep a user signed in until the browser closes",
@@ -13780,7 +13780,7 @@
   },
   "/reference/core/session/setshortlivedsecret/": {
     "feature": "Core\\Session::setShortLivedSecret",
-    "hash": "5c9bce063cec5647",
+    "hash": "65286a5c3fa6de59",
     "questions": [
       "How do I store an access token safely in the session?",
       "Encrypt a value before it goes into the session store",
@@ -13925,7 +13925,7 @@
   },
   "/reference/core/socket/upgrade/": {
     "feature": "Core\\Socket::upgrade",
-    "hash": "79d4239f9e653957",
+    "hash": "8083fb6b948a56c5",
     "questions": [
       "How do I accept a WebSocket connection in a request?",
       "Switch an HTTP request to a WebSocket",
@@ -13986,7 +13986,7 @@
   },
   "/reference/core/sse/": {
     "feature": "Core\\Sse",
-    "hash": "05479390d9ff6219",
+    "hash": "6c16142483349d01",
     "questions": [
       "How do I use server-sent events?",
       "Push live updates from server to browser",
@@ -13996,7 +13996,7 @@
   },
   "/reference/core/sse/current/": {
     "feature": "Core\\Sse::current",
-    "hash": "4e5f2dca66a92972",
+    "hash": "c1032cdca209736a",
     "questions": [
       "How do I get the open event stream from a helper function?",
       "Send an event from code that did not open the stream",
@@ -14006,7 +14006,7 @@
   },
   "/reference/core/sse/receive/": {
     "feature": "Core\\Sse::receive",
-    "hash": "e789fe434820fac3",
+    "hash": "20bea644448fdec1",
     "questions": [
       "How do I wait for published updates in an event stream?",
       "Forward every topic update to the browser",
@@ -14017,7 +14017,7 @@
   },
   "/reference/core/sse/send/": {
     "feature": "Core\\Sse::send",
-    "hash": "1a71d38be4bad8cf",
+    "hash": "c4d5ec272426a1b8",
     "questions": [
       "How do I send an event to the browser?",
       "Push JSON data with a named event",
@@ -14027,7 +14027,7 @@
   },
   "/reference/core/sse/setretrydelay/": {
     "feature": "Core\\Sse::setRetryDelay",
-    "hash": "5c0d93d93a60e453",
+    "hash": "cde11f8e62ce6314",
     "questions": [
       "How do I set the reconnect delay for EventSource?",
       "Tell the browser to wait before it reconnects",
@@ -14037,7 +14037,7 @@
   },
   "/reference/core/sse/startstream/": {
     "feature": "Core\\Sse::startStream",
-    "hash": "1662ca830cf88617",
+    "hash": "69bbb24b1bd2f21d",
     "questions": [
       "How do I answer a request with a stream of events?",
       "Send progress updates during a single request",
@@ -14047,7 +14047,7 @@
   },
   "/reference/core/sse/upgrade/": {
     "feature": "Core\\Sse::upgrade",
-    "hash": "fafa9c73f0c3fdac",
+    "hash": "7f5faf80fae2f046",
     "questions": [
       "How do I keep an event stream open after the request ends?",
       "Long-lived notifications stream for a signed-in user",
@@ -14633,7 +14633,7 @@
   },
   "/reference/core/task/": {
     "feature": "Core\\Task",
-    "hash": "c4eb8afdd14908e5",
+    "hash": "b37c2a02458a90da",
     "questions": [
       "How do I run several things at the same time?",
       "Run work in parallel and wait for all of it",
@@ -14666,7 +14666,7 @@
   },
   "/reference/core/task/runafterresponse/": {
     "feature": "Core\\Task::runAfterResponse",
-    "hash": "ddd6c4ee74a0bee6",
+    "hash": "9ce6ded4a73ecd9a",
     "questions": [
       "How do I send an email after the response is sent?",
       "Run code in the background so the visitor does not wait",
@@ -14707,7 +14707,7 @@
   },
   "/reference/core/test/": {
     "feature": "Core\\Test",
-    "hash": "152d14f5fb79adf6",
+    "hash": "04d4df95286d3487",
     "questions": [
       "How do I write unit tests in Novis?",
       "Check results inside a test method",
@@ -14730,7 +14730,7 @@
   },
   "/reference/core/test/answercli/": {
     "feature": "Core\\Test::answerCli",
-    "hash": "f72a248152626944",
+    "hash": "edac871d1f8f80e4",
     "questions": [
       "How do I test a command-line program that prompts for input?",
       "Give typed replies to prompts in a test",
@@ -14740,7 +14740,7 @@
   },
   "/reference/core/test/answerhttp/": {
     "feature": "Core\\Test::answerHttp",
-    "hash": "faa1e9286e8ed02f",
+    "hash": "fc6c683c0f6a5a5d",
     "questions": [
       "How do I fake an HTTP API reply in a test?",
       "Mock an external web service response",
@@ -14751,7 +14751,7 @@
   },
   "/reference/core/test/answersocket/": {
     "feature": "Core\\Test::answerSocket",
-    "hash": "1451684336baf767",
+    "hash": "76e5a1667897ec00",
     "questions": [
       "How do I fake a WebSocket server in a test?",
       "Send scripted messages to my WebSocket client",
@@ -14932,7 +14932,7 @@
   },
   "/reference/core/test/request/": {
     "feature": "Core\\Test::request",
-    "hash": "e45eab2c2c3dca12",
+    "hash": "c0ac7935a753c363",
     "questions": [
       "How do I test a route of my web app?",
       "Send a fake HTTP request to my own program",
@@ -14966,7 +14966,7 @@
   },
   "/reference/core/test/sentmail/": {
     "feature": "Core\\Test::sentMail",
-    "hash": "f0599dd75984b04a",
+    "hash": "6eb2017324e77d19",
     "questions": [
       "How do I check which emails my code sent in a test?",
       "Does CoreMail::send reach a real person under nvs test?",
@@ -14997,7 +14997,7 @@
   },
   "/reference/core/test/tlssession/": {
     "feature": "Core\\Test::tlsSession",
-    "hash": "00e83a0a72a955f6",
+    "hash": "77f5de9ed0a153a4",
     "questions": [
       "How do I fake an HTTPS certificate in a test?",
       "Test code that reads TLS version and cipher",
@@ -15037,7 +15037,7 @@
   },
   "/reference/core/test-logrecord/message/": {
     "feature": "Core\\Test\\LogRecord::message",
-    "hash": "1387ebb4869c3734",
+    "hash": "15d2a2f1fd3e994b",
     "questions": [
       "How do I read the text of a log line in a test?",
       "Check the message my code logged",
@@ -15047,7 +15047,7 @@
   },
   "/reference/core/test-outcome/": {
     "feature": "Core\\Test\\Outcome",
-    "hash": "67bf00bc9a9724ce",
+    "hash": "5ecadd2cce79b2e1",
     "questions": [
       "Find out how a single test run ended",
       "Parameter type for an AfterEachTest method",
@@ -15057,7 +15057,7 @@
   },
   "/reference/core/test-outcome/attempt/": {
     "feature": "Core\\Test\\Outcome::attempt",
-    "hash": "99c087cc5984aea6",
+    "hash": "8cad8f9b07963c88",
     "questions": [
       "Which retry of a test is running?",
       "Keep a log file for every retry of a test",
@@ -15067,7 +15067,7 @@
   },
   "/reference/core/test-outcome/class/": {
     "feature": "Core\\Test\\Outcome::class",
-    "hash": "7419eace27b31550",
+    "hash": "ebfa4eee90450a96",
     "questions": [
       "Get the test class name after each test",
       "Build a label from the test class and method",
@@ -15077,7 +15077,7 @@
   },
   "/reference/core/test-outcome/failures/": {
     "feature": "Core\\Test\\Outcome::failures",
-    "hash": "9bac34667be11e7a",
+    "hash": "1ce981806843f1f5",
     "questions": [
       "Get the failure messages of a test run",
       "Write test failure messages to a log file",
@@ -15087,7 +15087,7 @@
   },
   "/reference/core/test-outcome/haspassed/": {
     "feature": "Core\\Test\\Outcome::hasPassed",
-    "hash": "f332e1a62e9e382c",
+    "hash": "b7a860f152d0a56a",
     "questions": [
       "Check whether one test run passed",
       "Keep files only when a test fails",
@@ -15097,7 +15097,7 @@
   },
   "/reference/core/test-outcome/name/": {
     "feature": "Core\\Test\\Outcome::name",
-    "hash": "c6162c2fb9968a95",
+    "hash": "d07886bc824aad4c",
     "questions": [
       "Get the name of the test method that just ran",
       "Name a file after the current test",
@@ -15119,7 +15119,7 @@
   },
   "/reference/core/test-response/body/": {
     "feature": "Core\\Test\\Response::body",
-    "hash": "58fcee60d33cc802",
+    "hash": "822fb4bcb8ac3f08",
     "questions": [
       "How do I read the page text my app returned in a test?",
       "Get the HTML output of a route in a test",
@@ -15130,7 +15130,7 @@
   },
   "/reference/core/test-response/bytes/": {
     "feature": "Core\\Test\\Response::bytes",
-    "hash": "4d7834cee7303df7",
+    "hash": "ce7e3ae627bef0b1",
     "questions": [
       "How do I test a route that returns a PDF?",
       "Compare a downloaded file with the file I expect in a test",
@@ -15161,7 +15161,7 @@
   },
   "/reference/core/test-response/header/": {
     "feature": "Core\\Test\\Response::header",
-    "hash": "5dfd95d919b96fd1",
+    "hash": "3feb596012e7bf5d",
     "questions": [
       "How do I read one header of my app's reply in a test?",
       "Check the content type of a page in a test",
@@ -15181,7 +15181,7 @@
   },
   "/reference/core/test-response/json/": {
     "feature": "Core\\Test\\Response::json",
-    "hash": "a920757e7ee89431",
+    "hash": "c93caf6c7462f27c",
     "questions": [
       "How do I decode the JSON my endpoint returned in a test?",
       "Check values in an API reply during a test",
@@ -15191,7 +15191,7 @@
   },
   "/reference/core/test-response/jsonas/": {
     "feature": "Core\\Test\\Response::jsonAs",
-    "hash": "9dbd4bf0ca0d6e58",
+    "hash": "fa085f43e51a67fd",
     "questions": [
       "How do I turn an API reply into a class in a test?",
       "Read a JSON list from my endpoint into objects",
@@ -15273,7 +15273,7 @@
   },
   "/reference/core/test-sentmail/bcc/": {
     "feature": "Core\\Test\\SentMail::bcc",
-    "hash": "1327efef4785907e",
+    "hash": "a2027e95148b8cd3",
     "questions": [
       "How do I check the hidden recipients of an email in a test?",
       "Test that a mail was sent as a blind copy",
@@ -15283,7 +15283,7 @@
   },
   "/reference/core/test-sentmail/cc/": {
     "feature": "Core\\Test\\SentMail::cc",
-    "hash": "c675ee22d64821d8",
+    "hash": "646b70ea1b05f8f8",
     "questions": [
       "How do I check the copy recipients of an email in a test?",
       "Test that a manager got a copy of the mail",
@@ -15313,7 +15313,7 @@
   },
   "/reference/core/test-sentmail/replyto/": {
     "feature": "Core\\Test\\SentMail::replyTo",
-    "hash": "2762b83778e625f5",
+    "hash": "02b2939e16897744",
     "questions": [
       "How do I check the reply address of an email in a test?",
       "Test that replies go to the support address",
@@ -15323,7 +15323,7 @@
   },
   "/reference/core/test-sentmail/subject/": {
     "feature": "Core\\Test\\SentMail::subject",
-    "hash": "2b794d353a6c003f",
+    "hash": "c22788427a43cf6d",
     "questions": [
       "How do I check the subject of an email in a test?",
       "Test the subject line of a welcome mail",
@@ -15333,7 +15333,7 @@
   },
   "/reference/core/test-sentmail/text/": {
     "feature": "Core\\Test\\SentMail::text",
-    "hash": "47c6f365c5198e13",
+    "hash": "0593d5c929ea5ef8",
     "questions": [
       "How do I check the text of an email in a test?",
       "Test that a mail contains a reset link",
@@ -15343,7 +15343,7 @@
   },
   "/reference/core/test-sentmail/to/": {
     "feature": "Core\\Test\\SentMail::to",
-    "hash": "00cbb73b922a34d6",
+    "hash": "ad0338e06f3be837",
     "questions": [
       "How do I check who an email was sent to in a test?",
       "Test the recipients of a sent mail",
@@ -15413,7 +15413,7 @@
   },
   "/reference/core/test-summary/class/": {
     "feature": "Core\\Test\\Summary::class",
-    "hash": "3eae0fe21951cdeb",
+    "hash": "41d12531d1c46646",
     "questions": [
       "Name of the test class in an AfterClass method",
       "Heading with the test class name in a class report",
@@ -15423,7 +15423,7 @@
   },
   "/reference/core/test-summary/failed/": {
     "feature": "Core\\Test\\Summary::failed",
-    "hash": "fed1cd1e78e3fb29",
+    "hash": "c6877d5d5f8cd788",
     "questions": [
       "How many tests in a class failed?",
       "Warn when any test in the class fails",
@@ -15433,7 +15433,7 @@
   },
   "/reference/core/test-summary/failedtests/": {
     "feature": "Core\\Test\\Summary::failedTests",
-    "hash": "4f6051e2a4c6c844",
+    "hash": "607427df92d9b26e",
     "questions": [
       "Get the names of all failed tests",
       "List failed tests one per line",
@@ -15453,7 +15453,7 @@
   },
   "/reference/core/test-summary/passed/": {
     "feature": "Core\\Test\\Summary::passed",
-    "hash": "c4289953f26caaff",
+    "hash": "61131c3a3e436540",
     "questions": [
       "How many tests in a class passed?",
       "Check that every test in the class passed",
@@ -15666,7 +15666,7 @@
   },
   "/reference/core/time-datetime/": {
     "feature": "Core\\Time\\DateTime",
-    "hash": "cf67044535f90424",
+    "hash": "b4f116064eb35bc1",
     "questions": [
       "How do I work with a date and time in a time zone?",
       "Store a local time such as a meeting in Berlin",
@@ -15720,7 +15720,7 @@
   },
   "/reference/core/time-datetime/difference/": {
     "feature": "Core\\Time\\DateTime::difference",
-    "hash": "5c7102f3e01e6814",
+    "hash": "b1e35fc2068e13d1",
     "questions": [
       "How do I calculate the difference between two dates and times?",
       "Calculate a person's age in years from a birthday",
@@ -15774,7 +15774,7 @@
   },
   "/reference/core/time-datetime/isleapyear/": {
     "feature": "Core\\Time\\DateTime::isLeapYear",
-    "hash": "b9a9b05ae9d31163",
+    "hash": "ef3798fd8e6d3330",
     "questions": [
       "How do I check if a year is a leap year?",
       "Does this year have 29 February?",
@@ -15796,7 +15796,7 @@
   },
   "/reference/core/time-datetime/minute/": {
     "feature": "Core\\Time\\DateTime::minute",
-    "hash": "a80f0558d75b5950",
+    "hash": "3ee59e274b70bc1f",
     "questions": [
       "How do I get the minutes from a date and time?",
       "Read the minute from 0 to 59 of a timestamp",
@@ -15816,7 +15816,7 @@
   },
   "/reference/core/time-datetime/nanoseconds/": {
     "feature": "Core\\Time\\DateTime::nanoseconds",
-    "hash": "b69d682a2aa57fa9",
+    "hash": "f476f0241a3ea246",
     "questions": [
       "How do I get the fraction of a second from a date and time?",
       "Read the nanoseconds of a timestamp",
@@ -15870,7 +15870,7 @@
   },
   "/reference/core/time-datetime/second/": {
     "feature": "Core\\Time\\DateTime::second",
-    "hash": "433251c5cab920c6",
+    "hash": "28a902d01fbe6f88",
     "questions": [
       "How do I get the seconds from a date and time?",
       "Read the second from 0 to 59 of a timestamp",
@@ -15924,7 +15924,7 @@
   },
   "/reference/core/time-datetime/with/": {
     "feature": "Core\\Time\\DateTime::with",
-    "hash": "6bcea97e1f276340",
+    "hash": "35d679c20aba3a84",
     "questions": [
       "How do I change only the hour of a date and time?",
       "Set the year, month or day of a date and time",
@@ -15935,7 +15935,7 @@
   },
   "/reference/core/time-datetime/withtime/": {
     "feature": "Core\\Time\\DateTime::withTime",
-    "hash": "cd07f40d29caa4e3",
+    "hash": "b0f117c2c200861f",
     "questions": [
       "How do I set a fixed time on a given day?",
       "Set a reminder for 08:00 on the same day",
@@ -16181,7 +16181,7 @@
   },
   "/reference/core/time-instant/compareto/": {
     "feature": "Core\\Time\\Instant::compareTo",
-    "hash": "0d59d595fab1b4e3",
+    "hash": "68f262a2e1be3d04",
     "questions": [
       "How do I check which of two moments comes first?",
       "Compare two timestamps",
@@ -16191,7 +16191,7 @@
   },
   "/reference/core/time-instant/fromepoch/": {
     "feature": "Core\\Time\\Instant::fromEpoch",
-    "hash": "db02826d963f42fa",
+    "hash": "bc4c2dd448ef420b",
     "questions": [
       "How do I convert a Unix timestamp to a time?",
       "Turn seconds since 1970 into a moment",
@@ -16294,7 +16294,7 @@
   },
   "/reference/core/time-timeofday/": {
     "feature": "Core\\Time\\TimeOfDay",
-    "hash": "649478db0c48f850",
+    "hash": "29587649652401cf",
     "questions": [
       "How do I store a clock time without a date?",
       "Work with times of day like opening hours",
@@ -16304,7 +16304,7 @@
   },
   "/reference/core/time-timeofday/at/": {
     "feature": "Core\\Time\\TimeOfDay::at",
-    "hash": "a64cd8550528673d",
+    "hash": "32868427fb0e6a17",
     "questions": [
       "How do I create a time of day from hours and minutes?",
       "Make a clock time such as 09:00",
@@ -16314,7 +16314,7 @@
   },
   "/reference/core/time-timeofday/compareto/": {
     "feature": "Core\\Time\\TimeOfDay::compareTo",
-    "hash": "4469c7ee0cbe0684",
+    "hash": "2a2f1be64045b117",
     "questions": [
       "How do I check which clock time is earlier in the day?",
       "Compare two times of day",
@@ -16324,7 +16324,7 @@
   },
   "/reference/core/time-timeofday/format/": {
     "feature": "Core\\Time\\TimeOfDay::format",
-    "hash": "dd3a08c0447b888c",
+    "hash": "e5dc5d131020dd1f",
     "questions": [
       "How do I format a clock time as text?",
       "Show a time of day as HH:mm",
@@ -16334,7 +16334,7 @@
   },
   "/reference/core/time-timeofday/fromiso/": {
     "feature": "Core\\Time\\TimeOfDay::fromIso",
-    "hash": "494461522c8b20fc",
+    "hash": "4d1034ecd1dc37d0",
     "questions": [
       "How do I create a time of day from text like 09:30?",
       "Read opening hours from a settings file",
@@ -16364,7 +16364,7 @@
   },
   "/reference/core/time-timeofday/minute/": {
     "feature": "Core\\Time\\TimeOfDay::minute",
-    "hash": "25f3859693e8b02d",
+    "hash": "e4d734551f8bf4b9",
     "questions": [
       "How do I get the minutes from a time of day?",
       "Read the minute of a clock time",
@@ -16374,7 +16374,7 @@
   },
   "/reference/core/time-timeofday/nanoseconds/": {
     "feature": "Core\\Time\\TimeOfDay::nanoseconds",
-    "hash": "28cb8ab66fe17c9e",
+    "hash": "dc18ea7cf1a19d8b",
     "questions": [
       "How do I get the fraction of a second from a clock time?",
       "Read the nanoseconds of a time of day",
@@ -16394,7 +16394,7 @@
   },
   "/reference/core/time-timeofday/second/": {
     "feature": "Core\\Time\\TimeOfDay::second",
-    "hash": "84170823fc955e1d",
+    "hash": "ed92836ed2e2b01b",
     "questions": [
       "How do I get the seconds from a time of day?",
       "Read the second of a clock time",
@@ -16404,7 +16404,7 @@
   },
   "/reference/core/time-timeofday/with/": {
     "feature": "Core\\Time\\TimeOfDay::with",
-    "hash": "c437c0678d70c152",
+    "hash": "5f770458a90f42ec",
     "questions": [
       "How do I change only the hour of a time of day?",
       "Set the minutes of a clock time to zero",
@@ -16537,7 +16537,7 @@
   },
   "/reference/core/uri/": {
     "feature": "Core\\Uri",
-    "hash": "fff119155c411b2b",
+    "hash": "ac7a95c8adf6cbde",
     "questions": [
       "How do I work with URLs and links?",
       "Split a web address into its parts and build a new one",
@@ -16703,7 +16703,7 @@
   },
   "/reference/core/uri/resolved/": {
     "feature": "Core\\Uri::resolved",
-    "hash": "20f6188b2ed484e8",
+    "hash": "38d3a2e01db81316",
     "questions": [
       "How do I turn a relative link into a full URL?",
       "Combine a base address with a link like ../about",
@@ -16725,7 +16725,7 @@
   },
   "/reference/core/uri/signed/": {
     "feature": "Core\\Uri::signed",
-    "hash": "c280db9dcd6cab7d",
+    "hash": "1696e1ec0eb5bdbc",
     "questions": [
       "How do I create a link that expires after one hour?",
       "Sign a download URL so nobody can change it",
@@ -16736,7 +16736,7 @@
   },
   "/reference/core/uri/tostring/": {
     "feature": "Core\\Uri::toString",
-    "hash": "ecec63012018d7fc",
+    "hash": "640a541944db6302",
     "questions": [
       "How do I convert a URL object back to text?",
       "Print a web address exactly as it was written",
@@ -16769,7 +16769,7 @@
   },
   "/reference/core/uri/verifysignature/": {
     "feature": "Core\\Uri::verifySignature",
-    "hash": "58417c65eeab1587",
+    "hash": "bfc770847ae10dfa",
     "questions": [
       "How do I check that a signed link was not changed?",
       "Verify a download link before serving the file",
@@ -16976,7 +16976,7 @@
   },
   "/reference/core/webpush/applicationserverkey/": {
     "feature": "Core\\WebPush::applicationServerKey",
-    "hash": "33d67d5c11722f9c",
+    "hash": "8ac8e9ae476ae83f",
     "questions": [
       "What do I pass to pushManager.subscribe as the server key?",
       "How do I get the public VAPID key for the browser?",
@@ -16987,7 +16987,7 @@
   },
   "/reference/core/webpush/send/": {
     "feature": "Core\\WebPush::send",
-    "hash": "aa157d40737a654f",
+    "hash": "6084d2530af07641",
     "questions": [
       "How do I send one push message to a subscribed browser?",
       "How long does a push service keep a message for an offline browser?",
@@ -17009,7 +17009,7 @@
   },
   "/reference/core/webpush-sent/": {
     "feature": "Core\\WebPush\\Sent",
-    "hash": "98178de078ac945e",
+    "hash": "6fdd7d07dde6c77e",
     "questions": [
       "What does sending a push message return?",
       "How do I know if a push message was delivered to the service?",
@@ -17019,7 +17019,7 @@
   },
   "/reference/core/webpush-sent/isgone/": {
     "feature": "Core\\WebPush\\Sent::isGone",
-    "hash": "e3b05d421d7303de",
+    "hash": "e4e6e248571cfff7",
     "questions": [
       "How do I know a user turned off notifications?",
       "Delete push subscriptions that no longer work",
@@ -17049,7 +17049,7 @@
   },
   "/reference/core/webpush-subscription/endpoint/": {
     "feature": "Core\\WebPush\\Subscription::endpoint",
-    "hash": "c5d375290096259f",
+    "hash": "0e1cf14e49baddd9",
     "questions": [
       "How do I get the push service URL of a subscription?",
       "Find a saved subscription again by its URL",
@@ -17080,7 +17080,7 @@
   },
   "/reference/core/xml/reader/": {
     "feature": "Core\\Xml::reader",
-    "hash": "2146313513ccc1b7",
+    "hash": "d02c3bbb8b4d9420",
     "questions": [
       "How do I read a huge XML file without building a tree?",
       "Stream a large XML export piece by piece",
@@ -17091,7 +17091,7 @@
   },
   "/reference/core/xml/writer/": {
     "feature": "Core\\Xml::writer",
-    "hash": "925abd09fe41782f",
+    "hash": "ff515320c84cafc1",
     "questions": [
       "How do I create an XML document from my data?",
       "Build XML output step by step",
@@ -17212,7 +17212,7 @@
   },
   "/reference/core/xml-writer/": {
     "feature": "Core\\Xml\\Writer",
-    "hash": "19c9943ce8e251a7",
+    "hash": "3303e744997bbc86",
     "questions": [
       "Produce XML without escaping text by hand",
       "How do I write XML safely from user data?",
@@ -17222,7 +17222,7 @@
   },
   "/reference/core/xml-writer/enddocument/": {
     "feature": "Core\\Xml\\Writer::endDocument",
-    "hash": "652fba1cd2dba99a",
+    "hash": "79b0fa12b2d5ca8c",
     "questions": [
       "How do I get the finished XML as a string?",
       "Finish building an XML document and return it",
@@ -17232,7 +17232,7 @@
   },
   "/reference/core/xml-writer/endelement/": {
     "feature": "Core\\Xml\\Writer::endElement",
-    "hash": "d6e54a73c6e2a0c0",
+    "hash": "dcc9d70f13ac7592",
     "questions": [
       "How do I close a tag I opened?",
       "Write the closing tag for the current element",
@@ -17242,7 +17242,7 @@
   },
   "/reference/core/xml-writer/startdocument/": {
     "feature": "Core\\Xml\\Writer::startDocument",
-    "hash": "8297545804044e87",
+    "hash": "6342de2d0ef1e5bb",
     "questions": [
       "How do I begin writing a new XML file?",
       "Write the <?xml version=\"1.0\"?> declaration line",
@@ -17252,7 +17252,7 @@
   },
   "/reference/core/xml-writer/startelement/": {
     "feature": "Core\\Xml\\Writer::startElement",
-    "hash": "c7d8b3f04c038246",
+    "hash": "2e5cbaa9d61fe8f0",
     "questions": [
       "How do I open a new tag in XML output?",
       "Nest one element inside another when writing XML",
@@ -17262,7 +17262,7 @@
   },
   "/reference/core/xml-writer/writeattribute/": {
     "feature": "Core\\Xml\\Writer::writeAttribute",
-    "hash": "394d46f82f955bc3",
+    "hash": "daf20585b78a099e",
     "questions": [
       "How do I add an attribute to an XML tag?",
       "Put an id or name inside a start tag",
@@ -17272,7 +17272,7 @@
   },
   "/reference/core/xml-writer/writecdata/": {
     "feature": "Core\\Xml\\Writer::writeCdata",
-    "hash": "576f5db05676f9cc",
+    "hash": "972636475f5c4f51",
     "questions": [
       "How do I put HTML inside an XML element without escaping?",
       "Wrap text in a CDATA section",
@@ -17282,7 +17282,7 @@
   },
   "/reference/core/xml-writer/writecomment/": {
     "feature": "Core\\Xml\\Writer::writeComment",
-    "hash": "efa4a8d89dd3c713",
+    "hash": "c58beb6afece93f7",
     "questions": [
       "How do I add a comment to generated XML?",
       "Put a header note at the top of an exported file",
@@ -17292,7 +17292,7 @@
   },
   "/reference/core/xml-writer/writedoctype/": {
     "feature": "Core\\Xml\\Writer::writeDoctype",
-    "hash": "5ac061ffb860ef13",
+    "hash": "44f0821295f034ef",
     "questions": [
       "How do I add a DOCTYPE line to XML output?",
       "Write <!DOCTYPE html> at the top of a page",
@@ -17302,7 +17302,7 @@
   },
   "/reference/core/xml-writer/writeinstruction/": {
     "feature": "Core\\Xml\\Writer::writeInstruction",
-    "hash": "a1c23dba7c0eb6f6",
+    "hash": "2f14eea511165bba",
     "questions": [
       "How do I link a stylesheet to an XML feed?",
       "Write a processing instruction into XML output",
@@ -17312,7 +17312,7 @@
   },
   "/reference/core/xml-writer/writetext/": {
     "feature": "Core\\Xml\\Writer::writeText",
-    "hash": "66a0fe3eb2a04d50",
+    "hash": "3ab65dbf7aac06ae",
     "questions": [
       "How do I write text between XML tags?",
       "Put user input inside an element safely",
@@ -17332,7 +17332,7 @@
   },
   "/reference/core/zip/entries/": {
     "feature": "Core\\Zip::entries",
-    "hash": "629f9f500add532a",
+    "hash": "66f9ebfa61db4a12",
     "questions": [
       "How do I list the files in a zip archive?",
       "See what is inside a zip without unpacking it",
@@ -17343,7 +17343,7 @@
   },
   "/reference/core/zip/extract/": {
     "feature": "Core\\Zip::extract",
-    "hash": "ec5d8cf24e37ba4c",
+    "hash": "85749c90ca1a8793",
     "questions": [
       "How do I unzip an archive into a folder?",
       "Unpack all files from a zip upload",
@@ -17355,7 +17355,7 @@
   },
   "/reference/core/zip/read/": {
     "feature": "Core\\Zip::read",
-    "hash": "d39ec862c1506dc6",
+    "hash": "e64c61deb46f40f1",
     "questions": [
       "How do I get one file out of a zip archive?",
       "Read a single file from a zip in memory",
@@ -17408,12 +17408,12 @@
   },
   "/reference/types/arr-seton/": {
     "feature": "Core\\Arr::SetOn",
-    "hash": "8bc2f0bbf8ea1597",
+    "hash": "d613468f009b8f96",
     "questions": [
       "Compare arrays by keys instead of values",
       "Find entries where key and value both match",
       "Difference of two arrays by key",
-      "Which part of an entry do diff and intersect compare?"
+      "Which part of an entry do difference and intersection compare?"
     ]
   },
   "/reference/types/audience/": {
@@ -17428,7 +17428,7 @@
   },
   "/reference/types/charset/": {
     "feature": "Core\\Charset",
-    "hash": "6b747fccac100e02",
+    "hash": "b61a53e0922d482f",
     "questions": [
       "Convert text from Latin-1 or Windows-1252",
       "Which character encodings are supported?",
@@ -17458,7 +17458,7 @@
   },
   "/reference/types/cli-notinteractive/": {
     "feature": "Core\\Cli\\NotInteractive",
-    "hash": "79776dd84e2cf8e3",
+    "hash": "8bf653b85bc6bbec",
     "questions": [
       "What happens when a prompt runs with nobody at the terminal?",
       "Give a prompt a default answer for nightly jobs",
@@ -17541,7 +17541,7 @@
   },
   "/reference/types/db-column-type/": {
     "feature": "Core\\Db\\Column::Type",
-    "hash": "fe75e5aef2b81ebb",
+    "hash": "666870e1afbb2f1b",
     "questions": [
       "Get the declared type of a result column",
       "Tell a JSON column from a text column",
@@ -17584,7 +17584,7 @@
   },
   "/reference/types/db-isolation/": {
     "feature": "Core\\Db\\Isolation",
-    "hash": "1e5cd1ea4d823bdc",
+    "hash": "289fe813e5c2c8b5",
     "questions": [
       "How do I set the isolation level of a database transaction?",
       "Can my transaction read rows another transaction has not committed yet?",
@@ -17606,7 +17606,7 @@
   },
   "/reference/types/db-rolledback/": {
     "feature": "Core\\Db\\RolledBack",
-    "hash": "4e1afd2ee729130f",
+    "hash": "4acacfbe937acccd",
     "questions": [
       "How do I cancel a transaction from inside it and give a reason?",
       "What error is thrown when my code rolls back a transaction?",
@@ -17683,7 +17683,7 @@
   },
   "/reference/types/hash-digest/": {
     "feature": "Core\\Hash::Digest",
-    "hash": "c48faf6bd82bdb4a",
+    "hash": "20f8f9da2b7eb2cf",
     "questions": [
       "Which hash algorithms can I use?",
       "How do I compute a SHA-256 hash of a string?",
@@ -17695,7 +17695,7 @@
   },
   "/reference/types/http-method/": {
     "feature": "Core\\Http\\Method",
-    "hash": "50587b8497500400",
+    "hash": "856865d55ef67523",
     "questions": [
       "Which HTTP methods can a route use?",
       "Which HTTP methods does the CSRF check cover?",
@@ -17882,7 +17882,7 @@
   },
   "/reference/types/novis-image-format/": {
     "feature": "Novis\\Image\\Format",
-    "hash": "723243955a6ea2a8",
+    "hash": "a6bccb5bbfecf3af",
     "questions": [
       "Which image formats can I save an image as?",
       "How do I convert an image to WebP?",
@@ -17894,7 +17894,7 @@
   },
   "/reference/types/novis-image-image-align/": {
     "feature": "Novis\\Image\\Image::Align",
-    "hash": "9a30ccf8180c155b",
+    "hash": "4a1c6a0bdc9f68ee",
     "questions": [
       "How do I center multi-line text drawn on an image?",
       "Right align text lines on an image",
@@ -17905,7 +17905,7 @@
   },
   "/reference/types/novis-image-image-axis/": {
     "feature": "Novis\\Image\\Image::Axis",
-    "hash": "7f02be55ddbd29f3",
+    "hash": "420bfc2037f91c81",
     "questions": [
       "How do I mirror an image horizontally?",
       "Flip an image upside down",
@@ -17916,7 +17916,7 @@
   },
   "/reference/types/novis-image-image-blend/": {
     "feature": "Novis\\Image\\Image::Blend",
-    "hash": "e95ca8a4e924a419",
+    "hash": "669d7a7f3a683110",
     "questions": [
       "Which blend modes are there for images?",
       "What does the multiply blend mode do?",
@@ -17927,7 +17927,7 @@
   },
   "/reference/types/novis-image-image-filter/": {
     "feature": "Novis\\Image\\Image::Filter",
-    "hash": "cd9a02bb87e87cff",
+    "hash": "b79079343519f09c",
     "questions": [
       "Which filter should I use to resize a photo?",
       "Resize pixel art without blurring the edges",
@@ -17939,7 +17939,7 @@
   },
   "/reference/types/novis-image-image-fit/": {
     "feature": "Novis\\Image\\Image::Fit",
-    "hash": "5dfd8ba2df9b36ef",
+    "hash": "df0f8062141e8f17",
     "questions": [
       "How do I resize an image to fill a box and crop the rest?",
       "Resize an image to fit inside a box without cropping",
@@ -17951,7 +17951,7 @@
   },
   "/reference/types/novis-image-image-gravity/": {
     "feature": "Novis\\Image\\Image::Gravity",
-    "hash": "bfd93a4f9f474c51",
+    "hash": "0fd7631c512f126e",
     "questions": [
       "Which part of the image is kept when a resize crops it?",
       "Crop a thumbnail from the top of a portrait photo",
@@ -17962,7 +17962,7 @@
   },
   "/reference/types/novis-image-image-hashkind/": {
     "feature": "Novis\\Image\\Image::HashKind",
-    "hash": "430ac9d6054a7d4d",
+    "hash": "79e8beb93f80f8dc",
     "questions": [
       "How do I find images that look the same?",
       "Detect duplicate images with different sizes or formats",
@@ -18119,7 +18119,7 @@
   },
   "/reference/types/novis-pdf-document-standard/": {
     "feature": "Novis\\Pdf\\Document::Standard",
-    "hash": "b6db748a5b9c909e",
+    "hash": "c862da6502bb149e",
     "questions": [
       "How do I make a PDF/A file for archiving?",
       "Create a PDF for an electronic invoice with XML",
@@ -18131,7 +18131,7 @@
   },
   "/reference/types/novis-spreadsheet-chart-kind/": {
     "feature": "Novis\\Spreadsheet\\Chart::Kind",
-    "hash": "bc44415e48b6b1af",
+    "hash": "f63652f0a0c34802",
     "questions": [
       "Which chart types can I add to a spreadsheet?",
       "Make a pie or doughnut chart in Excel",
@@ -18143,7 +18143,7 @@
   },
   "/reference/types/novis-spreadsheet-chart-legend/": {
     "feature": "Novis\\Spreadsheet\\Chart::Legend",
-    "hash": "f663fa99c494346b",
+    "hash": "b77f01cdfb654985",
     "questions": [
       "How do I hide the legend of a chart?",
       "Put the chart legend at the bottom",
@@ -18154,7 +18154,7 @@
   },
   "/reference/types/novis-spreadsheet-reader-sheetkind/": {
     "feature": "Novis\\Spreadsheet\\Reader::SheetKind",
-    "hash": "936a9f77c80e14ea",
+    "hash": "4505e8091598f3a2",
     "questions": [
       "How do I tell a chart sheet from a normal worksheet?",
       "Why does reading rows of a sheet throw an error?",
@@ -18164,7 +18164,7 @@
   },
   "/reference/types/novis-spreadsheet-reader-visibility/": {
     "feature": "Novis\\Spreadsheet\\Reader::Visibility",
-    "hash": "6cfc169523971e0c",
+    "hash": "c4cb815a9db64942",
     "questions": [
       "How do I hide a sheet in an Excel workbook?",
       "Make a sheet that a user cannot unhide in Excel",
@@ -18175,7 +18175,7 @@
   },
   "/reference/types/novis-spreadsheet-style-align/": {
     "feature": "Novis\\Spreadsheet\\Style::Align",
-    "hash": "ad2afc750d756e62",
+    "hash": "40af6d0b198d2e5e",
     "questions": [
       "How do I center text in a spreadsheet cell?",
       "Right align a column in an Excel file",
@@ -18380,7 +18380,7 @@
   },
   "/reference/types/router-responder/": {
     "feature": "Core\\Router\\Responder",
-    "hash": "605e803502cc55b9",
+    "hash": "1b3c2d7a46870660",
     "questions": [
       "How do I send the value a route method returns?",
       "Return HTML markup from a route method instead of using echo",
@@ -18571,7 +18571,7 @@
   },
   "/syntax/attributes/routes/": {
     "feature": "syntax/attributes/routes.mdx",
-    "hash": "9072fd7d3d71e5a5",
+    "hash": "9aa8dcefc9ba9956",
     "questions": [
       "How do I map a URL path to a method in my web app?",
       "Declare a route with a placeholder like /users/{id}",
@@ -18776,7 +18776,7 @@
   },
   "/syntax/concurrency/isolates/": {
     "feature": "syntax/concurrency/isolates.mdx",
-    "hash": "973f57062259d950",
+    "hash": "447f5318580ff800",
     "questions": [
       "How do I run another script as a separate program?",
       "Get the return value of a child script",
@@ -19011,7 +19011,7 @@
   },
   "/syntax/operators/arithmetic/": {
     "feature": "syntax/operators/arithmetic.mdx",
-    "hash": "40215e3d792941ce",
+    "hash": "d9c8c24ef7575989",
     "questions": [
       "How do I add, divide or raise a number to a power?",
       "What happens when I divide by zero?",
@@ -19078,7 +19078,7 @@
   },
   "/syntax/programs/file-paths-and-exit/": {
     "feature": "syntax/programs/file-paths-and-exit.mdx",
-    "hash": "6ae0fe111af10f71",
+    "hash": "837d9ebb9a56550d",
     "questions": [
       "Where does a relative file path start in Novis?",
       "Why does my program read a different file from another folder?",
