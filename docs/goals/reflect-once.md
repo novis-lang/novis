@@ -22,7 +22,7 @@ stages:
     context: [docs/examples/core/Reflect-PropertyInfo/name/about.md, website/src/data/changes.json]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
-    status: open
+    status: done
     gate: true
 checks:
   - id: modifiers
@@ -243,33 +243,26 @@ rewritten; the session writes the rules and the website entries.
 ### 5. the goal is verified once, and every failure is fixed
 
 - [x] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 4 touched.
-- [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
-- [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
+- [x] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
+- [x] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
 ## Handoff
 
 ### State
 
-Stages 1 to 4 are done; the checks `modifiers`, `meta`, `once`, `copy`, `rosters` and `proofs`
-pass (`bun nv proofs --gate --goal reflect-once` names nothing). `rule:core-classes/reflect` states
-the once-per-process build, the identity, the roster memo and the Declined items; the meta rule
-states the signature's modifiers. Both members have `about.md`, three examples, a bench and an
-attack. `changes.json` has a `new` entry for the two members, a `changed` entry for every
-`Core\Reflect` member whose tests moved, and one for `tools:cli/nvs-meta-json`, whose `unseen`
-record it replaces. All 42 benches the goal reaches are recorded on the release build, each with 0
-allocations and flat growth. `site --check stale changes review` is green, and the newcomer review
-of stage 5's first item is done and stamped.
+Every stage is done. `cargo build` and `cargo clippy --all-targets -- -D warnings` are green, and
+the tests the goal wrote pass by name: `modifiers` (3), `meta` (1), `once` (3), `copy` (2) and
+`rosters` (2). `bun nv close --goal reflect-once` is green. Its first run was red on three
+generated or stamped files: `docs/rules/core-classes.md` and `tooling.md` (`rules --render`),
+`core.json` and `llms-full.txt` (`render --website`), and the search questions of the
+`PropertyInfo` and `nvs-meta-json` pages plus the two new member pages. All are written and
+stamped (commit `e32825ab89`). Every Standing decision is in `rule:core-classes/reflect` and
+`crates/nvs-stdlib/src/reflect.rs`'s module doc, so this file holds nothing the tree lacks.
 
 ### Next
 
-Stage 5, a close (this goal is not the chain's full gate unless the pack says so).
-- `cargo build`, `cargo clippy --all-targets -- -D warnings`, then the goal's tests by name: the
-  acceptance checks `modifiers`, `meta`, `once`, `copy` and `rosters`.
-- `bun nv close --goal reflect-once`, each red fixed. Before `DONE`, move any decision only this file
-  holds into the rule or `reflect.rs`'s module doc (the Standing decisions already are in both), and
-  delete this file.
-- Expect red: a golden that pins a `readonly` or `lateinit` property's `nvs meta --json` or `nvs code`
-  signature (`crates/nvs-cli/src/meta.rs`, `@property_signature`), and a test that hand-builds a
-  `MethodInfo`, `AttributeInfo` or `EnumInfo` with the old slots.
+Nothing. The driver runs the acceptance checks on `DONE` and retires this goal, which deletes this
+file. A red check comes back to a retry session, which reruns it alone with
+`looper check --name <id>`. No test is expected to go red.
 
 ### Backlog
