@@ -399,4 +399,15 @@ codes! {
          so the call changes nothing. Check the name. The help line lists the \
          settings a program may change.",
     );
+    /// A date pattern written as a literal that has the week-based year `Y` and
+    /// no week of the year `w` (`rule:core-classes/a-time-class-builds-its-own-values`).
+    /// `Y` is the year an ISO week belongs to, which differs from the calendar
+    /// year `y` on a few days around New Year, so `YYYY-MM-dd` is almost always
+    /// a typo for `yyyy-MM-dd`. A warning, because a program may mean it. A
+    /// pattern built at run time is not checked.
+    pub const W_WEEK_YEAR_WITHOUT_WEEK: Code = Code::new("W1038").card(
+        "This date pattern has `Y`, the year of the ISO week, and no week number `w`. `Y` is \
+         not always the calendar year. On 2024-12-30, `Y` is 2025, because that day is in week 1 \
+         of 2025. Write `y` for the calendar year, as in `yyyy-MM-dd`.",
+    );
 }

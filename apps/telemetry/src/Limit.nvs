@@ -40,7 +40,7 @@ final class Limit
     {
         var $cache = Cache::memory();
         var $today = Time::now()->in(Zone::of('UTC'));
-        string $name = 'telemetry:salt:' . $today->format('YYYY-MM-dd');
+        string $name = 'telemetry:salt:' . $today->format('yyyy-MM-dd');
         var $found = $cache->get($name);
         if ($found is string) {
             return $found;

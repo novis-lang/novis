@@ -847,6 +847,22 @@ pub fn validate_civil(pattern: &str) -> Result<(), String> {
     civil_fields_only(&compile(pattern)?)
 }
 
+/// `true` where `pattern` is one the grammar reads, and it writes the
+/// week-based year `Y` with no week of the year `w`. The checker warns on such
+/// a written pattern, because `Y` differs from the calendar year `y` on a few
+/// days around New Year and `YYYY` is almost always a typo for `yyyy`.
+#[must_use]
+pub fn week_year_without_week(pattern: &str) -> bool {
+    compile(pattern).is_ok_and(|pieces| {
+        let has = |wanted: Field| {
+            pieces
+                .iter()
+                .any(|piece| matches!(piece, Piece::Field(field, _) if *field == wanted))
+        };
+        has(Field::WeekBasedYear) && !has(Field::WeekOfYear)
+    })
+}
+
 /// Appends `text` to the pieces, merging it into a trailing literal so that
 /// `"-"`-separated runs are one piece rather than three.
 fn push_literal(pieces: &mut Vec<Piece>, text: &str) {

@@ -674,13 +674,18 @@ pub(crate) fn check_call(
                 // whole of what the member can use: the compiled pieces belong
                 // to the core that builds them, and `nvs_stdlib::cldr` owns why
                 // a pattern the program assembled is compiled at the call.
-                Ok(()) => env.exprs.record_prepared(
-                    call_span,
-                    Prepared {
-                        literal: span,
-                        fact: PreparedFact::CldrPattern,
-                    },
-                ),
+                Ok(()) => {
+                    if nvs_stdlib::cldr::week_year_without_week(&text) {
+                        report_week_year(span, env);
+                    }
+                    env.exprs.record_prepared(
+                        call_span,
+                        Prepared {
+                            literal: span,
+                            fact: PreparedFact::CldrPattern,
+                        },
+                    );
+                }
                 Err(message) => report_malformed(span, &message, env),
             }
         }
@@ -1185,6 +1190,23 @@ fn report_malformed(span: nvs_diagnostics::Span, message: &str, env: &mut Env<'_
 /// nothing under `allow`, `W1029` under `warn` and `E0893` under `deny`. The
 /// whole literal is underlined, because the engine's parser names no offset for
 /// the construct that needs it.
+/// A written date pattern with the week-based year `Y` and no week `w`, which
+/// is almost always a typo for `y`. A warning, because the pattern is valid and
+/// a program may mean it.
+fn report_week_year(span: nvs_diagnostics::Span, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::warning(
+            code::W_WEEK_YEAR_WITHOUT_WEEK,
+            "this pattern has `Y`, the year of the ISO week, and no week number `w`",
+        )
+        .with_primary(span, "`Y` is not always the calendar year")
+        .with_help(
+            "write `y` for the calendar year, as in `yyyy-MM-dd`. On 2024-12-30, `YYYY` \
+             writes 2025",
+        ),
+    );
+}
+
 fn report_backtracking(span: nvs_diagnostics::Span, env: &mut Env<'_>) {
     use nvs_config::regex::Backtracking;
 
@@ -1348,4 +1370,74 @@ fn addressed<'a>(row: &Intrinsic, arg: &'a Expr, src: &SourceFile) -> Option<&'a
 fn folded_str(expr: &Expr, env: &mut Env<'_>) -> Option<ConstArg> {
     let declared = env.interner.intern(Ty::String);
     crate::defaults::literal_default(expr, declared, env)
+}
+
+/// [`report_week_year`]: which written date patterns warn about `Y`.
+#[cfg(test)]
+mod week_year {
+    use nvs_diagnostics::{Diagnostics, SourceMap, code};
+    use nvs_hir::resolve_file;
+    use nvs_syntax::parse_file;
+
+    use crate::expr_table::ExprTypeTable;
+    use crate::ty::TypeInterner;
+
+    /// How many `W1038` warnings checking `src` reports.
+    fn warnings(src: &str) -> usize {
+        let mut map = SourceMap::new();
+        let table = nvs_config::grants::Grants::parse(&mut map, "package.toml", "")
+            .expect("the grants table parses");
+        let file = map.add("t.nvs", src);
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+        let module = resolve_file(&stmts, map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
+        crate::check::check_program_loaded(
+            &[crate::ProgramFile {
+                src: map.file(file),
+                stmts: &stmts,
+            }],
+            &module,
+            None,
+            nvs_config::regex::Backtracking::Allow,
+            &table,
+            None,
+            &[],
+            &mut TypeInterner::new(),
+            &mut ExprTypeTable::new(),
+            &mut diags,
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+        diags
+            .iter()
+            .filter(|d| d.code == Some(code::W_WEEK_YEAR_WITHOUT_WEEK))
+            .count()
+    }
+
+    /// `YYYY-MM-dd` in `format` and in `parse` warns once each. A pattern
+    /// built at run time is not judged.
+    #[test]
+    fn a_week_based_year_without_a_week_warns() {
+        let src = r"<?nvs
+var $at = Core\Time\DateTime::fromIso('2024-12-30T10:00[UTC]');
+echo $at->format('YYYY-MM-dd');
+var $read = Core\Time\DateTime::parse('2025-12-30', 'YYYY-MM-dd', 'UTC');
+var $y = 'Y';
+echo $at->format($y . 'YYY');
+";
+        assert_eq!(warnings(src), 2);
+    }
+
+    /// `Y` beside a week `w`, and the calendar year `y`, do not warn.
+    #[test]
+    fn a_week_based_year_with_a_week_does_not_warn() {
+        let src = r#"<?nvs
+var $at = Core\Time\DateTime::fromIso('2024-12-30T10:00[UTC]');
+echo $at->format("YYYY-'W'ww");
+echo $at->format('yyyy-MM-dd');
+echo $at->format("'Y' yyyy");
+"#;
+        assert_eq!(warnings(src), 0);
+    }
 }
