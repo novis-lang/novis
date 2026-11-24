@@ -14,7 +14,7 @@ stages:
     context: [crates/nvs-stdlib/src/cldr.rs, crates/nvs-types/src/intrinsics.rs, crates/nvs-diagnostics/src/code/warnings.rs, docs/rules/classes/stringable.md]
   - id: 3
     title: "Date moves to the start and end of a unit, counts a difference and finds a weekday, and Date and DateTime read four more calendar parts"
-    status: open
+    status: done
   - id: 4
     title: "Date::parse, Date::range, Duration::toClock and Duration::fromClock"
     status: open
@@ -354,15 +354,15 @@ the first edit, as `file.rs:NN` and one line each.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-stdlib/src/time.rs:5103`: a calendar-only twin of `floored` over year, month and day,
+- [x] `crates/nvs-stdlib/src/time.rs:5103`: a calendar-only twin of `floored` over year, month and day,
   with a comment naming the zoned one; `Date::startOf` and `Date::endOf` over it.
-- [ ] `crates/nvs-stdlib/src/time.rs:5385`: `Date::difference(Date $other, Unit $unit): int`, counting
+- [x] `crates/nvs-stdlib/src/time.rs:5385`: `Date::difference(Date $other, Unit $unit): int`, counting
   as `DateTime::difference` counts.
-- [ ] `crates/nvs-stdlib/src/time.rs:5225`: `Date::next(Weekday)` and `Date::previous(Weekday)`.
-- [ ] `crates/nvs-stdlib/src/time.rs:5889`'s neighbourhood: `daysInMonth`, `quarter`, `isoWeek` and
+- [x] `crates/nvs-stdlib/src/time.rs:5225`: `Date::next(Weekday)` and `Date::previous(Weekday)`.
+- [x] `crates/nvs-stdlib/src/time.rs:5889`'s neighbourhood: `daysInMonth`, `quarter`, `isoWeek` and
   `isoWeekYear` on `Date`, and the same four on `DateTime` (`time.rs:2078`).
-- [ ] `Core\Unit`'s card says which units a `Date` takes.
-- [ ] The tests the check `date-calendar` names, run once by name.
+- [x] `Core\Unit`'s card says which units a `Date` takes.
+- [x] The tests the check `date-calendar` names, run once by name.
 
 ### 4. Date::parse, Date::range, Duration::toClock and Duration::fromClock
 
@@ -438,42 +438,42 @@ one for `docs/examples/core/Time-Date/`, one for `Time-DateTime/`, `Time-TimeOfD
 
 ### State
 
-Stages 1 and 2 are done. Stage 2's commits: `6a8f7932b6` (`DateTime::fromIso` reads `±HH:MM[:SS]`
-and one `[Zone]`, `$zone` is `?Zone = null`, the literal row checks the zone, the offset and a missing
-zone), `18d37949ac` (E0710's help names `toIso()` and `format(...)` for the three civil classes),
-`e3488682b8` (warning `W1038` for a written `Y` with no `w`; it found `apps/telemetry/src/Limit.nvs`
-writing `YYYY-MM-dd`, now `yyyy`) and `82ee43de69` (the rule). The checks `iso-text`, `iso-zone` and
-`week-year-warning` each ran once by name and are green, and so did the three conformance cases the
-slice changed or added. Build and clippy are green.
-
-How the reader is built: `time.rs` `iso_datetime` returns an `IsoLocal` (civil, offset, zone id and
-zone), `place_local` places it and checks the offset by converting with it and comparing the zone's
-offset at that instant, and `validate_datetime_iso(text, zone_given)` is the checker's entry.
-`validate_iso(IsoForm::DateTime)` calls it with `zone_given = true`. The intrinsic arm in
-`crates/nvs-types/src/intrinsics.rs` (grep `Grammar::Iso(nvs_stdlib::time::IsoForm::DateTime)`) counts
-`$zone` as given when an argument fills it or a `...` may.
+Stages 1, 2 and 3 are done. Stage 3 is one commit, `78580e9ab3`. `Date` gains `startOf` and `endOf`
+over `Week`, `Month`, `Quarter` and `Year`, `difference` over `Day` to `Year`, and `next` and
+`previous` by `Weekday`. `Date` and `DateTime` read `daysInMonth`, `quarter`, `isoWeek` and
+`isoWeekYear`. The unit subsets are two closed unions of `CoreTy::EnumCase` rows in `time.rs`,
+`DATE_PERIOD_UNITS` (`Week` and up) and `DATE_STEP_UNITS` (`Day` and up), so a smaller unit does not
+compile. `date_unit_of` throws a `LogicError` at run time for a call the checker did not see.
+`floored_date` is the calendar-only twin of `floored`, which now calls it for a day and every larger
+unit. `Date::plus` and `minus` still take the whole `Unit` enum and throw at run time for a unit below
+a day, as before. `Core\Unit`'s card names the units a `Date` takes. The check `date-calendar` ran
+once by name and is green: six tests. Build and clippy are green.
 
 ### Next
 
-Stage 3, one session:
+Stage 4, one session:
 
-- `crates/nvs-stdlib/src/time.rs:5469` (`floored`): a calendar-only twin over year, month and day, and
-  `Date::startOf` / `Date::endOf` over it. The `Date` class rows are near `time.rs:2898`.
-- `time.rs:5751` (`nvs_core_time_datetime_difference`): `Date::difference(Date, Unit)`.
-- `time.rs:5591` (`nvs_core_time_datetime_next`): `Date::next(Weekday)` and `Date::previous(Weekday)`.
-- `time.rs:6301` (`nvs_core_time_date_day_of_year`) neighbourhood: `daysInMonth`, `quarter`,
-  `isoWeek`, `isoWeekYear` on `Date`, then on `DateTime`.
-- `Core\Unit`'s card names the units a `Date` takes; then the tests of check `date-calendar`.
+- `crates/nvs-types/src/intrinsics.rs:236`: the prepared-pattern row for `Date::parse`, refusing a
+  time or zone letter; the `Date` class rows end near `crates/nvs-stdlib/src/time.rs:3101`, and the
+  member goes through `cldr.rs`'s parser.
+- `Date::range` over `date_stepped` (`time.rs:6530`), with `DATE_STEP_UNITS` (`time.rs:3367`) as its
+  `step` option's type.
+- `Duration::toClock` and `Duration::fromClock` beside `nvs_core_time_duration_to_string`
+  (`time.rs:1049`), the reader in `crates/nvs-syntax/src/duration.rs`.
+- The constructor table of `docs/rules/core-classes/a-time-class-builds-its-own-values.md`, then the
+  tests of check `parse-range-clock`.
 
-Tests that may go red in the gate: a conformance case or example that prints `==` on two equal
-`Core\Time` values and expected `false`. Grep `tests/conformance` and `docs/examples` for
-`compareTo($` with `== 0` and for `Duration`/`Date` pairs under `==` when the gate names one. A
-`.nvs` source with `format('Y…')` and no `w` now prints `W1038`; a case that pins a check's whole
-output would show it (`tests/conformance/core/cldr-formats-a-week-based-year-beside-its-week.nvst`
-writes `Y|YY|YYYYY` and passed). The `ObjectMap`, `ObjectSet`, `DateTime::fromIso` and
-`Instant::fromIso` card texts changed, so `site --check stale` and `questions` will name their pages in
-stage 7, and `nvs meta`'s snapshot, if a test pins it, gains three `toIso` rows and `fromIso`'s
-`?Zone $zone = null`. Stage 6 owes `DateTime::fromIso` and `toIso` examples showing the zoned text,
-and the `docs/examples/core/Time-DateTime/fromIso/02-texts-with-an-offset.nvs` example could show `[Europe/Berlin]` as the fix.
+Tests that may go red in the gate: the `floored` refactor touched every `DateTime::startOf` and
+`endOf` call for a day and larger, and those tests did not run in stage 3
+(`datetime_start_of_*`, `datetime_end_of_*` in `time.rs`). A conformance case or example that prints
+`==` on two equal `Core\Time` values and expected `false`. Grep `tests/conformance` and
+`docs/examples` for `compareTo($` with `== 0` and for `Duration`/`Date` pairs under `==` when the gate
+names one. A `.nvs` source with `format('Y…')` and no `w` now prints `W1038`. The `ObjectMap`,
+`ObjectSet`, `DateTime::fromIso`, `Instant::fromIso` and `Core\Unit` card texts changed, so
+`site --check stale` and `questions` will name their pages in stage 7. `nvs meta`'s snapshot, if a test
+pins it, gains three `toIso` rows, `fromIso`'s `?Zone $zone = null`, nine `Date` rows and four
+`DateTime` rows. Stage 6 owes `DateTime::fromIso` and `toIso` examples showing the zoned text, and
+`docs/examples/core/Time-DateTime/fromIso/02-texts-with-an-offset.nvs` could show `[Europe/Berlin]`
+as the fix. Stage 6 also owes the proofs of the thirteen new stage 3 members.
 
 ### Backlog
