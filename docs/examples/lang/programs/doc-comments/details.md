@@ -6,6 +6,19 @@ program does not compile (`E0323`). `@example` must name a file under `examples/
 (`E0325`). Any other tag, such as `@since`, does not compile (`E0128`). `@returns` is an error too,
 and the fix rewrites it to `@return`.
 
+`@see` can also name a file. A target that contains `/` or `.` is a file, such as
+`@see notes/refunds.md`. The path starts at the folder of the file that contains the comment. The
+file must exist, and it must be inside your project. The project is the nearest folder that has an
+`nvs.toml` or a `package.toml`, starting with the folder of the file. An absolute path, or a `..` that
+leaves the project, does not compile (`E0323`).
+
+After a Markdown file, `#` and a heading name one heading:
+`@see notes/refunds.md#who-can-get-a-refund`. The part after `#` is the heading in lowercase, with
+each space written as `-`. Other punctuation is left out. Only a `.md` or `.markdown` file takes a heading. If the heading is not in the file, the
+error suggests the closest one. The editor opens the file at that heading when you click the path.
+A package must list every file that a `@see` or `@example` names in `[package] files`, or
+`nvs pkg pack` stops.
+
 `@param`, `@return` and `@throws` need a sentence after them (`E0139`). The sentence runs to the end
 of the line. The next `///` line continues it, unless that line is blank or starts with a tag. A
 continuation line that starts with `- ` is a list item. Use it to describe each key of a shape

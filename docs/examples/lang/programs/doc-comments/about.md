@@ -5,7 +5,8 @@ method or an enum case. The whole run of `///` lines is one comment. Your editor
 types that name, and `nvs doc` puts it on the page it builds.
 
 Five tags may be written, each at the start of a line. `@see` names another class
-or member, and `@example` names a file that shows the code in use. `@param $name` describes a
+or member, or a file in your project such as `docs/billing.md#refunds`. `@example` names a file
+that shows the code in use. `@param $name` describes a
 parameter, `@return` describes the return value, and `@throws Name` describes an error the method
 throws. Each of these three needs a sentence after it. The compiler checks every tag against the
 code, so a tag that names something that is not there stops the build. Any other `@tag` is an error.

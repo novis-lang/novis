@@ -239,7 +239,29 @@
           }
         },
         {
-          "match": "(?<=///)\\s*(@(?:return|see|example))(?=\\s|$)",
+          "match": "(?<=///)\\s*(@example)(?:\\s+(\\S+))?(?=\\s|$)",
+          "captures": {
+            "1": {
+              "name": "keyword.other.documentation.nvs"
+            },
+            "2": {
+              "name": "markup.underline.link.nvs"
+            }
+          }
+        },
+        {
+          "match": "(?<=///)\\s*(@see)(?:\\s+(\\S*[/.]\\S*))?(?=\\s|$)",
+          "captures": {
+            "1": {
+              "name": "keyword.other.documentation.nvs"
+            },
+            "2": {
+              "name": "markup.underline.link.nvs"
+            }
+          }
+        },
+        {
+          "match": "(?<=///)\\s*(@(?:return|see))(?=\\s|$)",
           "captures": {
             "1": {
               "name": "keyword.other.documentation.nvs"

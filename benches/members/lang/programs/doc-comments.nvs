@@ -1,6 +1,7 @@
 <?nvs
 // Measures a class with a doc comment on the class, its constant and its method,
-// as in a shared library. Doc comments are read only when the program is compiled.
+// as in a shared library. Its `@see` tags point at code and at a Markdown file.
+// Doc comments are read only when the program is compiled.
 // This loop should run as fast as the same loop without them.
 // bench: iterations 4000000
 // bench: allocations 0
@@ -9,16 +10,19 @@
 /// Adds a run of numbers into one running total.
 ///
 /// @see Meter::run
+/// @see doc-comments/meter.md
 final class Meter
 {
     /// Each round adds a remainder of a division by this number.
     ///
     /// @see Meter::run
+    /// @see doc-comments/meter.md#the-wrap
     public const int WRAP = 7;
 
     /// Runs `$rounds` rounds and returns the running total.
     ///
     /// @see Meter::WRAP
+    /// @see doc-comments/meter.md#a-run
     public static function run(int $rounds): int
     {
         // Inside a function body, use an ordinary `//` comment.

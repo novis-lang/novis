@@ -1,0 +1,26 @@
+<?nvs
+// Shows how a doc comment points at a file, or at one heading of a Markdown file.
+
+/// Pays money back to a customer.
+///
+/// @see notes/refunds.md
+final class Refund
+{
+    /// Adds up the returned lines and returns the refund in cents.
+    /// The part after `#` is a heading of the file. The compiler checks that it exists.
+    ///
+    /// @see notes/refunds.md#how-a-refund-is-calculated
+    public static function amount(array<int> $lines): int
+    {
+        int $sum = 0;
+        foreach ($lines as int $line) {
+            $sum = $sum + $line;
+        }
+        return $sum;
+    }
+}
+
+array<int> $returned = [1250, 399];
+
+// This prints 1649.
+echo Refund::amount($returned), "\n";

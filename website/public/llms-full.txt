@@ -697,7 +697,8 @@ method or an enum case. The whole run of `///` lines is one comment. Your editor
 types that name, and `nvs doc` puts it on the page it builds.
 
 Five tags may be written, each at the start of a line. `@see` names another class
-or member, and `@example` names a file that shows the code in use. `@param $name` describes a
+or member, or a file in your project such as `docs/billing.md#refunds`. `@example` names a file
+that shows the code in use. `@param $name` describes a
 parameter, `@return` describes the return value, and `@throws Name` describes an error the method
 throws. Each of these three needs a sentence after it. The compiler checks every tag against the
 code, so a tag that names something that is not there stops the build. Any other `@tag` is an error.
@@ -713,6 +714,19 @@ A tag counts only at the start of a line. `@see` must name a class or member tha
 program does not compile (`E0323`). `@example` must name a file under `examples/` or `tests/`
 (`E0325`). Any other tag, such as `@since`, does not compile (`E0128`). `@returns` is an error too,
 and the fix rewrites it to `@return`.
+
+`@see` can also name a file. A target that contains `/` or `.` is a file, such as
+`@see notes/refunds.md`. The path starts at the folder of the file that contains the comment. The
+file must exist, and it must be inside your project. The project is the nearest folder that has an
+`nvs.toml` or a `package.toml`, starting with the folder of the file. An absolute path, or a `..` that
+leaves the project, does not compile (`E0323`).
+
+After a Markdown file, `#` and a heading name one heading:
+`@see notes/refunds.md#who-can-get-a-refund`. The part after `#` is the heading in lowercase, with
+each space written as `-`. Other punctuation is left out. Only a `.md` or `.markdown` file takes a heading. If the heading is not in the file, the
+error suggests the closest one. The editor opens the file at that heading when you click the path.
+A package must list every file that a `@see` or `@example` names in `[package] files`, or
+`nvs pkg pack` stops.
 
 `@param`, `@return` and `@throws` need a sentence after them (`E0139`). The sentence runs to the end
 of the line. The next `///` line continues it, unless that line is blank or starts with a tag. A
@@ -926,6 +940,55 @@ error[E0138]: `@param` cannot contain a type
 
 error: aborting due to 1 error
 To read what a code means and how to fix it, run `nvs agent show <code>`.
+```
+
+#### Example 06: point at a document with see
+
+```text file=notes/refunds.md
+### Refunds
+
+This page describes how the shop pays money back to a customer.
+
+#### Who can get a refund
+
+A customer can get a refund within 30 days of the order.
+
+#### How a refund is calculated
+
+The refund is the price of each returned line. Shipping costs are not paid back.
+```
+
+```nvs
+<?nvs
+// Shows how a doc comment points at a file, or at one heading of a Markdown file.
+
+/// Pays money back to a customer.
+///
+/// @see notes/refunds.md
+final class Refund
+{
+    /// Adds up the returned lines and returns the refund in cents.
+    /// The part after `#` is a heading of the file. The compiler checks that it exists.
+    ///
+    /// @see notes/refunds.md#how-a-refund-is-calculated
+    public static function amount(array<int> $lines): int
+    {
+        int $sum = 0;
+        foreach ($lines as int $line) {
+            $sum = $sum + $line;
+        }
+        return $sum;
+    }
+}
+
+array<int> $returned = [1250, 399];
+
+// This prints 1649.
+echo Refund::amount($returned), "\n";
+```
+
+```output
+1649
 ```
 
 ### Names and casing

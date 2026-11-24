@@ -90,6 +90,7 @@ fn hover_at(analysed: &Analysed, offset: u32) -> String {
     }
 }
 
+// covers: tools:editor/nvs-lsp
 #[test]
 fn a_document_link_opens_a_see_file_at_its_heading() {
     let dir = project("link-heading");

@@ -129,6 +129,7 @@ fn on_line(site: &Site, line: &str) -> bool {
     (start..start + line.len()).contains(&(site.start as usize))
 }
 
+// covers: tools:editor/nvs-lsp
 #[test]
 fn references_list_a_see_target_without_counting_it() {
     let project = Project::new("references");

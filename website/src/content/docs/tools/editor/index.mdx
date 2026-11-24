@@ -97,6 +97,28 @@ that file may declare only one name.
 **Order class members** and `nvs code order` move an attribute declaration in a class to the top of
 the class. It goes with the `enum` and `type` declarations.
 
+## Links in doc comments
+
+In a `///` doc comment, the name after `@see` and the path after `@example` are links. Ctrl+click
+on a path to open the file. A `@see` path with a heading, such as `notes/refunds.md#who-can-get-a-refund`,
+opens the Markdown file at that heading. Ctrl+click on `@see Invoice::total` to go to the method
+`total`. The class after `@throws` is a link to that class.
+
+When the mouse pointer is over a `@see` method, the editor shows the documentation of that method.
+Over a `@see` heading, it shows the text under that heading, up to 20 lines.
+
+After `@see`, the editor completes the names of classes and methods. When you type `/` or `.`, it
+completes the files of your project. After `#`, type a letter or press **Ctrl+Space** to see the
+headings of the Markdown file.
+
+Find references lists each `@see` and `@throws` that names a method or a class. These lines are not
+counted in the code lens. When you rename a method or a class, its `@see` and `@throws` lines change
+too. When you move or rename a file or a folder in the Explorer, each `@see` and `@example` path to it
+changes. A heading after `#` stays the same.
+
+If a heading after `#` is not in the file, the line has an error. The quick fix changes it to the
+closest heading.
+
 ## How often a method is used
 
 Above each class and method, a grey line shows how often it is used. This line is a code lens. Above

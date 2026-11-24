@@ -1,0 +1,54 @@
+<?nvs
+// Attack: doc comments point `@see` at files outside the project, and at headings that
+// do not exist. Each target is wrong, so this program should not compile.
+// hostile: expect-refusal
+
+final class Archive
+{
+    // 1. Climbs above the folder of the project with `../`.
+    /// Opens the archive.
+    ///
+    /// @see ../../../../../../../secrets.md
+    public static function open(): int
+    {
+        return 1;
+    }
+
+    // 2. Names an absolute path.
+    /// Closes the archive.
+    ///
+    /// @see /etc/passwd
+    public static function close(): int
+    {
+        return 2;
+    }
+
+    // 3. Names a path on a Windows drive.
+    /// Lists the archive.
+    ///
+    /// @see C:/Windows/win.ini
+    public static function list(): int
+    {
+        return 3;
+    }
+
+    // 4. Adds a heading to a file that is not Markdown.
+    /// Counts the entries of the archive.
+    ///
+    /// @see 02-tags-that-point-at-code-that-is-not-there.nvs#report
+    public static function count(): int
+    {
+        return 4;
+    }
+
+    // 5. Names a heading that the Markdown file does not have.
+    /// Describes the archive.
+    ///
+    /// @see ../../../../../README.md#a-heading-that-is-not-there
+    public static function describe(): int
+    {
+        return 5;
+    }
+}
+
+echo Archive::open() + Archive::close() + Archive::list() + Archive::count() + Archive::describe(), "\n";
