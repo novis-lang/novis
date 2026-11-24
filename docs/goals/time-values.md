@@ -1,7 +1,7 @@
 ---
 looper: 1
 title: "The Core\\Time values compare by value, and Date, Duration and DateFormat fill their gaps"
-summary: "Reached when == and ObjectMap/ObjectSet compare Date, TimeOfDay, Instant, Duration, Zone and DateTime by value (a DateTime by its moment, which also orders it), Date, TimeOfDay and DateTime write ISO text with toIso, a Y pattern without w warns, Date has startOf, endOf, difference, next, previous, parse and range, Date and DateTime read daysInMonth, quarter, isoWeek and isoWeekYear, Duration reads and writes clock text, Novis\\Intl\\DateFormat takes a fields option, and the rules, the reference, the feature proofs and the website say so."
+summary: "Reached when == and ObjectMap/ObjectSet compare Date, TimeOfDay, Instant, Duration, Zone and DateTime by value (a DateTime by its moment, which also orders it), Date, TimeOfDay and DateTime write ISO text with toIso, a DateTime's text carries its offset and zone name and DateTime::fromIso reads them back, a Y pattern without w warns, Date has startOf, endOf, difference, next, previous, parse and range, Date and DateTime read daysInMonth, quarter, isoWeek and isoWeekYear, Duration reads and writes clock text, Novis\\Intl\\DateFormat takes a fields option, and the rules, the reference, the feature proofs and the website say so."
 context: [crates/nvs-stdlib/src/time.rs, docs/rules/core-classes/a-time-class-builds-its-own-values.md]
 stages:
   - id: 1
@@ -9,7 +9,7 @@ stages:
     status: open
     context: [crates/nvs-runtime/src/identity.rs, crates/nvs-runtime/src/object.rs, crates/nvs-stdlib/src/registry.rs, crates/nvs-stdlib/src/objmap.rs, crates/nvs-stdlib/src/identity_store.rs, crates/nvs-ir/src/lower/operator.rs, crates/nvs-types/src/expr/operators.rs, docs/rules/expressions/object-identity-equality.md, docs/rules/expressions/equality-semantics.md]
   - id: 2
-    title: "Date, TimeOfDay and DateTime write ISO text, and a Y pattern without w warns"
+    title: "Date, TimeOfDay and DateTime write ISO text, a DateTime's with its offset and zone, and a Y pattern without w warns"
     status: open
     context: [crates/nvs-stdlib/src/cldr.rs, crates/nvs-types/src/intrinsics.rs, crates/nvs-diagnostics/src/code/warnings.rs, docs/rules/classes/stringable.md]
   - id: 3
@@ -57,7 +57,13 @@ checks:
     stage: 2
     name: "toIso writes the text fromIso reads, for Date, TimeOfDay and DateTime, at both ends of the range"
     run: [cargo, test, --lib, to_iso_]
-    tests: [to_iso_date_round_trips_through_from_iso, to_iso_time_of_day_round_trips_through_from_iso, to_iso_datetime_writes_local_time_without_an_offset, to_iso_round_trips_at_both_ends_of_the_range]
+    tests: [to_iso_date_round_trips_through_from_iso, to_iso_time_of_day_round_trips_through_from_iso, to_iso_datetime_writes_its_offset_and_zone, to_iso_round_trips_at_both_ends_of_the_range]
+    timeout: 1800
+  - id: iso-zone
+    stage: 2
+    name: "DateTime::fromIso reads a zone written in the text, picks a repeated hour by its offset, refuses an offset the zone does not have at that time, and needs $zone only for a text without a zone"
+    run: [cargo, test, --lib, from_iso_datetime_]
+    tests: [from_iso_datetime_reads_the_zone_in_the_text, from_iso_datetime_picks_a_repeated_hour_by_its_offset, from_iso_datetime_refuses_an_offset_the_zone_does_not_have, from_iso_datetime_without_a_zone_needs_the_argument, from_iso_datetime_refuses_two_different_zones, from_iso_datetime_round_trips_to_iso_across_a_change_of_offset]
     timeout: 1800
   - id: week-year-warning
     stage: 2
@@ -141,6 +147,15 @@ Many programs do each of these many times. The user agreed to the design below o
   `YearMonthDayWeekday`, `Month`, `YearMonth` and `Year`. The name says which parts appear, never their
   order. Each case's card says so: "Shows the month and the year. The locale decides their order, such
   as `Januar 2026` in `de`."
+- **A `DateTime`'s ISO text carries its offset and its zone name**, as RFC 9557 writes it:
+  `2026-01-05T08:30:00+01:00[Europe/Vienna]`, the local time, the offset and the zone. The offset
+  picks between the two copies of a repeated hour, so the text names one moment. `DateTime::toIso()`
+  writes this full form. `DateTime::fromIso(string $text, ?Zone $zone = null)` reads both forms: a
+  text with `[Zone]` needs no second argument, and a text without one still needs `$zone`. An offset
+  that does not match the zone at that local time throws `ParseError`. The text without a zone stays
+  available through `format(...)`. This replaces the earlier plan of a `toIso()` without an offset,
+  and the goal `route-values` builds on it: a `DateTime` crosses a query string and JSON as this text.
+  User's call of 2026-11-24.
 - **Everything else in the list below**, which the user agreed to as one plan.
 
 **Calls the session made and the user did not change.**
@@ -151,10 +166,18 @@ Many programs do each of these many times. The user agreed to the design below o
   `$to` counts down. The step is one of `Day`, `Week`, `Month`, `Quarter` or `Year`, as a closed subset
   in the signature (`rule:types/single-value-types`). A month step from the 31st lands on each month's
   last day, as `Date::plus` does.
-- `DateTime::toIso()` writes the local time without an offset, `2026-01-05T08:30:00`, because
-  `DateTime::fromIso` refuses an offset and the two must round-trip. A fraction of a second is written
-  only when it is not zero, with as few digits as keep it exact. The text with an offset stays
-  `format("yyyy-MM-dd'T'HH:mm:ssxxx")`. `TimeOfDay::toIso()` always writes seconds, `08:30:00`.
+- How the zoned text above is read and written, in detail. `toIso()` always writes seconds and
+  always writes the offset as `+HH:MM` or `-HH:MM`, so UTC is `+00:00[UTC]` and never `Z`. A fraction
+  of a second is written only when it is not zero, with as few digits as keep it exact. `fromIso`
+  takes the offset as optional before `[Zone]`, and without it the local time resolves in the zone as
+  a text without an offset resolves today. A `Z` still throws `ParseError` naming
+  `Instant::fromIso`. A text with `[Zone]` and a `$zone` naming another zone throws `ParseError`
+  (`rule:errors/ambiguous-input-refused`); the same zone in both is accepted. Only one bracket is
+  read: a critical flag `[!...]` and a tag such as `[u-ca=...]` throw `ParseError`. A zone name is
+  looked up as `Zone` looks it up, ignoring case. A written literal is checked while compiling by the
+  `DateTime` row of `crates/nvs-types/src/intrinsics.rs:397`, its zone name and its offset included,
+  and a literal with no `[Zone]` and no second argument does not compile.
+- `TimeOfDay::toIso()` always writes seconds, `08:30:00`.
 - `Date` does not become `Stringable`. E0710's help names `toIso()` and `format(...)` for a `Date`,
   `TimeOfDay` or `DateTime`.
 - The week-year warning fires on a written pattern with a `Y` and no `w`, and names `y`. A pattern
@@ -255,13 +278,21 @@ the first edit, as `file.rs:NN` and one line each.
   `==` stays identity" and the Declined item "One shared instance per zone name" rewritten, because two
   written zones with one id are now `==`.
 
-### 2. Date, TimeOfDay and DateTime write ISO text, and a Y pattern without w warns
+### 2. Date, TimeOfDay and DateTime write ISO text, a DateTime's with its offset and zone, and a Y pattern without w warns
 
 **Split:** none, one session.
 
 - [ ] `crates/nvs-stdlib/src/time.rs:2898` (`Date`), `:3335` (`TimeOfDay`) and `:2078` (`DateTime`):
   `toIso(): string`, each writing the text its `fromIso` reads, beside `Instant::toIso`
-  (`time.rs:4852`).
+  (`time.rs:4852`). `DateTime`'s writes the offset and `[Zone]`, as § *Standing decisions* says.
+- [ ] `crates/nvs-stdlib/src/time.rs:4019` (`iso_datetime`) and `:3831` (`validate_iso`): the
+  `DateTime` grammar reads an optional offset and one `[Zone]`, and checks the offset against the
+  zone at that local time. `crates/nvs-stdlib/src/time.rs:1807`: `DateTime::fromIso`'s `$zone`
+  becomes `?Zone $zone = null`. `crates/nvs-types/src/intrinsics.rs:397`: a literal's zone name and
+  offset are checked while compiling, and a literal with no `[Zone]` and no second argument does not
+  compile. The cards at `time.rs:2528` (`DateTime::fromIso`) and `time.rs:1524` (`Instant::fromIso`,
+  whose text names `DateTime::fromIso` with a zone) say what is true now.
+- [ ] The tests the check `iso-zone` names, run once by name. A failing test is written first.
 - [ ] `crates/nvs-types/src/expr/operators.rs:3172`: E0710's help for the three classes names `toIso()`
   and `format(...)`.
 - [ ] `crates/nvs-types/src/intrinsics.rs:670` and `crates/nvs-stdlib/src/cldr.rs:392`: a written
@@ -269,7 +300,9 @@ the first edit, as `file.rs:NN` and one line each.
   `crates/nvs-diagnostics/src/code/warnings.rs:396`'s neighbourhood.
 - [ ] The tests the checks `iso-text` and `week-year-warning` name, each run once by name.
 - [ ] `docs/rules/core-classes/a-time-class-builds-its-own-values.md:1`: § *One text format per class*
-  says each class writes the text it reads.
+  says each class writes the text it reads, and that a `DateTime`'s text carries its offset and zone
+  (RFC 9557), with the reason: the offset names one moment in a repeated hour, and the zone lets the
+  text cross a query string or a JSON document with no second argument.
 
 ### 3. Date moves to the start and end of a unit, counts a difference and finds a weekday, and Date and DateTime read four more calendar parts
 
@@ -345,7 +378,8 @@ one for `docs/examples/core/Time-Date/`, one for `Time-DateTime/`, `Time-TimeOfD
 - [ ] `website/src/content/docs/syntax/operators/comparison.mdx:1`: `==` on the time values, and
   `<` on a `DateTime`. Reread and stamped with `bun nv site --stamp`.
 - [ ] `website/src/data/changes.json:1`: a `changed` entry for `==` on the time values, for `ObjectMap`
-  and `ObjectSet`, and for `Novis\Intl\DateFormat`; a `new` entry for each new member.
+  and `ObjectSet`, for `Novis\Intl\DateFormat` and for `Core\Time\DateTime::fromIso`, whose `$zone` is
+  optional for a text with `[Zone]`; a `new` entry for each new member.
 - [ ] `bun nv proofs --owed --goal time-values` names nothing.
 
 ### 8. the goal is verified once, and every failure is fixed
