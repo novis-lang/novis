@@ -46,11 +46,15 @@
 //! or in the program. `rule:tooling/doc-comment-tags-are-closed-and-checked`
 //! keeps the tag set closed by making each tag buy a check — `@see` resolves
 //! against the very [`MemberTable`] a `Class::member` reference does
-//! (`E0323`), and `@example` against a file on disk, which must exist
+//! (`E0323`), or, written with a `/` or a `.`, against a file inside the
+//! project and a heading of it when it is Markdown ([`check_see_file`]).
+//! `@example` resolves against a file on disk, which must exist
 //! (`E0324`) and must sit in a directory the test corpus walks (`E0325`) so an
-//! example that stops compiling fails the build. That second one is the only
-//! question this module asks of the filesystem; it resolves a written path the
-//! way `require` does, relative to the file that wrote it. `@param`, `@return`
+//! example that stops compiling fails the build. Those two tags are the only
+//! questions this module asks of the filesystem; each resolves a written path
+//! the way `require` does, relative to the file that wrote it. What each
+//! `@see`, `@example` and `@throws` resolved to is kept for the language server
+//! ([`crate::doc_targets`]). `@param`, `@return`
 //! and `@throws` are held to the method they sit on: a parameter it has, named
 //! once (`E0335`, `E0331`), no type repeated from the signature (`E0332`), a
 //! declaration that takes the tag (`E0333`), and an error class (`E0334`).
@@ -114,6 +118,7 @@ use nvs_syntax::ast::{
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
+use crate::doc_targets::{DocTarget, Resolved};
 use crate::hierarchy::{ClassGraph, CoreRoster, resolve_ref};
 use crate::qname::QName;
 use crate::resolve::{name_text, qname_segments};
@@ -176,10 +181,14 @@ impl MemberTable {
 /// Which kind of member a `Class::member` reference names — decides which of
 /// [`ClassMembers`]' sets is checked.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum MemberKind {
+pub enum MemberKind {
+    /// A method, static or not.
     Method,
+    /// A class constant or an enum case.
     Const,
+    /// A static property.
     StaticProp,
+    /// An instance property.
     Prop,
 }
 
@@ -423,21 +432,25 @@ impl<'a> MemberResolver<'a> {
             src,
             (symbols, graph),
             strict_docs,
-            &mut crate::uses::Uses::off(),
+            (
+                &mut crate::uses::Uses::off(),
+                &mut crate::doc_targets::DocTargets::off(),
+            ),
             diags,
         );
     }
 
     /// [`Self::check`], recording into `uses` each class, member and doc
     /// tag target the file names, and each one it failed to find
-    /// (`crate::uses`).
+    /// (`crate::uses`), and into `targets` what each doc tag that names
+    /// something resolved to (`crate::doc_targets`).
     pub fn check_recording(
         &self,
         stmts: &[Stmt],
         src: &SourceFile,
         (symbols, graph): (&SymbolTable, &ClassGraph),
         strict_docs: bool,
-        uses: &mut crate::uses::Uses,
+        (uses, targets): (&mut crate::uses::Uses, &mut crate::doc_targets::DocTargets),
         diags: &mut Diagnostics,
     ) {
         let mut env = Env {
@@ -451,6 +464,7 @@ impl<'a> MemberResolver<'a> {
             strict_docs,
             links: &self.links,
             uses,
+            targets,
             diags,
         };
         check_stmts(stmts, src, None, &[], &FxHashMap::default(), &mut env);
@@ -502,6 +516,9 @@ struct Env<'a> {
     strict_docs: bool,
     /// What the file found and failed to find (`crate::uses`).
     uses: &'a mut crate::uses::Uses,
+    /// What each doc tag that names something resolved to
+    /// (`crate::doc_targets`).
+    targets: &'a mut crate::doc_targets::DocTargets,
     diags: &'a mut Diagnostics,
 }
 
@@ -1072,10 +1089,15 @@ fn check_throws(
         env.uses.missed_class(&resolved);
         None
     };
-    if let Some(class) = &class
-        && env.symbols.contains(class)
-    {
-        env.uses.class(class);
+    if let Some(class) = &class {
+        if env.symbols.contains(class) {
+            env.uses.class(class);
+        }
+        env.targets.push(DocTarget {
+            span: target,
+            class_span: None,
+            resolved: Resolved::Class(class.clone()),
+        });
     }
     let throwable = QName::parse(crate::errors::ROOT);
     let is_throwable = class.as_ref().is_some_and(|class| {
@@ -1241,31 +1263,46 @@ fn check_missing_params(
 
 /// One `@see`'s target, which
 /// `rule:tooling/doc-comment-tags-are-closed-and-checked` requires to resolve.
-/// The spelling is a class name, optionally followed by `::member`, and the
-/// member half may carry a `$` sigil or a trailing `()` so a page may write a
-/// property or a call the way a reader would say it. `self`, `static` and
+/// [`nvs_syntax::doc_target::DocTarget::of`] says which of two shapes it has.
+/// A target with a `/` or a `.` is a file, and [`check_see_file`] checks it.
+///
+/// Every other target is a class name, optionally followed by `::member`, and
+/// the member half may carry a `$` sigil or a trailing `()` so a page may write
+/// a property or a call the way a reader would say it. `self`, `static` and
 /// `parent` name a class here exactly as they do in code, since a doc comment
 /// sits inside the same class the code below it does.
 ///
 /// A member is looked up against all four [`MemberKind`]s, because `@see` says
 /// *what* is named and never which kind it is; `Class::name` resolving as any
 /// one of them is the cross-reference the tag promised. A `Core` target is
-/// trusted the same way [`member_declared`] trusts one anywhere else.
+/// trusted the same way [`member_declared`] trusts one anywhere else. A member
+/// that is not found gets the closest member name of the class as its fix
+/// ([`closest_name`]).
 fn check_see(tag: &DocTag, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
-    let text = src.span_text(tag.argument).unwrap_or_default().trim();
+    let raw = src.span_text(tag.argument).unwrap_or_default();
+    let text = raw.trim();
     if text.is_empty() {
         env.diags.report(
             Diagnostic::error(code::E_DOC_SEE_UNRESOLVED, "`@see` names nothing")
                 .with_primary(tag.span, "nothing to resolve")
                 .with_help(
-                    "name a class, member, enum case or constant — `@see Core\\Money::fromCents`",
+                    "name a class or a member, `@see Core\\Money::fromCents`, or a file, \
+                     `@see docs/guide.md#usage`",
                 ),
         );
         return;
     }
+    // Where `text` starts in the file, so a fix can replace one part of it.
+    let start = tag.argument.start as usize + (raw.len() - raw.trim_start().len());
+    if let nvs_syntax::doc_target::DocTarget::File { path, anchor } =
+        nvs_syntax::doc_target::DocTarget::of(text)
+    {
+        let at = span_of(tag.argument, start, start + text.len());
+        return check_see_file(at, path, anchor, src, env);
+    }
 
     let (class_text, member) = match text.split_once("::") {
-        Some((class_text, member)) => (class_text.trim(), Some(member.trim())),
+        Some((class_text, member)) => (class_text.trim(), Some(member)),
         None => (text, None),
     };
 
@@ -1291,45 +1328,256 @@ fn check_see(tag: &DocTag, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
                 code::E_DOC_SEE_UNRESOLVED,
                 format!("`@see` names `{class_text}`, which resolves to no declaration"),
             )
-            .with_primary(tag.argument, "no such class"),
+            .with_primary(tag.argument, "no such class")
+            .with_help("name a class this file can see, with its `use` line if it needs one"),
         );
         return;
     };
+    let class_span = span_of(tag.argument, start, start + class_text.len());
 
-    let Some(member) = member else {
+    let Some(member_raw) = member else {
+        env.targets.push(DocTarget {
+            span: span_of(tag.argument, start, start + text.len()),
+            class_span: Some(class_span),
+            resolved: Resolved::Class(class),
+        });
         return;
     };
-    let member = member.trim_end_matches("()").trim_start_matches('$');
+    let member = member_raw
+        .trim()
+        .trim_end_matches("()")
+        .trim_start_matches('$');
     if member.is_empty() {
         env.diags.report(
             Diagnostic::error(
                 code::E_DOC_SEE_UNRESOLVED,
                 format!("`@see` names no member of `{class}` after the `::`"),
             )
-            .with_primary(tag.argument, "nothing to resolve"),
+            .with_primary(tag.argument, "nothing to resolve")
+            .with_help(format!("write the member's name after `{class_text}::`")),
         );
         return;
     }
+    // The bare name's place in the file: after the `::`, any space, and a `$`.
+    let member_offset = text.len() - member_raw.len() + member_raw.find(member).unwrap_or(0);
+    let member_span = span_of(
+        tag.argument,
+        start + member_offset,
+        start + member_offset + member.len(),
+    );
     let kinds = [
         MemberKind::Method,
         MemberKind::Const,
         MemberKind::StaticProp,
         MemberKind::Prop,
     ];
-    let found = kinds
-        .into_iter()
-        .any(|kind| record_member(&class, member, kind, env));
     // A miss is recorded for each kind tried, so a property or a method of
     // this name added later reaches the file.
-    if !found {
+    let found = kinds
+        .into_iter()
+        .find_map(|kind| record_member_owner(&class, member, kind, env).map(|owner| (owner, kind)));
+    if let Some((owner, kind)) = found {
+        env.targets.push(DocTarget {
+            span: span_of(tag.argument, start, start + text.len()),
+            class_span: Some(class_span),
+            resolved: Resolved::Member {
+                class,
+                owner,
+                name: member.to_owned(),
+                kind,
+            },
+        });
+        return;
+    }
+    let mut candidates = Vec::new();
+    for kind in kinds {
+        collect_candidates(
+            &class,
+            kind,
+            env.table,
+            env.graph,
+            &mut FxHashSet::default(),
+            &mut candidates,
+        );
+    }
+    let diag = Diagnostic::error(
+        code::E_DOC_SEE_UNRESOLVED,
+        format!("`{class}` has no member named `{member}` for `@see` to resolve"),
+    )
+    .with_primary(member_span, "no such member");
+    let diag = match closest_name(member, candidates.iter().map(String::as_str)) {
+        Some(near) => diag.with_fix(member_span, near, format!("change it to `{near}`")),
+        None => diag.with_help(format!("name a member `{class}` declares or inherits")),
+    };
+    env.diags.report(diag);
+}
+
+/// One `@see` file target: `path`, and the `anchor` after its `#` if one was
+/// written. `at` is the whole written target.
+///
+/// The path is relative to the folder of the file that wrote it, as an
+/// `@example` and a `require` path are, and it must stay inside the project
+/// ([`crate::lenders::project_of`]). The written text is judged before it is
+/// joined: an absolute path, a drive or UNC prefix, and a `..` that climbs
+/// above the project are refused on the text alone. After the join, the
+/// canonical path must still start with the canonical project folder, so a
+/// symbolic link cannot leave it either. The target must be a regular file.
+///
+/// Any file may be a target, and only a Markdown file takes an anchor. The
+/// anchor must equal the slug of one of its headings
+/// ([`nvs_syntax::doc_target::heading_slugs`]), and a miss gets the closest
+/// slug as its fix.
+///
+/// Cost: one `stat` and one `canonicalize` per target, as `@example` costs.
+/// An anchored target also reads the Markdown file once. Its text is dropped
+/// when the tag is checked, and the read is recorded for test selection.
+fn check_see_file(at: Span, path: &str, anchor: Option<&str>, src: &SourceFile, env: &mut Env<'_>) {
+    let path_span = span_of(at, at.start as usize, at.start as usize + path.len());
+    let folder = match src.path().and_then(Path::parent) {
+        Some(folder) => std::path::absolute(folder).unwrap_or_else(|_| folder.to_path_buf()),
+        None => std::env::current_dir().unwrap_or_default(),
+    };
+    let project = crate::lenders::project_of(&folder);
+    let depth = folder
+        .strip_prefix(&project)
+        .map_or(0, |below| below.components().count());
+    if path.is_empty() || leaves_project(path, depth) {
         env.diags.report(
             Diagnostic::error(
                 code::E_DOC_SEE_UNRESOLVED,
-                format!("`{class}` has no member named `{member}` for `@see` to resolve"),
+                format!("`@see` names `{path}`, which is outside the project"),
             )
-            .with_primary(tag.argument, "no such member"),
+            .with_primary(path_span, "outside the project")
+            .with_help(format!(
+                "a `@see` path must name a file inside `{}`, the folder that holds the \
+                 project's `nvs.toml` or `package.toml`",
+                project.display()
+            )),
         );
+        return;
     }
+
+    let joined = folder.join(path);
+    nvs_footprint::exists(&joined);
+    let canonical = joined.canonicalize().ok();
+    let inside = canonical.as_ref().is_some_and(|canonical| {
+        project
+            .canonicalize()
+            .is_ok_and(|project| canonical.starts_with(project))
+    });
+    if canonical.is_some() && !inside {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOC_SEE_UNRESOLVED,
+                format!("`@see` names `{path}`, which leads outside the project"),
+            )
+            .with_primary(path_span, "a link that leaves the project")
+            .with_help("a `@see` path must name a file inside the project, also through a link"),
+        );
+        return;
+    }
+    let Some(canonical) = canonical.filter(|canonical| canonical.is_file()) else {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOC_SEE_UNRESOLVED,
+                format!("`@see` names `{path}`, which is not a file"),
+            )
+            .with_primary(path_span, "no such file")
+            .with_help("the path is relative to the file that wrote it, as a `require` path is"),
+        );
+        return;
+    };
+
+    let Some(anchor) = anchor else {
+        env.targets.push(DocTarget {
+            span: at,
+            class_span: None,
+            resolved: Resolved::File {
+                path: canonical,
+                heading: None,
+            },
+        });
+        return;
+    };
+    // `#` and the anchor after it, at the end of the target.
+    let hash = span_of(at, at.end as usize - anchor.len() - 1, at.end as usize);
+    let anchor_span = span_of(at, at.end as usize - anchor.len(), at.end as usize);
+    if !nvs_syntax::doc_target::is_markdown(path) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOC_SEE_UNRESOLVED,
+                format!("`{path}` is not a Markdown file, so `#{anchor}` names nothing in it"),
+            )
+            .with_primary(hash, "an anchor on a file that is not Markdown")
+            .with_fix(hash, "", "delete the anchor"),
+        );
+        return;
+    }
+    nvs_footprint::file(&canonical);
+    let text = std::fs::read_to_string(&canonical).unwrap_or_default();
+    let slugs = nvs_syntax::doc_target::heading_slugs(&text);
+    if let Some((_, line)) = slugs.iter().find(|(slug, _)| slug == anchor) {
+        env.targets.push(DocTarget {
+            span: at,
+            class_span: None,
+            resolved: Resolved::File {
+                path: canonical,
+                heading: Some(*line),
+            },
+        });
+        return;
+    }
+    let diag = Diagnostic::error(
+        code::E_DOC_SEE_UNRESOLVED,
+        format!("`{path}` has no heading `#{anchor}`"),
+    )
+    .with_primary(anchor_span, "no such heading");
+    let diag = match closest_name(anchor, slugs.iter().map(|(slug, _)| slug.as_str())) {
+        Some(near) => diag.with_fix(anchor_span, near, format!("change it to `#{near}`")),
+        None => diag.with_help(
+            "an anchor is a heading's text in lowercase, with spaces as `-` and punctuation removed",
+        ),
+    };
+    env.diags.report(diag);
+}
+
+/// Whether the written `@see` path leaves the project on its text alone:
+/// it is absolute, starts with a drive or UNC prefix, or has a `..` that
+/// climbs above the project. `depth` is how many folders the writing file's
+/// folder sits below the project folder. Both `/` and `\` separate.
+fn leaves_project(path: &str, depth: usize) -> bool {
+    if path.starts_with(['/', '\\']) || path.as_bytes().get(1) == Some(&b':') {
+        return true;
+    }
+    let mut at = depth;
+    for segment in path.split(['/', '\\']) {
+        match segment {
+            "" | "." => {}
+            ".." => match at.checked_sub(1) {
+                Some(up) => at = up,
+                None => return true,
+            },
+            _ => at += 1,
+        }
+    }
+    false
+}
+
+/// The candidate closest to `written` by [`edit_distance`], when it is
+/// within a third of the written length. Two at the same distance give the
+/// one that sorts first, so the fix is the same on every run.
+fn closest_name<'c>(
+    written: &str,
+    candidates: impl IntoIterator<Item = &'c str>,
+) -> Option<&'c str> {
+    let budget = written.chars().count() / 3;
+    candidates
+        .into_iter()
+        .filter(|candidate| *candidate != written)
+        .map(|candidate| (edit_distance(written, candidate), candidate))
+        .filter(|(distance, _)| *distance <= budget)
+        .min()
+        .map(|(_, candidate)| candidate)
 }
 
 /// The directories a Novis project's test corpus walks, and so the only ones
@@ -1391,7 +1639,20 @@ fn check_example(tag: &DocTag, src: &SourceFile, env: &mut Env<'_>) {
 
     let base = src.path().and_then(Path::parent).unwrap_or(Path::new(""));
     nvs_footprint::exists(&base.join(written));
-    if !base.join(written).is_file() {
+    if base.join(written).is_file() {
+        if env.targets.is_on()
+            && let Ok(path) = base.join(written).canonicalize()
+        {
+            env.targets.push(DocTarget {
+                span: tag.argument,
+                class_span: None,
+                resolved: Resolved::File {
+                    path,
+                    heading: None,
+                },
+            });
+        }
+    } else {
         env.diags.report(
             Diagnostic::error(
                 code::E_DOC_EXAMPLE_NOT_FOUND,
@@ -2298,6 +2559,16 @@ fn check_property_ref(name: &str, span: Span, ctx: &Ctx<'_>, env: &mut Env<'_>) 
 /// member it found, or the miss, into the file's uses (`crate::uses`). A
 /// member of a `Core` class records nothing: no edit to the program changes it.
 fn record_member(qname: &QName, name: &str, kind: MemberKind, env: &mut Env<'_>) -> bool {
+    record_member_owner(qname, name, kind, env).is_some()
+}
+
+/// [`record_member`], returning the class that declares the member.
+fn record_member_owner(
+    qname: &QName,
+    name: &str,
+    kind: MemberKind,
+    env: &mut Env<'_>,
+) -> Option<QName> {
     let owner = member_declared(qname, name, kind, env.table, env.graph);
     if env.uses.is_on() {
         let written = match kind {
@@ -2310,7 +2581,7 @@ fn record_member(qname: &QName, name: &str, kind: MemberKind, env: &mut Env<'_>)
             None => env.uses.missed_member(Some(qname), &written),
         }
     }
-    owner.is_some()
+    owner.cloned()
 }
 
 /// The class that declares `qname`'s member `name`: `qname` itself or the
@@ -2824,6 +3095,253 @@ mod tests {
                 .iter()
                 .any(|d| d.code == Some(code::E_DOC_SEE_UNRESOLVED)),
             "{diags:?}"
+        );
+    }
+
+    /// A project in a scratch folder: an `nvs.toml`, `docs/guide.md` with
+    /// three headings, `schema.sql`, and `src/a.nvs` holding `body`. The file
+    /// is loaded from disk, so its `@see` paths resolve from `src/`. Gives
+    /// what the check reported and what it recorded.
+    fn check_see_in_project(
+        name: &str,
+        body: &str,
+    ) -> (
+        nvs_repo::Scratch,
+        Diagnostics,
+        crate::doc_targets::DocTargets,
+    ) {
+        let dir = nvs_repo::scratch(&format!("hir-see-{name}"));
+        std::fs::create_dir_all(dir.join("docs")).expect("docs folder");
+        std::fs::create_dir_all(dir.join("src")).expect("src folder");
+        std::fs::write(dir.join("nvs.toml"), "").expect("nvs.toml");
+        std::fs::write(
+            dir.join("docs/guide.md"),
+            "# Guide\n\n## Usage\n\nText.\n\n## Error codes\n",
+        )
+        .expect("guide.md");
+        std::fs::write(dir.join("schema.sql"), "create table t (id int);\n").expect("schema");
+        std::fs::write(dir.join("src/a.nvs"), body).expect("a.nvs");
+
+        let mut map = SourceMap::new();
+        let file = map.load(dir.join("src/a.nvs")).expect("load a.nvs");
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+        let module = resolve_file(&stmts, map.file(file), &mut Diagnostics::new());
+        let mut members = MemberResolver::new();
+        members.collect_members(&stmts, map.file(file));
+        let mut targets = crate::doc_targets::DocTargets::recording();
+        members.check_recording(
+            &stmts,
+            map.file(file),
+            (&module.symbols, &module.graph),
+            false,
+            (&mut crate::uses::Uses::off(), &mut targets),
+            &mut diags,
+        );
+        (dir, diags, targets)
+    }
+
+    /// The `E0323` messages a check reported.
+    fn see_errors(diags: &Diagnostics) -> Vec<String> {
+        diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_DOC_SEE_UNRESOLVED))
+            .map(|d| d.message.clone())
+            .collect()
+    }
+
+    /// The one class every `@see` fixture documents, with `tags` as its doc
+    /// comment's lines.
+    fn see_fixture(tags: &[&str]) -> String {
+        let mut src = String::from("<?nvs\n/// A price.\n///\n");
+        for tag in tags {
+            src.push_str("/// ");
+            src.push_str(tag);
+            src.push('\n');
+        }
+        src.push_str("class Price { function cents(): int { return 1; } }\n");
+        src
+    }
+
+    #[test]
+    fn a_see_file_target_that_exists_is_accepted() {
+        let (_dir, diags, _) = check_see_in_project(
+            "exists",
+            &see_fixture(&[
+                "@see ../docs/guide.md",
+                "@see ../schema.sql",
+                "@see ../docs/guide.md#usage",
+                "@see ./../docs/guide.md#error-codes",
+            ]),
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    #[test]
+    fn a_see_file_target_that_names_no_file_is_refused() {
+        let (_dir, diags, _) =
+            check_see_in_project("no-file", &see_fixture(&["@see ../docs/missing.md"]));
+        assert_eq!(
+            see_errors(&diags),
+            ["`@see` names `../docs/missing.md`, which is not a file"]
+        );
+    }
+
+    #[test]
+    fn a_see_anchor_that_names_no_heading_is_refused() {
+        let (_dir, diags, _) = check_see_in_project(
+            "no-heading",
+            &see_fixture(&["@see ../docs/guide.md#installation"]),
+        );
+        assert_eq!(
+            see_errors(&diags),
+            ["`../docs/guide.md` has no heading `#installation`"]
+        );
+    }
+
+    #[test]
+    fn a_see_anchor_on_a_file_that_is_not_markdown_is_refused() {
+        let (_dir, diags, _) =
+            check_see_in_project("not-markdown", &see_fixture(&["@see ../schema.sql#tables"]));
+        assert_eq!(
+            see_errors(&diags),
+            ["`../schema.sql` is not a Markdown file, so `#tables` names nothing in it"]
+        );
+        let fix = diags
+            .iter()
+            .flat_map(|d| &d.suggestions)
+            .next()
+            .expect("a fix that deletes the anchor");
+        assert!(fix.replacement.is_empty(), "{fix:?}");
+    }
+
+    #[test]
+    fn a_see_path_that_leaves_the_project_is_refused() {
+        let (_dir, diags, _) = check_see_in_project(
+            "leaves",
+            &see_fixture(&[
+                "@see ../../outside.md",
+                "@see /etc/hosts.md",
+                "@see C:/Windows/win.ini",
+                "@see \\\\server\\share\\notes.md",
+            ]),
+        );
+        let errors = see_errors(&diags);
+        assert_eq!(errors.len(), 4, "{errors:?}");
+        assert!(
+            errors
+                .iter()
+                .all(|e| e.ends_with("which is outside the project")),
+            "{errors:?}"
+        );
+    }
+
+    /// A link inside the project that points outside it is refused after the
+    /// join, by the canonical path.
+    #[cfg(unix)]
+    #[test]
+    fn a_see_symlink_that_leaves_the_project_is_refused() {
+        let outside = nvs_repo::scratch("hir-see-outside");
+        std::fs::write(outside.join("secret.md"), "# Secret\n").expect("secret.md");
+        let dir = nvs_repo::scratch("hir-see-link");
+        std::os::unix::fs::symlink(outside.join("secret.md"), dir.join("linked.md"))
+            .expect("symlink");
+        std::fs::write(dir.join("nvs.toml"), "").expect("nvs.toml");
+        let body = see_fixture(&["@see linked.md"]);
+        std::fs::write(dir.join("a.nvs"), &body).expect("a.nvs");
+        let mut map = SourceMap::new();
+        let file = map.load(dir.join("a.nvs")).expect("load a.nvs");
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(file), &mut diags);
+        let module = resolve_file(&stmts, map.file(file), &mut Diagnostics::new());
+        let mut members = MemberResolver::new();
+        members.collect_members(&stmts, map.file(file));
+        members.check(
+            &stmts,
+            map.file(file),
+            &module.symbols,
+            &module.graph,
+            false,
+            &mut diags,
+        );
+        assert_eq!(
+            see_errors(&diags),
+            ["`@see` names `linked.md`, which leads outside the project"]
+        );
+    }
+
+    #[test]
+    fn a_see_miss_suggests_the_closest_name() {
+        let src = see_fixture(&["@see Price::cennts", "@see ../docs/guide.md#usag"]);
+        let (_dir, diags, _) = check_see_in_project("closest", &src);
+        let mut fixes: Vec<(&str, &str)> = diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_DOC_SEE_UNRESOLVED))
+            .flat_map(|d| &d.suggestions)
+            .map(|fix| {
+                let written = &src[fix.span.start as usize..fix.span.end as usize];
+                (written, fix.replacement.as_str())
+            })
+            .collect();
+        fixes.sort_unstable();
+        assert_eq!(fixes, [("cennts", "cents"), ("usag", "usage")]);
+    }
+
+    #[test]
+    fn a_see_target_is_recorded_with_what_it_resolved_to() {
+        let src = "<?nvs\n\
+                   /// A price.\n\
+                   ///\n\
+                   /// @see Price::cents\n\
+                   /// @see Price\n\
+                   /// @see ../docs/guide.md#error-codes\n\
+                   class Price {\n\
+                   /// The amount.\n\
+                   ///\n\
+                   /// @throws Core\\Exception when it fails\n\
+                   function cents(): int { return 1; }\n\
+                   }\n";
+        let (dir, diags, targets) = check_see_in_project("recorded", src);
+        assert!(!diags.has_errors(), "{diags:?}");
+        let recorded: Vec<(&str, &Resolved)> = targets
+            .iter()
+            .map(|target| {
+                (
+                    &src[target.span.start as usize..target.span.end as usize],
+                    &target.resolved,
+                )
+            })
+            .collect();
+        let guide = dir
+            .join("docs/guide.md")
+            .canonicalize()
+            .expect("guide.md exists");
+        assert_eq!(
+            recorded,
+            [
+                (
+                    "Price::cents",
+                    &Resolved::Member {
+                        class: QName::parse("Price"),
+                        owner: QName::parse("Price"),
+                        name: "cents".to_owned(),
+                        kind: MemberKind::Method,
+                    }
+                ),
+                ("Price", &Resolved::Class(QName::parse("Price"))),
+                (
+                    "../docs/guide.md#error-codes",
+                    &Resolved::File {
+                        path: guide,
+                        heading: Some(6),
+                    }
+                ),
+                (
+                    "Core\\Exception",
+                    &Resolved::Class(QName::parse("Core\\Exception"))
+                ),
+            ]
         );
     }
 }

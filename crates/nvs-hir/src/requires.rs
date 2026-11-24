@@ -681,10 +681,16 @@ fn walk(
     let mut module = resolver.into_module();
     // Only the language server passes a parse cache, and only it reads what
     // each file used (`crate::uses`).
-    let mut uses = if parses.is_some() {
-        crate::uses::FileUses::recording()
+    let (mut uses, mut doc_targets) = if parses.is_some() {
+        (
+            crate::uses::FileUses::recording(),
+            crate::doc_targets::DocTargets::recording(),
+        )
     } else {
-        crate::uses::FileUses::off()
+        (
+            crate::uses::FileUses::off(),
+            crate::doc_targets::DocTargets::off(),
+        )
     };
     module.graph = hierarchy.resolve_recording(&module.symbols, diags, &mut uses);
 
@@ -695,11 +701,12 @@ fn walk(
             map.file(file.id),
             (&module.symbols, &module.graph),
             strict_docs,
-            uses.at(file.id),
+            (uses.at(file.id), &mut doc_targets),
             diags,
         );
     }
     module.uses = uses;
+    module.doc_targets = doc_targets;
     module.members = members.into_table();
     module.aliases = aliases.resolve(diags);
     link_targets.mark_links_only(diags);

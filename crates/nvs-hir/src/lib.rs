@@ -57,6 +57,7 @@
 
 pub mod aliases;
 pub mod autoload;
+pub mod doc_targets;
 pub mod errors;
 pub mod hierarchy;
 pub mod imports;
@@ -72,6 +73,7 @@ pub mod uses;
 
 pub use aliases::{AliasResolver, AliasSite, AliasTable, AttributeDef};
 pub use autoload::{AutoloadMap, Probe};
+pub use doc_targets::DocTargets;
 pub use hierarchy::{
     ClassGraph, ClassLinks, CoreRoster, HierarchyResolver, Undeclared, find_in_ancestors,
     implementors, implements_interface, relative_spelling, resolve_ref, seed_exception_tree,

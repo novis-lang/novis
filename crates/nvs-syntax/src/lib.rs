@@ -30,6 +30,11 @@
 //!   and reads it from below. It moved there when `rule:errors/log-write`'s tier-4 floor
 //!   became a dependent of `nvs-render`, which `rule:errors/diagnostic-record` requires be the
 //!   leaf — that crate's own § *Where this sits* is the home of why.
+//! - [`doc_target`] — which shape a doc comment's `@see` argument has, a member
+//!   or a file with an optional `#anchor`, and the heading slugs of a Markdown
+//!   file. Public because the checker, the language server, `nvs pkg pack`,
+//!   `nvs meta` and `nvs doc` all classify a target, and one classifier keeps
+//!   them in agreement.
 //! - [`duration`] — `rule:types/duration`'s duration grammar, the one place `30s` is
 //!   defined. Public because it is shared: `nvs-stdlib`'s
 //!   `Core\Time\Duration::parse`, the type checker and the lowering all call in,
@@ -100,6 +105,7 @@
 
 pub mod ast;
 mod casing;
+pub mod doc_target;
 pub mod duration;
 pub mod index;
 mod lexer;

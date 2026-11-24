@@ -59,6 +59,9 @@ pub struct Module {
     /// [`crate::requires::resolve_program`] gets a parse cache, which is the
     /// language server's path. Every other check leaves it off and empty.
     pub uses: crate::uses::FileUses,
+    /// What each doc comment tag that names something resolved to
+    /// (`crate::doc_targets`). It records on the same road as [`Self::uses`].
+    pub doc_targets: crate::doc_targets::DocTargets,
 }
 
 /// Resolves parsed files' top-level namespace/`use`/declaration structure

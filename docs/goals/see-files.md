@@ -6,7 +6,7 @@ context: [docs/rules/tooling/doc-comment-tags-are-closed-and-checked.md, crates/
 stages:
   - id: 1
     title: the checker resolves every @see target, records it and suggests the closest name
-    status: open
+    status: done
     context: [crates/nvs-hir/src/members.rs, crates/nvs-hir/src/lenders.rs, crates/nvs-syntax/src/lib.rs, crates/nvs-diagnostics/src/code/names.rs, docs/rules/statements/require-is-the-only-inclusion-construct.md]
   - id: 2
     title: nvs pkg pack and the registry build refuse a doc tag naming a file the package does not carry
@@ -260,21 +260,21 @@ each has its own test file, so they may run side by side too. Stage 6 runs after
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-syntax/src/doc_target.rs:1` (new, `pub mod` in `crates/nvs-syntax/src/lib.rs:1`):
+- [x] `crates/nvs-syntax/src/doc_target.rs:1` (new, `pub mod` in `crates/nvs-syntax/src/lib.rs:1`):
   `DocTarget::{Member, File { path, anchor }}` from an argument's text, and
   `heading_slugs(text) -> Vec<(String, u32)>` (slug and 0-based line), with unit tests including
   `a_see_anchor_matches_a_github_heading_slug` (ATX, setext, a fenced block, a repeated heading,
   punctuation, a non-ASCII letter).
-- [ ] `crates/nvs-hir/src/members.rs:1254`: `check_see` sends a file target to a new `check_see_file`,
+- [x] `crates/nvs-hir/src/members.rs:1254`: `check_see` sends a file target to a new `check_see_file`,
   which judges the written path, finds the project with `crates/nvs-hir/src/lenders.rs:460`'s walk,
   joins, canonicalizes, tests a regular file, then checks the anchor.
   `rule:tooling/doc-comment-tags-are-closed-and-checked`.
-- [ ] `crates/nvs-hir/src/members.rs:1324` and the new file miss: the closest-name `Suggestion`, with
+- [x] `crates/nvs-hir/src/members.rs:1324` and the new file miss: the closest-name `Suggestion`, with
   `edit_distance` (`members.rs:2439`).
-- [ ] `crates/nvs-hir/src/members.rs:412`: the record of resolved targets for `@see`, `@example` and
+- [x] `crates/nvs-hir/src/members.rs:412`: the record of resolved targets for `@see`, `@example` and
   `@throws`, carried out of `check` by the road `written_path` takes to `crates/nvs-lsp/src/links.rs:81`.
-- [ ] `crates/nvs-diagnostics/src/code/names.rs:194`: E0323's card covers both shapes.
-- [ ] `crates/nvs-hir/src/members.rs:2456`'s tests: the `a_see_*` tests the check `checker` names, each
+- [x] `crates/nvs-diagnostics/src/code/names.rs:194`: E0323's card covers both shapes.
+- [x] `crates/nvs-hir/src/members.rs:2456`'s tests: the `a_see_*` tests the check `checker` names, each
   writing its files under a temporary folder with an `nvs.toml`, then `cargo test --lib a_see_` once.
 
 ### 2. nvs pkg pack and the registry build refuse a doc tag naming a file the package does not carry
@@ -377,12 +377,34 @@ the session writes the rules, the reference, the editor page and the website ent
 
 ### State
 
-Written by the interactive session that settled the design with the user on 2026-11-24, and widened
-the same day to cover every editor request that can read a `@see` target. Nothing is built. Every
-anchor above was read on that day.
+Stage 1 is done, and its check `checker` is green (`looper check --name checker`).
+
+- `nvs_syntax::doc_target` (`crates/nvs-syntax/src/doc_target.rs`) has `DocTarget::of` (the one
+  classifier: a `/` or `.` makes a file target, split at the first `#`), `is_markdown`,
+  `heading_slugs` and `slug`.
+- `crates/nvs-hir/src/members.rs` `check_see` sends a file target to `check_see_file`, which judges
+  the written path with `leaves_project`, finds the project with the new
+  `nvs_hir::lenders::project_of(folder)` (`project_root`'s walk without the top bound, sharing
+  `holds_a_project`), joins, canonicalizes, tests a regular file, then checks the anchor. A member
+  miss and a heading miss carry a safe fix from `closest_name` (within a third of the written length).
+  An anchor on a non-Markdown file carries a fix that deletes `#anchor`.
+- The record is `nvs_hir::doc_targets::DocTargets` (`crates/nvs-hir/src/doc_targets.rs`), on
+  `Module::doc_targets`, recording on the same road as `Module::uses`: only when
+  `resolve_program` gets a parse cache, which is the language server's path. Each `DocTarget` has the
+  argument's `span`, the `class_span` of a member target's class part, and `Resolved::{Class, Member
+  { class, owner, name, kind }, File { path, heading }}`. `@throws` records `Class`, `@example` records
+  `File` with no heading. `MemberKind` is now `pub`. `DocTargets::at(file, offset)` finds the target
+  under a cursor.
+- `check_recording` takes `(uses, targets)` as one tuple argument.
+- E0323's card covers both shapes.
 
 ### Next
 
-Stage 1 from its first item. Every check is red until its stage's tests exist.
+Stages 2, 3, 4 and 5 may run side by side (Lanes). The next session takes stage 2 from its first
+item, `crates/nvs-cli/src/package/fixture.rs:167`, reading `nvs_syntax::doc_target::DocTarget::of`
+for the classification. The editor stages read `Module::doc_targets`: find how `Analysed` keeps the
+`Module` (`crates/nvs-lsp/src/document.rs`) and read `module.doc_targets.in_file(analysed.entry)`.
+
+No test is expected to go red from stage 1: no existing `@see` in the corpus has a `/` or a `.`.
 
 ### Backlog

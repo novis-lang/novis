@@ -183,17 +183,21 @@ codes! {
          `namespace App;`, the name `Models\\User` does not mean `App\\Models\\User`. Write the \
          full name, or import it with `use App\\Models\\User;`.",
     );
-    /// A doc comment's `@see` naming something that does not resolve — a class
-    /// nothing declares, a member no class in the chain has, or nothing at all
-    /// after the tag. `rule:tooling/doc-comment-tags-are-closed-and-checked`
-    /// keeps the tag set at two by making each one buy a check, and this is
-    /// `@see`'s: a cross-reference that resolves where it is written cannot
-    /// rot into a link to a member that has since been renamed. Resolution
-    /// rather than the parser, because the question is what a name means, and
-    /// the same one [`E_UNDEFINED_MEMBER`] asks of a `Class::member` in code.
+    /// A doc comment's `@see` naming something that does not resolve. A
+    /// member target names a class nothing declares, a member no class in the
+    /// chain has, or nothing at all after the tag. A file target names no
+    /// file, a path that leaves the project, a heading the Markdown file does
+    /// not have, or an anchor on a file that is not Markdown.
+    /// `rule:tooling/doc-comment-tags-are-closed-and-checked` makes each tag
+    /// buy a check, and this is `@see`'s: a cross-reference that resolves where
+    /// it is written cannot rot into a link to something since renamed. A miss
+    /// carries the closest member or heading as its fix.
     pub const E_DOC_SEE_UNRESOLVED: Code = Code::new("E0323").card(
-        "A `@see` tag in a doc comment names a class or member that does not exist. Fix the name, \
-         or delete the tag if the thing it named was removed.",
+        "A `@see` tag in a doc comment names something that does not exist. The tag names a \
+         class or a member, such as `@see Shop\\Cart::total`. It can also name a file in the \
+         project, such as `@see docs/guide.md#usage`. The path is relative to the file that \
+         contains the comment. The part after `#` must match a heading of the Markdown file. \
+         Fix the name or the path, or delete the tag.",
     );
     /// A doc comment's `@example` naming a path that is in a directory the
     /// test corpus walks but holds no file. The other half of

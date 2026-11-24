@@ -464,8 +464,31 @@ pub fn project_root(root: &Path, path: &Path) -> PathBuf {
     file.ancestors()
         .skip(1)
         .take_while(|dir| dir.starts_with(&top))
-        .find(|dir| dir.join("nvs.toml").is_file() || dir.join("package.toml").is_file())
+        .find(|dir| holds_a_project(dir))
         .map_or_else(|| root.to_path_buf(), Path::to_path_buf)
+}
+
+/// The project a file in `folder` belongs to, with no folder above which the
+/// search stops: the nearest folder at or above `folder` that holds an
+/// `nvs.toml` or a `package.toml`, else `folder` itself. `folder` is made
+/// absolute first, and the answer is absolute.
+///
+/// A doc comment's `@see` file target must stay inside this folder
+/// (`rule:tooling/doc-comment-tags-are-closed-and-checked`). It is
+/// [`project_root`]'s walk without its top bound, and the two share
+/// [`holds_a_project`] so they cannot disagree about what marks a project.
+/// It costs one existence test per marker per folder above the file.
+#[must_use]
+pub fn project_of(folder: &Path) -> PathBuf {
+    let own = std::path::absolute(folder).unwrap_or_else(|_| folder.to_path_buf());
+    own.ancestors()
+        .find(|dir| holds_a_project(dir))
+        .map_or_else(|| own.clone(), Path::to_path_buf)
+}
+
+/// Whether `dir` holds a project's manifest, an `nvs.toml` or a `package.toml`.
+fn holds_a_project(dir: &Path) -> bool {
+    dir.join("nvs.toml").is_file() || dir.join("package.toml").is_file()
 }
 
 /// Every `.nvs` file under `root`, recursively, in no particular order.
