@@ -84,9 +84,8 @@ the old `Core\Time::at` row's 4 and 210. `Date::at` adds one allocation and 80 b
 `TimeOfDay::at` one and 96. A call built from computed parts is then about 7 allocations and 443
 bytes. `DateTime::fromIso` is 4 allocations and 218 bytes.
 
-A member that moved here from `Core\Time` is a compile error naming its new place
-(`rule:core-api/a-moved-name-says-where-it-went`), with no alias keeping the old name
-(`rule:core-api/no-deprecation-window-before-a-release`).
+A member that moved here from `Core\Time` has no alias keeping the old name, and the old name is an
+unknown name (`rule:core-api/no-deprecation-window-before-a-release`).
 
 **Declined:**
 

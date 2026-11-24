@@ -1,13 +1,14 @@
 {
-  "title": "`Core`'s own API has no deprecation window before a release, and a removed name's error names its replacement",
+  "title": "`Core`'s own API has no deprecation window before a release, and a removed name gets the unknown-name error while Pre-Alpha",
   "status": "shipped",
   "seeAlso": [
     "attributes/a-deprecation-names-its-replacement-as-code",
     "core-api/options-bag",
+    "core-api/a-moved-name-says-where-it-went",
     "programs/no-compatibility-promise"
   ],
   "guardedBy": [
     "crates/nvs-types/src/attributes.rs",
-    "tests/conformance/reject/a-removed-route-option-names-its-replacement.nvst"
+    "crates/nvs-stdlib/src/moved.rs"
   ]
 }
