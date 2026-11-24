@@ -18,7 +18,7 @@ stages:
     context: [crates/nvs-runtime/src/ctx/mod.rs, crates/nvs-runtime/src/ctx/held.rs, crates/nvs-stdlib/tests/allocation_policy.rs]
   - id: 4
     title: "the rules, the reference, the examples, the feature proofs and the website say so"
-    status: open
+    status: done
     context: [docs/examples/core/Reflect-PropertyInfo/name/about.md, website/src/data/changes.json]
   - id: 5
     title: "the goal is verified once, and every failure is fixed"
@@ -227,22 +227,22 @@ to `:50`) to this file's design, then build to them.
 **Split:** the examples, the attack and the bench go to one writing subagent once the rule is
 rewritten; the session writes the rules and the website entries.
 
-- [ ] `docs/rules/core-classes/reflect.md:23`: § *Memory* rewritten to the once-per-process build and
+- [x] `docs/rules/core-classes/reflect.md:23`: § *Memory* rewritten to the once-per-process build and
   the per-request roster memo, the identity sentence, why `rule:security/no-cross-request-state` does
   not apply, and the Declined items above.
-- [ ] `docs/rules/core-classes/reflect.md:1`: `PropertyInfo` answers `isLateInit` and `isReadonly`.
+- [x] `docs/rules/core-classes/reflect.md:1`: `PropertyInfo` answers `isLateInit` and `isReadonly`.
   `docs/rules/tooling/meta-json-takes-a-program.md:1`: the signature carries both modifiers.
-- [ ] `docs/examples/core/Reflect-PropertyInfo/isLateInit/` and `isReadonly/`: `about.md` and three
+- [x] `docs/examples/core/Reflect-PropertyInfo/isLateInit/` and `isReadonly/`: `about.md` and three
   examples each, written to AGENTS.md § *Text an end user reads*.
-- [ ] The bench and the attack `bun nv proofs --owed --goal reflect-once` names, at the paths it
+- [x] The bench and the attack `bun nv proofs --owed --goal reflect-once` names, at the paths it
   prints; the attack tries to change a shared description or its rosters and reach another request.
-- [ ] `website/src/data/changes.json:1`: one `added` entry for the two members and one `changed` entry
+- [x] `website/src/data/changes.json:1`: one `added` entry for the two members and one `changed` entry
   for the speed of `Core\Reflect`. Each page reread and stamped with `bun nv site --stamp`.
-- [ ] `bun nv proofs --owed --goal reflect-once` names nothing.
+- [x] `bun nv proofs --owed --goal reflect-once` names nothing.
 
 ### 5. the goal is verified once, and every failure is fixed
 
-- [ ] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 4 touched.
+- [x] The newcomer review of docs/agent/prose.md § *A newcomer reads it* over the pages stage 4 touched.
 - [ ] Run the check the pack names for this stage: `looper verify` at a full gate, or a build and the tests this goal wrote, by name, at a close.
 - [ ] Only if it is red: fix every failure it names in one pass, never deleting or loosening a test, then run it once more, and it is green.
 
@@ -250,36 +250,26 @@ rewritten; the session writes the rules and the website entries.
 
 ### State
 
-Stages 2 and 3 are done; the checks `once`, `copy` and `rosters` pass. The module doc's figures:
-592 bytes for the bench's `Order`, 45,481 for its whole unit, built in under 0.4 ms (debug).
-
-The memo: `Ctx::kept_roster`, `keep_roster` and `release_rosters` (`ctx/held.rs`), keyed by
-`nvs_runtime::RosterKey` (unit stamp, class index or a `Core` descriptor's address, roster number,
-row position), released in `Ctx`'s drop beside the isolate argument. In `reflect.rs`, `roster_key`
-checks the stamp before the memo is read, `memoized` builds on a miss, and `roster_kind` numbers the
-rosters. Every roster member and `forObject` on a `Core` instance go through it;
-`readableProperties` does not. The five `reflect.rs` tests the last handoff called red are green
-again. A spawned task's context clones its parent's table (`ctx/isolate.rs:449`), so a copied
-description reads the same rows there; the test copies into the same table.
-
-The storage is `crates/nvs-runtime/src/descriptions.rs`, filled by `nvs_stdlib::build_descriptions`
-in both codegen builders. A hand-built `ClassTable` in a test calls it too, or every `Core\Reflect`
-door onto it is a `FATAL`. The module doc's second decision states the whole design.
+Stages 1 to 4 are done; the checks `modifiers`, `meta`, `once`, `copy`, `rosters` and `proofs`
+pass (`bun nv proofs --gate --goal reflect-once` names nothing). `rule:core-classes/reflect` states
+the once-per-process build, the identity, the roster memo and the Declined items; the meta rule
+states the signature's modifiers. Both members have `about.md`, three examples, a bench and an
+attack. `changes.json` has a `new` entry for the two members, a `changed` entry for every
+`Core\Reflect` member whose tests moved, and one for `tools:cli/nvs-meta-json`, whose `unseen`
+record it replaces. All 42 benches the goal reaches are recorded on the release build, each with 0
+allocations and flat growth. `site --check stale changes review` is green, and the newcomer review
+of stage 5's first item is done and stamped.
 
 ### Next
 
-Stage 4, split as its `**Split:**` line says.
-- `docs/rules/core-classes/reflect.md:23`: rewrite § *Memory* from `reflect.rs`'s module doc
-  (§ *every description is built once*, its figures and the memo), add the identity sentence
-  (`forClass('A') === forClass('A')`), why `rule:security/no-cross-request-state` does not apply,
-  and the Declined items from this file's Standing decisions. Add `isLateInit` and `isReadonly`,
-  and the signature's modifiers to `docs/rules/tooling/meta-json-takes-a-program.md`.
-- Then one writing subagent: `docs/examples/core/Reflect-PropertyInfo/isLateInit/` and
-  `isReadonly/`, and the bench and attack `bun nv proofs --owed --goal reflect-once` names.
-- `website/src/data/changes.json`, `bun nv site --stamp`, and `bun nv proofs --owed` empty.
-- Expect red at the gate as well: any golden that pins a `readonly` or `lateinit` property's
-  `nvs meta --json` or `nvs code` signature (`crates/nvs-cli/src/meta.rs`, `@property_signature`), a
-  test anywhere that hand-builds a `MethodInfo`, `AttributeInfo` or `EnumInfo` with the old slots,
-  and the website's Core reference for `PropertyInfo` until stage 4 renders it.
+Stage 5, a close (this goal is not the chain's full gate unless the pack says so).
+- `cargo build`, `cargo clippy --all-targets -- -D warnings`, then the goal's tests by name: the
+  acceptance checks `modifiers`, `meta`, `once`, `copy` and `rosters`.
+- `bun nv close --goal reflect-once`, each red fixed. Before `DONE`, move any decision only this file
+  holds into the rule or `reflect.rs`'s module doc (the Standing decisions already are in both), and
+  delete this file.
+- Expect red: a golden that pins a `readonly` or `lateinit` property's `nvs meta --json` or `nvs code`
+  signature (`crates/nvs-cli/src/meta.rs`, `@property_signature`), and a test that hand-builds a
+  `MethodInfo`, `AttributeInfo` or `EnumInfo` with the old slots.
 
 ### Backlog
