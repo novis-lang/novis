@@ -519,6 +519,7 @@
   "tests/hostile/core/Debug/startTrace/01-a-trace-written-where-the-grant-does-not-reach.nvs": "262f1e35c21e94e0",
   "tests/hostile/core/Env/mode/01-a-program-that-wants-to-be-in-development.nvs": "8db53fe0ab18bdc2",
   "tests/hostile/core/Request/jsonAs/03-a-plain-string-under-a-shape.nvs": "5f6581789af72fc3",
+  "tests/hostile/core/Response/sendFile/01-paths-outside-the-allowed-folder.nvs": "e2eb04ace096c499",
   "tests/hostile/core/Router-Match/attribute/01-a-route-tries-to-read-another-routes-setting.nvs": "2268bbaaf86b09b8",
   "tests/hostile/core/Str/afterPrefix/01-long-prefixes-and-split-characters.nvs": "eee05d9913f0e361",
   "tests/hostile/core/Str/beforeSuffix/01-long-suffixes-and-split-characters.nvs": "ce55e56c0d00c963",

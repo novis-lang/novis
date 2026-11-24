@@ -10393,7 +10393,6 @@
   "tests/hostile/core/Response/redirect/01-addresses-that-try-to-split-the-response.nvs": "9f0826a3b442a59d",
   "tests/hostile/core/Response/redirect/02-a-relative-address-that-names-another-host.nvs": "2e6cd054add09238",
   "tests/hostile/core/Response/redirect/03-an-8-mib-url-under-a-16-mib-limit.nvs": "bbcb6db1d7f93de8",
-  "tests/hostile/core/Response/sendFile/01-paths-outside-the-allowed-folder.nvs": "ab792a0b25160f83",
   "tests/hostile/core/Response/setHeader/01-headers-that-try-to-split-the-response.nvs": "9e3f5d6d2a1e19dc",
   "tests/hostile/core/Response/setHeader/02-an-8-mib-value-under-a-16-mib-limit.nvs": "8df1497a0f58184d",
   "tests/hostile/core/Response/setStatus/01-numbers-that-are-not-a-status.nvs": "16001e4e9548b91a",

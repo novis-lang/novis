@@ -6,14 +6,14 @@
 
 class Here
 {
-    // Returns the path written in quotes as a full path, starting at the folder of this file.
+    // `#[Core\Path]` turns the string you pass into a full path from the folder of this file.
     public static function path(#[Core\Path] string $path): string
     {
         return $path;
     }
 }
 
-// The folder of this file, as an absolute path. Every path below is built from it.
+// The folder of this file, as a full path. Every path below is built from it.
 string $folder = Here::path('.');
 uint $refused = 0;
 
@@ -49,7 +49,8 @@ try {
     $refused = $refused + 1;
 }
 
-// 5. A NUL byte in the file name, which cuts the name short in C programs.
+// 5. A NUL byte (the byte with value 0) in the file name.
+// A program written in C stops reading the name at this byte.
 try {
     Core\Response::sendFile($folder . "/nvs.toml\x00.png");
 } catch (IOError $failed) {
@@ -69,10 +70,10 @@ try {
     $refused = $refused + 1;
 }
 
-// 7. The same allowed file is sent 100,000 times. Only the last call counts,
-// so the memory the program uses should not grow.
+// 7. The same allowed file is sent 30,000 times. The browser gets only the file of the last call.
+// If each call kept its path in memory, the 1 MB memory limit in `nvs.toml` would stop the request.
 uint $sent = 0;
-while ($sent < 100000) {
+while ($sent < 30000) {
     Core\Response::sendFile($folder . '/nvs.toml');
     $sent = $sent + 1;
 }

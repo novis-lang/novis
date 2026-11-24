@@ -1,3 +1,7 @@
 # The attack may read the files in this folder, and nothing else.
 [capabilities.fs]
 read = ["."]
+
+# A request may use 1 MB of memory. Step 7 of the attack checks that its memory does not grow.
+[limits]
+memory = "1M"
