@@ -4,7 +4,7 @@
 import { expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { instanceCalls, readRenames, rewrite, run } from "../cmd/api-rename.ts";
+import { instanceCalls, keepClasses, readRenames, rewrite, run } from "../cmd/api-rename.ts";
 import { ROOT } from "../lib/paths.ts";
 
 const GOAL = [
@@ -27,6 +27,12 @@ test("the renames block of a goal file is read", () => {
   ]);
   expect(() => readRenames("# no block\n")).toThrow("no ```renames block");
   expect(() => readRenames("```renames\nFixture\\Reply::json Fixture\\Reply->sendJson\n```\n")).toThrow("one kind");
+});
+
+test("the class filter keeps only the pairs of the named classes", () => {
+  expect(keepClasses(RENAMES, ["\\Fixture\\Reply"]).map((r) => r.oldMember)).toEqual(["json"]);
+  expect(keepClasses(RENAMES, ["Fixture\\Reply", "Fixture\\Shape\\Picture"])).toEqual(RENAMES);
+  expect(() => keepClasses(RENAMES, ["Fixture\\Shape"])).toThrow("no pair of the block renames a member of Fixture\\Shape");
 });
 
 test("a qualified static call is rewritten", () => {

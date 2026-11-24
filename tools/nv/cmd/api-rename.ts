@@ -20,6 +20,9 @@
 // `file:line` for a session to fix by reading. In a project, `nvs check` names the ones left as unknown
 // members.
 //
+// `--class <Old\Class>`, given once or more, keeps only the pairs whose old class is one of those, so one
+// stage of a goal sweeps its own classes and leaves the rest of the block for a later stage.
+//
 // With `--check` it rewrites nothing, and exits 1 naming every old name still written in either form, outside
 // the goal file and `website/src/data/changes.json`. A `.rs` or `.ts` file is held to the full form alone,
 // since `Response::json` there may be a Rust path. It exits 2 on a bad argument or a goal with no block.
@@ -30,7 +33,7 @@ import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { extname, join, relative } from "node:path";
 import { NOT_INPUTS, ROOT } from "../lib/paths.ts";
 
-export const summary = "rename Core and package members across the tree from a goal's renames block: nv api-rename --goal <slug> [--check] [--root <dir>]";
+export const summary = "rename Core and package members across the tree from a goal's renames block: nv api-rename --goal <slug> [--class <Old\\Class>]... [--check] [--root <dir>]";
 
 /** One `Old New` pair of the block. `instance` is true for `->`. */
 export interface Rename {
@@ -75,6 +78,15 @@ export function readRenames(text: string): Rename[] {
     });
   }
   return out;
+}
+
+/** The pairs of `renames` whose old class is one of `classes`. Throws naming a class no pair has. */
+export function keepClasses(renames: Rename[], classes: string[]): Rename[] {
+  const wanted = classes.map((c) => c.replace(/^\\/, ""));
+  for (const c of wanted) {
+    if (!renames.some((r) => r.oldClass === c)) throw new Error(`no pair of the block renames a member of ${c}`);
+  }
+  return renames.filter((r) => wanted.includes(r.oldClass));
 }
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -193,10 +205,12 @@ export async function run(args: string[]): Promise<number> {
   let goal: string | undefined;
   let check = false;
   let root = ROOT;
+  const classes: string[] = [];
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if (a === "--check") check = true;
     else if (a === "--goal" && args[i + 1] !== undefined) goal = args[++i];
+    else if (a === "--class" && args[i + 1] !== undefined) classes.push(args[++i]!);
     else if (a === "--root" && args[i + 1] !== undefined) root = args[++i]!;
     else {
       console.error(`api-rename: unknown argument ${a}\n${summary}`);
@@ -211,6 +225,7 @@ export async function run(args: string[]): Promise<number> {
   let renames: Rename[];
   try {
     renames = readRenames(readFileSync(join(root, goalFile), "utf8"));
+    if (classes.length > 0) renames = keepClasses(renames, classes);
   } catch (e) {
     console.error(`api-rename: ${goalFile}: ${(e as Error).message}`);
     return 2;
