@@ -3,13 +3,6 @@
   "internal": [],
   "themes": [
     {
-      "title": "Documentation links",
-      "text": "A `@see` tag can name a file in your project, and a heading in a Markdown file. The editor follows the link, and `nvs pkg pack` checks that the package contains the file.",
-      "goals": [
-        "see-files"
-      ]
-    },
-    {
       "title": "Faster reflection",
       "text": "`Core\\Reflect` builds the description of each class once, so reading it again costs nothing. `PropertyInfo` tells you if a property is `lateinit` or `readonly`.",
       "goals": [
