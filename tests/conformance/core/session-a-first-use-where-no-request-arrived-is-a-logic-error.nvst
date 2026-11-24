@@ -56,7 +56,7 @@ try {
     }
 }
 try {
-    var $page = Core\Request::query("page");
+    var $page = Core\Request::queryParameter("page");
 } catch (LogicError $stillNone) {
     if (Core\Str::contains($stillNone->message, "there is no request here")) {
         $alike = $alike + 1;

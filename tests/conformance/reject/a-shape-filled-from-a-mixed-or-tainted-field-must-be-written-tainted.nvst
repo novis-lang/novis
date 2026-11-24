@@ -26,7 +26,7 @@ echo ($bag as {data: string})->data, "\n";
 if ($bag is {data: string}) {
     echo "tested\n";
 }
-Held $held = new Held(Core\Request::query("name") ?? "");
+Held $held = new Held(Core\Request::queryParameter("name") ?? "");
 echo ($held as {data: string})->data, "\n";
 Empty $empty = new Empty();
 echo ($empty as {data: string})->data, "\n";

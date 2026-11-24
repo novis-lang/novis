@@ -38,8 +38,8 @@ final class Pages {
         echo Core\Request::path(),
              " lang=", Core\Request::header("accept-language") ?? "none",
              " theme=", Core\Request::cookie("theme") ?? "none",
-             " page=", Core\Request::query("page") ?? "none",
-             " id=", $matched == null ? "none" : $matched->param("id") ?? "none";
+             " page=", Core\Request::queryParameter("page") ?? "none",
+             " id=", $matched == null ? "none" : $matched->parameter("id") ?? "none";
     }
 }
 

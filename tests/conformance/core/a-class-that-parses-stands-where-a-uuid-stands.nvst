@@ -51,7 +51,7 @@ class Posts
 // the route declared before anything reads it -- not to the text the peer wrote.
 ?Core\Router\Match $mine = Core\Router::match(Core\Http\Method::Get, "/posts/hello-world");
 if ($mine != null) {
-    var $capture = $mine->param("slug");
+    var $capture = $mine->parameter("slug");
     if ($capture != null) {
         Slug $slug = $capture as Slug;
         echo "a user class arrives as ", $slug->text, "\n";
@@ -71,7 +71,7 @@ if ($mine != null) {
     "/posts/by-id/123e4567-e89b-12d3-a456-426614174000",
 );
 if ($engines != null) {
-    echo "the engine's class arrives as ", $engines->param("id"), "\n";
+    echo "the engine's class arrives as ", $engines->parameter("id"), "\n";
 }
 --EXPECT--
 a user class arrives as hello-world

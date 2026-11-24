@@ -29,7 +29,7 @@ class Proxy
 if ($match == null) {
     echo 'no route', "\n";
 } else {
-    tainted string $part = $match->param('name') as string;
+    tainted string $part = $match->parameter('name') as string;
     echo Proxy::address($part), "\n";
 }
 
@@ -38,7 +38,7 @@ if ($match == null) {
 if ($dot == null) {
     echo 'no route', "\n";
 } else {
-    tainted string $one = $dot->param('name') as string;
+    tainted string $one = $dot->parameter('name') as string;
     echo Proxy::address($one), "\n";
 }
 

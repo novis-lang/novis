@@ -15,8 +15,8 @@ final class Work
     }
 }
 
-int $parts = Core\Request::query('parts') as int;
-int $turns = Core\Request::query('turns') as int;
+int $parts = Core\Request::queryParameter('parts') as int;
+int $turns = Core\Request::queryParameter('turns') as int;
 if ($parts == 4) {
     // `spawn script` starts each part and returns at once. `await` waits for its result.
     var $a = spawn script Work::part with(arguments: ['seed' => 1, 'turns' => $turns], on: 'worker');

@@ -19,5 +19,5 @@ class Bench
     }
 }
 
-Core\Response\Stream $video = Core\Response::stream('text/plain', 1);
+Core\Response\Stream $video = Core\Response::startStream('text/plain', 1);
 $video->write((Bench::run($video, 2048) % 10) as string);

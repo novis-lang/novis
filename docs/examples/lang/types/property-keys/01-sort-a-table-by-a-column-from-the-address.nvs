@@ -23,7 +23,7 @@ array<Product> $products = [
 
 // The address ends with `?sort=price`. `as ?property<Product>` converts "price"
 // to a property key. A name that is not a public property gives `null`.
-?property<Product> $picked = Core\Request::query('sort') as ?property<Product>;
+?property<Product> $picked = Core\Request::queryParameter('sort') as ?property<Product>;
 
 // Without a valid column, the table is sorted by "name".
 property<Product> $column = $picked ?? 'name' as property<Product>;

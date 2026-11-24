@@ -46,23 +46,23 @@ fn mixing_echo_with_a_typed_body_member_is_a_compile_error() {
     // order that rule's own sentence writes it: the
     // handler has echoed a prelude and then declared the body a JSON document.
     let diags = check_src(&handler(
-        "    echo \"prelude\";\n    Core\\Response::json(1);\n",
+        "    echo \"prelude\";\n    Core\\Response::sendJson(1);\n",
     ));
     assert!(refused(&diags), "{diags:?}");
 
     // The other order is the same mistake and is refused the same way — the
     // rule is that the body has two writers, not that one of them came second.
     let diags = check_src(&handler(
-        "    Core\\Response::json(1);\n    echo \"epilogue\";\n",
+        "    Core\\Response::sendJson(1);\n    echo \"epilogue\";\n",
     ));
     assert!(refused(&diags), "{diags:?}");
 
     // Each of the rule's three landed members, so the roster is asserted rather
     // than one member standing in for it.
     for call in [
-        "Core\\Response::text(\"t\");",
-        "Core\\Response::json(1);",
-        "Core\\Response::bytes(\"b\" as bytes, \"application/octet-stream\");",
+        "Core\\Response::sendText(\"t\");",
+        "Core\\Response::sendJson(1);",
+        "Core\\Response::sendBytes(\"b\" as bytes, \"application/octet-stream\");",
     ] {
         let diags = check_src(&handler(&format!("    echo \"prelude\";\n    {call}\n")));
         assert!(refused(&diags), "{call}: {diags:?}");
@@ -72,7 +72,7 @@ fn mixing_echo_with_a_typed_body_member_is_a_compile_error() {
     // is checked inline, so the two writers meet with nothing added for it.
     let diags = check_src(&handler(
         "    echo \"prelude\";\n    \
-         var $f = fn (): void => { Core\\Response::text(\"t\"); };\n",
+         var $f = fn (): void => { Core\\Response::sendText(\"t\"); };\n",
     ));
     assert!(refused(&diags), "{diags:?}");
 }
@@ -91,13 +91,13 @@ fn echo_beside_a_response_stream_is_a_diagnostic() {
     // The opener alone is enough: it declares the content type, which is the
     // half `echo` contradicts.
     let diags = check_src(&handler(
-        "    echo \"prelude\";\n    var $s = Core\\Response::stream(\"text/csv\");\n",
+        "    echo \"prelude\";\n    var $s = Core\\Response::startStream(\"text/csv\");\n",
     ));
     assert!(refused(&diags), "{diags:?}");
 
     // The other order is the same mistake, as it is for every other row.
     let diags = check_src(&handler(
-        "    var $s = Core\\Response::stream(\"text/csv\");\n    echo \"epilogue\";\n",
+        "    var $s = Core\\Response::startStream(\"text/csv\");\n    echo \"epilogue\";\n",
     ));
     assert!(refused(&diags), "{diags:?}");
 
@@ -106,14 +106,14 @@ fn echo_beside_a_response_stream_is_a_diagnostic() {
     // to report, it is the same body arriving in pieces.
     let diags = check_src(&handler(
         "    echo \"prelude\";\n    \
-         var $s = Core\\Response::stream(\"text/csv\");\n    $s->write(\"row\");\n",
+         var $s = Core\\Response::startStream(\"text/csv\");\n    $s->write(\"row\");\n",
     ));
     assert!(refused(&diags), "{diags:?}");
 
     // Outside a handler nothing fires, for the reason every other row leaves a
     // CLI program alone: there is no response for two writers to disagree over.
     let diags = check_src(&plain_method(
-        "    echo \"prelude\";\n    var $s = Core\\Response::stream(\"text/csv\");\n",
+        "    echo \"prelude\";\n    var $s = Core\\Response::startStream(\"text/csv\");\n",
     ));
     assert!(!refused(&diags), "{diags:?}");
 }
@@ -122,7 +122,7 @@ fn echo_beside_a_response_stream_is_a_diagnostic() {
 /// same compile error — and the roster spanning two classes is the only thing
 /// that makes it one (`rule:concurrency/two-doors-one-isolate`).
 ///
-/// `Core\Sse::stream` is not in `nvs_stdlib::registry` yet, as `html` and
+/// `Core\Sse::startStream` is not in `nvs_stdlib::registry` yet, as `html` and
 /// `sendFile` are not: this rule reads the call's name, and an unresolved one
 /// is reported beside the refusal rather than instead of it, so the row holds
 /// before the member does. What the last two cases pin is the *other* door —
@@ -132,13 +132,13 @@ fn echo_beside_a_response_stream_is_a_diagnostic() {
 #[test]
 fn echo_beside_an_event_stream_is_a_diagnostic() {
     let diags = check_src(&handler(
-        "    echo \"prelude\";\n    var $s = Core\\Sse::stream();\n",
+        "    echo \"prelude\";\n    var $s = Core\\Sse::startStream();\n",
     ));
     assert!(refused(&diags), "{diags:?}");
 
     // The other order is the same mistake, as it is for every other row.
     let diags = check_src(&handler(
-        "    var $s = Core\\Sse::stream();\n    echo \"epilogue\";\n",
+        "    var $s = Core\\Sse::startStream();\n    echo \"epilogue\";\n",
     ));
     assert!(refused(&diags), "{diags:?}");
 
@@ -151,7 +151,7 @@ fn echo_beside_an_event_stream_is_a_diagnostic() {
     // And outside a handler nothing fires, for the reason every other row
     // leaves a CLI program alone.
     let diags = check_src(&plain_method(
-        "    echo \"prelude\";\n    var $s = Core\\Sse::stream();\n",
+        "    echo \"prelude\";\n    var $s = Core\\Sse::startStream();\n",
     ));
     assert!(!refused(&diags), "{diags:?}");
 }
@@ -168,7 +168,7 @@ fn two_body_writers_on_one_response_is_a_diagnostic() {
     // Two of the rule's table, disagreeing about the body's type exactly as `echo`
     // and one of them do.
     let diags = check_src(&handler(
-        "    Core\\Response::text(\"t\");\n    Core\\Response::json(1);\n",
+        "    Core\\Response::sendText(\"t\");\n    Core\\Response::sendJson(1);\n",
     ));
     assert!(refused(&diags), "{diags:?}");
 
@@ -176,8 +176,8 @@ fn two_body_writers_on_one_response_is_a_diagnostic() {
     // which is the pair the roster was widened for — and the one a `500` used
     // to be the only answer to.
     let diags = check_src(&handler(
-        "    var $s = Core\\Response::stream(\"text/csv\");\n    \
-         var $e = Core\\Sse::stream();\n",
+        "    var $s = Core\\Response::startStream(\"text/csv\");\n    \
+         var $e = Core\\Sse::startStream();\n",
     ));
     assert!(refused(&diags), "{diags:?}");
 
@@ -185,15 +185,15 @@ fn two_body_writers_on_one_response_is_a_diagnostic() {
     // asserts the whole of that half; what is here is the pair this test would
     // otherwise have refused by counting calls instead of comparing writers.
     let diags = check_src(&handler(
-        "    Core\\Response::text(\"a\");\n    Core\\Response::text(\"b\");\n",
+        "    Core\\Response::sendText(\"a\");\n    Core\\Response::sendText(\"b\");\n",
     ));
     assert!(!refused(&diags), "{diags:?}");
 
     // One report per body, as for `echo`: a handler with three writers has
     // made one mistake, and a diagnostic per writer describes it no better.
     let diags = check_src(&handler(
-        "    Core\\Response::text(\"a\");\n    Core\\Response::json(1);\n    \
-         Core\\Response::bytes(\"b\" as bytes, \"application/octet-stream\");\n",
+        "    Core\\Response::sendText(\"a\");\n    Core\\Response::sendJson(1);\n    \
+         Core\\Response::sendBytes(\"b\" as bytes, \"application/octet-stream\");\n",
     ));
     assert_eq!(
         diags
@@ -206,7 +206,7 @@ fn two_body_writers_on_one_response_is_a_diagnostic() {
 
     // And outside a handler nothing fires.
     let diags = check_src(&plain_method(
-        "    Core\\Response::text(\"t\");\n    Core\\Response::json(1);\n",
+        "    Core\\Response::sendText(\"t\");\n    Core\\Response::sendJson(1);\n",
     ));
     assert!(!refused(&diags), "{diags:?}");
 }
@@ -219,7 +219,7 @@ fn two_body_writers_on_one_response_is_a_diagnostic() {
 #[test]
 fn page_text_in_a_handler_is_the_echo_writer() {
     let diags = check_src(&handler(
-        "    Core\\Response::json(1);\n?>\n<p>tail</p>\n<?nvs\n",
+        "    Core\\Response::sendJson(1);\n?>\n<p>tail</p>\n<?nvs\n",
     ));
     assert!(refused(&diags), "{diags:?}");
     let message = &diags
@@ -230,7 +230,7 @@ fn page_text_in_a_handler_is_the_echo_writer() {
     assert!(message.contains("the HTML outside `<?nvs ?>`"), "{message}");
 
     let diags = check_src(&handler(
-        "?>\n<p>head</p>\n<?nvs\n    Core\\Response::text(\"t\");\n",
+        "?>\n<p>head</p>\n<?nvs\n    Core\\Response::sendText(\"t\");\n",
     ));
     assert!(refused(&diags), "{diags:?}");
 
@@ -238,7 +238,7 @@ fn page_text_in_a_handler_is_the_echo_writer() {
     assert!(!diags.has_errors(), "{diags:?}");
 
     let diags = check_src(&plain_method(
-        "    Core\\Response::json(1);\n?>\n<p>tail</p>\n<?nvs\n",
+        "    Core\\Response::sendJson(1);\n?>\n<p>tail</p>\n<?nvs\n",
     ));
     assert!(!refused(&diags), "{diags:?}");
 }
@@ -253,10 +253,10 @@ fn a_handler_that_writes_its_body_one_way_is_accepted() {
     // One member alone, and then the same member twice: what the sixth row names is
     // `echo` beside a typed writer, so a handler writing its whole body through
     // the members is not this diagnostic's business however often it writes.
-    let diags = check_src(&handler("    Core\\Response::text(\"a\");\n"));
+    let diags = check_src(&handler("    Core\\Response::sendText(\"a\");\n"));
     assert!(!diags.has_errors(), "{diags:?}");
     let diags = check_src(&handler(
-        "    Core\\Response::text(\"a\");\n    Core\\Response::text(\"b\");\n",
+        "    Core\\Response::sendText(\"a\");\n    Core\\Response::sendText(\"b\");\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
 
@@ -277,7 +277,7 @@ fn a_method_no_request_reaches_may_write_both() {
     // The corpus depends on this — every `.nvst` case that observes a body
     // member is a script that also echoes.
     let diags = check_src(&plain_method(
-        "    echo \"a\";\n    Core\\Response::text(\"b\");\n    echo \"c\";\n",
+        "    echo \"a\";\n    Core\\Response::sendText(\"b\");\n    echo \"c\";\n",
     ));
     assert!(!diags.has_errors(), "{diags:?}");
 
@@ -289,9 +289,9 @@ fn a_method_no_request_reaches_may_write_both() {
          #[Core\\Route(path: \"/p\", method: Core\\Http\\Method::Get)]\n  \
          #[Core\\Access(allow: Core\\Audience::Public)]\n  \
          public function show(): void {\n    \
-         echo \"a\";\n    Core\\Response::text(\"b\");\n  }\n  \
+         echo \"a\";\n    Core\\Response::sendText(\"b\");\n  }\n  \
          public function helper(): void {\n    \
-         echo \"a\";\n    Core\\Response::text(\"b\");\n  }\n}\n",
+         echo \"a\";\n    Core\\Response::sendText(\"b\");\n  }\n}\n",
     );
     assert_eq!(
         diags

@@ -563,7 +563,7 @@ const INTRINSICS: &[Intrinsic] = &[
     },
     Intrinsic {
         owner: r"Core\Metrics",
-        member: "gauge",
+        member: "setGauge",
         at: 0,
         field: None,
         restriction: None,

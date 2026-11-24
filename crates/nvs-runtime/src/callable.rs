@@ -858,12 +858,12 @@ fn callable_param_tags(callable: Value) -> Result<u64, Fault> {
 /// `None` is the honest answer for an anonymous function and is not a failure:
 /// [`CALLABLE_PARAM_NAMES`] is written at a `Class::method(...)` and nowhere
 /// else, so an anonymous function's object genuinely has no such field. A caller that
-/// *needs* names — `rule:security/isolate-shares-nothing`'s `args:` binding, which is by name — turns that `None` into
+/// *needs* names — `rule:security/isolate-shares-nothing`'s `arguments:` binding, which is by name — turns that `None` into
 /// its own refusal naming the form the program wrote, because only the caller
 /// knows which member it is refusing on behalf of.
 ///
 /// An empty name list is `Some(&[][..])`-shaped rather than `None`: a target
-/// declaring no parameters is a callable an `args:`-less entry may open, and
+/// declaring no parameters is a callable an `arguments:`-less entry may open, and
 /// it is not the same fact as a callable that never recorded any.
 ///
 /// # Errors
@@ -1122,7 +1122,7 @@ pub trait NativeBody: 'static {
 
 /// A callable that declares no parameters and runs `B::run` when called — a
 /// `callable` written in Rust, for a caller with no compiled code to take one
-/// from: a crate whose tests register work on `Core\Task::afterResponse`'s
+/// from: a crate whose tests register work on `Core\Task::runAfterResponse`'s
 /// queue, which takes only a callable, and forbid the `unsafe` building one by
 /// hand takes.
 ///

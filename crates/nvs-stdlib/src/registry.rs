@@ -2136,7 +2136,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // no name resolved, no socket opened and no process started — which is why
     // `sendFile` above is the row worth reading twice, being the one that leaves
     // the response and reaches the machine.
-    (crate::response::NAME, "html", None),
+    (crate::response::NAME, "sendHtml", None),
     // The process environment is `env`: the operator chose it for the application,
     // and a package holds it only where its grant line names it. `mode` and
     // `context` read no variable.
@@ -2158,13 +2158,13 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (r"Core\Config", "setting", None),
     (r"Core\Config", "set", None),
     (r"Core\Config", "restore", None),
-    (crate::response::NAME, "json", None),
-    (crate::response::NAME, "text", None),
-    (crate::response::NAME, "bytes", None),
-    (crate::response::NAME, "stream", None),
+    (crate::response::NAME, "sendJson", None),
+    (crate::response::NAME, "sendText", None),
+    (crate::response::NAME, "sendBytes", None),
+    (crate::response::NAME, "startStream", None),
     (crate::response::NAME, "setStatus", None),
     // A flag on the request's own context, like `setStatus`' number.
-    (crate::response::NAME, "slotted", None),
+    (crate::response::NAME, "sendSlotted", None),
     (crate::response::NAME, "setHeader", None),
     (crate::response::NAME, "redirect", None),
     (crate::response::NAME, "addCookie", None),
@@ -2654,7 +2654,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     // so it needs `script.spawn` as `spawn script` does. Its door is
     // `nvs_runtime::script::resolve`, reached through `socket::entry_program`.
     // The other members read or write the connection this program already
-    // runs in, and reach nothing outside it. `Core\Sse::stream` keeps this
+    // runs in, and reach nothing outside it. `Core\Sse::startStream` keeps this
     // request's own handler, so it starts no script.
     (
         crate::socket::NAME,
@@ -2670,11 +2670,11 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "upgrade",
         Some(nvs_config::Cap::ScriptSpawn),
     ),
-    (crate::sse::NAME, "stream", None),
+    (crate::sse::NAME, "startStream", None),
     (crate::sse::NAME, "current", None),
     (crate::sse::NAME, "receive", None),
     (crate::sse::NAME, "send", None),
-    (crate::sse::NAME, "retry", None),
+    (crate::sse::NAME, "setRetryDelay", None),
     // `Core\WebPush::send` posts to the endpoint a browser wrote, so it is the
     // client's own door: the host is pinned under `net.connect` and the address
     // policy, as for `Core\Http\Client::post`. Reading a subscription and the
@@ -3890,8 +3890,8 @@ pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
     (r"Core\Json", "decodeEach"),
     (r"Core\Jwt", "verifyIssued"),
     (r"Core\Request", "jsonAs"),
-    (r"Core\Request", "queryAs"),
-    (r"Core\Request", "postAs"),
+    (r"Core\Request", "queryParametersAs"),
+    (r"Core\Request", "formFieldsAs"),
     (r"Core\Http\Response", "jsonAs"),
     (r"Core\Test\Response", "jsonAs"),
     (r"Core\Db\Connection", "queryAs"),
@@ -4034,7 +4034,7 @@ pub const SOURCE_MEMBERS: &[(&str, &str)] = &[
     (crate::log::NAME, "write"),
     (crate::metrics::NAME, "increment"),
     (crate::metrics::NAME, "observe"),
-    (crate::metrics::NAME, "gauge"),
+    (crate::metrics::NAME, "setGauge"),
 ];
 
 /// Whether `class::method` is one of [`SOURCE_MEMBERS`].

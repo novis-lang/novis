@@ -842,7 +842,7 @@ fn a_response_stream_writes_encode_each_pieces() {
     // no outside text, and refuses the pieces of items that do.
     let plain = check_in_method(
         "array<{ id: int, name: string }> $users = [{ id: 1, name: \"Ada\" }];\n\
-         var $out = Core\\Response::stream(\"application/json\");\n\
+         var $out = Core\\Response::startStream(\"application/json\");\n\
          foreach (Core\\Json::encodeEach($users) as bytes $piece) {\n\
              $out->write($piece);\n\
          }\n",
@@ -850,7 +850,7 @@ fn a_response_stream_writes_encode_each_pieces() {
     assert!(!plain.has_errors(), "{plain:?}");
     let tainted = check_in_method(
         "array<tainted string> $names = [\"Ada\" as tainted string];\n\
-         var $out = Core\\Response::stream(\"application/json\");\n\
+         var $out = Core\\Response::startStream(\"application/json\");\n\
          foreach (Core\\Json::encodeEach($names) as var $piece) {\n\
              $out->write($piece);\n\
          }\n",

@@ -1,5 +1,5 @@
 --TEST--
-A value pushed `tainted` comes back `tainted`: `Core\Script::args()` answers `mixed`, and text read out of `mixed` is `tainted`, so a job cannot hand a payload string to a sink unchecked — `rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`, `rule:security/taint-propagation`
+A value pushed `tainted` comes back `tainted`: `Core\Script::arguments()` answers `mixed`, and text read out of `mixed` is `tainted`, so a job cannot hand a payload string to a sink unchecked — `rule:concurrency/a-payload-refuses-secret-and-keeps-its-qualifiers`, `rule:security/taint-propagation`
 --FILE--
 <?nvs
 // The enqueue half: a `tainted` payload is accepted. Only `secret` is refused
@@ -10,7 +10,7 @@ Core\Queue::push("greet.nvs", {args: ["name" => $name]});
 // The job half, written the way a job reads its payload. The qualifier is
 // decided while checking and nothing of it is in the row, so what carries it
 // across is that every text read out of `mixed` is `tainted`.
-var $args = Core\Script::args() as array<string>;
+var $args = Core\Script::arguments() as array<string>;
 tainted string $back = $args["name"];
 echo $back, "\n";
 

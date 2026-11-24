@@ -501,7 +501,7 @@ pub enum BodyTy {
 pub enum BodyKind {
     /// `Core\Request::jsonAs<T>()`, under `application/json`.
     Json,
-    /// `Core\Request::postAs<T>()`, under `application/x-www-form-urlencoded`.
+    /// `Core\Request::formFieldsAs<T>()`, under `application/x-www-form-urlencoded`.
     Form,
 }
 
@@ -2390,7 +2390,7 @@ pub(crate) fn note_body_read(
     }
     let kind = match method {
         "jsonAs" => BodyKind::Json,
-        "postAs" => BodyKind::Form,
+        "formFieldsAs" => BodyKind::Form,
         _ => return,
     };
     let names_a_field = matches!(args, nvs_syntax::ast::CallArgs::List(list) if !list.is_empty());
@@ -2446,7 +2446,7 @@ pub(crate) fn check_helper_reads(table: &RouteTable, diags: &mut Diagnostics) {
             )
             .with_primary(row.span, format!("`{reader}` reads the request body"))
             .with_help(
-                "call `Core\\Request::jsonAs` or `Core\\Request::postAs` in the route method. \
+                "call `Core\\Request::jsonAs` or `Core\\Request::formFieldsAs` in the route method. \
                  Then the API document describes the body",
             ),
         );

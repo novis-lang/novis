@@ -9,12 +9,12 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     tainted string $path = Core\Request::path();
     if ($path == '/text') {
         // 1. A text body that tries to end the string and declare a class.
-        Core\Response::text($breaker);
+        Core\Response::sendText($breaker);
     } elseif ($path == '/json') {
         // 2. A JSON body with the same text in a property and in a list.
-        Core\Response::json(['note' => $breaker, 'items' => [$breaker, '\\u0027']]);
+        Core\Response::sendJson(['note' => $breaker, 'items' => [$breaker, '\\u0027']]);
     } else {
         // 3. A body with an escape byte, which a string in source code may not contain.
-        Core\Response::bytes(Core\Encoding::fromHex('1b5b33316d27'), 'application/octet-stream');
+        Core\Response::sendBytes(Core\Encoding::fromHex('1b5b33316d27'), 'application/octet-stream');
     }
 }

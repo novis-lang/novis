@@ -5,7 +5,7 @@ array<string> $names = ['Green tea', 'Coffee', 'Cocoa'];
 
 // The client can read each line as soon as it arrives.
 // It does not need to wait for the whole list.
-Core\Response\Stream $lines = Core\Response::stream('application/x-ndjson');
+Core\Response\Stream $lines = Core\Response::startStream('application/x-ndjson');
 uint $id = 0;
 foreach ($names as string $name) {
     $id = $id + 1;

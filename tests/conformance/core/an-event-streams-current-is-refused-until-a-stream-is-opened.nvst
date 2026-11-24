@@ -19,11 +19,11 @@ echo $before, "\n";
 // a second one — off a connection there is no cell to open, so they arrive in
 // this program's own output.
 var $after = Core\Out::capture(fn (): void => {
-    Core\Sse::stream();
+    Core\Sse::startStream();
     Core\Sse::current()->send("open");
 });
 echo $after;
 --EXPECT--
-`Core\Sse::current` needs a program writing an event stream and this is not one: a stream is opened by `Core\Sse::stream` for the request that answers with it and by `Core\Sse::upgrade` for the isolate that outlives it, and a response writing an ordinary body over time is neither
+`Core\Sse::current` needs a program writing an event stream and this is not one: a stream is opened by `Core\Sse::startStream` for the request that answers with it and by `Core\Sse::upgrade` for the isolate that outlives it, and a response writing an ordinary body over time is neither
 data: open
 

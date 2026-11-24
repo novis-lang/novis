@@ -19,7 +19,7 @@ over bytes the door already charged for, and no memory at all.
 
 **A part is a file part iff its `Content-Disposition` carries a `filename`**, which is RFC 7578's own
 distinction and not a second one invented here. Every other part is an ordinary form field: the walk
-buffers those as it passes them, and `Core\Request::post()` reads them back afterwards. That is why
+buffers those as it passes them, and `Core\Request::formField()` reads them back afterwards. That is why
 `post()` on a `multipart/form-data` request is called **after** this walk and never before — the fields
 are behind the uploads on the wire, and reading them first would mean draining the uploads to reach them.
 

@@ -44,4 +44,4 @@ try {
 --EXPECT--
 refused 4 of 4 spellings
 set 4 of 4 neighbours
-Core\Response::setHeader(): `content-type` is declared by the body member that wrote the body — answer with `Core\Response::bytes($body, $contentType)` to say what a body is
+Core\Response::setHeader(): `content-type` is declared by the body member that wrote the body — answer with `Core\Response::sendBytes($body, $contentType)` to say what a body is

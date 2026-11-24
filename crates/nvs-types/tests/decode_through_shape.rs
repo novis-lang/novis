@@ -25,8 +25,8 @@ fn reported(diags: &Diagnostics, want: Code) -> bool {
 /// `tainted` document, a byte source and an array of `mixed`.
 const DECODERS: &[&str] = &[
     "Core\\Request::jsonAs<T>()",
-    "Core\\Request::queryAs<T>()",
-    "Core\\Request::postAs<T>()",
+    "Core\\Request::queryParametersAs<T>()",
+    "Core\\Request::formFieldsAs<T>()",
     "Core\\Json::decodeAs<T>($doc)",
     "Core\\Json::decodeEach<T>($src)",
     "Core\\Arr::shapeAs<T>($raw)",

@@ -1300,7 +1300,7 @@ codes! {
     /// has learned it at the other. The call sites that report it are
     /// `Core\Serialize::encode`, `spawn script`'s `arguments:`,
     /// `rule:concurrency/an-upgrade-is-spawn-shaped`
-    /// 's `Core\Socket::upgrade` — an `args:` that opens a connection
+    /// 's `Core\Socket::upgrade` — an `arguments:` that opens a connection
     /// isolate rather than a script one — and `rule:core-classes/topic`'s
     /// `Core\Topic::publish`,
     /// whose value is copied into every subscriber's arena on every core.

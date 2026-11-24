@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::stream` writes a body one chunk at a time, in the order the chunks were written -- `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` and `rule:security/response-body-is-one-typed-member`
+`Core\Response::startStream` writes a body one chunk at a time, in the order the chunks were written -- `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` and `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
 // covers: Core\Response\Stream::write
@@ -9,7 +9,7 @@
 // answering. What is pinned is the *order*: a member that buffered its chunks
 // and flushed them at the end would still print plausibly against one chunk.
 var $sent = Core\Out::capture(fn (): void => {
-    var $rows = Core\Response::stream("text/csv");
+    var $rows = Core\Response::startStream("text/csv");
     $rows->write("id,name\n");
     $rows->write("1,ada\n");
     $rows->write("2,alan\n");
@@ -21,7 +21,7 @@ echo "--\n";
 // thing written two ways -- unlike a WebSocket frame, whose two payload kinds
 // are two things on the wire and so two members.
 var $either = Core\Out::capture(fn (): void => {
-    var $mixed = Core\Response::stream("application/octet-stream");
+    var $mixed = Core\Response::startStream("application/octet-stream");
     $mixed->write("text");
     $mixed->write(" and bytes" as bytes);
 });
@@ -31,7 +31,7 @@ echo $either, "\n";
 // and the body goes on. A caller for which emptiness is a mistake refuses it in
 // its own member, where the diagnostic can say which argument was empty.
 var $skipped = Core\Out::capture(fn (): void => {
-    var $sparse = Core\Response::stream("text/plain; charset=utf-8");
+    var $sparse = Core\Response::startStream("text/plain; charset=utf-8");
     $sparse->write("before");
     $sparse->write("");
     $sparse->write("after");
@@ -41,7 +41,7 @@ echo $skipped, "\n";
 // A media type with parameters is one string and not a shape: whatever the
 // program spelled is what is declared, exactly as `bytes`' own parameter is.
 var $parameterised = Core\Out::capture(fn (): void => {
-    var $csv = Core\Response::stream("text/csv; charset=utf-8; header=present");
+    var $csv = Core\Response::startStream("text/csv; charset=utf-8; header=present");
     $csv->write("ok");
 });
 echo $parameterised, "\n";

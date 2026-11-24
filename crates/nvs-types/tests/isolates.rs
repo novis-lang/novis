@@ -211,7 +211,7 @@ fn an_upgrades_entry_takes_a_path_and_a_static_method_reference_alike() {
         "<?nvs\nclass Chat {\n  static function run(string $room): void {}\n}\n\
          class T {\n  function m(): void {\n\
          Core\\Socket::upgrade(\"sockets/chat.nvs\");\n\
-         Core\\Socket::upgrade(Chat::run, args: {room: \"lobby\"});\n\
+         Core\\Socket::upgrade(Chat::run, arguments: {room: \"lobby\"});\n\
          }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
@@ -278,8 +278,8 @@ fn an_upgrade_refuses_an_entry_that_is_neither_shape() {
 
 /// The other half of what a member that opens an isolate is: `rule:security/secret-sinks-refuse`
 /// refuses a `secret` **at the graph copy**, for both its callers alike, so an
-/// `args:` that crosses into a connection isolate refuses one exactly where
-/// `spawn script`'s `args:` does. A member with an entry parameter is what
+/// `arguments:` that crosses into a connection isolate refuses one exactly where
+/// `spawn script`'s `arguments:` does. A member with an entry parameter is what
 /// says a call is that copy — `nvs_types::expr::isolate`'s
 /// `check_core_isolate_call` owns why there is no second mark for it.
 ///
@@ -298,7 +298,7 @@ fn an_upgrade_refuses_an_entry_that_is_neither_shape() {
 fn a_secret_fails_to_compile_through_upgrade_args_or_publish() {
     let upgrade = check_in_method(
         "secret string $key = \"k\" as secret string;\n\
-         Core\\Socket::upgrade(\"sockets/chat.nvs\", args: $key);",
+         Core\\Socket::upgrade(\"sockets/chat.nvs\", arguments: $key);",
     );
     assert!(
         upgrade
@@ -336,7 +336,7 @@ fn a_secret_fails_to_compile_through_upgrade_args_or_publish() {
     // carriers with nothing reported.
     let plain = check_in_method(
         "string $room = \"lobby\";\n\
-         Core\\Socket::upgrade(\"sockets/chat.nvs\", args: $room);\n\
+         Core\\Socket::upgrade(\"sockets/chat.nvs\", arguments: $room);\n\
          Core\\Topic::publish(\"room:\" . $room, $room);",
     );
     assert!(!plain.has_errors(), "{plain:?}");

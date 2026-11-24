@@ -37,8 +37,8 @@ class RefundTest
 // `Core\Test::request` runs this file again for the request. This part sends
 // the refund request to the refunds team. A large amount also goes to the manager.
 if (Core\Env::context() == Core\Env::Context::Request) {
-    int $order = (Core\Request::post('order') ?? '0') as ?int ?? 0;
-    int $amount = (Core\Request::post('amount') ?? '0') as ?int ?? 0;
+    int $order = (Core\Request::formField('order') ?? '0') as ?int ?? 0;
+    int $amount = (Core\Request::formField('amount') ?? '0') as ?int ?? 0;
     array<string> $copies = [];
     if ($amount > 500) {
         $copies[] = 'manager@example.com';

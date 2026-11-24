@@ -33,7 +33,7 @@ foreach (Core\Request::headers() as tainted string $name => array<tainted string
     }
 }
 
-Core\Response::json({
+Core\Response::sendJson({
     headers: $headers,
     body: Core\Taint::assertTrusted(Core\Encoding::toBase64(Core\Request::bytes()), reason: 'base64 text'),
     uri: Echo::b64(Core\Request::path()),

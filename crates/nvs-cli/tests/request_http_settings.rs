@@ -328,7 +328,7 @@ fn quoted(text: &str) -> String {
 /// what `set` returned and, for an outbound key, what `get` returns, separated by `|`.
 fn program(probes: &[(String, &'static str, Expect)]) -> String {
     let mut text = String::from(
-        "<?nvs\nvar $n = Core\\Request::query('n') ?? '';\nvar $ok = 'none';\nvar $got = '';\n\
+        "<?nvs\nvar $n = Core\\Request::queryParameter('n') ?? '';\nvar $ok = 'none';\nvar $got = '';\n\
          var $key = '';\n",
     );
     for (index, (key, value, expect)) in probes.iter().enumerate() {
@@ -665,7 +665,7 @@ fn probe(key: &str) -> Option<Probe> {
         "deferred.deadline" => Probe::new(
             "100ms",
             "    string $done = 'deferred-done-' . $tag;\n\
-                 Core\\Task::afterResponse(fn(): void => {\n\
+                 Core\\Task::runAfterResponse(fn(): void => {\n\
                      Core\\Time::sleep(1s);\n\
                      Core\\Log::write(Core\\Log::Level::Error, $done);\n\
                  });\n\
@@ -801,7 +801,7 @@ fn behaviour_program(probes: &[(&'static str, Probe)], peer: SocketAddr) -> Stri
         ));
     }
     text.push_str(
-        "}\nvar $n = Core\\Request::query('n') ?? '';\nbool $on = Core\\Request::query('set') == '1';\n",
+        "}\nvar $n = Core\\Request::queryParameter('n') ?? '';\nbool $on = Core\\Request::queryParameter('set') == '1';\n",
     );
     for index in 0..probes.len() {
         text.push_str(&format!(

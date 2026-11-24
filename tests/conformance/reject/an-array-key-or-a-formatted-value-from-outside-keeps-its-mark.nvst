@@ -5,7 +5,7 @@ A key read from an array filled from outside, and a value `Core\Str::format` or 
 // covers: lang:types/qualifiers-tainted-and-secret
 // Each line below the array reads its keys or formats a tainted value, so each
 // result is tainted. The count of errors is the assertion.
-array<tainted string> $form = Core\Request::queryArray("filter");
+array<tainted string> $form = Core\Request::queryParameters("filter");
 tainted string $raw = "x";
 
 array<string> $keys = Core\Arr::keys($form);

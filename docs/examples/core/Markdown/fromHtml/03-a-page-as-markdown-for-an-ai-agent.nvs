@@ -12,7 +12,7 @@ Core\Html\Markup $page = html`<article>
 tainted string $accept = Core\Request::header('Accept') ?? '';
 if (Core\Str::contains($accept, 'text/markdown')) {
     tainted string $markdown = Core\Markdown::fromHtml($page);
-    Core\Response::bytes($markdown as bytes, 'text/markdown; charset=utf-8');
+    Core\Response::sendBytes($markdown as bytes, 'text/markdown; charset=utf-8');
 } else {
-    Core\Response::html($page);
+    Core\Response::sendHtml($page);
 }

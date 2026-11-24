@@ -2408,12 +2408,12 @@ pub(crate) fn reject_secret_output(
 /// operation `rule:classes/graph-copy` defines, for both its callers alike,
 /// and draws no distinction between crossing to a live isolate and
 /// externalizing to bytes.
-/// `Core\Serialize::encode` is this function's caller; `spawn script`'s `args:`
+/// `Core\Serialize::encode` is this function's caller; `spawn script`'s `arguments:`
 /// is the other carrier and it reaches the same refusal through
 /// [`reject_secret_crossing`], from `super::isolate::check_spawn_script`, rather
 /// than growing a rule of its own. That shared tail is the whole reason this
 /// reads the arguments and their types instead of the member's signature —
-/// `args:` has no signature to read.
+/// `arguments:` has no signature to read.
 ///
 /// A call-site rule rather than a parameter type, exactly as
 /// [`reject_secret_debug_argument`] is: `encode` declares `mixed`, which a
@@ -2463,7 +2463,7 @@ pub(crate) fn reject_secret_boundary_argument(
 /// drift into two different explanations of one rule.
 ///
 /// The type is the *argument's* inferred type, never the parameter's: `encode`
-/// declares `mixed` and `args:` declares nothing at all, so the written
+/// declares `mixed` and `arguments:` declares nothing at all, so the written
 /// expression is the last place the qualifier is still visible.
 ///
 /// `instead` is the one carrier-specific clause the help gets, and it is
@@ -2769,7 +2769,7 @@ pub(crate) fn reject_secret_session_argument(
 /// `rule:core-classes/topic`'s bus, which is [`reject_secret_crossing`]'s third carrier:
 /// `Core\Topic::publish` copies its value into every subscriber's own arena
 /// through `rule:classes/graph-copy`'s graph copy, so "a `secret` may never be published" is
-/// the disclosure `Core\Serialize::encode` and `spawn script`'s `args:` are
+/// the disclosure `Core\Serialize::encode` and `spawn script`'s `arguments:` are
 /// already refused for, and it reports the same code rather than one of its
 /// own.
 ///

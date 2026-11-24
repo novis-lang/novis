@@ -8,7 +8,7 @@ tainted string $path = '../../etc/passwd';
 Core\Queue::push('export.nvs', { args: ['path' => $path] });
 
 // 2. The job reads the path from its payload and opens that file.
-var $args = Core\Script::args() as array<string>;
+var $args = Core\Script::arguments() as array<string>;
 echo Core\IO::read($args['path']), "\n";
 
 // 3. The job copies the path into the text of an SQL statement.

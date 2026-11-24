@@ -1,5 +1,5 @@
 --TEST--
-A query string or a form whose escape decodes to bytes that are not UTF-8 makes `Core\Request::query` and `post` throw a `RuntimeError` that names the `Core\Request` member the program called — `rule:statements/no-host-populated-variables`
+A query string or a form whose escape decodes to bytes that are not UTF-8 makes `Core\Request::queryParameter` and `post` throw a `RuntimeError` that names the `Core\Request` member the program called — `rule:statements/no-host-populated-variables`
 --GET--
 page=2&q=%FF
 --POST--
@@ -9,17 +9,17 @@ name=ada&bad=%FF
 // One broken escape refuses the whole parameter set, so even the field that
 // decodes cleanly is not read.
 try {
-    echo Core\Request::query("page") ?? "", "\n";
+    echo Core\Request::queryParameter("page") ?? "", "\n";
 } catch (RuntimeError $error) {
     echo $error->message, "\n";
 }
 
 // The same shared parse over a form body, with the member that was called.
 try {
-    echo Core\Request::post("name") ?? "", "\n";
+    echo Core\Request::formField("name") ?? "", "\n";
 } catch (RuntimeError $error) {
     echo $error->message, "\n";
 }
 --EXPECT--
-Core\Request::query(): the decoded value of a parameter holds a byte a `string` cannot — byte 0 begins a sequence that is not valid UTF-8. Percent-decoding answers octets, so text carrying an escape for a non-UTF-8 byte has no `string` to decode to
-Core\Request::post(): the decoded value of a parameter holds a byte a `string` cannot — byte 0 begins a sequence that is not valid UTF-8. Percent-decoding answers octets, so text carrying an escape for a non-UTF-8 byte has no `string` to decode to
+Core\Request::queryParameter(): the decoded value of a parameter holds a byte a `string` cannot — byte 0 begins a sequence that is not valid UTF-8. Percent-decoding answers octets, so text carrying an escape for a non-UTF-8 byte has no `string` to decode to
+Core\Request::formField(): the decoded value of a parameter holds a byte a `string` cannot — byte 0 begins a sequence that is not valid UTF-8. Percent-decoding answers octets, so text carrying an escape for a non-UTF-8 byte has no `string` to decode to

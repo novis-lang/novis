@@ -31,8 +31,8 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // script frame. What it echoes is the response body the parent prints.
     var $matched = Core\Router::signedRoute($ring);
     echo "route=", $matched->is(Shop::show) ? "Shop::show" : "another route",
-         " id=", $matched->param("id") ?? "none",
-         " captures=", Core\Arr::count($matched->params()) as string;
+         " id=", $matched->parameter("id") ?? "none",
+         " captures=", Core\Arr::count($matched->parameters()) as string;
 } else {
     var $answered = Core\Test::request(Core\Http\Method::Get, $link);
     echo "status ", $answered->status(), "\n";

@@ -6,7 +6,7 @@
 // A program seals a name a visitor sent, and a later request opens the cookie.
 // The first two uses of the opened value are errors. The count of errors is the assertion.
 array<secret bytes> $ring = [Core\Crypto::generateKey()];
-tainted string $name = Core\Request::query("name") ?? "guest";
+tainted string $name = Core\Request::queryParameter("name") ?? "guest";
 tainted string $cookie = Core\SignedCookie::seal('session', $name, $ring);
 
 string $opened = Core\SignedCookie::open('session', $cookie, $ring);

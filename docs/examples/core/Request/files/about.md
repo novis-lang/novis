@@ -6,7 +6,7 @@ Read the content while the loop is on that file. `readAll` returns it as one val
 returns it in pieces, and `saveTo` writes it to a file. A file that you skip is read past. The file
 name and the type are tainted, which means they came from outside your program.
 
-The text fields of the form are not in the loop. Read them with `Core\Request::post` after the
+The text fields of the form are not in the loop. Read them with `Core\Request::formField` after the
 loop. When the request has no `multipart/form-data` body, the loop runs zero times.
 
 The body can be read only once in this way. After `files`, the methods `body`, `bytes`,

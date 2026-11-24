@@ -44,7 +44,7 @@ if ($posted == null) {
 ?Core\Router\Match $created = Core\Router::match(Core\Http\Method::Post, "/pages");
 if ($created != null) {
     echo "create: ", $created->is(Pages::create) ? "yes" : "no", "\n";
-    echo "captures: ", Core\Arr::count($created->params()) as string, "\n";
+    echo "captures: ", Core\Arr::count($created->parameters()) as string, "\n";
 }
 
 // A path no row claims at all is `null`, which is the answer a `404` is decided

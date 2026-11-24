@@ -20,7 +20,7 @@ class Pages
 // One pass: the space arrives as a space.
 ?Core\Router\Match $spaced = Core\Router::match(Core\Http\Method::Get, "/pages/hello%20world");
 if ($spaced != null) {
-    echo "space: [", $spaced->param("slug") as string, "]", "\n";
+    echo "space: [", $spaced->parameter("slug") as string, "]", "\n";
 }
 
 // Once, and not "until it stops changing" -- `%2520` is an escaped `%` followed
@@ -28,14 +28,14 @@ if ($spaced != null) {
 // space. This is the case that tells the two apart.
 ?Core\Router\Match $twice = Core\Router::match(Core\Http\Method::Get, "/pages/hello%2520world");
 if ($twice != null) {
-    echo "once: [", $twice->param("slug") as string, "]", "\n";
+    echo "once: [", $twice->parameter("slug") as string, "]", "\n";
 }
 
 // A path segment, not a form value: `+` is a literal plus here, and only `%2B`
 // spells one on the `application/x-www-form-urlencoded` row.
 ?Core\Router\Match $plus = Core\Router::match(Core\Http\Method::Get, "/pages/a+b");
 if ($plus != null) {
-    echo "plus: [", $plus->param("slug") as string, "]", "\n";
+    echo "plus: [", $plus->parameter("slug") as string, "]", "\n";
 }
 
 // The decoded octets still have to be text: a capture binds to a declared

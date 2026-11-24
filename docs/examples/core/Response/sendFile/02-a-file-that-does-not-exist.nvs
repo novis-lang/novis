@@ -10,5 +10,5 @@ try {
     Core\Response::sendFile($path);
 } catch (IOError $error) {
     Core\Response::setStatus(404);
-    Core\Response::text("This invoice does not exist.\n");
+    Core\Response::sendText("This invoice does not exist.\n");
 }

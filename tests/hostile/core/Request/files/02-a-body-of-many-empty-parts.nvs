@@ -23,7 +23,7 @@ try {
 array<string> $fields = ['title', 'last'];
 foreach ($fields as string $field) {
     try {
-        ?tainted string $value = Core\Request::post($field);
+        ?tainted string $value = Core\Request::formField($field);
         echo 'not reached: ', $value ?? 'null', "\n";
     } catch (Throwable $error) {
         echo $field, ': ', $error::class, "\n";

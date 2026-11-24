@@ -19,12 +19,12 @@ config overlay. Open resources are not shared and cannot be passed.
 The operand is decided syntactically at the spawn site — a `string` expression, or a
 `Class::method` reference written there — and nothing else. A `callable` variable is refused,
 because whether *it* captures is not known statically; an anonymous function is refused with a diagnostic
-naming the method form. A method entry is called with `args:`'s entries as **named arguments**, after
+naming the method form. A method entry is called with `arguments:`'s entries as **named arguments**, after
 the copy, so `spawn script Reports::monthly with(arguments: ["month" => $m])` runs
 `Reports::monthly(month: $m)` in the fresh isolate: the entry is an ordinary function with an ordinary
-signature, typed at the boundary and callable and testable directly. A name `args:` holds that the
+signature, typed at the boundary and callable and testable directly. A name `arguments:` holds that the
 entry does not declare, or a required parameter it omits, is the ordinary named-argument error. A file
-has no parameter list, which is why the path form reads `Core\Script::args()`
+has no parameter list, which is why the path form reads `Core\Script::arguments()`
 ([`core-classes/script-args`](core-classes.md#core-classes-script-args)) instead. What crosses in either form is compiled code, so the budget,
 grant and copy rules do not tell the two apart.
 
@@ -81,11 +81,11 @@ It costs one `Arc` clone and one arm per spawn, and nothing per allocation.
   construction.
 - **An HTTP request to the server's own listener.** It needs a listener, an authentication story and a
   serialisation format to do what an arena boundary does in microseconds.
-- **A method entry that ignores its parameter list and reads `Core\Script::args()`.**
+- **A method entry that ignores its parameter list and reads `Core\Script::arguments()`.**
   `Reports::monthly` is a method reference, and everywhere else a reference is called with its
   arguments, so a reader who writes `monthly(int $month)` expects the binding. An entry that reads the
   accessor cannot be called or tested as an ordinary function, and the copy is just as visible either
-  way: it is the `args:` key at the spawn site.
+  way: it is the `arguments:` key at the spawn site.
 - **An `fn` literal that captures nothing as the entry.** A closure minus its capture is a function
   without a name, and the same literal one keyword away in `spawn worker` does capture, so it would be
   one syntax with two meanings. Requiring the name costs one declaration and removes a capture-set
@@ -125,7 +125,7 @@ object is refused there, and a `Core` object still arrives. So a Rust test that 
 program an object passes that object's table, as a compiled program's spawn does. **What it spends:** one more name lookup
 per object at a live crossing, only where the program's table misses.
 
-A value crosses exactly twice, and both crossings are the same walk. In, at the spawn, the `args:`
+A value crosses exactly twice, and both crossings are the same walk. In, at the spawn, the `arguments:`
 value crosses from the parent's ownership root into the child's. Out, at the `await`, the child's
 top-level return value, its captured output and, on failure, its error as data cross back. Nothing
 else moves: the parent's output buffer, the backing state of its request accessor classes
@@ -1510,7 +1510,7 @@ message clean would rest on every future message leaving input out, which no che
 `Core\Issue`'s `path` and `message`, which a decoder writes only from the declared keys, positions and
 fixed words.
 
-**A request field is read as text, and typed at the accessor.** `Core\Request::query` and `::post`
+**A request field is read as text, and typed at the accessor.** `Core\Request::queryParameter` and `::post`
 answer one field as `?tainted string` — `null` for a name that is absent and for one written with
 brackets — and `::queryArray` and `::postArray` answer a bracketed name's one level of values as
 `array<tainted string>`, keyed as the brackets keyed them — so a `foreach` key over one is `tainted
@@ -1678,7 +1678,7 @@ text with its own keys and writes through the matching one, or passes the key th
 [`security/assert-trusted`](security.md#security-assert-trusted).
 
 The rule sits at the one boundary every `mixed` source shares — `Core\Request::json`,
-`Core\Script::args`, `Core\Session::get`, `Core\Json::decode`, `Core\Cache::get`, a row's `get`,
+`Core\Script::arguments`, `Core\Session::get`, `Core\Json::decode`, `Core\Cache::get`, a row's `get`,
 `Core\Serialize::decode`, `Core\Uri::queryParameter`, a socket's or event stream's `value` — so it
 covers members not yet written as well.
 
@@ -1711,7 +1711,7 @@ forgot.
   object.
 
 **Declined:**
-- **Typed request accessors as the only fix.** They leave `json()`, `Core\Script::args`,
+- **Typed request accessors as the only fix.** They leave `json()`, `Core\Script::arguments`,
   `Core\Session::get`, `Core\Cache::get` and a row's `get` open, and every later member answering
   `mixed` would reopen the gap.
 - **A hidden, source-marked `mixed`** carrying an invisible "came from outside" bit. It is lost at the
@@ -2096,7 +2096,7 @@ The same rule gives a spawned isolate's captured result its type
 rather than capturing needs no rule at all: the child's carrier is the parent's, so appending composes
 the way carrier addition already does.
 
-**A body member's bytes pass the sink too, where they become a carrier.** `Core\Response::text`,
+**A body member's bytes pass the sink too, where they become a carrier.** `Core\Response::sendText`,
 `::json`, `::bytes` and `::stream` write verbatim, because what they write is a response with its own
 media type. Inside a capture, and in a `spawn script` child, it is not: it becomes the carrier, or is
 appended to the parent's stream. There those four write as `echo` writes a `string`, escaped under the
@@ -2222,7 +2222,7 @@ A `secret` property on a `#[Json\Derive]` class is a field its decoder fills, so
 through `jsonAs` or `postAs` lands its password in a `secret tainted string` and the debug record
 replaces it ([`testing/a-recorded-request-keeps-its-input-with-credentials-replaced`](testing.md#testing-a-recorded-request-keeps-its-input-with-credentials-replaced)). Encoding
 was already a sink ([`security/secret-sinks-refuse`](security.md#security-secret-sinks-refuse)), and it stays one: a call of
-`Core\Json::encode` or `Core\Response::json` whose argument's type reaches such a class, through an
+`Core\Json::encode` or `Core\Response::sendJson` whose argument's type reaches such a class, through an
 array, a shape, a union or another field, is `E0462` at the call, naming the property. A value the
 checker cannot see through, one typed `mixed` or handed to an encoder in a bag, is refused by the
 encoder when it reaches the object, by the class's `secret` bits, with a `LogicError` naming the
@@ -2374,7 +2374,7 @@ every string with, beside JSON's own escapes, in the same pass over the string's
 the compact and the pretty profile, to keys and values, and to each piece of `Core\Json::encodeEach`.
 `{ escapeUnicode: true }` is that same pass with one more class of byte, the first byte of a non-ASCII
 character, so it is no second pass over the output either. Every other
-member that writes a program's values as JSON goes through that encoder: `Core\Response::json`,
+member that writes a program's values as JSON goes through that encoder: `Core\Response::sendJson`,
 `Core\Http\Client`'s `json` option, `Core\Sse`'s payload, `Core\Queue`'s job arguments and `Core\Jwt`'s
 claims.
 

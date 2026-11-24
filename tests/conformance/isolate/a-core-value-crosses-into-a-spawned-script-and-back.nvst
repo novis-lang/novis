@@ -1,5 +1,5 @@
 --TEST--
-A `Core` value crosses a `spawn script` method entry in both directions: a `Core\Uri` in `args:` reaches the child as a `Core\Uri`, and the one the child returns arrives in the parent as one — `rule:security/isolate-values-cross-by-copy`
+A `Core` value crosses a `spawn script` method entry in both directions: a `Core\Uri` in `arguments:` reaches the child as a `Core\Uri`, and the one the child returns arrives in the parent as one — `rule:security/isolate-values-cross-by-copy`
 --FILE nvs.toml--
 [capabilities.script]
 spawn = true

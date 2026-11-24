@@ -1,12 +1,12 @@
 ---
-summary: HTML that is already safe to print. Html templates and `Core\Html` methods return it, and `Core\Response::html` takes it
+summary: HTML that is already safe to print. Html templates and `Core\Html` methods return it, and `Core\Response::sendHtml` takes it
 keywords: markup, safe HTML, trusted HTML, raw HTML, escaping, double escaping, html template, XSS, print HTML, as Markup, toSource, fragment, partial
 ---
 
 `Core\Html\Markup` is HTML that is already safe to print. An html template, ``html`…` ``, returns
 one. `Core\Html::escape`, `Core\Html::sanitize`, `Core\Html::join` and `Core\Html::later` return one
 too. In a web request, `Core\Out::capture` returns what its function printed as a `Markup`.
-`Core\Response::html` takes a `Markup`, and a `string` there does not compile.
+`Core\Response::sendHtml` takes a `Markup`, and a `string` there does not compile.
 
 In a web request, `echo` escapes every `string` and writes a `Markup` unchanged. A template does the
 same with each `{$…}` value. A `string` is escaped, and a `Markup` is written unchanged. So you can

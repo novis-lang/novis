@@ -5,17 +5,17 @@
 //! # What is here, and what is not
 //!
 //! Every one of `Core\Request`'s members but two: `method`, `isHead`, `path`
-//! and `query` — the request
+//! and `queryParameter` — the request
 //! *line*, and the one fact reporting a `HEAD` as a `Get` would otherwise lose
 //! — `header`, `headers` and `cookie`, the fields that arrived with it, and
-//! `body`, `bodyStream`, `files`, `post` and `json`, the five members here that
+//! `body`, `bodyStream`, `files`, `formField` and `json`, the five members here that
 //! read what arrived **after** all of those — the same
 //! [`nvs_runtime::RequestBody`]
 //! pulled to its end into one value, walked a chunk at a time, walked as the
 //! parts a `multipart/form-data` body declares
 //! (`rule:http-server/an-upload-is-received-only-through-files`
 //! , the parse itself being [`crate::multipart`]'s), read to its end as
-//! the form it submitted (`post` is the one of the five that reads
+//! the form it submitted (`formField` is the one of the five that reads
 //! either the octets or a parse another reader left behind — [`claim_body`]),
 //! or decoded as the one JSON document those octets spell, which is
 //! [`crate::json`]'s reader over this module's hold.
@@ -49,7 +49,7 @@
 //! # Five members read the body, and what one leaves decides who may follow
 //!
 //! `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
-//! splits them by what they leave behind rather than by name. `body`, `post`
+//! splits them by what they leave behind rather than by name. `body`, `formField`
 //! and `json` **buffer**: they keep what they read — the octets, or over a
 //! multipart body the fields alone — so a reader that needs what is held is
 //! answered out of it, in any order and any number of times. `bodyStream` and `files`
@@ -65,7 +65,7 @@
 //! for the shape, and [`claim_body`] below is only this class's wording of the
 //! refusal. **Each member says what it needs of the body rather than which kind
 //! it is** — [`nvs_runtime::BodyNeed`] — because the kinds are not fixed per
-//! member: `post` consumes the wire where it is the first reader and consumes
+//! member: `formField` consumes the wire where it is the first reader and consumes
 //! nothing where a hold is already filled. What `json` needs is what `body`
 //! needs, so it says so and the matrix answers the rest; it decodes what the
 //! hold carries, per call, and the `{maxDepth?}` bag is therefore the call's
@@ -130,7 +130,7 @@
 //! line, and finds each line's group in one probe of a map from name to group,
 //! so it is linear in the lines. Neither memoizes: the door's own header-count
 //! cap bounds every walk of the field lines by a constant, which is what
-//! `query` and `post` lack.
+//! `queryParameter` and `formField` lack.
 //!
 //! # A cookie is the `Cookie` field, read
 //!
@@ -154,9 +154,9 @@
 //! `Core\Response::addCookie` refuses to *write* a cookie that would not be
 //! visible, which is the same rule from the end that can see every attribute.
 //!
-//! # What `query` costs, and what it does not carry
+//! # What `queryParameter` costs, and what it does not carry
 //!
-//! `query` parses the raw query string **once per request**, through
+//! `queryParameter` parses the raw query string **once per request**, through
 //! [`crate::uri::parse_query`] — the same code `Core\Uri::parseQuery` runs, so
 //! reproducing PHP's bracket convention there is what lets this member answer
 //! the same shape. The *shape* is what is shared and not the element type:
@@ -165,18 +165,18 @@
 //! `crate::uri::Values::Text` and keeps the refusal for octets no `string`
 //! holds. That enum is the whole of the difference. The first read holds the
 //! parsed array on [`nvs_runtime::Inbound`] and every later one is a lookup in
-//! it, so a handler that reads P parameters costs O(P). `post` holds its form
+//! it, so a handler that reads P parameters costs O(P). `formField` holds its form
 //! the same way. The array is copy-on-write, so handing a reader a reference
 //! to part of it is safe — `json()`'s own argument for its document.
 //!
 //! **Each reader is typed by how many values it reads.** PHP's bracket
 //! convention makes a parameter a `string` *or* a nested array, so the reading
-//! is split by shape rather than answered as `mixed`: `query` and `post` answer
+//! is split by shape rather than answered as `mixed`: `queryParameter` and `formField` answer
 //! `?tainted string` — one unbracketed value, and `null` for an absent name and
-//! for a bracketed one alike — and `queryArray` and `postArray` answer
+//! for a bracketed one alike — and `queryParameters` and `formFields` answer
 //! `array<tainted string>`, the one level of values a bracketed name built, a
 //! lone unbracketed value as a list of one, and a `ParseError` for a second
-//! level. Anything deeper is `queryAs`'s and `postAs`'s, read against a shape
+//! level. Anything deeper is `queryParametersAs`'s and `formFieldsAs`'s, read against a shape
 //! the program wrote. That is `rule:security/tainted-sources`'s typed reader:
 //! the qualifier sits on what a program reaches with no `as` in between, and
 //! the read costs no `mixed` dispatch at its use. `json` stays `mixed`, because
@@ -215,7 +215,7 @@ const CARD: ClassDoc = ClassDoc {
 /// The second request-facing class, and the one every value that came
 /// from outside the process arrives through: `rule:statements/no-host-populated-variables`'s replacement for
 /// `$_GET`, `$_POST`, `$_COOKIE` and `$_FILES`, of which the request line —
-/// `method`, `path`, `query` — is registered. Beside `Core\Server` for the
+/// `method`, `path`, `queryParameter` — is registered. Beside `Core\Server` for the
 /// reason that class sits beside `Core\Response`: the two are one request
 /// read from two ends. [`crate::request`]'s module doc owns why a program
 /// that is answering no request gets a throw rather than an empty answer,
@@ -256,33 +256,33 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&PATH_DOC),
         },
         CoreMethod {
-            name: "query",
+            name: "queryParameter",
             names: &["name"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_request_query",
+            symbol: "nvs_core_request_query_parameter",
             doc: Some(&QUERY_DOC),
         },
         CoreMethod {
-            name: "queryArray",
+            name: "queryParameters",
             names: &["name"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: FIELD_VALUES,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_request_query_array",
+            symbol: "nvs_core_request_query_parameters",
             doc: Some(&QUERY_ARRAY_DOC),
         },
         CoreMethod {
-            name: "queryAs",
+            name: "queryParametersAs",
             names: &[],
             params: &[CoreTy::Options(SHAPE_NAME_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Written("T"),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_request_query_as",
+            symbol: "nvs_core_request_query_parameters_as",
             doc: Some(&QUERY_AS_DOC),
         },
         CoreMethod {
@@ -376,33 +376,33 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&FILES_DOC),
         },
         CoreMethod {
-            name: "post",
+            name: "formField",
             names: &["name"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_request_post",
+            symbol: "nvs_core_request_form_field",
             doc: Some(&POST_DOC),
         },
         CoreMethod {
-            name: "postArray",
+            name: "formFields",
             names: &["name"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: FIELD_VALUES,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_request_post_array",
+            symbol: "nvs_core_request_form_fields",
             doc: Some(&POST_ARRAY_DOC),
         },
         CoreMethod {
-            name: "postAs",
+            name: "formFieldsAs",
             names: &[],
             params: &[CoreTy::Options(SHAPE_NAME_OPTIONS)],
             defaults: &[],
             return_ty: CoreTy::Written("T"),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_request_post_as",
+            symbol: "nvs_core_request_form_fields_as",
             doc: Some(&POST_AS_DOC),
         },
         CoreMethod {
@@ -470,7 +470,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// no `tainted array<T>` for it to sit on instead.
 const HEADER_LINES: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 
-/// `queryArray`'s and `postArray`'s answer: the values a bracketed name built,
+/// `queryParameters`'s and `formFields`'s answer: the values a bracketed name built,
 /// each one text from the peer.
 const FIELD_VALUES: CoreTy = CoreTy::Array(&CoreTy::TaintedStr);
 
@@ -517,7 +517,7 @@ const PATH_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Request::query`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Request::queryParameter`'s reference card — `rule:core-api/reference-card`.
 const QUERY_DOC: MethodDoc = MethodDoc {
     short: "Returns one query-string parameter by its name, as text. The query is read the same \
             way `Core\\Uri::parseQuery` reads it.",
@@ -528,7 +528,7 @@ const QUERY_DOC: MethodDoc = MethodDoc {
     }],
     ret: "The parameter's value as a `tainted string`, or `null` when the query has no parameter \
           with this name. A name with square brackets, such as `tag[]=a`, also gives `null`. Read \
-          those values with `queryArray`. Use `as` to convert the text, for example `as ?int`.",
+          those values with `queryParameters`. Use `as` to convert the text, for example `as ?int`.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
@@ -542,7 +542,7 @@ const QUERY_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Request::queryArray`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Request::queryParameters`'s reference card — `rule:core-api/reference-card`.
 const QUERY_ARRAY_DOC: MethodDoc = MethodDoc {
     short: "Returns every value of one query-string parameter that has square brackets, such as \
             `tag[]=a&tag[]=b`.",
@@ -567,12 +567,12 @@ const QUERY_ARRAY_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "ParseError",
             desc: "A value under this name has a second pair of brackets, such as `tag[a][b]=c`. \
-                   Read nested values with `queryAs`.",
+                   Read nested values with `queryParametersAs`.",
         },
     ],
 };
 
-/// The bag [`nvs_core_request_query_as`] and [`nvs_core_request_post_as`]
+/// The bag [`nvs_core_request_query_parameters_as`] and [`nvs_core_request_form_fields_as`]
 /// share: which subtree of the parameters is read, and nothing else.
 ///
 /// One bag for both because the two members differ in *which* set they parsed,
@@ -587,16 +587,16 @@ const SHAPE_NAME_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// `Core\Request::queryAs`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Request::queryParametersAs`'s reference card — `rule:core-api/reference-card`.
 const QUERY_AS_DOC: MethodDoc = MethodDoc {
     short: "Reads the query string as the type `T` that you write at the call. It works like \
-            `Core\\Arr::shapeAs` on what `query` reads, and converts each field with `as`. \
+            `Core\\Arr::shapeAs` on what `queryParameter` reads, and converts each field with `as`. \
             Without `name`, it reads all parameters. With `name`, it reads the nested value under \
             that name.",
     params: &[ParamDoc {
         name: "name",
         desc: "The parameter whose nested value is read, written without brackets. Brackets \
-               work the same way as in `query`. If you leave it out, the whole query string is \
+               work the same way as in `queryParameter`. If you leave it out, the whole query string is \
                read.",
         shape: &[],
     }],
@@ -856,14 +856,14 @@ const FILES_DOC: MethodDoc = MethodDoc {
     short: "Returns the files that a form uploaded, one at a time in a `foreach` loop.",
     params: &[],
     ret: "An `Iterable<Core\\Request\\Part>`. Each loop step gives the next file as it arrives. \
-          The text fields are not in the loop, and `post` reads them after it. The loop runs \
+          The text fields are not in the loop, and `formField` reads them after it. The loop runs \
           zero times when the request has no `multipart/form-data` body.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "The program is not handling a request. Or `body`, `bodyStream` or `post` \
+            desc: "The program is not handling a request. Or `body`, `bodyStream` or `formField` \
                    already read the body. After this call, `body`, `bytes`, `bodyStream` and \
-                   `json` throw this error too. `post` still works after the loop.",
+                   `json` throw this error too. `formField` still works after the loop.",
         },
         ErrorDoc {
             error: "ParseError",
@@ -880,10 +880,10 @@ const FILES_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Request::post`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Request::formField`'s reference card — `rule:core-api/reference-card`.
 const POST_DOC: MethodDoc = MethodDoc {
     short: "Returns one submitted form field by its name, as text. The fields are read the same \
-            way `query` reads them. The body can be `multipart/form-data`, where the parts that \
+            way `queryParameter` reads them. The body can be `multipart/form-data`, where the parts that \
             are not files are read, or urlencoded.",
     params: &[ParamDoc {
         name: "name",
@@ -892,14 +892,14 @@ const POST_DOC: MethodDoc = MethodDoc {
     }],
     ret: "The field's value as a `tainted string`, or `null` when the form has no field with \
           this name. A name with square brackets, such as `item[]=pen`, also gives `null`. Read \
-          those values with `postArray`. This method reads the body to its end. On a \
+          those values with `formFields`. This method reads the body to its end. On a \
           `multipart/form-data` request, call it **after** `files()`, because it skips the \
           uploads on its way to the last field.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
             desc: "This program is not handling a request, or `body` or `bodyStream` already \
-                   read the body of this request. Calling `post` after `files()` is allowed.",
+                   read the body of this request. Calling `formField` after `files()` is allowed.",
         },
         ErrorDoc {
             error: "ParseError",
@@ -919,7 +919,7 @@ const POST_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Request::postArray`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Request::formFields`'s reference card — `rule:core-api/reference-card`.
 const POST_ARRAY_DOC: MethodDoc = MethodDoc {
     short: "Returns every value of one form field that has square brackets, such as \
             `item[]=pen&item[]=book`.",
@@ -930,7 +930,7 @@ const POST_ARRAY_DOC: MethodDoc = MethodDoc {
     }],
     ret: "An `array<tainted string>`. `item[]=pen&item[]=book` gives `[\"pen\", \"book\"]`, and \
           `size[shirt]=M` gives `[\"shirt\" => \"M\"]`. A name without brackets gives an array \
-          with its one value. A name that is not in the form gives an empty array. Like `post`, \
+          with its one value. A name that is not in the form gives an empty array. Like `formField`, \
           this method reads the body to its end, so call it **after** `files()`.",
     errors: &[
         ErrorDoc {
@@ -942,7 +942,7 @@ const POST_ARRAY_DOC: MethodDoc = MethodDoc {
             error: "ParseError",
             desc: "The body is not the form it says it is, or a value under this name has a \
                    second pair of brackets, such as `item[a][b]=c`. Read nested values with \
-                   `postAs`.",
+                   `formFieldsAs`.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -957,20 +957,20 @@ const POST_ARRAY_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Request::postAs`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Request::formFieldsAs`'s reference card — `rule:core-api/reference-card`.
 const POST_AS_DOC: MethodDoc = MethodDoc {
     short: "Reads the submitted form as the type `T` that you write at the call. It works like \
-            `Core\\Arr::shapeAs` on what `post` reads, and converts each field with `as`. Without \
+            `Core\\Arr::shapeAs` on what `formField` reads, and converts each field with `as`. Without \
             `name`, it reads the whole form. With `name`, it reads the nested value under that \
             name.",
     params: &[ParamDoc {
         name: "name",
         desc: "The field whose nested value is read, written without brackets. Brackets work the \
-               same way as in `post`. If you leave it out, the whole form is read.",
+               same way as in `formField`. If you leave it out, the whole form is read.",
         shape: &[],
     }],
     ret: "A new `T` with every field of its declared type, or one `T` for each entry for an \
-          `array<T>`. Like `post`, this method reads the body to its end. On a \
+          `array<T>`. Like `formField`, this method reads the body to its end. On a \
           `multipart/form-data` request, call it **after** the `files()` loop. Nothing is kept. \
           Every call reads the form again, so two callers never get the same object.",
     errors: &[
@@ -981,7 +981,7 @@ const POST_AS_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "ParseError",
-            desc: "The body is not the form it says it is, for the same reasons as in `post`. Or \
+            desc: "The body is not the form it says it is, for the same reasons as in `formField`. Or \
                    a field that `T` needs is missing, or `as` cannot convert its value to the \
                    declared type. Or the value under `name` is not a set of fields. The error has \
                    one issue for each wrong field, at its own dotted path.",
@@ -1400,7 +1400,7 @@ const PART_ORDINAL: usize = 3;
 /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` refuses to
 /// invent a second one. Every
 /// other part is an ordinary form field, which [`crate::multipart`] buffers as
-/// the walk passes it and `post()` reads back — so this class is never a form
+/// the walk passes it and `formField()` reads back — so this class is never a form
 /// field's carrier and has no member that would answer for one.
 ///
 /// # All three readers are `tainted`
@@ -1818,9 +1818,15 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_request_mount_captures" => (nvs_core_request_mount_captures as *const ()).cast(),
         "nvs_core_request_is_head" => (nvs_core_request_is_head as *const ()).cast(),
         "nvs_core_request_path" => (nvs_core_request_path as *const ()).cast(),
-        "nvs_core_request_query" => return Some(nvs_core_request_query::entry()),
-        "nvs_core_request_query_as" => (nvs_core_request_query_as as *const ()).cast(),
-        "nvs_core_request_query_array" => (nvs_core_request_query_array as *const ()).cast(),
+        "nvs_core_request_query_parameter" => {
+            return Some(nvs_core_request_query_parameter::entry());
+        }
+        "nvs_core_request_query_parameters_as" => {
+            (nvs_core_request_query_parameters_as as *const ()).cast()
+        }
+        "nvs_core_request_query_parameters" => {
+            (nvs_core_request_query_parameters as *const ()).cast()
+        }
         "nvs_core_request_header" => return Some(nvs_core_request_header::entry()),
         "nvs_core_request_client_ip" => (nvs_core_request_client_ip as *const ()).cast(),
         "nvs_core_request_scheme" => (nvs_core_request_scheme as *const ()).cast(),
@@ -1833,9 +1839,9 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_request_json_as" => (nvs_core_request_json_as as *const ()).cast(),
         "nvs_core_request_body_stream" => (nvs_core_request_body_stream as *const ()).cast(),
         "nvs_core_request_files" => (nvs_core_request_files as *const ()).cast(),
-        "nvs_core_request_post" => return Some(nvs_core_request_post::entry()),
-        "nvs_core_request_post_array" => (nvs_core_request_post_array as *const ()).cast(),
-        "nvs_core_request_post_as" => (nvs_core_request_post_as as *const ()).cast(),
+        "nvs_core_request_form_field" => return Some(nvs_core_request_form_field::entry()),
+        "nvs_core_request_form_fields" => (nvs_core_request_form_fields as *const ()).cast(),
+        "nvs_core_request_form_fields_as" => (nvs_core_request_form_fields_as as *const ()).cast(),
         "nvs_core_request_part_name" => (nvs_core_request_part_name as *const ()).cast(),
         "nvs_core_request_part_filename" => (nvs_core_request_part_filename as *const ()).cast(),
         "nvs_core_request_part_content_type" => {
@@ -1869,7 +1875,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
 /// share is the rule, and [`nvs_runtime::Inbound::claim_body`] is where it
 /// lives — this is only the wording, and a second copy of the wording is how
 /// two members would come to describe one rule differently. **One function for
-/// `post` as well**, which used to have its own: the outcomes that made it
+/// `formField` as well**, which used to have its own: the outcomes that made it
 /// different — joining a `files` walk, and its own second call — are what the
 /// carrier answers now from what each member needs, so a second claim here
 /// would be that matrix written twice.
@@ -1917,7 +1923,7 @@ fn claim_body(ctx: &mut Ctx, member: &'static str, need: BodyNeed) -> Result<(),
                  `Core\\Request::{first}()`, and what it left behind is not what this member \
                  needs. `bodyStream()` and `files()` stream the body: they hand the octets over \
                  as they arrive, keep none of them, and so are the only reader of the body they \
-                 read. `body()` and `post()` buffer it: they keep what they read — the octets, or \
+                 read. `body()` and `formField()` buffer it: they keep what they read — the octets, or \
                  over a multipart body the fields alone — so a reader that needs what one of them \
                  held may follow it, in any order. This is refused rather than answered empty, \
                  because an empty answer here would say the peer sent nothing about bytes this \
@@ -1930,7 +1936,7 @@ fn claim_body(ctx: &mut Ctx, member: &'static str, need: BodyNeed) -> Result<(),
 /// The whole form this request submitted, parsed by the first call and held
 /// on the request for every later one.
 ///
-/// `Core\Request::post()`'s reading and `postAs()`'s, split out so each member
+/// `Core\Request::formField()`'s reading and `formFieldsAs()`'s, split out so each member
 /// reads as the one question it answers. What the hold costs is
 /// [`nvs_runtime::Inbound`]'s `form` field's doc. The answer is a further
 /// reference to the held array, which the caller releases.
@@ -1939,8 +1945,8 @@ fn claim_body(ctx: &mut Ctx, member: &'static str, need: BodyNeed) -> Result<(),
 /// refused whether or not the form is already held.
 ///
 /// `member` is the caller's own name, and every refusal below carries it: two
-/// members read one form, and a program that called `postAs` must not be sent
-/// looking at a `post` it never wrote.
+/// members read one form, and a program that called `formFieldsAs` must not be sent
+/// looking at a `formField` it never wrote.
 ///
 /// # Errors
 ///
@@ -1983,7 +1989,7 @@ fn memory_first(ctx: &Ctx, fault: Fault) -> Fault {
 /// The parameters of this request's query string, parsed by the first call and
 /// held on the request for every later one.
 ///
-/// `Core\Request::query()`'s reading and `queryAs()`'s, and the one
+/// `Core\Request::queryParameter()`'s reading and `queryParametersAs()`'s, and the one
 /// `Core\Router::dispatch` binds a `#[Query]` parameter from. The answer is a
 /// further reference to the held array, which the caller releases.
 ///
@@ -2019,11 +2025,11 @@ pub(crate) fn query_fields_of(ctx: &mut Ctx, member: &'static str) -> Result<Nvs
 /// idempotent: a parse already at its end walks nothing.
 ///
 /// **The parse is built only where the request has none**, which is the whole
-/// of what this member has to decide. A `files()` walk and an earlier `post()`
+/// of what this member has to decide. A `files()` walk and an earlier `formField()`
 /// each leave one behind, and either is the parse this reading continues —
 /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
 /// makes them one reading of one body rather than two of the same. Which
-/// octets drive it is not decided here either: a `post()` that follows
+/// octets drive it is not decided here either: a `formField()` that follows
 /// `body()` reads the hold that reader filled and one that follows nothing
 /// reads the wire, and [`nvs_runtime::Inbound::parts_mut`] is where a carrier
 /// holding both facts answers it.
@@ -2165,7 +2171,7 @@ fn inbound_of<'a>(ctx: &'a Ctx, member: &str) -> Result<&'a Inbound, Fault> {
 /// `Core\Router::signedRoute` verifies against the match the door took before
 /// the program ran (`rule:routing/matched-once-before-the-handler`) and reads
 /// the `_sig` parameter off the same request's query, so it asks this carrier
-/// the two questions [`nvs_core_request_route`] and [`nvs_core_request_query`]
+/// the two questions [`nvs_core_request_route`] and [`nvs_core_request_query_parameter`]
 /// ask and owes the same answer where no request arrived. It hands over the
 /// whole spelling rather than a member name because the sentence names the
 /// member a program actually wrote.
@@ -2540,15 +2546,15 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::query(string $name): ?tainted string` — the
+    /// `Core\Request::queryParameter(string $name): ?tainted string` — the
     /// query-string reader, replacing `$_GET` and `filter_input(INPUT_GET, …)`.
     ///
     /// The parse is [`crate::uri::parse_query`]'s and not a second one; the
     /// module doc owns what that costs per call and why a bracketed name is
-    /// `null` here and `queryArray`'s instead.
-    fn nvs_core_request_query(ctx, args: [1]) -> Value, owns NvsStr {
-        let name = name_argument(&args[0], "query")?;
-        let parsed = query_fields_of(ctx, "query")?;
+    /// `null` here and `queryParameters`'s instead.
+    fn nvs_core_request_query_parameter(ctx, args: [1]) -> Value, owns NvsStr {
+        let name = name_argument(&args[0], "queryParameter")?;
+        let parsed = query_fields_of(ctx, "queryParameter")?;
         Ok(single_field(parsed.get(name.as_bytes())))
     } apply(result, _subject) {
         result
@@ -2556,17 +2562,17 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::queryArray(string $name): array<tainted string>` — the
-    /// values a bracketed query parameter built, over [`nvs_core_request_query`]'s
+    /// `Core\Request::queryParameters(string $name): array<tainted string>` — the
+    /// values a bracketed query parameter built, over [`nvs_core_request_query_parameter`]'s
     /// parse; [`field_values`] owns what each shape of value answers.
-    fn nvs_core_request_query_array(ctx, args: [1]) {
-        let name = name_argument(&args[0], "queryArray")?;
-        let parsed = query_fields_of(ctx, "queryArray")?;
-        field_values(parsed.get(name.as_bytes()), "queryArray", "queryAs")
+    fn nvs_core_request_query_parameters(ctx, args: [1]) {
+        let name = name_argument(&args[0], "queryParameters")?;
+        let parsed = query_fields_of(ctx, "queryParameters")?;
+        field_values(parsed.get(name.as_bytes()), "queryParameters", "queryParametersAs")
     }
 }
 
-/// The name argument of `query`, `post` and their `Array` forms, as text.
+/// The name argument of `queryParameter`, `formField`, `queryParameters` and `formFields`, as text.
 ///
 /// Unreachable from source at any other tag: each row's parameter is
 /// `CoreTy::Text`, so `E0401` refuses anything that is not a `string` before a
@@ -2580,9 +2586,9 @@ fn name_argument<'a>(arg: &'a Value, member: &str) -> Result<&'a str, Fault> {
     })
 }
 
-/// `query`'s and `post`'s answer for what the parse holds under one name: the
+/// `queryParameter`'s and `formField`'s answer for what the parse holds under one name: the
 /// text of an unbracketed value, and `null` for an absent name or a bracketed
-/// one, whose values are `queryArray`'s and `postArray`'s to read.
+/// one, whose values are `queryParameters`'s and `formFields`'s to read.
 fn single_field(found: Option<Value>) -> Value {
     match found {
         Some(value) if value.as_text().is_some() => {
@@ -2602,7 +2608,7 @@ fn single_field(found: Option<Value>) -> Value {
     }
 }
 
-/// `queryArray`'s and `postArray`'s answer for what the parse holds under one
+/// `queryParameters`'s and `formFields`'s answer for what the parse holds under one
 /// name: an empty array for an absent name, a list of one for an unbracketed
 /// value, and a bracketed name's own array — keys and order as the peer wrote
 /// them — handed over by reference, since the parse is copy-on-write.
@@ -2657,9 +2663,9 @@ fn field_values(found: Option<Value>, member: &str, nested: &str) -> Result<Valu
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::queryAs<T>({ name?: string }): T` — the query string read
+    /// `Core\Request::queryParametersAs<T>({ name?: string }): T` — the query string read
     /// as the type the call site wrote, which is `Core\Arr::shapeAs` over the
-    /// array [`nvs_core_request_query`] indexes into.
+    /// array [`nvs_core_request_query_parameter`] indexes into.
     ///
     /// **Arguments 0 to 2 are what the call site wrote as its type argument**,
     /// not values — [`nvs_core_request_json_as`] states that ABI in full and
@@ -2673,25 +2679,25 @@ nvs_runtime::nvs_helper! {
     /// two members, and it opens no public `query(): array<mixed>` — the whole
     /// set is reachable only through a declared shape.
     ///
-    /// **What it spends:** [`nvs_core_request_query`]'s parse, held on the
+    /// **What it spends:** [`nvs_core_request_query_parameter`]'s parse, held on the
     /// request and shared with that member, plus the instances this call hands
     /// back. Both are O(in-flight).
-    fn nvs_core_request_query_as(ctx, args: [4]) {
+    fn nvs_core_request_query_parameters_as(ctx, args: [4]) {
         // In `jsonAs`'s order: the request first, so "no request arrived" stays
         // a different fact from what the query string says.
-        inbound_of(ctx, "queryAs")?;
+        inbound_of(ctx, "queryParametersAs")?;
         // Unreachable from source, because arguments 0 to 2 are not a program's
         // values: `nvs_ir::lower` writes all three out of the type argument at
         // the call site, and a call naming none is `E0442` before any of this
         // runs.
         let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
-            "internal error: `Core\\Request::queryAs` was called with no class in argument 0",
+            "internal error: `Core\\Request::queryParametersAs` was called with no class in argument 0",
         ))?;
         // Unreachable from source for the same reason and refused by the same
         // `E0442`: slot 1 is the `ConstBool` the lowering emits beside the
         // descriptor, so a call that has one has the other.
         let list = args[1].as_bool().ok_or_else(|| Fault::fatal(
-            "internal error: `Core\\Request::queryAs` was called with no list flag in argument 1",
+            "internal error: `Core\\Request::queryParametersAs` was called with no list flag in argument 1",
         ))?;
         // The zero word where the call site wrote a class, whose own contract is
         // on the descriptor above.
@@ -2706,9 +2712,9 @@ nvs_runtime::nvs_helper! {
                       from it"
         )]
         unsafe {
-            crate::json::check_codec(class, shape, "Core\\Request::queryAs")?;
+            crate::json::check_codec(class, shape, "Core\\Request::queryParametersAs")?;
         }
-        let parsed = query_fields_of(ctx, "queryAs")?;
+        let parsed = query_fields_of(ctx, "queryParametersAs")?;
         let subject = shaped_subject(parsed, &args[3]);
         #[expect(
             unsafe_code,
@@ -2726,17 +2732,17 @@ nvs_runtime::nvs_helper! {
                 // than being matched against a wire type it never carried —
                 // `crate::json::Reading` owns the fork.
                 crate::json::Reading::Values,
-                "Core\\Request::queryAs",
+                "Core\\Request::queryParametersAs",
             )
         }
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::post(string $name): ?tainted string` — the submitted-form
+    /// `Core\Request::formField(string $name): ?tainted string` — the submitted-form
     /// reader, replacing `$_POST` and `filter_input(INPUT_POST, …)`.
     ///
-    /// [`nvs_core_request_query`]'s answer over a body instead of a query
+    /// [`nvs_core_request_query_parameter`]'s answer over a body instead of a query
     /// string, down to the bracket convention, which is
     /// [`crate::uri::place`]'s once rather than twice.
     ///
@@ -2762,12 +2768,12 @@ nvs_runtime::nvs_helper! {
     /// either kind, the parsed form. Both stay resident until the request ends,
     /// both are bounded by `[limits] request_body` — `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
     /// 's cap on form field text — and both are O(in-flight).
-    fn nvs_core_request_post(ctx, args: [1]) -> Value, owns NvsStr {
-        let name = name_argument(&args[0], "post")?;
+    fn nvs_core_request_form_field(ctx, args: [1]) -> Value, owns NvsStr {
+        let name = name_argument(&args[0], "formField")?;
         // Read before the claim, because it borrows the carrier immutably and
         // reading a header has no effect on the body.
-        let declared = joined_field(inbound_of(ctx, "post")?, b"content-type");
-        let parsed = form_of(ctx, declared, "post")?;
+        let declared = joined_field(inbound_of(ctx, "formField")?, b"content-type");
+        let parsed = form_of(ctx, declared, "formField")?;
         Ok(single_field(parsed.get(name.as_bytes())))
     } apply(result, _subject) {
         result
@@ -2775,51 +2781,51 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::postArray(string $name): array<tainted string>` — the
-    /// values a bracketed form field built, over [`nvs_core_request_post`]'s
+    /// `Core\Request::formFields(string $name): array<tainted string>` — the
+    /// values a bracketed form field built, over [`nvs_core_request_form_field`]'s
     /// reading, which it shares down to reading the body to its end;
     /// [`field_values`] owns what each shape of value answers.
-    fn nvs_core_request_post_array(ctx, args: [1]) {
-        let name = name_argument(&args[0], "postArray")?;
-        let declared = joined_field(inbound_of(ctx, "postArray")?, b"content-type");
-        let parsed = form_of(ctx, declared, "postArray")?;
-        field_values(parsed.get(name.as_bytes()), "postArray", "postAs")
+    fn nvs_core_request_form_fields(ctx, args: [1]) {
+        let name = name_argument(&args[0], "formFields")?;
+        let declared = joined_field(inbound_of(ctx, "formFields")?, b"content-type");
+        let parsed = form_of(ctx, declared, "formFields")?;
+        field_values(parsed.get(name.as_bytes()), "formFields", "formFieldsAs")
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Request::postAs<T>({ name?: string }): T` — the submitted form read
+    /// `Core\Request::formFieldsAs<T>({ name?: string }): T` — the submitted form read
     /// as the type the call site wrote, which is `Core\Arr::shapeAs` over the
-    /// array [`nvs_core_request_post`] indexes into.
+    /// array [`nvs_core_request_form_field`] indexes into.
     ///
-    /// [`nvs_core_request_query_as`]'s member over a body instead of a query
+    /// [`nvs_core_request_query_parameters_as`]'s member over a body instead of a query
     /// string, down to the bracket convention and the ABI its first three
-    /// arguments carry, and differing in the two things `post` differs from
-    /// `query` in: the form has to be read off the body, so this claims the
+    /// arguments carry, and differing in the two things `formField` differs from
+    /// `queryParameter` in: the form has to be read off the body, so this claims the
     /// body as a buffering reader and drains a multipart walk to its end.
     ///
-    /// **What it spends:** [`nvs_core_request_post`]'s parse, which for a
+    /// **What it spends:** [`nvs_core_request_form_field`]'s parse, which for a
     /// urlencoded body holds that body's own bytes until the request ends, plus
     /// the instances this call hands back and nothing kept between calls. Both
     /// are bounded by `[limits] request_body` and both are O(in-flight).
-    fn nvs_core_request_post_as(ctx, args: [4]) {
-        // In `post`'s order, which is `jsonAs`'s: the request first, so "no
+    fn nvs_core_request_form_fields_as(ctx, args: [4]) {
+        // In `formField`'s order, which is `jsonAs`'s: the request first, so "no
         // request arrived" stays a different fact from what the body says, and
         // the header read borrows the carrier immutably before anything claims
         // it.
-        let declared = joined_field(inbound_of(ctx, "postAs")?, b"content-type");
+        let declared = joined_field(inbound_of(ctx, "formFieldsAs")?, b"content-type");
         // Unreachable from source, because arguments 0 to 2 are not a program's
         // values: `nvs_ir::lower` writes all three out of the type argument at
         // the call site, and a call naming none is `E0442` before any of this
         // runs.
         let class = args[0].as_class_desc().ok_or_else(|| Fault::fatal(
-            "internal error: `Core\\Request::postAs` was called with no class in argument 0",
+            "internal error: `Core\\Request::formFieldsAs` was called with no class in argument 0",
         ))?;
         // Unreachable from source for the same reason and refused by the same
         // `E0442`: slot 1 is the `ConstBool` the lowering emits beside the
         // descriptor, so a call that has one has the other.
         let list = args[1].as_bool().ok_or_else(|| Fault::fatal(
-            "internal error: `Core\\Request::postAs` was called with no list flag in argument 1",
+            "internal error: `Core\\Request::formFieldsAs` was called with no list flag in argument 1",
         ))?;
         // The zero word where the call site wrote a class, whose own contract is
         // on the descriptor above.
@@ -2834,12 +2840,12 @@ nvs_runtime::nvs_helper! {
                       from it"
         )]
         unsafe {
-            crate::json::check_codec(class, shape, "Core\\Request::postAs")?;
+            crate::json::check_codec(class, shape, "Core\\Request::formFieldsAs")?;
         }
         let multipart = declared
             .as_deref()
             .is_some_and(crate::multipart::is_multipart);
-        let parsed = form_of(ctx, declared, "postAs");
+        let parsed = form_of(ctx, declared, "formFieldsAs");
         // Before a failed read throws, so the recorded copy of a form this call refused loses
         // its `secret` values too.
         let name = args[3].as_text();
@@ -2873,7 +2879,7 @@ nvs_runtime::nvs_helper! {
                 // being matched against a wire type it never carried —
                 // `crate::json::Reading` owns the fork.
                 crate::json::Reading::Values,
-                "Core\\Request::postAs",
+                "Core\\Request::formFieldsAs",
             )
         }
     }
@@ -2882,7 +2888,7 @@ nvs_runtime::nvs_helper! {
 /// The array a shaped read hydrates: the whole parsed set, or the one subtree
 /// [`SHAPE_NAME_OPTIONS`]'s `name` reaches into it.
 ///
-/// [`nvs_core_request_query_as`] and [`nvs_core_request_post_as`] answer that
+/// [`nvs_core_request_query_parameters_as`] and [`nvs_core_request_form_fields_as`] answer that
 /// option here rather than each their own way, because the two differ in which
 /// set they parsed and in nothing after it. A name the set does not carry
 /// answers `null`, which is not a set of fields and is refused as one, so "the
@@ -2901,7 +2907,7 @@ fn shaped_subject(parsed: NvsArray, name: &Value) -> Value {
         return Value::array(parsed);
     };
     let answer = parsed.get(name.as_bytes()).unwrap_or_else(Value::null);
-    // `post`'s reading of the same borrow: `get` borrows rather than retains and
+    // `formField`'s reading of the same borrow: `get` borrows rather than retains and
     // `parsed` releases every value it holds when it drops at the end of this
     // function, so the one being handed on needs a reference of its own.
     #[expect(
@@ -3190,13 +3196,13 @@ nvs_runtime::nvs_helper! {
 
 nvs_runtime::nvs_helper! {
     /// `Core\Request::bytes(): tainted bytes` — the whole request body as the
-    /// octets it arrived as, named after `Core\Response::bytes` on the writing
+    /// octets it arrived as, named after `Core\Response::sendBytes` on the writing
     /// side.
     ///
     /// **Buffering, over the hold [`nvs_core_request_body`] fills**, which is
     /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`
     /// rather than anything this member decides: what it needs is the octets,
-    /// so it may follow `body()`, `post()` or `json()` and any of them may
+    /// so it may follow `body()`, `formField()` or `json()` and any of them may
     /// follow it, and every one of them answers the same octets. A streaming
     /// reader ahead of it kept none of them and refuses here.
     ///
@@ -3229,9 +3235,9 @@ nvs_runtime::nvs_helper! {
     /// and a program that wanted the JSON reading to be refused after a
     /// streamed body would have written the refusal itself. Taking the claim
     /// under its own name is what makes this member worth the surface, and it
-    /// is the argument `post()` was admitted on.
+    /// is the argument `formField()` was admitted on.
     ///
-    /// **`Content-Type` is not consulted**, on `post()`'s reasoning: what a
+    /// **`Content-Type` is not consulted**, on `formField()`'s reasoning: what a
     /// peer wrote in a header is not what decides what a body is. A
     /// mislabelled but valid document is read and a malformed one throws —
     /// `rule:errors/ambiguous-input-refused` refuses ambiguity, not
@@ -3453,7 +3459,7 @@ fn body_refused(member: &str, why: &str) -> Fault {
 /// (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`). `find` is given
 /// the held octets, and where it gives `None` the recorded bytes are left out whole.
 ///
-/// `jsonAs` and `postAs` call it with the ranges a `secret` property's values take. With no
+/// `jsonAs` and `formFieldsAs` call it with the ranges a `secret` property's values take. With no
 /// recording, it costs one question of the body and `find` never runs.
 fn redact_recorded(
     ctx: &mut Ctx,
@@ -3481,7 +3487,7 @@ fn redact_recorded(
 ///
 /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`'s
 /// buffering half, in the one place the members that need the octets share.
-/// `body()` copies a string out of them and the urlencoded half of `post()`
+/// `body()` copies a string out of them and the urlencoded half of `formField()`
 /// parses them, and each has to be able to follow the other and answer the same
 /// bytes — which is a fact about the *request*, so the hold is
 /// [`nvs_runtime::Inbound`]'s and not this module's. That carrier's `held`
@@ -3531,7 +3537,7 @@ fn held_handle(ctx: &mut Ctx, member: &str) -> Result<std::rc::Rc<Box<[u8]>>, Fa
 /// `[limits] request_body`.
 ///
 /// One function rather than two copies of the loop, because `body` and the
-/// urlencoded half of `post` read the same bytes the same way and differ only
+/// urlencoded half of `formField` read the same bytes the same way and differ only
 /// in what they do with them afterwards. The caller owes the claim: this reads,
 /// and says nothing about who may.
 ///
@@ -3933,7 +3939,7 @@ nvs_runtime::nvs_helper! {
     /// `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s third way of reading one body, and the only one that
     /// reads it as *structure*. The parse is built here and stored on
     /// [`nvs_runtime::Inbound`], because the walk this answers reaches it again
-    /// through a different value on every `advance()` and `post()` will read the
+    /// through a different value on every `advance()` and `formField()` will read the
     /// form fields it buffered on the way past — that carrier's `parts` field
     /// owns the argument.
     ///
@@ -4829,15 +4835,16 @@ pub(crate) mod tests {
         nvs_core_request_body, nvs_core_request_body_stream, nvs_core_request_body_stream_advance,
         nvs_core_request_body_stream_current, nvs_core_request_body_stream_iterate,
         nvs_core_request_bytes, nvs_core_request_files, nvs_core_request_files_advance,
-        nvs_core_request_files_current, nvs_core_request_files_iterate, nvs_core_request_is_head,
-        nvs_core_request_json, nvs_core_request_json_as, nvs_core_request_method,
-        nvs_core_request_mount, nvs_core_request_mount_captures, nvs_core_request_mount_prefix,
-        nvs_core_request_part_content, nvs_core_request_part_content_advance,
-        nvs_core_request_part_content_current, nvs_core_request_part_content_iterate,
-        nvs_core_request_part_content_type, nvs_core_request_part_filename,
-        nvs_core_request_part_name, nvs_core_request_part_read_all, nvs_core_request_part_save_to,
-        nvs_core_request_post, nvs_core_request_post_array, nvs_core_request_post_as,
-        nvs_core_request_query_as, part_value, peer_text, scheme_text,
+        nvs_core_request_files_current, nvs_core_request_files_iterate,
+        nvs_core_request_form_field, nvs_core_request_form_fields, nvs_core_request_form_fields_as,
+        nvs_core_request_is_head, nvs_core_request_json, nvs_core_request_json_as,
+        nvs_core_request_method, nvs_core_request_mount, nvs_core_request_mount_captures,
+        nvs_core_request_mount_prefix, nvs_core_request_part_content,
+        nvs_core_request_part_content_advance, nvs_core_request_part_content_current,
+        nvs_core_request_part_content_iterate, nvs_core_request_part_content_type,
+        nvs_core_request_part_filename, nvs_core_request_part_name, nvs_core_request_part_read_all,
+        nvs_core_request_part_save_to, nvs_core_request_query_parameters_as, part_value, peer_text,
+        scheme_text,
     };
     use crate::router::METHOD;
     use nvs_runtime::{
@@ -5410,7 +5417,7 @@ pub(crate) mod tests {
     /// not UTF-8 throws a `ParseError` before any of the part is built, and a
     /// form field that is not UTF-8 throws the `RuntimeError` an urlencoded
     /// field throws for the same defect.
-    // covers: Core\Request::files, Core\Request::post
+    // covers: Core\Request::files, Core\Request::formField
     #[test]
     fn a_part_declaration_or_form_field_that_is_not_utf8_throws() {
         let head = crate::multipart::PartHead {
@@ -5429,7 +5436,7 @@ pub(crate) mod tests {
         match peer_text(
             b"\xff",
             ThrownClass::Runtime,
-            "post",
+            "formField",
             "the value of a form field",
         ) {
             Err(Fault::Thrown(ThrownClass::Runtime, _)) => {}
@@ -5603,10 +5610,10 @@ pub(crate) mod tests {
         );
     }
 
-    /// `queryArray` reads the one level of values a bracketed name built, keys
+    /// `queryParameters` reads the one level of values a bracketed name built, keys
     /// and order as written: an unbracketed value is a list of one, an absent
     /// name is empty, and a second level of brackets is a `ParseError`.
-    // covers: Core\Request::queryArray
+    // covers: Core\Request::queryParameters
     #[test]
     fn query_array_answers_the_values_a_bracketed_name_built() {
         fn values_of(query: &str, name: &str) -> String {
@@ -5614,14 +5621,16 @@ pub(crate) mod tests {
             ctx.set_inbound(Inbound::new("GET", "/", query));
             let name = Value::text(name);
             let answer = nvs_runtime::call(
-                crate::request::nvs_core_request_query_array,
+                crate::request::nvs_core_request_query_parameters,
                 &mut ctx,
                 &[name],
             );
             let seen = match answer {
                 Err(_) => "refused".to_owned(),
                 Ok(value) => {
-                    let list = value.as_array().expect("`queryArray` answers an array");
+                    let list = value
+                        .as_array()
+                        .expect("`queryParameters` answers an array");
                     let mut seen = Vec::new();
                     let mut slot = 0;
                     while let Some(at) = list.next_slot(slot) {
@@ -5636,7 +5645,7 @@ pub(crate) mod tests {
                     }
                     #[expect(
                         unsafe_code,
-                        reason = "the caller owns the one reference `queryArray` handed back"
+                        reason = "the caller owns the one reference `queryParameters` handed back"
                     )]
                     unsafe {
                         value.release();
@@ -5668,18 +5677,21 @@ pub(crate) mod tests {
         assert_eq!(values_of("tag[a][b]=c", "tag"), "refused");
     }
 
-    /// `query` reads one unbracketed parameter as text, so a name the query
+    /// `queryParameter` reads one unbracketed parameter as text, so a name the query
     /// string does not carry and a bracketed name both answer `null`, and an
     /// escape no `string` can hold is refused.
-    // covers: Core\Request::query
+    // covers: Core\Request::queryParameter
     #[test]
     fn query_answers_one_parameter_under_the_bracket_convention() {
         fn query_of(query: &str, name: &str) -> String {
             let mut ctx = Ctx::buffered();
             ctx.set_inbound(Inbound::new("GET", "/", query));
             let name = Value::text(name);
-            let answer =
-                nvs_runtime::call(crate::request::nvs_core_request_query, &mut ctx, &[name]);
+            let answer = nvs_runtime::call(
+                crate::request::nvs_core_request_query_parameter,
+                &mut ctx,
+                &[name],
+            );
             let seen = match answer {
                 Err(_) => "refused".to_owned(),
                 Ok(value) => {
@@ -5693,7 +5705,7 @@ pub(crate) mod tests {
                     };
                     #[expect(
                         unsafe_code,
-                        reason = "the caller owns the one reference `query` handed back"
+                        reason = "the caller owns the one reference `queryParameter` handed back"
                     )]
                     unsafe {
                         value.release();
@@ -5722,7 +5734,7 @@ pub(crate) mod tests {
         assert_eq!(
             query_of("filter[color]=red", "filter"),
             "null",
-            "a bracketed name is `queryArray`'s to read"
+            "a bracketed name is `queryParameters`'s to read"
         );
         assert_eq!(query_of("tag[]=a&tag[]=b", "tag"), "null");
         assert_eq!(
@@ -5734,7 +5746,7 @@ pub(crate) mod tests {
 
         let name = Value::text("page");
         let unanswered = nvs_runtime::call(
-            crate::request::nvs_core_request_query,
+            crate::request::nvs_core_request_query_parameter,
             &mut Ctx::buffered(),
             &[name],
         );
@@ -6081,10 +6093,10 @@ pub(crate) mod tests {
         assert_eq!(first, again);
     }
 
-    /// A multipart form whose body failed throws again from the next `post()`.
+    /// A multipart form whose body failed throws again from the next `formField()`.
     /// A program that caught the first throw never reads the fields that
     /// arrived before the failure.
-    // covers: Core\Request::post
+    // covers: Core\Request::formField
     #[test]
     fn a_second_post_after_a_caught_throw_throws_again() {
         let mut cut_off = uploading(
@@ -6092,7 +6104,7 @@ pub(crate) mod tests {
             Some(Chunks::failing_at(MIXED, 1)),
         );
         let first = posted(&mut cut_off, "title").expect_err("the body did not arrive whole");
-        let again = posted(&mut cut_off, "title").expect_err("the second `post()` throws too");
+        let again = posted(&mut cut_off, "title").expect_err("the second `formField()` throws too");
         assert_eq!(first, again);
     }
 
@@ -7695,7 +7707,7 @@ pub(crate) mod tests {
     /// and **a second text field after the file**.
     ///
     /// The last part is what the fixture exists for. A form is free to write an
-    /// input after a file input, and a `post()` answering the fields a walk had
+    /// input after a file input, and a `formField()` answering the fields a walk had
     /// reached would report it absent — so a body whose fields all preceded the
     /// upload would let that member pass.
     const MIXED: &[&[u8]] = &[
@@ -7706,19 +7718,19 @@ pub(crate) mod tests {
           Content-Disposition: form-data; name=\"notes[first]\"\r\n\r\nafter the file\r\n--X--\r\n",
     ];
 
-    /// `Core\Request::post(name)` on `ctx`, with the argument's own reference
+    /// `Core\Request::formField(name)` on `ctx`, with the argument's own reference
     /// released the way a compiled call site releases it.
     fn posted(ctx: &mut Ctx, name: &str) -> Result<Value, i32> {
         let asked = Value::text(name);
-        let answered = nvs_runtime::call(nvs_core_request_post, ctx, &[asked]);
+        let answered = nvs_runtime::call(nvs_core_request_form_field, ctx, &[asked]);
         dropped(asked);
         answered
     }
 
-    /// `Core\Request::postArray(name)` on `ctx`, as [`posted`] calls `post`.
+    /// `Core\Request::formFields(name)` on `ctx`, as [`posted`] calls `formField`.
     fn posted_array(ctx: &mut Ctx, name: &str) -> Result<Value, i32> {
         let asked = Value::text(name);
-        let answered = nvs_runtime::call(nvs_core_request_post_array, ctx, &[asked]);
+        let answered = nvs_runtime::call(nvs_core_request_form_fields, ctx, &[asked]);
         dropped(asked);
         answered
     }
@@ -7734,7 +7746,7 @@ pub(crate) mod tests {
         text
     }
 
-    /// `rule:http-server/time-is-bounded-inside-a-helper`: `post()` drains a
+    /// `rule:http-server/time-is-bounded-inside-a-helper`: `formField()` drains a
     /// held multipart body in one call, so the drain polls the deadline. Under
     /// a passed deadline the member is the deadline's FATAL. The same body
     /// under a deadline that has not passed reads the field after the upload.
@@ -7768,16 +7780,16 @@ pub(crate) mod tests {
 
     /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`'s split read from the other side: a part carrying no
     /// `filename` is a form field, is buffered as the walk passes it, and is
-    /// what `post()` answers — **including the one written after the file**,
+    /// what `formField()` answers — **including the one written after the file**,
     /// which is the position the member is built around.
     ///
     /// Two halves, because what the request holds differs on each side. With a
-    /// `files()` walk ahead of it, `post` reads the parse that walk left; with
-    /// nothing ahead of it, `post` builds the parse and draining to the last
+    /// `files()` walk ahead of it, `formField` reads the parse that walk left; with
+    /// nothing ahead of it, `formField` builds the parse and draining to the last
     /// field is what consumed the uploads — so `files()` afterwards is refused
     /// rather than answered empty, which is all a drained walk could say.
-    // covers: Core\Request::post
-    // covers: Core\Request::postArray
+    // covers: Core\Request::formField
+    // covers: Core\Request::formFields
     #[test]
     fn post_reads_the_fields_a_files_walk_buffered() {
         let mut walked = uploading("multipart/form-data; boundary=X", Some(Chunks::of(MIXED)));
@@ -7799,13 +7811,13 @@ pub(crate) mod tests {
         assert_eq!(
             field(&mut walked, "notes"),
             None,
-            "a bracketed name is `postArray`'s to read, never `post`'s"
+            "a bracketed name is `formFields`'s to read, never `formField`'s"
         );
         let nested = posted_array(&mut walked, "notes").expect("this form is readable");
         assert_eq!(
             nested.as_array().map(|values| values.count()),
             Some(1),
-            "the bracket convention is `query`'s over a form field too: `notes[first]` is \
+            "the bracket convention is `queryParameters`' over a form field too: `notes[first]` is \
              reached under `notes`, not under its whole written name"
         );
         dropped(nested);
@@ -7820,7 +7832,7 @@ pub(crate) mod tests {
             "a file part is not a form field, whichever of the two members is asked"
         );
 
-        // The other half: nothing has read this body, so `post` claims it and
+        // The other half: nothing has read this body, so `formField` claims it and
         // reads to the closing delimiter itself — the uploads drained on the
         // way, which is what makes the walk afterwards a refusal.
         let mut alone = uploading("multipart/form-data; boundary=X", Some(Chunks::of(MIXED)));
@@ -7837,7 +7849,7 @@ pub(crate) mod tests {
         );
     }
 
-    /// A urlencoded body is the other half of what `post()` reads, and it is
+    /// A urlencoded body is the other half of what `formField()` reads, and it is
     /// read **once**: the body is a stream that can be pulled a single time,
     /// while the member answers one named field per call.
     ///
@@ -8163,7 +8175,7 @@ pub(crate) mod tests {
     /// direction it was written for and fail the other.
     ///
     /// **The multipart direction is the one that could pass by accident.**
-    /// `post()` after `body()` finds a wire with nothing left on it, so a
+    /// `formField()` after `body()` finds a wire with nothing left on it, so a
     /// member that parsed the wire regardless would answer a form with no
     /// fields in it — a plausible empty answer about fields the peer did send,
     /// which is the failure this whole rule is written against. What makes it
@@ -8183,7 +8195,7 @@ pub(crate) mod tests {
         assert_eq!(
             field(&mut whole_then_form, "title").as_deref(),
             Some(&b"Q3 report"[..]),
-            "and `post` after it parses the octets that reading held"
+            "and `formField` after it parses the octets that reading held"
         );
 
         let mut form_then_whole = uploading(
@@ -8193,7 +8205,7 @@ pub(crate) mod tests {
         assert_eq!(
             field(&mut form_then_whole, "title").as_deref(),
             Some(&b"Q3 report"[..]),
-            "the same two readings the other way round: `post` is the one that pulls"
+            "the same two readings the other way round: `formField` is the one that pulls"
         );
         assert_eq!(
             read_body(&mut form_then_whole).expect("a buffering reader may follow another"),
@@ -8210,7 +8222,7 @@ pub(crate) mod tests {
         assert_eq!(
             field(&mut parted, "title").as_deref(),
             Some(&b"Q3 report"[..]),
-            "and `post` parses the hold, where parsing the drained wire would answer nothing"
+            "and `formField` parses the hold, where parsing the drained wire would answer nothing"
         );
         let after = posted_array(&mut parted, "notes").expect("this form is readable");
         assert!(
@@ -8331,7 +8343,7 @@ pub(crate) mod tests {
 
     /// The declared `Content-Type` is not consulted, in either direction.
     ///
-    /// `post()`'s reasoning, inherited: what a peer wrote in a header is not
+    /// `formField()`'s reasoning, inherited: what a peer wrote in a header is not
     /// what decides what a body is. Asked both ways round because a gate on
     /// the type fails only one of them — a mislabelled but valid document
     /// would be unreadable, and a malformed one wearing the right label would
@@ -8608,7 +8620,7 @@ pub(crate) mod tests {
     ///
     /// A `files()` walk is the same reader with the one difference
     /// `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` makes: it
-    /// buffers the non-file fields on its way past, so `post` after it reads
+    /// buffers the non-file fields on its way past, so `formField` after it reads
     /// those — [`post_reads_the_fields_a_files_walk_buffered`] — while `body`
     /// is refused, the hold carrying the fields and never the octets.
     #[test]
@@ -8672,7 +8684,7 @@ pub(crate) mod tests {
     /// `title: string`, in the slot order a written shape's fields take.
     ///
     /// A shape rather than a named class, because that is what a request call
-    /// site writes: `postAs<{ n: int, title: string }>()` resolves to a
+    /// site writes: `formFieldsAs<{ n: int, title: string }>()` resolves to a
     /// synthesized descriptor and the [`ShapeCodec`] beside it. A shape
     /// declares no constructor, so unlike [`reading_class`] there is no
     /// `set_methods` — `crate::json` writes a shape's slots directly rather
@@ -8732,7 +8744,7 @@ pub(crate) mod tests {
         (table.desc(id), shape)
     }
 
-    /// `Core\Request::postAs<T>({ name?: string })` at the ABI a compiled call
+    /// `Core\Request::formFieldsAs<T>({ name?: string })` at the ABI a compiled call
     /// site gives it: [`crate::registry::WRITTEN_CLASS_MEMBERS`] writes the
     /// descriptor, the `array<...>` flag and the wire contract ahead of the one
     /// declared option, so the helper's arity is three more than the row's.
@@ -8744,7 +8756,7 @@ pub(crate) mod tests {
         shape: (*const ClassDesc, *const ShapeCodec),
         name: Option<&str>,
     ) -> Result<Value, i32> {
-        shaped_read(nvs_core_request_post_as, ctx, shape, name)
+        shaped_read(nvs_core_request_form_fields_as, ctx, shape, name)
     }
 
     /// [`read_post_as`]'s member over the query string instead of the body, at
@@ -8755,7 +8767,7 @@ pub(crate) mod tests {
         shape: (*const ClassDesc, *const ShapeCodec),
         name: Option<&str>,
     ) -> Result<Value, i32> {
-        shaped_read(nvs_core_request_query_as, ctx, shape, name)
+        shaped_read(nvs_core_request_query_parameters_as, ctx, shape, name)
     }
 
     /// What the two above share, written once so a difference between them is
@@ -8829,7 +8841,7 @@ pub(crate) mod tests {
     /// `n` is the half that could not pass by accident. The body says `n=7` and
     /// means the three bytes `"7"`, so a field reaching an `int` is
     /// `crate::json::Reading::Values` converting it through
-    /// `rule:types/conversion`'s table — the fork `postAs` picks over the wire
+    /// `rule:types/conversion`'s table — the fork `formFieldsAs` picks over the wire
     /// reading `jsonAs` picks, and the one thing the member adds to
     /// `Core\Arr::shapeAs` beyond finding the array.
     ///
@@ -8838,7 +8850,7 @@ pub(crate) mod tests {
     /// `a_key_the_shape_does_not_name_is_left_behind` is where it is pinned, so
     /// what this asserts is only that reading a form through the boundary does
     /// not acquire a stricter one.
-    // covers: Core\Request::postAs
+    // covers: Core\Request::formFieldsAs
     #[test]
     fn post_as_hydrates_the_whole_form_into_the_shape_it_was_given() {
         let shape = submitted_shape();
@@ -8867,7 +8879,7 @@ pub(crate) mod tests {
     /// and hydrated the whole set would answer plausibly — two filled fields of
     /// the right types — so the values are what separates the two readings, and
     /// the subtree's are the ones asserted.
-    // covers: Core\Request::postAs
+    // covers: Core\Request::formFieldsAs
     #[test]
     fn post_as_with_a_name_hydrates_one_bracket_subtree() {
         let shape = submitted_shape();
@@ -8889,7 +8901,7 @@ pub(crate) mod tests {
         dropped(instance);
     }
 
-    /// `queryAs` is the same member over the query string, so the assertion is
+    /// `queryParametersAs` is the same member over the query string, so the assertion is
     /// that the two **agree** rather than what either one answered.
     ///
     /// One text is put on the wire twice — once as a request line's query and
@@ -8897,8 +8909,8 @@ pub(crate) mod tests {
     /// shape. A wrapper that grew its own parse, its own bracket walk or its
     /// own conversion fork would still look right on its own line and fail
     /// here, which is what a second copy of the first test could not see.
-    // covers: Core\Request::queryAs
-    // covers: Core\Request::postAs
+    // covers: Core\Request::queryParametersAs
+    // covers: Core\Request::formFieldsAs
     #[test]
     fn query_as_reads_the_query_string_the_same_way() {
         let shape = submitted_shape();
@@ -8934,7 +8946,7 @@ pub(crate) mod tests {
         dropped(named);
     }
 
-    /// `postAs` is a buffering reader under
+    /// `formFieldsAs` is a buffering reader under
     /// `rule:http-server/buffering-readers-share-the-body-and-streaming-readers-consume-it`,
     /// so it may follow another one and another one may follow it.
     ///
@@ -8944,7 +8956,7 @@ pub(crate) mod tests {
     /// which is [`nvs_runtime::Inbound`]'s choice and not this member's, and a
     /// member reading its own memory instead would pass the direction it was
     /// written for and fail the other. The direction that could pass by
-    /// accident is the second — `post()` after `postAs` finds a wire with
+    /// accident is the second — `formField()` after `formFieldsAs` finds a wire with
     /// nothing left on it, and a parse of that wire answers a form with no
     /// fields in it rather than failing.
     #[test]
@@ -8982,7 +8994,7 @@ pub(crate) mod tests {
     }
 
     /// The streaming half of the same rule: a reader that handed the octets
-    /// over as they arrived kept none of them, so `postAs` is **refused** after
+    /// over as they arrived kept none of them, so `formFieldsAs` is **refused** after
     /// it rather than answered out of a drained wire.
     ///
     /// This is the failure the whole rule is written against, and the shaped
@@ -8993,7 +9005,7 @@ pub(crate) mod tests {
     /// already spent the body. So the refusal is asserted where the shape is
     /// satisfiable, which is what separates the two.
     ///
-    /// `queryAs` is asked the same question and **answers**, because the rule
+    /// `queryParametersAs` is asked the same question and **answers**, because the rule
     /// is about the body and the query string was never on the wire the walk
     /// consumed. A claim written over the member rather than over what it reads
     /// would refuse both.

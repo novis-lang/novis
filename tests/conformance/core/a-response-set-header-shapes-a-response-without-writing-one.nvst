@@ -44,7 +44,7 @@ echo "one name set ", $accepted, " times\n";
 // And a header beside a body leaves the body alone, byte for byte.
 var $withHeader = Core\Out::capture(fn (): void => {
     Core\Response::setHeader("X-Request-Id", "9f2");
-    Core\Response::text("created");
+    Core\Response::sendText("created");
 });
 echo "a body under a header is [", $withHeader, "]\n";
 --EXPECT--

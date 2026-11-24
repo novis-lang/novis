@@ -665,7 +665,7 @@ session the bullets it ranks highest for the live goal, and names how many more 
   E0240.** A generator written into `apps/registry/src/App.nvs` failed E0441 and E0303 twice before
   it reached the compiler. Add `use Iterator;` under the `namespace` line, as
   `extensions/spreadsheet/nvs/Reader.nvs` does. See that file's head.
-- **`Core\Script::args()`'s strings are `tainted`, and `as` cannot target a tainted type.**
+- **`Core\Script::arguments()`'s strings are `tainted`, and `as` cannot target a tainted type.**
   `as array<string>` fails `E0401` and `as array<tainted string>` fails `E0711`. Convert to
   `array<mixed>`, then each value `as string`, which gives a `tainted string` to declare as one.
   `docs/examples/config/schedule/02-work-that-runs-on-a-server-event.nvs` is the shape.
@@ -677,7 +677,7 @@ session the bullets it ranks highest for the live goal, and names how many more 
   See `packages/rest/src/Token.nvs`. `until: gone packages/rest/src/Token.nvs:refresh_token?: string`
 - **A script under an app's `jobs/` runs on every `Core\Test::request` of `nvs test <app folder>`,
   so each request answers `500` with no body.** The folder's generated entry requires every file no
-  other file requires, and the request runs that entry. It shows as "`Response::json()`: the program
+  other file requires, and the request runs that entry. It shows as "`Response::sendJson()`: the program
   wrote no body" in every test that signs up; `apps/registry` was red from its first `jobs/` file
   until the runner ran `public/index.nvs` alone. Prove it by moving `jobs/` aside for one run.
   `until: gone docs/goals/registry-service.md:A test request runs the request entry`

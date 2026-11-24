@@ -1122,7 +1122,7 @@ fn a_deferred_deadline_is_a_requests_to_set_while_the_cap_beside_it_is_the_hosts
 /// counts trees and the ceiling is bytes — so a cap written in a size's spelling is refused rather
 /// than read as two hundred and sixty-eight million trees.
 ///
-/// Past the cap `Core\Task::afterResponse` throws at the call site rather than queueing
+/// Past the cap `Core\Task::runAfterResponse` throws at the call site rather than queueing
 /// (`nvs_runtime::deferred`), and the registry's half of that is that there is nothing else to
 /// write. `[deferred]` governs two numbers and no behaviour, so an operator who wanted a queue or a
 /// wait in front of a non-durable executor has no key for one and no row would govern it.

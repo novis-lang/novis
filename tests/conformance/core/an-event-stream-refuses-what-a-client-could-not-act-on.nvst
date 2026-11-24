@@ -11,7 +11,7 @@
 tainted string $empty = "";
 try {
     Core\Out::capture(fn (): void => {
-        var $sse = Core\Sse::stream();
+        var $sse = Core\Sse::startStream();
         $sse->send("");
     });
 } catch (LogicError $refused) {
@@ -24,7 +24,7 @@ echo $empty, "\n";
 tainted string $named = "";
 try {
     Core\Out::capture(fn (): void => {
-        var $sse = Core\Sse::stream();
+        var $sse = Core\Sse::startStream();
         $sse->send("sold", event: "order\ndata: forged");
     });
 } catch (LogicError $refused) {
@@ -38,7 +38,7 @@ echo $named, "\n";
 tainted string $identified = "";
 try {
     Core\Out::capture(fn (): void => {
-        var $sse = Core\Sse::stream();
+        var $sse = Core\Sse::startStream();
         $sse->send("sold", id: "42\u{0}9");
     });
 } catch (LogicError $refused) {
@@ -46,14 +46,14 @@ try {
 }
 echo $identified, "\n";
 
-// `Core\Response::stream` takes any status; this refusal is the event stream's
+// `Core\Response::startStream` takes any status; this refusal is the event stream's
 // alone. An event stream is `200` by protocol, so a program that set a status
 // and then opened one said two things about one response.
 tainted string $contradicted = "";
 try {
     Core\Out::capture(fn (): void => {
         Core\Response::setStatus(404);
-        Core\Sse::stream();
+        Core\Sse::startStream();
     });
 } catch (LogicError $refused) {
     $contradicted = $refused->message;
@@ -66,7 +66,7 @@ echo $contradicted, "\n";
 tainted string $unencodable = "";
 try {
     Core\Out::capture(fn (): void => {
-        var $sse = Core\Sse::stream();
+        var $sse = Core\Sse::startStream();
         $sse->send(new Ticket());
     });
 } catch (LogicError $refused) {
@@ -84,5 +84,5 @@ class Ticket
 Core\Sse::send(): an event needs a payload: a client dispatches nothing for an empty data buffer, so this event could not arrive
 Core\Sse::send(): an event name cannot carry a line break or a NUL: a client dispatches on this name, and either byte would end the event early
 Core\Sse::send(): an event id cannot carry a line break or a NUL: either byte would end the event early, and a client discards an id containing a NUL outright
-Core\Sse::stream(): this request set the status `404` and an event stream is `200` by protocol, so the two cannot both be answered
+Core\Sse::startStream(): this request set the status `404` and an event stream is `200` by protocol, so the two cannot both be answered
 Core\Sse::send(): the payload cannot be encoded: an instance of `Ticket` has no JSON encoding — a class participates by carrying `#[Json\Derive]` or by writing `toJson` itself

@@ -32,7 +32,7 @@ final class App
             }
             Response::setStatus(429);
             Response::setHeader('retry-after', "{$seconds}");
-            Response::json({ error: 'This address sent too many reports. Try again later.' });
+            Response::sendJson({ error: 'This address sent too many reports. Try again later.' });
             return;
         }
         try {
@@ -42,7 +42,7 @@ final class App
             Response::setStatus(204);
         } catch (Rejected $error) {
             Response::setStatus($error->status);
-            Response::json({ error: $error->message });
+            Response::sendJson({ error: $error->message });
         }
     }
 
@@ -51,7 +51,7 @@ final class App
     #[Access(allow: Audience::Public)]
     public static function home(): void
     {
-        Response::html(Pages::home(App::totals(), Time::now()));
+        Response::sendHtml(Pages::home(App::totals(), Time::now()));
     }
 
     // The page that says what a report contains. The address of the service is built from this request.
@@ -60,7 +60,7 @@ final class App
     public static function collect(): void
     {
         tainted string $origin = Request::scheme() . '://' . (Request::host() ?? 'localhost');
-        Response::html(Pages::collect($origin));
+        Response::sendHtml(Pages::collect($origin));
     }
 
     // The page with the list of downloads.
@@ -68,7 +68,7 @@ final class App
     #[Access(allow: Audience::Public)]
     public static function data(): void
     {
-        Response::html(Pages::data());
+        Response::sendHtml(Pages::data());
     }
 
     // The stylesheet of the pages.
@@ -76,7 +76,7 @@ final class App
     #[Access(allow: Audience::Public)]
     public static function style(): void
     {
-        Response::bytes(Pages::style() as bytes, 'text/css; charset=utf-8');
+        Response::sendBytes(Pages::style() as bytes, 'text/css; charset=utf-8');
     }
 
     // Both tables as JSON.
@@ -84,7 +84,7 @@ final class App
     #[Access(allow: Audience::Public)]
     public static function totalsJson(): void
     {
-        Response::json(Data::json(App::totals()));
+        Response::sendJson(Data::json(App::totals()));
     }
 
     // Both tables as CSV.
@@ -92,7 +92,7 @@ final class App
     #[Access(allow: Audience::Public)]
     public static function totalsCsv(): void
     {
-        Response::bytes(Data::csv(App::totals()) as bytes, 'text/csv; charset=utf-8');
+        Response::sendBytes(Data::csv(App::totals()) as bytes, 'text/csv; charset=utf-8');
     }
 
     // The rows of one week as JSON, such as `/data/2026-W42.json`. A week with no rows gets 404.
@@ -104,12 +104,12 @@ final class App
         if ($week != null) {
             var $totals = App::totals();
             if (Core\Arr::count($totals->reports($week)) > 0) {
-                Response::json(Data::json($totals, $week));
+                Response::sendJson(Data::json($totals, $week));
                 return;
             }
         }
         Response::setStatus(404);
-        Response::json({ error: 'There are no totals for this week.' });
+        Response::sendJson({ error: 'There are no totals for this week.' });
     }
 
     // Reads the body of the request. A body larger than `[limits] request_body` in `nvs.toml` gets 413.

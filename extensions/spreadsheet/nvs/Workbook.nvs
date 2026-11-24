@@ -73,7 +73,7 @@ final class Workbook
         Core\Response::setHeader('Content-Disposition', self::disposition($name));
         string $csvType = $book->encoding == null ? 'text/csv; charset=utf-8' : 'text/csv';
         string $bookType = $book->ods ? 'application/vnd.oasis.opendocument.spreadsheet' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-        $book->response = Core\Response::stream($book->csv ? $csvType : $bookType, null, null, $name);
+        $book->response = Core\Response::startStream($book->csv ? $csvType : $bookType, null, null, $name);
         return $book;
     }
 

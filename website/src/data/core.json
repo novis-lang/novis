@@ -26224,7 +26224,7 @@
           },
           "slug": "gauge",
           "url": "/reference/core/metrics/gauge/",
-          "examples": "core/Metrics/gauge"
+          "examples": "core/Metrics/setGauge"
         }
       ],
       "slug": "metrics",
@@ -39610,7 +39610,7 @@
           },
           "slug": "query",
           "url": "/reference/core/request/query/",
-          "examples": "core/Request/query"
+          "examples": "core/Request/queryParameter"
         },
         {
           "id": "Request.queryArray",
@@ -39657,7 +39657,7 @@
           },
           "slug": "queryarray",
           "url": "/reference/core/request/queryarray/",
-          "examples": "core/Request/queryArray"
+          "examples": "core/Request/queryParameters"
         },
         {
           "id": "Request.queryAs",
@@ -39696,7 +39696,7 @@
           },
           "slug": "queryas",
           "url": "/reference/core/request/queryas/",
-          "examples": "core/Request/queryAs"
+          "examples": "core/Request/queryParametersAs"
         },
         {
           "id": "Request.header",
@@ -40087,7 +40087,7 @@
           },
           "slug": "post",
           "url": "/reference/core/request/post/",
-          "examples": "core/Request/post"
+          "examples": "core/Request/formField"
         },
         {
           "id": "Request.postArray",
@@ -40138,7 +40138,7 @@
           },
           "slug": "postarray",
           "url": "/reference/core/request/postarray/",
-          "examples": "core/Request/postArray"
+          "examples": "core/Request/formFields"
         },
         {
           "id": "Request.postAs",
@@ -40181,7 +40181,7 @@
           },
           "slug": "postas",
           "url": "/reference/core/request/postas/",
-          "examples": "core/Request/postAs"
+          "examples": "core/Request/formFieldsAs"
         },
         {
           "id": "Request.clientIp",
@@ -40916,7 +40916,7 @@
           },
           "slug": "html",
           "url": "/reference/core/response/html/",
-          "examples": "core/Response/html"
+          "examples": "core/Response/sendHtml"
         },
         {
           "id": "Response.json",
@@ -40955,7 +40955,7 @@
           },
           "slug": "json",
           "url": "/reference/core/response/json/",
-          "examples": "core/Response/json"
+          "examples": "core/Response/sendJson"
         },
         {
           "id": "Response.text",
@@ -40988,7 +40988,7 @@
           },
           "slug": "text",
           "url": "/reference/core/response/text/",
-          "examples": "core/Response/text"
+          "examples": "core/Response/sendText"
         },
         {
           "id": "Response.bytes",
@@ -41039,7 +41039,7 @@
           },
           "slug": "bytes",
           "url": "/reference/core/response/bytes/",
-          "examples": "core/Response/bytes"
+          "examples": "core/Response/sendBytes"
         },
         {
           "id": "Response.sendFile",
@@ -41161,7 +41161,7 @@
           },
           "slug": "stream",
           "url": "/reference/core/response/stream/",
-          "examples": "core/Response/stream"
+          "examples": "core/Response/startStream"
         },
         {
           "id": "Response.setStatus",
@@ -41224,7 +41224,7 @@
           },
           "slug": "slotted",
           "url": "/reference/core/response/slotted/",
-          "examples": "core/Response/slotted"
+          "examples": "core/Response/sendSlotted"
         },
         {
           "id": "Response.setHeader",
@@ -42013,7 +42013,7 @@
           },
           "slug": "params",
           "url": "/reference/core/router-match/params/",
-          "examples": "core/Router-Match/params"
+          "examples": "core/Router-Match/parameters"
         },
         {
           "id": "Router.Match.param",
@@ -42046,7 +42046,7 @@
           },
           "slug": "param",
           "url": "/reference/core/router-match/param/",
-          "examples": "core/Router-Match/param"
+          "examples": "core/Router-Match/parameter"
         },
         {
           "id": "Router.Match.method",
@@ -42176,7 +42176,7 @@
           },
           "slug": "args",
           "url": "/reference/core/script/args/",
-          "examples": "core/Script/args"
+          "examples": "core/Script/arguments"
         },
         {
           "id": "Script.onExit",
@@ -44152,7 +44152,7 @@
           },
           "slug": "stream",
           "url": "/reference/core/sse/stream/",
-          "examples": "core/Sse/stream"
+          "examples": "core/Sse/startStream"
         },
         {
           "id": "Sse.current",
@@ -44306,7 +44306,7 @@
           },
           "slug": "retry",
           "url": "/reference/core/sse/retry/",
-          "examples": "core/Sse/retry"
+          "examples": "core/Sse/setRetryDelay"
         }
       ],
       "slug": "sse",
@@ -46944,7 +46944,7 @@
           },
           "slug": "afterresponse",
           "url": "/reference/core/task/afterresponse/",
-          "examples": "core/Task/afterResponse"
+          "examples": "core/Task/runAfterResponse"
         }
       ],
       "slug": "task",

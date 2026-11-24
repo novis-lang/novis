@@ -563,7 +563,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Math::toDegrees` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::toRadians` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::truncate` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
-| `Core\Metrics::gauge` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
+| `Core\Metrics::setGauge` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Metrics::increment` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Metrics::observe` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Mime::detect` | 5.00 | 1.00 | 1.00 | 12.0 |  |  | complexity constant, allocations 1, calls 1 | 4fc2594c8ec2 |
@@ -748,12 +748,12 @@ marked `~`: it is the machine, not the code.
 | `Core\Request::method` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Request::mount` | 4.00 | 3.00 | 5.00 | 313.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Request::path` | 4.00 | 2.00 | 1.00 | 62.0 |  |  | complexity constant, allocations 1, calls 2 | 4fc2594c8ec2 |
-| `Core\Request::post` | 4.00 | 2.00 | 1.00 | 33.0 |  |  | complexity constant, calls 2 | 4fc2594c8ec2 |
-| `Core\Request::postArray` | 4.00 | 2.00 | 1.66 | 85.5 |  |  | complexity constant, calls 2 | 4fc2594c8ec2 |
-| `Core\Request::postAs` | 4.00 | 2.00 | 3.00 | 145.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
-| `Core\Request::query` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2 | 4fc2594c8ec2 |
-| `Core\Request::queryArray` | 4.00 | 2.00 | 0.67 | 53.4 |  |  | complexity constant, calls 2 | 4fc2594c8ec2 |
-| `Core\Request::queryAs` | 4.00 | 2.00 | 2.00 | 112.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
+| `Core\Request::formField` | 4.00 | 2.00 | 1.00 | 33.0 |  |  | complexity constant, calls 2 | 4fc2594c8ec2 |
+| `Core\Request::formFields` | 4.00 | 2.00 | 1.66 | 85.5 |  |  | complexity constant, calls 2 | 4fc2594c8ec2 |
+| `Core\Request::formFieldsAs` | 4.00 | 2.00 | 3.00 | 145.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
+| `Core\Request::queryParameter` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, calls 2 | 4fc2594c8ec2 |
+| `Core\Request::queryParameters` | 4.00 | 2.00 | 0.67 | 53.4 |  |  | complexity constant, calls 2 | 4fc2594c8ec2 |
+| `Core\Request::queryParametersAs` | 4.00 | 2.00 | 2.00 | 112.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
 | `Core\Request::route` | 6.00 | 2.00 | 9.00 | 573.0 |  |  | complexity constant, calls 2 | 4fc2594c8ec2 |
 | `Core\Request::scheme` | 4.00 | 2.00 | 1.00 | 45.0 |  |  | complexity constant, allocations 1, calls 2 | 4fc2594c8ec2 |
 | `Core\Request\BodyStream::peek` | 3.00 | 2.00 | 2.00 | 72.0 |  |  | complexity constant | 4fc2594c8ec2 |
@@ -767,16 +767,16 @@ marked `~`: it is the machine, not the code.
 | `Core\Request\Part::readAll` | 5.00 | 8.00 | 20.00 | 1897.0 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Request\Part::saveTo` | 5.00 | 10.00 | 121.00 | 6155.0 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Response::addCookie` | 5.00 | 2.00 | 8.00 | 354.3 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Response::bytes` | 5.00 | 1.00 | 1.00 | 16.0 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Response::html` | 5.00 | 1.00 | 1.00 | 24.0 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Response::json` | 5.00 | 1.00 | 5.00 | 464.0 |  |  | complexity linear | 4fc2594c8ec2 |
+| `Core\Response::sendBytes` | 5.00 | 1.00 | 1.00 | 16.0 |  |  | complexity linear | 4fc2594c8ec2 |
+| `Core\Response::sendHtml` | 5.00 | 1.00 | 1.00 | 24.0 |  |  | complexity linear | 4fc2594c8ec2 |
+| `Core\Response::sendJson` | 5.00 | 1.00 | 5.00 | 464.0 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Response::redirect` | 5.00 | 2.00 | 2.00 | 16.0 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Response::sendFile` | 5.00 | 1.00 | 32.00 | 706.3 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Response::setHeader` | 5.00 | 2.00 | 2.00 | 21.0 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Response::setStatus` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
-| `Core\Response::slotted` | 4.00 | 3.00 | 145.02 | 23598.0 | -24.000 | -2480.000 | complexity linear | 4fc2594c8ec2 |
-| `Core\Response::stream` | 5.00 | 1.00 | 2.00 | 48.5 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Response::text` | 5.00 | 1.00 | 1.00 | 25.0 |  |  | complexity linear | 4fc2594c8ec2 |
+| `Core\Response::sendSlotted` | 4.00 | 3.00 | 145.02 | 23598.0 | -24.000 | -2480.000 | complexity linear | 4fc2594c8ec2 |
+| `Core\Response::startStream` | 5.00 | 1.00 | 2.00 | 48.5 |  |  | complexity linear | 4fc2594c8ec2 |
+| `Core\Response::sendText` | 5.00 | 1.00 | 1.00 | 25.0 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Response\Stream::end` | 4.00 | 1.00 | 0.01 | 1.0 | -0.001 | -0.028 | complexity constant | 4fc2594c8ec2 |
 | `Core\Response\Stream::length` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 4fc2594c8ec2 |
 | `Core\Response\Stream::offset` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 4fc2594c8ec2 |
@@ -794,10 +794,10 @@ marked `~`: it is the machine, not the code.
 | `Core\Router\Match::is` | 6.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | 4fc2594c8ec2 |
 | `Core\Router\Match::method` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 4fc2594c8ec2 |
 | `Core\Router\Match::name` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | b358c465f632 |
-| `Core\Router\Match::param` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 4fc2594c8ec2 |
-| `Core\Router\Match::params` | 5.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 2 | 4fc2594c8ec2 |
+| `Core\Router\Match::parameter` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 4fc2594c8ec2 |
+| `Core\Router\Match::parameters` | 5.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 2 | 4fc2594c8ec2 |
 | `Core\Router\Responder` | 4.00 | 4.00 | 85.02 | 7774.0 |  |  | complexity linear | f2ed85dbe899 |
-| `Core\Script::args` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 4fc2594c8ec2 |
+| `Core\Script::arguments` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 4fc2594c8ec2 |
 | `Core\Script::onExit` | 5.00 | 2.00 | 1.02 | 112.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Script\ExitReport::error` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Script\ExitReport::memoryPeak` | 3.00 | 1.00 | 0.00 | 0.0 |  | -0.004 | complexity constant, allocations 0 | 4fc2594c8ec2 |
@@ -842,9 +842,9 @@ marked `~`: it is the machine, not the code.
 | `Core\Socket\Message::value` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Sse::current` | 4.00 | 1.00 | 1.00 | 32.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Sse::receive` | 6.00 | 3.00 | 9.00 | 246.0 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Sse::retry` | 4.00 | 2.00 | 3.00 | 75.0 |  |  | complexity constant | 4fc2594c8ec2 |
+| `Core\Sse::setRetryDelay` | 4.00 | 2.00 | 3.00 | 75.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Sse::send` | 4.00 | 1.00 | 2.00 | 66.0 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\Sse::stream` | 4.00 | 1.00 | 6.00 | 103.0 |  |  | complexity constant | 4fc2594c8ec2 |
+| `Core\Sse::startStream` | 4.00 | 1.00 | 6.00 | 103.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Sse::upgrade` | 1.00 | 1.00 | 43.00 | 5704.0 | -2.000 | -168.000 | complexity constant | 4fc2594c8ec2 |
 | `Core\Sse\Message::topic` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Sse\Message::value` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4fc2594c8ec2 |
@@ -894,7 +894,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Str::wrap` | 4.00 | 2.00 | 1.00 | 73.3 |  |  | complexity linear, calls 2 | 3d6e1ab929ed |
 | `Core\Taint::assertTrusted` | 4.00 | 2.00 | 0.00 | 0.0 |  | -0.002 | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Taint::assertTrustedBytes` | 4.00 | 2.00 | 0.00 | 0.0 |  | -0.002 | complexity constant, allocations 0 | 4fc2594c8ec2 |
-| `Core\Task::afterResponse` | 5.00 | 2.00 | 13.03 | 2768.0 | -6.000 | -3452.000 | complexity constant | 4fc2594c8ec2 |
+| `Core\Task::runAfterResponse` | 5.00 | 2.00 | 13.03 | 2768.0 | -6.000 | -3452.000 | complexity constant | 4fc2594c8ec2 |
 | `Core\Task::all` | 5.00 | 1.00 | 20.02 | 5408.0 | -13.000 | -10584.000 | complexity constant | 4fc2594c8ec2 |
 | `Core\Task::map` | 5.00 | 1.00 | 24.02 | 7960.0 | -18.000 | -24820.000 | complexity linear | 4fc2594c8ec2 |
 | `Core\Task\Channel::close` | 5.00 | 2.00 | 2.00 | 208.0 | -1.000 | -64.000 | complexity constant | 4fc2594c8ec2 |
@@ -1691,7 +1691,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Request\Part::peek` | Core\Request\Part | 4223.6 units against a `constant` ceiling of 100 |
 | `Core\Response::redirect` | Core\Response | 31.4x its group's median of 90.0 units |
 | `Core\Response::sendFile` | Core\Response | 395.4x its group's median of 90.0 units — 35591.2 units against a `constant` ceiling of 100 |
-| `Core\Response::slotted` | Core\Response | 76.1x its group's median of 90.0 units |
+| `Core\Response::sendSlotted` | Core\Response | 76.1x its group's median of 90.0 units |
 | `Core\Router::dispatch` | Core\Router | 2941.7 units against a `constant` ceiling of 100 |
 | `Core\Router\Match::name` | Core\Router\Match | 271.2 units against a `constant` ceiling of 100 |
 | `Core\Session::clear` | Core\Session | 6033.9 units against a `constant` ceiling of 100 |
@@ -2529,7 +2529,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Math::toDegrees` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::toRadians` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::truncate` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
-| `Core\Metrics::gauge` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 923f49bb800018b315d7fea4d745d7a8 |
+| `Core\Metrics::setGauge` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 923f49bb800018b315d7fea4d745d7a8 |
 | `Core\Metrics::increment` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 923f49bb800018b315d7fea4d745d7a8 |
 | `Core\Metrics::observe` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 923f49bb800018b315d7fea4d745d7a8 |
 | `Core\Mime::detect` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | fab61e79bdd04fc4addb3bfa4d9442f8 |
@@ -2714,12 +2714,12 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Request::method` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
 | `Core\Request::mount` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
 | `Core\Request::path` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
-| `Core\Request::post` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
-| `Core\Request::postArray` | 0.0 | 0.0 | 0.000 | -100.0% | unclear | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
-| `Core\Request::postAs` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
-| `Core\Request::query` | 0.0 | 9106.9 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
-| `Core\Request::queryArray` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
-| `Core\Request::queryAs` | 592491.0 | 871261.7 | 267309.279 | +5161.8% | flat, flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
+| `Core\Request::formField` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
+| `Core\Request::formFields` | 0.0 | 0.0 | 0.000 | -100.0% | unclear | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
+| `Core\Request::formFieldsAs` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
+| `Core\Request::queryParameter` | 0.0 | 9106.9 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
+| `Core\Request::queryParameters` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
+| `Core\Request::queryParametersAs` | 592491.0 | 871261.7 | 267309.279 | +5161.8% | flat, flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
 | `Core\Request::route` | 174484.8 | 288477.0 | 78720.851 | +1463.2% | flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
 | `Core\Request::scheme` | 181904.3 | 556023.0 | 82068.259 | +2272.3% | flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
 | `Core\Request\BodyStream::peek` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
@@ -2733,16 +2733,16 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Request\Part::readAll` | 2460900.0 | 2850400.0 | 1110263.930 | +30.1% | skipped, flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
 | `Core\Request\Part::saveTo` | 3561200.0 | 3729800.0 | 1606677.194 | +16.5% | skipped, flat | 4fc2594c8ec2 | a973d78be69e1ae2ce04c7cafed5fbcf |
 | `Core\Response::addCookie` | 405.8 | 447.9 | 183.072 | +34.2% | skipped, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
-| `Core\Response::bytes` | 179.8 | 240.5 | 81.137 | +96.1% | skipped, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
-| `Core\Response::html` | 199.5 | 259.0 | 90.004 | +75.1% | skipped, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
-| `Core\Response::json` | 257.5 | 313.1 | 116.183 | -38.0% | skipped, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
+| `Core\Response::sendBytes` | 179.8 | 240.5 | 81.137 | +96.1% | skipped, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
+| `Core\Response::sendHtml` | 199.5 | 259.0 | 90.004 | +75.1% | skipped, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
+| `Core\Response::sendJson` | 257.5 | 313.1 | 116.183 | -38.0% | skipped, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
 | `Core\Response::redirect` | 6259.4 | 11738.7 | 2823.990 | +353.6% | flat, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
 | `Core\Response::sendFile` | 78887.8 | 81493.6 | 35591.151 | -2.9% ~ | skipped | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
 | `Core\Response::setHeader` | 77.5 | 80.5 | 34.948 | +7.9% | skipped, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
 | `Core\Response::setStatus` | 11.5 | 16.0 | 5.172 | +51.8% | skipped | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
-| `Core\Response::slotted` | 15172.4 | 21282.2 | 6845.184 | +44.4% | flat, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
-| `Core\Response::stream` | 69.7 | 83.0 | 31.464 | +36.0% | skipped, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
-| `Core\Response::text` | 189.1 | 206.3 | 85.319 | -29.5% | skipped, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
+| `Core\Response::sendSlotted` | 15172.4 | 21282.2 | 6845.184 | +44.4% | flat, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
+| `Core\Response::startStream` | 69.7 | 83.0 | 31.464 | +36.0% | skipped, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
+| `Core\Response::sendText` | 189.1 | 206.3 | 85.319 | -29.5% | skipped, flat | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
 | `Core\Response\Stream::end` | 0.0 | 0.0 | 0.000 |  | skipped | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
 | `Core\Response\Stream::length` | 0.0 | 0.0 | 0.000 |  | skipped | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
 | `Core\Response\Stream::offset` | 0.0 | 0.0 | 0.000 |  | skipped | 4fc2594c8ec2 | 0eacad8d566b6c68ec184c4eefbbd039 |
@@ -2760,10 +2760,10 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Router\Match::is` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | b50161e32ed465482529b9e27e2a039b |
 | `Core\Router\Match::method` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | b50161e32ed465482529b9e27e2a039b |
 | `Core\Router\Match::name` | 1057.4 | 4533.1 | 271.186 |  | flat | b358c465f632 | b0c8c8209978f0bbe6b373fe336b1489 |
-| `Core\Router\Match::param` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | b50161e32ed465482529b9e27e2a039b |
-| `Core\Router\Match::params` | 0.0 | 442.1 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | b50161e32ed465482529b9e27e2a039b |
+| `Core\Router\Match::parameter` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | b50161e32ed465482529b9e27e2a039b |
+| `Core\Router\Match::parameters` | 0.0 | 442.1 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | b50161e32ed465482529b9e27e2a039b |
 | `Core\Router\Responder` | 134607.4 | 146628.9 | 25422.330 |  | flat, flat | f2ed85dbe899 |  |
-| `Core\Script::args` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 4d91bf3de4ea5c59ff6d35ee98fc3da3 |
+| `Core\Script::arguments` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 4d91bf3de4ea5c59ff6d35ee98fc3da3 |
 | `Core\Script::onExit` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 4d91bf3de4ea5c59ff6d35ee98fc3da3 |
 | `Core\Script\ExitReport::error` | 1.0 | 2.1 | 0.469 | -93.1% ~ | flat | 4fc2594c8ec2 | 4d91bf3de4ea5c59ff6d35ee98fc3da3 |
 | `Core\Script\ExitReport::memoryPeak` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 4d91bf3de4ea5c59ff6d35ee98fc3da3 |
@@ -2808,9 +2808,9 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Socket\Message::value` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | c27717605155e3c9aba8518583d575a3 |
 | `Core\Sse::current` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | cff38e543e31a9a4eab8ce41b14cbf38 |
 | `Core\Sse::receive` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | cff38e543e31a9a4eab8ce41b14cbf38 |
-| `Core\Sse::retry` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | cff38e543e31a9a4eab8ce41b14cbf38 |
+| `Core\Sse::setRetryDelay` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | cff38e543e31a9a4eab8ce41b14cbf38 |
 | `Core\Sse::send` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | cff38e543e31a9a4eab8ce41b14cbf38 |
-| `Core\Sse::stream` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | cff38e543e31a9a4eab8ce41b14cbf38 |
+| `Core\Sse::startStream` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | cff38e543e31a9a4eab8ce41b14cbf38 |
 | `Core\Sse::upgrade` | 0.0 | 0.0 | 0.000 | -100.0% | skipped | 4fc2594c8ec2 | cff38e543e31a9a4eab8ce41b14cbf38 |
 | `Core\Sse\Message::topic` | 991455.2 | 991750.6 | 447306.644 | -1.3% | flat | 4fc2594c8ec2 | cff38e543e31a9a4eab8ce41b14cbf38 |
 | `Core\Sse\Message::value` | 991426.6 | 992197.5 | 447293.735 | -1.2% | flat | 4fc2594c8ec2 | cff38e543e31a9a4eab8ce41b14cbf38 |
@@ -2860,7 +2860,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Str::wrap` | 2684.8 | 8766.8 | 769.054 | -95.5% ~ | flat, flat | 3d6e1ab929ed | 997f846e7ab1d9d43899c96173949d4d |
 | `Core\Taint::assertTrusted` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 0bb79b63a4856be644acc20cb197accb |
 | `Core\Taint::assertTrustedBytes` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 0bb79b63a4856be644acc20cb197accb |
-| `Core\Task::afterResponse` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 2407a78e35b0c5e8c253f079744303ba |
+| `Core\Task::runAfterResponse` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 2407a78e35b0c5e8c253f079744303ba |
 | `Core\Task::all` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 2407a78e35b0c5e8c253f079744303ba |
 | `Core\Task::map` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 2407a78e35b0c5e8c253f079744303ba |
 | `Core\Task\Channel::close` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | f3c9e81ed4be4eff8fe26df1df8ebfde |

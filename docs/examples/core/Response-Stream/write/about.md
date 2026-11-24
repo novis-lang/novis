@@ -1,4 +1,4 @@
-Sends one part of a response body that `Core\Response::stream` started. The part is a `string` or
+Sends one part of a response body that `Core\Response::startStream` started. The part is a `string` or
 `bytes`, and it is sent exactly as it is. An empty part sends nothing and is not an error.
 
 If the client has not finished reading the last part, `write` waits until it has. So only one part

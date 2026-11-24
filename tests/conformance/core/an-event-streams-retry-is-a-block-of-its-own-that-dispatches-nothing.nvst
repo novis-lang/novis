@@ -1,5 +1,5 @@
 --TEST--
-`Core\Sse->retry` puts the reconnection time on the wire as a block of its own, between events and dispatching none — `rule:concurrency/two-doors-one-isolate`
+`Core\Sse->setRetryDelay` puts the reconnection time on the wire as a block of its own, between events and dispatching none — `rule:concurrency/two-doors-one-isolate`
 --FILE--
 <?nvs
 // What a program says with it is "do not come back for an hour", ahead of a
@@ -8,9 +8,9 @@
 // `retry:` line with no `data:` line under it, which a client parses and
 // dispatches nothing for.
 var $stream = Core\Out::capture(fn (): void => {
-    var $sse = Core\Sse::stream();
+    var $sse = Core\Sse::startStream();
     $sse->send("ready");
-    $sse->retry(Core\Time\Duration::hours(1));
+    $sse->setRetryDelay(Core\Time\Duration::hours(1));
     $sse->send("draining");
 });
 echo $stream;
@@ -20,8 +20,8 @@ echo "--\n";
 // nothing about the events either side of it: the events a client dispatches
 // are the ones that carried a payload, in the order they were written.
 var $alone = Core\Out::capture(fn (): void => {
-    var $sse = Core\Sse::stream();
-    $sse->retry(Core\Time\Duration::seconds(30));
+    var $sse = Core\Sse::startStream();
+    $sse->setRetryDelay(Core\Time\Duration::seconds(30));
 });
 echo $alone;
 echo "--\n";

@@ -9,7 +9,7 @@ value, such as a language choice, stays for 180 days by default. `clearAll()` de
 To sign a user out and keep their choices, use `Core\Session::clearShortLived()`.
 
 `clearAll()` throws a `LogicError` in a program that is not answering a request. It also throws one
-inside `Core\Html::later` and `Core\Task::afterResponse`, where most such calls do not compile. If
+inside `Core\Html::later` and `Core\Task::runAfterResponse`, where most such calls do not compile. If
 the store cannot be reached, it throws an `IOError`, and the data stays in the store.
 
 **The examples below** show a session with both kinds of values deleted, a session used again after

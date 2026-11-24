@@ -129,7 +129,7 @@
 //! `a[]=1&a[]=2` builds a list, `a[b]=c` builds a map, and the two nest to any
 //! depth. That is not a URL-specification feature — RFC 3986 says a query is
 //! opaque text — but it is how every PHP form posts, so `Core\Uri` adopts it in
-//! full, and `Core\Request::query` returns the same shape from this same
+//! full, and `Core\Request::queryParameter` returns the same shape from this same
 //! code rather than deciding the question twice.
 //!
 //! The shape is what makes the return type `array<mixed>`: a value is a
@@ -311,7 +311,7 @@
 //! would buy the loop back at the price of a parsed array per instance and of
 //! writing to a built `Uri` — [`crate::instance::set_slot`] exists for the
 //! mutable collections only, and every other `Core` class, this one
-//! included, is built once and read. `Core\Request::query` does hold its
+//! included, is built once and read. `Core\Request::queryParameter` does hold its
 //! parse, because a request has one query and a place to keep it.
 //!
 //! # A decoder answers `bytes`
@@ -337,7 +337,7 @@
 //! decoding either half gets is the same [`decode`] either way, which is what
 //! the frozen claim "a name and a value decode as octets too" is about.
 //!
-//! `Core\Request::query` and `Core\Request::post` share [`parse_query`]'s
+//! `Core\Request::queryParameter` and `Core\Request::formField` share [`parse_query`]'s
 //! bracket walk and **not** its value type: a served request's parameters are
 //! read as text at the door, which is `Core\Request`'s row rather than `Core\Uri`'s,
 //! and [`Values`] is the one knob between them.
@@ -3369,7 +3369,7 @@ nvs_runtime::nvs_helper! {
 /// A free function rather than the body of the helper above, because
 /// [`crate::request`] reads the same convention off a served request's own query
 /// string and the two must be *the same code*: `Core\Uri::parseQuery`
-/// exists in part so that `Core\Request::query` does not answer the question a
+/// exists in part so that `Core\Request::queryParameter` does not answer the question a
 /// second time, and two implementations of `a[b][]=1` is exactly the divergence
 /// that promise is about.
 ///
@@ -3464,7 +3464,7 @@ pub(crate) fn name_steps(name: &[u8]) -> impl Iterator<Item = Option<&[u8]>> + '
 /// The bracket walk is shared with [`crate::request`] because *the same code*
 /// must read `a[b][]=1`; the answer's element type is not shared, and this is
 /// the whole of the difference. `Core\Uri::parseQuery` answers the octets
-/// ([`Values::Octets`]); `Core\Request::query` and `Core\Request::post` read a served request's
+/// ([`Values::Octets`]); `Core\Request::queryParameter` and `Core\Request::formField` read a served request's
 /// parameters as text at the door and keep their refusal ([`Values::Text`]).
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Values {
@@ -3476,7 +3476,7 @@ pub(crate) enum Values {
 
 /// One already-decoded name and value, placed under the bracket convention.
 ///
-/// [`parse_query`]'s tail, lifted out because `Core\Request::post()` reaches
+/// [`parse_query`]'s tail, lifted out because `Core\Request::formField()` reaches
 /// the same convention from the other direction: a multipart form field arrives
 /// as a name and a value that were never percent-encoded, so it has nothing to
 /// decode and everything below the decode to share. Two spellings of the

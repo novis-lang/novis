@@ -36,13 +36,13 @@ final class App
     #[Access(allow: Visitor::Anyone)]
     public static function search(): void
     {
-        ?Sort $sort = Search::sortOf(Request::query('sort') ?? 'default');
+        ?Sort $sort = Search::sortOf(Request::queryParameter('sort') ?? 'default');
         if ($sort == null) {
             App::fail(400, 'The sort must be default, date, activity, downloads or name.');
             return;
         }
-        array<Facts> $found = new Search(Schema::open())->find(Request::query('q') ?? '', $sort, Core\Time::now()->toEpochSeconds());
-        Response::json({
+        array<Facts> $found = new Search(Schema::open())->find(Request::queryParameter('q') ?? '', $sort, Core\Time::now()->toEpochSeconds());
+        Response::sendJson({
             sort: Search::nameOf($sort),
             ranking: 'apps/registry/src/Ranking.nvs',
             packages: Arr::map($found, fn(Facts $f): mixed => ({
@@ -66,7 +66,7 @@ final class App
     #[Access(allow: Visitor::Anyone)]
     public static function homePage(): void
     {
-        tainted string $query = Request::query('q') ?? '';
+        tainted string $query = Request::queryParameter('q') ?? '';
         App::html(HomePage::page($query, new Search(Schema::open())->find($query, Sort::Default, Core\Time::now()->toEpochSeconds())));
     }
 
@@ -146,7 +146,7 @@ final class App
     #[Access(allow: Visitor::Anyone)]
     public static function signUpWork(): void
     {
-        Response::json({ challenge: Work::issue(), bits: Site::load()->signUpWork });
+        Response::sendJson({ challenge: Work::issue(), bits: Site::load()->signUpWork });
     }
 
     // Step 2 of a sign-up: checks the proof-of-work and returns the options for a new passkey.
@@ -187,7 +187,7 @@ final class App
             array<string> $codes = new Accounts(Schema::open())->create($account, $passkey);
             Session::signIn($account, true);
             Response::setStatus(201);
-            Response::json({ account: $account, recoveryCodes: $codes });
+            Response::sendJson({ account: $account, recoveryCodes: $codes });
         } catch (RuntimeError $error) {
             App::fail(400, 'The passkey could not be checked. Start the sign-up again.');
         }
@@ -217,7 +217,7 @@ final class App
             var $passkey = Passkey::verifySignIn(Request::body(), $owned->passkey, $site->domain(), $site->origin);
             $accounts->signedIn($owned->account, $passkey);
             Session::signIn($owned->account, true);
-            Response::json({ account: $owned->account });
+            Response::sendJson({ account: $owned->account });
         } catch (RuntimeError $error) {
             App::fail(403, 'The passkey could not be checked.');
         }
@@ -236,7 +236,7 @@ final class App
                 return;
             }
             Session::signIn($account, false);
-            Response::json({ account: $account, recoveryCodesLeft: $accounts->recoveryCodesLeft($account) });
+            Response::sendJson({ account: $account, recoveryCodesLeft: $accounts->recoveryCodesLeft($account) });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a code.');
         }
@@ -253,7 +253,7 @@ final class App
         var $db = Schema::open();
         var $accounts = new Accounts($db);
         var $activity = new Activity($db);
-        Response::json({
+        Response::sendJson({
             account: $account,
             passkeys: Arr::count($accounts->passkeys($account)),
             recoveryCodesLeft: $accounts->recoveryCodesLeft($account),
@@ -274,7 +274,7 @@ final class App
                 App::fail(400, 'The number of days must be from ' . Activity::REMIND_FIRST . ' to ' . Activity::REMIND_LAST . '.');
                 return;
             }
-            Response::json({ remindAfter: $days });
+            Response::sendJson({ remindAfter: $days });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a number of days.');
         }
@@ -326,7 +326,7 @@ final class App
         try {
             $accounts->addPasskey($account, Passkey::verifyRegistration(Request::body(), $site->domain(), $site->origin));
             Response::setStatus(201);
-            Response::json({ passkeys: Arr::count($accounts->passkeys($account)) });
+            Response::sendJson({ passkeys: Arr::count($accounts->passkeys($account)) });
         } catch (RuntimeError $error) {
             App::fail(400, 'The passkey could not be checked.');
         }
@@ -340,7 +340,7 @@ final class App
         var $vendors = new Vendors(Schema::open());
         ?string $name = App::ownedVendor($vendors, $vendor);
         if ($name != null) {
-            Response::json({ vendor: $name, owners: $vendors->owners($name) });
+            Response::sendJson({ vendor: $name, owners: $vendors->owners($name) });
         }
     }
 
@@ -374,7 +374,7 @@ final class App
                 return;
             }
             Response::setStatus(201);
-            Response::json({ vendor: $name, owners: $vendors->owners($name), sent: App::flush($db) });
+            Response::sendJson({ vendor: $name, owners: $vendors->owners($name), sent: App::flush($db) });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with an account.');
         }
@@ -404,7 +404,7 @@ final class App
             App::fail(409, 'The last owner of a vendor cannot be removed.');
             return;
         }
-        Response::json({ vendor: $name, owners: $vendors->owners($name), sent: App::flush($db) });
+        Response::sendJson({ vendor: $name, owners: $vendors->owners($name), sent: App::flush($db) });
     }
 
     // Makes a publish token for a vendor or one of its packages. The answer shows the token this one time only.
@@ -435,7 +435,7 @@ final class App
             }
             array<string> $made = new Tokens($db)->create($account, $scope, $asked->days);
             Response::setStatus(201);
-            Response::json({ id: $made['id'], token: $made['token'], scope: $scope, days: $asked->days, sent: App::flush($db) });
+            Response::sendJson({ id: $made['id'], token: $made['token'], scope: $scope, days: $asked->days, sent: App::flush($db) });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a scope and a number of days.');
         }
@@ -446,7 +446,7 @@ final class App
     #[Access(allow: Visitor::SignedIn)]
     public static function tokens(): void
     {
-        Response::json({ tokens: new Tokens(Schema::open())->of(Session::account() ?? '') });
+        Response::sendJson({ tokens: new Tokens(Schema::open())->of(Session::account() ?? '') });
     }
 
     // Revokes a token of the account. A recovery code is enough for this.
@@ -475,7 +475,7 @@ final class App
             App::fail(503, 'This registry has no key for Web Push.');
             return;
         }
-        Response::json({ applicationServerKey: $push->publicKey() });
+        Response::sendJson({ applicationServerKey: $push->publicKey() });
     }
 
     // Adds a push device and sends it a test message with a one-time code. The device counts once
@@ -503,7 +503,7 @@ final class App
             }
             new Notices($db, $push, new Webhooks($db, Site::load()->origin))->tell($account, App::DEVICE_ADDED, $id);
             Response::setStatus(201);
-            Response::json({ id: $id });
+            Response::sendJson({ id: $id });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a subscription.');
         } catch (RuntimeError $invalid) {
@@ -528,7 +528,7 @@ final class App
             array<string> $added = new Webhooks($db, Site::load()->origin)->add($account, $asked->url);
             Notices::ofSite($db, Site::load())->tell($account, App::WEBHOOK_ADDED, $added['id']);
             Response::setStatus(201);
-            Response::json({ id: $added['id'], secret: $added['secret'] });
+            Response::sendJson({ id: $added['id'], secret: $added['secret'] });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a url.');
         } catch (RuntimeError $refused) {
@@ -546,7 +546,7 @@ final class App
             App::fail(404, 'The link is wrong or expired. Send a new test message from your account page.');
             return;
         }
-        Response::json({ id: Core\Taint::assertTrusted($id, 'the id matched a channel'), verified: true });
+        Response::sendJson({ id: Core\Taint::assertTrusted($id, 'the id matched a channel'), verified: true });
     }
 
     // Returns the push devices and webhooks of the account, with the time each one last took a message.
@@ -554,7 +554,7 @@ final class App
     #[Access(allow: Visitor::SignedIn)]
     public static function channels(): void
     {
-        Response::json({ channels: new Channels(Schema::open())->of(Session::account() ?? '') });
+        Response::sendJson({ channels: new Channels(Schema::open())->of(Session::account() ?? '') });
     }
 
     // Verifies a channel with the one-time code of its test message.
@@ -568,7 +568,7 @@ final class App
                 App::fail(404, 'The code is wrong or expired, or this account has no such channel.');
                 return;
             }
-            Response::json({ id: Core\Taint::assertTrusted($id, 'the id matched a channel'), verified: true });
+            Response::sendJson({ id: Core\Taint::assertTrusted($id, 'the id matched a channel'), verified: true });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a code.');
         }
@@ -591,7 +591,7 @@ final class App
                 App::fail(502, 'The webhook did not take the message. It is sent again in one minute.');
                 return;
             }
-            Response::json({ id: Core\Taint::assertTrusted($id, 'the id matched a channel'), sent: true });
+            Response::sendJson({ id: Core\Taint::assertTrusted($id, 'the id matched a channel'), sent: true });
             return;
         }
         ?Push $push = Push::ofSite($db, Site::load());
@@ -603,7 +603,7 @@ final class App
             App::fail(502, 'The push service did not take the message.');
             return;
         }
-        Response::json({ id: Core\Taint::assertTrusted($id, 'the id matched a channel'), sent: true });
+        Response::sendJson({ id: Core\Taint::assertTrusted($id, 'the id matched a channel'), sent: true });
     }
 
     // Deletes a push device or a webhook of the account. The other devices get a message about it.
@@ -633,7 +633,7 @@ final class App
             return;
         }
         var $db = Schema::open();
-        Response::json({
+        Response::sendJson({
             account: $token->account,
             scope: $token->scope,
             expiresAt: $token->expiresAt,
@@ -659,7 +659,7 @@ final class App
             App::fail(404, 'There is no such vendor.');
             return;
         }
-        Response::text($feed);
+        Response::sendText($feed);
     }
 
     // The signed public list of every pending release. Anybody can read it.
@@ -673,7 +673,7 @@ final class App
             App::fail(503, 'This registry has no key for its log.');
             return;
         }
-        Response::text($feeds->pending());
+        Response::sendText($feeds->pending());
     }
 
     // The inbox: the events of every vendor the account owns, and the events about the account.
@@ -683,7 +683,7 @@ final class App
     {
         var $db = Schema::open();
         string $account = Session::account() ?? '';
-        Response::json({ events: Feeds::inbox($db, $account), pending: Feeds::pendingOf($db, $account) });
+        Response::sendJson({ events: Feeds::inbox($db, $account), pending: Feeds::pendingOf($db, $account) });
     }
 
     // Publishes a version. `nvs pkg publish` sends the repository, the commit, the version and the
@@ -717,7 +717,7 @@ final class App
             int $took = $notices->send();
             string $account = new Tokens($db)->find(Tokens::bearer())?->account ?? '';
             Response::setStatus($done->status);
-            Response::json({
+            Response::sendJson({
                 digest: $done->digest,
                 message: $done->text,
                 pending: Feeds::pendingOf($db, $account),
@@ -791,7 +791,7 @@ final class App
             foreach ($db->query('select api from releases where package = ? and version = ?', [$key, $wanted]) as Core\Db\Row $row) {
                 string $file = Core\Taint::assertTrusted($row->string('api') as tainted string, 'the registry wrote this path');
                 if ($file != '' && Core\IO::isFile($file)) {
-                    Response::json({ waitsForOwner: new Releases($db)->needsStable($key, $wanted), api: Json::decode(Core\IO::read($file)) });
+                    Response::sendJson({ waitsForOwner: new Releases($db)->needsStable($key, $wanted), api: Json::decode(Core\IO::read($file)) });
                     return;
                 }
             }
@@ -854,7 +854,7 @@ final class App
                 App::fail(409, 'A package publishes from this folder of this repository already.');
                 return;
             }
-            Response::json({ repository: $repository, directory: $directory, sent: App::flush($db) });
+            Response::sendJson({ repository: $repository, directory: $directory, sent: App::flush($db) });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a repository and a directory.');
         }
@@ -913,7 +913,7 @@ final class App
             string $text = $from == $now
                 ? 'Version ' . $version . ' is retracted.'
                 : 'Version ' . $version . ' is retracted from ' . Core\Time\Instant::fromEpoch($from)->toIso() . '. An owner can retract it now or cancel it with a passkey on the website.';
-            Response::json({ message: $text, sent: $sent });
+            Response::sendJson({ message: $text, sent: $sent });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a version, a reason and fixedIn.');
         }
@@ -969,7 +969,7 @@ final class App
             string $text = $from == $now
                 ? 'The advisory ' . $id . ' is in the feed.'
                 : 'The advisory ' . $id . ' is in the feed from ' . Core\Time\Instant::fromEpoch($from)->toIso() . '. An owner can send it again now or cancel it with a passkey on the website.';
-            Response::json({ id: $id, message: $text, sent: $sent });
+            Response::sendJson({ id: $id, message: $text, sent: $sent });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with versions and a summary.');
         }
@@ -1025,7 +1025,7 @@ final class App
                 $text = 'The advisory ' . $id . ' is cancelled.';
             }
             Notices::ofSite($db, Site::load())->send();
-            Response::json({ message: $text });
+            Response::sendJson({ message: $text });
         } catch (ParseError $error) {
             App::fail(400, 'The body must be JSON with a version or the id of an advisory.');
         }
@@ -1077,7 +1077,7 @@ final class App
             App::fail(409, 'This version is released already.');
             return;
         }
-        Response::json({ version: $wanted, sent: App::flush($db) });
+        Response::sendJson({ version: $wanted, sent: App::flush($db) });
     }
 
     // Unlists a version, or every version when the body's `version` is empty, or shows it again.
@@ -1107,7 +1107,7 @@ final class App
             if (Session::account() == null && new Tokens($db)->allows(Tokens::bearer(), $key) != null) {
                 // A token cannot unlist. The answer names the page where an owner does it.
                 Response::setStatus(202);
-                Response::json({
+                Response::sendJson({
                     message: 'To ' . ($listed ? 'list' : 'unlist') . ' it, sign in with a passkey and confirm on '
                         . Site::load()->origin . '/packages/' . Index::slug($key) . '.',
                 });
@@ -1126,7 +1126,7 @@ final class App
             App::fail(409, $listed ? 'Nothing is unlisted.' : 'This is unlisted already.');
             return;
         }
-        Response::json({ versions: $changed, sent: App::flush($db) });
+        Response::sendJson({ versions: $changed, sent: App::flush($db) });
     }
 
     // Returns `true` when the visitor owns the vendor of the package `$key` and signed in with a
@@ -1176,7 +1176,7 @@ final class App
     // Sends the options of a passkey ceremony to the browser.
     private static function options(string $json): void
     {
-        Response::json(Json::decode($json));
+        Response::sendJson(Json::decode($json));
     }
 
     // Returns the name of the vendor when the visitor owns it.
@@ -1218,12 +1218,12 @@ final class App
     private static function html(Core\Html\Markup $page): void
     {
         Response::setHeader('content-security-policy', App::POLICY);
-        Response::html($page);
+        Response::sendHtml($page);
     }
 
     private static function fail(uint $status, tainted string $text): void
     {
         Response::setStatus($status);
-        Response::json({ error: $text });
+        Response::sendJson({ error: $text });
     }
 }

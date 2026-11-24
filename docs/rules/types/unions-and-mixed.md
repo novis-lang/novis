@@ -18,7 +18,7 @@ path. That is dynamic typing at dynamic typing's cost, which is the right pressu
 the typed one. `Core\Reflect::typeOf` is the one type-introspection member, and it is meaningful only
 on a `mixed`, because the checker already knows every other case.
 
-`mixed` is where untyped input lands, deliberately. `Core\Request::json()`, `Core\Script::args()` and
+`mixed` is where untyped input lands, deliberately. `Core\Request::json()`, `Core\Script::arguments()` and
 `Core\Json::decode`'s result are `mixed`, because a document genuinely is untyped and pretending
 otherwise would be a lie in the type. A request's query and form fields are not: they are text, and
 their accessors answer `?tainted string` and `array<tainted string>` (`rule:security/tainted-sources`).

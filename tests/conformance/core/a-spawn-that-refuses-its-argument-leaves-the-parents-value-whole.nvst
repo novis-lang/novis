@@ -8,7 +8,7 @@ spawn = true
 --FILE depth.nvs--
 <?nvs
 // Counts how deeply its argument nests.
-var $given = Core\Script::args();
+var $given = Core\Script::arguments();
 int $levels = 0;
 while ($given != null && Core\Arr::count($given as array<mixed>) > 0) {
     $given = ($given as array<mixed>)[0];

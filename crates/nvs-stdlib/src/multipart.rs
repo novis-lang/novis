@@ -1,7 +1,7 @@
 //! `rule:http-server/an-upload-is-received-only-through-files` and `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
 //! 's multipart body: the parse that turns what arrived on the wire into
 //! the parts `Core\Request::files()` yields and the form fields
-//! `Core\Request::post()` reads.
+//! `Core\Request::formField()` reads.
 //!
 //! It pulls the same [`nvs_runtime::RequestBody`] `Core\Request::bodyStream`
 //! walks, so nothing here accumulates a body: a file part's bytes are handed out
@@ -128,7 +128,7 @@ pub(crate) struct Multipart {
     /// multiple of the bytes it was given.
     #[cfg(test)]
     searched: usize,
-    /// The buffered form fields, in arrival order, for `Core\Request::post()`.
+    /// The buffered form fields, in arrival order, for `Core\Request::formField()`.
     fields: Vec<(Vec<u8>, Vec<u8>)>,
     /// Bytes of [`Self::fields`] held, against [`Self::cap`].
     buffered: usize,
@@ -309,7 +309,7 @@ impl Multipart {
     /// repeated field name is a value a form is allowed to send twice, and the
     /// order of the two is part of what it sent.
     /// Complete after a [`Self::drain`], and a prefix of the form before one:
-    /// a field is buffered as the walk passes it, so `Core\Request::post()`
+    /// a field is buffered as the walk passes it, so `Core\Request::formField()`
     /// drains before it reads.
     pub(crate) fn fields(&self) -> &[(Vec<u8>, Vec<u8>)] {
         &self.fields
@@ -318,7 +318,7 @@ impl Multipart {
     /// Walks what is left of the body, buffering every field part it passes and
     /// draining every file part.
     ///
-    /// `Core\Request::post()`'s whole reading, and the reason `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` can
+    /// `Core\Request::formField()`'s whole reading, and the reason `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename` can
     /// promise *every* field rather than the ones that happened to arrive first:
     /// a form is free to write a text input after a file input, and a `post()`
     /// answering what the walk had reached would report that field absent.

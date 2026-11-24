@@ -5,14 +5,14 @@
 // hostile: ends-early 6 FATAL
 // hostile: timeout-ms 60000
 
-Core\Response\Stream $body = Core\Response::stream('text/plain; charset=utf-8');
+Core\Response\Stream $body = Core\Response::startStream('text/plain; charset=utf-8');
 
 // 1. Line breaks that try to add a header and start a second response.
 $body->write("a\r\nSet-Cookie: sid=admin\r\n\r\nHTTP/1.1 200 OK\r\n\r\n");
 
 // 2. The same line breaks and a script tag, sent by the visitor in the address.
 // A part must not be `tainted`, so the value is escaped for HTML first.
-$body->write(Core\Html::toSource(Core\Html::escape(Core\Request::query('q') ?? ''), 'escaped visitor text'));
+$body->write(Core\Html::toSource(Core\Html::escape(Core\Request::queryParameter('q') ?? ''), 'escaped visitor text'));
 
 // 3. A NUL byte and bytes that are not UTF-8.
 $body->write(Core\Encoding::fromHex('00fffe80'));
@@ -32,7 +32,7 @@ $body->write(Core\Str::repeat('x', 8388608));
 echo "step 6\n";
 string $chunk = Core\Str::repeat('b', 65536);
 var $kept = Core\Out::capture(fn(): void => {
-    Core\Response\Stream $inner = Core\Response::stream('text/plain; charset=utf-8');
+    Core\Response\Stream $inner = Core\Response::startStream('text/plain; charset=utf-8');
     uint $written = 0;
     while ($written < 1000000) {
         $inner->write($chunk);

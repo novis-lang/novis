@@ -29,7 +29,7 @@
 //! per line, and what a program supplies can only ever land in a data buffer.
 //!
 //! The goal's § *Standing decisions* admits `tainted` on the payload on
-//! exactly that argument, which is the one `Core\Response::json` already
+//! exactly that argument, which is the one `Core\Response::sendJson` already
 //! makes: framing belongs to the framer and never to concatenation
 //! (`rule:security/sink-predicate`). The
 //! event name and the id are the other side of the same predicate — a client

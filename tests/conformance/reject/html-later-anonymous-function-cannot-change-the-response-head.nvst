@@ -11,7 +11,7 @@ var $slot = Core\Html::later(fn(): void => {
     Core\Response::setHeader("X-Shop", "1");
     Core\Response::redirect("/shop");
     Core\Response::addCookie("sid", "abc");
-    Core\Response::text("body");
+    Core\Response::sendText("body");
     Core\Session::regenerate();
 });
 
@@ -31,7 +31,7 @@ var $session = Core\Html::later(fn(): void => {
 
 // An anonymous function nested in a `later` one runs in the same slot.
 var $nested = Core\Html::later(fn(): void => {
-    var $inner = fn(): void => { Core\Response::json(1); };
+    var $inner = fn(): void => { Core\Response::sendJson(1); };
 });
 
 // The accepted half: an `echo` in the anonymous function is the slot's own
@@ -54,7 +54,7 @@ error[E0842]: `Core\Response::redirect` changes the response, and a callable pas
 error[E0842]: `Core\Response::addCookie` changes the response, and a callable passed to `Core\Html::later` cannot do that
    --> case.nvs:10:5
 %A
-error[E0842]: `Core\Response::text` changes the response, and a callable passed to `Core\Html::later` cannot do that
+error[E0842]: `Core\Response::sendText` changes the response, and a callable passed to `Core\Html::later` cannot do that
    --> case.nvs:11:5
 %A
 error[E0842]: `Core\Session::regenerate` changes the session, and a callable passed to `Core\Html::later` cannot do that
@@ -84,7 +84,7 @@ error[E0842]: `Core\Session::clearLongLived` changes the session, and a callable
 error[E0842]: `Core\Session::clearAll` changes the session, and a callable passed to `Core\Html::later` cannot do that
    --> case.nvs:26:5
 %A
-error[E0842]: `Core\Response::json` changes the response, and a callable passed to `Core\Html::later` cannot do that
+error[E0842]: `Core\Response::sendJson` changes the response, and a callable passed to `Core\Html::later` cannot do that
    --> case.nvs:31:34
 %A
 error: aborting due to 15 errors

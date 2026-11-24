@@ -2,7 +2,7 @@
 // Shows a report that is sent one line at a time. Every `write` returns,
 // also when the client is gone.
 
-Core\Response\Stream $report = Core\Response::stream('text/plain');
+Core\Response\Stream $report = Core\Response::startStream('text/plain');
 
 // If the client is gone, `write` returns at once and the line is thrown away.
 // The loop still adds every amount.

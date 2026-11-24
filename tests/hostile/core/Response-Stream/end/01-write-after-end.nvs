@@ -3,8 +3,8 @@
 // `end()` should throw an error and send nothing, and the program should run to its end.
 
 // The name for `$mustEnd` comes from the visitor, with line breaks and quotes in it.
-tainted string $name = Core\Request::query('name') ?? "a\r\n\"level\":\"info\"";
-Core\Response\Stream $body = Core\Response::stream('text/plain; charset=utf-8', null, null, $name);
+tainted string $name = Core\Request::queryParameter('name') ?? "a\r\n\"level\":\"info\"";
+Core\Response\Stream $body = Core\Response::startStream('text/plain; charset=utf-8', null, null, $name);
 $body->write("first\n");
 
 // 1. Ends the body twice. The second `end()` does nothing.

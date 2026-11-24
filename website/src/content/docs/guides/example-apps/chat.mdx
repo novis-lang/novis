@@ -149,7 +149,7 @@ session. The browser gets only the random identifier of the session, in the cook
 
 The request ends, and the connection stays open. It runs `Connection::run`
 in its own isolate (a separate copy of the program that shares no memory with the request). The
-isolate gets the room and the name through `args:`, and nothing else from the request.
+isolate gets the room and the name through `arguments:`, and nothing else from the request.
 
 `src/Connection.nvs` is the program of one connection. It joins the topic of its room first. Then
 it sends the last 50 lines of the room.
@@ -300,11 +300,11 @@ must also send the `Host` header unchanged. Both proxy files do this.
 - **The name stays on the server.** The session has the name, and the cookie has only a random
   identifier. A visitor cannot change the name by changing the cookie. `App::join` gives the session
   a new identifier, as a login does.
-- **The connection gets only what it needs.** It gets the room and the name through `args:`. It does
+- **The connection gets only what it needs.** It gets the room and the name through `arguments:`. It does
   not see the session, the cookies or the other headers of the request.
 - **Two visitors can choose the same name.** The chat has no accounts, so a name is not proof of a
   person. For a real chat, add a login. Check it in `App::socket`, and pass the id of the user to
-  the connection through `args:`.
+  the connection through `arguments:`.
 - **The browser loads files only from this server.** The `Content-Security-Policy` in `nvs.toml`
   allows no inline script and no other host.
 - **Topics work inside one process.** All connections of a room must reach the same `nvs serve`. If

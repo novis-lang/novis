@@ -1,5 +1,5 @@
 --TEST--
-`Core\Task::all` composes inside `Core\Task::afterResponse`'s callable with no special case — `rule:concurrency/after-response-outlives-the-connection`
+`Core\Task::all` composes inside `Core\Task::runAfterResponse`'s callable with no special case — `rule:concurrency/after-response-outlives-the-connection`
 --FILE--
 <?nvs
 // `rule:concurrency/deferred-work-cannot-write-the-response`: `all` and `map`
@@ -9,7 +9,7 @@
 // the group is asked for *from inside* the callable rather than beside it — and
 // the sum is read back, because a group that answered a shape of nulls would
 // print plausibly against a case that only counted its fields.
-Core\Task::afterResponse(fn (): void => {
+Core\Task::runAfterResponse(fn (): void => {
     var $sent = Core\Task::all({
         receipts: fn (): int => 2,
         webhooks: fn (): int => 3,

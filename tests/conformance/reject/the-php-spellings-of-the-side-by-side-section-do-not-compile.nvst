@@ -30,7 +30,7 @@ error[E0211]: `$_GET` is not supported
    |
 14 | string $name = $_GET["name"];
    |                ^^^^^ no variable is ever populated by the host
-   = help: use `Core\Request::query` — it returns one query parameter of the current request
+   = help: use `Core\Request::queryParameter` — it returns one query parameter of the current request
 %A
 error[E0225]: `(int)expr` is not supported
 %A

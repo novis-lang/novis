@@ -3833,7 +3833,7 @@ impl<'a> Lowering<'a> {
         );
         // The target's parameter *names*, which only a resolved call knows and
         // only this crate is still holding — `rule:security/isolate-shares-nothing` binds an
-        // isolate's `args:` by them, and `Core\Socket::upgrade(Chat::run)`
+        // isolate's `arguments:` by them, and `Core\Socket::upgrade(Chat::run)`
         // is such an entry with no constant beside it to carry them. See
         // `FN_PARAM_NAMES` for why the sibling anonymous function gets no such field.
         let (names_v, _) = self.emit(*cur, Ty::Str, InstKind::ConstStr(names));
@@ -4333,7 +4333,7 @@ impl<'a> Lowering<'a> {
     /// so nothing but this arm can reach it, which is what keeps `spawn
     /// script` syntax rather than a member with a keyword in front of it.
     ///
-    /// Six arguments in a fixed order — the path, the `args:` value, the
+    /// Six arguments in a fixed order — the path, the `arguments:` value, the
     /// `output:` spelling, the `on:` placement, the `limits:` sub-cap and the
     /// `grants:` list — with the options the program omitted materialized to
     /// `null`, `"capture"` and `"here"`, the same way
@@ -4342,7 +4342,7 @@ impl<'a> Lowering<'a> {
     /// checked where it is written and then dropped is a narrowing the program
     /// asked for and did not get — `rule:security/isolate-budget-is-the-trees`.
     ///
-    /// The `args:` value is **transferred**, alone among the three, because it
+    /// The `arguments:` value is **transferred**, alone among the three, because it
     /// is the one the isolate keeps: it crosses the boundary into the child's
     /// ownership root and this frame may not release it afterwards. The path
     /// and the output spelling are borrowed like every other `Core` argument.
@@ -4355,7 +4355,7 @@ impl<'a> Lowering<'a> {
     /// `SPAWN_METHOD_SYMBOL` owns why the fork is a second symbol rather than a
     /// fourth argument, and [`Self::spawn_method_entry`] is the fork itself.
     /// The method symbol does take a **last** argument the path form has no use
-    /// for — the entry's parameter names, for `rule:security/isolate-shares-nothing`'s `args:`
+    /// for — the entry's parameter names, for `rule:security/isolate-shares-nothing`'s `arguments:`
     /// binding — and that one is a value the child needs rather than a branch
     /// this module already took.
     fn lower_spawn_script(
@@ -4435,7 +4435,7 @@ impl<'a> Lowering<'a> {
                 v
             }
             // A child that was passed nothing reads `null` from
-            // `Core\Script::args()`, which is what a missing option means and
+            // `Core\Script::arguments()`, which is what a missing option means and
             // not an empty array: the two are distinguishable and a program
             // that passed `[]` said something different.
             None => {
@@ -4499,7 +4499,7 @@ impl<'a> Lowering<'a> {
 
         // The two narrowings, carried as the values the program wrote and read
         // on the other side of the seam (`nvs_stdlib::script`'s `limits_of` and
-        // `grants_of`). Borrowed, where `args:` is transferred: neither value
+        // `grants_of`). Borrowed, where `arguments:` is transferred: neither value
         // crosses into the child, only the narrowing decoded from it — which is
         // also why they are lowered here rather than folded to constants, since
         // a sub-cap may be any expression of the shape's type.
@@ -4508,7 +4508,7 @@ impl<'a> Lowering<'a> {
             self.lower_spawn_narrowing(written(SpawnOptionKey::Limits), &limits_later, env, cur);
         let grants_v = self.lower_spawn_narrowing(written(SpawnOptionKey::Grants), &[], env, cur);
 
-        // `rule:security/isolate-shares-nothing` binds `args:`'s entries to the entry's own
+        // `rule:security/isolate-shares-nothing` binds `arguments:`'s entries to the entry's own
         // parameters **by name**, which is a question only the declaration
         // answers — so the names travel with the label, as a fourth argument
         // the method symbol alone takes. Comma-separated in declaration order,
@@ -4526,7 +4526,7 @@ impl<'a> Lowering<'a> {
         }
 
         // No `Lowering::forget_transferred_since` here, and the omission is the
-        // decision: `args:` is transferred to a *child that may never start*,
+        // decision: `arguments:` is transferred to a *child that may never start*,
         // so this site's fault edge is built with the temporary still on the
         // stack and the landing block releases it. Every refusal on the way in
         // — a path no resolver answers, one the `script.spawn` grant does not
@@ -4558,13 +4558,13 @@ impl<'a> Lowering<'a> {
     /// One of `spawn script`'s two narrowing options — `limits:` or `grants:` —
     /// as the value the program wrote, and `null` for one it did not write.
     ///
-    /// Borrowed rather than transferred, which is the difference from `args:`:
+    /// Borrowed rather than transferred, which is the difference from `arguments:`:
     /// what reaches the child is the sub-cap and the grant list decoded out of
     /// these, and the values themselves are read on the parent's side before any
     /// child exists.
     ///
     /// `null` for an option nobody wrote, and not an empty shape or an empty
-    /// array, for the reason `args:` defaults to `null`: the two say different
+    /// array, for the reason `arguments:` defaults to `null`: the two say different
     /// things. `grants: []` is a child that may ask for no capability at all,
     /// where no `grants:` at all leaves the parent's set as it stands.
     fn lower_spawn_narrowing(

@@ -51,7 +51,7 @@ class Notes
     #[Core\Access(allow: Core\Audience::Public)]
     public function form(): void
     {
-        var $note = Core\Request::postAs<NewNote>();
+        var $note = Core\Request::formFieldsAs<NewNote>();
     }
 
     #[Core\Route(path: '/notes/both', method: Core\Http\Method::Post)]
@@ -59,7 +59,7 @@ class Notes
     public function both(): void
     {
         var $note = Core\Request::jsonAs<NewNote>();
-        var $search = Core\Request::postAs<Search>();
+        var $search = Core\Request::formFieldsAs<Search>();
     }
 
     #[Core\Route(path: '/notes/either', method: Core\Http\Method::Post)]
@@ -75,7 +75,7 @@ class Notes
     #[Core\Access(allow: Core\Audience::Public)]
     public function search(): void
     {
-        var $search = Core\Request::postAs<Search>();
+        var $search = Core\Request::formFieldsAs<Search>();
     }
 
     #[Core\Route(path: '/notes/helper', method: Core\Http\Method::Post)]
@@ -89,7 +89,7 @@ class Notes
     #[Core\Access(allow: Core\Audience::Public)]
     public function field(): void
     {
-        var $note = Core\Request::postAs<NewNote>({ name: 'note' });
+        var $note = Core\Request::formFieldsAs<NewNote>({ name: 'note' });
     }
 
     private function read(): NewNote

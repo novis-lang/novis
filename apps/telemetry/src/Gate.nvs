@@ -31,13 +31,13 @@ final class Gate implements Core\Router\Gate
             Refusal::BodyTooLarge => 'The report can have at most 4096 bytes.',
             default => 'This request is not allowed.',
         };
-        Response::json({ error: $text });
+        Response::sendJson({ error: $text });
     }
 
     // Writes the answer when a route method throws an error. The status code is 500.
     public function failed(?Core\Router\Match $route, ?Throwable $error): void
     {
         Response::setHeader('content-security-policy', Gate::POLICY);
-        Response::json({ error: 'Something went wrong.' });
+        Response::sendJson({ error: 'Something went wrong.' });
     }
 }

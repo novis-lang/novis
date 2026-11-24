@@ -9,7 +9,7 @@ a series name written in the code as a string literal follows one grammar, and i
 // owns why that asymmetry is the right one for a metric write.
 Core\Metrics::increment("HttpRequests");
 Core\Metrics::observe("http.request.seconds", 0.5);
-Core\Metrics::gauge("_queue_depth", 3.0);
+Core\Metrics::setGauge("_queue_depth", 3.0);
 echo "unreachable\n";
 --EXPECT--
 

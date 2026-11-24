@@ -3,7 +3,7 @@
 // length should throw a `LogicError` and send nothing, and the body should stay exact.
 
 // 1. Writes one byte more than the length. The `LogicError` is caught.
-Core\Response\Stream $small = Core\Response::stream('text/plain', 4);
+Core\Response\Stream $small = Core\Response::startStream('text/plain', 4);
 try {
     $small->write('12345');
 } catch (LogicError $error) {
@@ -11,7 +11,7 @@ try {
 }
 
 // 2. Writes eight megabytes into a body of ten bytes. The `LogicError` is caught.
-Core\Response\Stream $ten = Core\Response::stream('text/plain', 10);
+Core\Response\Stream $ten = Core\Response::startStream('text/plain', 10);
 try {
     $ten->write(Core\Str::repeat('x', 8388608));
 } catch (LogicError $error) {
@@ -19,7 +19,7 @@ try {
 }
 
 // 3. Fills a body of one hundred thousand bytes with one byte at a time.
-Core\Response\Stream $bytes = Core\Response::stream('application/octet-stream', 100000);
+Core\Response\Stream $bytes = Core\Response::startStream('application/octet-stream', 100000);
 int $written = 0;
 while ($written < $bytes->length()) {
     $bytes->write('z');

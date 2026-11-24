@@ -2580,7 +2580,7 @@ entry is late. Everything downstream follows with nothing added:
 - Its grants are that snapshot's `[capabilities]`. The script must still lie under the global
   `script.spawn` roots for the configuration to resolve (`E0611`), so a block can narrow what a
   fire may do and never makes a script schedulable.
-- The script reads one map from `Core\Script::args()` ([`core-classes/script-args`](core-classes.md#core-classes-script-args)):
+- The script reads one map from `Core\Script::arguments()` ([`core-classes/script-args`](core-classes.md#core-classes-script-args)):
   `["name" => <entry name>, "on" => "cron"]` for a cron run, and the event's word under `"on"` for
   an event run ([`config/an-entry-runs-on-a-server-event`](config.md#config-an-entry-runs-on-a-server-event)), so every run reads its entry the
   same way. It answers with a top-level `return`, exactly as any `spawn script` target does. There
@@ -2715,7 +2715,7 @@ with no `cron` does nothing, and [`config/a-duplicate-key-is-an-error-and-so-is-
 already refuses a key that does nothing. `nvs_config::schedule::Event::parse` is the one reader of
 the four words, called by the boot check and by the ticker's `arm` alike.
 
-**Every scheduled run reads one map from `Core\Script::args()`, cron runs too:**
+**Every scheduled run reads one map from `Core\Script::arguments()`, cron runs too:**
 `["name" => <entry name>, "on" => "cron" | "start" | "stop" | "reload" | "failed"]`, plus the
 event's own keys below. One shape for every run is simpler than a string for one trigger and a map
 for the other.

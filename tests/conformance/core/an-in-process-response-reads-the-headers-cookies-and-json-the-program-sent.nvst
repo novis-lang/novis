@@ -23,10 +23,10 @@ class Product {
 if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     if ($path == "/product") {
-        Core\Response::json(["sku" => "mug-7", "stock" => 3]);
+        Core\Response::sendJson(["sku" => "mug-7", "stock" => 3]);
     }
     if ($path == "/list") {
-        Core\Response::json([["sku" => "a", "stock" => 1], ["sku" => "b", "stock" => 2]]);
+        Core\Response::sendJson([["sku" => "a", "stock" => 1], ["sku" => "b", "stock" => 2]]);
     }
     if ($path == "/old") {
         Core\Response::redirect("/new");
@@ -43,7 +43,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         throw new RuntimeError("not handled");
     }
     if ($path == "/wrong") {
-        Core\Response::json(["sku" => 7]);
+        Core\Response::sendJson(["sku" => 7]);
     }
 } else {
     var $product = Core\Test::request(Core\Http\Method::Get, "/product");

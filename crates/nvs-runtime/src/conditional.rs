@@ -4,7 +4,7 @@
 //!
 //! One pure function over header text, because it has two callers that must
 //! never disagree: `nvs_server::statics::send` for a file, and
-//! `Core\Response::stream` for a stream that states its length. That rule says
+//! `Core\Response::startStream` for a stream that states its length. That rule says
 //! a second policy is a second security model, and two copies of this function
 //! would be exactly that. It lives here because both `nvs-server` and
 //! `nvs-stdlib` reach this crate and neither reaches the other.
@@ -118,7 +118,7 @@ pub fn unsatisfied_range(total: u64) -> String {
 }
 
 /// The head a stream of `total` bytes tagged `etag` is sent with, and the
-/// window the program writes — [`decide`] for `Core\Response::stream`.
+/// window the program writes — [`decide`] for `Core\Response::startStream`.
 #[derive(Debug)]
 pub struct Ranged {
     /// The status the decision sets, and `None` for a `200`, which a status

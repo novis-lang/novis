@@ -34,7 +34,7 @@ try {
 }
 
 // 4. Reads the text field that came after the empty file. It is a field of its own.
-echo 'comment: ', Core\Request::post('comment') ?? 'null', "\n";
+echo 'comment: ', Core\Request::formField('comment') ?? 'null', "\n";
 
 // 5. Reads the whole body after the files. This throws a `LogicError`.
 try {

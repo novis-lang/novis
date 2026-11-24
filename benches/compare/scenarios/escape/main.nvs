@@ -1,7 +1,7 @@
 <?nvs
 // Prints the search term `?q=` into a heading with an html template on `/`,
 // and with a plain `echo` of strings on `/direct`.
-tainted string $term = Core\Request::query('q') ?? '';
+tainted string $term = Core\Request::queryParameter('q') ?? '';
 if (Core\Request::path() == '/direct') {
     echo '<h1>Results for ', $term, "</h1>\n";
 } else {

@@ -8,4 +8,4 @@ Core\Response::setHeader('X-Api-Version', '2');
 // The second call to `Cache-Control` replaces the first, so the value is `max-age=300`.
 Core\Response::setHeader('cache-control', 'max-age=300');
 
-Core\Response::json({ cacheControl: 'max-age=300', apiVersion: 2, products: ['Tea', 'Coffee'] });
+Core\Response::sendJson({ cacheControl: 'max-age=300', apiVersion: 2, products: ['Tea', 'Coffee'] });

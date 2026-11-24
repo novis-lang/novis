@@ -20,7 +20,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     echo "octets ", Core\Bytes::length(Core\Request::bytes()), "\n";
     // The target splits exactly as the door splits one, so the query is the
     // request's and not part of its path.
-    echo "since ", Core\Request::query("since") ?? "", "\n";
+    echo "since ", Core\Request::queryParameter("since") ?? "", "\n";
 } else {
     var $answered = Core\Test::request(
         Core\Http\Method::Post,

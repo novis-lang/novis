@@ -9,7 +9,7 @@ security property the model is worth paying for: authentication happens in an or
 with every server default applied, and what reaches the long-lived isolate is whatever the
 application chose to hand it — an account id, a tenant id — never the credential that proved it.
 
-A connection isolate and deferred `Core\Task::afterResponse` work are the only two things in this
+A connection isolate and deferred `Core\Task::runAfterResponse` work are the only two things in this
 language that outlive a response, and they are opposites at every point that matters: deferred work
 belongs to the request tree, sees the request's heap and spends the request's remaining budget, while
 a connection is a root, sees only what its arguments copied in, and ends when the peer closes, a

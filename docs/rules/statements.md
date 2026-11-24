@@ -666,7 +666,7 @@ by a `static` method on a reserved `Core` class, populated per isolate:
 | `$_SESSION` | `Core\Session`, whose first call in a request opens the session |
 | `$_ENV`, `getenv()` | `Core\Env` |
 | `$argv`, `$argc` | `Core\Cli` — the CLI entry point only |
-| `$_ARGS` | `Core\Script::args()` |
+| `$_ARGS` | `Core\Script::arguments()` |
 
 `Core\Server` and `Core\Request` are two classes rather than one, matching the split between facts about
 the server and input the client sent. The value handed back keeps the shape any other boundary value has —
@@ -705,7 +705,7 @@ frame ([`statements/storage-that-outlives-a-call`](statements.md#statements-stor
 replacement would have to enumerate a frame's locals reflectively, which nothing else here does, or become
 a second informally-scoped static bag.
 
-`$_REQUEST`'s only job is merging three sources whose read-site names — `Core\Request::query()`, `::post()`
+`$_REQUEST`'s only job is merging three sources whose read-site names — `Core\Request::queryParameter()`, `::post()`
 and `::cookie()` — already say which one a value came from. A merged accessor would either fix an order,
 re-deriving the `request_order` footgun, or take the order as an argument, at which point it is no shorter
 than naming the source.

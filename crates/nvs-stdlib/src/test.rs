@@ -1208,7 +1208,7 @@ const RESPONSE_CARD: ClassDoc = ClassDoc {
 const STATUS_SLOT: usize = 0;
 /// [`RESPONSE`]'s second slot: the bytes the program wrote, as a `bytes`.
 ///
-/// Not a `string`, because a route may answer with `Core\Response::bytes` or
+/// Not a `string`, because a route may answer with `Core\Response::sendBytes` or
 /// `::sendFile`, and a test of such a route still reads its status, its
 /// headers and, through `bytes`, its body. The readers that return text
 /// ([`body_text`]) check the bytes.
@@ -1472,7 +1472,7 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "form",
             desc: "The fields to send as `application/x-www-form-urlencoded`, with the field name \
-                   as the key. `Core\\Request::post()` reads them.",
+                   as the key. `Core\\Request::formField()` reads them.",
             shape: &[],
         },
         ParamDoc {
@@ -1496,7 +1496,7 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
           program decides what to do with it. A body that is not text, such as a PDF file, \
           also returns a response. For such a body, `body()`, `json()` and `jsonAs()` throw an \
           error. A `HEAD` request gets no body, the same as from the server. If the program \
-          starts work with `Core\\Task::afterResponse`, `request` returns only when that work \
+          starts work with `Core\\Task::runAfterResponse`, `request` returns only when that work \
           has ended.",
     errors: &[
         ErrorDoc {
@@ -1544,7 +1544,7 @@ const RESPONSE_BODY_DOC: MethodDoc = MethodDoc {
           sends no body for a request that threw an error, or for `HEAD`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "The body is not valid UTF-8, so it is not a string. `Core\\Response::bytes` and \
+        desc: "The body is not valid UTF-8, so it is not a string. `Core\\Response::sendBytes` and \
                `Core\\Response::sendFile` can write such a body. Read it with `bytes()`.",
     }],
 };
@@ -6572,7 +6572,11 @@ mod tests {
         dropped(length);
         let since = Value::text("since");
         assert_eq!(
-            read(&mut ctx, crate::request::nvs_core_request_query, &[since]),
+            read(
+                &mut ctx,
+                crate::request::nvs_core_request_query_parameter,
+                &[since]
+            ),
             b"2",
             "and the target's query is split from its path exactly as the door splits one"
         );

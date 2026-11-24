@@ -5,7 +5,7 @@ when it runs, which is where credentials live anyway and which keeps them out of
 a replica.
 
 Every text a job reads out of its payload is `tainted` (`rule:security/tainted-qualifier`), whether it
-was enqueued `tainted` or clean. `Core\Script::args()` answers `mixed`, and text out of `mixed` is
+was enqueued `tainted` or clean. `Core\Script::arguments()` answers `mixed`, and text out of `mixed` is
 `tainted` (`rule:security/taint-propagation`), so the analysis survives the round trip instead of being
 laundered by a database. This is the trust every other stored value gets: a row's `get`,
 `Core\Cache::get` and `Core\Session::get` answer `mixed` too. A job recovers a number, a flag or an enum

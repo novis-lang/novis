@@ -40,7 +40,7 @@ class App
         // `is` checks whether the match is the route of the method you name.
         var $users = new Users();
         if ($match->is(Users::show)) {
-            return $users->show($match->param('id') as uint);
+            return $users->show($match->parameter('id') as uint);
         }
         if ($match->is(Users::create)) {
             return $users->create();

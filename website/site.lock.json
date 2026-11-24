@@ -1823,8 +1823,8 @@
   "docs/examples/core/Math/truncate/about.md": {
     "Core\\Math::truncate": "4aa8b8b703a972c0"
   },
-  "docs/examples/core/Metrics/gauge/about.md": {
-    "Core\\Metrics::gauge": "4f266211287c070e"
+  "docs/examples/core/Metrics/setGauge/about.md": {
+    "Core\\Metrics::setGauge": "4f266211287c070e"
   },
   "docs/examples/core/Metrics/increment/about.md": {
     "Core\\Metrics::increment": "b939dc55aa2e50ce"
@@ -2387,23 +2387,23 @@
   "docs/examples/core/Request/path/about.md": {
     "Core\\Request::path": "4a82d1e13182a271"
   },
-  "docs/examples/core/Request/post/about.md": {
-    "Core\\Request::post": "a5dbe97003fb23ef"
+  "docs/examples/core/Request/formField/about.md": {
+    "Core\\Request::formField": "a5dbe97003fb23ef"
   },
-  "docs/examples/core/Request/postArray/about.md": {
-    "Core\\Request::postArray": "a1e4d57ed282001f"
+  "docs/examples/core/Request/formFields/about.md": {
+    "Core\\Request::formFields": "a1e4d57ed282001f"
   },
-  "docs/examples/core/Request/postAs/about.md": {
-    "Core\\Request::postAs": "4b6bc019e16362c7"
+  "docs/examples/core/Request/formFieldsAs/about.md": {
+    "Core\\Request::formFieldsAs": "4b6bc019e16362c7"
   },
-  "docs/examples/core/Request/query/about.md": {
-    "Core\\Request::query": "5b777760de0f46fe"
+  "docs/examples/core/Request/queryParameter/about.md": {
+    "Core\\Request::queryParameter": "5b777760de0f46fe"
   },
-  "docs/examples/core/Request/queryArray/about.md": {
-    "Core\\Request::queryArray": "32cb7df4b7aea08b"
+  "docs/examples/core/Request/queryParameters/about.md": {
+    "Core\\Request::queryParameters": "32cb7df4b7aea08b"
   },
-  "docs/examples/core/Request/queryAs/about.md": {
-    "Core\\Request::queryAs": "399083fcd9401763"
+  "docs/examples/core/Request/queryParametersAs/about.md": {
+    "Core\\Request::queryParametersAs": "399083fcd9401763"
   },
   "docs/examples/core/Request/route/about.md": {
     "Core\\Request::route": "ba3639d27bfbd0dd"
@@ -2444,14 +2444,14 @@
   "docs/examples/core/Response/addCookie/about.md": {
     "Core\\Response::addCookie": "8d18d47e247ed66b"
   },
-  "docs/examples/core/Response/bytes/about.md": {
-    "Core\\Response::bytes": "75a71764289332df"
+  "docs/examples/core/Response/sendBytes/about.md": {
+    "Core\\Response::sendBytes": "75a71764289332df"
   },
-  "docs/examples/core/Response/html/about.md": {
-    "Core\\Response::html": "402a95385af85041"
+  "docs/examples/core/Response/sendHtml/about.md": {
+    "Core\\Response::sendHtml": "402a95385af85041"
   },
-  "docs/examples/core/Response/json/about.md": {
-    "Core\\Response::json": "bc4ffd58944704bb"
+  "docs/examples/core/Response/sendJson/about.md": {
+    "Core\\Response::sendJson": "bc4ffd58944704bb"
   },
   "docs/examples/core/Response/redirect/about.md": {
     "Core\\Response::redirect": "cefae461dd3dfd93"
@@ -2465,14 +2465,14 @@
   "docs/examples/core/Response/setStatus/about.md": {
     "Core\\Response::setStatus": "575380e87aacc840"
   },
-  "docs/examples/core/Response/slotted/about.md": {
-    "Core\\Response::slotted": "93f3e43febe14783"
+  "docs/examples/core/Response/sendSlotted/about.md": {
+    "Core\\Response::sendSlotted": "93f3e43febe14783"
   },
-  "docs/examples/core/Response/stream/about.md": {
-    "Core\\Response::stream": "a9e31a7a91f35d83"
+  "docs/examples/core/Response/startStream/about.md": {
+    "Core\\Response::startStream": "a9e31a7a91f35d83"
   },
-  "docs/examples/core/Response/text/about.md": {
-    "Core\\Response::text": "36f9411644ad26fd"
+  "docs/examples/core/Response/sendText/about.md": {
+    "Core\\Response::sendText": "36f9411644ad26fd"
   },
   "docs/examples/core/Response-Stream/end/about.md": {
     "Core\\Response\\Stream::end": "7745dbcb409d63b8"
@@ -2522,14 +2522,14 @@
   "docs/examples/core/Router-Match/method/about.md": {
     "Core\\Router\\Match::method": "4c6ef7bd187bb7a1"
   },
-  "docs/examples/core/Router-Match/param/about.md": {
-    "Core\\Router\\Match::param": "eed9faa24c2cd612"
+  "docs/examples/core/Router-Match/parameter/about.md": {
+    "Core\\Router\\Match::parameter": "eed9faa24c2cd612"
   },
-  "docs/examples/core/Router-Match/params/about.md": {
-    "Core\\Router\\Match::params": "2c3520d36402b1b1"
+  "docs/examples/core/Router-Match/parameters/about.md": {
+    "Core\\Router\\Match::parameters": "2c3520d36402b1b1"
   },
-  "docs/examples/core/Script/args/about.md": {
-    "Core\\Script::args": "05e52c8245a1d9ea"
+  "docs/examples/core/Script/arguments/about.md": {
+    "Core\\Script::arguments": "05e52c8245a1d9ea"
   },
   "docs/examples/core/Script/finish/about.md": {
     "Core\\Script::finish": "a60ae3e8f264d670"
@@ -2651,14 +2651,14 @@
   "docs/examples/core/Sse/receive/about.md": {
     "Core\\Sse::receive": "33a7bcea6056279f"
   },
-  "docs/examples/core/Sse/retry/about.md": {
-    "Core\\Sse::retry": "0afad0b5278d6a06"
+  "docs/examples/core/Sse/setRetryDelay/about.md": {
+    "Core\\Sse::setRetryDelay": "0afad0b5278d6a06"
   },
   "docs/examples/core/Sse/send/about.md": {
     "Core\\Sse::send": "a32980ee31c56c78"
   },
-  "docs/examples/core/Sse/stream/about.md": {
-    "Core\\Sse::stream": "1012b9961370f897"
+  "docs/examples/core/Sse/startStream/about.md": {
+    "Core\\Sse::startStream": "1012b9961370f897"
   },
   "docs/examples/core/Sse/upgrade/about.md": {
     "Core\\Sse::upgrade": "fe911933ff18ba75"
@@ -2813,8 +2813,8 @@
   "docs/examples/core/Taint/assertTrustedBytes/about.md": {
     "Core\\Taint::assertTrustedBytes": "c975bac286c3a79d"
   },
-  "docs/examples/core/Task/afterResponse/about.md": {
-    "Core\\Task::afterResponse": "5ca887291f04adbb"
+  "docs/examples/core/Task/runAfterResponse/about.md": {
+    "Core\\Task::runAfterResponse": "5ca887291f04adbb"
   },
   "docs/examples/core/Task/all/about.md": {
     "Core\\Task::all": "f4cf983ce64bbcbd"
@@ -6698,8 +6698,8 @@
   "help:Core\\Math::truncate": {
     "Core\\Math::truncate": "fb60260fe99a491b"
   },
-  "help:Core\\Metrics::gauge": {
-    "Core\\Metrics::gauge": "9e2e04c1b11091a1"
+  "help:Core\\Metrics::setGauge": {
+    "Core\\Metrics::setGauge": "9e2e04c1b11091a1"
   },
   "help:Core\\Metrics::increment": {
     "Core\\Metrics::increment": "236cd7ba9cc93f98"
@@ -7274,23 +7274,23 @@
   "help:Core\\Request::path": {
     "Core\\Request::path": "83eb5d4dfdcca183"
   },
-  "help:Core\\Request::post": {
-    "Core\\Request::post": "fe5c0b6c4142eb97"
+  "help:Core\\Request::formField": {
+    "Core\\Request::formField": "fe5c0b6c4142eb97"
   },
-  "help:Core\\Request::postArray": {
-    "Core\\Request::postArray": "55f1d04026e7be75"
+  "help:Core\\Request::formFields": {
+    "Core\\Request::formFields": "55f1d04026e7be75"
   },
-  "help:Core\\Request::postAs": {
-    "Core\\Request::postAs": "1eee5738d6690ac1"
+  "help:Core\\Request::formFieldsAs": {
+    "Core\\Request::formFieldsAs": "1eee5738d6690ac1"
   },
-  "help:Core\\Request::query": {
-    "Core\\Request::query": "8a4d9ec0d9c91ee6"
+  "help:Core\\Request::queryParameter": {
+    "Core\\Request::queryParameter": "8a4d9ec0d9c91ee6"
   },
-  "help:Core\\Request::queryArray": {
-    "Core\\Request::queryArray": "a9d7944a1b8feec4"
+  "help:Core\\Request::queryParameters": {
+    "Core\\Request::queryParameters": "a9d7944a1b8feec4"
   },
-  "help:Core\\Request::queryAs": {
-    "Core\\Request::queryAs": "2dc862276ceeeb17"
+  "help:Core\\Request::queryParametersAs": {
+    "Core\\Request::queryParametersAs": "2dc862276ceeeb17"
   },
   "help:Core\\Request::route": {
     "Core\\Request::route": "f336c1cc50307937"
@@ -7331,14 +7331,14 @@
   "help:Core\\Response::addCookie": {
     "Core\\Response::addCookie": "3dcec7d860c7fc04"
   },
-  "help:Core\\Response::bytes": {
-    "Core\\Response::bytes": "7d38885e29cf1284"
+  "help:Core\\Response::sendBytes": {
+    "Core\\Response::sendBytes": "7d38885e29cf1284"
   },
-  "help:Core\\Response::html": {
-    "Core\\Response::html": "b4aed3a0e981c507"
+  "help:Core\\Response::sendHtml": {
+    "Core\\Response::sendHtml": "b4aed3a0e981c507"
   },
-  "help:Core\\Response::json": {
-    "Core\\Response::json": "5129425e1658cf05"
+  "help:Core\\Response::sendJson": {
+    "Core\\Response::sendJson": "5129425e1658cf05"
   },
   "help:Core\\Response::redirect": {
     "Core\\Response::redirect": "b1f0c7072f722c6d"
@@ -7358,14 +7358,14 @@
   "help:Core\\Response::setStatus": {
     "Core\\Response::setStatus": "05e5eddfd3e1bb84"
   },
-  "help:Core\\Response::slotted": {
-    "Core\\Response::slotted": "e7ae976d9d88ea1d"
+  "help:Core\\Response::sendSlotted": {
+    "Core\\Response::sendSlotted": "e7ae976d9d88ea1d"
   },
-  "help:Core\\Response::stream": {
-    "Core\\Response::stream": "cad5c164657dc607"
+  "help:Core\\Response::startStream": {
+    "Core\\Response::startStream": "cad5c164657dc607"
   },
-  "help:Core\\Response::text": {
-    "Core\\Response::text": "927da473a08736e3"
+  "help:Core\\Response::sendText": {
+    "Core\\Response::sendText": "927da473a08736e3"
   },
   "help:Core\\Response\\Stream::end": {
     "Core\\Response\\Stream::end": "506c10a4d5dc4276"
@@ -7421,11 +7421,11 @@
   "help:Core\\Router\\Match::method": {
     "Core\\Router\\Match::method": "31e13099dd267f89"
   },
-  "help:Core\\Router\\Match::param": {
-    "Core\\Router\\Match::param": "89b07d7ec4945aa8"
+  "help:Core\\Router\\Match::parameter": {
+    "Core\\Router\\Match::parameter": "89b07d7ec4945aa8"
   },
-  "help:Core\\Router\\Match::params": {
-    "Core\\Router\\Match::params": "6ffcd13cb96f6630"
+  "help:Core\\Router\\Match::parameters": {
+    "Core\\Router\\Match::parameters": "6ffcd13cb96f6630"
   },
   "help:Core\\Router\\Refusal": {
     "Core\\Router\\Refusal": "4710cc2fa35f3d5c"
@@ -7433,8 +7433,8 @@
   "help:Core\\Router\\Responder": {
     "Core\\Router\\Responder": "5fbb946b8d1cf96a"
   },
-  "help:Core\\Script::args": {
-    "Core\\Script::args": "04922198559b7e56"
+  "help:Core\\Script::arguments": {
+    "Core\\Script::arguments": "04922198559b7e56"
   },
   "help:Core\\Script::finish": {
     "Core\\Script::finish": "f061870ebaa896cc"
@@ -7562,14 +7562,14 @@
   "help:Core\\Sse::receive": {
     "Core\\Sse::receive": "b6733e55302a19fc"
   },
-  "help:Core\\Sse::retry": {
-    "Core\\Sse::retry": "2b16fdcf021833a8"
+  "help:Core\\Sse::setRetryDelay": {
+    "Core\\Sse::setRetryDelay": "2b16fdcf021833a8"
   },
   "help:Core\\Sse::send": {
     "Core\\Sse::send": "8fcc43c13a39d411"
   },
-  "help:Core\\Sse::stream": {
-    "Core\\Sse::stream": "71e52ac44a1548cc"
+  "help:Core\\Sse::startStream": {
+    "Core\\Sse::startStream": "71e52ac44a1548cc"
   },
   "help:Core\\Sse::upgrade": {
     "Core\\Sse::upgrade": "ffb61f55cf0a9f0d"
@@ -7727,8 +7727,8 @@
   "help:Core\\Taint::assertTrustedBytes": {
     "Core\\Taint::assertTrustedBytes": "283203337e456fa3"
   },
-  "help:Core\\Task::afterResponse": {
-    "Core\\Task::afterResponse": "199303149acfe7b8"
+  "help:Core\\Task::runAfterResponse": {
+    "Core\\Task::runAfterResponse": "199303149acfe7b8"
   },
   "help:Core\\Task::all": {
     "Core\\Task::all": "6a3056b56ee6e219"

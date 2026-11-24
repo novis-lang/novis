@@ -14,7 +14,7 @@ final class Invoice
 }
 
 if (Core\Env::context() == Core\Env::Context::Request) {
-    Core\Response::bytes(Invoice::file(), 'application/pdf');
+    Core\Response::sendBytes(Invoice::file(), 'application/pdf');
 } else {
     var $response = Test::request(Method::Get, '/invoice/1042');
     Test::assertEquals($response->header('Content-Type'), 'application/pdf');

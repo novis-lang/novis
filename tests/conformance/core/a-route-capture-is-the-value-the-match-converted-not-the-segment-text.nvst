@@ -18,9 +18,9 @@ A capture reaches the program as the value the match already converted, so `Core
 // defined over `string` and `bytes` and not over every type.
 var $matched = Core\Request::route();
 if ($matched != null) {
-    foreach ($matched->params() as tainted string $capture) {
+    foreach ($matched->parameters() as tainted string $capture) {
     }
-    echo $matched->param("id") ?? "none", "\n";
+    echo $matched->parameter("id") ?? "none", "\n";
 }
 --EXPECT--
 

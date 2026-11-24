@@ -20,7 +20,7 @@ object is refused there, and a `Core` object still arrives. So a Rust test that 
 program an object passes that object's table, as a compiled program's spawn does. **What it spends:** one more name lookup
 per object at a live crossing, only where the program's table misses.
 
-A value crosses exactly twice, and both crossings are the same walk. In, at the spawn, the `args:`
+A value crosses exactly twice, and both crossings are the same walk. In, at the spawn, the `arguments:`
 value crosses from the parent's ownership root into the child's. Out, at the `await`, the child's
 top-level return value, its captured output and, on failure, its error as data cross back. Nothing
 else moves: the parent's output buffer, the backing state of its request accessor classes

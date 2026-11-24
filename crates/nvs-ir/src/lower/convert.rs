@@ -979,7 +979,7 @@ impl<'a> Lowering<'a> {
                 // declaration. `rule:types/conversion` words the `mixed → EnumName`
                 // row as "exactly the shape `as uint` already has for
                 // untrusted input", and its own example converts
-                // `Core\Request::query('status')` — a string at run time —
+                // `Core\Request::queryParameter('status')` — a string at run time —
                 // into a case whose value is an integer. So the base
                 // conversion runs first there, which is `rule:types/conversion`'s
                 // whole-string numeric row and not a coercion of its own,

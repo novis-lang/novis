@@ -27,7 +27,7 @@ try {
     $refused = $refused + 1;
 }
 try {
-    Core\Request::query("id");
+    Core\Request::queryParameter("id");
 } catch (LogicError $parameter) {
     $refused = $refused + 1;
 }
@@ -86,7 +86,7 @@ try {
 // program with no request at all would read one as a peer that left a box
 // blank.
 try {
-    Core\Request::post("title");
+    Core\Request::formField("title");
 } catch (LogicError $form) {
     $refused = $refused + 1;
 }
@@ -117,12 +117,12 @@ try {
 // array, so a program with no request would read one as a peer that sent no
 // values under that name.
 try {
-    Core\Request::queryArray("tag");
+    Core\Request::queryParameters("tag");
 } catch (LogicError $tags) {
     $refused = $refused + 1;
 }
 try {
-    Core\Request::postArray("item");
+    Core\Request::formFields("item");
 } catch (LogicError $items) {
     $refused = $refused + 1;
 }

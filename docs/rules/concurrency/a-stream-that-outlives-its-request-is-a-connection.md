@@ -21,7 +21,7 @@ and the member each door is missing is the hand-over it reports
 
 **Resumption is the client's `Last-Event-ID`, and the runtime keeps no replay buffer.** A connection
 isolate shares nothing with the request that opened it (`rule:security/isolate-shares-nothing`), so
-the handler reads the header and passes it through `args:`; the request-scoped door reads it
+the handler reads the header and passes it through `arguments:`; the request-scoped door reads it
 directly. Replay needs the application's own event log, and the id is the key into it.
 
 **A request-scoped event stream is reconnected by `EventSource` when the request ends.** That door is
@@ -34,7 +34,7 @@ holds every event until the stream ends. The second header is an instruction *to
 proxy behaviour this server implements, so
 `rule:http-server/two-deployments-and-nothing-a-proxy-owns` is untouched by it.
 
-Both spellings are built. `Core\Response::stream` and `Core\Sse::stream` write a body that ends with
+Both spellings are built. `Core\Response::startStream` and `Core\Sse::startStream` write a body that ends with
 the response, from inside the request isolate; `Core\Sse::upgrade` opens the connection. Both write
 through one cell between the writing isolate and the connection that frames the body, so the two
 spellings are one model with two hand-overs rather than two mechanisms.

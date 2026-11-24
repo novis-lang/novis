@@ -6,4 +6,4 @@
 Core\Response::addCookie('theme', 'dark');
 
 // The cookie is in the headers, so the body prints only this line.
-Core\Response::text("Your theme is saved.\n");
+Core\Response::sendText("Your theme is saved.\n");

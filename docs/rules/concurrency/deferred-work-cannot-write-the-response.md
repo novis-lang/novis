@@ -1,9 +1,9 @@
 The response is on the wire before deferred work runs, so **the deferred callable may not touch it**. Every
-`Core` member that sets a status, a header, a cookie or a body, `Core\Response::slotted` and every
+`Core` member that sets a status, a header, a cookie or a body, `Core\Response::sendSlotted` and every
 `Core\Session` member that writes — `setShortLived`, `setLongLived`, `setShortLivedSecret`,
 `setLongLivedSecret`, `remove`, `clearShortLived`, `clearLongLived`, `clearAll` and `regenerate` — is
 refused in it: a compile error, `E0857`, where the call is written inside the anonymous function passed
-to `Core\Task::afterResponse` or one nested in it, and a `LogicError` at run time otherwise — a callable
+to `Core\Task::runAfterResponse` or one nested in it, and a `LogicError` at run time otherwise — a callable
 held in a variable, a method it calls, and every task the work starts. `Core\Request` and `Core\Server`
 stay readable: it is still the same tree, and the request's own values are still there to read. `echo`
 in deferred work is the work's own output and is not a response write.
@@ -12,7 +12,7 @@ in deferred work is the work's own output and is not a response write.
 checker, because a read sends no header. But deferred work runs with no session: the request's session
 was written back when its program ended, so the first session call in the work throws `LogicError`
 (`rule:security/request-state-throws-in-an-isolate`). A value the work needs is read before
-`Core\Task::afterResponse` is called and captured by the callable. That costs nothing past the response,
+`Core\Task::runAfterResponse` is called and captured by the callable. That costs nothing past the response,
 where a view of the session kept for the work would hold the record for as long as the work runs and
 could show values another request has since changed.
 

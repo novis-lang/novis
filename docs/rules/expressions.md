@@ -776,9 +776,9 @@ for `string → int`, the range checks — is the checked form's, unchanged. The
 of validity of its own; it only changes what happens to a failure.
 
 ```
-var $id   = Core\Request::query('id') as ?uint;      // ?uint — null if absent, or not a uint
-var $page = Core\Request::query('page') as ?uint ?? 1;
-var $mode = Core\Request::query('mode') as ?SortMode ?? SortMode::Newest;
+var $id   = Core\Request::queryParameter('id') as ?uint;      // ?uint — null if absent, or not a uint
+var $page = Core\Request::queryParameter('page') as ?uint ?? 1;
+var $mode = Core\Request::queryParameter('mode') as ?SortMode ?? SortMode::Newest;
 ```
 
 A `null` operand that `as T` rejects yields `null` rather than a diagnostic, which is what keeps the

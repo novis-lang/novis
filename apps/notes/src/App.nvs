@@ -19,7 +19,7 @@ final class App
     #[Access(allow: Audience::Public)]
     public static function home(): void
     {
-        Response::html(Pages::home(App::store()->all(), new Draft('', ''), []));
+        Response::sendHtml(Pages::home(App::store()->all(), new Draft('', ''), []));
     }
 
     // Saves the note from the form. If the form is not valid, it shows the form again with the problems.
@@ -32,7 +32,7 @@ final class App
         array<string> $problems = [];
         try {
             // `postAs` fills a `Draft` from the form fields `title` and `body`.
-            $draft = Request::postAs<Draft>();
+            $draft = Request::formFieldsAs<Draft>();
             $problems = $draft->problems();
         } catch (ParseError $error) {
             $problems = ['Please fill in the form.'];
@@ -40,7 +40,7 @@ final class App
         if (Core\Arr::count($problems) > 0) {
             // 422 means the server understood the request, but the data is not valid.
             Response::setStatus(422);
-            Response::html(Pages::home($store->all(), $draft, $problems));
+            Response::sendHtml(Pages::home($store->all(), $draft, $problems));
             return;
         }
         $store->add($draft);
@@ -56,10 +56,10 @@ final class App
         ?Note $note = App::store()->find($id);
         if ($note == null) {
             Response::setStatus(404);
-            Response::html(Pages::notFound());
+            Response::sendHtml(Pages::notFound());
             return;
         }
-        Response::html(Pages::note($note));
+        Response::sendHtml(Pages::note($note));
     }
 
     // Returns every note as JSON.
@@ -67,7 +67,7 @@ final class App
     #[Access(allow: Audience::Public)]
     public static function apiList(): void
     {
-        Response::json(App::store()->all());
+        Response::sendJson(App::store()->all());
     }
 
     // Returns one note as JSON.
@@ -78,10 +78,10 @@ final class App
         ?Note $note = App::store()->find($id);
         if ($note == null) {
             Response::setStatus(404);
-            Response::json({ error: 'There is no note with this number.' });
+            Response::sendJson({ error: 'There is no note with this number.' });
             return;
         }
-        Response::json($note);
+        Response::sendJson($note);
     }
 
     // Saves a note from a JSON body such as `{"title": "Milk", "body": "Buy two"}`.
@@ -94,16 +94,16 @@ final class App
             array<string> $problems = $draft->problems();
             if (Core\Arr::count($problems) > 0) {
                 Response::setStatus(422);
-                Response::json({ errors: $problems });
+                Response::sendJson({ errors: $problems });
                 return;
             }
             // 201 means a new note was saved.
             Response::setStatus(201);
-            Response::json(App::store()->add($draft));
+            Response::sendJson(App::store()->add($draft));
         } catch (ParseError $error) {
             // A body that is not JSON, or that has a missing field, throws a `ParseError`.
             Response::setStatus(422);
-            Response::json({ errors: ['The body must be JSON with a title and a body.'] });
+            Response::sendJson({ errors: ['The body must be JSON with a title and a body.'] });
         }
     }
 

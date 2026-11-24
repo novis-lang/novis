@@ -36,11 +36,11 @@ The two work the same way in Novis:
    as `Results::run`.
 3. The request ends, and the method starts. It runs in its own isolate. An isolate is a separate copy
    of the program that shares no memory with the request.
-4. `args:` copies values from the request into the method, such as the id of a poll.
+4. `arguments:` copies values from the request into the method, such as the id of a poll.
 5. `limits:` gives the connection its own limits, such as `{ memory: "8M" }`.
 
 The poll app opens its stream with this line:
-`Sse::upgrade(Results::run, args: ['id' => $id], limits: { memory: '8M' })`.
+`Sse::upgrade(Results::run, arguments: ['id' => $id], limits: { memory: '8M' })`.
 
 ## Send to many connections with a topic
 

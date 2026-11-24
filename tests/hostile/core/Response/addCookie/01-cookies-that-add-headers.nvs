@@ -89,4 +89,4 @@ while ($added < 1000000) {
     Core\Response::addCookie('c', $page);
     $added = $added + 1;
 }
-Core\Response::text('refused ' . ($refused as string) . ', added ' . ($added as string) . "\n");
+Core\Response::sendText('refused ' . ($refused as string) . ', added ' . ($added as string) . "\n");

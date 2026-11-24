@@ -1,6 +1,6 @@
 <?nvs
 Account::check();
-Core\Response::slotted();
+Core\Response::sendSlotted();
 var $posts = Core\Html::later(
     fn() => Blog::latestPosts(),
     { placeholder: html`<p>Loading posts…</p>` },

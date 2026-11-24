@@ -22,7 +22,7 @@ final class Gate implements Core\Router\Gate
     public function refused(Refusal $reason, ?Core\Router\Match $route): void
     {
         if ($reason == Refusal::NotFound) {
-            Response::html(Pages::notFound());
+            Response::sendHtml(Pages::notFound());
             return;
         }
         string $text = match ($reason) {
@@ -30,12 +30,12 @@ final class Gate implements Core\Router\Gate
             Refusal::Csrf => 'This request came from another website, so it is not allowed.',
             default => 'This request is not allowed.',
         };
-        Response::html(Pages::problem('Not possible', $text));
+        Response::sendHtml(Pages::problem('Not possible', $text));
     }
 
     // Shows a page when a route method throws an error. The status code is 500.
     public function failed(?Core\Router\Match $route, ?Throwable $error): void
     {
-        Response::html(Pages::problem('Something went wrong', 'Please try again later.'));
+        Response::sendHtml(Pages::problem('Something went wrong', 'Please try again later.'));
     }
 }

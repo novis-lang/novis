@@ -22,20 +22,20 @@ final class Gate implements Core\Router\Gate
     public function refused(Refusal $reason, ?Core\Router\Match $route): void
     {
         if ($reason == Refusal::NotFound) {
-            Response::html(Home::notFound());
+            Response::sendHtml(Home::notFound());
             return;
         }
         string $text = match ($reason) {
             Refusal::MethodNotAllowed => 'This address only opens a document. Use a link on the home page.',
             default => 'This request is not allowed.',
         };
-        Response::html(Home::problem('Not possible', $text));
+        Response::sendHtml(Home::problem('Not possible', $text));
     }
 
     // Shows a page when a route method throws an error, or when the app needs too much memory or time.
     // The status code is 500.
     public function failed(?Core\Router\Match $route, ?Throwable $error): void
     {
-        Response::html(Home::problem('Something went wrong', 'The document could not be made. Please try again later.'));
+        Response::sendHtml(Home::problem('Something went wrong', 'The document could not be made. Please try again later.'));
     }
 }

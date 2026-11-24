@@ -58,14 +58,14 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     } elseif ($path == '/json-null') {
         echo $type, ' ', Core\Request::json() ?? 'null';
     } elseif ($path == '/form') {
-        echo $type, ' ', Core\Request::post('name') ?? 'none', ' ', Core\Request::post('sum') ?? 'none';
+        echo $type, ' ', Core\Request::formField('name') ?? 'none', ' ', Core\Request::formField('sum') ?? 'none';
     } elseif ($path == '/upload') {
         echo Core\Str::before($type, ';'), "\n";
         foreach (Core\Request::files() as Core\Request\Part $part) {
             echo $part->name(), ' ', $part->filename() ?? 'none', ' ', $part->contentType(), ' ',
                 Core\Bytes::length($part->readAll({ max: 1000 })), "\n";
         }
-        echo Core\Request::post('note') ?? 'none';
+        echo Core\Request::formField('note') ?? 'none';
     } elseif ($path == '/raw') {
         echo $type, ' ', Core\Request::body();
     }

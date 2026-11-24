@@ -7,7 +7,7 @@ uint $refused = 0;
 // 1. The byte FF is never part of valid UTF-8.
 try {
     var $first = Core\Out::capture(fn(): void => {
-        Core\Response::bytes(Core\Encoding::fromHex('ff'), 'application/octet-stream');
+        Core\Response::sendBytes(Core\Encoding::fromHex('ff'), 'application/octet-stream');
     });
 } catch (RuntimeError $error) {
     $refused = $refused + 1;
@@ -17,7 +17,7 @@ try {
 try {
     var $second = Core\Out::capture(fn(): void => {
         echo 'price: ';
-        Core\Response::bytes(Core\Encoding::fromHex('c3'), 'text/plain');
+        Core\Response::sendBytes(Core\Encoding::fromHex('c3'), 'text/plain');
     });
 } catch (RuntimeError $error) {
     $refused = $refused + 1;
@@ -27,7 +27,7 @@ try {
 var $outer = Core\Out::capture(fn(): void => {
     try {
         var $inner = Core\Out::capture(fn(): void => {
-            Core\Response::bytes(Core\Encoding::fromHex('c0bc'), 'text/plain');
+            Core\Response::sendBytes(Core\Encoding::fromHex('c0bc'), 'text/plain');
         });
     } catch (RuntimeError $error) {
         echo 'inner refused';
@@ -36,7 +36,7 @@ var $outer = Core\Out::capture(fn(): void => {
 
 // 4. Bytes that are valid UTF-8 are captured as text.
 var $fine = Core\Out::capture(fn(): void => {
-    Core\Response::bytes('café' as bytes, 'text/plain');
+    Core\Response::sendBytes('café' as bytes, 'text/plain');
 });
 
 echo 'refused ', $refused, "\n";

@@ -22,7 +22,7 @@ class SearchTest
 // `Core\Test::request` runs this file again for each request.
 // This part writes a record when the search has no words.
 if (Core\Env::context() == Core\Env::Context::Request) {
-    tainted string $words = Core\Request::query('q') ?? '';
+    tainted string $words = Core\Request::queryParameter('q') ?? '';
     if ($words == '') {
         Core\Log::write(Core\Log::Level::Info, 'search without words');
         Core\Response::setStatus(400);

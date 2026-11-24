@@ -44,7 +44,7 @@ final class Files
         if (new Releases($db)->isWithheld('blake3:' . $digest)) {
             // The operator withheld this version. The index has the reason.
             Response::setStatus(451);
-            Response::json({ error: 'This version is withheld. The index of its package gives the reason.' });
+            Response::sendJson({ error: 'This version is withheld. The index of its package gives the reason.' });
             return;
         }
         var $rows = $db->query('select package, version from releases where digest = ? and log is not null', ['blake3:' . $digest]);
@@ -75,7 +75,7 @@ final class Files
     private static function missing(): void
     {
         Response::setStatus(404);
-        Response::json({ error: 'There is no such file.' });
+        Response::sendJson({ error: 'There is no such file.' });
     }
 
     private static function trusted(mixed $value): string

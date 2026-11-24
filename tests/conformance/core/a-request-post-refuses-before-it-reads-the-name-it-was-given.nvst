@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::post` answers the same way for every name it is given when no request arrived, so nothing about the field reaches the decision -- `rule:security/request-state-throws-in-an-isolate`, `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
+`Core\Request::formField` answers the same way for every name it is given when no request arrived, so nothing about the field reaches the decision -- `rule:security/request-state-throws-in-an-isolate`, `rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`
 --FILE--
 <?nvs
 // Invariance over a sweep, counted rather than read off a line. `post` reads a
@@ -10,12 +10,12 @@
 // the name is looked at.
 uint $refused = 0;
 try {
-    Core\Request::post("title");
+    Core\Request::formField("title");
 } catch (LogicError $ordinary) {
     $refused = $refused + 1;
 }
 try {
-    Core\Request::post("");
+    Core\Request::formField("");
 } catch (LogicError $empty) {
     $refused = $refused + 1;
 }
@@ -23,12 +23,12 @@ try {
 // key is the spelling most able to take a different path through the parse --
 // and it must not reach one, the parse being downstream of this refusal.
 try {
-    Core\Request::post("a[b]");
+    Core\Request::formField("a[b]");
 } catch (LogicError $bracketed) {
     $refused = $refused + 1;
 }
 try {
-    Core\Request::post("a field with spaces and %20 in it");
+    Core\Request::formField("a field with spaces and %20 in it");
 } catch (LogicError $unspellable) {
     $refused = $refused + 1;
 }
@@ -38,7 +38,7 @@ echo "every name refused: ", $refused, " of 4\n";
 // the other way: it names the member and never the name, so no spelling of a
 // field can be told apart from another by reading it.
 try {
-    Core\Request::post("a[b]");
+    Core\Request::formField("a[b]");
 } catch (LogicError $why) {
     echo $why->message, "\n";
 }
@@ -48,5 +48,5 @@ try {
 echo "still running\n";
 --EXPECT--
 every name refused: 4 of 4
-Core\Request::post(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts
+Core\Request::formField(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts
 still running

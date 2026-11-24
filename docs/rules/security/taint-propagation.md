@@ -98,7 +98,7 @@ text with its own keys and writes through the matching one, or passes the key th
 `rule:security/assert-trusted`.
 
 The rule sits at the one boundary every `mixed` source shares — `Core\Request::json`,
-`Core\Script::args`, `Core\Session::get`, `Core\Json::decode`, `Core\Cache::get`, a row's `get`,
+`Core\Script::arguments`, `Core\Session::get`, `Core\Json::decode`, `Core\Cache::get`, a row's `get`,
 `Core\Serialize::decode`, `Core\Uri::queryParameter`, a socket's or event stream's `value` — so it
 covers members not yet written as well.
 
@@ -131,7 +131,7 @@ forgot.
   object.
 
 **Declined:**
-- **Typed request accessors as the only fix.** They leave `json()`, `Core\Script::args`,
+- **Typed request accessors as the only fix.** They leave `json()`, `Core\Script::arguments`,
   `Core\Session::get`, `Core\Cache::get` and a row's `get` open, and every later member answering
   `mixed` would reopen the gap.
 - **A hidden, source-marked `mixed`** carrying an invisible "came from outside" bit. It is lost at the

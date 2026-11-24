@@ -3,7 +3,7 @@
  * reusable parts. The same page runs twice. First the usual way: the page arrives with empty places,
  * then a script loads and fetches each slow part from an API route of its own. Then the code of each
  * route moves into the page inside `Core\Html::later`, the script and the routes are deleted,
- * `Core\Response::slotted();` is added, and the page and its parts come in one request.
+ * `Core\Response::sendSlotted();` is added, and the page and its parts come in one request.
  */
 import type { Brief } from '../engine/brief'
 import { Stage } from '../engine/stage'
@@ -35,7 +35,7 @@ export const brief: Brief = {
     'CORS, CSRF and caching for the API routes of the usual way',
     'other frameworks that also stream a page',
   ],
-  then: 'The Core\\Html::later and Core\\Response::slotted reference pages.',
+  then: 'The Core\\Html::later and Core\\Response::sendSlotted reference pages.',
 }
 
 /**
@@ -69,7 +69,7 @@ export function start(root: HTMLElement): void {
   // An API route's lines: 2 checks the login, 3 writes the part.
   const CHECK = 2
   const BODY = 3
-  // The Novis page's lines: 3 is `Core\Response::slotted();`, 4-7 and 8-11 the two parts.
+  // The Novis page's lines: 3 is `Core\Response::sendSlotted();`, 4-7 and 8-11 the two parts.
   const SLOTTED = 3
   const posts = [4, 7] as const
   const deals = [8, 11] as const
@@ -325,7 +325,7 @@ export function start(root: HTMLElement): void {
   tl.beat(
     'One line',
     {
-      caption: 'Delete the script. Then add one line: Core\\Response::slotted() sends the page before the slow parts are done.',
+      caption: 'Delete the script. Then add one line: Core\\Response::sendSlotted() sends the page before the slow parts are done.',
       notes: 'The last tab closes. The file is the whole change.',
     },
     () => {
@@ -445,7 +445,7 @@ export function start(root: HTMLElement): void {
     'One file',
     {
       caption: 'One file and one request. No script to write, and no API route to protect. It works in every modern browser.',
-      notes: 'Point at the one row. The reference pages for Core\\Html::later and Core\\Response::slotted come next.',
+      notes: 'Point at the one row. The reference pages for Core\\Html::later and Core\\Response::sendSlotted come next.',
     },
     () => {
       camera.focus(browser, { maxZoom: 1.4, room: { wide: { right: 300 }, tall: {} } })

@@ -9,7 +9,7 @@ class Orders
     #[Core\Access(allow: Core\Audience::Public)]
     public function show(uint $id): void
     {
-        Core\Response::json({ id: $id, status: 'paid', total: 4500 });
+        Core\Response::sendJson({ id: $id, status: 'paid', total: 4500 });
     }
 }
 

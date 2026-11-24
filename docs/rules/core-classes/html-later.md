@@ -11,7 +11,7 @@ The output is what `fn` echoes through the request's escaping sink, followed by 
 returns. `placeholder` defaults to empty and `deadline` has no default. A `later` inside a `later`
 callable is the request's child too, and its placeholder is part of its parent's output. Without
 `later`, every response is buffered whole, so a page's first byte waits for its slowest query, and
-`Core\Response::stream`, the only early byte, gives up `echo` and its escaping
+`Core\Response::startStream`, the only early byte, gives up `echo` and its escaping
 (`rule:security/response-body-is-one-typed-member`).
 
 **The route decides delivery, never the call**, so a component is written once:
@@ -19,10 +19,10 @@ callable is the request's child too, and its placeholder is part of its parent's
 | route | the page goes out | each output |
 |---|---|---|
 | normal | once every `later` task has ended | replaces its placeholder in one pass over the body |
-| `#[Core\Route(…, slotted: true)]`, or `Core\Response::slotted()` before the main script ends | when the main script ends, placeholders in place | follows in the same response as a `<template for>` fill, in finishing order, with an inline polyfill sent once |
+| `#[Core\Route(…, slotted: true)]`, or `Core\Response::sendSlotted()` before the main script ends | when the main script ends, placeholders in place | follows in the same response as a `<template for>` fill, in finishing order, with an inline polyfill sent once |
 
 A slotted route sends nothing before the main script ends, and a slotted request that never calls
-`later` is sent whole. `Core\Response::slotted()` after the main script ends, or inside a `later`
+`later` is sent whole. `Core\Response::sendSlotted()` after the main script ends, or inside a `later`
 callable, throws `LogicError`. A slotted response is chunked, has no `Content-Length`, carries
 `X-Accel-Buffering: no`, holds back a closing `</body></html>` until after the last fill, and keeps
 its admission place until that fill. When its client goes,

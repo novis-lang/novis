@@ -29,7 +29,7 @@
 //! - **One `Range`, honoured only under an `If-Range` naming the same tag.**
 //!   Anything else is a `416` carrying `Content-Range: bytes */len`, or the
 //!   whole file where `If-Range` missed. That decision is not this module's:
-//!   it is [`nvs_runtime::conditional::decide`], which `Core\Response::stream`
+//!   it is [`nvs_runtime::conditional::decide`], which `Core\Response::startStream`
 //!   calls too, because a second copy of it would be a second policy. Its
 //!   module doc states each answer.
 //! - **A fixed extension table**, with `application/octet-stream` for an unknown

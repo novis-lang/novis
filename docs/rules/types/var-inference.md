@@ -8,7 +8,7 @@ that is `string`, the one type an array's key binding may have (`rule:types/arra
 
 The type is computed exactly as it is for any position with no expected type, and it is then fixed on
 the binding like a written one — `rule:types/declaration`'s "no binding's type ever changes" is
-untouched. It is exact and honest: `var $n = 1;` gives `int`, `var $id = Core\Request::query('id');`
+untouched. It is exact and honest: `var $n = 1;` gives `int`, `var $id = Core\Request::queryParameter('id');`
 gives `?tainted string`, `var $doc = Core\Request::json();` gives `mixed`, and a `var` value binding
 over a `mixed` or `iterable` subject gives `mixed`, because that is what the source expression is. A
 qualifier, such as `tainted`, arrives on the binding with the type it qualifies. A `foreach` binding's

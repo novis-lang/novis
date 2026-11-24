@@ -223,7 +223,7 @@ slot_fn!(sets_header, |ctx| {
 
 slot_fn!(writes_text, |ctx| {
     let body = Value::text("plain");
-    try_head(ctx, "nvs_core_response_text", &[body]);
+    try_head(ctx, "nvs_core_response_send_text", &[body]);
     Ok(Value::null())
 });
 

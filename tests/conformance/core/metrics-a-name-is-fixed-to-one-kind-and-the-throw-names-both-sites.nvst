@@ -6,7 +6,7 @@ a metric name used as a gauge and then incremented throws, and the message names
 // to reach one name is refused rather than accommodated. What a reader of that
 // message needs is the *other* line -- the one that decided the kind -- which
 // is why it carries two sites and not one.
-Core\Metrics::gauge("queue_depth", 7.0);
+Core\Metrics::setGauge("queue_depth", 7.0);
 try {
     Core\Metrics::increment("queue_depth");
     echo "not refused\n";
@@ -43,23 +43,23 @@ try {
 
 // The two sites are the fixing call and the disagreeing one, whichever verbs
 // they are: `observe` fixes this one, so it is `observe`'s line the message
-// sends the reader to and `gauge`'s that it reports the disagreement at.
+// sends the reader to and `setGauge`'s that it reports the disagreement at.
 Core\Metrics::observe("render_seconds", 0.125);
 try {
-    Core\Metrics::gauge("render_seconds", 0.125);
+    Core\Metrics::setGauge("render_seconds", 0.125);
     echo "not refused\n";
 } catch (LogicError $other) {
     if (Core\Str::contains($other->message, "`render_seconds` is a histogram and this call records a gauge")) {
         echo "the roles are the verbs' and not the members'\n";
     }
-    if (Core\Str::contains($other->message, "Metrics::gauge`")) {
+    if (Core\Str::contains($other->message, "Metrics::setGauge`")) {
         echo "names the verb that disagreed\n";
     }
 }
 
 // And the name that agrees with itself is not refused at all, which is what
 // makes the two above a mismatch rather than a second write being forbidden.
-Core\Metrics::gauge("queue_depth", 4.0);
+Core\Metrics::setGauge("queue_depth", 4.0);
 echo "the same verb again is accumulation\n";
 --EXPECT--
 refused: the kind belongs to the series

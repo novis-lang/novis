@@ -238,7 +238,7 @@ fn an_app_reads_its_own_settings_and_not_another_apps() {
 /// `go.txt` there before it reads `title` again.
 const HOLDING: &str = r#"<?nvs
 string $before = Core\Config::setting("title") as string;
-if (Core\Request::query("hold") == "yes") {
+if (Core\Request::queryParameter("hold") == "yes") {
     string $marks = Core\Config::setting("marks") as string;
     Core\IO::write($marks . "/started.txt", "started");
     while (!Core\IO::exists($marks . "/go.txt")) {
@@ -447,7 +447,7 @@ fn config_check_is_silent_when_every_setting_is_read() {
 
 /// A program that reads `page_size`, under a name it takes from the request.
 const COMPUTED: &str = r#"<?nvs
-echo Core\Config::setting(Core\Request::query("name") ?? "page_size") as int;
+echo Core\Config::setting(Core\Request::queryParameter("name") ?? "page_size") as int;
 "#;
 
 /// A name the program computes may be any key, so no key is judged, and one

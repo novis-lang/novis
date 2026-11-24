@@ -25,7 +25,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // (`rule:security/request-state-throws-in-an-isolate`), so it takes the path
     // from the variable it captured.
     var $path = Core\Request::path();
-    Core\Task::afterResponse(fn (): void => {
+    Core\Task::runAfterResponse(fn (): void => {
         echo " deferred=", $path;
     });
     echo "answered";
@@ -41,7 +41,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // no response is the scheduling frame returning — so this runs last, after
     // the two lines above and after every statement of this file. Two trees,
     // two queues, and neither one's deferred work reached the other's output.
-    Core\Task::afterResponse(fn (): void => {
+    Core\Task::runAfterResponse(fn (): void => {
         echo "the parent's own tree, after its last statement\n";
     });
 }

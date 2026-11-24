@@ -11,7 +11,7 @@ A key has the lifetime of its last write. The session also gets a new identifier
 values at once.
 
 It throws a `LogicError` outside a request, or inside `Core\Html::later` or
-`Core\Task::afterResponse`. It throws a `RuntimeError` when the store cannot be opened, and an
+`Core\Task::runAfterResponse`. It throws a `RuntimeError` when the store cannot be opened, and an
 `IOError` when the store cannot be reached.
 
 **The examples below** show preferences that are deleted while the user stays signed in, a key whose

@@ -1,5 +1,5 @@
 --TEST--
-A `Core\Request::postAs` or `queryAs` conversion collects every field that did not fit into one `ParseError`, and a `name` the request never carried is refused rather than read as an empty set — `rule:core-classes/derive-reports-every-field` and `rule:errors/ambiguous-input-refused`
+A `Core\Request::formFieldsAs` or `queryAs` conversion collects every field that did not fit into one `ParseError`, and a `name` the request never carried is refused rather than read as an empty set — `rule:core-classes/derive-reports-every-field` and `rule:errors/ambiguous-input-refused`
 --GET--
 page=x
 --POST--
@@ -11,7 +11,7 @@ age=&name=ada
 // The report is one throw carrying both, because a form needs the list rather
 // than the first item of it.
 try {
-    Core\Request::postAs<tainted {age: int, city: string}>();
+    Core\Request::formFieldsAs<tainted {age: int, city: string}>();
     echo "not reached\n";
 } catch (ParseError $bad) {
     echo "issues=", Core\Arr::count($bad->issues) as string, "\n";
@@ -23,7 +23,7 @@ try {
 // parameter that arrived and does not convert, which is one failed field
 // rather than a `0` this member invented.
 try {
-    Core\Request::queryAs<{page: uint}>();
+    Core\Request::queryParametersAs<{page: uint}>();
     echo "not reached\n";
 } catch (ParseError $loose) {
     echo $loose->issues["0"]->path, ": ", $loose->issues["0"]->message, "\n";
@@ -33,7 +33,7 @@ try {
 // fields — refused as one under `rule:errors/ambiguous-input-refused`, rather
 // than answered as a `T` whose every field happened to be absent.
 try {
-    Core\Request::queryAs<{page: uint}>({name: "filter"});
+    Core\Request::queryParametersAs<{page: uint}>({name: "filter"});
     echo "not reached\n";
 } catch (ParseError $missing) {
     echo "issues=", Core\Arr::count($missing->issues) as string, "\n";

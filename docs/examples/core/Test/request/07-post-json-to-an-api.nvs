@@ -10,7 +10,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     var $order = Core\Request::json() as array<mixed>;
     int $total = ($order['price'] as int) * ($order['quantity'] as int);
     Core\Response::setStatus(201);
-    Core\Response::json(['total' => $total]);
+    Core\Response::sendJson(['total' => $total]);
 } else {
     // `json` encodes the value as the body and sets the `Content-Type` header.
     var $response = Test::request(Method::Post, '/orders', {

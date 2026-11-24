@@ -49,11 +49,11 @@
 //!
 //! # Door two, and the two members that are the whole of it
 //!
-//! [`nvs_core_sse_stream`] answers *this* request with an event stream that
+//! [`nvs_core_sse_start_stream`] answers *this* request with an event stream that
 //! ends when the request does — `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`
 //! 's streaming response with `text/event-stream` over it and
 //! [`nvs_runtime::sse`]'s framing behind it. It opens the body cell
-//! `Core\Response::stream` opens, so a response has one body whichever member
+//! `Core\Response::startStream` opens, so a response has one body whichever member
 //! wrote it, and it answers the same `Core\Sse` handle [`nvs_core_sse_current`]
 //! does: a helper taking one works from either side, which is the reason
 //! `rule:concurrency/two-doors-one-isolate` is one type and not two.
@@ -63,7 +63,7 @@
 //! writes the same list into a header map rather than declaring it.
 //!
 //! **A status declared on a path that opens an event stream is refused**, where
-//! `Core\Response::stream` takes any status the program set. An event stream is
+//! `Core\Response::startStream` takes any status the program set. An event stream is
 //! `200` by protocol, so a program that set a status and then opened one said
 //! two things about one response, and the refusal is what stands in place of
 //! picking a winner — the arrangement the both-cells-filled response already
@@ -72,7 +72,7 @@
 //! [`nvs_core_sse_send`] is the one way onto the wire and is the same member in
 //! both doors. A `string` payload goes out as it was written and anything else
 //! is JSON-encoded by the encoder `Core\Json::encode` is, so `$data` accepts a
-//! `tainted` value on the argument `Core\Response::json` already makes: the
+//! `tainted` value on the argument `Core\Response::sendJson` already makes: the
 //! framing belongs to the framer, and [`nvs_runtime::sse`] normalizes a payload
 //! before it splits it, so nothing a program supplies can land outside a `data:`
 //! line. `$event` and `$id` are the other side of that predicate — a client
@@ -81,7 +81,7 @@
 //! ways an event could not arrive are [`nvs_runtime::sse::Refused`]'s and are
 //! thrown here unchanged.
 //!
-//! [`nvs_core_sse_retry`] is the other thing a program puts on the wire and it is
+//! [`nvs_core_sse_set_retry_delay`] is the other thing a program puts on the wire and it is
 //! not an event: a `retry:` block carries the reconnection time and dispatches
 //! nothing, which is what "do not come back for an hour" ahead of a planned drain
 //! has to be. Both members reach the wire through [`onto_the_wire`], because
@@ -103,7 +103,7 @@
 //! isolate that body, which is what [`nvs_core_sse_current`] answers inside
 //! door one. A method entry — `Feed::run` — opens the same isolate a path
 //! entry does, because the parameter names `rule:security/isolate-shares-nothing`
-//! binds `args:` by ride on the callable value: [`crate::socket`] § *The method
+//! binds `arguments:` by ride on the callable value: [`crate::socket`] § *The method
 //! form carries its names on the value* is the home of that.
 
 use nvs_runtime::sse::{DECLARED_HEADERS, Event, MEDIA_TYPE};
@@ -125,7 +125,7 @@ pub(crate) const NAME: &str = r"Core\Sse";
 /// `Core\Sse`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "An event stream from your server to a client, as a browser's `EventSource` reads it. \
-            A request calls `stream` to answer with events, or `upgrade` to start a script that \
+            A request calls `startStream` to answer with events, or `upgrade` to start a script that \
             keeps sending after the request ends. Code that did not open the stream calls \
             `current` to get it, and `send` writes one event.",
 };
@@ -135,7 +135,7 @@ const CARD: ClassDoc = ClassDoc {
 /// [`crate::registry::CLASSES`].
 ///
 /// **It is a namespace class and an instance class at once**, exactly as
-/// [`crate::socket::CLASS`] is and for the same reason: `upgrade` and `stream`
+/// [`crate::socket::CLASS`] is and for the same reason: `upgrade` and `startStream`
 /// are called on the class from the request, and `send` is called on the handle
 /// either of them leaves behind. The instance carries no slots, because an
 /// event stream's whole state is the body it writes into and that lives on
@@ -154,11 +154,11 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "upgrade",
-            names: &["entry", "args", "limits", "grants", "on"],
+            names: &["entry", "arguments", "limits", "grants", "on"],
             // The same five marks the sibling row carries, and for the same
             // reasons: [`CoreTy::Entry`] is `rule:concurrency/an-upgrade-is-spawn-shaped`'s operand rule — a path or a static
             // method written `Feed::run`, never a `callable` in a variable
-            // — `args` takes no expected type because `rule:classes/graph-copy`'s walk decides
+            // — `arguments` takes no expected type because `rule:classes/graph-copy`'s walk decides
             // what may cross at run time, and the last three are
             // `rule:concurrency/an-upgrades-options-are-spawn-scripts`'s
             // narrowings. `crate::socket`'s row is where they are argued;
@@ -178,10 +178,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&UPGRADE_DOC),
         },
         CoreMethod {
-            name: "stream",
+            name: "startStream",
             names: &[],
             // No parameters at all, where the sibling door takes two and
-            // `Core\Response::stream` takes its media type: everything this one
+            // `Core\Response::startStream` takes its media type: everything this one
             // could be told is already decided. The entry is this request's own
             // handler, the media type is the protocol's, and the status is the
             // thing the module doc says is refused rather than chosen.
@@ -248,7 +248,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&SEND_DOC),
         },
         CoreMethod {
-            name: "retry",
+            name: "setRetryDelay",
             names: &["after"],
             // A `Duration` and not a number of milliseconds, though milliseconds is
             // what goes on the wire: a parameter taking the number would put the
@@ -269,8 +269,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// The symbol [`CLASS`]'s `upgrade` row is reached through.
 const UPGRADE_SYMBOL: &str = "nvs_core_sse_upgrade";
 
-/// The symbol [`CLASS`]'s `stream` row is reached through.
-const STREAM_SYMBOL: &str = "nvs_core_sse_stream";
+/// The symbol [`CLASS`]'s `startStream` row is reached through.
+const STREAM_SYMBOL: &str = "nvs_core_sse_start_stream";
 
 /// The symbol [`CLASS`]'s `current` row is reached through.
 const CURRENT_SYMBOL: &str = "nvs_core_sse_current";
@@ -281,14 +281,14 @@ const RECEIVE_SYMBOL: &str = "nvs_core_sse_receive";
 /// The symbol [`CLASS`]'s `send` row is reached through.
 const SEND_SYMBOL: &str = "nvs_core_sse_send";
 
-/// The symbol [`CLASS`]'s `retry` row is reached through.
-const RETRY_SYMBOL: &str = "nvs_core_sse_retry";
+/// The symbol [`CLASS`]'s `setRetryDelay` row is reached through.
+const RETRY_SYMBOL: &str = "nvs_core_sse_set_retry_delay";
 
 /// `Core\Sse::upgrade`'s reference card — `rule:core-api/reference-card`.
 const UPGRADE_DOC: MethodDoc = MethodDoc {
     short: "Responds to this request with an event stream that runs `$entry` in a new isolate. \
             The isolate has its own memory, its own limits and its own capabilities. It shares \
-            nothing with the request except the values copied in from `$args`.",
+            nothing with the request except the values copied in from `$arguments`.",
     params: &[
         ParamDoc {
             name: "entry",
@@ -299,7 +299,7 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
         ParamDoc {
-            name: "args",
+            name: "arguments",
             desc: "The values the stream starts with. Each one goes to the entry's parameter of \
                    the same name. They are deep-copied into the isolate, so they are never shared \
                    references. A `secret` value is not allowed. A `tainted` value stays `tainted` \
@@ -340,15 +340,15 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "An `$args` value cannot be copied into an isolate. Examples are a resource, or \
+            desc: "An `$arguments` value cannot be copied into an isolate. Examples are a resource, or \
                    a `secret` that is not revealed. For a static method entry, it is also thrown \
-                   when `$args` is missing one of the method's parameters or has a name the \
+                   when `$arguments` is missing one of the method's parameters or has a name the \
                    method does not have.",
         },
     ],
 };
 
-/// `Core\Sse::stream`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Sse::startStream`'s reference card — `rule:core-api/reference-card`.
 const STREAM_DOC: MethodDoc = MethodDoc {
     short: "Responds to this request with an event stream that ends when the request ends. The \
             headers are sent as soon as you call it. Each event reaches the client when you send \
@@ -368,9 +368,9 @@ const STREAM_DOC: MethodDoc = MethodDoc {
 /// `Core\Sse::current`'s reference card — `rule:core-api/reference-card`.
 const CURRENT_DOC: MethodDoc = MethodDoc {
     short: "Returns the event stream this program is writing. It works for a stream opened by \
-            `upgrade` and for a stream opened by `stream`.",
+            `upgrade` and for a stream opened by `startStream`.",
     params: &[],
-    ret: "The same `Core\\Sse` that `upgrade` or `stream` returned. A helper function that takes \
+    ret: "The same `Core\\Sse` that `upgrade` or `startStream` returned. A helper function that takes \
           one works with both kinds of stream.",
     errors: &[ErrorDoc {
         error: "LogicError",
@@ -392,7 +392,7 @@ const RECEIVE_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "LogicError",
-            desc: "This stream was opened by `stream`, not by `upgrade`. It ends with the \
+            desc: "This stream was opened by `startStream`, not by `upgrade`. It ends with the \
                    request, so no published value can reach it, and there is nothing to wait for.",
         },
         ErrorDoc {
@@ -442,7 +442,7 @@ const SEND_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Sse->retry`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Sse->setRetryDelay`'s reference card — `rule:core-api/reference-card`.
 const RETRY_DOC: MethodDoc = MethodDoc {
     short: "Tells the client how long to wait before it reconnects. It is sent as a separate \
             block, and the client sees no event.",
@@ -567,11 +567,11 @@ const MESSAGE_VALUE_DOC: MethodDoc = MethodDoc {
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         UPGRADE_SYMBOL => (nvs_core_sse_upgrade as *const ()).cast(),
-        STREAM_SYMBOL => (nvs_core_sse_stream as *const ()).cast(),
+        STREAM_SYMBOL => (nvs_core_sse_start_stream as *const ()).cast(),
         CURRENT_SYMBOL => (nvs_core_sse_current as *const ()).cast(),
         RECEIVE_SYMBOL => (nvs_core_sse_receive as *const ()).cast(),
         SEND_SYMBOL => (nvs_core_sse_send as *const ()).cast(),
-        RETRY_SYMBOL => (nvs_core_sse_retry as *const ()).cast(),
+        RETRY_SYMBOL => (nvs_core_sse_set_retry_delay as *const ()).cast(),
         MESSAGE_TOPIC_SYMBOL => (nvs_core_sse_message_topic as *const ()).cast(),
         MESSAGE_VALUE_SYMBOL => (nvs_core_sse_message_value as *const ()).cast(),
         _ => return None,
@@ -579,7 +579,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Sse::upgrade(string $entry, mixed $args = null, mixed $limits = null,
+    /// `Core\Sse::upgrade(string $entry, mixed $arguments = null, mixed $limits = null,
     /// ?array<string> $grants = null, ?string $on = null): void` — `rule:concurrency/two-doors-one-isolate`
     /// 's event stream, prepared here and started by the connection.
     ///
@@ -617,7 +617,7 @@ nvs_runtime::nvs_helper! {
         let crossed = copy_graph_to(retained(args[1]), &into).map_err(|refused| {
             Fault::thrown_as(
                 ThrownClass::Logic,
-                format!("`Core\\Sse::upgrade`'s `args:` cannot cross into a connection: {refused}"),
+                format!("`Core\\Sse::upgrade`'s `arguments:` cannot cross into a connection: {refused}"),
             )
         })?;
         if let Err(returned) =
@@ -639,10 +639,10 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Sse::stream(): Core\Sse` — door two, the stream that ends with its
+    /// `Core\Sse::startStream(): Core\Sse` — door two, the stream that ends with its
     /// request.
     ///
-    /// `Core\Response::stream`'s effects with one refusal in front of them and
+    /// `Core\Response::startStream`'s effects with one refusal in front of them and
     /// two headers beside them, every one of which the module doc argues: the
     /// status is refused rather than carried, `Cache-Control` and
     /// `X-Accel-Buffering` are declared before the head is taken, the media type
@@ -655,12 +655,12 @@ nvs_runtime::nvs_helper! {
     /// its sibling's reading: a CLI program, a `#[Test]` method and a `.nvst`
     /// case each open a stream that writes to their own output, so a case can
     /// assert the exact bytes of an event stream without being a request.
-    fn nvs_core_sse_stream(ctx, _args: [0]) {
+    fn nvs_core_sse_start_stream(ctx, _args: [0]) {
         if let Some(code) = ctx.take_status() {
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
                 format!(
-                    "Core\\Sse::stream(): this request set the status `{code}` and an event \
+                    "Core\\Sse::startStream(): this request set the status `{code}` and an event \
                      stream is `200` by protocol, so the two cannot both be answered"
                 ),
             ));
@@ -694,7 +694,7 @@ nvs_runtime::nvs_helper! {
                 // is the `#[test]` that asserts it instead.
                 Fault::thrown_as(
                     ThrownClass::Logic,
-                    "Core\\Sse::stream(): this request has already opened a response body \
+                    "Core\\Sse::startStream(): this request has already opened a response body \
                      stream, and a response has one body",
                 )
             })?;
@@ -737,7 +737,7 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
                 "`Core\\Sse::current` needs a program writing an event stream and this is not \
-                 one: a stream is opened by `Core\\Sse::stream` for the request that answers with \
+                 one: a stream is opened by `Core\\Sse::startStream` for the request that answers with \
                  it and by `Core\\Sse::upgrade` for the isolate that outlives it, and a response \
                  writing an ordinary body over time is neither",
             ));
@@ -924,7 +924,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Sse->retry(Core\Time\Duration $after): void` — the reconnection
+    /// `Core\Sse->setRetryDelay(Core\Time\Duration $after): void` — the reconnection
     /// time, for the drain a program can see coming.
     ///
     /// A block of its own and not a field on the next event, which
@@ -937,19 +937,19 @@ nvs_runtime::nvs_helper! {
     /// request-scoped stream the moment it ends, so this is door two's one way
     /// of saying *when* — and it is the same sentence door one sends ahead of a
     /// drain it is about to take.
-    fn nvs_core_sse_retry(ctx, args: [2]) {
-        crate::instance::receiver(args[0], &CLASS, "retry")?;
-        let nanos = crate::time::nanos_of(args, 1, "retry")?;
+    fn nvs_core_sse_set_retry_delay(ctx, args: [2]) {
+        crate::instance::receiver(args[0], &CLASS, "setRetryDelay")?;
+        let nanos = crate::time::nanos_of(args, 1, "setRetryDelay")?;
         let wait = u64::try_from(nanos)
             .map(std::time::Duration::from_nanos)
             .map_err(|_| {
                 Fault::thrown_as(
                     ThrownClass::Logic,
-                    "Core\\Sse::retry(): a reconnection time cannot be negative: a client waits \
+                    "Core\\Sse::setRetryDelay(): a reconnection time cannot be negative: a client waits \
                      this long before it comes back, and there is no wait shorter than none",
                 )
             })?;
-        onto_the_wire(ctx, nvs_runtime::sse::reconnect_after(wait), "retry")
+        onto_the_wire(ctx, nvs_runtime::sse::reconnect_after(wait), "setRetryDelay")
     }
 }
 
@@ -996,7 +996,7 @@ fn onto_the_wire(ctx: &mut Ctx, framed: Vec<u8>, member: &str) -> Result<Value, 
             .map(|()| Value::null())
             .map_err(|closed| Fault::thrown(format!("Core\\Sse::{member}(): {closed}")));
     }
-    // Unreachable from source, on `Core\Response::text`'s reasoning:
+    // Unreachable from source, on `Core\Response::sendText`'s reasoning:
     // `OutputSink::Buffer` and `Sink` never fail, which `Ctx::write_output`'s own
     // `# Errors` states, and nothing in the language closes a descriptor the host
     // handed the process.
@@ -1218,13 +1218,13 @@ mod tests {
     ///
     /// One claim and not three, because a member that declared the media type
     /// and wrote its events somewhere else would pass any of them alone.
-    // covers: Core\Sse::stream, Core\Sse::send
+    // covers: Core\Sse::startStream, Core\Sse::send
     #[test]
     fn an_event_stream_declares_its_head_and_its_events_reach_the_connections_half() {
         let slot = offered_cell();
         let mut ctx = framing(&slot);
 
-        let handle = nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
+        let handle = nvs_runtime::call(super::nvs_core_sse_start_stream, &mut ctx, &[])
             .expect("an offered cell takes the stream");
         let data = Value::text("ready");
         nvs_runtime::call(
@@ -1263,17 +1263,21 @@ mod tests {
     /// own, in whole milliseconds, and a negative one refused with nothing
     /// written — so the connection never frames half a block it cannot take
     /// back.
-    // covers: Core\Sse::retry
+    // covers: Core\Sse::setRetryDelay
     #[test]
     fn a_reconnection_time_reaches_the_connection_and_a_negative_one_writes_nothing() {
         let slot = offered_cell();
         let mut ctx = framing(&slot);
 
-        let handle = nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
+        let handle = nvs_runtime::call(super::nvs_core_sse_start_stream, &mut ctx, &[])
             .expect("an offered cell takes the stream");
         let backwards = crate::time::duration_of(-1);
-        nvs_runtime::call(super::nvs_core_sse_retry, &mut ctx, &[handle, backwards])
-            .expect_err("a wait shorter than none is refused");
+        nvs_runtime::call(
+            super::nvs_core_sse_set_retry_delay,
+            &mut ctx,
+            &[handle, backwards],
+        )
+        .expect_err("a wait shorter than none is refused");
         let message = ctx
             .pending()
             .expect("a throw carries the message it was raised with")
@@ -1284,8 +1288,12 @@ mod tests {
         );
         drop(ctx.take_pending());
         let later = crate::time::duration_of(3_000_000_000);
-        nvs_runtime::call(super::nvs_core_sse_retry, &mut ctx, &[handle, later])
-            .expect("a reconnection time goes into an empty cell without parking");
+        nvs_runtime::call(
+            super::nvs_core_sse_set_retry_delay,
+            &mut ctx,
+            &[handle, later],
+        )
+        .expect("a reconnection time goes into an empty cell without parking");
 
         let mut head = slot
             .take(std::task::Waker::noop())
@@ -1314,14 +1322,14 @@ mod tests {
         let slot = offered_cell();
         let mut ctx = framing(&slot);
 
-        // The cell opened directly, which is what `Core\Response::stream` does
+        // The cell opened directly, which is what `Core\Response::startStream` does
         // with it: what this asserts is the refusal reaching a program, and
         // reaching through the sibling member to fill the cell would make it a
         // claim about that member as well.
         let _writing = slot
             .open("text/csv", None, Vec::new(), None)
             .expect("an empty cell opens");
-        nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
+        nvs_runtime::call(super::nvs_core_sse_start_stream, &mut ctx, &[])
             .expect_err("one response opens at most one body stream");
 
         // Intact rather than displaced, which is the half a refusal that
@@ -1366,7 +1374,7 @@ mod tests {
         );
         drop(ctx.take_pending());
 
-        // The cell opened directly, which is what `Core\Response::stream` does
+        // The cell opened directly, which is what `Core\Response::startStream` does
         // with it: a response body written over time is the program that holds
         // a writing half and is still not an event stream.
         let _writing = slot
@@ -1653,7 +1661,7 @@ mod tests {
     fn receive_in_a_streaming_response_is_refused_by_name() {
         let slot = offered_cell();
         let mut ctx = framing(&slot);
-        let handle = nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
+        let handle = nvs_runtime::call(super::nvs_core_sse_start_stream, &mut ctx, &[])
             .expect("an offered cell takes the stream");
 
         let status = nvs_runtime::call(super::nvs_core_sse_receive, &mut ctx, &[handle])
@@ -1692,7 +1700,7 @@ mod tests {
         let slot = offered_cell();
         let mut ctx = framing(&slot);
 
-        let handle = nvs_runtime::call(super::nvs_core_sse_stream, &mut ctx, &[])
+        let handle = nvs_runtime::call(super::nvs_core_sse_start_stream, &mut ctx, &[])
             .expect("an offered cell takes the stream");
         drop(
             slot.take(std::task::Waker::noop())

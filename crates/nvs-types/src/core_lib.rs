@@ -2209,16 +2209,24 @@ mod tests {
                 ),
                 (r"Core\Request", "host", "null|tainted string".to_owned(),),
                 (r"Core\Request", "path", "tainted string".to_owned()),
-                (r"Core\Request", "post", "null|tainted string".to_owned()),
                 (
                     r"Core\Request",
-                    "postArray",
+                    "formField",
+                    "null|tainted string".to_owned()
+                ),
+                (
+                    r"Core\Request",
+                    "formFields",
                     "array<tainted string>".to_owned(),
                 ),
-                (r"Core\Request", "query", "null|tainted string".to_owned()),
                 (
                     r"Core\Request",
-                    "queryArray",
+                    "queryParameter",
+                    "null|tainted string".to_owned()
+                ),
+                (
+                    r"Core\Request",
+                    "queryParameters",
                     "array<tainted string>".to_owned(),
                 ),
                 (r"Core\Request", "scheme", "tainted string".to_owned()),
@@ -2248,12 +2256,12 @@ mod tests {
                 ),
                 (
                     r"Core\Router\Match",
-                    "param",
+                    "parameter",
                     "uint|int|null|decimal|tainted string|Core\\Uuid|Parses".to_owned(),
                 ),
                 (
                     r"Core\Router\Match",
-                    "params",
+                    "parameters",
                     "array<uint|int|decimal|tainted string|Core\\Uuid|Parses>".to_owned(),
                 ),
                 (
@@ -2449,8 +2457,8 @@ mod tests {
                 (r"Core\Request", "method", r"Core\Http\Method".to_owned()),
                 (r"Core\Request", "json", "mixed".to_owned()),
                 (r"Core\Request", "jsonAs", "T".to_owned()),
-                (r"Core\Request", "postAs", "T".to_owned()),
-                (r"Core\Request", "queryAs", "T".to_owned()),
+                (r"Core\Request", "formFieldsAs", "T".to_owned()),
+                (r"Core\Request", "queryParametersAs", "T".to_owned()),
                 (
                     r"Core\Request",
                     "route",
@@ -2793,7 +2801,7 @@ mod tests {
         for (member, bag) in [
             ("increment", "{ by?: uint, labels?: array<string> }"),
             ("observe", "{ labels?: array<string> }"),
-            ("gauge", "{ labels?: array<string> }"),
+            ("setGauge", "{ labels?: array<string> }"),
         ] {
             let (owner, sig) = resolve_method(
                 &QName::parse(r"Core\Metrics"),

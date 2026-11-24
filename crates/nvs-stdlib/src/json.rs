@@ -320,7 +320,7 @@
 //! because [`Lists`] knows a JSON list by its address. Every value counts one
 //! step of the deadline's poll, a decrement of a plain counter ([`Deadline`]).
 //!
-//! `Core\Request::queryAs`, `postAs` and `Core\Arr::shapeAs` hold their
+//! `Core\Request::queryParametersAs`, `postAs` and `Core\Arr::shapeAs` hold their
 //! values already, and [`hydrate`] runs the same walk over those.
 //!
 //! # What a list decode costs
@@ -352,7 +352,7 @@
 //! `tests::allocations_per_document_byte_do_not_grow_with_the_document` and
 //! `request`'s `a_decoded_body_of_any_size_is_held_once` pin:
 //!
-//! * `Core\Response::json`: the value, plus the document, plus one 64 KiB
+//! * `Core\Response::sendJson`: the value, plus the document, plus one 64 KiB
 //!   chunk. The encoder writes into a [`ChunkWriter`], whose chunks become the
 //!   body's chunks, and nothing is copied or moved.
 //! * `Core\Json::encode`: the value, plus twice the document, since the chunks
@@ -665,7 +665,7 @@ const ENCODE_EACH_DOC: MethodDoc = MethodDoc {
     short: "Writes a JSON array in pieces, in a `foreach` loop. It takes the next item from \
             `$items` only when it needs it, and encodes each item as `encode` does. So the text \
             is safe inside an HTML page. You can send the pieces with \
-            `Core\\Response::stream` or write them to a file with `Core\\IO::writeStream`.",
+            `Core\\Response::startStream` or write them to a file with `Core\\IO::writeStream`.",
     params: &[
         ParamDoc {
             name: "items",
@@ -2246,7 +2246,7 @@ pub(crate) fn document(
 const ENCODE_MEMBER: &str = "Core\\Json::encode";
 
 /// [`written`] as the encoder's own chunks, in order, for a caller that hands
-/// the bytes on unjoined. `Core\Response::json` passes them to the body this
+/// the bytes on unjoined. `Core\Response::sendJson` passes them to the body this
 /// way, so the document is never copied into a `String` or one buffer, and it
 /// peaks at its own size plus one chunk. A refused document is no chunks, and
 /// the breach is already recorded.
@@ -10242,7 +10242,7 @@ pub(crate) mod tests {
             .expect("the ladder has a wide shape")
     }
 
-    /// `Core\Response::json`'s body at 64 KiB and at 8 MiB holds the document
+    /// `Core\Response::sendJson`'s body at 64 KiB and at 8 MiB holds the document
     /// once, plus at most one chunk of room, the chunk list and the walk's
     /// scratch. The encoder's
     /// chunks become the body's, so nothing joins them into a second copy.
@@ -10256,7 +10256,7 @@ pub(crate) mod tests {
             let text = wide_document(size);
             let value = read(&text, DEFAULT_MAX_DEPTH_U32).expect("a ladder document decodes");
             let mut ctx = nvs_runtime::Ctx::buffered();
-            let chunks = written_chunks(&mut ctx, value, r"Core\Response::json")
+            let chunks = written_chunks(&mut ctx, value, r"Core\Response::sendJson")
                 .expect("a decoded value encodes");
             ctx.write_body_chunks(chunks)
                 .expect("a buffered body never fails");

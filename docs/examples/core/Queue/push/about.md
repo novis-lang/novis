@@ -4,6 +4,6 @@ A job is a Novis file and the data it receives. `push` saves it as a row in the 
 
 **Good to know:** a job can run more than once, for example after a worker stops in the middle. Write jobs that are safe to run twice.
 
-The job reads its data with `Core\Script::args()`. Every string in that data is `tainted`, which means it came from outside the program. Check it before you use it in SQL or as a file path. A `secret` value cannot be pushed.
+The job reads its data with `Core\Script::arguments()`. Every string in that data is `tainted`, which means it came from outside the program. Check it before you use it in SQL or as a file path. A `secret` value cannot be pushed.
 
 **The examples below** add one job, stop a duplicate with a key, and save a job together with an order.

@@ -7,6 +7,6 @@
 type Command = { sql: string };
 
 // 1. The form arrives as `sql=DROP TABLE users`.
-Command $command = Core\Arr::shapeAs<Command>(Core\Request::postArray('form'));
+Command $command = Core\Arr::shapeAs<Command>(Core\Request::formFields('form'));
 var $db = Core\Db::connect('main');
 $db->execute($command->sql, []);

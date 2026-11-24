@@ -29,4 +29,4 @@ $right->held = $left;
 // which makes it the same allocation rather than a rebuild — `graph.rs`'s third
 // decision — and handing it back is what makes the parent's read below a read
 // of memory this isolate's teardown ran over.
-return Core\Script::args();
+return Core\Script::arguments();

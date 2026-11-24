@@ -10,7 +10,7 @@ To sign a user out, use `Core\Session::clearShortLived()`. It also gives a new i
 deletes the short-lived values.
 
 Outside a request, `regenerate()` throws a `LogicError`. Inside `Core\Html::later` or
-`Core\Task::afterResponse` the call does not compile or throws a `LogicError`. A store that cannot
+`Core\Task::runAfterResponse` the call does not compile or throws a `LogicError`. A store that cannot
 be opened throws a `RuntimeError`, and a store that cannot be reached throws an `IOError`.
 
 **The examples below** show a new identifier after sign-in, that values and secrets are kept, and

@@ -22,9 +22,9 @@ class Posts {
 var $matched = Core\Request::route();
 if ($matched != null) {
     bool $isShow = $matched->is(Posts::show);
-    foreach ($matched->params() as mixed $each) {
+    foreach ($matched->parameters() as mixed $each) {
     }
-    string $segment = $matched->param("id") ?? "0";
+    string $segment = $matched->parameter("id") ?? "0";
 }
 // covers: Core\Router\Match::is, Core\Router\Match::params, Core\Router\Match::param
 --EXPECT--

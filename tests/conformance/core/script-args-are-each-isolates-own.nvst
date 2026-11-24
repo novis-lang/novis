@@ -1,5 +1,5 @@
 --TEST--
-An isolate's argument is its own and is not ambient: two children spawned with different values disagree, a grandchild spawned with no `args:` reads `null` while its parent still reads what it was given, and a second read answers the same value — `rule:core-classes/script-args`, `rule:security/isolate-shares-nothing`
+An isolate's argument is its own and is not ambient: two children spawned with different values disagree, a grandchild spawned with no `arguments:` reads `null` while its parent still reads what it was given, and a second read answers the same value — `rule:core-classes/script-args`, `rule:security/isolate-shares-nothing`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
@@ -12,22 +12,22 @@ spawn = true
 // A grandchild. Nothing was passed to it, and nothing is inherited from the
 // isolate that spawned it — the argument is a value that crossed once, not an
 // ambient fact a whole tree of scripts can read.
-echo "  inner: ", Core\Script::args() == null ? "null" : "a value", "\n";
+echo "  inner: ", Core\Script::arguments() == null ? "null" : "a value", "\n";
 --FILE outer.nvs--
 <?nvs
 // Read twice, before and after spawning a child of its own: the slot is the
 // isolate's ownership root and a read borrows from it, so the second answer is
 // the first one and the grandchild's spawn does not disturb it.
-echo "  outer: ", Core\Script::args() as string, "\n";
+echo "  outer: ", Core\Script::arguments() as string, "\n";
 
 var $grand = spawn script "inner.nvs" with(output: "capture");
 echo (await $grand)->output;
 
-echo "  outer again: ", Core\Script::args() as string, "\n";
+echo "  outer again: ", Core\Script::arguments() as string, "\n";
 --FILE--
 <?nvs
 // Two children, spawned from the same statement in the same parent, differing
-// only in the value written at `args:`. A `Core\Script::args()` that read
+// only in the value written at `arguments:`. A `Core\Script::arguments()` that read
 // anything ambient would answer the same thing for both.
 var $left = spawn script "outer.nvs" with(arguments: "left", output: "capture");
 var $right = spawn script "outer.nvs" with(arguments: "right", output: "capture");
@@ -37,10 +37,10 @@ echo (await $left)->output;
 echo "right\n";
 echo (await $right)->output;
 
-// And handing a value out does not put one on the giver: `args:` transfers
+// And handing a value out does not put one on the giver: `arguments:` transfers
 // into the child's arena, and this root — which nothing spawned — still reads
 // the absence it started with, after two spawns and two awaits.
-echo "parent: ", Core\Script::args() == null ? "null" : "a value", "\n";
+echo "parent: ", Core\Script::arguments() == null ? "null" : "a value", "\n";
 --EXPECT--
 left
   outer: left

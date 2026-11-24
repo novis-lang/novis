@@ -7,8 +7,8 @@
 // scaling: expect linear
 
 int $read = 0;
-while (Core\Request::query("p{$read}") != null) {
+while (Core\Request::queryParameter("p{$read}") != null) {
     $read = $read + 1;
 }
-tainted string $q = Core\Request::query('q') ?? '';
+tainted string $q = Core\Request::queryParameter('q') ?? '';
 echo 'parameters: ', $read, ' q: ', $q, "\n";

@@ -27,18 +27,18 @@ try {
 
 // And the two are one model behind those doors -- SSE is the same model
 // without `receive` (`rule:concurrency/two-doors-one-isolate`) -- so what a program writes at either is the same clause:
-// the same operand, the same optional `args:`, and the same `void`. Counting
+// the same operand, the same optional `arguments:`, and the same `void`. Counting
 // the refusals is how that is said without asserting a third copy of either
 // message: the clause's other shape, written once at each door, and both of
 // them a throw rather than a `void` one of the two answered.
 var $refusals = 0;
 try {
-    Core\Socket::upgrade("sockets/chat.nvs", args: {room: "lobby"});
+    Core\Socket::upgrade("sockets/chat.nvs", arguments: {room: "lobby"});
 } catch (RuntimeError $refused) {
     $refusals = $refusals + 1;
 }
 try {
-    Core\Sse::upgrade("streams/feed.nvs", args: {room: "lobby"});
+    Core\Sse::upgrade("streams/feed.nvs", arguments: {room: "lobby"});
 } catch (RuntimeError $refused) {
     $refusals = $refusals + 1;
 }

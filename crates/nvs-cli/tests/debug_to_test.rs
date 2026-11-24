@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 use rusqlite::{Connection, OpenFlags};
 
 /// The JSON body the recorded program answers with.
-const JSON: &str = "Core\\Response::json({ id: 7, items: ['tea', 'cake'] });";
+const JSON: &str = "Core\\Response::sendJson({ id: 7, items: ['tea', 'cake'] });";
 
 /// The program, with its status and the line that writes its body left open, so each change the
 /// test must catch is one argument.
@@ -213,7 +213,7 @@ fn a_recorded_request_becomes_a_test_that_fails_when_the_response_changes() {
         (
             program(
                 201,
-                "Core\\Response::text('{\"id\":7,\"items\":[\"tea\",\"cake\"]}');",
+                "Core\\Response::sendText('{\"id\":7,\"items\":[\"tea\",\"cake\"]}');",
             ),
             "the `Content-Type`",
         ),

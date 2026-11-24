@@ -1,6 +1,6 @@
 `[deferred] deadline` is the time limit of work that runs after the response is sent.
 
-`Core\Task::afterResponse` runs a function after the response has been sent. Sending an email or
+`Core\Task::runAfterResponse` runs a function after the response has been sent. Sending an email or
 writing an audit record is work of this kind. A call to `afterResponse` may give its own deadline.
 A call that does not give one gets the value of this key. When this key is not written, such a
 call has no deadline.

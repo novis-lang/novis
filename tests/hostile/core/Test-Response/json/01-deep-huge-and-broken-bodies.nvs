@@ -20,10 +20,10 @@ if (Core\Env::context() == Core\Env::Context::Request) {
             $numbers[] = $n as int;
             $n = $n + 1;
         }
-        Core\Response::json($numbers);
+        Core\Response::sendJson($numbers);
     }
     if ($path == '/small') {
-        Core\Response::json(['a' => 1]);
+        Core\Response::sendJson(['a' => 1]);
     }
 } else {
     // 1. A body of one million `[` is not JSON. The `ParseError` is caught,

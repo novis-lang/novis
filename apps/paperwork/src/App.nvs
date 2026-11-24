@@ -16,7 +16,7 @@ final class App
     #[Access(allow: Audience::Public)]
     public static function home(): void
     {
-        Response::html(Home::page(Report::password()));
+        Response::sendHtml(Home::page(Report::password()));
     }
 
     // Sends the invoice.
@@ -48,6 +48,6 @@ final class App
     private static function send(tainted bytes $pdf, string $filename): void
     {
         Response::setHeader('content-disposition', "inline; filename=\"{$filename}\"");
-        Response::bytes($pdf, 'application/pdf');
+        Response::sendBytes($pdf, 'application/pdf');
     }
 }

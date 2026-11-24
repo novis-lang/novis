@@ -13,7 +13,7 @@ The part count is one of four bounds on a multipart body, and each bounds a diff
 - **`[limits] request_body`** bounds the buffered form fields, their names and their values together.
 - **`[limits] upload_total`** bounds the whole body on the wire, file parts included.
 
-A breach is a throw from the call that reads the body, `Core\Request::post()` or the walk over
+A breach is a throw from the call that reads the body, `Core\Request::formField()` or the walk over
 `Core\Request::files()`, never a status code. A body is read on demand
 (`rule:http-server/the-body-is-read-on-demand-under-two-caps`), so no breach is known before a
 program reads that far. The message names the directive. The first error a walk meets is kept, and

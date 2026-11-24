@@ -10,7 +10,7 @@ connection, or when the stream fell too far behind and its queue of values was f
 over `receive()` then ends by itself.
 
 `receive()` works only in a script that `Core\Sse::upgrade` started. A request that answers with
-`Core\Sse::stream` ends with its own events, so `receive()` throws a `LogicError` there.
+`Core\Sse::startStream` ends with its own events, so `receive()` throws a `LogicError` there.
 
 **The examples below** forward every update to the client, show that only subscribed topics arrive,
 and send the steps of a deployment to a status page.

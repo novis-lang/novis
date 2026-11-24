@@ -10,7 +10,7 @@ class Notice
     }
 }
 
-// `Core\Sse::stream()` opens the stream. Every event prints as the client receives it.
-Core\Sse::stream();
+// `Core\Sse::startStream()` opens the stream. Every event prints as the client receives it.
+Core\Sse::startStream();
 // This prints `event: notice` and then `data: your order has shipped`.
 Notice::send('your order has shipped');

@@ -52,8 +52,8 @@
 //!
 //! **Two typed members in one handler are refused here too, and one member
 //! called twice is not.** What the rule says is that a body has one writer, so
-//! the disagreement needs two *different* writers to exist: `text` then `json`
-//! declares the body's type twice over, while `text` then `text` declares one
+//! the disagreement needs two *different* writers to exist: `sendText` then `sendJson`
+//! declares the body's type twice over, while `sendText` then `sendText` declares one
 //! thing twice and is a handler writing its whole body one way. The corpus
 //! depends on that second half — a body member written in a loop is an
 //! ordinary program — so the roster is compared by the writer's name and never
@@ -61,7 +61,7 @@
 //!
 //! **The roster spans two classes.** A body written over time has a spelling
 //! on each of `rule:concurrency/two-doors-one-isolate`'s doors, and
-//! `Core\Response::stream` and `Core\Sse::stream` open the same cell and
+//! `Core\Response::startStream` and `Core\Sse::startStream` open the same cell and
 //! declare a content type each — so `echo` beside either is the same
 //! disagreement, and the two of them together are two writers of one body.
 //!
@@ -71,7 +71,7 @@
 //! handler, because the runtime throws `LogicError` for it on every host, so a
 //! `.nvst` case or a CLI program meets it too. See [`is_later`].
 //!
-//! **A callable passed to `Core\Task::afterResponse` may not call any of them
+//! **A callable passed to `Core\Task::runAfterResponse` may not call any of them
 //! either** (`rule:concurrency/deferred-work-cannot-write-the-response`), with
 //! the same lexical reach and its own code, because the response is already on
 //! the wire when it runs. See [`is_after_response`].
@@ -91,7 +91,7 @@ use crate::{Ctx, Env};
 /// member is being landed either way: an unregistered name is reported as
 /// `E0405` *beside* this refusal rather than instead of it.
 ///
-/// The two `stream` rows are not that table's: a body written over time is
+/// The two `startStream` rows are not that table's: a body written over time is
 /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
 /// subject, and it has one spelling on each of
 /// `rule:concurrency/two-doors-one-isolate`'s doors. Both belong here for this
@@ -100,16 +100,16 @@ use crate::{Ctx, Env};
 /// carries, reached through the machinery already here rather than through a
 /// second rule that would have to agree with this one. The class is carried
 /// beside the name because of them: every other row is a `Core\Response`
-/// member, and a name list could not tell `Core\Sse::stream` from an
-/// unrelated `stream` on some other `Core` class.
+/// member, and a name list could not tell `Core\Sse::startStream` from an
+/// unrelated `startStream` on some other `Core` class.
 const BODY_MEMBERS: [(&str, &str); 7] = [
-    ("Response", "html"),
-    ("Response", "json"),
-    ("Response", "text"),
-    ("Response", "bytes"),
+    ("Response", "sendHtml"),
+    ("Response", "sendJson"),
+    ("Response", "sendText"),
+    ("Response", "sendBytes"),
     ("Response", "sendFile"),
-    ("Response", "stream"),
-    ("Sse", "stream"),
+    ("Response", "startStream"),
+    ("Sse", "startStream"),
 ];
 
 /// What has written the body of the body being checked, so far.
@@ -137,7 +137,7 @@ pub(crate) struct BodyWriters {
     /// Whether a `Core\Html::later` call's arguments are being checked — see
     /// [`is_later`].
     pub(crate) in_later: bool,
-    /// Whether a `Core\Task::afterResponse` call's arguments are being checked
+    /// Whether a `Core\Task::runAfterResponse` call's arguments are being checked
     /// — see [`is_after_response`].
     pub(crate) in_after_response: bool,
     /// The body reads this handler's body wrote — see
@@ -187,11 +187,11 @@ impl BodyWriters {
 }
 
 /// The members that change the response head, which a callable passed to
-/// `Core\Html::later` or to `Core\Task::afterResponse` may not call:
+/// `Core\Html::later` or to `Core\Task::runAfterResponse` may not call:
 /// [`BODY_MEMBERS`], plus these.
 ///
 /// The same list as `nvs_stdlib::response::head_open`'s callers, plus
-/// `slotted`, whose `Ctx::make_slotted` throws in a slot because the main
+/// `sendSlotted`, whose `Ctx::make_slotted` throws in a slot because the main
 /// script is over. Each throws `LogicError` inside a slot at run time; this is
 /// the half of `rule:core-classes/html-later`'s refusal the checker can see.
 ///
@@ -203,7 +203,7 @@ impl BodyWriters {
 /// sends a header.
 const HEAD_MEMBERS: [(&str, &str); 14] = [
     ("Response", "setStatus"),
-    ("Response", "slotted"),
+    ("Response", "sendSlotted"),
     ("Response", "setHeader"),
     ("Response", "redirect"),
     ("Response", "addCookie"),
@@ -234,7 +234,7 @@ pub(crate) fn is_later(qname: &QName, member: &str) -> bool {
         && member == "later"
 }
 
-/// Whether `qname::member` is `Core\Task::afterResponse`, whose argument list
+/// Whether `qname::member` is `Core\Task::runAfterResponse`, whose argument list
 /// is checked with [`BodyWriters::in_after_response`] set.
 ///
 /// The reach is [`is_later`]'s: the whole argument list, lexically. A callable
@@ -244,12 +244,12 @@ pub(crate) fn is_after_response(qname: &QName, member: &str) -> bool {
     qname.is_core()
         && qname.segments().len() == 2
         && qname.short_name() == "Task"
-        && member == "afterResponse"
+        && member == "runAfterResponse"
 }
 
 /// A resolved `Core\Class::member(...)` call, refused when it changes the
 /// response inside a callable passed to `Core\Html::later` or to
-/// `Core\Task::afterResponse`.
+/// `Core\Task::runAfterResponse`.
 pub(crate) fn reject_response_change(qname: &QName, member: &str, span: Span, env: &mut Env<'_>) {
     let writers = &env.body_writers;
     if !(writers.in_later || writers.in_after_response)
@@ -279,11 +279,11 @@ pub(crate) fn reject_response_change(qname: &QName, member: &str, span: Span, en
                 code::E_DEFERRED_WRITES_THE_RESPONSE,
                 format!(
                     "`Core\\{class}::{member}` changes {changes}, and a callable passed to \
-                     `Core\\Task::afterResponse` runs after the response was sent"
+                     `Core\\Task::runAfterResponse` runs after the response was sent"
                 ),
             )
             .with_primary(span, format!("this call changes {changes}"))
-            .with_help("make this call in the main script, before `Core\\Task::afterResponse`"),
+            .with_help("make this call in the main script, before `Core\\Task::runAfterResponse`"),
         );
         return;
     }
@@ -369,7 +369,7 @@ pub(crate) fn note_body_member(qname: &QName, member: &str, span: Span, env: &mu
     env.body_writers.member = Some((span, label));
 }
 
-/// `` `Core\Response::json` ``, quoted for a message — `None` where
+/// `` `Core\Response::sendJson` ``, quoted for a message — `None` where
 /// `qname::member` is not one of [`BODY_MEMBERS`].
 fn body_member_label(qname: &QName, member: &str) -> Option<String> {
     if !qname.is_core() || qname.segments().len() != 2 {

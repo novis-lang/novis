@@ -61,7 +61,7 @@ scope = "host"
 connect = ["hooks.example.com"]
 ```
 
-Both entries start the same script. `Core\Script::args()` returns the entry's `name` and `on`. The
+Both entries start the same script. `Core\Script::arguments()` returns the entry's `name` and `on`. The
 value of `on` is the event, for example `"start"`. When you run the script by hand, the result is
 `null`:
 

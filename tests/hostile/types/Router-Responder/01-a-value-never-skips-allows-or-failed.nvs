@@ -63,7 +63,7 @@ class Gate implements Core\Router\Responder
         }
         echo 'respond ran';
         if ($value is Core\Html\Markup) {
-            Core\Response::html($value);
+            Core\Response::sendHtml($value);
         }
     }
 }

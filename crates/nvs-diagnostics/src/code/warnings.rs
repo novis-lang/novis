@@ -287,7 +287,7 @@ codes! {
         "This route method reads the request body in another method that it calls. The API \
          document only describes a body that the route method reads itself. So the document has \
          no `requestBody` for this route. Move the `Core\\Request::jsonAs` or \
-         `Core\\Request::postAs` call into the route method.",
+         `Core\\Request::formFieldsAs` call into the route method.",
     );
     /// A key in `[settings]`, `[secrets]`, `[app.settings]` or `[app.secrets]`
     /// that no program the tree names reads with `Core\Config::setting` or

@@ -31,11 +31,11 @@ matches the request, or `null`. [Syntax: routes](/syntax/attributes/routes/) sho
 
 `Core\Request` has a method for each part of the request:
 
-- `Core\Request::query("page")` reads a parameter from the address. It returns `null` if the
+- `Core\Request::queryParameter("page")` reads a parameter from the address. It returns `null` if the
   address has no `page`.
-- `Core\Request::queryArray("tag")` reads a parameter with brackets, such as `tag[]=a&tag[]=b`, as
+- `Core\Request::queryParameters("tag")` reads a parameter with brackets, such as `tag[]=a&tag[]=b`, as
   an array.
-- `Core\Request::postAs<Contact>()` reads a form into an instance of your class.
+- `Core\Request::formFieldsAs<Contact>()` reads a form into an instance of your class.
 - `Core\Request::jsonAs<Order>()` reads a JSON body into an instance of your class.
 - `Core\Request::header("accept")` reads one header.
 
@@ -46,7 +46,7 @@ Every text value from the request is `tainted`. Read
 
 `echo` writes the body. `Core\Response::setStatus` sets the status code, and
 `Core\Response::setHeader` sets a header. The status is `200` when you do not set one.
-`Core\Response::json` and `Core\Response::redirect` write a whole response in one call.
+`Core\Response::sendJson` and `Core\Response::redirect` write a whole response in one call.
 
 To build a link to another page, use `Core\Router::url` with the name of the route. It adds the
 right prefix when the application is mounted under a path such as `/shop`.

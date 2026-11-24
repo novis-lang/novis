@@ -14,4 +14,4 @@ try {
 // This value has no space, so the cookie is added.
 Core\Response::addCookie('name', 'Ada_Lovelace');
 
-Core\Response::text($answer . "\n");
+Core\Response::sendText($answer . "\n");

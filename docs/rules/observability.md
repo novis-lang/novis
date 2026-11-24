@@ -154,7 +154,7 @@ log line to the trace that produced it — the single highest-value thing an obs
 ```nvs
 Core\Metrics::increment(string $name, {by?: uint, labels?: array<string, string>}): void;
 Core\Metrics::observe(string $name, float $value, {labels?: array<string, string>}): void;
-Core\Metrics::gauge(string $name, float $value, {labels?: array<string, string>}): void;
+Core\Metrics::setGauge(string $name, float $value, {labels?: array<string, string>}): void;
 ```
 
 `increment` for a counter, `observe` for a histogram, `gauge` for a point-in-time value: three

@@ -22,7 +22,7 @@ foreach (Core\Request::files() as Core\Request\Part $part) {
 
 // Form fields and file parts are separated by the same parse, and `post()`
 // answers only the former (`rule:http-server/a-part-is-a-file-iff-it-carries-a-filename`). Its `?tainted string` is a form value, never a part.
-Core\Request\Part $viaPost = Core\Request::post("upload");
+Core\Request\Part $viaPost = Core\Request::formField("upload");
 
 // The raw body is the bytes, undivided. A program that wants the parts
 // asks the member that yields them rather than re-deriving them from here,

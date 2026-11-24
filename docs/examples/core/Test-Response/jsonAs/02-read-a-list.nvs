@@ -19,7 +19,7 @@ class Product
 
 if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. It sends a list of two products.
-    Core\Response::json([['sku' => 'mug-7', 'price' => 12], ['sku' => 'cup-2', 'price' => 8]]);
+    Core\Response::sendJson([['sku' => 'mug-7', 'price' => 12], ['sku' => 'cup-2', 'price' => 8]]);
 } else {
     var $response = Test::request(Method::Get, '/products');
 

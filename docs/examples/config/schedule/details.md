@@ -7,7 +7,7 @@ The server waits for a `stop` run, up to `[server] drain_timeout`. A `stop` run 
 when the server crashes, is killed or loses power. To learn that a server is down, you still need a
 monitor outside it.
 
-`Core\Script::args()` returns a map. It has the entry's `name`, and the event in `on`. A `cron`
+`Core\Script::arguments()` returns a map. It has the entry's `name`, and the event in `on`. A `cron`
 run has `"on" => "cron"`. A `reload` run also has `outcome`, which is `"applied"` or `"refused"`.
 It also has `restart`, the names of the settings that need a restart. `programs` is the number of
 programs the reload replaced with new code. `failed` is the number of loaded programs that do not

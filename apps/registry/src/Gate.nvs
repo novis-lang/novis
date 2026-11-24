@@ -30,12 +30,12 @@ final class Gate implements Core\Router\Gate
             Refusal::BodyTooLarge => 'The request is too large.',
             default => 'This request is not allowed.',
         };
-        Response::json({ error: $text });
+        Response::sendJson({ error: $text });
     }
 
     // Writes the error when a route method throws an error. The status code is 500.
     public function failed(?Core\Router\Match $route, ?Throwable $error): void
     {
-        Response::json({ error: 'Something went wrong.' });
+        Response::sendJson({ error: 'Something went wrong.' });
     }
 }

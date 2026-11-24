@@ -4,7 +4,7 @@
 // hostile: expect-refusal
 
 // 1. The name comes from the web address, such as `x' OR '1' = '1`.
-tainted string $name = Core\Request::query('name') ?? '';
+tainted string $name = Core\Request::queryParameter('name') ?? '';
 var $sql = Core\Str::format("SELECT * FROM users WHERE name = '%s'", $name);
 var $db = Core\Db::connect('main');
 var $rows = $db->query($sql, []);

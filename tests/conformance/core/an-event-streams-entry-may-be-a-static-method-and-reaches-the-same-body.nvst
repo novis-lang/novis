@@ -5,7 +5,7 @@
 // `rule:concurrency/two-doors-one-isolate` gives this member "the identical clause" its sibling takes, so
 // the operand is `rule:concurrency/an-upgrade-is-spawn-shaped`'s under
 // `rule:security/isolate-shares-nothing`: a file path, or a static
-// method whose parameters `args:` binds by name. This case is the accepted
+// method whose parameters `arguments:` binds by name. This case is the accepted
 // half of that rule at the second door;
 // `an-upgrade-refuses-an-entry-it-cannot-see-the-function-behind.nvst` is the
 // refused half, written once at the first.
@@ -24,7 +24,7 @@ class Feed {
 // form still cannot prepare once there is a cell to prepare it into, and it is
 // one rule for both doors.
 try {
-    Core\Sse::upgrade(Feed::run, args: {room: "lobby"});
+    Core\Sse::upgrade(Feed::run, arguments: {room: "lobby"});
     echo "opened\n";
 } catch (RuntimeError $refused) {
     echo $refused->message, "\n";

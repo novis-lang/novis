@@ -1,5 +1,5 @@
 //! `rule:concurrency/after-response-outlives-the-connection`'s
-//! after-response work: what `Core\Task::afterResponse` registered, and the one
+//! after-response work: what `Core\Task::runAfterResponse` registered, and the one
 //! place it runs.
 //!
 //! # When "after the response" is, on a host that has no response
@@ -29,7 +29,7 @@
 //! child and the deferred callables below, which run as children
 //! themselves — is born **sealed**. A registration made on one would be drained
 //! by nobody and released when that child ended, so a refusal is the only
-//! honest answer: `Core\Task::afterResponse` throws the `RuntimeError` `rule:concurrency/after-response-outlives-the-connection`'s
+//! honest answer: `Core\Task::runAfterResponse` throws the `RuntimeError` `rule:concurrency/after-response-outlives-the-connection`'s
 //! last bullet names, at the call site, while there is still a request to
 //! decide what to do about it. What this costs is a `Core\Task::all` child that
 //! wants to defer having to hand the work back to the request that started it;
@@ -75,7 +75,7 @@
 //! is [`Deferred`]'s own sentence about cost, which is one held arena per tree.
 //!
 //! [`DeferError::AtCapacity`] is the whole of the refusal, and it happens
-//! **before** anything is queued: `Core\Task::afterResponse` turns it into the
+//! **before** anything is queued: `Core\Task::runAfterResponse` turns it into the
 //! `RuntimeError` `rule:concurrency/a-full-deferred-executor-throws` names, at the call site, while the request is still
 //! running and can still decide what to do about it. It does not queue and it
 //! does not wait, for the reason that section gives — an unbounded queue in
@@ -116,7 +116,7 @@ use crate::host::{Bounds, Job, Outcome};
 use crate::value::Value;
 
 /// Why a registration was refused — [`Ctx::defer`]'s answers, which
-/// `Core\Task::afterResponse` renders as `RuntimeError` messages of their own
+/// `Core\Task::runAfterResponse` renders as `RuntimeError` messages of their own
 /// because each obliges a caller to do something different.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeferError {
@@ -176,7 +176,7 @@ pub fn trees_in_flight() -> u64 {
     TREES.with(Cell::get)
 }
 
-/// One `Core\Task::afterResponse` registration — a callable this context owns a
+/// One `Core\Task::runAfterResponse` registration — a callable this context owns a
 /// reference to, and the deadline the call resolved to.
 #[derive(Debug)]
 pub struct Deferred {
@@ -189,7 +189,7 @@ pub struct Deferred {
     pub(crate) deadline_nanos: u64,
 }
 
-/// Runs everything `Core\Task::afterResponse` registered on this request, in
+/// Runs everything `Core\Task::runAfterResponse` registered on this request, in
 /// registration order, and seals the queue.
 ///
 /// Called by whoever ran the request's own frame, immediately after it returned
@@ -222,7 +222,7 @@ pub fn run_deferred(ctx: &mut Ctx) -> Option<String> {
 }
 
 impl Ctx {
-    /// Whether this context runs `Core\Task::afterResponse` work, or a task it
+    /// Whether this context runs `Core\Task::runAfterResponse` work, or a task it
     /// started. Every `Core` member that changes the response throws
     /// `LogicError` when this holds
     /// (`rule:concurrency/deferred-work-cannot-write-the-response`).
@@ -465,7 +465,7 @@ mod tests {
         static STILL_STANDING: Cell<Option<bool>> = const { Cell::new(None) };
     }
 
-    /// The `Core\Task::afterResponse` work the cases below register: it looks for
+    /// The `Core\Task::runAfterResponse` work the cases below register: it looks for
     /// the temporary directory the request was handed and records whether it
     /// was still standing when the queue drained.
     #[expect(

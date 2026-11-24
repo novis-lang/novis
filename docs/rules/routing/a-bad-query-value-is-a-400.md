@@ -21,7 +21,7 @@ lines of one signature knows they fail two ways.
 (`rule:errors/ambiguous-input-refused`). So is a bracketed key such as `page[]=1`, which builds a list.
 
 `Core\Router::dispatch` binds each `#[Query]` parameter when it calls a route method, after the match
-and before `allows`. It reads the query string through the parser `Core\Request::query()` uses, once per
+and before `allows`. It reads the query string through the parser `Core\Request::queryParameter()` uses, once per
 request and only for a route that declares a `#[Query]` parameter, so a route without one costs nothing
 more. An absent optional key gives the declared default. Every failure above is `refused` with
 `BadCapture` and the match.

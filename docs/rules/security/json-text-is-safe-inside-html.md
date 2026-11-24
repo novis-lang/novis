@@ -21,7 +21,7 @@ every string with, beside JSON's own escapes, in the same pass over the string's
 the compact and the pretty profile, to keys and values, and to each piece of `Core\Json::encodeEach`.
 `{ escapeUnicode: true }` is that same pass with one more class of byte, the first byte of a non-ASCII
 character, so it is no second pass over the output either. Every other
-member that writes a program's values as JSON goes through that encoder: `Core\Response::json`,
+member that writes a program's values as JSON goes through that encoder: `Core\Response::sendJson`,
 `Core\Http\Client`'s `json` option, `Core\Sse`'s payload, `Core\Queue`'s job arguments and `Core\Jwt`'s
 claims.
 

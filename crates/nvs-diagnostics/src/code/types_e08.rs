@@ -73,7 +73,7 @@ codes! {
     // `E0804` is retired and is never reused: it refused a method entry that
     // declared a parameter. `rule:security/isolate-shares-nothing`'s binding lowers — the
     // entry's parameter names ride on the spawn symbol and
-    // `nvs_stdlib::script` binds `args:`'s entries to them by name — so that
+    // `nvs_stdlib::script` binds `arguments:`'s entries to them by name — so that
     // shape is the shape that runs, and a mismatch is the ordinary
     // named-argument error that rule names, raised at the spawn.
 
@@ -815,16 +815,16 @@ codes! {
          `Novis\\Image\\Image::info` and not `Novis\\Image\\Codec::info`.",
     );
     /// A call that writes the response — a status, a header, a redirect, a
-    /// cookie, a body method, `Core\Response::slotted` or any `Core\Session`
+    /// cookie, a body method, `Core\Response::sendSlotted` or any `Core\Session`
     /// write — written inside the callable passed to
-    /// `Core\Task::afterResponse`. The same call throws `LogicError` at run
+    /// `Core\Task::runAfterResponse`. The same call throws `LogicError` at run
     /// time (`rule:concurrency/deferred-work-cannot-write-the-response`), and
     /// this is its compile-time half, where the checker sees the anonymous
     /// function written in place.
     pub const E_DEFERRED_WRITES_THE_RESPONSE: Code = Code::new("E0857").card(
-        "The function passed to `Core\\Task::afterResponse` runs after the response was sent. \
+        "The function passed to `Core\\Task::runAfterResponse` runs after the response was sent. \
          It cannot change the status, the headers, the cookies, the body or the session of \
-         the response. Make this call in the main script, before `Core\\Task::afterResponse`.",
+         the response. Make this call in the main script, before `Core\\Task::runAfterResponse`.",
     );
 
     /// `clone` of a call to a generator — `rule:iteration/generator-stays-in-one-isolate`.

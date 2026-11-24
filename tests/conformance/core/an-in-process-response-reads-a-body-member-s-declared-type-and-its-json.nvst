@@ -1,5 +1,5 @@
 --TEST--
-an in-process response reads the media type `Core\Response::bytes` declared as its one `Content-Type` line, and `json` and `jsonAs` apply their `maxDepth` to that body whatever the type says — `rule:testing/in-process-request`
+an in-process response reads the media type `Core\Response::sendBytes` declared as its one `Content-Type` line, and `json` and `jsonAs` apply their `maxDepth` to that body whatever the type says — `rule:testing/in-process-request`
 --FILE--
 <?nvs
 // covers: Core\Test\Response::header, Core\Test\Response::headers, Core\Test\Response::cookies, Core\Test\Response::json, Core\Test\Response::jsonAs
@@ -24,10 +24,10 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     if ($path == "/problem") {
         Core\Response::setStatus(422);
-        Core\Response::bytes("{\"title\":\"bad\",\"status\":422}" as bytes, "application/problem+json");
+        Core\Response::sendBytes("{\"title\":\"bad\",\"status\":422}" as bytes, "application/problem+json");
     }
     if ($path == "/plain") {
-        Core\Response::text("{\"title\":\"plain\",\"status\":200}");
+        Core\Response::sendText("{\"title\":\"plain\",\"status\":200}");
     }
 } else {
     var $problem = Core\Test::request(Core\Http\Method::Post, "/problem");

@@ -4,7 +4,7 @@
 <?nvs
 // `rule:concurrency/an-upgrade-is-spawn-shaped` makes the operand `spawn script`'s, and `rule:security/isolate-shares-nothing`
 // gives that operand two spellings: a file path, and a static method whose
-// parameters `args:` binds by name. This case is the accepted half of the rule
+// parameters `arguments:` binds by name. This case is the accepted half of the rule
 // at this second site; `an-upgrade-refuses-an-entry-it-cannot-see-the-function-
 // behind.nvst` is the refused half, and the two together are the whole of it.
 class Chat {
@@ -21,7 +21,7 @@ class Chat {
 // `nvs_stdlib::socket`'s § *The method form waits on a name* owns what this
 // form still cannot prepare once there is a slot to prepare it into.
 try {
-    Core\Socket::upgrade(Chat::run, args: {room: "lobby"});
+    Core\Socket::upgrade(Chat::run, arguments: {room: "lobby"});
     echo "upgraded\n";
 } catch (RuntimeError $refused) {
     echo $refused->message, "\n";

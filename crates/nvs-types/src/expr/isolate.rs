@@ -9,7 +9,7 @@
 //! sub-cap a program may narrow (`E0454`), and an operand that is neither a
 //! path nor a static method (`E0802`). [`check_entry`] owns the operand rule
 //! itself, [`check_spawn_script`] owns what each option is typed as, and
-//! [`check_literal_args`] compares a literal `args:` map against a method
+//! [`check_literal_args`] compares a literal `arguments:` map against a method
 //! entry's parameters.
 //!
 //! **The operand rule has a second site and no second implementation.**
@@ -47,7 +47,7 @@
 //!   exception* gives a program nothing to do with a handle but `await` it, and
 //!   the property such a class cannot have is the property this one must not
 //!   have. `Core\Task` beside `Core\Task\Channel<T>` is the same pairing
-//!   already on disk, so `Core\Script::args()` (item 22) and this class sit
+//!   already on disk, so `Core\Script::arguments()` (item 22) and this class sit
 //!   together under `rule:classes/no-free-functions-or-constants` exactly as those two do.
 //! - **The result is an `rule:types/shape-type` shape**, not a class. `$result->ok` is
 //!   read on the next line, and a class read with `->` is the one thing this
@@ -132,7 +132,7 @@ const SPAWN_SCRIPT: &str = "spawn script";
 ///
 /// # What each option is typed as
 ///
-/// `args:` is the value that crosses and has no expected type, for the reason
+/// `arguments:` is the value that crosses and has no expected type, for the reason
 /// the arm below gives. `output:` is the spelling that chooses a sink. The
 /// three that narrow a child take the shapes their enforcement reads:
 ///
@@ -217,11 +217,11 @@ pub(crate) fn check_spawn_script(
 }
 
 /// `rule:security/isolate-shares-nothing`'s named-argument agreement, at compile time, between a
-/// method entry and the `args:` map its spawn writes as a literal.
+/// method entry and the `arguments:` map its spawn writes as a literal.
 ///
 /// It asks what `nvs_stdlib::script`'s `entry_names_agree` asks at the spawn, and gets the same
 /// answer: every parameter the entry declares is a key of the map, and the map has no key the
-/// entry does not declare. A spawn with no `args:` passes no keys at all. A map is compared only
+/// entry does not declare. A spawn with no `arguments:` passes no keys at all. A map is compared only
 /// when every entry is `"name" => value`. A positional entry, a spread or a computed key leaves the
 /// question to the spawn, which reports either mismatch when it runs.
 ///
@@ -341,8 +341,8 @@ fn check_literal_args(path: &Expr, map: Option<&Expr>, env: &mut Env<'_>) {
 ///   `static` and is refused by [`reject_instance_method_entry`] when it is
 ///   not. It lowers to its own `Core` symbol (`nvs_ir::lower`'s
 ///   `lower_spawn_script`), carrying the entry's parameter names, and
-///   `nvs_stdlib::script` binds `args:`'s entries to them by name. A literal
-///   `args:` map is compared against those names by [`check_literal_args`].
+///   `nvs_stdlib::script` binds `arguments:`'s entries to them by name. A literal
+///   `arguments:` map is compared against those names by [`check_literal_args`].
 fn check_entry(path: &Expr, live: &mut Live, scope: &LocalScope, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // Checked first and on every path: a typo *inside* the operand is worth
     // reporting whichever of the three it turns out to be, and with no expected
@@ -452,7 +452,7 @@ fn reject_instance_method_entry(path: &Expr, form: &str, env: &mut Env<'_>) {
 /// from [`check_spawn_script`], with only the clause naming the carrier
 /// differing. The mark identifies the member for both: an isolate opener is
 /// what a row declaring an entry *is*, so the second rule needs no second
-/// mark, and a `Core\Socket::upgrade` whose `args:` quietly carried a `secret`
+/// mark, and a `Core\Socket::upgrade` whose `arguments:` quietly carried a `secret`
 /// where the sibling construct refuses one would be a hole in a boundary
 /// rather than a missing convenience.
 ///

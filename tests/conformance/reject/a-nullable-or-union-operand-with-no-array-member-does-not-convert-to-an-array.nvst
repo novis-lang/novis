@@ -4,7 +4,7 @@ only another array converts to an `array<T>`, so a nullable or union operand wit
 <?nvs
 ?string $maybe = null;
 array<string> $a = $maybe as array<string>;
-?tainted string $field = Core\Request::query("ids");
+?tainted string $field = Core\Request::queryParameter("ids");
 array<tainted string> $b = $field as array<string>;
 string|int $either = 1;
 array<string> $c = $either as array<string>;

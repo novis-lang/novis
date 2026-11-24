@@ -1,4 +1,4 @@
-The compiler records each `Core\Request::jsonAs<T>()` and `Core\Request::postAs<T>()` call written
+The compiler records each `Core\Request::jsonAs<T>()` and `Core\Request::formFieldsAs<T>()` call written
 directly in a route handler's body, and the route's row carries what it found: the body is `T`, as JSON
 for `jsonAs` and as a form for `postAs`. The API document writes it as the operation's `requestBody`,
 with `T`'s schema under `application/json` or `application/x-www-form-urlencoded`

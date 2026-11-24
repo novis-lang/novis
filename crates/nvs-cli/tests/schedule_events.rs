@@ -2,7 +2,7 @@
 //! built `nvs serve` with a `[[schedule]]` entry for each event, and the file
 //! each entry's script writes when it runs.
 //!
-//! Every event script writes `Core\Script::args()` as JSON to a file beside
+//! Every event script writes `Core\Script::arguments()` as JSON to a file beside
 //! itself, so a case waits for that file and reads the map the run was given.
 //! Nothing waits on time: each wait polls for a file or a log line until
 //! [`BOUND`] runs out, and the failure message carries what the server wrote.
@@ -40,7 +40,7 @@ const THROWING: &str = "<?nvs\nthrow new RuntimeError(\"ticked\");\n";
 
 /// A script that writes the map it was given, as JSON, to `jobs/<file>`.
 fn recording(file: &str) -> String {
-    format!("<?nvs\nCore\\IO::write('{file}', Core\\Json::encode(Core\\Script::args()));\n")
+    format!("<?nvs\nCore\\IO::write('{file}', Core\\Json::encode(Core\\Script::arguments()));\n")
 }
 
 /// A `[[schedule]]` entry named `name` that runs `jobs/<name>.nvs` on `event`.

@@ -1,5 +1,5 @@
 --TEST--
-A `spawn script` method entry checks each `args:` entry against the declared type of its parameter: an object of another class, an array with a wrong element and an enum value no case has each end the child with a `LogicError` before the method runs — `rule:security/isolate-shares-nothing`
+A `spawn script` method entry checks each `arguments:` entry against the declared type of its parameter: an object of another class, an array with a wrong element and an enum value no case has each end the child with a `LogicError` before the method runs — `rule:security/isolate-shares-nothing`
 --FILE nvs.toml--
 # `spawn script` needs `script.spawn`, and a case with no configuration cannot spawn.
 [capabilities.script]

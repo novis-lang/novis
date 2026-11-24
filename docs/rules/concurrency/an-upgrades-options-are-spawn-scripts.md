@@ -1,4 +1,4 @@
-An upgrade takes `args`, `limits`, `grants` and `on` — the same four options a spawned script spells
+An upgrade takes `arguments`, `limits`, `grants` and `on` — the same four options a spawned script spells
 after its operand, with identical meaning and identical spelling (`limits: {memory: "8M"}`). They are
 ordinary named arguments here rather than a `with(…)` clause because `upgrade` is a method, and a
 `with(…)` written inside an argument list would read as a call to a function named `with`. Both

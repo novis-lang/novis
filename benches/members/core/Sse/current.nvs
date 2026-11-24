@@ -19,5 +19,5 @@ class Bench
 }
 
 // `current()` needs an open stream, so the program opens one first.
-Core\Sse::stream();
+Core\Sse::startStream();
 echo Bench::run(256), "\n";

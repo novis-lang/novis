@@ -10,18 +10,18 @@ an unqualified shape written at a Core\Request decode site names the field and t
 // `rule:core-classes/derive-attribute`'s deriving class, whose property is reported at its
 // declaration by the same code.
 var $body = Core\Request::jsonAs<{name: string}>();
-var $query = Core\Request::queryAs<{q: string}>();
-var $form = Core\Request::postAs<{email: string}>();
+var $query = Core\Request::queryParametersAs<{q: string}>();
+var $form = Core\Request::formFieldsAs<{email: string}>();
 
 // A field carrying no text is not in the diagnosis at all -- an `int` holds no
 // octets a sink could read, so a shape of them needs no qualifier and this
 // line is silent.
-var $page = Core\Request::queryAs<{page: int}>();
+var $page = Core\Request::queryParametersAs<{page: int}>();
 
 // `tainted {…}` is the answer to the verbosity rather than an opt-out, and it
 // distributes to every text-carrying field, so one word answers a shape of two
 // and this line is silent as well.
-var $ok = Core\Request::postAs<tainted {email: string, note: string}>();
+var $ok = Core\Request::formFieldsAs<tainted {email: string, note: string}>();
 echo "unreachable\n";
 --EXPECT--
 
@@ -29,10 +29,10 @@ echo "unreachable\n";
 error[E0810]: `name` is declared `string` in `{ name: string }`, and `Core\Request::jsonAs` fills it with text from outside the program
   --> case.nvs:9:34
 %A
-error[E0810]: `q` is declared `string` in `{ q: string }`, and `Core\Request::queryAs` fills it with text from outside the program
+error[E0810]: `q` is declared `string` in `{ q: string }`, and `Core\Request::queryParametersAs` fills it with text from outside the program
    --> case.nvs:10:36
 %A
-error[E0810]: `email` is declared `string` in `{ email: string }`, and `Core\Request::postAs` fills it with text from outside the program
+error[E0810]: `email` is declared `string` in `{ email: string }`, and `Core\Request::formFieldsAs` fills it with text from outside the program
    --> case.nvs:11:34
 %A
 error: aborting due to 3 errors

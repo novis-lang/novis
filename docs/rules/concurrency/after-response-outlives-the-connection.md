@@ -1,8 +1,8 @@
-`Core\Task::afterResponse(callable $fn, {deadline?}): void` registers work to run once the request
+`Core\Task::runAfterResponse(callable $fn, {deadline?}): void` registers work to run once the request
 is done with:
 
 ```nvs
-Task::afterResponse(fn(): void => Receipts::send($order), {deadline: 30s});
+Task::runAfterResponse(fn(): void => Receipts::send($order), {deadline: 30s});
 return $response;         // the client has its bytes; the receipt is still going out
 ```
 

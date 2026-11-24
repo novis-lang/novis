@@ -18,4 +18,4 @@ if (Core\Request::cookie('remember') != null) {
     $said = $said . ' Deleted: remember';
 }
 
-Core\Response::text($said . "\n");
+Core\Response::sendText($said . "\n");

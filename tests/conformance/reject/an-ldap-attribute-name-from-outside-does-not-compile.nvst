@@ -7,9 +7,9 @@
 // The count of errors is the assertion.
 var $corp = Core\Ldap::connect("corp-accounts");
 string $person = "CN=Lena Vogt,OU=Bakery,DC=example,DC=test";
-tainted string $field = Core\Request::post("field") ?? "title";
-tainted string $value = Core\Request::post("value") ?? "Baker";
-array<tainted string> $form = Core\Request::postArray("entry");
+tainted string $field = Core\Request::formField("field") ?? "title";
+tainted string $value = Core\Request::formField("value") ?? "Baker";
+array<tainted string> $form = Core\Request::formFields("entry");
 
 $corp->add($person, ["objectClass" => "user", $field => $value]);
 $corp->add($person, $form);

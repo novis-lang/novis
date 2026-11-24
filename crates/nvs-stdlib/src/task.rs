@@ -72,7 +72,7 @@
 //! them. There is no `timeout` member and no `race`: a timeout on a group *is*
 //! the `deadline` option, and `race`'s wanted case keeps the name `Task::first`.
 //!
-//! # `afterResponse` is a registration, not a group
+//! # `runAfterResponse` is a registration, not a group
 //!
 //! `rule:concurrency/after-response-outlives-the-connection`'s member shares the class and nothing else: it starts no child, waits
 //! for nothing, and returns while the request is still running. Its whole body
@@ -132,7 +132,7 @@ const DEFERRED_OPTIONS: &[CoreOption] = &[CoreOption {
 /// `Core\Task`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Runs work as tasks. `all()` and `map()` run several tasks at the same time and return \
-            when every one has finished. `afterResponse()` runs one function after the response is \
+            when every one has finished. `runAfterResponse()` runs one function after the response is \
             sent.",
 };
 
@@ -172,7 +172,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&MAP_DOC),
         },
         CoreMethod {
-            name: "afterResponse",
+            name: "runAfterResponse",
             names: &["fn"],
             params: &[
                 CoreTy::CallableSig(&[], &CoreTy::Mixed),
@@ -181,7 +181,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_task_after_response",
+            symbol: "nvs_core_task_run_after_response",
             doc: Some(&AFTER_RESPONSE_DOC),
         },
     ],
@@ -271,7 +271,7 @@ const MAP_DOC: MethodDoc = MethodDoc {
     errors: GROUP_ERRORS,
 };
 
-/// `Core\Task::afterResponse`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Task::runAfterResponse`'s reference card — `rule:core-api/reference-card`.
 const AFTER_RESPONSE_DOC: MethodDoc = MethodDoc {
     short: "Runs `$fn` after the response is sent, so the client does not wait for it. Use it for \
             receipts, webhooks and audit logs. The work is not saved anywhere: if the process \
@@ -296,8 +296,8 @@ const AFTER_RESPONSE_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "RuntimeError",
         desc: "When the call is made inside a task that `Core\\Task::all`, `Core\\Task::map` or \
-               `afterResponse` started. Only the request itself may call it, so return the work \
-               to the request and call `afterResponse` there.",
+               `runAfterResponse` started. Only the request itself may call it, so return the work \
+               to the request and call `runAfterResponse` there.",
     }],
 };
 
@@ -307,7 +307,9 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_task_all" => (nvs_core_task_all as *const ()).cast(),
         "nvs_core_task_map" => return Some(nvs_core_task_map::entry()),
-        "nvs_core_task_after_response" => (nvs_core_task_after_response as *const ()).cast(),
+        "nvs_core_task_run_after_response" => {
+            (nvs_core_task_run_after_response as *const ()).cast()
+        }
         _ => return None,
     }))
 }
@@ -600,7 +602,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Task::afterResponse(callable $fn, {deadline?}): void` — `rule:concurrency/after-response-outlives-the-connection`
+    /// `Core\Task::runAfterResponse(callable $fn, {deadline?}): void` — `rule:concurrency/after-response-outlives-the-connection`
     /// 's deferred work.
     ///
     /// The registration is the whole body, and the two things it does that a
@@ -608,7 +610,7 @@ nvs_runtime::nvs_helper! {
     /// the one home for *when* the callable runs — a host with no response has
     /// to answer that too — and for why the cap counts request trees rather
     /// than callables.
-    fn nvs_core_task_after_response(ctx, args: [2]) {
+    fn nvs_core_task_run_after_response(ctx, args: [2]) {
         // The row's first parameter is `CoreTy::Callable`, so `E0401` refuses a
         // `null` at the call and this guard is unreachable from source: what it
         // catches is a lowering bug, and it is here because the slot it would
@@ -616,7 +618,7 @@ nvs_runtime::nvs_helper! {
         // over.
         if args[0].tag() == Some(Tag::Null) {
             return Err(Fault::fatal(
-                "Core\\Task::afterResponse expected a callable, got null".to_string(),
+                "Core\\Task::runAfterResponse expected a callable, got null".to_string(),
             ));
         }
         // `rule:concurrency/deferred-is-bounded-by-two-directives`: the option the call named, or the tree's own default, both in
@@ -661,7 +663,7 @@ nvs_runtime::nvs_helper! {
             // `rule:concurrency/only-the-request-registers-deferred-work`: retrying cannot help, so the message says what
             // to do instead rather than what went wrong.
             nvs_runtime::deferred::DeferError::Sealed => {
-                "Core\\Task::afterResponse: only the request's own task may defer work, and this \
+                "Core\\Task::runAfterResponse: only the request's own task may defer work, and this \
                  is a child task — a `Core\\Task` child or deferred work itself; \
                  hand it back to the request that started you"
                     .to_string()
@@ -670,7 +672,7 @@ nvs_runtime::nvs_helper! {
             // directive an operator would change and the two things the
             // program can still do about it.
             nvs_runtime::deferred::DeferError::AtCapacity { cap } => format!(
-                "Core\\Task::afterResponse: this core is already holding {cap} request trees for \
+                "Core\\Task::runAfterResponse: this core is already holding {cap} request trees for \
                  after-response work, which is `[deferred] max_concurrent`; do the work inline, \
                  respond without it, or ask the caller to retry"
             ),
@@ -790,7 +792,7 @@ mod tests {
     /// going down unrun releases both. The same call on a child context is
     /// refused with the sentence that says what to do instead, and keeps
     /// nothing — the queue it would have written is nobody's to drain.
-    // covers: Core\Task::afterResponse
+    // covers: Core\Task::runAfterResponse
     #[test]
     fn after_response_queues_one_reference_on_the_request_and_refuses_a_child() {
         let callable = callable_of(0, counts_a_run);
@@ -809,7 +811,7 @@ mod tests {
         let mut request = Ctx::buffered();
         for _ in 0..2 {
             let answer = nvs_runtime::call(
-                super::nvs_core_task_after_response,
+                super::nvs_core_task_run_after_response,
                 &mut request,
                 &[callable, Value::null()],
             )
@@ -817,7 +819,7 @@ mod tests {
             assert_eq!(
                 answer.tag(),
                 Some(nvs_runtime::Tag::Null),
-                "`afterResponse` returns nothing"
+                "`runAfterResponse` returns nothing"
             );
         }
         assert!(request.has_deferred(), "both registrations are queued");
@@ -835,7 +837,7 @@ mod tests {
             )]
             let mut child = unsafe { request.child() };
             let refused = nvs_runtime::call(
-                super::nvs_core_task_after_response,
+                super::nvs_core_task_run_after_response,
                 &mut child,
                 &[callable, Value::null()],
             );

@@ -12,7 +12,7 @@ class Pages
     #[Core\Access(allow: Core\Audience::Public)]
     public function report(): void
     {
-        Core\Response::json(1);
+        Core\Response::sendJson(1);
 ?>
 <p>footer</p>
 <?nvs
@@ -26,7 +26,7 @@ class Pages
 ?>
 <h1>Receipt</h1>
 <?nvs
-        Core\Response::text("receipt");
+        Core\Response::sendText("receipt");
     }
 
     // The accepted half: page text, a short echo tag and `echo` all write one
@@ -45,9 +45,9 @@ class Pages
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0801]: a response has one body, and this handler writes it with both `Core\Response::json` and the HTML outside `<?nvs ?>`
+error[E0801]: a response has one body, and this handler writes it with both `Core\Response::sendJson` and the HTML outside `<?nvs ?>`
 %A
-error[E0801]: a response has one body, and this handler writes it with both the HTML outside `<?nvs ?>` and `Core\Response::text`
+error[E0801]: a response has one body, and this handler writes it with both the HTML outside `<?nvs ?>` and `Core\Response::sendText`
 %A
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

@@ -1,5 +1,5 @@
 <?nvs
-// `rule:security/isolate-shares-nothing`: a name `args:` holds that the entry does not declare,
+// `rule:security/isolate-shares-nothing`: a name `arguments:` holds that the entry does not declare,
 // or a parameter it omits, is the ordinary named-argument error. The map is built
 // in a variable, so the compiler does not compare it and the spawn reports it.
 // Nothing is started, so this program dies where the spawn is written.

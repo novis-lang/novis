@@ -1,5 +1,5 @@
 Returns the position of the first byte your program writes. The position is counted from the start
-of the whole body. It works on a stream that `Core\Response::stream` started with a `$length`.
+of the whole body. It works on a stream that `Core\Response::startStream` started with a `$length`.
 
 A browser can ask for one part of a body with the request header `Range`. It does this to seek in a
 video or to resume a download. The server reads that header, and `offset()` is where the part

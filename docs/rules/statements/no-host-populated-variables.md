@@ -8,7 +8,7 @@ by a `static` method on a reserved `Core` class, populated per isolate:
 | `$_SESSION` | `Core\Session`, whose first call in a request opens the session |
 | `$_ENV`, `getenv()` | `Core\Env` |
 | `$argv`, `$argc` | `Core\Cli` — the CLI entry point only |
-| `$_ARGS` | `Core\Script::args()` |
+| `$_ARGS` | `Core\Script::arguments()` |
 
 `Core\Server` and `Core\Request` are two classes rather than one, matching the split between facts about
 the server and input the client sent. The value handed back keeps the shape any other boundary value has —

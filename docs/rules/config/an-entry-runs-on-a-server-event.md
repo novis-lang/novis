@@ -21,7 +21,7 @@ with no `cron` does nothing, and `rule:config/a-duplicate-key-is-an-error-and-so
 already refuses a key that does nothing. `nvs_config::schedule::Event::parse` is the one reader of
 the four words, called by the boot check and by the ticker's `arm` alike.
 
-**Every scheduled run reads one map from `Core\Script::args()`, cron runs too:**
+**Every scheduled run reads one map from `Core\Script::arguments()`, cron runs too:**
 `["name" => <entry name>, "on" => "cron" | "start" | "stop" | "reload" | "failed"]`, plus the
 event's own keys below. One shape for every run is simpler than a string for one trigger and a map
 for the other.

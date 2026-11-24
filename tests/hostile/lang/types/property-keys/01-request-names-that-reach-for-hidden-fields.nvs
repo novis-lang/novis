@@ -26,7 +26,7 @@ Account $account = new Account();
 
 // 1. Ten names from the web address: a private name, a protected name, an
 //    empty name, and names with a zero byte, `->`, a space or a wrong letter case.
-array<tainted string> $sent = Core\Request::queryArray('field');
+array<tainted string> $sent = Core\Request::queryParameters('field');
 int $refused = 0;
 foreach ($sent as tainted string $name) {
     ?property<Account> $key = $name as ?property<Account>;
@@ -40,7 +40,7 @@ echo '1: refused ', $refused, ' of ', Core\Arr::count($sent), " names\n";
 
 // 2. The same private name with `as property<Account>`, which throws. It is
 //    caught, so the steps after it still run.
-tainted string $hidden = Core\Request::query('hidden') ?? 'token';
+tainted string $hidden = Core\Request::queryParameter('hidden') ?? 'token';
 try {
     property<Account> $stolen = $hidden as property<Account>;
     echo '2: BAD, read ', $account->$stolen, "\n";
@@ -82,7 +82,7 @@ try {
 
 // 5. A write of text through a key that names an `int` property. This throws,
 //    is caught, and the balance keeps its value.
-property<Account> $balance = Core\Request::query('number') as property<Account>;
+property<Account> $balance = Core\Request::queryParameter('number') as property<Account>;
 try {
     $account->$balance = 'a lot';
     echo "5: BAD, the write finished\n";

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::query` answers the same way for every name it is given when no request arrived, so nothing about the parameter reaches the decision -- `rule:security/request-state-throws-in-an-isolate`
+`Core\Request::queryParameter` answers the same way for every name it is given when no request arrived, so nothing about the parameter reaches the decision -- `rule:security/request-state-throws-in-an-isolate`
 --FILE--
 <?nvs
 // Invariance over a sweep, counted rather than read off a line: `query` is the
@@ -11,22 +11,22 @@
 // not exist.
 uint $refused = 0;
 try {
-    Core\Request::query("id");
+    Core\Request::queryParameter("id");
 } catch (LogicError $ordinary) {
     $refused = $refused + 1;
 }
 try {
-    Core\Request::query("");
+    Core\Request::queryParameter("");
 } catch (LogicError $empty) {
     $refused = $refused + 1;
 }
 try {
-    Core\Request::query("a[b]");
+    Core\Request::queryParameter("a[b]");
 } catch (LogicError $bracketed) {
     $refused = $refused + 1;
 }
 try {
-    Core\Request::query("a name with spaces and %20 in it");
+    Core\Request::queryParameter("a name with spaces and %20 in it");
 } catch (LogicError $unspellable) {
     $refused = $refused + 1;
 }
@@ -36,7 +36,7 @@ echo "every name refused: ", $refused, " of 4\n";
 // the other way: it names the member and never the name, so no spelling of a
 // parameter can be told apart from another by reading it.
 try {
-    Core\Request::query("a[b]");
+    Core\Request::queryParameter("a[b]");
 } catch (LogicError $why) {
     echo $why->message, "\n";
 }
@@ -57,5 +57,5 @@ try {
 echo "its two siblings refused: ", $siblings, " of 2\n";
 --EXPECT--
 every name refused: 4 of 4
-Core\Request::query(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts
+Core\Request::queryParameter(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts
 its two siblings refused: 2 of 2

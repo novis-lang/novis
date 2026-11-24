@@ -35,7 +35,7 @@ const plugin = (await import(join(ROOT, "website/config/tainted-ranges.mjs"))) a
   taintedRanges(): Plugin;
 };
 
-const CODE = ['<?nvs', 'tainted string $q = Core\\Request::query("q") ?? "";', 'echo $q, "é", $q;'].join("\n");
+const CODE = ['<?nvs', 'tainted string $q = Core\\Request::queryParameter("q") ?? "";', 'echo $q, "é", $q;'].join("\n");
 // Reordered on purpose: the tainted bit is found by name, so it is bit 1 here and not the server's.
 const LEGEND: Legend = { tokenTypes: ["namespace", "variable"], tokenModifiers: ["secret", "tainted"] };
 // `$q` tainted, `Core` plain, then `$q` twice on the next line, the second one secret too.

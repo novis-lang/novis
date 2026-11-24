@@ -543,7 +543,7 @@ pub trait Fires {
     ///
     /// `rule:config/a-scheduled-run-is-a-root-isolate`'s shape, and the implementation owes all of
     /// it: the deployment's configuration on the context it is handed, `Isolate::new` with the
-    /// run's args map as the argument the script reads back through `Core\Script::args()` — the
+    /// run's args map as the argument the script reads back through `Core\Script::arguments()` — the
     /// entry's `name`, `fired`'s word under `"on"` and the event's own keys — and
     /// [`nvs_host::Output`] `Capture`, because
     /// a scheduled run's output is logged rather than delivered.

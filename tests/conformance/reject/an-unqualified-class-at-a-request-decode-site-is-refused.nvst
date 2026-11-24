@@ -47,18 +47,18 @@ class Ok {
 }
 
 var $body = Core\Request::jsonAs<Body>();
-var $query = Core\Request::queryAs<Query>();
-var $form = Core\Request::postAs<Form>();
-var $ok = Core\Request::queryAs<Ok>();
+var $query = Core\Request::queryParametersAs<Query>();
+var $form = Core\Request::formFieldsAs<Form>();
+var $ok = Core\Request::queryParametersAs<Ok>();
 echo $body->note, $query->q, $form->email, $ok->term, "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0810]: `Body::$note` is declared `string`, and `Core\Request::jsonAs` fills it with text from outside the program
 %A
-error[E0810]: `Query::$q` is declared `string`, and `Core\Request::queryAs` fills it with text from outside the program
+error[E0810]: `Query::$q` is declared `string`, and `Core\Request::queryParametersAs` fills it with text from outside the program
 %A
-error[E0810]: `Form::$email` is declared `string`, and `Core\Request::postAs` fills it with text from outside the program
+error[E0810]: `Form::$email` is declared `string`, and `Core\Request::formFieldsAs` fills it with text from outside the program
 %A
 error: aborting due to 3 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

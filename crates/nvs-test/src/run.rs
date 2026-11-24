@@ -437,7 +437,7 @@ const TOP_LEVEL_ONLY: [&str; 4] = [
     "Test::request",
     "Command::",
     "Env::context",
-    "afterResponse",
+    "runAfterResponse",
 ];
 
 /// `output` with the program's absolute path written as `case.nvs`.

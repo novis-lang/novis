@@ -147,7 +147,7 @@ use crate::statics;
 pub enum Answer {
     /// The bytes are already here, and go out one frame per chunk.
     ///
-    /// Almost every body is one chunk. A large `Core\Response::json` document
+    /// Almost every body is one chunk. A large `Core\Response::sendJson` document
     /// is many, and sending them one by one is what keeps the document from
     /// being joined into a second copy (`nvs_runtime::Ctx::write_body_chunks`).
     /// The length is still known, so `Content-Length` states it.
@@ -1795,7 +1795,7 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
 /// **Every request is offered a third cell, and that one is answered before its
 /// request has ended.** `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
 /// other spelling is a body written over time by the request's *own* isolate,
-/// so `nvs_runtime::stream::BodySlot` is filled by `Core\Response::stream`
+/// so `nvs_runtime::stream::BodySlot` is filled by `Core\Response::startStream`
 /// while the service future is still waiting, and the wait answers with the
 /// head instead of with a completion. What the peer then reads is written by an
 /// isolate this connection has not joined yet: [`joined_when_ended`] is where
@@ -3466,7 +3466,7 @@ fn switching(accept: &str) -> Response<Answer> {
 /// socket and this one takes nothing but the response the request already had.
 ///
 /// **The status is `200` because the protocol says so**, which is why nothing
-/// here reads what the request declared: `Core\Sse::stream` refuses a program
+/// here reads what the request declared: `Core\Sse::startStream` refuses a program
 /// that set one, and door one's program is a different isolate that never saw
 /// this response at all. The media type and the field lines beside it are
 /// [`nvs_runtime::sse`]'s, read from there by both doors so that one event
@@ -4256,7 +4256,7 @@ pub(crate) mod tests {
     /// fail-open direction is the one that would look identical in every other
     /// test in this file.
     ///
-    /// `Core\Response::bytes` refuses such a string at the member, so nothing
+    /// `Core\Response::sendBytes` refuses such a string at the member, so nothing
     /// a program can write reaches here today; this is the layer below that,
     /// and it is asserted so that it stays a layer rather than becoming a
     /// comment about one.
@@ -7156,7 +7156,7 @@ pub(crate) mod tests {
     /// all was still running when that head went out — asserted with no sleep
     /// and with nothing said about which task happened to run first.
     ///
-    /// It opens the cell directly rather than through `Core\Response::stream`
+    /// It opens the cell directly rather than through `Core\Response::startStream`
     /// for the reason every program in this module is a Rust closure: this
     /// crate compiles nothing. `nvs_stdlib::response`'s own cases are the
     /// member's half, and the `.nvst` corpus is the language's.
@@ -8517,7 +8517,7 @@ pub(crate) mod tests {
         );
     }
 
-    /// `rule:core-classes/html-later`'s `Core\Response::slotted()` works while
+    /// `rule:core-classes/html-later`'s `Core\Response::sendSlotted()` works while
     /// the main script runs and throws `LogicError` once it has ended — from a
     /// `later` slot and from after-response work alike.
     #[test]
@@ -14755,7 +14755,7 @@ pub(crate) mod tests {
 
     /// Serves one request, written as `asked` with its blank line, to a
     /// program that opens a stream over [`RANGED_BODY`] the way
-    /// `Core\Response::stream` does: with `length` and `etag` the decision
+    /// `Core\Response::startStream` does: with `length` and `etag` the decision
     /// runs over the request's headers, and without a length the stream is
     /// chunked. Gives back what the client read before the connection closed,
     /// and the refusal a write past the window met, where the program made one.

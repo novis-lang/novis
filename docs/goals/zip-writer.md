@@ -108,7 +108,7 @@ are framed with a data descriptor (general-purpose bit 3), so the writer never s
   `<path>.<16 hex>.part` and renames it to `$path` in `finish()`. A failed write deletes the part
   file. This is `Workbook::createForFile`'s shape (`extensions/spreadsheet/nvs/Workbook.nvs:83`).
 - `Core\Zip::createForDownload(string $name, uint $level = 6): Core\Zip\Writer` sets
-  `Content-Disposition` and opens `Core\Response::stream('application/zip', null, null, $name)`, so
+  `Content-Disposition` and opens `Core\Response::startStream('application/zip', null, null, $name)`, so
   the headers leave at once and each entry leaves as it is compressed. A download the program never
   finishes is cut off and logged, through `$mustEnd`, as `Workbook::createForDownload` is
   (`Workbook.nvs:70`).

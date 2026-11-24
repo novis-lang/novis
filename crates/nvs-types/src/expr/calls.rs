@@ -894,7 +894,7 @@ pub(crate) fn infer_static_call(
         super::isolate::check_core_isolate_call(owner, name, args, &arg_types, &slots, env);
         // `rule:core-classes/topic`'s bus, the third carrier of the same graph copy: a
         // published value is copied into every subscriber, so it takes the
-        // crossing refusal `args:` takes one line above. Slots for the same
+        // crossing refusal `arguments:` takes one line above. Slots for the same
         // reason that call reads them. See
         // [`reject_secret_published_argument`].
         reject_secret_published_argument(owner, name, args, &arg_types, &slots, env);

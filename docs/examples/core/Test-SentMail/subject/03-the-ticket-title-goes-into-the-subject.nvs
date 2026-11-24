@@ -24,8 +24,8 @@ class TicketTest
 // `Core\Test::request` runs this file again for the request. It sends the ticket to support.
 // Form text is a `tainted string` (text from a visitor). `Core\Mail::send` accepts it.
 if (Core\Env::context() == Core\Env::Context::Request) {
-    tainted string $title = Core\Str::trim(Core\Request::post('title') ?? '');
-    tainted string $message = Core\Request::post('message') ?? '';
+    tainted string $title = Core\Str::trim(Core\Request::formField('title') ?? '');
+    tainted string $message = Core\Request::formField('message') ?? '';
     Core\Mail::send('site', ['support@example.com'], 'New ticket: ' . $title, $message);
     Core\Response::setStatus(201);
 }

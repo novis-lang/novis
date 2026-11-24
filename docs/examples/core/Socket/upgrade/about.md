@@ -3,7 +3,7 @@ the server can send each other messages at any time.
 
 You name what the connection runs: the path of a file, or a static method written `Chat::run`.
 The connection starts when the request ends. It runs in its own isolate (a separate copy of the
-program that shares no memory with the request). `args:` copies values into it.
+program that shares no memory with the request). `arguments:` copies values into it.
 
 The other options are the ones `spawn script` takes. `limits:` sets lower limits, such as
 `{ memory: "8M" }`. `grants:` lists the capabilities the connection may use, and it gets only the

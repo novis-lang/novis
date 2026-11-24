@@ -10,7 +10,7 @@ The changed session is saved to the store when the request ends.
 
 `remove()` throws a `LogicError` when the program is not handling a request, for example a
 command-line program. It also throws a `LogicError` inside `Core\Html::later` and
-`Core\Task::afterResponse`, because the response headers are already sent there. It throws a
+`Core\Task::runAfterResponse`, because the response headers are already sent there. It throws a
 `RuntimeError` when the session store cannot be opened, and an `IOError` when the store cannot be
 reached.
 

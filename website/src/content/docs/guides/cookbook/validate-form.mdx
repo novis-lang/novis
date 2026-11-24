@@ -13,7 +13,7 @@ This program reads a contact form. It checks each field and lists every field th
 The output above is for the form `name=Ada&email=ada.example.com&message=Hello`. The email has no
 `@`, and the message is too short.
 
-`Core\Request::postAs` reads the form fields into a `Contact`. A form field that is missing
+`Core\Request::formFieldsAs` reads the form fields into a `Contact`. A form field that is missing
 throws a `ParseError`, as on [Read a JSON body](/guides/cookbook/read-json-body/).
 
 `ContactForm::problems` returns all the problems at once. The user can then fix every field in one

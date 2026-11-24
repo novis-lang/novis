@@ -91,17 +91,17 @@ The tradeoffs:
 
 <a id="core-classes-script-args"></a>
 
-## `Core\Script::args` is the value the current isolate was spawned with, and `null` where there was none
+## `Core\Script::arguments` is the value the current isolate was spawned with, and `null` where there was none
 
 `rule:core-classes/script-args`
 
-`Core\Script::args(): mixed` is the deep-copied value the current isolate was spawned with, and
+`Core\Script::arguments(): mixed` is the deep-copied value the current isolate was spawned with, and
 `null` where there was none — a child spawned without the option, and the root script, which nothing
 spawned.
 
 The type is `mixed` rather than `array<mixed>` because a spawn's argument accepts any value that can
 cross the boundary, decided at run time, so nothing narrows the option at the call site. The answer
-is `null` rather than an empty array because a program that wrote `args: []` said something a program
+is `null` rather than an empty array because a program that wrote `arguments: []` said something a program
 that wrote no option did not.
 
 This is Novis's own superglobal being retired for the same reason every other superglobal is refused,
@@ -750,7 +750,7 @@ The output is what `fn` echoes through the request's escaping sink, followed by 
 returns. `placeholder` defaults to empty and `deadline` has no default. A `later` inside a `later`
 callable is the request's child too, and its placeholder is part of its parent's output. Without
 `later`, every response is buffered whole, so a page's first byte waits for its slowest query, and
-`Core\Response::stream`, the only early byte, gives up `echo` and its escaping
+`Core\Response::startStream`, the only early byte, gives up `echo` and its escaping
 ([`security/response-body-is-one-typed-member`](security.md#security-response-body-is-one-typed-member)).
 
 **The route decides delivery, never the call**, so a component is written once:
@@ -758,10 +758,10 @@ callable is the request's child too, and its placeholder is part of its parent's
 | route | the page goes out | each output |
 |---|---|---|
 | normal | once every `later` task has ended | replaces its placeholder in one pass over the body |
-| `#[Core\Route(…, slotted: true)]`, or `Core\Response::slotted()` before the main script ends | when the main script ends, placeholders in place | follows in the same response as a `<template for>` fill, in finishing order, with an inline polyfill sent once |
+| `#[Core\Route(…, slotted: true)]`, or `Core\Response::sendSlotted()` before the main script ends | when the main script ends, placeholders in place | follows in the same response as a `<template for>` fill, in finishing order, with an inline polyfill sent once |
 
 A slotted route sends nothing before the main script ends, and a slotted request that never calls
-`later` is sent whole. `Core\Response::slotted()` after the main script ends, or inside a `later`
+`later` is sent whole. `Core\Response::sendSlotted()` after the main script ends, or inside a `later`
 callable, throws `LogicError`. A slotted response is chunked, has no `Content-Length`, carries
 `X-Accel-Buffering: no`, holds back a closing `</body></html>` until after the last fill, and keeps
 its admission place until that fill. When its client goes,
@@ -1651,7 +1651,7 @@ refusal and the same escapes that keep the text safe inside an HTML page
   their framing. Escaping keeps the text inert in HTML, and the client still chooses its content, so
   the pieces stay as tainted as `encode`'s string.
 - A request body is read with `Core\Json::decodeEach<T>(Core\Request::bodyStream(), '/items')`, so there
-  is no `Core\Request::jsonEach`. A response writes `encodeEach`'s pieces to `Core\Response::stream` or
+  is no `Core\Request::jsonEach`. A response writes `encodeEach`'s pieces to `Core\Response::startStream` or
   `Core\IO::writeStream`, so there is no response member either.
 
 **A walk is taken once.** The iterable reads forward, as `Core\Csv::rows`' walk does. A second `foreach`
@@ -4062,7 +4062,7 @@ query string gains no second canonicalization. The name a parameter is reached b
 so an array value is what writes brackets — which is what makes the pair a round trip rather than
 two members that each invented a spelling.
 
-The pair is singular and reached by name, the same operation `Core\Request::query(string $name)` performs
+The pair is singular and reached by name, the same operation `Core\Request::queryParameter(string $name)` performs
 on the same bracket convention from the other side of a request. A query keeps exactly one syntax per
 state: pairs are written by this pair, an empty query is `with({query: ""})`, and no query is
 `with({query: null})`. There is no plural `withQueryParameters` and no `withoutQueryParameter`: setting
@@ -5928,7 +5928,7 @@ An ods is written from the same calls, and held until `finish()` (below).
 
 | Method | Where the bytes go |
 |---|---|
-| `createForDownload(string $name, {…})` | The response. It sets `Content-Disposition` with `$name` and starts `Core\Response::stream` at once, so the headers leave before the first row is written |
+| `createForDownload(string $name, {…})` | The response. It sets `Content-Disposition` with `$name` and starts `Core\Response::startStream` at once, so the headers leave before the first row is written |
 | `createForFile(string $path, {…})` | A temporary file beside `$path`, `<path>.<16 hex>.part`, opened with `Core\IO::open` in `Write` mode, written with `Core\IO\File::write` and renamed to `$path` by `finish()` |
 | `createForStream(Core\IO\File $file, {…})` | A file the program already opened |
 | `createInMemory({…})` | Memory, and `finish()`'s `Written` carries the `bytes` |
@@ -5973,7 +5973,7 @@ repeated.
 **`finish()`** writes the sheet-end parts, `styles.xml`, `workbook.xml`, the content types and the zip
 directory, sends the last bytes, and returns a `Written`: the row count per sheet, the size in bytes,
 and the bytes for `createInMemory`. **A download never finished is cut off and logged.**
-`createForDownload` opens its stream with `Core\Response::stream`'s `$mustEnd` set to the download's
+`createForDownload` opens its stream with `Core\Response::startStream`'s `$mustEnd` set to the download's
 name, and `finish()` calls the stream's `end()`. When the program stops, however it stops, a stream
 opened with `$mustEnd` and not ended has its body aborted, so the browser reports a failed download
 and not a broken file, and one error record carrying the name as its `stream` field is written
@@ -6023,12 +6023,12 @@ paragraphs, written down once.
 option above, the sheet-name rules, the row options `height`, `hidden`, `level` and `style`,
 `define`, CSV and ods (`extensions/spreadsheet/src/ods/`, `extensions/spreadsheet/src/book.rs`), and
 the cut-off and logged download that was never finished
-(`Core\Response::stream`'s `$mustEnd` and `Core\Response\Stream::end`,
+(`Core\Response::startStream`'s `$mustEnd` and `Core\Response\Stream::end`,
 `crates/nvs-stdlib/src/response.rs`).
 
 **After a download's body is streamed, the request cannot add to it.** `echo` goes to the context's
 output buffer, which the streamed path never sends (`crates/nvs-server/src/serve.rs`), a late
-`setHeader` reaches nothing, and a second `Core\Response::stream` throws `LogicError`, so no
+`setHeader` reaches nothing, and a second `Core\Response::startStream` throws `LogicError`, so no
 compile-time check is needed. `tests/hostile/novis/Spreadsheet-Export/download/` pins it.
 
 **Declined:**

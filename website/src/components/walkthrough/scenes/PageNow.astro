@@ -6,7 +6,7 @@
  *
  * Left is the visitor's browser, right is the server's side: the code, and the requests on a time
  * axis. The page runs twice: first the usual way, with a script and an API route per slow part, then
- * with `Core\Html::later` and `Core\Response::slotted()`.
+ * with `Core\Html::later` and `Core\Response::sendSlotted()`.
  *
  * The editor's files, counted from 0: the usual page, its two API routes and its script, then the
  * Novis page, which replaces the usual page under the same tab.
@@ -18,7 +18,7 @@ import Server from '../Server.astro'
 import Movers from '../Movers.astro'
 ---
 
-<Stage id="wt-page-now" scene="page-now" lazy={Astro.props.lazy} label="How Core\Html::later and Core\Response::slotted work, step by step">
+<Stage id="wt-page-now" scene="page-now" lazy={Astro.props.lazy} label="How Core\Html::later and Core\Response::sendSlotted work, step by step">
   <Movers kind="wire" name="wire" />
   <Browser name="browser" url="example.com" tab="Home" rows={4} place={{ wide: [40, 40, 620, 820], tall: [150, 630, 600, 560] }}>
     <div class="wt-screen" data-screen="blank"></div>

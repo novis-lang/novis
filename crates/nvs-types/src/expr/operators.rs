@@ -507,7 +507,7 @@ fn reject_empty_property_key_set(qname: &QName, span: Span, env: &mut Env<'_>) {
 /// each other. A `mixed` operand poisons `tainted` too: text out of `mixed` is
 /// tainted. The `tainted` and `secret` bits are read with `carries_tainted`'s
 /// and `carries_secret`'s reach, so a `?tainted string` operand —
-/// `Core\Request::query`'s, `header`'s — poisons exactly as a `tainted string`
+/// `Core\Request::queryParameter`'s, `header`'s — poisons exactly as a `tainted string`
 /// does, and a `?secret string` as a `secret string` does.
 ///
 /// Its own function because `super::assign`'s keyed-write check asks the same

@@ -21,7 +21,7 @@ array<secret bytes> $keys = [$current as secret bytes, $older as secret bytes];
 // This prints `Reader 17 is unsubscribed.`
 try {
     Core\Router\Match $matched = Core\Router::signedRoute($keys);
-    uint $reader = $matched->param('reader') as uint;
+    uint $reader = $matched->parameter('reader') as uint;
     echo 'Reader ', $reader, " is unsubscribed.\n";
 } catch (RuntimeError $e) {
     echo "This link is not valid. Please use the link in your latest email.\n";

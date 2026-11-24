@@ -12,7 +12,7 @@ With `{ lines: true }`, the text is JSON Lines: one value on each line, with no 
 `$piece as string` when you need the text of a piece.
 
 The pieces are `tainted bytes` when an item can contain tainted text, such as a value read from a
-request. `Core\Json::encode` returns a `tainted string` for the same items. `Core\Response::stream`
+request. `Core\Json::encode` returns a `tainted string` for the same items. `Core\Response::startStream`
 sends only pieces that are not tainted.
 
 Nothing is encoded until the loop starts. The method takes the next item only when it needs it, so
@@ -22,7 +22,7 @@ piece, a loop gives no items.
 The loop throws a `LogicError` when an item cannot be written as JSON, as `Core\Json::encode` does.
 An object whose class does not have `#[Core\Json\Derive]` is one example. Your loop may already have
 received some pieces before the error. To send the pieces as a response, pass each one to the
-`write` method of `Core\Response::stream`. To write them to a file, pass them to
+`write` method of `Core\Response::startStream`. To write them to a file, pass them to
 `Core\IO::writeStream`.
 
 ```nvs

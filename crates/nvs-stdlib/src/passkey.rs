@@ -364,7 +364,7 @@ const CARD: ClassDoc = ClassDoc {
 /// The error both options members list for a call where the challenge cannot be saved.
 const CHALLENGE_NOT_SAVED: ErrorDoc = ErrorDoc {
     error: "LogicError",
-    desc: "The call is inside `Core\\Html::later` or `Core\\Task::afterResponse`. The response \
+    desc: "The call is inside `Core\\Html::later` or `Core\\Task::runAfterResponse`. The response \
            headers are already sent there, so the challenge cannot be saved in the session.",
 };
 

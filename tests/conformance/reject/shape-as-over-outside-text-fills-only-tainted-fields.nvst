@@ -14,7 +14,7 @@ class Note {
     }
 }
 
-array<tainted string> $form = Core\Request::postArray("form");
+array<tainted string> $form = Core\Request::formFields("form");
 array<mixed> $doc = [];
 tainted string $raw = "x";
 

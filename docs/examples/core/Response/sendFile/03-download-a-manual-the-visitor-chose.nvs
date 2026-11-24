@@ -9,11 +9,11 @@ Core\IO::write(Core\Path::join($folder, 'toaster.txt'), "Toaster: put the bread 
 // Text from a request is tainted, and `sendFile` does not compile with a tainted path.
 // So the program uses `?product=kettle` only to find a file name in its own list.
 array<string> $manuals = ['kettle' => 'kettle.txt', 'toaster' => 'toaster.txt'];
-tainted string $product = Core\Request::query('product') ?? '';
+tainted string $product = Core\Request::queryParameter('product') ?? '';
 
 if (isset($manuals[$product])) {
     Core\Response::sendFile(Core\Path::join($folder, $manuals[$product]));
 } else {
     Core\Response::setStatus(404);
-    Core\Response::text("There is no manual for this product.\n");
+    Core\Response::sendText("There is no manual for this product.\n");
 }

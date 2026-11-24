@@ -44,9 +44,9 @@ try {
 // plausibly. What decides the answer is that no request arrived, and that is
 // ahead of every question about which reader is holding one.
 try {
-    Core\Request::post("title");
+    Core\Request::formField("title");
 } catch (LogicError $form) {
-    if ($form->message == 'Core\Request::post' . $tail) {
+    if ($form->message == 'Core\Request::formField' . $tail) {
         $agreed = $agreed + 1;
     }
 }
@@ -60,10 +60,10 @@ echo "the body's four readers agree: ", $agreed, " of 4\n";
 // can put -- a conformance case answers no request -- and it is `nvs-stdlib`'s
 // `a_body_is_claimed_by_the_member_that_read_it_and_refused_to_the_other`.
 try {
-    Core\Request::post("description");
+    Core\Request::formField("description");
 } catch (LogicError $which) {
     echo $which->message, "\n";
 }
 --EXPECT--
 the body's four readers agree: 4 of 4
-Core\Request::post(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts
+Core\Request::formField(): there is no request here — this program is not answering one, as a CLI program, a scheduled script, a job worker and a test are not. That is refused rather than answered empty, because "no request arrived" and "the request sent nothing" are different facts

@@ -3,5 +3,5 @@
 array<string> $colors = Core\Str::split('red,green,blue', ',');
 array<string> $sorted = Core\Arr::sort($colors);
 
-// `Core\Response::json` sends the value as JSON.
-Core\Response::json({ count: Core\Arr::count($colors), sorted: $sorted });
+// `Core\Response::sendJson` sends the value as JSON.
+Core\Response::sendJson({ count: Core\Arr::count($colors), sorted: $sorted });

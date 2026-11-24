@@ -18,6 +18,6 @@ class Bench
     }
 }
 
-Core\Response\Stream $download = Core\Response::stream('text/csv', null, null, 'orders.csv');
+Core\Response\Stream $download = Core\Response::startStream('text/csv', null, null, 'orders.csv');
 $download->write("id,total\n");
 Core\Log::write(Core\Log::Level::Info, 'ended', ['rounds' => Bench::run($download, 2048)]);

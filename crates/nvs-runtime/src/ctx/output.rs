@@ -228,7 +228,7 @@ impl LogWriter {
 /// neither door holds no value at all.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EventStreamDoor {
-    /// The request answers with the stream itself — `Core\Sse::stream`, whose
+    /// The request answers with the stream itself — `Core\Sse::startStream`, whose
     /// events end when the response does, and which is a streaming response
     /// and not a connection
     /// (`rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`).
@@ -302,7 +302,7 @@ impl Ctx {
         }
     }
 
-    /// Writes the bytes of a body member that is not markup — `Core\Response::text`,
+    /// Writes the bytes of a body member that is not markup — `Core\Response::sendText`,
     /// `::json`, `::bytes`, and `::stream` off a connection.
     ///
     /// They go out unchanged when they are what this run answers with: a
@@ -314,7 +314,7 @@ impl Ctx {
     /// or appends to its own stream. Then they are written as `echo` writes a
     /// `string`, escaped under the HTML sink and substituted under every other
     /// (`rule:security/capture-answers-the-carrier`). Raw, a child's
-    /// `Core\Response::text("<script>…")` would reach the parent's page as markup,
+    /// `Core\Response::sendText("<script>…")` would reach the parent's page as markup,
     /// and an `ESC` sequence would reach its terminal as a command.
     ///
     /// Bytes that are not UTF-8 are rendered byte by byte, so they stay not
@@ -366,7 +366,7 @@ impl Ctx {
     }
 
     /// [`Self::write_body`] for a body its writer built in a buffer of its own,
-    /// such as `Core\Response::json`'s document.
+    /// such as `Core\Response::sendJson`'s document.
     ///
     /// Where the bytes would go out unchanged into an in-memory body that is
     /// still empty, the buffer becomes the body and nothing is copied. That is
@@ -398,7 +398,7 @@ impl Ctx {
     }
 
     /// [`Self::write_body_owned`] for a body its writer built as a list of
-    /// chunks, such as a large `Core\Response::json` document.
+    /// chunks, such as a large `Core\Response::sendJson` document.
     ///
     /// Where the bytes would go out unchanged into an in-memory body that is
     /// still empty, the chunks become the body's leading chunks and nothing is
@@ -878,7 +878,7 @@ impl Ctx {
     /// Whether this response's body is the HTML one a block may be appended to.
     ///
     /// Compared case-insensitively over the media type's own token, because
-    /// `Core\Response::bytes` takes the type as a parameter and a program may
+    /// `Core\Response::sendBytes` takes the type as a parameter and a program may
     /// spell it in any case RFC 9110 admits; the parameters after it — a
     /// charset, a boundary — say nothing about whether the body is markup.
     fn body_takes_a_block(&self) -> bool {
@@ -941,7 +941,7 @@ impl Ctx {
     }
 
     /// Records the writing half of a response body being written over time —
-    /// `Core\Response::stream`, once per request.
+    /// `Core\Response::startStream`, once per request.
     ///
     /// The neighbours above are the model, with one difference: a declaration
     /// says what the body *is* and this says where it *goes*, so a second call
@@ -992,7 +992,7 @@ impl Ctx {
         self.stream_window
     }
 
-    /// Records what `Core\Response::stream` was told about how its body ends:
+    /// Records what `Core\Response::startStream` was told about how its body ends:
     /// `Some(label)` for a stream the program must end with
     /// `Core\Response\Stream::end`, and `None` for one that ends when the
     /// program does. Called on every stream the member opens, so a later stream
@@ -1077,7 +1077,7 @@ impl Ctx {
     }
 
     /// Records that what this context writes is an event stream, and which
-    /// door opened it — `Core\Sse::stream` for the request that opened one for
+    /// door opened it — `Core\Sse::startStream` for the request that opened one for
     /// itself, and the hand-over for the connection that outlives its request.
     ///
     /// Not beside [`Self::set_body_stream`] in what it takes, because it is not
@@ -1087,7 +1087,7 @@ impl Ctx {
     ///
     /// **The first door holds**, and that is what makes the second call safe
     /// rather than a downgrade: a connection isolate is marked before its
-    /// program's first statement, so a `Core\Sse::stream` inside one is a
+    /// program's first statement, so a `Core\Sse::startStream` inside one is a
     /// program opening a stream on its own output and never a connection
     /// turning into a response that ends. There is no undoing it either way.
     pub fn mark_event_stream(&mut self, door: EventStreamDoor) {

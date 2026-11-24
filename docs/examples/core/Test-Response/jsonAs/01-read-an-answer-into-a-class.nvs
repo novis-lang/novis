@@ -20,7 +20,7 @@ class Product
 
 if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. It sends one product as JSON.
-    Core\Response::json(['sku' => 'mug-7', 'price' => 12]);
+    Core\Response::sendJson(['sku' => 'mug-7', 'price' => 12]);
 } else {
     var $response = Test::request(Method::Get, '/products/mug-7');
 

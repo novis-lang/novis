@@ -1,5 +1,5 @@
 --TEST--
-`Core\Script::args()` keeps the two absences apart: a child spawned with `args: []` reads an array of zero, and one spawned with no option at all reads `null` — `rule:core-classes/script-args`
+`Core\Script::arguments()` keeps the two absences apart: a child spawned with `arguments: []` reads an array of zero, and one spawned with no option at all reads `null` — `rule:core-classes/script-args`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
@@ -12,7 +12,7 @@ spawn = true
 // what the parent wrote. `mixed` is the type, so the answer has to be asked
 // about rather than assumed: `null` is the absence, and anything else is the
 // value in the shape it crossed in.
-var $a = Core\Script::args();
+var $a = Core\Script::arguments();
 if ($a == null) {
     echo "null\n";
 } else {
@@ -21,9 +21,9 @@ if ($a == null) {
 }
 --FILE--
 <?nvs
-// The distinction this case exists for: `args: []` is a value and no `args:`
+// The distinction this case exists for: `arguments: []` is a value and no `arguments:`
 // is not one. An empty array for both would collapse them, and a parent that
-// writes `args: []` is saying something a parent that writes nothing did not.
+// writes `arguments: []` is saying something a parent that writes nothing did not.
 var $two = spawn script "shape.nvs" with(arguments: ["alpha", "beta"], output: "capture");
 var $none = spawn script "shape.nvs" with(arguments: [], output: "capture");
 var $absent = spawn script "shape.nvs" with(output: "capture");
@@ -33,10 +33,10 @@ echo "empty: ", (await $none)->output;
 echo "absent: ", (await $absent)->output;
 
 // The answer is an ordinary value, so it is a legal thing to hand on: this
-// root's own `null` crosses at `args:` and comes back as the absence it was.
+// root's own `null` crosses at `arguments:` and comes back as the absence it was.
 // A member answering something the option could not carry would fail here
 // rather than at the read.
-var $relay = spawn script "shape.nvs" with(arguments: Core\Script::args(), output: "capture");
+var $relay = spawn script "shape.nvs" with(arguments: Core\Script::arguments(), output: "capture");
 echo "relayed: ", (await $relay)->output;
 --EXPECT--
 two: array of 2

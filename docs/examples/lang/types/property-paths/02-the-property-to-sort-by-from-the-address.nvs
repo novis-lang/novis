@@ -39,7 +39,7 @@ class Table
 }
 
 // The address is `/orders?sort=customer.name&other=customer.password`.
-echo Table::sortBy(Core\Request::query('sort')), "\n";
+echo Table::sortBy(Core\Request::queryParameter('sort')), "\n";
 
 // `password` is a private property, so it is not part of any path.
-echo Table::sortBy(Core\Request::query('other')), "\n";
+echo Table::sortBy(Core\Request::queryParameter('other')), "\n";

@@ -148,7 +148,7 @@ file.
 that matches the request and calls its method.
 
 `src/App.nvs` has one method for each route. `send()` sets the header
-`content-disposition: inline`, so the browser shows the PDF file. Then it sends the bytes with `Core\Response::bytes`.
+`content-disposition: inline`, so the browser shows the PDF file. Then it sends the bytes with `Core\Response::sendBytes`.
 
 `src/Gate.nvs` is the gate, and `dispatch` calls it for every request. `allows` runs before each
 route method. `refused` shows a page when no route can handle the request, such as a path with no

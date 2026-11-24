@@ -116,7 +116,7 @@ More facts about the document:
   does not compile.
 - When the method returns a class with `#[Core\Json\Derive]`, the response schema lists the JSON
   fields of that class.
-- When the method reads the body with `Core\Request::jsonAs<T>()` or `Core\Request::postAs<T>()`,
+- When the method reads the body with `Core\Request::jsonAs<T>()` or `Core\Request::formFieldsAs<T>()`,
   the document describes that body with the schema of `T`. The call must be in the route method
   itself. A body that another method reads is not in the document.
 - The document's `info.version` is the `version` in the nearest `package.toml`. Without one, it is

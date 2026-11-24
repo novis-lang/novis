@@ -15,7 +15,7 @@ Core\Response::sendFile($chosen);
 // line rather than a member: the text body takes a tainted argument freely,
 // because `nosniff` is on by default and its octets are framed by
 // `Content-Length` rather than becoming an instruction to anything.
-Core\Response::text($chosen);
+Core\Response::sendText($chosen);
 echo "unreachable\n";
 --EXPECT--
 

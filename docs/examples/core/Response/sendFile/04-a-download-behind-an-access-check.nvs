@@ -16,5 +16,5 @@ if ($key == 'letmein') {
     Core\Response::sendFile($path);
 } else {
     Core\Response::setStatus(403);
-    Core\Response::text("You may not download this invoice.\n");
+    Core\Response::sendText("You may not download this invoice.\n");
 }

@@ -507,7 +507,7 @@ fn a_slotted_response_carries_no_content_length_and_turns_off_proxy_buffering() 
     );
 }
 
-// covers: Core\Response::slotted
+// covers: Core\Response::sendSlotted
 #[test]
 fn slotted_from_a_route_attribute_and_from_the_call_are_the_same() {
     let by_route = served_page(

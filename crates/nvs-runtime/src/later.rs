@@ -45,7 +45,7 @@
 //!
 //! Where [`Ctx::is_slotted`] holds and the connection offered a
 //! [`crate::stream::BodySlot`] carrying its [`Scripts`], the body goes out over
-//! that cell as `Core\Response::stream`'s does, with the head the main script
+//! that cell as `Core\Response::startStream`'s does, with the head the main script
 //! declared. The shell is the body up to its last `</body`, placeholders in
 //! place. Each slot's task writes its own fill the moment it finishes —
 //! `<template for="<name>">…</template>` and the trigger script, the polyfill
@@ -211,7 +211,7 @@ impl Ctx {
         self.in_later
     }
 
-    /// `Core\Response::slotted()`: makes this request's response slotted, or
+    /// `Core\Response::sendSlotted()`: makes this request's response slotted, or
     /// throws `LogicError` once the main script is over. By then the slots
     /// run, and a normal response is already being assembled.
     ///
@@ -223,7 +223,7 @@ impl Ctx {
         if self.main_ended {
             return Err(crate::Fault::thrown_as(
                 ThrownClass::Logic,
-                "`Core\\Response::slotted()` was called after the main script ended. Call it \
+                "`Core\\Response::sendSlotted()` was called after the main script ended. Call it \
                  before the main script returns.",
             ));
         }
@@ -232,7 +232,7 @@ impl Ctx {
     }
 
     /// Whether this request's response is slotted: the route it matched was
-    /// declared `slotted: true`, or the program called `Core\Response::slotted()`.
+    /// declared `slotted: true`, or the program called `Core\Response::sendSlotted()`.
     #[must_use]
     pub fn is_slotted(&self) -> bool {
         self.slotted
@@ -641,7 +641,7 @@ fn render(ctx: &mut Ctx, callable: Value) -> Value {
     let Ok(text) = std::str::from_utf8(&bytes) else {
         ctx.set_pending(
             "`Core\\Html::later`: the captured output is not valid UTF-8, so it cannot be a \
-             string. `Core\\Response::bytes` or `Core\\Response::sendFile` wrote it.",
+             string. `Core\\Response::sendBytes` or `Core\\Response::sendFile` wrote it.",
         );
         return Value::null();
     };

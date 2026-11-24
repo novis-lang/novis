@@ -10,17 +10,17 @@ use Core\Test;
 if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     if ($path == '/mega') {
-        Core\Response::bytes(Core\Bytes::fill(1048576, 255), 'application/octet-stream');
+        Core\Response::sendBytes(Core\Bytes::fill(1048576, 255), 'application/octet-stream');
     }
     if ($path == '/without-end') {
-        var $stream = Core\Response::stream('application/octet-stream');
+        var $stream = Core\Response::startStream('application/octet-stream');
         bytes $block = Core\Bytes::fill(1048576, 255);
         while (true) {
             $stream->write($block);
         }
     }
     if ($path == '/empty') {
-        Core\Response::bytes('' as bytes, 'application/octet-stream');
+        Core\Response::sendBytes('' as bytes, 'application/octet-stream');
     }
 } else {
     // 1. Read a binary body of one megabyte 1000 times from the same response.

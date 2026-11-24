@@ -13,8 +13,8 @@
 // object either way. The refusal is the pin, and it is the binding that fails.
 Core\Router\Match $matched = Core\Request::route();
 echo $matched->method() == Core\Http\Method::Get ? "get" : "other", "\n";
-var $captures = $matched->params();
-echo $matched->param("id") ?? "none", "\n";
+var $captures = $matched->parameters();
+echo $matched->parameter("id") ?? "none", "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--

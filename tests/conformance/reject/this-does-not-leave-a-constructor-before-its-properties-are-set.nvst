@@ -35,7 +35,7 @@ class EarlyCart {
     }
 }
 
-?tainted string $restore = Core\Request::query("restore");
+?tainted string $restore = Core\Request::queryParameter("restore");
 var $cart = new EarlyCart($restore == "1");
 echo "ok ", $cart->owner, "\n";
 --EXPECTF-ERROR--

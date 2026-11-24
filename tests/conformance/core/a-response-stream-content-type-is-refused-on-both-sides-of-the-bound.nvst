@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::stream` names the last content type a header field can carry and the first one it cannot, and a refused stream opens nothing -- `rule:security/sink-predicate` and `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`
+`Core\Response::startStream` names the last content type a header field can carry and the first one it cannot, and a refused stream opens nothing -- `rule:security/sink-predicate` and `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`
 --FILE--
 <?nvs
 // `rule:security/sink-predicate`: the content type is a sink here for the
@@ -19,7 +19,7 @@ array<string> $spellable = [
 uint $accepted = 0;
 foreach ($spellable as string $type) {
     try {
-        Core\Response::stream($type);
+        Core\Response::startStream($type);
         $accepted = $accepted + 1;
     } catch (LogicError $refused) {
     }
@@ -39,7 +39,7 @@ array<string> $unspellable = [
 uint $refusedCount = 0;
 foreach ($unspellable as string $type) {
     try {
-        Core\Response::stream($type);
+        Core\Response::startStream($type);
     } catch (LogicError $refused) {
         $refusedCount = $refusedCount + 1;
     }
@@ -50,7 +50,7 @@ echo "refused ", $refusedCount, " of 5\n";
 // than only that something was wrong. The empty type is the one whose message
 // is spellable in an exact expectation.
 try {
-    Core\Response::stream("");
+    Core\Response::startStream("");
 } catch (LogicError $empty) {
     echo $empty->message, "\n";
 }
@@ -63,7 +63,7 @@ try {
 // lowerer today, which the playbook's *Writing a test case* section owns.
 var $written = Core\Out::capture(fn (): void => {
     try {
-        var $never = Core\Response::stream("text/plain\r\nX-Injected: yes");
+        var $never = Core\Response::startStream("text/plain\r\nX-Injected: yes");
         $never->write("body");
     } catch (LogicError $injected) {
     }
@@ -72,5 +72,5 @@ echo "wrote [", $written, "]\n";
 --EXPECT--
 accepted 4 of 4
 refused 5 of 5
-Core\Response::stream(): `` is not a media type a `Content-Type` header can carry — a field value is printable ASCII and never empty
+Core\Response::startStream(): `` is not a media type a `Content-Type` header can carry — a field value is printable ASCII and never empty
 wrote []

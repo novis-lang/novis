@@ -5851,9 +5851,9 @@ pub(crate) const FN_PARAM_TAGS_CAPACITY: usize = 16;
 /// # Why the object carries it
 ///
 /// `rule:security/isolate-shares-nothing` binds
-/// an isolate's `args:` to its entry's parameters **by name**, and
+/// an isolate's `arguments:` to its entry's parameters **by name**, and
 /// `rule:concurrency/an-upgrade-is-spawn-shaped` makes
-/// `Core\Socket::upgrade(Chat::run(...), args: {…})` one of those entries. The
+/// `Core\Socket::upgrade(Chat::run(...), arguments: {…})` one of those entries. The
 /// `spawn script Class::method` construct has the names as a constant this
 /// lowering writes into the call (`Lowering::spawn_method_entry`); a `Core`
 /// member's entry is one ordinary argument with no constant beside it, so the

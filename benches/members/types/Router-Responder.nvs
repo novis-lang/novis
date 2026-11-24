@@ -29,7 +29,7 @@ class Gate implements Core\Router\Responder
     public function respond(Core\Router\Match $route, mixed $value): void
     {
         if ($value is Core\Html\Markup) {
-            Core\Response::html($value);
+            Core\Response::sendHtml($value);
         }
     }
 }

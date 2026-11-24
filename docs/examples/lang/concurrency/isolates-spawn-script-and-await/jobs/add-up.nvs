@@ -1,6 +1,6 @@
 <?nvs
-// This file reads the value the parent gave in `args:`.
-array<int> $numbers = Core\Script::args() as array<int>;
+// This file reads the value the parent gave in `arguments:`.
+array<int> $numbers = Core\Script::arguments() as array<int>;
 int $total = 0;
 foreach ($numbers as int $n) {
     $total += $n;

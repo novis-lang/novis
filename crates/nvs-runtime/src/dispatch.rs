@@ -197,7 +197,7 @@ pub unsafe fn call_static_on(
 
 /// [`call_static`], for arguments that came out of a **program's own map** —
 /// `rule:security/isolate-shares-nothing`'s
-/// method entry, called with `args:`'s entries already bound to its parameters
+/// method entry, called with `arguments:`'s entries already bound to its parameters
 /// positionally by `nvs_stdlib::script`.
 ///
 /// The target is the same and the route is the same; what differs is who wrote
@@ -224,7 +224,7 @@ pub unsafe fn call_static_on(
 /// not `static` or takes an `inout` parameter, and for an argument the
 /// parameter's declared type does not admit ([`check_param_types`]) — every one
 /// of them the ordinary
-/// named-argument error `rule:security/isolate-shares-nothing` says a bad `args:` map is, raised at the
+/// named-argument error `rule:security/isolate-shares-nothing` says a bad `arguments:` map is, raised at the
 /// spawn. [`Fault::Pending`] when the entry itself throws.
 pub fn call_static_bound(
     ctx: &mut Ctx,

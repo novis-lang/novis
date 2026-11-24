@@ -28,7 +28,7 @@ class Book
 
 // 1. Paths from the web address: `@key` after a property that is not an array, a step after `@key`,
 //    `@` words that are not steps, and a private property after `@value`.
-array<tainted string> $sent = Core\Request::queryArray('path');
+array<tainted string> $sent = Core\Request::queryParameters('path');
 int $refused = 0;
 foreach ($sent as tainted string $field) {
     ?propertyPath<Book> $path = $field as ?propertyPath<Book>;
@@ -42,7 +42,7 @@ echo '1: refused ', $refused, ' of ', Core\Arr::count($sent), " paths\n";
 
 // 2. A condition with a hole that reads the private property after `@value`. It throws.
 //    It is caught, so the step after it still runs.
-tainted string $where = Core\Request::query('where') ?? '{authors.@value.email} = 1';
+tainted string $where = Core\Request::queryParameter('where') ?? '{authors.@value.email} = 1';
 try {
     tainted string<propertyPath<Book>> $condition = $where as string<propertyPath<Book>>;
     echo '2: BAD, converted ', $condition as string, "\n";

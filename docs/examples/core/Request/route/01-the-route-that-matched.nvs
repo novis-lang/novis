@@ -18,5 +18,5 @@ if ($matched != null) {
     // `is` checks which method the route belongs to. This prints "Users::show".
     echo $matched->is(Users::show) ? 'Users::show' : 'another route', "\n";
     // `{id}` is declared as `uint`, so the text "42" is the number 42. This prints "id 42".
-    echo 'id ', $matched->param('id') as uint, "\n";
+    echo 'id ', $matched->parameter('id') as uint, "\n";
 }

@@ -7,7 +7,7 @@ A refused `Core\Sse->receive` is a throw the program catches and nothing more: t
 // writing -- which is the whole reason both doors share one type. A refusal
 // that tore the stream down would make the shared helper a lie.
 var $events = Core\Out::capture(fn (): void => {
-    var $sse = Core\Sse::stream();
+    var $sse = Core\Sse::startStream();
     $sse->send("ready");
     try {
         $sse->receive();

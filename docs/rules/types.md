@@ -98,7 +98,7 @@ that is `string`, the one type an array's key binding may have ([`types/arrays`]
 
 The type is computed exactly as it is for any position with no expected type, and it is then fixed on
 the binding like a written one — [`types/declaration`](types.md#types-declaration)'s "no binding's type ever changes" is
-untouched. It is exact and honest: `var $n = 1;` gives `int`, `var $id = Core\Request::query('id');`
+untouched. It is exact and honest: `var $n = 1;` gives `int`, `var $id = Core\Request::queryParameter('id');`
 gives `?tainted string`, `var $doc = Core\Request::json();` gives `mixed`, and a `var` value binding
 over a `mixed` or `iterable` subject gives `mixed`, because that is what the source expression is. A
 qualifier, such as `tainted`, arrives on the binding with the type it qualifies. A `foreach` binding's
@@ -547,7 +547,7 @@ for a payload whose tag held. A member whose input is already a `string`, and wh
 only ASCII bytes, has nothing to check: `Core\Csv::parse` is one. A plaintext that a seal opens is
 checked too, because a tag proves who sealed the bytes and not that they are text: `Core\SignedCookie::open`
 refuses it as it refuses a forgery, and `Core\Session::getSecret` and `Core\Cache::getSecret` read it
-as a miss. Captured output becomes a `string` too, and only `Core\Response::bytes` and `::sendFile`
+as a miss. Captured output becomes a `string` too, and only `Core\Response::sendBytes` and `::sendFile`
 can write bytes that are not UTF-8 into it. So `Core\Out::capture`, a `spawn script`'s `output`,
 `Core\Html::later` throw `RuntimeError` naming the member when the output is not UTF-8. They check
 at the capture's end, since refusing the write would also refuse valid bytes. `Core\Test::request`
@@ -1698,7 +1698,7 @@ path. That is dynamic typing at dynamic typing's cost, which is the right pressu
 the typed one. `Core\Reflect::typeOf` is the one type-introspection member, and it is meaningful only
 on a `mixed`, because the checker already knows every other case.
 
-`mixed` is where untyped input lands, deliberately. `Core\Request::json()`, `Core\Script::args()` and
+`mixed` is where untyped input lands, deliberately. `Core\Request::json()`, `Core\Script::arguments()` and
 `Core\Json::decode`'s result are `mixed`, because a document genuinely is untyped and pretending
 otherwise would be a lie in the type. A request's query and form fields are not: they are text, and
 their accessors answer `?tainted string` and `array<tainted string>` ([`security/tainted-sources`](security.md#security-tainted-sources)).

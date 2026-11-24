@@ -136,7 +136,7 @@ fn spawn_script_runs_a_static_method_reference_in_a_fresh_isolate() {
     assert_eq!(run("method-entry.nvs"), "ok\n1\n40\n");
 }
 
-/// The other half of the entry form: `args:`'s entries reach the entry's
+/// The other half of the entry form: `arguments:`'s entries reach the entry's
 /// parameters **by name**.
 ///
 /// The fixture's map is written in the opposite order to the signature, which

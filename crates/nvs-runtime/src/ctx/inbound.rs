@@ -347,7 +347,7 @@ pub struct Inbound {
     /// multiple of the octets [`Self::held`] already charges against
     /// `[limits] request_body`, and O(in-flight).
     decoded: Option<HeldValue>,
-    /// The fields `Core\Request::post` and `::postAs` parsed out of the body —
+    /// The fields `Core\Request::formField` and `::postAs` parsed out of the body —
     /// `None` until one of them has answered once.
     ///
     /// Held for [`Self::decoded`]'s reason: the parse builds arrays and strings
@@ -361,7 +361,7 @@ pub struct Inbound {
     /// only for a request whose program read one — a bounded multiple of the
     /// field text `[limits] request_body` caps, and O(in-flight).
     form: Option<NvsArray>,
-    /// The parameters `Core\Request::query` and `::queryAs` parsed out of
+    /// The parameters `Core\Request::queryParameter` and `::queryAs` parsed out of
     /// [`Self::query`] — `None` until one of them has answered once.
     ///
     /// [`Self::form`]'s reasoning over a query string, which never changes
@@ -469,7 +469,7 @@ pub struct Inbound {
     /// one small allocation the connection holds the other reference to.
     sse: Option<SseSlot>,
     /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
-    /// *first* spelling: the cell `Core\Response::stream` opens a body into, for
+    /// *first* spelling: the cell `Core\Response::startStream` opens a body into, for
     /// a request a connection is framing a response for.
     ///
     /// The third field here that is not a fact about what arrived, and the one
@@ -1147,7 +1147,7 @@ impl Inbound {
     /// [`Self::parts_mut`] to hand back on every later call.
     ///
     /// Called at most once per request. `Core\Request::files()` and
-    /// `Core\Request::post()` both name a parse, and the second of them finds
+    /// `Core\Request::formField()` both name a parse, and the second of them finds
     /// this one filled and walks it instead of building another — which is what
     /// makes the fields a walk buffered readable by the form reader that
     /// follows it, and [`Self::claim_body`] is what keeps a third member off
@@ -1261,7 +1261,7 @@ impl Inbound {
     pub fn take_decoded_body(&mut self) -> Option<HeldValue> {
         self.decoded.take()
     }
-    /// Gives this carrier the fields `Core\Request::post` parsed, for every
+    /// Gives this carrier the fields `Core\Request::formField` parsed, for every
     /// later form read to answer out of — [`Self::form`] owns why.
     pub fn hold_form(&mut self, form: NvsArray) {
         self.form = Some(form);
@@ -1272,7 +1272,7 @@ impl Inbound {
     pub fn form(&self) -> Option<&NvsArray> {
         self.form.as_ref()
     }
-    /// Gives this carrier the parameters `Core\Request::query` parsed, for
+    /// Gives this carrier the parameters `Core\Request::queryParameter` parsed, for
     /// every later query read to answer out of.
     pub fn hold_query_fields(&mut self, fields: NvsArray) {
         self.query_fields = Some(fields);
@@ -1336,7 +1336,7 @@ impl Inbound {
         self.sse.as_ref()
     }
     /// Offers this request a **streaming response body**: the cell
-    /// `Core\Response::stream` opens, whose head the connection answers with
+    /// `Core\Response::startStream` opens, whose head the connection answers with
     /// while the request is still running.
     ///
     /// Called for every request a connection is framing a response for, like
@@ -2172,7 +2172,7 @@ pub trait RequestBody {
 /// may have it — [`Inbound::claim_body`]'s parameter.
 ///
 /// **A need rather than the reader's kind**, because the kind is not fixed per
-/// member and so cannot be a table of names: `Core\Request::post()` consumes
+/// member and so cannot be a table of names: `Core\Request::formField()` consumes
 /// the wire where it is the first reader and consumes nothing where a hold is
 /// already filled, so it is both kinds on different requests. What *is* fixed
 /// is what each member has to be given, and the carrier already holds the

@@ -2168,7 +2168,7 @@ struct Scheduled {
     current: Arc<nvs_config::Current>,
 }
 
-/// The args map every scheduled run reads from `Core\Script::args()`, a cron run
+/// The args map every scheduled run reads from `Core\Script::arguments()`, a cron run
 /// and an event run alike (`rule:config/an-entry-runs-on-a-server-event`):
 /// `["name" => <entry name>, "on" => <"cron" or the event's word>]`.
 ///
@@ -2270,7 +2270,7 @@ impl nvs_server::Fires for Scheduled {
             }
         };
         // `rule:config/a-scheduled-run-is-a-root-isolate`: the script reads its
-        // args map back through `Core\Script::args()`, and there is no
+        // args map back through `Core\Script::arguments()`, and there is no
         // scheduler-specific accessor. Ownership: the map is the one reference
         // `Isolate::new` consumes, so nothing here releases anything.
         let args = run_args(entry.name(), &fired);
@@ -3848,7 +3848,7 @@ mod tests {
     }
 
     /// `rule:config/an-entry-runs-on-a-server-event`: every scheduled run reads
-    /// one map from `Core\Script::args()`, with the entry's `name` and what it
+    /// one map from `Core\Script::arguments()`, with the entry's `name` and what it
     /// ran for under `on`. A cron run reads `"cron"`, and an event run reads the
     /// event's word.
     #[test]

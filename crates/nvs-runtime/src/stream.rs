@@ -378,7 +378,7 @@ impl Drop for Drain {
 /// the opening member is called and nothing said afterwards can reach it: the
 /// media type that member named, beside the status and the headers the request
 /// had declared by then. A declaration made once the stream is open is one made
-/// about a head already on the wire, which is the line `Core\Response::stream`
+/// about a head already on the wire, which is the line `Core\Response::startStream`
 /// draws and the cost of answering early.
 ///
 /// The head and the drain travel together because neither is a response on its
@@ -420,7 +420,7 @@ pub struct Opened {
 /// The window of a stream whose length was stated: which bytes the program
 /// writes, and how many it has written.
 ///
-/// `Core\Response::stream` puts one on the request's context, on a connection
+/// `Core\Response::startStream` puts one on the request's context, on a connection
 /// and off one alike, so `Core\Response\Stream::offset` and `length` read one
 /// place, and a write that would pass the window's end is refused before any
 /// of it is sent.

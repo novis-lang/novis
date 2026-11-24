@@ -447,7 +447,7 @@ fn a_named_file_does_not_change_another_mounts_configuration() {
 fn caching(name: &str) -> String {
     format!(
         "<?nvs\nvar $cache = Core\\Cache::memory();\n\
-         if (Core\\Request::query(\"put\") == \"yes\") {{\n    $cache->put(\"shared-key\", \"{name}\");\n}}\n\
+         if (Core\\Request::queryParameter(\"put\") == \"yes\") {{\n    $cache->put(\"shared-key\", \"{name}\");\n}}\n\
          echo ($cache->get(\"shared-key\") ?? \"absent\") as string;\n"
     )
 }
@@ -484,7 +484,7 @@ fn two_mounts_do_not_share_memory_tier_cache_entries() {
 fn sessioned(name: &str) -> String {
     format!(
         "<?nvs\n\
-         if (Core\\Request::query(\"put\") == \"yes\") {{\n    Core\\Session::setLongLived(\"owner\", \"{name}\");\n}}\n\
+         if (Core\\Request::queryParameter(\"put\") == \"yes\") {{\n    Core\\Session::setLongLived(\"owner\", \"{name}\");\n}}\n\
          echo (Core\\Session::get(\"owner\") ?? \"absent\") as string;\n"
     )
 }

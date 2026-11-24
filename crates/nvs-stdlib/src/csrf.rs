@@ -219,7 +219,7 @@ const TOKEN_DOC: MethodDoc = MethodDoc {
         crate::session::STORE_DOWN,
         ErrorDoc {
             error: "LogicError",
-            desc: "The call runs inside a function passed to `Core\\Task::afterResponse`, after \
+            desc: "The call runs inside a function passed to `Core\\Task::runAfterResponse`, after \
                    the response was sent. The session cookie cannot be sent then.",
         },
     ],

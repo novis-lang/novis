@@ -528,7 +528,7 @@ browser tab. The request still runs to its end, and the server throws its answer
 
 - A write to the answer returns at once and does not throw an error. This is true for `echo`,
   for `Core\Response` and for `Core\Response\Stream::write`. The bytes are thrown away.
-- Work that the request gave to `Core\Task::afterResponse` still runs.
+- Work that the request gave to `Core\Task::runAfterResponse` still runs.
 - The request keeps its place in `[server] max_in_flight` until it ends.
 - When the server drains, it waits for this request as for any other, up to `drain_timeout`.
 

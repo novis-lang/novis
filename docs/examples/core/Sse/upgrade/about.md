@@ -3,7 +3,7 @@ send the client new events at any time, for example each time something is publi
 
 You name what the stream runs: the path of a file, or a static method written `Feed::run`.
 The stream starts when the request ends. It runs in its own isolate (a separate copy of the program
-that shares no memory with the request). `args:` copies values into it. Inside the stream,
+that shares no memory with the request). `arguments:` copies values into it. Inside the stream,
 `Core\Sse::current()` returns the stream to send on.
 
 The other options are the ones `spawn script` takes. `limits:` sets lower limits, such as

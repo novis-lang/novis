@@ -2,7 +2,7 @@
 `Core\Response\Stream::write` past the length the stream was started with throws a `LogicError` and sends nothing -- `rule:http-server/static-serving-is-one-policy`
 --FILE--
 <?nvs
-var $stream = Core\Response::stream("text/plain", 3);
+var $stream = Core\Response::startStream("text/plain", 3);
 $stream->write("abc");
 try {
     $stream->write("d");

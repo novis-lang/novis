@@ -20,4 +20,4 @@ class Bench
     }
 }
 
-Core\Response::text((Bench::run(20000) as string) . "\n");
+Core\Response::sendText((Bench::run(20000) as string) . "\n");

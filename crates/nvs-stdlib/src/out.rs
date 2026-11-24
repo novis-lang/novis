@@ -224,12 +224,12 @@ pub(crate) fn carried(
 }
 
 /// The `RuntimeError` for captured output that is not UTF-8. Only
-/// `Core\Response::bytes` and `::sendFile` write such bytes, since every
+/// `Core\Response::sendBytes` and `::sendFile` write such bytes, since every
 /// other write is a `string`, so the message names them.
 pub(crate) fn not_text(member: &str) -> Fault {
     Fault::thrown(format!(
         "`{member}`: the captured output is not valid UTF-8, so it cannot be a string. \
-         `Core\\Response::bytes` or `Core\\Response::sendFile` wrote it."
+         `Core\\Response::sendBytes` or `Core\\Response::sendFile` wrote it."
     ))
 }
 

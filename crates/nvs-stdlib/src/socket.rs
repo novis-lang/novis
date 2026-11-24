@@ -13,7 +13,7 @@
 //!
 //! The row, its signature, and **the body that fills the slot
 //! `rule:concurrency/a-connection-is-a-root-isolate` gives a connection**: a path
-//! entry resolved into a `nvs_runtime::script::Program`, `args:` crossed by the
+//! entry resolved into a `nvs_runtime::script::Program`, `arguments:` crossed by the
 //! graph copy (`rule:classes/graph-copy`), and the pair left on the request's carrier for the
 //! connection to start. Behind it the framing has landed — `nvs_server::serve`
 //! answers RFC 6455's `101` and `nvs_server::socket` hands the framed socket to
@@ -104,7 +104,7 @@
 //!
 //! A method arrives as a **method reference** — the entry interns as
 //! `mixed`, so `Chat::run` reaches this body as the callable `nvs_ir`'s
-//! `lower_method_ref` built. `rule:security/isolate-shares-nothing` binds `args:` to the
+//! `lower_method_ref` built. `rule:security/isolate-shares-nothing` binds `arguments:` to the
 //! entry's parameters **by name**, and the sibling construct has those names as
 //! a constant its lowering wrote into the call (`nvs_ir::lower`'s
 //! `spawn_method_entry`, read by `crate::script`'s `entry_names_agree` and
@@ -137,7 +137,7 @@
 //! the cell it is left in, offered by `nvs_server::serve_connection` to a
 //! request `hyper` framed an upgrade for, and by `nvs run --request` to a
 //! request file whose `Upgrade` header names `websocket` — and the body below
-//! is the filling: it resolves the entry into one `Program`, crosses `args`,
+//! is the filling: it resolves the entry into one `Program`, crosses `arguments`,
 //! and leaves the pair in the slot. A connection is the only thing an
 //! upgrade can happen to, so a request that did not arrive on one — a CLI
 //! program, a `spawn script` child, a request the server could offer no
@@ -164,7 +164,7 @@
 //! first copy is allocated before the connection's context takes its zero point
 //! and released after, so that context reads its own share a little low — the
 //! balance is a signed `Ctx::memory_base` for exactly this reason, and the
-//! error is bounded by the size of one `args` graph.
+//! error is bounded by the size of one `arguments` graph.
 //!
 //! Two alternatives were refused. **The request isolate becoming the
 //! connection** keeps the arena `rule:concurrency/a-connection-is-a-root-isolate`
@@ -264,7 +264,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     methods: &[
         CoreMethod {
             name: "upgrade",
-            names: &["entry", "args", "limits", "grants", "on"],
+            names: &["entry", "arguments", "limits", "grants", "on"],
             // [`CoreTy::Entry`] is `rule:concurrency/an-upgrade-is-spawn-shaped`'s
             // `spawn script` operand, as the one mark that
             // carries `rule:security/isolate-shares-nothing`'s whole operand rule to a call site: a path or a static
@@ -274,7 +274,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             // 's definition, and
             // `rule:http-server/a-path-is-never-derived-from-a-url`
             // is the same rule written for the server, a filesystem path never
-            // derived from a URL at request time. `args` takes no expected type at
+            // derived from a URL at request time. `arguments` takes no expected type at
             // all, for the reason the sibling site takes none: `rule:classes/graph-copy`'s walk
             // decides what may cross, and that is a run-time question for
             // everything a declared type does not already settle.
@@ -389,7 +389,7 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
         ParamDoc {
-            name: "args",
+            name: "arguments",
             desc: "The values the connection starts with. They are copied into the connection. \
                    For a method, each value goes to the parameter with the same name. A \
                    `tainted` value is still `tainted` in the connection.",
@@ -427,8 +427,8 @@ const UPGRADE_DOC: MethodDoc = MethodDoc {
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "An `$args` value cannot be copied into the connection: a resource, a `secret`, \
-                   or an array nested too deep. For a method, `$args` is missing a parameter or \
+            desc: "An `$arguments` value cannot be copied into the connection: a resource, a `secret`, \
+                   or an array nested too deep. For a method, `$arguments` is missing a parameter or \
                    has a name the method does not declare.",
         },
     ],
@@ -699,7 +699,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
 /// `Core\Sse::upgrade` — because a refusal names the member a program wrote and
 /// the two doors share this body.
 ///
-/// `args` is the **parent's** `args:` map, judged here rather than in the
+/// `args` is the **parent's** `arguments:` map, judged here rather than in the
 /// child for `crate::script`'s `entry_names_agree` reason: this frame is the
 /// call `rule:security/isolate-shares-nothing` names as where a named-argument mismatch is reported, and it
 /// is the last one that still has a `catch` above it. It is *only* judged —
@@ -829,7 +829,7 @@ fn method_program(ctx: &Ctx, entry: Value, args: Value, member: &str) -> Result<
     // recoverable and a wrong `FATAL` ends the request.
     let Some(names) = nvs_runtime::callable_param_names(entry)? else {
         return Err(Fault::thrown(format!(
-            "`{member}` was given a `callable` with no parameter names, so `args:` cannot be \
+            "`{member}` was given a `callable` with no parameter names, so `arguments:` cannot be \
              matched to its parameters. Give a static method such as `Chat::run`, or the file \
              the connection runs"
         )));
@@ -979,7 +979,7 @@ pub(crate) fn upgrade_narrowing(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Socket::upgrade(string $entry, mixed $args = null, mixed $limits =
+    /// `Core\Socket::upgrade(string $entry, mixed $arguments = null, mixed $limits =
     /// null, ?array<string> $grants = null, ?string $on = null): void` —
     /// `rule:concurrency/an-upgrade-is-spawn-shaped`'s upgrade, prepared here
     /// and started by the connection.
@@ -1026,7 +1026,7 @@ nvs_runtime::nvs_helper! {
         let crossed = copy_graph_to(retained(args[1]), &into).map_err(|refused| {
             Fault::thrown_as(
                 ThrownClass::Logic,
-                format!("`Core\\Socket::upgrade`'s `args:` cannot cross into a connection: {refused}"),
+                format!("`Core\\Socket::upgrade`'s `arguments:` cannot cross into a connection: {refused}"),
             )
         })?;
         if let Err(returned) =
@@ -2397,7 +2397,7 @@ mod tests {
         );
     }
 
-    /// `rule:security/isolate-shares-nothing` binds `args:` **by name**, so a map that names
+    /// `rule:security/isolate-shares-nothing` binds `arguments:` **by name**, so a map that names
     /// something the entry does not declare — or omits something it does — is
     /// the ordinary named-argument error, reported at the call while there is
     /// still a `catch` above it.
@@ -2418,7 +2418,7 @@ mod tests {
         let entry = a_callable("userId", echoes_room);
         let mine = a_room();
         nvs_runtime::call(nvs_core_socket_upgrade, &mut ctx, &upgrading(entry, mine))
-            .expect_err("`args:` that does not name the entry's parameters is refused");
+            .expect_err("`arguments:` that does not name the entry's parameters is refused");
         let reported = ctx
             .pending()
             .expect("the throw is on the context")

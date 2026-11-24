@@ -9,5 +9,5 @@ array<string> $lines = [
     Core\Json::encode("Say \"hi\""),
 ];
 
-// `Core\Response::text` sends the three lines exactly as they are.
-Core\Response::text(Core\Str::join($lines, "\n"));
+// `Core\Response::sendText` sends the three lines exactly as they are.
+Core\Response::sendText(Core\Str::join($lines, "\n"));

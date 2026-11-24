@@ -497,7 +497,7 @@ impl Ctx {
         // Its children end with it, and their report says so.
         child.task_child = true;
         // A slot and after-response work are children started once the main
-        // script is over, so `Core\Response::slotted()` throws in them too.
+        // script is over, so `Core\Response::sendSlotted()` throws in them too.
         child.main_ended = self.main_ended;
         // A slot reads the request's session, and so does a task it starts.
         child.lent_session = self.lent_session.clone();
@@ -1049,7 +1049,7 @@ impl Ctx {
     /// in hand. Calling it twice releases what it replaces, and a context that
     /// is never handed one holds `null` and releases nothing.
     ///
-    /// The child's own surface for *reading* it is `Core\Script::args()`, and
+    /// The child's own surface for *reading* it is `Core\Script::arguments()`, and
     /// `nvs_stdlib::script`'s module doc is the one home of what that answers.
     /// It reads through [`Self::isolate_argument`] and retains, so this slot
     /// stays the only owner however often the child asks.

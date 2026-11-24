@@ -3,19 +3,19 @@ a request field read with `query`, `post`, `queryArray` or `postArray` is `taint
 --FILE--
 <?nvs
 var $db = Core\Db::connect("main");
-var $name = Core\Request::post("name");
+var $name = Core\Request::formField("name");
 
-$db->query("select * from users where id = " . Core\Request::query("id"), []);
+$db->query("select * from users where id = " . Core\Request::queryParameter("id"), []);
 $db->query("select * from users where name = '{$name}'", []);
 string $sql = "select * from users where id = ";
-$sql .= Core\Request::query("id");
-string $id = Core\Request::query("id") as string;
-array<string> $tags = Core\Request::queryArray("tag");
-string $first = Core\Request::postArray("item")[0] ?? "";
+$sql .= Core\Request::queryParameter("id");
+string $id = Core\Request::queryParameter("id") as string;
+array<string> $tags = Core\Request::queryParameters("tag");
+string $first = Core\Request::formFields("item")[0] ?? "";
 
 // The bound parameter and the number conversion are the two accepted readings.
-$db->query("select * from users where id = ?", [Core\Request::query("id")]);
-int $page = Core\Request::query("page") as ?int ?? 1;
+$db->query("select * from users where id = ?", [Core\Request::queryParameter("id")]);
+int $page = Core\Request::queryParameter("page") as ?int ?? 1;
 --FILE nvs.toml--
 [capabilities.db]
 connect = ["main"]

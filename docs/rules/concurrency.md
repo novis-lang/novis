@@ -10,7 +10,7 @@
 `rule:concurrency/one-scheduler`
 
 Concurrency is `Core\Task` and nothing else. Three members carry it — `Task::all` over a fixed set,
-`Task::map` over a collection, and `Task::afterResponse` for work that follows a response — and
+`Task::map` over a collection, and `Task::runAfterResponse` for work that follows a response — and
 `spawn`/`await` and `Core\Task\Channel` are the primitives beneath them.
 
 They run on one scheduler, which is the runtime's own: stackful coroutines, thread-per-core,
@@ -434,15 +434,15 @@ cancel, the return to the pool and the close on every wire driver's leg of `bun 
 
 <a id="concurrency-after-response-outlives-the-connection"></a>
 
-## `Core\Task::afterResponse` runs once the response is complete, still charged to the request tree
+## `Core\Task::runAfterResponse` runs once the response is complete, still charged to the request tree
 
 `rule:concurrency/after-response-outlives-the-connection`
 
-`Core\Task::afterResponse(callable $fn, {deadline?}): void` registers work to run once the request
+`Core\Task::runAfterResponse(callable $fn, {deadline?}): void` registers work to run once the request
 is done with:
 
 ```nvs
-Task::afterResponse(fn(): void => Receipts::send($order), {deadline: 30s});
+Task::runAfterResponse(fn(): void => Receipts::send($order), {deadline: 30s});
 return $response;         // the client has its bytes; the receipt is still going out
 ```
 
@@ -505,11 +505,11 @@ only a little.
 `rule:concurrency/deferred-work-cannot-write-the-response`
 
 The response is on the wire before deferred work runs, so **the deferred callable may not touch it**. Every
-`Core` member that sets a status, a header, a cookie or a body, `Core\Response::slotted` and every
+`Core` member that sets a status, a header, a cookie or a body, `Core\Response::sendSlotted` and every
 `Core\Session` member that writes — `setShortLived`, `setLongLived`, `setShortLivedSecret`,
 `setLongLivedSecret`, `remove`, `clearShortLived`, `clearLongLived`, `clearAll` and `regenerate` — is
 refused in it: a compile error, `E0857`, where the call is written inside the anonymous function passed
-to `Core\Task::afterResponse` or one nested in it, and a `LogicError` at run time otherwise — a callable
+to `Core\Task::runAfterResponse` or one nested in it, and a `LogicError` at run time otherwise — a callable
 held in a variable, a method it calls, and every task the work starts. `Core\Request` and `Core\Server`
 stay readable: it is still the same tree, and the request's own values are still there to read. `echo`
 in deferred work is the work's own output and is not a response write.
@@ -518,7 +518,7 @@ in deferred work is the work's own output and is not a response write.
 checker, because a read sends no header. But deferred work runs with no session: the request's session
 was written back when its program ended, so the first session call in the work throws `LogicError`
 ([`security/request-state-throws-in-an-isolate`](security.md#security-request-state-throws-in-an-isolate)). A value the work needs is read before
-`Core\Task::afterResponse` is called and captured by the callable. That costs nothing past the response,
+`Core\Task::runAfterResponse` is called and captured by the callable. That costs nothing past the response,
 where a view of the session kept for the work would hold the record for as long as the work runs and
 could show values another request has since changed.
 
@@ -575,7 +575,7 @@ bounded like every other limit by the tree's remaining budget.
 
 `rule:concurrency/a-full-deferred-executor-throws`
 
-Past `[deferred] max_concurrent`, `Core\Task::afterResponse` throws a `RuntimeError` **at the call
+Past `[deferred] max_concurrent`, `Core\Task::runAfterResponse` throws a `RuntimeError` **at the call
 site**. It does not queue.
 
 The throw arrives while the request is still running and can still decide what to do — respond
@@ -934,7 +934,7 @@ security property the model is worth paying for: authentication happens in an or
 with every server default applied, and what reaches the long-lived isolate is whatever the
 application chose to hand it — an account id, a tenant id — never the credential that proved it.
 
-A connection isolate and deferred `Core\Task::afterResponse` work are the only two things in this
+A connection isolate and deferred `Core\Task::runAfterResponse` work are the only two things in this
 language that outlive a response, and they are opposites at every point that matters: deferred work
 belongs to the request tree, sees the request's heap and spends the request's remaining budget, while
 a connection is a root, sees only what its arguments copied in, and ends when the peer closes, a
@@ -984,9 +984,9 @@ started again, so a `Core\Fatal::onLimit` handler that waits keeps its slice. Th
 
 `rule:concurrency/an-upgrade-is-spawn-shaped`
 
-`Core\Socket::upgrade('sockets/chat.nvs', args: {room: $room})` takes a spawned script's operand and
+`Core\Socket::upgrade('sockets/chat.nvs', arguments: {room: $room})` takes a spawned script's operand and
 nothing else: a file path, resolved and root-checked exactly as that construct's is, or a static
-method written `Chat::run` whose parameters `args:` binds to **by name**. Which of the two it is
+method written `Chat::run` whose parameters `arguments:` binds to **by name**. Which of the two it is
 is decided syntactically at the call site ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)).
 
 It is never a callable. A capture would carry state across the boundary the isolate exists to create,
@@ -994,7 +994,7 @@ so an anonymous function or a `callable`-typed variable here is a compile error 
 instead. Naming compiled code is also what makes a connection participate in the artifact cache, hot
 reload, grants, limits, coverage and tracing with no special case in any of them.
 
-`args` crosses by graph copy ([`classes/graph-copy`](classes.md#classes-graph-copy)), so it is a value and never a shared
+`arguments` crosses by graph copy ([`classes/graph-copy`](classes.md#classes-graph-copy)), so it is a value and never a shared
 reference: a `secret` may not be passed at all, and a `tainted` value stays `tainted` on the other
 side.
 
@@ -1003,9 +1003,9 @@ handler's return value, so an upgrade handed back to the runtime would be handed
 
 **Declined:**
 - **A capturing closure as the target.** It would either capture the request's heap, or copy the
-  captures silently at the boundary, hiding the copy `args` keeps visible and turning a captured handle
+  captures silently at the boundary, hiding the copy `arguments` keeps visible and turning a captured handle
   into a run-time error instead of a compile error. A static method carries code and nothing else, and
-  its input arrives through the same `args` a file's does.
+  its input arrives through the same `arguments` a file's does.
 - **Returning the upgrade to perform it.** That needs a value type a dispatcher interprets, which is a
   second response model ([`routing/the-servers-match-dispatches-nothing`](routing.md#routing-the-servers-match-dispatches-nothing)).
 
@@ -1017,7 +1017,7 @@ handler's return value, so an upgrade handed back to the runtime would be handed
 
 `rule:concurrency/an-upgrades-options-are-spawn-scripts`
 
-An upgrade takes `args`, `limits`, `grants` and `on` — the same four options a spawned script spells
+An upgrade takes `arguments`, `limits`, `grants` and `on` — the same four options a spawned script spells
 after its operand, with identical meaning and identical spelling (`limits: {memory: "8M"}`). They are
 ordinary named arguments here rather than a `with(…)` clause because `upgrade` is a method, and a
 `with(…)` written inside an argument list would read as a call to a function named `with`. Both
@@ -1155,7 +1155,7 @@ and the member each door is missing is the hand-over it reports
 
 **Resumption is the client's `Last-Event-ID`, and the runtime keeps no replay buffer.** A connection
 isolate shares nothing with the request that opened it ([`security/isolate-shares-nothing`](security.md#security-isolate-shares-nothing)), so
-the handler reads the header and passes it through `args:`; the request-scoped door reads it
+the handler reads the header and passes it through `arguments:`; the request-scoped door reads it
 directly. Replay needs the application's own event log, and the id is the key into it.
 
 **A request-scoped event stream is reconnected by `EventSource` when the request ends.** That door is
@@ -1168,7 +1168,7 @@ holds every event until the stream ends. The second header is an instruction *to
 proxy behaviour this server implements, so
 [`http-server/two-deployments-and-nothing-a-proxy-owns`](http-server.md#http-server-two-deployments-and-nothing-a-proxy-owns) is untouched by it.
 
-Both spellings are built. `Core\Response::stream` and `Core\Sse::stream` write a body that ends with
+Both spellings are built. `Core\Response::startStream` and `Core\Sse::startStream` write a body that ends with
 the response, from inside the request isolate; `Core\Sse::upgrade` opens the connection. Both write
 through one cell between the writing isolate and the connection that frames the body, so the two
 spellings are one model with two hand-overs rather than two mechanisms.
@@ -1983,7 +1983,7 @@ when it runs, which is where credentials live anyway and which keeps them out of
 a replica.
 
 Every text a job reads out of its payload is `tainted` ([`security/tainted-qualifier`](security.md#security-tainted-qualifier)), whether it
-was enqueued `tainted` or clean. `Core\Script::args()` answers `mixed`, and text out of `mixed` is
+was enqueued `tainted` or clean. `Core\Script::arguments()` answers `mixed`, and text out of `mixed` is
 `tainted` ([`security/taint-propagation`](security.md#security-taint-propagation)), so the analysis survives the round trip instead of being
 laundered by a database. This is the trust every other stored value gets: a row's `get`,
 `Core\Cache::get` and `Core\Session::get` answer `mixed` too. A job recovers a number, a flag or an enum
@@ -2117,7 +2117,7 @@ of course `push`, and that is the intended way to enqueue a nightly batch's wort
 decides when the batch is created and the queue decides how each piece of it is run, retried and
 recorded.
 
-Deferred work is the third thing, and it is not a job either. `Core\Task::afterResponse`
+Deferred work is the third thing, and it is not a job either. `Core\Task::runAfterResponse`
 ([`concurrency/after-response-outlives-the-connection`](concurrency.md#concurrency-after-response-outlives-the-connection)) runs after a response, inside the request
 tree, bounded and in memory: if the process dies the work is gone. An email, an export, a webhook
 delivery or a third-party sync has to survive that, so it is pushed, not deferred.

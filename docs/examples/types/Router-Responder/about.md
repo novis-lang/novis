@@ -3,7 +3,7 @@ The interface your class implements to write the response from the value that a 
 `Core\Router\Responder` extends `Core\Router\Gate`, so your class has the three `Gate` methods and
 one more: `respond($route, $value)`. When a route method returns a value, `Core\Router::dispatch`
 calls `respond` with that value. Your `respond` method writes the response, for example with
-`Core\Response::html` or `Core\Response::json`.
+`Core\Response::sendHtml` or `Core\Response::sendJson`.
 
 A route method declared `void` does not return a value, so `dispatch` does not call `respond`. A
 method declared `?T` that returns `null` still reaches `respond` with `null`.

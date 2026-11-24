@@ -6,7 +6,7 @@ An ods is written from the same calls, and held until `finish()` (below).
 
 | Method | Where the bytes go |
 |---|---|
-| `createForDownload(string $name, {…})` | The response. It sets `Content-Disposition` with `$name` and starts `Core\Response::stream` at once, so the headers leave before the first row is written |
+| `createForDownload(string $name, {…})` | The response. It sets `Content-Disposition` with `$name` and starts `Core\Response::startStream` at once, so the headers leave before the first row is written |
 | `createForFile(string $path, {…})` | A temporary file beside `$path`, `<path>.<16 hex>.part`, opened with `Core\IO::open` in `Write` mode, written with `Core\IO\File::write` and renamed to `$path` by `finish()` |
 | `createForStream(Core\IO\File $file, {…})` | A file the program already opened |
 | `createInMemory({…})` | Memory, and `finish()`'s `Written` carries the `bytes` |
@@ -51,7 +51,7 @@ repeated.
 **`finish()`** writes the sheet-end parts, `styles.xml`, `workbook.xml`, the content types and the zip
 directory, sends the last bytes, and returns a `Written`: the row count per sheet, the size in bytes,
 and the bytes for `createInMemory`. **A download never finished is cut off and logged.**
-`createForDownload` opens its stream with `Core\Response::stream`'s `$mustEnd` set to the download's
+`createForDownload` opens its stream with `Core\Response::startStream`'s `$mustEnd` set to the download's
 name, and `finish()` calls the stream's `end()`. When the program stops, however it stops, a stream
 opened with `$mustEnd` and not ended has its body aborted, so the browser reports a failed download
 and not a broken file, and one error record carrying the name as its `stream` field is written
@@ -101,12 +101,12 @@ paragraphs, written down once.
 option above, the sheet-name rules, the row options `height`, `hidden`, `level` and `style`,
 `define`, CSV and ods (`extensions/spreadsheet/src/ods/`, `extensions/spreadsheet/src/book.rs`), and
 the cut-off and logged download that was never finished
-(`Core\Response::stream`'s `$mustEnd` and `Core\Response\Stream::end`,
+(`Core\Response::startStream`'s `$mustEnd` and `Core\Response\Stream::end`,
 `crates/nvs-stdlib/src/response.rs`).
 
 **After a download's body is streamed, the request cannot add to it.** `echo` goes to the context's
 output buffer, which the streamed path never sends (`crates/nvs-server/src/serve.rs`), a late
-`setHeader` reaches nothing, and a second `Core\Response::stream` throws `LogicError`, so no
+`setHeader` reaches nothing, and a second `Core\Response::startStream` throws `LogicError`, so no
 compile-time check is needed. `tests/hostile/novis/Spreadsheet-Export/download/` pins it.
 
 **Declined:**

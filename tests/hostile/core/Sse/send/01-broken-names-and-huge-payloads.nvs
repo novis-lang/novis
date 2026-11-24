@@ -2,7 +2,7 @@
 // Attack: a program sends events with line breaks in every field, very large payloads
 // and deeply nested values. Each one should be sent or throw an error, and none should crash.
 
-Core\Sse $sse = Core\Sse::stream();
+Core\Sse $sse = Core\Sse::startStream();
 
 // 1. A payload that is only line breaks, in all three forms the protocol knows.
 try {

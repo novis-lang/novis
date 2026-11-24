@@ -18,9 +18,9 @@ class Product
 
 if (Core\Request::path() != '/products') {
     Core\Response::setStatus(404);
-    Core\Response::text("not found\n");
+    Core\Response::sendText("not found\n");
 } else {
-    tainted string $term = Core\Request::query('q') ?? '';
+    tainted string $term = Core\Request::queryParameter('q') ?? '';
 
     // The products are built again for every request, as a page reads them from a database.
     array<Product> $products = [];

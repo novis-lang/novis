@@ -23,4 +23,4 @@ Core\Router\Match $matched = Core\Router::signedRoute($keys);
 // `is` checks which method the route belongs to.
 // This prints `Reports::download` and then `year 2024`.
 echo $matched->is(Reports::download) ? 'Reports::download' : 'another route', "\n";
-echo 'year ', $matched->param('year') as uint, "\n";
+echo 'year ', $matched->parameter('year') as uint, "\n";

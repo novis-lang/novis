@@ -1,4 +1,4 @@
-Past `[deferred] max_concurrent`, `Core\Task::afterResponse` throws a `RuntimeError` **at the call
+Past `[deferred] max_concurrent`, `Core\Task::runAfterResponse` throws a `RuntimeError` **at the call
 site**. It does not queue.
 
 The throw arrives while the request is still running and can still decide what to do — respond

@@ -1,5 +1,5 @@
 Returns how many bytes your program writes to the stream. It works on a stream that
-`Core\Response::stream` started with a `$length`.
+`Core\Response::startStream` started with a `$length`.
 
 `length()` is the size of the whole body, or the size of the part the browser asked for with a
 `Range` header. It is `0` when nothing is sent. That happens when the browser already has this

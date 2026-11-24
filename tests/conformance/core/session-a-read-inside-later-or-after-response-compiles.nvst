@@ -1,5 +1,5 @@
 --TEST--
-A session read inside `Core\Html::later` and `Core\Task::afterResponse` compiles, because a read sends no header. Inside `later` it returns the value the main script saved; work after the response has no request, so its read throws `LogicError` -- `rule:core-classes/html-later`, `rule:concurrency/deferred-work-cannot-write-the-response`
+A session read inside `Core\Html::later` and `Core\Task::runAfterResponse` compiles, because a read sends no header. Inside `later` it returns the value the main script saved; work after the response has no request, so its read throws `LogicError` -- `rule:core-classes/html-later`, `rule:concurrency/deferred-work-cannot-write-the-response`
 --SKIPIF--
 <?nvs
 // The record crosses the store `[cache.shared]` names, and a tree without one
@@ -20,7 +20,7 @@ Core\Session::setShortLived("cart", 3);
 echo Core\Html::later(fn(): void => {
     echo "later reads ", Core\Session::get("cart") as int, "\n";
 });
-Core\Task::afterResponse(fn(): void => {
+Core\Task::runAfterResponse(fn(): void => {
     try {
         var $cart = Core\Session::get("cart");
         echo "after the response reads ", $cart as int, "\n";

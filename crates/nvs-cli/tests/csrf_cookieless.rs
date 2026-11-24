@@ -43,7 +43,7 @@ class Form {
     public function send(): string { return "sent"; }
 }
 
-tainted string $do = Core\Request::query("do") ?? "token";
+tainted string $do = Core\Request::queryParameter("do") ?? "token";
 if ($do == "token") {
     echo Core\Csrf::token();
 } elseif ($do == "token-then-write") {

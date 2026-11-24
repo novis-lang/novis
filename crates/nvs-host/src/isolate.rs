@@ -551,7 +551,7 @@ impl Isolate {
 
     /// Offers `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`
     /// 's request-scoped cell to the request this isolate answers, so that
-    /// `Core\Response::stream` inside it has somewhere to leave the head the
+    /// `Core\Response::startStream` inside it has somewhere to leave the head the
     /// connection is to write.
     ///
     /// Offered to **every** request a server answers, exactly as
@@ -1500,7 +1500,7 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     // on every path out of here beside the declaration that types the body.
     let style_nonce = isolate_ctx.take_style_nonce();
     // The body in the chunks it was written in, so a server sends a large
-    // `Core\Response::json` document with no join (`Ctx::write_body_chunks`).
+    // `Core\Response::sendJson` document with no join (`Ctx::write_body_chunks`).
     let output = isolate_ctx.take_buffered_body().unwrap_or_default();
     // `rule:security/response-body-is-one-typed-member`'s declaration, taken beside the bytes it describes and on
     // every path out of here — a child that threw still wrote what it wrote,

@@ -21,7 +21,7 @@ type, and a returned value reaches the response only through the program's own `
 handler's declared return type is neither `void` nor `never` and the gate implements
 `Core\Router\Responder`, `dispatch` calls `$gate->respond($route, $value)` once the handler returns,
 then releases the value; a `?T` handler that returns `null` still reaches `respond` with `null`. The
-gate writes the response, as `Core\Response::html` does for a `Core\Html\Markup`. A plain gate drops
+gate writes the response, as `Core\Response::sendHtml` does for a `Core\Html\Markup`. A plain gate drops
 the value, and so does a gate that declares a `respond` method without implementing `Responder`: the
 name alone never decides it. A handler that throws reaches `failed` and never `respond`, a refused
 request reaches neither the handler nor `respond`, and an error `respond` throws is thrown by

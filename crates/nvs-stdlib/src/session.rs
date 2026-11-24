@@ -366,7 +366,7 @@ pub(crate) const STORE_DOWN: ErrorDoc = ErrorDoc {
 /// The error every method that changes the session lists for a call where headers are sent.
 const HEAD_CLOSED: ErrorDoc = ErrorDoc {
     error: "LogicError",
-    desc: "The call is inside `Core\\Html::later` or `Core\\Task::afterResponse`. The response \
+    desc: "The call is inside `Core\\Html::later` or `Core\\Task::runAfterResponse`. The response \
            headers are already sent there, so the session cannot change. Most of these calls do \
            not compile.",
 };
@@ -6673,7 +6673,7 @@ mod tests {
     #[test]
     fn a_session_write_inside_later_or_after_response_throws_for_an_existing_session_too() {
         let (_, long_lived) = lifetimes();
-        for place in ["later", "afterResponse"] {
+        for place in ["later", "runAfterResponse"] {
             let mut ctx = Ctx::buffered();
             ctx.open_session(nvs_runtime::Session {
                 long: longs(&["consent"]),

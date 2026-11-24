@@ -24,7 +24,7 @@ class Bench
         while ($i < $rounds) {
             ?Core\Router\Match $matched = Core\Request::route();
             if ($matched != null) {
-                $total = $total + ($matched->param('id') as uint) + $total % 2;
+                $total = $total + ($matched->parameter('id') as uint) + $total % 2;
             }
             $i = $i + 1;
         }

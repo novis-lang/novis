@@ -18,4 +18,4 @@ try {
 }
 
 // This prints both lines. `text` sets `Content-Type: text/plain; charset=utf-8`.
-Core\Response::text($report);
+Core\Response::sendText($report);

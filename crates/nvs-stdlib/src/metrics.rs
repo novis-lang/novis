@@ -1,7 +1,7 @@
 //! `Core\Metrics` — `rule:observability/metrics-three-members`'s three verbs
 //! for three kinds, over the per-core registry `nvs_runtime::metrics` owns.
 //!
-//! `increment` for a counter, `observe` for a histogram, `gauge` for a
+//! `increment` for a counter, `observe` for a histogram, `setGauge` for a
 //! point-in-time value. Three members rather than one `record` with a kind
 //! argument, because the kind is a property of the **series** and not of the
 //! call: a name is fixed to one kind on first use, and a call that disagrees is
@@ -139,13 +139,13 @@ const INCREMENT_OPTIONS: &[CoreOption] = &[
     LABELS,
 ];
 
-/// `observe`'s and `gauge`'s bag: the labels alone, the value being positional.
+/// `observe`'s and `setGauge`'s bag: the labels alone, the value being positional.
 const VALUE_OPTIONS: &[CoreOption] = &[LABELS];
 
 /// `Core\Metrics`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Counts and measures what your program does, for a monitoring system to collect. \
-            `increment` adds to a counter, `observe` records a measurement and `gauge` sets a \
+            `increment` adds to a counter, `observe` records a measurement and `setGauge` sets a \
             level. A program cannot read the values back.",
 };
 
@@ -187,7 +187,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&OBSERVE_DOC),
         },
         CoreMethod {
-            name: "gauge",
+            name: "setGauge",
             names: &["name", "value"],
             params: &[
                 CoreTy::Text(Qual::Sink),
@@ -197,7 +197,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_metrics_gauge",
+            symbol: "nvs_core_metrics_set_gauge",
             doc: Some(&GAUGE_DOC),
         },
     ],
@@ -282,7 +282,7 @@ const OBSERVE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Metrics::gauge`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Metrics::setGauge`'s reference card — `rule:core-api/reference-card`.
 const GAUGE_DOC: MethodDoc = MethodDoc {
     short: "Sets a gauge to `$value`. A gauge is a level that goes up and down, such as the number \
             of items waiting. The first call with `$name` makes that name a gauge.",
@@ -317,7 +317,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_metrics_increment" => (nvs_core_metrics_increment as *const ()).cast(),
         "nvs_core_metrics_observe" => (nvs_core_metrics_observe as *const ()).cast(),
-        "nvs_core_metrics_gauge" => (nvs_core_metrics_gauge as *const ()).cast(),
+        "nvs_core_metrics_set_gauge" => (nvs_core_metrics_set_gauge as *const ()).cast(),
         _ => return None,
     }))
 }
@@ -344,11 +344,11 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Metrics::gauge(string $name, float $value, { labels?: array<string, string> }): void`
+    /// `Core\Metrics::setGauge(string $name, float $value, { labels?: array<string, string> }): void`
     /// — `rule:observability/metrics-three-members`.
-    fn nvs_core_metrics_gauge(_ctx, args: [4]) {
+    fn nvs_core_metrics_set_gauge(_ctx, args: [4]) {
         let value = args[2].as_float().unwrap_or_default();
-        write(args, "gauge", Written::Gauge(value))
+        write(args, "setGauge", Written::Gauge(value))
     }
 }
 
@@ -487,8 +487,8 @@ mod tests {
     use nvs_runtime::{Ctx, Fault, NvsFn, ThrownClass, Value};
 
     use super::{
-        CLASS, NAME, mismatch, nvs_core_metrics_gauge, nvs_core_metrics_increment,
-        nvs_core_metrics_observe,
+        CLASS, NAME, mismatch, nvs_core_metrics_increment, nvs_core_metrics_observe,
+        nvs_core_metrics_set_gauge,
     };
     use crate::registry::{CoreTy, Qual};
 
@@ -543,16 +543,16 @@ mod tests {
         );
     }
 
-    /// `rule:observability/metrics-three-members`: `gauge` *sets* the level, so
+    /// `rule:observability/metrics-three-members`: `setGauge` *sets* the level, so
     /// a lower write replaces a higher one, and a counter write under the same
     /// name throws and leaves the level as it was.
-    // covers: Core\Metrics::gauge
+    // covers: Core\Metrics::setGauge
     #[test]
     fn gauge_sets_the_level_and_a_lower_write_replaces_a_higher_one() {
         let mut ctx = Ctx::buffered();
         for level in [5.0, 2.0] {
             called(
-                nvs_core_metrics_gauge,
+                nvs_core_metrics_set_gauge,
                 &mut ctx,
                 "pool_connections_open",
                 Value::float(level),
@@ -644,7 +644,7 @@ mod tests {
             "`Core\\Metrics` is registered"
         );
         let members: Vec<&str> = CLASS.methods.iter().map(|method| method.name).collect();
-        assert_eq!(members, ["increment", "observe", "gauge"]);
+        assert_eq!(members, ["increment", "observe", "setGauge"]);
         assert!(CLASS.instance.is_empty());
         for method in CLASS.methods {
             assert!(

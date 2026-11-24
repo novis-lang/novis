@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::text` is not a sink, so a tainted body is accepted where an unclassified `string` parameter would refuse it -- `rule:security/unclassified-parameter-refuses-tainted` and `rule:security/response-body-is-one-typed-member`
+`Core\Response::sendText` is not a sink, so a tainted body is accepted where an unclassified `string` parameter would refuse it -- `rule:security/unclassified-parameter-refuses-tainted` and `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
 // `rule:security/unclassified-parameter-refuses-tainted`: an unclassified `string` parameter refuses a tainted argument.
@@ -8,12 +8,12 @@
 // it may -- `nosniff` is on with nothing configured, so a `text/plain` body is
 // never re-parsed as HTML by a browser.
 tainted string $t = "from the wire" as tainted string;
-Core\Response::text($t);
+Core\Response::sendText($t);
 echo "\n";
 
 // The classification is a property of the parameter, not of the argument: the
 // same member takes a plain `string` and nothing about the body changes.
-Core\Response::text("from a literal");
+Core\Response::sendText("from a literal");
 echo "\n";
 --EXPECT--
 from the wire

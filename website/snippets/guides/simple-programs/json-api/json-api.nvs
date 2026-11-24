@@ -25,12 +25,12 @@ class Products
         array<Product> $all = [new Product(1, 'Fig', 3.5), new Product(2, 'Apple', 0.4)];
         foreach ($all as Product $product) {
             if ($product->id == $id) {
-                Core\Response::json($product);
+                Core\Response::sendJson($product);
                 return;
             }
         }
         Core\Response::setStatus(404);
-        Core\Response::json({ error: 'no such product' });
+        Core\Response::sendJson({ error: 'no such product' });
     }
 }
 
@@ -45,12 +45,12 @@ class Gate implements Core\Router\Gate
     // `dispatch` has already set the status, such as 404 for a path with no route.
     public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
     {
-        Core\Response::json({ error: 'not possible' });
+        Core\Response::sendJson({ error: 'not possible' });
     }
 
     public function failed(?Core\Router\Match $route, ?Throwable $error): void
     {
-        Core\Response::json({ error: 'server error' });
+        Core\Response::sendJson({ error: 'server error' });
     }
 }
 

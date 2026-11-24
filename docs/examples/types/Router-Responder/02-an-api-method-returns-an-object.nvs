@@ -3,7 +3,7 @@
 
 use Core\Http\Method;
 
-// `#[Core\Json\Derive]` lets `Core\Response::json` write this class as JSON.
+// `#[Core\Json\Derive]` lets `Core\Response::sendJson` write this class as JSON.
 #[Core\Json\Derive]
 class Product
 {
@@ -37,18 +37,18 @@ class Gate implements Core\Router\Responder
 
     public function refused(Core\Router\Refusal $reason, ?Core\Router\Match $route): void
     {
-        Core\Response::json({ error: 'not allowed' });
+        Core\Response::sendJson({ error: 'not allowed' });
     }
 
     public function failed(?Core\Router\Match $route, ?Throwable $error): void
     {
-        Core\Response::json({ error: 'server error' });
+        Core\Response::sendJson({ error: 'server error' });
     }
 
     // `dispatch` calls this with the object that the route method returned.
     public function respond(Core\Router\Match $route, mixed $value): void
     {
-        Core\Response::json($value);
+        Core\Response::sendJson($value);
     }
 }
 

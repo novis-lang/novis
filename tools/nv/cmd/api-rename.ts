@@ -4,17 +4,18 @@
 // keeps a list of old names.
 //
 // The block is a fenced code block whose info string is `renames`, one pair per line:
-// `Core\Response::json Core\Response::sendJson` for a static member, `Core\Sse->retry Core\Sse->setRetryDelay`
-// for an instance member. `#` starts a comment line.
+// `Shop\Reply::json Shop\Reply::sendJson` for a static member, `Shop\Feed->retry Shop\Feed->setRetryDelay`
+// for an instance member. `#` starts a comment line. (The examples here are made up, so a sweep never
+// rewrites this file's own text.)
 //
 // Without `--check` it rewrites, in every text file of the tree (`TEXT_EXTENSIONS`):
 //
-//   * every name written in full, `Core\Response::json` or `Core\Sse->retry`, with a leading `\` or not, and
-//     with the separators doubled as a Rust or TypeScript string writes them (`Core\\Response::json`);
-//   * in a `.nvs`, `.nvst` or `.lspt` file, `Response::json` where the file has `use Core\Response;`, and
-//     `R::json` where it has `use Core\Response as R;`;
-//   * in a prose file (`.md`, `.mdx`, `.astro`), the short form a page writes, `Response::json` and
-//     `Sse->retry`, since a page never declares a class of that name.
+//   * every name written in full, `Shop\Reply::json` or `Shop\Feed->retry`, with a leading `\` or not, and
+//     with the separators doubled as a Rust or TypeScript string writes them (`Shop\\Reply::json`);
+//   * in a `.nvs`, `.nvst` or `.lspt` file, `Reply::json` where the file has `use Shop\Reply;`, and
+//     `R::json` where it has `use Shop\Reply as R;`;
+//   * in a prose file (`.md`, `.mdx`, `.astro`), the short form a page writes, `Reply::json` and
+//     `Feed->retry`, since a page never declares a class of that name.
 //
 // It never rewrites `->retry(`: an instance call needs its receiver's type, so it lists each one as
 // `file:line` for a session to fix by reading. In a project, `nvs check` names the ones left as unknown
@@ -25,7 +26,7 @@
 //
 // With `--check` it rewrites nothing, and exits 1 naming every old name still written in either form, outside
 // the goal file and `website/src/data/changes.json`. A `.rs` or `.ts` file is held to the full form alone,
-// since `Response::json` there may be a Rust path. It exits 2 on a bad argument or a goal with no block.
+// since `Reply::json` there may be a Rust path. It exits 2 on a bad argument or a goal with no block.
 //
 // What it spends: one read of each text file, about a second over the tree.
 

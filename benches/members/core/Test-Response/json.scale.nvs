@@ -23,7 +23,7 @@ class Bench
 // The `sku` has one `x` for each character of the path.
 if (Core\Env::context() == Core\Env::Context::Request) {
     var $sku = Core\Str::repeat('x', Core\Str::length(Core\Request::path()));
-    Core\Response::json(['sku' => $sku, 'price' => 12, 'tags' => ['blue', 'kitchen']]);
+    Core\Response::sendJson(['sku' => $sku, 'price' => 12, 'tags' => ['blue', 'kitchen']]);
 } else {
     echo Bench::run(256), "\n";
 }

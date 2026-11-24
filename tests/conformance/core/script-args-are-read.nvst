@@ -1,5 +1,5 @@
 --TEST--
-`Core\Script::args()` is the read half of `spawn script … with(arguments: …)`: a child sees the value its parent passed, and a child spawned without the option sees `null` — as does the root script, which nothing spawned — `rule:core-classes/script-args`, `rule:security/isolate-shares-nothing`
+`Core\Script::arguments()` is the read half of `spawn script … with(arguments: …)`: a child sees the value its parent passed, and a child spawned without the option sees `null` — as does the root script, which nothing spawned — `rule:core-classes/script-args`, `rule:security/isolate-shares-nothing`
 --FILE nvs.toml--
 # `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
 # `script.spawn` first, and deny-by-default means a case with no
@@ -10,22 +10,22 @@ spawn = true
 <?nvs
 // `rule:core-classes/script-args`: the child asks for its argument rather than finding it in an
 // ambient `$_ARGS`. The answer is typed `mixed`, which is why a plain string
-// is a legal thing to have been passed — `args:` narrows nothing at the call
+// is a legal thing to have been passed — `arguments:` narrows nothing at the call
 // site, so nothing narrower would be true here.
-var $a = Core\Script::args();
+var $a = Core\Script::arguments();
 echo "child got ", $a as string, "\n";
 return "read";
 --FILE quiet.nvs--
 <?nvs
-// The same read in a child spawned with no `args:` at all. The lowering hands
+// The same read in a child spawned with no `arguments:` at all. The lowering hands
 // `null` here rather than an empty array, because a parent that wrote
-// `args: []` said something this one did not.
-echo "quiet got ", Core\Script::args() == null ? "null" : "a value", "\n";
+// `arguments: []` said something this one did not.
+echo "quiet got ", Core\Script::arguments() == null ? "null" : "a value", "\n";
 --FILE--
 <?nvs
 // The root script was not spawned by anything, so there is no argument to
 // read — the same `null`, reached by the same absence.
-echo "root got ", Core\Script::args() == null ? "null" : "a value", "\n";
+echo "root got ", Core\Script::arguments() == null ? "null" : "a value", "\n";
 
 // The value crossed once, at the spawn (`rule:security/isolate-shares-nothing`). Reading it in
 // the child is a read of the child's own arena and copies nothing further.

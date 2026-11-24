@@ -5,7 +5,7 @@
 // covers: Core\Response\Stream::end
 // Two of the five bytes are written, and then the body is ended. The window still
 // says five, and a write of the rest throws because the stream has ended.
-var $body = Core\Response::stream("text/plain; charset=utf-8", 5);
+var $body = Core\Response::startStream("text/plain; charset=utf-8", 5);
 $body->write("He");
 $body->end();
 array<string> $rests = ["llo", ""];

@@ -19,20 +19,20 @@ class Folder
 }
 
 if (Core\Env::context() == Core\Env::Context::Request) {
-    // `Core\Response::text` sends each body exactly as it is written here.
+    // `Core\Response::sendText` sends each body exactly as it is written here.
     var $path = Core\Request::path();
     if ($path == '/deep') {
         // One folder inside the next, 1000 levels deep.
-        Core\Response::text(Core\Str::repeat('{"name":"f","inner":', 1000) . 'null' . Core\Str::repeat('}', 1000));
+        Core\Response::sendText(Core\Str::repeat('{"name":"f","inner":', 1000) . 'null' . Core\Str::repeat('}', 1000));
     }
     if ($path == '/list') {
-        Core\Response::text('[' . Core\Str::repeat('{"name":"f","inner":null},', 99999) . '{"name":"f","inner":null}]');
+        Core\Response::sendText('[' . Core\Str::repeat('{"name":"f","inner":null},', 99999) . '{"name":"f","inner":null}]');
     }
     if ($path == '/wrong') {
-        Core\Response::text('{"name":7,"inner":"not a folder","extra":true}');
+        Core\Response::sendText('{"name":7,"inner":"not a folder","extra":true}');
     }
     if ($path == '/array') {
-        Core\Response::text('[1, 2, 3]');
+        Core\Response::sendText('[1, 2, 3]');
     }
 } else {
     // 1. 1000 folders inside each other. The body is deeper than `maxDepth: 64`,

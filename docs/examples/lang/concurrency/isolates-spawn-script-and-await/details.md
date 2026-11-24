@@ -3,7 +3,7 @@
 
 The entry is a path or a static method. An anonymous function is `E0802`.
 
-`with(…)` takes the options `args`, `limits`, `grants`, `output` and `on`. Another name is `E0101`, and
+`with(…)` takes the options `arguments`, `limits`, `grants`, `output` and `on`. Another name is `E0101`, and
 its help lists the five.
 
 `on:` must be the word `"worker"` or `"here"`, written at the spawn. Another word is `E0818`, and so is
@@ -28,13 +28,13 @@ is `true`.
 A child cannot return an object. When it does, `ok` is `false`, and the class in `error` is `Error`.
 This is true for an anonymous object too, and for a class the parent also declares.
 
-`args:` copies its value at the spawn. A change the parent makes later is not seen by the child.
-Without `args:`, `Core\Script::args()` returns `null`. A file cannot receive an object in `args:`. The
+`arguments:` copies its value at the spawn. A change the parent makes later is not seen by the child.
+Without `arguments:`, `Core\Script::arguments()` returns `null`. A file cannot receive an object in `arguments:`. The
 spawn then throws `LogicError` in the parent.
 
-A static method gets each entry of `args:` as the argument with the same name. Write `args:` as an
+A static method gets each entry of `arguments:` as the argument with the same name. Write `arguments:` as an
 array with string keys, such as `["n" => 5]`. Here an object can be passed. A method with parameters
-and no `args:` is `E0402`, and a key that names no parameter is `E0486`. When an entry is missing
+and no `arguments:` is `E0402`, and a key that names no parameter is `E0486`. When an entry is missing
 while the program runs, the spawn throws `LogicError`. When an entry has the wrong type, the child
 fails with a `LogicError`, and `ok` is `false`.
 

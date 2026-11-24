@@ -35,5 +35,5 @@ if (Core\Bytes::compare($value, $octets) == 0) {
 // The handler gets `hello world`. A parameter that is not valid UTF-8 throws an error.
 ?Core\Router\Match $matched = Core\Router::match(Core\Http\Method::Get, '/pages/hello%20world');
 if ($matched != null) {
-    echo 'capture: ', $matched->param('slug') as string, "\n";
+    echo 'capture: ', $matched->parameter('slug') as string, "\n";
 }

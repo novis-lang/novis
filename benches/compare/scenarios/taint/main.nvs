@@ -2,6 +2,6 @@
 // Puts a value from the request into an SQL string. `nvs check` reports an error
 // on the call to `query`, so this program does not compile.
 var $db = Core\Db::connect('shop');
-var $name = Core\Request::query('name') ?? '';
+var $name = Core\Request::queryParameter('name') ?? '';
 $db->query("select id from products where name = '" . $name . "'", []);
 echo "ok\n";

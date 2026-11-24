@@ -28,8 +28,8 @@ class Stock
     }
 }
 
-// `Core\Response::stream` starts the body and sets its content type to `application/json`.
-Core\Response\Stream $out = Core\Response::stream('application/json');
+// `Core\Response::startStream` starts the body and sets its content type to `application/json`.
+Core\Response\Stream $out = Core\Response::startStream('application/json');
 
 // The pieces are `bytes`, because no product contains text from a request.
 // This sends `[{"sku":"MUG-01","stock":12},{"sku":"CUP-07","stock":30}]`.

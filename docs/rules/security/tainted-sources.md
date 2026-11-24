@@ -26,7 +26,7 @@ message clean would rest on every future message leaving input out, which no che
 `Core\Issue`'s `path` and `message`, which a decoder writes only from the declared keys, positions and
 fixed words.
 
-**A request field is read as text, and typed at the accessor.** `Core\Request::query` and `::post`
+**A request field is read as text, and typed at the accessor.** `Core\Request::queryParameter` and `::post`
 answer one field as `?tainted string` — `null` for a name that is absent and for one written with
 brackets — and `::queryArray` and `::postArray` answer a bracketed name's one level of values as
 `array<tainted string>`, keyed as the brackets keyed them — so a `foreach` key over one is `tainted

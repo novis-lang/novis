@@ -7,7 +7,7 @@ use Core\Topic;
 // The event stream of one poll. `App::events` starts it, and it runs until the browser leaves.
 final class Results
 {
-    // `args:` in `App::events` gives `$id`, the number of the poll.
+    // `arguments:` in `App::events` gives `$id`, the number of the poll.
     public static function run(uint $id): void
     {
         Sse $sse = Sse::current();

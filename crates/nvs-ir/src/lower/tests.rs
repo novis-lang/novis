@@ -5713,13 +5713,13 @@ fn a_fall_through_seals_with_one_for_a_require_and_null_for_the_entry_frame() {
 /// frame is lowered for it, nothing here forks a thread or a process, and
 /// the instruction sits in the same block as the statements around it.
 /// The whole of the child's identity is the arguments, in the fixed order
-/// — the path, the `args:` value, the `output:` spelling, the placement
+/// — the path, the `arguments:` value, the `output:` spelling, the placement
 /// and the two narrowings — with every option the program omitted
 /// materialized here rather than defaulted in the helper.
 ///
 /// The refcount asymmetry is the transfer, and it is the reason this
 /// asserts over the arguments rather than snapshotting them: the path
-/// literal is borrowed and is released by this frame, while the `args:`
+/// literal is borrowed and is released by this frame, while the `arguments:`
 /// array crosses into the child's ownership root and is released by
 /// nothing on this side.
 #[test]
@@ -5750,7 +5750,7 @@ fn a_spawn_lowers_to_a_task_on_the_current_core() {
     assert_eq!(
         args.len(),
         6,
-        "the path, the `args:` value, the `output:` spelling, the placement and \
+        "the path, the `arguments:` value, the `output:` spelling, the placement and \
          the `limits:` and `grants:` narrowings: {}",
         print_function(&f, map.file(file))
     );
@@ -5823,7 +5823,7 @@ fn a_spawn_lowers_to_a_task_on_the_current_core() {
     );
     assert!(
         !released_in(normal, payload),
-        "the `args:` value crossed the boundary and may not be released here: {}",
+        "the `arguments:` value crossed the boundary and may not be released here: {}",
         print_function(&f, map.file(file))
     );
     // The other side of the same bound: a spawn that *threw* never handed

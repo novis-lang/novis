@@ -7,7 +7,7 @@ The same rule gives a spawned isolate's captured result its type
 rather than capturing needs no rule at all: the child's carrier is the parent's, so appending composes
 the way carrier addition already does.
 
-**A body member's bytes pass the sink too, where they become a carrier.** `Core\Response::text`,
+**A body member's bytes pass the sink too, where they become a carrier.** `Core\Response::sendText`,
 `::json`, `::bytes` and `::stream` write verbatim, because what they write is a response with its own
 media type. Inside a capture, and in a `spawn script` child, it is not: it becomes the carrier, or is
 appended to the parent's stream. There those four write as `echo` writes a `string`, escaped under the

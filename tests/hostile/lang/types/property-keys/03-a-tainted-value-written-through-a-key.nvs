@@ -13,8 +13,8 @@ class Profile
 Profile $profile = new Profile();
 
 // 1. The property name and the value both come from the web address.
-?property<Profile> $key = Core\Request::query('field') as ?property<Profile>;
-?tainted string $value = Core\Request::query('value');
+?property<Profile> $key = Core\Request::queryParameter('field') as ?property<Profile>;
+?tainted string $value = Core\Request::queryParameter('value');
 if ($key != null && $value != null) {
     $profile->$key = $value;
 }

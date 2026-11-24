@@ -20,7 +20,7 @@ final class App
     #[Access(allow: Audience::Public)]
     public static function home(): void
     {
-        Response::html(Pages::home('', 'lobby', null));
+        Response::sendHtml(Pages::home('', 'lobby', null));
     }
 
     // Checks the form, saves the name in the session, then opens the page of the room.
@@ -28,13 +28,13 @@ final class App
     #[Access(allow: Audience::Public)]
     public static function join(): void
     {
-        tainted string $name = Str::trim(Request::post('name') ?? '');
-        ?string $room = Rooms::find(Request::post('room') ?? '');
+        tainted string $name = Str::trim(Request::formField('name') ?? '');
+        ?string $room = Rooms::find(Request::formField('room') ?? '');
         ?string $problem = $room == null ? 'Please choose a room.' : Nickname::problem($name);
         if ($room == null || $problem != null) {
             // 422 means the server understood the request, but the data is not valid.
             Response::setStatus(422);
-            Response::html(Pages::home($name, $room ?? 'lobby', $problem));
+            Response::sendHtml(Pages::home($name, $room ?? 'lobby', $problem));
             return;
         }
         // The session keeps the name on the server. The browser only gets a random identifier in a cookie.
@@ -52,7 +52,7 @@ final class App
         ?string $found = Rooms::find($room);
         if ($found == null) {
             Response::setStatus(404);
-            Response::html(Pages::notFound());
+            Response::sendHtml(Pages::notFound());
             return;
         }
         ?tainted string $name = App::name();
@@ -61,7 +61,7 @@ final class App
             Response::redirect(Router::url(App::home));
             return;
         }
-        Response::html(Pages::room($found, $name, Router::url(App::socket, ['room' => $found])));
+        Response::sendHtml(Pages::room($found, $name, Router::url(App::socket, ['room' => $found])));
     }
 
     // Turns the request into a WebSocket connection.
@@ -75,16 +75,16 @@ final class App
         ?tainted string $name = App::name();
         if ($found == null || $name == null) {
             Response::setStatus(404);
-            Response::text("There is no such room, or you have no valid name.\n");
+            Response::sendText("There is no such room, or you have no valid name.\n");
             return;
         }
         // A normal page request to this address gets the status 426: it must ask for a WebSocket.
         if (Str::lower(Request::header('upgrade') ?? '') != 'websocket') {
             Response::setStatus(426);
-            Response::text("This address is for a WebSocket connection.\n");
+            Response::sendText("This address is for a WebSocket connection.\n");
             return;
         }
-        Core\Socket::upgrade(Connection::run, args: ['room' => $found, 'name' => $name], limits: { memory: '8M' });
+        Core\Socket::upgrade(Connection::run, arguments: ['room' => $found, 'name' => $name], limits: { memory: '8M' });
     }
 
     // Sends the script of the room page. A server in production mode sends no file by itself, so this route sends it.

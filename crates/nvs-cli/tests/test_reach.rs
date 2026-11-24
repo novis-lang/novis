@@ -96,7 +96,7 @@ fn a_json_option_reaches_request_json() {
     passes_in_bodies("jsonReachesRequestJson");
 }
 
-/// `form` reaches `Core\Request::post()` under
+/// `form` reaches `Core\Request::formField()` under
 /// `application/x-www-form-urlencoded`, with a space, a `+` and a `=` in it.
 // covers: Core\Test::request
 #[test]
@@ -106,7 +106,7 @@ fn a_form_option_reaches_request_post() {
 
 /// `multipart` sends a `Core\Http\Part` that `Core\Request::files()` reads
 /// with its name, file name, media type and length, and a text field that
-/// `Core\Request::post()` reads.
+/// `Core\Request::formField()` reads.
 // covers: Core\Test::request
 #[test]
 fn a_multipart_option_reaches_request_files() {

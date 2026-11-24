@@ -4,7 +4,7 @@
 // value is tainted, so the program should not compile.
 // hostile: expect-refusal
 
-mixed $q = Core\Request::query('q');
+mixed $q = Core\Request::queryParameter('q');
 
 // 1. Converts the value with `as string` and joins it into a pattern.
 Core\Regex::compile('^' . ($q as string) . '$');

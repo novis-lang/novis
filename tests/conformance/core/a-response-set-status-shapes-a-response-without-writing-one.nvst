@@ -31,7 +31,7 @@ echo "a refusal wrote [", $onRefusal, "]\n";
 // member's, byte for byte, with a status set in front of each.
 var $withStatus = Core\Out::capture(fn (): void => {
     Core\Response::setStatus(201);
-    Core\Response::text("created");
+    Core\Response::sendText("created");
 });
 echo "a body after a status is [", $withStatus, "]\n";
 --EXPECT--

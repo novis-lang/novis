@@ -1,5 +1,5 @@
 --TEST--
-`Core\Request::queryAs<T>` and `postAs<T>` hydrate a declared class out of a parameter set, and answer what the same call over an inline shape answers — `rule:core-classes/derive-property-list`, `rule:security/derived-codec-qualifiers`
+`Core\Request::queryParametersAs<T>` and `postAs<T>` hydrate a declared class out of a parameter set, and answer what the same call over an inline shape answers — `rule:core-classes/derive-property-list`, `rule:security/derived-codec-qualifiers`
 --GET--
 q=novis&page=2
 --POST--
@@ -33,16 +33,16 @@ class Profile {
     }
 }
 
-var $search = Core\Request::queryAs<Search>();
+var $search = Core\Request::queryParametersAs<Search>();
 echo $search->q, "\n";
 
-var $profile = Core\Request::postAs<Profile>();
+var $profile = Core\Request::formFieldsAs<Profile>();
 echo $profile->name, "\n";
 
 // Agreement rather than two examples: the shape spelling of the same read
 // answers the same thing, so a door that grew a rule of its own for one of the
 // two targets fails here while still looking right on its own line.
-echo Core\Json::encode(Core\Request::queryAs<tainted {q: string}>()), "\n";
+echo Core\Json::encode(Core\Request::queryParametersAs<tainted {q: string}>()), "\n";
 --EXPECT--
 novis
 ada

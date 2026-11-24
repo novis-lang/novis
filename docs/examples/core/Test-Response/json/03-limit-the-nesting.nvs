@@ -7,7 +7,7 @@ use Core\Test;
 if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers each request. The JSON is an object inside an object,
     // so its depth is 3.
-    Core\Response::json(['order' => ['id' => 7]]);
+    Core\Response::sendJson(['order' => ['id' => 7]]);
 } else {
     var $response = Test::request(Method::Get, '/orders/7');
 

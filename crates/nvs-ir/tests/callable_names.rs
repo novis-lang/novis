@@ -1,9 +1,9 @@
-//! `rule:security/isolate-shares-nothing`'s `args:`-by-name, from the one end that can still
+//! `rule:security/isolate-shares-nothing`'s `arguments:`-by-name, from the one end that can still
 //! see a declaration: what a written `Class::method` records on the object
 //! it produces, and what an anonymous function deliberately does not.
 //!
 //! `rule:concurrency/an-upgrade-is-spawn-shaped` makes
-//! `Core\Socket::upgrade(Chat::run, args: {…})` an isolate entry, and
+//! `Core\Socket::upgrade(Chat::run, arguments: {…})` an isolate entry, and
 //! `rule:security/isolate-shares-nothing` binds that map to the entry's parameters **by name**. A `callable`
 //! carries its arity and its parameter tags and nothing else, so the names are
 //! written at the site — `lower::FN_PARAM_NAMES` — and read off the object by

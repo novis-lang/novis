@@ -27,8 +27,8 @@ class MarketMessageTest
 // saved addresses of both users. It does not read the `replyTo` field of the form.
 if (Core\Env::context() == Core\Env::Context::Request) {
     array<string> $saved = ['ada' => 'ada@example.com', 'bo' => 'bo@example.com'];
-    ?string $buyer = $saved[Core\Request::post('buyer') ?? ''] ?? null;
-    ?string $seller = $saved[Core\Request::post('seller') ?? ''] ?? null;
+    ?string $buyer = $saved[Core\Request::formField('buyer') ?? ''] ?? null;
+    ?string $seller = $saved[Core\Request::formField('seller') ?? ''] ?? null;
     if ($buyer != null && $seller != null) {
         Core\Mail::send('site', [$seller], 'A question about your item', 'Is it still for sale?', {
             replyTo: $buyer,

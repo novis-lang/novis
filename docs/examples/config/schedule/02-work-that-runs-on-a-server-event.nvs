@@ -25,9 +25,9 @@
 //     script = "jobs/announce.nvs"
 //     scope  = "host"
 
-// `Core\Script::args()` returns a map with the entry's `name` and the event in `on`.
+// `Core\Script::arguments()` returns a map with the entry's `name` and the event in `on`.
 // Here you run the file by hand with `nvs run`, so the result is `null`.
-var $given = Core\Script::args();
+var $given = Core\Script::arguments();
 if ($given == null) {
     echo "started by hand, not by the server\n";
 } else {

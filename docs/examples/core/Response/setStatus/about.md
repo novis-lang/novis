@@ -3,7 +3,7 @@ went: `200` means it worked, `201` means something was created, `404` means the 
 and `500` means the server had an error. If your program does not set a status, it is `200`.
 
 `setStatus` does not write a body. You can use it together with `echo` or with a body method such as
-`Core\Response::json`. If you call it more than once, the last call sets the status. If the request
+`Core\Response::sendJson`. If you call it more than once, the last call sets the status. If the request
 fails with an error, the status is `500`.
 
 A status is between 100 and 599. For any other number, `setStatus` throws a `LogicError` and the

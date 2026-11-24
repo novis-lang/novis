@@ -28,7 +28,7 @@ be chosen, it was chosen to neutralize.
 The same table selects a rendering (`rule:errors/renderings`): the sink in force decides not only
 where a log record, a dump, a trace or a diagnostic goes but whether it is drawn as plaintext, JSON or
 HTML, so no call site names a format. It also gives `Core\Out::capture` its answer
-(`rule:security/capture-answers-the-carrier`), and it is why a JSON body is `Response::json` rather
+(`rule:security/capture-answers-the-carrier`), and it is why a JSON body is `Response::sendJson` rather
 than an `echo` the HTML sink would escape into corruption
 (`rule:security/response-body-is-one-typed-member`).
 

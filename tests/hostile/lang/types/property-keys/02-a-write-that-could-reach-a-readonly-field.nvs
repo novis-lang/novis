@@ -19,7 +19,7 @@ class Invoice
 Invoice $invoice = new Invoice(41);
 
 // 1. The property name comes from the web address. Here it is "id".
-?property<Invoice> $key = Core\Request::query('field') as ?property<Invoice>;
+?property<Invoice> $key = Core\Request::queryParameter('field') as ?property<Invoice>;
 if ($key != null) {
     $invoice->$key = '99';
 }

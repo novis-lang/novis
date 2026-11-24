@@ -1376,7 +1376,7 @@ and a callable signature. The unit tests are in `crates/nvs-types/src/narrow.rs`
 Three refusals, and each is a soundness question rather than a difficulty one.
 
 **No literal, no action.** `array<mixed> $body = Core\Json::decode($raw);` gets nothing. Neither does a
-`Core\Request::query()`, a `Core\Script::args()` or any other value that arrives from outside — those are
+`Core\Request::queryParameter()`, a `Core\Script::arguments()` or any other value that arrives from outside — those are
 `array<mixed>` on purpose ([`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`statements/no-host-populated-variables`](statements.md#statements-no-host-populated-variables)).
 The shape of one payload someone looked at does not bound the next request's, and narrowing there would
 convert a runtime check into a compile-time assumption that is not true. This is security, not

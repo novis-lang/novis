@@ -5,7 +5,7 @@
 // This leg runs under `nvs run --request examples/input-shapes.nvsr`, so the
 // form and the query string below are a real request's: the file beside this
 // one describes it in the format `crates/nvs-test/src/request.rs` owns.
-// Without the `--request` argument the first line is `Core\Request::postAs`
+// Without the `--request` argument the first line is `Core\Request::formFieldsAs`
 // refusing, which is `rule:security/request-state-throws-in-an-isolate`.
 //
 // There is no shaped `array<T>` and no per-key-typed array: an array stays
@@ -24,7 +24,7 @@
 // what a peer chose, said out loud — the qualifier costs nothing at run time
 // and is the reason a sink cannot be reached from here by accident.
 (tainted { email: string, age: int, nickname?: string }) $account =
-    Core\Request::postAs<tainted { email: string, age: int, nickname?: string }>();
+    Core\Request::formFieldsAs<tainted { email: string, age: int, nickname?: string }>();
 echo 'email is ', $account->email, "\n";
 echo 'age is ', $account->age as string, "\n";
 
@@ -37,7 +37,7 @@ echo 'nickname is ', $account->nickname ?? 'absent', "\n";
 // The query string, through the same walk. `queryAs` and `postAs` are one
 // mechanism over two subjects — `Core\Arr::shapeAs` below is that mechanism
 // said in general, with the array named outright.
-(tainted { city: string }) $where = Core\Request::queryAs<tainted { city: string }>();
+(tainted { city: string }) $where = Core\Request::queryParametersAs<tainted { city: string }>();
 echo 'city is ', $where->city, "\n";
 
 // Width subtyping over loose values: `note` is a key the shape never named, so
@@ -57,7 +57,7 @@ if (
 // dotted path, because a form wants the whole list rather than the first item
 // of it (`rule:core-classes/derive-reports-every-field`).
 try {
-    Core\Request::queryAs<tainted { age: int, city: string }>({ name: 'bad' });
+    Core\Request::queryParametersAs<tainted { age: int, city: string }>({ name: 'bad' });
     echo "not reached\n";
 } catch (ParseError $refused) {
     if (Core\Arr::count($refused->issues) == 2) {

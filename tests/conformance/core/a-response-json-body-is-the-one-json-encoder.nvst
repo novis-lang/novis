@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::json` writes exactly what `Core\Json::encode` answers, over every shape both accept, so the response body and the library agree rather than each having a walk -- `rule:security/response-body-is-one-typed-member`
+`Core\Response::sendJson` writes exactly what `Core\Json::encode` answers, over every shape both accept, so the response body and the library agree rather than each having a walk -- `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
 // `rule:security/response-body-is-one-typed-member` makes `json` safe by an argument about the *serializer*: a
@@ -21,7 +21,7 @@ array<mixed> $subjects = [
 uint $agreed = 0;
 foreach ($subjects as mixed $subject) {
     var $written = Core\Out::capture(fn (): void => {
-        Core\Response::json($subject);
+        Core\Response::sendJson($subject);
     });
     if (($written as string) == Core\Json::encode($subject)) {
         $agreed = $agreed + 1;
@@ -31,7 +31,7 @@ echo "agreed ", $agreed, " of 7\n";
 
 // And the body is the encoder's own one-line form: no `pretty` option here,
 // because a response is read by a program.
-Core\Response::json(["k" => "v"]);
+Core\Response::sendJson(["k" => "v"]);
 echo "\n";
 --EXPECT--
 agreed 7 of 7

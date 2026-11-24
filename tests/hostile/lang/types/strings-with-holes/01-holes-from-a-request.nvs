@@ -32,7 +32,7 @@ class Attack
 
 // 1. Eleven texts from the web address. Each has an empty, unclosed, nested or misspelled hole,
 //    a lone brace, a zero byte, or a hole with a private property.
-array<tainted string> $sent = Core\Request::queryArray('where');
+array<tainted string> $sent = Core\Request::queryParameters('where');
 int $refused = 0;
 foreach ($sent as tainted string $text) {
     ?tainted string<propertyPath<Order>> $checked = $text as ?string<propertyPath<Order>>;

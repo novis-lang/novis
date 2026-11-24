@@ -33,7 +33,7 @@ correct. `clearShortLived` and `clearLongLived` move the session the same way, s
 fixation defence.
 
 **Every member that writes throws where the head is closed**, inside `Core\Html::later` and
-`Core\Task::afterResponse`, and the checker refuses the call where it is written there
+`Core\Task::runAfterResponse`, and the checker refuses the call where it is written there
 (`rule:concurrency/deferred-work-cannot-write-the-response`). `get` and `getSecret` compile in
 both places. Inside `Core\Html::later` they read the request's session, and after the response they
 throw `LogicError`, because deferred work has no session.

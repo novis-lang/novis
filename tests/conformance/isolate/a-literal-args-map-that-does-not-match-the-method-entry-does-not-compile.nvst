@@ -1,5 +1,5 @@
 --TEST--
-`rule:security/isolate-shares-nothing`: a literal `args:` map is compared against the method entry's parameters at compile time, with the ordinary named-argument errors
+`rule:security/isolate-shares-nothing`: a literal `arguments:` map is compared against the method entry's parameters at compile time, with the ordinary named-argument errors
 --FILE--
 <?nvs
 class Reports {
@@ -14,7 +14,7 @@ var $typo = spawn script Reports::span with(arguments: ["moths" => 3, "from" => 
 // A parameter the map leaves out. `from` has no entry.
 var $short = spawn script Reports::span with(arguments: ["months" => 3]);
 
-// No `args:` at all, so neither parameter has an entry.
+// No `arguments:` at all, so neither parameter has an entry.
 var $none = spawn script Reports::span;
 
 // Every parameter has an entry, so this spawn compiles.

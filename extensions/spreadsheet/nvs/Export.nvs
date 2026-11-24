@@ -27,7 +27,7 @@ final class Export
     {
         if ($this->fill != null) {
             Core\Response::setHeader('Content-Disposition', self::disposition($name));
-            var $response = Core\Response::stream('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            var $response = Core\Response::startStream('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             $this->filled(fn(bytes $chunk): void => {
                 $response->write($chunk);
             }, false);

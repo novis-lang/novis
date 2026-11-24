@@ -3027,7 +3027,7 @@ array<Product> $products = [
 
 // The address ends with `?sort=price`. `as ?property<Product>` converts "price"
 // to a property key. A name that is not a public property gives `null`.
-?property<Product> $picked = Core\Request::query('sort') as ?property<Product>;
+?property<Product> $picked = Core\Request::queryParameter('sort') as ?property<Product>;
 
 // Without a valid column, the table is sorted by "name".
 property<Product> $column = $picked ?? 'name' as property<Product>;
@@ -3503,10 +3503,10 @@ class Table
 }
 
 // The address is `/orders?sort=customer.name&other=customer.password`.
-echo Table::sortBy(Core\Request::query('sort')), "\n";
+echo Table::sortBy(Core\Request::queryParameter('sort')), "\n";
 
 // `password` is a private property, so it is not part of any path.
-echo Table::sortBy(Core\Request::query('other')), "\n";
+echo Table::sortBy(Core\Request::queryParameter('other')), "\n";
 ```
 
 ```text

@@ -28,7 +28,7 @@ refusal and the same escapes that keep the text safe inside an HTML page
   their framing. Escaping keeps the text inert in HTML, and the client still chooses its content, so
   the pieces stay as tainted as `encode`'s string.
 - A request body is read with `Core\Json::decodeEach<T>(Core\Request::bodyStream(), '/items')`, so there
-  is no `Core\Request::jsonEach`. A response writes `encodeEach`'s pieces to `Core\Response::stream` or
+  is no `Core\Request::jsonEach`. A response writes `encodeEach`'s pieces to `Core\Response::startStream` or
   `Core\IO::writeStream`, so there is no response member either.
 
 **A walk is taken once.** The iterable reads forward, as `Core\Csv::rows`' walk does. A second `foreach`

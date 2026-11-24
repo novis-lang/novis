@@ -11,7 +11,7 @@
 // it reaches one, and door two is where the claim is assertable at all, no
 // `.nvst` case being a request a server is answering.
 var $events = Core\Out::capture(fn (): void => {
-    var $opened = Core\Sse::stream();
+    var $opened = Core\Sse::startStream();
     $opened->send("ready");
     Core\Sse::current()->send("halfway", event: "progress");
     $opened->send("done");
@@ -22,7 +22,7 @@ echo "--\n";
 // Asking twice is asking the same question twice: neither call opens anything,
 // so a program that reaches for the handle in two places writes one stream.
 var $twice = Core\Out::capture(fn (): void => {
-    Core\Sse::stream();
+    Core\Sse::startStream();
     Core\Sse::current()->send("first");
     Core\Sse::current()->send("second");
 });

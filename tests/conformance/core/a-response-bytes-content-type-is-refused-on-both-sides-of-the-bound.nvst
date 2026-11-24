@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::bytes` names the last content type a header field can carry and the first one it cannot, and refuses with nothing written -- `rule:security/sink-predicate` and `rule:security/response-body-is-one-typed-member` and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
+`Core\Response::sendBytes` names the last content type a header field can carry and the first one it cannot, and refuses with nothing written -- `rule:security/sink-predicate` and `rule:security/response-body-is-one-typed-member` and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
 --FILE--
 <?nvs
 // `rule:security/sink-predicate`: the content type is a sink, because it is the one string here
@@ -18,7 +18,7 @@ array<string> $spellable = [
 uint $accepted = 0;
 foreach ($spellable as string $type) {
     try {
-        Core\Response::bytes("" as bytes, $type);
+        Core\Response::sendBytes("" as bytes, $type);
         $accepted = $accepted + 1;
     } catch (LogicError $refused) {
     }
@@ -38,7 +38,7 @@ array<string> $unspellable = [
 uint $refusedCount = 0;
 foreach ($unspellable as string $type) {
     try {
-        Core\Response::bytes("body" as bytes, $type);
+        Core\Response::sendBytes("body" as bytes, $type);
     } catch (LogicError $refused) {
         $refusedCount = $refusedCount + 1;
     }
@@ -49,7 +49,7 @@ echo "refused ", $refusedCount, " of 5\n";
 // than only that something was wrong. The empty type is the one whose message
 // is spellable in an exact expectation.
 try {
-    Core\Response::bytes("body" as bytes, "");
+    Core\Response::sendBytes("body" as bytes, "");
 } catch (LogicError $empty) {
     echo $empty->message, "\n";
 }
@@ -61,7 +61,7 @@ try {
 // the lowerer today, which the playbook's *Writing a test case* section owns.
 var $written = Core\Out::capture(fn (): void => {
     try {
-        Core\Response::bytes("body" as bytes, "text/plain\r\nX-Injected: yes");
+        Core\Response::sendBytes("body" as bytes, "text/plain\r\nX-Injected: yes");
     } catch (LogicError $injected) {
     }
 });
@@ -69,5 +69,5 @@ echo "wrote [", $written, "]\n";
 --EXPECT--
 accepted 4 of 4
 refused 5 of 5
-Core\Response::bytes(): `` is not a media type a `Content-Type` header can carry — a field value is printable ASCII and never empty
+Core\Response::sendBytes(): `` is not a media type a `Content-Type` header can carry — a field value is printable ASCII and never empty
 wrote []

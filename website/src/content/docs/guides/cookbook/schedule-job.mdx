@@ -45,7 +45,7 @@ scope = "host"
 connect = ["hooks.example.com"]
 ```
 
-The script can post a message to `https://hooks.example.com/server`. `Core\Script::args()["on"]`
+The script can post a message to `https://hooks.example.com/server`. `Core\Script::arguments()["on"]`
 is `"start"` or `"stop"`. A `start` job runs after the server begins to serve. A `stop` job runs
 when the server begins to stop. It does not run when the server crashes.
 

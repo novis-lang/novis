@@ -1,5 +1,5 @@
 {
-  "title": "`Core\\Task::afterResponse` runs once the response is complete, still charged to the request tree",
+  "title": "`Core\\Task::runAfterResponse` runs once the response is complete, still charged to the request tree",
   "status": "shipped",
   "seeAlso": [
     "programs/memory-priority",

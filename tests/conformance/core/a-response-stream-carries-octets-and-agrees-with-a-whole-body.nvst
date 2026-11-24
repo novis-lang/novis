@@ -13,23 +13,23 @@
 if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     if ($path == "/chunks") {
-        var $image = Core\Response::stream("image/png");
+        var $image = Core\Response::startStream("image/png");
         $image->write(Core\Encoding::fromHex("504e470d0a1a0a"));
         $image->write(Core\Encoding::fromHex("00"));
     }
     if ($path == "/chunks-ff") {
-        var $octets = Core\Response::stream("image/png");
+        var $octets = Core\Response::startStream("image/png");
         $octets->write(Core\Encoding::fromHex("504e470d0a1a0a"));
         $octets->write(Core\Encoding::fromHex("00ff"));
     }
     if ($path == "/whole-ff") {
-        Core\Response::bytes(Core\Encoding::fromHex("504e470d0a1a0a00ff"), "image/png");
+        Core\Response::sendBytes(Core\Encoding::fromHex("504e470d0a1a0a00ff"), "image/png");
     }
     if ($path == "/rows-whole") {
-        Core\Response::text("id,name\n1,ada\n2,alan\n");
+        Core\Response::sendText("id,name\n1,ada\n2,alan\n");
     }
     if ($path == "/rows-chunked") {
-        var $rows = Core\Response::stream("text/plain; charset=utf-8");
+        var $rows = Core\Response::startStream("text/plain; charset=utf-8");
         $rows->write("id,name\n");
         $rows->write("1,ada\n");
         $rows->write("2,alan\n");

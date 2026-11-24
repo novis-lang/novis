@@ -3,5 +3,5 @@
 // part of the text of a database query, so this program
 // does not compile. Send the value as a `?` parameter.
 var $db = Core\Db::connect('main');
-var $id = Core\Request::query('id');
+var $id = Core\Request::queryParameter('id');
 $db->query("select * from users where id = $id", []);

@@ -31,8 +31,8 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         echo "no match";
     } else {
         echo $matched->is(Docs::page) ? "Docs::page" : ($matched->is(Docs::shelf) ? "Docs::shelf" : "another route"),
-             " lang=", $matched->param("lang") ?? "-",
-             " shelf=", $matched->param("shelf") ?? "-";
+             " lang=", $matched->parameter("lang") ?? "-",
+             " shelf=", $matched->parameter("shelf") ?? "-";
     }
 } else {
     var $written = Core\Test::request(Core\Http\Method::Get, "/p/7");

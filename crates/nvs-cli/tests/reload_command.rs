@@ -49,7 +49,7 @@ const ON_RELOAD: &str = "\n[capabilities.script]\nspawn = [\"jobs/\"]\n\n\
 
 /// The event script: it writes the map its run was given, as JSON, to `jobs/reloaded.json`.
 const RECORDING: &str =
-    "<?nvs\nCore\\IO::write('reloaded.json', Core\\Json::encode(Core\\Script::args()));\n";
+    "<?nvs\nCore\\IO::write('reloaded.json', Core\\Json::encode(Core\\Script::arguments()));\n";
 
 /// A running `nvs serve app.nvs`, started as the leader of its own process group so a case can
 /// stop it the way a service manager does. Dropping it kills the process and removes the

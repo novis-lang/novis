@@ -193,7 +193,7 @@ fn a_server_stopped_with_a_request_still_parked_exits_cleanly() {
     /// sleeps in a loop. A sleep the drain wakes starts again, so the request
     /// is still parked when the drain runs out.
     const PARKED: &str = "<?nvs\n\
-        Core\\Response\\Stream $out = Core\\Response::stream('text/plain');\n\
+        Core\\Response\\Stream $out = Core\\Response::startStream('text/plain');\n\
         $out->write(\"parked\\n\");\n\
         while (true) {\n    Core\\Time::sleep(60s);\n}\n";
     /// What the start, the request's first line and the exit may each take.

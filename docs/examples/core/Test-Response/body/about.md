@@ -1,6 +1,6 @@
 `body()` returns the body of the response as a string. `Core\Test::request()` sends a request to
 your own program in a test, and the program answers it. The body is everything the program wrote
-with `echo`, in order. When the program used a method such as `Core\Response::json`, the body is
+with `echo`, in order. When the program used a method such as `Core\Response::sendJson`, the body is
 what that method sent. If the program wrote nothing, the result is an empty string.
 
 A request fails when the program throws an error that it does not catch. Then the result is also

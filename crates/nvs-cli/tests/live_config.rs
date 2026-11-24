@@ -653,7 +653,7 @@ fn a_changed_cors_block_reaches_the_next_response() {
 /// A program that answers `ok`, after twenty seconds when the query says
 /// `hold=yes`.
 const HOLDING: &str = r#"<?nvs
-if (Core\Request::query("hold") == "yes") {
+if (Core\Request::queryParameter("hold") == "yes") {
     Core\Time::sleep(20s);
 }
 echo "ok";
@@ -730,7 +730,7 @@ fn the_ceiling_follows(case: &str, roomy: &str, tight: &str, applied: &str) {
 /// A program that answers whether its server is draining, after ten seconds
 /// when the query says `hold=yes`.
 const PAUSING: &str = r#"<?nvs
-if (Core\Request::query("hold") == "yes") {
+if (Core\Request::queryParameter("hold") == "yes") {
     Core\Time::sleep(10s);
 }
 echo Core\Server::isDraining() ? "draining" : "serving";

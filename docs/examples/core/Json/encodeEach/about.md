@@ -10,7 +10,7 @@ contain tainted text, such as a value from a request, the pieces are `tainted by
 Set `lines` to `true` to write JSON Lines, with one value on each line.
 
 To send the pieces as a response, pass each one to the `write` method of
-`Core\Response::stream('application/json')`. `write` does not accept tainted pieces. To write the
+`Core\Response::startStream('application/json')`. `write` does not accept tainted pieces. To write the
 pieces to a file, use `Core\IO::writeStream($path, $pieces)`.
 
 **Good to know:** if an item throws an error halfway, your loop may already have received some

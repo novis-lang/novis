@@ -80,12 +80,12 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         echo 'this text is not sent';
         throw new RuntimeError('the cart is empty');
     } elseif ($path == '/after') {
-        Core\Task::afterResponse(fn(): void => {
+        Core\Task::runAfterResponse(fn(): void => {
             Core\IO::write('after.txt', 'the work ran');
         });
         echo 'answered';
     } elseif ($path == '/after-fails') {
-        Core\Task::afterResponse(fn(): void => {
+        Core\Task::runAfterResponse(fn(): void => {
             throw new RuntimeError('the receipt was not sent');
         });
         echo 'answered';

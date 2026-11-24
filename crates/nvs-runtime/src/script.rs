@@ -511,7 +511,7 @@ pub fn resolve(ctx: &Ctx, path: &str, member: &str) -> Result<Prepared, ResolveE
 ///
 /// `label` is `"{class}::{method}"`, the label `nvs-codegen` emitted the method
 /// under. `names` is the entry's parameter names in declaration order, which is
-/// what [`bound_arguments`] reads the `args:` map by; the spawn site has
+/// what [`bound_arguments`] reads the `arguments:` map by; the spawn site has
 /// already judged that the map names exactly those parameters.
 ///
 /// It is built **here** rather than at the spawn site so that the seam carries
@@ -566,7 +566,7 @@ pub fn method_program(label: String, names: Vec<String>) -> Program {
     })
 }
 
-/// The `args:` map's entries in the entry's own parameter order —
+/// The `arguments:` map's entries in the entry's own parameter order —
 /// `rule:security/isolate-shares-nothing`'s binding, which is a positional list by the time a compiled
 /// callee sees it.
 ///

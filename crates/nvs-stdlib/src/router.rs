@@ -622,7 +622,7 @@ const DISPATCH_DOC: MethodDoc = MethodDoc {
         shape: &[],
     }],
     ret: "Nothing. The route method or the gate writes the response, for example with `echo` \
-          or `Core\\Response::html`. When the gate implements `Core\\Router\\Responder`, \
+          or `Core\\Response::sendHtml`. When the gate implements `Core\\Router\\Responder`, \
           `dispatch` passes the value that a route method returns to `$gate->respond()`. \
           Otherwise `dispatch` does not send that value. Each value captured from the path goes \
           to the method parameter with the same name. An error that `refused()`, `failed()` or \
@@ -784,23 +784,23 @@ pub(crate) const MATCH: CoreClass = CoreClass {
             doc: Some(&MATCH_IS_DOC),
         },
         CoreMethod {
-            name: "params",
+            name: "parameters",
             names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Array(CAPTURE),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_router_match_params",
+            symbol: "nvs_core_router_match_parameters",
             doc: Some(&MATCH_PARAMS_DOC),
         },
         CoreMethod {
-            name: "param",
+            name: "parameter",
             names: &["name"],
             params: &[CoreTy::Text(Qual::Neutral)],
             defaults: &[],
             return_ty: CoreTy::Nullable(CAPTURE),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_router_match_param",
+            symbol: "nvs_core_router_match_parameter",
             doc: Some(&MATCH_PARAM_DOC),
         },
         CoreMethod {
@@ -854,7 +854,7 @@ pub(crate) const MATCH: CoreClass = CoreClass {
 const MATCH_CARD: ClassDoc = ClassDoc {
     short: "The route that a path matched. `Core\\Request::route()` returns the match of the \
             request being served, and `Core\\Router::match()` returns the match of a path you \
-            choose. `is()` checks which method the route belongs to. `params()` and `param()` \
+            choose. `is()` checks which method the route belongs to. `parameters()` and `parameter()` \
             return the values captured from the path, and `method()` returns the route's HTTP \
             method. \
             `accessAs<E>()` returns the route's access rule as a case of the enum `E`, and \
@@ -880,7 +880,7 @@ const MATCH_IS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Router\Match::params`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Router\Match::parameters`'s reference card — `rule:core-api/reference-card`.
 const MATCH_PARAMS_DOC: MethodDoc = MethodDoc {
     short: "Returns every value captured from the path, in the order of the path. Each key is \
             the capture's name.",
@@ -893,10 +893,10 @@ const MATCH_PARAMS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Router\Match::param`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Router\Match::parameter`'s reference card — `rule:core-api/reference-card`.
 const MATCH_PARAM_DOC: MethodDoc = MethodDoc {
     short: "Returns one value captured from the path, found by its name. It is the same value \
-            that `params()` has under that key.",
+            that `parameters()` has under that key.",
     params: &[ParamDoc {
         name: "name",
         desc: "The capture's name as the route's path writes it, without the braces.",
@@ -1116,7 +1116,7 @@ const RESPONDER_RESPOND_DOC: MethodDoc = MethodDoc {
     short: "Writes the response from the value that the route method returned. \
             `Core\\Router::dispatch` calls it when the method returns, if its return type is not \
             `void` or `never`. For example, send a `Core\\Html\\Markup` with \
-            `Core\\Response::html()`.",
+            `Core\\Response::sendHtml()`.",
     params: &[
         ParamDoc {
             name: "route",
@@ -1319,8 +1319,10 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_router_dispatch" => (nvs_core_router_dispatch as *const ()).cast(),
         "nvs_core_router_match_is" => (nvs_core_router_match_is as *const ()).cast(),
         "nvs_core_router_match_is_route" => (nvs_core_router_match_is_route as *const ()).cast(),
-        "nvs_core_router_match_params" => (nvs_core_router_match_params as *const ()).cast(),
-        "nvs_core_router_match_param" => (nvs_core_router_match_param as *const ()).cast(),
+        "nvs_core_router_match_parameters" => {
+            (nvs_core_router_match_parameters as *const ()).cast()
+        }
+        "nvs_core_router_match_parameter" => (nvs_core_router_match_parameter as *const ()).cast(),
         "nvs_core_router_match_method" => (nvs_core_router_match_method as *const ()).cast(),
         "nvs_core_router_match_access" => (nvs_core_router_match_access as *const ()).cast(),
         "nvs_core_router_match_access_as" => (nvs_core_router_match_access_as as *const ()).cast(),
@@ -2682,13 +2684,13 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router\Match::params(): array<tainted string|int|uint|decimal|Core\Uuid|Parses>`
+    /// `Core\Router\Match::parameters(): array<tainted string|int|uint|decimal|Core\Uuid|Parses>`
     /// — every capture the path filled, keyed by the parameter it binds.
     ///
     /// The array is built once by [`match_value`] and read back here, so the
     /// two members answer the same values rather than two walks of one row.
-    fn nvs_core_router_match_params(_ctx, args: [1]) {
-        match_slot(args, MATCH_PARAMS, "params")
+    fn nvs_core_router_match_parameters(_ctx, args: [1]) {
+        match_slot(args, MATCH_PARAMS, "parameters")
     }
 }
 
@@ -2835,8 +2837,8 @@ fn case_value(desc: &nvs_runtime::EnumDesc, case: &str) -> Value {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Router\Match::param(string $name): ?(tainted string|int|uint|decimal|Core\Uuid|Parses)`
-    /// — [`nvs_core_router_match_params`] read at one key.
+    /// `Core\Router\Match::parameter(string $name): ?(tainted string|int|uint|decimal|Core\Uuid|Parses)`
+    /// — [`nvs_core_router_match_parameters`] read at one key.
     ///
     /// **`null` for a name the route does not declare**, rather than a throw,
     /// and that is [`MATCH_PARAM_DOC`]'s stated answer rather than
@@ -2845,8 +2847,8 @@ nvs_runtime::nvs_helper! {
     /// `rule:routing/a-trailing-segment-may-be-absent` exists for, so a
     /// member that threw for an unknown name would have to tell two absences
     /// apart that the table itself does not.
-    fn nvs_core_router_match_param(_ctx, args: [2]) {
-        let receiver = crate::instance::receiver(args[0], &MATCH, "param")?;
+    fn nvs_core_router_match_parameter(_ctx, args: [2]) {
+        let receiver = crate::instance::receiver(args[0], &MATCH, "parameter")?;
         let params = crate::instance::slot(receiver, MATCH_PARAMS);
         // Unreachable from source: the slot's layout is this crate's on both
         // sides — [`match_value`] is the only writer of it and always writes a
@@ -2855,7 +2857,7 @@ nvs_runtime::nvs_helper! {
         // and `E0401` refuses a receiver that is not one.
         let array = params.array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Router\\Match::param found tag {} in its `params` slot",
+                "Core\\Router\\Match::parameter found tag {} in its `params` slot",
                 params.tag_byte()
             ))
         })?;
@@ -2864,7 +2866,7 @@ nvs_runtime::nvs_helper! {
         // refuses anything that is not a `string` before this body runs.
         let key = args[1].as_str_bytes().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Router\\Match::param expected a `string` name, got tag {}",
+                "Core\\Router\\Match::parameter expected a `string` name, got tag {}",
                 args[1].tag_byte()
             ))
         })?;
@@ -3071,7 +3073,7 @@ fn dispatch(ctx: &mut nvs_runtime::Ctx, gate: Value) -> Result<(), Fault> {
 /// string, in the order the row declares them. Each value is the caller's to
 /// release.
 ///
-/// The query is parsed by `Core\Request::query()`'s own reading and held on the
+/// The query is parsed by `Core\Request::queryParameter()`'s own reading and held on the
 /// request, so the two never read one query string two ways. A row that
 /// declares no `#[Query]` parameter reads nothing.
 ///
@@ -3692,8 +3694,12 @@ mod tests {
             .expect("the row claims its own verb and path");
         assert!(is_route(&mut ctx, found, "Shop::show"));
         let key = Value::text("id");
-        let id = nvs_runtime::call(super::nvs_core_router_match_param, &mut ctx, &[found, key])
-            .expect("a match answers its own capture");
+        let id = nvs_runtime::call(
+            super::nvs_core_router_match_parameter,
+            &mut ctx,
+            &[found, key],
+        )
+        .expect("a match answers its own capture");
         assert_eq!(
             id.as_int(),
             Some(7),
@@ -3728,7 +3734,7 @@ mod tests {
     /// through the symbols a program calls: the method, the captures whole and
     /// at one key, the verb as its case and the access decision as its text. A
     /// row with no capture answers an empty array.
-    // covers: Core\Router\Match::is, Core\Router\Match::params, Core\Router\Match::param
+    // covers: Core\Router\Match::is, Core\Router\Match::parameters, Core\Router\Match::parameter
     // covers: Core\Router\Match::method, Core\Router\Match::access
     #[test]
     fn every_match_member_answers_its_own_field_of_the_row() {
@@ -3753,7 +3759,7 @@ mod tests {
             ),
         ])));
         let captures = |ctx: &mut Ctx, found: Value| {
-            let params = nvs_runtime::call(super::nvs_core_router_match_params, ctx, &[found])
+            let params = nvs_runtime::call(super::nvs_core_router_match_parameters, ctx, &[found])
                 .expect("a match answers its captures");
             let count =
                 crate::arr::borrowed(params.array_ptr().expect("the captures are an array"))
@@ -3772,13 +3778,17 @@ mod tests {
         );
         assert_eq!(captures(&mut ctx, found), 1);
         let key = Value::text("id");
-        let id = nvs_runtime::call(super::nvs_core_router_match_param, &mut ctx, &[found, key])
-            .expect("a match answers a capture it has");
+        let id = nvs_runtime::call(
+            super::nvs_core_router_match_parameter,
+            &mut ctx,
+            &[found, key],
+        )
+        .expect("a match answers a capture it has");
         assert_eq!(id.as_int(), Some(7), "the capture is the converted number");
         dropped(key);
         let unknown = Value::text("slug");
         let absent = nvs_runtime::call(
-            super::nvs_core_router_match_param,
+            super::nvs_core_router_match_parameter,
             &mut ctx,
             &[found, unknown],
         )

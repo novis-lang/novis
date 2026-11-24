@@ -15,7 +15,7 @@ while ($i < 100000) {
 }
 
 // 2. Open the stream, then ask one million times and keep nothing.
-Core\Sse::stream();
+Core\Sse::startStream();
 $i = 0;
 while ($i < 1000000) {
     Core\Sse::current();

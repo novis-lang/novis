@@ -37,7 +37,7 @@ echo "the same read refused ", $caught, " times\n";
 // spent.
 uint $after = 0;
 try {
-    Core\Request::query("page");
+    Core\Request::queryParameter("page");
 } catch (LogicError $third) {
     $after = $after + 1;
 }

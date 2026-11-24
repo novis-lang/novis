@@ -1372,7 +1372,7 @@ A capture of a class that implements `Parses` matches any segment. The class's `
 when `Core\Router::match` returns the result. If `parse` throws an error, that error comes out of
 `Core\Router::match`.
 
-`$match->param("id")` returns `uint|int|null|decimal|tainted string|Core\Uuid|Parses`, so you convert
+`$match->parameter("id")` returns `uint|int|null|decimal|tainted string|Core\Uuid|Parses`, so you convert
 it with `as`. A `string` capture gives a `tainted string`. A name that is not a capture gives `null`.
 `access()` returns the full name of the `allow:` value, such as `Role::Staff` or `Users::ADMIN`.
 `accessAs<Core\Audience>()` on a route with `allow: Role::Staff` returns `null`.
@@ -1693,7 +1693,7 @@ class App
         // `is` checks whether the match is the route of the method you name.
         var $users = new Users();
         if ($match->is(Users::show)) {
-            return $users->show($match->param('id') as uint);
+            return $users->show($match->parameter('id') as uint);
         }
         if ($match->is(Users::create)) {
             return $users->create();

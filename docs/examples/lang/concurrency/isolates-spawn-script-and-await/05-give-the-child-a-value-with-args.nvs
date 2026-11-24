@@ -1,6 +1,6 @@
 <?nvs
-// Shows how to give a child a value with `args:`. A file reads it with
-// `Core\Script::args()`. A static method gets it as its arguments.
+// Shows how to give a child a value with `arguments:`. A file reads it with
+// `Core\Script::arguments()`. A static method gets it as its arguments.
 
 class Report
 {

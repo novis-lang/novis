@@ -167,7 +167,7 @@ class Orders
     #[Core\Access(allow: Core\Audience::Public)]
     public function form(): void
     {
-        var $order = Core\Request::postAs<NewOrder>();
+        var $order = Core\Request::formFieldsAs<NewOrder>();
     }
 
     /// Creates an order from a JSON body or from a form.
@@ -176,7 +176,7 @@ class Orders
     public function either(): void
     {
         var $order = Core\Request::jsonAs<NewOrder>();
-        var $search = Core\Request::postAs<OrderSearch>();
+        var $search = Core\Request::formFieldsAs<OrderSearch>();
     }
 }
 

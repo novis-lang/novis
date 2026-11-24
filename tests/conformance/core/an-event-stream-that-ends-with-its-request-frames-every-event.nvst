@@ -1,5 +1,5 @@
 --TEST--
-`Core\Sse::stream` answers a request with an event stream, and every event a program sends is on the wire as the client will read it — `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` and `rule:concurrency/two-doors-one-isolate`
+`Core\Sse::startStream` answers a request with an event stream, and every event a program sends is on the wire as the client will read it — `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection` and `rule:concurrency/two-doors-one-isolate`
 --FILE--
 <?nvs
 // Door two is the stream that *ends* with its request, so off a connection
@@ -9,7 +9,7 @@
 // the blank line between events: a member that buffered them and flushed at the
 // end would still print plausibly against one event.
 var $events = Core\Out::capture(fn (): void => {
-    var $sse = Core\Sse::stream();
+    var $sse = Core\Sse::startStream();
     $sse->send("ready");
     $sse->send("still here");
 });
@@ -20,7 +20,7 @@ echo "--\n";
 // name is what a client dispatches on, and the id is what it echoes back in
 // `Last-Event-ID` when it reconnects.
 var $named = Core\Out::capture(fn (): void => {
-    var $sse = Core\Sse::stream();
+    var $sse = Core\Sse::startStream();
     $sse->send("sold", event: "order", id: "42");
 });
 echo $named;
@@ -30,7 +30,7 @@ echo "--\n";
 // the encoder `Core\Json::encode` is, so a caller never has to choose between
 // two members for one distinction it does not make.
 var $encoded = Core\Out::capture(fn (): void => {
-    var $sse = Core\Sse::stream();
+    var $sse = Core\Sse::startStream();
     $sse->send({room: "lobby", waiting: 3});
     $sse->send(7);
 });

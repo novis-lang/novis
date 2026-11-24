@@ -1,5 +1,5 @@
 --TEST--
-A request streams `Core\Json::encodeEach`'s pieces through `Core\Response::stream`, and the body is the text `Core\Json::encode` writes for the same list -- `rule:core-classes/json-whole-and-stream`
+A request streams `Core\Json::encodeEach`'s pieces through `Core\Response::startStream`, and the body is the text `Core\Json::encode` writes for the same list -- `rule:core-classes/json-whole-and-stream`
 --FILE--
 <?nvs
 // covers: Core\Json::encodeEach
@@ -20,7 +20,7 @@ class Catalog
 }
 
 if (Core\Env::context() == Core\Env::Context::Request) {
-    var $out = Core\Response::stream("application/json");
+    var $out = Core\Response::startStream("application/json");
     foreach (Core\Json::encodeEach(Catalog::items()) as bytes $piece) {
         $out->write($piece);
     }

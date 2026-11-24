@@ -2273,8 +2273,10 @@ pub struct EncodeSite {
 /// The members whose argument at the position named is written as a JSON
 /// document. A value typed `mixed`, and every other encoder, is refused by the
 /// encoder itself at run time (`nvs_stdlib::json`'s class arm).
-const ENCODERS: &[(&str, &str, usize)] =
-    &[(r"Core\Json", "encode", 0), (r"Core\Response", "json", 0)];
+const ENCODERS: &[(&str, &str, usize)] = &[
+    (r"Core\Json", "encode", 0),
+    (r"Core\Response", "sendJson", 0),
+];
 
 /// Records the argument of a call [`ENCODERS`] lists, from the static call
 /// path in `crate::expr::calls`.

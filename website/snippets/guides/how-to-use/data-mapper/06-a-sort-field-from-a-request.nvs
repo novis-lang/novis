@@ -28,5 +28,5 @@ class Mapper
     }
 }
 
-echo Mapper::orderBy(Core\Request::query('sort')), "\n";
-echo Mapper::orderBy(Core\Request::query('other')), "\n";
+echo Mapper::orderBy(Core\Request::queryParameter('sort')), "\n";
+echo Mapper::orderBy(Core\Request::queryParameter('other')), "\n";

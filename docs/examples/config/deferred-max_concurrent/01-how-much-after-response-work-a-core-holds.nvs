@@ -17,9 +17,9 @@ echo 'each may hold up to:    ', Core\Config::get('limits.hard.memory') ?? '(not
 string $name = 'deferred.max_concurrent';
 echo 'raise it from code:     ', Core\Config::set($name, '4096') ? 'yes' : 'no', "\n";
 
-// `Core\Task::afterResponse` runs this anonymous function after the response is sent.
+// `Core\Task::runAfterResponse` runs this anonymous function after the response is sent.
 // Over the limit, it throws an error while the request still runs, so the work can run at once.
-Core\Task::afterResponse(fn(): void => {
+Core\Task::runAfterResponse(fn(): void => {
     echo "and the work itself runs once the answer is on its way\n";
 });
 

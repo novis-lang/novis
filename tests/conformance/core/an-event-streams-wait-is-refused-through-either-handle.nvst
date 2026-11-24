@@ -6,7 +6,7 @@
 // the context this program is, not which member built the object it was called
 // on. A program that could reach a waiting stream by asking for the handle a
 // second way would have two answers to one question.
-var $opened = Core\Sse::stream();
+var $opened = Core\Sse::startStream();
 try {
     $opened->receive();
 } catch (LogicError $refused) {

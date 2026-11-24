@@ -8,7 +8,7 @@ use Core\Markdown;
 use Example\Highlight\Code;
 
 // The text that the form sent. The first time, there is no form, so the page uses an example.
-tainted string $text = Core\Request::post('text') ?? "# Rust\n\n```rust\n// Add two numbers.\nfn add(a: i64, b: i64) -> i64 {\n    a + b\n}\n```";
+tainted string $text = Core\Request::formField('text') ?? "# Rust\n\n```rust\n// Add two numbers.\nfn add(a: i64, b: i64) -> i64 {\n    a + b\n}\n```";
 
 // `Markdown::toHtml` calls `Code::toHtml` for each code block that names a language.
 // If `Code::toHtml` returns `null`, the block is written as plain text.

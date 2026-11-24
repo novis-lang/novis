@@ -20,5 +20,5 @@ class Bench
 }
 
 // `send()` writes to an open stream, so the program opens one first.
-Core\Sse $sse = Core\Sse::stream();
+Core\Sse $sse = Core\Sse::startStream();
 echo Bench::run($sse, 256), "\n";

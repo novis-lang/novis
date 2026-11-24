@@ -1,4 +1,4 @@
-Ends a response body that `Core\Response::stream` started. The client receives the end of the body at
+Ends a response body that `Core\Response::startStream` started. The client receives the end of the body at
 once. Your program can go on running after `end()`, but it cannot write to the body again. A
 `write()` after `end()` throws a `LogicError`. Calling `end()` a second time does nothing.
 

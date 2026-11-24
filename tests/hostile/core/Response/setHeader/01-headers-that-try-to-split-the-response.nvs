@@ -48,4 +48,4 @@ while ($n < 100000000) {
     Core\Response::setHeader('X-Header-' . ($n as string), Core\Str::repeat('v', 1000));
     $n = $n + 1;
 }
-Core\Response::text("done\n");
+Core\Response::sendText("done\n");

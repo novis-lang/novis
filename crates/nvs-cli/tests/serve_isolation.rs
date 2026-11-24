@@ -52,7 +52,7 @@ const WATCHDOG_MARGIN: &str = "30s";
 const PROGRAM: &str = "<?nvs\n\
 class Seen {\n    public static int $value = 0;\n}\n\
 echo Seen::$value, \" \";\n\
-Seen::$value = Core\\Request::query(\"v\") as int;\n\
+Seen::$value = Core\\Request::queryParameter(\"v\") as int;\n\
 echo Seen::$value;\n";
 
 /// Connections opened at once against each server.
@@ -409,7 +409,7 @@ const SPIN_MANIFEST: &str = r#"{"manifest": 1, "world": "1.0.0", "class": "Shop\
 const SPINNING: &str = "<?nvs\n\
 Core\\Fatal::onLimit(fn (array<string> $report): void => {\n    \
 Core\\IO::write('marks/limit.txt', $report['limit']);\n});\n\
-if (Core\\Request::query(\"spin\") == \"yes\") {\n    Shop\\Spin::forever();\n}\n\
+if (Core\\Request::queryParameter(\"spin\") == \"yes\") {\n    Shop\\Spin::forever();\n}\n\
 echo \"served\";\n";
 
 /// A guest that loops forever runs under the request's own `[limits] cpu_time`. The request
@@ -456,7 +456,7 @@ fn a_looping_guest_reaches_on_limit_and_the_next_request_is_served() {
 /// reaches `[limits] memory`, `?do=spin` loops until it reaches `[limits] cpu_time`, and anything
 /// else answers `ok` at once.
 const OVERLOADED: &str = "<?nvs\n\
-?tainted string $what = Core\\Request::query(\"do\");\n\
+?tainted string $what = Core\\Request::queryParameter(\"do\");\n\
 if ($what == \"hold\") {\n    Core\\Time::sleep(Core\\Time\\Duration::milliseconds(300));\n\
 } elseif ($what == \"grow\") {\n    string $chunk = \"x\";\n    \
 for (int $i = 0; $i < 16; $i++) {\n        $chunk = $chunk . $chunk;\n    }\n    \
@@ -927,7 +927,7 @@ fn an_idle_keep_alive_connection_holds_no_extension_instance() {
 /// after the response and outlasts it.
 const LISTING_THEN_WORK: &str = "<?nvs\n\
 use Novis\\Intl\\ListFormat;\n\
-Core\\Task::afterResponse(fn(): void => {\n    \
+Core\\Task::runAfterResponse(fn(): void => {\n    \
 Core\\Time::sleep(Core\\Time\\Duration::milliseconds(50));\n\
 });\n\
 echo ListFormat::join([[\"Shop\", \"Blog\", \"Wiki\"]], \"en\")[0];\n";
@@ -972,7 +972,7 @@ fn an_idle_connection_holds_no_instance_once_its_after_response_work_ends() {
 /// A program that logs the request's path and a query value, then prints a page.
 const LOGS_THEN_PRINTS: &str = "<?nvs\n\
 Core\\Log::write(Core\\Log::Level::Warn, 'not found: ' . Core\\Request::path(), \
-['q' => Core\\Request::query('q') ?? '']);\n\
+['q' => Core\\Request::queryParameter('q') ?? '']);\n\
 echo 'page';\n";
 
 /// `rule:errors/engine-floor`: with no `[log] target`, a record a request writes goes to the

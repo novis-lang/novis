@@ -7,7 +7,7 @@
 //! are decided by registry rows (`nvs_stdlib::socket`'s `Core\Socket\Message`,
 //! `nvs_stdlib::topic`'s `Core\Topic` and `nvs_stdlib::sse`'s `Core\Sse`), so a
 //! program that would leak any of them does not compile. The qualifier rule at
-//! this boundary that is not here — a `secret` crossing an upgrade's `args:` or
+//! this boundary that is not here — a `secret` crossing an upgrade's `arguments:` or
 //! a topic's publish — is in `isolates.rs`, beside the graph copy it shares with
 //! `spawn script`.
 //!
@@ -117,7 +117,7 @@ fn a_tainted_topic_name_fails_to_compile() {
 fn a_tainted_event_name_is_refused_at_the_call_site() {
     let refused = check_in_method(
         "tainted string $name = \"order\" as tainted string;\n\
-         var $sse = Core\\Sse::stream();\n\
+         var $sse = Core\\Sse::startStream();\n\
          $sse->send(\"sold\", event: $name);",
     );
     assert!(
@@ -129,7 +129,7 @@ fn a_tainted_event_name_is_refused_at_the_call_site() {
 
     let accepted = check_in_method(
         "string $kind = \"order\";\n\
-         var $sse = Core\\Sse::stream();\n\
+         var $sse = Core\\Sse::startStream();\n\
          $sse->send(\"sold\", event: $kind);",
     );
     assert!(!accepted.has_errors(), "{accepted:?}");
@@ -143,7 +143,7 @@ fn a_tainted_event_name_is_refused_at_the_call_site() {
 fn a_tainted_id_is_refused_at_the_call_site() {
     let refused = check_in_method(
         "tainted string $last = \"42\" as tainted string;\n\
-         var $sse = Core\\Sse::stream();\n\
+         var $sse = Core\\Sse::startStream();\n\
          $sse->send(\"sold\", id: $last);",
     );
     assert!(
@@ -155,14 +155,14 @@ fn a_tainted_id_is_refused_at_the_call_site() {
 
     let accepted = check_in_method(
         "uint $seq = 42;\n\
-         var $sse = Core\\Sse::stream();\n\
+         var $sse = Core\\Sse::startStream();\n\
          $sse->send(\"sold\", id: \"e-\" . $seq);",
     );
     assert!(!accepted.has_errors(), "{accepted:?}");
 }
 
 /// The payload is the other side of that predicate, on the argument
-/// `Core\Response::json` already makes: the framing belongs to the framer, which
+/// `Core\Response::sendJson` already makes: the framing belongs to the framer, which
 /// normalizes a payload before it splits it into `data:` lines, so nothing a
 /// program supplies can reach a field a client acts on.
 ///
@@ -174,14 +174,14 @@ fn a_tainted_id_is_refused_at_the_call_site() {
 fn a_tainted_data_payload_is_accepted_and_stays_tainted() {
     let accepted = check_in_method(
         "tainted string $body = \"<b>sold</b>\" as tainted string;\n\
-         var $sse = Core\\Sse::stream();\n\
+         var $sse = Core\\Sse::startStream();\n\
          $sse->send($body);",
     );
     assert!(!accepted.has_errors(), "{accepted:?}");
 
     let still_tainted = check_in_method(
         "tainted string $body = \"<b>sold</b>\" as tainted string;\n\
-         var $sse = Core\\Sse::stream();\n\
+         var $sse = Core\\Sse::startStream();\n\
          $sse->send($body);\n\
          string $plain = $body;",
     );

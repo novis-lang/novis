@@ -22,7 +22,7 @@ query string gains no second canonicalization. The name a parameter is reached b
 so an array value is what writes brackets — which is what makes the pair a round trip rather than
 two members that each invented a spelling.
 
-The pair is singular and reached by name, the same operation `Core\Request::query(string $name)` performs
+The pair is singular and reached by name, the same operation `Core\Request::queryParameter(string $name)` performs
 on the same bracket convention from the other side of a request. A query keeps exactly one syntax per
 state: pairs are written by this pair, an empty query is `with({query: ""})`, and no query is
 `with({query: null})`. There is no plural `withQueryParameters` and no `withoutQueryParameter`: setting

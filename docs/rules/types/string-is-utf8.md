@@ -15,7 +15,7 @@ for a payload whose tag held. A member whose input is already a `string`, and wh
 only ASCII bytes, has nothing to check: `Core\Csv::parse` is one. A plaintext that a seal opens is
 checked too, because a tag proves who sealed the bytes and not that they are text: `Core\SignedCookie::open`
 refuses it as it refuses a forgery, and `Core\Session::getSecret` and `Core\Cache::getSecret` read it
-as a miss. Captured output becomes a `string` too, and only `Core\Response::bytes` and `::sendFile`
+as a miss. Captured output becomes a `string` too, and only `Core\Response::sendBytes` and `::sendFile`
 can write bytes that are not UTF-8 into it. So `Core\Out::capture`, a `spawn script`'s `output`,
 `Core\Html::later` throw `RuntimeError` naming the member when the output is not UTF-8. They check
 at the capture's end, since refusing the write would also refuse valid bytes. `Core\Test::request`

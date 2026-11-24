@@ -12,7 +12,7 @@
 // at once and reads as a stream that was over -- which is why the refusal names
 // the member and says which door does wait.
 try {
-    var $sse = Core\Sse::stream();
+    var $sse = Core\Sse::startStream();
     $sse->receive();
     echo "waited\n";
 } catch (LogicError $refused) {

@@ -39,7 +39,7 @@ class InvitationTest
 // saved list of guests and sends one message. The host is in `to`, and the guests are in `bcc`.
 if (Core\Env::context() == Core\Env::Context::Request) {
     array<string> $friends = ['ada@example.com', 'bo@example.com', 'cy@example.com'];
-    if (Core\Request::post('list') == 'friends') {
+    if (Core\Request::formField('list') == 'friends') {
         Core\Mail::send('site', ['host@example.com'], 'You are invited', 'Party on Saturday at 8.', {
             bcc: $friends,
         });

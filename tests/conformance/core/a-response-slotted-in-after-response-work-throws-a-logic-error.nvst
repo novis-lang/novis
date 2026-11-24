@@ -1,20 +1,20 @@
 --TEST--
-Off a request, `Core\Response::slotted()` in the main script does not throw, and in `Core\Task::afterResponse` work it throws `LogicError`, because the main script has ended -- `rule:core-classes/html-later`
+Off a request, `Core\Response::sendSlotted()` in the main script does not throw, and in `Core\Task::runAfterResponse` work it throws `LogicError`, because the main script has ended -- `rule:core-classes/html-later`
 --FILE--
 <?nvs
-Core\Response::slotted();
+Core\Response::sendSlotted();
 echo "main\n";
 
 // This work runs after the script ends, so the call throws `LogicError`.
 // The work is in a variable, so the compiler does not see the call.
 var $work = fn(): void => {
     try {
-        Core\Response::slotted();
+        Core\Response::sendSlotted();
     } catch (LogicError $e) {
         echo $e->message, "\n";
     }
 };
-Core\Task::afterResponse($work);
+Core\Task::runAfterResponse($work);
 --EXPECT--
 main
-`Core\Response::slotted()` was called after the main script ended. Call it before the main script returns.
+`Core\Response::sendSlotted()` was called after the main script ended. Call it before the main script returns.

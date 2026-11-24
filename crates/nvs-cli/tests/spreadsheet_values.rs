@@ -166,7 +166,7 @@ Workbook::fromRows([["order" => 1042, "note" => "=1+2"]])->download("orders.csv"
 var $design = Workbook::createInMemory();
 $design->sheet("Invoice")->add(["{{shop}}"]);
 bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
-Core\Response::bytes(Template::open($template)->fill(["shop" => "Shop"])->bytes(), "application/octet-stream");
+Core\Response::sendBytes(Template::open($template)->fill(["shop" => "Shop"])->bytes(), "application/octet-stream");
 Template::open($template)->fill(["shop" => "Shop"])->download("Rechnung März \"1\".xlsx");
 "#,
     );

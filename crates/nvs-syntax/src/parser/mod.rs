@@ -1032,10 +1032,10 @@ impl<'src, 'd> Parser<'src, 'd> {
                  its own call, so the code shows where each value comes from"
             }
             "$_GET" => {
-                "use `Core\\Request::query` — it returns one query parameter of the current request"
+                "use `Core\\Request::queryParameter` — it returns one query parameter of the current request"
             }
             "$_POST" => {
-                "use `Core\\Request::post` — it returns one form field of the current request"
+                "use `Core\\Request::formField` — it returns one form field of the current request"
             }
             "$_COOKIE" => {
                 "use `Core\\Request::cookie` — it returns one cookie of the current request"
@@ -1058,7 +1058,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                 "use `Core\\Cli::arguments` — it returns the command-line arguments as an array"
             }
             "$_ARGS" => {
-                "use `Core\\Script::args` — it returns the value the script was started with"
+                "use `Core\\Script::arguments` — it returns the value the script was started with"
             }
             _ => return None,
         })

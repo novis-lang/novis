@@ -1,6 +1,6 @@
 `[log] handler = 'path/to/handler.nvs'` names a script invoked as an ordinary `spawn script`
 isolate — fresh arena, fresh globals, its own config overlay, sharing nothing but compiled code —
-receiving one explicit report argument through `Core\Script::args()`.
+receiving one explicit report argument through `Core\Script::arguments()`.
 
 It cannot use ambient `Core\Request`, `Core\Server` or `Core\Session`, and structurally could not
 be trusted to: for a compile failure no request context exists yet, and for a panic the runtime's

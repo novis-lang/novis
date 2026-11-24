@@ -6,7 +6,7 @@ use Core\Test;
 
 if (Core\Env::context() == Core\Env::Context::Request) {
     // This part answers the request with the first eight bytes of a PNG file.
-    Core\Response::bytes(Core\Encoding::fromHex('89504e470d0a1a0a'), 'image/png');
+    Core\Response::sendBytes(Core\Encoding::fromHex('89504e470d0a1a0a'), 'image/png');
 } else {
     var $response = Test::request(Method::Get, '/logo.png');
 

@@ -75,9 +75,9 @@
 //! `Core\Script` itself is in this module beside its handle, the way
 //! `Core\Task` and `Core\Task\Channel<T>` sit together under
 //! `rule:classes/no-free-functions-or-constants`.
-//! [`CLASS`] is that class, and `args()` is its one row.
+//! [`CLASS`] is that class, and `arguments()` is its one row.
 //!
-//! # `args()` answers `mixed`, and `null` for a script nobody spawned
+//! # `arguments()` answers `mixed`, and `null` for a script nobody spawned
 //!
 //! `rule:core-classes/script-args` is what
 //! replaced `rule:security/isolate-shares-nothing`'s `$_ARGS` with a method call, and its body states the
@@ -90,7 +90,7 @@
 //!
 //! A child that was passed nothing reads **`null`** rather than an empty array.
 //! That is `nvs_ir::lower::expr`'s lowering of a missing option, which already
-//! records why: a program that wrote `args: []` said something a program that
+//! records why: a program that wrote `arguments: []` said something a program that
 //! wrote no option at all did not, and an empty array collapses the two. The
 //! root script reads `null` for the same reason — nothing spawned it, so there
 //! is no argument rather than an empty one.
@@ -153,7 +153,7 @@ const PENDING: usize = 0;
 /// answers with, and this is what the child asks.
 ///
 ///
-/// `rule:core-classes/script-args`'s `Core\Script::args()`, which replaced `rule:security/isolate-shares-nothing`'s `$_ARGS`
+/// `rule:core-classes/script-args`'s `Core\Script::arguments()`, which replaced `rule:security/isolate-shares-nothing`'s `$_ARGS`
 /// — the read half of `spawn script`'s `arguments:` option, and a class beside
 /// the handle for the same reason `Core\Time` sits beside `Core\Time\Instant`.
 // rank: 540
@@ -162,7 +162,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     doc: Some(&CARD),
     methods: &[
         CoreMethod {
-            name: "args",
+            name: "arguments",
             names: &[],
             params: &[],
             defaults: &[],
@@ -202,7 +202,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Script`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
-    short: "The script that is running now. `args()` returns the value the script was started \
+    short: "The script that is running now. `arguments()` returns the value the script was started \
             with. `onExit()` adds a function that runs when the script ends, and `finish()` ends \
             the script at once.",
 };
@@ -237,7 +237,7 @@ const FINISH_DOC: MethodDoc = MethodDoc {
     ret: "Nothing. The call does not return, no code after it runs, and no `catch` block \
           catches it. The `Core\\Script\\ExitReport` has the reason `Finish`, the status `0` and \
           no error. On a server, the response that the handler set is sent, and work added with \
-          `Core\\Task::afterResponse` still runs. Under `nvs run`, the script ends.",
+          `Core\\Task::runAfterResponse` still runs. Under `nvs run`, the script ends.",
     errors: &[],
 };
 
@@ -423,18 +423,18 @@ const MEMORY_PEAK_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Script::args`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Script::arguments`'s reference card — `rule:core-api/reference-card`.
 const ARGS_DOC: MethodDoc = MethodDoc {
     short: "Returns the value that this script was started with. The parent script writes it as \
             `spawn script … with(arguments: …)`, and this script receives a copy.",
     params: &[],
     ret: "The value the parent passed, with the same shape. It is `null` when the parent gave no \
-          `args:`, and in the first script, which no other script started.",
+          `arguments:`, and in the first script, which no other script started.",
     errors: &[],
 };
 
-/// The symbol [`CLASS`]'s `args` row is reached through.
-const ARGS_SYMBOL: &str = "nvs_core_script_args";
+/// The symbol [`CLASS`]'s `arguments` row is reached through.
+const ARGS_SYMBOL: &str = "nvs_core_script_arguments";
 
 /// The symbol [`CLASS`]'s `onExit` row is reached through.
 const ON_EXIT_SYMBOL: &str = "nvs_core_script_on_exit";
@@ -513,7 +513,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         SPAWN_SYMBOL => (nvs_core_script_spawn as *const ()).cast(),
         SPAWN_METHOD_SYMBOL => (nvs_core_script_spawn_method as *const ()).cast(),
         AWAIT_SYMBOL => (nvs_core_script_await as *const ()).cast(),
-        ARGS_SYMBOL => (nvs_core_script_args as *const ()).cast(),
+        ARGS_SYMBOL => (nvs_core_script_arguments as *const ()).cast(),
         ON_EXIT_SYMBOL => (nvs_core_script_on_exit as *const ()).cast(),
         FINISH_SYMBOL => (nvs_core_script_finish as *const ()).cast(),
         REASON_SYMBOL => (nvs_core_script_exit_report_reason as *const ()).cast(),
@@ -845,7 +845,7 @@ nvs_runtime::nvs_helper! {
     /// answers the handle that `await` collects.
     ///
     /// Six arguments in the order the lowering builds them: the path as
-    /// written, the `args:` value (`null` when the option was not given), the
+    /// written, the `arguments:` value (`null` when the option was not given), the
     /// `output:` spelling, the `on:` placement, which is `'here'` for a spawn
     /// that named none, and the `limits:` and `grants:` narrowings, each `null`
     /// for a spawn that wrote neither. The argument is **transferred** to the
@@ -955,7 +955,7 @@ nvs_runtime::nvs_helper! {
 }
 
 /// `rule:security/isolate-shares-nothing`'s named-argument agreement between a method entry's
-/// parameters and the `args:` map it was spawned with: every parameter the
+/// parameters and the `arguments:` map it was spawned with: every parameter the
 /// entry declares is a key of the map, and the map holds no key the entry does
 /// not declare. `Err` carries the message the throw is worded with.
 ///
@@ -975,8 +975,8 @@ nvs_runtime::nvs_helper! {
 /// two questions.
 ///
 /// A value that is not an array at all names no parameter, so it reads here as
-/// a map with no keys: `null` is what a spawn with no `args:` passes, and
-/// anything else is a value only `Core\Script::args()` could have wanted.
+/// a map with no keys: `null` is what a spawn with no `arguments:` passes, and
+/// anything else is a value only `Core\Script::arguments()` could have wanted.
 pub(crate) fn entry_names_agree(site: &str, names: &[String], map: Value) -> Result<(), String> {
     let keys = match map.array_ptr() {
         Some(ptr) => crate::arr::borrowed(ptr).keys(),
@@ -1035,11 +1035,11 @@ nvs_runtime::nvs_helper! {
     /// declaration order and empty for an entry that declares none — another
     /// constant the lowering wrote, off the resolved call `nvs_types` recorded
     /// (`nvs_ir::lower`'s `spawn_method_entry` is the one home of the
-    /// encoding). It is what `rule:security/isolate-shares-nothing`'s `args:` binding needs and
+    /// encoding). It is what `rule:security/isolate-shares-nothing`'s `arguments:` binding needs and
     /// the one thing the child cannot ask the runtime for: a
     /// `nvs_runtime::MethodRow` carries arity and parameter tags, never names.
     ///
-    /// **`args:` binds by name**, which is that binding in two halves and two
+    /// **`arguments:` binds by name**, which is that binding in two halves and two
     /// places. [`entry_names_agree`] judges the names *here*, before anything
     /// crosses, because a map naming a parameter the entry does not declare —
     /// or omitting one it does — is the ordinary named-argument error
@@ -1048,7 +1048,7 @@ nvs_runtime::nvs_helper! {
     /// [`bound_arguments`] then reads the values out in declaration order
     /// inside the child, where the copy is, and `nvs_runtime::call_static_bound`
     /// judges each against the slot it is about to fill. The map still crosses
-    /// whole and `Core\Script::args()` still answers it, which is `rule:security/isolate-shares-nothing`'s
+    /// whole and `Core\Script::arguments()` still answers it, which is `rule:security/isolate-shares-nothing`'s
     /// accessor rule for both forms.
     fn nvs_core_script_spawn_method(ctx, args: [7]) {
         // Unreachable from source: the lowering emits this as a `ConstStr`, so
@@ -1096,7 +1096,7 @@ nvs_runtime::nvs_helper! {
         nvs_runtime::capability::require(ctx, Cap::ScriptSpawn, Scope::Unscoped, "`spawn script`")?;
         // The two **names** and not a program: the label
         // `nvs_runtime::call_static_bound` looks the method up by, and the
-        // parameters its `args:` map binds by. `nvs_runtime::script`'s
+        // parameters its `arguments:` map binds by. `nvs_runtime::script`'s
         // `method_program` is the code they become, built on the core that runs
         // the child — the seam's `Entry` owns why that is where it happens.
         let entry = Entry::Method {
@@ -1166,14 +1166,14 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Script::args(): mixed` — `rule:core-classes/script-args`'s replacement for `$_ARGS`,
+    /// `Core\Script::arguments(): mixed` — `rule:core-classes/script-args`'s replacement for `$_ARGS`,
     /// and the read half of `spawn script <path> with(arguments: …)`.
     ///
     /// The module doc is the one home of what this answers and why the type is
     /// `mixed`. What is here is only the accounting: the isolate's context
     /// holds one reference, that reference is the arena's rather than this
     /// call's, and a caller keeping the value needs one of its own.
-    fn nvs_core_script_args(ctx, _args: [0]) {
+    fn nvs_core_script_arguments(ctx, _args: [0]) {
         let held = ctx.isolate_argument();
         #[expect(
             unsafe_code,
@@ -1411,15 +1411,16 @@ mod tests {
         error: u64,
     }
 
-    /// `Core\Script::args` answers the value this isolate was handed, as a
+    /// `Core\Script::arguments` answers the value this isolate was handed, as a
     /// reference of its own: the context keeps the one it holds, so every read
     /// is the same string and none of them is a copy. A context that was handed
     /// nothing answers `null`.
-    // covers: Core\Script::args
+    // covers: Core\Script::arguments
     #[test]
     fn args_answers_the_isolates_own_value_as_a_second_reference() {
         let mut ctx = Ctx::buffered();
-        let none = call(super::nvs_core_script_args, &mut ctx, &[]).expect("`args` cannot fail");
+        let none =
+            call(super::nvs_core_script_arguments, &mut ctx, &[]).expect("`arguments` cannot fail");
         assert_eq!(
             none.bits(),
             Value::null().bits(),
@@ -1432,8 +1433,8 @@ mod tests {
             .str_ptr()
             .expect("the argument is a string");
         for read in 1..=3 {
-            let answer =
-                call(super::nvs_core_script_args, &mut ctx, &[]).expect("`args` cannot fail");
+            let answer = call(super::nvs_core_script_arguments, &mut ctx, &[])
+                .expect("`arguments` cannot fail");
             assert_eq!(answer.str_ptr(), Some(held), "read {read} is not a copy");
             #[expect(
                 unsafe_code,

@@ -1,12 +1,12 @@
 --TEST--
-`Core\Response::slotted()` in the main script does not throw, a second call is the same as one, and a slotted page with no `Core\Html::later` is sent whole -- `rule:core-classes/html-later`
+`Core\Response::sendSlotted()` in the main script does not throw, a second call is the same as one, and a slotted page with no `Core\Html::later` is sent whole -- `rule:core-classes/html-later`
 --FILE--
 <?nvs
 // The program sends a request to itself. `Core\Test::request` runs this file
 // again for it, and in that run the first branch is the page.
 if (Core\Env::context() == Core\Env::Context::Request) {
-    Core\Response::slotted();
-    Core\Response::slotted();
+    Core\Response::sendSlotted();
+    Core\Response::sendSlotted();
     echo "Blog";
 } else {
     var $page = Core\Test::request(Core\Http\Method::Get, "/blog");

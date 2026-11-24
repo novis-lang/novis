@@ -10,7 +10,7 @@ Each `[[schedule]]` entry in `nvs.toml` has a `name`, a `script` file, and eithe
 - `"failed"` runs when scheduled scripts or queue jobs fail, at most once a minute.
 
 The script runs isolated, like a request. It reads its entry's `name` and its `on` value from
-`Core\Script::args()`.
+`Core\Script::arguments()`.
 
 **In plain words:** this is cron for your application, written in the same file as the other
 settings.

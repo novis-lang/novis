@@ -4,8 +4,8 @@
 //!
 //! # What is here, and what is not
 //!
-//! `rule:security/response-body-is-one-typed-member`'s body members: `html`,
-//! `text`, `json`, `bytes` and `sendFile`, plus `stream`, which that rule's
+//! `rule:security/response-body-is-one-typed-member`'s body members: `sendHtml`,
+//! `sendText`, `sendJson`, `sendBytes` and `sendFile`, plus `startStream`, which that rule's
 //! table does not have a row for because a body written over time is
 //! `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
 //! subject rather than that one's. `sendFile` is the one that hands over a
@@ -14,7 +14,7 @@
 //! rather than anything this module declares.
 //!
 //! Beside them, `setStatus`, `setHeader`, `redirect` and `addCookie`,
-//! and `rule:core-classes/html-later`'s `slotted`: the five members here that
+//! and `rule:core-classes/html-later`'s `sendSlotted`: the five members here that
 //! shape a response without writing one.
 //!
 //! # Why `addCookie` appends where `setHeader` overrides
@@ -33,8 +33,8 @@
 //! `rule:security/response-body-is-one-typed-member` is the whole argument, and
 //! the three that are here are what makes it visible: each owns one body shape and **sets its own `Content-Type`**, so no call
 //! site ever names a header and no endpoint can answer JSON labelled as HTML.
-//! `json` serializes the value itself, which is why it takes `mixed` and a
-//! tainted value inside it is safe; `bytes` is the one that cannot know, so its
+//! `sendJson` serializes the value itself, which is why it takes `mixed` and a
+//! tainted value inside it is safe; `sendBytes` is the one that cannot know, so its
 //! content type is a parameter — and `rule:security/sink-predicate` makes that
 //! parameter a **sink**.
 //!
@@ -59,7 +59,7 @@
 //!
 //! # A body written over time crosses earlier, and through a cell
 //!
-//! `stream` is the one body member whose bytes cannot go out on the completion,
+//! `startStream` is the one body member whose bytes cannot go out on the completion,
 //! because the completion is what a request *ends* with and a streaming body has
 //! to reach the peer while the request is still running
 //! (`rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`). So
@@ -127,9 +127,9 @@
 //! that rule nor `rule:security/response-body-is-one-typed-member` states it.
 //! The second rule's whole argument is that a body
 //! member owns one shape *and* its media type, so that no call site names that
-//! header; admitting it here would let a handler answer `json` and then
+//! header; admitting it here would let a handler answer `sendJson` and then
 //! relabel it `text/html`, which is the mislabelling that rule exists to make
-//! unspellable. Nothing is lost, because `bytes` is the member that takes a
+//! unspellable. Nothing is lost, because `sendBytes` is the member that takes a
 //! media type and it takes it beside the body it describes. The refusal is
 //! ASCII-case-insensitive, a field name being.
 //!
@@ -180,7 +180,7 @@
 //! may otherwise be is not asked here, because the qualifier has already
 //! answered the question that made it worth asking.
 //!
-//! # `text` takes `tainted`, and the mark is not the word its rule uses
+//! # `sendText` takes `tainted`, and the mark is not the word its rule uses
 //!
 //! `rule:security/response-body-is-one-typed-member`'s table says the body is
 //! **contagious**, and
@@ -220,8 +220,8 @@
 //! `nvs_runtime`'s `write_rendered` is where that pick happens — escaping
 //! inside an HTTP request and substituting everywhere else. A body member is
 //! the table's other half and takes neither: a `Markup`'s bytes already passed
-//! whichever rule made them markup ([`nvs_core_response_html`]), `json`'s
-//! framing is the serializer's and never concatenation's, and `bytes` and
+//! whichever rule made them markup ([`nvs_core_response_send_html`]), `sendJson`'s
+//! framing is the serializer's and never concatenation's, and `sendBytes` and
 //! `sendFile` carry a media type that says what the octets are. A rendering
 //! over any of them would be a second framing of bytes already framed, which is
 //! what `rule:security/response-body-is-one-typed-member` exists to make
@@ -232,7 +232,7 @@
 //! no one, and the bytes reach whatever sink that program is on as they were
 //! written. That is load-bearing rather than tolerated — it is what makes a
 //! body assertable from a `.nvst` case, none of which is a request a server is
-//! answering, and `stream` off a connection and `sendFile` off a request are
+//! answering, and `startStream` off a connection and `sendFile` off a request are
 //! the same degradation, stated on each of those members. Nothing refuses the
 //! call, because the refusal `rule:security/response-body-is-one-typed-member`
 //! asks for is about two *writers* of one body
@@ -241,11 +241,11 @@
 //! **A body that will become a carrier takes the sink's rendering first.**
 //! Inside a `Core\Out::capture`, and in a `spawn script` child, the bytes are
 //! not a response: the capture or the parent receives them as the sink's
-//! carrier, or appends them to its own stream. `text`, `json`, `bytes` and
-//! `stream` write through `Ctx::write_body`, which renders them there the way
-//! `echo` renders a `string`. A child's `text("<script>…")` shows as text in the
+//! carrier, or appends them to its own stream. `sendText`, `sendJson`, `sendBytes` and
+//! `startStream` write through `Ctx::write_body`, which renders them there the way
+//! `echo` renders a `string`. A child's `sendText("<script>…")` shows as text in the
 //! parent's page, and an `echo`ed one is escaped once, not twice
-//! (`rule:security/capture-answers-the-carrier`). `html` writes a `Markup`,
+//! (`rule:security/capture-answers-the-carrier`). `sendHtml` writes a `Markup`,
 //! and `sendFile` names a file the program chose, so both stay verbatim.
 
 use nvs_runtime::{Fault, Tag, Value};
@@ -255,14 +255,14 @@ use crate::registry::{
     ErrorDoc, MethodDoc, ParamDoc, Qual, TextOrigin,
 };
 
-/// What `html` declares — the `text/html` of
+/// What `sendHtml` declares — the `text/html` of
 /// `rule:security/response-body-is-one-typed-member`, with the charset every
 /// other text-shaped answer in this runtime carries, and the same string
 /// `nvs_server::serve` answers a request that only echoed with: the sink and
 /// the member write one kind of body, so they say one thing about it.
 const HTML_MEDIA_TYPE: &str = "text/html; charset=utf-8";
 
-/// What `text` declares — the `text/plain` of
+/// What `sendText` declares — the `text/plain` of
 /// `rule:security/response-body-is-one-typed-member`, with the charset every
 /// other text-shaped answer in this runtime carries.
 ///
@@ -280,7 +280,7 @@ const TEXT_MEDIA_TYPE: &str = "text/plain; charset=utf-8";
 /// memory, and the path that reads the bytes itself keeps it too.
 const SEND_FILE_CHUNK: usize = 64 * 1024;
 
-/// What `json` declares — the `application/json` of
+/// What `sendJson` declares — the `application/json` of
 /// `rule:security/response-body-is-one-typed-member`, and no `charset`: the
 /// media type's own registration fixes the encoding at UTF-8, so a parameter
 /// saying so again is one more thing two members could disagree about.
@@ -335,8 +335,8 @@ pub(crate) const NAME: &str = r"Core\Response";
 
 /// `Core\Response`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
-    short: "The response your program sends back to a request. `html()`, `text()`, `json()`, \
-            `bytes()`, `sendFile()` and `stream()` write the body, and each one sets the matching \
+    short: "The response your program sends back to a request. `sendHtml()`, `sendText()`, `sendJson()`, \
+            `sendBytes()`, `sendFile()` and `startStream()` write the body, and each one sets the matching \
             `Content-Type`. `setStatus()`, `setHeader()`, `redirect()` and `addCookie()` change \
             the status line and the headers.",
 };
@@ -355,7 +355,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     doc: Some(&CARD),
     methods: &[
         CoreMethod {
-            name: "html",
+            name: "sendHtml",
             names: &["body"],
             // Unmarked, and the row where that is the *point*:
             // `rule:security/response-body-is-one-typed-member` says the HTML
@@ -369,21 +369,21 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_response_html",
+            symbol: "nvs_core_response_send_html",
             doc: Some(&HTML_DOC),
         },
         CoreMethod {
-            name: "json",
+            name: "sendJson",
             names: &["value"],
             params: &[CoreTy::Mixed],
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_response_json",
+            symbol: "nvs_core_response_send_json",
             doc: Some(&JSON_DOC),
         },
         CoreMethod {
-            name: "text",
+            name: "sendText",
             names: &["body"],
             // `Neutral`, not `Contagious` — the module doc owns why the word of
             // `rule:security/response-body-is-one-typed-member` and this enum's case part company at a `void` member.
@@ -391,20 +391,20 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_response_text",
+            symbol: "nvs_core_response_send_text",
             doc: Some(&TEXT_DOC),
         },
         CoreMethod {
-            name: "bytes",
+            name: "sendBytes",
             names: &["body", "contentType"],
-            // The body takes what it is given for `text`'s reason; the content
+            // The body takes what it is given for `sendText`'s reason; the content
             // type is a `rule:security/sink-predicate` sink, because it is the one string here that
             // becomes an *instruction* to the peer about how to read the rest.
             params: &[CoreTy::Blob(Qual::Neutral), CoreTy::Text(Qual::Sink)],
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_response_bytes",
+            symbol: "nvs_core_response_send_bytes",
             doc: Some(&BYTES_DOC),
         },
         CoreMethod {
@@ -425,9 +425,9 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&SEND_FILE_DOC),
         },
         CoreMethod {
-            name: "stream",
+            name: "startStream",
             names: &["contentType", "length", "etag", "mustEnd"],
-            // `bytes`' second mark, for `bytes`' reason and no other: this is
+            // `sendBytes`' second mark, for `sendBytes`' reason and no other: this is
             // the other member that cannot know the media type, so it is told
             // one, and a media type is the one string here that becomes an
             // *instruction* to the peer about how to read everything after it
@@ -471,13 +471,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         // Beside `setStatus` because it is the other member that says how the
         // response goes out without writing any of it.
         CoreMethod {
-            name: "slotted",
+            name: "sendSlotted",
             names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Void,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_response_slotted",
+            symbol: "nvs_core_response_send_slotted",
             doc: Some(&SLOTTED_DOC),
         },
         CoreMethod {
@@ -600,7 +600,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 pub(crate) const STREAM_NAME: &str = r"Core\Response\Stream";
 
 /// The symbols the two rows above and below are reached through.
-const STREAM_SYMBOL: &str = "nvs_core_response_stream";
+const STREAM_SYMBOL: &str = "nvs_core_response_start_stream";
 /// See [`STREAM_SYMBOL`].
 const STREAM_WRITE_SYMBOL: &str = "nvs_core_response_stream_write";
 /// See [`STREAM_SYMBOL`].
@@ -612,14 +612,14 @@ const STREAM_END_SYMBOL: &str = "nvs_core_response_stream_end";
 
 /// `Core\Response\Stream`'s class card — `rule:core-api/reference-card`.
 const STREAM_CARD: ClassDoc = ClassDoc {
-    short: "A response body that your program sends in parts. `Core\\Response::stream()` returns \
+    short: "A response body that your program sends in parts. `Core\\Response::startStream()` returns \
             it, and its `write()` method sends each part. The body ends when the program ends, \
             or when your program calls `end()`.",
 };
 
 /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
 /// first spelling, as the handle a program writes through — what
-/// [`nvs_core_response_stream`] answers with.
+/// [`nvs_core_response_start_stream`] answers with.
 ///
 /// **No slots**, because its whole state is the *context*'s:
 /// `nvs_runtime::Ctx` holds the writing half of the body and the window a
@@ -643,7 +643,7 @@ const STREAM_CARD: ClassDoc = ClassDoc {
 /// or a progress UI that closes itself.
 ///
 /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
-/// request-scoped half, immediately after the class whose `stream` is the
+/// request-scoped half, immediately after the class whose `startStream` is the
 /// only thing that produces one. [`crate::response`] owns why the handle has
 /// no slots and why there is no member that closes it.
 // rank: 770
@@ -660,7 +660,7 @@ pub(crate) const STREAM: CoreClass = CoreClass {
             // two payload kinds are two things on the wire. The classification is
             // written on both arms and the union answers it
             // ([`CoreTy::classification`]): [`Qual::Sink`], so a `tainted` chunk
-            // does not compile. `Core\Response::text` may admit one because its
+            // does not compile. `Core\Response::sendText` may admit one because its
             // media type is fixed at `text/plain`; a stream's is whatever the
             // program declared, `text/html` included, so a chunk is markup the
             // peer may parse (`rule:security/response-body-is-one-typed-member`).
@@ -709,7 +709,7 @@ pub(crate) const STREAM: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Response::stream`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Response::startStream`'s reference card — `rule:core-api/reference-card`.
 const STREAM_DOC: MethodDoc = MethodDoc {
     short: "Starts a response body that your program sends in parts, and sets the header \
             `Content-Type` to `$contentType`. The status and the headers are sent when this is \
@@ -830,7 +830,7 @@ const STREAM_WRITE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Response::html`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Response::sendHtml`'s reference card — `rule:core-api/reference-card`.
 const HTML_DOC: MethodDoc = MethodDoc {
     short: "Sends the HTML page `$body` and adds the header `Content-Type: text/html; \
             charset=utf-8`.",
@@ -846,7 +846,7 @@ const HTML_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Response::json`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Response::sendJson`'s reference card — `rule:core-api/reference-card`.
 const JSON_DOC: MethodDoc = MethodDoc {
     short: "Converts `$value` to JSON, sends it, and adds the header `Content-Type: \
             application/json`. It uses the same encoder as `Core\\Json::encode`, and the JSON is \
@@ -868,7 +868,7 @@ const JSON_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Response::bytes`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Response::sendBytes`'s reference card — `rule:core-api/reference-card`.
 const BYTES_DOC: MethodDoc = MethodDoc {
     short: "Sends `$body` exactly as it is, with `$contentType` as the `Content-Type` header. Use \
             it for an image, a CSV file or any other body that is not HTML, text or JSON.",
@@ -927,7 +927,7 @@ const SEND_FILE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Response::text`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Response::sendText`'s reference card — `rule:core-api/reference-card`.
 const TEXT_DOC: MethodDoc = MethodDoc {
     short: "Sends `$body` as plain text and adds the header `Content-Type: text/plain; \
             charset=utf-8`.",
@@ -959,7 +959,7 @@ const SET_STATUS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Response::slotted`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Response::sendSlotted`'s reference card — `rule:core-api/reference-card`.
 const SLOTTED_DOC: MethodDoc = MethodDoc {
     short: "Sends the page as soon as the main script ends. Each `Core\\Html::later` part \
             follows when it is ready. A route with `slotted: true` does the same for every \
@@ -969,7 +969,7 @@ const SLOTTED_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "LogicError",
         desc: "The main script has already ended. This is the case in a `Core\\Html::later` \
-               function and in `Core\\Task::afterResponse` work.",
+               function and in `Core\\Task::runAfterResponse` work.",
     }],
 };
 
@@ -1209,18 +1209,18 @@ const REDIRECT_CASES_DOC: EnumDoc = EnumDoc {
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_response_html" => (nvs_core_response_html as *const ()).cast(),
-        "nvs_core_response_json" => (nvs_core_response_json as *const ()).cast(),
-        "nvs_core_response_text" => (nvs_core_response_text as *const ()).cast(),
-        "nvs_core_response_bytes" => (nvs_core_response_bytes as *const ()).cast(),
+        "nvs_core_response_send_html" => (nvs_core_response_send_html as *const ()).cast(),
+        "nvs_core_response_send_json" => (nvs_core_response_send_json as *const ()).cast(),
+        "nvs_core_response_send_text" => (nvs_core_response_send_text as *const ()).cast(),
+        "nvs_core_response_send_bytes" => (nvs_core_response_send_bytes as *const ()).cast(),
         "nvs_core_response_send_file" => (nvs_core_response_send_file as *const ()).cast(),
-        STREAM_SYMBOL => (nvs_core_response_stream as *const ()).cast(),
+        STREAM_SYMBOL => (nvs_core_response_start_stream as *const ()).cast(),
         STREAM_WRITE_SYMBOL => (nvs_core_response_stream_write as *const ()).cast(),
         STREAM_OFFSET_SYMBOL => (nvs_core_response_stream_offset as *const ()).cast(),
         STREAM_LENGTH_SYMBOL => (nvs_core_response_stream_length as *const ()).cast(),
         STREAM_END_SYMBOL => (nvs_core_response_stream_end as *const ()).cast(),
         "nvs_core_response_set_status" => (nvs_core_response_set_status as *const ()).cast(),
-        "nvs_core_response_slotted" => (nvs_core_response_slotted as *const ()).cast(),
+        "nvs_core_response_send_slotted" => (nvs_core_response_send_slotted as *const ()).cast(),
         "nvs_core_response_set_header" => (nvs_core_response_set_header as *const ()).cast(),
         "nvs_core_response_redirect" => (nvs_core_response_redirect as *const ()).cast(),
         "nvs_core_response_add_cookie" => (nvs_core_response_add_cookie as *const ()).cast(),
@@ -1295,7 +1295,7 @@ pub(crate) fn nameable(name: &str) -> bool {
 /// before anything is declared. The main script owns the head, and on a slotted
 /// route it is already on the wire by the time a slot runs.
 ///
-/// `Core\Task::afterResponse` work calling one throws `LogicError` the same way
+/// `Core\Task::runAfterResponse` work calling one throws `LogicError` the same way
 /// (`rule:concurrency/deferred-work-cannot-write-the-response`), because the
 /// whole response is sent before that work runs.
 pub(crate) fn head_open(ctx: &nvs_runtime::Ctx, member: &str) -> Result<(), Fault> {
@@ -1303,7 +1303,7 @@ pub(crate) fn head_open(ctx: &nvs_runtime::Ctx, member: &str) -> Result<(), Faul
         return Err(Fault::thrown_as(
             nvs_runtime::ThrownClass::Logic,
             format!(
-                "A function passed to `Core\\Task::afterResponse` cannot call `{member}`. It runs \
+                "A function passed to `Core\\Task::runAfterResponse` cannot call `{member}`. It runs \
                  after the response was sent."
             ),
         ));
@@ -1323,9 +1323,9 @@ pub(crate) fn head_open(ctx: &nvs_runtime::Ctx, member: &str) -> Result<(), Faul
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::html(Core\Html\Markup $body): void` — `rule:security/response-body-is-one-typed-member`'s first row.
+    /// `Core\Response::sendHtml(Core\Html\Markup $body): void` — `rule:security/response-body-is-one-typed-member`'s first row.
     ///
-    /// [`nvs_core_response_text`]'s two effects over the carrier's bytes
+    /// [`nvs_core_response_send_text`]'s two effects over the carrier's bytes
     /// instead of a `string`'s, and in that member's order: the media type is
     /// declared before the write, for the reason written there.
     ///
@@ -1339,32 +1339,32 @@ nvs_runtime::nvs_helper! {
     /// [`crate::html::markup_slot`], which is the one reader of that slot, so
     /// this member adds no second way out of the carrier for
     /// `rule:core-classes/html-to-source` to have to be about.
-    fn nvs_core_response_html(ctx, args: [1]) {
-        head_open(ctx, "Core\\Response::html")?;
-        let held = crate::html::markup_slot(args[0], r"`Core\Response::html`'s `$body`")?;
+    fn nvs_core_response_send_html(ctx, args: [1]) {
+        head_open(ctx, "Core\\Response::sendHtml")?;
+        let held = crate::html::markup_slot(args[0], r"`Core\Response::sendHtml`'s `$body`")?;
         // Unreachable from source twice over: the row's parameter is the
         // carrier, so `E0401` refuses anything else at the call, and the slot
         // holds what `crate::html` put there.
         let body = held.as_text().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Response::html expected a `string` in the carrier's slot, got tag {}",
+                "Core\\Response::sendHtml expected a `string` in the carrier's slot, got tag {}",
                 held.tag_byte()
             ))
         })?;
         ctx.declare_content_type(HTML_MEDIA_TYPE);
         // Verbatim, and the module doc's *A body goes out verbatim* section owns
         // what that means off a request. Unreachable from source for
-        // `nvs_core_response_text`'s reason: `OutputSink::Buffer` and `Sink`
+        // `nvs_core_response_send_text`'s reason: `OutputSink::Buffer` and `Sink`
         // never fail, and nothing in the language closes a descriptor the host
         // handed the process.
         ctx.write_output(body.as_bytes())
-            .map_err(|error| Fault::fatal(format!("Core\\Response::html could not write: {error}")))?;
+            .map_err(|error| Fault::fatal(format!("Core\\Response::sendHtml could not write: {error}")))?;
         Ok(Value::null())
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::text(string $body): void` — `rule:security/response-body-is-one-typed-member`'s third row.
+    /// `Core\Response::sendText(string $body): void` — `rule:security/response-body-is-one-typed-member`'s third row.
     ///
     /// Two effects and no third: the bytes go to this request's output, and
     /// the media type is declared on its context. The module doc owns why
@@ -1375,13 +1375,13 @@ nvs_runtime::nvs_helper! {
     /// noticed at the safepoint poll rather than refused here
     /// (`Ctx::write_output`), and a half-written body whose type is unknown
     /// would be strictly worse to answer with than one whose type is not.
-    fn nvs_core_response_text(ctx, args: [1]) {
-        head_open(ctx, "Core\\Response::text")?;
+    fn nvs_core_response_send_text(ctx, args: [1]) {
+        head_open(ctx, "Core\\Response::sendText")?;
         // Unreachable from source: the row's parameter is a `CoreTy::Text`, so
         // `E0401` refuses anything that is not a `string` before this runs.
         let body = args[0].as_text().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Response::text expected a `string`, got tag {}",
+                "Core\\Response::sendText expected a `string`, got tag {}",
                 args[0].tag_byte()
             ))
         })?;
@@ -1392,7 +1392,7 @@ nvs_runtime::nvs_helper! {
         // `OutputSink::Buffer` and `Sink` never fail, and nothing in the
         // language closes a descriptor the host handed the process.
         ctx.write_body(body.as_bytes())
-            .map_err(|error| Fault::fatal(format!("Core\\Response::text could not write: {error}")))?;
+            .map_err(|error| Fault::fatal(format!("Core\\Response::sendText could not write: {error}")))?;
         Ok(Value::null())
     }
 }
@@ -1408,7 +1408,7 @@ nvs_runtime::nvs_helper! {
     /// members is what `E0801` refuses beside an `echo`, and a status is not a
     /// body. A handler that `echo`es and sets a status is ordinary.
     ///
-    /// The code is checked before it is declared, on `bytes`' reasoning: this
+    /// The code is checked before it is declared, on `sendBytes`' reasoning: this
     /// member has nothing written to be too late for, but a status the peer
     /// cannot classify is the same kind of instruction a media type it cannot
     /// read is, and the program learns which of the two layers refused it from
@@ -1447,14 +1447,14 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::slotted(): void` — `rule:core-classes/html-later`'s
+    /// `Core\Response::sendSlotted(): void` — `rule:core-classes/html-later`'s
     /// runtime switch, the call a route's `slotted: true` stands beside.
     ///
     /// One flag on the request's context and nothing written:
     /// `Ctx::make_slotted` owns the `LogicError` once the main script is over,
     /// which also covers a `later` slot, so this member does not call
     /// [`head_open`].
-    fn nvs_core_response_slotted(ctx, _args: [0]) {
+    fn nvs_core_response_send_slotted(ctx, _args: [0]) {
         ctx.make_slotted()?;
         Ok(Value::null())
     }
@@ -1467,7 +1467,7 @@ nvs_runtime::nvs_helper! {
     /// The module doc owns the three decisions this member is: the list rather
     /// than a word, the refusal of `Content-Type`, and why both parameters are
     /// sinks. What is here is the order — every check runs before anything is
-    /// declared, on `bytes`' reasoning — and the two checks themselves, which
+    /// declared, on `sendBytes`' reasoning — and the two checks themselves, which
     /// are [`nameable`] and [`carriable`].
     fn nvs_core_response_set_header(ctx, args: [2]) {
         head_open(ctx, "Core\\Response::setHeader")?;
@@ -1508,7 +1508,7 @@ nvs_runtime::nvs_helper! {
                 nvs_runtime::ThrownClass::Logic,
                 format!(
                     "Core\\Response::setHeader(): `{}` is declared by the body member \
-                     that wrote the body — answer with `Core\\Response::bytes($body, \
+                     that wrote the body — answer with `Core\\Response::sendBytes($body, \
                      $contentType)` to say what a body is",
                     nvs_runtime::quoted(name),
                 ),
@@ -1551,7 +1551,7 @@ nvs_runtime::nvs_helper! {
     /// Two declarations and no write, which is the whole of what makes this
     /// one member rather than shorthand for either half. The module doc owns
     /// why the status is a closed set and why the URL is a sink; what is here
-    /// is the order — both checks run before either declaration, on `bytes`'
+    /// is the order — both checks run before either declaration, on `sendBytes`'
     /// reasoning — and that the header goes in through the same
     /// [`Ctx::declare_header`](nvs_runtime::Ctx::declare_header) `setHeader`
     /// uses, so a program that names `Location` itself afterwards overrides
@@ -1987,7 +1987,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::json(mixed $value): void` — `rule:security/response-body-is-one-typed-member`'s second row.
+    /// `Core\Response::sendJson(mixed $value): void` — `rule:security/response-body-is-one-typed-member`'s second row.
     ///
     /// The same encoder `Core\Json::encode` is, reached through the same
     /// [`crate::json::Encodable`] rather than through a second walk: one
@@ -2000,49 +2000,49 @@ nvs_runtime::nvs_helper! {
     /// showing it to one.
     ///
     /// The declaration is made only once the value has serialized, unlike
-    /// `text`'s: an unencodable value throws with nothing written, so there is
+    /// `sendText`'s: an unencodable value throws with nothing written, so there is
     /// no body for a `Content-Type` to have described.
     ///
     /// **What it spends:** the document once, on top of the value, plus one
     /// 64 KiB chunk: the encoder's chunks become the body's, and nothing joins
     /// them. An 8 MiB response peaks at the document, one chunk and about
     /// 4 KiB of the walk's scratch.
-    fn nvs_core_response_json(ctx, args: [1]) {
-        head_open(ctx, "Core\\Response::json")?;
-        let written = crate::json::written_chunks(ctx, args[0], "Core\\Response::json")?;
+    fn nvs_core_response_send_json(ctx, args: [1]) {
+        head_open(ctx, "Core\\Response::sendJson")?;
+        let written = crate::json::written_chunks(ctx, args[0], "Core\\Response::sendJson")?;
         ctx.declare_content_type(JSON_MEDIA_TYPE);
         // The encoder's 64 KiB chunks are handed to the body as they are, so a
         // body that is still empty takes them with no copy and the document
         // peaks at its own size plus one chunk.
         //
-        // Unreachable from source, on `text`'s reasoning: `OutputSink::Buffer`
+        // Unreachable from source, on `sendText`'s reasoning: `OutputSink::Buffer`
         // and `Sink` never fail, which `Ctx::write_output`'s own `# Errors`
         // states, and nothing in the language closes a descriptor the host
         // handed the process.
         ctx.write_body_chunks(written)
-            .map_err(|error| Fault::fatal(format!("Core\\Response::json could not write: {error}")))?;
+            .map_err(|error| Fault::fatal(format!("Core\\Response::sendJson could not write: {error}")))?;
         Ok(Value::null())
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::bytes(bytes $body, string $contentType): void` — the
+    /// `Core\Response::sendBytes(bytes $body, string $contentType): void` — the
     /// bytes member of `rule:security/response-body-is-one-typed-member`, and
     /// the only body member that is *told* its media type.
     ///
     /// The type is checked before anything is written, which is the opposite
-    /// order from `text`'s and for the same reason `json`'s is: a refusal that
+    /// order from `sendText`'s and for the same reason `sendJson`'s is: a refusal that
     /// has already put the body on the wire is not a refusal. [`spellable`]
     /// owns what the check is and why it is here and not only at the
     /// connection.
-    fn nvs_core_response_bytes(ctx, args: [2]) {
-        head_open(ctx, "Core\\Response::bytes")?;
+    fn nvs_core_response_send_bytes(ctx, args: [2]) {
+        head_open(ctx, "Core\\Response::sendBytes")?;
         // Unreachable from source for both: the row's parameters are a
         // `CoreTy::Blob` and a `CoreTy::Text`, so `E0401` refuses anything else
         // before this runs.
         let body = args[0].as_bytes().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Response::bytes expected `bytes` for the body, got tag {}",
+                "Core\\Response::sendBytes expected `bytes` for the body, got tag {}",
                 args[0].tag_byte()
             ))
         })?;
@@ -2052,7 +2052,7 @@ nvs_runtime::nvs_helper! {
         // `rule:security/sink-predicate` sink.
         let media_type = args[1].as_text().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Response::bytes expected a `string` for the content type, got tag {}",
+                "Core\\Response::sendBytes expected a `string` for the content type, got tag {}",
                 args[1].tag_byte()
             ))
         })?;
@@ -2062,19 +2062,19 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "Core\\Response::bytes(): `{media_type}` is not a media type a \
+                    "Core\\Response::sendBytes(): `{media_type}` is not a media type a \
                      `Content-Type` header can carry — a field value is printable ASCII \
                      and never empty"
                 ),
             ));
         }
         ctx.declare_content_type(media_type);
-        // Unreachable from source, on `text`'s reasoning: `OutputSink::Buffer`
+        // Unreachable from source, on `sendText`'s reasoning: `OutputSink::Buffer`
         // and `Sink` never fail, which `Ctx::write_output`'s own `# Errors`
         // states, and nothing in the language closes a descriptor the host
         // handed the process.
         ctx.write_body(body)
-            .map_err(|error| Fault::fatal(format!("Core\\Response::bytes could not write: {error}")))?;
+            .map_err(|error| Fault::fatal(format!("Core\\Response::sendBytes could not write: {error}")))?;
         Ok(Value::null())
     }
 }
@@ -2161,7 +2161,7 @@ nvs_runtime::nvs_helper! {
             if read == 0 {
                 break;
             }
-            // Unreachable from source, on `text`'s reasoning: `OutputSink::Buffer`
+            // Unreachable from source, on `sendText`'s reasoning: `OutputSink::Buffer`
             // and `Sink` never fail, and nothing in the language closes a
             // descriptor the host handed the process.
             ctx.write_output(&chunk[..read]).map_err(|error| {
@@ -2173,7 +2173,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Response::stream(string $contentType, ?int $length = null,
+    /// `Core\Response::startStream(string $contentType, ?int $length = null,
     /// ?string $etag = null, ?string $mustEnd = null): Core\Response\Stream` —
     /// `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`'s
     /// stream that ends with its response, as the member that opens one.
@@ -2199,7 +2199,7 @@ nvs_runtime::nvs_helper! {
     /// gives a declaration made where no response is being framed: a CLI
     /// program, a `#[Test]` method and a `.nvst` case each open a stream that
     /// writes to their own output, and the bytes come out in the order they were
-    /// written. That is the same fallback `text` and `bytes` have and not a
+    /// written. That is the same fallback `sendText` and `sendBytes` have and not a
     /// second one — it is what lets a case assert a streamed body's bytes at
     /// all, since no case is a request a server is answering.
     ///
@@ -2212,15 +2212,15 @@ nvs_runtime::nvs_helper! {
     /// **`$mustEnd` is put on the context too**, on a connection and off one:
     /// the finish path reads it to cut off and log a body the program never
     /// ended (`nvs_runtime::Ctx::end_unfinished_stream`).
-    fn nvs_core_response_stream(ctx, args: [4]) {
-        head_open(ctx, "Core\\Response::stream")?;
+    fn nvs_core_response_start_stream(ctx, args: [4]) {
+        head_open(ctx, "Core\\Response::startStream")?;
         // Unreachable from source: the row's parameter is a `CoreTy::Text`, so
         // `E0401` refuses anything that is not a `string` before this runs — and
         // refuses a `tainted` one besides, that being a
         // `rule:security/sink-predicate` sink.
         let media_type = args[0].as_text().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Response::stream expected a `string` for the content type, got tag {}",
+                "Core\\Response::startStream expected a `string` for the content type, got tag {}",
                 args[0].tag_byte()
             ))
         })?;
@@ -2230,7 +2230,7 @@ nvs_runtime::nvs_helper! {
             return Err(Fault::thrown_as(
                 nvs_runtime::ThrownClass::Logic,
                 format!(
-                    "Core\\Response::stream(): `{media_type}` is not a media type a \
+                    "Core\\Response::startStream(): `{media_type}` is not a media type a \
                      `Content-Type` header can carry — a field value is printable ASCII \
                      and never empty"
                 ),
@@ -2280,7 +2280,7 @@ nvs_runtime::nvs_helper! {
                 // is the `#[test]` that asserts it instead.
                 Fault::thrown_as(
                     nvs_runtime::ThrownClass::Logic,
-                    "Core\\Response::stream(): this request has already opened a response \
+                    "Core\\Response::startStream(): this request has already opened a response \
                      body stream, and a response has one body",
                 )
             })?;
@@ -2294,7 +2294,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// `Core\Response::stream`'s `$mustEnd`, and `None` where it was not given.
+/// `Core\Response::startStream`'s `$mustEnd`, and `None` where it was not given.
 fn stated_label(value: &Value) -> Result<Option<Box<str>>, Fault> {
     if matches!(value.tag(), Some(Tag::Null | Tag::Unset)) {
         return Ok(None);
@@ -2302,14 +2302,14 @@ fn stated_label(value: &Value) -> Result<Option<Box<str>>, Fault> {
     // Unreachable from source: the row's parameter is a `?string`.
     let label = value.as_text().ok_or_else(|| {
         Fault::fatal(format!(
-            "Core\\Response::stream expected a `string` for `$mustEnd`, got tag {}",
+            "Core\\Response::startStream expected a `string` for `$mustEnd`, got tag {}",
             value.tag_byte()
         ))
     })?;
     Ok(Some(label.into()))
 }
 
-/// `Core\Response::stream`'s `$length`, and `None` where it was not given.
+/// `Core\Response::startStream`'s `$length`, and `None` where it was not given.
 fn stated_length(value: &Value) -> Result<Option<u64>, Fault> {
     if matches!(value.tag(), Some(Tag::Null | Tag::Unset)) {
         return Ok(None);
@@ -2317,7 +2317,7 @@ fn stated_length(value: &Value) -> Result<Option<u64>, Fault> {
     // Unreachable from source: the row's parameter is a `?int`.
     let length = value.as_int().ok_or_else(|| {
         Fault::fatal(format!(
-            "Core\\Response::stream expected an `int` for the length, got tag {}",
+            "Core\\Response::startStream expected an `int` for the length, got tag {}",
             value.tag_byte()
         ))
     })?;
@@ -2325,13 +2325,13 @@ fn stated_length(value: &Value) -> Result<Option<u64>, Fault> {
         Fault::thrown_as(
             nvs_runtime::ThrownClass::Logic,
             format!(
-                "Core\\Response::stream(): the length {length} is negative. It must be 0 or more."
+                "Core\\Response::startStream(): the length {length} is negative. It must be 0 or more."
             ),
         )
     })
 }
 
-/// `Core\Response::stream`'s `$etag`, quoted as the strong tag the response
+/// `Core\Response::startStream`'s `$etag`, quoted as the strong tag the response
 /// sends, and `None` where it was not given.
 fn stated_etag(value: &Value) -> Result<Option<String>, Fault> {
     if matches!(value.tag(), Some(Tag::Null | Tag::Unset)) {
@@ -2340,7 +2340,7 @@ fn stated_etag(value: &Value) -> Result<Option<String>, Fault> {
     // Unreachable from source: the row's parameter is a `?string`.
     let etag = value.as_text().ok_or_else(|| {
         Fault::fatal(format!(
-            "Core\\Response::stream expected a `string` for the etag, got tag {}",
+            "Core\\Response::startStream expected a `string` for the etag, got tag {}",
             value.tag_byte()
         ))
     })?;
@@ -2348,7 +2348,7 @@ fn stated_etag(value: &Value) -> Result<Option<String>, Fault> {
         return Err(Fault::thrown_as(
             nvs_runtime::ThrownClass::Logic,
             format!(
-                "Core\\Response::stream(): the etag `{etag}` cannot be sent in an `ETag` header. \
+                "Core\\Response::startStream(): the etag `{etag}` cannot be sent in an `ETag` header. \
                  It must be printable ASCII and must not contain `\"`."
             ),
         ));
@@ -2487,7 +2487,7 @@ nvs_runtime::nvs_helper! {
                 ))),
             };
         }
-        // Unreachable from source, on `text`'s reasoning: `OutputSink::Buffer`
+        // Unreachable from source, on `sendText`'s reasoning: `OutputSink::Buffer`
         // and `Sink` never fail, which `Ctx::write_output`'s own `# Errors`
         // states, and nothing in the language closes a descriptor the host
         // handed the process.
@@ -2551,10 +2551,10 @@ mod tests {
     /// asserts.
     /// The sweep below is over the table rather than over a list of names, so a
     /// member that does declare one joins by being added to it.
-    // covers: Core\Response::bytes
-    // covers: Core\Response::html
-    // covers: Core\Response::json
-    // covers: Core\Response::text
+    // covers: Core\Response::sendBytes
+    // covers: Core\Response::sendHtml
+    // covers: Core\Response::sendJson
+    // covers: Core\Response::sendText
     #[test]
     fn each_body_member_sets_its_own_content_type() {
         // Nothing else on the path declares one: a context no body member has
@@ -2566,7 +2566,7 @@ mod tests {
         let body = Value::text("a paragraph");
         let blob = Value::bytes(NvsStr::new(b"\x89PNG"));
         let told = Value::text("application/octet-stream");
-        // The carrier itself, built the way `crate::html` builds one: `html`'s
+        // The carrier itself, built the way `crate::html` builds one: `sendHtml`'s
         // parameter is the class and never a `string`, so a test handing it
         // text would assert something no call site can write.
         let markup =
@@ -2574,23 +2574,23 @@ mod tests {
 
         let table = [
             (
-                "html",
-                declared(super::nvs_core_response_html, &[markup]),
+                "sendHtml",
+                declared(super::nvs_core_response_send_html, &[markup]),
                 HTML_MEDIA_TYPE,
             ),
             (
-                "text",
-                declared(super::nvs_core_response_text, &[body]),
+                "sendText",
+                declared(super::nvs_core_response_send_text, &[body]),
                 TEXT_MEDIA_TYPE,
             ),
             (
-                "json",
-                declared(super::nvs_core_response_json, &[Value::int(1)]),
+                "sendJson",
+                declared(super::nvs_core_response_send_json, &[Value::int(1)]),
                 JSON_MEDIA_TYPE,
             ),
             (
-                "bytes",
-                declared(super::nvs_core_response_bytes, &[blob, told]),
+                "sendBytes",
+                declared(super::nvs_core_response_send_bytes, &[blob, told]),
                 "application/octet-stream",
             ),
         ];
@@ -2615,14 +2615,14 @@ mod tests {
             "each body member declares a media type no other one does: {table:?}"
         );
 
-        // `bytes` is the row that is *told*, so its declaration is asserted on
+        // `sendBytes` is the row that is *told*, so its declaration is asserted on
         // a second value: a member that declared a constant matching the first
         // one would pass every line above.
         let other = Value::text("image/png");
         assert_eq!(
-            declared(super::nvs_core_response_bytes, &[blob, other]).as_deref(),
+            declared(super::nvs_core_response_send_bytes, &[blob, other]).as_deref(),
             Some("image/png"),
-            "Core\\Response::bytes carries the content type it was given"
+            "Core\\Response::sendBytes carries the content type it was given"
         );
 
         dropped(markup);
@@ -2795,18 +2795,18 @@ mod tests {
         ctx
     }
 
-    /// `Core\Response::stream`'s four arguments for `media_type`, with no
+    /// `Core\Response::startStream`'s four arguments for `media_type`, with no
     /// length, no tag and no `$mustEnd`.
     fn unsized_stream(media_type: Value) -> [Value; 4] {
         [media_type, Value::null(), Value::null(), Value::null()]
     }
 
-    /// `Core\Response::stream` with a length: the decision runs over the
+    /// `Core\Response::startStream` with a length: the decision runs over the
     /// request's `Range`, the head states the window, `offset` and `length`
     /// give it, and a write past its end throws and sends nothing. Off a
     /// connection the window is the whole length. A negative length, a tag
     /// with a `"`, and `length` on a stream without one each throw.
-    // covers: Core\Response::stream
+    // covers: Core\Response::startStream
     // covers: Core\Response\Stream::offset
     // covers: Core\Response\Stream::length
     // covers: Core\Response\Stream::write
@@ -2822,7 +2822,7 @@ mod tests {
         let media_type = Value::text("video/mp4");
         let etag = Value::text("v1");
         let handle = call(
-            super::nvs_core_response_stream,
+            super::nvs_core_response_start_stream,
             &mut ctx,
             &[media_type, Value::int(10), etag, Value::null()],
         )
@@ -2873,7 +2873,7 @@ mod tests {
         // Off a connection there is no `Range`, so the window is the whole body.
         let mut off = Ctx::buffered();
         let whole = call(
-            super::nvs_core_response_stream,
+            super::nvs_core_response_start_stream,
             &mut off,
             &[media_type, Value::int(3), Value::null(), Value::null()],
         )
@@ -2888,11 +2888,11 @@ mod tests {
             [media_type, Value::int(-1), Value::null(), Value::null()],
             [media_type, Value::int(1), bad_tag, Value::null()],
         ] {
-            call(super::nvs_core_response_stream, &mut refused, &args)
+            call(super::nvs_core_response_start_stream, &mut refused, &args)
                 .expect_err("a negative length and a tag with a quote throw");
         }
         let chunked = call(
-            super::nvs_core_response_stream,
+            super::nvs_core_response_start_stream,
             &mut refused,
             &unsized_stream(media_type),
         )
@@ -2911,7 +2911,7 @@ mod tests {
         }
     }
 
-    /// `Core\Response::stream` opening the cell: after the call the connection's
+    /// `Core\Response::startStream` opening the cell: after the call the connection's
     /// half holds the media type that was written, and a chunk the program
     /// wrote arrives on the reading half rather than in the request's output.
     ///
@@ -2919,7 +2919,7 @@ mod tests {
     /// type and wrote the bytes somewhere else would pass either half alone:
     /// this is the seam `rule:concurrency/a-stream-that-outlives-its-request-is-a-connection`
     /// describes, asserted from the end that frames the response.
-    // covers: Core\Response::stream
+    // covers: Core\Response::startStream
     // covers: Core\Response\Stream::write
     #[test]
     fn a_streamed_chunk_reaches_the_connections_half_and_not_the_requests_output() {
@@ -2928,7 +2928,7 @@ mod tests {
 
         let media_type = Value::text("text/csv");
         let handle = call(
-            super::nvs_core_response_stream,
+            super::nvs_core_response_start_stream,
             &mut ctx,
             &unsized_stream(media_type),
         )
@@ -2967,7 +2967,7 @@ mod tests {
     /// finish path has nothing to report. Not ended, the finish path cuts the
     /// body off and reports it — `rule:core-classes/spreadsheet-writes-as-a-stream`.
     /// A stream opened without one is never reported.
-    // covers: Core\Response::stream
+    // covers: Core\Response::startStream
     // covers: Core\Response\Stream::end
     // covers: Core\Response\Stream::write
     #[test]
@@ -2978,7 +2978,7 @@ mod tests {
 
         let slot = offered_cell();
         let mut ended = framing(&slot);
-        let handle = call(super::nvs_core_response_stream, &mut ended, &marked)
+        let handle = call(super::nvs_core_response_start_stream, &mut ended, &marked)
             .expect("an offered cell takes the stream");
         let chunk = Value::text("id\n");
         call(
@@ -3020,7 +3020,7 @@ mod tests {
 
         let slot = offered_cell();
         let mut unended = framing(&slot);
-        let forgotten = call(super::nvs_core_response_stream, &mut unended, &marked)
+        let forgotten = call(super::nvs_core_response_start_stream, &mut unended, &marked)
             .expect("an offered cell takes the stream");
         assert!(
             unended.end_unfinished_stream(),
@@ -3036,7 +3036,7 @@ mod tests {
 
         let mut plain = Ctx::buffered();
         let unmarked = call(
-            super::nvs_core_response_stream,
+            super::nvs_core_response_start_stream,
             &mut plain,
             &unsized_stream(media_type),
         )
@@ -3052,10 +3052,10 @@ mod tests {
     }
 
     /// The cell's refusal reaching a program: a response has one body, so the
-    /// second `stream` is told so and the first one is what the connection
+    /// second `startStream` is told so and the first one is what the connection
     /// still frames. Unreachable from a `.nvst` case — a second stream needs a
     /// first, and a first needs a cell nothing offers a script.
-    // covers: Core\Response::stream
+    // covers: Core\Response::startStream
     #[test]
     fn a_second_stream_on_one_request_is_refused_and_the_first_still_stands() {
         let slot = offered_cell();
@@ -3063,14 +3063,14 @@ mod tests {
 
         let first = Value::text("text/csv");
         let handle = call(
-            super::nvs_core_response_stream,
+            super::nvs_core_response_start_stream,
             &mut ctx,
             &unsized_stream(first),
         )
         .expect("an offered cell takes the first stream");
         let second = Value::text("application/json");
         call(
-            super::nvs_core_response_stream,
+            super::nvs_core_response_start_stream,
             &mut ctx,
             &unsized_stream(second),
         )
@@ -3104,7 +3104,7 @@ mod tests {
 
         let media_type = Value::text("text/csv");
         let handle = call(
-            super::nvs_core_response_stream,
+            super::nvs_core_response_start_stream,
             &mut ctx,
             &unsized_stream(media_type),
         )
@@ -3142,7 +3142,7 @@ mod tests {
 
         let media_type = Value::text("text/csv");
         let handle = call(
-            super::nvs_core_response_stream,
+            super::nvs_core_response_start_stream,
             &mut ctx,
             &unsized_stream(media_type),
         )
@@ -3190,7 +3190,7 @@ mod tests {
 
         let media_type = Value::text("text/csv");
         let handle = call(
-            super::nvs_core_response_stream,
+            super::nvs_core_response_start_stream,
             &mut ctx,
             &unsized_stream(media_type),
         )

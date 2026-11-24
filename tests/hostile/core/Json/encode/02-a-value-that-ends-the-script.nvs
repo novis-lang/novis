@@ -44,5 +44,5 @@ string $page = '<!doctype html><script>const data = ' . Core\Taint::assertTruste
 if (Core\Str::countOf($page, '<script') != 1 || Core\Str::countOf($page, "'") != 2) {
     throw new LogicError('the page has a second script or attribute');
 }
-Core\Response\Stream $body = Core\Response::stream('text/html; charset=utf-8');
+Core\Response\Stream $body = Core\Response::startStream('text/html; charset=utf-8');
 $body->write($page);

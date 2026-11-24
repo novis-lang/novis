@@ -15,7 +15,7 @@ class Pages
     public function report(): void
     {
         echo "<h1>Report</h1>";
-        Core\Response::json(1);
+        Core\Response::sendJson(1);
     }
 
     // The other order is the same mistake and takes the same refusal: what is
@@ -24,7 +24,7 @@ class Pages
     #[Core\Access(allow: Core\Audience::Public)]
     public function receipt(): void
     {
-        Core\Response::text("receipt");
+        Core\Response::sendText("receipt");
         echo " and a footer";
     }
 
@@ -35,7 +35,7 @@ class Pages
     public function deferred(): void
     {
         echo "<h1>Deferred</h1>";
-        var $write = fn (): void => { Core\Response::text("later"); };
+        var $write = fn (): void => { Core\Response::sendText("later"); };
     }
 
     // Two typed members are the same disagreement with no `echo` in it: each
@@ -45,8 +45,8 @@ class Pages
     #[Core\Access(allow: Core\Audience::Public)]
     public function invoice(): void
     {
-        Core\Response::text("invoice");
-        Core\Response::json(1);
+        Core\Response::sendText("invoice");
+        Core\Response::sendJson(1);
     }
 
     // The accepted half, so a body that stops being accepted fails here rather
@@ -75,16 +75,16 @@ class Pages
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0801]: a response has one body, and this handler writes it with both `echo` and `Core\Response::json`
+error[E0801]: a response has one body, and this handler writes it with both `echo` and `Core\Response::sendJson`
    --> case.nvs:14:9
 %A
-error[E0801]: a response has one body, and this handler writes it with both `Core\Response::text` and `echo`
+error[E0801]: a response has one body, and this handler writes it with both `Core\Response::sendText` and `echo`
    --> case.nvs:24:9
 %A
-error[E0801]: a response has one body, and this handler writes it with both `echo` and `Core\Response::text`
+error[E0801]: a response has one body, and this handler writes it with both `echo` and `Core\Response::sendText`
    --> case.nvs:34:9
 %A
-error[E0801]: a response has one body, and this handler writes it with both `Core\Response::text` and `Core\Response::json`
+error[E0801]: a response has one body, and this handler writes it with both `Core\Response::sendText` and `Core\Response::sendJson`
    --> case.nvs:45:9
 %A
 error: aborting due to 4 errors

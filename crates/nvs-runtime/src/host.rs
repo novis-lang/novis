@@ -266,7 +266,7 @@ pub enum Entry {
     Path(String),
     /// A `static` method of the unit the parent is already running, named by
     /// the label `nvs-codegen` emitted it under and the parameter names its
-    /// `args:` map binds by. `crate::script`'s module doc is the one home of
+    /// `arguments:` map binds by. `crate::script`'s module doc is the one home of
     /// why that needs no resolver and no second unit, and
     /// [`crate::script::method_program`] is the code it becomes.
     Method {
@@ -498,7 +498,7 @@ pub fn file_media_type(path: &std::path::Path) -> &'static str {
 
 /// What a run wrote to its body, as the chunks it was written in.
 ///
-/// Almost every body is one chunk. A large `Core\Response::json` document is
+/// Almost every body is one chunk. A large `Core\Response::sendJson` document is
 /// many ([`Ctx::write_body_chunks`]), and a server sends them one by one, so
 /// the document is never held twice. A reader that needs one buffer calls
 /// [`Self::into_bytes`] or [`Self::to_bytes`], which join a chunked body once

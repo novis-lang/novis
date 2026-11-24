@@ -19,7 +19,7 @@ export const brief: Brief = {
   expectation: 'When the page has loaded, the request is over.',
   proof: 'The page is done and the Network panel shows one request, then the receipt email arrives.',
   leavesOut: ['memory and CPU', 'limits and deadlines', 'failure cases', 'that it is not a job queue'],
-  then: 'The Core\\Task::afterResponse reference page.',
+  then: 'The Core\\Task::runAfterResponse reference page.',
 }
 
 export function start(root: HTMLElement): void {
@@ -243,7 +243,7 @@ export function start(root: HTMLElement): void {
   tl.beat(
     'afterResponse',
     {
-      caption: 'Core\\Task::afterResponse runs your function after the response is sent.',
+      caption: 'Core\\Task::runAfterResponse runs your function after the response is sent.',
       notes: 'Name the function once more. The reference page comes next.',
     },
     () => {

@@ -8,7 +8,7 @@ each of the three metrics verbs fixes a name to its own kind and each of the oth
 // by each verb, and the four calls that disagree with them.
 Core\Metrics::increment("cache_lookups_total");
 Core\Metrics::observe("cache_lookup_seconds", 0.01);
-Core\Metrics::gauge("cache_entries", 12.0);
+Core\Metrics::setGauge("cache_entries", 12.0);
 
 uint $refused = 0;
 try {
@@ -17,7 +17,7 @@ try {
     $refused = $refused + 1;
 }
 try {
-    Core\Metrics::gauge("cache_lookups_total", 1.0);
+    Core\Metrics::setGauge("cache_lookups_total", 1.0);
 } catch (LogicError $b) {
     $refused = $refused + 1;
 }
@@ -27,7 +27,7 @@ try {
     $refused = $refused + 1;
 }
 try {
-    Core\Metrics::gauge("cache_lookup_seconds", 1.0);
+    Core\Metrics::setGauge("cache_lookup_seconds", 1.0);
 } catch (LogicError $d) {
     $refused = $refused + 1;
 }
@@ -50,7 +50,7 @@ Core\Metrics::increment("cache_lookups_total", {by: 3});
 $accepted = $accepted + 1;
 Core\Metrics::observe("cache_lookup_seconds", 0.02);
 $accepted = $accepted + 1;
-Core\Metrics::gauge("cache_entries", 11.0);
+Core\Metrics::setGauge("cache_entries", 11.0);
 $accepted = $accepted + 1;
 echo "verbs accepted on their own name: ", $accepted, " of 3\n";
 --EXPECT--

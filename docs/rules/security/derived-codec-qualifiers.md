@@ -38,7 +38,7 @@ A `secret` property on a `#[Json\Derive]` class is a field its decoder fills, so
 through `jsonAs` or `postAs` lands its password in a `secret tainted string` and the debug record
 replaces it (`rule:testing/a-recorded-request-keeps-its-input-with-credentials-replaced`). Encoding
 was already a sink (`rule:security/secret-sinks-refuse`), and it stays one: a call of
-`Core\Json::encode` or `Core\Response::json` whose argument's type reaches such a class, through an
+`Core\Json::encode` or `Core\Response::sendJson` whose argument's type reaches such a class, through an
 array, a shape, a union or another field, is `E0462` at the call, naming the property. A value the
 checker cannot see through, one typed `mixed` or handed to an encoder in a bag, is refused by the
 encoder when it reaches the object, by the class's `secret` bits, with a `LogicError` naming the

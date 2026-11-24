@@ -5,9 +5,9 @@ use Core\Http\Method;
 use Core\Test;
 
 if (Core\Env::context() == Core\Env::Context::Request) {
-    // This part answers each request. `Core\Response::json` converts the
+    // This part answers each request. `Core\Response::sendJson` converts the
     // array to JSON and sends it.
-    Core\Response::json(['sku' => 'mug-7', 'name' => 'Blue mug']);
+    Core\Response::sendJson(['sku' => 'mug-7', 'name' => 'Blue mug']);
 } else {
     // This part is the test. It sends the request and checks the whole body.
     var $response = Test::request(Method::Get, '/products/mug-7');

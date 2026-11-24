@@ -27,10 +27,10 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         Core\Response::setHeader("X-STAGE", "three");
         Core\Response::addCookie("sid", "abc");
         Core\Response::addCookie("sid", "", {maxAge: 0s});
-        Core\Response::json(null);
+        Core\Response::sendJson(null);
     }
     if ($path == "/none") {
-        Core\Response::json([]);
+        Core\Response::sendJson([]);
     }
 } else {
     var $replaced = Core\Test::request(Core\Http\Method::Get, "/replaced");

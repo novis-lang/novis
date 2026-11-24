@@ -25,7 +25,7 @@ class PasswordResetTest
 // the saved address of the user. It does not read the `email` field of the form.
 if (Core\Env::context() == Core\Env::Context::Request) {
     array<string> $saved = ['ada' => 'ada@example.com', 'alan' => 'alan@example.com'];
-    ?string $address = $saved[Core\Request::post('user') ?? ''] ?? null;
+    ?string $address = $saved[Core\Request::formField('user') ?? ''] ?? null;
     if ($address != null) {
         string $link = 'https://example.com/password/new?token=' . Core\Random::token(16);
         Core\Mail::send('site', [$address], 'Reset your password', 'Open this link: ' . $link);

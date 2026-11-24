@@ -372,7 +372,7 @@ lines of one signature knows they fail two ways.
 ([`errors/ambiguous-input-refused`](errors.md#errors-ambiguous-input-refused)). So is a bracketed key such as `page[]=1`, which builds a list.
 
 `Core\Router::dispatch` binds each `#[Query]` parameter when it calls a route method, after the match
-and before `allows`. It reads the query string through the parser `Core\Request::query()` uses, once per
+and before `allows`. It reads the query string through the parser `Core\Request::queryParameter()` uses, once per
 request and only for a route that declares a `#[Query]` parameter, so a route without one costs nothing
 more. An absent optional key gives the declared default. Every failure above is `refused` with
 `BadCapture` and the match.
@@ -694,7 +694,7 @@ type, and a returned value reaches the response only through the program's own `
 handler's declared return type is neither `void` nor `never` and the gate implements
 `Core\Router\Responder`, `dispatch` calls `$gate->respond($route, $value)` once the handler returns,
 then releases the value; a `?T` handler that returns `null` still reaches `respond` with `null`. The
-gate writes the response, as `Core\Response::html` does for a `Core\Html\Markup`. A plain gate drops
+gate writes the response, as `Core\Response::sendHtml` does for a `Core\Html\Markup`. A plain gate drops
 the value, and so does a gate that declares a `respond` method without implementing `Responder`: the
 name alone never decides it. A handler that throws reaches `failed` and never `respond`, a refused
 request reaches neither the handler nor `respond`, and an error `respond` throws is thrown by
@@ -1209,7 +1209,7 @@ published artifact.
 
 `rule:routing/a-request-body-is-read-from-the-handlers-own-call`
 
-The compiler records each `Core\Request::jsonAs<T>()` and `Core\Request::postAs<T>()` call written
+The compiler records each `Core\Request::jsonAs<T>()` and `Core\Request::formFieldsAs<T>()` call written
 directly in a route handler's body, and the route's row carries what it found: the body is `T`, as JSON
 for `jsonAs` and as a form for `postAs`. The API document writes it as the operation's `requestBody`,
 with `T`'s schema under `application/json` or `application/x-www-form-urlencoded`

@@ -870,7 +870,7 @@ pub struct Ctx {
     ///
     /// **What it spends:** one byte per context.
     pub(crate) in_later: bool,
-    /// Whether this context runs `Core\Task::afterResponse` work, or a task
+    /// Whether this context runs `Core\Task::runAfterResponse` work, or a task
     /// inside it, where the response is already sent
     /// (`rule:concurrency/deferred-work-cannot-write-the-response`). Set by
     /// [`mod@crate::deferred`] and copied by [`Ctx::child`]; read by every
@@ -886,13 +886,13 @@ pub struct Ctx {
     /// **What it spends:** one byte per context.
     pub(crate) task_child: bool,
     /// Whether this request's own frame has returned, so its main script is
-    /// over and `Core\Response::slotted()` throws. Set by
+    /// over and `Core\Response::sendSlotted()` throws. Set by
     /// [`crate::later::run_later`] and copied by [`Ctx::child`], so a slot and
     /// after-response work both read it.
     ///
     /// **What it spends:** one byte per context.
     pub(crate) main_ended: bool,
-    /// Whether `Core\Response::slotted()` was called on this context. A route
+    /// Whether `Core\Response::sendSlotted()` was called on this context. A route
     /// declared `slotted: true` is read off the match instead, and
     /// [`Ctx::is_slotted`] answers both.
     ///
@@ -1921,7 +1921,7 @@ impl Drop for Ctx {
                 .as_deref_mut()
                 .and_then(Inbound::take_decoded_body),
         );
-        // The parsed form and query string, `Core\Request::post`'s and
+        // The parsed form and query string, `Core\Request::formField`'s and
         // `::query`'s, for the same reason.
         drop(self.inbound.as_deref_mut().map(Inbound::take_parsed));
         // Last, and only once every root above is gone: what is still on the

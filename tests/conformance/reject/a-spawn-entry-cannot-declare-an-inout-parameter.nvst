@@ -1,5 +1,5 @@
 --TEST--
-A spawn entry that declares an `inout` parameter does not compile, and the value of an `inout` parameter crosses `args:` as a copy — `rule:security/isolate-values-cross-by-copy`
+A spawn entry that declares an `inout` parameter does not compile, and the value of an `inout` parameter crosses `arguments:` as a copy — `rule:security/isolate-values-cross-by-copy`
 --FILE child.nvs--
 <?nvs
 return 1;

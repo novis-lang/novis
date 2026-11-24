@@ -15,7 +15,7 @@ foreach ($bad as uint $code) {
 
 // 2. The visitor sends a number as a text. It is converted, and a number that does not
 // fit in a `uint` gives `null`.
-?uint $asked = Core\Request::query('code') as ?uint;
+?uint $asked = Core\Request::queryParameter('code') as ?uint;
 if ($asked != null) {
     try {
         Core\Response::setStatus($asked);
@@ -29,4 +29,4 @@ while ($n < 1000000) {
     Core\Response::setStatus(100 + $n % 500);
     $n = $n + 1;
 }
-Core\Response::text("done\n");
+Core\Response::sendText("done\n");

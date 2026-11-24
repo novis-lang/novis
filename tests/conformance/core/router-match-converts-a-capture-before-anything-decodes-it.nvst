@@ -23,7 +23,7 @@ class Counter
 // The digits convert, and the value is the number rather than its text.
 ?Core\Router\Match $counted = Core\Router::match(Core\Http\Method::Get, "/count/34");
 if ($counted != null) {
-    uint $n = $counted->param("n") as uint;
+    uint $n = $counted->parameter("n") as uint;
     uint $next = $n + 1;
     echo "n + 1 = ", $next as string, "\n";
 }

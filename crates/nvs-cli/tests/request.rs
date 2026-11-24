@@ -549,8 +549,8 @@ fn a_configured_upload_total_bounds_a_streamed_body() {
 /// A program that catches `post()`'s body error and calls `post()` again. The
 /// second call throws too, uncaught, so a refused body answers `500`. Were the
 /// wire left mid-body, the second call would parse the rest and answer `200`.
-const POST_TWICE: &str = "<?nvs\ntry {\n    Core\\Request::post('x');\n} catch (Throwable) {\n}\n\
-                          Core\\Request::post('x');\necho \"read\";\n";
+const POST_TWICE: &str = "<?nvs\ntry {\n    Core\\Request::formField('x');\n} catch (Throwable) {\n}\n\
+                          Core\\Request::formField('x');\necho \"read\";\n";
 
 /// A urlencoded form of exactly `len` bytes, sent in one chunk with no length
 /// declared, so its size is learnt only as it is read.
@@ -619,7 +619,7 @@ const LOGIN: &str = "<?nvs\n\
     public function constructor(tainted string $user, secret tainted string $password)\n    {\n        \
     $this->user = $user;\n        $this->password = $password;\n    }\n}\n\n\
     if (Core\\Request::path() == '/login/form') {\n    \
-    var $form = Core\\Request::postAs<Login>();\n} else {\n    \
+    var $form = Core\\Request::formFieldsAs<Login>();\n} else {\n    \
     var $json = Core\\Request::jsonAs<Login>();\n}\n\
     echo 'signed in';\n";
 

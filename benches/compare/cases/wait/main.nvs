@@ -4,9 +4,9 @@
 
 if (Core\Request::path() != '/wait') {
     Core\Response::setStatus(404);
-    Core\Response::text("not found\n");
+    Core\Response::sendText("not found\n");
 } else {
     // `Core\Time::sleep` pauses this request. Other requests run while it waits.
     Core\Time::sleep(Core\Time\Duration::milliseconds(50));
-    Core\Response::text("waited 50 ms\n");
+    Core\Response::sendText("waited 50 ms\n");
 }

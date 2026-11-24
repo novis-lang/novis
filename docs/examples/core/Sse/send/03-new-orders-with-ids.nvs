@@ -4,7 +4,7 @@
 // The order number, and the total in cents.
 array<int> $totals = ['1041' => 1999, '1042' => 4550];
 
-Core\Sse $sse = Core\Sse::stream();
+Core\Sse $sse = Core\Sse::startStream();
 // Each event gets the order number as its `id:`. If the connection breaks, the browser
 // sends the last id back in the `Last-Event-ID` header, so the server knows where to continue.
 foreach ($totals as string $number => int $total) {

@@ -2,7 +2,7 @@
 order: 80
 title: Tasks, channels and isolates
 summary: structured concurrency with `Core\Task`, bounded channels, and `spawn script` isolates that share nothing
-keywords: Core\Task, all, map, limit, deadline, TimeoutError, sleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, args, output, capture, inherit, async, await, fibers, fork, parallel, concurrent requests, threads, workers, shared state
+keywords: Core\Task, all, map, limit, deadline, TimeoutError, sleep, Core\Task\Channel, send, close, spawn script, await, Core\Script\Handle, isolate, ScriptResult, script.spawn, arguments, output, capture, inherit, async, await, fibers, fork, parallel, concurrent requests, threads, workers, shared state
 ---
 
 # No colouring: I/O just waits

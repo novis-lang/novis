@@ -24,7 +24,7 @@ try {
     $refused = $refused + 1;
 }
 try {
-    Core\Request::post("title");
+    Core\Request::formField("title");
 } catch (LogicError $form) {
     $refused = $refused + 1;
 }

@@ -465,7 +465,7 @@ pub enum Written {
     Increment(u64),
     /// `Core\Metrics::observe` — one observation into a histogram.
     Observe(f64),
-    /// `Core\Metrics::gauge` — a gauge set to this.
+    /// `Core\Metrics::setGauge` — a gauge set to this.
     Gauge(f64),
 }
 

@@ -14,7 +14,7 @@ entry is late. Everything downstream follows with nothing added:
 - Its grants are that snapshot's `[capabilities]`. The script must still lie under the global
   `script.spawn` roots for the configuration to resolve (`E0611`), so a block can narrow what a
   fire may do and never makes a script schedulable.
-- The script reads one map from `Core\Script::args()` (`rule:core-classes/script-args`):
+- The script reads one map from `Core\Script::arguments()` (`rule:core-classes/script-args`):
   `["name" => <entry name>, "on" => "cron"]` for a cron run, and the event's word under `"on"` for
   an event run (`rule:config/an-entry-runs-on-a-server-event`), so every run reads its entry the
   same way. It answers with a top-level `return`, exactly as any `spawn script` target does. There

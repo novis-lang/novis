@@ -113,7 +113,7 @@ class Orders
 
 if (Core\Request::method() != Core\Http\Method::Post || Core\Request::path() != '/orders') {
     Core\Response::setStatus(404);
-    Core\Response::text("not found\n");
+    Core\Response::sendText("not found\n");
 } else {
     // `jsonAs` throws a `ParseError` when the body is not JSON or a field has the wrong type.
     ?Receipt $receipt = null;
@@ -124,8 +124,8 @@ if (Core\Request::method() != Core\Http\Method::Post || Core\Request::path() != 
     }
     if ($receipt == null) {
         Core\Response::setStatus(422);
-        Core\Response::json({ error: 'invalid order' });
+        Core\Response::sendJson({ error: 'invalid order' });
     } else {
-        Core\Response::json($receipt);
+        Core\Response::sendJson($receipt);
     }
 }

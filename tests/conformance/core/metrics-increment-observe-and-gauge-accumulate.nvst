@@ -11,8 +11,8 @@ Core\Metrics::increment("orders_placed_total");
 Core\Metrics::increment("orders_placed_total", {by: 4});
 Core\Metrics::observe("order_pack_seconds", 0.25);
 Core\Metrics::observe("order_pack_seconds", 1.5);
-Core\Metrics::gauge("orders_in_flight", 3.0);
-Core\Metrics::gauge("orders_in_flight", 2.0);
+Core\Metrics::setGauge("orders_in_flight", 3.0);
+Core\Metrics::setGauge("orders_in_flight", 2.0);
 echo "three verbs, six calls\n";
 
 // The bag is optional on all three and a label name is fixed with the series,
@@ -22,7 +22,7 @@ echo "three verbs, six calls\n";
 uint $status = 201;
 Core\Metrics::increment("payments_total", {labels: ["status" => $status as string]});
 Core\Metrics::observe("payment_seconds", 0.5, {labels: ["status" => $status as string]});
-Core\Metrics::gauge("payments_in_flight", 1.0, {labels: ["status" => $status as string]});
+Core\Metrics::setGauge("payments_in_flight", 1.0, {labels: ["status" => $status as string]});
 echo "three verbs, labelled\n";
 
 // A second label value under one name is a second series and not a second

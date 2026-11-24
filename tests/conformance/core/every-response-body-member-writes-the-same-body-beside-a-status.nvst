@@ -12,11 +12,11 @@ var $echoed = Core\Out::capture(fn (): void => {
 });
 var $texted = Core\Out::capture(fn (): void => {
     Core\Response::setStatus(202);
-    Core\Response::text("body");
+    Core\Response::sendText("body");
 });
 var $octets = Core\Out::capture(fn (): void => {
     Core\Response::setStatus(203);
-    Core\Response::bytes("body" as bytes, "application/octet-stream");
+    Core\Response::sendBytes("body" as bytes, "application/octet-stream");
 });
 
 // Counted rather than read off a line, so three writers that each answered
@@ -41,7 +41,7 @@ echo "agreed ", $agreed, " of 2 on [", $echoedText, "]\n";
 // status in front of it is invisible here too.
 var $encoded = Core\Out::capture(fn (): void => {
     Core\Response::setStatus(200);
-    Core\Response::json("body");
+    Core\Response::sendJson("body");
 });
 echo "json wrote ", $encoded, "\n";
 

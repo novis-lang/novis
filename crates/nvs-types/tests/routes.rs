@@ -1790,7 +1790,7 @@ fn a_body_read_two_calls_deep_warns_and_names_the_reading_method() {
     let members =
         format!("{CREATE}  private function decode(): void {{\n    Reader::read();\n  }}\n");
     let helpers = "class Reader {\n  public static function read(): void {\n    \
-                   var $draft = Core\\Request::postAs<Draft>();\n  }\n}\n";
+                   var $draft = Core\\Request::formFieldsAs<Draft>();\n  }\n}\n";
     let warned = helper_reads(&body_src(&members, helpers));
     assert_eq!(warned.len(), 1, "{warned:?}");
     let label = warned[0].labels.first().map(|l| l.message.clone());
@@ -1816,6 +1816,6 @@ fn a_body_read_through_a_callable_or_the_handler_itself_does_not_warn() {
                    public function create(): void {\n    \
                    var $draft = Core\\Request::jsonAs<Draft>();\n    $this->field();\n  }\n  \
                    private function field(): void {\n    \
-                   var $title = Core\\Request::postAs<Draft>({name: \"draft\"});\n  }\n";
+                   var $title = Core\\Request::formFieldsAs<Draft>({name: \"draft\"});\n  }\n";
     assert!(helper_reads(&body_src(members, "")).is_empty());
 }

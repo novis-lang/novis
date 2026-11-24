@@ -20,5 +20,5 @@ class Bench
     }
 }
 
-Core\Response\Stream $csv = Core\Response::stream('text/csv');
+Core\Response\Stream $csv = Core\Response::startStream('text/csv');
 $csv->write((Bench::run($csv, 20000) as string) . "\n");

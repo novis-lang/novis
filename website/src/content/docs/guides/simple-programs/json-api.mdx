@@ -34,7 +34,7 @@ only when `allows` returns `true`. `refused` writes the response when no route m
 example for a path with no route. `dispatch` has already set the status, such as `404`. `failed`
 writes the response when a route method throws an error.
 
-`#[Core\Json\Derive]` lets Novis turn a `Product` into JSON. `Core\Response::json` sends the JSON
+`#[Core\Json\Derive]` lets Novis turn a `Product` into JSON. `Core\Response::sendJson` sends the JSON
 text as the response.
 
 `#[Core\Access]` says who may call the route. `Core\Audience::Public` means everyone may call it.
@@ -49,7 +49,7 @@ read one element at a time, so the memory your program uses stays the same at an
 
 `encodeEach` takes the next product only when it needs it. It returns the JSON text in pieces of up
 to 64 KiB, and `Core\IO::writeStream` writes them to the file. You can also write the pieces to a
-response with `Core\Response::stream`.
+response with `Core\Response::startStream`.
 
 `decodeEach` reads from an open file or from the request body, `Core\Request::bodyStream()`. Each
 element is checked like a document that `decodeAs` reads. A second argument such as `'/items'`

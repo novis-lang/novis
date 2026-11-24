@@ -32,7 +32,7 @@ class Order
 
 // 1. Twelve paths from the web address: a private name, a protected name, a private name
 //    through a relation, braces, empty parts, a part after a number, spaces and a wrong case.
-array<tainted string> $sent = Core\Request::queryArray('sort');
+array<tainted string> $sent = Core\Request::queryParameters('sort');
 int $refused = 0;
 foreach ($sent as tainted string $field) {
     ?propertyPath<Order> $path = $field as ?propertyPath<Order>;
@@ -46,7 +46,7 @@ echo '1: refused ', $refused, ' of ', Core\Arr::count($sent), " paths\n";
 
 // 2. The private name through a relation with `as propertyPath<Order>`, which throws.
 //    It is caught, so the steps after it still run.
-tainted string $hidden = Core\Request::query('hidden') ?? 'customer.password';
+tainted string $hidden = Core\Request::queryParameter('hidden') ?? 'customer.password';
 try {
     propertyPath<Order> $stolen = $hidden as propertyPath<Order>;
     echo '2: BAD, converted ', $stolen as string, "\n";

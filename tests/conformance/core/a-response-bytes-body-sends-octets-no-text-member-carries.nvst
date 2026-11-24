@@ -1,5 +1,5 @@
 --TEST--
-`Core\Response::bytes` sends its buffer verbatim, including octets no text-shaped body member could carry -- `rule:security/response-body-is-one-typed-member`, `rule:types/bytes`
+`Core\Response::sendBytes` sends its buffer verbatim, including octets no text-shaped body member could carry -- `rule:security/response-body-is-one-typed-member`, `rule:types/bytes`
 --FILE--
 <?nvs
 // `rule:security/response-body-is-one-typed-member`'s fourth row is the member for a body that is not text, so the
@@ -12,16 +12,16 @@
 if (Core\Env::context() == Core\Env::Context::Request) {
     var $path = Core\Request::path();
     if ($path == "/signature") {
-        Core\Response::bytes(Core\Encoding::fromHex("504e470d0a1a0a00"), "image/png");
+        Core\Response::sendBytes(Core\Encoding::fromHex("504e470d0a1a0a00"), "image/png");
     }
     if ($path == "/octets") {
-        Core\Response::bytes(Core\Encoding::fromHex("504e470d0a1a0a00ff"), "image/png");
+        Core\Response::sendBytes(Core\Encoding::fromHex("504e470d0a1a0a00ff"), "image/png");
     }
     if ($path == "/empty") {
-        Core\Response::bytes("" as bytes, "application/octet-stream");
+        Core\Response::sendBytes("" as bytes, "application/octet-stream");
     }
     if ($path == "/csv") {
-        Core\Response::bytes("id,name" as bytes, "text/csv; charset=utf-8; header=present");
+        Core\Response::sendBytes("id,name" as bytes, "text/csv; charset=utf-8; header=present");
     }
 } else {
     // The NUL and the control bytes are valid UTF-8, so `body()` returns them,

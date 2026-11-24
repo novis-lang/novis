@@ -1413,7 +1413,7 @@ fn a_written_metrics_name_outside_the_grammar_is_a_compile_error() {
     for call in [
         r#"Core\Metrics::increment("HttpRequests");"#,
         r#"Core\Metrics::observe("http.request.seconds", 0.5);"#,
-        r#"Core\Metrics::gauge("_queue_depth", 3.0);"#,
+        r#"Core\Metrics::setGauge("_queue_depth", 3.0);"#,
     ] {
         let diags = check_call(&format!("    {call}\n"));
         assert!(
@@ -1428,7 +1428,7 @@ fn a_written_metrics_name_outside_the_grammar_is_a_compile_error() {
     let admitted = check_call(
         "    Core\\Metrics::increment(\"http_requests_total\");\n    \
          Core\\Metrics::observe(\"db_query_seconds\", 0.5);\n    \
-         Core\\Metrics::gauge(\"queue_depth_v2\", 3.0);\n",
+         Core\\Metrics::setGauge(\"queue_depth_v2\", 3.0);\n",
     );
     assert!(
         !admitted.has_errors(),

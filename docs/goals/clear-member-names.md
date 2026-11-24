@@ -14,7 +14,7 @@ stages:
     context: [docs/rules/core-api/a-moved-name-says-where-it-went.md, crates/nvs-stdlib/src/moved.rs, crates/nvs-types/src/moved.rs, crates/nvs-types/src/attributes.rs, crates/nvs-syntax/src/parser/expr.rs]
   - id: 3
     title: "the request path is renamed: Response, Request, Sse, Task, Metrics, Router\\Match and Script"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/response.rs, crates/nvs-stdlib/src/request.rs, crates/nvs-stdlib/src/sse.rs]
   - id: 4
     title: "the command line and the file system are renamed: Cli, Test, Xml\\Writer, IO and Path"
@@ -470,6 +470,22 @@ same four parts, and recorded in this table and the `renames` block.
 - The check labels part 2 for "a noun with an argument that is not on `reads`", since part 2 is the
   rule that a noun has no effect.
 
+**What stage 3 settled for the sweep's neighbours.**
+- **A ledger row follows its member.** `data/perf/members.md` and `bench-budget.json` are the present
+  state of each bench, keyed by its path or member, so their rows are renamed. The append-only logs
+  (`data/perf/members.ndjson`) and `data/proofs/released.json` (what `v0.0.5` shipped) keep the old
+  names, because they are history.
+- **A feature id is `Class::member` even for an instance member** (`Core\Sse::retry`), so the sweep's
+  `->` pattern misses it. Each stage renames those ids by hand in the `.json` data (`questions.json`,
+  `site.lock.json`, `review-baseline.json`, `intro-backlog.json`, `data/rules/**`), in `// covers:`
+  lines and in messages. `website/src/data/core.json` and `website/public/llms-full.txt` are generated,
+  and stage 8 regenerates them.
+- **A sweep is run with `--class` for the stage's classes**, and its own examples are made up
+  (`Shop\Reply::json`), so a sweep never rewrites the tool's text.
+- **A rule id and a file name that hold an old word keep it until stage 8:** `rule:core-classes/script-args`,
+  the `script-args-*.nvst` cases, `05-give-the-child-a-value-with-args.nvs`. A rule id is cited across
+  the tree, so one pass renames them all.
+
 **Lanes.** Stages 1 and 2 land first: 3 to 6 need the check and the sweep. Stages 3 to
 6 change disjoint `crates/nvs-stdlib/src/` files but share callers across `docs/examples/`,
 `tests/conformance/`, `website/` and the Rust tests, so they run in order, never as side goals. Inside a
@@ -522,12 +538,12 @@ directory: `docs/examples/`, `tests/`, `website/` and `crates/*/tests/`. They ru
 session builds once they end. Each stage commits as `feat(<scope>):` with a `BREAKING CHANGE:` body
 listing every `Old` → `New` it renamed, as the standing decision says.
 
-- [ ] `crates/nvs-stdlib/src/response.rs:376`, `:428`, `:474`: `sendJson`, `sendHtml`, `sendText`,
+- [x] `crates/nvs-stdlib/src/response.rs:376`, `:428`, `:474`: `sendJson`, `sendHtml`, `sendText`,
   `sendBytes`, `startStream`, `sendSlotted`.
-- [ ] `crates/nvs-stdlib/src/request.rs:259`, `:379`: the six query and form reads.
-- [ ] `crates/nvs-stdlib/src/sse.rs:181`, `:251`; `metrics.rs:190`; `task.rs:175`; `router.rs:441`,
+- [x] `crates/nvs-stdlib/src/request.rs:259`, `:379`: the six query and form reads.
+- [x] `crates/nvs-stdlib/src/sse.rs:181`, `:251`; `metrics.rs:190`; `task.rs:175`; `router.rs:441`,
   `:797`; `script.rs:165`.
-- [ ] `Core\Socket::upgrade` and `Core\Sse::upgrade`: the `$args` parameter becomes `$arguments`, with
+- [x] `Core\Socket::upgrade` and `Core\Sse::upgrade`: the `$args` parameter becomes `$arguments`, with
   every `args:` named argument (`apps/chat/src/App.nvs:87`, `apps/poll/src/App.nvs:98`, the upgrade
   benches, examples, hostile tests and conformance cases). Then every prose `args:` that means spawn's
   or upgrade's option says `arguments:`: `docs/reference/lang/80-concurrency.md:1026`, the
@@ -535,9 +551,9 @@ listing every `Old` → `New` it renamed, as the standing decision says.
   the Rust doc comments `grep -rn '\`args:\`' crates` lists, and `crates/nvs-stdlib/src/socket.rs:832`,
   `:1029` and `sse.rs:620`'s messages. Spawn's key and the runtime's mismatch message already say
   `arguments:`.
-- [ ] `cargo build`, then `bun nv api-rename --goal clear-member-names`; every listed call fixed; example
+- [x] `cargo build`, then `bun nv api-rename --goal clear-member-names`; every listed call fixed; example
   and bench directories moved.
-- [ ] `cargo build` and `cargo clippy --all-targets -- -D warnings` green.
+- [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` green.
 
 ### 4. the command line and the file system are renamed: Cli, Test, Xml\Writer, IO and Path
 
@@ -620,33 +636,45 @@ changes entries.
 
 ### State
 
-Stages 1 and 2 are done. `MOVES` and `REMOVED_OPTIONS` are empty. The pass runs over made-up rows in
-`crates/nvs-types/tests/moved.rs`, which has 3 tests, and `attributes::unknown_option_help` has a unit test.
-The tests that pinned real moves are deleted. Both rules are rewritten, and `bun nv rules --check` is green.
-Spawn's key is `arguments:`, and every `with(args:` caller and the spawn messages are rewritten.
-`upgrade`'s `$args` is still `args`; it is stage 3's new item. The `renames` block has 148 pairs,
-each checked against `nvs meta --json`. `bun nv api-rename` and its 5 tests are in place, and
-`looper check --name api-rename-tool` is green. The commit hook refuses `!`, so the decision now says
-`feat(<scope>):` with a `BREAKING CHANGE:` body.
+Stages 1 to 3 are done. Stage 3 renamed `Response`, `Request`, `Sse`, `Metrics`, `Task`,
+`Router\Match` and `Script`: registry rows, native symbols (`nvs_core_response_send_json` and the
+rest), cards, the checker's lists (`nvs-types` `response.rs`, `core_lib.rs`, `intrinsics.rs`,
+`routes.rs`, `derive.rs`), `CAPABILITIES`, examples, benches and hostile directories, and every caller.
+`upgrade`'s `$args` is `$arguments` everywhere. `bun nv api-rename --class <Old\Class>` (repeatable)
+filters the block and has a test. The filtered `--check` over stage 3's seven classes is green.
+`cargo build` and `cargo clippy --all-targets -- -D warnings` are green, and `bun nv rules --check`
+is clean. No test or conformance run was made this stage.
 
-Red until stage 7: `bun nv names --check` (181 findings), `bun nv api-rename --check` (about 3,800 old
-names), and so `ci --check`, the floor's `ci-check` and `ci --push`. Stage 7's names outside the table
-are `CoreProcess::run` and `spawn`'s `cwd`, the `nanos` option of `Instant::fromEpoch` and
+Tests to expect red at stage 9, if anything was missed: the `.lspt` completion cases that list
+`Core\Response` or `Core\Request` members by their bare names, and `nvs-test`'s `TOP_LEVEL_ONLY`
+cases. `website/src/data/core.json`, `website/public/llms-full.txt` and the stamps in
+`site.lock.json` are stale until stage 8 regenerates them.
+
+Red until stage 7: `bun nv names --check`, the unfiltered `bun nv api-rename --check`, and so
+`ci --check`, the floor's `ci-check` and `ci --push`. Stage 7's names outside the table are
+`CoreProcess::run` and `spawn`'s `cwd`, the `nanos` option of `Instant::fromEpoch` and
 `TimeOfDay::at`, `Queue::push`'s `args`, `NovisImageDiff`, `RateLimit::shed`, `Cli::multiSelect`
-and `LdapFilter::approx`. No conformance run was made this stage.
+and `LdapFilter::approx`.
 
 ### Next
 
-Stage 3 from its first item: rename the rows in `crates/nvs-stdlib/src/response.rs:376`, `request.rs:259`,
-`sse.rs:181`, `metrics.rs:190`, `task.rs:175`, `router.rs:441`, `script.rs:165`, their natives' symbols
-and cards; `cargo build`; then `bun nv api-rename --goal clear-member-names`. It rewrites every renamed
-name across the tree, not only stage 3's, so run it with the block cut down to stage 3's pairs, or
-rewrite only the files stage 3's pairs reach: the sweep reads the whole block. First add a
-`--class <Old\Class>` filter (repeatable) to `tools/nv/cmd/api-rename.ts:200` that keeps only those
-pairs, with a test, and the `--check` of stage 7 stays unfiltered. Its `->old(` list goes to writing subagents by
-directory. The upgrade `$args` item is new in stage 3.
+Stage 4 from its first item, the same way as stage 3:
+1. Rename the rows, symbols and cards at `crates/nvs-stdlib/src/cli.rs:325`, `test.rs:825`,
+   `xml.rs:777`, `io.rs:195` and `path.rs:109`, with every Rust list that names the member as a bare
+   string (`git grep -nE '"(secret|live|progress|scriptAnswers|...)"' crates`).
+2. Run `bun nv api-rename --goal clear-member-names --class 'Core\Cli' --class 'Core\Test'
+   --class 'Core\Xml\Writer' --class 'Core\IO' --class 'Core\IO\Metadata' --class 'Core\Path'`.
+   Fix its `->old(` list by line, as `.agent-tmp/instance3.py` did, after checking each receiver.
+3. Move the example, bench and hostile directories, and rewrite the paths that name them.
+4. Rename the `Class::member` feature ids by hand in the `.json` data and the `// covers:` lines.
+5. Give the bare mentions in cards and comments to a writing subagent, one per file group.
+6. Run `bun nv rules --render`, the filtered `--check`, `cargo fmt`, build and clippy.
 
 ### Backlog
 
-- `data/perf/members.md` is a ledger keyed by member, and the sweep rewrites its names too. Decide in
-  stage 3 whether a ledger row is renamed or keeps its old name as history.
+- `rule:core-classes/script-args`, the `script-args-*.nvst` cases and
+  `05-give-the-child-a-value-with-args.nvs` still say `args`. Stage 8 renames them together.
+- `crates/nvs-stdlib/src/request.rs:1872` says "which used to have its own", which is history in a
+  comment. Rewrite it when the file is next open.
+- `docs/rules/config/an-entry-runs-on-a-server-event.md:79` says "the args map". Check whether it means
+  `Queue::push`'s `args`, which stage 7 renames.

@@ -12,7 +12,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
         echo $part->filename() ?? 'no name', ' ', $part->contentType(), ' ';
         echo Core\Bytes::length($part->readAll({ max: 100000 })), " bytes\n";
     }
-    echo 'title: ', Core\Request::post('title') ?? 'none';
+    echo 'title: ', Core\Request::formField('title') ?? 'none';
 } else {
     // `multipart` sends a form with a file, the same way a browser does.
     // `Part::bytes` creates the file from its content, its name and its type.

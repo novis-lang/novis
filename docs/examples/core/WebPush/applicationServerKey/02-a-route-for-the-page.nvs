@@ -12,4 +12,4 @@ Core\Crypto\KeyPair $vapid = Core\Crypto\KeyPair::read($pem as bytes, Core\Crypt
 
 // The page fetches this route. Then it passes the key to `pushManager.subscribe()`
 // as `applicationServerKey`. The response contains only the public key.
-Core\Response::json({ applicationServerKey: Core\WebPush::applicationServerKey($vapid) });
+Core\Response::sendJson({ applicationServerKey: Core\WebPush::applicationServerKey($vapid) });

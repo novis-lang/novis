@@ -13,9 +13,9 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     if (Core\Str::contains($accepted, 'gzip')) {
         // The browser needs `Content-Encoding` to read the compressed body.
         Core\Response::setHeader('Content-Encoding', 'gzip');
-        Core\Response::bytes(Core\Compress::compress($body, Core\Compress::Codec::Gzip), 'text/html');
+        Core\Response::sendBytes(Core\Compress::compress($body, Core\Compress::Codec::Gzip), 'text/html');
     } else {
-        Core\Response::bytes($body as bytes, 'text/html');
+        Core\Response::sendBytes($body as bytes, 'text/html');
     }
 } else {
     // This browser can read gzip, so the body is compressed. This prints `gzip`.

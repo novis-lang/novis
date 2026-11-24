@@ -8,15 +8,15 @@ An event stream's payload becomes `data:` lines and reaches no other field, whic
 // line per line, so the three spellings frame identically and a caller never
 // has to know which one it is holding.
 var $lf = Core\Out::capture(fn (): void => {
-    var $sse = Core\Sse::stream();
+    var $sse = Core\Sse::startStream();
     $sse->send("first\nsecond");
 });
 var $cr = Core\Out::capture(fn (): void => {
-    var $sse = Core\Sse::stream();
+    var $sse = Core\Sse::startStream();
     $sse->send("first\rsecond");
 });
 var $crlf = Core\Out::capture(fn (): void => {
-    var $sse = Core\Sse::stream();
+    var $sse = Core\Sse::startStream();
     $sse->send("first\r\nsecond");
 });
 // Interpolated rather than compared as they came back: `Core\Out::capture`
@@ -31,7 +31,7 @@ echo "--\n";
 // the framer, so a payload that spells a field of its own is one event with a
 // two-line payload and never a second event naming itself.
 var $forged = Core\Out::capture(fn (): void => {
-    var $sse = Core\Sse::stream();
+    var $sse = Core\Sse::startStream();
     $sse->send("harmless\nevent: admin\nid: 9");
 });
 echo $forged;
@@ -41,7 +41,7 @@ echo "--\n";
 // and a `\n` to its buffer and strips one `\n` at dispatch, so the trailing
 // empty line is what makes the round trip exact rather than merely safe.
 var $trailing = Core\Out::capture(fn (): void => {
-    var $sse = Core\Sse::stream();
+    var $sse = Core\Sse::startStream();
     $sse->send("line\n");
 });
 echo $trailing;

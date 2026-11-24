@@ -18,7 +18,7 @@ class Import
 }
 
 // The request opens the stream, and then starts the job.
-Core\Sse $sse = Core\Sse::stream();
+Core\Sse $sse = Core\Sse::startStream();
 uint $imported = Import::run(['ana@example.com', 'bo@example.com', 'chen@example.com']);
 // This prints three `progress` events and then `data: imported 3 customers`.
 $sse->send('imported ' . $imported . ' customers');

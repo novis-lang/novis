@@ -10,7 +10,7 @@ class Orders
     public function create(): void
     {
         Core\Response::setStatus(201);
-        Core\Response::json({ id: 8, status: 'open' });
+        Core\Response::sendJson({ id: 8, status: 'open' });
     }
 }
 

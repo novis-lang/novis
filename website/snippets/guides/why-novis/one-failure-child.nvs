@@ -1,5 +1,5 @@
 <?nvs
-// This is the file one-failure-child.nvs. With `args: true`, it calls itself until the call stack is too deep.
+// This is the file one-failure-child.nvs. With `arguments: true`, it calls itself until the call stack is too deep.
 class Down
 {
     public static function forever(int $n): int
@@ -9,6 +9,6 @@ class Down
 }
 
 echo "child started\n";
-if (Core\Script::args() == true) {
+if (Core\Script::arguments() == true) {
     echo Down::forever(0), "\n";
 }

@@ -7,7 +7,7 @@ handling never mistakes it for an error. After the `finally` blocks, the functio
 `Core\Script::onExit()` run, and their report has the reason `Finish`.
 
 On a server, the response that the handler already set is sent. Work added with
-`Core\Task::afterResponse` still runs.
+`Core\Task::runAfterResponse` still runs.
 
 **The examples below** show a job that stops when there is nothing to do, the `finally` blocks that run
 on the way out, and a request that is answered at once while the site is under maintenance.

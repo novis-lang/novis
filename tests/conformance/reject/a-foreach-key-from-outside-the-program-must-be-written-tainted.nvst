@@ -7,7 +7,7 @@ var $db = Core\Db::connect("main");
 // A plain `string` key over each kind of outside key is refused.
 foreach ((Core\Request::json() as array<mixed>) as string $field => mixed $v) {
 }
-foreach (Core\Request::queryArray("filter") as string $name => tainted string $w) {
+foreach (Core\Request::queryParameters("filter") as string $name => tainted string $w) {
 }
 foreach (Core\Request::headers() as string $header => array<tainted string> $lines) {
 }
@@ -16,12 +16,12 @@ foreach ($decoded as string $key => mixed $x) {
 }
 
 // `var` takes `tainted string`, so the key cannot reach a query's text.
-foreach (Core\Request::queryArray("sort") as var $column => tainted string $y) {
+foreach (Core\Request::queryParameters("sort") as var $column => tainted string $y) {
     $db->query("select * from items order by " . $column, []);
 }
 
 // Written `tainted string`, the key is accepted. A program's own keys stay `string`.
-foreach (Core\Request::queryArray("tag") as tainted string $tag => tainted string $z) {
+foreach (Core\Request::queryParameters("tag") as tainted string $tag => tainted string $z) {
     echo $tag, "\n";
 }
 array<int> $counts = ["a" => 1];

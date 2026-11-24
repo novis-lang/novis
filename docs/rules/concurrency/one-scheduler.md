@@ -1,5 +1,5 @@
 Concurrency is `Core\Task` and nothing else. Three members carry it — `Task::all` over a fixed set,
-`Task::map` over a collection, and `Task::afterResponse` for work that follows a response — and
+`Task::map` over a collection, and `Task::runAfterResponse` for work that follows a response — and
 `spawn`/`await` and `Core\Task\Channel` are the primitives beneath them.
 
 They run on one scheduler, which is the runtime's own: stackful coroutines, thread-per-core,

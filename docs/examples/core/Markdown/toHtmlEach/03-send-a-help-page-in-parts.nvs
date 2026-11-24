@@ -1,7 +1,7 @@
 <?nvs
 // Shows a help page that is sent to the browser one part at a time.
 
-Core\Response\Stream $page = Core\Response::stream('text/html; charset=utf-8');
+Core\Response\Stream $page = Core\Response::startStream('text/html; charset=utf-8');
 $page->write("<!doctype html>\n<title>Install</title>\n");
 
 // `pages/install.md` is next to this program. The response gets each part

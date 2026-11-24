@@ -8661,7 +8661,7 @@
     ]
   },
   "/reference/core/metrics/gauge/": {
-    "feature": "Core\\Metrics::gauge",
+    "feature": "Core\\Metrics::setGauge",
     "hash": "a34e7a09d92bcaff",
     "questions": [
       "How do I report a value that goes up and down?",
@@ -12856,7 +12856,7 @@
     ]
   },
   "/reference/core/request/post/": {
-    "feature": "Core\\Request::post",
+    "feature": "Core\\Request::formField",
     "hash": "c8f188110064c07f",
     "questions": [
       "How do I read a form field sent by POST?",
@@ -12867,7 +12867,7 @@
     ]
   },
   "/reference/core/request/postarray/": {
-    "feature": "Core\\Request::postArray",
+    "feature": "Core\\Request::formFields",
     "hash": "28e5c0928b2fb0bc",
     "questions": [
       "Read form fields with square brackets in the name",
@@ -12877,7 +12877,7 @@
     ]
   },
   "/reference/core/request/postas/": {
-    "feature": "Core\\Request::postAs",
+    "feature": "Core\\Request::formFieldsAs",
     "hash": "3bced92800cdd850",
     "questions": [
       "How do I read a whole form into a class?",
@@ -12889,7 +12889,7 @@
     ]
   },
   "/reference/core/request/query/": {
-    "feature": "Core\\Request::query",
+    "feature": "Core\\Request::queryParameter",
     "hash": "2f2c768f7adf734a",
     "questions": [
       "How do I read a URL parameter after the question mark?",
@@ -12900,7 +12900,7 @@
     ]
   },
   "/reference/core/request/queryarray/": {
-    "feature": "Core\\Request::queryArray",
+    "feature": "Core\\Request::queryParameters",
     "hash": "8f8e32fccaf10b57",
     "questions": [
       "Read a list from the query string like tag[]=a",
@@ -12910,7 +12910,7 @@
     ]
   },
   "/reference/core/request/queryas/": {
-    "feature": "Core\\Request::queryAs",
+    "feature": "Core\\Request::queryParametersAs",
     "hash": "964b81cbbabc4d49",
     "questions": [
       "How do I read all URL parameters into a class?",
@@ -13128,7 +13128,7 @@
     ]
   },
   "/reference/core/response/bytes/": {
-    "feature": "Core\\Response::bytes",
+    "feature": "Core\\Response::sendBytes",
     "hash": "0cc8635052864826",
     "questions": [
       "How do I send an image from memory as the response?",
@@ -13138,7 +13138,7 @@
     ]
   },
   "/reference/core/response/html/": {
-    "feature": "Core\\Response::html",
+    "feature": "Core\\Response::sendHtml",
     "hash": "20ba96f7591ea54f",
     "questions": [
       "How do I send an HTML page as the response?",
@@ -13148,7 +13148,7 @@
     ]
   },
   "/reference/core/response/json/": {
-    "feature": "Core\\Response::json",
+    "feature": "Core\\Response::sendJson",
     "hash": "e6e1681f26af6776",
     "questions": [
       "How do I return JSON from an API endpoint?",
@@ -13202,7 +13202,7 @@
     ]
   },
   "/reference/core/response/slotted/": {
-    "feature": "Core\\Response::slotted",
+    "feature": "Core\\Response::sendSlotted",
     "hash": "4d1c8c278cc6c7e3",
     "questions": [
       "How do I show a page before its slow parts are ready?",
@@ -13213,7 +13213,7 @@
     ]
   },
   "/reference/core/response/stream/": {
-    "feature": "Core\\Response::stream",
+    "feature": "Core\\Response::startStream",
     "hash": "5a6a8cb0663df9e9",
     "questions": [
       "How do I send a response in parts?",
@@ -13223,7 +13223,7 @@
     ]
   },
   "/reference/core/response/text/": {
-    "feature": "Core\\Response::text",
+    "feature": "Core\\Response::sendText",
     "hash": "6de5c749a7b231ba",
     "questions": [
       "How do I send plain text as the response?",
@@ -13430,7 +13430,7 @@
     ]
   },
   "/reference/core/router-match/param/": {
-    "feature": "Core\\Router\\Match::param",
+    "feature": "Core\\Router\\Match::parameter",
     "hash": "d1071816d8921d85",
     "questions": [
       "How do I read one value from the URL path?",
@@ -13440,7 +13440,7 @@
     ]
   },
   "/reference/core/router-match/params/": {
-    "feature": "Core\\Router\\Match::params",
+    "feature": "Core\\Router\\Match::parameters",
     "hash": "4ace9c640551762c",
     "questions": [
       "How do I get all values captured from the path?",
@@ -13460,7 +13460,7 @@
     ]
   },
   "/reference/core/script/args/": {
-    "feature": "Core\\Script::args",
+    "feature": "Core\\Script::arguments",
     "hash": "0c944197ded68391",
     "questions": [
       "How do I pass data to a script I start from another?",
@@ -14016,7 +14016,7 @@
     ]
   },
   "/reference/core/sse/retry/": {
-    "feature": "Core\\Sse::retry",
+    "feature": "Core\\Sse::setRetryDelay",
     "hash": "5c0d93d93a60e453",
     "questions": [
       "How do I set the reconnect delay for EventSource?",
@@ -14036,7 +14036,7 @@
     ]
   },
   "/reference/core/sse/stream/": {
-    "feature": "Core\\Sse::stream",
+    "feature": "Core\\Sse::startStream",
     "hash": "1662ca830cf88617",
     "questions": [
       "How do I answer a request with a stream of events?",
@@ -14642,7 +14642,7 @@
     ]
   },
   "/reference/core/task/afterresponse/": {
-    "feature": "Core\\Task::afterResponse",
+    "feature": "Core\\Task::runAfterResponse",
     "hash": "ddd6c4ee74a0bee6",
     "questions": [
       "How do I send an email after the response is sent?",
