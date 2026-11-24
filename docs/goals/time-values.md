@@ -239,7 +239,10 @@ the first edit, as `file.rs:NN` and one line each.
   its null test first.
 - [ ] `crates/nvs-stdlib/src/time.rs:2078`: `DateTime::compareTo(DateTime $other): int` by seconds then
   nanos, registered beside the other `compareTo` rows (`time.rs:413`); the decision at `time.rs:131` is
-  rewritten to say what is true now.
+  rewritten to say what is true now. `report_comparable_diagnostic`
+  (`crates/nvs-types/src/expr/operators.rs:1014`) loses its `DateTime` branch naming `toInstant()` or
+  `date()`, and `tests/conformance/reject/ordering-two-built-in-values-with-no-order-names-what-to-compare.nvst:1`
+  moves to a built-in class that still has no order.
 - [ ] `crates/nvs-stdlib/src/objmap.rs:639` and `crates/nvs-stdlib/src/identity_store.rs:184`: `same`
   and the hash read the equality row; `ObjectMap`'s and `ObjectSet`'s cards and module docs say "a key
   is found with `==`" (`crates/nvs-stdlib/src/instance.rs:247`'s `BY_IDENTITY` reason rewritten).
