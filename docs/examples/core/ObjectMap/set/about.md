@@ -4,8 +4,10 @@ This replaces `$storage[$object] = $value` on an `SplObjectStorage`.
 
 A key is found with `==`. For an object of your own class, `==` is true only for the same object.
 Two objects with equal property values are two different keys, so each one gets its own entry. A
-`Core\Time` value such as a `Date` is compared by its value, so `set` with an equal `Date` replaces the
-value. A `DateTime` is compared by its moment. The same moment in two time zones is one key. The value can be `null`, and the key is still in the map.
+`Core\Time` value such as a `Date` is compared by its value, so `set` with an equal `Date` replaces
+the value. A `DateTime` is compared by its moment. The same moment in two time zones is one key.
+
+The value can be `null`, and the key is still in the map.
 
 The map keeps the key and the value alive while they are in it. `remove` and `clear` free them
 again.

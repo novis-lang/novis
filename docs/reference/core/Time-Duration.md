@@ -9,7 +9,8 @@ unit — `30s`, `250ms`, `1h30m`, `7d` — with the units `ns`, `us`, `ms`, `s`,
 twenty-four hours, never a calendar day, which is what `Core\Time\DateTime::plus($n, Core\Unit::Day)`
 is. `echo` renders a duration back in that same syntax, so its text round-trips through `parse`. An
 argument to `parse` written directly in the code is read when the program compiles, so a bad one is a compile error; text
-computed at run time throws a `ParseError`. Two durations are ordered with `compareTo`; the `<`
+computed at run time throws a `ParseError`. `toClock` writes a duration as hours and minutes, such as
+`25:30`, and `Duration::fromClock` reads that text back. Two durations are ordered with `compareTo`; the `<`
 operators do not compile on a `Duration`.
 
 ```nvs

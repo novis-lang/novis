@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a request sends bad dates and bad patterns to `parse`. The patterns are variables, so the compiler cannot check them.
+// Each bad date should throw a `ParseError`, and each bad pattern a `LogicError`. The program should not crash.
+
+use Core\Time\Date;
+use Core\Str;
+
+// 1. Text that is empty, too long, outside the calendar or not plain digits.
+array<string> $texts = [
+    '', '..', '00.00.0000', '99.99.9999', '01.01.10000', '01.01.-9999', '29.02.2025',
+    Str::repeat('9', 100000), '05.01.' . Str::repeat('2', 50), "05.01.2026\0",
+    '05.01.２０２６', '+5.01.2026', ' 05.01.2026', '05.01.2026 ',
+];
+int $read = 0;
+int $rejected = 0;
+foreach ($texts as string $text) {
+    // A `ParseError` is caught, so the next text still runs.
+    try {
+        Date::parse($text, 'dd.MM.yyyy');
+        $read = $read + 1;
+    } catch (ParseError $bad) {
+        $rejected = $rejected + 1;
+    }
+}
+echo $read, ' read, ', $rejected, " rejected\n";
+
+// 2. Patterns built while the program runs: time and zone letters, an open quote and a very long pattern.
+array<string> $patterns = [
+    '', 'dd.MM.yyyy HH:mm', 'yyyy-MM-dd XXX', "'", 'qqqq', Str::repeat('d', 10000), 'D yyyy',
+];
+int $wrongPattern = 0;
+int $wrongText = 0;
+foreach ($patterns as string $pattern) {
+    // Both errors are caught, so the next pattern still runs.
+    try {
+        Date::parse('05.01.2026', $pattern);
+    } catch (LogicError $badPattern) {
+        $wrongPattern = $wrongPattern + 1;
+    } catch (ParseError $badText) {
+        $wrongText = $wrongText + 1;
+    }
+}
+echo $wrongPattern, ' bad patterns, ', $wrongText, " texts that do not match\n";
+
+// 3. The last day of the calendar, read one hundred thousand times. This prints 100000.
+int $same = 0;
+int $i = 0;
+while ($i < 100000) {
+    if (Date::parse('31.12.9999', 'dd.MM.yyyy') == Date::at(9999, 12, 31)) {
+        $same = $same + 1;
+    }
+    $i = $i + 1;
+}
+echo $same, "\n";

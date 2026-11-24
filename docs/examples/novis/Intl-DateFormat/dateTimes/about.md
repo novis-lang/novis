@@ -2,17 +2,21 @@ Writes dates with their time of day the way a language and region write them, su
 2026, 9:30 PM" or "01.03.2026, 21:30".
 
 `DateFormat::dateTimes` takes a list of `Core\Time\DateTime` values and a locale tag, and returns one
-string for each value, in the same order. Each value is written as the clock shows it in its own time
-zone. Two values for the same moment in Vienna and in New York give two different times of day.
+string for each value. Each `Core\Time\DateTime` has its own time zone, and the
+time is written as a clock in that zone shows it.
 
-The options change what is shown. `length` is `DateFormat::Length::Short`, `DateFormat::Length::Medium` or `DateFormat::Length::Long`,
-and the default is `DateFormat::Length::Medium`. In English, `DateFormat::Length::Short` gives "3/1/26, 9:30 PM" and
-`DateFormat::Length::Long` gives "March 1, 2026 at 9:30 PM". Set `seconds` to `true` to show the seconds. `zone`
-adds the time zone: `DateFormat::ZoneStyle::Offset` adds "GMT+1", `DateFormat::ZoneStyle::Location` adds "Austria Time", and
-`DateFormat::ZoneStyle::Generic` adds "Central European Time". The default is `DateFormat::ZoneStyle::None`, which adds
-nothing.
+`length` is a `DateFormat::Length`, and the default is `Medium`. In English, `Short` gives "3/1/26,
+9:30 PM" and `Long` gives "March 1, 2026 at 9:30 PM". Set `seconds` to `true` to show the seconds.
 
-`DateFormat::dateTimes` throws a `LogicError` when the locale tag is not valid.
+`zone` is a `DateFormat::ZoneStyle` and adds the time zone. For a time in Vienna, `Offset` adds the
+difference from UTC, "GMT+1". `Location` adds the country, "Austria Time". `Generic` adds the name of
+the zone, "Central European Time". The default is `None`, which adds nothing.
 
-**Good to know:** the method does not change a value's time zone. To show a time in the reader's
-zone, convert the value first, for example with `$value->toInstant()->in($zone)`.
+`fields` is a `DateFormat::Fields` and chooses the parts of the date. The default is
+`YearMonthDay`.
+
+`DateFormat::dateTimes` throws a `LogicError` when the locale tag is not valid. It also throws one
+when `fields` has no day, such as `YearMonth`.
+
+**Good to know:** the method does not change a value's time zone. Convert the value to the
+reader's zone first.

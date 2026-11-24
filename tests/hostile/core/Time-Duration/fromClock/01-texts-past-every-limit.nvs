@@ -1,0 +1,55 @@
+<?nvs
+// Attack: `fromClock` gets the longest duration and one second more, texts of one million characters,
+// and one million valid texts. Each bad text should throw a `ParseError`, and nothing should crash or leak.
+
+// 1. The longest and shortest texts that fit, one second past each, and texts in the wrong form.
+array<string> $edges = [
+    '2562047:47:16',
+    '2562047:47:17',
+    '-2562047:47:16',
+    '-2562047:47:17',
+    '99999999999999999999999999999:00',
+    '1:59:59',
+    '1:60',
+    '1:00:60',
+    '-',
+    ':',
+    '-:30',
+    '1:30:00:00',
+    ' 1:30',
+    '+1:30',
+    '١:30',
+    '1:3٠',
+];
+foreach ($edges as string $text) {
+    try {
+        echo Core\Time\Duration::fromClock($text)->toSeconds(), "\n";
+    } catch (ParseError $e) {
+        echo "ParseError\n";
+    }
+}
+
+// 2. Texts of one million characters: hour digits, zeros before the hours, and many colons.
+array<string> $long = [
+    Core\Str::repeat('9', 1000000) . ':00',
+    Core\Str::repeat('0', 1000000) . '1:30',
+    '1' . Core\Str::repeat(':00', 333333),
+    '1:' . Core\Str::repeat('ü', 500000),
+];
+foreach ($long as string $text) {
+    try {
+        echo Core\Time\Duration::fromClock($text)->toSeconds(), "\n";
+    } catch (ParseError $e) {
+        echo 'ParseError of ', Core\Str::length($e->message), " characters\n";
+    }
+}
+
+// 3. One million valid texts are read, one at a time. Each duration is freed again.
+array<string> $texts = ['0:05', '1:30', '25:30:15', '-1:15', '8:00:00'];
+int $total = 0;
+int $round = 0;
+while ($round < 1000000) {
+    $total = $total + Core\Time\Duration::fromClock($texts[$round % 5])->toSeconds() % 7;
+    $round = $round + 1;
+}
+echo $total, "\n";

@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to list every day from one date to another.
+
+use Core\Time\Date;
+
+// 18 May 2026 is a Monday. The list starts on that day and ends on Sunday 24 May.
+foreach (Date::range(Date::at(2026, 5, 18), Date::at(2026, 5, 24)) as Date $day) {
+    echo $day->format('EEE d MMM'), "\n";
+}

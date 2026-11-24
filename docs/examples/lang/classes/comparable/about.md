@@ -7,6 +7,6 @@ ordering operators read only the sign of that number, and `<=>` returns the numb
 the order once, in one method, and all five operators follow it.
 
 **Good to know:** a class that does not implement `Comparable` cannot be ordered. The comparison
-does not compile, and the message names `Comparable` as the fix. `==` is a separate question and is
-not affected: two objects of your own class are equal only when they are the same object. To test
-whether two values have the same contents, check that `compareTo` returns zero.
+does not compile, and the message names `Comparable` as the fix. `==` does not use `compareTo`. Two
+objects of your own class are equal only when they are the same object. To check whether two values
+have the same contents, check that `compareTo` returns zero.

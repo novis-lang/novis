@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read a date that is written with the day first.
+
+use Core\Time\Date;
+
+// `dd.MM.yyyy` is the day, the month and the year with dots. This prints 2026-01-05.
+echo Date::parse('05.01.2026', 'dd.MM.yyyy')->toIso(), "\n";
+
+// `MMMM` is the full name of the month. This prints 2026-03-03.
+echo Date::parse('3 March 2026', 'd MMMM yyyy')->toIso(), "\n";

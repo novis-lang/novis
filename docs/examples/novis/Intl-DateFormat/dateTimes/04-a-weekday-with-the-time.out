@@ -1,0 +1,3 @@
+Montag, 9:30
+Montag, 2. März um 09:30
+`Fields::YearMonth` shows no day, so it cannot be shown with a time. Format the date with `DateFormat::dates` instead.

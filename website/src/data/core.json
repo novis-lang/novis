@@ -29030,7 +29030,26 @@
           ],
           "raw": "Length { Short, Medium, Long }",
           "doc": {
-            "shortHtml": "How long a formatted date is. The default is <code>Medium</code>."
+            "shortHtml": "How long a formatted date is. For March 1, 2026 in English for the United States, <code>Short</code> writes &quot;3/1/26&quot;. <code>Medium</code> writes &quot;Mar 1, 2026&quot;. This is the default. <code>Long</code> writes &quot;March 1, 2026&quot;. <code>Long</code> is the longest length. To also show the day of the week, set <code>fields</code> to <code>Fields::YearMonthDayWeekday</code>."
+          }
+        },
+        {
+          "name": "Fields",
+          "cases": [
+            "Day",
+            "MonthDay",
+            "YearMonthDay",
+            "Weekday",
+            "DayWeekday",
+            "MonthDayWeekday",
+            "YearMonthDayWeekday",
+            "Month",
+            "YearMonth",
+            "Year"
+          ],
+          "raw": "Fields { Day, MonthDay, YearMonthDay, Weekday, DayWeekday, MonthDayWeekday, YearMonthDayWeekday, Month, YearMonth, Year }",
+          "doc": {
+            "shortHtml": "Which parts of a date <code>DateFormat::dates</code> and <code>DateFormat::dateTimes</code> show. Each case is named after the parts it shows. The locale decides the order of the parts. A locale is a language and region, such as <code>en-US</code> or <code>de</code> for German. These examples use <code>Length::Long</code> and <code>en-US</code>. <code>Day</code> shows the day of the month, such as &quot;5&quot;. <code>MonthDay</code> shows the month and the day, such as &quot;January 5&quot;. <code>YearMonthDay</code> shows the year, the month and the day, such as &quot;January 5, 2026&quot;. This is the default. <code>Weekday</code> shows the day of the week, such as &quot;Monday&quot;. <code>DayWeekday</code> shows the day of the month and the day of the week, such as &quot;5 Monday&quot;. <code>MonthDayWeekday</code> shows the month, the day and the day of the week, such as &quot;Monday, January 5&quot;. <code>YearMonthDayWeekday</code> shows all four parts, such as &quot;Monday, January 5, 2026&quot;. <code>Month</code> shows the month, such as &quot;January&quot;. <code>YearMonth</code> shows the month and the year, such as &quot;January 2026&quot;. In <code>de</code>, this is &quot;Januar 2026&quot;. <code>Year</code> shows the year, such as &quot;2026&quot;. <code>Month</code>, <code>YearMonth</code> and <code>Year</code> have no day. A time of day needs a day, so <code>DateFormat::dateTimes</code> throws a <code>LogicError</code> for these three cases."
           }
         },
         {
@@ -29057,7 +29076,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "dateTimes(array<Core\\Time\\DateTime> $values, string $locale, ?{ length?: Length, seconds?: bool, zone?: ZoneStyle } $options = null): array<string>",
+          "signature": "dateTimes(array<Core\\Time\\DateTime> $values, string $locale, ?{ length?: Length, fields?: Fields, seconds?: bool, zone?: ZoneStyle } $options = null): array<string>",
           "params": [
             {
               "kind": "param",
@@ -29078,7 +29097,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{ length?: Length, seconds?: bool, zone?: ZoneStyle }",
+              "type": "?{ length?: Length, fields?: Fields, seconds?: bool, zone?: ZoneStyle }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -29087,7 +29106,7 @@
           "options": [],
           "returnType": "array<string>",
           "doc": {
-            "shortHtml": "<code>DateFormat::dateTimes</code> returns each date and time as the clock shows it in its own time\nzone. Set <code>zone</code> to show the zone: <code>ZoneStyle::Offset</code> shows &quot;GMT+2&quot;."
+            "shortHtml": "<code>DateFormat::dateTimes</code> returns each date and time as a string in the language of <code>$locale</code>,\nsuch as <code>&quot;de&quot;</code> for German. The time is the time in the value's own time zone.\n<code>length</code> and <code>fields</code> work as in <code>DateFormat::dates</code>. Set <code>seconds</code> to <code>true</code> to show the\nseconds. <code>zone</code> is a <code>ZoneStyle</code> and chooses how the time zone is shown, such as &quot;GMT+1&quot;.\nBy default, no seconds and no time zone are shown."
           },
           "slug": "datetimes",
           "url": "/reference/core/novis-intl-dateformat/datetimes/",
@@ -29099,7 +29118,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "dates(array<Core\\Time\\Date> $values, string $locale, ?{ length?: Length } $options = null): array<string>",
+          "signature": "dates(array<Core\\Time\\Date> $values, string $locale, ?{ length?: Length, fields?: Fields } $options = null): array<string>",
           "params": [
             {
               "kind": "param",
@@ -29120,7 +29139,7 @@
             {
               "kind": "param",
               "name": "options",
-              "type": "?{ length?: Length }",
+              "type": "?{ length?: Length, fields?: Fields }",
               "default": "null",
               "optional": true,
               "variadic": false
@@ -29129,7 +29148,7 @@
           "options": [],
           "returnType": "array<string>",
           "doc": {
-            "shortHtml": "<code>DateFormat::dates</code> returns each calendar date. <code>Length::Short</code> writes &quot;3/1/26&quot; in\nEnglish, and <code>Length::Long</code> writes &quot;March 1, 2026&quot;. The default is <code>Length::Medium</code>."
+            "shortHtml": "<code>DateFormat::dates</code> returns each calendar date as a string in the language of <code>$locale</code>,\nsuch as <code>&quot;de&quot;</code> for German. <code>length</code> is a <code>Length</code> and chooses how long each string is.\n<code>fields</code> is a <code>Fields</code> and chooses which parts of the date are shown.\nThe defaults are <code>Length::Medium</code> and <code>Fields::YearMonthDay</code>, such as &quot;Mar 1, 2026&quot;."
           },
           "slug": "dates",
           "url": "/reference/core/novis-intl-dateformat/dates/",
@@ -33495,7 +33514,7 @@
     {
       "id": "ObjectMap",
       "name": "Core\\ObjectMap",
-      "summary": "A map whose keys are objects or other values of any type. A key is found by identity: the same object, not an equal one. Build one with `new Core\\ObjectMap<K, V>()`. A `foreach` over the map gives its keys in insertion order.",
+      "summary": "A map whose keys are objects or other values of any type. A key is found with `==`. For most objects, only the same object matches. A `Core\\Time` value, such as a `Date`, matches an equal value. Build one with `new Core\\ObjectMap<K, V>()`. A `foreach` over the map gives its keys in insertion order.",
       "enums": [],
       "types": [],
       "constants": [],
@@ -33529,11 +33548,11 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "Stores <code>$value</code> under <code>$key</code>. If <code>$key</code> already has a value, the new value replaces it. A key matches only the same object, not an equal one.",
+            "shortHtml": "Stores <code>$value</code> under <code>$key</code>. If <code>$key</code> already has a value, the new value replaces it. A key matches a key that is <code>==</code> to it.",
             "params": [
               {
                 "name": "key",
-                "descHtml": "The key. It matches a key in the map only if it is the same object."
+                "descHtml": "The key. It matches a key in the map that is <code>==</code> to it."
               },
               {
                 "name": "value",
@@ -33570,7 +33589,7 @@
             "params": [
               {
                 "name": "key",
-                "descHtml": "The key to look up. It matches only the same object."
+                "descHtml": "The key to look up. It matches a key that is <code>==</code> to it."
               }
             ],
             "returnHtml": "The value stored under <code>$key</code>, or <code>null</code> if the map has no such key. A stored <code>null</code> also returns <code>null</code>. Use <code>has</code> to tell the two cases apart."
@@ -33599,11 +33618,11 @@
           "options": [],
           "returnType": "bool",
           "doc": {
-            "shortHtml": "Checks whether the map has <code>$key</code>. Only the same object matches.",
+            "shortHtml": "Checks whether the map has a key that is <code>==</code> to <code>$key</code>.",
             "params": [
               {
                 "name": "key",
-                "descHtml": "The key to look for. It matches only the same object."
+                "descHtml": "The key to look for. It matches a key that is <code>==</code> to it."
               }
             ],
             "returnHtml": "<code>true</code> if the key is in the map, also when its value is <code>null</code>. Otherwise <code>false</code>."
@@ -33636,7 +33655,7 @@
             "params": [
               {
                 "name": "key",
-                "descHtml": "The key to delete. It matches only the same object."
+                "descHtml": "The key to delete. It matches a key that is <code>==</code> to it."
               }
             ],
             "returnHtml": "Nothing. If the map does not have the key, the call does nothing and does not throw."
@@ -33740,7 +33759,7 @@
       "url": "/reference/core/objectmap/",
       "summaryBlocks": [
         {
-          "html": "<p>A map whose keys are objects or other values of any type. A key is found by identity: the same object, not an equal one. Build one with <code>new Core\\ObjectMap&lt;K, V&gt;()</code>. A <code>foreach</code> over the map gives its keys in insertion order.</p>\n<p><code>Core\\ObjectMap&lt;K, V&gt;</code> associates a value with an object, matched by <strong>identity</strong>: the one object is one key however many variables hold it, and two objects that agree on every property are two keys. <code>array&lt;T&gt;</code> cannot key on an object, so this is where a per-object side table lives. It is built with <code>new Core\\ObjectMap&lt;K, V&gt;()</code>, <code>get</code> answers <code>?V</code> rather than throwing — there is no <code>$m[$k]</code> subscript on it — and <code>has</code> is the one member that tells an absent key from a stored <code>null</code>.</p>\n<p>A <code>foreach</code> loop walks the map in the order the keys were added. With a key variable, <code>foreach ($map as var $key =&gt; var $value)</code> gives each key with its value. With only a value variable, the loop gives the keys. A <code>foreach</code> does not copy the map. If the body changes the map, the loop still walks the entries the map had when it began. So the body may <code>remove</code> the entry it is on.</p>\n<p>An object whose class implements <code>Revocable</code> leaves the map when the program calls <code>revoke()</code> on it. The map removes every entry that has the object as its key or as its value. <code>count()</code> is then correct, and a running <code>foreach</code> skips the removed entries.</p>"
+          "html": "<p>A map whose keys are objects or other values of any type. A key is found with <code>==</code>. For most objects, only the same object matches. A <code>Core\\Time</code> value, such as a <code>Date</code>, matches an equal value. Build one with <code>new Core\\ObjectMap&lt;K, V&gt;()</code>. A <code>foreach</code> over the map gives its keys in insertion order.</p>\n<p><code>Core\\ObjectMap&lt;K, V&gt;</code> associates a value with an object, and finds a key with <code>==</code>. For most objects that is <strong>identity</strong>: the one object is one key however many variables hold it, and two objects that agree on every property are two keys. A <code>Core\\Time</code> value, such as a <code>Date</code> or a <code>Duration</code>, compares by value, so an equal date built elsewhere finds the same entry. <code>array&lt;T&gt;</code> cannot key on an object, so this is where a per-object side table lives. It is built with <code>new Core\\ObjectMap&lt;K, V&gt;()</code>, <code>get</code> answers <code>?V</code> rather than throwing — there is no <code>$m[$k]</code> subscript on it — and <code>has</code> is the one member that tells an absent key from a stored <code>null</code>.</p>\n<p>A <code>foreach</code> loop walks the map in the order the keys were added. With a key variable, <code>foreach ($map as var $key =&gt; var $value)</code> gives each key with its value. With only a value variable, the loop gives the keys. A <code>foreach</code> does not copy the map. If the body changes the map, the loop still walks the entries the map had when it began. So the body may <code>remove</code> the entry it is on.</p>\n<p>An object whose class implements <code>Revocable</code> leaves the map when the program calls <code>revoke()</code> on it. The map removes every entry that has the object as its key or as its value. <code>count()</code> is then correct, and a running <code>foreach</code> skips the removed entries.</p>"
         },
         {
           "code": "<?nvs\nclass Tag\n{\n    public function constructor(public string $name)\n    {}\n}\n\nvar $red = new Tag('red');\nvar $blue = new Tag('blue');\n\nvar $weights = new Core\\ObjectMap<Tag, int>();\n$weights->set($red, 3);\n$weights->set($blue, 7);\n$weights->set($red, 4);\n\necho 'red=', $weights->get($red) ?? 0, \"\\n\";\necho 'other red=', $weights->get(new Tag('red')) ?? -1, \"\\n\";\necho 'count=', $weights->count(), \"\\n\";\n\nforeach ($weights as Tag $tag => int $weight) {\n    echo $tag->name, '=', $weight, ' ';\n}\necho \"\\n\";\n\n$weights->remove($blue);\necho $weights->has($blue) ? 'blue kept' : 'blue gone', \"\\n\";\necho 'keys=', Core\\Arr::count($weights->keys()), ' values=', Core\\Arr::count($weights->values()), \"\\n\";",
@@ -33756,7 +33775,7 @@
     {
       "id": "ObjectSet",
       "name": "Core\\ObjectSet",
-      "summary": "A set of objects or other values of any type, each one at most once. A value is matched by identity: the same object, not an equal one. Build one with `new Core\\ObjectSet<T>()`. A `foreach` over the set gives its values in insertion order.",
+      "summary": "A set of objects or other values of any type, each one at most once. A value is matched with `==`. For most objects, only the same object matches. A `Core\\Time` value, such as a `Date`, matches an equal value. Build one with `new Core\\ObjectSet<T>()`. A `foreach` over the set gives its values in insertion order.",
       "enums": [],
       "types": [],
       "constants": [],
@@ -33782,11 +33801,11 @@
           "options": [],
           "returnType": "void",
           "doc": {
-            "shortHtml": "Adds <code>$value</code> to the set, unless the set already contains that same value.",
+            "shortHtml": "Adds <code>$value</code> to the set, unless the set already contains a value that is <code>==</code> to it.",
             "params": [
               {
                 "name": "value",
-                "descHtml": "The value to add, matched by identity."
+                "descHtml": "The value to add, matched with <code>==</code>."
               }
             ],
             "returnHtml": "Nothing. If the set already contains the value, the set does not change. Use <code>has</code> to check whether a value is in the set."
@@ -33815,11 +33834,11 @@
           "options": [],
           "returnType": "bool",
           "doc": {
-            "shortHtml": "Checks whether the set contains <code>$value</code>, matched by identity.",
+            "shortHtml": "Checks whether the set contains a value that is <code>==</code> to <code>$value</code>.",
             "params": [
               {
                 "name": "value",
-                "descHtml": "The value to look for, matched by identity."
+                "descHtml": "The value to look for, matched with <code>==</code>."
               }
             ],
             "returnHtml": "<code>true</code> when the value is in the set, <code>false</code> otherwise."
@@ -33852,7 +33871,7 @@
             "params": [
               {
                 "name": "value",
-                "descHtml": "The value to remove, matched by identity."
+                "descHtml": "The value to remove, matched with <code>==</code>."
               }
             ],
             "returnHtml": "Nothing. If the set does not contain the value, the set does not change."
@@ -34019,7 +34038,7 @@
       "url": "/reference/core/objectset/",
       "summaryBlocks": [
         {
-          "html": "<p>A set of objects or other values of any type, each one at most once. A value is matched by identity: the same object, not an equal one. Build one with <code>new Core\\ObjectSet&lt;T&gt;()</code>. A <code>foreach</code> over the set gives its values in insertion order.</p>\n<p><code>Core\\ObjectSet&lt;T&gt;</code> holds each object at most once, matched by <strong>identity</strong>: adding the same object twice leaves one member, and a second object equal in every property is a second member. It is built with <code>new Core\\ObjectSet&lt;T&gt;()</code>; <code>add</code>, <code>has</code> and <code>remove</code> are the membership members, and the set is <code>Iterable</code> — a <code>foreach</code> yields its members in insertion order, over a snapshot, so the body may <code>remove</code> what it is walking. A <code>foreach</code> does not copy the set. If the loop changes the set, the loop still walks the members the set had when it began. <code>union</code>, <code>intersection</code> and <code>difference</code> answer a new set and leave both operands untouched; the binary types that new set as a bare <code>Core\\ObjectSet</code>, so it can be counted, asked <code>has</code> and walked as <code>mixed</code> (<code>foreach ($both as mixed $m)</code> and then <code>$m as Tag</code>), but a <code>foreach … as Tag $t</code> over it is refused.</p>\n<p>An object whose class implements <code>Revocable</code> leaves the set when the program calls <code>revoke()</code> on it. <code>count()</code> is then correct, and a running <code>foreach</code> skips the object.</p>"
+          "html": "<p>A set of objects or other values of any type, each one at most once. A value is matched with <code>==</code>. For most objects, only the same object matches. A <code>Core\\Time</code> value, such as a <code>Date</code>, matches an equal value. Build one with <code>new Core\\ObjectSet&lt;T&gt;()</code>. A <code>foreach</code> over the set gives its values in insertion order.</p>\n<p><code>Core\\ObjectSet&lt;T&gt;</code> holds each object at most once, and finds a member with <code>==</code>. For most objects that is <strong>identity</strong>: adding the same object twice leaves one member, and a second object equal in every property is a second member. A <code>Core\\Time</code> value, such as a <code>Date</code>, compares by value, so two equal dates are one member. It is built with <code>new Core\\ObjectSet&lt;T&gt;()</code>; <code>add</code>, <code>has</code> and <code>remove</code> are the membership members, and the set is <code>Iterable</code> — a <code>foreach</code> yields its members in insertion order, over a snapshot, so the body may <code>remove</code> what it is walking. A <code>foreach</code> does not copy the set. If the loop changes the set, the loop still walks the members the set had when it began. <code>union</code>, <code>intersection</code> and <code>difference</code> answer a new set and leave both operands untouched; the binary types that new set as a bare <code>Core\\ObjectSet</code>, so it can be counted, asked <code>has</code> and walked as <code>mixed</code> (<code>foreach ($both as mixed $m)</code> and then <code>$m as Tag</code>), but a <code>foreach … as Tag $t</code> over it is refused.</p>\n<p>An object whose class implements <code>Revocable</code> leaves the set when the program calls <code>revoke()</code> on it. <code>count()</code> is then correct, and a running <code>foreach</code> skips the object.</p>"
         },
         {
           "code": "<?nvs\nclass Tag\n{\n    public function constructor(public string $name)\n    {}\n}\n\nvar $red = new Tag('red');\nvar $blue = new Tag('blue');\nvar $green = new Tag('green');\n\nvar $seen = new Core\\ObjectSet<Tag>();\n$seen->add($red);\n$seen->add($blue);\n$seen->add($red);\necho 'count=', $seen->count(), \"\\n\";\necho $seen->has($red) ? 'has red' : 'no red', \"\\n\";\necho $seen->has(new Tag('red')) ? 'has other red' : 'no other red', \"\\n\";\n\nvar $wanted = new Core\\ObjectSet<Tag>();\n$wanted->add($blue);\n$wanted->add($green);\necho 'union=', $seen->union($wanted)->count(), \"\\n\";\necho 'both=', $seen->intersection($wanted)->count(), \"\\n\";\necho 'only seen=', $seen->difference($wanted)->count(), \"\\n\";\n\n$seen->remove($red);\nforeach ($seen as Tag $tag) {\n    echo $tag->name, \"\\n\";\n}\necho $seen->isEmpty() ? 'empty' : 'not empty', \"\\n\";",
@@ -49767,6 +49786,115 @@
           "examples": "core/Time-Date/fromIso"
         },
         {
+          "id": "Time.Date.parse",
+          "name": "parse",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "parse(string $text, string $format): Core\\Time\\Date",
+          "params": [
+            {
+              "kind": "param",
+              "name": "text",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "format",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Time\\Date",
+          "doc": {
+            "shortHtml": "Reads a date from text. <code>$format</code> is a pattern that says how the text is written, such as <code>dd.MM.yyyy</code>. It uses the CLDR pattern letters, the same letters as <code>format</code>. When <code>$format</code> is a string literal, the compiler checks it. When the pattern has no month or no day, the month or the day is <code>1</code>.",
+            "params": [
+              {
+                "name": "text",
+                "descHtml": "The text to read. The result is a <code>Date</code>, so it is not <code>tainted</code>, even when the text is. A <code>tainted</code> value comes from outside the program and is not checked yet."
+              },
+              {
+                "name": "format",
+                "descHtml": "A pattern with date letters only, such as <code>d MMMM yyyy</code>. A time letter such as <code>HH</code> or a zone letter such as <code>XXX</code> is not allowed, because a <code>Date</code> has no time and no zone. A <code>tainted</code> pattern is not allowed either."
+              }
+            ],
+            "returnHtml": "The <code>Date</code>. <code>Date::parse('05.01.2026', 'dd.MM.yyyy')</code> is <code>2026-01-05</code>.",
+            "errors": [
+              {
+                "error": "LogicError",
+                "descHtml": "<code>$format</code> is not a valid pattern, or it has a time or zone letter. When <code>$format</code> is a string literal, this is error <code>E0769</code>, and the program does not compile."
+              },
+              {
+                "error": "ParseError",
+                "descHtml": "<code>$text</code> does not match <code>$format</code>. For example, a character such as <code>.</code> is different, a number is missing, or there is extra text at the end. It is also thrown when the date does not exist, such as <code>30.02.2026</code>."
+              }
+            ]
+          },
+          "slug": "parse",
+          "url": "/reference/core/time-date/parse/",
+          "examples": "core/Time-Date/parse"
+        },
+        {
+          "id": "Time.Date.range",
+          "name": "range",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "range(Core\\Time\\Date $from, Core\\Time\\Date $to, { step?: Core\\Unit::Day|Core\\Unit::Week|Core\\Unit::Month|Core\\Unit::Quarter|Core\\Unit::Year }): array<Core\\Time\\Date>",
+          "params": [
+            {
+              "kind": "param",
+              "name": "from",
+              "type": "Core\\Time\\Date",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "to",
+              "type": "Core\\Time\\Date",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [
+            {
+              "name": "step",
+              "type": "Core\\Unit::Day|Core\\Unit::Week|Core\\Unit::Month|Core\\Unit::Quarter|Core\\Unit::Year"
+            }
+          ],
+          "returnType": "array<Core\\Time\\Date>",
+          "doc": {
+            "shortHtml": "Returns a list of the dates from <code>$from</code> to <code>$to</code>. By default, the list has one date for each day. The <code>step</code> option changes the distance between two dates. When <code>$from</code> is after <code>$to</code>, the list goes backward, from the later date to the earlier one.",
+            "params": [
+              {
+                "name": "from",
+                "descHtml": "The first date in the list."
+              },
+              {
+                "name": "to",
+                "descHtml": "The last date the list may contain. With a step of one day, <code>$to</code> is always in the list. With a larger step, <code>$to</code> is in the list only when the dates reach it exactly."
+              },
+              {
+                "name": "options",
+                "descHtml": "The third argument, such as <code>{ step: Unit::Week }</code>. <code>step</code> is the distance between two dates: <code>Unit::Day</code> (the default), <code>Unit::Week</code>, <code>Unit::Month</code>, <code>Unit::Quarter</code> (three months) or <code>Unit::Year</code>. A unit smaller than a day, such as <code>Unit::Hour</code>, does not compile. A month is counted from <code>$from</code>. From 31 January 2026, the next dates are 28 February, 31 March and 30 April."
+              }
+            ],
+            "returnHtml": "A list of new <code>Date</code> values. <code>Date::range(Date::at(2026, 1, 30), Date::at(2026, 2, 1))</code> is <code>2026-01-30</code>, <code>2026-01-31</code> and <code>2026-02-01</code>."
+          },
+          "slug": "range",
+          "url": "/reference/core/time-date/range/",
+          "examples": "core/Time-Date/range"
+        },
+        {
           "id": "Time.Date.format",
           "name": "format",
           "static": false,
@@ -50000,6 +50128,24 @@
           "examples": "core/Time-Date/compareTo"
         },
         {
+          "id": "Time.Date.toIso",
+          "name": "toIso",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "toIso(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the date as ISO text, such as <code>2026-01-05</code>. <code>Date::fromIso</code> reads this text back.",
+            "returnHtml": "A <code>string</code> with the year, the month and the day. The year has four digits, and a year before year 1 starts with <code>-</code>."
+          },
+          "slug": "toiso",
+          "url": "/reference/core/time-date/toiso/",
+          "examples": "core/Time-Date/toIso"
+        },
+        {
           "id": "Time.Date.weekday",
           "name": "weekday",
           "static": false,
@@ -50052,6 +50198,279 @@
           "slug": "isleapyear",
           "url": "/reference/core/time-date/isleapyear/",
           "examples": "core/Time-Date/isLeapYear"
+        },
+        {
+          "id": "Time.Date.startOf",
+          "name": "startOf",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "startOf(Core\\Unit::Week|Core\\Unit::Month|Core\\Unit::Quarter|Core\\Unit::Year $unit): Core\\Time\\Date",
+          "params": [
+            {
+              "kind": "param",
+              "name": "unit",
+              "type": "Core\\Unit::Week|Core\\Unit::Month|Core\\Unit::Quarter|Core\\Unit::Year",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Time\\Date",
+          "doc": {
+            "shortHtml": "Returns the first day of the week, month, quarter or year that contains this date. A week starts on Monday.",
+            "params": [
+              {
+                "name": "unit",
+                "descHtml": "<code>Unit::Week</code>, <code>Unit::Month</code>, <code>Unit::Quarter</code> or <code>Unit::Year</code>. A smaller unit does not compile."
+              }
+            ],
+            "returnHtml": "A new <code>Date</code> on or before this date. <code>Date::at(2026, 5, 20)-&gt;startOf(Unit::Quarter)</code> is <code>2026-04-01</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The result is before the year <code>-9999</code>."
+              }
+            ]
+          },
+          "slug": "startof",
+          "url": "/reference/core/time-date/startof/",
+          "examples": "core/Time-Date/startOf"
+        },
+        {
+          "id": "Time.Date.endOf",
+          "name": "endOf",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "endOf(Core\\Unit::Week|Core\\Unit::Month|Core\\Unit::Quarter|Core\\Unit::Year $unit): Core\\Time\\Date",
+          "params": [
+            {
+              "kind": "param",
+              "name": "unit",
+              "type": "Core\\Unit::Week|Core\\Unit::Month|Core\\Unit::Quarter|Core\\Unit::Year",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Time\\Date",
+          "doc": {
+            "shortHtml": "Returns the last day of the week, month, quarter or year that contains this date. A week ends on Sunday.",
+            "params": [
+              {
+                "name": "unit",
+                "descHtml": "<code>Unit::Week</code>, <code>Unit::Month</code>, <code>Unit::Quarter</code> or <code>Unit::Year</code>. A smaller unit does not compile."
+              }
+            ],
+            "returnHtml": "A new <code>Date</code> on or after this date. <code>Date::at(2024, 2, 10)-&gt;endOf(Unit::Month)</code> is <code>2024-02-29</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The week ends after the year <code>9999</code>."
+              }
+            ]
+          },
+          "slug": "endof",
+          "url": "/reference/core/time-date/endof/",
+          "examples": "core/Time-Date/endOf"
+        },
+        {
+          "id": "Time.Date.difference",
+          "name": "difference",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "difference(Core\\Time\\Date $other, Core\\Unit::Day|Core\\Unit::Week|Core\\Unit::Month|Core\\Unit::Quarter|Core\\Unit::Year $unit): int",
+          "params": [
+            {
+              "kind": "param",
+              "name": "other",
+              "type": "Core\\Time\\Date",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            },
+            {
+              "kind": "param",
+              "name": "unit",
+              "type": "Core\\Unit::Day|Core\\Unit::Week|Core\\Unit::Month|Core\\Unit::Quarter|Core\\Unit::Year",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "int",
+          "doc": {
+            "shortHtml": "Counts the whole units of <code>$unit</code> from this date to <code>$other</code>. It counts the same way as <code>DateTime::difference</code>. Use it for an age in years or a term in months.",
+            "params": [
+              {
+                "name": "other",
+                "descHtml": "The date to count to."
+              },
+              {
+                "name": "unit",
+                "descHtml": "<code>Unit::Day</code>, <code>Unit::Week</code>, <code>Unit::Month</code>, <code>Unit::Quarter</code> or <code>Unit::Year</code>. A smaller unit does not compile."
+              }
+            ],
+            "returnHtml": "The whole count. It is negative when <code>$other</code> is earlier, and <code>0</code> when the two dates are less than one unit apart."
+          },
+          "slug": "difference",
+          "url": "/reference/core/time-date/difference/",
+          "examples": "core/Time-Date/difference"
+        },
+        {
+          "id": "Time.Date.next",
+          "name": "next",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "next(Core\\Time\\Weekday $w): Core\\Time\\Date",
+          "params": [
+            {
+              "kind": "param",
+              "name": "w",
+              "type": "Core\\Time\\Weekday",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Time\\Date",
+          "doc": {
+            "shortHtml": "Returns the first date after this one that is on the weekday <code>$w</code>.",
+            "params": [
+              {
+                "name": "w",
+                "descHtml": "The weekday to move to."
+              }
+            ],
+            "returnHtml": "A new <code>Date</code> one to seven days later. It is seven days later when this date is already on <code>$w</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The result is after the year <code>9999</code>."
+              }
+            ]
+          },
+          "slug": "next",
+          "url": "/reference/core/time-date/next/",
+          "examples": "core/Time-Date/next"
+        },
+        {
+          "id": "Time.Date.previous",
+          "name": "previous",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "previous(Core\\Time\\Weekday $w): Core\\Time\\Date",
+          "params": [
+            {
+              "kind": "param",
+              "name": "w",
+              "type": "Core\\Time\\Weekday",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Time\\Date",
+          "doc": {
+            "shortHtml": "Returns the last date before this one that is on the weekday <code>$w</code>.",
+            "params": [
+              {
+                "name": "w",
+                "descHtml": "The weekday to move to."
+              }
+            ],
+            "returnHtml": "A new <code>Date</code> one to seven days earlier. It is seven days earlier when this date is already on <code>$w</code>.",
+            "errors": [
+              {
+                "error": "RuntimeError",
+                "descHtml": "The result is before the year <code>-9999</code>."
+              }
+            ]
+          },
+          "slug": "previous",
+          "url": "/reference/core/time-date/previous/",
+          "examples": "core/Time-Date/previous"
+        },
+        {
+          "id": "Time.Date.daysInMonth",
+          "name": "daysInMonth",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "daysInMonth(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the number of days in the month of this date.",
+            "returnHtml": "<code>28</code> to <code>31</code>. February has <code>29</code> days in a leap year."
+          },
+          "slug": "daysinmonth",
+          "url": "/reference/core/time-date/daysinmonth/",
+          "examples": "core/Time-Date/daysInMonth"
+        },
+        {
+          "id": "Time.Date.quarter",
+          "name": "quarter",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "quarter(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the quarter of the year that contains this date.",
+            "returnHtml": "<code>1</code> for January to March, <code>2</code> for April to June, <code>3</code> for July to September and <code>4</code> for October to December."
+          },
+          "slug": "quarter",
+          "url": "/reference/core/time-date/quarter/",
+          "examples": "core/Time-Date/quarter"
+        },
+        {
+          "id": "Time.Date.isoWeek",
+          "name": "isoWeek",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "isoWeek(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the ISO 8601 week number of this date. A week starts on Monday. Week <code>1</code> is the week that contains the first Thursday of the year.",
+            "returnHtml": "<code>1</code> to <code>53</code>. The first days of January can be in week <code>52</code> or <code>53</code> of the year before."
+          },
+          "slug": "isoweek",
+          "url": "/reference/core/time-date/isoweek/",
+          "examples": "core/Time-Date/isoWeek"
+        },
+        {
+          "id": "Time.Date.isoWeekYear",
+          "name": "isoWeekYear",
+          "static": false,
+          "receiver": "date",
+          "generics": null,
+          "signature": "isoWeekYear(): int",
+          "params": [],
+          "options": [],
+          "returnType": "int",
+          "doc": {
+            "shortHtml": "Returns the year that the ISO 8601 week of this date belongs to. Use it together with <code>isoWeek()</code>.",
+            "returnHtml": "The year of the week. It is different from <code>year()</code> for a few days around New Year. <code>Date::at(2027, 1, 1)-&gt;isoWeekYear()</code> is <code>2026</code>."
+          },
+          "slug": "isoweekyear",
+          "url": "/reference/core/time-date/isoweekyear/",
+          "examples": "core/Time-Date/isoWeekYear"
         },
         {
           "id": "Time.Date.year",
@@ -50112,7 +50531,7 @@
       "url": "/reference/core/time-date/",
       "summaryBlocks": [
         {
-          "html": "<p>A date with no time of day and no zone, such as a birthday or a due date. <code>Core\\Time\\Date::at</code> builds one from a year, a month and a day. <code>plus</code> and <code>minus</code> move it by days, months or years, and <code>format</code> turns it into text.</p>\n<p>A <code>Date</code> is a year, a month and a day. It has no time of day and no zone. <code>Date::fromIso</code> reads a date written as <code>YYYY-MM-DD</code>, such as <code>2024-03-01</code>. <code>Date::at</code> builds one from three numbers, and <code>-&gt;date()</code> gives the date of a <code>DateTime</code>. A date that does not exist throws an error when it is built. A date written as a string literal in <code>Date::fromIso</code> is checked when the program compiles.</p>\n<p><code>year()</code>, <code>month()</code> and <code>day()</code> return the three fields as numbers. <code>weekday()</code> returns a <code>Core\\Time\\Weekday</code> case, <code>dayOfYear()</code> returns the day of the year from <code>1</code>, and <code>isLeapYear()</code> checks the year. <code>DateTime::at($date, TimeOfDay::at(0, 0), $zone)</code> returns the first moment of the date in a zone.</p>\n<p><code>plus</code> and <code>minus</code> move a date by <code>Core\\Unit::Day</code> or a larger unit. A smaller unit throws an error. Moving by months keeps the day inside the new month, as <code>DateTime::plus</code> does. <code>format</code> takes the date letters of the patterns <code>DateTime::format</code> uses. A time letter or a zone letter does not compile, because a <code>Date</code> has no time and no zone. <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>compareTo</code> order two dates.</p>"
+          "html": "<p>A date with no time of day and no zone, such as a birthday or a due date. <code>Core\\Time\\Date::at</code> builds one from a year, a month and a day. <code>plus</code> and <code>minus</code> move it by days, months or years, and <code>format</code> turns it into text.</p>\n<p>A <code>Date</code> is a year, a month and a day. It has no time of day and no zone. <code>Date::fromIso</code> reads a date written as <code>YYYY-MM-DD</code>, such as <code>2024-03-01</code>. <code>Date::parse</code> reads a date that is written another way, with a pattern such as <code>dd.MM.yyyy</code>. <code>Date::at</code> builds one from three numbers, and <code>-&gt;date()</code> gives the date of a <code>DateTime</code>. A date that does not exist throws an error when it is built. A date written as a string literal in <code>Date::fromIso</code> is checked when the program compiles.</p>\n<p><code>year()</code>, <code>month()</code> and <code>day()</code> return the three fields as numbers. <code>weekday()</code> returns a <code>Core\\Time\\Weekday</code> case, <code>dayOfYear()</code> returns the day of the year from <code>1</code>, and <code>isLeapYear()</code> checks the year. <code>DateTime::at($date, TimeOfDay::at(0, 0), $zone)</code> returns the first moment of the date in a zone.</p>\n<p><code>plus</code> and <code>minus</code> move a date by <code>Core\\Unit::Day</code> or a larger unit. A smaller unit throws an error. Moving by months keeps the day inside the new month, as <code>DateTime::plus</code> does. <code>format</code> takes the date letters of the patterns <code>DateTime::format</code> uses. A time letter or a zone letter does not compile, because a <code>Date</code> has no time and no zone. <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>compareTo</code> order two dates. <code>toIso()</code> returns the date as text such as <code>2024-01-31</code>, and <code>fromIso</code> reads that text back.</p>\n<p><code>startOf</code> and <code>endOf</code> return the first and the last day of the week, month, quarter or year of a date. A week runs from Monday to Sunday. <code>difference</code> counts the whole days, weeks, months, quarters or years from one date to another. <code>next</code> and <code>previous</code> return the nearest date after or before a date that is on a given <code>Core\\Time\\Weekday</code>. <code>daysInMonth()</code> returns the number of days in the month, and <code>quarter()</code> returns <code>1</code> to <code>4</code>. <code>isoWeek()</code> returns the ISO 8601 week number, and <code>isoWeekYear()</code> returns the year that this week belongs to. <code>Date::range</code> returns the list of dates from one date to another, with one date for each day, week, month, quarter or year.</p>"
         },
         {
           "code": "<?nvs\nvar $d = Core\\Time\\Date::fromIso('2024-01-31');\necho $d->format('yyyy-MM-dd'), \"\\n\";\necho $d->format('EEEE, d MMMM'), \"\\n\";\n\necho $d->plus(1, Core\\Unit::Month)->format('yyyy-MM-dd'), \"\\n\";\necho $d->minus(1, Core\\Unit::Day)->format('EEE d MMM'), \"\\n\";\necho $d->with({ month: 3 })->format('yyyy-MM-dd'), \"\\n\";\necho $d->compareTo(Core\\Time\\Date::at(2024, 2, 1)), \"\\n\";\n\ntry {\n    Core\\Time\\Date::at(2023, 2, 29);\n} catch (RuntimeError $bad) {\n    echo \"2023-02-29 does not exist\\n\";\n}\n\necho Core\\Time\\DateTime::fromIso('2024-03-01 23:00', 'UTC')->date()->format('d/M/yyyy'), \"\\n\";\n\necho $d->year(), ' ', $d->month(), ' ', $d->day(), \"\\n\";\necho $d->dayOfYear(), ' ', $d->isLeapYear() ? 'leap year' : 'not a leap year', \"\\n\";\nvar $midnight = Core\\Time\\TimeOfDay::at(0, 0);\necho Core\\Time\\DateTime::at($d, $midnight, 'Europe/Berlin')->format('yyyy-MM-dd HH:mm XXX'), \"\\n\";",
@@ -50212,7 +50631,7 @@
           "static": true,
           "receiver": null,
           "generics": null,
-          "signature": "fromIso(string $text, Core\\Time\\Zone $zone): Core\\Time\\DateTime",
+          "signature": "fromIso(string $text, ?Core\\Time\\Zone $zone = null): Core\\Time\\DateTime",
           "params": [
             {
               "kind": "param",
@@ -50225,31 +50644,31 @@
             {
               "kind": "param",
               "name": "zone",
-              "type": "Core\\Time\\Zone",
-              "default": null,
-              "optional": false,
+              "type": "?Core\\Time\\Zone",
+              "default": "null",
+              "optional": true,
               "variadic": false
             }
           ],
           "options": [],
           "returnType": "Core\\Time\\DateTime",
           "doc": {
-            "shortHtml": "Reads a date and time in the ISO 8601 form, such as <code>2024-03-01T09:30</code>, and places it in <code>$zone</code>. A date alone, such as <code>2024-03-01</code>, is the first moment of that day. If the zone skips the time, the result moves forward past the gap. A <code>$text</code> written directly in the code is checked when the program compiles.",
+            "shortHtml": "Reads a date and time in the ISO 8601 form, such as <code>2026-01-05T08:30:00+01:00[Europe/Vienna]</code>. This is the text <code>toIso()</code> writes. A text without a zone in brackets, such as <code>2024-03-01T09:30</code>, is read in <code>$zone</code>. A date alone, such as <code>2024-03-01</code>, is the first moment of that day. A <code>$text</code> written directly in the code is checked when the program compiles.",
             "params": [
               {
                 "name": "text",
-                "descHtml": "<code>YYYY-MM-DD</code>, or a date, <code>T</code> or one space, and a time. The time is <code>HH:MM</code>, <code>HH:MM:SS</code> or <code>HH:MM:SS</code> with one to nine digits after a <code>.</code>."
+                "descHtml": "<code>YYYY-MM-DD</code>, or a date, <code>T</code> or one space, and a time. The time is <code>HH:MM</code>, <code>HH:MM:SS</code> or <code>HH:MM:SS</code> with one to nine digits after a <code>.</code>. After the time, the text may have an offset such as <code>+01:00</code> and then a zone name in brackets, such as <code>[Europe/Vienna]</code>. An offset needs the zone after it."
               },
               {
                 "name": "zone",
-                "descHtml": "The zone the date and the time are read in."
+                "descHtml": "The zone the date and the time are read in. It is needed only when <code>$text</code> has no zone in brackets. If both name a zone, they must be the same zone."
               }
             ],
-            "returnHtml": "The <code>DateTime</code> in <code>$zone</code>.",
+            "returnHtml": "The <code>DateTime</code> in the zone of the text, or in <code>$zone</code>. Without an offset, a time the zone skips moves forward past the gap, and a time that happens twice is the earlier one. The offset shows which of the two times is meant.",
             "errors": [
               {
                 "error": "ParseError",
-                "descHtml": "<code>$text</code> is not in this form, or it is not a real date or time, such as <code>2024-02-30</code>. A text with an offset or a <code>Z</code> also throws this error. Read such a text with <code>Instant::fromIso</code>, then call <code>-&gt;in($zone)</code>. It is also thrown for a time outside <code>-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z</code>."
+                "descHtml": "<code>$text</code> is not in this form, or it is not a real date or time, such as <code>2024-02-30</code>. It is also thrown when the zone does not have the offset at that time. It is thrown when <code>$text</code> has no zone and <code>$zone</code> is <code>null</code>, and when the two name different zones. A text with a <code>Z</code>, or an offset and no zone, also throws it. Read such a text with <code>Instant::fromIso</code>, then call <code>-&gt;in($zone)</code>. It is also thrown for a time outside <code>-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z</code>."
               }
             ]
           },
@@ -50813,6 +51232,57 @@
           "examples": "core/Time-DateTime/toInstant"
         },
         {
+          "id": "Time.DateTime.compareTo",
+          "name": "compareTo",
+          "static": false,
+          "receiver": "dateTime",
+          "generics": null,
+          "signature": "compareTo(Core\\Time\\DateTime $other): int",
+          "params": [
+            {
+              "kind": "param",
+              "name": "other",
+              "type": "Core\\Time\\DateTime",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "int",
+          "doc": {
+            "shortHtml": "Checks which of two date-times is earlier, as <code>Comparable</code> requires. It compares the moment, to the nanosecond. The zone does not count, so 10:00 in <code>Europe/Berlin</code> and 09:00 in <code>Europe/London</code> on the same day are equal. The operators <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>&lt;=&gt;</code> use this method too. <code>==</code> also compares the moment, so it is <code>true</code> for those two values.",
+            "params": [
+              {
+                "name": "other",
+                "descHtml": "The date-time to compare against."
+              }
+            ],
+            "returnHtml": "<code>-1</code> when this date-time is earlier than <code>$other</code>, <code>0</code> when both are the same moment, <code>1</code> when it is later."
+          },
+          "slug": "compareto",
+          "url": "/reference/core/time-datetime/compareto/",
+          "examples": "core/Time-DateTime/compareTo"
+        },
+        {
+          "id": "Time.DateTime.toIso",
+          "name": "toIso",
+          "static": false,
+          "receiver": "dateTime",
+          "generics": null,
+          "signature": "toIso(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the date-time as ISO text with its offset and its zone, such as <code>2026-01-05T08:30:00+01:00[Europe/Vienna]</code>. <code>DateTime::fromIso</code> reads this text back.",
+            "returnHtml": "A <code>string</code> with the local date and time, the offset from UTC and the zone name in brackets. It always has seconds. It has a fraction of a second only when the fraction is not zero."
+          },
+          "slug": "toiso",
+          "url": "/reference/core/time-datetime/toiso/",
+          "examples": "core/Time-DateTime/toIso"
+        },
+        {
           "id": "Time.DateTime.date",
           "name": "date",
           "static": false,
@@ -50919,6 +51389,78 @@
           "slug": "isleapyear",
           "url": "/reference/core/time-datetime/isleapyear/",
           "examples": "core/Time-DateTime/isLeapYear"
+        },
+        {
+          "id": "Time.DateTime.daysInMonth",
+          "name": "daysInMonth",
+          "static": false,
+          "receiver": "dateTime",
+          "generics": null,
+          "signature": "daysInMonth(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the number of days in the month of this value, in the value's own time zone.",
+            "returnHtml": "<code>28</code> to <code>31</code>. February has <code>29</code> days in a leap year."
+          },
+          "slug": "daysinmonth",
+          "url": "/reference/core/time-datetime/daysinmonth/",
+          "examples": "core/Time-DateTime/daysInMonth"
+        },
+        {
+          "id": "Time.DateTime.quarter",
+          "name": "quarter",
+          "static": false,
+          "receiver": "dateTime",
+          "generics": null,
+          "signature": "quarter(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the quarter of the year that contains this value, in the value's own time zone.",
+            "returnHtml": "<code>1</code> for January to March, <code>2</code> for April to June, <code>3</code> for July to September and <code>4</code> for October to December."
+          },
+          "slug": "quarter",
+          "url": "/reference/core/time-datetime/quarter/",
+          "examples": "core/Time-DateTime/quarter"
+        },
+        {
+          "id": "Time.DateTime.isoWeek",
+          "name": "isoWeek",
+          "static": false,
+          "receiver": "dateTime",
+          "generics": null,
+          "signature": "isoWeek(): uint",
+          "params": [],
+          "options": [],
+          "returnType": "uint",
+          "doc": {
+            "shortHtml": "Returns the ISO 8601 week number of this value, in the value's own time zone. A week starts on Monday. Week <code>1</code> contains the first Thursday of the year.",
+            "returnHtml": "<code>1</code> to <code>53</code>. The first days of January can be in week <code>52</code> or <code>53</code> of the year before."
+          },
+          "slug": "isoweek",
+          "url": "/reference/core/time-datetime/isoweek/",
+          "examples": "core/Time-DateTime/isoWeek"
+        },
+        {
+          "id": "Time.DateTime.isoWeekYear",
+          "name": "isoWeekYear",
+          "static": false,
+          "receiver": "dateTime",
+          "generics": null,
+          "signature": "isoWeekYear(): int",
+          "params": [],
+          "options": [],
+          "returnType": "int",
+          "doc": {
+            "shortHtml": "Returns the year that the ISO 8601 week of this value belongs to. Use it together with <code>isoWeek()</code>.",
+            "returnHtml": "The year of the week. It is different from <code>year()</code> for a few days around New Year."
+          },
+          "slug": "isoweekyear",
+          "url": "/reference/core/time-datetime/isoweekyear/",
+          "examples": "core/Time-DateTime/isoWeekYear"
         },
         {
           "id": "Time.DateTime.year",
@@ -51051,7 +51593,7 @@
       "url": "/reference/core/time-datetime/",
       "summaryBlocks": [
         {
-          "html": "<p>A date and a time of day in one time zone, such as the start of a meeting in Berlin. <code>Core\\Time\\DateTime::at</code> builds one from its parts, and <code>in</code> on an <code>Instant</code> gives one for a moment. <code>date</code> and <code>timeOfDay</code> return its two halves, and <code>format</code> turns it into text.</p>\n<p>A <code>DateTime</code> is a date and a time of day in one <code>Zone</code>. <code>DateTime::fromIso</code> reads a text such as <code>2024-03-01 09:30</code> in the zone you give it. A date alone, such as <code>2024-03-01</code>, is the start of that day. <code>DateTime::at($date, $time, $zone)</code> builds one from a <code>Date</code> and a <code>TimeOfDay</code>. <code>DateTime::parse</code> reads text in a pattern of your choice. <code>-&gt;in($zone)</code> gives the <code>DateTime</code> of an <code>Instant</code>.</p>\n<p>A zone that is fixed in the code is written as text, such as <code>'Europe/Berlin'</code>. It is checked when the program compiles. A zone name that arrives while the program runs needs <code>Core\\Time\\Zone::of</code>.</p>\n<p>A <code>DateTime</code> never changes: every method returns a new value. Its arithmetic follows the calendar. <code>plus(1, Core\\Unit::Month)</code> keeps the day inside the new month. <code>plus(1, Core\\Unit::Day)</code> across a daylight saving change is 23 or 25 hours. <code>difference</code> counts whole units in the zone of the value it is called on.</p>\n<p><code>year()</code>, <code>month()</code>, <code>day()</code>, <code>hour()</code>, <code>minute()</code>, <code>second()</code> and <code>nanoseconds()</code> return the fields as numbers. Each one reads the clock in the value's own zone. <code>year()</code> returns an <code>int</code>, and the others return a <code>uint</code>. These are the same names and types that <code>with</code> takes.</p>\n<p><code>format</code> takes a <strong>CLDR pattern</strong>. <code>DateTime::parse</code> reads the same patterns, and <code>Date::format</code> and <code>TimeOfDay::format</code> use them for their own fields. A pattern written in the code is checked when the program compiles, so a letter outside the table below is a compile error. A pattern computed at run time throws a <code>LogicError</code>. Month and weekday names are always in English.</p>\n<table><thead><tr><th>Letter</th><th>Field</th><th>Counts</th></tr></thead><tbody><tr><td><code>G</code></td><td>era</td><td><code>G</code>–<code>GGG</code> <code>AD</code> or <code>BC</code>, <code>GGGG</code> <code>Anno Domini</code>, <code>GGGGG</code> <code>A</code></td></tr><tr><td><code>y</code> / <code>U</code></td><td>year, such as <code>-0043</code> before year 1</td><td><code>yy</code> two digits; any other count zero-pads to it</td></tr><tr><td><code>u</code> / <code>r</code></td><td>year</td><td>zero-pads to the count; <code>parse</code> also reads a <code>-</code> with these</td></tr><tr><td><code>Y</code></td><td>the year the <code>w</code> week belongs to</td><td>as <code>y</code></td></tr><tr><td><code>Q</code> / <code>q</code></td><td>quarter</td><td><code>Q</code>/<code>QQ</code> numeric, <code>QQQ</code> <code>Q1</code>, <code>QQQQ</code> <code>1st quarter</code>, <code>QQQQQ</code> <code>1</code></td></tr><tr><td><code>M</code> / <code>L</code></td><td>month</td><td><code>M</code>/<code>MM</code> numeric, <code>MMM</code> <code>Mar</code>, <code>MMMM</code> <code>March</code>, <code>MMMMM</code> <code>M</code></td></tr><tr><td><code>w</code></td><td>week of the year</td><td>ISO 8601 weeks: a week starts on Monday</td></tr><tr><td><code>W</code></td><td>week of the month</td><td>the same rule; <code>0</code> for a short first week</td></tr><tr><td><code>d</code></td><td>day of month</td><td>numeric, zero-padded to the count</td></tr><tr><td><code>D</code></td><td>day of year</td><td>numeric</td></tr><tr><td><code>F</code></td><td>which of that weekday in the month</td><td><code>1</code> for the first Friday of the month</td></tr><tr><td><code>g</code></td><td>modified Julian day</td><td>numeric</td></tr><tr><td><code>E</code></td><td>weekday</td><td><code>E</code>–<code>EEE</code> <code>Tue</code>, <code>EEEE</code> <code>Tuesday</code>, <code>EEEEE</code> <code>T</code>, <code>EEEEEE</code> <code>Tu</code></td></tr><tr><td><code>e</code> / <code>c</code></td><td>weekday</td><td><code>e</code>/<code>ee</code>/<code>c</code> the number, Monday <code>1</code>; three or more letters as <code>E</code></td></tr><tr><td><code>a</code></td><td>AM/PM</td><td>any count</td></tr><tr><td><code>b</code></td><td>AM/PM, or <code>noon</code> and <code>midnight</code> at those times</td><td>1–4 the name, 5 short</td></tr><tr><td><code>B</code></td><td>part of the day, such as <code>in the morning</code></td><td>1–4 the name, 5 short</td></tr><tr><td><code>h</code> / <code>H</code> / <code>K</code> / <code>k</code></td><td>hour 1–12 / 0–23 / 0–11 / 1–24</td><td>numeric</td></tr><tr><td><code>m</code></td><td>minute</td><td>numeric</td></tr><tr><td><code>s</code></td><td>second</td><td>numeric</td></tr><tr><td><code>S</code></td><td>fractional second</td><td>one digit per count, truncated</td></tr><tr><td><code>A</code></td><td>milliseconds since the start of the day</td><td>numeric, zero-padded to the count</td></tr><tr><td><code>X</code></td><td>offset, <code>Z</code> at zero</td><td><code>X</code> <code>+01</code>, <code>XX</code> <code>+0100</code>, <code>XXX</code> <code>+01:00</code></td></tr><tr><td><code>x</code></td><td>offset, never <code>Z</code></td><td>the same three counts</td></tr><tr><td><code>Z</code></td><td>offset</td><td><code>Z</code>–<code>ZZZ</code> <code>+0100</code>, <code>ZZZZ</code> <code>GMT+01:00</code>, <code>ZZZZZ</code> as <code>XXX</code></td></tr><tr><td><code>O</code></td><td>offset after <code>GMT</code></td><td><code>O</code> <code>GMT+1</code>, <code>OOOO</code> <code>GMT+01:00</code></td></tr><tr><td><code>z</code></td><td>offset after <code>GMT</code></td><td><code>z</code>–<code>zzz</code> <code>GMT+1</code>, <code>zzzz</code> <code>GMT+01:00</code></td></tr><tr><td><code>v</code></td><td>offset after <code>GMT</code></td><td><code>v</code> <code>GMT+1</code>, <code>vvvv</code> <code>GMT+01:00</code></td></tr><tr><td><code>VV</code></td><td>the zone's IANA identifier</td><td><code>VV</code> only</td></tr></tbody></table>\n<p>Text between <code>'…'</code> is printed as it is, and <code>''</code> is one apostrophe. These letters do not compile: <code>C</code>, <code>f</code>, <code>i</code>, <code>I</code>, <code>j</code>, <code>J</code>, <code>l</code>, <code>n</code>, <code>N</code>, <code>o</code>, <code>p</code>, <code>P</code>, <code>R</code>, <code>t</code> and <code>T</code>.</p>"
+          "html": "<p>A date and a time of day in one time zone, such as the start of a meeting in Berlin. <code>Core\\Time\\DateTime::at</code> builds one from its parts, and <code>in</code> on an <code>Instant</code> gives one for a moment. <code>date</code> and <code>timeOfDay</code> return its two halves, and <code>format</code> turns it into text.</p>\n<p>A <code>DateTime</code> is a date and a time of day in one <code>Zone</code>. <code>DateTime::fromIso</code> reads a text such as <code>2024-03-01 09:30</code> in the zone you give it. A date alone, such as <code>2024-03-01</code>, is the start of that day. <code>DateTime::at($date, $time, $zone)</code> builds one from a <code>Date</code> and a <code>TimeOfDay</code>. <code>DateTime::parse</code> reads text in a pattern of your choice. <code>-&gt;in($zone)</code> gives the <code>DateTime</code> of an <code>Instant</code>.</p>\n<p>A zone that is fixed in the code is written as text, such as <code>'Europe/Berlin'</code>. It is checked when the program compiles. A zone name that arrives while the program runs needs <code>Core\\Time\\Zone::of</code>.</p>\n<p>A <code>DateTime</code> never changes: every method returns a new value. Its arithmetic follows the calendar. <code>plus(1, Core\\Unit::Month)</code> keeps the day inside the new month. <code>plus(1, Core\\Unit::Day)</code> across a daylight saving change is 23 or 25 hours. <code>difference</code> counts whole units in the zone of the value it is called on.</p>\n<p><code>year()</code>, <code>month()</code>, <code>day()</code>, <code>hour()</code>, <code>minute()</code>, <code>second()</code> and <code>nanoseconds()</code> return the fields as numbers. Each one reads the clock in the value's own zone. <code>year()</code> returns an <code>int</code>, and the others return a <code>uint</code>. These are the same names and types that <code>with</code> takes. <code>daysInMonth()</code> returns the number of days in the month, and <code>quarter()</code> returns <code>1</code> to <code>4</code>. <code>isoWeek()</code> returns the ISO 8601 week number, and <code>isoWeekYear()</code> returns the year that this week belongs to. These two can differ from <code>year()</code> for a few days around New Year.</p>\n<p><code>toIso()</code> writes the value as text with its offset and its zone, such as <code>2026-01-05T08:30:00+01:00[Europe/Vienna]</code>. <code>DateTime::fromIso</code> reads this text back with no second argument. <code>compareTo</code> checks which of two values is earlier, and <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> use it too. It compares the moment, so 10:00 in <code>Europe/Berlin</code> and 09:00 in <code>Europe/London</code> on one winter day are equal. <code>==</code> compares the moment in the same way.</p>\n<p><code>format</code> takes a <strong>CLDR pattern</strong>. <code>DateTime::parse</code> reads the same patterns, and <code>Date::format</code> and <code>TimeOfDay::format</code> use them for their own fields. A pattern written in the code is checked when the program compiles, so a letter outside the table below is a compile error. A pattern computed at run time throws a <code>LogicError</code>. Month and weekday names are always in English.</p>\n<table><thead><tr><th>Letter</th><th>Field</th><th>Counts</th></tr></thead><tbody><tr><td><code>G</code></td><td>era</td><td><code>G</code>–<code>GGG</code> <code>AD</code> or <code>BC</code>, <code>GGGG</code> <code>Anno Domini</code>, <code>GGGGG</code> <code>A</code></td></tr><tr><td><code>y</code> / <code>U</code></td><td>year, such as <code>-0043</code> before year 1</td><td><code>yy</code> two digits; any other count zero-pads to it</td></tr><tr><td><code>u</code> / <code>r</code></td><td>year</td><td>zero-pads to the count; <code>parse</code> also reads a <code>-</code> with these</td></tr><tr><td><code>Y</code></td><td>the year the <code>w</code> week belongs to</td><td>as <code>y</code></td></tr><tr><td><code>Q</code> / <code>q</code></td><td>quarter</td><td><code>Q</code>/<code>QQ</code> numeric, <code>QQQ</code> <code>Q1</code>, <code>QQQQ</code> <code>1st quarter</code>, <code>QQQQQ</code> <code>1</code></td></tr><tr><td><code>M</code> / <code>L</code></td><td>month</td><td><code>M</code>/<code>MM</code> numeric, <code>MMM</code> <code>Mar</code>, <code>MMMM</code> <code>March</code>, <code>MMMMM</code> <code>M</code></td></tr><tr><td><code>w</code></td><td>week of the year</td><td>ISO 8601 weeks: a week starts on Monday</td></tr><tr><td><code>W</code></td><td>week of the month</td><td>the same rule; <code>0</code> for a short first week</td></tr><tr><td><code>d</code></td><td>day of month</td><td>numeric, zero-padded to the count</td></tr><tr><td><code>D</code></td><td>day of year</td><td>numeric</td></tr><tr><td><code>F</code></td><td>which of that weekday in the month</td><td><code>1</code> for the first Friday of the month</td></tr><tr><td><code>g</code></td><td>modified Julian day</td><td>numeric</td></tr><tr><td><code>E</code></td><td>weekday</td><td><code>E</code>–<code>EEE</code> <code>Tue</code>, <code>EEEE</code> <code>Tuesday</code>, <code>EEEEE</code> <code>T</code>, <code>EEEEEE</code> <code>Tu</code></td></tr><tr><td><code>e</code> / <code>c</code></td><td>weekday</td><td><code>e</code>/<code>ee</code>/<code>c</code> the number, Monday <code>1</code>; three or more letters as <code>E</code></td></tr><tr><td><code>a</code></td><td>AM/PM</td><td>any count</td></tr><tr><td><code>b</code></td><td>AM/PM, or <code>noon</code> and <code>midnight</code> at those times</td><td>1–4 the name, 5 short</td></tr><tr><td><code>B</code></td><td>part of the day, such as <code>in the morning</code></td><td>1–4 the name, 5 short</td></tr><tr><td><code>h</code> / <code>H</code> / <code>K</code> / <code>k</code></td><td>hour 1–12 / 0–23 / 0–11 / 1–24</td><td>numeric</td></tr><tr><td><code>m</code></td><td>minute</td><td>numeric</td></tr><tr><td><code>s</code></td><td>second</td><td>numeric</td></tr><tr><td><code>S</code></td><td>fractional second</td><td>one digit per count, truncated</td></tr><tr><td><code>A</code></td><td>milliseconds since the start of the day</td><td>numeric, zero-padded to the count</td></tr><tr><td><code>X</code></td><td>offset, <code>Z</code> at zero</td><td><code>X</code> <code>+01</code>, <code>XX</code> <code>+0100</code>, <code>XXX</code> <code>+01:00</code></td></tr><tr><td><code>x</code></td><td>offset, never <code>Z</code></td><td>the same three counts</td></tr><tr><td><code>Z</code></td><td>offset</td><td><code>Z</code>–<code>ZZZ</code> <code>+0100</code>, <code>ZZZZ</code> <code>GMT+01:00</code>, <code>ZZZZZ</code> as <code>XXX</code></td></tr><tr><td><code>O</code></td><td>offset after <code>GMT</code></td><td><code>O</code> <code>GMT+1</code>, <code>OOOO</code> <code>GMT+01:00</code></td></tr><tr><td><code>z</code></td><td>offset after <code>GMT</code></td><td><code>z</code>–<code>zzz</code> <code>GMT+1</code>, <code>zzzz</code> <code>GMT+01:00</code></td></tr><tr><td><code>v</code></td><td>offset after <code>GMT</code></td><td><code>v</code> <code>GMT+1</code>, <code>vvvv</code> <code>GMT+01:00</code></td></tr><tr><td><code>VV</code></td><td>the zone's IANA identifier</td><td><code>VV</code> only</td></tr></tbody></table>\n<p>Text between <code>'…'</code> is printed as it is, and <code>''</code> is one apostrophe. These letters do not compile: <code>C</code>, <code>f</code>, <code>i</code>, <code>I</code>, <code>j</code>, <code>J</code>, <code>l</code>, <code>n</code>, <code>N</code>, <code>o</code>, <code>p</code>, <code>P</code>, <code>R</code>, <code>t</code> and <code>T</code>.</p>"
         },
         {
           "code": "<?nvs\nvar $d = Core\\Time\\DateTime::fromIso('2024-01-31 09:30', 'UTC');\necho $d->format('yyyy-MM-dd HH:mm:ss'), \"\\n\";\necho $d->format(\"EEEE, d MMMM yyyy 'at' h:mm a\"), \"\\n\";\n\necho $d->plus(1, Core\\Unit::Month)->format('yyyy-MM-dd'), \"\\n\";\necho $d->minus(1, Core\\Unit::Week)->format('yyyy-MM-dd'), \"\\n\";\necho $d->next(Core\\Time\\Weekday::Monday)->format('yyyy-MM-dd HH:mm'), \"\\n\";\necho $d->with({ month: 3, day: 1 })->format('yyyy-MM-dd'), \"\\n\";\necho $d->startOf(Core\\Unit::Day)->format('HH:mm'), ' ',\n    $d->endOf(Core\\Unit::Month)->format('dd HH:mm:ss.SSS'), \"\\n\";\n\necho $d->difference(Core\\Time\\DateTime::fromIso('2026-08-30', 'UTC'), Core\\Unit::Year), \"\\n\";\necho $d->weekday() == Core\\Time\\Weekday::Wednesday ? 'midweek' : 'other', \"\\n\";\necho $d->dayOfYear(), ' ', $d->isLeapYear() ? 'leap' : 'common', \"\\n\";\necho $d->toInstant()->toIso(), \"\\n\";\n\nvar $eve = Core\\Time\\DateTime::at(Core\\Time\\Date::at(2024, 3, 30), Core\\Time\\TimeOfDay::at(12, 0), 'Europe/Berlin');\necho $eve->plus(1, Core\\Unit::Day)->format('yyyy-MM-dd HH:mm XXX'), \"\\n\";\necho Core\\Time\\DateTime::parse('5 March 2024', 'd MMMM yyyy', 'UTC')->format('yyyy-MM-dd HH:mm'), \"\\n\";",
@@ -51424,6 +51966,45 @@
           "examples": "core/Time-Duration/parse"
         },
         {
+          "id": "Time.Duration.fromClock",
+          "name": "fromClock",
+          "static": true,
+          "receiver": null,
+          "generics": null,
+          "signature": "fromClock(string $text): Core\\Time\\Duration",
+          "params": [
+            {
+              "kind": "param",
+              "name": "text",
+              "type": "string",
+              "default": null,
+              "optional": false,
+              "variadic": false
+            }
+          ],
+          "options": [],
+          "returnType": "Core\\Time\\Duration",
+          "doc": {
+            "shortHtml": "Reads a duration written as hours and minutes, such as <code>1:30</code>, or as hours, minutes and seconds, such as <code>1:30:15</code>.",
+            "params": [
+              {
+                "name": "text",
+                "descHtml": "The text starts with the hours, which may have any number of digits. Next come <code>:</code> and the minutes as two digits, such as <code>05</code>. The seconds are optional, also as <code>:</code> and two digits. A <code>-</code> at the start makes the duration negative."
+              }
+            ],
+            "returnHtml": "A new <code>Duration</code>. <code>Duration::fromClock('25:30')</code> is 25 hours and 30 minutes.",
+            "errors": [
+              {
+                "error": "ParseError",
+                "descHtml": "<code>$text</code> is not in this form, or the minutes or the seconds are larger than <code>59</code>. <code>ParseError</code> is also thrown above <code>2562047:47:16</code>, the longest <code>Duration</code>."
+              }
+            ]
+          },
+          "slug": "fromclock",
+          "url": "/reference/core/time-duration/fromclock/",
+          "examples": "core/Time-Duration/fromClock"
+        },
+        {
           "id": "Time.Duration.toNanoseconds",
           "name": "toNanoseconds",
           "static": false,
@@ -51656,7 +52237,7 @@
           "options": [],
           "returnType": "int",
           "doc": {
-            "shortHtml": "Orders two durations by length and sign, as <code>Comparable</code> requires, so a shorter duration compares below a longer one and a negative one below every positive one. Use it to compare two durations by value. <code>==</code> on two objects tests identity, so <code>90m == 1h30m</code> is <code>false</code>. To test that two durations are equal, write <code>$a-&gt;compareTo($b) == 0</code>.",
+            "shortHtml": "Checks which of two durations is shorter, as <code>Comparable</code> requires. A negative duration is shorter than every positive one. The operators <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>&lt;=&gt;</code> use this method too. <code>==</code> compares two durations by length, so <code>90m == 1h30m</code> is <code>true</code>.",
             "params": [
               {
                 "name": "other",
@@ -51686,13 +52267,42 @@
           "slug": "tostring",
           "url": "/reference/core/time-duration/tostring/",
           "examples": "core/Time-Duration/toString"
+        },
+        {
+          "id": "Time.Duration.toClock",
+          "name": "toClock",
+          "static": false,
+          "receiver": "duration",
+          "generics": null,
+          "signature": "toClock({ seconds?: bool }): string",
+          "params": [],
+          "options": [
+            {
+              "name": "seconds",
+              "type": "bool"
+            }
+          ],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Writes the duration as hours and minutes, such as <code>1:30</code>. The hours do not stop at 24, so 25 hours and 30 minutes is <code>25:30</code>.",
+            "params": [
+              {
+                "name": "options",
+                "descHtml": "Set <code>seconds</code> to <code>true</code> to add the seconds, such as <code>25:30:00</code>. By default, the text ends at the minutes."
+              }
+            ],
+            "returnHtml": "The text. Anything smaller than the last part written is cut off, not rounded. So 1 hour, 30 minutes and 59 seconds is <code>1:30</code>. A negative duration starts with <code>-</code>, such as <code>-1:15</code>. <code>Duration::fromClock</code> reads the text back."
+          },
+          "slug": "toclock",
+          "url": "/reference/core/time-duration/toclock/",
+          "examples": "core/Time-Duration/toClock"
         }
       ],
       "slug": "time-duration",
       "url": "/reference/core/time-duration/",
       "summaryBlocks": [
         {
-          "html": "<p>A length of time, such as 30 seconds or an hour and a half. You write a fixed one directly in the code, like <code>30s</code> or <code>1h30m</code>, and build a computed one with <code>seconds</code>, <code>minutes</code> or another constructor. It is an exact count of nanoseconds and can be negative. <code>plus</code>, <code>minus</code> and <code>compareTo</code> work on two of them.</p>\n<p>A <code>Duration</code> is a signed count of nanoseconds. You write one directly in the code as a number and a unit — <code>30s</code>, <code>250ms</code>, <code>1h30m</code>, <code>7d</code> — with the units <code>ns</code>, <code>us</code>, <code>ms</code>, <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> and <code>w</code>, and <code>Duration::parse</code> reads the same grammar from text at run time. It is exact: <code>days(1)</code> and <code>1d</code> are twenty-four hours, never a calendar day, which is what <code>Core\\Time\\DateTime::plus($n, Core\\Unit::Day)</code> is. <code>echo</code> renders a duration back in that same syntax, so its text round-trips through <code>parse</code>. An argument to <code>parse</code> written directly in the code is read when the program compiles, so a bad one is a compile error; text computed at run time throws a <code>ParseError</code>. Two durations are ordered with <code>compareTo</code>; the <code>&lt;</code> operators do not compile on a <code>Duration</code>.</p>"
+          "html": "<p>A length of time, such as 30 seconds or an hour and a half. You write a fixed one directly in the code, like <code>30s</code> or <code>1h30m</code>, and build a computed one with <code>seconds</code>, <code>minutes</code> or another constructor. It is an exact count of nanoseconds and can be negative. <code>plus</code>, <code>minus</code> and <code>compareTo</code> work on two of them.</p>\n<p>A <code>Duration</code> is a signed count of nanoseconds. You write one directly in the code as a number and a unit — <code>30s</code>, <code>250ms</code>, <code>1h30m</code>, <code>7d</code> — with the units <code>ns</code>, <code>us</code>, <code>ms</code>, <code>s</code>, <code>m</code>, <code>h</code>, <code>d</code> and <code>w</code>, and <code>Duration::parse</code> reads the same grammar from text at run time. It is exact: <code>days(1)</code> and <code>1d</code> are twenty-four hours, never a calendar day, which is what <code>Core\\Time\\DateTime::plus($n, Core\\Unit::Day)</code> is. <code>echo</code> renders a duration back in that same syntax, so its text round-trips through <code>parse</code>. An argument to <code>parse</code> written directly in the code is read when the program compiles, so a bad one is a compile error; text computed at run time throws a <code>ParseError</code>. <code>toClock</code> writes a duration as hours and minutes, such as <code>25:30</code>, and <code>Duration::fromClock</code> reads that text back. Two durations are ordered with <code>compareTo</code>; the <code>&lt;</code> operators do not compile on a <code>Duration</code>.</p>"
         },
         {
           "code": "<?nvs\nvar $d = 1h30m;\necho $d, \"\\n\";\necho $d->toSeconds(), \"\\n\";\n\necho $d->plus(15m), \"\\n\";\necho $d->minus(2h), \"\\n\";\necho $d->multipliedBy(2), \"\\n\";\necho $d->negated(), \"\\n\";\n\necho Core\\Time\\Duration::parse('250ms')->toMilliseconds(), \"\\n\";\necho Core\\Time\\Duration::minutes(90)->compareTo($d), \"\\n\";\necho Core\\Time\\Duration::seconds(90061), \"\\n\";\necho 1500ms->toString(), \"\\n\";\n\nstring $flag = '--since=30 seconds';\ntry {\n    Core\\Time\\Duration::parse(Core\\Str::slice($flag, 8));\n} catch (ParseError $bad) {\n    echo \"not a duration\\n\";\n}",
@@ -51803,7 +52413,7 @@
           "options": [],
           "returnType": "Core\\Time\\Instant",
           "doc": {
-            "shortHtml": "Reads an ISO 8601 or RFC 3339 timestamp that includes its own offset, such as <code>2024-03-01T12:00:00Z</code> or <code>2024-03-01T13:00:00+01:00</code>. For a date and time with no offset, use <code>DateTime::fromIso</code> with a zone. A <code>$text</code> written directly in the code is checked when the program compiles.",
+            "shortHtml": "Reads an ISO 8601 or RFC 3339 timestamp that includes its own offset, such as <code>2024-03-01T12:00:00Z</code> or <code>2024-03-01T13:00:00+01:00</code>. For a date and time in a zone, use <code>DateTime::fromIso</code>. A <code>$text</code> written directly in the code is checked when the program compiles.",
             "params": [
               {
                 "name": "text",
@@ -52046,7 +52656,7 @@
           "options": [],
           "returnType": "int",
           "doc": {
-            "shortHtml": "Checks which of two instants comes first, as <code>Comparable</code> requires. The operators <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>&lt;=&gt;</code> use this method too. <code>==</code> on two instants checks whether they are the same object, so test for the same moment with <code>$a-&gt;compareTo($b) == 0</code>.",
+            "shortHtml": "Checks which of two instants comes first, as <code>Comparable</code> requires. The operators <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>&lt;=&gt;</code> use this method too. <code>==</code> is <code>true</code> for two instants at the same moment.",
             "params": [
               {
                 "name": "other",
@@ -52468,7 +53078,7 @@
           "options": [],
           "returnType": "int",
           "doc": {
-            "shortHtml": "Checks which of two times comes first in the day, as <code>Comparable</code> requires. The operators <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>&lt;=&gt;</code> use this method too. <code>==</code> on two times checks whether they are the same object, so test for the same time with <code>$a-&gt;compareTo($b) == 0</code>.",
+            "shortHtml": "Checks which of two times comes first in the day, as <code>Comparable</code> requires. The operators <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>&lt;=&gt;</code> use this method too. <code>==</code> is <code>true</code> for two times with the same hour, minute, second and nanosecond.",
             "params": [
               {
                 "name": "other",
@@ -52480,6 +53090,24 @@
           "slug": "compareto",
           "url": "/reference/core/time-timeofday/compareto/",
           "examples": "core/Time-TimeOfDay/compareTo"
+        },
+        {
+          "id": "Time.TimeOfDay.toIso",
+          "name": "toIso",
+          "static": false,
+          "receiver": "timeOfDay",
+          "generics": null,
+          "signature": "toIso(): string",
+          "params": [],
+          "options": [],
+          "returnType": "string",
+          "doc": {
+            "shortHtml": "Returns the time as ISO text, such as <code>08:30:00</code>. <code>TimeOfDay::fromIso</code> reads this text back.",
+            "returnHtml": "A <code>string</code> with the hour, the minute and the second. It has a fraction of a second only when the fraction is not zero."
+          },
+          "slug": "toiso",
+          "url": "/reference/core/time-timeofday/toiso/",
+          "examples": "core/Time-TimeOfDay/toIso"
         },
         {
           "id": "Time.TimeOfDay.hour",
@@ -52558,7 +53186,7 @@
       "url": "/reference/core/time-timeofday/",
       "summaryBlocks": [
         {
-          "html": "<p>A time on a clock, such as 10:30, with no date and no time zone. <code>TimeOfDay::at</code> makes one, and <code>DateTime::timeOfDay</code> returns the time of a <code>DateTime</code>. <code>plus</code> and <code>minus</code> move it and wrap around at midnight. <code>with</code> changes single fields, and <code>format</code> returns it as text.</p>\n<p>A <code>TimeOfDay</code> is a clock reading: hour, minute, second and nanosecond. It has no date and no zone. <code>TimeOfDay::fromIso</code> reads a time written as <code>HH:MM</code>, <code>HH:MM:SS</code> or <code>HH:MM:SS.f</code>, such as <code>09:30</code>. <code>TimeOfDay::at</code> builds one from numbers, and <code>-&gt;timeOfDay()</code> gives the time of a <code>DateTime</code>. A time written as a string literal in <code>TimeOfDay::fromIso</code> is checked when the program compiles.</p>\n<p><code>plus</code> and <code>minus</code> step by <code>Core\\Unit::Hour</code> or a smaller unit, and wrap within the day: <code>23:30</code> plus one hour is <code>00:30</code>. <code>Core\\Unit::Day</code> and larger units throw an error, because there is no date to change. <code>format</code> takes the time letters of the patterns <code>DateTime::format</code> uses. A date letter or a zone letter does not compile. <code>DateTime::withTime</code> puts a time onto a date. <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>compareTo</code> order two times.</p>\n<p><code>hour()</code>, <code>minute()</code>, <code>second()</code> and <code>nanoseconds()</code> return the four fields as numbers. Each returns a <code>uint</code>, with the same name as the field <code>with</code> takes.</p>"
+          "html": "<p>A time on a clock, such as 10:30, with no date and no time zone. <code>TimeOfDay::at</code> makes one, and <code>DateTime::timeOfDay</code> returns the time of a <code>DateTime</code>. <code>plus</code> and <code>minus</code> move it and wrap around at midnight. <code>with</code> changes single fields, and <code>format</code> returns it as text.</p>\n<p>A <code>TimeOfDay</code> is a clock reading: hour, minute, second and nanosecond. It has no date and no zone. <code>TimeOfDay::fromIso</code> reads a time written as <code>HH:MM</code>, <code>HH:MM:SS</code> or <code>HH:MM:SS.f</code>, such as <code>09:30</code>. <code>TimeOfDay::at</code> builds one from numbers, and <code>-&gt;timeOfDay()</code> gives the time of a <code>DateTime</code>. A time written as a string literal in <code>TimeOfDay::fromIso</code> is checked when the program compiles.</p>\n<p><code>plus</code> and <code>minus</code> step by <code>Core\\Unit::Hour</code> or a smaller unit, and wrap within the day: <code>23:30</code> plus one hour is <code>00:30</code>. <code>Core\\Unit::Day</code> and larger units throw an error, because there is no date to change. <code>format</code> takes the time letters of the patterns <code>DateTime::format</code> uses. A date letter or a zone letter does not compile. <code>DateTime::withTime</code> puts a time onto a date. <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> and <code>compareTo</code> order two times, and <code>==</code> is <code>true</code> for two equal times. <code>toIso()</code> writes the time as text, such as <code>08:30:00</code>, and <code>TimeOfDay::fromIso</code> reads it back.</p>\n<p><code>hour()</code>, <code>minute()</code>, <code>second()</code> and <code>nanoseconds()</code> return the four fields as numbers. Each returns a <code>uint</code>, with the same name as the field <code>with</code> takes.</p>"
         },
         {
           "code": "<?nvs\nvar $t = Core\\Time\\TimeOfDay::fromIso('23:30');\necho $t->format('HH:mm:ss'), \"\\n\";\necho $t->format('h:mm a'), \"\\n\";\n\necho $t->plus(1, Core\\Unit::Hour)->format('HH:mm'), \"\\n\";\necho $t->minus(45, Core\\Unit::Minute)->format('HH:mm'), \"\\n\";\necho $t->with({ second: 45 })->format('HH:mm:ss'), \"\\n\";\necho $t->compareTo(Core\\Time\\TimeOfDay::at(9, 0)), \"\\n\";\n\nvar $d = Core\\Time\\DateTime::fromIso('2024-03-01 09:00', 'UTC');\necho $d->withTime($t)->format('yyyy-MM-dd HH:mm'), \"\\n\";\necho $d->timeOfDay()->format('HH:mm'), \"\\n\";",
@@ -52657,7 +53285,7 @@
             "params": [
               {
                 "name": "offset",
-                "descHtml": "The distance from UTC as a whole number of seconds. It is negative for a zone west of UTC."
+                "descHtml": "The distance from UTC as a <code>Duration</code>, such as <code>5h30m</code>. It is negative for a zone west of UTC."
               }
             ],
             "returnHtml": "A <code>Zone</code> whose name is the offset, written <code>+HH:MM</code>, or <code>+HH:MM:SS</code> when it has seconds.",

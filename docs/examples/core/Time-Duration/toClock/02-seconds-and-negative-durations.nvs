@@ -1,0 +1,16 @@
+<?nvs
+// Shows the `seconds` option and a negative duration.
+
+// With `seconds: true`, the text ends with the seconds. This prints 25:30:00.
+echo (25h30m)->toClock({ seconds: true }), "\n";
+
+// This prints 0:01:59.
+echo (119s)->toClock({ seconds: true }), "\n";
+
+// A negative duration starts with `-`. This prints -1:15.
+Core\Time\Duration $behind = (30m)->minus(1h45m);
+echo $behind->toClock(), "\n";
+
+// `Duration::fromClock` reads the text back. This prints "same".
+string $text = $behind->toClock();
+echo Core\Time\Duration::fromClock($text)->compareTo($behind) == 0 ? 'same' : 'different', "\n";

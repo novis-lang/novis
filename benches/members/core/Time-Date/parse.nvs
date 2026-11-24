@@ -1,0 +1,21 @@
+<?nvs
+// Reads a date written as `dd.MM.yyyy`, as a program does for each date in a form or a CSV file.
+// bench: iterations 256
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): string
+    {
+        array<string> $texts = ['05.01.2026', '29.02.2024', '31.12.1999', '17.08.2031'];
+        var $date = Core\Time\Date::at(2000, 1, 1);
+        uint $i = 0;
+        while ($i < $rounds) {
+            $date = Core\Time\Date::parse($texts[$i % 4], 'dd.MM.yyyy');
+            $i = $i + 1;
+        }
+        return $date->toIso();
+    }
+}
+
+echo Bench::run(256), "\n";

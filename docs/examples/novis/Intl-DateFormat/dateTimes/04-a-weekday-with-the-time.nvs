@@ -1,0 +1,19 @@
+<?nvs
+// Shows how the `fields` option chooses the parts of the date that appear before the time.
+use Novis\Intl\DateFormat;
+
+var $meeting = Core\Time\DateTime::fromIso('2026-03-02 09:30', 'Europe/Vienna');
+
+// `Weekday` shows only the day of the week. This prints Montag, 9:30.
+// German writes the time in a different way when only the weekday is shown.
+echo DateFormat::dateTimes([$meeting], 'de', { fields: DateFormat::Fields::Weekday, length: DateFormat::Length::Long })[0], "\n";
+
+// `MonthDayWeekday` also shows the day and the month. This prints Montag, 2. März um 09:30.
+echo DateFormat::dateTimes([$meeting], 'de', { fields: DateFormat::Fields::MonthDayWeekday, length: DateFormat::Length::Long })[0], "\n";
+
+// `YearMonth` has no day, so it cannot be shown with a time. This throws a `LogicError`.
+try {
+    DateFormat::dateTimes([$meeting], 'de', { fields: DateFormat::Fields::YearMonth });
+} catch (LogicError $error) {
+    echo $error->message, "\n";
+}

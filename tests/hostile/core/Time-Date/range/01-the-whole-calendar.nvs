@@ -1,0 +1,25 @@
+<?nvs
+// Attack: a request asks for lists of dates at the ends of the calendar, and then for every day of the calendar.
+// The short lists should be correct. The last list is too large, so the program should stop at its memory limit.
+// hostile: ends-early 3 FATAL
+
+use Core\Time\Date;
+use Core\Unit;
+use Core\Arr;
+
+// 1. Lists that start or end on 1 January -9999 or 31 December 9999, the ends of the calendar.
+// This prints 1, 7, 19999 and 79996.
+var $first = Date::at(-9999, 1, 1);
+var $last = Date::at(9999, 12, 31);
+echo Arr::count(Date::range($last, $last)), "\n";
+echo Arr::count(Date::range($last->minus(6, Unit::Day), $last)), "\n";
+echo Arr::count(Date::range($first, $last, { step: Unit::Year })), "\n";
+echo Arr::count(Date::range($last, $first, { step: Unit::Quarter })), "\n";
+
+// 2. A month step from 31 January of the first year to the last day of the calendar.
+// Each month of the 19999 years is in the list once, so this prints 239988.
+echo Arr::count(Date::range($first->plus(30, Unit::Day), $last, { step: Unit::Month })), "\n";
+
+// 3. Every day from the first to the last day of the calendar. That is more than seven million dates.
+echo "step 3\n";
+echo Arr::count(Date::range($first, $last)), "\n";

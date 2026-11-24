@@ -2249,6 +2249,19 @@
     },
     {
       "area": "types",
+      "slug": "novis-intl-dateformat-fields",
+      "url": "/reference/types/novis-intl-dateformat-fields/",
+      "title": "Novis\\Intl\\DateFormat::Fields",
+      "group": "Enums",
+      "intro": {
+        "id": "Novis\\Intl\\DateFormat::Fields",
+        "title": "Novis\\Intl\\DateFormat::Fields",
+        "examples": "types/Novis-Intl-DateFormat-Fields"
+      },
+      "keys": []
+    },
+    {
+      "area": "types",
       "slug": "novis-intl-dateformat-length",
       "url": "/reference/types/novis-intl-dateformat-length/",
       "title": "Novis\\Intl\\DateFormat::Length",

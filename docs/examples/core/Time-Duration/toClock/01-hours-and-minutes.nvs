@@ -1,0 +1,14 @@
+<?nvs
+// Shows how a duration is written as hours and minutes.
+
+// 90 minutes is one hour and 30 minutes. This prints 1:30.
+echo (90m)->toClock(), "\n";
+
+// The minutes always have two digits. This prints 0:05.
+echo (5m)->toClock(), "\n";
+
+// The hours do not stop at 24. This prints 25:30.
+echo (1d)->plus(1h30m)->toClock(), "\n";
+
+// The seconds are cut off, not rounded. This prints 0:01.
+echo (119s)->toClock(), "\n";

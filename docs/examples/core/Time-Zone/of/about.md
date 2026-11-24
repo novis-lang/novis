@@ -12,3 +12,6 @@ Use `Zone::of` for text that arrives while the program runs, such as a name a us
 lower case do not matter. The zone has the name as the database writes it, so `europe/berlin` gives
 the zone `Europe/Berlin`. A name that is not in the database throws a `RuntimeError`. An offset
 such as `+02:00` is not a name, so `Zone::of` throws for it too. Use `Zone::fixed` for an offset.
+
+**Good to know:** `==` compares two zones by their name. `Zone::of('europe/berlin') ==
+Zone::of('Europe/Berlin')` is `true`.

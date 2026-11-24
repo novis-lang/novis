@@ -1,0 +1,6 @@
+'1:60' throws a ParseError
+'1:5' throws a ParseError
+'1:30:75' throws a ParseError
+'1h30m' throws a ParseError
+'1:30' is 1h30m
+'' throws a ParseError

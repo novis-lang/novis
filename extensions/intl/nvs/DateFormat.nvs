@@ -5,8 +5,11 @@ namespace Novis\Intl;
 /// list and a locale tag, such as `"de"` or `"en-GB"`, and formats the whole list in one call.
 final class DateFormat
 {
-    /// `DateFormat::dateTimes` returns each date and time as the clock shows it in its own time
-    /// zone. Set `zone` to show the zone, and `fields` to choose the parts of the date.
+    /// `DateFormat::dateTimes` returns each date and time as a string in the language of `$locale`,
+    /// such as `"de"` for German. The time is the time in the value's own time zone.
+    /// `length` and `fields` work as in `DateFormat::dates`. Set `seconds` to `true` to show the
+    /// seconds. `zone` is a `ZoneStyle` and chooses how the time zone is shown, such as "GMT+1".
+    /// By default, no seconds and no time zone are shown.
     public static function dateTimes(array<Core\Time\DateTime> $values, string $locale, ?{ length?: Length, fields?: Fields, seconds?: bool, zone?: ZoneStyle } $options = null): array<string>
     {
         array<{ year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string }> $fields = [];
@@ -26,8 +29,10 @@ final class DateFormat
         return Icu::formatDateTimes($fields, $locale, $options ?? {});
     }
 
-    /// `DateFormat::dates` returns each calendar date. Set `length` to choose how long it is,
-    /// and `fields` to choose its parts. The default is `Length::Medium` with `YearMonthDay`.
+    /// `DateFormat::dates` returns each calendar date as a string in the language of `$locale`,
+    /// such as `"de"` for German. `length` is a `Length` and chooses how long each string is.
+    /// `fields` is a `Fields` and chooses which parts of the date are shown.
+    /// The defaults are `Length::Medium` and `Fields::YearMonthDay`, such as "Mar 1, 2026".
     public static function dates(array<Core\Time\Date> $values, string $locale, ?{ length?: Length, fields?: Fields } $options = null): array<string>
     {
         return Icu::formatDates($values, $locale, $options ?? {});

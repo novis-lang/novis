@@ -4,7 +4,8 @@ keywords: date, calendar date, day-month-year, zone-free, parse a date, ISO 8601
 ---
 
 A `Date` is a year, a month and a day. It has no time of day and no zone. `Date::fromIso` reads a
-date written as `YYYY-MM-DD`, such as `2024-03-01`. `Date::at` builds one from three numbers, and
+date written as `YYYY-MM-DD`, such as `2024-03-01`. `Date::parse` reads a date that is written
+another way, with a pattern such as `dd.MM.yyyy`. `Date::at` builds one from three numbers, and
 `->date()` gives the date of a `DateTime`. A date that does not exist throws an error when it is
 built. A date written as a string literal in `Date::fromIso` is checked when the program compiles.
 
@@ -25,7 +26,8 @@ date. A week runs from Monday to Sunday. `difference` counts the whole days, wee
 quarters or years from one date to another. `next` and `previous` return the nearest date after or
 before a date that is on a given `Core\Time\Weekday`. `daysInMonth()` returns the number of days
 in the month, and `quarter()` returns `1` to `4`. `isoWeek()` returns the ISO 8601 week number,
-and `isoWeekYear()` returns the year that this week belongs to.
+and `isoWeekYear()` returns the year that this week belongs to. `Date::range` returns the list of
+dates from one date to another, with one date for each day, week, month, quarter or year.
 
 ```nvs
 <?nvs

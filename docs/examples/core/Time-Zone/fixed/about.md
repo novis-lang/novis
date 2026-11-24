@@ -8,3 +8,6 @@ year, and a fixed zone does not.
 Use a fixed zone when you only know the offset and not the name of the place. A timestamp such as
 `2024-03-05T10:00:00+05:30` is one example. The offset must be a whole number of seconds, and at
 most 25 hours, 59 minutes and 59 seconds away from UTC. Any other offset throws a `RuntimeError`.
+
+**Good to know:** `==` compares two zones by their name. Two fixed zones with the same offset have
+the same name, so they are equal.

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how the `fields` option chooses which parts of a date are written.
+use Novis\Intl\DateFormat;
+
+array<Core\Time\Date> $dates = [Core\Time\Date::at(2026, 12, 24)];
+
+// `YearMonth` shows the month and the year. This prints December 2026.
+echo DateFormat::dates($dates, 'en-US', { fields: DateFormat::Fields::YearMonth, length: DateFormat::Length::Long })[0], "\n";
+
+// `MonthDayWeekday` adds the day of the week. This prints Thursday, December 24.
+echo DateFormat::dates($dates, 'en-US', { fields: DateFormat::Fields::MonthDayWeekday, length: DateFormat::Length::Long })[0], "\n";
+
+// The locale decides the order of the parts. This prints Donnerstag, 24. Dezember.
+echo DateFormat::dates($dates, 'de', { fields: DateFormat::Fields::MonthDayWeekday, length: DateFormat::Length::Long })[0], "\n";

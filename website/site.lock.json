@@ -1899,10 +1899,10 @@
     "Core\\ObjectMap::count": "aa7f3b98e5ca32e6"
   },
   "docs/examples/core/ObjectMap/get/about.md": {
-    "Core\\ObjectMap::get": "621d3aa8234c9943"
+    "Core\\ObjectMap::get": "f2ee11b94496e56d"
   },
   "docs/examples/core/ObjectMap/has/about.md": {
-    "Core\\ObjectMap::has": "67ae65b73f211520"
+    "Core\\ObjectMap::has": "24f269cb6bae9135"
   },
   "docs/examples/core/ObjectMap/isEmpty/about.md": {
     "Core\\ObjectMap::isEmpty": "ad255d6c37ae0b66"
@@ -1911,16 +1911,16 @@
     "Core\\ObjectMap::keys": "786a1684527bf2d4"
   },
   "docs/examples/core/ObjectMap/remove/about.md": {
-    "Core\\ObjectMap::remove": "4edea62e1d8e5342"
+    "Core\\ObjectMap::remove": "e1b385ee2676ecae"
   },
   "docs/examples/core/ObjectMap/set/about.md": {
-    "Core\\ObjectMap::set": "29700465363cca44"
+    "Core\\ObjectMap::set": "f2a1d24a0ad1e3db"
   },
   "docs/examples/core/ObjectMap/values/about.md": {
     "Core\\ObjectMap::values": "27a586f0f3a54e8d"
   },
   "docs/examples/core/ObjectSet/add/about.md": {
-    "Core\\ObjectSet::add": "501f128301163509"
+    "Core\\ObjectSet::add": "39cff4fe10d5524a"
   },
   "docs/examples/core/ObjectSet/clear/about.md": {
     "Core\\ObjectSet::clear": "1054d843eade7c40"
@@ -1932,7 +1932,7 @@
     "Core\\ObjectSet::difference": "f65ae0596fb6c0a9"
   },
   "docs/examples/core/ObjectSet/has/about.md": {
-    "Core\\ObjectSet::has": "78111d92c2f07e3b"
+    "Core\\ObjectSet::has": "0578c19e1a761843"
   },
   "docs/examples/core/ObjectSet/intersection/about.md": {
     "Core\\ObjectSet::intersection": "757801e0b62479c1"
@@ -1941,7 +1941,7 @@
     "Core\\ObjectSet::isEmpty": "14071c3ca93c084e"
   },
   "docs/examples/core/ObjectSet/remove/about.md": {
-    "Core\\ObjectSet::remove": "58c3c215f91876f8"
+    "Core\\ObjectSet::remove": "5bd6b02154058735"
   },
   "docs/examples/core/ObjectSet/union/about.md": {
     "Core\\ObjectSet::union": "df8953f81da341a3"
@@ -3045,7 +3045,7 @@
     "Core\\Time::sleep": "ebca5824acd7c40e"
   },
   "docs/examples/core/Time-Date/at/about.md": {
-    "Core\\Time\\Date::at": "c65cf40a6f76e0b1"
+    "Core\\Time\\Date::at": "7c5c2c4f1ee14d44"
   },
   "docs/examples/core/Time-Date/compareTo/about.md": {
     "Core\\Time\\Date::compareTo": "a40cd00c927f20d4"
@@ -3056,14 +3056,29 @@
   "docs/examples/core/Time-Date/dayOfYear/about.md": {
     "Core\\Time\\Date::dayOfYear": "eea14068dad76a5c"
   },
+  "docs/examples/core/Time-Date/daysInMonth/about.md": {
+    "Core\\Time\\Date::daysInMonth": "760545117c9230ea"
+  },
+  "docs/examples/core/Time-Date/difference/about.md": {
+    "Core\\Time\\Date::difference": "35bf1b1cf9bf2909"
+  },
+  "docs/examples/core/Time-Date/endOf/about.md": {
+    "Core\\Time\\Date::endOf": "653d75f7afe69393"
+  },
   "docs/examples/core/Time-Date/format/about.md": {
     "Core\\Time\\Date::format": "e42059e19f1bf0ea"
   },
   "docs/examples/core/Time-Date/fromIso/about.md": {
-    "Core\\Time\\Date::fromIso": "f3d2482c8273d21a"
+    "Core\\Time\\Date::fromIso": "019476f54f1dedf1"
   },
   "docs/examples/core/Time-Date/isLeapYear/about.md": {
     "Core\\Time\\Date::isLeapYear": "b014cd78b61c3788"
+  },
+  "docs/examples/core/Time-Date/isoWeek/about.md": {
+    "Core\\Time\\Date::isoWeek": "ad0ad28f6598a263"
+  },
+  "docs/examples/core/Time-Date/isoWeekYear/about.md": {
+    "Core\\Time\\Date::isoWeekYear": "f0378fa859380f60"
   },
   "docs/examples/core/Time-Date/minus/about.md": {
     "Core\\Time\\Date::minus": "d98a56d735417862"
@@ -3071,8 +3086,29 @@
   "docs/examples/core/Time-Date/month/about.md": {
     "Core\\Time\\Date::month": "a12c809c924bfc89"
   },
+  "docs/examples/core/Time-Date/next/about.md": {
+    "Core\\Time\\Date::next": "e6946a6b9da7de7f"
+  },
+  "docs/examples/core/Time-Date/parse/about.md": {
+    "Core\\Time\\Date::parse": "75785aad3fe54cbd"
+  },
   "docs/examples/core/Time-Date/plus/about.md": {
     "Core\\Time\\Date::plus": "bcaf93341139e894"
+  },
+  "docs/examples/core/Time-Date/previous/about.md": {
+    "Core\\Time\\Date::previous": "519ce276feb2c4e6"
+  },
+  "docs/examples/core/Time-Date/quarter/about.md": {
+    "Core\\Time\\Date::quarter": "4de669572c7e0209"
+  },
+  "docs/examples/core/Time-Date/range/about.md": {
+    "Core\\Time\\Date::range": "75412b03e7bb9252"
+  },
+  "docs/examples/core/Time-Date/startOf/about.md": {
+    "Core\\Time\\Date::startOf": "a4bcfe05db43a7db"
+  },
+  "docs/examples/core/Time-Date/toIso/about.md": {
+    "Core\\Time\\Date::toIso": "e525f81fa45e1e17"
   },
   "docs/examples/core/Time-Date/weekday/about.md": {
     "Core\\Time\\Date::weekday": "92d5df8185b222c4"
@@ -3086,6 +3122,9 @@
   "docs/examples/core/Time-DateTime/at/about.md": {
     "Core\\Time\\DateTime::at": "d2ab7d20f746d4ba"
   },
+  "docs/examples/core/Time-DateTime/compareTo/about.md": {
+    "Core\\Time\\DateTime::compareTo": "070e8a2f37925115"
+  },
   "docs/examples/core/Time-DateTime/date/about.md": {
     "Core\\Time\\DateTime::date": "f10f2e08740c6122"
   },
@@ -3094,6 +3133,9 @@
   },
   "docs/examples/core/Time-DateTime/dayOfYear/about.md": {
     "Core\\Time\\DateTime::dayOfYear": "0928445d906e59cf"
+  },
+  "docs/examples/core/Time-DateTime/daysInMonth/about.md": {
+    "Core\\Time\\DateTime::daysInMonth": "b2275237aa3c9e41"
   },
   "docs/examples/core/Time-DateTime/difference/about.md": {
     "Core\\Time\\DateTime::difference": "b373d17e5a4749fd"
@@ -3105,13 +3147,19 @@
     "Core\\Time\\DateTime::format": "3bef74e018a5e5d1"
   },
   "docs/examples/core/Time-DateTime/fromIso/about.md": {
-    "Core\\Time\\DateTime::fromIso": "79f4a8b03ac76487"
+    "Core\\Time\\DateTime::fromIso": "4f99a61be2221fcc"
   },
   "docs/examples/core/Time-DateTime/hour/about.md": {
     "Core\\Time\\DateTime::hour": "04471d0d4e6be19a"
   },
   "docs/examples/core/Time-DateTime/isLeapYear/about.md": {
     "Core\\Time\\DateTime::isLeapYear": "6105dd97c684b749"
+  },
+  "docs/examples/core/Time-DateTime/isoWeek/about.md": {
+    "Core\\Time\\DateTime::isoWeek": "40b37bb1ab13fc71"
+  },
+  "docs/examples/core/Time-DateTime/isoWeekYear/about.md": {
+    "Core\\Time\\DateTime::isoWeekYear": "467887ed25ef7ddb"
   },
   "docs/examples/core/Time-DateTime/minus/about.md": {
     "Core\\Time\\DateTime::minus": "452833fce3f31932"
@@ -3137,6 +3185,9 @@
   "docs/examples/core/Time-DateTime/previous/about.md": {
     "Core\\Time\\DateTime::previous": "f3aa7f12836caaca"
   },
+  "docs/examples/core/Time-DateTime/quarter/about.md": {
+    "Core\\Time\\DateTime::quarter": "c73a4cece24dc148"
+  },
   "docs/examples/core/Time-DateTime/second/about.md": {
     "Core\\Time\\DateTime::second": "1759eca643461146"
   },
@@ -3148,6 +3199,9 @@
   },
   "docs/examples/core/Time-DateTime/toInstant/about.md": {
     "Core\\Time\\DateTime::toInstant": "ea09234391efa7a0"
+  },
+  "docs/examples/core/Time-DateTime/toIso/about.md": {
+    "Core\\Time\\DateTime::toIso": "0c1b9f6d3ed8fcdf"
   },
   "docs/examples/core/Time-DateTime/weekday/about.md": {
     "Core\\Time\\DateTime::weekday": "da825c960e4bf1cd"
@@ -3165,10 +3219,13 @@
     "Core\\Time\\DateTime::zone": "6a9550c2e47e9bb7"
   },
   "docs/examples/core/Time-Duration/compareTo/about.md": {
-    "Core\\Time\\Duration::compareTo": "ed2237e3e7cf8b4a"
+    "Core\\Time\\Duration::compareTo": "0a2030e4f04c9a5f"
   },
   "docs/examples/core/Time-Duration/days/about.md": {
     "Core\\Time\\Duration::days": "4ad42408e36d8d92"
+  },
+  "docs/examples/core/Time-Duration/fromClock/about.md": {
+    "Core\\Time\\Duration::fromClock": "5cda253ccb1829e5"
   },
   "docs/examples/core/Time-Duration/hours/about.md": {
     "Core\\Time\\Duration::hours": "e17cc56e9c7e08f5"
@@ -3203,6 +3260,9 @@
   "docs/examples/core/Time-Duration/seconds/about.md": {
     "Core\\Time\\Duration::seconds": "b091a4c0afa12bee"
   },
+  "docs/examples/core/Time-Duration/toClock/about.md": {
+    "Core\\Time\\Duration::toClock": "8a8dd1ca07703a4a"
+  },
   "docs/examples/core/Time-Duration/toMicroseconds/about.md": {
     "Core\\Time\\Duration::toMicroseconds": "4b0ca3f783fe1095"
   },
@@ -3222,13 +3282,13 @@
     "Core\\Time\\Duration::weeks": "2fa1559a4b686ced"
   },
   "docs/examples/core/Time-Instant/compareTo/about.md": {
-    "Core\\Time\\Instant::compareTo": "e9c163ad16d1efa6"
+    "Core\\Time\\Instant::compareTo": "c91a5db29d24bd70"
   },
   "docs/examples/core/Time-Instant/fromEpoch/about.md": {
     "Core\\Time\\Instant::fromEpoch": "73fb8caddb7567f5"
   },
   "docs/examples/core/Time-Instant/fromIso/about.md": {
-    "Core\\Time\\Instant::fromIso": "b3d32d876f46730e"
+    "Core\\Time\\Instant::fromIso": "49fc6dac57a843f3"
   },
   "docs/examples/core/Time-Instant/in/about.md": {
     "Core\\Time\\Instant::in": "1a86a71d5c73dc0f"
@@ -3255,16 +3315,16 @@
     "Core\\Time\\Instant::toIso": "48b63e1216716fc9"
   },
   "docs/examples/core/Time-TimeOfDay/at/about.md": {
-    "Core\\Time\\TimeOfDay::at": "7bd35d264f1bd2fd"
+    "Core\\Time\\TimeOfDay::at": "9ab9a928c5b5aef8"
   },
   "docs/examples/core/Time-TimeOfDay/compareTo/about.md": {
-    "Core\\Time\\TimeOfDay::compareTo": "fdbe35ee6648b370"
+    "Core\\Time\\TimeOfDay::compareTo": "7b9aab676ff67706"
   },
   "docs/examples/core/Time-TimeOfDay/format/about.md": {
     "Core\\Time\\TimeOfDay::format": "e41c5f3bfd31a515"
   },
   "docs/examples/core/Time-TimeOfDay/fromIso/about.md": {
-    "Core\\Time\\TimeOfDay::fromIso": "17fd0b0ce650fda5"
+    "Core\\Time\\TimeOfDay::fromIso": "b3d6700fb2564b73"
   },
   "docs/examples/core/Time-TimeOfDay/hour/about.md": {
     "Core\\Time\\TimeOfDay::hour": "003c08995b9bc20b"
@@ -3284,14 +3344,17 @@
   "docs/examples/core/Time-TimeOfDay/second/about.md": {
     "Core\\Time\\TimeOfDay::second": "7e117f5064dceace"
   },
+  "docs/examples/core/Time-TimeOfDay/toIso/about.md": {
+    "Core\\Time\\TimeOfDay::toIso": "b296e857cf1a2f1b"
+  },
   "docs/examples/core/Time-TimeOfDay/with/about.md": {
     "Core\\Time\\TimeOfDay::with": "838dcbc8af331fef"
   },
   "docs/examples/core/Time-Zone/fixed/about.md": {
-    "Core\\Time\\Zone::fixed": "ee4e0f48414a4a55"
+    "Core\\Time\\Zone::fixed": "3b558f5617825d8e"
   },
   "docs/examples/core/Time-Zone/of/about.md": {
-    "Core\\Time\\Zone::of": "8b65c85fa146a862"
+    "Core\\Time\\Zone::of": "1672579566a9de16"
   },
   "docs/examples/core/Time-Zone/offsetAt/about.md": {
     "Core\\Time\\Zone::offsetAt": "464b9a14a43a415a"
@@ -3549,7 +3612,7 @@
     "lang:attributes/the-names-the-compiler-acts-on": "d182ff9202674c63"
   },
   "docs/examples/lang/classes/comparable/about.md": {
-    "lang:classes/comparable": "bf2135913518a46b"
+    "lang:classes/comparable": "65c8d0b6763660b0"
   },
   "docs/examples/lang/classes/constants-and-class/about.md": {
     "lang:classes/constants-and-class": "82e9ef3fd79cdb66"
@@ -3723,7 +3786,7 @@
     "lang:expressions/calls": "698860092528ee81"
   },
   "docs/examples/lang/expressions/comparison-and-equality/about.md": {
-    "lang:expressions/comparison-and-equality": "c2ff66fcb062cefc"
+    "lang:expressions/comparison-and-equality": "501fb7232354f49c"
   },
   "docs/examples/lang/expressions/is-new-clone-throw-print-exit-isset-empty/about.md": {
     "lang:expressions/is-new-clone-throw-print-exit-isset-empty": "51e4b01c82c30fdd"
@@ -3921,7 +3984,7 @@
     "lang:types/type-aliases": "8c33ab775b71c39a"
   },
   "docs/examples/lang/types/values-written-in-the-code/about.md": {
-    "lang:types/values-written-in-the-code": "7ec2011a049283f0"
+    "lang:types/values-written-in-the-code": "bfac11b8c231eaec"
   },
   "docs/examples/lang/types/void-never-self-static/about.md": {
     "lang:types/void-never-self-static": "37285335b2c5d1e6"
@@ -4065,13 +4128,13 @@
     "Novis\\Intl\\Collator::sortKeys": "a196ccd167a9d4ca"
   },
   "docs/examples/novis/Intl-DateFormat/dates/about.md": {
-    "Novis\\Intl\\DateFormat::dates": "6bf74b6ea835a0c5"
+    "Novis\\Intl\\DateFormat::dates": "25a735089440d4ef"
   },
   "docs/examples/novis/Intl-DateFormat/dateTimes/about.md": {
-    "Novis\\Intl\\DateFormat::dateTimes": "7e87fd4cf1ba7c6b"
+    "Novis\\Intl\\DateFormat::dateTimes": "f0219ca90bae2965"
   },
   "docs/examples/novis/Intl-DateFormat/times/about.md": {
-    "Novis\\Intl\\DateFormat::times": "aa74091c2c3d41cf"
+    "Novis\\Intl\\DateFormat::times": "04973208136302cc"
   },
   "docs/examples/novis/Intl-ListFormat/join/about.md": {
     "Novis\\Intl\\ListFormat::join": "153b31bf06002fbb"
@@ -4826,8 +4889,11 @@
   "docs/examples/types/Novis-Intl-Collator-Strength/about.md": {
     "Novis\\Intl\\Collator::Strength": "c6a623d209b2e5d1"
   },
+  "docs/examples/types/Novis-Intl-DateFormat-Fields/about.md": {
+    "Novis\\Intl\\DateFormat::Fields": "321c383fa8a54ac0"
+  },
   "docs/examples/types/Novis-Intl-DateFormat-Length/about.md": {
-    "Novis\\Intl\\DateFormat::Length": "9507a80f89aec4cf"
+    "Novis\\Intl\\DateFormat::Length": "5a190783937770d5"
   },
   "docs/examples/types/Novis-Intl-DateFormat-ZoneStyle/about.md": {
     "Novis\\Intl\\DateFormat::ZoneStyle": "920500465f4382ac"
@@ -4956,7 +5022,7 @@
     "TimeoutError": "188c57265d3ec5a4"
   },
   "docs/examples/types/Unit/about.md": {
-    "Core\\Unit": "1cccc7b7a596d87d"
+    "Core\\Unit": "56180a1c73f010b7"
   },
   "docs/examples/types/Xml-Node-Kind/about.md": {
     "Core\\Xml\\Node::Kind": "787325a225bf3321"
@@ -6783,13 +6849,13 @@
     "Core\\ObjectMap::clear": "cf34746257e7490c"
   },
   "help:Core\\ObjectMap::count": {
-    "Core\\ObjectMap::count": "19deb8f3d54e96ba"
+    "Core\\ObjectMap::count": "ec85b84fbebf1dd6"
   },
   "help:Core\\ObjectMap::get": {
-    "Core\\ObjectMap::get": "d565ea9585bbe1de"
+    "Core\\ObjectMap::get": "a4bf034f530651ec"
   },
   "help:Core\\ObjectMap::has": {
-    "Core\\ObjectMap::has": "db66c99a6007e2c0"
+    "Core\\ObjectMap::has": "6cc97cebf386241e"
   },
   "help:Core\\ObjectMap::isEmpty": {
     "Core\\ObjectMap::isEmpty": "2a4e375a84ab2943"
@@ -6798,16 +6864,16 @@
     "Core\\ObjectMap::keys": "530fda988179318d"
   },
   "help:Core\\ObjectMap::remove": {
-    "Core\\ObjectMap::remove": "bdc57660483ad8df"
+    "Core\\ObjectMap::remove": "9e4d713bab3b4c44"
   },
   "help:Core\\ObjectMap::set": {
-    "Core\\ObjectMap::set": "00344162f8dda895"
+    "Core\\ObjectMap::set": "5b8d4889953b9b76"
   },
   "help:Core\\ObjectMap::values": {
     "Core\\ObjectMap::values": "2c4810623c6d0567"
   },
   "help:Core\\ObjectSet::add": {
-    "Core\\ObjectSet::add": "05e36868d5bbd2c8"
+    "Core\\ObjectSet::add": "6ba94b83b46b7ebf"
   },
   "help:Core\\ObjectSet::clear": {
     "Core\\ObjectSet::clear": "4b5b978d42ee1b37"
@@ -6816,22 +6882,22 @@
     "Core\\ObjectSet::count": "bed51aa5e06b20c4"
   },
   "help:Core\\ObjectSet::difference": {
-    "Core\\ObjectSet::difference": "b47699ae05caa223"
+    "Core\\ObjectSet::difference": "7c7e115f8ad921c4"
   },
   "help:Core\\ObjectSet::has": {
-    "Core\\ObjectSet::has": "40b070e810fb4864"
+    "Core\\ObjectSet::has": "9bea61ecce6727fc"
   },
   "help:Core\\ObjectSet::intersection": {
-    "Core\\ObjectSet::intersection": "b47661ed2f6f0b62"
+    "Core\\ObjectSet::intersection": "d15cd0bfa41c5cb9"
   },
   "help:Core\\ObjectSet::isEmpty": {
     "Core\\ObjectSet::isEmpty": "59a71853e768ec56"
   },
   "help:Core\\ObjectSet::remove": {
-    "Core\\ObjectSet::remove": "bac53222178af3b8"
+    "Core\\ObjectSet::remove": "d2412f8bbdf793ad"
   },
   "help:Core\\ObjectSet::union": {
-    "Core\\ObjectSet::union": "381ed5c96ef2d247"
+    "Core\\ObjectSet::union": "83c3f8654bf0a33f"
   },
   "help:Core\\Os::cpuCount": {
     "Core\\Os::cpuCount": "d2bf0f7612953149"
@@ -7971,10 +8037,10 @@
     "Core\\Time::sleep": "e656aa9d056800b6"
   },
   "help:Core\\Time\\Date::at": {
-    "Core\\Time\\Date::at": "db71c32540a8ad6f"
+    "Core\\Time\\Date::at": "ac463eb6705b4f52"
   },
   "help:Core\\Time\\Date::compareTo": {
-    "Core\\Time\\Date::compareTo": "c8c626c978581fa1"
+    "Core\\Time\\Date::compareTo": "7dd1f5bbd417f939"
   },
   "help:Core\\Time\\Date::day": {
     "Core\\Time\\Date::day": "7951706761c7aa07"
@@ -7982,14 +8048,29 @@
   "help:Core\\Time\\Date::dayOfYear": {
     "Core\\Time\\Date::dayOfYear": "1793022de0c4c499"
   },
+  "help:Core\\Time\\Date::daysInMonth": {
+    "Core\\Time\\Date::daysInMonth": "b03ca12a79df7940"
+  },
+  "help:Core\\Time\\Date::difference": {
+    "Core\\Time\\Date::difference": "e0bbd43a71a19c6e"
+  },
+  "help:Core\\Time\\Date::endOf": {
+    "Core\\Time\\Date::endOf": "ce51833eb4aed16a"
+  },
   "help:Core\\Time\\Date::format": {
     "Core\\Time\\Date::format": "52ef60ec06e2314c"
   },
   "help:Core\\Time\\Date::fromIso": {
-    "Core\\Time\\Date::fromIso": "6dd5c6b65af19837"
+    "Core\\Time\\Date::fromIso": "541f14c79131571f"
   },
   "help:Core\\Time\\Date::isLeapYear": {
     "Core\\Time\\Date::isLeapYear": "32ef485615bbfc98"
+  },
+  "help:Core\\Time\\Date::isoWeek": {
+    "Core\\Time\\Date::isoWeek": "75fc409e53c9a162"
+  },
+  "help:Core\\Time\\Date::isoWeekYear": {
+    "Core\\Time\\Date::isoWeekYear": "ee5e892334a2941a"
   },
   "help:Core\\Time\\Date::minus": {
     "Core\\Time\\Date::minus": "ab1d0013cef45390"
@@ -7997,8 +8078,29 @@
   "help:Core\\Time\\Date::month": {
     "Core\\Time\\Date::month": "b61adb960f6cb902"
   },
+  "help:Core\\Time\\Date::next": {
+    "Core\\Time\\Date::next": "baae5555dd5d8d45"
+  },
+  "help:Core\\Time\\Date::parse": {
+    "Core\\Time\\Date::parse": "95f0e3ee473f0950"
+  },
   "help:Core\\Time\\Date::plus": {
     "Core\\Time\\Date::plus": "97d58d710fe417a4"
+  },
+  "help:Core\\Time\\Date::previous": {
+    "Core\\Time\\Date::previous": "86afefc7a0a844ff"
+  },
+  "help:Core\\Time\\Date::quarter": {
+    "Core\\Time\\Date::quarter": "8d422ba506d6f5eb"
+  },
+  "help:Core\\Time\\Date::range": {
+    "Core\\Time\\Date::range": "7e61606533c568eb"
+  },
+  "help:Core\\Time\\Date::startOf": {
+    "Core\\Time\\Date::startOf": "f7153875ba721719"
+  },
+  "help:Core\\Time\\Date::toIso": {
+    "Core\\Time\\Date::toIso": "e1c0b8c0ea90a986"
   },
   "help:Core\\Time\\Date::weekday": {
     "Core\\Time\\Date::weekday": "adf2e46405ab69d0"
@@ -8012,6 +8114,9 @@
   "help:Core\\Time\\DateTime::at": {
     "Core\\Time\\DateTime::at": "8a4c0cf37b0f8b91"
   },
+  "help:Core\\Time\\DateTime::compareTo": {
+    "Core\\Time\\DateTime::compareTo": "4befe437ced93f02"
+  },
   "help:Core\\Time\\DateTime::date": {
     "Core\\Time\\DateTime::date": "2dd101cc320d35f4"
   },
@@ -8020,6 +8125,9 @@
   },
   "help:Core\\Time\\DateTime::dayOfYear": {
     "Core\\Time\\DateTime::dayOfYear": "907527b8d3922de0"
+  },
+  "help:Core\\Time\\DateTime::daysInMonth": {
+    "Core\\Time\\DateTime::daysInMonth": "8e040326d8b638d5"
   },
   "help:Core\\Time\\DateTime::difference": {
     "Core\\Time\\DateTime::difference": "52dbe4575294a4f2"
@@ -8031,13 +8139,19 @@
     "Core\\Time\\DateTime::format": "f183f9b054624e5b"
   },
   "help:Core\\Time\\DateTime::fromIso": {
-    "Core\\Time\\DateTime::fromIso": "a00d20a1514586cf"
+    "Core\\Time\\DateTime::fromIso": "e589e9845c8e96a0"
   },
   "help:Core\\Time\\DateTime::hour": {
     "Core\\Time\\DateTime::hour": "345c40be3cf0aeec"
   },
   "help:Core\\Time\\DateTime::isLeapYear": {
     "Core\\Time\\DateTime::isLeapYear": "088e6275a85ce138"
+  },
+  "help:Core\\Time\\DateTime::isoWeek": {
+    "Core\\Time\\DateTime::isoWeek": "6efec2da88a2863a"
+  },
+  "help:Core\\Time\\DateTime::isoWeekYear": {
+    "Core\\Time\\DateTime::isoWeekYear": "71d0c5e6d273ebc1"
   },
   "help:Core\\Time\\DateTime::minus": {
     "Core\\Time\\DateTime::minus": "3f0da5de0024380c"
@@ -8063,6 +8177,9 @@
   "help:Core\\Time\\DateTime::previous": {
     "Core\\Time\\DateTime::previous": "f120fbe08d47d4ab"
   },
+  "help:Core\\Time\\DateTime::quarter": {
+    "Core\\Time\\DateTime::quarter": "4f0d221269e5195f"
+  },
   "help:Core\\Time\\DateTime::second": {
     "Core\\Time\\DateTime::second": "5487dd94e9f5e50e"
   },
@@ -8074,6 +8191,9 @@
   },
   "help:Core\\Time\\DateTime::toInstant": {
     "Core\\Time\\DateTime::toInstant": "d5a155e839769de0"
+  },
+  "help:Core\\Time\\DateTime::toIso": {
+    "Core\\Time\\DateTime::toIso": "a6ebe75e49cc3a1e"
   },
   "help:Core\\Time\\DateTime::weekday": {
     "Core\\Time\\DateTime::weekday": "4a33be91fcfe7c05"
@@ -8091,10 +8211,13 @@
     "Core\\Time\\DateTime::zone": "ad1f1ac1ec2ec840"
   },
   "help:Core\\Time\\Duration::compareTo": {
-    "Core\\Time\\Duration::compareTo": "be0fe32411c8aaed"
+    "Core\\Time\\Duration::compareTo": "a380e3d59cf00f69"
   },
   "help:Core\\Time\\Duration::days": {
     "Core\\Time\\Duration::days": "f74bf1948c45cd2d"
+  },
+  "help:Core\\Time\\Duration::fromClock": {
+    "Core\\Time\\Duration::fromClock": "532ae1d1cd5ac982"
   },
   "help:Core\\Time\\Duration::hours": {
     "Core\\Time\\Duration::hours": "1fb6828019a0968a"
@@ -8129,6 +8252,9 @@
   "help:Core\\Time\\Duration::seconds": {
     "Core\\Time\\Duration::seconds": "a448570421a1d450"
   },
+  "help:Core\\Time\\Duration::toClock": {
+    "Core\\Time\\Duration::toClock": "2be2a61fa7ed56a6"
+  },
   "help:Core\\Time\\Duration::toMicroseconds": {
     "Core\\Time\\Duration::toMicroseconds": "c5c2bf9fa537cd70"
   },
@@ -8148,13 +8274,13 @@
     "Core\\Time\\Duration::weeks": "9cde53a8c8dcbfc1"
   },
   "help:Core\\Time\\Instant::compareTo": {
-    "Core\\Time\\Instant::compareTo": "e44b2d1713db130a"
+    "Core\\Time\\Instant::compareTo": "ab8c5e4854de4395"
   },
   "help:Core\\Time\\Instant::fromEpoch": {
     "Core\\Time\\Instant::fromEpoch": "3af1b22ba30255ad"
   },
   "help:Core\\Time\\Instant::fromIso": {
-    "Core\\Time\\Instant::fromIso": "6cf7d90f98b50361"
+    "Core\\Time\\Instant::fromIso": "227dab5c90e59297"
   },
   "help:Core\\Time\\Instant::in": {
     "Core\\Time\\Instant::in": "46a6b6e9075aa458"
@@ -8181,16 +8307,16 @@
     "Core\\Time\\Instant::toIso": "9e59dd984d4dc139"
   },
   "help:Core\\Time\\TimeOfDay::at": {
-    "Core\\Time\\TimeOfDay::at": "63decee99bbdfc5b"
+    "Core\\Time\\TimeOfDay::at": "3f890ddefd37ab18"
   },
   "help:Core\\Time\\TimeOfDay::compareTo": {
-    "Core\\Time\\TimeOfDay::compareTo": "3f6d3eddbe3fc20f"
+    "Core\\Time\\TimeOfDay::compareTo": "e35b88133ab3e72f"
   },
   "help:Core\\Time\\TimeOfDay::format": {
     "Core\\Time\\TimeOfDay::format": "f1ebc1a82b853de2"
   },
   "help:Core\\Time\\TimeOfDay::fromIso": {
-    "Core\\Time\\TimeOfDay::fromIso": "538046bb2f27ba1b"
+    "Core\\Time\\TimeOfDay::fromIso": "ae58dd962bd67f11"
   },
   "help:Core\\Time\\TimeOfDay::hour": {
     "Core\\Time\\TimeOfDay::hour": "8f56863d8364b838"
@@ -8210,6 +8336,9 @@
   "help:Core\\Time\\TimeOfDay::second": {
     "Core\\Time\\TimeOfDay::second": "7f629d99e4e84bad"
   },
+  "help:Core\\Time\\TimeOfDay::toIso": {
+    "Core\\Time\\TimeOfDay::toIso": "a69f0a276b644ee1"
+  },
   "help:Core\\Time\\TimeOfDay::with": {
     "Core\\Time\\TimeOfDay::with": "9d2c0afac3adeb21"
   },
@@ -8217,10 +8346,10 @@
     "Core\\Time\\Weekday": "6ac79ea53df0feab"
   },
   "help:Core\\Time\\Zone::fixed": {
-    "Core\\Time\\Zone::fixed": "795bf9d2e1aeea66"
+    "Core\\Time\\Zone::fixed": "47f8066328614286"
   },
   "help:Core\\Time\\Zone::of": {
-    "Core\\Time\\Zone::of": "d906c350d6320496"
+    "Core\\Time\\Zone::of": "bf976b537b617843"
   },
   "help:Core\\Time\\Zone::offsetAt": {
     "Core\\Time\\Zone::offsetAt": "ffbb6325b7350364"
@@ -8244,7 +8373,7 @@
     "Core\\Totp::code": "6f76760b1802f7f4"
   },
   "help:Core\\Unit": {
-    "Core\\Unit": "bdf656e3c38e5d71"
+    "Core\\Unit": "0cd86fa0560e1619"
   },
   "help:Core\\Uri::buildQuery": {
     "Core\\Uri::buildQuery": "8b4d43a845430d12"
@@ -8844,16 +8973,19 @@
     "Novis\\Intl\\Collator::Strength": "90a355bf68d1e789"
   },
   "help:Novis\\Intl\\DateFormat::dates": {
-    "Novis\\Intl\\DateFormat::dates": "632cfd34ae4c981b"
+    "Novis\\Intl\\DateFormat::dates": "acbff12d14f4fafe"
   },
   "help:Novis\\Intl\\DateFormat::dateTimes": {
-    "Novis\\Intl\\DateFormat::dateTimes": "09f927866ea96fd1"
+    "Novis\\Intl\\DateFormat::dateTimes": "357f5acc995f2db4"
+  },
+  "help:Novis\\Intl\\DateFormat::Fields": {
+    "Novis\\Intl\\DateFormat::Fields": "36c90f56fc7fbebb"
   },
   "help:Novis\\Intl\\DateFormat::Length": {
     "Novis\\Intl\\DateFormat::Length": "c83fa1cca39171c1"
   },
   "help:Novis\\Intl\\DateFormat::times": {
-    "Novis\\Intl\\DateFormat::times": "a5cc1db15ed6b1c4"
+    "Novis\\Intl\\DateFormat::times": "834242d6c1fd8eb0"
   },
   "help:Novis\\Intl\\DateFormat::ZoneStyle": {
     "Novis\\Intl\\DateFormat::ZoneStyle": "6ee2f738d980b8ed"
@@ -9597,7 +9729,7 @@
   },
   "syntax/classes/standard-interfaces.mdx": {
     "Comparable": "523b12d8f6179bfb",
-    "lang:classes/comparable": "566491695cbe2ab4",
+    "lang:classes/comparable": "930aac4adee213e9",
     "lang:classes/parses": "57519de72d2364a1",
     "lang:classes/stringable": "33fdc04b0d92eee6",
     "Parses": "82f5bbcdc026fb73",
@@ -9718,7 +9850,7 @@
     "lang:expressions/assignment": "33f3aaae2c729096"
   },
   "syntax/operators/comparison.mdx": {
-    "lang:expressions/comparison-and-equality": "6481e2295596f398",
+    "lang:expressions/comparison-and-equality": "ad8fb37e950bc353",
     "lang:expressions/logical-operators-and-truth": "bf369eceeafcd944"
   },
   "syntax/operators/null-coalescing.mdx": {
@@ -9817,7 +9949,7 @@
     "Core\\Script\\ExitReport::Reason": "a3ba547dcb0c3621",
     "Core\\Str::NormalForm": "5fa90e7daf202774",
     "Core\\Time\\Weekday": "c84fb624df1e8d7f",
-    "Core\\Unit": "0db465e7ec947f57",
+    "Core\\Unit": "4043c4a7c11aee39",
     "Core\\Xml\\Node::Kind": "c6438bce56d85dd1",
     "lang:enums/a-case-is-its-integer": "9bf45dc29ff63bab",
     "lang:enums/a-union-of-cases-is-a-narrower-type": "9c37687a05c2f300",
@@ -9842,8 +9974,8 @@
     "Novis\\Image\\QrCode::Level": "ee1857df36425732",
     "Novis\\Intl\\Collator::CaseFirst": "875bb62beea906ff",
     "Novis\\Intl\\Collator::Strength": "f1c4080deaca800b",
-    "Novis\\Intl\\DateFormat::Fields": "10737023eb4a5c49",
-    "Novis\\Intl\\DateFormat::Length": "a285dc664bd55dd6",
+    "Novis\\Intl\\DateFormat::Fields": "6c81a89c42835ee0",
+    "Novis\\Intl\\DateFormat::Length": "c219eb9ed5269471",
     "Novis\\Intl\\DateFormat::ZoneStyle": "fd6815e70c223b59",
     "Novis\\Intl\\ListFormat::Type": "619e845bbdcd86b3",
     "Novis\\Intl\\Locale::Service": "ae8eb0d8a1d112b9",

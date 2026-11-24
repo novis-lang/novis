@@ -1,0 +1,14 @@
+<?nvs
+// Shows which texts `fromClock` throws a `ParseError` for.
+
+// The minutes and the seconds must be two digits from `00` to `59`.
+// Only `1:30` is read, and the other texts throw. `fromClock` does not read `1h30m`, the syntax you use in code.
+array<string> $texts = ['1:60', '1:5', '1:30:75', '1h30m', '1:30', ''];
+foreach ($texts as string $text) {
+    try {
+        Core\Time\Duration $read = Core\Time\Duration::fromClock($text);
+        echo "'", $text, "' is ", $read, "\n";
+    } catch (ParseError $e) {
+        echo "'", $text, "' throws a ParseError\n";
+    }
+}

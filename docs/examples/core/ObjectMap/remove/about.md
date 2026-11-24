@@ -4,7 +4,8 @@ key, `get` returns `null`, and `count` is one lower. This replaces `unset($stora
 
 A key is found with `==`. For an object of your own class, that is only the same object. Another
 object with equal property values is a different key, so `remove` does not delete it. A `Core\Time`
-value such as a `Date` is compared by its value, so an equal `Date` deletes the entry. If the key is not in the map, `remove` does nothing and does not throw an error.
+value such as a `Date` is compared by its value, so an equal `Date` deletes the entry. If the key
+is not in the map, `remove` does nothing and does not throw an error.
 
 The map stops keeping the key and the value alive. If nothing else uses them, they are freed.
 

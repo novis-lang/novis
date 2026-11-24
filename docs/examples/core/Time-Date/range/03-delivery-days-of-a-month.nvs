@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to list the delivery days of a month for a shop that delivers on Tuesdays and Fridays.
+
+use Core\Time\Date;
+use Core\Time\Weekday;
+use Core\Unit;
+
+var $first = Date::at(2026, 6, 1);
+
+// `endOf(Unit::Month)` returns the last day of the month, so the list has every day of June.
+foreach (Date::range($first, $first->endOf(Unit::Month)) as Date $day) {
+    if ($day->weekday() == Weekday::Tuesday || $day->weekday() == Weekday::Friday) {
+        echo 'Delivery on ', $day->format('EEEE d MMMM'), "\n";
+    }
+}

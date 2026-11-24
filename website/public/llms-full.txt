@@ -82,8 +82,8 @@ Conventions the whole file uses:
 | [`Core\Time\TimeOfDay`](#core-core-time-timeofday) | a wall-clock reading with no date and no zone, wrapping within the day |
 | [`Core\Time\Duration`](#core-core-time-duration) | an exact, signed span of nanoseconds — a duration written like `1h30m` is a value of this class |
 | [`Core\Time\Zone`](#core-core-time-zone) | a time zone — an IANA region, a fixed offset, or `UTC` — named explicitly at every conversion |
-| [`Core\ObjectMap<K, V>`](#core-core-objectmap) | a map keyed by object identity — a typed side table that keeps a value for each object |
-| [`Core\ObjectSet<T>`](#core-core-objectset) | a typed set of objects held by identity |
+| [`Core\ObjectMap<K, V>`](#core-core-objectmap) | a map keyed by objects, found with == — a typed side table that keeps a value for each object |
+| [`Core\ObjectSet<T>`](#core-core-objectset) | a typed set of objects, each found with == |
 | [`Core\Heap<T>`](#core-core-heap) | a priority queue that answers its smallest element first, and a max-heap when its comparator is reversed |
 | [`Core\Random`](#core-core-random) | cryptographically secure random integers, floats, bytes, tokens and array draws |
 | [`Core\Random\Seeded`](#core-core-random-seeded) |  |
@@ -38216,7 +38216,7 @@ Builds the instant at a Unix timestamp. The `nanoseconds` option is added after 
 Core\Time\Instant::fromIso(string $text): Core\Time\Instant
 ```
 
-Reads an ISO 8601 or RFC 3339 timestamp that includes its own offset, such as `2024-03-01T12:00:00Z` or `2024-03-01T13:00:00+01:00`. For a date and time with no offset, use `DateTime::fromIso` with a zone. A `$text` written directly in the code is checked when the program compiles.
+Reads an ISO 8601 or RFC 3339 timestamp that includes its own offset, such as `2024-03-01T12:00:00Z` or `2024-03-01T13:00:00+01:00`. For a date and time in a zone, use `DateTime::fromIso`. A `$text` written directly in the code is checked when the program compiles.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -38332,7 +38332,7 @@ Returns the exact time from `$earlier` to this instant, as a `Duration`. `$earli
 $instant->compareTo(Core\Time\Instant $other): int
 ```
 
-Checks which of two instants comes first, as `Comparable` requires. The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` on two instants checks whether they are the same object, so test for the same moment with `$a->compareTo($b) == 0`.
+Checks which of two instants comes first, as `Comparable` requires. The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` is `true` for two instants at the same moment.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -38354,7 +38354,7 @@ Returns the instant as RFC 3339 text in UTC. This is the date format that JSON a
 <a id="core-core-time-datetime"></a>
 ### `Core\Time\DateTime`
 
-Keywords: date, time, datetime, create a date, parse a date, ISO 8601, format a date, add days, add months, date difference, weekday, day of year, leap year, immutable date, CLDR, format pattern, calendar arithmetic, DST, next monday, last day of month, at, fromIso, parse, format, plus, minus, next, previous, with, withTime, startOf, endOf, difference, toInstant, date, timeOfDay, zone, weekday, dayOfYear, isLeapYear, year, month, day, hour, minute, second, nanoseconds
+Keywords: date, time, datetime, create a date, parse a date, ISO 8601, format a date, add days, add months, date difference, weekday, day of year, leap year, immutable date, CLDR, format pattern, calendar arithmetic, DST, next monday, last day of month, at, fromIso, parse, format, plus, minus, next, previous, with, withTime, startOf, endOf, difference, toInstant, compareTo, toIso, date, timeOfDay, zone, weekday, dayOfYear, isLeapYear, daysInMonth, quarter, isoWeek, isoWeekYear, year, month, day, hour, minute, second, nanoseconds
 
 A `DateTime` is a date and a time of day in one `Zone`. `DateTime::fromIso` reads a text such as
 `2024-03-01 09:30` in the zone you give it. A date alone, such as `2024-03-01`, is the start of
@@ -38372,7 +38372,16 @@ it is called on.
 
 `year()`, `month()`, `day()`, `hour()`, `minute()`, `second()` and `nanoseconds()` return the fields as
 numbers. Each one reads the clock in the value's own zone. `year()` returns an `int`, and the others
-return a `uint`. These are the same names and types that `with` takes.
+return a `uint`. These are the same names and types that `with` takes. `daysInMonth()` returns the
+number of days in the month, and `quarter()` returns `1` to `4`. `isoWeek()` returns the ISO 8601
+week number, and `isoWeekYear()` returns the year that this week belongs to. These two can differ
+from `year()` for a few days around New Year.
+
+`toIso()` writes the value as text with its offset and its zone, such as
+`2026-01-05T08:30:00+01:00[Europe/Vienna]`. `DateTime::fromIso` reads this text back with no second
+argument. `compareTo` checks which of two values is earlier, and `<`, `>`, `<=`, `>=` use it too. It
+compares the moment, so 10:00 in `Europe/Berlin` and 09:00 in `Europe/London` on one winter day are
+equal. `==` compares the moment in the same way.
 
 `format` takes a **CLDR pattern**. `DateTime::parse` reads the same patterns, and `Date::format`
 and `TimeOfDay::format` use them for their own fields. A pattern written in the code is
@@ -38455,7 +38464,7 @@ midweek
 | Member | Signature |
 |---|---|
 | [`Core\Time\DateTime::at`](#core-core-time-datetime-at) | `at(Core\Time\Date $date, Core\Time\TimeOfDay $time, Core\Time\Zone $zone): Core\Time\DateTime` |
-| [`Core\Time\DateTime::fromIso`](#core-core-time-datetime-fromiso) | `fromIso(string $text, Core\Time\Zone $zone): Core\Time\DateTime` |
+| [`Core\Time\DateTime::fromIso`](#core-core-time-datetime-fromiso) | `fromIso(string $text, ?Core\Time\Zone $zone = null): Core\Time\DateTime` |
 | [`Core\Time\DateTime::parse`](#core-core-time-datetime-parse) | `parse(string $text, string $format, Core\Time\Zone $zone): Core\Time\DateTime` |
 | [`Core\Time\DateTime->format`](#core-core-time-datetime-format) | `format(string $pattern): string` |
 | [`Core\Time\DateTime->plus`](#core-core-time-datetime-plus) | `plus(int $count, Core\Unit $unit): Core\Time\DateTime` |
@@ -38468,12 +38477,18 @@ midweek
 | [`Core\Time\DateTime->endOf`](#core-core-time-datetime-endof) | `endOf(Core\Unit $u): Core\Time\DateTime` |
 | [`Core\Time\DateTime->difference`](#core-core-time-datetime-difference) | `difference(Core\Time\DateTime $other, Core\Unit $unit): int` |
 | [`Core\Time\DateTime->toInstant`](#core-core-time-datetime-toinstant) | `toInstant(): Core\Time\Instant` |
+| [`Core\Time\DateTime->compareTo`](#core-core-time-datetime-compareto) | `compareTo(Core\Time\DateTime $other): int` |
+| [`Core\Time\DateTime->toIso`](#core-core-time-datetime-toiso) | `toIso(): string` |
 | [`Core\Time\DateTime->date`](#core-core-time-datetime-date) | `date(): Core\Time\Date` |
 | [`Core\Time\DateTime->timeOfDay`](#core-core-time-datetime-timeofday) | `timeOfDay(): Core\Time\TimeOfDay` |
 | [`Core\Time\DateTime->zone`](#core-core-time-datetime-zone) | `zone(): Core\Time\Zone` |
 | [`Core\Time\DateTime->weekday`](#core-core-time-datetime-weekday) | `weekday(): Core\Time\Weekday` |
 | [`Core\Time\DateTime->dayOfYear`](#core-core-time-datetime-dayofyear) | `dayOfYear(): uint` |
 | [`Core\Time\DateTime->isLeapYear`](#core-core-time-datetime-isleapyear) | `isLeapYear(): bool` |
+| [`Core\Time\DateTime->daysInMonth`](#core-core-time-datetime-daysinmonth) | `daysInMonth(): uint` |
+| [`Core\Time\DateTime->quarter`](#core-core-time-datetime-quarter) | `quarter(): uint` |
+| [`Core\Time\DateTime->isoWeek`](#core-core-time-datetime-isoweek) | `isoWeek(): uint` |
+| [`Core\Time\DateTime->isoWeekYear`](#core-core-time-datetime-isoweekyear) | `isoWeekYear(): int` |
 | [`Core\Time\DateTime->year`](#core-core-time-datetime-year) | `year(): int` |
 | [`Core\Time\DateTime->month`](#core-core-time-datetime-month) | `month(): uint` |
 | [`Core\Time\DateTime->day`](#core-core-time-datetime-day) | `day(): uint` |
@@ -38505,19 +38520,19 @@ Builds a date and time in `$zone` from a `Date` and a `TimeOfDay`. It is the rev
 #### `Core\Time\DateTime::fromIso`
 
 ```nvs skip
-Core\Time\DateTime::fromIso(string $text, Core\Time\Zone $zone): Core\Time\DateTime
+Core\Time\DateTime::fromIso(string $text, ?Core\Time\Zone $zone = null): Core\Time\DateTime
 ```
 
-Reads a date and time in the ISO 8601 form, such as `2024-03-01T09:30`, and places it in `$zone`. A date alone, such as `2024-03-01`, is the first moment of that day. If the zone skips the time, the result moves forward past the gap. A `$text` written directly in the code is checked when the program compiles.
+Reads a date and time in the ISO 8601 form, such as `2026-01-05T08:30:00+01:00[Europe/Vienna]`. This is the text `toIso()` writes. A text without a zone in brackets, such as `2024-03-01T09:30`, is read in `$zone`. A date alone, such as `2024-03-01`, is the first moment of that day. A `$text` written directly in the code is checked when the program compiles.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$text` | `string` (neutral) | `YYYY-MM-DD`, or a date, `T` or one space, and a time. The time is `HH:MM`, `HH:MM:SS` or `HH:MM:SS` with one to nine digits after a `.`. |
-| `$zone` | `Core\Time\Zone` | The zone the date and the time are read in. |
+| `$text` | `string` (neutral) | `YYYY-MM-DD`, or a date, `T` or one space, and a time. The time is `HH:MM`, `HH:MM:SS` or `HH:MM:SS` with one to nine digits after a `.`. After the time, the text may have an offset such as `+01:00` and then a zone name in brackets, such as `[Europe/Vienna]`. An offset needs the zone after it. |
+| `$zone` | `?Core\Time\Zone` (default `null`) | The zone the date and the time are read in. It is needed only when `$text` has no zone in brackets. If both name a zone, they must be the same zone. |
 
-**Returns** `Core\Time\DateTime` — The `DateTime` in `$zone`.
+**Returns** `Core\Time\DateTime` — The `DateTime` in the zone of the text, or in `$zone`. Without an offset, a time the zone skips moves forward past the gap, and a time that happens twice is the earlier one. The offset shows which of the two times is meant.
 
-**Throws** `ParseError` — `$text` is not in this form, or it is not a real date or time, such as `2024-02-30`. A text with an offset or a `Z` also throws this error. Read such a text with `Instant::fromIso`, then call `->in($zone)`. It is also thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.
+**Throws** `ParseError` — `$text` is not in this form, or it is not a real date or time, such as `2024-02-30`. It is also thrown when the zone does not have the offset at that time. It is thrown when `$text` has no zone and `$zone` is `null`, and when the two name different zones. A text with a `Z`, or an offset and no zone, also throws it. Read such a text with `Instant::fromIso`, then call `->in($zone)`. It is also thrown for a time outside `-9999-01-02T01:59:59Z..=9999-12-30T22:00:00Z`.
 
 <a id="core-core-time-datetime-parse"></a>
 #### `Core\Time\DateTime::parse`
@@ -38728,6 +38743,32 @@ Returns the exact point in time of this value. This is fast, because a `DateTime
 
 **Returns** `Core\Time\Instant` — The `Instant`. It has no zone.
 
+<a id="core-core-time-datetime-compareto"></a>
+#### `Core\Time\DateTime->compareTo`
+
+```nvs skip
+$dateTime->compareTo(Core\Time\DateTime $other): int
+```
+
+Checks which of two date-times is earlier, as `Comparable` requires. It compares the moment, to the nanosecond. The zone does not count, so 10:00 in `Europe/Berlin` and 09:00 in `Europe/London` on the same day are equal. The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` also compares the moment, so it is `true` for those two values.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$other` | `Core\Time\DateTime` | The date-time to compare against. |
+
+**Returns** `int` — `-1` when this date-time is earlier than `$other`, `0` when both are the same moment, `1` when it is later.
+
+<a id="core-core-time-datetime-toiso"></a>
+#### `Core\Time\DateTime->toIso`
+
+```nvs skip
+$dateTime->toIso(): string
+```
+
+Returns the date-time as ISO text with its offset and its zone, such as `2026-01-05T08:30:00+01:00[Europe/Vienna]`. `DateTime::fromIso` reads this text back.
+
+**Returns** `string` — A `string` with the local date and time, the offset from UTC and the zone name in brackets. It always has seconds. It has a fraction of a second only when the fraction is not zero.
+
 <a id="core-core-time-datetime-date"></a>
 #### `Core\Time\DateTime->date`
 
@@ -38793,6 +38834,50 @@ $dateTime->isLeapYear(): bool
 Checks whether the value's year has a 29 February.
 
 **Returns** `bool` — `true` in a leap year of the proleptic Gregorian calendar.
+
+<a id="core-core-time-datetime-daysinmonth"></a>
+#### `Core\Time\DateTime->daysInMonth`
+
+```nvs skip
+$dateTime->daysInMonth(): uint
+```
+
+Returns the number of days in the month of this value, in the value's own time zone.
+
+**Returns** `uint` — `28` to `31`. February has `29` days in a leap year.
+
+<a id="core-core-time-datetime-quarter"></a>
+#### `Core\Time\DateTime->quarter`
+
+```nvs skip
+$dateTime->quarter(): uint
+```
+
+Returns the quarter of the year that contains this value, in the value's own time zone.
+
+**Returns** `uint` — `1` for January to March, `2` for April to June, `3` for July to September and `4` for October to December.
+
+<a id="core-core-time-datetime-isoweek"></a>
+#### `Core\Time\DateTime->isoWeek`
+
+```nvs skip
+$dateTime->isoWeek(): uint
+```
+
+Returns the ISO 8601 week number of this value, in the value's own time zone. A week starts on Monday. Week `1` contains the first Thursday of the year.
+
+**Returns** `uint` — `1` to `53`. The first days of January can be in week `52` or `53` of the year before.
+
+<a id="core-core-time-datetime-isoweekyear"></a>
+#### `Core\Time\DateTime->isoWeekYear`
+
+```nvs skip
+$dateTime->isoWeekYear(): int
+```
+
+Returns the year that the ISO 8601 week of this value belongs to. Use it together with `isoWeek()`.
+
+**Returns** `int` — The year of the week. It is different from `year()` for a few days around New Year.
 
 <a id="core-core-time-datetime-year"></a>
 #### `Core\Time\DateTime->year`
@@ -38874,10 +38959,11 @@ Returns the part of the second after the whole seconds, in nanoseconds.
 <a id="core-core-time-date"></a>
 ### `Core\Time\Date`
 
-Keywords: date, calendar date, day-month-year, zone-free, parse a date, ISO 8601, valid date, days in month, leap year, at, fromIso, format, plus, minus, with, compareTo, weekday, dayOfYear, isLeapYear, year, month, day
+Keywords: date, calendar date, day-month-year, zone-free, parse a date, ISO 8601, valid date, days in month, leap year, at, fromIso, parse, range, format, plus, minus, with, compareTo, toIso, weekday, dayOfYear, isLeapYear, startOf, endOf, difference, next, previous, daysInMonth, quarter, isoWeek, isoWeekYear, year, month, day
 
 A `Date` is a year, a month and a day. It has no time of day and no zone. `Date::fromIso` reads a
-date written as `YYYY-MM-DD`, such as `2024-03-01`. `Date::at` builds one from three numbers, and
+date written as `YYYY-MM-DD`, such as `2024-03-01`. `Date::parse` reads a date that is written
+another way, with a pattern such as `dd.MM.yyyy`. `Date::at` builds one from three numbers, and
 `->date()` gives the date of a `DateTime`. A date that does not exist throws an error when it is
 built. A date written as a string literal in `Date::fromIso` is checked when the program compiles.
 
@@ -38890,7 +38976,16 @@ moment of the date in a zone.
 error. Moving by months keeps the day inside the new month, as `DateTime::plus` does. `format`
 takes the date letters of the patterns `DateTime::format` uses. A time letter or a zone letter
 does not compile, because a `Date` has no time and no zone. `<`, `>`, `<=`, `>=` and `compareTo`
-order two dates.
+order two dates. `toIso()` returns the date as text such as `2024-01-31`, and `fromIso` reads that
+text back.
+
+`startOf` and `endOf` return the first and the last day of the week, month, quarter or year of a
+date. A week runs from Monday to Sunday. `difference` counts the whole days, weeks, months,
+quarters or years from one date to another. `next` and `previous` return the nearest date after or
+before a date that is on a given `Core\Time\Weekday`. `daysInMonth()` returns the number of days
+in the month, and `quarter()` returns `1` to `4`. `isoWeek()` returns the ISO 8601 week number,
+and `isoWeekYear()` returns the year that this week belongs to. `Date::range` returns the list of
+dates from one date to another, with one date for each day, week, month, quarter or year.
 
 ```nvs
 <?nvs
@@ -38934,14 +39029,26 @@ Tue 30 Jan
 |---|---|
 | [`Core\Time\Date::at`](#core-core-time-date-at) | `at(int $year, uint $month, uint $day): Core\Time\Date` |
 | [`Core\Time\Date::fromIso`](#core-core-time-date-fromiso) | `fromIso(string $text): Core\Time\Date` |
+| [`Core\Time\Date::parse`](#core-core-time-date-parse) | `parse(string $text, string $format): Core\Time\Date` |
+| [`Core\Time\Date::range`](#core-core-time-date-range) | `range(Core\Time\Date $from, Core\Time\Date $to, { step?: Core\Unit::Day\|Core\Unit::Week\|Core\Unit::Month\|Core\Unit::Quarter\|Core\Unit::Year }): array<Core\Time\Date>` |
 | [`Core\Time\Date->format`](#core-core-time-date-format) | `format(string $pattern): string` |
 | [`Core\Time\Date->plus`](#core-core-time-date-plus) | `plus(int $count, Core\Unit $unit): Core\Time\Date` |
 | [`Core\Time\Date->minus`](#core-core-time-date-minus) | `minus(int $count, Core\Unit $unit): Core\Time\Date` |
 | [`Core\Time\Date->with`](#core-core-time-date-with) | `with({ year?: int, month?: uint, day?: uint }): Core\Time\Date` |
 | [`Core\Time\Date->compareTo`](#core-core-time-date-compareto) | `compareTo(Core\Time\Date $other): int` |
+| [`Core\Time\Date->toIso`](#core-core-time-date-toiso) | `toIso(): string` |
 | [`Core\Time\Date->weekday`](#core-core-time-date-weekday) | `weekday(): Core\Time\Weekday` |
 | [`Core\Time\Date->dayOfYear`](#core-core-time-date-dayofyear) | `dayOfYear(): uint` |
 | [`Core\Time\Date->isLeapYear`](#core-core-time-date-isleapyear) | `isLeapYear(): bool` |
+| [`Core\Time\Date->startOf`](#core-core-time-date-startof) | `startOf(Core\Unit::Week\|Core\Unit::Month\|Core\Unit::Quarter\|Core\Unit::Year $unit): Core\Time\Date` |
+| [`Core\Time\Date->endOf`](#core-core-time-date-endof) | `endOf(Core\Unit::Week\|Core\Unit::Month\|Core\Unit::Quarter\|Core\Unit::Year $unit): Core\Time\Date` |
+| [`Core\Time\Date->difference`](#core-core-time-date-difference) | `difference(Core\Time\Date $other, Core\Unit::Day\|Core\Unit::Week\|Core\Unit::Month\|Core\Unit::Quarter\|Core\Unit::Year $unit): int` |
+| [`Core\Time\Date->next`](#core-core-time-date-next) | `next(Core\Time\Weekday $w): Core\Time\Date` |
+| [`Core\Time\Date->previous`](#core-core-time-date-previous) | `previous(Core\Time\Weekday $w): Core\Time\Date` |
+| [`Core\Time\Date->daysInMonth`](#core-core-time-date-daysinmonth) | `daysInMonth(): uint` |
+| [`Core\Time\Date->quarter`](#core-core-time-date-quarter) | `quarter(): uint` |
+| [`Core\Time\Date->isoWeek`](#core-core-time-date-isoweek) | `isoWeek(): uint` |
+| [`Core\Time\Date->isoWeekYear`](#core-core-time-date-isoweekyear) | `isoWeekYear(): int` |
 | [`Core\Time\Date->year`](#core-core-time-date-year) | `year(): int` |
 | [`Core\Time\Date->month`](#core-core-time-date-month) | `month(): uint` |
 | [`Core\Time\Date->day`](#core-core-time-date-day) | `day(): uint` |
@@ -38981,6 +39088,41 @@ Reads a date in the ISO 8601 form `YYYY-MM-DD`, such as `2024-03-01`. A `$text` 
 **Returns** `Core\Time\Date` — The `Date`.
 
 **Throws** `ParseError` — `$text` is not in this form, such as `2024-3-1`, or it is not a real date, such as `2024-02-30`. The year `-0000` also throws. The error says which part is wrong.
+
+<a id="core-core-time-date-parse"></a>
+#### `Core\Time\Date::parse`
+
+```nvs skip
+Core\Time\Date::parse(string $text, string $format): Core\Time\Date
+```
+
+Reads a date from text. `$format` is a pattern that says how the text is written, such as `dd.MM.yyyy`. It uses the CLDR pattern letters, the same letters as `format`. When `$format` is a string literal, the compiler checks it. When the pattern has no month or no day, the month or the day is `1`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (neutral) | The text to read. The result is a `Date`, so it is not `tainted`, even when the text is. A `tainted` value comes from outside the program and is not checked yet. |
+| `$format` | `string` (sink) | A pattern with date letters only, such as `d MMMM yyyy`. A time letter such as `HH` or a zone letter such as `XXX` is not allowed, because a `Date` has no time and no zone. A `tainted` pattern is not allowed either. |
+
+**Returns** `Core\Time\Date` — The `Date`. `Date::parse('05.01.2026', 'dd.MM.yyyy')` is `2026-01-05`.
+
+**Throws** `LogicError` — `$format` is not a valid pattern, or it has a time or zone letter. When `$format` is a string literal, this is error `E0769`, and the program does not compile.; `ParseError` — `$text` does not match `$format`. For example, a character such as `.` is different, a number is missing, or there is extra text at the end. It is also thrown when the date does not exist, such as `30.02.2026`.
+
+<a id="core-core-time-date-range"></a>
+#### `Core\Time\Date::range`
+
+```nvs skip
+Core\Time\Date::range(Core\Time\Date $from, Core\Time\Date $to, { step?: Core\Unit::Day|Core\Unit::Week|Core\Unit::Month|Core\Unit::Quarter|Core\Unit::Year }): array<Core\Time\Date>
+```
+
+Returns a list of the dates from `$from` to `$to`. By default, the list has one date for each day. The `step` option changes the distance between two dates. When `$from` is after `$to`, the list goes backward, from the later date to the earlier one.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$from` | `Core\Time\Date` | The first date in the list. |
+| `$to` | `Core\Time\Date` | The last date the list may contain. With a step of one day, `$to` is always in the list. With a larger step, `$to` is in the list only when the dates reach it exactly. |
+| `{ step: … }` | `Core\Unit::Day\|Core\Unit::Week\|Core\Unit::Month\|Core\Unit::Quarter\|Core\Unit::Year` (default `Core\Unit::Day`) |  |
+
+**Returns** `array<Core\Time\Date>` — A list of new `Date` values. `Date::range(Date::at(2026, 1, 30), Date::at(2026, 2, 1))` is `2026-01-30`, `2026-01-31` and `2026-02-01`.
 
 <a id="core-core-time-date-format"></a>
 #### `Core\Time\Date->format`
@@ -39069,6 +39211,17 @@ Orders two dates on the calendar, as `Comparable` requires.
 
 **Returns** `int` — `-1` when the receiver is earlier than `$other`, `0` when they are the same day, `1` when it is later.
 
+<a id="core-core-time-date-toiso"></a>
+#### `Core\Time\Date->toIso`
+
+```nvs skip
+$date->toIso(): string
+```
+
+Returns the date as ISO text, such as `2026-01-05`. `Date::fromIso` reads this text back.
+
+**Returns** `string` — A `string` with the year, the month and the day. The year has four digits, and a year before year 1 starts with `-`.
+
 <a id="core-core-time-date-weekday"></a>
 #### `Core\Time\Date->weekday`
 
@@ -39101,6 +39254,134 @@ $date->isLeapYear(): bool
 Checks whether the year of this date has a 29 February.
 
 **Returns** `bool` — `true` in a leap year of the Gregorian calendar, otherwise `false`.
+
+<a id="core-core-time-date-startof"></a>
+#### `Core\Time\Date->startOf`
+
+```nvs skip
+$date->startOf(Core\Unit::Week|Core\Unit::Month|Core\Unit::Quarter|Core\Unit::Year $unit): Core\Time\Date
+```
+
+Returns the first day of the week, month, quarter or year that contains this date. A week starts on Monday.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$unit` | `Core\Unit::Week\|Core\Unit::Month\|Core\Unit::Quarter\|Core\Unit::Year` | `Unit::Week`, `Unit::Month`, `Unit::Quarter` or `Unit::Year`. A smaller unit does not compile. |
+
+**Returns** `Core\Time\Date` — A new `Date` on or before this date. `Date::at(2026, 5, 20)->startOf(Unit::Quarter)` is `2026-04-01`.
+
+**Throws** `RuntimeError` — The result is before the year `-9999`.
+
+<a id="core-core-time-date-endof"></a>
+#### `Core\Time\Date->endOf`
+
+```nvs skip
+$date->endOf(Core\Unit::Week|Core\Unit::Month|Core\Unit::Quarter|Core\Unit::Year $unit): Core\Time\Date
+```
+
+Returns the last day of the week, month, quarter or year that contains this date. A week ends on Sunday.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$unit` | `Core\Unit::Week\|Core\Unit::Month\|Core\Unit::Quarter\|Core\Unit::Year` | `Unit::Week`, `Unit::Month`, `Unit::Quarter` or `Unit::Year`. A smaller unit does not compile. |
+
+**Returns** `Core\Time\Date` — A new `Date` on or after this date. `Date::at(2024, 2, 10)->endOf(Unit::Month)` is `2024-02-29`.
+
+**Throws** `RuntimeError` — The week ends after the year `9999`.
+
+<a id="core-core-time-date-difference"></a>
+#### `Core\Time\Date->difference`
+
+```nvs skip
+$date->difference(Core\Time\Date $other, Core\Unit::Day|Core\Unit::Week|Core\Unit::Month|Core\Unit::Quarter|Core\Unit::Year $unit): int
+```
+
+Counts the whole units of `$unit` from this date to `$other`. It counts the same way as `DateTime::difference`. Use it for an age in years or a term in months.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$other` | `Core\Time\Date` | The date to count to. |
+| `$unit` | `Core\Unit::Day\|Core\Unit::Week\|Core\Unit::Month\|Core\Unit::Quarter\|Core\Unit::Year` | `Unit::Day`, `Unit::Week`, `Unit::Month`, `Unit::Quarter` or `Unit::Year`. A smaller unit does not compile. |
+
+**Returns** `int` — The whole count. It is negative when `$other` is earlier, and `0` when the two dates are less than one unit apart.
+
+<a id="core-core-time-date-next"></a>
+#### `Core\Time\Date->next`
+
+```nvs skip
+$date->next(Core\Time\Weekday $w): Core\Time\Date
+```
+
+Returns the first date after this one that is on the weekday `$w`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$w` | `Core\Time\Weekday` | The weekday to move to. |
+
+**Returns** `Core\Time\Date` — A new `Date` one to seven days later. It is seven days later when this date is already on `$w`.
+
+**Throws** `RuntimeError` — The result is after the year `9999`.
+
+<a id="core-core-time-date-previous"></a>
+#### `Core\Time\Date->previous`
+
+```nvs skip
+$date->previous(Core\Time\Weekday $w): Core\Time\Date
+```
+
+Returns the last date before this one that is on the weekday `$w`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$w` | `Core\Time\Weekday` | The weekday to move to. |
+
+**Returns** `Core\Time\Date` — A new `Date` one to seven days earlier. It is seven days earlier when this date is already on `$w`.
+
+**Throws** `RuntimeError` — The result is before the year `-9999`.
+
+<a id="core-core-time-date-daysinmonth"></a>
+#### `Core\Time\Date->daysInMonth`
+
+```nvs skip
+$date->daysInMonth(): uint
+```
+
+Returns the number of days in the month of this date.
+
+**Returns** `uint` — `28` to `31`. February has `29` days in a leap year.
+
+<a id="core-core-time-date-quarter"></a>
+#### `Core\Time\Date->quarter`
+
+```nvs skip
+$date->quarter(): uint
+```
+
+Returns the quarter of the year that contains this date.
+
+**Returns** `uint` — `1` for January to March, `2` for April to June, `3` for July to September and `4` for October to December.
+
+<a id="core-core-time-date-isoweek"></a>
+#### `Core\Time\Date->isoWeek`
+
+```nvs skip
+$date->isoWeek(): uint
+```
+
+Returns the ISO 8601 week number of this date. A week starts on Monday. Week `1` is the week that contains the first Thursday of the year.
+
+**Returns** `uint` — `1` to `53`. The first days of January can be in week `52` or `53` of the year before.
+
+<a id="core-core-time-date-isoweekyear"></a>
+#### `Core\Time\Date->isoWeekYear`
+
+```nvs skip
+$date->isoWeekYear(): int
+```
+
+Returns the year that the ISO 8601 week of this date belongs to. Use it together with `isoWeek()`.
+
+**Returns** `int` — The year of the week. It is different from `year()` for a few days around New Year. `Date::at(2027, 1, 1)->isoWeekYear()` is `2026`.
 
 <a id="core-core-time-date-year"></a>
 #### `Core\Time\Date->year`
@@ -39138,7 +39419,7 @@ Returns the day of the month of this date.
 <a id="core-core-time-timeofday"></a>
 ### `Core\Time\TimeOfDay`
 
-Keywords: wall clock, time of day, time without a date, clock reading, parse a time, ISO 8601, hour, minute, second, at, fromIso, format, plus, minus, with, compareTo, hour, minute, second, nanoseconds
+Keywords: wall clock, time of day, time without a date, clock reading, parse a time, ISO 8601, hour, minute, second, at, fromIso, format, plus, minus, with, compareTo, toIso, hour, minute, second, nanoseconds
 
 A `TimeOfDay` is a clock reading: hour, minute, second and nanosecond. It has no date and no zone.
 `TimeOfDay::fromIso` reads a time written as `HH:MM`, `HH:MM:SS` or `HH:MM:SS.f`, such as `09:30`.
@@ -39149,7 +39430,8 @@ written as a string literal in `TimeOfDay::fromIso` is checked when the program 
 plus one hour is `00:30`. `Core\Unit::Day` and larger units throw an error, because there is no date
 to change. `format` takes the time letters of the patterns `DateTime::format` uses. A date letter or
 a zone letter does not compile. `DateTime::withTime` puts a time onto a date. `<`, `>`, `<=`, `>=`
-and `compareTo` order two times.
+and `compareTo` order two times, and `==` is `true` for two equal times. `toIso()` writes the time as
+text, such as `08:30:00`, and `TimeOfDay::fromIso` reads it back.
 
 `hour()`, `minute()`, `second()` and `nanoseconds()` return the four fields as numbers. Each returns a
 `uint`, with the same name as the field `with` takes.
@@ -39189,6 +39471,7 @@ echo $d->timeOfDay()->format('HH:mm'), "\n";
 | [`Core\Time\TimeOfDay->minus`](#core-core-time-timeofday-minus) | `minus(int $count, Core\Unit $unit): Core\Time\TimeOfDay` |
 | [`Core\Time\TimeOfDay->with`](#core-core-time-timeofday-with) | `with({ hour?: uint, minute?: uint, second?: uint, nanoseconds?: uint }): Core\Time\TimeOfDay` |
 | [`Core\Time\TimeOfDay->compareTo`](#core-core-time-timeofday-compareto) | `compareTo(Core\Time\TimeOfDay $other): int` |
+| [`Core\Time\TimeOfDay->toIso`](#core-core-time-timeofday-toiso) | `toIso(): string` |
 | [`Core\Time\TimeOfDay->hour`](#core-core-time-timeofday-hour) | `hour(): uint` |
 | [`Core\Time\TimeOfDay->minute`](#core-core-time-timeofday-minute) | `minute(): uint` |
 | [`Core\Time\TimeOfDay->second`](#core-core-time-timeofday-second) | `second(): uint` |
@@ -39311,13 +39594,24 @@ Returns a copy of the time with the parts you name changed. The parts you leave 
 $timeOfDay->compareTo(Core\Time\TimeOfDay $other): int
 ```
 
-Checks which of two times comes first in the day, as `Comparable` requires. The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` on two times checks whether they are the same object, so test for the same time with `$a->compareTo($b) == 0`.
+Checks which of two times comes first in the day, as `Comparable` requires. The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` is `true` for two times with the same hour, minute, second and nanosecond.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$other` | `Core\Time\TimeOfDay` | The time to compare against. |
 
 **Returns** `int` — `-1` when this time is earlier in the day than `$other`, `0` when both are the same time, `1` when it is later.
+
+<a id="core-core-time-timeofday-toiso"></a>
+#### `Core\Time\TimeOfDay->toIso`
+
+```nvs skip
+$timeOfDay->toIso(): string
+```
+
+Returns the time as ISO text, such as `08:30:00`. `TimeOfDay::fromIso` reads this text back.
+
+**Returns** `string` — A `string` with the hour, the minute and the second. It has a fraction of a second only when the fraction is not zero.
 
 <a id="core-core-time-timeofday-hour"></a>
 #### `Core\Time\TimeOfDay->hour`
@@ -39366,7 +39660,7 @@ Returns the part of the second after the whole seconds, in nanoseconds.
 <a id="core-core-time-duration"></a>
 ### `Core\Time\Duration`
 
-Keywords: duration, interval, time span, sleep, 1h30m, 250ms, nanoseconds, exact offset, parse a duration, timeout, nanoseconds, microseconds, milliseconds, seconds, minutes, hours, days, weeks, parse, toNanoseconds, toMicroseconds, toMilliseconds, toSeconds, plus, minus, multipliedBy, negated, compareTo, toString
+Keywords: duration, interval, time span, sleep, 1h30m, 250ms, nanoseconds, exact offset, parse a duration, timeout, nanoseconds, microseconds, milliseconds, seconds, minutes, hours, days, weeks, parse, fromClock, toNanoseconds, toMicroseconds, toMilliseconds, toSeconds, plus, minus, multipliedBy, negated, compareTo, toString, toClock
 
 A `Duration` is a signed count of nanoseconds. You write one directly in the code as a number and a
 unit — `30s`, `250ms`, `1h30m`, `7d` — with the units `ns`, `us`, `ms`, `s`, `m`, `h`, `d` and `w`, and
@@ -39374,7 +39668,8 @@ unit — `30s`, `250ms`, `1h30m`, `7d` — with the units `ns`, `us`, `ms`, `s`,
 twenty-four hours, never a calendar day, which is what `Core\Time\DateTime::plus($n, Core\Unit::Day)`
 is. `echo` renders a duration back in that same syntax, so its text round-trips through `parse`. An
 argument to `parse` written directly in the code is read when the program compiles, so a bad one is a compile error; text
-computed at run time throws a `ParseError`. Two durations are ordered with `compareTo`; the `<`
+computed at run time throws a `ParseError`. `toClock` writes a duration as hours and minutes, such as
+`25:30`, and `Duration::fromClock` reads that text back. Two durations are ordered with `compareTo`; the `<`
 operators do not compile on a `Duration`.
 
 ```nvs
@@ -39425,6 +39720,7 @@ not a duration
 | [`Core\Time\Duration::days`](#core-core-time-duration-days) | `days(int $n): Core\Time\Duration` |
 | [`Core\Time\Duration::weeks`](#core-core-time-duration-weeks) | `weeks(int $n): Core\Time\Duration` |
 | [`Core\Time\Duration::parse`](#core-core-time-duration-parse) | `parse(string $text): Core\Time\Duration` |
+| [`Core\Time\Duration::fromClock`](#core-core-time-duration-fromclock) | `fromClock(string $text): Core\Time\Duration` |
 | [`Core\Time\Duration->toNanoseconds`](#core-core-time-duration-tonanoseconds) | `toNanoseconds(): int` |
 | [`Core\Time\Duration->toMicroseconds`](#core-core-time-duration-tomicroseconds) | `toMicroseconds(): int` |
 | [`Core\Time\Duration->toMilliseconds`](#core-core-time-duration-tomilliseconds) | `toMilliseconds(): int` |
@@ -39435,6 +39731,7 @@ not a duration
 | [`Core\Time\Duration->negated`](#core-core-time-duration-negated) | `negated(): Core\Time\Duration` |
 | [`Core\Time\Duration->compareTo`](#core-core-time-duration-compareto) | `compareTo(Core\Time\Duration $other): int` |
 | [`Core\Time\Duration->toString`](#core-core-time-duration-tostring) | `toString(): string` |
+| [`Core\Time\Duration->toClock`](#core-core-time-duration-toclock) | `toClock({ seconds?: bool }): string` |
 
 <a id="core-core-time-duration-nanoseconds"></a>
 #### `Core\Time\Duration::nanoseconds`
@@ -39587,6 +39884,23 @@ Reads a duration such as `30s`, `1h30m` or `7d` from text at run time. It uses t
 
 **Throws** `ParseError` — `$text` is not a valid duration. It has an unknown or repeated unit, a missing count or extra text, or it is longer than a `Duration` can hold. A `$text` written directly in the code is checked when the program compiles, and an error there is `E0769`. Only a computed `$text` can throw this error.
 
+<a id="core-core-time-duration-fromclock"></a>
+#### `Core\Time\Duration::fromClock`
+
+```nvs skip
+Core\Time\Duration::fromClock(string $text): Core\Time\Duration
+```
+
+Reads a duration written as hours and minutes, such as `1:30`, or as hours, minutes and seconds, such as `1:30:15`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (neutral) | The text starts with the hours, which may have any number of digits. Next come `:` and the minutes as two digits, such as `05`. The seconds are optional, also as `:` and two digits. A `-` at the start makes the duration negative. |
+
+**Returns** `Core\Time\Duration` — A new `Duration`. `Duration::fromClock('25:30')` is 25 hours and 30 minutes.
+
+**Throws** `ParseError` — `$text` is not in this form, or the minutes or the seconds are larger than `59`. `ParseError` is also thrown above `2562047:47:16`, the longest `Duration`.
+
 <a id="core-core-time-duration-tonanoseconds"></a>
 #### `Core\Time\Duration->toNanoseconds`
 
@@ -39702,7 +40016,7 @@ Reverses the receiver's direction: `30s` becomes `-30s`.
 $duration->compareTo(Core\Time\Duration $other): int
 ```
 
-Orders two durations by length and sign, as `Comparable` requires, so a shorter duration compares below a longer one and a negative one below every positive one. Use it to compare two durations by value. `==` on two objects tests identity, so `90m == 1h30m` is `false`. To test that two durations are equal, write `$a->compareTo($b) == 0`.
+Checks which of two durations is shorter, as `Comparable` requires. A negative duration is shorter than every positive one. The operators `<`, `>`, `<=`, `>=` and `<=>` use this method too. `==` compares two durations by length, so `90m == 1h30m` is `true`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -39720,6 +40034,21 @@ $duration->toString(): string
 Writes the receiver as text in the same syntax as a duration in the code, such as `1h30m` or `250ms`. `Stringable` requires this method, and `Duration::parse` reads the text back to the same value.
 
 **Returns** `string` — The receiver written as a duration, such as `1h30m`.
+
+<a id="core-core-time-duration-toclock"></a>
+#### `Core\Time\Duration->toClock`
+
+```nvs skip
+$duration->toClock({ seconds?: bool }): string
+```
+
+Writes the duration as hours and minutes, such as `1:30`. The hours do not stop at 24, so 25 hours and 30 minutes is `25:30`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{ seconds: … }` | `bool` (default `false`) |  |
+
+**Returns** `string` — The text. Anything smaller than the last part written is cut off, not rounded. So 1 hour, 30 minutes and 59 seconds is `1:30`. A negative duration starts with `-`, such as `-1:15`. `Duration::fromClock` reads the text back.
 
 <a id="core-core-time-zone"></a>
 ### `Core\Time\Zone`
@@ -39805,7 +40134,7 @@ Makes a zone that is always the same distance from UTC, such as `+05:30`. Its of
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$offset` | `Core\Time\Duration` | The distance from UTC as a whole number of seconds. It is negative for a zone west of UTC. |
+| `$offset` | `Core\Time\Duration` | The distance from UTC as a `Duration`, such as `5h30m`. It is negative for a zone west of UTC. |
 
 **Returns** `Core\Time\Zone` — A `Zone` whose name is the offset, written `+HH:MM`, or `+HH:MM:SS` when it has seconds.
 
@@ -39840,10 +40169,12 @@ Returns how far the zone is from UTC at one instant. A zone with summer time has
 <a id="core-core-objectmap"></a>
 ### `Core\ObjectMap<K, V>`
 
-Keywords: identity, object identity, object key, per-object data, side table, map, dictionary, lookup, set, get, has, remove, count, isEmpty, keys, values, clear
+Keywords: identity, object identity, object key, per-object data, side table, map, dictionary, lookup, date key, set, get, has, remove, count, isEmpty, keys, values, clear
 
-`Core\ObjectMap<K, V>` associates a value with an object, matched by **identity**: the one object is one
-key however many variables hold it, and two objects that agree on every property are two keys. `array<T>`
+`Core\ObjectMap<K, V>` associates a value with an object, and finds a key with `==`. For most objects
+that is **identity**: the one object is one key however many variables hold it, and two objects that
+agree on every property are two keys. A `Core\Time` value, such as a `Date` or a `Duration`, compares
+by value, so an equal date built elsewhere finds the same entry. `array<T>`
 cannot key on an object, so this is where a per-object side table lives. It is built with
 `new Core\ObjectMap<K, V>()`, `get` answers `?V` rather than throwing — there is no `$m[$k]` subscript on it —
 and `has` is the one member that tells an absent key from a stored `null`.
@@ -39915,7 +40246,7 @@ keys=1 values=1
 new Core\ObjectMap(): Core\ObjectMap
 ```
 
-Creates an empty `Core\ObjectMap<K, V>`. Its keys are objects. Two keys are the same only when they are the same object.
+Creates an empty `Core\ObjectMap<K, V>`. Two keys are the same when they are `==`.
 
 <a id="core-core-objectmap-set"></a>
 #### `Core\ObjectMap->set`
@@ -39924,11 +40255,11 @@ Creates an empty `Core\ObjectMap<K, V>`. Its keys are objects. Two keys are the 
 $objectMap->set(K $key, V $value): void
 ```
 
-Stores `$value` under `$key`. If `$key` already has a value, the new value replaces it. A key matches only the same object, not an equal one.
+Stores `$value` under `$key`. If `$key` already has a value, the new value replaces it. A key matches a key that is `==` to it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$key` | `K` | The key. It matches a key in the map only if it is the same object. |
+| `$key` | `K` | The key. It matches a key in the map that is `==` to it. |
 | `$value` | `V` | The value to store under `$key`. |
 
 **Returns** `void` — Nothing. A key that is set again keeps its first place in the order of the keys.
@@ -39944,7 +40275,7 @@ Returns the value stored under `$key`, as a `?V`. It does not throw for a missin
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$key` | `K` | The key to look up. It matches only the same object. |
+| `$key` | `K` | The key to look up. It matches a key that is `==` to it. |
 
 **Returns** `?V` — The value stored under `$key`, or `null` if the map has no such key. A stored `null` also returns `null`. Use `has` to tell the two cases apart.
 
@@ -39955,11 +40286,11 @@ Returns the value stored under `$key`, as a `?V`. It does not throw for a missin
 $objectMap->has(K $key): bool
 ```
 
-Checks whether the map has `$key`. Only the same object matches.
+Checks whether the map has a key that is `==` to `$key`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$key` | `K` | The key to look for. It matches only the same object. |
+| `$key` | `K` | The key to look for. It matches a key that is `==` to it. |
 
 **Returns** `bool` — `true` if the key is in the map, also when its value is `null`. Otherwise `false`.
 
@@ -39974,7 +40305,7 @@ Deletes `$key` and its value from the map.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$key` | `K` | The key to delete. It matches only the same object. |
+| `$key` | `K` | The key to delete. It matches a key that is `==` to it. |
 
 **Returns** `void` — Nothing. If the map does not have the key, the call does nothing and does not throw.
 
@@ -40036,10 +40367,12 @@ Deletes every key and value. The map is then empty.
 <a id="core-core-objectset"></a>
 ### `Core\ObjectSet<T>`
 
-Keywords: identity, object identity, set, membership, union, intersect, diff, deduplicate objects, add, has, remove, count, isEmpty, union, intersection, difference, clear
+Keywords: identity, object identity, set, membership, union, intersect, diff, deduplicate objects, set of dates, add, has, remove, count, isEmpty, union, intersection, difference, clear
 
-`Core\ObjectSet<T>` holds each object at most once, matched by **identity**: adding the same object twice
-leaves one member, and a second object equal in every property is a second member. It is built with
+`Core\ObjectSet<T>` holds each object at most once, and finds a member with `==`. For most objects that
+is **identity**: adding the same object twice leaves one member, and a second object equal in every
+property is a second member. A `Core\Time` value, such as a `Date`, compares by value, so two equal
+dates are one member. It is built with
 `new Core\ObjectSet<T>()`; `add`, `has` and `remove` are the membership members, and the set is `Iterable`
 — a `foreach` yields its members in insertion order, over a snapshot, so the body may `remove` what it is
 walking. A `foreach` does not copy the set. If the loop changes the set, the loop still walks the members
@@ -40114,7 +40447,7 @@ not empty
 new Core\ObjectSet(): Core\ObjectSet
 ```
 
-Builds an empty `Core\ObjectSet<T>`. Two entries are the same only when they are the same object.
+Builds an empty `Core\ObjectSet<T>`. Two entries are the same when they are `==`.
 
 <a id="core-core-objectset-add"></a>
 #### `Core\ObjectSet->add`
@@ -40123,11 +40456,11 @@ Builds an empty `Core\ObjectSet<T>`. Two entries are the same only when they are
 $objectSet->add(T $value): void
 ```
 
-Adds `$value` to the set, unless the set already contains that same value.
+Adds `$value` to the set, unless the set already contains a value that is `==` to it.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$value` | `T` | The value to add, matched by identity. |
+| `$value` | `T` | The value to add, matched with `==`. |
 
 **Returns** `void` — Nothing. If the set already contains the value, the set does not change. Use `has` to check whether a value is in the set.
 
@@ -40138,11 +40471,11 @@ Adds `$value` to the set, unless the set already contains that same value.
 $objectSet->has(T $value): bool
 ```
 
-Checks whether the set contains `$value`, matched by identity.
+Checks whether the set contains a value that is `==` to `$value`.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$value` | `T` | The value to look for, matched by identity. |
+| `$value` | `T` | The value to look for, matched with `==`. |
 
 **Returns** `bool` — `true` when the value is in the set, `false` otherwise.
 
@@ -40157,7 +40490,7 @@ Removes `$value` from the set.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$value` | `T` | The value to remove, matched by identity. |
+| `$value` | `T` | The value to remove, matched with `==`. |
 
 **Returns** `void` — Nothing. If the set does not contain the value, the set does not change.
 
@@ -56651,19 +56984,22 @@ Keywords: dateTimes, dates, times
 
 | Member | Signature |
 |---|---|
-| [`Novis\Intl\DateFormat::dateTimes`](#core-novis-intl-dateformat-datetimes) | `dateTimes(array<Core\Time\DateTime> $values, string $locale, ?{ length?: Length, seconds?: bool, zone?: ZoneStyle } $options = null): array<string>` |
-| [`Novis\Intl\DateFormat::dates`](#core-novis-intl-dateformat-dates) | `dates(array<Core\Time\Date> $values, string $locale, ?{ length?: Length } $options = null): array<string>` |
+| [`Novis\Intl\DateFormat::dateTimes`](#core-novis-intl-dateformat-datetimes) | `dateTimes(array<Core\Time\DateTime> $values, string $locale, ?{ length?: Length, fields?: Fields, seconds?: bool, zone?: ZoneStyle } $options = null): array<string>` |
+| [`Novis\Intl\DateFormat::dates`](#core-novis-intl-dateformat-dates) | `dates(array<Core\Time\Date> $values, string $locale, ?{ length?: Length, fields?: Fields } $options = null): array<string>` |
 | [`Novis\Intl\DateFormat::times`](#core-novis-intl-dateformat-times) | `times(array<Core\Time\TimeOfDay> $values, string $locale, ?{ seconds?: bool } $options = null): array<string>` |
 
 <a id="core-novis-intl-dateformat-datetimes"></a>
 #### `Novis\Intl\DateFormat::dateTimes`
 
 ```nvs skip
-Novis\Intl\DateFormat::dateTimes(array<Core\Time\DateTime> $values, string $locale, ?{ length?: Length, seconds?: bool, zone?: ZoneStyle } $options = null): array<string>
+Novis\Intl\DateFormat::dateTimes(array<Core\Time\DateTime> $values, string $locale, ?{ length?: Length, fields?: Fields, seconds?: bool, zone?: ZoneStyle } $options = null): array<string>
 ```
 
-`DateFormat::dateTimes` returns each date and time as the clock shows it in its own time
-zone. Set `zone` to show the zone: `ZoneStyle::Offset` shows "GMT+2".
+`DateFormat::dateTimes` returns each date and time as a string in the language of `$locale`,
+such as `"de"` for German. The time is the time in the value's own time zone.
+`length` and `fields` work as in `DateFormat::dates`. Set `seconds` to `true` to show the
+seconds. `zone` is a `ZoneStyle` and chooses how the time zone is shown, such as "GMT+1".
+By default, no seconds and no time zone are shown.
 
 **Returns** `array<string>`
 
@@ -56671,11 +57007,13 @@ zone. Set `zone` to show the zone: `ZoneStyle::Offset` shows "GMT+2".
 #### `Novis\Intl\DateFormat::dates`
 
 ```nvs skip
-Novis\Intl\DateFormat::dates(array<Core\Time\Date> $values, string $locale, ?{ length?: Length } $options = null): array<string>
+Novis\Intl\DateFormat::dates(array<Core\Time\Date> $values, string $locale, ?{ length?: Length, fields?: Fields } $options = null): array<string>
 ```
 
-`DateFormat::dates` returns each calendar date. `Length::Short` writes "3/1/26" in
-English, and `Length::Long` writes "March 1, 2026". The default is `Length::Medium`.
+`DateFormat::dates` returns each calendar date as a string in the language of `$locale`,
+such as `"de"` for German. `length` is a `Length` and chooses how long each string is.
+`fields` is a `Fields` and chooses which parts of the date are shown.
+The defaults are `Length::Medium` and `Fields::YearMonthDay`, such as "Mar 1, 2026".
 
 **Returns** `array<string>`
 
@@ -56906,8 +57244,8 @@ Keywords: collateOrder, sortKeys, formatNumbers, pluralCategories, formatDateTim
 | [`Novis\Intl\Icu::sortKeys`](#core-novis-intl-icu-sortkeys) | `sortKeys(array<string> $strings, string $locale, { strength?: Strength, caseFirst?: CaseFirst, numeric?: bool, ignorePunctuation?: bool } $options): array<bytes>` |
 | [`Novis\Intl\Icu::formatNumbers`](#core-novis-intl-icu-formatnumbers) | `formatNumbers(array<string> $numbers, string $locale, { style: Style, minFractionDigits: ?uint, maxFractionDigits: ?uint, grouping: ?bool, currency: ?string, currencyDisplay: ?CurrencyDisplay, compactDisplay: ?CompactDisplay } $options): array<string>` |
 | [`Novis\Intl\Icu::pluralCategories`](#core-novis-intl-icu-pluralcategories) | `pluralCategories(array<string> $numbers, string $locale, Kind $kind): array<Category>` |
-| [`Novis\Intl\Icu::formatDateTimes`](#core-novis-intl-icu-formatdatetimes) | `formatDateTimes(array<{ year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string }> $values, string $locale, { length?: Length, seconds?: bool, zone?: ZoneStyle } $options): array<string>` |
-| [`Novis\Intl\Icu::formatDates`](#core-novis-intl-icu-formatdates) | `formatDates(array<Core\Time\Date> $values, string $locale, Length $length): array<string>` |
+| [`Novis\Intl\Icu::formatDateTimes`](#core-novis-intl-icu-formatdatetimes) | `formatDateTimes(array<{ year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string }> $values, string $locale, { length?: Length, fields?: Fields, seconds?: bool, zone?: ZoneStyle } $options): array<string>` |
+| [`Novis\Intl\Icu::formatDates`](#core-novis-intl-icu-formatdates) | `formatDates(array<Core\Time\Date> $values, string $locale, { length?: Length, fields?: Fields } $options): array<string>` |
 | [`Novis\Intl\Icu::formatTimes`](#core-novis-intl-icu-formattimes) | `formatTimes(array<Core\Time\TimeOfDay> $values, string $locale, { seconds?: bool } $options): array<string>` |
 | [`Novis\Intl\Icu::formatRelative`](#core-novis-intl-icu-formatrelative) | `formatRelative(array<{ count: int, unit: Unit }> $items, string $locale, { width?: Width, numeric?: Numeric } $options): array<string>` |
 | [`Novis\Intl\Icu::formatLists`](#core-novis-intl-icu-formatlists) | `formatLists(array<array<string>> $lists, string $locale, { type?: Type, width?: Width } $options): array<string>` |
@@ -56988,7 +57326,7 @@ Returns the plural category of each number, each given as its decimal text, in t
 #### `Novis\Intl\Icu::formatDateTimes`
 
 ```nvs skip
-Novis\Intl\Icu::formatDateTimes(array<{ year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string }> $values, string $locale, { length?: Length, seconds?: bool, zone?: ZoneStyle } $options): array<string>
+Novis\Intl\Icu::formatDateTimes(array<{ year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string }> $values, string $locale, { length?: Length, fields?: Fields, seconds?: bool, zone?: ZoneStyle } $options): array<string>
 ```
 
 Formats dates with times of day, each given as its local fields, its UTC offset and its time zone, in the locale.
@@ -56997,7 +57335,7 @@ Formats dates with times of day, each given as its local fields, its UTC offset 
 |---|---|---|
 | `$values` | `array<{ year: int, month: int, day: int, hour: int, minute: int, second: int, nanos: int, offsetSeconds: int, zone: string }>` |  |
 | `$locale` | `string` |  |
-| `$options` | `{ length?: Length, seconds?: bool, zone?: ZoneStyle }` |  |
+| `$options` | `{ length?: Length, fields?: Fields, seconds?: bool, zone?: ZoneStyle }` |  |
 
 **Returns** `array<string>`
 
@@ -57005,16 +57343,16 @@ Formats dates with times of day, each given as its local fields, its UTC offset 
 #### `Novis\Intl\Icu::formatDates`
 
 ```nvs skip
-Novis\Intl\Icu::formatDates(array<Core\Time\Date> $values, string $locale, Length $length): array<string>
+Novis\Intl\Icu::formatDates(array<Core\Time\Date> $values, string $locale, { length?: Length, fields?: Fields } $options): array<string>
 ```
 
-Formats calendar dates in the locale.
+Formats calendar dates in the locale, with the parts of each date that `fields` names.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$values` | `array<Core\Time\Date>` |  |
 | `$locale` | `string` |  |
-| `$length` | `Length` |  |
+| `$options` | `{ length?: Length, fields?: Fields }` |  |
 
 **Returns** `array<string>`
 
@@ -59386,21 +59724,21 @@ The encoding that a `Core\Encoding` text conversion reads or writes. There is on
 <a id="enum-core-unit"></a>
 #### `Core\Unit`
 
-The calendar step a `DateTime`, `Date` or `TimeOfDay` moves by, and the unit `startOf`, `endOf` and `difference` count in. A change to or from summer time, or a short month, can make one step longer or shorter. The cases are listed smallest first.
+The calendar step a `DateTime`, `Date` or `TimeOfDay` moves by, and the unit `startOf`, `endOf` and `difference` count in. A change to or from summer time, or a short month, can make one step longer or shorter. The cases are listed smallest first. A `Date` takes `Unit::Day` and larger units. Its `startOf` and `endOf` take `Unit::Week` and larger units.
 
 | Case | Meaning |
 |---|---|
 | `Core\Unit::Nanosecond` | One nanosecond. This is the smallest step any of these values can have. |
 | `Core\Unit::Microsecond` | One microsecond — 1000 nanoseconds. |
 | `Core\Unit::Millisecond` | One millisecond — 1 000 000 nanoseconds. |
-| `Core\Unit::Second` | One second of the civil clock. |
-| `Core\Unit::Minute` | One minute of the civil clock. |
-| `Core\Unit::Hour` | One hour of the civil clock. |
+| `Core\Unit::Second` | One second on the clock. |
+| `Core\Unit::Minute` | One minute on the clock. |
+| `Core\Unit::Hour` | One hour on the clock. |
 | `Core\Unit::Day` | One calendar day. It is 23 or 25 hours on a day the zone changes to or from summer time. |
 | `Core\Unit::Week` | Seven calendar days; `startOf(Unit::Week)` is the Monday, ISO 8601's first day. |
-| `Core\Unit::Month` | One calendar month, with the day-of-month clamped to the target month's length. |
+| `Core\Unit::Month` | One calendar month. If the target month has fewer days, the day becomes the last day of that month. |
 | `Core\Unit::Quarter` | Three calendar months, so `plus(1, Unit::Quarter)` is `plus(3, Unit::Month)` and `startOf` returns the start of January, April, July or October. |
-| `Core\Unit::Year` | One calendar year, with 29 February clamped to the 28th where the target has none. |
+| `Core\Unit::Year` | One calendar year. From 29 February, the result is 28 February in a year that has no 29 February. |
 
 <a id="enum-core-time-weekday"></a>
 #### `Core\Time\Weekday`
@@ -60117,7 +60455,7 @@ Whether uppercase or lowercase letters come first when `Collator` sorts words th
 <a id="enum-novis-intl-numberformat-style"></a>
 #### `Novis\Intl\NumberFormat::Style`
 
-How `Icu::formatNumbers` writes a number. Each `NumberFormat` method uses one style.
+How `Icu::formatNumbers` writes a number. Each `NumberFormat` method uses one style. `Decimal` writes a plain number, such as "1,234.5" in English. `Percent` multiplies the number by 100 and writes a percentage, so 0.25 is "25%". `Currency` writes an amount of money, such as "$19.90". `Compact` writes a large number in a short form, such as "1.2K" for 1,200.
 
 | Case | Meaning |
 |---|---|
@@ -60150,7 +60488,7 @@ How a compact number is written. A compact number is a large number written shor
 <a id="enum-novis-intl-pluralrules-kind"></a>
 #### `Novis\Intl\PluralRules::Kind`
 
-Which plural rules `Icu::pluralCategories` uses: the rules for counting, such as "3 items", or the rules for places, such as "3rd".
+Which plural rules `Icu::pluralCategories` uses. `Cardinal` uses the rules for counting, such as "3 items". `Ordinal` uses the rules for places, such as "3rd".
 
 | Case | Meaning |
 |---|---|
@@ -60160,7 +60498,7 @@ Which plural rules `Icu::pluralCategories` uses: the rules for counting, such as
 <a id="enum-novis-intl-pluralrules-category"></a>
 #### `Novis\Intl\PluralRules::Category`
 
-A plural category of the locale. `PluralRules` returns these as `Core\Cldr::PluralCategory`.
+A plural category of the locale: `Zero`, `One`, `Two`, `Few`, `Many` or `Other`. Each language uses some of them. English counting uses `One` for 1 and `Other` for every other number. `PluralRules` returns these as `Core\Cldr::PluralCategory`.
 
 | Case | Meaning |
 |---|---|
@@ -60174,13 +60512,31 @@ A plural category of the locale. `PluralRules` returns these as `Core\Cldr::Plur
 <a id="enum-novis-intl-dateformat-length"></a>
 #### `Novis\Intl\DateFormat::Length`
 
-How long a formatted date is. The default is `Medium`.
+How long a formatted date is. For March 1, 2026 in English for the United States, `Short` writes "3/1/26". `Medium` writes "Mar 1, 2026". This is the default. `Long` writes "March 1, 2026". `Long` is the longest length. To also show the day of the week, set `fields` to `Fields::YearMonthDayWeekday`.
 
 | Case | Meaning |
 |---|---|
 | `Novis\Intl\DateFormat::Length::Short` |  |
 | `Novis\Intl\DateFormat::Length::Medium` |  |
 | `Novis\Intl\DateFormat::Length::Long` |  |
+
+<a id="enum-novis-intl-dateformat-fields"></a>
+#### `Novis\Intl\DateFormat::Fields`
+
+Which parts of a date `DateFormat::dates` and `DateFormat::dateTimes` show. Each case is named after the parts it shows. The locale decides the order of the parts. A locale is a language and region, such as `en-US` or `de` for German. These examples use `Length::Long` and `en-US`. `Day` shows the day of the month, such as "5". `MonthDay` shows the month and the day, such as "January 5". `YearMonthDay` shows the year, the month and the day, such as "January 5, 2026". This is the default. `Weekday` shows the day of the week, such as "Monday". `DayWeekday` shows the day of the month and the day of the week, such as "5 Monday". `MonthDayWeekday` shows the month, the day and the day of the week, such as "Monday, January 5". `YearMonthDayWeekday` shows all four parts, such as "Monday, January 5, 2026". `Month` shows the month, such as "January". `YearMonth` shows the month and the year, such as "January 2026". In `de`, this is "Januar 2026". `Year` shows the year, such as "2026". `Month`, `YearMonth` and `Year` have no day. A time of day needs a day, so `DateFormat::dateTimes` throws a `LogicError` for these three cases.
+
+| Case | Meaning |
+|---|---|
+| `Novis\Intl\DateFormat::Fields::Day` |  |
+| `Novis\Intl\DateFormat::Fields::MonthDay` |  |
+| `Novis\Intl\DateFormat::Fields::YearMonthDay` |  |
+| `Novis\Intl\DateFormat::Fields::Weekday` |  |
+| `Novis\Intl\DateFormat::Fields::DayWeekday` |  |
+| `Novis\Intl\DateFormat::Fields::MonthDayWeekday` |  |
+| `Novis\Intl\DateFormat::Fields::YearMonthDayWeekday` |  |
+| `Novis\Intl\DateFormat::Fields::Month` |  |
+| `Novis\Intl\DateFormat::Fields::YearMonth` |  |
+| `Novis\Intl\DateFormat::Fields::Year` |  |
 
 <a id="enum-novis-intl-dateformat-zonestyle"></a>
 #### `Novis\Intl\DateFormat::ZoneStyle`

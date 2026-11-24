@@ -1,0 +1,23 @@
+<?nvs
+// Reads the hours worked and the break from a form, and checks the input.
+
+class Timesheet
+{
+    // Returns the time worked without the break, or an error message for the form.
+    public static function net(string $worked, string $break): string
+    {
+        try {
+            Core\Time\Duration $total = Core\Time\Duration::fromClock($worked);
+            Core\Time\Duration $pause = Core\Time\Duration::fromClock($break);
+            return 'worked ' . $total->minus($pause)->toClock();
+        } catch (ParseError $e) {
+            return 'please write the time as hours and minutes, such as 1:30';
+        }
+    }
+}
+
+// 8:45 minus a 0:30 break. This prints "worked 8:15".
+echo Timesheet::net('8:45', '0:30'), "\n";
+
+// 0:90 has more than 59 minutes, so the form shows the error message.
+echo Timesheet::net('8:45', '0:90'), "\n";

@@ -1,0 +1,28 @@
+<?nvs
+// Attack: `toClock` writes the longest and shortest durations, and one million durations of both signs.
+// Every call should return text that `fromClock` reads back, and nothing should crash or leak.
+
+// 1. The longest and shortest durations, zero, and durations shorter than one minute.
+array<int> $counts = [9223372036854775807, -9223372036854775807 - 1, 0, 1, -1, -59999999999];
+foreach ($counts as int $count) {
+    var $d = Core\Time\Duration::nanoseconds($count);
+    echo $d->toClock(), ' ', $d->toClock({ seconds: true }), "\n";
+}
+
+// 2. The text of the longest duration reads back. The part below one second is cut off.
+string $longest = Core\Time\Duration::nanoseconds(9223372036854775807)->toClock({ seconds: true });
+echo Core\Time\Duration::fromClock($longest)->toSeconds(), "\n";
+
+// 3. One million durations of both signs are written as text and read back.
+// Each text and each duration is freed again. This prints 1000000.
+int $same = 0;
+int $round = 0;
+while ($round < 1000000) {
+    int $seconds = $round % 2 == 0 ? $round * 7919 : -$round * 7919;
+    var $written = Core\Time\Duration::seconds($seconds);
+    if (Core\Time\Duration::fromClock($written->toClock({ seconds: true }))->compareTo($written) == 0) {
+        $same = $same + 1;
+    }
+    $round = $round + 1;
+}
+echo $same, "\n";

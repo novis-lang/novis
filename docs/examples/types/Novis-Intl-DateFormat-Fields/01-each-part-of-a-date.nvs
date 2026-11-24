@@ -1,0 +1,24 @@
+<?nvs
+// Shows one date written with each `DateFormat::Fields`, in English and in German.
+use Novis\Intl\DateFormat;
+
+array<Core\Time\Date> $dates = [Core\Time\Date::at(2026, 1, 5)];
+array<DateFormat::Fields> $cases = [
+    DateFormat::Fields::Day,
+    DateFormat::Fields::MonthDay,
+    DateFormat::Fields::YearMonthDay,
+    DateFormat::Fields::Weekday,
+    DateFormat::Fields::DayWeekday,
+    DateFormat::Fields::MonthDayWeekday,
+    DateFormat::Fields::YearMonthDayWeekday,
+    DateFormat::Fields::Month,
+    DateFormat::Fields::YearMonth,
+    DateFormat::Fields::Year,
+];
+
+// The loop prints one line for each case: the English text, then `|`, then the German text.
+// The locale decides the order of the parts. `YearMonth` prints January 2026, then Januar 2026.
+foreach ($cases as DateFormat::Fields $fields) {
+    var $options = { fields: $fields, length: DateFormat::Length::Long };
+    echo DateFormat::dates($dates, 'en-US', $options)[0], ' | ', DateFormat::dates($dates, 'de', $options)[0], "\n";
+}

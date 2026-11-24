@@ -1,0 +1,14 @@
+<?nvs
+// Reads durations written as hours and minutes, or as hours, minutes and seconds.
+
+// `1:30` is one hour and 30 minutes. This prints 1h30m.
+echo Core\Time\Duration::fromClock('1:30'), "\n";
+
+// The hours may be more than 24. This prints 90000, the number of seconds.
+echo Core\Time\Duration::fromClock('25:00')->toSeconds(), "\n";
+
+// A third part is the seconds. This prints 1h30m15s.
+echo Core\Time\Duration::fromClock('1:30:15'), "\n";
+
+// A `-` at the start makes the duration negative. This prints -45m.
+echo Core\Time\Duration::fromClock('-0:45'), "\n";

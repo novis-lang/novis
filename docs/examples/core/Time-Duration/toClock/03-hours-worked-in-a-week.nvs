@@ -1,0 +1,20 @@
+<?nvs
+// Adds up the hours on a weekly timesheet and prints each day and the total.
+
+array<string> $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+array<Core\Time\Duration> $worked = [8h15m, 7h45m, 9h, 8h30m, 6h50m];
+
+Core\Time\Duration $total = 0s;
+int $i = 0;
+while ($i < 5) {
+    // Each day prints as hours and minutes, such as "Mon 8:15".
+    echo $days[$i], ' ', $worked[$i]->toClock(), "\n";
+    $total = $total->plus($worked[$i]);
+    $i = $i + 1;
+}
+
+// The total is more than 24 hours. This prints "total 40:20".
+echo 'total ', $total->toClock(), "\n";
+
+// The difference to a 40-hour week. This prints "overtime 0:20".
+echo 'overtime ', $total->minus(40h)->toClock(), "\n";

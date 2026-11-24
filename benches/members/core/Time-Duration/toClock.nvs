@@ -1,0 +1,23 @@
+<?nvs
+// Writes a duration as hours and minutes, as a program does when it shows the hours on a timesheet.
+// bench: iterations 256
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        // The texts are 4, 4, 5 and 5 characters long, so every round picks the next duration.
+        array<Core\Time\Duration> $worked = [5m, 1h30m, 25h30m, 40h20m];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: the duration is picked with last round's total
+            $total = $total + Core\Str::length($worked[$total % 4]->toClock()) as int;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(256), "\n";

@@ -1,0 +1,16 @@
+<?nvs
+// Shows the `step` option, and a list that counts down.
+
+use Core\Time\Date;
+use Core\Unit;
+
+// Each date is months after 31 January. A month with fewer days gives its last day.
+// This prints 2026-01-31, 2026-02-28, 2026-03-31 and 2026-04-30.
+foreach (Date::range(Date::at(2026, 1, 31), Date::at(2026, 4, 30), { step: Unit::Month }) as Date $month) {
+    echo $month->toIso(), "\n";
+}
+
+// `$from` is after `$to`, so the list counts down. This prints 3, 2 and 1.
+foreach (Date::range(Date::at(2026, 1, 3), Date::at(2026, 1, 1)) as Date $day) {
+    echo $day->day(), "\n";
+}

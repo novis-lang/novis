@@ -1,0 +1,52 @@
+--TEST--
+A `DateFormat::Fields` case chooses the parts of a date, the locale orders them, and a case with no day throws on `DateFormat::dateTimes` before it formats: rule:core-classes/intl-roster
+--FILE--
+<?nvs
+// covers: Novis\Intl\DateFormat::Fields
+use Novis\Intl\DateFormat;
+
+array<Core\Time\Date> $dates = [Core\Time\Date::at(2026, 1, 5), Core\Time\Date::at(2026, 12, 24)];
+
+// The default is `YearMonthDay`.
+echo Core\Str::join(DateFormat::dates($dates, "en-US"), " | "), "\n";
+// The name lists the parts. The locale orders them.
+echo Core\Str::join(DateFormat::dates($dates, "de", {fields: DateFormat::Fields::YearMonth, length: DateFormat::Length::Long}), " | "), "\n";
+echo Core\Str::join(DateFormat::dates($dates, "en-US", {fields: DateFormat::Fields::YearMonth, length: DateFormat::Length::Long}), " | "), "\n";
+echo Core\Str::join(DateFormat::dates($dates, "de", {fields: DateFormat::Fields::YearMonthDayWeekday, length: DateFormat::Length::Long}), " | "), "\n";
+echo Core\Str::join(DateFormat::dates($dates, "en-US", {fields: DateFormat::Fields::Weekday}), " | "), "\n";
+echo Core\Str::join(DateFormat::dates($dates, "en-US", {fields: DateFormat::Fields::Year}), " | "), "\n";
+
+// A case with a day joins the time of day.
+var $vienna = Core\Time\DateTime::fromIso("2026-01-05 09:30", "Europe/Vienna");
+echo DateFormat::dateTimes([$vienna], "en-GB", {fields: DateFormat::Fields::MonthDayWeekday})[0], "\n";
+
+// A case with no day throws, and the message names `DateFormat::dates`.
+array<DateFormat::Fields> $dayless = [DateFormat::Fields::Month, DateFormat::Fields::YearMonth, DateFormat::Fields::Year];
+foreach ($dayless as DateFormat::Fields $fields) {
+    try {
+        DateFormat::dateTimes([$vienna], "en-US", {fields: $fields});
+        echo "formatted\n";
+    } catch (LogicError $e) {
+        echo $e->message, "\n";
+    }
+}
+
+// An empty list with a dayless case still throws: the check comes before any value.
+try {
+    DateFormat::dateTimes([], "en-US", {fields: DateFormat::Fields::Year});
+    echo "formatted\n";
+} catch (LogicError $e) {
+    echo "LogicError\n";
+}
+--EXPECT--
+Jan 5, 2026 | Dec 24, 2026
+Januar 2026 | Dezember 2026
+January 2026 | December 2026
+Montag, 5. Januar 2026 | Donnerstag, 24. Dezember 2026
+Mon | Thu
+2026 | 2026
+Mon 5 Jan, 09:30
+`Fields::Month` shows no day, so it cannot be shown with a time. Format the date with `DateFormat::dates` instead.
+`Fields::YearMonth` shows no day, so it cannot be shown with a time. Format the date with `DateFormat::dates` instead.
+`Fields::Year` shows no day, so it cannot be shown with a time. Format the date with `DateFormat::dates` instead.
+LogicError
