@@ -2479,12 +2479,11 @@ fn freshen(files: &[(PathBuf, Indexed)], started: SystemTime, check: Check) -> V
             .chunks(run)
             .map(|part| {
                 scope.spawn(move || {
-                    let fresh: Vec<Freshness> = part
-                        .iter()
-                        .map(|(key, indexed)| freshness(key, indexed, started, check))
-                        .collect();
-                    nvs_runtime::budget::release_pooled_blocks();
-                    fresh
+                    nvs_runtime::budget::run_then_release_pooled_blocks(|| {
+                        part.iter()
+                            .map(|(key, indexed)| freshness(key, indexed, started, check))
+                            .collect::<Vec<Freshness>>()
+                    })
                 })
             })
             .collect();

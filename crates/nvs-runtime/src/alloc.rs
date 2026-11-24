@@ -18,15 +18,18 @@
 //!
 //! Per `rule:programs/memory-priority`'s *Say what
 //! you spend*: a bounded per-**thread** cache of freed blocks — 16 classes of
-//! 16 bytes up to 256, each holding at most 512 blocks, so at most ~2 MB on a
-//! thread that has touched every class. It is never per request and never
-//! grows with requests served, which is the O(in-flight) rule AGENTS.md's
-//! priority ordering states. Blocks are not returned to the platform on
-//! thread exit by themselves, because the cache holds no `Drop` type (see
+//! 16 bytes up to 256, each holding at most 512 blocks, so at most 1,114,112
+//! bytes (about 1.06 MiB) on a thread that has filled every class. It is
+//! never per request and never grows with requests served, which is the
+//! O(in-flight) rule AGENTS.md's priority ordering states. Blocks are not
+//! returned to the platform on thread exit by themselves, because the cache
+//! holds no `Drop` type (see
 //! below). A thread that ends keeps its blocks until the process ends, unless
 //! it calls [`release_cache`] first, through
-//! [`crate::budget::release_pooled_blocks`]. A pool that starts threads again
-//! and again calls it, or the blocks of every thread it ever ran add up.
+//! [`crate::budget::release_pooled_blocks`] or
+//! [`crate::budget::run_then_release_pooled_blocks`]. Every thread that ends
+//! before the process does calls one of them, or the blocks of every such
+//! thread it ever ran add up.
 //!
 //! The cache's free-list heads are 256 bytes of `budget`'s per-thread
 //! storage, beside the memory counters, and add no lookup of their own: the

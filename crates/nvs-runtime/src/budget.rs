@@ -1420,6 +1420,25 @@ pub fn release_pooled_blocks() {
     crate::alloc::release_cache();
 }
 
+/// Runs `body`, then hands this thread's cached blocks back as
+/// [`release_pooled_blocks`] does, also when `body` panics.
+///
+/// The body of a thread that ends once its work is done runs through it, so the
+/// blocks its work freed do not stay allocated until the process ends. What
+/// `body` returns is not dropped yet, and a block it frees later is cached
+/// again: a thread returns it and ends, or drops it before this call.
+pub fn run_then_release_pooled_blocks<R>(body: impl FnOnce() -> R) -> R {
+    /// Releases the blocks when it is dropped, which a panic does too.
+    struct Release;
+    impl Drop for Release {
+        fn drop(&mut self) {
+            release_pooled_blocks();
+        }
+    }
+    let _release = Release;
+    body()
+}
+
 /// How many freed blocks this thread's allocator cache holds for a request of
 /// `layout`, or `0` in a build that has no cache and for a layout it does not
 /// serve.
@@ -2184,6 +2203,40 @@ unsafe impl GlobalAlloc for Accounting {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A thread that ends keeps no cached block, whether its body returned or
+    /// panicked. Each case runs on a thread of its own, so the cache it reads is
+    /// the one its body filled. A `sanitizer` build caches nothing, so it has
+    /// nothing to check.
+    #[cfg(not(feature = "sanitizer"))]
+    #[test]
+    fn a_thread_body_run_then_released_leaves_no_cached_block() {
+        let layout = Layout::from_size_align(48, 8).expect("a valid layout");
+        let fill = move || {
+            let blocks: Vec<Box<[u8; 48]>> = (0..64).map(|_| Box::new([0_u8; 48])).collect();
+            drop(blocks);
+            assert!(
+                pooled_blocks(layout) > 0,
+                "the freed blocks were not cached, so this asserts nothing"
+            );
+        };
+        let returned = std::thread::spawn(move || {
+            run_then_release_pooled_blocks(fill);
+            pooled_blocks(layout)
+        });
+        assert_eq!(returned.join().expect("no panic"), 0);
+        let panicked = std::thread::spawn(move || {
+            let caught = std::panic::catch_unwind(|| {
+                run_then_release_pooled_blocks(|| {
+                    fill();
+                    panic!("the body panics");
+                });
+            });
+            assert!(caught.is_err(), "the body did not panic");
+            pooled_blocks(layout)
+        });
+        assert_eq!(panicked.join().expect("the panic was caught"), 0);
+    }
 
     #[test]
     fn the_balance_returns_to_where_it_started() {

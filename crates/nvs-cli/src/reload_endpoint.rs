@@ -47,7 +47,10 @@
 //!
 //! Cost: one thread per process, blocked in its accept, one socket or pipe instance, and two short
 //! threads per connection while it is answered: the answer and its deadline. Nothing on the
-//! request path.
+//! request path. Each short thread hands its allocator's cached blocks back before it ends
+//! (`nvs_runtime::budget::run_then_release_pooled_blocks`). The answer's thread compiles every
+//! loaded program, so without that each reload kept up to about 1 MiB of freed blocks until the
+//! process ended.
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -182,8 +185,10 @@ fn accept(endpoint: &Endpoint, server: &Arc<Server>) {
         let spawned = std::thread::Builder::new()
             .name("nvs-reload-answer".to_owned())
             .spawn(move || {
-                answer(&answering, connection);
-                answering.open.fetch_sub(1, Ordering::AcqRel);
+                nvs_runtime::budget::run_then_release_pooled_blocks(|| {
+                    answer(&answering, connection);
+                    answering.open.fetch_sub(1, Ordering::AcqRel);
+                });
             });
         if spawned.is_err() {
             server.open.fetch_sub(1, Ordering::AcqRel);
@@ -235,7 +240,9 @@ impl Deadline {
         let watching = Arc::clone(&shared);
         std::thread::Builder::new()
             .name("nvs-reload-deadline".to_owned())
-            .spawn(move || watch(&watching, &breaker))
+            .spawn(move || {
+                nvs_runtime::budget::run_then_release_pooled_blocks(|| watch(&watching, &breaker));
+            })
             .ok()?;
         Some(Self { shared })
     }

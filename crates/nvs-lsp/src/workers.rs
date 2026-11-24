@@ -87,7 +87,7 @@
 //! climb to about 1 GB after 5 edits.
 //!
 //! A worker hands its allocator's cached blocks back before its thread ends
-//! (`nvs_runtime::budget::release_pooled_blocks`). Without that, the blocks of
+//! (`nvs_runtime::budget::run_then_release_pooled_blocks`). Without that, the blocks of
 //! every worker that ever ran stayed allocated, up to about 1 MB per worker
 //! per run, and the private bytes grew with each edit.
 //!
@@ -585,8 +585,7 @@ impl Pool {
 /// its session between jobs. Before the thread ends, it frees the session and
 /// hands its allocator's cached blocks back, which nothing else could use.
 fn work(jobs: &Receiver<Job>, done: &Sender<Done>) {
-    run_jobs(jobs, done);
-    nvs_runtime::budget::release_pooled_blocks();
+    nvs_runtime::budget::run_then_release_pooled_blocks(|| run_jobs(jobs, done));
 }
 
 /// The loop of [`work`], which owns everything the worker holds.
