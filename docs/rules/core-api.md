@@ -430,6 +430,24 @@ A past participle is a first word ending in `ed` (outside `notParticiples`), or 
 `irregularParticiples`; a participle ending in `en` is only ever listed, since `flatten` and `open` end so
 too. `bun nv ci --check` runs the command after the build, so CI and `bun nv close` run it.
 
+**The calls the parts leave to judgement.**
+- Drawing from a generator is a read: `Random::int`, `RandomSeeded->bytes` and `->token` are `reads`
+  rows, not effects.
+- A member that computes another value of its class is a read, not a changed copy, so
+  `DateTime->next`, `previous`, `startOf`, `endOf`, `Dn->child` and `ObjectSet->union` keep noun names.
+- An option field that *sets* a `bool` keeps its adjective (`Test::tlsSession`'s `verified`, `render:
+  true`). Part 4 names a member that reads one.
+- A rename stops at the API. A stored database column (the queue table's `args`), a WIT field and a
+  `Codec` shape keep their words, since renaming them migrates stored data or the host interface for
+  a name no program writes.
+- A rename carries the ledgers keyed by the member (`data/perf/members.md`, `bench-budget.json`), its
+  example and bench directories and its `// covers:` lines. The append-only logs and
+  `data/proofs/released.json` keep the old name, since they are history. A feature id is written
+  `Class::member` even for an instance member, so a sweep renames that form by hand. A file name that
+  uses an old word as plain English (`01-resize-past-every-limit.nvs`) keeps it.
+- A rename's website record is one `changed` entry with `breaking: true` naming the old and the new
+  feature (`tools/nv/lib/changes.ts`'s `clears`).
+
 What it costs: chains get a few characters longer, and every call says whether it reads, changes or
 copies. Nothing on the request path, since a name is resolved at compile time.
 
