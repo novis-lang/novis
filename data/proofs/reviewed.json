@@ -1139,6 +1139,8 @@
   "help:Core\\RateLimit::consumeLocally": "543831d36e831177",
   "help:Core\\RateLimit\\Decision::isAllowed": "b93b2d0ca9eb462f",
   "help:Core\\Reflect\\AttributeInfo::name": "1a5170c53d5f6c08",
+  "help:Core\\Reflect\\PropertyInfo::isLateInit": "0d8382ad64e19108",
+  "help:Core\\Reflect\\PropertyInfo::isReadonly": "95a56c5685cc9491",
   "help:Core\\Request::files": "0988c6f02a1a7d8f",
   "help:Core\\Request::formField": "bca40e173f8d3f79",
   "help:Core\\Request::formFields": "3ccec07e60790102",

@@ -17,7 +17,9 @@ A `@see` file target in `see` is written relative to the program root, the entry
 separators and its anchor kept, so a consumer finds the file without knowing which source file wrote it.
 Each key is left out when it is empty. A method also carries `names`, its parameters without their `$`, as
 a registry member does. A promoted constructor parameter is listed as a `property` member, and its card's
-`short` is the constructor's `@param` for it. The `Core` half of that shape is the registry's and is
+`short` is the constructor's `@param` for it. A property's signature writes its `readonly` and
+`lateinit` modifiers before the type, in source order, as `lateinit ?Customer $buyer`; `nvs code` writes
+a property's signature with the same function. The `Core` half of that shape is the registry's and is
 unchanged by this; the user half is this rule's.
 
 A user class also names its lineage: `extends` is its parent class and `implements` the interfaces it
