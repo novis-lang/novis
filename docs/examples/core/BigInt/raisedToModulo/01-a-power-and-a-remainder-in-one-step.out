@@ -1,0 +1,4 @@
+445
+1
+Core\BigInt::raisedToModulo(): the exponent is negative
+Core\BigInt::raisedToModulo(): the modulus is zero

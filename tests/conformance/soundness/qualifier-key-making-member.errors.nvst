@@ -15,14 +15,14 @@ class Holder {
 // cell: key-making-member secret
 class Cell1 {
     public static function run(array<secret string> $xs): void {
-        array<uint> $c = Core\Arr::countBy($xs);
+        array<uint> $c = Core\Arr::groupCounts($xs);
     }
 }
 
 // cell: key-making-member tainted
 class Cell2 {
     public static function run(array<tainted string> $xs): void {
-        array<uint> $c = Core\Arr::countBy($xs);
+        array<uint> $c = Core\Arr::groupCounts($xs);
     }
 }
 --EXPECT--

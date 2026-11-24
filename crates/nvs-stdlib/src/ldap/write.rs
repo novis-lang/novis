@@ -1,4 +1,4 @@
-//! `Core\Ldap`'s writing half: `Ldap\Connection`'s `add`, `modify`, `delete`, `rename`, `setPassword`, `changePassword` and `compare`, and the `Ldap\Change` values `modify` takes
+//! `Core\Ldap`'s writing half: `Ldap\Connection`'s `add`, `modify`, `delete`, `rename`, `setPassword`, `changePassword` and `hasValue`, and the `Ldap\Change` values `modify` takes
 //!
 //! `rule:core-classes/ldap-search-pages-and-never-follows-a-referral` and
 //! `rule:security/ldap-cleartext-bind-is-granted-per-host`. [`modify`] sends one Modify request, so the server
@@ -49,8 +49,8 @@ pub const RENAME: &str = r"Core\Ldap\Connection::rename";
 pub const SET_PASSWORD: &str = r"Core\Ldap\Connection::setPassword";
 /// `Core\Ldap\Connection::changePassword`, as its errors spell it.
 pub const CHANGE_PASSWORD: &str = r"Core\Ldap\Connection::changePassword";
-/// `Core\Ldap\Connection::compare`, as its errors spell it.
-pub const COMPARE: &str = r"Core\Ldap\Connection::compare";
+/// `Core\Ldap\Connection::hasValue`, as its errors spell it.
+pub const COMPARE: &str = r"Core\Ldap\Connection::hasValue";
 
 /// `Core\Ldap\Connection::modify`'s body: `changes` applied to the entry at
 /// `dn` in one request.
@@ -157,7 +157,7 @@ pub fn change_password(
         .map_err(|error| fault_of(CHANGE_PASSWORD, &error))
 }
 
-/// `Core\Ldap\Connection::compare`'s body: whether the entry at `dn` has
+/// `Core\Ldap\Connection::hasValue`'s body: whether the entry at `dn` has
 /// `value` under `attribute`, as the server's matching rule for the
 /// attribute decides.
 ///
@@ -540,12 +540,12 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$connection->compare(Dn|string $dn, string $attribute, mixed $value): bool`
+    /// `$connection->hasValue(Dn|string $dn, string $attribute, mixed $value): bool`
     /// — [`compare`], the value encoded by [`encoded`] as a write would send
     /// it. A comparison takes exactly one value, so `null` and a list are the
     /// program's mistake.
-    fn nvs_core_ldap_connection_compare(ctx, args: [4]) {
-        let key = connection_key(args, "compare")?;
+    fn nvs_core_ldap_connection_has_value(ctx, args: [4]) {
+        let key = connection_key(args, "hasValue")?;
         let dn = dn_at(args, 1, COMPARE)?;
         let attribute = attribute_name(args[2], COMPARE)?;
         let what = if args[3].array_ptr().is_some() {
@@ -595,8 +595,8 @@ pub(super) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_ldap_connection_authenticate" => {
             (nvs_core_ldap_connection_authenticate as *const ()).cast()
         }
-        "nvs_core_ldap_connection_compare" => {
-            (nvs_core_ldap_connection_compare as *const ()).cast()
+        "nvs_core_ldap_connection_has_value" => {
+            (nvs_core_ldap_connection_has_value as *const ()).cast()
         }
         _ => return None,
     })

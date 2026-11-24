@@ -33,7 +33,7 @@ if (Core\Request::path() != '/products') {
     // Every hole in an html template is escaped, so `&` in a name prints as `&amp;`.
     array<Core\Html\Markup> $rows = [];
     foreach ($products as Product $product) {
-        string $price = Core\Str::format('%d.%02d', Core\Math::intDiv($product->priceCents, 100), $product->priceCents % 100);
+        string $price = Core\Str::format('%d.%02d', Core\Math::quotient($product->priceCents, 100), $product->priceCents % 100);
         $rows[] = html`<tr><td><?= Core\Str::format('%d', $product->id) ?></td><td>{$product->name}</td><td>{$price}</td></tr>
 `;
     }

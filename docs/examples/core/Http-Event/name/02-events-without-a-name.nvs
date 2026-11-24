@@ -9,7 +9,7 @@ Core\Test::answerHttp('https://chat.example.com/room/7', 200, {
 
 // For the second event, `name()` returns `null`.
 // This prints "joined: Anna" and then "no name: Hello everyone".
-Core\Http\Stream $room = Core\Http\Client::stream(Core\Http\Method::Get, 'https://chat.example.com/room/7');
+Core\Http\Stream $room = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://chat.example.com/room/7');
 foreach ($room->events() as Core\Http\Event $event) {
     if ($event->name() == null) {
         echo 'no name: ', $event->data(), "\n";

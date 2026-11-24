@@ -14,7 +14,7 @@ final class Expect
 }
 
 // 1. The last nanosecond of the day is in second 59. One nanosecond later it is second 0.
-var $last = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanos: 999999999 });
+var $last = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanoseconds: 999999999 });
 Expect::same('step 1', $last->second() as string, '59');
 Expect::same('step 1', $last->plus(1, Core\Unit::Nanosecond)->second() as string, '0');
 Expect::same('step 1', Core\Time\TimeOfDay::at(0, 0)->minus(1, Core\Unit::Second)->second() as string, '59');

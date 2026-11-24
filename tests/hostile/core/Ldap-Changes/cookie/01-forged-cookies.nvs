@@ -10,7 +10,7 @@ var $sales = Core\Ldap\Filter::equals('department', 'Sales');
 // A real cookie to start from.
 tainted bytes $real = Core\Bytes::fill(0, 0);
 try {
-    var $first = $corp->changes($sales, { select: ['cn'] });
+    var $first = $corp->searchChanges($sales, { select: ['cn'] });
     foreach ($first as Core\Ldap\Entry $person) {
     }
     $real = $first->cookie();
@@ -27,7 +27,7 @@ array<tainted bytes> $forged = [
 ];
 foreach ($forged as tainted bytes $cookie) {
     try {
-        var $changes = $corp->changes($sales, { select: ['cn'], cookie: $cookie });
+        var $changes = $corp->searchChanges($sales, { select: ['cn'], cookie: $cookie });
         uint $read = 0;
         foreach ($changes as Core\Ldap\Entry $person) {
             $read = $read + 1;
@@ -40,7 +40,7 @@ foreach ($forged as tainted bytes $cookie) {
 
 // 2. The real cookie read one hundred thousand times from one result.
 try {
-    var $again = $corp->changes($sales, { select: ['cn'], cookie: $real });
+    var $again = $corp->searchChanges($sales, { select: ['cn'], cookie: $real });
     foreach ($again as Core\Ldap\Entry $person) {
     }
     uint $length = 0;
@@ -56,7 +56,7 @@ try {
 
 // 3. The connection still works after the made-up cookies.
 try {
-    var $after = $corp->changes($sales, { select: ['cn'] });
+    var $after = $corp->searchChanges($sales, { select: ['cn'] });
     uint $people = 0;
     foreach ($after as Core\Ldap\Entry $person) {
         $people = $people + 1;
@@ -68,7 +68,7 @@ try {
 
 // 4. A cookie of one megabyte. The server closes the connection, and the call throws an error.
 try {
-    var $huge = $corp->changes($sales, { select: ['cn'], cookie: Core\Bytes::fill(1048576, 0) });
+    var $huge = $corp->searchChanges($sales, { select: ['cn'], cookie: Core\Bytes::fill(1048576, 0) });
     foreach ($huge as Core\Ldap\Entry $person) {
     }
     echo "4 no error\n";

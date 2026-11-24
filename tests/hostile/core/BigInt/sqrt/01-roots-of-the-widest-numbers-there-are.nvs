@@ -6,7 +6,7 @@
 
 // 1. The root of a number of about a million bits is taken 50 times. Only the
 //    last root is kept, so memory must not grow. This prints 1.
-var $wide = Core\BigInt::of(1)->shl(1000000);
+var $wide = Core\BigInt::of(1)->shiftedLeft(1000000);
 var $root = $wide;
 int $round = 0;
 while ($round < 50) {
@@ -16,7 +16,7 @@ while ($round < 50) {
 echo $root->sign(), "\n";
 
 // 2. The root of the widest number a single shift may produce. This prints 1.
-echo Core\BigInt::of(1)->shl(1048575)->sqrt()->sign(), "\n";
+echo Core\BigInt::of(1)->shiftedLeft(1048575)->sqrt()->sign(), "\n";
 
 // 3. A negative number has no integer square root, so every one of the 2000
 //    calls below throws. Each round builds a wide number. This prints 2000.
@@ -24,7 +24,7 @@ int $refused = 0;
 int $step = 0;
 while ($step < 2000) {
     try {
-        $wide->neg()->sqrt();
+        $wide->negated()->sqrt();
     } catch (ArithmeticError $negative) {
         $refused = $refused + 1;
     }

@@ -33,7 +33,7 @@ class InvoiceTest
     #[AfterEachTest]
     public function writeLog(Outcome $outcome): void
     {
-        string $line = $outcome->name() . ' ' . ($outcome->passed() ? 'passed' : 'failed') . "\n";
+        string $line = $outcome->name() . ' ' . ($outcome->hasPassed() ? 'passed' : 'failed') . "\n";
         IO::append(Path::fromWorkingDirectory(TestLog::fileFor($outcome->class())), $line);
     }
 }

@@ -10,7 +10,7 @@ echo Core\Time\Instant::fromIso('1969-12-31T23:59:59.9999995Z')->toEpochMicros()
 
 // The whole seconds and the rest build the same instant again.
 Core\Time\Instant $before = Core\Time\Instant::fromIso('1969-12-31T23:59:59.25Z');
-echo Core\Time\Instant::fromEpoch($before->toEpochSeconds(), { nanos: 250000000 })->toIso(), "\n";
+echo Core\Time\Instant::fromEpoch($before->toEpochSeconds(), { nanoseconds: 250000000 })->toIso(), "\n";
 
 // Year 0 is written `0000`, and `-0000` is not a year. The text is built at run
 // time, because a written constant is checked while compiling.

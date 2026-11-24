@@ -9,6 +9,6 @@ if ($flags != null) {
     var $disabled = $flags->with({ disabled: true });
 
     // This prints `disabled: true, must change: true`.
-    echo 'disabled: ', $disabled->disabled() ? 'true' : 'false';
+    echo 'disabled: ', $disabled->isDisabled() ? 'true' : 'false';
     echo ', must change: ', $disabled->mustChangePassword() ? 'true' : 'false', "\n";
 }

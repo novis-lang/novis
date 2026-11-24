@@ -9,4 +9,4 @@ A group appears in the result when its first value does, so the order follows th
 Inside a group, every value keeps the key it had. That tells you which entries ended up together.
 Use `Core\Arr::values` on a group when you want a plain list instead.
 
-**Good to know:** to count the entries per group instead of collecting them, use `Core\Arr::countBy`.
+**Good to know:** to count the entries per group instead of collecting them, use `Core\Arr::groupCounts`.

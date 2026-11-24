@@ -40,7 +40,7 @@ final class Vendors
     {
         int $now = Time::now()->toEpochSeconds();
         string $key = Str::lower($vendor);
-        $this->db->transaction(fn(Transaction $tx): void => {
+        $this->db->runTransaction(fn(Transaction $tx): void => {
             var $write = $tx->execute(
                 'insert into vendors (key, name, created_at) values (?, ?, ?) on conflict (key) do nothing',
                 [$key, $vendor, $now],
@@ -113,7 +113,7 @@ final class Vendors
     // Adds an owner to a vendor, with its entry of the log. It returns `false` when the account is already an owner.
     public function addOwner(string $vendor, string $account): bool
     {
-        return $this->db->transaction(fn(Transaction $tx): bool => {
+        return $this->db->runTransaction(fn(Transaction $tx): bool => {
             var $write = $tx->execute(
                 'insert into owners (vendor, account, added_at) values (?, ?, ?) on conflict (vendor, account) do nothing',
                 [Str::lower($vendor), $account, Time::now()->toEpochSeconds()],
@@ -132,7 +132,7 @@ final class Vendors
     public function removeOwner(string $vendor, string $account): bool
     {
         string $key = Str::lower($vendor);
-        return $this->db->transaction(fn(Transaction $tx): bool => {
+        return $this->db->runTransaction(fn(Transaction $tx): bool => {
             // This statement writes, so the transaction has the write lock of the database from here on.
             // When the first statement only reads, SQLite fails the write below at once while another request writes.
             $tx->execute('update owners set added_at = added_at where vendor = ?', [$key]);

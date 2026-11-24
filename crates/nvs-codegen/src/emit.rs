@@ -2451,7 +2451,7 @@ impl Emitter<'_, '_> {
         if matches!(op, BinOp::Div) && matches!(ty, Ty::Int | Ty::Uint) {
             return self.emit_int_div(inst, l, r, signed);
         }
-        // `Core\Math::intDiv`, inline. See `Self::emit_truncating_int_div`.
+        // `Core\Math::quotient`, inline. See `Self::emit_truncating_int_div`.
         if matches!(op, BinOp::IntDiv) && matches!(ty, Ty::Int) {
             return self.emit_truncating_int_div(inst, l, r);
         }
@@ -2475,7 +2475,7 @@ impl Emitter<'_, '_> {
         // `rule:types/arithmetic` refuses the zero divisor *before* the operand types are
         // consulted, so there is one rule and not two: `1.0 / 0` throws
         // exactly where `1 / 0` does rather than handing back IEEE's infinity,
-        // and `Core\Math::fdiv` is the spelling for the IEEE answer.
+        // and `Core\Math::divide` is the spelling for the IEEE answer.
         //
         // The guard is `Div` alone, and neither sibling it could cover has a
         // row to guard. A `float` operand of `%` never reaches this function —
@@ -2600,7 +2600,7 @@ impl Emitter<'_, '_> {
             // arithmetic rows are the numeric types, and a `bool` is PHP's
             // "convert to an `int` first" and nothing else. `Mod` over a
             // `float` is `E0717`, the one refusal both operands are numbers
-            // for — the `Core\Math::mod` registry row makes `%` the integer
+            // for — the `Core\Math::remainder` registry row makes `%` the integer
             // operator, so the floating-point remainder is that member.
             // `Ty::Decimal` and `Ty::Tagged` never arrive: `nvs-ir` rewrites
             // the first into the `Helper::Decimal*` family and the second into
@@ -2768,7 +2768,7 @@ impl Emitter<'_, '_> {
         Ok((value, merge))
     }
 
-    /// `Core\Math::intDiv` over two `int`s ([`BinOp::IntDiv`]): the quotient
+    /// `Core\Math::quotient` over two `int`s ([`BinOp::IntDiv`]): the quotient
     /// truncated toward zero, as an `int`, with no call.
     ///
     /// The two inputs that would trap `sdiv` throw `ArithmeticError` first,

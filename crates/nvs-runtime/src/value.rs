@@ -756,7 +756,7 @@ impl Value {
 
     /// A handle of its own on this value's `bytes`, or `None` for any other
     /// value. It shares the allocation and takes one reference, so a result
-    /// that keeps the same octets, such as `Core\BigInt::neg`'s magnitude,
+    /// that keeps the same octets, such as `Core\BigInt::negated`'s magnitude,
     /// copies nothing.
     #[must_use]
     pub fn bytes_handle(&self) -> Option<NvsStr> {

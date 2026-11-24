@@ -66,8 +66,8 @@ foreach ($tags as Tag $tag) {
     }
     $i = $i + 1;
 }
-echo $set->diff($expected)->count(), " ", $expected->diff($set)->count(), "\n";
-echo $set->intersect($expected)->count(), " ", $set->union($expected)->count(), "\n";
+echo $set->difference($expected)->count(), " ", $expected->difference($set)->count(), "\n";
+echo $set->intersection($expected)->count(), " ", $set->union($expected)->count(), "\n";
 
 // Re-adding what was dropped makes the set whole again, and the four land at
 // the end in the order they were re-added rather than back where they were.

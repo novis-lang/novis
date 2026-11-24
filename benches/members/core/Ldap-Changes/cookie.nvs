@@ -10,7 +10,7 @@ class Bench
     public static function run(uint $rounds): uint
     {
         var $corp = Core\Ldap::connect('corp');
-        var $sales = $corp->changes(Core\Ldap\Filter::equals('department', 'Sales'), { select: ['cn'] });
+        var $sales = $corp->searchChanges(Core\Ldap\Filter::equals('department', 'Sales'), { select: ['cn'] });
         foreach ($sales as Core\Ldap\Entry $person) {
         }
         // Each round uses the sum so far, so the loop cannot be left out.

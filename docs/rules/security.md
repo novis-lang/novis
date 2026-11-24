@@ -1655,13 +1655,13 @@ taken. One function in the checker asks the question at every one of these posit
 
 **A `Core` member that turns values into keys says so on the position they come from.** The member
 table marks that position with `CoreTy::Keys`: the elements of `flip`, `fillKeys` and
-`fromKeysAndValues`' keys, `countBy`'s elements and its `by` result, `mapKeys`' and `groupBy`'s callback
+`fromKeysAndValues`' keys, `groupCounts`' elements and its `by` result, `mapKeys`' and `groupBy`'s callback
 result, and the rows `column`'s `indexBy` names a cell of. The checker sends what reaches it through
 the same key function, so a `secret` value there is `E0896`. It does so once the arguments reported
 nothing. The array the keys enter is the call's answer, after the call binds its type variables and
 any contagious argument marks it. So a `tainted` value enters only an answer whose keys read back
 tainted, the rule every other key position follows. `column` with `indexBy` over
-`array<array<tainted string>>` compiles, since it gives `array<tainted string>`. `countBy` over
+`array<array<tainted string>>` compiles, since it gives `array<tainted string>`. `groupCounts` over
 `array<tainted string>` does not, since it gives `array<uint>`, and the program checks its values first
 or writes `Core\Taint::assertTrusted`. `mapKeys`' and `groupBy`'s callback types already refuse a
 `tainted` result. `flip`, `fillKeys` and `fromKeysAndValues` refuse a `tainted` key by their plain
@@ -1669,7 +1669,7 @@ or writes `Core\Taint::assertTrusted`. `mapKeys`' and `groupBy`'s callback types
 position and takes `secret` cells. `crates/nvs-stdlib/tests/taint_signatures.rs` reads every member
 that returns an array, and fails naming one with no mark and no answer in its `KEYS_FROM` list:
 positions, an array argument's own keys, or keys read out of text the member parses. A bare
-`callable` at `countBy`'s `by` has no known result, so it is not checked. The mark costs compile time
+`callable` at `groupCounts`' `by` has no known result, so it is not checked. The mark costs compile time
 only.
 
 `unset` adds no key and is not checked. The cost is an update to a key already there, such as a count
@@ -2191,7 +2191,7 @@ trying to be quick, and it is the same declaration hand-written hydration alread
 is only where a newcomer meets it first.
 
 A member that reads its own payload decides by its owner: every `Core\Request` decoder,
-`Core\Http\Response::jsonAs`, `Core\Jwt::verifyIssued`, and `queryAs` and `streamAs` on a
+`Core\Http\Response::jsonAs`, `Core\Jwt::verifyIssued`, and `queryAs` and `queryEachAs` on a
 `Core\Db\Connection` or `Core\Db\Transaction` carry `tainted` always. A row's text is input because
 an earlier request may have stored it ([`security/tainted-sources`](security.md#security-tainted-sources)), so a `#[Db\Derive]` class or
 an inline shape fills a text column only into a `tainted` field. A field no column maps is refused

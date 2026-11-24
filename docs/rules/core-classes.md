@@ -2348,7 +2348,7 @@ that only a deadline or a protocol error reaches.
 
 Five members run a statement. `query` and `queryAs<T>` answer a buffered `Db\Rows`, `execute` answers
 a `Db\Write` carrying `affected`, `changed` and `lastId`, `executeMany` answers a count, and
-`stream`/`streamAs<T>` answer an `Iterable` ([`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming)).
+`queryEach`/`queryEachAs<T>` answer an `Iterable` ([`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming)).
 
 Buffering is the default because memory ranks last, and because the alternative breaks the commonest
 loop in web programming — reading rows and writing per row — on a connection-busy rule that only
@@ -2395,11 +2395,11 @@ never change it. WAL is the session store's mode too, set by the same line.
 - **What WAL spends:** a `-wal` and a `-shm` file beside the database. The mode stays on the file once
   set, and it does not work on a network drive, which is what `journal_mode` is for.
 - **Memory:** a buffered `query` holds its whole result for the rest of the request, counted against
-  the request's memory cap. A program that does not reach for `stream` meets the cap, not a slow path.
+  the request's memory cap. A program that does not reach for `queryEach` meets the cap, not a slow path.
 
 **Declined:**
 - **A transaction inside `executeMany`.** A hidden `BEGIN` in a member whose name does not mention
-  one would silently change lock duration on a large batch, and the caller's own `transaction()`
+  one would silently change lock duration on a large batch, and the caller's own `runTransaction()`
   already composes ([`core-classes/db-transactions`](core-classes.md#core-classes-db-transactions)).
 - **MariaDB's `COM_STMT_BULK_EXECUTE`.** Taking it would spend a property of the surface on round
   trips the windowed executions already save. `MARIADB_CLIENT_BULK_UNIT_RESULTS`, which answers per set, reopens it only once a real server
@@ -2518,9 +2518,9 @@ used twice rather than two to keep in step.
 
 `rule:core-classes/db-streaming`
 
-`stream` and `streamAs<T>` read a result set in constant memory, and they **hold the connection until
+`queryEach` and `queryEachAs<T>` read a result set in constant memory, and they **hold the connection until
 drained**. A second statement attempted on a streaming connection throws `LogicError` naming every
-fix: read the rows first, `query` instead of `stream`, or a `{ shared: false }` connection. Every
+fix: read the rows first, `query` instead of `queryEach`, or a `{ shared: false }` connection. Every
 driver, SQLite included, says it in one sentence.
 
 There is no `{chunk?: uint}` option, and its absence is a refusal rather than an unlanded feature.
@@ -2576,10 +2576,10 @@ and drains none can exhaust that pool. That is the same shape as holding many co
 bounded by the pool the host already sizes.
 
 **Declined:**
-- **Buffering a result set behind `stream`.** It breaks the member's one promise, constant memory,
+- **Buffering a result set behind `queryEach`.** It breaks the member's one promise, constant memory,
   and makes a request's memory a function of a table's size, the unbounded-by-input shape
   [`core-classes/output-that-scales-with-its-input-bounds-the-input`](core-classes.md#core-classes-output-that-scales-with-its-input-bounds-the-input) refuses everywhere else.
-- **Refusing `stream` on the drivers without a portal.** It turns [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)'s
+- **Refusing `queryEach` on the drivers without a portal.** It turns [`core-classes/db-one-api`](core-classes.md#core-classes-db-one-api)'s
   single API into four APIs with a footnote, and no protocol among the five needs it.
 - **A chunk-size option.** [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming) gives the reason.
 
@@ -2591,17 +2591,17 @@ bounded by the pool the host already sizes.
 
 `rule:core-classes/db-transactions`
 
-`$db->transaction($fn, {isolation?, readOnly?, retries?})` is the only transaction spelling. The
+`$db->runTransaction($fn, {isolation?, readOnly?, retries?})` is the only transaction spelling. The
 callable form is forced: with no destructors, an object-scoped transaction has no point at which to
 roll back. A normal return commits, a throw rolls back and propagates, and a failed commit throws
 `DbError`.
 
-`Core\Db\Queryable` declares `query`, `queryAs`, `execute`, `executeMany`, `stream` and
-`transaction`. `Connection` implements it and `Transaction implements Queryable by $connection`, so
+`Core\Db\Queryable` declares `query`, `queryAs`, `execute`, `executeMany`, `queryEach` and
+`runTransaction`. `Connection` implements it and `Transaction implements Queryable by $connection`, so
 the query surface is declared once and forwarded while the type system still expresses "this function
 must run inside a transaction" and "this one does not care".
 
-Two hazards a passable `Transaction` opens are closed explicitly. Using one after its `transaction()`
+Two hazards a passable `Transaction` opens are closed explicitly. Using one after its `runTransaction()`
 call returned throws. `$tx->rollBack($reason)` sets a rollback-only **flag** *and* throws
 `Core\Db\RolledBack`, so an intervening `catch (Throwable)` cannot leave the transaction committed —
 the owning frame acts on the flag, not on catching the signal.
@@ -2614,7 +2614,7 @@ waits with exponential backoff and jitter by suspending the task, never by block
 `Isolation` is `ReadUncommitted`, `ReadCommitted`, `RepeatableRead`, `Snapshot` and `Serializable`,
 and a level the driver lacks throws. `Transaction` is the first `Core` type to use `by` delegation.
 
-DDL inside `transaction()` is already committed on MySQL and MariaDB, so a later throw rolls back
+DDL inside `runTransaction()` is already committed on MySQL and MariaDB, so a later throw rolls back
 nothing there; PostgreSQL is transactional for DDL. No API shape prevents this.
 
 **Declined:**
@@ -3389,14 +3389,14 @@ Active Directory's four extras are named options or members:
   `window` with `offset`, which need `sort`, replace paging for that search, and fill
   `Entries::total()` with the server's count. Both are checked before anything is sent.
 - **Deleted objects.** `showDeleted` includes deleted entries, and `Entry::isDeleted` says which.
-- **Incremental sync.** `changes` is DirSync: it returns the entries changed since the `cookie` the
+- **Incremental sync.** `searchChanges` is DirSync: it returns the entries changed since the `cookie` the
   program stored, and `Changes::cookie()` is the next one. On a server without DirSync it throws
   `Unsupported`.
 - **The Global Catalog** is a block whose URL uses port 3268 or 3269. It is read-only: every write but
-  `compare` throws `ReadOnly` before a byte is sent.
+  `hasValue` throws `ReadOnly` before a byte is sent.
 
 `modify` sends one Modify request, so the server applies every `Ldap\Change` in order or none of them.
-`rename` derives the new first level and, where it moved, the new parent from its second DN. `compare`
+`rename` derives the new first level and, where it moved, the new parent from its second DN. `hasValue`
 returns `bool` and throws on an error.
 
 - **Memory:** a search holds one page of up to `pageSize` entries and the current entry, per search a
@@ -3412,7 +3412,7 @@ returns `bool` and throws on an error.
   while every call reaches the same controller, which the URL list's failover does not promise.
 - **A client-side sort, as PHP's `ldap_sort`.** The server sorts with `sort`, so a second sort would be
   a second form of the same operation.
-- **A `compare` that returns `-1` on an error.** A third value a caller has to test for beside `true`
+- **A `hasValue` that returns `-1` on an error.** A third value a caller has to test for beside `true`
   and `false`.
 
 <sub>See also [`core-classes/ldap-capabilities`](core-classes.md#core-classes-ldap-capabilities), [`core-classes/ldap-filter-is-a-value`](core-classes.md#core-classes-ldap-filter-is-a-value), [`core-classes/db-streaming`](core-classes.md#core-classes-db-streaming).</sub>
@@ -3740,8 +3740,8 @@ rather than estimated, where a sliding-window counter can only answer "sometime 
 the answer that makes clients retry in a burst at the window edge. Both tiers run the identical
 algorithm, so moving a call between them changes the *guarantee* and not the shape of the answer.
 
-The `Decision` is readonly `allowed`, `limit`, `remaining` and `retryAfter`, the last being `?Duration`
-and `null` exactly when `allowed` is true — absence is `?T`, not a sentinel zero. Both members are
+The `Decision` is readonly `isAllowed`, `limit`, `remaining` and `retryAfter`, the last being `?Duration`
+and `null` exactly when `isAllowed` is true — absence is `?T`, not a sentinel zero. Both members are
 qualifier-neutral. The key **accepts `tainted`**, since a tenant or account id is user-derived by
 nature and the store's protocol is length-prefixed, so a key cannot reshape a command; it
 **refuses `secret`**, because using a signing key as a rate-limit key writes it into a store with a
@@ -3960,7 +3960,7 @@ ordinary `net.connect` grant.
 | `applicationServerKey(Crypto\KeyPair $vapid): string` | the public key, base64url, that the browser's `pushManager.subscribe()` needs |
 | `send(WebPush\Subscription $to, bytes $payload, Crypto\KeyPair $vapid, string $subject, int $ttl = 86400): WebPush\Sent` | encrypts, signs and sends one message, and returns the push service's answer |
 
-`WebPush\Sent` has the push service's `status` and `gone`, which is `true` for a subscription the
+`WebPush\Sent` has the push service's `status` and `isGone`, which is `true` for a subscription the
 service no longer knows, so the application can drop it. The VAPID key is a `Core\Crypto\KeyPair` of
 kind `P256` and stays `secret`; it never appears in a message or an error. The token is signed by the
 code `Core\Jwt` already uses for ES256.
@@ -4749,9 +4749,9 @@ is a static member of the class it returns, so the class a reader looks up is th
 | Class | Static members |
 |---|---|
 | `Core\Time` | `now()`, `monotonic()`, `sleep(Duration)` |
-| `Core\Time\Instant` | `fromEpoch(int, {nanos?})`, `fromIso(text)` |
+| `Core\Time\Instant` | `fromEpoch(int, {nanoseconds?})`, `fromIso(text)` |
 | `Core\Time\Date` | `at(int, uint, uint)`, `fromIso(text)` |
-| `Core\Time\TimeOfDay` | `at(uint, uint, {second?, nanos?})`, `fromIso(text)` |
+| `Core\Time\TimeOfDay` | `at(uint, uint, {second?, nanoseconds?})`, `fromIso(text)` |
 | `Core\Time\DateTime` | `at(Date, TimeOfDay, Zone)`, `fromIso(text, Zone)`, `parse(text, pattern, Zone)` |
 
 `DateTime::at` takes its three parts in the order the readers `date()`, `timeOfDay()` and `zone()`

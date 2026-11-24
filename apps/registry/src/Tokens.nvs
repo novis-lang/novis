@@ -66,7 +66,7 @@ final class Tokens
         int $now = Time::now()->toEpochSeconds();
         string $id = Random::token(8);
         string $token = Tokens::PREFIX . Random::token(32);
-        $this->db->transaction(fn(Transaction $tx): void => {
+        $this->db->runTransaction(fn(Transaction $tx): void => {
             $tx->execute(
                 'insert into tokens (id, hash, account, scope, created_at, expires_at) values (?, ?, ?, ?, ?, ?)',
                 [$id, Tokens::hashOf($token), $account, $scope, $now, $now + $days * 86400],
@@ -156,7 +156,7 @@ final class Tokens
     // It returns `false` when the account has no such token, or it was revoked before.
     public function revoke(string $account, tainted string $id): bool
     {
-        return $this->db->transaction(fn(Transaction $tx): bool => {
+        return $this->db->runTransaction(fn(Transaction $tx): bool => {
             var $write = $tx->execute(
                 'update tokens set revoked_at = ? where id = ? and account = ? and revoked_at is null',
                 [Time::now()->toEpochSeconds(), $id, $account],

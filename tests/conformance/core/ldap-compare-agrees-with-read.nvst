@@ -1,5 +1,5 @@
 --TEST--
-Over every value `read` returns for `objectClass`, `compare` returns `true`, and it returns `false` for a class the entry does not have
+Over every value `read` returns for `objectClass`, `hasValue` returns `true`, and it returns `false` for a class the entry does not have
 --SKIPIF--
 <?nvs
 // The case needs the `samba-ad` server from `tests/db/compose.yaml`. Where it
@@ -15,7 +15,7 @@ try {
 }
 --FILE--
 <?nvs
-// covers: Core\Ldap\Connection::compare
+// covers: Core\Ldap\Connection::hasValue
 var $corp = Core\Ldap::connect("corp");
 var $admin = "CN=Administrator,CN=Users,DC=example,DC=test";
 ?Core\Ldap\Entry $found = $corp->read($admin);
@@ -26,13 +26,13 @@ if ($found == null) {
     var $classes = $entry->strings("objectClass") ?? [];
     int $disagree = 0;
     foreach ($classes as tainted string $class) {
-        if (!$corp->compare($admin, "objectClass", $class)) {
+        if (!$corp->hasValue($admin, "objectClass", $class)) {
             $disagree = $disagree + 1;
         }
     }
     echo "classes: ", Core\Arr::count($classes) > 1 ? "more than one" : "one or none", "\n";
     echo "disagreements: ", $disagree, "\n";
-    echo "group: ", $corp->compare($admin, "objectClass", "group") ? "true" : "false", "\n";
+    echo "group: ", $corp->hasValue($admin, "objectClass", "group") ? "true" : "false", "\n";
 }
 --COPY--
 ../../db/ca.crt

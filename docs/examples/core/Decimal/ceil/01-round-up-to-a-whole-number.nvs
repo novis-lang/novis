@@ -11,5 +11,5 @@ foreach ($values as decimal $value) {
 
 // A box holds twelve items, so an order of one hundred fills nine boxes. The
 // last box is only part full, and it is still a whole box. This prints 9.
-decimal $boxes = Core\Decimal::divRound(100, 12, 4, Core\RoundMode::HalfUp);
+decimal $boxes = Core\Decimal::divideRounded(100, 12, 4, Core\RoundMode::HalfUp);
 echo Core\Decimal::ceil($boxes), "\n";

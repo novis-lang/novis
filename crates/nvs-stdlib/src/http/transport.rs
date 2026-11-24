@@ -100,7 +100,7 @@ use crate::compress;
 /// A cap and not a configuration: a reply is bytes another host chose, so
 /// "until memory runs out" is that host deciding this process's footprint. Two
 /// megabytes past the point where a caller should be reaching for
-/// `Core\Http\Client::stream` instead.
+/// `Core\Http\Client::openStream` instead.
 pub(super) const REPLY_CEILING: usize = 8 * 1024 * 1024;
 
 /// The most head a reply may carry before it is refused.
@@ -1311,7 +1311,7 @@ impl Incoming {
 
 /// A reply whose head has arrived and whose body has not.
 ///
-/// What every attempt produces, and what `Core\Http\Client::stream` hands a
+/// What every attempt produces, and what `Core\Http\Client::openStream` hands a
 /// program: a buffered call is this with [`Incoming::whole`] called on it, so
 /// the two members read one reply implementation rather than two.
 pub(crate) struct Streamed {
@@ -6257,7 +6257,7 @@ pub(crate) mod tests {
         served.join().expect("the origin thread");
     }
 
-    /// `verified` is the member the reporting slot exists for: a pinned call and
+    /// `isVerified` is the member the reporting slot exists for: a pinned call and
     /// a `tlsVerify: false` one both answer `false`, while `tlsCa` — which
     /// replaces the trust set and then checks the chain and the name against it —
     /// still answers `true` (`rule:http-server/a-reply-reports-its-tls-session`).

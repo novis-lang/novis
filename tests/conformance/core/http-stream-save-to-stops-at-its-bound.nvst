@@ -11,7 +11,7 @@ Core\Test::answerHttp("https://api.example.com/report", 200, {body: "aaaabbbbccc
 Core\Test::answerHttp("https://api.example.com/report-again", 200, {body: "aaaabbbbcccc", headers: ["content-type" => "text/plain"]});
 Core\Test::answerHttp("https://api.example.com/report-third", 200, {body: "aaaabbbbcccc", headers: ["content-type" => "text/plain"]});
 
-var $fits = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/report");
+var $fits = Core\Http\Client::openStream(Core\Http\Method::Get, "https://api.example.com/report");
 echo $fits->status(), " ", $fits->header("content-type") ?? "no type", " ", Core\Arr::count($fits->headers("content-type")), "\n";
 $fits->saveTo("report.txt", 12);
 echo "fits: ", Core\IO::read("report.txt"), "\n";
@@ -19,7 +19,7 @@ echo "fits: ", Core\IO::read("report.txt"), "\n";
 // One octet less of a budget, and the reply is the same length: the refusal is
 // the bound's other side, and the file it would have written is not there to be
 // found by a later reader.
-var $over = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/report-again");
+var $over = Core\Http\Client::openStream(Core\Http\Method::Get, "https://api.example.com/report-again");
 try {
     $over->saveTo("over.txt", 11);
     echo "a bound of eleven accepted twelve octets\n";
@@ -35,7 +35,7 @@ try {
 // rather than of the one already written: `saveTo` is `chunks()` with a file on
 // the other end of it, and a member that framed the body differently on its way
 // to disk would still have printed the line above.
-var $walked = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/report-third");
+var $walked = Core\Http\Client::openStream(Core\Http\Method::Get, "https://api.example.com/report-third");
 uint $seen = 0;
 foreach ($walked->chunks() as tainted bytes $chunk) {
     $seen = $seen + Core\Bytes::length($chunk);

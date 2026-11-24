@@ -15,7 +15,7 @@ Core\Test::answerHttp('https://api.example.com/odd', 200, { body: '', headers: [
 // 1. Names that are empty, have a line break, a NUL byte or a space, or are very long.
 //    Each call must return `null` or throw an error.
 array<string> $names = ['', "x-a\r\nx-b", "x\0y", 'x y', Core\Str::repeat('n', 100000)];
-var $odd = Core\Http\Client::stream(Core\Http\Method::Get, 'https://api.example.com/odd');
+var $odd = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://api.example.com/odd');
 foreach ($names as string $name) {
     ?tainted string $found = null;
     try {
@@ -48,7 +48,7 @@ while ($i < 3000) {
     $i = $i + 1;
 }
 Core\Test::answerHttp('https://api.example.com/wide', 200, { body: '', headers: $wide });
-var $manyHeaders = Core\Http\Client::stream(Core\Http\Method::Get, 'https://api.example.com/wide');
+var $manyHeaders = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://api.example.com/wide');
 uint $j = 0;
 while ($j < 3000) {
     if ($manyHeaders->header('X-FIELD-2999') != 'value 2999') {
@@ -66,7 +66,7 @@ while ($k < 50000) {
     $k = $k + 1;
 }
 Core\Test::answerHttp('https://api.example.com/tall', 200, { body: '', headers: ['x-tall' => $lines] });
-var $tall = Core\Http\Client::stream(Core\Http\Method::Get, 'https://api.example.com/tall');
+var $tall = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://api.example.com/tall');
 uint $length = Core\Str::length($tall->header('x-tall') ?? '');
 if ($length != 50000 * 3 - 2) {
     throw new LogicError(Core\Str::format('the joined value has %d characters', $length));

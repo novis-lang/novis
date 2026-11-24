@@ -10,4 +10,4 @@ echo Core\Time\Instant::fromIso('2024-03-01T11:00:00Z')->compareTo($noon), "\n";
 echo Core\Time\Instant::fromEpoch(1709294400)->compareTo($noon), "\n";
 
 // This prints 1. One nanosecond after noon is already later.
-echo Core\Time\Instant::fromEpoch(1709294400, { nanos: 1 })->compareTo($noon), "\n";
+echo Core\Time\Instant::fromEpoch(1709294400, { nanoseconds: 1 })->compareTo($noon), "\n";

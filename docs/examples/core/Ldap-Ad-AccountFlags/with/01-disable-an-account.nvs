@@ -10,6 +10,6 @@ if ($flags != null) {
     var $changed = $flags->with({ disabled: true });
 
     // The account stays a normal account. This prints `disabled: true, normal: true`.
-    echo 'disabled: ', $changed->disabled() ? 'true' : 'false';
-    echo ', normal: ', $changed->normalAccount() ? 'true' : 'false', "\n";
+    echo 'disabled: ', $changed->isDisabled() ? 'true' : 'false';
+    echo ', normal: ', $changed->isNormalAccount() ? 'true' : 'false', "\n";
 }

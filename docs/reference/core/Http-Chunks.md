@@ -28,7 +28,7 @@ Core\Test::answerHttp('https://files.example.com/report.csv', 200, {
     body: "date,sales\n2026-09-01,120\n2026-09-02,95\n",
 });
 
-Core\Http\Stream $download = Core\Http\Client::stream(Core\Http\Method::Get, 'https://files.example.com/report.csv');
+Core\Http\Stream $download = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://files.example.com/report.csv');
 uint $size = 0;
 foreach ($download->chunks() as tainted bytes $piece) {
     $size = $size + Core\Bytes::length($piece);

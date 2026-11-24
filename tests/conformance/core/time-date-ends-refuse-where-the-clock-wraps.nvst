@@ -100,7 +100,7 @@ echo "past-top=", $pastTop as string,
 // is answered, never refused, and the answer is on the far side — which is the
 // whole of what "the dial is closed" means. Twelve moves, twelve answers, and
 // every one of them smaller than the reading it came from.
-var $dialTop = Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999});
+var $dialTop = Core\Time\TimeOfDay::at(23, 59, {second: 59, nanoseconds: 999999999});
 var $dialBottom = Core\Time\TimeOfDay::at(0, 0);
 int $tick = 0;
 int $wrappedUp = 0;

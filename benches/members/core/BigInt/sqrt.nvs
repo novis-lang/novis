@@ -18,7 +18,7 @@ class Bench
         var $root = Core\BigInt::of(0);
         uint $i = 0;
         while ($i < $rounds) {
-            $root = $counts[($i % 2) as int]->add($root)->sqrt();
+            $root = $counts[($i % 2) as int]->plus($root)->sqrt();
             $i = $i + 1;
         }
         return Core\Str::length($root->toString());

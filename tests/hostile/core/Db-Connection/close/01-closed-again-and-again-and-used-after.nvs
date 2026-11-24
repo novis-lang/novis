@@ -54,7 +54,7 @@ while ($i < 200) {
 }
 uint $seen = 0;
 try {
-    foreach ($walk->stream('select n from many order by n', []) as Core\Db\Row $row) {
+    foreach ($walk->queryEach('select n from many order by n', []) as Core\Db\Row $row) {
         $seen = $seen + 1;
         if ($seen == 1) {
             $walk->close();

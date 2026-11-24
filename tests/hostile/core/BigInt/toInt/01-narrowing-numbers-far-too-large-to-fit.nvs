@@ -6,7 +6,7 @@
 
 // 1. A number of 1001 bits is narrowed 5000 times. Every call throws, and each
 //    error carries all 302 digits of the number. This prints 5000.
-var $wide = Core\BigInt::of(1)->shl(1000);
+var $wide = Core\BigInt::of(1)->shiftedLeft(1000);
 int $refused = 0;
 int $round = 0;
 while ($round < 5000) {
@@ -48,7 +48,7 @@ echo $edges, "\n";
 //    than 300000 digits, and the program must build it. This prints 1.
 int $huge = 0;
 try {
-    Core\BigInt::of(1)->shl(1000000)->toInt();
+    Core\BigInt::of(1)->shiftedLeft(1000000)->toInt();
 } catch (ArithmeticError $far) {
     $huge = 1;
 }

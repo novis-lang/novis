@@ -19,12 +19,12 @@ class Clock {
 echo "hour=", Clock::render(Core\Time\TimeOfDay::at(23, 0)), "|\n";
 echo "minute=", Clock::render(Core\Time\TimeOfDay::at(0, 59)), "|\n";
 echo "second=", Clock::render(Core\Time\TimeOfDay::at(0, 0, {second: 59})), "|\n";
-echo "nanos=", Clock::render(Core\Time\TimeOfDay::at(0, 0, {nanos: 999999999})), "|\n";
+echo "nanos=", Clock::render(Core\Time\TimeOfDay::at(0, 0, {nanoseconds: 999999999})), "|\n";
 // All four at once is the dial's last reading, which is where the four bounds
 // are simultaneously reachable — so they are not four separate claims about
 // four separate readings.
 echo "all-four=", Clock::render(
-    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999}),
+    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanoseconds: 999999999}),
 ), "|\n";
 
 // The refused side: one past each ceiling, in the same shape. The floors need
@@ -48,7 +48,7 @@ try {
     echo "second-60=", $second->message, "|\n";
 }
 try {
-    Core\Time\TimeOfDay::at(0, 0, {nanos: 1000000000});
+    Core\Time\TimeOfDay::at(0, 0, {nanoseconds: 1000000000});
 } catch (RuntimeError $nanos) {
     echo "nanos-1e9=", $nanos->message, "|\n";
 }
@@ -60,7 +60,7 @@ try {
 // reading and not as a parameter — the sibling `with` bounds each option on
 // its own and says so, which is a different sentence for a different member.
 try {
-    Core\Time\TimeOfDay::at(24, 60, {second: 60, nanos: 1000000000});
+    Core\Time\TimeOfDay::at(24, 60, {second: 60, nanoseconds: 1000000000});
 } catch (RuntimeError $all) {
     echo "all-four-past=", $all->message, "|\n";
 }

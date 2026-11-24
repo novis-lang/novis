@@ -20,7 +20,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             var $type = $group->groupType();
-            if ($type != null && $type->security()) {
+            if ($type != null && $type->isSecurityGroup()) {
                 $total = $total + 1 + $total % 2;
             }
             $i = $i + 1;

@@ -3,7 +3,7 @@ one of three special values: `INFINITY`, `-INFINITY` and `NaN` (a value that mea
 number"). For those three, the result is `false`.
 
 A special value usually comes from a calculation that went out of range. A number too big for a
-`float` becomes `INFINITY`. Zero divided by zero with `Core\Math::fdiv` gives `NaN`. When a
+`float` becomes `INFINITY`. Zero divided by zero with `Core\Math::divide` gives `NaN`. When a
 special value is added to a total, the total becomes special too. So test a result with
 `Core\Math::isFinite` before you save it or show it.
 

@@ -31,7 +31,7 @@ if (-1) { $truthy = $truthy + 1; }
 if ($oneHeld) { $truthy = $truthy + 1; }
 
 // Both zeros are false, and NAN is true, because it is not zero.
-float $nan = Core\Math::fdiv(0.0, 0.0);
+float $nan = Core\Math::divide(0.0, 0.0);
 if (!0.0) { $falsy = $falsy + 1; }
 if (!(-0.0)) { $falsy = $falsy + 1; }
 if ($nan) { $truthy = $truthy + 1; }

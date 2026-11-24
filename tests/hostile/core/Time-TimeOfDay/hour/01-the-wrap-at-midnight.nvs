@@ -14,7 +14,7 @@ final class Expect
 }
 
 // 1. The last nanosecond of the day is in hour 23. One nanosecond later it is midnight, hour 0.
-var $last = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanos: 999999999 });
+var $last = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanoseconds: 999999999 });
 Expect::same('step 1', $last->hour() as string, '23');
 Expect::same('step 1', $last->plus(1, Core\Unit::Nanosecond)->hour() as string, '0');
 Expect::same('step 1', Core\Time\TimeOfDay::at(0, 0)->minus(1, Core\Unit::Nanosecond)->hour() as string, '23');
@@ -34,7 +34,7 @@ try {
 // 3. Every hour of the day is made with `at` and changed with `with`. Each must give back its own hour.
 uint $h = 0;
 while ($h < 24) {
-    var $time = Core\Time\TimeOfDay::at($h, 30, { second: 30, nanos: 999999999 });
+    var $time = Core\Time\TimeOfDay::at($h, 30, { second: 30, nanoseconds: 999999999 });
     Expect::same('step 3', $time->hour() as string, $h as string);
     Expect::same('step 3', $last->with({ hour: $h })->hour() as string, $h as string);
     Expect::same('step 3', $time->with({ hour: $time->hour() })->compareTo($time) as string, '0');

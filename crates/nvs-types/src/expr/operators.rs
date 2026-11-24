@@ -1398,7 +1398,7 @@ fn reject_unrowed_arithmetic_operand(
 /// operands *are* numbers for. [`code::E_FLOAT_MODULO`]'s own doc comment is
 /// that decision's home: PHP's `%` converts to an integer and returns one,
 /// `rule:types/arithmetic`'s "either operand a `float`" row would return a `float`, and
-/// `Core\Math::mod` settles it the third way — integer `%` is the operator,
+/// `Core\Math::remainder` settles it the third way — integer `%` is the operator,
 /// so the floating-point remainder is that member and the
 /// operator is refused at both ends rather than guessed at either. The other
 /// end is the catchable throw `nvs_runtime::helpers::value_arith` raises where
@@ -1419,7 +1419,7 @@ fn reject_float_modulo(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'_>) 
             .with_primary(span, "no `float` row for `%`")
             .with_help(
                 "write `($a as int) % ($b as int)` for an integer remainder. Write \
-             `Core\\Math::mod($a, $b)` for the floating-point remainder",
+             `Core\\Math::remainder($a, $b)` for the floating-point remainder",
             ),
     );
     Some(env.interner.mixed())
@@ -1829,7 +1829,7 @@ pub(crate) fn reject_decimal_float_operands(
 
 /// `rule:types/arithmetic`'s last row: `**` with a `decimal` base is a compile error,
 /// because a general decimal power has no exact result at a bounded scale —
-/// `Core\Decimal::pow` names the rounding instead. A decimal *exponent* is
+/// `Core\Decimal::power` names the rounding instead. A decimal *exponent* is
 /// refused by the same diagnostic: the row does not define `int ** decimal`
 /// either, and letting it fall through to [`arithmetic_result`]'s decimal row
 /// would invent a fractional exponentiation that rule never grants.
@@ -1842,7 +1842,7 @@ pub(crate) fn power_result(lhs: TypeId, rhs: TypeId, span: Span, env: &mut Env<'
                 "`**` is not defined on `decimal`",
             )
             .with_primary(span, "`decimal` operand of `**`")
-            .with_help("use `Core\\Decimal::pow`, which names the rounding it does"),
+            .with_help("use `Core\\Decimal::power`, which names the rounding it does"),
         );
         return env.interner.mixed();
     }

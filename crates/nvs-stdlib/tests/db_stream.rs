@@ -11,7 +11,7 @@
 //!
 //! **These cases live in this crate because the promise is the member's, not a
 //! driver's.** `crates/nvs-stdlib/src/db/stream.rs` is where
-//! `Core\Db\Connection::stream` lives, and its in-crate
+//! `Core\Db\Connection::queryEach` lives, and its in-crate
 //! `stream_answers_rows_without_holding_the_result_set` counts the one parked
 //! `Db\Row` over a thousand rows with no wire underneath it at all. What that
 //! test cannot reach is the other half of the same sentence — the read state a
@@ -353,7 +353,7 @@ fn probe(conn: &mut Connection) -> io::Result<()> {
 /// `second_statement` like the four drivers with a wire, so the developer who
 /// reaches one reads the same sentence whatever the database is.
 fn names_both_fixes(refusal: &str) -> bool {
-    refusal.contains("`query` instead of `stream`") && refusal.contains("{ shared: false }")
+    refusal.contains("`query` instead of `queryEach`") && refusal.contains("{ shared: false }")
 }
 
 /// Asserts a driver that answered no walk refused in the shape the goal's
@@ -873,7 +873,7 @@ fn server_version_answers_what_the_connection_kept() {
 /// asked for, without the `WRITTEN_CLASS_MEMBERS` row it is never *emitted*,
 /// and without the generic declaration the answer cannot be written down in
 /// source at all.
-// covers: Core\Db\Connection::streamAs
+// covers: Core\Db\Connection::queryEachAs
 #[test]
 fn stream_as_answers_rows_at_the_class_it_was_written_with() {
     use nvs_stdlib::registry::{self, CoreTy};
@@ -893,24 +893,24 @@ fn stream_as_answers_rows_at_the_class_it_was_written_with() {
 
         assert!(
             matches!(
-                answers("streamAs"),
+                answers("queryEachAs"),
                 CoreTy::InstanceAt(name, [CoreTy::Written("T")]) if name == STREAM
             ),
-            "`{owner}::streamAs` answers the walk at the written type, and answers {:?}",
-            answers("streamAs")
+            "`{owner}::queryEachAs` answers the walk at the written type, and answers {:?}",
+            answers("queryEachAs")
         );
         assert!(
             matches!(
-                answers("stream"),
+                answers("queryEach"),
                 CoreTy::InstanceAt(name, [CoreTy::Instance(element)])
                     if name == STREAM && *element == ROW
             ),
-            "`{owner}::stream` answers the same walk with its element fixed, and answers {:?}",
-            answers("stream")
+            "`{owner}::queryEach` answers the same walk with its element fixed, and answers {:?}",
+            answers("queryEach")
         );
         assert!(
-            registry::WRITTEN_CLASS_MEMBERS.contains(&(owner, "streamAs")),
-            "`{owner}::streamAs` is keyed by its declaring class, so a call through a `$tx` \
+            registry::WRITTEN_CLASS_MEMBERS.contains(&(owner, "queryEachAs")),
+            "`{owner}::queryEachAs` is keyed by its declaring class, so a call through a `$tx` \
              keeps the class its call site wrote"
         );
     }

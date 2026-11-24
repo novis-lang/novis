@@ -8,7 +8,7 @@ Core\Test::answerHttp('https://shop.example.com/login', 200, {
     headers: ['set-cookie' => $cookies],
 });
 
-Core\Http\Stream $login = Core\Http\Client::stream(Core\Http\Method::Post, 'https://shop.example.com/login');
+Core\Http\Stream $login = Core\Http\Client::openStream(Core\Http\Method::Post, 'https://shop.example.com/login');
 // `headers()` returns one entry for each line, in the order they arrived.
 // This prints the two cookies on two lines.
 foreach ($login->headers('set-cookie') as tainted string $cookie) {

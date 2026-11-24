@@ -20,10 +20,10 @@ class Download
 
 array<secret bytes> $keys = [Core\Crypto::generateKey()];
 string $live = Core\Uri::parse('https://example.com/files?name=report.pdf')
-    ->sign({ keys: $keys, until: Core\Time::now()->plus(1h) })
+    ->signed({ keys: $keys, until: Core\Time::now()->plus(1h) })
     ->toString();
 string $old = Core\Uri::parse('https://example.com/files?name=report.pdf')
-    ->sign({ keys: $keys, until: Core\Time::now()->minus(1h) })
+    ->signed({ keys: $keys, until: Core\Time::now()->minus(1h) })
     ->toString();
 
 // This prints the 200, 410 and 403 lines.

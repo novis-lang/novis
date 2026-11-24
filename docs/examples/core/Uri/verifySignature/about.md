@@ -1,8 +1,8 @@
-Checks a link that `sign` signed. It checks that nobody changed the address, and that the link has
+Checks a link that `signed` made. It checks that nobody changed the address, and that the link has
 not expired. It returns nothing. When the check fails, it throws a `RuntimeError`, so the code after
 the call runs only for a valid link.
 
-You give it the same list of keys that `sign` used. A link signed with any key in the list is
+You give it the same list of keys that `signed` used. A link signed with any key in the list is
 accepted. To change to a new key, put the new key first and keep the old one for a while. Links
 signed with the old key keep working until you remove it.
 

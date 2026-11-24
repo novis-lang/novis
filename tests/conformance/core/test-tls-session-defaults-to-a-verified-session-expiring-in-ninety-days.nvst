@@ -7,7 +7,7 @@
 // reaches for when only the reply's body matters to it.
 var $session = Core\Test::tlsSession();
 echo $session->version(), " ", $session->cipher(), "\n";
-echo $session->verified() ? "verified" : "relaxed", "\n";
+echo $session->isVerified() ? "verified" : "relaxed", "\n";
 echo $session->subject(), " | ", $session->issuer(), "\n";
 
 // The chain is the leaf and then the CA that signed it, both as PEM.

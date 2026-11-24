@@ -26,8 +26,8 @@ $right->add($green);
 // `Core\ObjectSet` the registry row spells would not satisfy any of these
 // three, since a written argument is invariant.
 Core\ObjectSet<Tag> $union = $left->union($right);
-Core\ObjectSet<Tag> $common = $left->intersect($right);
-Core\ObjectSet<Tag> $only = $left->diff($right);
+Core\ObjectSet<Tag> $common = $left->intersection($right);
+Core\ObjectSet<Tag> $only = $left->difference($right);
 
 // The other half is the binding: `foreach … as Tag $tag` over a set whose
 // element stayed the class's own `T` is `expected Tag, found T`. One question
@@ -47,11 +47,11 @@ echo $names, "\n";
 
 // Composing is what the element type buys, and it is writable only because
 // each answer is the same type its receiver was.
-echo $left->union($right)->diff($left->intersect($right))->count(), "\n";
+echo $left->union($right)->difference($left->intersection($right))->count(), "\n";
 
 // And out again through `Core\Arr::from`, whose `CoreTy::Iterated` parameter
 // reads the element off the very same `Iterable<T>`.
-array<Tag> $flat = Core\Arr::from($left->diff($right));
+array<Tag> $flat = Core\Arr::from($left->difference($right));
 echo Core\Arr::count($flat), " ", $flat[0]->name, "\n";
 --EXPECT--
 red,blue,green,blue,red,

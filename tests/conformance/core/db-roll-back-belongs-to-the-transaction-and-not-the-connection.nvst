@@ -9,7 +9,7 @@
 // for is inside the scope that owns one.
 var $db = Core\Db::connect("main");
 
-$db->transaction(fn (Core\Db\Transaction $tx): void => {
+$db->runTransaction(fn (Core\Db\Transaction $tx): void => {
     // Everything the transaction did is reachable right up to the refusal, and
     // none of it survives it: `rollBack` is the last statement that can run
     // here, because it throws rather than returning.

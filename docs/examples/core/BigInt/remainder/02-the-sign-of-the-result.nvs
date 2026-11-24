@@ -1,0 +1,21 @@
+<?nvs
+// Shows which sign a remainder has, and what a divisor of zero does.
+
+var $seven = Core\BigInt::of(7);
+var $two = Core\BigInt::of(2);
+
+// The result has the sign of the number you call `remainder` on. These two lines
+// print 1 and -1.
+echo $seven->remainder($two), "\n";
+echo $seven->negated()->remainder($two), "\n";
+
+// The sign of the divisor is not used, so this prints 1 as well.
+echo $seven->remainder($two->negated()), "\n";
+
+// A divisor of zero is not allowed. `remainder` throws an `ArithmeticError`, and the
+// message names the method that refused.
+try {
+    $seven->remainder(Core\BigInt::of(0));
+} catch (ArithmeticError $error) {
+    echo $error->message, "\n";
+}

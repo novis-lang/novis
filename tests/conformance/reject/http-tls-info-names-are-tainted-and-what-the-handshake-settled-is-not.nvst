@@ -4,7 +4,7 @@
 <?nvs
 // The claim is *agreement*: one question asked of all seven members of
 // `Core\Http\TlsInfo`, which is which side of the connection chose the answer. A version and a cipher are
-// values out of a closed set this end offered, a `verified` is this process's
+// values out of a closed set this end offered, an `isVerified` is this process's
 // own reading of its own policy, and a subject, an issuer and a chain are bytes
 // the other end wrote into a certificate — verifying a chain settles which host
 // answered and says nothing about what is written inside it.
@@ -14,7 +14,7 @@ if ($info != null) {
     // Accepted: what the handshake settled carries no qualifier.
     string $version = $info->version();
     string $cipher = $info->cipher();
-    bool $verified = $info->verified();
+    bool $verified = $info->isVerified();
     echo $version, " ", $cipher, " ", $verified ? "verified" : "relaxed", "\n";
 
     // Accepted: the certificate's own text is where it can be held, and an

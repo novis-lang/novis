@@ -16,5 +16,5 @@ foreach ($dns as string $dn) {
     }
     // Only a security group can give its members access to something.
     // This prints `Employees: security` and `Newsletter: email only`.
-    echo $group->dn()->rdnValue(), ': ', $type->security() ? 'security' : 'email only', "\n";
+    echo $group->dn()->rdnValue(), ': ', $type->isSecurityGroup() ? 'security' : 'email only', "\n";
 }

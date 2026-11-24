@@ -5,7 +5,7 @@
 class Notifier
 {
     // Sends the message to each stored subscription. A subscription is kept when its send
-    // succeeds or fails, and deleted when `gone()` is `true`. Returns the subscriptions to keep.
+    // succeeds or fails, and deleted when `isGone()` returns `true`. Returns the subscriptions to keep.
     public static function notify(array<string> $stored, string $text, Core\Crypto\KeyPair $vapid): array<string>
     {
         bytes $payload = Core\Encoding::encodeText($text, Core\Charset::Utf8);
@@ -14,7 +14,7 @@ class Notifier
             Core\WebPush\Subscription $to = Core\WebPush::subscription($json);
             try {
                 Core\WebPush\Sent $sent = Core\WebPush::send($to, $payload, $vapid, 'mailto:admin@example.com');
-                if (!$sent->gone()) {
+                if (!$sent->isGone()) {
                     $keep[] = $json;
                 }
             } catch (RuntimeError $error) {

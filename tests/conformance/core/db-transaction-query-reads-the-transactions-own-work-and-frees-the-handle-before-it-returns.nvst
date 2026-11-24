@@ -15,7 +15,7 @@ var $db = Db::connect("main");
 $db->execute("create table t (id integer primary key, name text not null, seen int not null)", []);
 $db->execute("insert into t (name, seen) values (?, 0), (?, 0)", ["ada", "grace"]);
 
-$db->transaction(fn (Transaction $tx): void => {
+$db->runTransaction(fn (Transaction $tx): void => {
     $tx->execute("insert into t (name, seen) values (?, 0)", ["katherine"]);
     // Both counts, because a member that read through a second connection
     // would print the committed two and look plausible on its own line.
@@ -25,7 +25,7 @@ $db->transaction(fn (Transaction $tx): void => {
     // here: every row is read before the call returns, so the connection the
     // `COMMIT` has to go out on is free again and a write per row is not
     // `rule:core-classes/db-streaming`'s connection-busy refusal. A
-    // `stream` in this position is the case that pins the other answer.
+    // `queryEach` in this position is the case that pins the other answer.
     foreach ($tx->query("select id, name from t order by id", []) as Row $row) {
         $tx->execute("update t set seen = seen + 1 where id = ?", [$row->int("id") ?? 0]);
     }
@@ -37,7 +37,7 @@ echo "kept ", $db->query("select id from t", [])->count(), "\n";
 // uncommitted row back out and the same read through the connection answers
 // what is left.
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->runTransaction(fn (Transaction $tx): void => {
         $tx->execute("insert into t (name, seen) values (?, 0)", ["barbara"]);
         echo "before the rollback ", $tx->query("select id from t", [])->count(), "\n";
         $tx->rollBack("keep nothing");

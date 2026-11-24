@@ -13,7 +13,7 @@ class Api
         }
         // The header needs whole seconds. Rounding up means the client
         // never comes back too early.
-        uint $seconds = Core\Math::intDiv($wait->toMilliseconds() + 999, 1000) as uint;
+        uint $seconds = Core\Math::quotient($wait->toMilliseconds() + 999, 1000) as uint;
         return "429 Too Many Requests\nRetry-After: " . $seconds;
     }
 }

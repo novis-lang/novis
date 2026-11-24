@@ -38,7 +38,7 @@ if ($tenth != 1.2) { $differ = $differ + 1; }
 
 // The two IEEE edges: a NAN equals nothing, not even itself, and the two
 // zeros are equal.
-float $nan = Core\Math::fdiv(0.0, 0.0);
+float $nan = Core\Math::divide(0.0, 0.0);
 if (0.0 == -0.0) { $equal = $equal + 1; }
 if ($nan != $nan) { $differ = $differ + 1; }
 

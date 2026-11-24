@@ -7,10 +7,10 @@ decimal $people = 3;
 
 // The share of a bill between three people, to two decimal places. `HalfUp`
 // gives 33.33 and `Up` gives 33.34.
-echo Core\Decimal::divRound($bill, $people, 2, Core\RoundMode::HalfUp), "\n";
-echo Core\Decimal::divRound($bill, $people, 2, Core\RoundMode::Up), "\n";
+echo Core\Decimal::divideRounded($bill, $people, 2, Core\RoundMode::HalfUp), "\n";
+echo Core\Decimal::divideRounded($bill, $people, 2, Core\RoundMode::Up), "\n";
 
 // A case is a value like any other, so you can keep it in a variable and pass
 // it later. This prints 33.3333.
 Core\RoundMode $mode = Core\RoundMode::HalfUp;
-echo Core\Decimal::divRound($bill, $people, 4, $mode), "\n";
+echo Core\Decimal::divideRounded($bill, $people, 4, $mode), "\n";

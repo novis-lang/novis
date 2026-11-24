@@ -9,7 +9,7 @@ Core\Test::answerHttp('https://news.example.com/live', 200, {
 });
 
 // `data()` returns the text of one event. This prints two lines.
-Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, 'https://news.example.com/live');
+Core\Http\Stream $feed = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://news.example.com/live');
 foreach ($feed->events() as Core\Http\Event $event) {
     echo $event->data(), "\n";
 }

@@ -328,17 +328,17 @@ throws rather than wrapping ([`types/conversion`](types.md#types-conversion)).
 | `int ⊕ int`, `uint ⊕ uint` for `+ - * ** %` | the same type | **throws `ArithmeticError`.** No wrap, no promotion to `float` |
 | `int ⊕ uint` arithmetic | **compile error** | there is no representable common type; convert one side explicitly |
 | `int / int`, `uint / uint` | `int\|float`, `uint\|float` — an exact quotient is an integer and any other is a float: `6/3` is `2`, `7/2` is `3.5` | `/ 0` throws `ArithmeticError` |
-| either operand a `float` | `float` for `+ - * ** /`; **`%` is a compile error** | `/ 0` throws here too — the zero divisor is refused before the operand types are consulted. IEEE division is `Core\Math::fdiv` |
+| either operand a `float` | `float` for `+ - * ** /`; **`%` is a compile error** | `/ 0` throws here too — the zero divisor is refused before the operand types are consulted. IEEE division is `Core\Math::divide` |
 | `decimal ⊕ decimal`, `decimal ⊕ int`, `decimal ⊕ uint` for `+ - * %` | `decimal` | throws when the mantissa exceeds 96 bits **or** the scale would exceed 28 |
 | `decimal / decimal` | `decimal`, half-even at the maximum scale the result admits | `/ 0` throws |
-| `decimal ⊕ float`; `**` with a `decimal` base | **compile error** | no representable common type; `Core\Decimal::pow` for the power |
+| `decimal ⊕ float`; `**` with a `decimal` base | **compile error** | no representable common type; `Core\Decimal::power` for the power |
 | `>>` | arithmetic on `int`, **logical on `uint`** | — |
 | `& \| ^ ~ <<` | the operand type, preserved | — |
 
 The arithmetic rows are a **closed** list. Their operands are `int`, `uint`, `float` and `decimal`, so
 a `bool`, a `string`, a `bytes`, an `array<T>`, a `callable`, `null`, an object and an enum value have
 no `+` at all and are refused where they are written. `%` is narrower than its own float row: a
-`float` operand is refused rather than given one of two plausible answers, and `Core\Math::mod` is the
+`float` operand is refused rather than given one of two plausible answers, and `Core\Math::remainder` is the
 member that says the floating-point remainder out loud.
 
 An enum value is refused under every arithmetic and bitwise operator, prefix `-`, `+`, `~` and
@@ -350,7 +350,7 @@ than a prefix operator.
 
 Division is the one row that returns a union, and in practice the target's declared type absorbs it
 through the `int → float` widening ([`types/implicit-widening`](types.md#types-implicit-widening)): `float $avg = $sum / $n;` works,
-`int $n = 7 / 2;` is a diagnostic, and `Core\Math::intDiv` is there when integer division was meant.
+`int $n = 7 / 2;` is a diagnostic, and `Core\Math::quotient` is there when integer division was meant.
 
 An operand whose static type names no row — `mixed`, a union, the `int|float` a division returns — is
 answered from its runtime **tag**: the rows above where the tags name one, and the same refusal as a
@@ -458,8 +458,8 @@ admits, and `decimal / decimal` is always a `decimal`, never the union `int / in
 `bcscale()` equivalent and never will be: ambient precision read by unrelated later code is the
 shape [`statements/static-is-a-member-modifier`](statements.md#statements-static-is-a-member-modifier) and [`security/no-cross-request-state`](security.md#security-no-cross-request-state)
 already close. Where rounding is business logic it is
-said out loud — `Core\Decimal::divExact()` throws unless the quotient is exact,
-`::divRound($scale, $mode)` names both, and `::allocate($amount, $ratios)` splits a sum into parts
+said out loud — `Core\Decimal::divideExact()` throws unless the quotient is exact,
+`::divideRounded($scale, $mode)` names both, and `::allocate($amount, $ratios)` splits a sum into parts
 that add back to it exactly.
 
 `bcmath` and `gmp` are retired rather than ported, because they conflated two unrelated capabilities:
@@ -1224,7 +1224,7 @@ element-wise, because two lists merged by position are rarely what a caller mean
 **`Core\Arr` has no member named `merge`**, in any spelling — the word is read as two different
 operations — and binary `+`/`+=` with an array operand is a **compile error** naming `Arr::underlay`.
 
-Two related behaviours are stated here too: `unique`, `diff` and `intersect` compare by **strict
+Two related behaviours are stated here too: `unique`, `difference` and `intersection` compare by **strict
 identity**, never by a string cast of each value; and `flip` collapses duplicate values, last
 occurrence winning, its result typed `array<string>`.
 

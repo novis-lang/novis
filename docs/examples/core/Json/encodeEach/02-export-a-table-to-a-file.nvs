@@ -24,9 +24,9 @@ var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
 $db->execute('create table orders (id integer primary key, customer text not null, cents integer not null)', []);
 $db->execute('insert into orders (customer, cents) values (?, ?), (?, ?), (?, ?)', ['Ada', 2500, 'Ben', 1200, 'Cleo', 900]);
 
-// `streamAs` reads one row at a time. `encodeEach` takes the next row only when it needs it.
+// `queryEachAs` reads one row at a time. `encodeEach` takes the next row only when it needs it.
 // So you can export a table that is larger than memory.
-var $orders = $db->streamAs<Order>('select id, customer, cents from orders order by id', []);
+var $orders = $db->queryEachAs<Order>('select id, customer, cents from orders order by id', []);
 string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'orders.json');
 Core\IO::writeStream($path, Core\Json::encodeEach($orders), { overwrite: true });
 

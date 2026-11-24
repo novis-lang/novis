@@ -1,5 +1,5 @@
 --TEST--
-`compare` takes exactly one value, so a list and `null` throw `LogicError` before anything is sent, and an entry that does not exist throws `Core\Ldap\LdapError` with the kind `NoSuchObject`
+`hasValue` takes exactly one value, so a list and `null` throw `LogicError` before anything is sent, and an entry that does not exist throws `Core\Ldap\LdapError` with the kind `NoSuchObject`
 --SKIPIF--
 <?nvs
 // The case needs the `samba-ad` server from `tests/db/compose.yaml`. Where it
@@ -15,33 +15,33 @@ try {
 }
 --FILE--
 <?nvs
-// covers: Core\Ldap\Connection::compare
+// covers: Core\Ldap\Connection::hasValue
 var $corp = Core\Ldap::connect("corp");
 var $admin = "CN=Administrator,CN=Users,DC=example,DC=test";
 
 try {
-    $corp->compare($admin, "objectClass", ["top", "user"]);
+    $corp->hasValue($admin, "objectClass", ["top", "user"]);
     echo "list: not reached", "\n";
 } catch (LogicError $list) {
     echo "list: LogicError", "\n";
 }
 
 try {
-    $corp->compare($admin, "objectClass", null);
+    $corp->hasValue($admin, "objectClass", null);
     echo "null: not reached", "\n";
 } catch (LogicError $none) {
     echo "null: LogicError", "\n";
 }
 
 try {
-    $corp->compare("OU=Nowhere,DC=example,DC=test", "description", "Books");
+    $corp->hasValue("OU=Nowhere,DC=example,DC=test", "description", "Books");
     echo "missing: not reached", "\n";
 } catch (Core\Ldap\LdapError $missing) {
     echo "missing: ", $missing->kind == Core\Ldap\LdapError::Kind::NoSuchObject ? "NoSuchObject" : "other", "\n";
 }
 
 // The connection still works after each error.
-echo "user: ", $corp->compare($admin, "objectClass", "user") ? "true" : "false", "\n";
+echo "user: ", $corp->hasValue($admin, "objectClass", "user") ? "true" : "false", "\n";
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--

@@ -6,7 +6,7 @@
 // defaults the two it usually leaves off.
 var $t = Core\Time\TimeOfDay::at(9, 5);
 echo $t->format("HH:mm:ss"), "|", $t->format("h:mm a"), "|\n";
-echo Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999000000})->format("HH:mm:ss.SSS"), "|\n";
+echo Core\Time\TimeOfDay::at(23, 59, {second: 59, nanoseconds: 999000000})->format("HH:mm:ss.SSS"), "|\n";
 
 // The clock step wraps within the day: a time of day has no date under it for
 // a carry to go into, so `plus` is total rather than a throw at midnight.

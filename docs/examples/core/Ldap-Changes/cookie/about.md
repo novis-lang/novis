@@ -1,6 +1,6 @@
-Returns the cookie of a sync, which you give to the next call of `changes`.
+Returns the cookie of a sync, which you give to the next call of `searchChanges`.
 
-A sync with `changes` returns the entries that changed since the last run. The cookie is how the
+A sync with `searchChanges` returns the entries that changed since the last run. The cookie is how the
 server knows when the last run was. Read it after the loop, and store it, for example in a database.
 The next run gives it back with the `cookie` option and gets only the entries that changed since.
 The first run has no cookie, so it returns every matching entry.

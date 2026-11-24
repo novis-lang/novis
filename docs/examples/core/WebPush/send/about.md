@@ -8,7 +8,7 @@ as `127.0.0.1` also throws. A payload over 3993 bytes throws a `RuntimeError` to
 kind, a `$subject` that is not a `mailto:` or `https:` URL, or a negative `$ttl` throws a
 `LogicError`. Each of these errors happens before `send` connects.
 
-`status()` of the result is `201` when the push service accepted the message. `gone()` is `true`
+`status()` of the result is `201` when the push service accepted the message. `isGone()` returns `true`
 for the status `404` or `410`. The push service has then deleted the subscription, so delete it
 from your database too.
 

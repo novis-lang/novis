@@ -9,7 +9,7 @@ spawn = true
 final class Links {
     public static function next(Core\Uri $base): Core\Uri {
         echo "child host=", $base->host(), "\n";
-        return $base->resolve(reference: "c");
+        return $base->resolved(reference: "c");
     }
 }
 

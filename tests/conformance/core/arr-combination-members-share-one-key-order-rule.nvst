@@ -35,7 +35,7 @@ class Ask {
         // in the order the layer first met it.
         if (Ask::joined(Core\Arr::keys(Core\Arr::overlay($x, $y)))
             != Ask::joined(Core\Arr::keys($x))
-             . Ask::joined(Core\Arr::values(Core\Arr::diff(Core\Arr::keys($y), Core\Arr::keys($x))))) {
+             . Ask::joined(Core\Arr::values(Core\Arr::difference(Core\Arr::keys($y), Core\Arr::keys($x))))) {
             return "k";
         }
         // Two operations rather than one with its arguments flipped: the

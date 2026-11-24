@@ -20,7 +20,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             var $flags = $person->accountFlags();
-            if ($flags != null && $flags->disabled()) {
+            if ($flags != null && $flags->isDisabled()) {
                 $total = $total + 1 + $total % 2;
             }
             $i = $i + 1;

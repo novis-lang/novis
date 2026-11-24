@@ -39,7 +39,7 @@ class Discount
     // property through it. This returns a callable the caller can keep.
     public function rule(): callable
     {
-        return fn(int $price): int => $price - Core\Math::intDiv($price * $this->percent, 100);
+        return fn(int $price): int => $price - Core\Math::quotient($price * $this->percent, 100);
     }
 }
 

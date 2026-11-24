@@ -18,7 +18,7 @@ Core\Test::answerHttp("https://api.example.com/events", 200, {body: "event: done
 // is stripped, and the last line needs no terminator at all — three questions
 // one body answers, where a reader that got any of them wrong still prints a
 // plausible first line.
-var $rows = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/rows");
+var $rows = Core\Http\Client::openStream(Core\Http\Method::Get, "https://api.example.com/rows");
 echo $rows->status(), " ", $rows->header("x-trace") ?? "no trace", " ", Core\Arr::count($rows->headers("x-trace")), "\n";
 foreach ($rows->lines() as tainted string $line) {
     echo "[", $line, "] ", Core\Str::length($line), "\n";
@@ -36,7 +36,7 @@ try {
 
 // `chunks()` frames nothing: what a walk yields is what the transport had, and
 // a reply the table answered is one piece of it.
-var $blob = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/blob");
+var $blob = Core\Http\Client::openStream(Core\Http\Method::Get, "https://api.example.com/blob");
 int $pieces = 0;
 uint $octets = 0;
 foreach ($blob->chunks() as tainted bytes $chunk) {
@@ -63,7 +63,7 @@ try {
 
 // And the same rule from the fourth door, so that a reader which learned it for
 // one framing still fails here.
-var $stream = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/events");
+var $stream = Core\Http\Client::openStream(Core\Http\Method::Get, "https://api.example.com/events");
 foreach ($stream->events() as Core\Http\Event $event) {
     echo $event->name() ?? "message", " id=", $event->id() ?? "none", " [", $event->data(), "]\n";
 }

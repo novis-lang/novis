@@ -41,7 +41,7 @@ echo $seen, " ", $exact, " ", $readBack, " ", $rendered, "\n";
 
 // A number far wider than any scalar renders every one of its digits, and no
 // separator is written between them.
-echo Core\BigInt::of(1)->shl(200)->toString(), "\n";
+echo Core\BigInt::of(1)->shiftedLeft(200)->toString(), "\n";
 --EXPECT--
 7 7 7 7
 1606938044258990275541962092341162602522202993782792835301376

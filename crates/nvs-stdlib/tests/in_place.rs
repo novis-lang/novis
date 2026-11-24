@@ -433,14 +433,14 @@ const ARR_ROWS: &[(&str, Row)] = &[
         },
     ),
     (
-        "diff",
+        "difference",
         Row::Keeps {
             args: set_args,
             count: 3,
         },
     ),
     (
-        "intersect",
+        "intersection",
         Row::Keeps {
             args: set_args,
             count: 1,
@@ -561,7 +561,7 @@ const ARR_ROWS: &[(&str, Row)] = &[
     ("chunk", Row::Builds),
     ("column", Row::Builds),
     ("groupBy", Row::Builds),
-    ("countBy", Row::Builds),
+    ("groupCounts", Row::Builds),
     ("keys", Row::Builds),
     ("flatten", Row::Builds),
     ("flattenDeep", Row::Builds),
@@ -578,7 +578,7 @@ fn list(values: &[i64]) -> Value {
     Value::array(array)
 }
 
-/// `diff` and `intersect` against `[2]`, on values, with no callback.
+/// `difference` and `intersection` against `[2]`, on values, with no callback.
 fn set_args() -> Vec<Value> {
     vec![list(&[2]), Value::int(0), Value::null(), Value::null()]
 }

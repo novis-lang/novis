@@ -38,9 +38,9 @@ array<array<string>> $asked = [
     // groupBy — the callback names a bucket
     [Core\Json::encode(Core\Arr::groupBy($subject, fn(int $v) => $v % 30)),
      Core\Json::encode(Core\Arr::groupBy($subject, fn(int $v, string $k) => $v % 30))],
-    // countBy — the same naming, counted rather than collected
-    [Core\Json::encode(Core\Arr::countBy($subject, {by: fn(int $v) => $v % 30})),
-     Core\Json::encode(Core\Arr::countBy($subject, {by: fn(int $v, string $k) => $v % 30}))],
+    // groupCounts — the same naming, counted rather than collected
+    [Core\Json::encode(Core\Arr::groupCounts($subject, {by: fn(int $v) => $v % 30})),
+     Core\Json::encode(Core\Arr::groupCounts($subject, {by: fn(int $v, string $k) => $v % 30}))],
     // reduce — the key sits one position later, so its two spellings are
     // `($carry, $value)` and `($carry, $value, $key)`
     [Core\Json::encode(Core\Arr::reduce($subject, fn(int $c, int $v) => $c + $v, 0)),
@@ -61,10 +61,10 @@ array<array<string>> $asked = [
     [Core\Json::encode(Core\Arr::sort($subject, {by: fn(int $v) => 0 - $v})),
      Core\Json::encode(Core\Arr::sort($subject, {by: fn(int $v, string $k) => 0 - $v}))],
     // diff {by} and intersect {by} — the same extraction, on both sides
-    [Core\Json::encode(Core\Arr::diff($subject, $partner, {by: fn(int $v) => $v % 30})),
-     Core\Json::encode(Core\Arr::diff($subject, $partner, {by: fn(int $v, string $k) => $v % 30}))],
-    [Core\Json::encode(Core\Arr::intersect($subject, $partner, {by: fn(int $v) => $v % 30})),
-     Core\Json::encode(Core\Arr::intersect($subject, $partner, {by: fn(int $v, string $k) => $v % 30}))],
+    [Core\Json::encode(Core\Arr::difference($subject, $partner, {by: fn(int $v) => $v % 30})),
+     Core\Json::encode(Core\Arr::difference($subject, $partner, {by: fn(int $v, string $k) => $v % 30}))],
+    [Core\Json::encode(Core\Arr::intersection($subject, $partner, {by: fn(int $v) => $v % 30})),
+     Core\Json::encode(Core\Arr::intersection($subject, $partner, {by: fn(int $v, string $k) => $v % 30}))],
 ];
 
 var $verdicts = "";
@@ -94,14 +94,14 @@ array<string> $seen = [
     Core\Str::join(Core\Arr::values(Core\Arr::map($subject, fn(int $v, string $k) => $k)), ","),
     Core\Str::join(Core\Arr::keys(Core\Arr::mapKeys($subject, fn(int $v, string $k) => $k)), ","),
     Core\Str::join(Core\Arr::keys(Core\Arr::groupBy($subject, fn(int $v, string $k) => $k)), ","),
-    Core\Str::join(Core\Arr::keys(Core\Arr::countBy($subject, {by: fn(int $v, string $k) => $k})), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::groupCounts($subject, {by: fn(int $v, string $k) => $k})), ","),
     // The fold has no answer of its own to read the keys back out of, so it
     // builds one: a leading separator, dropped by the slice.
     Core\Str::slice(Core\Arr::reduce($subject,
         fn(string $c, int $v, string $k) => $c . "," . $k, ""), 1),
     Core\Str::join(Core\Arr::keys(Core\Arr::unique($subject, {by: fn(int $v, string $k) => $k})), ","),
-    Core\Str::join(Core\Arr::keys(Core\Arr::diff($subject, $partner, {by: fn(int $v, string $k) => $k})), ","),
-    Core\Str::join(Core\Arr::keys(Core\Arr::intersect($subject, $twin, {by: fn(int $v, string $k) => $k})), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::difference($subject, $partner, {by: fn(int $v, string $k) => $k})), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::intersection($subject, $twin, {by: fn(int $v, string $k) => $k})), ","),
 ];
 
 var $same = 0;

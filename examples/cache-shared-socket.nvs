@@ -43,7 +43,7 @@ if ($seen == 'hello') {
 // this program more than once.
 var $account = 'socket-account:' . Core\Random::token(6);
 var $first = Core\RateLimit::consume($account, 1, 2s);
-if ($first->allowed()) {
+if ($first->isAllowed()) {
     echo 'the limiter and the tier share one connection', "\n";
 } else {
     echo 'the limiter refused a first arrival', "\n";

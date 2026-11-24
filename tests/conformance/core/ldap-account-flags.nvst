@@ -25,27 +25,27 @@ foreach ($names as string $name) {
         continue;
     }
     echo $name, ": bits ", $flags->bits(), ", type ", $user?->accountType() == Core\Ldap\Entry::AccountType::User ? "User" : "not a user", "\n";
-    echo "  script ", $flags->script() ? "yes" : "no", "\n";
-    echo "  disabled ", $flags->disabled() ? "yes" : "no", "\n";
-    echo "  homeDirectoryRequired ", $flags->homeDirectoryRequired() ? "yes" : "no", "\n";
-    echo "  lockedOut ", $flags->lockedOut() ? "yes" : "no", "\n";
-    echo "  passwordNotRequired ", $flags->passwordNotRequired() ? "yes" : "no", "\n";
-    echo "  reversibleEncryption ", $flags->reversibleEncryption() ? "yes" : "no", "\n";
-    echo "  temporaryDuplicateAccount ", $flags->temporaryDuplicateAccount() ? "yes" : "no", "\n";
-    echo "  normalAccount ", $flags->normalAccount() ? "yes" : "no", "\n";
-    echo "  interdomainTrustAccount ", $flags->interdomainTrustAccount() ? "yes" : "no", "\n";
-    echo "  workstationTrustAccount ", $flags->workstationTrustAccount() ? "yes" : "no", "\n";
-    echo "  serverTrustAccount ", $flags->serverTrustAccount() ? "yes" : "no", "\n";
-    echo "  passwordNeverExpires ", $flags->passwordNeverExpires() ? "yes" : "no", "\n";
-    echo "  mnsLogonAccount ", $flags->mnsLogonAccount() ? "yes" : "no", "\n";
-    echo "  smartcardRequired ", $flags->smartcardRequired() ? "yes" : "no", "\n";
-    echo "  trustedForDelegation ", $flags->trustedForDelegation() ? "yes" : "no", "\n";
-    echo "  notDelegated ", $flags->notDelegated() ? "yes" : "no", "\n";
-    echo "  useDesKeyOnly ", $flags->useDesKeyOnly() ? "yes" : "no", "\n";
-    echo "  noPreauthRequired ", $flags->noPreauthRequired() ? "yes" : "no", "\n";
-    echo "  passwordExpired ", $flags->passwordExpired() ? "yes" : "no", "\n";
-    echo "  trustedToAuthForDelegation ", $flags->trustedToAuthForDelegation() ? "yes" : "no", "\n";
-    echo "  partialSecretsAccount ", $flags->partialSecretsAccount() ? "yes" : "no", "\n";
+    echo "  script ", $flags->hasLogonScript() ? "yes" : "no", "\n";
+    echo "  disabled ", $flags->isDisabled() ? "yes" : "no", "\n";
+    echo "  homeDirectoryRequired ", $flags->isHomeDirectoryRequired() ? "yes" : "no", "\n";
+    echo "  lockedOut ", $flags->isLockedOut() ? "yes" : "no", "\n";
+    echo "  passwordNotRequired ", $flags->isPasswordNotRequired() ? "yes" : "no", "\n";
+    echo "  reversibleEncryption ", $flags->allowsReversibleEncryption() ? "yes" : "no", "\n";
+    echo "  temporaryDuplicateAccount ", $flags->isTemporaryDuplicateAccount() ? "yes" : "no", "\n";
+    echo "  normalAccount ", $flags->isNormalAccount() ? "yes" : "no", "\n";
+    echo "  interdomainTrustAccount ", $flags->isInterdomainTrustAccount() ? "yes" : "no", "\n";
+    echo "  workstationTrustAccount ", $flags->isWorkstationTrustAccount() ? "yes" : "no", "\n";
+    echo "  serverTrustAccount ", $flags->isServerTrustAccount() ? "yes" : "no", "\n";
+    echo "  passwordNeverExpires ", $flags->hasNonExpiringPassword() ? "yes" : "no", "\n";
+    echo "  mnsLogonAccount ", $flags->isMnsLogonAccount() ? "yes" : "no", "\n";
+    echo "  smartcardRequired ", $flags->isSmartcardRequired() ? "yes" : "no", "\n";
+    echo "  trustedForDelegation ", $flags->isTrustedForDelegation() ? "yes" : "no", "\n";
+    echo "  notDelegated ", $flags->isNotDelegated() ? "yes" : "no", "\n";
+    echo "  useDesKeyOnly ", $flags->usesDesKeyOnly() ? "yes" : "no", "\n";
+    echo "  noPreauthRequired ", $flags->isPreauthNotRequired() ? "yes" : "no", "\n";
+    echo "  passwordExpired ", $flags->isPasswordExpired() ? "yes" : "no", "\n";
+    echo "  trustedToAuthForDelegation ", $flags->isTrustedToAuthenticateForDelegation() ? "yes" : "no", "\n";
+    echo "  partialSecretsAccount ", $flags->isPartialSecretsAccount() ? "yes" : "no", "\n";
     echo "  mustChangePassword ", $flags->mustChangePassword() ? "yes" : "no", "\n";
 }
 --COPY--

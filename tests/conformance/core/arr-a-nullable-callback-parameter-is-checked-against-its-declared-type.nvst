@@ -55,12 +55,12 @@ catch (LogicError $e) { $value = $value . "n"; }
 echo $value, "\n";
 
 // An admitted argument arrives intact: each key reaches a `?string $k` whole.
-echo Core\Str::join(Core\Arr::keys(Core\Arr::countBy($list, {by: fn(int $v, ?string $k) => $k as string})), ","), "\n";
-echo Core\Str::join(Core\Arr::keys(Core\Arr::countBy($map, {by: fn(int $v, ?string $k) => $k as string})), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::groupCounts($list, {by: fn(int $v, ?string $k) => $k as string})), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::groupCounts($map, {by: fn(int $v, ?string $k) => $k as string})), ","), "\n";
 
 // The refusal names the argument and what was given.
 try {
-    Core\Arr::countBy($map, {by: fn(?bool $v, ?string $k) => $k as string});
+    Core\Arr::groupCounts($map, {by: fn(?bool $v, ?string $k) => $k as string});
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }

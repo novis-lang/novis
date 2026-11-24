@@ -2,7 +2,7 @@
 A Core\RateLimit\Decision's three readers agree with the sweep that produced them, over two windows of different widths — `rule:core-classes/ratelimit-gcra`
 --FILE--
 <?nvs
-// covers: Core\RateLimit\Decision::allowed, Core\RateLimit\Decision::limit
+// covers: Core\RateLimit\Decision::isAllowed, Core\RateLimit\Decision::limit
 // covers: Core\RateLimit\Decision::remaining, Core\RateLimit\Decision::retryAfter
 // `rule:core-classes/ratelimit-gcra`'s four `Decision` fields are four readers over one decision, and each of them reads
 // right on its own line for a reader that grew its own arithmetic: a `limit`
@@ -74,7 +74,7 @@ foreach (Core\Arr::range(0, 1) as int $w) {
             }
         }
 
-        if ($decision->allowed()) {
+        if ($decision->isAllowed()) {
             $admitted = $admitted + 1;
             if ($previous - $left == 1) {
                 $stepped = $stepped + 1;

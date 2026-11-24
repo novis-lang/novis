@@ -95,7 +95,7 @@ nvs test .
 
 The tests in `AppTest` and `LiveTest` save a poll in `poll.sqlite` and delete it again at the end.
 `LiveTest` reads a real event stream. `#[Test(server: true)]` starts a server for the test, and
-`Core\Http\Client::stream` reads the events the way a browser does. The test votes, and then
+`Core\Http\Client::openStream` reads the events the way a browser does. The test votes, and then
 checks that the new results arrive on the stream.
 
 ## What each file does

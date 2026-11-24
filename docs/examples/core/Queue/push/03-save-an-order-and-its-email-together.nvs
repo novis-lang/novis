@@ -21,7 +21,7 @@ $db->execute('create table orders (id integer primary key, total integer not nul
 
 // Order 1 and its receipt email are saved in one transaction.
 // The transaction commits, so both are saved.
-$db->transaction(fn(Transaction $tx): void => {
+$db->runTransaction(fn(Transaction $tx): void => {
     $tx->execute('insert into orders (id, total) values (?, ?)', [1, 250]);
     Queue::push('jobs/send-receipt.nvs', { queue: 'mail', args: ['order' => 1] });
 });
@@ -29,7 +29,7 @@ $db->transaction(fn(Transaction $tx): void => {
 // The payment for order 2 fails, so the transaction rolls back.
 // The order is not saved, and its receipt email is not saved either.
 try {
-    $db->transaction(fn(Transaction $tx): void => {
+    $db->runTransaction(fn(Transaction $tx): void => {
         $tx->execute('insert into orders (id, total) values (?, ?)', [2, 90]);
         Queue::push('jobs/send-receipt.nvs', { queue: 'mail', args: ['order' => 2] });
         $tx->rollBack('payment declined');

@@ -1746,7 +1746,7 @@ fn a_password_policy_refusal_is_its_own_kind() {
     delete_user(&mut ctx, key, "Editors");
 }
 
-// covers: Core\Ldap\Connection::compare
+// covers: Core\Ldap\Connection::hasValue
 #[test]
 fn compare_returns_a_bool_and_throws_on_error() {
     use nvs_ldap::proto;
@@ -2390,7 +2390,7 @@ fn synced(ctx: &mut nvs_runtime::Ctx, key: u64, cookie: &[u8]) -> (Vec<String>, 
     (found, changes.cookie().to_vec())
 }
 
-// covers: Core\Ldap\Changes::cookie, Core\Ldap\Connection::changes
+// covers: Core\Ldap\Changes::cookie, Core\Ldap\Connection::searchChanges
 #[test]
 fn dirsync_returns_only_what_changed_since_its_cookie() {
     let Some(ca) = samba() else { return };

@@ -30,7 +30,7 @@ echo Core\Arr::count($odd), "\n";
 // An instance member takes the same rule; the receiver is not a parameter and
 // so is not one of the names.
 Core\Uri $base = Core\Uri::parse("https://example.test/a/b");
-echo $base->resolve(reference: "c")->toString(), "\n";
+echo $base->resolved(reference: "c")->toString(), "\n";
 
 // Evaluation is in written order; placement is in parameter order. The two
 // disagree here, and both are visible on one line.

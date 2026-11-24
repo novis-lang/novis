@@ -34,7 +34,7 @@ echo 'pushed in another transaction: ', Queue::stats('mail')->nonTransactional()
 
 // This push is inside a transaction of the `shop` database.
 // The job is saved in the `jobs` database at once, so it is counted.
-$shop->transaction(fn(Transaction $tx): void => {
+$shop->runTransaction(fn(Transaction $tx): void => {
     $tx->execute('insert into orders (id) values (?)', [1]);
     Queue::push('jobs/send-receipt.nvs', { queue: 'mail' });
 });

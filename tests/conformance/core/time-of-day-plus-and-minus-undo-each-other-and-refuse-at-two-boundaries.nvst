@@ -11,13 +11,13 @@
 // it back lands on the reading it left.
 array<Core\Time\TimeOfDay> $dial = [
     Core\Time\TimeOfDay::at(0, 0),
-    Core\Time\TimeOfDay::at(0, 0, {second: 0, nanos: 1}),
-    Core\Time\TimeOfDay::at(9, 5, {second: 7, nanos: 8}),
-    Core\Time\TimeOfDay::at(12, 0, {second: 0, nanos: 500000000}),
-    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999}),
+    Core\Time\TimeOfDay::at(0, 0, {second: 0, nanoseconds: 1}),
+    Core\Time\TimeOfDay::at(9, 5, {second: 7, nanoseconds: 8}),
+    Core\Time\TimeOfDay::at(12, 0, {second: 0, nanoseconds: 500000000}),
+    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanoseconds: 999999999}),
     Core\Time\TimeOfDay::at(23, 59, {second: 59}),
     Core\Time\TimeOfDay::at(6, 30),
-    Core\Time\TimeOfDay::at(1, 2, {second: 3, nanos: 4}),
+    Core\Time\TimeOfDay::at(1, 2, {second: 3, nanoseconds: 4}),
 ];
 
 // The six units that move a clock, smallest first — the whole accepted half of

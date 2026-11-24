@@ -7,7 +7,7 @@ Core\Test::answerHttp('https://shop.example.com/login', 200, {
     headers: ['set-cookie' => $cookies],
 });
 
-Core\Http\Stream $login = Core\Http\Client::stream(Core\Http\Method::Post, 'https://shop.example.com/login');
+Core\Http\Stream $login = Core\Http\Client::openStream(Core\Http\Method::Post, 'https://shop.example.com/login');
 tainted string $header = '';
 foreach ($login->headers('set-cookie') as tainted string $line) {
     // The part before the first ";" is the name and the value. The rest are settings.

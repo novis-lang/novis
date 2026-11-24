@@ -73,10 +73,10 @@ echo $a, "\n", $b, "\n", $c, "\n", $u, "\n";
 // A case reaches a parameter of the other enum as the `1` it is. The closed
 // set `as Mode` tests belongs to the conversion, and a `callable`'s parameter
 // is not one.
-echo Core\Str::join(Core\Arr::keys(Core\Arr::countBy($modes, {by: fn (Level $v, string $k) => ($v as int) as string})), ","), "\n";
+echo Core\Str::join(Core\Arr::keys(Core\Arr::groupCounts($modes, {by: fn (Level $v, string $k) => ($v as int) as string})), ","), "\n";
 // An `int` does not reach a `Mode` parameter, and the error names both types.
 try {
-    Core\Arr::countBy($ints, {by: fn (Mode $v, string $k) => ($v as int) as string});
+    Core\Arr::groupCounts($ints, {by: fn (Mode $v, string $k) => ($v as int) as string});
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }

@@ -50,10 +50,10 @@ final class Chart
         int $index = 0;
         foreach ($points as Sample::Point $point) {
             bool $last = $index == $count - 1;
-            decimal $x = (Chart::left() as decimal) + $slot * ($index as decimal) + Decimal::divRound($slot - $bar, 2, 2, RoundMode::HalfUp);
+            decimal $x = (Chart::left() as decimal) + $slot * ($index as decimal) + Decimal::divideRounded($slot - $bar, 2, 2, RoundMode::HalfUp);
             decimal $y = Chart::y($point->value, 0, $max);
             decimal $height = (Chart::bottom() as decimal) - $y;
-            decimal $middle = $x + Decimal::divRound($bar, 2, 2, RoundMode::HalfUp);
+            decimal $middle = $x + Decimal::divideRounded($bar, 2, 2, RoundMode::HalfUp);
             string $fill = $last ? '#1d3557' : '#b9cbe0';
             string $weight = $last ? '700' : '400';
             string $value = Brand::number($point->value);

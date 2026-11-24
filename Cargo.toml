@@ -994,7 +994,7 @@ csv-core = "0.1"
 # relative reference without a base. `Uri::parse` replaces `parse_url` and
 # answers "what are the components of this text", so every one of those
 # rewrites would be an answer about a URI the caller never sent, and
-# `$uri->resolve(string $reference)` is defined over exactly the relative
+# `$uri->resolved(string $reference)` is defined over exactly the relative
 # references `url` cannot represent. `fluent-uri` implements RFC 3986 itself:
 # it parses a URI *reference*, borrows every component as written, normalizes
 # only when asked, and carries § 5's reference resolution. `rule:packaging/a-c-dependency-answers-two-questions`'s first

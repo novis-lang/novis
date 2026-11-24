@@ -12,8 +12,8 @@ class Document
         string $section = "## Order 1042\n\nShipped to *Graz* on [Monday](https://example.com/orders).\n\n"
             . "- 2 large white cups\n- 1 bag of coffee beans, 250 g\n\n";
         bytes $piece = Core\Str::repeat($section, 512) as bytes;
-        uint $count = Core\Math::intDiv($size as int, 128) as uint;
-        uint $full = Core\Math::intDiv($count as int, 512) as uint;
+        uint $count = Core\Math::quotient($size as int, 128) as uint;
+        uint $full = Core\Math::quotient($count as int, 512) as uint;
         uint $i = 0;
         while ($i < $full) {
             yield $piece;

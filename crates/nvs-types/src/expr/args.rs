@@ -267,7 +267,7 @@ fn check_arg_list(
 /// the keys enter. So a `secret` value never becomes a key, and a `tainted`
 /// one enters only an answer whose keys read back tainted, such as the
 /// `array<tainted string>` that `Core\Arr::mapKeys` gives over tainted
-/// elements. `Core\Arr::countBy` over tainted text gives `array<uint>`, so
+/// elements. `Core\Arr::groupCounts` over tainted text gives `array<uint>`, so
 /// it does not compile. Called once the whole list is checked, and only when
 /// it reported nothing (`rule:types/one-mistake-reports-once`). `sig` is the
 /// signature after the call bound its type variables.
@@ -1062,7 +1062,7 @@ pub(crate) fn check_options_arg(
             env.secret_options.insert(field.value.span);
         }
         // `nvs_stdlib::registry::CoreTy::Keys` on a whole option, such as
-        // `Core\Arr::countBy`'s `by`: what the callback returns becomes a key.
+        // `Core\Arr::groupCounts`'s `by`: what the callback returns becomes a key.
         // [`check_key_marks`] checks it once the call's answer is known.
         if slot.is_some_and(|option| option.text == ParamText::Keys(KeyOrigin::Values))
             && env.diags.len() == before

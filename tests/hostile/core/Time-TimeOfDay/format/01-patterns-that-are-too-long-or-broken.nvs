@@ -2,7 +2,7 @@
 // Attack: `format` gets a very long pattern, broken patterns and patterns with date letters.
 // The broken ones should throw a `LogicError`, and nothing should crash or leak.
 
-Core\Time\TimeOfDay $t = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanos: 999999999 });
+Core\Time\TimeOfDay $t = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanoseconds: 999999999 });
 
 // 1. A pattern of 100,000 letters is used.
 string $long = '';

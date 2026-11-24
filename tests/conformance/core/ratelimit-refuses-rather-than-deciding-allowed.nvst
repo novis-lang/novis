@@ -13,8 +13,8 @@ try {
 
     // The `Decision`'s four fields, read as members rather than as properties: a
     // `Core`-owned instance has no property a program can reach, which is why
-    // this is `->allowed()` and not `->allowed`.
-    if ($d->allowed()) {
+    // this is `->isAllowed()` and not `->allowed`.
+    if ($d->isAllowed()) {
         echo "allowed, ", $d->remaining(), " of ", $d->limit(), " left", "\n";
     } else {
         echo "refused against a limit of ", $d->limit(), "\n";

@@ -29,11 +29,11 @@ $shop->execute('create table orders (id integer primary key)', []);
 
 // The `mail` queue gets two jobs inside a transaction of the `shop` database.
 // The `exports` queue gets one job inside a transaction of the `jobs` database.
-$shop->transaction(fn(Transaction $tx): void => {
+$shop->runTransaction(fn(Transaction $tx): void => {
     Queue::push('jobs/send-receipt.nvs', { queue: 'mail' });
     Queue::push('jobs/send-receipt.nvs', { queue: 'mail' });
 });
-$db->transaction(fn(Transaction $tx): void => {
+$db->runTransaction(fn(Transaction $tx): void => {
     Queue::push('jobs/export.nvs', { queue: 'exports' });
 });
 

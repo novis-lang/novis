@@ -10,4 +10,4 @@ echo $first->lcm($second), "\n";
 
 // The sign of a number and the order of the two do not change the result.
 // This prints 144 again.
-echo $second->lcm($first->neg()), "\n";
+echo $second->lcm($first->negated()), "\n";

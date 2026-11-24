@@ -325,67 +325,67 @@
   "Time.DateTime.year": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
+      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanoseconds` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
     }
   ],
   "Time.DateTime.month": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
+      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanoseconds` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
     }
   ],
   "Time.DateTime.day": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
+      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanoseconds` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
     }
   ],
   "Time.DateTime.hour": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
+      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanoseconds` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
     }
   ],
   "Time.DateTime.minute": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
+      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanoseconds` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
     }
   ],
   "Time.DateTime.second": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
+      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanoseconds` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
     }
   ],
   "Time.DateTime.nanos": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
+      "change": "`Core\\Time\\DateTime::year`, `Core\\Time\\DateTime::month`, `Core\\Time\\DateTime::day`, `Core\\Time\\DateTime::hour`, `Core\\Time\\DateTime::minute`, `Core\\Time\\DateTime::second` and `Core\\Time\\DateTime::nanoseconds` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\\Time\\DateTime::year` returns an `int`, and the others return a `uint`."
     }
   ],
   "Time.TimeOfDay.hour": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Time\\TimeOfDay::hour`, `Core\\Time\\TimeOfDay::minute`, `Core\\Time\\TimeOfDay::second` and `Core\\Time\\TimeOfDay::nanos` return the parts of a time as numbers. Each one returns a `uint`."
+      "change": "`Core\\Time\\TimeOfDay::hour`, `Core\\Time\\TimeOfDay::minute`, `Core\\Time\\TimeOfDay::second` and `Core\\Time\\TimeOfDay::nanoseconds` return the parts of a time as numbers. Each one returns a `uint`."
     }
   ],
   "Time.TimeOfDay.minute": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Time\\TimeOfDay::hour`, `Core\\Time\\TimeOfDay::minute`, `Core\\Time\\TimeOfDay::second` and `Core\\Time\\TimeOfDay::nanos` return the parts of a time as numbers. Each one returns a `uint`."
+      "change": "`Core\\Time\\TimeOfDay::hour`, `Core\\Time\\TimeOfDay::minute`, `Core\\Time\\TimeOfDay::second` and `Core\\Time\\TimeOfDay::nanoseconds` return the parts of a time as numbers. Each one returns a `uint`."
     }
   ],
   "Time.TimeOfDay.second": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Time\\TimeOfDay::hour`, `Core\\Time\\TimeOfDay::minute`, `Core\\Time\\TimeOfDay::second` and `Core\\Time\\TimeOfDay::nanos` return the parts of a time as numbers. Each one returns a `uint`."
+      "change": "`Core\\Time\\TimeOfDay::hour`, `Core\\Time\\TimeOfDay::minute`, `Core\\Time\\TimeOfDay::second` and `Core\\Time\\TimeOfDay::nanoseconds` return the parts of a time as numbers. Each one returns a `uint`."
     }
   ],
   "Time.TimeOfDay.nanos": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Time\\TimeOfDay::hour`, `Core\\Time\\TimeOfDay::minute`, `Core\\Time\\TimeOfDay::second` and `Core\\Time\\TimeOfDay::nanos` return the parts of a time as numbers. Each one returns a `uint`."
+      "change": "`Core\\Time\\TimeOfDay::hour`, `Core\\Time\\TimeOfDay::minute`, `Core\\Time\\TimeOfDay::second` and `Core\\Time\\TimeOfDay::nanoseconds` return the parts of a time as numbers. Each one returns a `uint`."
     }
   ],
   "Time.Instant.in": [
@@ -663,25 +663,25 @@
   "Arr.groupBy": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Arr::groupBy` and `Core\\Arr::countBy` copy a group's key only when the group is new. They allocate less memory and run faster on large arrays."
+      "change": "`Core\\Arr::groupBy` and `Core\\Arr::groupCounts` copy a group's key only when the group is new. They allocate less memory and run faster on large arrays."
     }
   ],
   "Arr.countBy": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Arr::groupBy` and `Core\\Arr::countBy` copy a group's key only when the group is new. They allocate less memory and run faster on large arrays."
+      "change": "`Core\\Arr::groupBy` and `Core\\Arr::groupCounts` copy a group's key only when the group is new. They allocate less memory and run faster on large arrays."
     }
   ],
   "Db.Connection.query": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Db\\Connection::query` and `Core\\Db\\Connection::stream` create the column names once for each result. Every row uses the same names, so reading many rows is faster and allocates less memory."
+      "change": "`Core\\Db\\Connection::query` and `Core\\Db\\Connection::queryEach` create the column names once for each result. Every row uses the same names, so reading many rows is faster and allocates less memory."
     }
   ],
   "Db.Connection.stream": [
     {
       "version": "0.0.5",
-      "change": "`Core\\Db\\Connection::query` and `Core\\Db\\Connection::stream` create the column names once for each result. Every row uses the same names, so reading many rows is faster and allocates less memory."
+      "change": "`Core\\Db\\Connection::query` and `Core\\Db\\Connection::queryEach` create the column names once for each result. Every row uses the same names, so reading many rows is faster and allocates less memory."
     }
   ],
   "Json.decodeAs": [

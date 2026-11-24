@@ -8,8 +8,8 @@ class AspectRatio
     public static function of(int $width, int $height): string
     {
         int $divisor = Core\Math::gcd($width, $height);
-        string $across = Core\Math::intDiv($width, $divisor) as string;
-        string $down = Core\Math::intDiv($height, $divisor) as string;
+        string $across = Core\Math::quotient($width, $divisor) as string;
+        string $down = Core\Math::quotient($height, $divisor) as string;
         return $across . ':' . $down;
     }
 }

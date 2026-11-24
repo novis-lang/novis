@@ -9,7 +9,7 @@ var $previous = Core\BigInt::of(1);
 var $current = Core\BigInt::of(1);
 int $step = 0;
 while ($step < 1500) {
-    var $next = $previous->add($current);
+    var $next = $previous->plus($current);
     $previous = $current;
     $current = $next;
     $step = $step + 1;
@@ -18,8 +18,8 @@ echo $previous->gcd($current)->toInt(), "\n";
 
 // 2. Two numbers of about twenty thousand bits, a hundred times over. Only the
 //    last result is kept, so the memory held must not grow.
-var $wide = Core\BigInt::of(2)->pow(20000)->sub(Core\BigInt::of(1));
-var $other = Core\BigInt::of(3)->pow(12000)->add(Core\BigInt::of(2));
+var $wide = Core\BigInt::of(2)->raisedTo(20000)->minus(Core\BigInt::of(1));
+var $other = Core\BigInt::of(3)->raisedTo(12000)->plus(Core\BigInt::of(2));
 var $divisor = $wide;
 int $round = 0;
 while ($round < 100) {
@@ -35,8 +35,8 @@ echo $zero->gcd($zero)->sign(), "\n";
 echo $zero->gcd($wide)->compareTo($wide), "\n";
 
 // 4. A thousand results are made, and each one is dropped as the next is taken.
-var $left = Core\BigInt::of(2)->pow(3000);
-var $right = Core\BigInt::of(6)->pow(1500);
+var $left = Core\BigInt::of(2)->raisedTo(3000);
+var $right = Core\BigInt::of(6)->raisedTo(1500);
 int $made = 0;
 while ($made < 1000) {
     $divisor = $left->gcd($right);

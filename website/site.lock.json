@@ -224,11 +224,11 @@
   "docs/examples/core/Arr/count/about.md": {
     "Core\\Arr::count": "8152ce538c3e99ad"
   },
-  "docs/examples/core/Arr/countBy/about.md": {
-    "Core\\Arr::countBy": "1d7a43474ece9922"
+  "docs/examples/core/Arr/groupCounts/about.md": {
+    "Core\\Arr::groupCounts": "1d7a43474ece9922"
   },
-  "docs/examples/core/Arr/diff/about.md": {
-    "Core\\Arr::diff": "4df5ecf28667c935"
+  "docs/examples/core/Arr/difference/about.md": {
+    "Core\\Arr::difference": "4df5ecf28667c935"
   },
   "docs/examples/core/Arr/fill/about.md": {
     "Core\\Arr::fill": "844ddd217b370d32"
@@ -272,8 +272,8 @@
   "docs/examples/core/Arr/hasKey/about.md": {
     "Core\\Arr::hasKey": "4c1d11e8a706a068"
   },
-  "docs/examples/core/Arr/intersect/about.md": {
-    "Core\\Arr::intersect": "95201cc8db4f9d25"
+  "docs/examples/core/Arr/intersection/about.md": {
+    "Core\\Arr::intersection": "95201cc8db4f9d25"
   },
   "docs/examples/core/Arr/isEmpty/about.md": {
     "Core\\Arr::isEmpty": "e7e4ac2d197b87cd"
@@ -398,14 +398,14 @@
   "docs/examples/core/BigInt/abs/about.md": {
     "Core\\BigInt::abs": "ad2d2ca71064ba4e"
   },
-  "docs/examples/core/BigInt/add/about.md": {
-    "Core\\BigInt::add": "34c49a381e425c21"
+  "docs/examples/core/BigInt/plus/about.md": {
+    "Core\\BigInt::plus": "34c49a381e425c21"
   },
   "docs/examples/core/BigInt/compareTo/about.md": {
     "Core\\BigInt::compareTo": "f98417b93713fcdb"
   },
-  "docs/examples/core/BigInt/div/about.md": {
-    "Core\\BigInt::div": "b84aff33f6bf76c5"
+  "docs/examples/core/BigInt/dividedBy/about.md": {
+    "Core\\BigInt::dividedBy": "b84aff33f6bf76c5"
   },
   "docs/examples/core/BigInt/format/about.md": {
     "Core\\BigInt::format": "c421a41a4844fb74"
@@ -416,14 +416,14 @@
   "docs/examples/core/BigInt/lcm/about.md": {
     "Core\\BigInt::lcm": "ff162a230e72b8d2"
   },
-  "docs/examples/core/BigInt/mod/about.md": {
-    "Core\\BigInt::mod": "709bcf442f76e9de"
+  "docs/examples/core/BigInt/remainder/about.md": {
+    "Core\\BigInt::remainder": "709bcf442f76e9de"
   },
-  "docs/examples/core/BigInt/mul/about.md": {
-    "Core\\BigInt::mul": "4bd99964ec4fe8c1"
+  "docs/examples/core/BigInt/multipliedBy/about.md": {
+    "Core\\BigInt::multipliedBy": "4bd99964ec4fe8c1"
   },
-  "docs/examples/core/BigInt/neg/about.md": {
-    "Core\\BigInt::neg": "c1cb06c75246f304"
+  "docs/examples/core/BigInt/negated/about.md": {
+    "Core\\BigInt::negated": "c1cb06c75246f304"
   },
   "docs/examples/core/BigInt/of/about.md": {
     "Core\\BigInt::of": "d45866c59c10d530"
@@ -434,17 +434,17 @@
   "docs/examples/core/BigInt/parse/about.md": {
     "Core\\BigInt::parse": "c19976d1b19144a8"
   },
-  "docs/examples/core/BigInt/pow/about.md": {
-    "Core\\BigInt::pow": "0abceafadeaf74e8"
+  "docs/examples/core/BigInt/raisedTo/about.md": {
+    "Core\\BigInt::raisedTo": "0abceafadeaf74e8"
   },
-  "docs/examples/core/BigInt/powMod/about.md": {
-    "Core\\BigInt::powMod": "42ed6ba755581420"
+  "docs/examples/core/BigInt/raisedToModulo/about.md": {
+    "Core\\BigInt::raisedToModulo": "42ed6ba755581420"
   },
-  "docs/examples/core/BigInt/shl/about.md": {
-    "Core\\BigInt::shl": "a8b023be1dcc5e9e"
+  "docs/examples/core/BigInt/shiftedLeft/about.md": {
+    "Core\\BigInt::shiftedLeft": "a8b023be1dcc5e9e"
   },
-  "docs/examples/core/BigInt/shr/about.md": {
-    "Core\\BigInt::shr": "4bc314b4bbd2e918"
+  "docs/examples/core/BigInt/shiftedRight/about.md": {
+    "Core\\BigInt::shiftedRight": "4bc314b4bbd2e918"
   },
   "docs/examples/core/BigInt/sign/about.md": {
     "Core\\BigInt::sign": "1430370cfb405f0b"
@@ -452,8 +452,8 @@
   "docs/examples/core/BigInt/sqrt/about.md": {
     "Core\\BigInt::sqrt": "04af9e5c951ec893"
   },
-  "docs/examples/core/BigInt/sub/about.md": {
-    "Core\\BigInt::sub": "fb4979eb4717bc71"
+  "docs/examples/core/BigInt/minus/about.md": {
+    "Core\\BigInt::minus": "fb4979eb4717bc71"
   },
   "docs/examples/core/BigInt/toDecimal/about.md": {
     "Core\\BigInt::toDecimal": "1f5d63a17f8a0ed3"
@@ -746,8 +746,8 @@
   "docs/examples/core/Db-Column/name/about.md": {
     "Core\\Db\\Column::name": "4920ff58a2e0b1ee"
   },
-  "docs/examples/core/Db-Column/nullable/about.md": {
-    "Core\\Db\\Column::nullable": "7825c6b629a69adf"
+  "docs/examples/core/Db-Column/isNullable/about.md": {
+    "Core\\Db\\Column::isNullable": "7825c6b629a69adf"
   },
   "docs/examples/core/Db-Column/type/about.md": {
     "Core\\Db\\Column::type": "1ed9a03ef5b936e3"
@@ -776,14 +776,14 @@
   "docs/examples/core/Db-Connection/serverVersion/about.md": {
     "Core\\Db\\Connection::serverVersion": "07f2f65415983121"
   },
-  "docs/examples/core/Db-Connection/stream/about.md": {
-    "Core\\Db\\Connection::stream": "8646c7a8d3f86f4b"
+  "docs/examples/core/Db-Connection/queryEach/about.md": {
+    "Core\\Db\\Connection::queryEach": "8646c7a8d3f86f4b"
   },
-  "docs/examples/core/Db-Connection/streamAs/about.md": {
-    "Core\\Db\\Connection::streamAs": "f10e1e6779721f7a"
+  "docs/examples/core/Db-Connection/queryEachAs/about.md": {
+    "Core\\Db\\Connection::queryEachAs": "f10e1e6779721f7a"
   },
-  "docs/examples/core/Db-Connection/transaction/about.md": {
-    "Core\\Db\\Connection::transaction": "ecf1f7737e9a3a42"
+  "docs/examples/core/Db-Connection/runTransaction/about.md": {
+    "Core\\Db\\Connection::runTransaction": "ecf1f7737e9a3a42"
   },
   "docs/examples/core/Db-Plan/steps/about.md": {
     "Core\\Db\\Plan::steps": "6b3fdb71e5529837"
@@ -890,14 +890,14 @@
   "docs/examples/core/Db-Transaction/rollBack/about.md": {
     "Core\\Db\\Transaction::rollBack": "766fe7fe1c4161b8"
   },
-  "docs/examples/core/Db-Transaction/stream/about.md": {
-    "Core\\Db\\Transaction::stream": "9835b842669631d9"
+  "docs/examples/core/Db-Transaction/queryEach/about.md": {
+    "Core\\Db\\Transaction::queryEach": "9835b842669631d9"
   },
-  "docs/examples/core/Db-Transaction/streamAs/about.md": {
-    "Core\\Db\\Transaction::streamAs": "93bf53e1c7ce0dcc"
+  "docs/examples/core/Db-Transaction/queryEachAs/about.md": {
+    "Core\\Db\\Transaction::queryEachAs": "93bf53e1c7ce0dcc"
   },
-  "docs/examples/core/Db-Transaction/transaction/about.md": {
-    "Core\\Db\\Transaction::transaction": "5b65d8fd528e25ee"
+  "docs/examples/core/Db-Transaction/runTransaction/about.md": {
+    "Core\\Db\\Transaction::runTransaction": "5b65d8fd528e25ee"
   },
   "docs/examples/core/Db-Write/affected/about.md": {
     "Core\\Db\\Write::affected": "959597ddd964c567"
@@ -941,17 +941,17 @@
   "docs/examples/core/Decimal/ceil/about.md": {
     "Core\\Decimal::ceil": "20a2f0c608f75980"
   },
-  "docs/examples/core/Decimal/divExact/about.md": {
-    "Core\\Decimal::divExact": "ee280008413a4fc9"
+  "docs/examples/core/Decimal/divideExact/about.md": {
+    "Core\\Decimal::divideExact": "ee280008413a4fc9"
   },
-  "docs/examples/core/Decimal/divRound/about.md": {
-    "Core\\Decimal::divRound": "327668e2bcb0b52b"
+  "docs/examples/core/Decimal/divideRounded/about.md": {
+    "Core\\Decimal::divideRounded": "327668e2bcb0b52b"
   },
   "docs/examples/core/Decimal/floor/about.md": {
     "Core\\Decimal::floor": "7eddd1fa5bd8c326"
   },
-  "docs/examples/core/Decimal/pow/about.md": {
-    "Core\\Decimal::pow": "e8b40833e9b57378"
+  "docs/examples/core/Decimal/power/about.md": {
+    "Core\\Decimal::power": "e8b40833e9b57378"
   },
   "docs/examples/core/Decimal/round/about.md": {
     "Core\\Decimal::round": "b4068f960418d888"
@@ -1094,8 +1094,8 @@
   "docs/examples/core/Http-Client/request/about.md": {
     "Core\\Http\\Client::request": "9415e147ddfc622a"
   },
-  "docs/examples/core/Http-Client/stream/about.md": {
-    "Core\\Http\\Client::stream": "e540782447e26d93"
+  "docs/examples/core/Http-Client/openStream/about.md": {
+    "Core\\Http\\Client::openStream": "e540782447e26d93"
   },
   "docs/examples/core/Http-Event/data/about.md": {
     "Core\\Http\\Event::data": "02b70974b9d9ed89"
@@ -1187,8 +1187,8 @@
   "docs/examples/core/Http-TlsInfo/subject/about.md": {
     "Core\\Http\\TlsInfo::subject": "8dd690e61bb5788d"
   },
-  "docs/examples/core/Http-TlsInfo/verified/about.md": {
-    "Core\\Http\\TlsInfo::verified": "aa7a72127cd98eb2"
+  "docs/examples/core/Http-TlsInfo/isVerified/about.md": {
+    "Core\\Http\\TlsInfo::isVerified": "aa7a72127cd98eb2"
   },
   "docs/examples/core/Http-TlsInfo/version/about.md": {
     "Core\\Http\\TlsInfo::version": "f3ca3c6656eee8bf"
@@ -1394,98 +1394,98 @@
   "docs/examples/core/Ldap-Ad-AccountFlags/bits/about.md": {
     "Core\\Ldap\\Ad\\AccountFlags::bits": "6ca5d2df5692bfca"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/disabled/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::disabled": "0860101dbe974c6e"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isDisabled/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isDisabled": "0860101dbe974c6e"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/homeDirectoryRequired/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::homeDirectoryRequired": "d80b27b17dbf03fd"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isHomeDirectoryRequired/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isHomeDirectoryRequired": "d80b27b17dbf03fd"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/interdomainTrustAccount/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::interdomainTrustAccount": "fe001bb6a3e6a848"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isInterdomainTrustAccount/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isInterdomainTrustAccount": "fe001bb6a3e6a848"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/lockedOut/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::lockedOut": "1d3da8dd7c03249f"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isLockedOut/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isLockedOut": "1d3da8dd7c03249f"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/mnsLogonAccount/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::mnsLogonAccount": "83acea27dd6a680d"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isMnsLogonAccount/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isMnsLogonAccount": "83acea27dd6a680d"
   },
   "docs/examples/core/Ldap-Ad-AccountFlags/mustChangePassword/about.md": {
     "Core\\Ldap\\Ad\\AccountFlags::mustChangePassword": "407466faeaf624c2"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/noPreauthRequired/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::noPreauthRequired": "64d661561f6af77d"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isPreauthNotRequired/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isPreauthNotRequired": "64d661561f6af77d"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/normalAccount/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::normalAccount": "6ec0605d85308bb5"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isNormalAccount/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isNormalAccount": "6ec0605d85308bb5"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/notDelegated/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::notDelegated": "ec853a3909123c71"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isNotDelegated/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isNotDelegated": "ec853a3909123c71"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/partialSecretsAccount/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::partialSecretsAccount": "b22cfb6950018e07"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isPartialSecretsAccount/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isPartialSecretsAccount": "b22cfb6950018e07"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/passwordExpired/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::passwordExpired": "3e01ce0113fb0d41"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isPasswordExpired/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isPasswordExpired": "3e01ce0113fb0d41"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/passwordNeverExpires/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::passwordNeverExpires": "f62c3802b592dcd3"
+  "docs/examples/core/Ldap-Ad-AccountFlags/hasNonExpiringPassword/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::hasNonExpiringPassword": "f62c3802b592dcd3"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/passwordNotRequired/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::passwordNotRequired": "df59c2239143c2cb"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isPasswordNotRequired/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isPasswordNotRequired": "df59c2239143c2cb"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/reversibleEncryption/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::reversibleEncryption": "50e68b44f9efd707"
+  "docs/examples/core/Ldap-Ad-AccountFlags/allowsReversibleEncryption/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::allowsReversibleEncryption": "50e68b44f9efd707"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/script/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::script": "0e942a7f04d30e0b"
+  "docs/examples/core/Ldap-Ad-AccountFlags/hasLogonScript/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::hasLogonScript": "0e942a7f04d30e0b"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/serverTrustAccount/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::serverTrustAccount": "e7bb2c4cfe8c6252"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isServerTrustAccount/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isServerTrustAccount": "e7bb2c4cfe8c6252"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/smartcardRequired/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::smartcardRequired": "5a86d1e80b81c599"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isSmartcardRequired/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isSmartcardRequired": "5a86d1e80b81c599"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/temporaryDuplicateAccount/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::temporaryDuplicateAccount": "f2c37966d4ad301b"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isTemporaryDuplicateAccount/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isTemporaryDuplicateAccount": "f2c37966d4ad301b"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/trustedForDelegation/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::trustedForDelegation": "db6174bc17e6a9d1"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isTrustedForDelegation/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isTrustedForDelegation": "db6174bc17e6a9d1"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/trustedToAuthForDelegation/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::trustedToAuthForDelegation": "6cf6ffd144dc4a79"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isTrustedToAuthenticateForDelegation/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isTrustedToAuthenticateForDelegation": "6cf6ffd144dc4a79"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/useDesKeyOnly/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::useDesKeyOnly": "7ff452025eb878d5"
+  "docs/examples/core/Ldap-Ad-AccountFlags/usesDesKeyOnly/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::usesDesKeyOnly": "7ff452025eb878d5"
   },
   "docs/examples/core/Ldap-Ad-AccountFlags/with/about.md": {
     "Core\\Ldap\\Ad\\AccountFlags::with": "960d515b8908c358"
   },
-  "docs/examples/core/Ldap-Ad-AccountFlags/workstationTrustAccount/about.md": {
-    "Core\\Ldap\\Ad\\AccountFlags::workstationTrustAccount": "3e2419edeb1a84a8"
+  "docs/examples/core/Ldap-Ad-AccountFlags/isWorkstationTrustAccount/about.md": {
+    "Core\\Ldap\\Ad\\AccountFlags::isWorkstationTrustAccount": "3e2419edeb1a84a8"
   },
-  "docs/examples/core/Ldap-Ad-GroupType/appBasic/about.md": {
-    "Core\\Ldap\\Ad\\GroupType::appBasic": "bae2ac0f079f7f12"
+  "docs/examples/core/Ldap-Ad-GroupType/isAppBasicGroup/about.md": {
+    "Core\\Ldap\\Ad\\GroupType::isAppBasicGroup": "bae2ac0f079f7f12"
   },
-  "docs/examples/core/Ldap-Ad-GroupType/appQuery/about.md": {
-    "Core\\Ldap\\Ad\\GroupType::appQuery": "5046f60aef22ceb8"
+  "docs/examples/core/Ldap-Ad-GroupType/isAppQueryGroup/about.md": {
+    "Core\\Ldap\\Ad\\GroupType::isAppQueryGroup": "5046f60aef22ceb8"
   },
   "docs/examples/core/Ldap-Ad-GroupType/bits/about.md": {
     "Core\\Ldap\\Ad\\GroupType::bits": "ea7e62800d9b7663"
   },
-  "docs/examples/core/Ldap-Ad-GroupType/domainLocal/about.md": {
-    "Core\\Ldap\\Ad\\GroupType::domainLocal": "0f4948027f68d1c3"
+  "docs/examples/core/Ldap-Ad-GroupType/isDomainLocal/about.md": {
+    "Core\\Ldap\\Ad\\GroupType::isDomainLocal": "0f4948027f68d1c3"
   },
-  "docs/examples/core/Ldap-Ad-GroupType/global/about.md": {
-    "Core\\Ldap\\Ad\\GroupType::global": "9ed86d6231b13a0f"
+  "docs/examples/core/Ldap-Ad-GroupType/isGlobal/about.md": {
+    "Core\\Ldap\\Ad\\GroupType::isGlobal": "9ed86d6231b13a0f"
   },
-  "docs/examples/core/Ldap-Ad-GroupType/security/about.md": {
-    "Core\\Ldap\\Ad\\GroupType::security": "3c29c6dcdc4928a9"
+  "docs/examples/core/Ldap-Ad-GroupType/isSecurityGroup/about.md": {
+    "Core\\Ldap\\Ad\\GroupType::isSecurityGroup": "3c29c6dcdc4928a9"
   },
-  "docs/examples/core/Ldap-Ad-GroupType/system/about.md": {
-    "Core\\Ldap\\Ad\\GroupType::system": "751016c5244b9eb2"
+  "docs/examples/core/Ldap-Ad-GroupType/isSystemGroup/about.md": {
+    "Core\\Ldap\\Ad\\GroupType::isSystemGroup": "751016c5244b9eb2"
   },
-  "docs/examples/core/Ldap-Ad-GroupType/universal/about.md": {
-    "Core\\Ldap\\Ad\\GroupType::universal": "a8f40329d2e405c7"
+  "docs/examples/core/Ldap-Ad-GroupType/isUniversal/about.md": {
+    "Core\\Ldap\\Ad\\GroupType::isUniversal": "a8f40329d2e405c7"
   },
   "docs/examples/core/Ldap-Ad-GroupType/with/about.md": {
     "Core\\Ldap\\Ad\\GroupType::with": "abf1f255a000a18c"
@@ -1514,11 +1514,11 @@
   "docs/examples/core/Ldap-Connection/changePassword/about.md": {
     "Core\\Ldap\\Connection::changePassword": "598f8214e2868a2f"
   },
-  "docs/examples/core/Ldap-Connection/changes/about.md": {
-    "Core\\Ldap\\Connection::changes": "0fafc33bf5433ae9"
+  "docs/examples/core/Ldap-Connection/searchChanges/about.md": {
+    "Core\\Ldap\\Connection::searchChanges": "0fafc33bf5433ae9"
   },
-  "docs/examples/core/Ldap-Connection/compare/about.md": {
-    "Core\\Ldap\\Connection::compare": "9b9fef63ffea83d9"
+  "docs/examples/core/Ldap-Connection/hasValue/about.md": {
+    "Core\\Ldap\\Connection::hasValue": "9b9fef63ffea83d9"
   },
   "docs/examples/core/Ldap-Connection/delete/about.md": {
     "Core\\Ldap\\Connection::delete": "c35191313461ffc8"
@@ -1748,8 +1748,8 @@
   "docs/examples/core/Math/exp/about.md": {
     "Core\\Math::exp": "cf345d2788ba5776"
   },
-  "docs/examples/core/Math/fdiv/about.md": {
-    "Core\\Math::fdiv": "1b6e5181403dd049"
+  "docs/examples/core/Math/divide/about.md": {
+    "Core\\Math::divide": "1b6e5181403dd049"
   },
   "docs/examples/core/Math/floor/about.md": {
     "Core\\Math::floor": "0b64f14eed4d3b15"
@@ -1766,8 +1766,8 @@
   "docs/examples/core/Math/hypot/about.md": {
     "Core\\Math::hypot": "0032cd0d5766a9cd"
   },
-  "docs/examples/core/Math/intDiv/about.md": {
-    "Core\\Math::intDiv": "1b302196406a636e"
+  "docs/examples/core/Math/quotient/about.md": {
+    "Core\\Math::quotient": "1b302196406a636e"
   },
   "docs/examples/core/Math/isFinite/about.md": {
     "Core\\Math::isFinite": "f5d65b16bfcbeb66"
@@ -1787,8 +1787,8 @@
   "docs/examples/core/Math/min/about.md": {
     "Core\\Math::min": "cddeb6da38477321"
   },
-  "docs/examples/core/Math/mod/about.md": {
-    "Core\\Math::mod": "7328aab566ca98d6"
+  "docs/examples/core/Math/remainder/about.md": {
+    "Core\\Math::remainder": "7328aab566ca98d6"
   },
   "docs/examples/core/Math/round/about.md": {
     "Core\\Math::round": "2ab12557085d0422"
@@ -1928,14 +1928,14 @@
   "docs/examples/core/ObjectSet/count/about.md": {
     "Core\\ObjectSet::count": "53b4d50563aa1534"
   },
-  "docs/examples/core/ObjectSet/diff/about.md": {
-    "Core\\ObjectSet::diff": "6e6fb44c9e8615ba"
+  "docs/examples/core/ObjectSet/difference/about.md": {
+    "Core\\ObjectSet::difference": "6e6fb44c9e8615ba"
   },
   "docs/examples/core/ObjectSet/has/about.md": {
     "Core\\ObjectSet::has": "3a42c9ae657060ea"
   },
-  "docs/examples/core/ObjectSet/intersect/about.md": {
-    "Core\\ObjectSet::intersect": "6e5bd5e1094f8ce3"
+  "docs/examples/core/ObjectSet/intersection/about.md": {
+    "Core\\ObjectSet::intersection": "6e5bd5e1094f8ce3"
   },
   "docs/examples/core/ObjectSet/isEmpty/about.md": {
     "Core\\ObjectSet::isEmpty": "14071c3ca93c084e"
@@ -2174,8 +2174,8 @@
   "docs/examples/core/RateLimit/shed/about.md": {
     "Core\\RateLimit::shed": "aff1eb0bfec936d6"
   },
-  "docs/examples/core/RateLimit-Decision/allowed/about.md": {
-    "Core\\RateLimit\\Decision::allowed": "4180c94c661060b9"
+  "docs/examples/core/RateLimit-Decision/isAllowed/about.md": {
+    "Core\\RateLimit\\Decision::isAllowed": "4180c94c661060b9"
   },
   "docs/examples/core/RateLimit-Decision/limit/about.md": {
     "Core\\RateLimit\\Decision::limit": "b3ec65762000a401"
@@ -2933,8 +2933,8 @@
   "docs/examples/core/Test-Outcome/name/about.md": {
     "Core\\Test\\Outcome::name": "c43d0874fd940cce"
   },
-  "docs/examples/core/Test-Outcome/passed/about.md": {
-    "Core\\Test\\Outcome::passed": "d78d6a978754aeca"
+  "docs/examples/core/Test-Outcome/hasPassed/about.md": {
+    "Core\\Test\\Outcome::hasPassed": "d78d6a978754aeca"
   },
   "docs/examples/core/Test-Response/body/about.md": {
     "Core\\Test\\Response::body": "bf768d92509ce2ce"
@@ -3116,8 +3116,8 @@
   "docs/examples/core/Time-DateTime/month/about.md": {
     "Core\\Time\\DateTime::month": "73740af5e6ae24af"
   },
-  "docs/examples/core/Time-DateTime/nanos/about.md": {
-    "Core\\Time\\DateTime::nanos": "0fbf415e6967e241"
+  "docs/examples/core/Time-DateTime/nanoseconds/about.md": {
+    "Core\\Time\\DateTime::nanoseconds": "0fbf415e6967e241"
   },
   "docs/examples/core/Time-DateTime/next/about.md": {
     "Core\\Time\\DateTime::next": "cae3360abbfde8ec"
@@ -3269,8 +3269,8 @@
   "docs/examples/core/Time-TimeOfDay/minute/about.md": {
     "Core\\Time\\TimeOfDay::minute": "20ce59ebf7e3e5d2"
   },
-  "docs/examples/core/Time-TimeOfDay/nanos/about.md": {
-    "Core\\Time\\TimeOfDay::nanos": "2101811edeba9abc"
+  "docs/examples/core/Time-TimeOfDay/nanoseconds/about.md": {
+    "Core\\Time\\TimeOfDay::nanoseconds": "2101811edeba9abc"
   },
   "docs/examples/core/Time-TimeOfDay/plus/about.md": {
     "Core\\Time\\TimeOfDay::plus": "afc5648008ce57e5"
@@ -3350,14 +3350,14 @@
   "docs/examples/core/Uri/queryParameter/about.md": {
     "Core\\Uri::queryParameter": "7833d903847e34fe"
   },
-  "docs/examples/core/Uri/resolve/about.md": {
-    "Core\\Uri::resolve": "e2db704e775cd903"
+  "docs/examples/core/Uri/resolved/about.md": {
+    "Core\\Uri::resolved": "e2db704e775cd903"
   },
   "docs/examples/core/Uri/scheme/about.md": {
     "Core\\Uri::scheme": "92506ca026828de0"
   },
-  "docs/examples/core/Uri/sign/about.md": {
-    "Core\\Uri::sign": "37fb98765d6cca12"
+  "docs/examples/core/Uri/signed/about.md": {
+    "Core\\Uri::signed": "37fb98765d6cca12"
   },
   "docs/examples/core/Uri/toString/about.md": {
     "Core\\Uri::toString": "ffb4e5746a3aa743"
@@ -3425,8 +3425,8 @@
   "docs/examples/core/WebPush/subscription/about.md": {
     "Core\\WebPush::subscription": "6fdbe321c066eeea"
   },
-  "docs/examples/core/WebPush-Sent/gone/about.md": {
-    "Core\\WebPush\\Sent::gone": "b1cb5c7f0da4ab07"
+  "docs/examples/core/WebPush-Sent/isGone/about.md": {
+    "Core\\WebPush\\Sent::isGone": "b1cb5c7f0da4ab07"
   },
   "docs/examples/core/WebPush-Sent/status/about.md": {
     "Core\\WebPush\\Sent::status": "060f0e950ffc61f1"
@@ -4997,11 +4997,11 @@
   "help:Core\\Arr::count": {
     "Core\\Arr::count": "b05c7cbe69b3ef82"
   },
-  "help:Core\\Arr::countBy": {
-    "Core\\Arr::countBy": "b81dcf3ee616c328"
+  "help:Core\\Arr::groupCounts": {
+    "Core\\Arr::groupCounts": "b81dcf3ee616c328"
   },
-  "help:Core\\Arr::diff": {
-    "Core\\Arr::diff": "ae7fb44e10764c61"
+  "help:Core\\Arr::difference": {
+    "Core\\Arr::difference": "ae7fb44e10764c61"
   },
   "help:Core\\Arr::fill": {
     "Core\\Arr::fill": "9c36797a9044fee9"
@@ -5045,8 +5045,8 @@
   "help:Core\\Arr::hasKey": {
     "Core\\Arr::hasKey": "3f839e6d68dc5257"
   },
-  "help:Core\\Arr::intersect": {
-    "Core\\Arr::intersect": "bd419d108b27bb83"
+  "help:Core\\Arr::intersection": {
+    "Core\\Arr::intersection": "bd419d108b27bb83"
   },
   "help:Core\\Arr::isEmpty": {
     "Core\\Arr::isEmpty": "0836c360dad94e9d"
@@ -5180,14 +5180,14 @@
   "help:Core\\BigInt::abs": {
     "Core\\BigInt::abs": "69c32869dab0705e"
   },
-  "help:Core\\BigInt::add": {
-    "Core\\BigInt::add": "9ed420f11b415076"
+  "help:Core\\BigInt::plus": {
+    "Core\\BigInt::plus": "9ed420f11b415076"
   },
   "help:Core\\BigInt::compareTo": {
     "Core\\BigInt::compareTo": "2f33b00ace35dcf1"
   },
-  "help:Core\\BigInt::div": {
-    "Core\\BigInt::div": "1e33cb5c1ddd465e"
+  "help:Core\\BigInt::dividedBy": {
+    "Core\\BigInt::dividedBy": "1e33cb5c1ddd465e"
   },
   "help:Core\\BigInt::format": {
     "Core\\BigInt::format": "90e716feb0e8be1a"
@@ -5198,14 +5198,14 @@
   "help:Core\\BigInt::lcm": {
     "Core\\BigInt::lcm": "3f54999aa821c72a"
   },
-  "help:Core\\BigInt::mod": {
-    "Core\\BigInt::mod": "ddb4e2c1056ae32c"
+  "help:Core\\BigInt::remainder": {
+    "Core\\BigInt::remainder": "ddb4e2c1056ae32c"
   },
-  "help:Core\\BigInt::mul": {
-    "Core\\BigInt::mul": "155fbd31e823ef15"
+  "help:Core\\BigInt::multipliedBy": {
+    "Core\\BigInt::multipliedBy": "155fbd31e823ef15"
   },
-  "help:Core\\BigInt::neg": {
-    "Core\\BigInt::neg": "df4333b8995cfa13"
+  "help:Core\\BigInt::negated": {
+    "Core\\BigInt::negated": "df4333b8995cfa13"
   },
   "help:Core\\BigInt::of": {
     "Core\\BigInt::of": "0fd1c74460995dd2"
@@ -5216,17 +5216,17 @@
   "help:Core\\BigInt::parse": {
     "Core\\BigInt::parse": "bfe8d1af379c896b"
   },
-  "help:Core\\BigInt::pow": {
-    "Core\\BigInt::pow": "787cc771d3b39d4b"
+  "help:Core\\BigInt::raisedTo": {
+    "Core\\BigInt::raisedTo": "787cc771d3b39d4b"
   },
-  "help:Core\\BigInt::powMod": {
-    "Core\\BigInt::powMod": "7ebd33301d5f8868"
+  "help:Core\\BigInt::raisedToModulo": {
+    "Core\\BigInt::raisedToModulo": "7ebd33301d5f8868"
   },
-  "help:Core\\BigInt::shl": {
-    "Core\\BigInt::shl": "39bf21750f1947ec"
+  "help:Core\\BigInt::shiftedLeft": {
+    "Core\\BigInt::shiftedLeft": "39bf21750f1947ec"
   },
-  "help:Core\\BigInt::shr": {
-    "Core\\BigInt::shr": "2133ccfafbf1d522"
+  "help:Core\\BigInt::shiftedRight": {
+    "Core\\BigInt::shiftedRight": "2133ccfafbf1d522"
   },
   "help:Core\\BigInt::sign": {
     "Core\\BigInt::sign": "7b93e580b21c5600"
@@ -5234,8 +5234,8 @@
   "help:Core\\BigInt::sqrt": {
     "Core\\BigInt::sqrt": "946d6f238ab43122"
   },
-  "help:Core\\BigInt::sub": {
-    "Core\\BigInt::sub": "6abe3abde1eee702"
+  "help:Core\\BigInt::minus": {
+    "Core\\BigInt::minus": "6abe3abde1eee702"
   },
   "help:Core\\BigInt::toDecimal": {
     "Core\\BigInt::toDecimal": "5da161851904eff9"
@@ -5561,8 +5561,8 @@
   "help:Core\\Db\\Column::name": {
     "Core\\Db\\Column::name": "93bfc9bc5dc93deb"
   },
-  "help:Core\\Db\\Column::nullable": {
-    "Core\\Db\\Column::nullable": "605e874f9e854bba"
+  "help:Core\\Db\\Column::isNullable": {
+    "Core\\Db\\Column::isNullable": "605e874f9e854bba"
   },
   "help:Core\\Db\\Column::type": {
     "Core\\Db\\Column::type": "59d5bf41d0fefa09"
@@ -5594,14 +5594,14 @@
   "help:Core\\Db\\Connection::serverVersion": {
     "Core\\Db\\Connection::serverVersion": "1c10a24f3cce0ef1"
   },
-  "help:Core\\Db\\Connection::stream": {
-    "Core\\Db\\Connection::stream": "ee0e2fed7368cf58"
+  "help:Core\\Db\\Connection::queryEach": {
+    "Core\\Db\\Connection::queryEach": "ee0e2fed7368cf58"
   },
-  "help:Core\\Db\\Connection::streamAs": {
-    "Core\\Db\\Connection::streamAs": "217ad9a9706cdd26"
+  "help:Core\\Db\\Connection::queryEachAs": {
+    "Core\\Db\\Connection::queryEachAs": "217ad9a9706cdd26"
   },
-  "help:Core\\Db\\Connection::transaction": {
-    "Core\\Db\\Connection::transaction": "469f937620363e0e"
+  "help:Core\\Db\\Connection::runTransaction": {
+    "Core\\Db\\Connection::runTransaction": "469f937620363e0e"
   },
   "help:Core\\Db\\DbError": {
     "Core\\Db\\DbError": "ec4dd57078d38d84"
@@ -5726,14 +5726,14 @@
   "help:Core\\Db\\Transaction::rollBack": {
     "Core\\Db\\Transaction::rollBack": "2c408e873a20de8b"
   },
-  "help:Core\\Db\\Transaction::stream": {
-    "Core\\Db\\Transaction::stream": "0ff96eef4e82c300"
+  "help:Core\\Db\\Transaction::queryEach": {
+    "Core\\Db\\Transaction::queryEach": "0ff96eef4e82c300"
   },
-  "help:Core\\Db\\Transaction::streamAs": {
-    "Core\\Db\\Transaction::streamAs": "1beabfb24cbe54c5"
+  "help:Core\\Db\\Transaction::queryEachAs": {
+    "Core\\Db\\Transaction::queryEachAs": "1beabfb24cbe54c5"
   },
-  "help:Core\\Db\\Transaction::transaction": {
-    "Core\\Db\\Transaction::transaction": "54e0fc64974ad799"
+  "help:Core\\Db\\Transaction::runTransaction": {
+    "Core\\Db\\Transaction::runTransaction": "54e0fc64974ad799"
   },
   "help:Core\\Db\\Write::affected": {
     "Core\\Db\\Write::affected": "b97f640fe869817e"
@@ -5777,17 +5777,17 @@
   "help:Core\\Decimal::ceil": {
     "Core\\Decimal::ceil": "d65d08e712587000"
   },
-  "help:Core\\Decimal::divExact": {
-    "Core\\Decimal::divExact": "990f5b4a4297dcbd"
+  "help:Core\\Decimal::divideExact": {
+    "Core\\Decimal::divideExact": "990f5b4a4297dcbd"
   },
-  "help:Core\\Decimal::divRound": {
-    "Core\\Decimal::divRound": "880a3fbb898682ac"
+  "help:Core\\Decimal::divideRounded": {
+    "Core\\Decimal::divideRounded": "880a3fbb898682ac"
   },
   "help:Core\\Decimal::floor": {
     "Core\\Decimal::floor": "1c5cad734276e855"
   },
-  "help:Core\\Decimal::pow": {
-    "Core\\Decimal::pow": "7a49b582a306e06c"
+  "help:Core\\Decimal::power": {
+    "Core\\Decimal::power": "7a49b582a306e06c"
   },
   "help:Core\\Decimal::round": {
     "Core\\Decimal::round": "9e645ababee7be61"
@@ -5945,8 +5945,8 @@
   "help:Core\\Http\\Client::request": {
     "Core\\Http\\Client::request": "5cb08351c816d6b0"
   },
-  "help:Core\\Http\\Client::stream": {
-    "Core\\Http\\Client::stream": "fe6fa15442c9e8eb"
+  "help:Core\\Http\\Client::openStream": {
+    "Core\\Http\\Client::openStream": "fe6fa15442c9e8eb"
   },
   "help:Core\\Http\\Event::data": {
     "Core\\Http\\Event::data": "18cb929183c10549"
@@ -6041,8 +6041,8 @@
   "help:Core\\Http\\TlsInfo::subject": {
     "Core\\Http\\TlsInfo::subject": "4b6b160fd278f5d5"
   },
-  "help:Core\\Http\\TlsInfo::verified": {
-    "Core\\Http\\TlsInfo::verified": "47a61fd4c2571b5f"
+  "help:Core\\Http\\TlsInfo::isVerified": {
+    "Core\\Http\\TlsInfo::isVerified": "47a61fd4c2571b5f"
   },
   "help:Core\\Http\\TlsInfo::version": {
     "Core\\Http\\TlsInfo::version": "3634d72d883ffe11"
@@ -6254,98 +6254,98 @@
   "help:Core\\Ldap\\Ad\\AccountFlags::bits": {
     "Core\\Ldap\\Ad\\AccountFlags::bits": "49357b5d8cec81d6"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::disabled": {
-    "Core\\Ldap\\Ad\\AccountFlags::disabled": "45932d4932b9e23f"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isDisabled": {
+    "Core\\Ldap\\Ad\\AccountFlags::isDisabled": "45932d4932b9e23f"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::homeDirectoryRequired": {
-    "Core\\Ldap\\Ad\\AccountFlags::homeDirectoryRequired": "b455bc95f3673974"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isHomeDirectoryRequired": {
+    "Core\\Ldap\\Ad\\AccountFlags::isHomeDirectoryRequired": "b455bc95f3673974"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::interdomainTrustAccount": {
-    "Core\\Ldap\\Ad\\AccountFlags::interdomainTrustAccount": "6f24f2b3bb54368d"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isInterdomainTrustAccount": {
+    "Core\\Ldap\\Ad\\AccountFlags::isInterdomainTrustAccount": "6f24f2b3bb54368d"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::lockedOut": {
-    "Core\\Ldap\\Ad\\AccountFlags::lockedOut": "68c78a42ac1c7bda"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isLockedOut": {
+    "Core\\Ldap\\Ad\\AccountFlags::isLockedOut": "68c78a42ac1c7bda"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::mnsLogonAccount": {
-    "Core\\Ldap\\Ad\\AccountFlags::mnsLogonAccount": "3aa9cf675c7bbaab"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isMnsLogonAccount": {
+    "Core\\Ldap\\Ad\\AccountFlags::isMnsLogonAccount": "3aa9cf675c7bbaab"
   },
   "help:Core\\Ldap\\Ad\\AccountFlags::mustChangePassword": {
     "Core\\Ldap\\Ad\\AccountFlags::mustChangePassword": "f4fc4c85c2a226ec"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::noPreauthRequired": {
-    "Core\\Ldap\\Ad\\AccountFlags::noPreauthRequired": "4a416cf9a1b2bde6"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isPreauthNotRequired": {
+    "Core\\Ldap\\Ad\\AccountFlags::isPreauthNotRequired": "4a416cf9a1b2bde6"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::normalAccount": {
-    "Core\\Ldap\\Ad\\AccountFlags::normalAccount": "64c0067d7ec63be6"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isNormalAccount": {
+    "Core\\Ldap\\Ad\\AccountFlags::isNormalAccount": "64c0067d7ec63be6"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::notDelegated": {
-    "Core\\Ldap\\Ad\\AccountFlags::notDelegated": "82d1320569b684e8"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isNotDelegated": {
+    "Core\\Ldap\\Ad\\AccountFlags::isNotDelegated": "82d1320569b684e8"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::partialSecretsAccount": {
-    "Core\\Ldap\\Ad\\AccountFlags::partialSecretsAccount": "1588fe2ee329ecbb"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isPartialSecretsAccount": {
+    "Core\\Ldap\\Ad\\AccountFlags::isPartialSecretsAccount": "1588fe2ee329ecbb"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::passwordExpired": {
-    "Core\\Ldap\\Ad\\AccountFlags::passwordExpired": "3e28e8b71af73563"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isPasswordExpired": {
+    "Core\\Ldap\\Ad\\AccountFlags::isPasswordExpired": "3e28e8b71af73563"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::passwordNeverExpires": {
-    "Core\\Ldap\\Ad\\AccountFlags::passwordNeverExpires": "079cdebec4d69818"
+  "help:Core\\Ldap\\Ad\\AccountFlags::hasNonExpiringPassword": {
+    "Core\\Ldap\\Ad\\AccountFlags::hasNonExpiringPassword": "079cdebec4d69818"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::passwordNotRequired": {
-    "Core\\Ldap\\Ad\\AccountFlags::passwordNotRequired": "3ce5ab951405b229"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isPasswordNotRequired": {
+    "Core\\Ldap\\Ad\\AccountFlags::isPasswordNotRequired": "3ce5ab951405b229"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::reversibleEncryption": {
-    "Core\\Ldap\\Ad\\AccountFlags::reversibleEncryption": "ce1003d1c7357cb1"
+  "help:Core\\Ldap\\Ad\\AccountFlags::allowsReversibleEncryption": {
+    "Core\\Ldap\\Ad\\AccountFlags::allowsReversibleEncryption": "ce1003d1c7357cb1"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::script": {
-    "Core\\Ldap\\Ad\\AccountFlags::script": "9456a4e2f28b9f35"
+  "help:Core\\Ldap\\Ad\\AccountFlags::hasLogonScript": {
+    "Core\\Ldap\\Ad\\AccountFlags::hasLogonScript": "9456a4e2f28b9f35"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::serverTrustAccount": {
-    "Core\\Ldap\\Ad\\AccountFlags::serverTrustAccount": "0721f928a4b7fd6d"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isServerTrustAccount": {
+    "Core\\Ldap\\Ad\\AccountFlags::isServerTrustAccount": "0721f928a4b7fd6d"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::smartcardRequired": {
-    "Core\\Ldap\\Ad\\AccountFlags::smartcardRequired": "3ce24d8e6a3c57a2"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isSmartcardRequired": {
+    "Core\\Ldap\\Ad\\AccountFlags::isSmartcardRequired": "3ce24d8e6a3c57a2"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::temporaryDuplicateAccount": {
-    "Core\\Ldap\\Ad\\AccountFlags::temporaryDuplicateAccount": "feb0e219f59b2bf8"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isTemporaryDuplicateAccount": {
+    "Core\\Ldap\\Ad\\AccountFlags::isTemporaryDuplicateAccount": "feb0e219f59b2bf8"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::trustedForDelegation": {
-    "Core\\Ldap\\Ad\\AccountFlags::trustedForDelegation": "b386097cbe13a701"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isTrustedForDelegation": {
+    "Core\\Ldap\\Ad\\AccountFlags::isTrustedForDelegation": "b386097cbe13a701"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::trustedToAuthForDelegation": {
-    "Core\\Ldap\\Ad\\AccountFlags::trustedToAuthForDelegation": "dc9b9b29a99052b7"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isTrustedToAuthenticateForDelegation": {
+    "Core\\Ldap\\Ad\\AccountFlags::isTrustedToAuthenticateForDelegation": "dc9b9b29a99052b7"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::useDesKeyOnly": {
-    "Core\\Ldap\\Ad\\AccountFlags::useDesKeyOnly": "957f2e0bb820c105"
+  "help:Core\\Ldap\\Ad\\AccountFlags::usesDesKeyOnly": {
+    "Core\\Ldap\\Ad\\AccountFlags::usesDesKeyOnly": "957f2e0bb820c105"
   },
   "help:Core\\Ldap\\Ad\\AccountFlags::with": {
     "Core\\Ldap\\Ad\\AccountFlags::with": "7ba23a6561db72a1"
   },
-  "help:Core\\Ldap\\Ad\\AccountFlags::workstationTrustAccount": {
-    "Core\\Ldap\\Ad\\AccountFlags::workstationTrustAccount": "9d6e36bb92dda33d"
+  "help:Core\\Ldap\\Ad\\AccountFlags::isWorkstationTrustAccount": {
+    "Core\\Ldap\\Ad\\AccountFlags::isWorkstationTrustAccount": "9d6e36bb92dda33d"
   },
-  "help:Core\\Ldap\\Ad\\GroupType::appBasic": {
-    "Core\\Ldap\\Ad\\GroupType::appBasic": "f952bdc0aed7c73c"
+  "help:Core\\Ldap\\Ad\\GroupType::isAppBasicGroup": {
+    "Core\\Ldap\\Ad\\GroupType::isAppBasicGroup": "f952bdc0aed7c73c"
   },
-  "help:Core\\Ldap\\Ad\\GroupType::appQuery": {
-    "Core\\Ldap\\Ad\\GroupType::appQuery": "b1908c8fc5990d04"
+  "help:Core\\Ldap\\Ad\\GroupType::isAppQueryGroup": {
+    "Core\\Ldap\\Ad\\GroupType::isAppQueryGroup": "b1908c8fc5990d04"
   },
   "help:Core\\Ldap\\Ad\\GroupType::bits": {
     "Core\\Ldap\\Ad\\GroupType::bits": "37749942d7e96753"
   },
-  "help:Core\\Ldap\\Ad\\GroupType::domainLocal": {
-    "Core\\Ldap\\Ad\\GroupType::domainLocal": "1822d3864773a0e8"
+  "help:Core\\Ldap\\Ad\\GroupType::isDomainLocal": {
+    "Core\\Ldap\\Ad\\GroupType::isDomainLocal": "1822d3864773a0e8"
   },
-  "help:Core\\Ldap\\Ad\\GroupType::global": {
-    "Core\\Ldap\\Ad\\GroupType::global": "c4ac91408235d97d"
+  "help:Core\\Ldap\\Ad\\GroupType::isGlobal": {
+    "Core\\Ldap\\Ad\\GroupType::isGlobal": "c4ac91408235d97d"
   },
-  "help:Core\\Ldap\\Ad\\GroupType::security": {
-    "Core\\Ldap\\Ad\\GroupType::security": "e1d7718cf3fe1565"
+  "help:Core\\Ldap\\Ad\\GroupType::isSecurityGroup": {
+    "Core\\Ldap\\Ad\\GroupType::isSecurityGroup": "e1d7718cf3fe1565"
   },
-  "help:Core\\Ldap\\Ad\\GroupType::system": {
-    "Core\\Ldap\\Ad\\GroupType::system": "124420fed1cc6561"
+  "help:Core\\Ldap\\Ad\\GroupType::isSystemGroup": {
+    "Core\\Ldap\\Ad\\GroupType::isSystemGroup": "124420fed1cc6561"
   },
-  "help:Core\\Ldap\\Ad\\GroupType::universal": {
-    "Core\\Ldap\\Ad\\GroupType::universal": "2466f4c1d429d2f9"
+  "help:Core\\Ldap\\Ad\\GroupType::isUniversal": {
+    "Core\\Ldap\\Ad\\GroupType::isUniversal": "2466f4c1d429d2f9"
   },
   "help:Core\\Ldap\\Ad\\GroupType::with": {
     "Core\\Ldap\\Ad\\GroupType::with": "732f9ec1369ec9fd"
@@ -6374,11 +6374,11 @@
   "help:Core\\Ldap\\Connection::changePassword": {
     "Core\\Ldap\\Connection::changePassword": "e3b61b8c288ca59f"
   },
-  "help:Core\\Ldap\\Connection::changes": {
-    "Core\\Ldap\\Connection::changes": "ccb2808a795e3067"
+  "help:Core\\Ldap\\Connection::searchChanges": {
+    "Core\\Ldap\\Connection::searchChanges": "ccb2808a795e3067"
   },
-  "help:Core\\Ldap\\Connection::compare": {
-    "Core\\Ldap\\Connection::compare": "56ecb3252bee1985"
+  "help:Core\\Ldap\\Connection::hasValue": {
+    "Core\\Ldap\\Connection::hasValue": "56ecb3252bee1985"
   },
   "help:Core\\Ldap\\Connection::delete": {
     "Core\\Ldap\\Connection::delete": "e97c892a0e029a2c"
@@ -6623,8 +6623,8 @@
   "help:Core\\Math::exp": {
     "Core\\Math::exp": "89dff8984063ef99"
   },
-  "help:Core\\Math::fdiv": {
-    "Core\\Math::fdiv": "e679a89595252218"
+  "help:Core\\Math::divide": {
+    "Core\\Math::divide": "e679a89595252218"
   },
   "help:Core\\Math::floor": {
     "Core\\Math::floor": "23e7bf6c7227d87b"
@@ -6641,8 +6641,8 @@
   "help:Core\\Math::hypot": {
     "Core\\Math::hypot": "17b743e7ad7b31b1"
   },
-  "help:Core\\Math::intDiv": {
-    "Core\\Math::intDiv": "8141c81c3975a337"
+  "help:Core\\Math::quotient": {
+    "Core\\Math::quotient": "8141c81c3975a337"
   },
   "help:Core\\Math::isFinite": {
     "Core\\Math::isFinite": "68c8476351a3533a"
@@ -6662,8 +6662,8 @@
   "help:Core\\Math::min": {
     "Core\\Math::min": "42d42c9c96094e3f"
   },
-  "help:Core\\Math::mod": {
-    "Core\\Math::mod": "fc721a4e7eaaa64a"
+  "help:Core\\Math::remainder": {
+    "Core\\Math::remainder": "fc721a4e7eaaa64a"
   },
   "help:Core\\Math::round": {
     "Core\\Math::round": "392a74a5aa931101"
@@ -6806,14 +6806,14 @@
   "help:Core\\ObjectSet::count": {
     "Core\\ObjectSet::count": "bed51aa5e06b20c4"
   },
-  "help:Core\\ObjectSet::diff": {
-    "Core\\ObjectSet::diff": "bf9cdbc360efc840"
+  "help:Core\\ObjectSet::difference": {
+    "Core\\ObjectSet::difference": "bf9cdbc360efc840"
   },
   "help:Core\\ObjectSet::has": {
     "Core\\ObjectSet::has": "d9009265dc1d8943"
   },
-  "help:Core\\ObjectSet::intersect": {
-    "Core\\ObjectSet::intersect": "d9841ac89548bbe9"
+  "help:Core\\ObjectSet::intersection": {
+    "Core\\ObjectSet::intersection": "d9841ac89548bbe9"
   },
   "help:Core\\ObjectSet::isEmpty": {
     "Core\\ObjectSet::isEmpty": "59a71853e768ec56"
@@ -7058,8 +7058,8 @@
   "help:Core\\RateLimit::shed": {
     "Core\\RateLimit::shed": "f8c9515b3730a93e"
   },
-  "help:Core\\RateLimit\\Decision::allowed": {
-    "Core\\RateLimit\\Decision::allowed": "107a6a9072176da4"
+  "help:Core\\RateLimit\\Decision::isAllowed": {
+    "Core\\RateLimit\\Decision::isAllowed": "107a6a9072176da4"
   },
   "help:Core\\RateLimit\\Decision::limit": {
     "Core\\RateLimit\\Decision::limit": "13855f208be1e554"
@@ -7850,8 +7850,8 @@
   "help:Core\\Test\\Outcome::name": {
     "Core\\Test\\Outcome::name": "fcfbb3f3f33306b0"
   },
-  "help:Core\\Test\\Outcome::passed": {
-    "Core\\Test\\Outcome::passed": "41db41ca0c8b8020"
+  "help:Core\\Test\\Outcome::hasPassed": {
+    "Core\\Test\\Outcome::hasPassed": "41db41ca0c8b8020"
   },
   "help:Core\\Test\\Response::body": {
     "Core\\Test\\Response::body": "f1c179a8854c1a10"
@@ -8033,8 +8033,8 @@
   "help:Core\\Time\\DateTime::month": {
     "Core\\Time\\DateTime::month": "4fdb578a454b6d5e"
   },
-  "help:Core\\Time\\DateTime::nanos": {
-    "Core\\Time\\DateTime::nanos": "debfb91a0284351a"
+  "help:Core\\Time\\DateTime::nanoseconds": {
+    "Core\\Time\\DateTime::nanoseconds": "debfb91a0284351a"
   },
   "help:Core\\Time\\DateTime::next": {
     "Core\\Time\\DateTime::next": "061dd0ac999ddd37"
@@ -8186,8 +8186,8 @@
   "help:Core\\Time\\TimeOfDay::minute": {
     "Core\\Time\\TimeOfDay::minute": "e37433133fb8f9a2"
   },
-  "help:Core\\Time\\TimeOfDay::nanos": {
-    "Core\\Time\\TimeOfDay::nanos": "b56b26da3e089613"
+  "help:Core\\Time\\TimeOfDay::nanoseconds": {
+    "Core\\Time\\TimeOfDay::nanoseconds": "b56b26da3e089613"
   },
   "help:Core\\Time\\TimeOfDay::plus": {
     "Core\\Time\\TimeOfDay::plus": "f977fb5d2d9c8d50"
@@ -8273,14 +8273,14 @@
   "help:Core\\Uri::queryParameter": {
     "Core\\Uri::queryParameter": "fab2cf6ca944951e"
   },
-  "help:Core\\Uri::resolve": {
-    "Core\\Uri::resolve": "eedce1bca156c909"
+  "help:Core\\Uri::resolved": {
+    "Core\\Uri::resolved": "eedce1bca156c909"
   },
   "help:Core\\Uri::scheme": {
     "Core\\Uri::scheme": "9e538251728a1734"
   },
-  "help:Core\\Uri::sign": {
-    "Core\\Uri::sign": "9a38ec28eb040083"
+  "help:Core\\Uri::signed": {
+    "Core\\Uri::signed": "9a38ec28eb040083"
   },
   "help:Core\\Uri::toString": {
     "Core\\Uri::toString": "1ce0243f8b0c0aea"
@@ -8348,8 +8348,8 @@
   "help:Core\\WebPush::subscription": {
     "Core\\WebPush::subscription": "9bc2f45b6a06e8ad"
   },
-  "help:Core\\WebPush\\Sent::gone": {
-    "Core\\WebPush\\Sent::gone": "69e56ecfe5959759"
+  "help:Core\\WebPush\\Sent::isGone": {
+    "Core\\WebPush\\Sent::isGone": "69e56ecfe5959759"
   },
   "help:Core\\WebPush\\Sent::status": {
     "Core\\WebPush\\Sent::status": "23439693843a9165"

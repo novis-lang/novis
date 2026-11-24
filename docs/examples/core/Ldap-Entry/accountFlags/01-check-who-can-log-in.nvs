@@ -16,7 +16,7 @@ foreach ($dns as string $dn) {
     // `accountFlags` returns one `bool` for each flag of `userAccountControl`.
     // This prints `Anna Berg: can log in` and `Dora Lind: disabled`.
     var $flags = $person->accountFlags();
-    if ($flags != null && $flags->disabled()) {
+    if ($flags != null && $flags->isDisabled()) {
         echo $person->dn()->rdnValue(), ": disabled\n";
     } else {
         echo $person->dn()->rdnValue(), ": can log in\n";

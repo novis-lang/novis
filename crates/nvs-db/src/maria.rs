@@ -534,7 +534,7 @@ impl MariaConn {
         )
     }
 
-    /// `rule:core-classes/db-streaming`'s `stream`: one statement left open, its read state
+    /// `rule:core-classes/db-streaming`'s `queryEach`: one statement left open, its read state
     /// parked here rather than lent out inside a borrow.
     ///
     /// The two-line delegation into the *same* row loop
@@ -617,7 +617,7 @@ impl MariaConn {
     }
 
     /// `rule:core-classes/db-transactions`'s `START TRANSACTION`,
-    /// or the `SAVEPOINT` a nested `transaction()` is.
+    /// or the `SAVEPOINT` a nested `runTransaction()` is.
     ///
     /// # Errors
     ///

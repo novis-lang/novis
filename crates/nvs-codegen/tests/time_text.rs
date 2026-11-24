@@ -79,19 +79,19 @@ echo Core\Time\Instant::fromEpoch(0)->in($zone)->format('VV'), "\n";
 #[test]
 fn an_instant_before_1970_gives_the_counts_it_was_built_from() {
     let source = r#"<?nvs
-var $half = Core\Time\Instant::fromEpoch(-1, {nanos: 500000000});
+var $half = Core\Time\Instant::fromEpoch(-1, {nanoseconds: 500000000});
 echo $half->toEpochSeconds(), " ", $half->toEpochMillis(), " ", $half->toEpochMicros(), "\n";
 
-var $tiny = Core\Time\Instant::fromEpoch(-1, {nanos: 999999999});
+var $tiny = Core\Time\Instant::fromEpoch(-1, {nanoseconds: 999999999});
 echo $tiny->toEpochSeconds(), " ", $tiny->toEpochMillis(), " ", $tiny->toEpochMicros(), "\n";
 
-var $after = Core\Time\Instant::fromEpoch(1, {nanos: 500000000});
+var $after = Core\Time\Instant::fromEpoch(1, {nanoseconds: 500000000});
 echo $after->toEpochSeconds(), " ", $after->toEpochMillis(), " ", $after->toEpochMicros(), "\n";
 
 var $millis = $half->toEpochMillis();
 var $seconds = $half->toEpochSeconds();
 var $rest = ($millis - $seconds * 1000) as uint;
-var $again = Core\Time\Instant::fromEpoch($seconds, {nanos: $rest * 1000000});
+var $again = Core\Time\Instant::fromEpoch($seconds, {nanoseconds: $rest * 1000000});
 echo $again->compareTo($half), "\n";
 "#;
     assert_eq!(

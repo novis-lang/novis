@@ -619,7 +619,7 @@ final class PackagePage
     private static function share(float $value): string
     {
         int $hundredths = Math::round($value * 100.0) as int;
-        return Math::intDiv($hundredths, 100) . '.' . Str::padStart('' . ($hundredths % 100), 2, '0');
+        return Math::quotient($hundredths, 100) . '.' . Str::padStart('' . ($hundredths % 100), 2, '0');
     }
 
     // A column of a row as text, or `''` when it is null.

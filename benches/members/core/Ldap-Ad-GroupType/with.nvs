@@ -19,7 +19,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            if ($type->with({ security: $total % 2 == 0 })->security()) {
+            if ($type->with({ security: $total % 2 == 0 })->isSecurityGroup()) {
                 $total = $total + 1;
             } else {
                 $total = $total + 2;

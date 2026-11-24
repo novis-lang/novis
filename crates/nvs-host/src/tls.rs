@@ -1122,7 +1122,7 @@ pub struct CallPolicy {
 
 impl CallPolicy {
     /// Whether a session under this policy checked **both** the chain and the
-    /// name, which is what `Core\Http\TlsInfo::verified` reports
+    /// name, which is what `Core\Http\TlsInfo::isVerified` reports
     /// (`rule:http-server/a-reply-reports-its-tls-session`).
     ///
     /// `anchors` is not a relaxation and answers `true`: `tlsCa` replaces the

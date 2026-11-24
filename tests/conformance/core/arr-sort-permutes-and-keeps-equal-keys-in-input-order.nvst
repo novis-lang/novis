@@ -22,7 +22,7 @@ class Bag {
     // Every value of `$vocabulary` appears as often in `$b` as in `$a`, and
     // between them they account for every entry of both — so `$b` holds
     // exactly `$a`'s entries, multiplicities included, and nothing else. That
-    // is stronger than a `diff` in both directions, which cannot see a
+    // is stronger than a `difference` in both directions, which cannot see a
     // duplicate being dropped or invented.
     public static function isPermutationOf(array<int> $b, array<int> $a, array<int> $vocabulary): bool {
         int $accounted = 0;
@@ -54,7 +54,7 @@ class Rows {
 
 // First property: the answer is a permutation of the subject, whatever the
 // options say. The subject carries duplicates on purpose — a member that
-// answered the *set* of its entries would pass a `diff`-both-ways check and
+// answered the *set* of its entries would pass a `difference`-both-ways check and
 // fails this one. `by` and `comparator` compose rather than conflict, so the
 // sweep includes the combination as well as each alone, and `preserveKeys`
 // changes only the keys, so its answers hold the same entries as the rest.

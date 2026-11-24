@@ -10,5 +10,5 @@ echo Core\Time\TimeOfDay::fromIso('09:30:15')->format('HH:mm:ss.SSS'), "\n";
 // A fraction of a second. `.5` is half a second, so this prints 09:30:15.500.
 echo Core\Time\TimeOfDay::fromIso('09:30:15.5')->format('HH:mm:ss.SSS'), "\n";
 
-// `nanos` returns the fraction in nanoseconds. This prints 123456789.
-echo Core\Time\TimeOfDay::fromIso('23:59:59.123456789')->nanos(), "\n";
+// `nanoseconds` returns the fraction in nanoseconds. This prints 123456789.
+echo Core\Time\TimeOfDay::fromIso('23:59:59.123456789')->nanoseconds(), "\n";

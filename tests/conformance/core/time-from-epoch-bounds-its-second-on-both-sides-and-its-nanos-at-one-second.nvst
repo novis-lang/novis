@@ -1,8 +1,8 @@
 --TEST--
-`Core\Time\Instant::fromEpoch` names the last epoch second it accepts and the first it refuses at both ends, and bounds its `nanos` option at exactly one second
+`Core\Time\Instant::fromEpoch` names the last epoch second it accepts and the first it refuses at both ends, and bounds its `nanoseconds` option at exactly one second
 --FILE--
 <?nvs
-// `Core\Time\Instant::fromEpoch(int $seconds, {nanos?: uint}): Instant` has three
+// `Core\Time\Instant::fromEpoch(int $seconds, {nanoseconds?: uint}): Instant` has three
 // bounds and a member that stopped one entry early at any of them would still
 // print plausibly against half of each. So each is asserted with the last
 // value it accepts and the first it refuses, named together, and swept on both
@@ -13,7 +13,7 @@ final class Epoch {
     // its earlier ones, so a refusal has to be turned into a value first.
     public static function at(int $seconds, uint $nanos): string {
         try {
-            var $at = Core\Time\Instant::fromEpoch($seconds, {nanos: $nanos});
+            var $at = Core\Time\Instant::fromEpoch($seconds, {nanoseconds: $nanos});
             return $at->compareTo($at) == 0 ? "ok" : "wrong";
         } catch (Throwable $refused) {
             return "refused";
@@ -67,7 +67,7 @@ echo Core\Time\Instant::fromEpoch($bottom)->toIso(), "|", Epoch::at($bottom - 1,
 echo Core\Time\Instant::fromEpoch($top)->toEpochSeconds() == $top ? "yes" : "no", "|",
      Core\Time\Instant::fromEpoch($bottom)->toEpochSeconds() == $bottom ? "yes" : "no", "|\n";
 
-// `nanos` is a subsecond count, so its bound is one whole second and not the
+// `nanoseconds` is a subsecond count, so its bound is one whole second and not the
 // end of its `uint` storage: 999999999 is the last accepted value and
 // 1000000000 the first refused, one nanosecond apart.
 array<int> $nanos = [0, 1, 999999998, 999999999, 1000000000, 1000000001, 2000000000];
@@ -83,9 +83,9 @@ foreach ($nanos as int $n) {
 echo $nanosOk as string, "|", $nanosRefused as string, "|\n";
 
 // And the refusal is this member's own sentence, not the underlying
-// representation's, because the bound is a rule about what `nanos` means.
+// representation's, because the bound is a rule about what `nanoseconds` means.
 try {
-    var $over = Core\Time\Instant::fromEpoch(0, {nanos: 1000000000});
+    var $over = Core\Time\Instant::fromEpoch(0, {nanoseconds: 1000000000});
     echo "accepted|\n";
 } catch (Throwable $subsecond) {
     echo $subsecond->message, "|\n";
@@ -94,8 +94,8 @@ try {
 // The option is added *after* the second rather than written into the slot
 // beside it, so a whole extra second's worth of nanoseconds on top of the last
 // accepted second is still representable — the ceiling belongs to the second.
-echo Core\Time\Instant::fromEpoch($top, {nanos: 999999999})->toIso(), "|",
-     Core\Time\Instant::fromEpoch($bottom, {nanos: 999999999})->toIso(), "|\n";
+echo Core\Time\Instant::fromEpoch($top, {nanoseconds: 999999999})->toIso(), "|",
+     Core\Time\Instant::fromEpoch($bottom, {nanoseconds: 999999999})->toIso(), "|\n";
 --EXPECT--
 6|4|
 6|4|
@@ -103,5 +103,5 @@ echo Core\Time\Instant::fromEpoch($top, {nanos: 999999999})->toIso(), "|",
 -9999-01-02T01:59:59Z|refused|
 yes|yes|
 4|3|
-Core\Time\Instant::fromEpoch(): `nanos` is a subsecond count, so it is below 1000000000|
+Core\Time\Instant::fromEpoch(): `nanoseconds` is a subsecond count, so it is below 1000000000|
 9999-12-30T22:00:00.999999999Z|-9999-01-02T01:59:59.999999999Z|

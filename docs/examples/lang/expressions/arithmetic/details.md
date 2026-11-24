@@ -10,11 +10,11 @@ A `mixed` value is checked when the program runs. A `mixed` that is `"3"` in `$m
 `RuntimeError`.
 
 `int / int` has the type `int|float`. So `float $avg = 7 / 2;` compiles, and `int $n = 7 / 2;` is
-the error `E0401`. `6 / 3` is the `int` `2` when the program runs. `Core\Math::intDiv(7, 2)` is
+the error `E0401`. `6 / 3` is the `int` `2` when the program runs. `Core\Math::quotient(7, 2)` is
 integer division, and it gives `3`.
 
 `%` works on `int`, `uint` and `decimal`. On a `float` it is the error `E0717`, and
-`Core\Math::mod(5.5, 2.0)` gives the remainder `1.5`. The result has the sign of the number on the
+`Core\Math::remainder(5.5, 2.0)` gives the remainder `1.5`. The result has the sign of the number on the
 left: `(-7) % 3` is `-1`, and `7 % -3` is `1`.
 
 `int` with `uint` is the error `E0407`, and so is a shift or a bitwise operator between them. An
@@ -22,7 +22,7 @@ integer literal next to a `uint` is a `uint`, so `$u + 3` compiles.
 
 `decimal` with `float` is the error `E0455`, also for a `float` literal. Write
 `$d + (0.2 as decimal)`. `decimal` with `int` or `uint` gives a `decimal`. `**` on a `decimal` is the
-error `E0455` too, and `Core\Decimal::pow` is the power. A `decimal` division keeps up to 28 digits
+error `E0455` too, and `Core\Decimal::power` is the power. A `decimal` division keeps up to 28 digits
 after the point: `1.0 / 3.0` is `0.3333333333333333333333333333`.
 
 `**` with whole numbers gives a whole number. A negative exponent throws, except with the base `1`
@@ -35,7 +35,7 @@ exponentiation overflowed` and `Integer negation overflowed`. `0 - 1` on a `uint
 
 A division by zero throws an `ArithmeticError` with the message `Division by zero`. This is also
 true for a `float`, such as `1.0 / 0`. For a `decimal`, the error has another message, the same one
-as a result that is too large. `%` by zero gives `Modulo by zero`, and `Core\Math::intDiv(1, 0)`
+as a result that is too large. `%` by zero gives `Modulo by zero`, and `Core\Math::quotient(1, 0)`
 throws as well.
 
 `++` and `--` work on an `int`, `uint`, `float` or `decimal` variable, property or array element.

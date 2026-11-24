@@ -19,5 +19,5 @@ if ($info != null) {
     echo $info->version(), ' ', $info->subject(), "\n";
 
     // This prints `not verified`.
-    echo $info->verified() ? 'verified' : 'not verified', "\n";
+    echo $info->isVerified() ? 'verified' : 'not verified', "\n";
 }

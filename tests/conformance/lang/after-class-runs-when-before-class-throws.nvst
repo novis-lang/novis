@@ -62,7 +62,7 @@ final class CleanupFailsTest {
     #[AfterEachTest]
     public function removeRows(Outcome $outcome): void {
         echo "after ", $outcome->class(), "::", $outcome->name(), " attempt ",
-            $outcome->attempt(), ", passed ", $outcome->passed() ? "yes" : "no",
+            $outcome->attempt(), ", passed ", $outcome->hasPassed() ? "yes" : "no",
             ", failures ", Core\Arr::count($outcome->failures()), "\n";
     }
 

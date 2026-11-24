@@ -1,0 +1,11 @@
+<?nvs
+// Shows that `isTrustedForDelegation` returns `false` for the account of a person.
+// requires: samba-ad
+
+var $corp = Core\Ldap::connect('corp');
+var $flags = $corp->read('CN=Anna Berg,OU=Company,DC=example,DC=test', { select: ['userAccountControl'] })?->accountFlags();
+
+if ($flags != null) {
+    // This prints `delegation: false`.
+    echo 'delegation: ', $flags->isTrustedForDelegation() ? 'true' : 'false', "\n";
+}

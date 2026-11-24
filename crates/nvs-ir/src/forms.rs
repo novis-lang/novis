@@ -244,7 +244,7 @@ pub const ROWS: &[Row] = &[
     Row {
         id: "filter-contains",
         written: "`Core\\Arr::filter(a, fn(x) => !Core\\Arr::contains(b, x))`, and the same without `!`",
-        fast: "`diff(a, b)`, `intersect(a, b)`",
+        fast: "`difference(a, b)`, `intersection(a, b)`",
         proof: Proof::Static(&[
             Condition {
                 case: "b-assigned",
@@ -393,7 +393,7 @@ pub const ROWS: &[Row] = &[
     },
     Row {
         id: "comparator-by",
-        written: "`sort`, `diff` or `intersect` with `comparator: fn(x, y) => E(x) <=> E(y)`",
+        written: "`sort`, `difference` or `intersection` with `comparator: fn(x, y) => E(x) <=> E(y)`",
         fast: "the same member with `by: fn(x) => E(x)`",
         proof: Proof::Callback,
         folder: Folder::Callbacks,
@@ -487,13 +487,13 @@ pub(crate) fn over_keys_or_values<'a>(
 
 /// Row `filter-contains`, matched on the written tree: `expr` is
 /// `Core\Arr::filter(a, fn(x) => Core\Arr::contains(b, x))`, negated or not,
-/// and the fast form is `diff(a, b)` or `intersect(a, b)`.
+/// and the fast form is `difference(a, b)` or `intersection(a, b)`.
 ///
 /// Both members compare with the same strict identity, keep `a`'s keys and
 /// order, and keep each copy of a kept entry.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct SetForm<'a> {
-    /// `diff` where the test is negated, and `intersect` where it is not.
+    /// `difference` where the test is negated, and `intersection` where it is not.
     pub method: &'static str,
     /// The written first argument.
     pub a: &'a Arg,
@@ -546,8 +546,8 @@ pub(crate) fn filter_contains<'a>(
         ExprKind::Unary {
             op: UnaryOp::Not,
             expr: test,
-        } => ("diff", &**test),
-        _ => ("intersect", returned),
+        } => ("difference", &**test),
+        _ => ("intersection", returned),
     };
     let [haystack, needle] = positional(core_call(test, exprs, ARR, "contains")?, 2)? else {
         return None;
@@ -951,7 +951,7 @@ pub(crate) fn count_of_filter_compared<'a>(
 }
 
 /// Rows `comparator-by` and `comparator-by-desc`, matched on the written tree:
-/// `Core\Arr::sort`, `diff` or `intersect` with no `by` option and a
+/// `Core\Arr::sort`, `difference` or `intersection` with no `by` option and a
 /// `comparator` option that is `fn(T $x, T $y) => E($x) <=> E($y)`. The
 /// descending row is `E($y) <=> E($x)` on `sort` with no `order` option.
 ///
@@ -989,8 +989,8 @@ pub(crate) fn comparator_by<'a>(
 ) -> Option<ComparatorForm<'a>> {
     const ARR: &str = r"Core\Arr";
     // The flattened argument indices: `sort(a, {by, order, comparator,
-    // preserveKeys})` and `diff(a, b, {on, by, comparator})`.
-    let (method, args) = ["sort", "diff", "intersect"]
+    // preserveKeys})` and `difference(a, b, {on, by, comparator})`.
+    let (method, args) = ["sort", "difference", "intersection"]
         .into_iter()
         .find_map(|method| core_call(expr, exprs, ARR, method).map(|args| (method, args)))?;
     let CallArgs::List(list) = args else {

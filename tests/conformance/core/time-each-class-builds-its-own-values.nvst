@@ -16,7 +16,7 @@ var $berlin = Core\Time\Zone::of("Europe/Berlin");
 var $full = "yyyy-MM-dd HH:mm:ss XXX VV";
 
 echo Core\Time\Instant::fromEpoch(1709281815)->toIso(), "|\n";
-echo Core\Time\Instant::fromEpoch(-1, {nanos: 1})->toIso(), "|\n";
+echo Core\Time\Instant::fromEpoch(-1, {nanoseconds: 1})->toIso(), "|\n";
 echo Core\Time\Instant::fromIso("2024-03-01T09:30:15+01:00")->toIso(), "|\n";
 echo Core\Time\Instant::fromIso("2024-03-01 08:30:15Z")->toIso(), "|\n";
 

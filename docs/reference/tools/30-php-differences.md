@@ -172,7 +172,7 @@ final class Price
 {
     public static function withTax(int $cents, int $percent): int
     {
-        return $cents + Core\Math::intDiv($cents * $percent, 100);
+        return $cents + Core\Math::quotient($cents * $percent, 100);
     }
 }
 

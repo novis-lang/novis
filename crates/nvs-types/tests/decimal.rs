@@ -126,7 +126,7 @@ fn decimal_with_an_integer_operand_stays_decimal_and_division_is_not_a_union() {
 }
 
 /// `rule:types/arithmetic`'s last row: `**` on a `decimal` is a compile error naming
-/// `Core\Decimal::pow`.
+/// `Core\Decimal::power`.
 #[test]
 fn power_on_a_decimal_is_diagnosed() {
     let diags = check_in_method("decimal $d = 2.0;\nvar $x = $d ** 3;\n");

@@ -2060,19 +2060,8 @@
       "How do I get the size of a list?"
     ]
   },
-  "/reference/core/arr/countby/": {
-    "feature": "Core\\Arr::countBy",
-    "hash": "cf0816aed2127355",
-    "questions": [
-      "How do I count how often each value appears in an array?",
-      "Count occurrences of every item in a list",
-      "Count records grouped by a field",
-      "Build a tally of orders per day",
-      "Get the frequency of each value in a list"
-    ]
-  },
-  "/reference/core/arr/diff/": {
-    "feature": "Core\\Arr::diff",
+  "/reference/core/arr/difference/": {
+    "feature": "Core\\Arr::difference",
     "hash": "a4c6e45e10b9d4bc",
     "questions": [
       "How do I find the values in one array that are not in another?",
@@ -2215,6 +2204,17 @@
       "Group orders by customer"
     ]
   },
+  "/reference/core/arr/groupcounts/": {
+    "feature": "Core\\Arr::groupCounts",
+    "hash": "cf0816aed2127355",
+    "questions": [
+      "How do I count how often each value appears in an array?",
+      "Count occurrences of every item in a list",
+      "Count records grouped by a field",
+      "Build a tally of orders per day",
+      "Get the frequency of each value in a list"
+    ]
+  },
   "/reference/core/arr/haskey/": {
     "feature": "Core\\Arr::hasKey",
     "hash": "0d96af4cf5d51b0f",
@@ -2226,8 +2226,8 @@
       "Is there an element at this index in the list?"
     ]
   },
-  "/reference/core/arr/intersect/": {
-    "feature": "Core\\Arr::intersect",
+  "/reference/core/arr/intersection/": {
+    "feature": "Core\\Arr::intersection",
     "hash": "654247fa239c1bf7",
     "questions": [
       "How do I find the values two arrays have in common?",
@@ -2710,16 +2710,6 @@
       "How far apart are two huge numbers?"
     ]
   },
-  "/reference/core/bigint/add/": {
-    "feature": "Core\\BigInt::add",
-    "hash": "61cf7d0770fe1426",
-    "questions": [
-      "How do I add two very large numbers?",
-      "Sum big integers without overflow",
-      "Keep a running total that may grow past the integer limit",
-      "Why does plus not work on big integers?"
-    ]
-  },
   "/reference/core/bigint/compareto/": {
     "feature": "Core\\BigInt::compareTo",
     "hash": "29b9aad7ed57d513",
@@ -2731,8 +2721,8 @@
       "Three-way comparison of arbitrary size numbers"
     ]
   },
-  "/reference/core/bigint/div/": {
-    "feature": "Core\\BigInt::div",
+  "/reference/core/bigint/dividedby/": {
+    "feature": "Core\\BigInt::dividedBy",
     "hash": "7630b83aa23b3cfc",
     "questions": [
       "How do I divide two very large integers?",
@@ -2772,18 +2762,18 @@
       "Lowest common multiple of large integers"
     ]
   },
-  "/reference/core/bigint/mod/": {
-    "feature": "Core\\BigInt::mod",
-    "hash": "f48832df19e4786c",
+  "/reference/core/bigint/minus/": {
+    "feature": "Core\\BigInt::minus",
+    "hash": "656851472abcc39a",
     "questions": [
-      "How do I get the remainder of a big integer division?",
-      "Modulo of very large numbers",
-      "What is left over when dividing huge integers?",
-      "Check if a big number is divisible by another"
+      "How do I subtract two very large numbers?",
+      "Difference between two big integers",
+      "Take one huge number away from another",
+      "Why does minus not work on big integers?"
     ]
   },
-  "/reference/core/bigint/mul/": {
-    "feature": "Core\\BigInt::mul",
+  "/reference/core/bigint/multipliedby/": {
+    "feature": "Core\\BigInt::multipliedBy",
     "hash": "be451836c85b1731",
     "questions": [
       "How do I multiply two very large numbers?",
@@ -2792,8 +2782,8 @@
       "Product of huge whole numbers"
     ]
   },
-  "/reference/core/bigint/neg/": {
-    "feature": "Core\\BigInt::neg",
+  "/reference/core/bigint/negated/": {
+    "feature": "Core\\BigInt::negated",
     "hash": "a510d4d4def1660a",
     "questions": [
       "How do I flip the sign of a big integer?",
@@ -2833,8 +2823,18 @@
       "Read a number written in binary or base 36"
     ]
   },
-  "/reference/core/bigint/pow/": {
-    "feature": "Core\\BigInt::pow",
+  "/reference/core/bigint/plus/": {
+    "feature": "Core\\BigInt::plus",
+    "hash": "61cf7d0770fe1426",
+    "questions": [
+      "How do I add two very large numbers?",
+      "Sum big integers without overflow",
+      "Keep a running total that may grow past the integer limit",
+      "Why does plus not work on big integers?"
+    ]
+  },
+  "/reference/core/bigint/raisedto/": {
+    "feature": "Core\\BigInt::raisedTo",
     "hash": "958f6d61c4d59236",
     "questions": [
       "How do I raise a big number to a power?",
@@ -2844,8 +2844,8 @@
       "What is the largest power result allowed?"
     ]
   },
-  "/reference/core/bigint/powmod/": {
-    "feature": "Core\\BigInt::powMod",
+  "/reference/core/bigint/raisedtomodulo/": {
+    "feature": "Core\\BigInt::raisedToModulo",
     "hash": "e9f31126af026a32",
     "questions": [
       "How do I compute a power modulo a number?",
@@ -2855,8 +2855,18 @@
       "Fast power mod without building the full number"
     ]
   },
-  "/reference/core/bigint/shl/": {
-    "feature": "Core\\BigInt::shl",
+  "/reference/core/bigint/remainder/": {
+    "feature": "Core\\BigInt::remainder",
+    "hash": "f48832df19e4786c",
+    "questions": [
+      "How do I get the remainder of a big integer division?",
+      "Modulo of very large numbers",
+      "What is left over when dividing huge integers?",
+      "Check if a big number is divisible by another"
+    ]
+  },
+  "/reference/core/bigint/shiftedleft/": {
+    "feature": "Core\\BigInt::shiftedLeft",
     "hash": "4fe067ed8081b926",
     "questions": [
       "How do I shift a big integer left by some bits?",
@@ -2865,8 +2875,8 @@
       "Why does the left shift operator not work on big numbers?"
     ]
   },
-  "/reference/core/bigint/shr/": {
-    "feature": "Core\\BigInt::shr",
+  "/reference/core/bigint/shiftedright/": {
+    "feature": "Core\\BigInt::shiftedRight",
     "hash": "8141a971d4d2a960",
     "questions": [
       "How do I shift a big integer right by some bits?",
@@ -2893,16 +2903,6 @@
       "Integer square root of a very large number",
       "Check if a huge number is a perfect square",
       "Square root rounded down to a whole number"
-    ]
-  },
-  "/reference/core/bigint/sub/": {
-    "feature": "Core\\BigInt::sub",
-    "hash": "656851472abcc39a",
-    "questions": [
-      "How do I subtract two very large numbers?",
-      "Difference between two big integers",
-      "Take one huge number away from another",
-      "Why does minus not work on big integers?"
     ]
   },
   "/reference/core/bigint/todecimal/": {
@@ -4204,6 +4204,16 @@
       "Find column names and types of a result"
     ]
   },
+  "/reference/core/db-column/isnullable/": {
+    "feature": "Core\\Db\\Column::isNullable",
+    "hash": "2a9585c59464b30c",
+    "questions": [
+      "How do I check if a result column can be NULL?",
+      "Can this database column be empty?",
+      "Find out if a column allows null values",
+      "Handle columns that may have no value"
+    ]
+  },
   "/reference/core/db-column/name/": {
     "feature": "Core\\Db\\Column::name",
     "hash": "b4259d17ffd97b89",
@@ -4212,16 +4222,6 @@
       "Print table headings from a SQL result",
       "Read a column alias from a query",
       "List result columns even when no rows match"
-    ]
-  },
-  "/reference/core/db-column/nullable/": {
-    "feature": "Core\\Db\\Column::nullable",
-    "hash": "2a9585c59464b30c",
-    "questions": [
-      "How do I check if a result column can be NULL?",
-      "Can this database column be empty?",
-      "Find out if a column allows null values",
-      "Handle columns that may have no value"
     ]
   },
   "/reference/core/db-column/type/": {
@@ -4324,19 +4324,8 @@
       "How do I get typed results from a select query?"
     ]
   },
-  "/reference/core/db-connection/serverversion/": {
-    "feature": "Core\\Db\\Connection::serverVersion",
-    "hash": "f37f7a50444711d8",
-    "questions": [
-      "How do I get the database server version?",
-      "Which version of the database am I connected to?",
-      "Check the database version before using a newer feature",
-      "Read the version string of PostgreSQL or MySQL",
-      "Find out the SQLite library version"
-    ]
-  },
-  "/reference/core/db-connection/stream/": {
-    "feature": "Core\\Db\\Connection::stream",
+  "/reference/core/db-connection/queryeach/": {
+    "feature": "Core\\Db\\Connection::queryEach",
     "hash": "0c768c4a5eaf5daf",
     "questions": [
       "How do I read a huge query result without running out of memory?",
@@ -4346,8 +4335,8 @@
       "Unbuffered query for a large table"
     ]
   },
-  "/reference/core/db-connection/streamas/": {
-    "feature": "Core\\Db\\Connection::streamAs",
+  "/reference/core/db-connection/queryeachas/": {
+    "feature": "Core\\Db\\Connection::queryEachAs",
     "hash": "07e5e63db720c6ff",
     "questions": [
       "How do I read a large table as objects one row at a time?",
@@ -4357,8 +4346,8 @@
       "Iterate over millions of rows as objects"
     ]
   },
-  "/reference/core/db-connection/transaction/": {
-    "feature": "Core\\Db\\Connection::transaction",
+  "/reference/core/db-connection/runtransaction/": {
+    "feature": "Core\\Db\\Connection::runTransaction",
     "hash": "541dca84c25a97a6",
     "questions": [
       "How do I run several queries in a database transaction?",
@@ -4367,6 +4356,17 @@
       "How do I roll back a transaction on error?",
       "Run a read-only transaction or set the isolation level",
       "Retry a transaction after a deadlock"
+    ]
+  },
+  "/reference/core/db-connection/serverversion/": {
+    "feature": "Core\\Db\\Connection::serverVersion",
+    "hash": "f37f7a50444711d8",
+    "questions": [
+      "How do I get the database server version?",
+      "Which version of the database am I connected to?",
+      "Check the database version before using a newer feature",
+      "Read the version string of PostgreSQL or MySQL",
+      "Find out the SQLite library version"
     ]
   },
   "/reference/core/db-inlist/": {
@@ -4800,6 +4800,27 @@
       "Build one object from several columns inside a transaction"
     ]
   },
+  "/reference/core/db-transaction/queryeach/": {
+    "feature": "Core\\Db\\Transaction::queryEach",
+    "hash": "c8da4b3a25672a7c",
+    "questions": [
+      "How do I read a very large result inside a transaction?",
+      "Read rows one at a time while a transaction is open",
+      "Why do I get an error writing during a row loop?",
+      "Sum up a big table into a summary row in one transaction",
+      "Keep memory low when reading many rows in a transaction"
+    ]
+  },
+  "/reference/core/db-transaction/queryeachas/": {
+    "feature": "Core\\Db\\Transaction::queryEachAs",
+    "hash": "8e6d808928c483a9",
+    "questions": [
+      "How do I read a large result as objects in a transaction?",
+      "Build one object per row without loading every row",
+      "Write a reminder for every overdue invoice in one transaction",
+      "Read many rows into my class one at a time"
+    ]
+  },
   "/reference/core/db-transaction/rollback/": {
     "feature": "Core\\Db\\Transaction::rollBack",
     "hash": "8e7a6c99a8df961e",
@@ -4811,29 +4832,8 @@
       "Catch the error thrown when a transaction is cancelled"
     ]
   },
-  "/reference/core/db-transaction/stream/": {
-    "feature": "Core\\Db\\Transaction::stream",
-    "hash": "c8da4b3a25672a7c",
-    "questions": [
-      "How do I read a very large result inside a transaction?",
-      "Read rows one at a time while a transaction is open",
-      "Why do I get an error writing during a row loop?",
-      "Sum up a big table into a summary row in one transaction",
-      "Keep memory low when reading many rows in a transaction"
-    ]
-  },
-  "/reference/core/db-transaction/streamas/": {
-    "feature": "Core\\Db\\Transaction::streamAs",
-    "hash": "8e6d808928c483a9",
-    "questions": [
-      "How do I read a large result as objects in a transaction?",
-      "Build one object per row without loading every row",
-      "Write a reminder for every overdue invoice in one transaction",
-      "Read many rows into my class one at a time"
-    ]
-  },
-  "/reference/core/db-transaction/transaction/": {
-    "feature": "Core\\Db\\Transaction::transaction",
+  "/reference/core/db-transaction/runtransaction/": {
+    "feature": "Core\\Db\\Transaction::runTransaction",
     "hash": "0fef1382b4d63695",
     "questions": [
       "How do I nest a transaction inside another one?",
@@ -5021,8 +5021,8 @@
       "Always round a fee in the seller's favour"
     ]
   },
-  "/reference/core/decimal/divexact/": {
-    "feature": "Core\\Decimal::divExact",
+  "/reference/core/decimal/divideexact/": {
+    "feature": "Core\\Decimal::divideExact",
     "hash": "a52e68027c528bfb",
     "questions": [
       "How do I divide and get an error if the result is not exact?",
@@ -5031,8 +5031,8 @@
       "Work out a unit price from a pack price exactly"
     ]
   },
-  "/reference/core/decimal/divround/": {
-    "feature": "Core\\Decimal::divRound",
+  "/reference/core/decimal/dividerounded/": {
+    "feature": "Core\\Decimal::divideRounded",
     "hash": "d71562e1fc8eccb6",
     "questions": [
       "How do I divide and round to two decimal places?",
@@ -5051,8 +5051,8 @@
       "Cut a commission down to whole cents"
     ]
   },
-  "/reference/core/decimal/pow/": {
-    "feature": "Core\\Decimal::pow",
+  "/reference/core/decimal/power/": {
+    "feature": "Core\\Decimal::power",
     "hash": "d46408a402cffe4d",
     "questions": [
       "How do I raise a decimal number to a power?",
@@ -5633,6 +5633,17 @@
       "Connect to a WebSocket on localhost while developing"
     ]
   },
+  "/reference/core/http-client/openstream/": {
+    "feature": "Core\\Http\\Client::openStream",
+    "hash": "e924e14c2a6b847d",
+    "questions": [
+      "Read a large response while it is still downloading",
+      "How do I receive server-sent events?",
+      "Save a download directly to a file",
+      "Read a response one line at a time",
+      "Stream the reply from an AI chat API"
+    ]
+  },
   "/reference/core/http-client/patch/": {
     "feature": "Core\\Http\\Client::patch",
     "hash": "801139e1210d404c",
@@ -5674,17 +5685,6 @@
       "Make an HTTP request when the method is in a variable",
       "Send a TRACE request",
       "Replay saved requests with different methods"
-    ]
-  },
-  "/reference/core/http-client/stream/": {
-    "feature": "Core\\Http\\Client::stream",
-    "hash": "e924e14c2a6b847d",
-    "questions": [
-      "Read a large response while it is still downloading",
-      "How do I receive server-sent events?",
-      "Save a download directly to a file",
-      "Read a response one line at a time",
-      "Stream the reply from an AI chat API"
     ]
   },
   "/reference/core/http-event/": {
@@ -6103,6 +6103,17 @@
       "Compare certificate subject and issuer"
     ]
   },
+  "/reference/core/http-tlsinfo/isverified/": {
+    "feature": "Core\\Http\\TlsInfo::isVerified",
+    "hash": "503af8d362957395",
+    "questions": [
+      "Was the server certificate checked for this connection?",
+      "How do I know certificate verification was not skipped?",
+      "Detect a self-signed certificate that skipped checks",
+      "Allow only one test server without certificate checks",
+      "Warn when an HTTPS call is not verified"
+    ]
+  },
   "/reference/core/http-tlsinfo/peerchain/": {
     "feature": "Core\\Http\\TlsInfo::peerChain",
     "hash": "9884035a8fceeecb",
@@ -6123,17 +6134,6 @@
       "Check that a partner certificate names the right organization",
       "Get the subject of a TLS certificate as text",
       "Extract the server name from a certificate"
-    ]
-  },
-  "/reference/core/http-tlsinfo/verified/": {
-    "feature": "Core\\Http\\TlsInfo::verified",
-    "hash": "503af8d362957395",
-    "questions": [
-      "Was the server certificate checked for this connection?",
-      "How do I know certificate verification was not skipped?",
-      "Detect a self-signed certificate that skipped checks",
-      "Allow only one test server without certificate checks",
-      "Warn when an HTTPS call is not verified"
     ]
   },
   "/reference/core/http-tlsinfo/version/": {
@@ -7021,6 +7021,16 @@
       "Read the account flags of a user as true or false values"
     ]
   },
+  "/reference/core/ldap-ad-accountflags/allowsreversibleencryption/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::allowsReversibleEncryption",
+    "hash": "07f4b2f1e2e3d8b7",
+    "questions": [
+      "Check if a password is stored with reversible encryption",
+      "Find accounts whose password the server can decrypt",
+      "What does userAccountControl bit 0x80 mean?",
+      "Is the password stored as a hash or encrypted?"
+    ]
+  },
   "/reference/core/ldap-ad-accountflags/bits/": {
     "feature": "Core\\Ldap\\Ad\\AccountFlags::bits",
     "hash": "fbe0828899106445",
@@ -7031,8 +7041,28 @@
       "Does the account flags number include locked out?"
     ]
   },
-  "/reference/core/ldap-ad-accountflags/disabled/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::disabled",
+  "/reference/core/ldap-ad-accountflags/haslogonscript/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::hasLogonScript",
+    "hash": "4c313bbbe9107e28",
+    "questions": [
+      "Check if a logon script runs for a user",
+      "Does this account have a logon script?",
+      "What does userAccountControl bit 0x1 mean?",
+      "What does userAccountControl 513 mean?"
+    ]
+  },
+  "/reference/core/ldap-ad-accountflags/hasnonexpiringpassword/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::hasNonExpiringPassword",
+    "hash": "f5b9d19c098046f7",
+    "questions": [
+      "Which flag says an account password never expires?",
+      "Check if a service account password does not expire",
+      "What does userAccountControl 66048 mean?",
+      "Password never expires flag"
+    ]
+  },
+  "/reference/core/ldap-ad-accountflags/isdisabled/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isDisabled",
     "hash": "ff43f3874fedcdec",
     "questions": [
       "How do I check if an AD account is disabled?",
@@ -7041,8 +7071,8 @@
       "Check if the account of an employee who left was turned off"
     ]
   },
-  "/reference/core/ldap-ad-accountflags/homedirectoryrequired/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::homeDirectoryRequired",
+  "/reference/core/ldap-ad-accountflags/ishomedirectoryrequired/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isHomeDirectoryRequired",
     "hash": "77f327c4ee59db11",
     "questions": [
       "Check if an account needs a home directory",
@@ -7051,8 +7081,8 @@
       "Home directory required flag"
     ]
   },
-  "/reference/core/ldap-ad-accountflags/interdomaintrustaccount/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::interdomainTrustAccount",
+  "/reference/core/ldap-ad-accountflags/isinterdomaintrustaccount/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isInterdomainTrustAccount",
     "hash": "1a4ac9a6e59f6949",
     "questions": [
       "Check if an account is a trust with another domain",
@@ -7061,8 +7091,8 @@
       "Account two domains use to log in to each other"
     ]
   },
-  "/reference/core/ldap-ad-accountflags/lockedout/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::lockedOut",
+  "/reference/core/ldap-ad-accountflags/islockedout/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isLockedOut",
     "hash": "e04a78b1734b6eb2",
     "questions": [
       "How do I check if a user is locked out after wrong passwords?",
@@ -7071,14 +7101,134 @@
       "Can I unlock an account by changing its flags?"
     ]
   },
-  "/reference/core/ldap-ad-accountflags/mnslogonaccount/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::mnsLogonAccount",
+  "/reference/core/ldap-ad-accountflags/ismnslogonaccount/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isMnsLogonAccount",
     "hash": "9b34a4665c795164",
     "questions": [
       "What is an MNS logon account?",
       "Check if a Majority Node Set cluster uses this account",
       "What does userAccountControl bit 0x20000 mean?",
       "Cluster logon account flag in Active Directory"
+    ]
+  },
+  "/reference/core/ldap-ad-accountflags/isnormalaccount/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isNormalAccount",
+    "hash": "dd5148e75ee53303",
+    "questions": [
+      "How do I keep only accounts of people, not computers?",
+      "Check if an account is an ordinary user account",
+      "What does userAccountControl bit 0x200 mean?",
+      "Normal account flag in Active Directory"
+    ]
+  },
+  "/reference/core/ldap-ad-accountflags/isnotdelegated/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isNotDelegated",
+    "hash": "a712bdea5a9801f9",
+    "questions": [
+      "Check if no service may act for this user",
+      "Find accounts that are protected from delegation",
+      "Account is sensitive and cannot be delegated",
+      "What does userAccountControl bit 0x100000 mean?"
+    ]
+  },
+  "/reference/core/ldap-ad-accountflags/ispartialsecretsaccount/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isPartialSecretsAccount",
+    "hash": "bf7d98855eb21700",
+    "questions": [
+      "How do I check if an account is a read-only domain controller?",
+      "Find read-only domain controllers in the directory",
+      "What does userAccountControl 83890176 mean?",
+      "Partial secrets account flag"
+    ]
+  },
+  "/reference/core/ldap-ad-accountflags/ispasswordexpired/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isPasswordExpired",
+    "hash": "c72730d9034e6cf2",
+    "questions": [
+      "How do I check if a user's password has expired?",
+      "Find users whose password is too old to log in",
+      "Can I set the password expired flag myself?",
+      "Password expired flag in Active Directory"
+    ]
+  },
+  "/reference/core/ldap-ad-accountflags/ispasswordnotrequired/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isPasswordNotRequired",
+    "hash": "37a83f3c62bccb15",
+    "questions": [
+      "Find accounts that may have an empty password",
+      "Check if an account can log in without a password",
+      "Security check for accounts with no password required",
+      "What does userAccountControl bit 0x20 mean?"
+    ]
+  },
+  "/reference/core/ldap-ad-accountflags/ispreauthnotrequired/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isPreauthNotRequired",
+    "hash": "38bec32f47c1eb03",
+    "questions": [
+      "Find accounts where Kerberos pre-authentication is turned off",
+      "Check if Kerberos gives a ticket without checking the password",
+      "Which accounts are open to password guessing from Kerberos tickets?",
+      "What does userAccountControl bit 0x400000 mean?"
+    ]
+  },
+  "/reference/core/ldap-ad-accountflags/isservertrustaccount/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isServerTrustAccount",
+    "hash": "ed70b1bba1e07836",
+    "questions": [
+      "How do I check if an account is a domain controller?",
+      "Find all domain controller accounts",
+      "What does userAccountControl 8192 mean?",
+      "Server trust account flag"
+    ]
+  },
+  "/reference/core/ldap-ad-accountflags/issmartcardrequired/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isSmartcardRequired",
+    "hash": "0ed06c3f5848b25e",
+    "questions": [
+      "Check if a user must log in with a smart card",
+      "Find accounts that cannot log in with a password",
+      "Smart card required flag in Active Directory",
+      "What does userAccountControl bit 0x40000 mean?"
+    ]
+  },
+  "/reference/core/ldap-ad-accountflags/istemporaryduplicateaccount/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isTemporaryDuplicateAccount",
+    "hash": "d4b794eb1f355769",
+    "questions": [
+      "What is a temporary duplicate account?",
+      "Check if an account is a local account for a user from another domain",
+      "What does userAccountControl bit 0x100 mean?",
+      "What does userAccountControl 256 mean?"
+    ]
+  },
+  "/reference/core/ldap-ad-accountflags/istrustedfordelegation/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isTrustedForDelegation",
+    "hash": "afe8b6f6a8c7304d",
+    "questions": [
+      "Check if a service may act for any user",
+      "Find accounts trusted for delegation",
+      "What does userAccountControl bit 0x80000 mean?",
+      "Which accounts have the strong delegation right?"
+    ]
+  },
+  "/reference/core/ldap-ad-accountflags/istrustedtoauthenticatefordelegation/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isTrustedToAuthenticateForDelegation",
+    "hash": "10afa643785ed4ce",
+    "questions": [
+      "Check if a service may act for a user without the user's password",
+      "Delegation when the user logged in through a web form",
+      "Trusted to authenticate for delegation flag",
+      "What does userAccountControl bit 0x1000000 mean?"
+    ]
+  },
+  "/reference/core/ldap-ad-accountflags/isworkstationtrustaccount/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::isWorkstationTrustAccount",
+    "hash": "f64ca62d7849f65f",
+    "questions": [
+      "How do I check if an account is a computer joined to the domain?",
+      "Find computer accounts in Active Directory",
+      "Account name that ends with a dollar sign",
+      "What does userAccountControl 4096 mean?"
     ]
   },
   "/reference/core/ldap-ad-accountflags/mustchangepassword/": {
@@ -7091,148 +7241,8 @@
       "Must change password flag in Active Directory"
     ]
   },
-  "/reference/core/ldap-ad-accountflags/nopreauthrequired/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::noPreauthRequired",
-    "hash": "38bec32f47c1eb03",
-    "questions": [
-      "Find accounts where Kerberos pre-authentication is turned off",
-      "Check if Kerberos gives a ticket without checking the password",
-      "Which accounts are open to password guessing from Kerberos tickets?",
-      "What does userAccountControl bit 0x400000 mean?"
-    ]
-  },
-  "/reference/core/ldap-ad-accountflags/normalaccount/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::normalAccount",
-    "hash": "dd5148e75ee53303",
-    "questions": [
-      "How do I keep only accounts of people, not computers?",
-      "Check if an account is an ordinary user account",
-      "What does userAccountControl bit 0x200 mean?",
-      "Normal account flag in Active Directory"
-    ]
-  },
-  "/reference/core/ldap-ad-accountflags/notdelegated/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::notDelegated",
-    "hash": "a712bdea5a9801f9",
-    "questions": [
-      "Check if no service may act for this user",
-      "Find accounts that are protected from delegation",
-      "Account is sensitive and cannot be delegated",
-      "What does userAccountControl bit 0x100000 mean?"
-    ]
-  },
-  "/reference/core/ldap-ad-accountflags/partialsecretsaccount/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::partialSecretsAccount",
-    "hash": "bf7d98855eb21700",
-    "questions": [
-      "How do I check if an account is a read-only domain controller?",
-      "Find read-only domain controllers in the directory",
-      "What does userAccountControl 83890176 mean?",
-      "Partial secrets account flag"
-    ]
-  },
-  "/reference/core/ldap-ad-accountflags/passwordexpired/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::passwordExpired",
-    "hash": "c72730d9034e6cf2",
-    "questions": [
-      "How do I check if a user's password has expired?",
-      "Find users whose password is too old to log in",
-      "Can I set the password expired flag myself?",
-      "Password expired flag in Active Directory"
-    ]
-  },
-  "/reference/core/ldap-ad-accountflags/passwordneverexpires/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::passwordNeverExpires",
-    "hash": "f5b9d19c098046f7",
-    "questions": [
-      "Which flag says an account password never expires?",
-      "Check if a service account password does not expire",
-      "What does userAccountControl 66048 mean?",
-      "Password never expires flag"
-    ]
-  },
-  "/reference/core/ldap-ad-accountflags/passwordnotrequired/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::passwordNotRequired",
-    "hash": "37a83f3c62bccb15",
-    "questions": [
-      "Find accounts that may have an empty password",
-      "Check if an account can log in without a password",
-      "Security check for accounts with no password required",
-      "What does userAccountControl bit 0x20 mean?"
-    ]
-  },
-  "/reference/core/ldap-ad-accountflags/reversibleencryption/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::reversibleEncryption",
-    "hash": "07f4b2f1e2e3d8b7",
-    "questions": [
-      "Check if a password is stored with reversible encryption",
-      "Find accounts whose password the server can decrypt",
-      "What does userAccountControl bit 0x80 mean?",
-      "Is the password stored as a hash or encrypted?"
-    ]
-  },
-  "/reference/core/ldap-ad-accountflags/script/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::script",
-    "hash": "4c313bbbe9107e28",
-    "questions": [
-      "Check if a logon script runs for a user",
-      "Does this account have a logon script?",
-      "What does userAccountControl bit 0x1 mean?",
-      "What does userAccountControl 513 mean?"
-    ]
-  },
-  "/reference/core/ldap-ad-accountflags/servertrustaccount/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::serverTrustAccount",
-    "hash": "ed70b1bba1e07836",
-    "questions": [
-      "How do I check if an account is a domain controller?",
-      "Find all domain controller accounts",
-      "What does userAccountControl 8192 mean?",
-      "Server trust account flag"
-    ]
-  },
-  "/reference/core/ldap-ad-accountflags/smartcardrequired/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::smartcardRequired",
-    "hash": "0ed06c3f5848b25e",
-    "questions": [
-      "Check if a user must log in with a smart card",
-      "Find accounts that cannot log in with a password",
-      "Smart card required flag in Active Directory",
-      "What does userAccountControl bit 0x40000 mean?"
-    ]
-  },
-  "/reference/core/ldap-ad-accountflags/temporaryduplicateaccount/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::temporaryDuplicateAccount",
-    "hash": "d4b794eb1f355769",
-    "questions": [
-      "What is a temporary duplicate account?",
-      "Check if an account is a local account for a user from another domain",
-      "What does userAccountControl bit 0x100 mean?",
-      "What does userAccountControl 256 mean?"
-    ]
-  },
-  "/reference/core/ldap-ad-accountflags/trustedfordelegation/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::trustedForDelegation",
-    "hash": "afe8b6f6a8c7304d",
-    "questions": [
-      "Check if a service may act for any user",
-      "Find accounts trusted for delegation",
-      "What does userAccountControl bit 0x80000 mean?",
-      "Which accounts have the strong delegation right?"
-    ]
-  },
-  "/reference/core/ldap-ad-accountflags/trustedtoauthfordelegation/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::trustedToAuthForDelegation",
-    "hash": "10afa643785ed4ce",
-    "questions": [
-      "Check if a service may act for a user without the user's password",
-      "Delegation when the user logged in through a web form",
-      "Trusted to authenticate for delegation flag",
-      "What does userAccountControl bit 0x1000000 mean?"
-    ]
-  },
-  "/reference/core/ldap-ad-accountflags/usedeskeyonly/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::useDesKeyOnly",
+  "/reference/core/ldap-ad-accountflags/usesdeskeyonly/": {
+    "feature": "Core\\Ldap\\Ad\\AccountFlags::usesDesKeyOnly",
     "hash": "ddb2bd6cfd79d1ea",
     "questions": [
       "Check if an account uses only DES keys for Kerberos",
@@ -7252,16 +7262,6 @@
       "Does with change the original flags object?"
     ]
   },
-  "/reference/core/ldap-ad-accountflags/workstationtrustaccount/": {
-    "feature": "Core\\Ldap\\Ad\\AccountFlags::workstationTrustAccount",
-    "hash": "f64ca62d7849f65f",
-    "questions": [
-      "How do I check if an account is a computer joined to the domain?",
-      "Find computer accounts in Active Directory",
-      "Account name that ends with a dollar sign",
-      "What does userAccountControl 4096 mean?"
-    ]
-  },
   "/reference/core/ldap-ad-grouptype/": {
     "feature": "Core\\Ldap\\Ad\\GroupType",
     "hash": "3009d3987e794694",
@@ -7270,26 +7270,6 @@
       "Check the scope and kind of a group",
       "groupType flags of a group",
       "Which group type flags can I test?"
-    ]
-  },
-  "/reference/core/ldap-ad-grouptype/appbasic/": {
-    "feature": "Core\\Ldap\\Ad\\GroupType::appBasic",
-    "hash": "92aad5e96e212cfc",
-    "questions": [
-      "Check if a group is an application group",
-      "Authorization Manager application group",
-      "What does groupType bit 0x10 mean?",
-      "Application group with a fixed list of users"
-    ]
-  },
-  "/reference/core/ldap-ad-grouptype/appquery/": {
-    "feature": "Core\\Ldap\\Ad\\GroupType::appQuery",
-    "hash": "2f48706f4a9256d1",
-    "questions": [
-      "Check if a group gets its users from a query",
-      "Query based application group",
-      "What does groupType bit 0x20 mean?",
-      "Authorization Manager group without a list of users"
     ]
   },
   "/reference/core/ldap-ad-grouptype/bits/": {
@@ -7302,8 +7282,28 @@
       "Write a changed group type back as a number"
     ]
   },
-  "/reference/core/ldap-ad-grouptype/domainlocal/": {
-    "feature": "Core\\Ldap\\Ad\\GroupType::domainLocal",
+  "/reference/core/ldap-ad-grouptype/isappbasicgroup/": {
+    "feature": "Core\\Ldap\\Ad\\GroupType::isAppBasicGroup",
+    "hash": "92aad5e96e212cfc",
+    "questions": [
+      "Check if a group is an application group",
+      "Authorization Manager application group",
+      "What does groupType bit 0x10 mean?",
+      "Application group with a fixed list of users"
+    ]
+  },
+  "/reference/core/ldap-ad-grouptype/isappquerygroup/": {
+    "feature": "Core\\Ldap\\Ad\\GroupType::isAppQueryGroup",
+    "hash": "2f48706f4a9256d1",
+    "questions": [
+      "Check if a group gets its users from a query",
+      "Query based application group",
+      "What does groupType bit 0x20 mean?",
+      "Authorization Manager group without a list of users"
+    ]
+  },
+  "/reference/core/ldap-ad-grouptype/isdomainlocal/": {
+    "feature": "Core\\Ldap\\Ad\\GroupType::isDomainLocal",
     "hash": "55e28e541c17b22d",
     "questions": [
       "Check if a group is domain local",
@@ -7312,8 +7312,8 @@
       "What does groupType bit 0x4 mean?"
     ]
   },
-  "/reference/core/ldap-ad-grouptype/global/": {
-    "feature": "Core\\Ldap\\Ad\\GroupType::global",
+  "/reference/core/ldap-ad-grouptype/isglobal/": {
+    "feature": "Core\\Ldap\\Ad\\GroupType::isGlobal",
     "hash": "d92903f23462f4d1",
     "questions": [
       "Check if a group is a global group",
@@ -7322,8 +7322,8 @@
       "What does groupType bit 0x2 mean?"
     ]
   },
-  "/reference/core/ldap-ad-grouptype/security/": {
-    "feature": "Core\\Ldap\\Ad\\GroupType::security",
+  "/reference/core/ldap-ad-grouptype/issecuritygroup/": {
+    "feature": "Core\\Ldap\\Ad\\GroupType::isSecurityGroup",
     "hash": "5daaff08abfcbff2",
     "questions": [
       "Check if a group is a security group or a distribution group",
@@ -7332,8 +7332,8 @@
       "What does groupType bit 0x80000000 mean?"
     ]
   },
-  "/reference/core/ldap-ad-grouptype/system/": {
-    "feature": "Core\\Ldap\\Ad\\GroupType::system",
+  "/reference/core/ldap-ad-grouptype/issystemgroup/": {
+    "feature": "Core\\Ldap\\Ad\\GroupType::isSystemGroup",
     "hash": "55a93d0aeb2dcc34",
     "questions": [
       "Check if Active Directory created a group itself",
@@ -7342,8 +7342,8 @@
       "What does groupType bit 0x1 mean?"
     ]
   },
-  "/reference/core/ldap-ad-grouptype/universal/": {
-    "feature": "Core\\Ldap\\Ad\\GroupType::universal",
+  "/reference/core/ldap-ad-grouptype/isuniversal/": {
+    "feature": "Core\\Ldap\\Ad\\GroupType::isUniversal",
     "hash": "5d961540f644ff71",
     "questions": [
       "Check if a group is a universal group",
@@ -7473,26 +7473,6 @@
       "Error PasswordPolicy when the new password is too short"
     ]
   },
-  "/reference/core/ldap-connection/changes/": {
-    "feature": "Core\\Ldap\\Connection::changes",
-    "hash": "2d8cfb5711a48ded",
-    "questions": [
-      "How do I sync only the changed entries from Active Directory?",
-      "Keep a local copy of the directory up to date",
-      "Use DirSync to find changed users",
-      "Find entries deleted since the last sync"
-    ]
-  },
-  "/reference/core/ldap-connection/compare/": {
-    "feature": "Core\\Ldap\\Connection::compare",
-    "hash": "ab0f94ed3ce5de5c",
-    "questions": [
-      "Check if an entry has a value without reading it",
-      "Is this person in the Sales department?",
-      "Quick test of one attribute value on the server",
-      "Is the LDAP compare case sensitive?"
-    ]
-  },
   "/reference/core/ldap-connection/delete/": {
     "feature": "Core\\Ldap\\Connection::delete",
     "hash": "3dcdbf6bf98c4a6c",
@@ -7501,6 +7481,16 @@
       "Remove a user account from LDAP",
       "Why can't I delete an entry with entries below it?",
       "What happens to a deleted entry in Active Directory?"
+    ]
+  },
+  "/reference/core/ldap-connection/hasvalue/": {
+    "feature": "Core\\Ldap\\Connection::hasValue",
+    "hash": "ab0f94ed3ce5de5c",
+    "questions": [
+      "Check if an entry has a value without reading it",
+      "Is this person in the Sales department?",
+      "Quick test of one attribute value on the server",
+      "Is the LDAP compare case sensitive?"
     ]
   },
   "/reference/core/ldap-connection/modify/": {
@@ -7542,6 +7532,16 @@
       "Sort and page LDAP search results",
       "Is it safe to put user input in a search?",
       "Search only one level below a DN"
+    ]
+  },
+  "/reference/core/ldap-connection/searchchanges/": {
+    "feature": "Core\\Ldap\\Connection::searchChanges",
+    "hash": "2d8cfb5711a48ded",
+    "questions": [
+      "How do I sync only the changed entries from Active Directory?",
+      "Keep a local copy of the directory up to date",
+      "Use DirSync to find changed users",
+      "Find entries deleted since the last sync"
     ]
   },
   "/reference/core/ldap-connection/setpassword/": {
@@ -8382,6 +8382,16 @@
       "Hyperbolic cosine of a number"
     ]
   },
+  "/reference/core/math/divide/": {
+    "feature": "Core\\Math::divide",
+    "hash": "f86409d6a3127c6a",
+    "questions": [
+      "How do I divide by zero without an error?",
+      "Division that returns infinity instead of throwing",
+      "Divide two floats and get NaN for zero by zero",
+      "Calculate a rate when the count may be zero"
+    ]
+  },
   "/reference/core/math/exp/": {
     "feature": "Core\\Math::exp",
     "hash": "3b950b8c3cee6cd9",
@@ -8391,16 +8401,6 @@
       "Calculate exponential growth or decay",
       "Rank posts so newer ones score higher",
       "Reverse of the natural logarithm"
-    ]
-  },
-  "/reference/core/math/fdiv/": {
-    "feature": "Core\\Math::fdiv",
-    "hash": "f86409d6a3127c6a",
-    "questions": [
-      "How do I divide by zero without an error?",
-      "Division that returns infinity instead of throwing",
-      "Divide two floats and get NaN for zero by zero",
-      "Calculate a rate when the count may be zero"
     ]
   },
   "/reference/core/math/floor/": {
@@ -8454,16 +8454,6 @@
       "Length of the hypotenuse of a right triangle",
       "Square root of the sum of two squares",
       "Calculate the length of a vector from x and y"
-    ]
-  },
-  "/reference/core/math/intdiv/": {
-    "feature": "Core\\Math::intDiv",
-    "hash": "afec4b2c9685d811",
-    "questions": [
-      "How do I divide integers without a fraction?",
-      "Integer division without the remainder",
-      "Convert seconds to minutes and seconds",
-      "How many full groups fit into a number?"
     ]
   },
   "/reference/core/math/isfinite/": {
@@ -8527,8 +8517,18 @@
       "Return the smallest of two strings"
     ]
   },
-  "/reference/core/math/mod/": {
-    "feature": "Core\\Math::mod",
+  "/reference/core/math/quotient/": {
+    "feature": "Core\\Math::quotient",
+    "hash": "afec4b2c9685d811",
+    "questions": [
+      "How do I divide integers without a fraction?",
+      "Integer division without the remainder",
+      "Convert seconds to minutes and seconds",
+      "How many full groups fit into a number?"
+    ]
+  },
+  "/reference/core/math/remainder/": {
+    "feature": "Core\\Math::remainder",
     "hash": "9d01b2dc418b7926",
     "questions": [
       "How do I get the remainder of a float division?",
@@ -8660,16 +8660,6 @@
       "Application metrics with counters and histograms"
     ]
   },
-  "/reference/core/metrics/gauge/": {
-    "feature": "Core\\Metrics::setGauge",
-    "hash": "a34e7a09d92bcaff",
-    "questions": [
-      "How do I report a value that goes up and down?",
-      "Track how many jobs are waiting",
-      "Report the number of open connections",
-      "Set a metric to the current level"
-    ]
-  },
   "/reference/core/metrics/increment/": {
     "feature": "Core\\Metrics::increment",
     "hash": "68cc418b4cfe69e5",
@@ -8689,6 +8679,16 @@
       "Record durations in a histogram",
       "Track the size of uploads",
       "Time database queries for each table"
+    ]
+  },
+  "/reference/core/metrics/setgauge/": {
+    "feature": "Core\\Metrics::setGauge",
+    "hash": "a34e7a09d92bcaff",
+    "questions": [
+      "How do I report a value that goes up and down?",
+      "Track how many jobs are waiting",
+      "Report the number of open connections",
+      "Set a metric to the current level"
     ]
   },
   "/reference/core/mime/": {
@@ -10969,8 +10969,8 @@
       "Count unique objects in a list"
     ]
   },
-  "/reference/core/objectset/diff/": {
-    "feature": "Core\\ObjectSet::diff",
+  "/reference/core/objectset/difference/": {
+    "feature": "Core\\ObjectSet::difference",
     "hash": "99141261a756e7b9",
     "questions": [
       "How do I find objects in one set but not in another?",
@@ -10989,8 +10989,8 @@
       "Why is an equal object not found in my set?"
     ]
   },
-  "/reference/core/objectset/intersect/": {
-    "feature": "Core\\ObjectSet::intersect",
+  "/reference/core/objectset/intersection/": {
+    "feature": "Core\\ObjectSet::intersection",
     "hash": "89f03d863f906fb9",
     "questions": [
       "How do I find objects that are in both sets?",
@@ -11989,8 +11989,8 @@
       "How do I know how many requests are left and when to retry?"
     ]
   },
-  "/reference/core/ratelimit-decision/allowed/": {
-    "feature": "Core\\RateLimit\\Decision::allowed",
+  "/reference/core/ratelimit-decision/isallowed/": {
+    "feature": "Core\\RateLimit\\Decision::isAllowed",
     "hash": "9220f2f052bad6d0",
     "questions": [
       "How do I check if a request was over the limit?",
@@ -12760,6 +12760,39 @@
       "Why are the text fields of the form not in the upload loop?"
     ]
   },
+  "/reference/core/request/formfield/": {
+    "feature": "Core\\Request::formField",
+    "hash": "c8f188110064c07f",
+    "questions": [
+      "How do I read a form field sent by POST?",
+      "Get a value from a submitted HTML form",
+      "Check whether a checkbox was ticked",
+      "How do I read a contact form?",
+      "Read text fields from a multipart form"
+    ]
+  },
+  "/reference/core/request/formfields/": {
+    "feature": "Core\\Request::formFields",
+    "hash": "28e5c0928b2fb0bc",
+    "questions": [
+      "Read form fields with square brackets in the name",
+      "Read a list of values posted from one form field",
+      "Read item[] values from a submitted form",
+      "Form field with a key in brackets like size[shirt]"
+    ]
+  },
+  "/reference/core/request/formfieldsas/": {
+    "feature": "Core\\Request::formFieldsAs",
+    "hash": "3bced92800cdd850",
+    "questions": [
+      "How do I read a whole form into a class?",
+      "Validate a sign-up form and list every wrong field",
+      "Convert form fields to numbers and other types",
+      "Read nested form fields like address[city]",
+      "How do I read the lines of an order form into a list?",
+      "Fix error E0810 for a class nested inside a form shape"
+    ]
+  },
   "/reference/core/request/header/": {
     "feature": "Core\\Request::header",
     "hash": "d4c9e9cc5294bf56",
@@ -12855,40 +12888,7 @@
       "Why does a space in the URL show as %20?"
     ]
   },
-  "/reference/core/request/post/": {
-    "feature": "Core\\Request::formField",
-    "hash": "c8f188110064c07f",
-    "questions": [
-      "How do I read a form field sent by POST?",
-      "Get a value from a submitted HTML form",
-      "Check whether a checkbox was ticked",
-      "How do I read a contact form?",
-      "Read text fields from a multipart form"
-    ]
-  },
-  "/reference/core/request/postarray/": {
-    "feature": "Core\\Request::formFields",
-    "hash": "28e5c0928b2fb0bc",
-    "questions": [
-      "Read form fields with square brackets in the name",
-      "Read a list of values posted from one form field",
-      "Read item[] values from a submitted form",
-      "Form field with a key in brackets like size[shirt]"
-    ]
-  },
-  "/reference/core/request/postas/": {
-    "feature": "Core\\Request::formFieldsAs",
-    "hash": "3bced92800cdd850",
-    "questions": [
-      "How do I read a whole form into a class?",
-      "Validate a sign-up form and list every wrong field",
-      "Convert form fields to numbers and other types",
-      "Read nested form fields like address[city]",
-      "How do I read the lines of an order form into a list?",
-      "Fix error E0810 for a class nested inside a form shape"
-    ]
-  },
-  "/reference/core/request/query/": {
+  "/reference/core/request/queryparameter/": {
     "feature": "Core\\Request::queryParameter",
     "hash": "2f2c768f7adf734a",
     "questions": [
@@ -12899,7 +12899,7 @@
       "Read GET parameters from the address"
     ]
   },
-  "/reference/core/request/queryarray/": {
+  "/reference/core/request/queryparameters/": {
     "feature": "Core\\Request::queryParameters",
     "hash": "8f8e32fccaf10b57",
     "questions": [
@@ -12909,7 +12909,7 @@
       "Read filter[color] style values from the address"
     ]
   },
-  "/reference/core/request/queryas/": {
+  "/reference/core/request/queryparametersas/": {
     "feature": "Core\\Request::queryParametersAs",
     "hash": "964b81cbbabc4d49",
     "questions": [
@@ -13127,36 +13127,6 @@
       "Send a login cookie after the user signs in"
     ]
   },
-  "/reference/core/response/bytes/": {
-    "feature": "Core\\Response::sendBytes",
-    "hash": "0cc8635052864826",
-    "questions": [
-      "How do I send an image from memory as the response?",
-      "Return a CSV report with a custom content type",
-      "Send raw binary data to the client",
-      "Serve a generated PDF or calendar file"
-    ]
-  },
-  "/reference/core/response/html/": {
-    "feature": "Core\\Response::sendHtml",
-    "hash": "20ba96f7591ea54f",
-    "questions": [
-      "How do I send an HTML page as the response?",
-      "Return a web page built from a template",
-      "Show user text inside a page without running scripts",
-      "Render a list of products as HTML"
-    ]
-  },
-  "/reference/core/response/json/": {
-    "feature": "Core\\Response::sendJson",
-    "hash": "e6e1681f26af6776",
-    "questions": [
-      "How do I return JSON from an API endpoint?",
-      "Send an array or object as a JSON reply",
-      "Build a JSON API that lists products",
-      "Why does sending NaN as JSON fail?"
-    ]
-  },
   "/reference/core/response/redirect/": {
     "feature": "Core\\Response::redirect",
     "hash": "3cc7b8a41bc21e14",
@@ -13166,6 +13136,16 @@
       "Make a permanent 308 redirect for a moved page",
       "Set the Location header with a 303 status",
       "Can a visitor choose where my redirect goes?"
+    ]
+  },
+  "/reference/core/response/sendbytes/": {
+    "feature": "Core\\Response::sendBytes",
+    "hash": "0cc8635052864826",
+    "questions": [
+      "How do I send an image from memory as the response?",
+      "Return a CSV report with a custom content type",
+      "Send raw binary data to the client",
+      "Serve a generated PDF or calendar file"
     ]
   },
   "/reference/core/response/sendfile/": {
@@ -13178,6 +13158,47 @@
       "Give a downloaded file its own name",
       "Let a browser resume a download or jump inside a video",
       "Which files may a request send without a permission?"
+    ]
+  },
+  "/reference/core/response/sendhtml/": {
+    "feature": "Core\\Response::sendHtml",
+    "hash": "20ba96f7591ea54f",
+    "questions": [
+      "How do I send an HTML page as the response?",
+      "Return a web page built from a template",
+      "Show user text inside a page without running scripts",
+      "Render a list of products as HTML"
+    ]
+  },
+  "/reference/core/response/sendjson/": {
+    "feature": "Core\\Response::sendJson",
+    "hash": "e6e1681f26af6776",
+    "questions": [
+      "How do I return JSON from an API endpoint?",
+      "Send an array or object as a JSON reply",
+      "Build a JSON API that lists products",
+      "Why does sending NaN as JSON fail?"
+    ]
+  },
+  "/reference/core/response/sendslotted/": {
+    "feature": "Core\\Response::sendSlotted",
+    "hash": "4d1c8c278cc6c7e3",
+    "questions": [
+      "How do I show a page before its slow parts are ready?",
+      "Send the page early and fill in late sections afterwards",
+      "Make the visitor see content sooner on a slow page",
+      "Load slow page sections only for some paths",
+      "Send late page sections with a strict Content-Security-Policy"
+    ]
+  },
+  "/reference/core/response/sendtext/": {
+    "feature": "Core\\Response::sendText",
+    "hash": "6de5c749a7b231ba",
+    "questions": [
+      "How do I send plain text as the response?",
+      "Return a simple health check message",
+      "Serve a robots.txt file from code",
+      "Show user input as text so it never runs as HTML"
     ]
   },
   "/reference/core/response/setheader/": {
@@ -13201,18 +13222,7 @@
       "Return a 400 error when input is invalid"
     ]
   },
-  "/reference/core/response/slotted/": {
-    "feature": "Core\\Response::sendSlotted",
-    "hash": "4d1c8c278cc6c7e3",
-    "questions": [
-      "How do I show a page before its slow parts are ready?",
-      "Send the page early and fill in late sections afterwards",
-      "Make the visitor see content sooner on a slow page",
-      "Load slow page sections only for some paths",
-      "Send late page sections with a strict Content-Security-Policy"
-    ]
-  },
-  "/reference/core/response/stream/": {
+  "/reference/core/response/startstream/": {
     "feature": "Core\\Response::startStream",
     "hash": "5a6a8cb0663df9e9",
     "questions": [
@@ -13220,16 +13230,6 @@
       "Stream a large CSV export to the browser",
       "Report the progress of a long job while it runs",
       "Start a chunked response body with a content type"
-    ]
-  },
-  "/reference/core/response/text/": {
-    "feature": "Core\\Response::sendText",
-    "hash": "6de5c749a7b231ba",
-    "questions": [
-      "How do I send plain text as the response?",
-      "Return a simple health check message",
-      "Serve a robots.txt file from code",
-      "Show user input as text so it never runs as HTML"
     ]
   },
   "/reference/core/response-stream/": {
@@ -13429,7 +13429,7 @@
       "What method does a HEAD request report?"
     ]
   },
-  "/reference/core/router-match/param/": {
+  "/reference/core/router-match/parameter/": {
     "feature": "Core\\Router\\Match::parameter",
     "hash": "d1071816d8921d85",
     "questions": [
@@ -13439,7 +13439,7 @@
       "Load the record that the path points to"
     ]
   },
-  "/reference/core/router-match/params/": {
+  "/reference/core/router-match/parameters/": {
     "feature": "Core\\Router\\Match::parameters",
     "hash": "4ace9c640551762c",
     "questions": [
@@ -13459,7 +13459,7 @@
       "Work with the lifetime of a command-line script"
     ]
   },
-  "/reference/core/script/args/": {
+  "/reference/core/script/arguments/": {
     "feature": "Core\\Script::arguments",
     "hash": "0c944197ded68391",
     "questions": [
@@ -14015,16 +14015,6 @@
       "Skip a published update whose class the stream cannot read"
     ]
   },
-  "/reference/core/sse/retry/": {
-    "feature": "Core\\Sse::setRetryDelay",
-    "hash": "5c0d93d93a60e453",
-    "questions": [
-      "How do I set the reconnect delay for EventSource?",
-      "Tell the browser to wait before it reconnects",
-      "Make clients wait longer before they reconnect after a restart",
-      "Send a retry time in milliseconds"
-    ]
-  },
   "/reference/core/sse/send/": {
     "feature": "Core\\Sse::send",
     "hash": "1a71d38be4bad8cf",
@@ -14035,7 +14025,17 @@
       "Send new orders to a dashboard as they arrive"
     ]
   },
-  "/reference/core/sse/stream/": {
+  "/reference/core/sse/setretrydelay/": {
+    "feature": "Core\\Sse::setRetryDelay",
+    "hash": "5c0d93d93a60e453",
+    "questions": [
+      "How do I set the reconnect delay for EventSource?",
+      "Tell the browser to wait before it reconnects",
+      "Make clients wait longer before they reconnect after a restart",
+      "Send a retry time in milliseconds"
+    ]
+  },
+  "/reference/core/sse/startstream/": {
     "feature": "Core\\Sse::startStream",
     "hash": "1662ca830cf88617",
     "questions": [
@@ -14641,17 +14641,6 @@
       "Concurrency and background work in a web request"
     ]
   },
-  "/reference/core/task/afterresponse/": {
-    "feature": "Core\\Task::runAfterResponse",
-    "hash": "ddd6c4ee74a0bee6",
-    "questions": [
-      "How do I send an email after the response is sent?",
-      "Run code in the background so the visitor does not wait",
-      "Call a webhook after the request is finished",
-      "Write an audit log after replying to the client",
-      "Give background work after a request a time limit"
-    ]
-  },
   "/reference/core/task/all/": {
     "feature": "Core\\Task::all",
     "hash": "0405f0247bf9a65e",
@@ -14673,6 +14662,17 @@
       "Run a function on each array element concurrently",
       "Limit how many jobs from a list run at once",
       "Keep results in the original order after parallel work"
+    ]
+  },
+  "/reference/core/task/runafterresponse/": {
+    "feature": "Core\\Task::runAfterResponse",
+    "hash": "ddd6c4ee74a0bee6",
+    "questions": [
+      "How do I send an email after the response is sent?",
+      "Run code in the background so the visitor does not wait",
+      "Call a webhook after the request is finished",
+      "Write an audit log after replying to the client",
+      "Give background work after a request a time limit"
     ]
   },
   "/reference/core/task-channel/": {
@@ -15085,6 +15085,16 @@
       "Send test failure messages to a chat"
     ]
   },
+  "/reference/core/test-outcome/haspassed/": {
+    "feature": "Core\\Test\\Outcome::hasPassed",
+    "hash": "f332e1a62e9e382c",
+    "questions": [
+      "Check whether one test run passed",
+      "Keep files only when a test fails",
+      "Clean up after a test that passed",
+      "Print a status line for each test"
+    ]
+  },
   "/reference/core/test-outcome/name/": {
     "feature": "Core\\Test\\Outcome::name",
     "hash": "c6162c2fb9968a95",
@@ -15093,16 +15103,6 @@
       "Name a file after the current test",
       "Test name with a row number for TestWith",
       "Write a file that lists every test that ran"
-    ]
-  },
-  "/reference/core/test-outcome/passed/": {
-    "feature": "Core\\Test\\Outcome::passed",
-    "hash": "f332e1a62e9e382c",
-    "questions": [
-      "Check whether one test run passed",
-      "Keep files only when a test fails",
-      "Clean up after a test that passed",
-      "Print a status line for each test"
     ]
   },
   "/reference/core/test-response/": {
@@ -15814,8 +15814,8 @@
       "Group timestamps by month"
     ]
   },
-  "/reference/core/time-datetime/nanos/": {
-    "feature": "Core\\Time\\DateTime::nanos",
+  "/reference/core/time-datetime/nanoseconds/": {
+    "feature": "Core\\Time\\DateTime::nanoseconds",
     "hash": "b69d682a2aa57fa9",
     "questions": [
       "How do I get the fraction of a second from a date and time?",
@@ -16372,8 +16372,8 @@
       "Check whether a clock time is on the half hour"
     ]
   },
-  "/reference/core/time-timeofday/nanos/": {
-    "feature": "Core\\Time\\TimeOfDay::nanos",
+  "/reference/core/time-timeofday/nanoseconds/": {
+    "feature": "Core\\Time\\TimeOfDay::nanoseconds",
     "hash": "28cb8ab66fe17c9e",
     "questions": [
       "How do I get the fraction of a second from a clock time?",
@@ -16701,8 +16701,8 @@
       "Get a single GET value by its name"
     ]
   },
-  "/reference/core/uri/resolve/": {
-    "feature": "Core\\Uri::resolve",
+  "/reference/core/uri/resolved/": {
+    "feature": "Core\\Uri::resolved",
     "hash": "20f6188b2ed484e8",
     "questions": [
       "How do I turn a relative link into a full URL?",
@@ -16723,8 +16723,8 @@
       "Tell a full address from a plain path"
     ]
   },
-  "/reference/core/uri/sign/": {
-    "feature": "Core\\Uri::sign",
+  "/reference/core/uri/signed/": {
+    "feature": "Core\\Uri::signed",
     "hash": "c280db9dcd6cab7d",
     "questions": [
       "How do I create a link that expires after one hour?",
@@ -17017,8 +17017,8 @@
       "When should I remove a push subscription?"
     ]
   },
-  "/reference/core/webpush-sent/gone/": {
-    "feature": "Core\\WebPush\\Sent::gone",
+  "/reference/core/webpush-sent/isgone/": {
+    "feature": "Core\\WebPush\\Sent::isGone",
     "hash": "e3b05d421d7303de",
     "questions": [
       "How do I know a user turned off notifications?",
@@ -17220,56 +17220,6 @@
       "Which steps build an XML file from start to finish?"
     ]
   },
-  "/reference/core/xml-writer/attribute/": {
-    "feature": "Core\\Xml\\Writer::writeAttribute",
-    "hash": "394d46f82f955bc3",
-    "questions": [
-      "How do I add an attribute to an XML tag?",
-      "Put an id or name inside a start tag",
-      "Escape quotes in XML attribute values",
-      "Store product data as tag attributes"
-    ]
-  },
-  "/reference/core/xml-writer/cdata/": {
-    "feature": "Core\\Xml\\Writer::writeCdata",
-    "hash": "576f5db05676f9cc",
-    "questions": [
-      "How do I put HTML inside an XML element without escaping?",
-      "Wrap text in a CDATA section",
-      "Embed code or markup in a news feed item",
-      "Write text with < and & unchanged"
-    ]
-  },
-  "/reference/core/xml-writer/comment/": {
-    "feature": "Core\\Xml\\Writer::writeComment",
-    "hash": "efa4a8d89dd3c713",
-    "questions": [
-      "How do I add a comment to generated XML?",
-      "Put a header note at the top of an exported file",
-      "Write a note for people inside an XML file",
-      "Why can an XML comment not contain two dashes?"
-    ]
-  },
-  "/reference/core/xml-writer/content/": {
-    "feature": "Core\\Xml\\Writer::writeText",
-    "hash": "66a0fe3eb2a04d50",
-    "questions": [
-      "How do I write text between XML tags?",
-      "Put user input inside an element safely",
-      "Escape & and < in XML text automatically",
-      "Set the text of a product name element"
-    ]
-  },
-  "/reference/core/xml-writer/doctype/": {
-    "feature": "Core\\Xml\\Writer::writeDoctype",
-    "hash": "5ac061ffb860ef13",
-    "questions": [
-      "How do I add a DOCTYPE line to XML output?",
-      "Write <!DOCTYPE html> at the top of a page",
-      "Declare the document type before the root element",
-      "Generate an XHTML page with a document type"
-    ]
-  },
   "/reference/core/xml-writer/enddocument/": {
     "feature": "Core\\Xml\\Writer::endDocument",
     "hash": "652fba1cd2dba99a",
@@ -17290,16 +17240,6 @@
       "Build a nested category tree in XML with recursion"
     ]
   },
-  "/reference/core/xml-writer/instruction/": {
-    "feature": "Core\\Xml\\Writer::writeInstruction",
-    "hash": "a1c23dba7c0eb6f6",
-    "questions": [
-      "How do I link a stylesheet to an XML feed?",
-      "Write a processing instruction into XML output",
-      "Add <?xml-stylesheet?> to a generated document",
-      "Put a note for the reading program in an XML file"
-    ]
-  },
   "/reference/core/xml-writer/startdocument/": {
     "feature": "Core\\Xml\\Writer::startDocument",
     "hash": "8297545804044e87",
@@ -17318,6 +17258,66 @@
       "Nest one element inside another when writing XML",
       "Build a sitemap for a website",
       "Which names are allowed for XML tags?"
+    ]
+  },
+  "/reference/core/xml-writer/writeattribute/": {
+    "feature": "Core\\Xml\\Writer::writeAttribute",
+    "hash": "394d46f82f955bc3",
+    "questions": [
+      "How do I add an attribute to an XML tag?",
+      "Put an id or name inside a start tag",
+      "Escape quotes in XML attribute values",
+      "Store product data as tag attributes"
+    ]
+  },
+  "/reference/core/xml-writer/writecdata/": {
+    "feature": "Core\\Xml\\Writer::writeCdata",
+    "hash": "576f5db05676f9cc",
+    "questions": [
+      "How do I put HTML inside an XML element without escaping?",
+      "Wrap text in a CDATA section",
+      "Embed code or markup in a news feed item",
+      "Write text with < and & unchanged"
+    ]
+  },
+  "/reference/core/xml-writer/writecomment/": {
+    "feature": "Core\\Xml\\Writer::writeComment",
+    "hash": "efa4a8d89dd3c713",
+    "questions": [
+      "How do I add a comment to generated XML?",
+      "Put a header note at the top of an exported file",
+      "Write a note for people inside an XML file",
+      "Why can an XML comment not contain two dashes?"
+    ]
+  },
+  "/reference/core/xml-writer/writedoctype/": {
+    "feature": "Core\\Xml\\Writer::writeDoctype",
+    "hash": "5ac061ffb860ef13",
+    "questions": [
+      "How do I add a DOCTYPE line to XML output?",
+      "Write <!DOCTYPE html> at the top of a page",
+      "Declare the document type before the root element",
+      "Generate an XHTML page with a document type"
+    ]
+  },
+  "/reference/core/xml-writer/writeinstruction/": {
+    "feature": "Core\\Xml\\Writer::writeInstruction",
+    "hash": "a1c23dba7c0eb6f6",
+    "questions": [
+      "How do I link a stylesheet to an XML feed?",
+      "Write a processing instruction into XML output",
+      "Add <?xml-stylesheet?> to a generated document",
+      "Put a note for the reading program in an XML file"
+    ]
+  },
+  "/reference/core/xml-writer/writetext/": {
+    "feature": "Core\\Xml\\Writer::writeText",
+    "hash": "66a0fe3eb2a04d50",
+    "questions": [
+      "How do I write text between XML tags?",
+      "Put user input inside an element safely",
+      "Escape & and < in XML text automatically",
+      "Set the text of a product name element"
     ]
   },
   "/reference/core/zip/": {

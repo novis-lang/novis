@@ -8,9 +8,9 @@ transaction ran are kept.
 
 Because it throws, there is no state to remember and no flag for a later layer to check. A function
 the work calls can give up on the whole transaction by itself, and the code between that function and
-`Core\Db\Connection::transaction` needs to pass nothing back up.
+`Core\Db\Connection::runTransaction` needs to pass nothing back up.
 
-Catch `Core\Db\RolledBack` around the call to `Core\Db\Connection::transaction` to handle it. Catching
+Catch `Core\Db\RolledBack` around the call to `Core\Db\Connection::runTransaction` to handle it. Catching
 it inside the work does not save anything: the transaction is already given up by then.
 
 The examples give up when a check fails, give up from inside a function, and move money between two

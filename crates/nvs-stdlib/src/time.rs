@@ -80,8 +80,8 @@
 //!
 //! A `Date` answers `year`, `month`, `day`, `weekday`, `dayOfYear` and `isLeapYear`
 //! from its three slots. A `DateTime` answers `year`, `month`, `day`, `hour`, `minute`,
-//! `second` and `nanos` from the civil time in its own zone, and a `TimeOfDay` answers
-//! `hour`, `minute`, `second` and `nanos` from its four slots. So no caller reads a field
+//! `second` and `nanoseconds` from the civil time in its own zone, and a `TimeOfDay` answers
+//! `hour`, `minute`, `second` and `nanoseconds` from its four slots. So no caller reads a field
 //! by parsing `format`'s output. Each
 //! reader has the name and type of the `with` option for the same field — `year` is
 //! `int`, every other field `uint` — so `$d->with({ month: $d->month() + 1 })` is one
@@ -1244,7 +1244,7 @@ pub const INSTANT: CoreClass = CoreClass {
             params: &[
                 CoreTy::Int,
                 CoreTy::Options(&[CoreOption {
-                    name: "nanos",
+                    name: "nanoseconds",
                     ty: CoreTy::Uint,
                     default: Const::Uint(0),
                 }]),
@@ -1497,8 +1497,8 @@ pub(crate) const INSTANT_NANOS_SLOT: usize = 1;
 
 /// `Core\Time\Instant::fromEpoch`'s reference card — `rule:core-api/reference-card`.
 const INSTANT_FROM_EPOCH_DOC: MethodDoc = MethodDoc {
-    short: "Builds the instant at a Unix timestamp. The `nanos` option is added after the second, \
-            so `-1` with `{ nanos: 1 }` is one nanosecond after `-1`.",
+    short: "Builds the instant at a Unix timestamp. The `nanoseconds` option is added after the \
+            second, so `-1` with `{ nanoseconds: 1 }` is one nanosecond after `-1`.",
     params: &[
         ParamDoc {
             name: "seconds",
@@ -1506,7 +1506,7 @@ const INSTANT_FROM_EPOCH_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
         ParamDoc {
-            name: "nanos",
+            name: "nanoseconds",
             desc: "Nanoseconds to add on top of the second, below `1000000000`; the default is \
                    `0`.",
             shape: &[],
@@ -1515,7 +1515,7 @@ const INSTANT_FROM_EPOCH_DOC: MethodDoc = MethodDoc {
     ret: "The `Instant`.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "`nanos` is not below `1000000000`, or `$seconds` is outside \
+        desc: "`nanoseconds` is not below `1000000000`, or `$seconds` is outside \
                `-377705023201..=253402207200`. That is the time from `-9999-01-02T01:59:59Z` to \
                `9999-12-30T22:00:00Z`.",
     }],
@@ -1722,7 +1722,7 @@ const WEEKDAY_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// The `{year?, month?, day?, hour?, minute?, second?, nanos?}` bag
+/// The `{year?, month?, day?, hour?, minute?, second?, nanoseconds?}` bag
 /// `$d->with(…)` takes — the replacement for `setDate`, `setTime` and
 /// `setISODate` at once.
 ///
@@ -1762,7 +1762,7 @@ const WITH_OPTIONS: &[CoreOption] = &[
         default: Const::Null,
     },
     CoreOption {
-        name: "nanos",
+        name: "nanoseconds",
         ty: CoreTy::Uint,
         default: Const::Null,
     },
@@ -2060,13 +2060,13 @@ pub const DATETIME: CoreClass = CoreClass {
             doc: Some(&DATETIME_SECOND_DOC),
         },
         CoreMethod {
-            name: "nanos",
+            name: "nanoseconds",
             names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_time_datetime_nanos",
+            symbol: "nvs_core_time_datetime_nanoseconds",
             doc: Some(&DATETIME_NANOS_DOC),
         },
     ],
@@ -2225,7 +2225,7 @@ const DATETIME_WITH_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
         ParamDoc {
-            name: "nanos",
+            name: "nanoseconds",
             desc: "The new subsecond nanoseconds, below `1000000000`; omitted leaves the field \
                    alone.",
             shape: &[],
@@ -2429,7 +2429,7 @@ const DATETIME_SECOND_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\DateTime::nanos`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Time\DateTime::nanoseconds`'s reference card — `rule:core-api/reference-card`.
 const DATETIME_NANOS_DOC: MethodDoc = MethodDoc {
     short: "Returns the part of the second after the whole seconds, in nanoseconds.",
     params: &[],
@@ -2594,7 +2594,9 @@ fn datetime_address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_time_datetime_hour" => (nvs_core_time_datetime_hour as *const ()).cast(),
         "nvs_core_time_datetime_minute" => (nvs_core_time_datetime_minute as *const ()).cast(),
         "nvs_core_time_datetime_second" => (nvs_core_time_datetime_second as *const ()).cast(),
-        "nvs_core_time_datetime_nanos" => (nvs_core_time_datetime_nanos as *const ()).cast(),
+        "nvs_core_time_datetime_nanoseconds" => {
+            (nvs_core_time_datetime_nanoseconds as *const ()).cast()
+        }
         _ => return None,
     }))
 }
@@ -3154,7 +3156,7 @@ fn date_address(symbol: &str) -> Option<nvs_runtime::Entry> {
 /// [`DURATION_NAME`]'s reason.
 pub const TIME_OF_DAY_NAME: &str = r"Core\Time\TimeOfDay";
 
-/// The `{ second?: uint, nanos?: uint }` bag `TimeOfDay::at` takes — the two
+/// The `{ second?: uint, nanoseconds?: uint }` bag `TimeOfDay::at` takes — the two
 /// fields a wall clock usually leaves off, defaulting to zero.
 ///
 /// [`Const::Uint`] rather than [`Const::Null`] here, unlike
@@ -3168,13 +3170,13 @@ const AT_OPTIONS: &[CoreOption] = &[
         default: Const::Uint(0),
     },
     CoreOption {
-        name: "nanos",
+        name: "nanoseconds",
         ty: CoreTy::Uint,
         default: Const::Uint(0),
     },
 ];
 
-/// The `{hour?, minute?, second?, nanos?}` bag `$t->with(…)` takes —
+/// The `{hour?, minute?, second?, nanoseconds?}` bag `$t->with(…)` takes —
 /// [`WITH_OPTIONS`] without the three calendar fields.
 const TIME_OF_DAY_WITH_OPTIONS: &[CoreOption] = &[
     CoreOption {
@@ -3193,7 +3195,7 @@ const TIME_OF_DAY_WITH_OPTIONS: &[CoreOption] = &[
         default: Const::Null,
     },
     CoreOption {
-        name: "nanos",
+        name: "nanoseconds",
         ty: CoreTy::Uint,
         default: Const::Null,
     },
@@ -3317,13 +3319,13 @@ pub const TIME_OF_DAY: CoreClass = CoreClass {
             doc: Some(&TIME_OF_DAY_SECOND_DOC),
         },
         CoreMethod {
-            name: "nanos",
+            name: "nanoseconds",
             names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Uint,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_time_of_day_nanos",
+            symbol: "nvs_core_time_of_day_nanoseconds",
             doc: Some(&TIME_OF_DAY_NANOS_DOC),
         },
     ],
@@ -3360,7 +3362,7 @@ const TIME_OF_DAY_AT_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
         ParamDoc {
-            name: "nanos",
+            name: "nanoseconds",
             desc: "The nanoseconds inside that second, `0` to `999999999`. The default is `0`.",
             shape: &[],
         },
@@ -3491,7 +3493,7 @@ const TIME_OF_DAY_WITH_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
         ParamDoc {
-            name: "nanos",
+            name: "nanoseconds",
             desc: "The new nanoseconds inside the second, `0` to `999999999`. If you leave \
                    it out, they stay the same.",
             shape: &[],
@@ -3544,7 +3546,7 @@ const TIME_OF_DAY_SECOND_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Time\TimeOfDay::nanos`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Time\TimeOfDay::nanoseconds`'s reference card — `rule:core-api/reference-card`.
 const TIME_OF_DAY_NANOS_DOC: MethodDoc = MethodDoc {
     short: "Returns the part of the second after the whole seconds, in nanoseconds.",
     params: &[],
@@ -3574,7 +3576,9 @@ fn time_of_day_address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_time_of_day_hour" => (nvs_core_time_of_day_hour as *const ()).cast(),
         "nvs_core_time_of_day_minute" => (nvs_core_time_of_day_minute as *const ()).cast(),
         "nvs_core_time_of_day_second" => (nvs_core_time_of_day_second as *const ()).cast(),
-        "nvs_core_time_of_day_nanos" => (nvs_core_time_of_day_nanos as *const ()).cast(),
+        "nvs_core_time_of_day_nanoseconds" => {
+            (nvs_core_time_of_day_nanoseconds as *const ()).cast()
+        }
         _ => return None,
     }))
 }
@@ -4630,32 +4634,32 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Time\Instant::fromEpoch(int $seconds, { nanos?: uint }): Instant`.
+    /// `Core\Time\Instant::fromEpoch(int $seconds, { nanoseconds?: uint }): Instant`.
     ///
-    /// The `nanos` option is added *after* the second, rather than written
+    /// The `nanoseconds` option is added *after* the second, rather than written
     /// into the slot beside it, so that a negative second and a positive
-    /// `nanos` mean what a reader expects — one nanosecond after
+    /// `nanoseconds` mean what a reader expects — one nanosecond after
     /// `-1`, not one before it.
     fn nvs_core_time_instant_from_epoch(_ctx, args: [2]) {
         let seconds = count(args, 0, "fromEpoch")?;
-        // Unreachable from source: `nanos` is a `CoreTy::Uint` option in
+        // Unreachable from source: `nanoseconds` is a `CoreTy::Uint` option in
         // `CLASS` above, so anything else is `E0401: expected uint, found
-        // mixed` — reported inside the `{nanos: …}` anonymous object at the call,
+        // mixed` — reported inside the `{nanoseconds: …}` anonymous object at the call,
         // which is where an option is written and where it was probed.
         let nanos = args[1].as_uint().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Time\\Instant::fromEpoch expected a `uint` for `nanos`, got tag {}",
+                "Core\\Time\\Instant::fromEpoch expected a `uint` for `nanoseconds`, got tag {}",
                 args[1].tag_byte()
             ))
         })?;
         if nanos >= 1_000_000_000 {
             return Err(out_of_range(
                 r"Core\Time\Instant::fromEpoch",
-                "`nanos` is a subsecond count, so it is below 1000000000",
+                "`nanoseconds` is a subsecond count, so it is below 1000000000",
             ));
         }
         // The range is the timestamp's own, named in seconds because that is
-        // what the caller passed. `nanos` cannot push an accepted second past
+        // what the caller passed. `nanoseconds` cannot push an accepted second past
         // it: the last representable instant is a whole second plus
         // 999999999 nanoseconds, so the second failure is unreachable too.
         let outside = || {
@@ -4667,7 +4671,7 @@ nvs_runtime::nvs_helper! {
         let at = Timestamp::from_second(seconds).map_err(|_| outside())?;
         #[expect(
             clippy::cast_possible_wrap,
-            reason = "the bound checked one line above puts `nanos` below \
+            reason = "the bound checked one line above puts `nanoseconds` below \
                       1e9, which is well inside `i64`"
         )]
         let offset = SignedDuration::from_nanos(nanos as i64);
@@ -5244,7 +5248,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$d->with({year?, month?, day?, hour?, minute?, second?, nanos?}):
+    /// `$d->with({year?, month?, day?, hour?, minute?, second?, nanoseconds?}):
     /// DateTime` — replaces `setDate`, `setTime` and `setISODate`.
     ///
     /// An omitted option arrives as `Tag::Null` and leaves its field alone;
@@ -5277,10 +5281,10 @@ nvs_runtime::nvs_helper! {
                 _ => building.second(value),
             };
         }
-        if let Some(nanos) = optional(args, 7, r"Core\Time\DateTime::with", "nanos")? {
+        if let Some(nanos) = optional(args, 7, r"Core\Time\DateTime::with", "nanoseconds")? {
             building = building.subsec_nanosecond(
                 i32::try_from(nanos).map_err(|_| {
-                    out_of_range(r"Core\Time\DateTime::with", "`nanos` is a subsecond count")
+                    out_of_range(r"Core\Time\DateTime::with", "`nanoseconds` is a subsecond count")
                 })?,
             );
         }
@@ -5298,7 +5302,7 @@ nvs_runtime::nvs_helper! {
     /// The same body as [`nvs_core_time_datetime_with`] reached from a
     /// component view instead of an options bag, and the one call of the two
     /// that cannot be partial: a `TimeOfDay` carries all four clock fields, so
-    /// `nanos` is replaced as surely as `hour` is and there is no
+    /// `nanoseconds` is replaced as surely as `hour` is and there is no
     /// omitted-option case to leave alone. The date and the zone are what stay,
     /// which is why this is not `Core\Time\DateTime::at` with three fields copied over.
     ///
@@ -5523,9 +5527,9 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$d->nanos(): uint` — the subsecond part, which no zone offset moves.
-    fn nvs_core_time_datetime_nanos(_ctx, args: [1]) {
-        let at = zoned_of(args, 0, "nanos")?;
+    /// `$d->nanoseconds(): uint` — the subsecond part, which no zone offset moves.
+    fn nvs_core_time_datetime_nanoseconds(_ctx, args: [1]) {
+        let at = zoned_of(args, 0, "nanoseconds")?;
         Ok(Value::uint(at.subsec_nanosecond().unsigned_abs().into()))
     }
 }
@@ -6054,7 +6058,7 @@ fn clock_cycle(unit: jiff::Unit) -> i64 {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `TimeOfDay::at(uint $hour, uint $minute, {second?, nanos?}):
+    /// `TimeOfDay::at(uint $hour, uint $minute, {second?, nanoseconds?}):
     /// TimeOfDay` — the zone-free constructor, with the two fields a wall
     /// clock usually leaves off defaulting to zero ([`AT_OPTIONS`]).
     fn nvs_core_time_of_day_at(_ctx, args: [4]) {
@@ -6062,7 +6066,7 @@ nvs_runtime::nvs_helper! {
         let hour = field_at(args, 0, label, "hour")?;
         let minute = field_at(args, 1, label, "minute")?;
         let second = field_at(args, 2, label, "second")?;
-        let nanos = field_at(args, 3, label, "nanos")?;
+        let nanos = field_at(args, 3, label, "nanoseconds")?;
         clock_from_parts(hour, minute, second, nanos)
             .map(clock_built)
             .ok_or_else(|| {
@@ -6117,7 +6121,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$t->with({hour?, minute?, second?, nanos?}): TimeOfDay` — an omitted
+    /// `$t->with({hour?, minute?, second?, nanoseconds?}): TimeOfDay` — an omitted
     /// option leaves its field, for [`WITH_OPTIONS`]'s reason.
     fn nvs_core_time_of_day_with(_ctx, args: [5]) {
         let label = r"Core\Time\TimeOfDay::with";
@@ -6135,9 +6139,9 @@ nvs_runtime::nvs_helper! {
                 _ => building.second(value),
             };
         }
-        if let Some(nanos) = optional(args, 4, label, "nanos")? {
+        if let Some(nanos) = optional(args, 4, label, "nanoseconds")? {
             building = building.subsec_nanosecond(i32::try_from(nanos).map_err(|_| {
-                out_of_range(label, "`nanos` is a subsecond count")
+                out_of_range(label, "`nanoseconds` is a subsecond count")
             })?);
         }
         building
@@ -6184,9 +6188,9 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$t->nanos(): uint` — the reading's subsecond slot.
-    fn nvs_core_time_of_day_nanos(_ctx, args: [1]) {
-        let at = clock_of(args, 0, "nanos")?;
+    /// `$t->nanoseconds(): uint` — the reading's subsecond slot.
+    fn nvs_core_time_of_day_nanoseconds(_ctx, args: [1]) {
+        let at = clock_of(args, 0, "nanoseconds")?;
         Ok(Value::uint(at.subsec_nanosecond().unsigned_abs().into()))
     }
 }
@@ -6477,7 +6481,7 @@ mod tests {
         }
     }
 
-    /// `fromEpoch` adds `nanos` after the second, accepts exactly the
+    /// `fromEpoch` adds `nanoseconds` after the second, accepts exactly the
     /// timestamp range at both ends, and refuses past it in its own sentence.
     // covers: Core\Time\Instant::fromEpoch
     #[test]
@@ -6506,7 +6510,7 @@ mod tests {
         for nanos in [1_000_000_000, u64::MAX] {
             assert_eq!(
                 built_from_epoch(0, nanos),
-                Err(r"Core\Time\Instant::fromEpoch(): `nanos` is a subsecond count, so it is below 1000000000".to_owned())
+                Err(r"Core\Time\Instant::fromEpoch(): `nanoseconds` is a subsecond count, so it is below 1000000000".to_owned())
             );
         }
     }
@@ -8769,7 +8773,7 @@ mod tests {
         }
     }
 
-    /// The seven field readers called on `at`, year first and `nanos` last.
+    /// The seven field readers called on `at`, year first and `nanoseconds` last.
     fn datetime_fields(at: &Zoned) -> (Option<i64>, [Option<u64>; 6]) {
         let year = datetime_view(nvs_core_time_datetime_year, at, |v| v.as_int());
         let rest = [
@@ -8778,7 +8782,7 @@ mod tests {
             nvs_core_time_datetime_hour,
             nvs_core_time_datetime_minute,
             nvs_core_time_datetime_second,
-            nvs_core_time_datetime_nanos,
+            nvs_core_time_datetime_nanoseconds,
         ]
         .map(|member| datetime_view(member, at, |v| v.as_uint()));
         (year, rest)
@@ -8788,7 +8792,7 @@ mod tests {
     /// is New Year's Day in Kiritimati and still New Year's Eve in Pago Pago,
     /// on either side of the date line, and the last and first civil
     /// nanoseconds of the range read as themselves.
-    // covers: Core\Time\DateTime::year, Core\Time\DateTime::month, Core\Time\DateTime::day, Core\Time\DateTime::hour, Core\Time\DateTime::minute, Core\Time\DateTime::second, Core\Time\DateTime::nanos
+    // covers: Core\Time\DateTime::year, Core\Time\DateTime::month, Core\Time\DateTime::day, Core\Time\DateTime::hour, Core\Time\DateTime::minute, Core\Time\DateTime::second, Core\Time\DateTime::nanoseconds
     #[cfg_attr(miri, ignore = "`jiff` finds no time zone database under Miri")]
     #[test]
     fn datetime_fields_are_read_in_the_values_own_zone() {
@@ -9320,7 +9324,7 @@ mod tests {
 
     /// `hour`, `minute`, `second` and `nanos` are the four slots the reading
     /// was built from, at both ends of the day and with a nanosecond part.
-    // covers: Core\Time\TimeOfDay::hour, Core\Time\TimeOfDay::minute, Core\Time\TimeOfDay::second, Core\Time\TimeOfDay::nanos
+    // covers: Core\Time\TimeOfDay::hour, Core\Time\TimeOfDay::minute, Core\Time\TimeOfDay::second, Core\Time\TimeOfDay::nanoseconds
     #[test]
     fn time_of_day_fields_are_its_four_slots() {
         for parts in [
@@ -9334,7 +9338,7 @@ mod tests {
                 nvs_core_time_of_day_hour as nvs_runtime::NvsFn,
                 nvs_core_time_of_day_minute,
                 nvs_core_time_of_day_second,
-                nvs_core_time_of_day_nanos,
+                nvs_core_time_of_day_nanoseconds,
             ]
             .map(|member| {
                 clock_called(member, vec![clock_built(at)], |v| v.as_uint())

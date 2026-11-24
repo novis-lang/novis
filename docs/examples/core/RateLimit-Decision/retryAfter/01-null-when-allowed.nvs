@@ -13,5 +13,5 @@ echo $firstWait == null ? 'no wait' : 'wait', "\n";
 var $second = Core\RateLimit::shed('feedback:form', 1, 15m);
 var $secondWait = $second->retryAfter();
 if ($secondWait != null) {
-    echo 'wait ', Core\Math::intDiv($secondWait->toMilliseconds() + 999, 1000), " seconds\n";
+    echo 'wait ', Core\Math::quotient($secondWait->toMilliseconds() + 999, 1000), " seconds\n";
 }

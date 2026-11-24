@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the part of a second after the whole seconds, in nanoseconds.
+
+var $start = Core\Time\DateTime::fromIso('2024-06-03 12:00:05.25', 'UTC');
+
+// One second has 1000000000 nanoseconds. A quarter of a second is 250000000, so this prints 250000000.
+echo $start->nanoseconds(), "\n";
+
+// `format` with `SSS` prints the same part as milliseconds. This prints 12:00:05.250.
+echo $start->format('HH:mm:ss.SSS'), "\n";

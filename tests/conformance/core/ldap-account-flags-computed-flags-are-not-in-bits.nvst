@@ -1,5 +1,5 @@
 --TEST--
-`passwordExpired` and `lockedOut` read the flags AD computes, not `userAccountControl`: a user who must change the password has an expired password that `bits()` does not show, and nobody is locked out — `rule:core-classes/ldap-value-types`
+`isPasswordExpired` and `isLockedOut` read the flags AD computes, not `userAccountControl`: a user who must change the password has an expired password that `bits()` does not show, and nobody is locked out — `rule:core-classes/ldap-value-types`
 --SKIPIF--
 <?nvs
 // The case needs the `samba-ad` server from `tests/db/compose.yaml`. Where it
@@ -24,13 +24,13 @@ foreach ($logins as string $login) {
         if ($flags == null) {
             echo $login, ": no flags", "\n";
         } else {
-            echo $login, ": expired ", $flags->passwordExpired() ? "yes" : "no",
+            echo $login, ": expired ", $flags->isPasswordExpired() ? "yes" : "no",
                 ", in bits ", ($flags->bits() & 8388608) != 0 ? "yes" : "no",
-                ", locked out ", $flags->lockedOut() ? "yes" : "no", "\n";
+                ", locked out ", $flags->isLockedOut() ? "yes" : "no", "\n";
         }
     }
 }
-// covers: Core\Ldap\Ad\AccountFlags::passwordExpired, Core\Ldap\Ad\AccountFlags::lockedOut
+// covers: Core\Ldap\Ad\AccountFlags::isPasswordExpired, Core\Ldap\Ad\AccountFlags::isLockedOut
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--

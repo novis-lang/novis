@@ -11,7 +11,7 @@ class Bench
         // One line of the order is 38 bytes with its comma. The body stays under `$size` bytes,
         // so the largest one is inside the default request body limit of 8 MiB.
         string $line = '{"sku":"TEA-1","cents":450,"count":2}';
-        uint $count = Core\Math::intDiv($size as int - 64, 38) as uint;
+        uint $count = Core\Math::quotient($size as int - 64, 38) as uint;
         string $body = '{"customer":"c-1042","items":[' . Core\Str::repeat($line . ',', $count - 1) . $line . ']}';
         array<string> $lines = [
             '// scaling: file jsonAs.nvsr',

@@ -16,8 +16,8 @@ class Bench
         uint $hundreds = ($size / 100000) as uint;
         foreach ($parts as uint $part) {
             // A power of 3 and a power of 5. Each has about `$size * $part / 1000` binary digits.
-            var $left = $three->pow($hundreds * $part * 63);
-            var $right = $five->pow($hundreds * $part * 43);
+            var $left = $three->raisedTo($hundreds * $part * 63);
+            var $right = $five->raisedTo($hundreds * $part * 43);
             $signs = $signs + ($left->gcd($right)->sign() as uint);
         }
         return $signs;

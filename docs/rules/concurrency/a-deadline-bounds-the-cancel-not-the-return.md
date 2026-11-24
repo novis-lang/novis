@@ -14,7 +14,7 @@ on when the work stops being asked for; it is not a hard wall-clock guarantee on
 A deadline cancels every child still running, and the call waits for them
 (`crates/nvs-host/src/group.rs:60`). A `Core\Db` statement or walk whose read fails calls
 `nvs_stdlib::db::settle_interrupted` (`crates/nvs-stdlib/src/db/execute.rs`), bounded by the
-`timeout` its `connect` or `open` named, or `[db.<name>.pool] acquire`'s default; a `stream`'s
+`timeout` its `connect` or `open` named, or `[db.<name>.pool] acquire`'s default; a `queryEach`'s
 opening call does the same. PostgreSQL sends its cancel there (`crates/nvs-db/src/pg.rs`), and
 MySQL and MariaDB send `KILL QUERY` over a second connection logged in as the first
 (`crates/nvs-db/src/mysql.rs`). SQL Server sends an attention on the same socket and reads to the

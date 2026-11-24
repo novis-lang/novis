@@ -2,7 +2,7 @@
 echo 'abs=' . Core\Math::abs(-7) . "\n";
 echo 'clamp=' . Core\Math::clamp(42, 0, 10) . "\n";
 echo 'gcd=' . Core\Math::gcd(84, 36) . "\n";
-echo 'intDiv=' . Core\Math::intDiv(17, 5) . "\n";
+echo 'intDiv=' . Core\Math::quotient(17, 5) . "\n";
 echo 'hex=' . Core\Math::toBase(48879, 16) . "\n";
 echo 'back=' . Core\Math::fromBase('beef', 16) . "\n";
 echo 'root=' . Core\Math::format(Core\Math::sqrt(2.25), { decimals: 1 }) . "\n";

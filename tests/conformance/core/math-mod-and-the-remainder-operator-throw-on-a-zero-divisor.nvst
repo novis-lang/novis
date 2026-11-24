@@ -1,17 +1,17 @@
 --TEST--
-Core\Math::mod throws on a zero divisor of either sign whatever the dividend is, and the `%` operator throws on a zero divisor too
+Core\Math::remainder throws on a zero divisor of either sign whatever the dividend is, and the `%` operator throws on a zero divisor too
 --FILE--
 <?nvs
 // A zero divisor throws an error. The dividend does not change that.
 try {
-    var $ordinary = Core\Math::mod(7.5, 0.0);
+    var $ordinary = Core\Math::remainder(7.5, 0.0);
     echo "answered\n";
 } catch (Throwable $byZero) {
     echo "refused\n";
 }
 
 try {
-    var $zeroOverZero = Core\Math::mod(0.0, 0.0);
+    var $zeroOverZero = Core\Math::remainder(0.0, 0.0);
     echo "answered\n";
 } catch (Throwable $zeroDividend) {
     echo "refused\n";
@@ -19,7 +19,7 @@ try {
 
 float $huge = Core\Math::INFINITY;
 try {
-    var $infiniteOverZero = Core\Math::mod($huge, 0.0);
+    var $infiniteOverZero = Core\Math::remainder($huge, 0.0);
     echo "answered\n";
 } catch (Throwable $infiniteDividend) {
     echo "refused\n";
@@ -27,13 +27,13 @@ try {
 
 // `-0.0` is a zero divisor too.
 try {
-    var $negativeZero = Core\Math::mod(7.5, -0.0);
+    var $negativeZero = Core\Math::remainder(7.5, -0.0);
     echo "answered\n";
 } catch (Throwable $signedZero) {
     echo "refused\n";
 }
 
-// `Core\Math::mod` takes two `float` values. For two `int` values, use `%`.
+// `Core\Math::remainder` takes two `float` values. For two `int` values, use `%`.
 // The result has the sign of the dividend.
 echo 7 % 2, " ", -7 % 2, " ", 7 % -2, "\n";
 
@@ -46,7 +46,7 @@ try {
 }
 
 // Any divisor that is not zero gives a result with the sign of the dividend.
-echo Core\Math::mod(7.5, 2.0), " ", Core\Math::mod(-7.5, 2.0), "\n";
+echo Core\Math::remainder(7.5, 2.0), " ", Core\Math::remainder(-7.5, 2.0), "\n";
 --EXPECT--
 refused
 refused

@@ -38,8 +38,8 @@ array<string> $routes = [
 // reflexive, and `App\Unrelated` reaches a different interface entirely.
 // Counting rather than printing the tags is what makes a member that grew a
 // sixth entry fail here instead of printing a plausible list.
-echo "unreached=", Core\Arr::count(Core\Arr::diff($routes, $tags)), "\n";
-echo "unexpected=", Core\Arr::count(Core\Arr::diff($tags, $routes)), "\n";
+echo "unreached=", Core\Arr::count(Core\Arr::difference($routes, $tags)), "\n";
+echo "unexpected=", Core\Arr::count(Core\Arr::difference($tags, $routes)), "\n";
 echo "enumerated=", Core\Arr::count($found), "\n";
 --FILE modules/Module.nvs--
 <?nvs

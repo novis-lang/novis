@@ -53,7 +53,7 @@ foreach ($db->queryAs<Account>("select id, name from accounts order by id", [])-
 
 // `rule:classes/no-traits` declares the member once, on `Core\Db\Queryable`, so
 // the door a transaction's call reaches is the connection's.
-$db->transaction(fn (Core\Db\Transaction $tx): void => {
+$db->runTransaction(fn (Core\Db\Transaction $tx): void => {
     foreach ($tx->queryAs<Account>("select id, name from accounts order by id desc", [])->all() as Account $mirrored) {
         echo "in transaction ", $mirrored->who, " ", $mirrored->twice, "\n";
     }

@@ -4490,13 +4490,14 @@ fn a_zero_divisor_carries_an_error_edge_on_the_float_row_too() {
     assert!(product.on_error.is_none(), "{product:?}");
 }
 
-/// A direct `Core\Math::intDiv` call lowers to one [`BinOp::IntDiv`] with an
+/// A direct `Core\Math::quotient` call lowers to one [`BinOp::IntDiv`] with an
 /// error edge and no `CoreCall`, so `nvs-codegen` emits the division and its
 /// two throws inline.
 #[test]
 fn a_direct_int_div_call_is_an_inline_division_with_an_error_edge() {
-    let (f, _, _) =
-        lower_script_src("<?nvs\nint $a = 7;\nint $b = 2;\nint $q = Core\\Math::intDiv($a, $b);\n");
+    let (f, _, _) = lower_script_src(
+        "<?nvs\nint $a = 7;\nint $b = 2;\nint $q = Core\\Math::quotient($a, $b);\n",
+    );
     let insts = || f.blocks.iter().flat_map(|b| &b.insts);
     let division = insts()
         .find(|i| {
@@ -4508,7 +4509,7 @@ fn a_direct_int_div_call_is_an_inline_division_with_an_error_edge() {
                 }
             )
         })
-        .expect("the fixture lowers one inline `intDiv`");
+        .expect("the fixture lowers one inline `quotient`");
     assert!(division.on_error.is_some(), "{division:?}");
     assert_eq!(division.ty, Some(Ty::Int), "{division:?}");
     assert!(
@@ -6924,7 +6925,7 @@ fn a_caught_conversion_that_assigns_null_compiles_as_the_nullable_conversion() {
 }
 
 /// Row `filter-contains`: a `filter` whose callback tests `contains` against a
-/// captured array is `diff` where the test is negated and `intersect` where it
+/// captured array is `difference` where the test is negated and `intersection` where it
 /// is not, in an arrow body and in a block of one `return`. A callback over
 /// array elements, and one that tests a literal array, stay a `filter`. With
 /// the table off, all five are `filter`.
@@ -6951,12 +6952,12 @@ fn a_difference_written_as_filter_and_contains_compiles_as_diff() {
             .count()
     }
     let (on, off) = core_calls_both_ways(src);
-    assert_eq!(count_of(&on, "nvs_core_arr_diff"), 1, "{on:?}");
-    assert_eq!(count_of(&on, "nvs_core_arr_intersect"), 1, "{on:?}");
+    assert_eq!(count_of(&on, "nvs_core_arr_difference"), 1, "{on:?}");
+    assert_eq!(count_of(&on, "nvs_core_arr_intersection"), 1, "{on:?}");
     assert_eq!(filters(&on), 3, "{on:?}");
     assert_eq!(filters(&off), 5, "{off:?}");
-    assert_eq!(count_of(&off, "nvs_core_arr_diff"), 0, "{off:?}");
-    assert_eq!(count_of(&off, "nvs_core_arr_intersect"), 0, "{off:?}");
+    assert_eq!(count_of(&off, "nvs_core_arr_difference"), 0, "{off:?}");
+    assert_eq!(count_of(&off, "nvs_core_arr_intersection"), 0, "{off:?}");
 }
 
 /// Rows `first-of-filter`, `first-key-of-filter` and `any-of-filter`: a
@@ -7323,7 +7324,7 @@ fn a_comparator_of_one_expression_sorts_by_it() {
     let src = "<?nvs\nfinal class T {\n  \
                public static function m(array<string> $a, array<string> $b): void {\n    \
                echo Core\\Str::join(Core\\Arr::sort($a, {comparator: fn(string $x, string $y): int => Core\\Str::length($x) <=> Core\\Str::length($y)}), \",\");\n    \
-               echo Core\\Str::join(Core\\Arr::diff($a, $b, {comparator: fn(string $x, string $y): int => Core\\Str::length($x) <=> Core\\Str::length($y)}), \",\");\n    \
+               echo Core\\Str::join(Core\\Arr::difference($a, $b, {comparator: fn(string $x, string $y): int => Core\\Str::length($x) <=> Core\\Str::length($y)}), \",\");\n    \
                echo Core\\Str::join(Core\\Arr::sort($a, {comparator: fn(string $x, string $y): int => Core\\Str::length($y) <=> Core\\Str::length($x)}), \",\");\n    \
                echo Core\\Str::join(Core\\Arr::sort($a, {comparator: fn(string $x, string $y): int => ($x as int) <=> ($y as int)}), \",\");\n  }\n}\n";
     let by_objects = |program: &crate::ir::Program| {

@@ -45,10 +45,10 @@ try {
         uint $round = 0;
         while ($round < 100000) {
             bool $on = $round % 2 == 0;
-            $changed = $changed->with({ script: $on, disabled: $on, passwordNotRequired: $on, partialSecretsAccount: $on, trustedToAuthForDelegation: $on });
+            $changed = $changed->with({ script: $on, disabled: $on, passwordNotRequired: $on, partialSecretsAccount: $on, trustedToAuthenticateForDelegation: $on });
             $round = $round + 1;
         }
-        echo '2 bits: ', $changed->bits(), ' locked out: ', $changed->lockedOut() ? 'yes' : 'no', "\n";
+        echo '2 bits: ', $changed->bits(), ' locked out: ', $changed->isLockedOut() ? 'yes' : 'no', "\n";
     }
 } catch (Throwable $error) {
     echo "2 threw\n";

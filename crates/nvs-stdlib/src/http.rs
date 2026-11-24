@@ -418,7 +418,9 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_http_response_tls" => (nvs_core_http_response_tls as *const ()).cast(),
         "nvs_core_http_tls_info_version" => (nvs_core_http_tls_info_version as *const ()).cast(),
         "nvs_core_http_tls_info_cipher" => (nvs_core_http_tls_info_cipher as *const ()).cast(),
-        "nvs_core_http_tls_info_verified" => (nvs_core_http_tls_info_verified as *const ()).cast(),
+        "nvs_core_http_tls_info_is_verified" => {
+            (nvs_core_http_tls_info_is_verified as *const ()).cast()
+        }
         "nvs_core_http_tls_info_peer_chain" => {
             (nvs_core_http_tls_info_peer_chain as *const ()).cast()
         }
@@ -964,7 +966,7 @@ macro_rules! connection_options {
 }
 
 /// A macro rather than a slice, for [`request_params`]' reason one axis over:
-/// `stream` carries these keys and the two bounds a body read as it arrives has
+/// `openStream` carries these keys and the two bounds a body read as it arrives has
 /// of its own, so one row's bag is the other's with a group after it. A `const`
 /// slice cannot be extended, and a second copy of the shared keys would say the
 /// same thing until it did not.
@@ -1070,11 +1072,11 @@ macro_rules! request_options {
 ) };
 }
 
-/// Every row but `stream`'s bag: what a buffered call may write, and nothing
+/// Every row but `openStream`'s bag: what a buffered call may write, and nothing
 /// else — see [`request_options`].
 const OPTIONS: &[CoreOption] = request_options!();
 
-/// `stream`'s bag: the shared keys, then
+/// `openStream`'s bag: the shared keys, then
 /// `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`'s two
 /// further bounds.
 ///
@@ -1522,7 +1524,7 @@ const MAX_DURATION: usize = 22;
 /// they are read.
 const REQUEST_ARITY: usize = OPTIONS.len() + 1;
 
-/// How many arguments `stream` takes after the verb it is handed: the URL plus
+/// How many arguments `openStream` takes after the verb it is handed: the URL plus
 /// one per key of [`STREAM_OPTIONS`], which is [`REQUEST_ARITY`] and the two
 /// bounds that bag adds. Its helper row takes the verb in front and the
 /// call-site id last as well. Derived for that constant's reason.
@@ -1618,7 +1620,7 @@ impl Bag {
     }
 }
 
-/// [`OPTIONS`]' flattening, which every request row and `stream` share.
+/// [`OPTIONS`]' flattening, which every request row and `openStream` share.
 const REQUEST_BAG: Bag = Bag {
     relaxing: TLS_CA,
     identity: IDENTITY_AT,
@@ -1686,7 +1688,7 @@ const DEFAULT_SEND_TIMEOUT: Duration = nvs_config::defaults::HTTP_CLIENT_SOCKET_
 /// `Core\Http\Method` case at slot 0, which is also how `Options` and `Trace`
 /// are sent, and pays for it by answering that question at the call instead.
 /// There is no request object anywhere in this: the bag is the whole of what a
-/// call says. Every buffered row takes the same one, and `stream` takes it with
+/// call says. Every buffered row takes the same one, and `openStream` takes it with
 /// the two bounds a body read as it arrives has of its own
 /// ([`STREAM_OPTIONS`]).
 ///
@@ -1782,7 +1784,7 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
         // [`OPTIONS`], because `idle` and `maxDuration` bound a body no other
         // row has.
         CoreMethod {
-            name: "stream",
+            name: "openStream",
             names: &["method", "url"],
             params: &[
                 CoreTy::Enum(crate::router::METHOD_NAME),
@@ -1792,7 +1794,7 @@ pub(crate) const CLIENT: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(stream::STREAM_NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_http_client_stream",
+            symbol: "nvs_core_http_client_open_stream",
             doc: Some(&STREAM_DOC),
         },
         // The only row that opens something the program then holds, and the
@@ -2074,7 +2076,7 @@ const RESPONSE_CARD: ClassDoc = ClassDoc {
 /// `Core\Http\TlsInfo` — what one reply's session settled, and whether it
 /// checked anything (`rule:http-server/a-reply-reports-its-tls-session`).
 ///
-/// **`verified` is the member this class exists for.** A deployment that relaxed
+/// **`isVerified` is the member this class exists for.** A deployment that relaxed
 /// verification for one partner host has no other way to assert, in a test and
 /// in production telemetry, that every *other* call still verified — the grant
 /// is otherwise unobservable from inside the language.
@@ -2092,7 +2094,7 @@ const RESPONSE_CARD: ClassDoc = ClassDoc {
 /// Which that last member answers with, and the one `Core\Http` reader whose
 /// answer is `null` for an ordinary reply: a plain `http` exchange had no
 /// session to report. `rule:http-server/a-reply-reports-its-tls-session` is
-/// why `verified` is on it at all — a deployment that relaxed trust at one
+/// why `isVerified` is on it at all — a deployment that relaxed trust at one
 /// host has no other way to assert that every other call did not.
 // rank: 1190
 pub(crate) const TLS_INFO: CoreClass = CoreClass {
@@ -2121,13 +2123,13 @@ pub(crate) const TLS_INFO: CoreClass = CoreClass {
             doc: Some(&CIPHER_DOC),
         },
         CoreMethod {
-            name: "verified",
+            name: "isVerified",
             names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_http_tls_info_verified",
+            symbol: "nvs_core_http_tls_info_is_verified",
             doc: Some(&VERIFIED_DOC),
         },
         CoreMethod {
@@ -2211,7 +2213,7 @@ const CIPHER_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Http\TlsInfo::verified`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Http\TlsInfo::isVerified`'s reference card — `rule:core-api/reference-card`.
 const VERIFIED_DOC: MethodDoc = MethodDoc {
     short: "Returns whether the connection checked both the server's certificate chain and the \
             name on it.",
@@ -2273,7 +2275,7 @@ const NO_END_ERROR: ErrorDoc = ErrorDoc {
 const LEAF_ERROR: ErrorDoc = ErrorDoc {
     error: "RuntimeError",
     desc: "The server sent no certificate, or its leaf certificate is not X.509 that this method \
-           can read. `version`, `cipher`, `verified` and `peerChain` still work, because they do \
+           can read. `version`, `cipher`, `isVerified` and `peerChain` still work, because they do \
            not read inside a certificate.",
 };
 
@@ -2448,7 +2450,7 @@ const REQUEST_PARAMS: &[ParamDoc] = request_params!();
 /// `request`'s: the verb it is handed, ahead of what every other row documents.
 const DYNAMIC_PARAMS: &[ParamDoc] = request_params!(METHOD_PARAM);
 
-/// `stream`'s: `request`'s list, and after it the two bounds that row's own bag
+/// `openStream`'s: `request`'s list, and after it the two bounds that row's own bag
 /// declares — see [`STREAM_OPTIONS`].
 const STREAM_PARAMS: &[ParamDoc] = request_params!(METHOD_PARAM ; IDLE_PARAM, MAX_DURATION_PARAM);
 
@@ -2561,7 +2563,7 @@ const PING_PARAM: ParamDoc = ParamDoc {
     shape: &[],
 };
 
-/// The silence bound `stream` carries — see [`STREAM_PARAMS`].
+/// The silence bound `openStream` carries — see [`STREAM_PARAMS`].
 const IDLE_PARAM: ParamDoc = ParamDoc {
     name: "idle",
     desc: "The longest time the body may be silent after the status and headers arrive. If it \
@@ -2570,7 +2572,7 @@ const IDLE_PARAM: ParamDoc = ParamDoc {
     shape: &[],
 };
 
-/// The lifetime bound `stream` carries — see [`STREAM_PARAMS`].
+/// The lifetime bound `openStream` carries — see [`STREAM_PARAMS`].
 const MAX_DURATION_PARAM: ParamDoc = ParamDoc {
     name: "maxDuration",
     desc: "The longest time the whole body may take. This limit stops a server that sends one \
@@ -2604,7 +2606,7 @@ const REQUEST_ERRORS: &[ErrorDoc] = &[
                it has no host. Or `net.connect` does not grant the host. Or the host resolves to \
                a loopback, private, link-local or unspecified address that `net.internal` does \
                not list. An option is out of range. A `deadline`, `connectTimeout` or \
-               `retryBackoff` is not a positive duration. On `stream`, the same is true for \
+               `retryBackoff` is not a positive duration. On `openStream`, the same is true for \
                `idle` and `maxDuration`. Or `retryAttempts` is zero. A header name or value \
                contains a control byte, which would end the line early. An `https` server sent a \
                certificate that does not verify against the certificate authorities Novis \
@@ -2692,7 +2694,7 @@ const REQUEST_DOC: MethodDoc = MethodDoc {
     errors: REQUEST_ERRORS,
 };
 
-/// `Core\Http\Client::stream`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Http\Client::openStream`'s reference card — `rule:core-api/reference-card`.
 const STREAM_DOC: MethodDoc = MethodDoc {
     short: "Sends a request with `$method` to `$url`, and returns when the status and headers \
             arrive. The program then reads the body as it comes. Use it for a reply that is read \
@@ -3925,7 +3927,7 @@ fn tls_info(tls: Option<transport::Tls>) -> Value {
     }
 }
 
-/// A `Core\Http\TlsInfo` over `session`, reporting `verified` — the one place
+/// A `Core\Http\TlsInfo` over `session`, reporting `isVerified` — the one place
 /// the class's four slots are filled, for a handshake's session and for the
 /// one `Core\Test::tlsSession` describes. The caller owns it.
 pub(crate) fn tls_info_of(session: &nvs_host::tls::Session, verified: bool) -> Value {
@@ -5455,7 +5457,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Http\TlsInfo::verified(): bool` — whether the chain *and* the name
+    /// `Core\Http\TlsInfo::isVerified(): bool` — whether the chain *and* the name
     /// were both checked, which is the member
     /// `rule:http-server/a-reply-reports-its-tls-session` exists for.
     ///
@@ -5466,8 +5468,8 @@ nvs_runtime::nvs_helper! {
     /// # Errors
     ///
     /// [`nvs_core_http_tls_info_version`]'s.
-    fn nvs_core_http_tls_info_verified(_ctx, args: [1]) {
-        crate::instance::read_slot(args, &TLS_INFO, TLS_VERIFIED_SLOT, "verified")
+    fn nvs_core_http_tls_info_is_verified(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &TLS_INFO, TLS_VERIFIED_SLOT, "isVerified")
     }
 }
 
@@ -5936,7 +5938,7 @@ mod tests {
         }
         assert_eq!(REQUEST_ARITY, OPTIONS.len() + 1);
 
-        // `stream`'s bag is the same layout with a group after it, so its two
+        // `openStream`'s bag is the same layout with a group after it, so its two
         // slots are asserted against the bag that declares them — the one row
         // whose arguments the shared reading walks past the end of.
         for (position, shared) in OPTIONS.iter().enumerate() {
@@ -6751,11 +6753,11 @@ mod tests {
         assert!(body.is_empty(), "a reply with no body is an empty body");
     }
 
-    /// `Core\Http\Client::stream` returns once the head has arrived: the origin
+    /// `Core\Http\Client::openStream` returns once the head has arrived: the origin
     /// below writes its status line and headers and holds the body back until
     /// the call has returned. The verb on the wire is the one the call was
     /// given, and the body slot holds the key of a reader rather than octets.
-    // covers: Core\Http\Client::stream
+    // covers: Core\Http\Client::openStream
     #[test]
     fn stream_answers_at_the_head_while_the_origin_still_holds_the_body() {
         use std::io::{Read, Write};
@@ -6798,7 +6800,8 @@ mod tests {
         args[HEADERS] = Value::array(NvsArray::new());
         args[JSON] = Value::unset();
         let (status, body, headers, _) =
-            super::exchanged(&mut ctx, &args, "stream", "POST", true, 0).expect("the head arrived");
+            super::exchanged(&mut ctx, &args, "openStream", "POST", true, 0)
+                .expect("the head arrived");
         release.send(()).ok();
         let (head, held_back) = served.join().expect("the origin thread");
 
@@ -7465,12 +7468,12 @@ mod tests {
         }
     }
 
-    /// `Core\Http\TlsInfo::verified` reads back the flag the session was filled
+    /// `Core\Http\TlsInfo::isVerified` reads back the flag the session was filled
     /// with, from a handshake's slot and from a described session alike, and
     /// the flag is each session's own: one described chain read under both
     /// flags answers both. A receiver that is not an object is a fatal, not a
     /// `bool`.
-    // covers: Core\Http\TlsInfo::verified
+    // covers: Core\Http\TlsInfo::isVerified
     #[cfg_attr(
         miri,
         ignore = "`ring` runs C and assembly, which Miri cannot interpret"
@@ -7494,8 +7497,8 @@ mod tests {
                 super::tls_info_of(&described, verified),
             ] {
                 let read =
-                    nvs_runtime::call(super::nvs_core_http_tls_info_verified, &mut ctx, &[info])
-                        .expect("`verified` never throws");
+                    nvs_runtime::call(super::nvs_core_http_tls_info_is_verified, &mut ctx, &[info])
+                        .expect("`isVerified` never throws");
                 assert_eq!(read.as_bool(), Some(verified));
                 #[expect(unsafe_code, reason = "this frame owns the session")]
                 unsafe {
@@ -7505,7 +7508,7 @@ mod tests {
         }
         assert!(
             nvs_runtime::call(
-                super::nvs_core_http_tls_info_verified,
+                super::nvs_core_http_tls_info_is_verified,
                 &mut ctx,
                 &[Value::null()]
             )

@@ -10,7 +10,7 @@ by `idle` in seconds. A server that dribbles one byte per second forever passes 
 written, and only a lifetime ends it — which is the case a single timeout on a streaming client always
 misses.
 
-`Client::stream(Core\Http\Method $method, $url, {…})` answers a `Core\Http\Stream` once the head has
+`Client::openStream(Core\Http\Method $method, $url, {…})` answers a `Core\Http\Stream` once the head has
 arrived, with `status()`, `header()`, `headers()` and `tls()` readable and the body not yet read. **The
 body is then read one way, once** — `events()`, `lines()`, `chunks()` or `saveTo($path, $max)` under
 `fs.write`, whose bound is required for `rule:core-classes/io-write-stream`'s reason — and a second read

@@ -24,17 +24,17 @@ echo Core\Arr::reduce($one, fn(int $carry, int $v): int => $carry * 10 + $v, 9),
 array<int> $none = [];
 array<string> $noWords = [];
 array<int> $arraySeed = [9];
-echo Core\Arr::reduce($none, fn(int $carry, int $v): int => Core\Math::intDiv(1, 0), 7), "\n";
-echo Core\Arr::reduce($noWords, fn(string $carry, string $v): string => Core\Str::slice($carry, Core\Math::intDiv(1, 0), 1), "seed"), "\n";
+echo Core\Arr::reduce($none, fn(int $carry, int $v): int => Core\Math::quotient(1, 0), 7), "\n";
+echo Core\Arr::reduce($noWords, fn(string $carry, string $v): string => Core\Str::slice($carry, Core\Math::quotient(1, 0), 1), "seed"), "\n";
 echo Core\Json::encode(
-    Core\Arr::reduce($noWords, fn(array<int> $carry, string $v): array<int> => Core\Arr::prepend($carry, Core\Math::intDiv(1, 0)), $arraySeed)
+    Core\Arr::reduce($noWords, fn(array<int> $carry, string $v): array<int> => Core\Arr::prepend($carry, Core\Math::quotient(1, 0)), $arraySeed)
 ), "\n";
 
 // The other side of that bound: the same landmine over a subject with entries
 // does throw, so the three silent lines above are the absence of a call rather
 // than a callback with nothing to say.
 try {
-    echo Core\Arr::reduce($nums, fn(int $carry, int $v): int => Core\Math::intDiv(1, 0), 7), "\n";
+    echo Core\Arr::reduce($nums, fn(int $carry, int $v): int => Core\Math::quotient(1, 0), 7), "\n";
 } catch (Throwable $e) {
     echo "threw: ", $e->message, "\n";
 }
@@ -50,5 +50,5 @@ echo Core\Json::encode($grown), " ", Core\Json::encode($arraySeed), "\n";
 7
 seed
 [9]
-threw: Core\Math::intDiv was given a zero divisor
+threw: Core\Math::quotient was given a zero divisor
 [9,1,2,3,4] [9]

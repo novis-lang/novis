@@ -15,7 +15,7 @@ class Bench
         while ($i < 64) {
             // A file is never replaced, so each round writes a new one.
             string $path = Core\Path::join($dir, Core\Str::format('%d.csv', $i));
-            Core\Http\Stream $download = Core\Http\Client::stream(Core\Http\Method::Get, 'https://files.example.com/a.csv');
+            Core\Http\Stream $download = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://files.example.com/a.csv');
             $download->saveTo($path, $size);
             $total = $total + Core\IO::size($path);
             $i = $i + 1;

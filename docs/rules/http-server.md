@@ -1695,7 +1695,7 @@ by `idle` in seconds. A server that dribbles one byte per second forever passes 
 written, and only a lifetime ends it — which is the case a single timeout on a streaming client always
 misses.
 
-`Client::stream(Core\Http\Method $method, $url, {…})` answers a `Core\Http\Stream` once the head has
+`Client::openStream(Core\Http\Method $method, $url, {…})` answers a `Core\Http\Stream` once the head has
 arrived, with `status()`, `header()`, `headers()` and `tls()` readable and the body not yet read. **The
 body is then read one way, once** — `events()`, `lines()`, `chunks()` or `saveTo($path, $max)` under
 `fs.write`, whose bound is required for [`core-classes/io-write-stream`](core-classes.md#core-classes-io-write-stream)'s reason — and a second read
@@ -2214,13 +2214,13 @@ never through any of these three keys.
 
 `Core\Http\Response::tls(): ?Core\Http\TlsInfo` reports the session a reply arrived over, read through
 members as every `Core` instance is ([`core-api/a-lifetime-is-an-object`](core-api.md#core-api-a-lifetime-is-an-object)): `version()`, `cipher()`,
-`verified(): bool` — `true` only when the chain *and* the name were checked — `peerChain(): array<tainted
+`isVerified(): bool` — `true` only when the chain *and* the name were checked — `peerChain(): array<tainted
 string>` as PEM, and the leaf's `subject()`, `issuer()` and `expiry()`. It answers `null` for a plain
 `http` reply, because it had no session, and for one a test's table answered with no `tls` session
 ([`testing/an-outbound-call-is-answered-from-a-table`](testing.md#testing-an-outbound-call-is-answered-from-a-table)). A table answer that names one reports the
 session the test described with `Core\Test::tlsSession`.
 
-`verified()` is the member this exists for. A deployment that relaxed verification for one partner host
+`isVerified()` is the member this exists for. A deployment that relaxed verification for one partner host
 ([`security/tls-trust-is-relaxed-only-under-a-host-grant`](security.md#security-tls-trust-is-relaxed-only-under-a-host-grant)) needs a way to assert, in a test and in
 production telemetry, that every *other* call still verified — and without a reply-side answer the grant
 is unobservable from inside the language.

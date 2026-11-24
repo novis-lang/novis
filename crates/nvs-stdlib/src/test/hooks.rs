@@ -73,9 +73,9 @@ pub(crate) const OUTCOME: CoreClass = CoreClass {
             &OUTCOME_ATTEMPT_DOC,
         ),
         reader(
-            "passed",
+            "hasPassed",
             CoreTy::Bool,
-            "nvs_core_test_outcome_passed",
+            "nvs_core_test_outcome_has_passed",
             &OUTCOME_PASSED_DOC,
         ),
         reader(
@@ -241,7 +241,9 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_test_outcome_class" => (nvs_core_test_outcome_class as *const ()).cast(),
         "nvs_core_test_outcome_name" => (nvs_core_test_outcome_name as *const ()).cast(),
         "nvs_core_test_outcome_attempt" => (nvs_core_test_outcome_attempt as *const ()).cast(),
-        "nvs_core_test_outcome_passed" => (nvs_core_test_outcome_passed as *const ()).cast(),
+        "nvs_core_test_outcome_has_passed" => {
+            (nvs_core_test_outcome_has_passed as *const ()).cast()
+        }
         "nvs_core_test_outcome_failures" => (nvs_core_test_outcome_failures as *const ()).cast(),
         "nvs_core_test_summary_class" => (nvs_core_test_summary_class as *const ()).cast(),
         "nvs_core_test_summary_passed" => (nvs_core_test_summary_passed as *const ()).cast(),
@@ -333,7 +335,7 @@ readers! {
     nvs_core_test_outcome_class => 0, "class";
     nvs_core_test_outcome_name => 1, "name";
     nvs_core_test_outcome_attempt => 2, "attempt";
-    nvs_core_test_outcome_passed => 3, "passed";
+    nvs_core_test_outcome_has_passed => 3, "hasPassed";
     nvs_core_test_outcome_failures => 4, "failures";
 }
 
@@ -423,7 +425,7 @@ mod tests {
     /// Each reader returns the slot its builder wrote, and reading twice
     /// returns the same value. A receiver of the other class, or one that is
     /// not an object, throws.
-    // covers: Core\Test\Outcome::class, Core\Test\Outcome::name, Core\Test\Outcome::attempt, Core\Test\Outcome::passed, Core\Test\Outcome::failures
+    // covers: Core\Test\Outcome::class, Core\Test\Outcome::name, Core\Test\Outcome::attempt, Core\Test\Outcome::hasPassed, Core\Test\Outcome::failures
     // covers: Core\Test\Summary::class, Core\Test\Summary::passed, Core\Test\Summary::failed, Core\Test\Summary::flaky, Core\Test\Summary::skipped, Core\Test\Summary::failedTests
     #[test]
     fn each_reader_returns_its_slot_and_a_receiver_of_another_class_throws() {
@@ -439,7 +441,7 @@ mod tests {
             "itAdds#1"
         );
         assert_eq!(int_of(&mut ctx, nvs_core_test_outcome_attempt, failed), 2);
-        let passed = read(&mut ctx, nvs_core_test_outcome_passed, failed);
+        let passed = read(&mut ctx, nvs_core_test_outcome_has_passed, failed);
         assert_eq!(
             passed.as_bool(),
             Some(false),
@@ -456,7 +458,7 @@ mod tests {
         );
 
         let clean = outcome(r"Shop\CartTest", "itAdds", 1, &[]);
-        let passed = read(&mut ctx, nvs_core_test_outcome_passed, clean);
+        let passed = read(&mut ctx, nvs_core_test_outcome_has_passed, clean);
         assert_eq!(passed.as_bool(), Some(true), "a run with no failure passed");
         assert!(texts_of(&mut ctx, nvs_core_test_outcome_failures, clean).is_empty());
 
@@ -482,7 +484,7 @@ mod tests {
         );
 
         assert!(
-            nvs_runtime::call(nvs_core_test_outcome_passed, &mut ctx, &[class]).is_err(),
+            nvs_runtime::call(nvs_core_test_outcome_has_passed, &mut ctx, &[class]).is_err(),
             "a summary is not an outcome"
         );
         let _ = ctx.take_pending();

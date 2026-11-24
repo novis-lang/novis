@@ -1,8 +1,8 @@
 --TEST--
-`Core\BigInt::sub` agrees with adding the flipped number, and swapping its operands flips its answer, over a sign sweep that crosses the `int` bound — `rule:types/arithmetic`
+`Core\BigInt::minus` agrees with adding the flipped number, and swapping its operands flips its answer, over a sign sweep that crosses the `int` bound — `rule:types/arithmetic`
 --FILE--
 <?nvs
-// covers: Core\BigInt::sub
+// covers: Core\BigInt::minus
 // Subtraction is asserted by counting rather than read off one line: a member
 // that lost the sign of a negative operand answers plausibly on every positive
 // row. Each pair is asked three ways — taken away, added flipped, and taken
@@ -25,12 +25,12 @@ foreach ($values as string $left) {
     foreach ($values as string $right) {
         var $a = Core\BigInt::parse($left);
         var $b = Core\BigInt::parse($right);
-        var $difference = $a->sub($b);
+        var $difference = $a->minus($b);
         $pairs = $pairs + 1;
-        if ($difference->compareTo($a->add($b->neg())) == 0) {
+        if ($difference->compareTo($a->plus($b->negated())) == 0) {
             $viaAdd = $viaAdd + 1;
         }
-        if ($b->sub($a)->compareTo($difference->neg()) == 0) {
+        if ($b->minus($a)->compareTo($difference->negated()) == 0) {
             $flipped = $flipped + 1;
         }
     }
@@ -39,8 +39,8 @@ echo $pairs, " ", $viaAdd, " ", $flipped, "\n";
 
 // The two ends of the `int` range are further apart than either of them, so
 // the difference of two values an `int` holds is a value it does not.
-echo Core\BigInt::parse("9223372036854775807")->sub(Core\BigInt::parse("-9223372036854775808")), "\n";
-echo Core\BigInt::parse("-9223372036854775808")->sub(Core\BigInt::parse("9223372036854775807")), "\n";
+echo Core\BigInt::parse("9223372036854775807")->minus(Core\BigInt::parse("-9223372036854775808")), "\n";
+echo Core\BigInt::parse("-9223372036854775808")->minus(Core\BigInt::parse("9223372036854775807")), "\n";
 --EXPECT--
 36 36 36
 18446744073709551615

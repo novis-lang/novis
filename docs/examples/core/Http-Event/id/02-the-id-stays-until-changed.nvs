@@ -9,7 +9,7 @@ Core\Test::answerHttp('https://logs.example.com/tail', 200, {
 });
 
 // This prints "none", then "10", then "10".
-Core\Http\Stream $log = Core\Http\Client::stream(Core\Http\Method::Get, 'https://logs.example.com/tail');
+Core\Http\Stream $log = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://logs.example.com/tail');
 foreach ($log->events() as Core\Http\Event $event) {
     echo $event->data(), ' -> ', $event->id() ?? 'none', "\n";
 }

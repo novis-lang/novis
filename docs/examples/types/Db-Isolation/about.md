@@ -4,7 +4,7 @@ A database runs many transactions at once, and the isolation level is the promis
 about the others while they are still going. The five cases run from `ReadUncommitted`, where a
 statement may read a row nobody has committed yet, to `Serializable`, where the result has to match
 some order in which the transactions ran one at a time. You pass one as the `isolation` option of
-`transaction`, and leaving it out is the usual thing to do: the transaction then runs at whatever
+`runTransaction`, and leaving it out is the usual thing to do: the transaction then runs at whatever
 level the database was set up with.
 
 **Good to know:** the cases are a list and not a ranking. `Snapshot` is not simply stronger or weaker

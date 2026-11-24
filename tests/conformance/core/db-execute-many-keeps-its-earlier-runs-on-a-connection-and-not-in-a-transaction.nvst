@@ -34,7 +34,7 @@ $db->execute("delete from t where name = ?", ["bo"]);
 // first run wrote goes back out with it. Counting rather than reading a line is
 // what makes this fail for a member that committed each run of the batch.
 try {
-    $db->transaction(fn (Transaction $tx): uint =>
+    $db->runTransaction(fn (Transaction $tx): uint =>
         $tx->executeMany("insert into t (name) values (?)", $rows));
     echo "the transaction ran the whole batch\n";
 } catch (DbError $refused) {

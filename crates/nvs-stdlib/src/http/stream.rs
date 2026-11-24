@@ -69,8 +69,8 @@
 
 use super::*;
 
-/// `Core\Http\Client::stream`, as its refusals spell it.
-const STREAM_MEMBER: &str = r"Core\Http\Client::stream";
+/// `Core\Http\Client::openStream`, as its refusals spell it.
+const STREAM_MEMBER: &str = r"Core\Http\Client::openStream";
 
 /// `Core\Http\Stream::saveTo`, as [`crate::io::stream_to_disk`] quotes it in
 /// every refusal it raises on this member's behalf — the delegation is as
@@ -142,7 +142,9 @@ pub(crate) const CHUNKS_CURRENT_SYMBOL: &str = "nvs_core_http_chunks_current";
 /// The address of one of this module's symbols — [`super::address`]'s tail.
 pub(super) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_http_client_stream" => (nvs_core_http_client_stream as *const ()).cast(),
+        "nvs_core_http_client_open_stream" => {
+            (nvs_core_http_client_open_stream as *const ()).cast()
+        }
         "nvs_core_http_stream_status" => (nvs_core_http_stream_status as *const ()).cast(),
         "nvs_core_http_stream_header" => return Some(nvs_core_http_stream_header::entry()),
         "nvs_core_http_stream_headers" => (nvs_core_http_stream_headers as *const ()).cast(),
@@ -173,7 +175,7 @@ const STREAM_CARD: ClassDoc = ClassDoc {
             `saveTo()`.",
 };
 
-/// What `Core\Http\Client::stream` answers: the head, and a body no member has
+/// What `Core\Http\Client::openStream` answers: the head, and a body no member has
 /// framed yet.
 ///
 /// `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`'s
@@ -1156,12 +1158,12 @@ fn event_slot(value: Value, at: usize, member: &str) -> Result<Value, Fault> {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Http\Client::stream(Core\Http\Method $method, string|Core\Http\Target $url, Core\Http\Options): Core\Http\Stream`
+    /// `Core\Http\Client::openStream(Core\Http\Method $method, string|Core\Http\Target $url, Core\Http\Options): Core\Http\Stream`
     /// — `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`.
     ///
     /// The verb is a parameter rather than the member's own name because a
     /// streamed reply is usually a `POST` — a chat completion, a query that
-    /// answers rows — and a `stream` that could only `GET` would be the member
+    /// answers rows — and an `openStream` that could only `GET` would be the member
     /// nobody uses. It arrives at slot 0 and every option sits one slot further
     /// on, which is [`nvs_core_http_client_request`]'s layout and is why the
     /// rest of the row is that member's reading under a slice of its own
@@ -1170,7 +1172,7 @@ nvs_runtime::nvs_helper! {
     /// they are the only part of the call the shared reading does not know
     /// about. The last slot is the call-site id
     /// `crate::registry::RECORDED_SITE_MEMBERS` appends.
-    fn nvs_core_http_client_stream(ctx, args: [STREAM_ARITY + 2]) {
+    fn nvs_core_http_client_open_stream(ctx, args: [STREAM_ARITY + 2]) {
         let verb = crate::router::method_verb(&args[0], STREAM_MEMBER)?.to_ascii_uppercase();
         let site = crate::site::site_id(args[STREAM_ARITY + 1]);
         let bag = &args[1..=STREAM_ARITY];
@@ -1180,7 +1182,7 @@ nvs_runtime::nvs_helper! {
         // `rule:http-server/a-reply-reports-its-tls-session` puts the report on
         // `Core\Http\Response` alone, and a second surface for one measurement
         // is the copy that disagrees.
-        let (status, body, headers, _) = exchanged(ctx, bag, "stream", &verb, true, site)?;
+        let (status, body, headers, _) = exchanged(ctx, bag, "openStream", &verb, true, site)?;
         Ok(crate::instance::build(
             &STREAM,
             [Value::int(status), headers, body, Value::null()],

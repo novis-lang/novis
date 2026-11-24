@@ -10,11 +10,11 @@ if ($type != null) {
     // A global group has members from its own domain only.
     // This prints `global`.
     string $scope = 'unknown';
-    if ($type->global()) {
+    if ($type->isGlobal()) {
         $scope = 'global';
-    } elseif ($type->domainLocal()) {
+    } elseif ($type->isDomainLocal()) {
         $scope = 'domain local';
-    } elseif ($type->universal()) {
+    } elseif ($type->isUniversal()) {
         $scope = 'universal';
     }
     echo $scope, "\n";

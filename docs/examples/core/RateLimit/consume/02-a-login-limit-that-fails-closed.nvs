@@ -8,7 +8,7 @@ class Login
     {
         try {
             var $decision = Core\RateLimit::consume('login:' . $account, 5, 15m);
-            return $decision->allowed();
+            return $decision->isAllowed();
         } catch (Throwable $error) {
             // A guessed password is worse than a login that has to wait,
             // so an error here means no.

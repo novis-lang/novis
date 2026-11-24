@@ -5,7 +5,7 @@ A reply a test's answer table served with a `Core\Test::tlsSession` reports that
 // covers: Core\Test::tlsSession
 // covers: Core\Http\TlsInfo::version
 // covers: Core\Http\TlsInfo::cipher
-// covers: Core\Http\TlsInfo::verified
+// covers: Core\Http\TlsInfo::isVerified
 // covers: Core\Http\TlsInfo::peerChain
 // covers: Core\Http\TlsInfo::subject
 // covers: Core\Http\TlsInfo::issuer
@@ -23,7 +23,7 @@ Core\Test::answerHttp("https://api.example.com/*", 200, {body: "ok", tls: $descr
 var $info = Core\Http\Client::get("https://api.example.com/secure")->tls();
 if ($info != null) {
     echo $info->version(), " ", $info->cipher(), "\n";
-    echo $info->verified() ? "verified" : "relaxed", "\n";
+    echo $info->isVerified() ? "verified" : "relaxed", "\n";
     echo Core\Arr::count($info->peerChain()), "\n";
     echo $info->subject(), " | ", $info->issuer(), "\n";
     echo $info->expiry()->toIso(), "\n";
@@ -34,7 +34,7 @@ if ($info != null) {
 // for its version and the default subject.
 var $relaxed = Core\Test::tlsSession({version: "TLSv1.2", verified: false});
 echo $relaxed->version(), " ", $relaxed->cipher(), "\n";
-echo $relaxed->verified() ? "verified" : "relaxed", "\n";
+echo $relaxed->isVerified() ? "verified" : "relaxed", "\n";
 echo $relaxed->subject(), " | ", $relaxed->issuer(), "\n";
 
 // A reply over plain `http` has no session, so an answer that gives one to an

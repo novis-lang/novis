@@ -96,7 +96,7 @@ pub struct Decimal {
 /// mode has to decide against.
 ///
 /// Public because `rule:types/arithmetic` puts the mode itself in `Core\RoundMode`, which
-/// is `nvs-stdlib`'s: `Core\Decimal::divRound` reads this and applies the case
+/// is `nvs-stdlib`'s: `Core\Decimal::divideRounded` reads this and applies the case
 /// the caller named. Half is stated as its own answer rather than folded into
 /// one of its neighbours precisely because the `Half*` modes exist to part
 /// there.
@@ -559,7 +559,7 @@ impl Decimal {
     /// division stopped one decision earlier, before the rounding that is the
     /// only inexactness `rule:types/arithmetic` admits.
     ///
-    /// `None` covers every refusal `Core\Decimal::divExact` makes: a zero
+    /// `None` covers every refusal `Core\Decimal::divideExact` makes: a zero
     /// divisor, a quotient that repeats, and a quotient this type cannot hold.
     /// They are not distinguished because the member does not distinguish
     /// them either — "not exact" and "wider than a `decimal` holds" are one
@@ -574,7 +574,7 @@ impl Decimal {
     }
 
     /// `a / b` truncated to exactly `scale` fractional digits, with what the
-    /// truncation threw away — everything `Core\Decimal::divRound` needs to
+    /// truncation threw away — everything `Core\Decimal::divideRounded` needs to
     /// apply a rounding mode the caller named, and nothing more.
     ///
     /// Deliberately **not** [`Self::checked_div`] followed by a second
@@ -843,7 +843,7 @@ fn align(a: Decimal, b: Decimal) -> Option<(u8, u128, u128)> {
 /// half, and on exactly half only when that makes the last digit even.
 ///
 /// The operator's mode, and the only one fixed in the language — `rule:types/arithmetic`.
-/// `Core\Decimal::divRound`'s other modes read the same [`Discard`] and part
+/// `Core\Decimal::divideRounded`'s other modes read the same [`Discard`] and part
 /// from this one only at the tie.
 fn rounds_away(discard: Discard, mantissa: u128) -> bool {
     match discard {

@@ -1,6 +1,6 @@
 ---
 summary: what a `decimal` reaches for where the operators cannot say it — two divisions that name their own rounding, the split whose parts add back exactly, the exact power, and the four cuts to a scale
-keywords: decimal, division, divExact, divRound, allocate, penny split, remainder, pow, power, rounding, scale, money, currency, banker's rounding, half-even, arbitrary precision, fixed-point, exact, floor, ceil, truncate, round
+keywords: decimal, division, divideExact, divideRounded, allocate, penny split, remainder, pow, power, rounding, scale, money, currency, banker's rounding, half-even, arbitrary precision, fixed-point, exact, floor, ceil, truncate, round
 ---
 
 Novis's `decimal` scalar carries its own arithmetic as operators — `+`, `-`, `*`, `%` and `/` all work
@@ -12,16 +12,16 @@ variable that unrelated code reads.
 `Core\Decimal` is where a program says something the operator cannot. These questions come up in money
 code, and nowhere else does the type system help with them:
 
-- **"this division must come out even"** — `divExact` answers the quotient when it is exact and throws
+- **"this division must come out even"** — `divideExact` answers the quotient when it is exact and throws
   `ArithmeticError` when it is not. A third of a bill is not a number you should get back by accident.
-- **"round it here, this way"** — `divRound` takes the number of places and the rounding mode as ordinary
+- **"round it here, this way"** — `divideRounded` takes the number of places and the rounding mode as ordinary
   arguments, both required. Neither has a default, because a default for either would be that same ambient
   precision moved into a signature. The mode is `Core\RoundMode`, the same enum `Core\Math::round` takes.
 - **"split this sum and lose none of it"** — `allocate` splits an amount by a list of ratios into parts
   that add back to it exactly. Each part is its share truncated to the amount's own scale, and the units
   left over go one each to the earliest parts. The keys are the ratios', so a split written under the
   names of its parties answers under those names.
-- **"raise it to a power, exactly"** — `pow` multiplies a base by itself as many times as you ask. `**`
+- **"raise it to a power, exactly"** — `power` multiplies a base by itself as many times as you ask. `**`
   has no row for a `decimal` base at all, because a power that does not come out exact would have to
   round without being asked; a negative power is written as the division it is.
 - **"cut it to this many places"** — `floor`, `ceil`, `truncate` and `round`, which answer a `decimal`
@@ -29,11 +29,11 @@ code, and nowhere else does the type system help with them:
   mode; the other three are directions. Converting to `int` afterwards is a second step, written out,
   because a conversion that rounded on its own would be rounding you never asked for.
 
-`divRound` rounds **once**, from the exact quotient. It is not the `/` operator's answer rounded a second
+`divideRounded` rounds **once**, from the exact quotient. It is not the `/` operator's answer rounded a second
 time — rounding twice is how a quotient one digit past the place you asked for carries a tie the exact value
 never had.
 
-The scale you name is the scale you get: `divRound($x, $y, 5, …)` answers at five places even where fewer
+The scale you name is the scale you get: `divideRounded($x, $y, 5, …)` answers at five places even where fewer
 would do, because a rendered price needs its trailing zeros. A scale past 28 is refused rather than quietly
 narrowed, as is a quotient whose digits will not fit at the scale you asked for.
 
@@ -44,27 +44,27 @@ decimal $three = 3;
 decimal $four = 4;
 
 // An even split answers exactly, at the scale the quotient needs.
-echo Core\Decimal::divExact($bill, $four), "\n";
+echo Core\Decimal::divideExact($bill, $four), "\n";
 
 // An uneven one refuses, rather than handing back 33.33... and letting the
 // missing penny turn up in a reconciliation months later.
 try {
-    echo Core\Decimal::divExact($bill, $three);
+    echo Core\Decimal::divideExact($bill, $three);
 } catch (ArithmeticError $uneven) {
     echo "not an even split\n";
 }
 
 // Where rounding is the business rule, it is written at the call site.
-echo Core\Decimal::divRound($bill, $three, 2, Core\RoundMode::HalfUp), "\n";
-echo Core\Decimal::divRound($bill, $three, 2, Core\RoundMode::Up), "\n";
+echo Core\Decimal::divideRounded($bill, $three, 2, Core\RoundMode::HalfUp), "\n";
+echo Core\Decimal::divideRounded($bill, $three, 2, Core\RoundMode::Up), "\n";
 
 // One eighth is 0.125 exactly, so two places is the tie the `Half*` modes are
 // named for -- and the scale is the answer's, so it pads.
 decimal $one = 1;
 decimal $eight = 8;
-echo Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::HalfEven), '|',
-     Core\Decimal::divRound($one, $eight, 2, Core\RoundMode::HalfUp), '|',
-     Core\Decimal::divRound($one, $four, 5, Core\RoundMode::HalfEven), "\n";
+echo Core\Decimal::divideRounded($one, $eight, 2, Core\RoundMode::HalfEven), '|',
+     Core\Decimal::divideRounded($one, $eight, 2, Core\RoundMode::HalfUp), '|',
+     Core\Decimal::divideRounded($one, $four, 5, Core\RoundMode::HalfEven), "\n";
 ```
 ```output
 25
@@ -97,8 +97,8 @@ foreach (Core\Decimal::allocate(10.00, $shares) as string $name => decimal $shar
 // A power is repeated multiplication to the digit, scale included. The
 // reciprocal is a division, so it names the rounding it needs.
 decimal $rate = 1.05;
-echo Core\Decimal::pow($rate, 2), '|',
-     Core\Decimal::divRound(1, Core\Decimal::pow($rate, 2), 4, Core\RoundMode::HalfEven), "\n";
+echo Core\Decimal::power($rate, 2), '|',
+     Core\Decimal::divideRounded(1, Core\Decimal::power($rate, 2), 4, Core\RoundMode::HalfEven), "\n";
 ```
 ```output
 0.02

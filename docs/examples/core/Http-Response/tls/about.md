@@ -3,7 +3,7 @@ over TLS.
 
 TLS is the encryption that `https` uses. When a reply arrives over TLS, `tls()` returns a
 `Core\Http\TlsInfo`. It has the TLS version, the cipher, the server's certificates, and
-`verified()`, which says whether the certificate was checked. A reply over plain `http` has no TLS
+`isVerified()`, which says whether the certificate was checked. A reply over plain `http` has no TLS
 connection, so `tls()` returns `null`. The return type is `?Core\Http\TlsInfo`, so your program
 checks for `null` before it reads anything.
 

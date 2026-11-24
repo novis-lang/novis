@@ -35,7 +35,7 @@ foreach ($versions as mixed $entry) {
     if ($at == null) {
         echo $version, ": pending until an owner confirms it\n";
     } elseif ($at > $now) {
-        int $days = Core\Math::intDiv($at - $now, 86400);
+        int $days = Core\Math::quotient($at - $now, 86400);
         echo $version, ': pending for ', $days, " more days\n";
     } else {
         echo $version, ": pending, and its time has passed\n";

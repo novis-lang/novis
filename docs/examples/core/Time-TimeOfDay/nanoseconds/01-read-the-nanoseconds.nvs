@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to read the part of a second after the whole seconds, in nanoseconds.
+
+Core\Time\TimeOfDay $finish = Core\Time\TimeOfDay::at(10, 0, { second: 5, nanoseconds: 750000000 });
+
+// One second has 1000000000 nanoseconds. Three quarters of a second is 750000000, so this prints 750000000.
+echo $finish->nanoseconds(), "\n";
+
+// `format` with `SSS` prints the same part as milliseconds. This prints 10:00:05.750.
+echo $finish->format('HH:mm:ss.SSS'), "\n";

@@ -237,7 +237,7 @@ pub(crate) fn rendering_for(driver: nvs_db::Driver) -> (nvs_db::Dialect, Encoder
 /// picked.
 ///
 /// It no longer refuses anything, and neither does anything downstream of it:
-/// every driver binds, every driver sends, and `transaction`'s [`transacting`] — the last
+/// every driver binds, every driver sends, and `runTransaction`'s [`transacting`] — the last
 /// place a `sqlite` block was turned away — is total.
 ///
 /// The `block` is still taken because the lookup can fail for a reason that is

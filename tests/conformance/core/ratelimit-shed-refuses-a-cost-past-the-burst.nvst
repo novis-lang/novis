@@ -27,12 +27,12 @@ try {
 echo "thrown=", $thrown, "\n";
 
 var $whole = Core\RateLimit::shed("whole", 1, 1h, {burst: 5, cost: 5});
-echo "whole=", $whole->allowed() ? "allowed" : "refused", " remaining=", $whole->remaining(), "\n";
+echo "whole=", $whole->isAllowed() ? "allowed" : "refused", " remaining=", $whole->remaining(), "\n";
 
 // The throw came before any arrival was recorded, so the key it named still
 // admits its whole burst afterwards.
 var $after = Core\RateLimit::shed("wide", 1, 1h, {burst: 5, cost: 5});
-echo "after=", $after->allowed() ? "allowed" : "refused", "\n";
+echo "after=", $after->isAllowed() ? "allowed" : "refused", "\n";
 --EXPECT--
 thrown=2
 whole=allowed remaining=0

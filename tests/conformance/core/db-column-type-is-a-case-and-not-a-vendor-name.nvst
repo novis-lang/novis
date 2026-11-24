@@ -22,7 +22,7 @@ foreach ($db->query("select id, payload from events", [])->columns() as Core\Db\
     // The other two readers of the same class, so that the one refusal below
     // is the only thing in this case that does not compile.
     string $label = $column->name();
-    bool $nullable = $column->nullable();
+    bool $nullable = $column->isNullable();
 }
 
 // The bound on the other side, which is what makes this an enum rather than

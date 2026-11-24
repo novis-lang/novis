@@ -10,7 +10,7 @@ import FeatureSection from '@components/FeatureSection.astro'
 
 <FeatureSection examples="lang/expressions/arithmetic" heading="Arithmetic" id="arithmetic" />
 
-`Core\Math::fdiv` divides two `float` values and returns `INF` for a division by zero.
+`Core\Math::divide` divides two `float` values and returns `INF` for a division by zero.
 
 <FeatureSection examples="lang/expressions/assignment" heading="Changing a variable" id="assignment" />
 
@@ -21,7 +21,7 @@ import FeatureSection from '@components/FeatureSection.astro'
 
 ## Do and don't
 
-- Do use `Core\Math::intDiv` when you need a whole number from a division.
+- Do use `Core\Math::quotient` when you need a whole number from a division.
 - Do catch `ArithmeticError` where a divisor comes from user input.
 - Don't mix `int` and `uint` in one expression. Convert one side with `as` first.
 - Don't use `/=` on an `int` variable. Use a `float` variable.

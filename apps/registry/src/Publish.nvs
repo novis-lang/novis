@@ -156,7 +156,7 @@ final class Publish
         ?string $supersedes = ($built['supersedes'] ?? null) is string ? Publish::textOf($built['supersedes']) : null;
         string $readme = Publish::textOf($built['readme'] ?? '');
         string $readmeHtml = Readme::render($readme, $repository, $directory, $commit);
-        bool $saved = $this->db->transaction(fn(): bool => {
+        bool $saved = $this->db->runTransaction(fn(): bool => {
             $this->db->execute(
                 'insert into packages (key, name, vendor, repository, directory, created_at) values (?, ?, ?, ?, ?, ?) on conflict (key) do nothing',
                 [$key, $name, Str::lower($vendor), $repository, $directory, $now],

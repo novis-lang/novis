@@ -39,7 +39,7 @@ pub struct TdsRows<'a, S: Read + Write = NvsTls<Tunnel<NvsTcp>>> {
 /// hold a borrow. The **buffered** members drain their rows inside the call
 /// that started the statement, so [`TdsRows`] keeps this beside a borrow of the
 /// connection and the borrow checker is what refuses a second statement.
-/// **`Core\Db\Connection::stream`** hands a walk back to the program and is
+/// **`Core\Db\Connection::queryEach`** hands a walk back to the program and is
 /// advanced by a *later* call, with nothing of the connection borrowed in
 /// between; a borrow cannot span that, so its copy of this state is parked on
 /// the connection ([`TdsConn::stream`]) and [`State::Streaming`] is what
@@ -888,7 +888,7 @@ impl<S: Read + Write> Walk<'_, S> {
 ///
 /// **The answer borrows nothing**, which is what makes it serve both halves of
 /// `rule:core-classes/db-statement-members`: [`open_result`] parks the cursor on the connection for
-/// `Core\Db\Connection::stream`, and [`read_rows`] puts it beside a borrow for
+/// `Core\Db\Connection::queryEach`, and [`read_rows`] puts it beside a borrow for
 /// every buffered member.
 ///
 /// # Errors
@@ -932,7 +932,7 @@ pub(super) fn read_shape<S: Read + Write>(
 
 /// [`read_shape`] with the read state lent out beside a borrow of the
 /// connection: the shape every buffered member of `rule:core-classes/db-statement-members` wants,
-/// and the one `Core\Db\Connection::stream` is the single caller that cannot
+/// and the one `Core\Db\Connection::queryEach` is the single caller that cannot
 /// use.
 ///
 /// # Errors

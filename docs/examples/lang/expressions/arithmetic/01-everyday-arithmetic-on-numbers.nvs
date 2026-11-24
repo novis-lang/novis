@@ -9,9 +9,9 @@ int $baskets = 2;
 // a fraction when it does not. This prints 3.5 and 2.
 echo $apples / $baskets, ' ', 6 / 3, "\n";
 
-// For a whole number use `Core\Math::intDiv`, which drops the remainder, and
+// For a whole number use `Core\Math::quotient`, which drops the remainder, and
 // `%` for the remainder itself. This prints 3 and 1.
-echo Core\Math::intDiv($apples, $baskets), ' ', $apples % $baskets, "\n";
+echo Core\Math::quotient($apples, $baskets), ' ', $apples % $baskets, "\n";
 
 // `**` raises a number to a power. This prints 1024.
 echo 2 ** 10, "\n";

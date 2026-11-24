@@ -542,7 +542,7 @@
 # policy (`rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`).
 #max_redirects = 0                    # default
 
-# `Core\Http\Client::stream`'s two bounds, which pick up where `deadline` stops: that one covers the
+# `Core\Http\Client::openStream`'s two bounds, which pick up where `deadline` stops: that one covers the
 # connection and the head, and from there `idle` is the longest silence the body may go through and
 # `max_duration` the longest it may take at all — the one that ends an origin dribbling a byte at a
 # time under every idle check. Either can be written at the call instead

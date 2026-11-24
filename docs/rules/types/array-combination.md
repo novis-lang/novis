@@ -20,7 +20,7 @@ element-wise, because two lists merged by position are rarely what a caller mean
 **`Core\Arr` has no member named `merge`**, in any spelling — the word is read as two different
 operations — and binary `+`/`+=` with an array operand is a **compile error** naming `Arr::underlay`.
 
-Two related behaviours are stated here too: `unique`, `diff` and `intersect` compare by **strict
+Two related behaviours are stated here too: `unique`, `difference` and `intersection` compare by **strict
 identity**, never by a string cast of each value; and `flip` collapses duplicate values, last
 occurrence winning, its result typed `array<string>`.
 

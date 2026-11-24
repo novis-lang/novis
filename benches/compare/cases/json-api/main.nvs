@@ -102,7 +102,7 @@ class Orders
         }
 
         // The tax is 20 percent, rounded to the nearest cent. Half a cent rounds up.
-        int $tax = Core\Math::intDiv($subtotal * 20 + 50, 100);
+        int $tax = Core\Math::quotient($subtotal * 20 + 50, 100);
 
         // The largest line comes first. Lines with the same total keep the order of the request.
         var $sorted = Core\Arr::sort($lines, { by: fn(Line $line): int => -$line->totalCents });

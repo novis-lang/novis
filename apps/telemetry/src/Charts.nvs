@@ -30,8 +30,8 @@ final class Charts
         var $dots = html``;
         int $i = 0;
         foreach ($weeks as Count $week) {
-            int $x = $count == 1 ? Math::intDiv(Charts::WIDTH, 2) : 20 + Math::intDiv($i * (Charts::WIDTH - 40), $count - 1);
-            int $y = $bottom - Math::intDiv($week->value * ($bottom - $top), $max);
+            int $x = $count == 1 ? Math::quotient(Charts::WIDTH, 2) : 20 + Math::quotient($i * (Charts::WIDTH - 40), $count - 1);
+            int $y = $bottom - Math::quotient($week->value * ($bottom - $top), $max);
             $i = $i + 1;
             $path = $path . "{$x},{$y} ";
             string $class = Pages::isArriving($arriving, $week->label) ? 'arriving' : 'final';
@@ -70,7 +70,7 @@ final class Charts
         int $y = 0;
         foreach ($counts as Count $item) {
             int $textY = $y + 16;
-            int $length = Math::max(Math::intDiv($item->value * Charts::BAR_WIDTH, $max), 1);
+            int $length = Math::max(Math::quotient($item->value * Charts::BAR_WIDTH, $max), 1);
             int $valueX = $start + $length + 6;
             tainted string $label = $item->label;
             int $value = $item->value;

@@ -29,7 +29,7 @@ $shop->execute('create table orders (id integer primary key)', []);
 
 // The order is rolled back, but the job was already saved in the `jobs` database.
 try {
-    $shop->transaction(fn(Transaction $tx): void => {
+    $shop->runTransaction(fn(Transaction $tx): void => {
         $tx->execute('insert into orders (id) values (?)', [1]);
         Queue::push('jobs/send-receipt.nvs', { queue: 'mail' });
         $tx->rollBack('payment declined');
@@ -45,7 +45,7 @@ echo $stats->nonTransactional(), "\n";
 
 // A transaction on the `jobs` database contains the push. A rollback deletes the job too.
 try {
-    $db->transaction(fn(Transaction $tx): void => {
+    $db->runTransaction(fn(Transaction $tx): void => {
         Queue::push('jobs/send-receipt.nvs', { queue: 'mail' });
         $tx->rollBack('payment declined');
     });

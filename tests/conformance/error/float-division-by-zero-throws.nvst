@@ -1,10 +1,10 @@
 --TEST--
-`/ 0` throws `ArithmeticError` whatever the operand types — the statically typed `float` row and the tagged one alike, with `Core\Math::fdiv` the one spelling left for IEEE's infinity (`rule:types/arithmetic`)
+`/ 0` throws `ArithmeticError` whatever the operand types — the statically typed `float` row and the tagged one alike, with `Core\Math::divide` the one spelling left for IEEE's infinity (`rule:types/arithmetic`)
 --FILE--
 <?nvs
 // `rule:types/arithmetic`'s float row: "the zero divisor is refused before the operand
 // types are consulted, so there is one rule and not two". PHP made the same
-// move, and `fdiv` is the function it grew when it did, so this is priority 2
+// move, and `divide` is the function it grew when it did, so this is priority 2
 // — PHP-compatible observable behaviour — rather than a divergence of ours.
 //
 // The two ends of the row are asserted *together* rather than one at a time.
@@ -81,16 +81,16 @@ try {
     echo "written: ", $written->message, "\n";
 }
 
-// 5. `Core\Math::fdiv` is what is left to ask with, and the reason the throw is
+// 5. `Core\Math::divide` is what is left to ask with, and the reason the throw is
 //    affordable at all. It answers all three IEEE cases the
 //    operator now refuses.
-echo "fdiv: ", Core\Math::fdiv(1.0, 0.0), "|", Core\Math::fdiv(1.0, -0.0), "|",
-     Core\Math::isNan(Core\Math::fdiv(0.0, 0.0)) as string, "\n";
+echo "fdiv: ", Core\Math::divide(1.0, 0.0), "|", Core\Math::divide(1.0, -0.0), "|",
+     Core\Math::isNan(Core\Math::divide(0.0, 0.0)) as string, "\n";
 
 // 6. What this guard does *not* cover, pinned so a later reader does not widen
 //    it to the two operators sharing its dispatch. `%` over a `float` never
 //    reaches the guard: `rule:types/arithmetic` refuses it where it is written (`E0717`), making
-//    `Core\Math::mod` the member that says a floating-point remainder out loud,
+//    `Core\Math::remainder` the member that says a floating-point remainder out loud,
 //    so there is no float `%` row for a zero divisor to be part of. And `**`
 //    has no divisor at all — a negative exponent of zero is IEEE's infinity
 //    here, exactly as it was, because the float row names `/ 0` and nothing

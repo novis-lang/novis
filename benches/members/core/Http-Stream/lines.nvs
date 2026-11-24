@@ -16,7 +16,7 @@ class Bench
         while ($i < $rounds) {
             // A body can be read only once, so each round opens a new stream.
             // The reply in each round depends on the round before, so no round can be left out.
-            Core\Http\Stream $log = Core\Http\Client::stream(Core\Http\Method::Get, $urls[(($total + $i) % 2) as int]);
+            Core\Http\Stream $log = Core\Http\Client::openStream(Core\Http\Method::Get, $urls[(($total + $i) % 2) as int]);
             foreach ($log->lines() as tainted string $line) {
                 $total = $total + Core\Str::length($line);
             }

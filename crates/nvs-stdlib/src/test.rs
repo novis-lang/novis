@@ -1755,7 +1755,7 @@ const TLS_SESSION_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "verified",
-            desc: "What `verified()` returns. The default is `true`.",
+            desc: "What `isVerified()` returns. The default is `true`.",
             shape: &[],
         },
         ParamDoc {

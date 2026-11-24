@@ -7,7 +7,7 @@ Core\Test::answerHttp('https://mirror.example.com/prices.csv', 200, { body: "app
 
 array<string> $servers = ['https://downloads.example.com/prices.csv', 'https://mirror.example.com/prices.csv'];
 foreach ($servers as string $url) {
-    Core\Http\Stream $download = Core\Http\Client::stream(Core\Http\Method::Get, $url);
+    Core\Http\Stream $download = Core\Http\Client::openStream(Core\Http\Method::Get, $url);
     // A code from 500 to 599 means the server has a problem. The loop tries the next server.
     if ($download->status() >= 500) {
         echo $url, " is busy\n";

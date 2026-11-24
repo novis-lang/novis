@@ -26,6 +26,6 @@ try {
     echo $power->message, "\n";
 }
 
-// `Core\Math::fdiv` is the division that gives `INF` instead of throwing.
+// `Core\Math::divide` is the division that gives `INF` instead of throwing.
 // This prints INF.
-echo Core\Math::fdiv(1.0, 0.0), "\n";
+echo Core\Math::divide(1.0, 0.0), "\n";

@@ -27,8 +27,8 @@ admits, and `decimal / decimal` is always a `decimal`, never the union `int / in
 `bcscale()` equivalent and never will be: ambient precision read by unrelated later code is the
 shape `rule:statements/static-is-a-member-modifier` and `rule:security/no-cross-request-state`
 already close. Where rounding is business logic it is
-said out loud — `Core\Decimal::divExact()` throws unless the quotient is exact,
-`::divRound($scale, $mode)` names both, and `::allocate($amount, $ratios)` splits a sum into parts
+said out loud — `Core\Decimal::divideExact()` throws unless the quotient is exact,
+`::divideRounded($scale, $mode)` names both, and `::allocate($amount, $ratios)` splits a sum into parts
 that add back to it exactly.
 
 `bcmath` and `gmp` are retired rather than ported, because they conflated two unrelated capabilities:

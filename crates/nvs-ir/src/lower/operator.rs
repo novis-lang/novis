@@ -75,7 +75,7 @@ impl<'a> Lowering<'a> {
             //
             // Refused: `**` by
             // `nvs_types::expr::operators::power_result`, which names
-            // `Core\Decimal::pow` and the rounding it does; and `&`, `|`, `^`,
+            // `Core\Decimal::power` and the rounding it does; and `&`, `|`, `^`,
             // `<<` and `>>` by `reject_bitwise_operand`, `rule:types/arithmetic`'s
             // bitwise row being over `int` and `uint` alone — a `decimal` is a
             // coefficient and a scale, so there is no bit pattern for them to

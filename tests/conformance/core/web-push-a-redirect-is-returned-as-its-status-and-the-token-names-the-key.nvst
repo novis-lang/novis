@@ -1,12 +1,12 @@
 --TEST--
-`Core\WebPush::send` returns a redirect as its status and does not follow it, `gone()` is false for it, the message goes to the URL `endpoint()` returns, and its VAPID header's `k` is the key `applicationServerKey` returns — `rule:core-classes/web-push-sends-an-encrypted-message`
+`Core\WebPush::send` returns a redirect as its status and does not follow it, `isGone()` is false for it, the message goes to the URL `endpoint()` returns, and its VAPID header's `k` is the key `applicationServerKey` returns — `rule:core-classes/web-push-sends-an-encrypted-message`
 --FILE--
 <?nvs
 // covers: Core\WebPush::send
 // covers: Core\WebPush::applicationServerKey
 // covers: Core\WebPush\Subscription::endpoint
 // covers: Core\WebPush\Sent::status
-// covers: Core\WebPush\Sent::gone
+// covers: Core\WebPush\Sent::isGone
 Core\Test::answerHttp("https://push.example.com/*", 301, {headers: ["location" => "https://elsewhere.example.com/"]});
 
 string $json = "{\"endpoint\":\"https://push.example.com/send/abc?x=1\",\"keys\":{\"p256dh\":"
@@ -17,7 +17,7 @@ Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P
 bytes $payload = Core\Encoding::encodeText("hello", Core\Charset::Utf8);
 
 Core\WebPush\Sent $sent = Core\WebPush::send($to, $payload, $vapid, "https://example.com/contact");
-echo "status ", $sent->status(), " gone ", $sent->gone() ? "yes" : "no", "\n";
+echo "status ", $sent->status(), " gone ", $sent->isGone() ? "yes" : "no", "\n";
 
 // One request was sent, to the endpoint, and the redirect was not followed.
 array<Core\Test\SentRequest> $calls = Core\Test::sentHttp();

@@ -1,5 +1,5 @@
 --TEST--
-`Core\ObjectSet<T>`'s `union`, `intersect` and `diff` are one partition of two sets rather than three walks — inclusion-exclusion, the two halves each operand splits into, and membership decided the same way on every element of the domain — over a sweep of overlapping pairs — `rule:expressions/object-identity-equality`
+`Core\ObjectSet<T>`'s `union`, `intersection` and `difference` are one partition of two sets rather than three walks — inclusion-exclusion, the two halves each operand splits into, and membership decided the same way on every element of the domain — over a sweep of overlapping pairs — `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
 // The existing algebra cases ask the *degenerate* ends — a set against itself
@@ -15,7 +15,7 @@
 // Every derived set is written as a chain, so each law reads as one
 // expression; the result of each member is a `Core\ObjectSet<Tag>` and could
 // equally be bound to a variable of that type.
-// covers: Core\ObjectSet::union, Core\ObjectSet::intersect, Core\ObjectSet::diff
+// covers: Core\ObjectSet::union, Core\ObjectSet::intersection, Core\ObjectSet::difference
 
 final class Tag {
     public function constructor(public readonly string $name) {}
@@ -50,7 +50,7 @@ array<array<string>> $rows = [
 ];
 
 // The whole pool, as the domain every membership question is asked over —
-// including the elements no operand holds, which is where a `diff` that
+// including the elements no operand holds, which is where a `difference` that
 // answered by omission rather than by exclusion shows up.
 array<string> $every = ["0", "1", "2", "3", "4", "5", "6", "7"];
 
@@ -66,58 +66,58 @@ foreach ($rows as array<string> $left) {
         Core\ObjectSet<Tag> $b = Sets::pick($pool, $right);
 
         // Inclusion-exclusion: the shared members are counted once by `union`
-        // and once by `intersect`, and by nothing else. A `union` that
+        // and once by `intersection`, and by nothing else. A `union` that
         // appended both walks fails here and nowhere in the degenerate cases.
-        if ($a->union($b)->count() + $a->intersect($b)->count()
+        if ($a->union($b)->count() + $a->intersection($b)->count()
             == $a->count() + $b->count()) {
             $laws = $laws + 1;
         }
 
         // Each operand is exactly its own private half plus the shared one.
-        if ($a->count() == $a->intersect($b)->count() + $a->diff($b)->count()) {
+        if ($a->count() == $a->intersection($b)->count() + $a->difference($b)->count()) {
             $laws = $laws + 1;
         }
-        if ($b->count() == $a->intersect($b)->count() + $b->diff($a)->count()) {
+        if ($b->count() == $a->intersection($b)->count() + $b->difference($a)->count()) {
             $laws = $laws + 1;
         }
 
         // And the three pieces tile the union with nothing left over.
         if ($a->union($b)->count()
-            == $a->diff($b)->count() + $a->intersect($b)->count() + $b->diff($a)->count()) {
+            == $a->difference($b)->count() + $a->intersection($b)->count() + $b->difference($a)->count()) {
             $laws = $laws + 1;
         }
 
         // The tiling holds in members and not only in counts: the private half
         // put back together with the shared one is the operand itself, tested
-        // in both directions because one `diff` being empty only says one set
+        // in both directions because one `difference` being empty only says one set
         // is contained in the other.
-        if ($a->diff($b)->union($a->intersect($b))->diff($a)->count() == 0) {
+        if ($a->difference($b)->union($a->intersection($b))->difference($a)->count() == 0) {
             $laws = $laws + 1;
         }
-        if ($a->diff($a->diff($b)->union($a->intersect($b)))->count() == 0) {
+        if ($a->difference($a->difference($b)->union($a->intersection($b)))->count() == 0) {
             $laws = $laws + 1;
         }
-        if ($b->diff($a)->union($a->intersect($b))->diff($b)->count() == 0) {
+        if ($b->difference($a)->union($a->intersection($b))->difference($b)->count() == 0) {
             $laws = $laws + 1;
         }
-        if ($b->diff($b->diff($a)->union($a->intersect($b)))->count() == 0) {
+        if ($b->difference($b->difference($a)->union($a->intersection($b)))->count() == 0) {
             $laws = $laws + 1;
         }
 
-        // `union` and `intersect` are symmetric; `diff` is the one that is
+        // `union` and `intersection` are symmetric; `difference` is the one that is
         // not, and its two directions share nothing.
-        if ($a->union($b)->diff($b->union($a))->count() == 0) { $laws = $laws + 1; }
-        if ($b->union($a)->diff($a->union($b))->count() == 0) { $laws = $laws + 1; }
-        if ($a->intersect($b)->diff($b->intersect($a))->count() == 0) { $laws = $laws + 1; }
-        if ($a->diff($b)->intersect($b->diff($a))->count() == 0) { $laws = $laws + 1; }
+        if ($a->union($b)->difference($b->union($a))->count() == 0) { $laws = $laws + 1; }
+        if ($b->union($a)->difference($a->union($b))->count() == 0) { $laws = $laws + 1; }
+        if ($a->intersection($b)->difference($b->intersection($a))->count() == 0) { $laws = $laws + 1; }
+        if ($a->difference($b)->intersection($b->difference($a))->count() == 0) { $laws = $laws + 1; }
 
         // Removing the second operand from the union leaves exactly the
         // first's private half — the identity a walk that forgot the overlap
         // gets wrong in one direction only.
-        if ($a->union($b)->diff($b)->diff($a->diff($b))->count() == 0) { $laws = $laws + 1; }
-        if ($a->diff($b)->diff($a->union($b)->diff($b))->count() == 0) { $laws = $laws + 1; }
-        if ($a->union($b)->diff($a)->diff($b->diff($a))->count() == 0) { $laws = $laws + 1; }
-        if ($b->diff($a)->diff($a->union($b)->diff($a))->count() == 0) { $laws = $laws + 1; }
+        if ($a->union($b)->difference($b)->difference($a->difference($b))->count() == 0) { $laws = $laws + 1; }
+        if ($a->difference($b)->difference($a->union($b)->difference($b))->count() == 0) { $laws = $laws + 1; }
+        if ($a->union($b)->difference($a)->difference($b->difference($a))->count() == 0) { $laws = $laws + 1; }
+        if ($b->difference($a)->difference($a->union($b)->difference($a))->count() == 0) { $laws = $laws + 1; }
 
         // Membership itself, decided over the whole pool rather than over the
         // members that happen to be present: every element of the domain is
@@ -128,9 +128,9 @@ foreach ($rows as array<string> $left) {
             bool $inA = $a->has($t);
             bool $inB = $b->has($t);
             if ($a->union($b)->has($t) == ($inA || $inB)) { $members = $members + 1; }
-            if ($a->intersect($b)->has($t) == ($inA && $inB)) { $members = $members + 1; }
-            if ($a->diff($b)->has($t) == ($inA && !$inB)) { $members = $members + 1; }
-            if ($b->diff($a)->has($t) == ($inB && !$inA)) { $members = $members + 1; }
+            if ($a->intersection($b)->has($t) == ($inA && $inB)) { $members = $members + 1; }
+            if ($a->difference($b)->has($t) == ($inA && !$inB)) { $members = $members + 1; }
+            if ($b->difference($a)->has($t) == ($inB && !$inA)) { $members = $members + 1; }
         }
     }
 }
@@ -144,9 +144,9 @@ Core\ObjectSet<Tag> $some = Sets::pick($pool, ["0", "1", "2", "3"]);
 Core\ObjectSet<Tag> $more = Sets::pick($pool, ["2", "3", "4", "5"]);
 echo "sizes: ", $some->count(), " ", $more->count(),
      " union ", $some->union($more)->count(),
-     " inter ", $some->intersect($more)->count(),
-     " left-only ", $some->diff($more)->count(),
-     " right-only ", $more->diff($some)->count(), "\n";
+     " inter ", $some->intersection($more)->count(),
+     " left-only ", $some->difference($more)->count(),
+     " right-only ", $more->difference($some)->count(), "\n";
 
 // And neither operand moved under any of it.
 echo "operands: ", $some->count(), " ", $more->count(), "\n";

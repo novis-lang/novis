@@ -7,21 +7,21 @@
 
 // 1. The widest number one call may build, and its negative. A member reading
 //    the digits would walk a hundred thousand of them here.
-var $widest = Core\BigInt::of(1)->shl(1048575);
-echo $widest->sign(), ' ', $widest->neg()->sign(), "\n";
+var $widest = Core\BigInt::of(1)->shiftedLeft(1048575);
+echo $widest->sign(), ' ', $widest->negated()->sign(), "\n";
 
 // 2. Numbers whose low 64 bits are all zero. A member reading the last word
 //    alone would call these zero.
 array<uint> $places = [64, 128, 1024, 65536];
 foreach ($places as uint $by) {
-    echo Core\BigInt::of(1)->shl($by)->sign(), ' ', Core\BigInt::of(-1)->shl($by)->sign(), "\n";
+    echo Core\BigInt::of(1)->shiftedLeft($by)->sign(), ' ', Core\BigInt::of(-1)->shiftedLeft($by)->sign(), "\n";
 }
 
 // 3. Zero reached from three directions: the value itself, a subtraction that
 //    cancels, and a shift that drops every bit. All three print 0.
 echo Core\BigInt::of(0)->sign(), "\n";
-echo $widest->sub($widest)->sign(), "\n";
-echo $widest->shr(9223372036854775807)->sign(), "\n";
+echo $widest->minus($widest)->sign(), "\n";
+echo $widest->shiftedRight(9223372036854775807)->sign(), "\n";
 
 // 4. Five hundred thousand calls on one wide number. The memory the program
 //    holds must not grow with the rounds.

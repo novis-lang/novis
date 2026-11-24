@@ -11,4 +11,4 @@ var $today = Core\Time\Instant::fromIso('2031-06-01T00:00:00Z');
 // `since()` returns the time between the two instants as a `Core\Time\Duration`.
 // One day has 86400 seconds. This prints `days left: 10`.
 int $seconds = $session->expiry()->since($today)->toSeconds();
-echo 'days left: ', Core\Math::intDiv($seconds, 86400), "\n";
+echo 'days left: ', Core\Math::quotient($seconds, 86400), "\n";

@@ -1,0 +1,56 @@
+<?nvs
+// Attack: `nanoseconds` reads the last nanosecond of the day, the wrap at midnight, and values that are too large.
+// Each result should be from 0 to 999999999 and match the time. A wrong result throws an error.
+
+final class Expect
+{
+    // This throws a `LogicError` when `$got` is not `$want`.
+    public static function same(string $step, string $got, string $want): void
+    {
+        if ($got != $want) {
+            throw new LogicError($step . ': the result is ' . $got . ', not ' . $want);
+        }
+    }
+}
+
+// 1. The last nanosecond of the day is 999999999. One nanosecond later it is midnight, and the result is 0.
+var $last = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanoseconds: 999999999 });
+Expect::same('step 1', $last->nanoseconds() as string, '999999999');
+var $midnight = $last->plus(1, Core\Unit::Nanosecond);
+Expect::same('step 1', $midnight->nanoseconds() as string, '0');
+Expect::same('step 1', $midnight->compareTo(Core\Time\TimeOfDay::at(0, 0)) as string, '0');
+
+// 2. 1000000000 nanoseconds and the largest `uint` are not allowed. Both errors are caught.
+array<uint> $tooLarge = [1000000000, 18446744073709551615];
+int $thrown = 0;
+foreach ($tooLarge as uint $n) {
+    try {
+        Core\Time\TimeOfDay::at(12, 0, { nanoseconds: $n });
+    } catch (RuntimeError $a) {
+        $thrown = $thrown + 1;
+    }
+    try {
+        $last->with({ nanoseconds: $n });
+    } catch (RuntimeError $b) {
+        $thrown = $thrown + 1;
+    }
+}
+Expect::same('step 2', $thrown as string, '4');
+
+// 3. Steps of 999999937 nanoseconds go past midnight many times.
+// After each step, `nanoseconds` must match the sum of the steps, and `with` must give the same time back.
+var $clock = $last;
+int $want = 999999999;
+int $step = 0;
+while ($step < 200000) {
+    uint $nanos = $clock->nanoseconds();
+    Expect::same('step 3', $nanos as string, $want as string);
+    Expect::same('step 3', $clock->with({ nanoseconds: $nanos })->compareTo($clock) as string, '0');
+    $clock = $clock->plus(999999937, Core\Unit::Nanosecond);
+    $want = ($want + 999999937) % 1000000000;
+    $step = $step + 1;
+}
+
+// 4. The largest number of nanoseconds, forward. 9223372036854775807 nanoseconds ends in 854775807.
+Expect::same('step 4', Core\Time\TimeOfDay::at(0, 0)->plus(9223372036854775807, Core\Unit::Nanosecond)->nanoseconds() as string, '854775807');
+echo "all nanoseconds are right\n";

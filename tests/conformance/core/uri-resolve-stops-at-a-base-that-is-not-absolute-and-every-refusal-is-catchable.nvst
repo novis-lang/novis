@@ -20,7 +20,7 @@ final class Verdict {
     // first one.
     public static function of(string $base, string $reference): tainted string {
         try {
-            return "= " . Core\Uri::parse($base)->resolve($reference)->toString();
+            return "= " . Core\Uri::parse($base)->resolved($reference)->toString();
         } catch (Throwable $refused) {
             return "! " . $refused->message;
         }
@@ -80,18 +80,18 @@ echo Verdict::of("http://a", "g"), " / ", Verdict::of("//a", "g"), "\n";
 echo Verdict::of("file:///x", "g"), " / ", Verdict::of("file:x", "g"), "\n";
 
 // The reference is bounded too, by the same reader `parse` uses, and its
-// refusal is a third message naming `resolve` — never `parse`, and never a
+// refusal is a third message naming `resolved` — never `parse`, and never a
 // `Uri` built out of text the grammar did not admit. The empty reference is the
 // last one accepted: RFC 3986 § 5.3 recomposes the base with its fragment
 // already dropped by RFC 3986 § 5.1.
 echo Verdict::of("http://a/b?q#f", ""), "\n";
 echo Verdict::of("http://a/b", "http://[bad"), "\n";
 --EXPECT--
-! Core\Uri::resolve(): the receiver is a relative reference, and RFC 3986 § 5.2.1 resolves against an absolute URI. Give this `Uri` a scheme first, or resolve against one that has one
-! Core\Uri::resolve(): the base has no authority and a rootless path, so it is opaque and there is no path for a relative reference to be merged into
+! Core\Uri::resolved(): the receiver is a relative reference, and RFC 3986 § 5.2.1 resolves against an absolute URI. Give this `Uri` a scheme first, or resolve against one that has one
+! Core\Uri::resolved(): the base has no authority and a rootless path, so it is opaque and there is no path for a relative reference to be merged into
 answered 4, relative 6, opaque 3, unaccounted 0 of 13
-= http:/g / ! Core\Uri::resolve(): the base has no authority and a rootless path, so it is opaque and there is no path for a relative reference to be merged into
-= http://a/g / ! Core\Uri::resolve(): the receiver is a relative reference, and RFC 3986 § 5.2.1 resolves against an absolute URI. Give this `Uri` a scheme first, or resolve against one that has one
-= file:///g / ! Core\Uri::resolve(): the base has no authority and a rootless path, so it is opaque and there is no path for a relative reference to be merged into
+= http:/g / ! Core\Uri::resolved(): the base has no authority and a rootless path, so it is opaque and there is no path for a relative reference to be merged into
+= http://a/g / ! Core\Uri::resolved(): the receiver is a relative reference, and RFC 3986 § 5.2.1 resolves against an absolute URI. Give this `Uri` a scheme first, or resolve against one that has one
+= file:///g / ! Core\Uri::resolved(): the base has no authority and a rootless path, so it is opaque and there is no path for a relative reference to be merged into
 = http://a/b?q
-! Core\Uri::resolve(): this text is not a URI reference (RFC 3986 § 4.1) — a bracketed host that is not an IPv6 address at byte 8. The text itself is not quoted back, since a URI's userinfo component is where credentials are written
+! Core\Uri::resolved(): this text is not a URI reference (RFC 3986 § 4.1) — a bracketed host that is not an IPv6 address at byte 8. The text itself is not quoted back, since a URI's userinfo component is where credentials are written

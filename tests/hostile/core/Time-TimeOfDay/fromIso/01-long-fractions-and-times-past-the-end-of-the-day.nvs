@@ -64,7 +64,7 @@ echo $refused, " refused\n";
 
 // 5. The first and the last time of the day, with all nine fraction digits.
 echo Core\Time\TimeOfDay::fromIso('00:00:00.000000000')->format('HH:mm:ss.SSS'), "\n";
-echo Core\Time\TimeOfDay::fromIso('23:59:59.999999999')->nanos(), "\n";
+echo Core\Time\TimeOfDay::fromIso('23:59:59.999999999')->nanoseconds(), "\n";
 
 // 6. Many bad texts in a loop. Every error is caught and freed.
 uint $i = 0;

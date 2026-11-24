@@ -7,7 +7,7 @@ class Slot
     {
         // `% 15` gives the minutes past the last quarter hour. 10:52 is 7 minutes past 10:45.
         uint $minute = $time->minute();
-        return $time->with({ minute: $minute - $minute % 15, second: 0, nanos: 0 });
+        return $time->with({ minute: $minute - $minute % 15, second: 0, nanoseconds: 0 });
     }
 }
 

@@ -7,7 +7,7 @@ Core\Test::answerHttp('https://api.example.com/export', 200, {
     headers: ['content-type' => 'text/csv', 'vary' => $vary],
 });
 
-Core\Http\Stream $export = Core\Http\Client::stream(Core\Http\Method::Get, 'https://api.example.com/export');
+Core\Http\Stream $export = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://api.example.com/export');
 // The name can be written in any case. This prints 1, 2 and 0.
 echo Core\Arr::count($export->headers('Content-Type')), "\n";
 echo Core\Arr::count($export->headers('vary')), "\n";

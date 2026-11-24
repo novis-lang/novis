@@ -51,7 +51,7 @@ for ($i = 0; $i < 64; $i = $i + 1) {
 }
 echo "int ", $inside, " float ", $unit, " bytes ", $sized, " token ", $rendered, "\n";
 echo "sample ", $distinct, " shuffle ", $permutation, "\n";
-echo "pick ", Core\Arr::count($picks), " ", Core\Arr::count(Core\Arr::diff($picks, $box)), "\n";
+echo "pick ", Core\Arr::count($picks), " ", Core\Arr::count(Core\Arr::difference($picks, $box)), "\n";
 
 // A seed is a sequence and not a constant: 64 picks at one seed reach more
 // than one entry. A generator that never wrote its advanced state back holds

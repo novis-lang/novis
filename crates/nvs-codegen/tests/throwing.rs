@@ -345,7 +345,7 @@ use nvs_runtime::budget::{allocated_bytes, live_bytes};
 /// fatal is. It cannot be the valgrind sweep either: `examples/fatal.nvs` is on
 /// that sweep's skip list for exiting non-zero by design.
 ///
-/// `Core\Arr::countBy` over a `float`-keyed subject is the trigger, because it
+/// `Core\Arr::groupCounts` over a `float`-keyed subject is the trigger, because it
 /// is a `Fault::fatal` reachable from source *after* two locals are live —
 /// `nvs_stdlib`'s `key_bytes` raises it, and `docs/agent/playbook.md` records
 /// that no handler sees it. Both locals are genuine allocations: the string is
@@ -367,7 +367,7 @@ fn a_fatal_releases_the_frames_locals() {
     let source = format!(
         "<?nvs\nstring $held = \"{filler}\" . \"!\";\n\
          array<float> $floats = [1.5, 2.5];\n\
-         echo Core\\Json::encode(Core\\Arr::countBy($floats));\n"
+         echo Core\\Json::encode(Core\\Arr::groupCounts($floats));\n"
     );
     let unit = compile(&source).expect("the fixture compiles");
     let mut ctx = Ctx::buffered();
@@ -394,7 +394,7 @@ fn a_fatal_releases_the_frames_locals() {
     let pending = ctx.take_pending();
     assert_eq!(
         pending.as_deref(),
-        Some("Core\\Arr::countBy expected an `int|string` key, got a `float`")
+        Some("Core\\Arr::groupCounts expected an `int|string` key, got a `float`")
     );
     drop(pending);
     drop(ctx.take_buffered_output());

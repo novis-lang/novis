@@ -12,7 +12,7 @@ class Bench
         int $i = 0;
         while ($i < $rounds) {
             // Chained: the value tested this round depends on last round's total.
-            float $value = Core\Math::fdiv(1.0, $total - 1.0);
+            float $value = Core\Math::divide(1.0, $total - 1.0);
             if (Core\Math::isFinite($value)) {
                 $total = $total + 1.0;
             } else {

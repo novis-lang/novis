@@ -7,7 +7,7 @@ keywords: parse a URL, validate a URL, URL encode, URL decode, form encoding, pa
 component exactly as written — still percent-encoded, in its own case. Every reader but `path` is
 `?string` (`port` is `?int`) and answers `null` where the component was not written; `tryParse` is
 the same read with `null` in place of `RuntimeError`, and is the spelling of "is this text a URI".
-`with` and `resolve` answer a fresh `Uri`, and `compareTo` is the normalized content comparison —
+`with` and `resolved` answer a fresh `Uri`, and `compareTo` is the normalized content comparison —
 `==` on two `Uri` objects is identity. `parseQuery` and `buildQuery` read and write the bracket
 convention, and `queryParameter`/`withQueryParameter` are the same convention over **one** parameter
 by name — a name `with` cannot take as a bag key, because a bag's keys are declared and a parameter's
@@ -25,7 +25,7 @@ var $u = Core\Uri::parse('https://example.com:8443/a/b%20c?x=1&y=2#top');
 echo $u->scheme() ?? '-', ' ', $u->host() ?? '-', ' ', $u->port() ?? 0, "\n";
 echo $u->path(), ' ', $u->query() ?? '-', ' ', $u->fragment() ?? '-', "\n";
 echo $u->with({ path: '/c', fragment: 'end' })->toString(), "\n";
-echo $u->resolve('../d?z=3')->toString(), "\n";
+echo $u->resolved('../d?z=3')->toString(), "\n";
 
 var $rel = Core\Uri::parse('/only/a/path');
 echo $rel->scheme() == null ? 'relative' : 'absolute', "\n";

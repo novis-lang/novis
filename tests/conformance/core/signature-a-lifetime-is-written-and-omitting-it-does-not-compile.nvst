@@ -20,7 +20,7 @@ Core\Signature::sign(["doc" => "7"], {keys: $ring});
 // shape serves every door onto `rule:core-api/signing-is-over-a-payload`: a
 // lifetime that were required at the general member and optional at the URL
 // is exactly the hole the shared const exists to make unspellable.
-Core\Uri::parse("https://example.test/a")->sign({keys: $ring});
+Core\Uri::parse("https://example.test/a")->signed({keys: $ring});
 --EXPECTF-ERROR--
 error[E0402]: this member requires the shape key `until`
    --> %s:14:38
@@ -30,10 +30,10 @@ error[E0402]: this member requires the shape key `until`
    = help: the keys this member requires are: keys, until
 
 error[E0402]: this member requires the shape key `until`
-   --> %s:20:49
+   --> %s:20:51
    |
-20 | Core\Uri::parse("https://example.test/a")->sign({keys: $ring});
-   |                                                 ^^^^^^^^^^^^^ `until` is not given
+20 | Core\Uri::parse("https://example.test/a")->signed({keys: $ring});
+   |                                                   ^^^^^^^^^^^^^ `until` is not given
    = help: the keys this member requires are: keys, until
 
 error: aborting due to 2 errors

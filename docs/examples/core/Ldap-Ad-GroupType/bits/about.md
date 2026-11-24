@@ -6,4 +6,4 @@ The security flag is the highest bit, `0x80000000`. Active Directory reads the n
 a global distribution group is `2`.
 
 Use `bits` when you need the number itself, for example to write a changed group type back to the
-directory. To check one flag, call the function for that flag, such as `security()`.
+directory. To check one flag, call the function for that flag, such as `isSecurityGroup()`.

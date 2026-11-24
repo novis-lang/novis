@@ -1,11 +1,11 @@
 --TEST--
-Every `Core\Uri` the class can build — from `parse`, `with` and `resolve` — renders text `Core\Uri::tryParse` reads back to the same text, counted over the whole cross-product — `rule:expressions/try-parse`
+Every `Core\Uri` the class can build — from `parse`, `with` and `resolved` — renders text `Core\Uri::tryParse` reads back to the same text, counted over the whole cross-product — `rule:expressions/try-parse`
 --FILE--
 <?nvs
 // `tryParse` is the class's own totality predicate, so it is what a callable
 // property is asserted with: `toString` on anything the class builds must be
 // text the class reads, and reading it must not move it. A `with` that forgot
-// a delimiter, or a `resolve` that emitted a path a relative reference cannot
+// a delimiter, or a `resolved` that emitted a path a relative reference cannot
 // carry, prints plausibly on its own line and fails the count here.
 //
 // The cross-product is deliberate — eleven bases, six single-component `with`
@@ -41,7 +41,7 @@ foreach ($bases as string $base) {
     array<string> $built = [];
     $built[] = $u->toString();
 
-    // A `with` that would move a component to a different one, and a `resolve`
+    // A `with` that would move a component to a different one, and a `resolved`
     // against a base that is not absolute, both throw — those are pinned in
     // their own cases. Counted here only so the total says how much of the
     // cross-product the class actually admits.
@@ -53,7 +53,7 @@ foreach ($bases as string $base) {
     try { $built[] = $u->with({fragment: "z"})->toString(); } catch (Throwable $e6) { $refusedBuild = $refusedBuild + 1; }
 
     foreach ($refs as string $ref) {
-        try { $built[] = $u->resolve($ref)->toString(); } catch (Throwable $e7) { $refusedBuild = $refusedBuild + 1; }
+        try { $built[] = $u->resolved($ref)->toString(); } catch (Throwable $e7) { $refusedBuild = $refusedBuild + 1; }
     }
 
     int $here = Core\Arr::count($built) as int;

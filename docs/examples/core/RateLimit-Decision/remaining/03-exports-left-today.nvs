@@ -7,7 +7,7 @@ class Export
     {
         // Each user may export 3 files per day.
         var $decision = Core\RateLimit::shed('export:' . $user, 3, 24h);
-        if (!$decision->allowed()) {
+        if (!$decision->isAllowed()) {
             return 'You have no exports left today.';
         }
         if ($decision->remaining() == 0) {

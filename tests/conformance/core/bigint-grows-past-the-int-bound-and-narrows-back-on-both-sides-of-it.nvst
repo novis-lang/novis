@@ -2,7 +2,7 @@
 A `Core\BigInt` grows past every scalar's bound and `toInt`, `toUint` and `toDecimal` each name both sides of their own — `rule:types/arithmetic` and `rule:types/decimal`
 --FILE--
 <?nvs
-// covers: Core\BigInt::add, Core\BigInt::mul
+// covers: Core\BigInt::plus, Core\BigInt::multipliedBy
 // A factorial is the shortest program that leaves `int` behind: 20! is the
 // last one an `int` holds, and 21! is not. Counting where `toInt` stops
 // answering names both sides of that bound in one sweep — a member that
@@ -13,7 +13,7 @@ int $refused = 0;
 tainted string $firstRefusal = "";
 int $n = 1;
 while ($n <= 25) {
-    $product = $product->mul(Core\BigInt::of($n));
+    $product = $product->multipliedBy(Core\BigInt::of($n));
     try {
         $product->toInt();
         $held = $held + 1;
@@ -35,22 +35,22 @@ echo "first refusal: ", $firstRefusal, "\n";
 var $intMax = Core\BigInt::of(9223372036854775807);
 echo "intMax ", $intMax->toInt(), "\n";
 try {
-    echo $intMax->add(Core\BigInt::of(1))->toInt(), "\n";
+    echo $intMax->plus(Core\BigInt::of(1))->toInt(), "\n";
 } catch (ArithmeticError $pastInt) {
     echo "past int: ", $pastInt->message, "\n";
 }
 var $uintMax = Core\BigInt::ofUint(18446744073709551615);
 echo "uintMax ", $uintMax->toUint(), " sign ", $uintMax->sign(), "\n";
 try {
-    echo $uintMax->add(Core\BigInt::of(1))->toUint(), "\n";
+    echo $uintMax->plus(Core\BigInt::of(1))->toUint(), "\n";
 } catch (ArithmeticError $pastUint) {
     echo "past uint: ", $pastUint->message, "\n";
 }
 
 // `toDecimal` has a third bound, and it is the scalar's 96-bit mantissa rather
 // than either integer's width.
-var $mantissa = Core\BigInt::of(2)->pow(96);
-echo "decimal ", $mantissa->sub(Core\BigInt::of(1))->toDecimal(), "\n";
+var $mantissa = Core\BigInt::of(2)->raisedTo(96);
+echo "decimal ", $mantissa->minus(Core\BigInt::of(1))->toDecimal(), "\n";
 try {
     echo $mantissa->toDecimal(), "\n";
 } catch (ArithmeticError $pastDecimal) {
@@ -59,8 +59,8 @@ try {
 
 // A magnitude this wide is still an ordinary value: it renders, it formats in
 // another radix, and shifting it is multiplying and dividing by a power of two.
-echo "hex ", $mantissa->format({radix: 16}), " shr ", $mantissa->shr(90)->toString(), "\n";
-echo "shl ", Core\BigInt::of(3)->shl(64)->toString(), " back ", Core\BigInt::of(3)->shl(64)->shr(64)->toUint(), "\n";
+echo "hex ", $mantissa->format({radix: 16}), " shr ", $mantissa->shiftedRight(90)->toString(), "\n";
+echo "shl ", Core\BigInt::of(3)->shiftedLeft(64)->toString(), " back ", Core\BigInt::of(3)->shiftedLeft(64)->shiftedRight(64)->toUint(), "\n";
 
 // The magnitudes these members exist for, asked at a width no `int` reaches:
 // a modular exponentiation never grows past its modulus however wide its base
@@ -68,8 +68,8 @@ echo "shl ", Core\BigInt::of(3)->shl(64)->toString(), " back ", Core\BigInt::of(
 // — so the gcd of the two is the smaller and the lcm is the larger.
 var $twenty = Core\BigInt::parse("2432902008176640000");
 var $wide = Core\BigInt::parse("179769313486231590772930519078902473361797697894230657273430081157732675805500");
-echo "powMod ", $wide->powMod(Core\BigInt::of(65537), Core\BigInt::of(1000000007))->toInt(), "\n";
-echo "sqrt ", $product->sqrt()->toString(), " squared ", $product->sqrt()->pow(2)->compareTo($product), "\n";
+echo "powMod ", $wide->raisedToModulo(Core\BigInt::of(65537), Core\BigInt::of(1000000007))->toInt(), "\n";
+echo "sqrt ", $product->sqrt()->toString(), " squared ", $product->sqrt()->raisedTo(2)->compareTo($product), "\n";
 echo "gcd ", $product->gcd($twenty)->compareTo($twenty), " lcm ", $product->lcm($twenty)->compareTo($product), "\n";
 --EXPECT--
 held 20 refused 5

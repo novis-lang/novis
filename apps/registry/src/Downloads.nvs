@@ -45,7 +45,7 @@ final class Downloads
     // Returns the day of a time, as the number of days since 1970.
     public static function dayOf(int $seconds): int
     {
-        return Math::intDiv($seconds, Downloads::DAY);
+        return Math::quotient($seconds, Downloads::DAY);
     }
 
     // Counts one download of a version. `$address` is the address of the computer that downloads.
@@ -53,7 +53,7 @@ final class Downloads
     {
         int $day = Downloads::dayOf(Time::now()->toEpochSeconds());
         string $seen = Downloads::seen($this->saltOf($day), $address, $key, $version);
-        $this->db->transaction(fn(Transaction $tx): void => {
+        $this->db->runTransaction(fn(Transaction $tx): void => {
             var $first = $tx->execute('insert into downloads_seen (day, hash) values (?, ?) on conflict (day, hash) do nothing', [$day, $seen]);
             if ($first->affected() == 1) {
                 Downloads::add($tx, $key, $version, $day, 1);
@@ -170,7 +170,7 @@ final class Downloads
             $counts[$release] = ($counts[$release] ?? 0) + 1;
             $total++;
         }
-        return $this->db->transaction(fn(Transaction $tx): int => {
+        return $this->db->runTransaction(fn(Transaction $tx): int => {
             var $first = $tx->execute('insert into downloads_counted (day) values (?) on conflict (day) do nothing', [$day]);
             if ($first->affected() == 0) {
                 return 0;
@@ -200,7 +200,7 @@ final class Downloads
         if ($status == null || $status < 200 || $status > 299 || $milliseconds == null) {
             return null;
         }
-        if (Downloads::dayOf(Math::intDiv($milliseconds, 1000)) != $day || !Str::startsWith($fields[9], 'nvs/') || $fields[5] == '') {
+        if (Downloads::dayOf(Math::quotient($milliseconds, 1000)) != $day || !Str::startsWith($fields[9], 'nvs/') || $fields[5] == '') {
             return null;
         }
         string $path = Str::before($fields[7], '?') ?? $fields[7];

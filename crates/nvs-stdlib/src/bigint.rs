@@ -41,8 +41,8 @@
 //!
 //! **There are no operators.** `$a + $b` over two objects is the compile error
 //! it is for any class, because Novis has no operator overloading
-//! (`rule:types/decimal`'s own ground), so modular exponentiation is [`CLASS`]'s `powMod` and addition
-//! is `+` on two `decimal`s.
+//! (`rule:types/decimal`'s own ground), so modular exponentiation is
+//! [`CLASS`]'s `raisedToModulo` and addition is `+` on two `decimal`s.
 //!
 //! **`parse` is not `rule:expressions/try-parse`'s member**, and nothing here
 //! is owed a `tryParse` because of it: that rule's `parse` takes one `string`
@@ -52,9 +52,9 @@
 //!
 //! # Decision: one call may not explode, and two members are where that is checked
 //!
-//! `add`, `mul` and their neighbours grow a result by at most the sum of their
+//! `plus`, `multipliedBy` and their neighbours grow a result by at most the sum of their
 //! operands' widths, so a program reaches a memory ceiling through
-//! [`nvs_runtime::affordable`] a step at a time. `pow` and `shl` are the two
+//! [`nvs_runtime::affordable`] a step at a time. `raisedTo` and `shiftedLeft` are the two
 //! that turn a small receiver into an arbitrarily wide answer in **one** call,
 //! and both refuse ahead of the work at [`MAX_BITS`] rather than allocating
 //! toward the cap first. That bound is this module's, and no rule sets it.
@@ -68,13 +68,13 @@
 //! # What it costs
 //!
 //! The figures are `num-bigint` 0.5's, read off its source, with `n` the
-//! operands' width. `mul` is schoolbook to 32 limbs, Karatsuba to 256 and
-//! Toom-3 above. `div` and `mod` are Burnikel-Ziegler once the dividend is past
+//! operands' width. `multipliedBy` is schoolbook to 32 limbs, Karatsuba to 256 and
+//! Toom-3 above. `dividedBy` and `remainder` are Burnikel-Ziegler once the dividend is past
 //! 128 limbs and the divisor past 64, so they cost a multiplication's times
 //! `log n`. `sqrt` is [`root`], which halves the width and corrects by Newton
 //! steps, so it costs a few of those divisions. `gcd` and `lcm` are [`gcd`],
 //! a half-gcd at a multiplication's cost times `log n`, where the library's is
-//! Stein's algorithm and quadratic. `powMod` is [`pow_mod`], one step per
+//! Stein's algorithm and quadratic. `raisedToModulo` is [`pow_mod`], one step per
 //! exponent bit, and a step over an odd modulus is three multiplications,
 //! where the library's Montgomery step is quadratic. `toString` and
 //! `format` are the library's conversion, which splits by squared powers of
@@ -87,13 +87,14 @@
 //! matters because `parse` reads text a request sent, and nothing but the
 //! request's memory ceiling bounds its length.
 //!
-//! [`MAX_BITS`] bounds only what `pow` and `shl` produce. Every other member's
+//! [`MAX_BITS`] bounds only what `raisedTo` and `shiftedLeft` produce. Every other member's
 //! operands are as wide as the program made them, which the memory ceiling
-//! alone bounds, and one `mul` at that width takes minutes. So `mul`, `div`,
-//! `mod`, `sqrt`, `gcd`, `lcm`, `powMod`, `parse`, `toString` and `format`
-//! estimate their CPU time from the widths with the figures above and check it
+//! alone bounds, and one `multipliedBy` at that width takes minutes. So
+//! `multipliedBy`, `dividedBy`, `remainder`, `sqrt`, `gcd`, `lcm`,
+//! `raisedToModulo`, `parse`, `toString` and `format` estimate their CPU
+//! time from the widths with the figures above and check it
 //! against the time the request has left before the work ([`afford`]). A
-//! call estimated under a millisecond is not checked. `add`, `sub` and the
+//! call estimated under a millisecond is not checked. `plus`, `minus` and the
 //! shifts are linear and are not checked.
 
 use num_bigint::{BigInt, BigUint, Sign};
@@ -135,7 +136,7 @@ const DEFAULT_RADIX: u64 = 10;
 /// The widest magnitude a single call may produce, in bits — 128 KiB of
 /// magnitude, which is a 315,653-digit decimal number.
 ///
-/// Only `pow` and `shl` are checked against it, for this module's own
+/// Only `raisedTo` and `shiftedLeft` are checked against it, for this module's own
 /// § *Decision: one call may not explode*: they are the two members whose
 /// answer is not bounded by the width of what was handed to them.
 const MAX_BITS: u64 = 1 << 20;
@@ -191,73 +192,73 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     ],
     instance: &[
         CoreMethod {
-            name: "add",
+            name: "plus",
             names: &["other"],
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_bigint_add",
+            symbol: "nvs_core_bigint_plus",
             doc: Some(&ADD_DOC),
         },
         CoreMethod {
-            name: "sub",
+            name: "minus",
             names: &["other"],
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_bigint_sub",
+            symbol: "nvs_core_bigint_minus",
             doc: Some(&SUB_DOC),
         },
         CoreMethod {
-            name: "mul",
+            name: "multipliedBy",
             names: &["other"],
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_bigint_mul",
+            symbol: "nvs_core_bigint_multiplied_by",
             doc: Some(&MUL_DOC),
         },
         CoreMethod {
-            name: "div",
+            name: "dividedBy",
             names: &["divisor"],
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_bigint_div",
+            symbol: "nvs_core_bigint_divided_by",
             doc: Some(&DIV_DOC),
         },
         CoreMethod {
-            name: "mod",
+            name: "remainder",
             names: &["divisor"],
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_bigint_mod",
+            symbol: "nvs_core_bigint_remainder",
             doc: Some(&MOD_DOC),
         },
         CoreMethod {
-            name: "pow",
+            name: "raisedTo",
             names: &["exponent"],
             params: &[CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_bigint_pow",
+            symbol: "nvs_core_bigint_raised_to",
             doc: Some(&POW_DOC),
         },
         CoreMethod {
-            name: "powMod",
+            name: "raisedToModulo",
             names: &["exponent", "modulus"],
             params: &[CoreTy::Instance(NAME), CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_bigint_pow_mod",
+            symbol: "nvs_core_bigint_raised_to_modulo",
             doc: Some(&POW_MOD_DOC),
         },
         CoreMethod {
@@ -291,13 +292,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&LCM_DOC),
         },
         CoreMethod {
-            name: "neg",
+            name: "negated",
             names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_bigint_neg",
+            symbol: "nvs_core_bigint_negated",
             doc: Some(&NEG_DOC),
         },
         CoreMethod {
@@ -311,23 +312,23 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&ABS_DOC),
         },
         CoreMethod {
-            name: "shl",
+            name: "shiftedLeft",
             names: &["bits"],
             params: &[CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_bigint_shl",
+            symbol: "nvs_core_bigint_shifted_left",
             doc: Some(&SHL_DOC),
         },
         CoreMethod {
-            name: "shr",
+            name: "shiftedRight",
             names: &["bits"],
             params: &[CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_bigint_shr",
+            symbol: "nvs_core_bigint_shifted_right",
             doc: Some(&SHR_DOC),
         },
         CoreMethod {
@@ -476,7 +477,7 @@ const PARSE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\BigInt::add`'s reference card — `rule:core-api/reference-card`.
+/// `Core\BigInt::plus`'s reference card — `rule:core-api/reference-card`.
 const ADD_DOC: MethodDoc = MethodDoc {
     short: "Returns the sum of this value and `$other` as a new `BigInt`. The result never \
             overflows.",
@@ -489,7 +490,7 @@ const ADD_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\BigInt::sub`'s reference card — `rule:core-api/reference-card`.
+/// `Core\BigInt::minus`'s reference card — `rule:core-api/reference-card`.
 const SUB_DOC: MethodDoc = MethodDoc {
     short: "The difference between this value and `$other`, as a new `BigInt`.",
     params: &[ParamDoc {
@@ -501,7 +502,7 @@ const SUB_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\BigInt::mul`'s reference card — `rule:core-api/reference-card`.
+/// `Core\BigInt::multipliedBy`'s reference card — `rule:core-api/reference-card`.
 const MUL_DOC: MethodDoc = MethodDoc {
     short: "Returns the product of this value and `$other` as a new `BigInt`. You can use it to \
             compute a factorial or a growing power.",
@@ -514,7 +515,7 @@ const MUL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\BigInt::div`'s reference card — `rule:core-api/reference-card`.
+/// `Core\BigInt::dividedBy`'s reference card — `rule:core-api/reference-card`.
 const DIV_DOC: MethodDoc = MethodDoc {
     short: "Returns the quotient of this value and `$divisor`, rounded toward zero. `intdiv` \
             rounds an `int` quotient the same way.",
@@ -523,14 +524,14 @@ const DIV_DOC: MethodDoc = MethodDoc {
         desc: "The value to divide by.",
         shape: &[],
     }],
-    ret: "A `BigInt` quotient. `-7 div 2` is `-3`, the same result `intdiv` gives.",
+    ret: "A `BigInt` quotient. `-7` divided by `2` is `-3`, the same result `intdiv` gives.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
         desc: "`$divisor` is zero.",
     }],
 };
 
-/// `Core\BigInt::mod`'s reference card — `rule:core-api/reference-card`.
+/// `Core\BigInt::remainder`'s reference card — `rule:core-api/reference-card`.
 const MOD_DOC: MethodDoc = MethodDoc {
     short: "Returns the remainder of this value divided by `$divisor`. The remainder has the \
             same sign as this value, like `%` on `int`.",
@@ -539,15 +540,15 @@ const MOD_DOC: MethodDoc = MethodDoc {
         desc: "The value to divide by.",
         shape: &[],
     }],
-    ret: "A `BigInt` remainder. `-7 mod 2` is `-1`. The quotient from `div` times `$divisor`, \
-          plus this remainder, is the original value.",
+    ret: "A `BigInt` remainder. The remainder of `-7` divided by `2` is `-1`. The quotient from \
+          `dividedBy` times `$divisor`, plus this remainder, is the original value.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
         desc: "`$divisor` is zero.",
     }],
 };
 
-/// `Core\BigInt::pow`'s reference card — `rule:core-api/reference-card`.
+/// `Core\BigInt::raisedTo`'s reference card — `rule:core-api/reference-card`.
 const POW_DOC: MethodDoc = MethodDoc {
     short: "Returns this value raised to `$exponent`.",
     params: &[ParamDoc {
@@ -563,7 +564,7 @@ const POW_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\BigInt::powMod`'s reference card — `rule:core-api/reference-card`.
+/// `Core\BigInt::raisedToModulo`'s reference card — `rule:core-api/reference-card`.
 const POW_MOD_DOC: MethodDoc = MethodDoc {
     short: "Returns this value raised to `$exponent`, modulo `$modulus`. It never computes the \
             whole power, so it stays fast for a large exponent.",
@@ -625,7 +626,7 @@ const LCM_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\BigInt::neg`'s reference card — `rule:core-api/reference-card`.
+/// `Core\BigInt::negated`'s reference card — `rule:core-api/reference-card`.
 const NEG_DOC: MethodDoc = MethodDoc {
     short: "Returns this value with the opposite sign. Use it in place of unary `-`, which does \
             not work on a `BigInt`.",
@@ -644,7 +645,7 @@ const ABS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\BigInt::shl`'s reference card — `rule:core-api/reference-card`.
+/// `Core\BigInt::shiftedLeft`'s reference card — `rule:core-api/reference-card`.
 const SHL_DOC: MethodDoc = MethodDoc {
     short: "Returns this value multiplied by 2 to the power `$bits`. This is a left shift. It is \
             a method because `<<` does not work on an object.",
@@ -660,7 +661,7 @@ const SHL_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\BigInt::shr`'s reference card — `rule:core-api/reference-card`.
+/// `Core\BigInt::shiftedRight`'s reference card — `rule:core-api/reference-card`.
 const SHR_DOC: MethodDoc = MethodDoc {
     short: "Returns this value divided by 2 to the power `$bits`, rounded toward negative \
             infinity. This is an arithmetic right shift.",
@@ -763,20 +764,22 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_bigint_of" => (nvs_core_bigint_of as *const ()).cast(),
         "nvs_core_bigint_of_uint" => (nvs_core_bigint_of_uint as *const ()).cast(),
         "nvs_core_bigint_parse" => (nvs_core_bigint_parse as *const ()).cast(),
-        "nvs_core_bigint_add" => (nvs_core_bigint_add as *const ()).cast(),
-        "nvs_core_bigint_sub" => (nvs_core_bigint_sub as *const ()).cast(),
-        "nvs_core_bigint_mul" => (nvs_core_bigint_mul as *const ()).cast(),
-        "nvs_core_bigint_div" => (nvs_core_bigint_div as *const ()).cast(),
-        "nvs_core_bigint_mod" => (nvs_core_bigint_mod as *const ()).cast(),
-        "nvs_core_bigint_pow" => (nvs_core_bigint_pow as *const ()).cast(),
-        "nvs_core_bigint_pow_mod" => (nvs_core_bigint_pow_mod as *const ()).cast(),
+        "nvs_core_bigint_plus" => (nvs_core_bigint_plus as *const ()).cast(),
+        "nvs_core_bigint_minus" => (nvs_core_bigint_minus as *const ()).cast(),
+        "nvs_core_bigint_multiplied_by" => (nvs_core_bigint_multiplied_by as *const ()).cast(),
+        "nvs_core_bigint_divided_by" => (nvs_core_bigint_divided_by as *const ()).cast(),
+        "nvs_core_bigint_remainder" => (nvs_core_bigint_remainder as *const ()).cast(),
+        "nvs_core_bigint_raised_to" => (nvs_core_bigint_raised_to as *const ()).cast(),
+        "nvs_core_bigint_raised_to_modulo" => {
+            (nvs_core_bigint_raised_to_modulo as *const ()).cast()
+        }
         "nvs_core_bigint_sqrt" => (nvs_core_bigint_sqrt as *const ()).cast(),
         "nvs_core_bigint_gcd" => (nvs_core_bigint_gcd as *const ()).cast(),
         "nvs_core_bigint_lcm" => (nvs_core_bigint_lcm as *const ()).cast(),
-        "nvs_core_bigint_neg" => (nvs_core_bigint_neg as *const ()).cast(),
+        "nvs_core_bigint_negated" => (nvs_core_bigint_negated as *const ()).cast(),
         "nvs_core_bigint_abs" => (nvs_core_bigint_abs as *const ()).cast(),
-        "nvs_core_bigint_shl" => (nvs_core_bigint_shl as *const ()).cast(),
-        "nvs_core_bigint_shr" => (nvs_core_bigint_shr as *const ()).cast(),
+        "nvs_core_bigint_shifted_left" => (nvs_core_bigint_shifted_left as *const ()).cast(),
+        "nvs_core_bigint_shifted_right" => (nvs_core_bigint_shifted_right as *const ()).cast(),
         "nvs_core_bigint_sign" => (nvs_core_bigint_sign as *const ()).cast(),
         "nvs_core_bigint_compare_to" => (nvs_core_bigint_compare_to as *const ()).cast(),
         "nvs_core_bigint_to_int" => (nvs_core_bigint_to_int as *const ()).cast(),
@@ -1205,7 +1208,7 @@ fn mul_ns(a: u64, b: u64) -> f64 {
 /// The factors at each call site are measured against [`mul_ns`] on the same
 /// core and set a little under it: a quotient or a `gcd` 1.3 products of its
 /// operands, an `lcm` 2.5, a square root 2.5 squares of its width, a
-/// conversion to or from a radix that is not a power of two 2.4, and `powMod`
+/// conversion to or from a radix that is not a power of two 2.4, and `raisedToModulo`
 /// 3 squares of the modulus per exponent bit.
 fn afford(ctx: &mut nvs_runtime::Ctx, nanos: f64, member: &str) -> Result<(), Fault> {
     let cost =
@@ -1227,7 +1230,7 @@ fn quotient_ns(dividend: &BigInt, divisor: &BigInt) -> f64 {
 // ============================================================================
 
 /// The member every poll in [`product`] names when it stops the request.
-const MUL: &str = "Core\\BigInt::mul()";
+const MUL: &str = "Core\\BigInt::multipliedBy()";
 
 /// The widest call [`Pieces`] hands the library at once, as its estimated
 /// CPU time ([`mul_ns`] times the member's factor): 5 ms on the core
@@ -1241,7 +1244,7 @@ const MUL: &str = "Core\\BigInt::mul()";
 /// estimate fits the time left, and a slower core runs it past the limit by
 /// the difference. One product of two 634,000-byte numbers is estimated at
 /// 120 ms, and took 139 ms on an x86-64 desktop core. On CI's macOS runner
-/// the attack `tests/hostile/core/BigInt/mul/02-one-product-that-takes-seconds.nvs`
+/// the attack `tests/hostile/core/BigInt/multipliedBy/02-one-product-that-takes-seconds.nvs`
 /// was admitted to that product and stopped as it returned, 103 ms past its
 /// 250 ms limit, more than the 102.7 ms the run's sweep line explains.
 ///
@@ -1254,7 +1257,7 @@ const MUL: &str = "Core\\BigInt::mul()";
 /// Every other member that runs past one piece is split the same way: a
 /// quotient by Burnikel and Ziegler's halves, the library's own division, a
 /// conversion to digits by the library's own halving, and `gcd`, `sqrt`,
-/// `pow` and `powMod` as the loops they already are, each step a product or a
+/// `raisedTo` and `raisedToModulo` as the loops they already are, each step a product or a
 /// quotient in pieces.
 const PIECE_NS: f64 = 5_000_000.0;
 
@@ -1781,26 +1784,26 @@ nvs_runtime::nvs_helper! {
 // ============================================================================
 
 nvs_runtime::nvs_helper! {
-    /// `$n->add(BigInt $other): BigInt`.
-    fn nvs_core_bigint_add(_ctx, args: [2]) {
-        built(&(operand(args, 0, "add")? + operand(args, 1, "add")?))
+    /// `$n->plus(BigInt $other): BigInt`.
+    fn nvs_core_bigint_plus(_ctx, args: [2]) {
+        built(&(operand(args, 0, "plus")? + operand(args, 1, "plus")?))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$n->sub(BigInt $other): BigInt`.
-    fn nvs_core_bigint_sub(_ctx, args: [2]) {
-        built(&(operand(args, 0, "sub")? - operand(args, 1, "sub")?))
+    /// `$n->minus(BigInt $other): BigInt`.
+    fn nvs_core_bigint_minus(_ctx, args: [2]) {
+        built(&(operand(args, 0, "minus")? - operand(args, 1, "minus")?))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$n->mul(BigInt $other): BigInt`. The cost check refuses a product
+    /// `$n->multipliedBy(BigInt $other): BigInt`. The cost check refuses a product
     /// that does not fit the CPU time left, and [`product`] stops one that
     /// runs past it within a piece.
-    fn nvs_core_bigint_mul(ctx, args: [2]) {
-        let left = operand(args, 0, "mul")?;
-        let right = operand(args, 1, "mul")?;
+    fn nvs_core_bigint_multiplied_by(ctx, args: [2]) {
+        let left = operand(args, 0, "multipliedBy")?;
+        let right = operand(args, 1, "multipliedBy")?;
         let cost = mul_ns(width_bytes(left.magnitude()), width_bytes(right.magnitude()));
         afford(ctx, cost, MUL)?;
         built(&product(ctx, &left, &right)?)
@@ -1808,50 +1811,50 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$n->div(BigInt $divisor): BigInt`, truncating toward zero — `intdiv`'s
+    /// `$n->dividedBy(BigInt $divisor): BigInt`, truncating toward zero — `intdiv`'s
     /// rounding, which is Rust's `/` on integers and not a rule this module
     /// implements.
-    fn nvs_core_bigint_div(ctx, args: [2]) {
-        let dividend = operand(args, 0, "div")?;
-        let divisor = operand(args, 1, "div")?;
+    fn nvs_core_bigint_divided_by(ctx, args: [2]) {
+        let dividend = operand(args, 0, "dividedBy")?;
+        let divisor = operand(args, 1, "dividedBy")?;
         if divisor.sign() == Sign::NoSign {
-            return Err(refused("Core\\BigInt::div(): the divisor is zero".to_owned()));
+            return Err(refused("Core\\BigInt::dividedBy(): the divisor is zero".to_owned()));
         }
         let cost = quotient_ns(&dividend, &divisor);
-        afford(ctx, cost, "Core\\BigInt::div()")?;
+        afford(ctx, cost, "Core\\BigInt::dividedBy()")?;
         if cost <= PIECE_NS {
             return built(&(dividend / divisor));
         }
-        let pieces = Pieces::new(ctx, "Core\\BigInt::div()");
+        let pieces = Pieces::new(ctx, "Core\\BigInt::dividedBy()");
         let (quotient, _) = pieces.quotient(dividend.magnitude(), divisor.magnitude())?;
         built(&BigInt::from_biguint(dividend.sign() * divisor.sign(), quotient))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$n->mod(BigInt $divisor): BigInt`, carrying the dividend's sign — `%`
+    /// `$n->remainder(BigInt $divisor): BigInt`, carrying the dividend's sign — `%`
     /// on `int`, which is Rust's `%` and not a rule this module implements.
-    /// `Core\Math::mod`'s Euclidean answer is a different member of a different
+    /// `Core\Math::remainder`'s Euclidean answer is a different member of a different
     /// class and stays there.
-    fn nvs_core_bigint_mod(ctx, args: [2]) {
-        let dividend = operand(args, 0, "mod")?;
-        let divisor = operand(args, 1, "mod")?;
+    fn nvs_core_bigint_remainder(ctx, args: [2]) {
+        let dividend = operand(args, 0, "remainder")?;
+        let divisor = operand(args, 1, "remainder")?;
         if divisor.sign() == Sign::NoSign {
-            return Err(refused("Core\\BigInt::mod(): the divisor is zero".to_owned()));
+            return Err(refused("Core\\BigInt::remainder(): the divisor is zero".to_owned()));
         }
         let cost = quotient_ns(&dividend, &divisor);
-        afford(ctx, cost, "Core\\BigInt::mod()")?;
+        afford(ctx, cost, "Core\\BigInt::remainder()")?;
         if cost <= PIECE_NS {
             return built(&(dividend % divisor));
         }
-        let pieces = Pieces::new(ctx, "Core\\BigInt::mod()");
+        let pieces = Pieces::new(ctx, "Core\\BigInt::remainder()");
         let (_, rest) = pieces.quotient(dividend.magnitude(), divisor.magnitude())?;
         built(&BigInt::from_biguint(dividend.sign(), rest))
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$n->pow(uint $exponent): BigInt`, refused ahead of the work where the
+    /// `$n->raisedTo(uint $exponent): BigInt`, refused ahead of the work where the
     /// answer would be wider than [`MAX_BITS`] — see this module's
     /// § *Decision: one call may not explode*.
     ///
@@ -1859,14 +1862,14 @@ nvs_runtime::nvs_helper! {
     /// so the whole power is a few products of that size. A power estimated
     /// past one piece runs as [`power`]'s steps, with a deadline poll before
     /// each.
-    fn nvs_core_bigint_pow(ctx, args: [2]) {
-        let base = operand(args, 0, "pow")?;
-        let exponent = width(args, 1, "pow")?;
+    fn nvs_core_bigint_raised_to(ctx, args: [2]) {
+        let base = operand(args, 0, "raisedTo")?;
+        let exponent = width(args, 1, "raisedTo")?;
         let bits = base.bits().saturating_mul(exponent);
         let exponent = u32::try_from(exponent).unwrap_or(u32::MAX);
         if bits > MAX_BITS {
             return Err(refused(format!(
-                "Core\\BigInt::pow(): the answer would be {bits} bits wide, past the \
+                "Core\\BigInt::raisedTo(): the answer would be {bits} bits wide, past the \
                  {MAX_BITS} one call may produce"
             )));
         }
@@ -1876,7 +1879,7 @@ nvs_runtime::nvs_helper! {
         if half <= NARROW_BYTES || 2.0 * mul_ns(half, half) <= PIECE_NS {
             return built(&base.pow(exponent));
         }
-        let pieces = Pieces::new(ctx, "Core\\BigInt::pow()");
+        let pieces = Pieces::new(ctx, "Core\\BigInt::raisedTo()");
         let magnitude = power(&pieces, base.magnitude(), exponent)?;
         let sign = if base.sign() == Sign::Minus && exponent % 2 == 1 {
             Sign::Minus
@@ -1912,33 +1915,33 @@ fn power(pieces: &Pieces<'_>, base: &BigUint, exponent: u32) -> Result<BigUint, 
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$n->powMod(BigInt $exponent, BigInt $modulus): BigInt` — `bcpowmod`,
+    /// `$n->raisedToModulo(BigInt $exponent, BigInt $modulus): BigInt` — `bcpowmod`,
     /// computed by [`pow_mod`] so the whole power is never held.
     ///
     /// The answer is the least non-negative residue modulo `|$modulus|`, for
     /// every receiver and either sign of modulus: modular exponentiation is not
-    /// `mod`, and the residue is what every use of it wants. So
-    /// `of(-3)->powMod(3, 7)` is `1`, where `pow` then `mod` gives `-6`.
+    /// `remainder`, and the residue is what every use of it wants. So
+    /// `of(-3)->raisedToModulo(3, 7)` is `1`, where `raisedTo` then `remainder` gives `-6`.
     /// [`pow_mod`] takes magnitudes, so a negative receiver with an odd
     /// exponent gives the modulus minus the residue of its magnitude.
     ///
     /// The two refusals are thrown ahead of the call: a zero modulus has no
     /// residues, and a negative exponent would need the receiver's inverse.
-    fn nvs_core_bigint_pow_mod(ctx, args: [3]) {
-        let base = operand(args, 0, "powMod")?;
-        let exponent = operand(args, 1, "powMod")?;
-        let modulus = operand(args, 2, "powMod")?;
+    fn nvs_core_bigint_raised_to_modulo(ctx, args: [3]) {
+        let base = operand(args, 0, "raisedToModulo")?;
+        let exponent = operand(args, 1, "raisedToModulo")?;
+        let modulus = operand(args, 2, "raisedToModulo")?;
         if modulus.sign() == Sign::NoSign {
-            return Err(refused("Core\\BigInt::powMod(): the modulus is zero".to_owned()));
+            return Err(refused("Core\\BigInt::raisedToModulo(): the modulus is zero".to_owned()));
         }
         if exponent.sign() == Sign::Minus {
             return Err(refused(
-                "Core\\BigInt::powMod(): the exponent is negative".to_owned(),
+                "Core\\BigInt::raisedToModulo(): the exponent is negative".to_owned(),
             ));
         }
         let cost = pow_mod_ns(modulus.magnitude(), exponent.magnitude());
-        afford(ctx, cost, "Core\\BigInt::powMod()")?;
-        let pieces = Pieces::new(ctx, "Core\\BigInt::powMod()");
+        afford(ctx, cost, "Core\\BigInt::raisedToModulo()")?;
+        let pieces = Pieces::new(ctx, "Core\\BigInt::raisedToModulo()");
         let residue = pow_mod(&pieces, base.magnitude(), exponent.magnitude(), modulus.magnitude())?;
         let residue = if base.sign() == Sign::Minus
             && exponent.magnitude().bit(0)
@@ -2419,10 +2422,10 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$n->neg(): BigInt`.
-    fn nvs_core_bigint_neg(_ctx, args: [1]) {
-        let sign = sign_of(args, 0, "neg")?;
-        resigned(args, -sign, "neg")
+    /// `$n->negated(): BigInt`.
+    fn nvs_core_bigint_negated(_ctx, args: [1]) {
+        let sign = sign_of(args, 0, "negated")?;
+        resigned(args, -sign, "negated")
     }
 }
 
@@ -2436,15 +2439,15 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$n->shl(uint $bits): BigInt`, refused ahead of the work at
-    /// [`MAX_BITS`] for `pow`'s reason.
-    fn nvs_core_bigint_shl(_ctx, args: [2]) {
-        let value = operand(args, 0, "shl")?;
-        let bits = width(args, 1, "shl")?;
+    /// `$n->shiftedLeft(uint $bits): BigInt`, refused ahead of the work at
+    /// [`MAX_BITS`] for `raisedTo`'s reason.
+    fn nvs_core_bigint_shifted_left(_ctx, args: [2]) {
+        let value = operand(args, 0, "shiftedLeft")?;
+        let bits = width(args, 1, "shiftedLeft")?;
         let wide = value.bits().saturating_add(bits);
         if wide > MAX_BITS {
             return Err(refused(format!(
-                "Core\\BigInt::shl(): the answer would be {wide} bits wide, past the \
+                "Core\\BigInt::shiftedLeft(): the answer would be {wide} bits wide, past the \
                  {MAX_BITS} one call may produce"
             )));
         }
@@ -2453,12 +2456,12 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$n->shr(uint $bits): BigInt`, arithmetic — a negative value shifted
+    /// `$n->shiftedRight(uint $bits): BigInt`, arithmetic — a negative value shifted
     /// past its own width answers `-1` rather than `0`, which is what rounding
     /// toward negative infinity means here.
-    fn nvs_core_bigint_shr(_ctx, args: [2]) {
-        let value = operand(args, 0, "shr")?;
-        let bits = width(args, 1, "shr")?;
+    fn nvs_core_bigint_shifted_right(_ctx, args: [2]) {
+        let value = operand(args, 0, "shiftedRight")?;
+        let bits = width(args, 1, "shiftedRight")?;
         built(&(value >> bits))
     }
 }
@@ -2777,12 +2780,12 @@ mod tests {
         assert_eq!(top.to_string(), "18446744073709551615");
     }
 
-    /// `div` truncates toward zero and `mod` carries the dividend's sign — the
+    /// `dividedBy` truncates toward zero and `remainder` carries the dividend's sign — the
     /// two roundings `intdiv` and `%` have on `int`, asserted by **counting**
     /// over a sign sweep rather than read off a line, so a member that grew a
     /// rounding of its own fails here while still answering plausibly on the
     /// positive row everyone reads first.
-    // covers: Core\BigInt::div, Core\BigInt::mod
+    // covers: Core\BigInt::dividedBy, Core\BigInt::remainder
     #[test]
     fn bigint_div_and_mod_agree_over_a_sign_sweep() {
         const SWEEP: [(i64, i64); 12] = [
@@ -2803,10 +2806,18 @@ mod tests {
         let mut ctx = Ctx::buffered();
         let mut agreed = 0usize;
         for (dividend, divisor) in SWEEP {
-            let quotient = call(nvs_core_bigint_div, &mut ctx, &[of(dividend), of(divisor)])
-                .expect("a non-zero divisor answers");
-            let remainder = call(nvs_core_bigint_mod, &mut ctx, &[of(dividend), of(divisor)])
-                .expect("a non-zero divisor answers");
+            let quotient = call(
+                nvs_core_bigint_divided_by,
+                &mut ctx,
+                &[of(dividend), of(divisor)],
+            )
+            .expect("a non-zero divisor answers");
+            let remainder = call(
+                nvs_core_bigint_remainder,
+                &mut ctx,
+                &[of(dividend), of(divisor)],
+            )
+            .expect("a non-zero divisor answers");
             if read(quotient) == BigInt::from(dividend / divisor) {
                 agreed += 1;
             }
@@ -2904,13 +2915,13 @@ mod tests {
         assert_eq!((three_valued, reversed, ordered), (pairs, pairs, pairs));
     }
 
-    /// `add` answers the same sum in either order and grows one by at most a
+    /// `plus` answers the same sum in either order and grows one by at most a
     /// single bit past its wider operand — the bound this module's § *Decision:
-    /// one call may not explode* rests on when it leaves `add` unchecked, and
+    /// one call may not explode* rests on when it leaves `plus` unchecked, and
     /// the only place it is asserted. Counted over a sign sweep that includes
     /// both ends of the `int` range, so a pair that happened to answer plausibly
     /// cannot carry the row on its own.
-    // covers: Core\BigInt::add
+    // covers: Core\BigInt::plus
     #[test]
     fn add_is_commutative_and_grows_by_one_bit_at_most() {
         const SWEEP: [(i64, i64); 9] = [
@@ -2931,11 +2942,11 @@ mod tests {
         let mut bounded = 0usize;
         for (left, right) in SWEEP {
             let forward = read(
-                call(nvs_core_bigint_add, &mut ctx, &[of(left), of(right)])
+                call(nvs_core_bigint_plus, &mut ctx, &[of(left), of(right)])
                     .expect("every pair sums"),
             );
             let backward = read(
-                call(nvs_core_bigint_add, &mut ctx, &[of(right), of(left)])
+                call(nvs_core_bigint_plus, &mut ctx, &[of(right), of(left)])
                     .expect("either order sums"),
             );
             if forward == BigInt::from(left) + BigInt::from(right) {
@@ -3104,7 +3115,7 @@ mod tests {
                 .expect_err("no negative value is a `uint`");
         }
 
-        let past = call(nvs_core_bigint_add, &mut ctx, &[unsigned(u64::MAX), of(1)])
+        let past = call(nvs_core_bigint_plus, &mut ctx, &[unsigned(u64::MAX), of(1)])
             .expect("a sum one bit wider is affordable");
         call(nvs_core_bigint_to_uint, &mut ctx, &[past])
             .expect_err("the first value past the top is outside the range");
@@ -3148,7 +3159,7 @@ mod tests {
         // One step past each end, reached by adding to the bound, since no
         // `int` spells the value being asked about.
         for (bound, step) in [(i64::MAX, 1i64), (i64::MIN, -1)] {
-            let past = call(nvs_core_bigint_add, &mut ctx, &[of(bound), of(step)])
+            let past = call(nvs_core_bigint_plus, &mut ctx, &[of(bound), of(step)])
                 .expect("a sum one bit wider is affordable");
             call(nvs_core_bigint_to_int, &mut ctx, &[past])
                 .expect_err("the first value past the bound is outside the range");
@@ -3373,7 +3384,7 @@ mod tests {
     /// quotient split into pieces of 1 µs, which must not change it, and so
     /// are a narrow odd modulus and two even ones, which that size sends to
     /// [`pow_mod_by_steps`].
-    // covers: Core\BigInt::powMod
+    // covers: Core\BigInt::raisedToModulo
     #[test]
     fn pow_mod_by_products_is_the_librarys_modpow() {
         // A width, and whether the modulus is odd.
@@ -3425,15 +3436,15 @@ mod tests {
         assert_eq!(checked, moduli.len() * 7);
     }
 
-    /// `sub` is `add` of the flipped operand, and swapping its two operands
+    /// `minus` is `plus` of the flipped operand, and swapping its two operands
     /// flips its answer — the pair of properties that fails first when a member
     /// subtracts magnitudes and decides the sign afterwards, which is right
     /// about every row where the larger value comes first. Counted over a sign
     /// sweep that includes both ends of the `int` range. The width bound is
     /// asserted beside them, because it is what this module's § *Decision: one
-    /// call may not explode* rests on when it leaves `sub` unchecked: a
+    /// call may not explode* rests on when it leaves `minus` unchecked: a
     /// difference is at most one bit wider than its wider operand.
-    // covers: Core\BigInt::sub
+    // covers: Core\BigInt::minus
     #[test]
     fn sub_is_add_of_the_flipped_operand_and_swapping_them_flips_its_answer() {
         const SWEEP: [(i64, i64); 9] = [
@@ -3455,17 +3466,17 @@ mod tests {
         let mut bounded = 0usize;
         for (left, right) in SWEEP {
             let forward = read(
-                call(nvs_core_bigint_sub, &mut ctx, &[of(left), of(right)])
+                call(nvs_core_bigint_minus, &mut ctx, &[of(left), of(right)])
                     .expect("every pair subtracts"),
             );
             let backward = read(
-                call(nvs_core_bigint_sub, &mut ctx, &[of(right), of(left)])
+                call(nvs_core_bigint_minus, &mut ctx, &[of(right), of(left)])
                     .expect("either order subtracts"),
             );
-            let negated = call(nvs_core_bigint_neg, &mut ctx, &[of(right)])
+            let negated = call(nvs_core_bigint_negated, &mut ctx, &[of(right)])
                 .expect("every value carries the other sign");
             let summed = read(
-                call(nvs_core_bigint_add, &mut ctx, &[of(left), negated])
+                call(nvs_core_bigint_plus, &mut ctx, &[of(left), negated])
                     .expect("and adding it is affordable"),
             );
             if forward == BigInt::from(left) - BigInt::from(right) {
@@ -3488,13 +3499,13 @@ mod tests {
         );
     }
 
-    /// `mul` answers the same product in either order and is as wide as its two
+    /// `multipliedBy` answers the same product in either order and is as wide as its two
     /// operands together, give or take the one bit a carry moves — the shape
     /// every wide multiplication has, and the property that fails first when a
     /// product is truncated. Counted over a sign sweep that includes both ends
     /// of the `int` range. Zero is named on its own afterwards, because it is
     /// the one pair whose product is narrower than either operand.
-    // covers: Core\BigInt::mul
+    // covers: Core\BigInt::multipliedBy
     #[test]
     fn mul_is_commutative_and_as_wide_as_its_operands_together() {
         const SWEEP: [(i64, i64); 8] = [
@@ -3514,12 +3525,20 @@ mod tests {
         let mut as_wide = 0usize;
         for (left, right) in SWEEP {
             let forward = read(
-                call(nvs_core_bigint_mul, &mut ctx, &[of(left), of(right)])
-                    .expect("every pair multiplies"),
+                call(
+                    nvs_core_bigint_multiplied_by,
+                    &mut ctx,
+                    &[of(left), of(right)],
+                )
+                .expect("every pair multiplies"),
             );
             let backward = read(
-                call(nvs_core_bigint_mul, &mut ctx, &[of(right), of(left)])
-                    .expect("either order multiplies"),
+                call(
+                    nvs_core_bigint_multiplied_by,
+                    &mut ctx,
+                    &[of(right), of(left)],
+                )
+                .expect("either order multiplies"),
             );
             if forward == BigInt::from(left) * BigInt::from(right) {
                 multiplied += 1;
@@ -3538,8 +3557,12 @@ mod tests {
         );
 
         let absorbed = read(
-            call(nvs_core_bigint_mul, &mut ctx, &[of(0), of(i64::MAX)])
-                .expect("zero multiplies too"),
+            call(
+                nvs_core_bigint_multiplied_by,
+                &mut ctx,
+                &[of(0), of(i64::MAX)],
+            )
+            .expect("zero multiplies too"),
         );
         assert_eq!(absorbed, BigInt::from(0));
     }
@@ -3601,7 +3624,7 @@ mod tests {
     /// factors just past one such piece. Natively the member is also called on
     /// factors just past [`PIECE_NS`], its own piece. Those factors are about
     /// 72,000 bytes wide, which Miri runs for minutes.
-    // covers: Core\BigInt::mul
+    // covers: Core\BigInt::multipliedBy
     #[test]
     fn a_wide_product_stops_at_a_passed_deadline() {
         let mut ctx = Ctx::buffered();
@@ -3625,12 +3648,13 @@ mod tests {
                 built(&wide).expect("the factor is built"),
             ];
             assert_eq!(
-                call(nvs_core_bigint_mul, &mut ctx, &operands).map(|_| ()),
+                call(nvs_core_bigint_multiplied_by, &mut ctx, &operands).map(|_| ()),
                 Err(nvs_runtime::FATAL)
             );
         }
         let narrow = read(
-            call(nvs_core_bigint_mul, &mut ctx, &[of(7), of(5)]).expect("a narrow product answers"),
+            call(nvs_core_bigint_multiplied_by, &mut ctx, &[of(7), of(5)])
+                .expect("a narrow product answers"),
         );
         assert_eq!(narrow, BigInt::from(35));
     }
@@ -3651,7 +3675,7 @@ mod tests {
     /// ones, a dividend whose top half equals the divisor's (the guess
     /// `2^h - 1`), a one-digit divisor and zero. A piece of 1 µs makes each of
     /// them split several levels deep.
-    // covers: Core\BigInt::div, Core\BigInt::mod
+    // covers: Core\BigInt::dividedBy, Core\BigInt::remainder
     #[test]
     #[cfg_attr(
         miri,
@@ -3748,7 +3772,7 @@ mod tests {
     /// [`power`] is the library's `pow` for every shape of exponent: zero,
     /// one, a power of two, all ones, and a base of zero, one and many words.
     /// A piece of 1 µs makes its wider products split.
-    // covers: Core\BigInt::pow
+    // covers: Core\BigInt::raisedTo
     #[test]
     #[cfg_attr(
         miri,
@@ -3782,9 +3806,9 @@ mod tests {
     /// request's deadline has passed, which the watchdog expires for a CPU
     /// stop as for a wall-time one. The same member on narrow operands is one
     /// library call that polls nothing, so it still answers.
-    // covers: Core\BigInt::div, Core\BigInt::mod, Core\BigInt::gcd, Core\BigInt::lcm
+    // covers: Core\BigInt::dividedBy, Core\BigInt::remainder, Core\BigInt::gcd, Core\BigInt::lcm
     // covers: Core\BigInt::sqrt, Core\BigInt::toString, Core\BigInt::format
-    // covers: Core\BigInt::powMod, Core\BigInt::pow, Core\BigInt::parse
+    // covers: Core\BigInt::raisedToModulo, Core\BigInt::raisedTo, Core\BigInt::parse
     #[test]
     #[cfg_attr(
         miri,
@@ -3799,8 +3823,16 @@ mod tests {
         let digits = "9".repeat(300_000);
         let value = |number: &BigInt| built(number).expect("the operand is built");
         let wide_calls: [(&str, nvs_runtime::NvsFn, Vec<Value>); 10] = [
-            ("div", nvs_core_bigint_div, vec![value(&wide), value(&half)]),
-            ("mod", nvs_core_bigint_mod, vec![value(&wide), value(&half)]),
+            (
+                "dividedBy",
+                nvs_core_bigint_divided_by,
+                vec![value(&wide), value(&half)],
+            ),
+            (
+                "remainder",
+                nvs_core_bigint_remainder,
+                vec![value(&wide), value(&half)],
+            ),
             ("gcd", nvs_core_bigint_gcd, vec![value(&wide), value(&half)]),
             ("lcm", nvs_core_bigint_lcm, vec![value(&wide), value(&half)]),
             ("sqrt", nvs_core_bigint_sqrt, vec![value(&wide)]),
@@ -3811,13 +3843,13 @@ mod tests {
                 vec![value(&half), Value::uint(7)],
             ),
             (
-                "powMod",
-                nvs_core_bigint_pow_mod,
+                "raisedToModulo",
+                nvs_core_bigint_raised_to_modulo,
                 vec![of(5), value(&exponent), value(&modulus)],
             ),
             (
-                "pow",
-                nvs_core_bigint_pow,
+                "raisedTo",
+                nvs_core_bigint_raised_to,
                 vec![of(3), Value::uint(500_000)],
             ),
             (
@@ -3838,15 +3870,19 @@ mod tests {
         assert_eq!(stopped, names);
 
         let narrow_calls: [(nvs_runtime::NvsFn, Vec<Value>, &str); 10] = [
-            (nvs_core_bigint_div, vec![of(35), of(5)], "7"),
-            (nvs_core_bigint_mod, vec![of(37), of(5)], "2"),
+            (nvs_core_bigint_divided_by, vec![of(35), of(5)], "7"),
+            (nvs_core_bigint_remainder, vec![of(37), of(5)], "2"),
             (nvs_core_bigint_gcd, vec![of(12), of(18)], "6"),
             (nvs_core_bigint_lcm, vec![of(4), of(6)], "12"),
             (nvs_core_bigint_sqrt, vec![of(49)], "7"),
             (nvs_core_bigint_to_string, vec![of(-42)], "-42"),
             (nvs_core_bigint_format, vec![of(48), Value::uint(7)], "66"),
-            (nvs_core_bigint_pow_mod, vec![of(4), of(13), of(497)], "445"),
-            (nvs_core_bigint_pow, vec![of(3), Value::uint(4)], "81"),
+            (
+                nvs_core_bigint_raised_to_modulo,
+                vec![of(4), of(13), of(497)],
+                "445",
+            ),
+            (nvs_core_bigint_raised_to, vec![of(3), Value::uint(4)], "81"),
             (
                 nvs_core_bigint_parse,
                 vec![text("123"), Value::uint(10)],
@@ -3866,14 +3902,14 @@ mod tests {
         assert_eq!(answered, narrow_calls.len());
     }
 
-    /// `neg` returns the same magnitude with the opposite sign, so a value and
+    /// `negated` returns the same magnitude with the opposite sign, so a value and
     /// its negation add to zero and two negations answer the value they started
     /// from — counted over a sign sweep rather than read off a line, so a member
     /// that is right on the row everybody checks first still fails here. Two
     /// values are named on their own afterwards: zero, which has a single
     /// spelling and keeps it, and the floor of the `int` range, whose positive
     /// twin is the one value unary `-` on an `int` cannot hold.
-    // covers: Core\BigInt::neg
+    // covers: Core\BigInt::negated
     #[test]
     fn neg_flips_every_sign_and_is_total_at_the_int_floor() {
         const SWEEP: [i64; 7] = [i64::MIN, -9, -1, 0, 1, 9, i64::MAX];
@@ -3884,11 +3920,11 @@ mod tests {
         let mut involutive = 0usize;
         for value in SWEEP {
             let once = read(
-                call(nvs_core_bigint_neg, &mut ctx, &[of(value)]).expect("every value has one"),
+                call(nvs_core_bigint_negated, &mut ctx, &[of(value)]).expect("every value has one"),
             );
             let again = read(
                 call(
-                    nvs_core_bigint_neg,
+                    nvs_core_bigint_negated,
                     &mut ctx,
                     &[built(&once).expect("a one-word magnitude is affordable")],
                 )
@@ -3911,12 +3947,13 @@ mod tests {
         );
 
         let zero = read(
-            call(nvs_core_bigint_neg, &mut ctx, &[of(0)]).expect("zero is negated like the rest"),
+            call(nvs_core_bigint_negated, &mut ctx, &[of(0)])
+                .expect("zero is negated like the rest"),
         );
         assert_eq!(zero.to_string(), "0");
 
         let floor = read(
-            call(nvs_core_bigint_neg, &mut ctx, &[of(i64::MIN)])
+            call(nvs_core_bigint_negated, &mut ctx, &[of(i64::MIN)])
                 .expect("the smallest `int` has a negation here"),
         );
         assert_eq!(floor.to_string(), "9223372036854775808");
@@ -4195,7 +4232,7 @@ mod tests {
         assert_eq!(checked, radices.len() * lengths.len() * 7);
     }
 
-    /// `pow` is repeated multiplication rather than a table of remembered
+    /// `raisedTo` is repeated multiplication rather than a table of remembered
     /// answers: over a sweep of signs and magnitudes its answer is the receiver
     /// multiplied by itself `exponent` times, counted rather than read off a
     /// line, so a member that lost the sign of an odd power goes on printing
@@ -4206,7 +4243,7 @@ mod tests {
     /// not explode* is the bound. Under Miri the widest answer is not built,
     /// because the bound is a constant and squaring up to it takes minutes
     /// there; the refusal one step past it is judged before any work and runs.
-    // covers: Core\BigInt::pow
+    // covers: Core\BigInt::raisedTo
     #[test]
     fn pow_is_repeated_multiplication_and_refuses_one_step_past_its_width() {
         const SWEEP: [(i64, u64); 12] = [
@@ -4229,7 +4266,7 @@ mod tests {
         for (base, exponent) in SWEEP {
             let raised = read(
                 call(
-                    nvs_core_bigint_pow,
+                    nvs_core_bigint_raised_to,
                     &mut ctx,
                     &[of(base), Value::uint(exponent)],
                 )
@@ -4249,7 +4286,7 @@ mod tests {
         if !cfg!(miri) {
             let widest = read(
                 call(
-                    nvs_core_bigint_pow,
+                    nvs_core_bigint_raised_to,
                     &mut ctx,
                     &[of(2), Value::uint(MAX_BITS / 2)],
                 )
@@ -4258,22 +4295,22 @@ mod tests {
             assert_eq!(widest.bits(), MAX_BITS / 2 + 1);
         }
         call(
-            nvs_core_bigint_pow,
+            nvs_core_bigint_raised_to,
             &mut ctx,
             &[of(2), Value::uint(MAX_BITS / 2 + 1)],
         )
         .expect_err("one step past the bound is refused");
     }
 
-    /// `powMod` and `pow` followed by `mod` are one answer rather than two, for
+    /// `raisedToModulo` and `raisedTo` followed by `remainder` are one answer rather than two, for
     /// the receivers [`POW_MOD_DOC`] claims one for: over a sweep whose powers
-    /// are small enough for `pow` to build — which is the only reason the two
+    /// are small enough for `raisedTo` to build — which is the only reason the two
     /// routes can be compared at all, since this member exists for the powers
-    /// `pow` refuses — the two agree, counted rather than read off a row. A
+    /// `raisedTo` refuses — the two agree, counted rather than read off a row. A
     /// negative receiver is where the two part, and
     /// `pow_mod_returns_the_least_non_negative_residue` owns it. Both refusals
     /// close the test: a zero modulus and a negative power.
-    // covers: Core\BigInt::powMod
+    // covers: Core\BigInt::raisedToModulo
     #[test]
     fn pow_mod_agrees_with_pow_then_mod_over_a_non_negative_receiver() {
         const SWEEP: [(i64, i64, i64); 10] = [
@@ -4294,14 +4331,14 @@ mod tests {
         for (base, exponent, modulus) in SWEEP {
             let direct = read(
                 call(
-                    nvs_core_bigint_pow_mod,
+                    nvs_core_bigint_raised_to_modulo,
                     &mut ctx,
                     &[of(base), of(exponent), of(modulus)],
                 )
                 .expect("no row here has a zero modulus or a negative power"),
             );
             let raised = call(
-                nvs_core_bigint_pow,
+                nvs_core_bigint_raised_to,
                 &mut ctx,
                 &[
                     of(base),
@@ -4312,7 +4349,7 @@ mod tests {
             )
             .expect("every power in the sweep is small enough to build");
             let reduced = read(
-                call(nvs_core_bigint_mod, &mut ctx, &[raised, of(modulus)])
+                call(nvs_core_bigint_remainder, &mut ctx, &[raised, of(modulus)])
                     .expect("and then reduced the long way"),
             );
             if direct == reduced {
@@ -4321,20 +4358,28 @@ mod tests {
         }
         assert_eq!(agreed, SWEEP.len());
 
-        call(nvs_core_bigint_pow_mod, &mut ctx, &[of(4), of(13), of(0)])
-            .expect_err("a zero modulus is refused");
-        call(nvs_core_bigint_pow_mod, &mut ctx, &[of(4), of(-1), of(497)])
-            .expect_err("and so is a negative power");
+        call(
+            nvs_core_bigint_raised_to_modulo,
+            &mut ctx,
+            &[of(4), of(13), of(0)],
+        )
+        .expect_err("a zero modulus is refused");
+        call(
+            nvs_core_bigint_raised_to_modulo,
+            &mut ctx,
+            &[of(4), of(-1), of(497)],
+        )
+        .expect_err("and so is a negative power");
     }
 
-    /// `powMod` lands in `[0, |$modulus|)` for every sign of receiver and of
+    /// `raisedToModulo` lands in `[0, |$modulus|)` for every sign of receiver and of
     /// modulus, which is [`POW_MOD_DOC`]'s `ret`. Every row is checked against
     /// that range and against the definition — the answer differs from the
     /// whole power by a multiple of the modulus — so a member that kept the
     /// dividend's sign, or the modulus's, fails a row. `-3` cubed modulo `7` is
-    /// then named, beside `pow` then `mod`'s `-6`, because that pair is where
+    /// then named, beside `raisedTo` then `remainder`'s `-6`, because that pair is where
     /// the two routes part.
-    // covers: Core\BigInt::powMod
+    // covers: Core\BigInt::raisedToModulo
     #[test]
     fn pow_mod_returns_the_least_non_negative_residue() {
         const SWEEP: [(i64, i64, i64); 8] = [
@@ -4353,7 +4398,7 @@ mod tests {
         for (base, exponent, modulus) in SWEEP {
             let answer = read(
                 call(
-                    nvs_core_bigint_pow_mod,
+                    nvs_core_bigint_raised_to_modulo,
                     &mut ctx,
                     &[of(base), of(exponent), of(modulus)],
                 )
@@ -4371,18 +4416,27 @@ mod tests {
         assert_eq!(residues, SWEEP.len());
 
         let residue = read(
-            call(nvs_core_bigint_pow_mod, &mut ctx, &[of(-3), of(3), of(7)])
-                .expect("a negative receiver answers"),
+            call(
+                nvs_core_bigint_raised_to_modulo,
+                &mut ctx,
+                &[of(-3), of(3), of(7)],
+            )
+            .expect("a negative receiver answers"),
         );
-        let raised = call(nvs_core_bigint_pow, &mut ctx, &[of(-3), Value::uint(3)])
-            .expect("and so does the long way");
+        let raised = call(
+            nvs_core_bigint_raised_to,
+            &mut ctx,
+            &[of(-3), Value::uint(3)],
+        )
+        .expect("and so does the long way");
         let remainder = read(
-            call(nvs_core_bigint_mod, &mut ctx, &[raised, of(7)]).expect("down to the remainder"),
+            call(nvs_core_bigint_remainder, &mut ctx, &[raised, of(7)])
+                .expect("down to the remainder"),
         );
         assert_eq!((residue, remainder), (BigInt::from(1), BigInt::from(-6)));
     }
 
-    /// `shl` is multiplication by a power of two rather than a rewrite of the
+    /// `shiftedLeft` is multiplication by a power of two rather than a rewrite of the
     /// digits: over a sweep of signs and distances its answer is the receiver
     /// doubled `bits` times, counted rather than read off a line, so a member
     /// that lost the sign of a negative receiver goes on printing plausibly on
@@ -4392,8 +4446,8 @@ mod tests {
     /// counts toward the bound, and a member weighing the distance alone is
     /// right about every row of the one-bit receiver. This module's
     /// § *Decision: one call may not explode* is the bound. Under Miri the
-    /// widest answers are not built, for `pow`'s reason, and both refusals run.
-    // covers: Core\BigInt::shl
+    /// widest answers are not built, for `raisedTo`'s reason, and both refusals run.
+    // covers: Core\BigInt::shiftedLeft
     #[test]
     fn shl_doubles_its_receiver_and_the_receivers_own_width_counts_toward_the_bound() {
         const SWEEP: [(i64, u64); 10] = [
@@ -4414,7 +4468,7 @@ mod tests {
         for (value, bits) in SWEEP {
             let shifted = read(
                 call(
-                    nvs_core_bigint_shl,
+                    nvs_core_bigint_shifted_left,
                     &mut ctx,
                     &[of(value), Value::uint(bits)],
                 )
@@ -4436,7 +4490,7 @@ mod tests {
             if !cfg!(miri) {
                 let widest = read(
                     call(
-                        nvs_core_bigint_shl,
+                        nvs_core_bigint_shifted_left,
                         &mut ctx,
                         &[of(value), Value::uint(MAX_BITS - width)],
                     )
@@ -4445,7 +4499,7 @@ mod tests {
                 assert_eq!(widest.bits(), MAX_BITS);
             }
             call(
-                nvs_core_bigint_shl,
+                nvs_core_bigint_shifted_left,
                 &mut ctx,
                 &[of(value), Value::uint(MAX_BITS - width + 1)],
             )
@@ -4453,7 +4507,7 @@ mod tests {
         }
     }
 
-    /// `shr` rounds toward negative infinity rather than toward zero: over a
+    /// `shiftedRight` rounds toward negative infinity rather than toward zero: over a
     /// sweep of signs its answer is the one `i64`'s own arithmetic shift
     /// gives, counted rather than read off a line, so a member that shifted
     /// the magnitude and put the sign back afterwards goes on printing
@@ -4463,7 +4517,7 @@ mod tests {
     /// ends differ: one falls to `0` and the other to `-1`. A distance no
     /// number is wide closes the test — this member refuses nothing, so the
     /// only wrong answer left there is a stall or a panic.
-    // covers: Core\BigInt::shr
+    // covers: Core\BigInt::shiftedRight
     #[test]
     fn shr_rounds_down_and_a_negative_receiver_empties_to_minus_one() {
         const SWEEP: [(i64, u32); 12] = [
@@ -4486,7 +4540,7 @@ mod tests {
         for (value, bits) in SWEEP {
             let shifted = read(
                 call(
-                    nvs_core_bigint_shr,
+                    nvs_core_bigint_shifted_right,
                     &mut ctx,
                     &[of(value), Value::uint(u64::from(bits))],
                 )
@@ -4504,14 +4558,14 @@ mod tests {
             let mut answers = Vec::new();
             for distance in [200, 201, u64::MAX] {
                 let wide = call(
-                    nvs_core_bigint_shl,
+                    nvs_core_bigint_shifted_left,
                     &mut ctx,
                     &[of(start), Value::uint(200)],
                 )
                 .expect("a receiver of 201 bits");
                 answers.push(read(
                     call(
-                        nvs_core_bigint_shr,
+                        nvs_core_bigint_shifted_right,
                         &mut ctx,
                         &[wide, Value::uint(distance)],
                     )
@@ -4559,7 +4613,7 @@ mod tests {
                 of(value)
             } else {
                 call(
-                    nvs_core_bigint_shl,
+                    nvs_core_bigint_shifted_left,
                     ctx,
                     &[of(value), Value::uint(shifted_by)],
                 )

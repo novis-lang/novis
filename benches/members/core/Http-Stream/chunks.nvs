@@ -16,7 +16,7 @@ class Bench
         while ($i < $rounds) {
             // A body can be read only once, so each round opens a new stream.
             // The reply in each round depends on the round before, so no round can be left out.
-            Core\Http\Stream $download = Core\Http\Client::stream(Core\Http\Method::Get, $urls[(($total + $i) % 2) as int]);
+            Core\Http\Stream $download = Core\Http\Client::openStream(Core\Http\Method::Get, $urls[(($total + $i) % 2) as int]);
             foreach ($download->chunks() as tainted bytes $piece) {
                 $total = $total + Core\Bytes::length($piece);
             }

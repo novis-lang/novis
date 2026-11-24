@@ -10,8 +10,8 @@ echo Core\Str::join($sorted, ","), "\n";
 
 // `diff` keeps each value whose number is not in the second array. `"2"` and `"02"` are both 2.
 array<string> $twos = ["2"];
-echo Core\Json::encode(Core\Arr::diff($good, $twos, {comparator: fn(string $a, string $b): int => ($a as int) <=> ($b as int)})), "\n";
-echo Core\Json::encode(Core\Arr::intersect($good, $twos, {comparator: fn(string $a, string $b): int => ($a as int) <=> ($b as int)})), "\n";
+echo Core\Json::encode(Core\Arr::difference($good, $twos, {comparator: fn(string $a, string $b): int => ($a as int) <=> ($b as int)})), "\n";
+echo Core\Json::encode(Core\Arr::intersection($good, $twos, {comparator: fn(string $a, string $b): int => ($a as int) <=> ($b as int)})), "\n";
 
 // `"x"` is not a whole number, so `as int` throws an error when the comparator gets it.
 array<string> $bad = ["10", "02", "x", "2"];
@@ -22,13 +22,13 @@ try {
     echo "sort: error\n";
 }
 try {
-    array<string> $left = Core\Arr::diff($bad, $twos, {comparator: fn(string $a, string $b): int => ($a as int) <=> ($b as int)});
+    array<string> $left = Core\Arr::difference($bad, $twos, {comparator: fn(string $a, string $b): int => ($a as int) <=> ($b as int)});
     echo "no error: ", Core\Json::encode($left), "\n";
 } catch (Throwable $e) {
     echo "diff: error\n";
 }
 try {
-    array<string> $both = Core\Arr::intersect($bad, $twos, {comparator: fn(string $a, string $b): int => ($a as int) <=> ($b as int)});
+    array<string> $both = Core\Arr::intersection($bad, $twos, {comparator: fn(string $a, string $b): int => ($a as int) <=> ($b as int)});
     echo "no error: ", Core\Json::encode($both), "\n";
 } catch (Throwable $e) {
     echo "intersect: error\n";

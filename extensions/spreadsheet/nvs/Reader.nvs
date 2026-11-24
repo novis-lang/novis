@@ -689,7 +689,7 @@ final class Reader
         while ($left > 0) {
             int $rest = ($left - 1) % 26;
             $letters = Core\Str::fromCodePoint((65 + $rest) as uint) . $letters;
-            $left = Core\Math::intDiv($left - 1, 26);
+            $left = Core\Math::quotient($left - 1, 26);
         }
         return $letters;
     }

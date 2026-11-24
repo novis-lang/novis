@@ -6,7 +6,7 @@ gives the number of rows, and `first()` gives the first row or `null`.
 
 Every row is read into memory before the method returns. The connection is free again right after
 that, so the next statement can run while you are still reading the rows. When a result is too
-large to hold in memory, use `Core\Db\Connection::stream` instead.
+large to hold in memory, use `Core\Db\Connection::queryEach` instead.
 
 A value never goes into the text of the statement. Write a `?` for each value, or a `:name` for
 each, and pass the values as the second argument. The database keeps the statement and the values

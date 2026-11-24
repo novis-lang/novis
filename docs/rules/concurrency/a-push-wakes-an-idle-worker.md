@@ -9,7 +9,7 @@ for a row no other connection can see, finds nothing and goes back to waiting, s
 
 - a push outside a transaction is its own committed statement, and the wake follows it
   (`rule:concurrency/enqueue-commits-with-your-write`);
-- a push inside a `transaction` on the queue's own connection wakes when that transaction commits, at
+- a push inside a `runTransaction` on the queue's own connection wakes when that transaction commits, at
   the outermost commit when transactions nest, and a rollback wakes nobody;
 - a push while a transaction is open on a different connection commits on its own, so the wake follows
   the statement (`rule:concurrency/foreign-connection-enqueue-is-counted`).

@@ -127,23 +127,23 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&UNION_DOC),
         },
         CoreMethod {
-            name: "intersect",
+            name: "intersection",
             names: &["other"],
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_object_set_intersect",
+            symbol: "nvs_core_object_set_intersection",
             doc: Some(&INTERSECT_DOC),
         },
         CoreMethod {
-            name: "diff",
+            name: "difference",
             names: &["other"],
             params: &[CoreTy::Instance(NAME)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_object_set_diff",
+            symbol: "nvs_core_object_set_difference",
             doc: Some(&DIFF_DOC),
         },
         CoreMethod {
@@ -243,12 +243,12 @@ const UNION_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectSet::intersect`'s reference card — `rule:core-api/reference-card`.
+/// `Core\ObjectSet::intersection`'s reference card — `rule:core-api/reference-card`.
 const INTERSECT_DOC: MethodDoc = MethodDoc {
     short: "Builds a new set with only the values that are in this set and also in `$other`.",
     params: &[ParamDoc {
         name: "other",
-        desc: "The set to intersect with.",
+        desc: "The other set.",
         shape: &[],
     }],
     ret: "A new `Core\\ObjectSet<T>`, in the order of this set. It is empty when the two sets \
@@ -256,10 +256,10 @@ const INTERSECT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\ObjectSet::diff`'s reference card — `rule:core-api/reference-card`.
+/// `Core\ObjectSet::difference`'s reference card — `rule:core-api/reference-card`.
 const DIFF_DOC: MethodDoc = MethodDoc {
     short: "Builds a new set with the values that are in this set and not in `$other`. The name \
-            is `diff`, the same as `Core\\Arr::diff`.",
+            is `difference`, the same as `Core\\Arr::difference`.",
     params: &[ParamDoc {
         name: "other",
         desc: "The set whose values are left out.",
@@ -297,8 +297,10 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_object_set_count" => (nvs_core_object_set_count as *const ()).cast(),
         "nvs_core_object_set_is_empty" => (nvs_core_object_set_is_empty as *const ()).cast(),
         "nvs_core_object_set_union" => (nvs_core_object_set_union as *const ()).cast(),
-        "nvs_core_object_set_intersect" => (nvs_core_object_set_intersect as *const ()).cast(),
-        "nvs_core_object_set_diff" => (nvs_core_object_set_diff as *const ()).cast(),
+        "nvs_core_object_set_intersection" => {
+            (nvs_core_object_set_intersection as *const ()).cast()
+        }
+        "nvs_core_object_set_difference" => (nvs_core_object_set_difference as *const ()).cast(),
         "nvs_core_object_set_clear" => (nvs_core_object_set_clear as *const ()).cast(),
         ITERATE_SYMBOL => (nvs_core_object_set_iterate as *const ()).cast(),
         _ => return None,
@@ -351,7 +353,7 @@ impl Building {
 
 /// Adds every member of `source` that `keep` answers `true` for to `out`.
 ///
-/// The one shape behind `union`, `intersect` and `diff`: each is a walk of one
+/// The one shape behind `union`, `intersection` and `difference`: each is a walk of one
 /// side deciding membership against the other, and the three differ only in
 /// which walks and which verdict. Keys are recomputed rather than copied,
 /// because a chain ordinal is a property of what is *already* in the store it
@@ -657,10 +659,10 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\ObjectSet<T>::intersect(ObjectSet<T> $other): ObjectSet<T>` — a
+    /// `Core\ObjectSet<T>::intersection(ObjectSet<T> $other): ObjectSet<T>` — a
     /// new set holding the values both sides hold.
-    fn nvs_core_object_set_intersect(_ctx, args: [2]) {
-        let ((mine, keying), (theirs, their_keying)) = both(args, "intersect")?;
+    fn nvs_core_object_set_intersection(_ctx, args: [2]) {
+        let ((mine, keying), (theirs, their_keying)) = both(args, "intersection")?;
         Ok(built_from(keying, |out| {
             collect_into(out, &mine, |value| store::contains(&theirs, their_keying, value));
         }))
@@ -668,13 +670,13 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\ObjectSet<T>::diff(ObjectSet<T> $other): ObjectSet<T>` — a new
+    /// `Core\ObjectSet<T>::difference(ObjectSet<T> $other): ObjectSet<T>` — a new
     /// set holding the values this side holds and the other does not.
     ///
-    /// Spelled `diff` rather than `difference` because `Core\Arr` spells it
-    /// that way and one operation gets one name.
-    fn nvs_core_object_set_diff(_ctx, args: [2]) {
-        let ((mine, keying), (theirs, their_keying)) = both(args, "diff")?;
+    /// Named `difference` because `Core\Arr` names it that way and one
+    /// operation gets one name.
+    fn nvs_core_object_set_difference(_ctx, args: [2]) {
+        let ((mine, keying), (theirs, their_keying)) = both(args, "difference")?;
         Ok(built_from(keying, |out| {
             collect_into(out, &mine, |value| !store::contains(&theirs, their_keying, value));
         }))
@@ -818,10 +820,10 @@ mod tests {
         drop_set(set);
     }
 
-    /// `union`, `intersect` and `diff` of `{1, 2, 3}` and `{2, 3, 4}` each
+    /// `union`, `intersection` and `difference` of `{1, 2, 3}` and `{2, 3, 4}` each
     /// build a new set with the members the walk decides, a shared member is
     /// counted once, and neither operand changes.
-    // covers: Core\ObjectSet::union, Core\ObjectSet::intersect, Core\ObjectSet::diff
+    // covers: Core\ObjectSet::union, Core\ObjectSet::intersection, Core\ObjectSet::difference
     #[test]
     fn the_algebra_builds_new_sets_and_leaves_both_operands_alone() {
         let left = empty();
@@ -848,8 +850,16 @@ mod tests {
                 4,
                 [true, true, true, true],
             ),
-            (nvs_core_object_set_intersect, 2, [false, true, true, false]),
-            (nvs_core_object_set_diff, 1, [true, false, false, false]),
+            (
+                nvs_core_object_set_intersection,
+                2,
+                [false, true, true, false],
+            ),
+            (
+                nvs_core_object_set_difference,
+                1,
+                [true, false, false, false],
+            ),
         ] {
             let result = on(left, member, &[right]);
             assert_eq!(
@@ -860,7 +870,7 @@ mod tests {
             drop_set(result);
         }
 
-        let back = on(right, nvs_core_object_set_diff, &[left]);
+        let back = on(right, nvs_core_object_set_difference, &[left]);
         assert_eq!(members(back), [false, false, false, true]);
         drop_set(back);
 

@@ -6,14 +6,14 @@ Core\Math's `int`-parameter members are asked about both ends of `int` and refus
 // one: `Core\Math` splits into members declared over `int` and members
 // declared over `float`, and the two families stop in different places. An
 // `int` member stops where its own *answer* leaves `int` — one value for
-// `abs`, one pair for `intDiv`, one pairing for `gcd` — while a `float` member
+// `abs`, one pair for `quotient`, one pairing for `gcd` — while a `float` member
 // stops where its *argument* does, at `rule:types/conversion`'s 2^53, long before either
 // end of `int` is in sight. A member picked from the wrong family therefore
 // looks total on every row anyone would write and refuses the value the caller
 // actually had.
 //
 // What each member answers on a chosen row is read off a line in
-// math-magnitude-sign-and-the-two-extremes.nvst, and the intDiv/mod refusals
+// math-magnitude-sign-and-the-two-extremes.nvst, and the quotient/remainder refusals
 // are in math-int-div-and-mod-at-the-edges-of-their-arms.nvst; neither asks
 // which family a member is in.
 
@@ -91,7 +91,7 @@ foreach ($magnitudes as int $mag) {
     try { Core\Math::floor($mag); $accepted = $accepted + 1; } catch (Throwable $noFloor) { $accepted = $accepted; }
     try { Core\Math::ceil($mag); $accepted = $accepted + 1; } catch (Throwable $noCeil) { $accepted = $accepted; }
     try { Core\Math::truncate($mag); $accepted = $accepted + 1; } catch (Throwable $noTrunc) { $accepted = $accepted; }
-    try { Core\Math::mod($mag, 2.0); $accepted = $accepted + 1; } catch (Throwable $noMod) { $accepted = $accepted; }
+    try { Core\Math::remainder($mag, 2.0); $accepted = $accepted + 1; } catch (Throwable $noMod) { $accepted = $accepted; }
     try { Core\Math::hypot($mag, 0.0); $accepted = $accepted + 1; } catch (Throwable $noHypot) { $accepted = $accepted; }
     echo "float family accepted ", $accepted, "/5\n";
 }
@@ -112,8 +112,8 @@ try {
 // 6. The last accepted magnitude arrives *whole* rather than rounded to
 //    something nearby, on both signs — an acceptance that silently lost the
 //    low bit would still count as an acceptance above.
-echo "2^53 whole: ", Core\Math::mod($edge, 4503599627370496.0), "|",
-     Core\Math::mod(0 - $edge, 4503599627370496.0), "|",
+echo "2^53 whole: ", Core\Math::remainder($edge, 4503599627370496.0), "|",
+     Core\Math::remainder(0 - $edge, 4503599627370496.0), "|",
      Core\Math::floor($edge), "\n";
 --EXPECT--
 sign: -1-1|11

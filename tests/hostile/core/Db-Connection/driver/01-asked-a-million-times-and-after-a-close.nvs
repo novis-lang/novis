@@ -45,7 +45,7 @@ while ($i < 500) {
     $i = $i + 1;
 }
 uint $asked = 0;
-foreach ($walk->stream('select n from many order by n', []) as Core\Db\Row $row) {
+foreach ($walk->queryEach('select n from many order by n', []) as Core\Db\Row $row) {
     if ($walk->driver() == Core\Db\Driver::Sqlite) {
         $asked = $asked + 1;
     }

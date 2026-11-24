@@ -489,7 +489,7 @@ impl State {
 }
 
 /// The isolation levels `rule:core-classes/db-transactions`'s
-/// `transaction()` takes, as a caller asks for them rather than as any one
+/// `runTransaction()` takes, as a caller asks for them rather than as any one
 /// server spells them.
 ///
 /// The set is the SQL standard's four plus [`Isolation::Snapshot`], which SQL
@@ -864,7 +864,7 @@ pub struct PgConn {
     pub(crate) time_zone: i32,
     /// How many of `rule:core-classes/db-transactions`'s transactions are open on this connection: 0
     /// for none, 1 for the outermost `BEGIN`, and one more per nested
-    /// `transaction()` — each of which is a `SAVEPOINT` named by the depth it
+    /// `runTransaction()` — each of which is a `SAVEPOINT` named by the depth it
     /// opened at.
     ///
     /// It is the *connection's* and not the caller's because that rule gives no
@@ -879,7 +879,7 @@ pub struct PgConn {
     /// `rule:core-classes/db-statement-members`'s buffered members drain their rows inside the one call
     /// that started the statement, so [`crate::PgRows`] can keep this beside a
     /// borrow of the connection and let the borrow checker be what refuses a
-    /// second statement. `Core\Db\Connection::stream` cannot borrow anything: a
+    /// second statement. `Core\Db\Connection::queryEach` cannot borrow anything: a
     /// cursor is an object the program holds and advances from a *later* call,
     /// with nothing of this connection borrowed in between, so the columns, the
     /// tag, the last id and the span have to sit where that later call can find
@@ -1089,7 +1089,7 @@ pub struct TdsConn {
     /// How many of `rule:core-classes/db-transactions`'s transactions are open — [`MySqlConn::depth`]'s
     /// twin, spent on `BEGIN TRANSACTION` and `SAVE TRANSACTION`.
     pub(crate) depth: Cell<u32>,
-    /// Whether this session sits at an isolation level a `transaction()` asked
+    /// Whether this session sits at an isolation level a `runTransaction()` asked
     /// for rather than at the server's own default.
     ///
     /// **The one piece of state no other driver needs.** T-SQL's

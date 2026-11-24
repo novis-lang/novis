@@ -30,7 +30,7 @@ foreach (Core\Arr::range(1, 12) as int $n) {
     var $decision = Core\RateLimit::shed("sweep:eight-per-hour", 8, 1h);
     $asked = $asked + 1;
     int $left = $decision->remaining() as int;
-    if ($decision->allowed()) {
+    if ($decision->isAllowed()) {
         $admitted = $admitted + 1;
         $lastAdmitted = $n;
         if ($left == 8 - $admitted) {

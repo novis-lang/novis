@@ -11,14 +11,14 @@ $db->execute(
 
 var $rows = $db->query('select id, title from products order by id', []);
 
-// `count` returns a `uint`. `Core\Math::intDiv` takes `int` values, so the
+// `count` returns a `uint`. `Core\Math::quotient` takes `int` values, so the
 // count is converted with `as int`.
 int $perPage = 10;
 int $found = $rows->count() as int;
 
 // A last page that is not full still needs a page of its own, which is what
 // adding nine before the division does. This prints `47 products on 5 pages`.
-int $pages = Core\Math::intDiv($found + $perPage - 1, $perPage);
+int $pages = Core\Math::quotient($found + $perPage - 1, $perPage);
 echo $found, ' products on ', $pages, " pages\n";
 
 $db->close();

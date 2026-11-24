@@ -14,7 +14,7 @@ echo Core\Time\Instant::fromEpoch($last->toEpochSeconds())->toIso(), "\n";
 int $sum = 0;
 int $round = 0;
 while ($round < 1000000) {
-    Core\Time\Instant $at = Core\Time\Instant::fromEpoch($round * 253402, { nanos: 999999999 });
+    Core\Time\Instant $at = Core\Time\Instant::fromEpoch($round * 253402, { nanoseconds: 999999999 });
     $sum = $sum + $at->toEpochSeconds() % 7;
     $round = $round + 1;
 }

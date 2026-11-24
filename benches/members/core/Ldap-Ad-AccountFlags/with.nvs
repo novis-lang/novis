@@ -19,7 +19,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
-            if ($flags->with({ disabled: $total % 2 == 0 })->disabled()) {
+            if ($flags->with({ disabled: $total % 2 == 0 })->isDisabled()) {
                 $total = $total + 1;
             } else {
                 $total = $total + 2;

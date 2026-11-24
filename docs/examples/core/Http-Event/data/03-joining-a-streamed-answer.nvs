@@ -8,7 +8,7 @@ Core\Test::answerHttp('https://ai.example.com/v1/answer', 200, {
     headers: ['content-type' => 'text/event-stream'],
 });
 
-Core\Http\Stream $reply = Core\Http\Client::stream(Core\Http\Method::Post, 'https://ai.example.com/v1/answer');
+Core\Http\Stream $reply = Core\Http\Client::openStream(Core\Http\Method::Post, 'https://ai.example.com/v1/answer');
 tainted string $answer = '';
 foreach ($reply->events() as Core\Http\Event $event) {
     // "[DONE]" is not part of the answer. It says that the answer is complete.

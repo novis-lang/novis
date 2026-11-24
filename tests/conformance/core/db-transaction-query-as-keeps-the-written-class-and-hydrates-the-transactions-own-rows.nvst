@@ -39,7 +39,7 @@ $db->execute("insert into t (text) values (?)", ["committed"]);
 // at the call site reaches the member through this receiver exactly as it does
 // through a connection's — and what only this receiver can be asked is that
 // the objects are built from work nothing has committed.
-$db->transaction(fn (Transaction $tx): void => {
+$db->runTransaction(fn (Transaction $tx): void => {
     $tx->execute("insert into t (text) values (?)", ["uncommitted"]);
     echo "inside ", Report::of($tx->queryAs<Note>("select id, text from t order by id", [])), "\n";
 });
@@ -49,7 +49,7 @@ echo "kept ", Report::of($db->queryAs<Note>("select id, text from t order by id"
 // rollback takes the second one back out and the class the next read answers
 // at is unchanged.
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->runTransaction(fn (Transaction $tx): void => {
         $tx->execute("insert into t (text) values (?)", ["gone"]);
         echo "before the rollback ", Report::of($tx->queryAs<Note>("select id, text from t order by id desc", [])), "\n";
         $tx->rollBack("keep nothing");

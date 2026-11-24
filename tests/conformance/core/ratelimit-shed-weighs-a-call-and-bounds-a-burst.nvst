@@ -16,7 +16,7 @@ echo "limit=", $first->limit(), "\n";
 // two charges of two exhaust four, and the third has nothing to take.
 echo "remaining=", $first->remaining(), " ", $second->remaining(), "\n";
 
-if ($third->allowed()) {
+if ($third->isAllowed()) {
     echo "a third charge of two fitted in four", "\n";
 } else {
     echo "third refused", "\n";
@@ -26,7 +26,7 @@ if ($third->allowed()) {
 // the same four per hour, but only one may arrive at a time.
 var $one = Core\RateLimit::shed("narrow", 4, 1h, {burst: 1});
 var $two = Core\RateLimit::shed("narrow", 4, 1h, {burst: 1});
-if ($one->allowed() && !$two->allowed()) {
+if ($one->isAllowed() && !$two->isAllowed()) {
     echo "one at a time", "\n";
 } else {
     echo "the burst did not bound the instant", "\n";

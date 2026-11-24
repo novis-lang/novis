@@ -26,7 +26,7 @@ echo 'step 2: the million parts add back to ', $back, "\n";
 
 // 3. Ratios far too large to add together. The error is caught, so the steps
 // after this one still run.
-decimal $huge = Core\Decimal::pow(10, 28);
+decimal $huge = Core\Decimal::power(10, 28);
 array<decimal> $over = [$huge, $huge, $huge, $huge, $huge, $huge, $huge, $huge, $huge, $huge];
 try {
     Core\Decimal::allocate(1.00, $over);

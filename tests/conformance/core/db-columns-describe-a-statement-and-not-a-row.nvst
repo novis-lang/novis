@@ -20,7 +20,7 @@ array<Core\Db\Column> $described = $rows->columns();
 foreach ($described as Core\Db\Column $column) {
     string $name = $column->name();
     Core\Db\Column::Type $type = $column->type();
-    bool $nullable = $column->nullable();
+    bool $nullable = $column->isNullable();
 }
 
 // And the bound that makes `columns()` a member of its own rather than a

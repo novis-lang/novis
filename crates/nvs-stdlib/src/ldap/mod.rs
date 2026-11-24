@@ -136,8 +136,8 @@ pub const SEARCH: &str = r"Core\Ldap\Connection::search";
 /// `Core\Ldap\Connection::read`, as its refusals spell it.
 pub const READ: &str = r"Core\Ldap\Connection::read";
 
-/// `Core\Ldap\Connection::changes`, as its refusals spell it.
-pub const CHANGES: &str = r"Core\Ldap\Connection::changes";
+/// `Core\Ldap\Connection::searchChanges`, as its refusals spell it.
+pub const CHANGES: &str = r"Core\Ldap\Connection::searchChanges";
 
 /// `Core\Ldap\Entries`, as a failure reading its next page spells it.
 pub const ENTRIES_MEMBER: &str = r"Core\Ldap\Entries";
@@ -861,7 +861,7 @@ pub fn search(
     Ok(Entries { key, cursor })
 }
 
-/// `Core\Ldap\Connection::changes`' body: starts a DirSync for `request`'s
+/// `Core\Ldap\Connection::searchChanges`' body: starts a DirSync for `request`'s
 /// entries changed since `cookie`, or for every entry when it is empty, and
 /// reads the first answer.
 ///

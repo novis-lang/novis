@@ -10,7 +10,7 @@ spawn = true
 // Its own isolate, as a later request on any core of this process would be. The
 // count it reads is the parent's: two arrivals have already used the burst.
 var $late = Core\RateLimit::shed("checkout", 2, 1h);
-echo "another isolate in this process: ", $late->allowed() ? "admitted" : "refused", "\n";
+echo "another isolate in this process: ", $late->isAllowed() ? "admitted" : "refused", "\n";
 return "done";
 --FILE--
 <?nvs
@@ -26,13 +26,13 @@ var $first = Core\RateLimit::shed("checkout", 2, 1h);
 var $second = Core\RateLimit::shed("checkout", 2, 1h);
 var $third = Core\RateLimit::shed("checkout", 2, 1h);
 
-if ($first->allowed() && $second->allowed()) {
+if ($first->isAllowed() && $second->isAllowed()) {
     echo "two admitted", "\n";
 } else {
     echo "the burst is not the limit", "\n";
 }
 
-if ($third->allowed()) {
+if ($third->isAllowed()) {
     echo "a third admitted past the burst", "\n";
 } else {
     echo "third refused", "\n";
@@ -58,7 +58,7 @@ if ($wait == null) {
 // The key is what the allowance is per, here as everywhere: another key has its
 // own arrival time, and the two do not share one.
 var $other = Core\RateLimit::shed("signup", 2, 1h);
-if ($other->allowed()) {
+if ($other->isAllowed()) {
     echo "another key admitted", "\n";
 } else {
     echo "one key's arrivals charged another", "\n";

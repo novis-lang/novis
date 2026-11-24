@@ -1,6 +1,6 @@
 A number where a member needs a `Core` enum is the error `E0401`, such as `{ order: 1 }` for
 `Core\Arr::sort`. A case of another enum is `E0401` too. `Core\Arr::Order::Desc` passed to
-`Core\Decimal::divRound` needs a `Core\RoundMode`, so it does not compile.
+`Core\Decimal::divideRounded` needs a `Core\RoundMode`, so it does not compile.
 
 A case the enum does not have, such as `Core\Arr::Order::Random`, is the error `E0405`.
 

@@ -2,14 +2,14 @@
 $uri->sign answers the receiver with the reserved `_sig` set, $uri->verifySignature answers nothing, and adding, editing or dropping any parameter is one refusal — `rule:core-api/signing-is-over-a-payload`, `rule:core-api/one-refusal-except-expiry`
 --FILE--
 <?nvs
-// covers: Core\Uri::sign, Core\Uri::verifySignature
+// covers: Core\Uri::signed, Core\Uri::verifySignature
 // A signed URL is a `Uri`, not a string a caller assembles: it composes with
 // `with`, `withQueryParameter` and `toString` like every other member here.
 secret bytes $key = Core\Crypto::generateKey();
 array<secret bytes> $ring = [$key];
 
 Core\Uri $link = Core\Uri::parse("https://example.com/invoice?id=7&scope=own")
-    ->sign({keys: $ring, until: null});
+    ->signed({keys: $ring, until: null});
 
 echo $link->host(), $link->path(), "\n";
 echo $link->queryParameter("_sig") == null

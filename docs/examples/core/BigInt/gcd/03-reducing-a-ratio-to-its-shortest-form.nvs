@@ -8,4 +8,4 @@ var $total = Core\BigInt::parse('1524157875171467887501905210');
 // Dividing both amounts by their greatest common divisor gives the ratio in
 // its shortest form. This prints 32921810703292181 / 4115226300411522630.
 var $divisor = $paid->gcd($total);
-echo $paid->div($divisor), ' / ', $total->div($divisor), "\n";
+echo $paid->dividedBy($divisor), ' / ', $total->dividedBy($divisor), "\n";

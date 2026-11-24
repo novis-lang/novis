@@ -21,8 +21,8 @@ var $shop = Core\Db::connect("shop");
 
 // The queue's own transaction is open, so the job commits with it,
 // whatever the `shop` transaction around it does.
-$shop->transaction(fn(Transaction $outer): void => {
-    $jobs->transaction(fn(Transaction $inner): void => {
+$shop->runTransaction(fn(Transaction $outer): void => {
+    $jobs->runTransaction(fn(Transaction $inner): void => {
         Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
     });
 });
@@ -31,8 +31,8 @@ echo "both open: ", Queue::stats("mail")->nonTransactional(), "\n";
 // The queue's own transaction rolls back, so the job is gone, and
 // there is nothing to count.
 try {
-    $shop->transaction(fn(Transaction $outer): void => {
-        $jobs->transaction(fn(Transaction $inner): void => {
+    $shop->runTransaction(fn(Transaction $outer): void => {
+        $jobs->runTransaction(fn(Transaction $inner): void => {
             Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
             $inner->rollBack("cancelled");
         });

@@ -25,13 +25,13 @@ array<string> $saved = [
 Core\Crypto\KeyPair $vapid = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
 bytes $payload = Core\Encoding::encodeText('{"title":"New order"}', Core\Charset::Utf8);
 
-// `gone()` is true when the push service no longer knows the subscription.
+// `isGone()` returns `true` when the push service no longer knows the subscription.
 // The program then deletes it, and finds it by its endpoint.
 array<string> $kept = [];
 foreach ($saved as string $json) {
     Core\WebPush\Subscription $to = Core\WebPush::subscription($json);
     Core\WebPush\Sent $sent = Core\WebPush::send($to, $payload, $vapid, 'mailto:admin@example.com');
-    if ($sent->gone()) {
+    if ($sent->isGone()) {
         echo 'delete ', $to->endpoint(), "\n";
     } else {
         $kept[] = $json;

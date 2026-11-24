@@ -7,7 +7,7 @@ Core\Test::answerHttp('https://images.example.com/avatar.jpg', 200, { body: Core
 uint $limit = 32;
 uint $received = 0;
 bool $tooLarge = false;
-Core\Http\Stream $avatar = Core\Http\Client::stream(Core\Http\Method::Get, 'https://images.example.com/avatar.jpg');
+Core\Http\Stream $avatar = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://images.example.com/avatar.jpg');
 foreach ($avatar->chunks() as tainted bytes $piece) {
     $received = $received + Core\Bytes::length($piece);
     // `break` stops the loop. The rest of the body is not read.

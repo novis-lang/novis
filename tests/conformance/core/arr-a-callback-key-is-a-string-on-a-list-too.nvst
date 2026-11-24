@@ -28,14 +28,14 @@ array<string> $seen = [
     Core\Str::join(Core\Arr::values(Core\Arr::map($list, fn(int $v, string $k) => $k)), ","),
     Core\Str::join(Core\Arr::keys(Core\Arr::mapKeys($list, fn(int $v, string $k) => $k)), ","),
     Core\Str::join(Core\Arr::keys(Core\Arr::groupBy($list, fn(int $v, string $k) => $k)), ","),
-    Core\Str::join(Core\Arr::keys(Core\Arr::countBy($list, {by: fn(int $v, string $k) => $k})), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::groupCounts($list, {by: fn(int $v, string $k) => $k})), ","),
     // The fold has no answer of its own to read the keys back out of, so it
     // builds one: a leading separator, dropped by the slice.
     Core\Str::slice(Core\Arr::reduce($list,
         fn(string $c, int $v, string $k) => $c . "," . $k, ""), 1),
     Core\Str::join(Core\Arr::keys(Core\Arr::unique($list, {by: fn(int $v, string $k) => $k})), ","),
-    Core\Str::join(Core\Arr::keys(Core\Arr::diff($list, $partner, {by: fn(int $v, string $k) => $k})), ","),
-    Core\Str::join(Core\Arr::keys(Core\Arr::intersect($list, $twin, {by: fn(int $v, string $k) => $k})), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::difference($list, $partner, {by: fn(int $v, string $k) => $k})), ","),
+    Core\Str::join(Core\Arr::keys(Core\Arr::intersection($list, $twin, {by: fn(int $v, string $k) => $k})), ","),
 ];
 
 // Counted against the literal the keys of a four-element list have to be, not
@@ -79,15 +79,15 @@ echo Core\Str::join(Core\Arr::keys(Core\Arr::sort($list,
 // `refused`.
 var $asked = 0;
 var $refused = 0;
-try { $asked = $asked + 1; Core\Arr::countBy($list, {by: fn(int $v, int $k) => $v}); }
+try { $asked = $asked + 1; Core\Arr::groupCounts($list, {by: fn(int $v, int $k) => $v}); }
 catch (LogicError $e) { $refused = $refused + 1; }
 try { $asked = $asked + 1; Core\Arr::unique($list, {by: fn(int $v, int $k) => $v}); }
 catch (LogicError $e) { $refused = $refused + 1; }
 try { $asked = $asked + 1; Core\Arr::sort($list, {by: fn(int $v, int $k) => $v}); }
 catch (LogicError $e) { $refused = $refused + 1; }
-try { $asked = $asked + 1; Core\Arr::diff($list, $partner, {by: fn(int $v, int $k) => $v}); }
+try { $asked = $asked + 1; Core\Arr::difference($list, $partner, {by: fn(int $v, int $k) => $v}); }
 catch (LogicError $e) { $refused = $refused + 1; }
-try { $asked = $asked + 1; Core\Arr::intersect($list, $twin, {by: fn(int $v, int $k) => $v}); }
+try { $asked = $asked + 1; Core\Arr::intersection($list, $twin, {by: fn(int $v, int $k) => $v}); }
 catch (LogicError $e) { $refused = $refused + 1; }
 echo $refused, " of ", $asked, " refused\n";
 --EXPECT--

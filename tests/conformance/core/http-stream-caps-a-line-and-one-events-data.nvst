@@ -29,14 +29,14 @@ while ($i < 16) {
 Core\Test::answerHttp("https://api.example.com/event-fits", 200, {body: $block . "data: " . Core\Str::repeat("b", 80) . "\n\n"});
 Core\Test::answerHttp("https://api.example.com/event-over", 200, {body: $block . "data: " . Core\Str::repeat("b", 81) . "\n\n"});
 
-var $fits = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/line-fits");
+var $fits = Core\Http\Client::openStream(Core\Http\Method::Get, "https://api.example.com/line-fits");
 echo $fits->status(), "\n";
 foreach ($fits->lines() as tainted string $line) {
     echo "line: ", Core\Str::length($line), "\n";
 }
 
 try {
-    var $over = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/line-over");
+    var $over = Core\Http\Client::openStream(Core\Http\Method::Get, "https://api.example.com/line-over");
     foreach ($over->lines() as tainted string $refused) {
         echo "a line one octet past the cap was framed\n";
     }
@@ -47,24 +47,24 @@ try {
 // The same octets through the framings that frame nothing: a cap on a line is
 // not a cap on the reply, and a reader that had put it in the wrong place would
 // refuse these two as well.
-var $framed = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/line-framed");
+var $framed = Core\Http\Client::openStream(Core\Http\Method::Get, "https://api.example.com/line-framed");
 uint $octets = 0;
 foreach ($framed->chunks() as tainted bytes $chunk) {
     $octets = $octets + Core\Bytes::length($chunk);
 }
-var $saved = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/line-saved");
+var $saved = Core\Http\Client::openStream(Core\Http\Method::Get, "https://api.example.com/line-saved");
 $saved->saveTo("long.txt", 70000);
 echo "chunks: ", $octets, " saved: ", Core\Str::length(Core\IO::read("long.txt")), "\n";
 
 // The event cap, exactly: 1048576 octets of accumulated `data` is an event, and
 // the next octet is not.
-var $whole = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/event-fits");
+var $whole = Core\Http\Client::openStream(Core\Http\Method::Get, "https://api.example.com/event-fits");
 foreach ($whole->events() as Core\Http\Event $event) {
     echo "event: ", Core\Str::length($event->data()), " ", $event->name() ?? "message", " ", $event->id() ?? "none", "\n";
 }
 
 try {
-    var $huge = Core\Http\Client::stream(Core\Http\Method::Get, "https://api.example.com/event-over");
+    var $huge = Core\Http\Client::openStream(Core\Http\Method::Get, "https://api.example.com/event-over");
     foreach ($huge->events() as Core\Http\Event $past) {
         echo "an event one octet past the cap was dispatched\n";
     }

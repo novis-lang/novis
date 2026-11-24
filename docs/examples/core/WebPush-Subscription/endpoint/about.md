@@ -1,7 +1,7 @@
 Returns the URL of the browser's push service for this subscription, for example
 `https://push.example.com/send/abc123`. Each browser has its own URL, so you can use it to find a
 saved subscription again. For example, you delete a subscription by its endpoint when
-`Core\WebPush\Sent::gone()` is true.
+`Core\WebPush\Sent::isGone()` is true.
 
 The browser wrote this URL, so `endpoint()` returns a `tainted string`. Tainted means that the text
 came from outside your program and nothing has checked it yet. You can print it and compare it.

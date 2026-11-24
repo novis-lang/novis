@@ -59,7 +59,7 @@ final class Push
         array<string> $added = $channels->add($account, Channels::PUSH, $json);
         string $id = $added['id'];
         ?Sent $sent = $this->send($id, $json, 'Confirm this device for your account.', $added['code']);
-        if ($sent != null && $sent->gone()) {
+        if ($sent != null && $sent->isGone()) {
             $channels->drop($id);
             return null;
         }
@@ -84,7 +84,7 @@ final class Push
         if ($sent == null) {
             return false;
         }
-        if ($sent->gone()) {
+        if ($sent->isGone()) {
             $channels->drop($channel);
             return false;
         }
@@ -104,7 +104,7 @@ final class Push
             if ($sent == null) {
                 continue;
             }
-            if ($sent->gone()) {
+            if ($sent->isGone()) {
                 $channels->drop($id);
             } elseif ($sent->status() >= 200 && $sent->status() < 300) {
                 $channels->answered($id);

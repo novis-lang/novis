@@ -17,7 +17,7 @@ Core\Test::answerHttp('https://feed.example.com/many', 200, { body: Core\Str::re
 Core\Test::answerHttp('https://big.example.com/*', 200, { body: Core\Str::repeat('data: ' . Core\Str::repeat('b', 60000) . "\n\n", 4) });
 
 // 1. The second event has no blank line at its end. Only the first event is given.
-var $unfinished = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/unfinished');
+var $unfinished = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://feed.example.com/unfinished');
 uint $count = 0;
 foreach ($unfinished->events() as Core\Http\Event $event) {
     if ($event->data() != 'one') {
@@ -31,14 +31,14 @@ if ($count != 1) {
 echo 'step 1: done', "\n";
 
 // 2. 100000 comments and no data. The loop must not run at all.
-var $comments = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/comments');
+var $comments = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://feed.example.com/comments');
 foreach ($comments->events() as Core\Http\Event $event) {
     throw new LogicError('a comment was given as an event');
 }
 echo 'step 2: done', "\n";
 
 // 3. One line of 70000 bytes. This is over the limit for one line, so it throws an error.
-var $longLine = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/long-line');
+var $longLine = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://feed.example.com/long-line');
 try {
     foreach ($longLine->events() as Core\Http\Event $event) {
         throw new LogicError('a line over the limit was given');
@@ -49,7 +49,7 @@ try {
 
 // 4. One event with 20 data lines of 60000 bytes. Each line is allowed, but the
 //    whole event is over the limit for one event, so it throws an error.
-var $longEvent = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/long-event');
+var $longEvent = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://feed.example.com/long-event');
 try {
     foreach ($longEvent->events() as Core\Http\Event $event) {
         throw new LogicError('an event over the limit was given');
@@ -59,7 +59,7 @@ try {
 }
 
 // 5. 200000 small events. Each one must be given exactly once.
-var $many = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/many');
+var $many = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://feed.example.com/many');
 uint $seen = 0;
 foreach ($many->events() as Core\Http\Event $event) {
     $seen = $seen + 1;
@@ -75,7 +75,7 @@ echo "step 6\n";
 array<Core\Http\Event> $kept = [];
 uint $n = 0;
 while (true) {
-    var $big = Core\Http\Client::stream(Core\Http\Method::Get, Core\Str::format('https://big.example.com/%d', $n));
+    var $big = Core\Http\Client::openStream(Core\Http\Method::Get, Core\Str::format('https://big.example.com/%d', $n));
     foreach ($big->events() as Core\Http\Event $event) {
         $kept[] = $event;
     }

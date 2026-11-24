@@ -61,7 +61,7 @@ $db->executeMany('insert into people (id, name) values (?, ?)', [
     [3, 'alan'],
 ]);
 
-// `Rows` is the buffered result — `stream` is the cursor form — so counting it
+// `Rows` is the buffered result — `queryEach` is the cursor form — so counting it
 // and then walking it are two questions about one answer rather than two
 // round trips.
 var $rows = $db->query('select id, name from people order by id', []);

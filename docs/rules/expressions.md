@@ -227,7 +227,7 @@ which emits the fast form directly:
 | `Core\Regex::match(s, p)` used only in `== null`, `!= null` or `is null` | `Core\Regex::matches(s, p)` | no `from` option |
 | `Core\Arr::count` of `keys(a)` or `values(a)` | `Core\Arr::count(a)` | always |
 | `Core\Arr::first` of `keys(a)`, `first` of `values(a)` | `firstKey(a)`, `first(a)` | always |
-| `Core\Arr::filter(a, fn(x) => !Core\Arr::contains(b, x))`, and the same without `!` | `diff(a, b)`, `intersect(a, b)` | `b` is not assigned in the function, and the element type is not an array |
+| `Core\Arr::filter(a, fn(x) => !Core\Arr::contains(b, x))`, and the same without `!` | `difference(a, b)`, `intersection(a, b)` | `b` is not assigned in the function, and the element type is not an array |
 | `try { $v = X as T; } catch (C) { $v = null; }` | `$v = X as ?T;` | below |
 | `try { $v = K::parse(X); } catch (C) { $v = null; }` | `$v = K::tryParse(X);` | below, and `K` declares `tryParse` |
 | `foreach (Core\Arr::keys(m) as $k)`, `foreach (Core\Arr::values(m) as $v)` | the loop over `m` itself, binding the key or the value | always: a loop walks the array it began with |
@@ -269,7 +269,7 @@ callback's summary and takes one of the three outcomes:
 | `Core\Arr::first(Core\Arr::filter(a, p))` | `Core\Arr::find(a, p)` |
 | `Core\Arr::firstKey(Core\Arr::filter(a, p))` | `Core\Arr::findKey(a, p)` |
 | `Core\Arr::count(Core\Arr::filter(a, p))` compared with `0`, and `Core\Arr::isEmpty` of it | `Core\Arr::any(a, p)`, negated where the test is for none |
-| `sort`, `diff` or `intersect` with `comparator: fn(x, y) => E(x) <=> E(y)` | the same member with `by: fn(x) => E(x)` |
+| `sort`, `difference` or `intersection` with `comparator: fn(x, y) => E(x) <=> E(y)` | the same member with `by: fn(x) => E(x)` |
 | the same comparator with `E(y) <=> E(x)` on `sort` with no `order` option | `by:` with `order: Core\Arr::Order::Desc` |
 
 "Proven" is: the summary writes nothing, is not "anything", and the body has no error edge. A

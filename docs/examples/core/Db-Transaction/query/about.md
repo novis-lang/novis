@@ -1,7 +1,7 @@
 Runs one statement that reads rows inside a transaction, and returns all of them.
 
 `Core\Db\Transaction::query` is the method for a `select` inside the work you passed to
-`Core\Db\Connection::transaction`. It returns a `Core\Db\Rows` object. A `foreach` over that object
+`Core\Db\Connection::runTransaction`. It returns a `Core\Db\Rows` object. A `foreach` over that object
 reads one row at a time, `count()` gives the number of rows, and `first()` gives the first row or
 `null`. The method is the same one the connection has, so a statement you already wrote does not
 change when you move it inside a transaction.

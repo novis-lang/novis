@@ -5384,7 +5384,7 @@ impl<'a> Lowering<'a> {
             if symbol == nvs_types::CORE_SCRIPT_FINISH {
                 return self.lower_finish(env, cur);
             }
-            // `Core\Math::intDiv` is no call at all: it is `BinOp::IntDiv`,
+            // `Core\Math::quotient` is no call at all: it is `BinOp::IntDiv`,
             // which `nvs-codegen` emits inline with the helper's two throws.
             if symbol == nvs_types::CORE_MATH_INT_DIV {
                 let sig = ArgSig::of_helper(call);
@@ -5410,7 +5410,7 @@ impl<'a> Lowering<'a> {
                     );
                 }
                 panic!(
-                    "nvs-ir: `Core\\Math::intDiv` lowered {} arguments — its registry row \
+                    "nvs-ir: `Core\\Math::quotient` lowered {} arguments — its registry row \
                      declares two `int`s",
                     lowered.values.len()
                 );
@@ -9100,7 +9100,7 @@ fn payload_repr(repr: Ty) -> Ty {
 }
 
 /// Whether every value of the checked type `id` is a scalar, a string, bytes,
-/// an enum case or `null`. [`Lowering::lower_set_form`] asks it: `diff` and
+/// an enum case or `null`. [`Lowering::lower_set_form`] asks it: `difference` and
 /// `contains` are shown to agree on those, and an array or an object element
 /// keeps the form as written.
 fn compared_by_value(id: TypeId, checked_types: &TypeInterner) -> bool {

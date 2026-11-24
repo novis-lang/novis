@@ -56,7 +56,7 @@ final class Store
     {
         tainted string $question = Str::trim($draft->question);
         var $choices = $draft->choices();
-        return $this->db->transaction(fn(Transaction $tx): uint => {
+        return $this->db->runTransaction(fn(Transaction $tx): uint => {
             uint $id = $tx->execute('insert into polls (question) values (?)', [$question])->lastId() ?? 0;
             foreach ($choices as tainted string $label) {
                 $tx->execute('insert into answers (poll_id, label) values (?, ?)', [$id, $label]);

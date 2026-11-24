@@ -15,7 +15,7 @@ final class PriceTest {
     #[TestWith(cents: 0, want: 0)]
     #[Test]
     public function taxIsAdded(int $cents, int $want): void {
-        Test::assertSame($cents + Core\Math::intDiv($cents * 20, 100), $want);
+        Test::assertSame($cents + Core\Math::quotient($cents * 20, 100), $want);
     }
 
     #[Test(skip: "refunds are not written yet")]

@@ -1415,7 +1415,7 @@ fn unsigned_pow(base: u64, exponent: u64) -> Result<u64, Fault> {
 /// Division by zero **is** a throw on this row, and for that same reason:
 /// `rule:types/arithmetic` refuses the zero divisor before the operand types are consulted, so
 /// `nvs-codegen`'s statically typed `float /` guards it too and the two ends of
-/// the row cannot answer differently. `Core\Math::fdiv` is the member that says
+/// the row cannot answer differently. `Core\Math::divide` is the member that says
 /// IEEE's infinity out loud.
 fn float_arith(op: ArithRow, left: Value, right: Value) -> Result<Value, Fault> {
     let operand = |value: Value| match value.tag() {

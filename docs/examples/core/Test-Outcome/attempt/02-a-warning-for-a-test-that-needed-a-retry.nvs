@@ -29,7 +29,7 @@ class MailTest
     #[AfterEachTest]
     public function warnAboutRetries(Outcome $outcome): void
     {
-        ?string $warning = Warning::forRun($outcome->name(), $outcome->attempt(), $outcome->passed());
+        ?string $warning = Warning::forRun($outcome->name(), $outcome->attempt(), $outcome->hasPassed());
         if ($warning != null) {
             echo 'warning: ', $warning, "\n";
         }

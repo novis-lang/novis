@@ -34,7 +34,7 @@ class Checkout
     // at the call that needs a different one.
     public static function tax(int $amount, int $rate = 20): int
     {
-        return Core\Math::intDiv($amount * $rate, 100);
+        return Core\Math::quotient($amount * $rate, 100);
     }
 }
 

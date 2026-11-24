@@ -1,5 +1,5 @@
 --TEST--
-`queryAs<T>` and `streamAs<T>` fill a text column only into a `tainted` property, for a derived class and an inline shape alike, so a value stored earlier cannot reach a query unmarked — `rule:security/tainted-sources`
+`queryAs<T>` and `queryEachAs<T>` fill a text column only into a `tainted` property, for a derived class and an inline shape alike, so a value stored earlier cannot reach a query unmarked — `rule:security/tainted-sources`
 --FILE--
 <?nvs
 // covers: lang:types/qualifiers-tainted-and-secret
@@ -31,7 +31,7 @@ class Notes {
     public static function read(Core\Db\Connection $db): void {
         var $notes = $db->queryAs<Note>("select id, text from notes", []);
         var $shapes = $db->queryAs<{id: uint, text: string}>("select id, text from notes", []);
-        var $stream = $db->streamAs<Note>("select id, text from notes", []);
+        var $stream = $db->queryEachAs<Note>("select id, text from notes", []);
 
         // A `tainted` property takes the column, and a number needs no mark.
         var $safe = $db->queryAs<SafeNote>("select id, text from notes", []);

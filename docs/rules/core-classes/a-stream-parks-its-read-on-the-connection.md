@@ -32,9 +32,9 @@ and drains none can exhaust that pool. That is the same shape as holding many co
 bounded by the pool the host already sizes.
 
 **Declined:**
-- **Buffering a result set behind `stream`.** It breaks the member's one promise, constant memory,
+- **Buffering a result set behind `queryEach`.** It breaks the member's one promise, constant memory,
   and makes a request's memory a function of a table's size, the unbounded-by-input shape
   `rule:core-classes/output-that-scales-with-its-input-bounds-the-input` refuses everywhere else.
-- **Refusing `stream` on the drivers without a portal.** It turns `rule:core-classes/db-one-api`'s
+- **Refusing `queryEach` on the drivers without a portal.** It turns `rule:core-classes/db-one-api`'s
   single API into four APIs with a footnote, and no protocol among the five needs it.
 - **A chunk-size option.** `rule:core-classes/db-streaming` gives the reason.

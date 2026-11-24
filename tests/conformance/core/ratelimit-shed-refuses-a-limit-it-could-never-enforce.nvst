@@ -40,7 +40,7 @@ echo "refusals=", $refusals, "\n";
 // The refusals happen before any arrival is recorded, so the key they named is
 // untouched: a burst's worth still arrives afterwards.
 var $after = Core\RateLimit::shed("k", 2, 1h);
-if ($after->allowed()) {
+if ($after->isAllowed()) {
     echo "nothing was charged", "\n";
 } else {
     echo "a refused policy charged the key anyway", "\n";

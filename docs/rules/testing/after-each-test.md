@@ -13,7 +13,7 @@ so it is read through methods:
 | `class()` | the test class's name |
 | `name()` | the method's name, with `#N` for a `#[TestWith]` row (`rule:testing/data-rows`) |
 | `attempt()` | `1` for the first run, one more for each retry (`rule:testing/runner-is-strict`) |
-| `passed()` | whether this attempt passed |
+| `hasPassed()` | whether this attempt passed |
 | `failures()` | the messages the report prints for this attempt, empty when it passed |
 
 `Outcome` is for deciding what to keep and what to report — the evidence of a failed test kept under

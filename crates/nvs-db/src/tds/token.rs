@@ -144,7 +144,7 @@ pub(crate) fn kind_of(number: u32, class: u8) -> DbErrorKind {
         547 => DbErrorKind::ForeignKeyViolation,
         515 => DbErrorKind::NotNullViolation,
         // The deadlock victim: SQL Server rolled this transaction back whole,
-        // so the `transaction()` callable re-runs from nothing.
+        // so the `runTransaction()` callable re-runs from nothing.
         1205 => DbErrorKind::Deadlock,
         // Snapshot isolation could not serialise this transaction against a
         // concurrent one, and aborted it.
@@ -507,7 +507,7 @@ mod tests {
 
         assert!(
             kind_of(1205, 13).is_retryable() && kind_of(3960, 16).is_retryable(),
-            "`transaction()` re-runs a callable over these two and nothing else"
+            "`runTransaction()` re-runs a callable over these two and nothing else"
         );
         assert!(
             !kind_of(1222, 16).is_retryable(),

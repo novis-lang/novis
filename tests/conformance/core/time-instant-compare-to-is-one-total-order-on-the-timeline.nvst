@@ -11,12 +11,12 @@ array<Core\Time\Instant> $table = [
     Core\Time\Instant::fromEpoch(-377705023201),
     Core\Time\Instant::fromIso("2024-03-01T13:00:00+01:00"),
     Core\Time\Instant::fromEpoch(0),
-    Core\Time\Instant::fromEpoch(0, {nanos: 1}),
-    Core\Time\Instant::fromEpoch(-1, {nanos: 999999999}),
-    Core\Time\Instant::fromEpoch(253402207200, {nanos: 999999999}),
+    Core\Time\Instant::fromEpoch(0, {nanoseconds: 1}),
+    Core\Time\Instant::fromEpoch(-1, {nanoseconds: 999999999}),
+    Core\Time\Instant::fromEpoch(253402207200, {nanoseconds: 999999999}),
     Core\Time\Instant::fromEpoch(1709294400),
     Core\Time\Instant::fromIso("1969-12-31T23:59:59Z"),
-    Core\Time\Instant::fromEpoch(1709294400, {nanos: 1}),
+    Core\Time\Instant::fromEpoch(1709294400, {nanoseconds: 1}),
 ];
 
 // Every ordered pair. `operator` counts where `<` agrees with the sign, and

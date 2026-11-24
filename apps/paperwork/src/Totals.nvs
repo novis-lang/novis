@@ -33,7 +33,7 @@ final class Totals
         foreach ($items as Sample::Item $item) {
             $net = $net + Totals::line($item);
         }
-        decimal $vat = Decimal::divRound($net * Totals::rate(), 100, 2, RoundMode::HalfUp);
+        decimal $vat = Decimal::divideRounded($net * Totals::rate(), 100, 2, RoundMode::HalfUp);
         return new Totals($net, $vat, $net + $vat);
     }
 

@@ -858,7 +858,7 @@ impl PgConn {
     /// the read state is parked on this connection and the rows come off it one
     /// [`Self::stream_next_row`] at a time.
     ///
-    /// The wire half of `rule:core-classes/db-statement-members`'s `stream`. It is the same batch
+    /// The wire half of `rule:core-classes/db-statement-members`'s `queryEach`. It is the same batch
     /// [`Self::query`] sends and reaches [`State::Streaming`] the same way; the
     /// only difference is where the state a row is read against lives, and
     /// [`PgCursor`] owns why that has to be here rather than in a borrow. The
@@ -962,7 +962,7 @@ impl PgConn {
     }
 
     /// `rule:core-classes/db-transactions`'s `BEGIN`, or the
-    /// `SAVEPOINT` a nested `transaction()` is.
+    /// `SAVEPOINT` a nested `runTransaction()` is.
     ///
     /// This is the driver half of that rule and nothing more: the callable, the
     /// rollback-only flag and the retry rule are `nvs-stdlib`'s, and what a
@@ -995,7 +995,7 @@ impl PgConn {
     }
 
     /// How many transaction levels are open on this connection — 0 outside one,
-    /// 1 inside an outermost `transaction()`, deeper inside a nested one.
+    /// 1 inside an outermost `runTransaction()`, deeper inside a nested one.
     ///
     /// `nvs-stdlib` asks, and the transaction retry rule is the only reason this is
     /// public: a serialization failure is retried **only for an outermost
@@ -2902,7 +2902,7 @@ fn hex_digit(byte: u8) -> Option<u8> {
 /// - The **buffered** members drain their rows inside the call that started the
 ///   statement, so [`PgRows`] keeps this beside a borrow of the connection and
 ///   the borrow checker is what refuses a second statement.
-/// - **`Core\Db\Connection::stream`** hands a cursor back to the program and is
+/// - **`Core\Db\Connection::queryEach`** hands a cursor back to the program and is
 ///   advanced by a *later* call, with nothing of the connection borrowed in
 ///   between. A borrow cannot span that, so its copy of this state is parked on
 ///   the connection ([`PgConn::stream`]) and [`State::Streaming`] is what
@@ -3332,7 +3332,7 @@ fn open_portal<S: Read + Write>(
 
 /// [`open_portal`] with the read state lent out beside a borrow of the
 /// connection: the shape every buffered member of `rule:core-classes/db-statement-members` wants, and the
-/// one `Core\Db\Connection::stream` is the single caller that cannot use.
+/// one `Core\Db\Connection::queryEach` is the single caller that cannot use.
 ///
 /// # Errors
 ///
@@ -3367,7 +3367,7 @@ fn start_statement<'a, S: Read + Write>(
 /// the batch a single implicit transaction, so a failure at set 900 would roll
 /// back the 899 writes before it and would have held their locks from the
 /// first. That is the hidden `BEGIN` the rule refuses in as many words: a caller who
-/// wants all-or-nothing writes `transaction(fn ($tx) => $tx->executeMany(…))`,
+/// wants all-or-nothing writes `runTransaction(fn ($tx) => $tx->executeMany(…))`,
 /// and one who did not ask for it gets what an autocommitting MySQL would give
 /// — each execution independent, and the ones after a failure still attempted,
 /// because the server resumes at the next `Sync`.
@@ -3633,7 +3633,7 @@ fn reset_session<S: Read + Write>(wire: &mut Wire<S>, state: &Cell<State>) -> io
 }
 
 /// `rule:core-classes/db-transactions`'s `BEGIN`, or the
-/// `SAVEPOINT` a nested `transaction()` is.
+/// `SAVEPOINT` a nested `runTransaction()` is.
 ///
 /// **The depth decides which**, and the depth is the connection's rather than
 /// the caller's: that rule gives no explicit savepoint API and no `inTransaction()`,
@@ -3647,7 +3647,7 @@ fn reset_session<S: Read + Write>(wire: &mut Wire<S>, state: &Cell<State>) -> io
 /// do with them; running the callable at the *outer* transaction's level while
 /// its author wrote `Isolation::Serializable` would give it weaker semantics
 /// than the program asked for, and nothing would say so. Composition is not
-/// what this costs: a nested `transaction()` with no options is the case the
+/// what this costs: a nested `runTransaction()` with no options is the case the
 /// rule argues for and it still composes.
 ///
 /// # Errors
@@ -3671,7 +3671,7 @@ fn begin<S: Read + Write>(
             format!(
                 "a transaction nested {open} deep asked for its own isolation level or read-only \
                  mode, and PostgreSQL settles both for the whole transaction: ask for them on the \
-                 outermost `transaction()`, or give this one a `{{ shared: false }}` connection of \
+                 outermost `runTransaction()`, or give this one a `{{ shared: false }}` connection of \
                  its own"
             ),
         ));
@@ -3988,7 +3988,7 @@ fn columns_of(body: &backend::RowDescriptionBody) -> io::Result<Vec<PgColumn>> {
 ///
 /// **A busy connection's sentence names every fix, always**, because
 /// `rule:core-classes/db-streaming` requires the refusal to: read the rows
-/// already running, read them with `query` instead of `stream`, or open a
+/// already running, read them with `query` instead of `queryEach`, or open a
 /// `{ shared: false }` connection that gives this statement one of its own.
 /// They fix different programs — one loop wants its rows in memory, one
 /// genuinely wants two connections — and a message saying only that the
@@ -4011,7 +4011,7 @@ pub(crate) fn second_statement(state: &Cell<State>) -> io::Error {
         State::Idle | State::Executing | State::Streaming => {
             "this connection is still reading the rows of an earlier statement, and it runs \
              statements one at a time. Read all of those rows first, use `query` instead of \
-             `stream`, or open a second connection with `{ shared: false }`"
+             `queryEach`, or open a second connection with `{ shared: false }`"
         }
     };
     io::Error::new(io::ErrorKind::InvalidInput, said)
@@ -5958,7 +5958,7 @@ mod tests {
 
         for said in refusals {
             assert!(
-                said.contains("`query` instead of `stream`"),
+                said.contains("`query` instead of `queryEach`"),
                 "the buffered read is unnamed: {said}"
             );
             assert!(
@@ -6517,7 +6517,7 @@ mod tests {
     }
 
     /// `rule:core-classes/db-transactions`'s nesting: the second
-    /// `transaction()` on one connection is a
+    /// `runTransaction()` on one connection is a
     /// `SAVEPOINT` named by the depth it opened at, and the levels close
     /// inwards-out under the same names.
     #[test]
@@ -7043,7 +7043,7 @@ mod tests {
                 if busy == State::Poisoned {
                     assert!(said.contains("cannot be used again"), "{said}");
                 } else {
-                    assert!(said.contains("`query` instead of `stream`"), "{said}");
+                    assert!(said.contains("`query` instead of `queryEach`"), "{said}");
                     assert!(said.contains("shared: false"), "{said}");
                 }
             };

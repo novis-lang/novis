@@ -59,7 +59,7 @@ echo "verdicts ", Core\Json::encode($verdicts), "\n";
 // company prints here whatever the eight names were. A case that only echoed
 // the verdicts would still print eight plausible words.
 array<string> $shapes = ["list", "map"];
-echo "disagreeing ", Core\Arr::count(Core\Arr::diff($verdicts, $shapes)), "\n";
+echo "disagreeing ", Core\Arr::count(Core\Arr::difference($verdicts, $shapes)), "\n";
 
 // The interesting row, rendered as well as counted, so the agreement above has
 // something to be an agreement *about*: keys 0 and 1 out of order render with

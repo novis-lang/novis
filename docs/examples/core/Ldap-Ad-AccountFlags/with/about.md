@@ -5,5 +5,5 @@ flag you do not name stays as it is.
 The object you call `with` on does not change. Call `bits()` on the copy to get the new number of
 `userAccountControl`, for example to write it back to the directory.
 
-`lockedOut` and `passwordExpired` are not options. Active Directory computes these two flags, so a
+There is no option for `isLockedOut` or `isPasswordExpired`. Active Directory computes these two flags, so a
 program cannot set them. The copy keeps their values and the value of `mustChangePassword`.

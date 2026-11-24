@@ -46,11 +46,11 @@ pub(super) const DRIVER_MEMBER: &str = r"Core\Db\Connection::driver";
 /// `Core\Db\Connection::serverVersion`, for the same refusal's sentence.
 pub(super) const SERVER_VERSION_MEMBER: &str = r"Core\Db\Connection::serverVersion";
 
-/// `transaction`'s own name for a refusal, spelled on the connection because
+/// `runTransaction`'s own name for a refusal, spelled on the connection because
 /// that is the class that declares the row — a nested call on a
 /// [`TRANSACTION`] reaches the same helper and so names the same member, which
 /// is what delegating rather than re-declaring means.
-pub(super) const TRANSACTION_MEMBER: &str = r"Core\Db\Connection::transaction";
+pub(super) const TRANSACTION_MEMBER: &str = r"Core\Db\Connection::runTransaction";
 
 /// `rollBack`'s, which is the one member of that class with a body of its own.
 pub(super) const ROLL_BACK: &str = r"Core\Db\Transaction::rollBack";
@@ -61,7 +61,7 @@ pub(super) const SHARED_ARG: usize = 1;
 /// See [`SHARED_ARG`].
 pub(super) const TIMEOUT_ARG: usize = 2;
 
-/// The ABI slot each of `transaction`'s options arrives in — the receiver, then
+/// The ABI slot each of `runTransaction`'s options arrives in — the receiver, then
 /// the row's one positional parameter, then [`TRANSACTION_OPTIONS`] flattened
 /// in declaration order.
 ///
@@ -1345,7 +1345,7 @@ nvs_runtime::nvs_helper! {
     /// **A field read and not a statement.** Every driver kept the version its
     /// own handshake had already delivered
     /// (`rule:core-classes/server-version-is-what-the-server-said`), so this spends no round trip
-    /// and answers between two rows of a `stream`, where the connection is held
+    /// and answers between two rows of a `queryEach`, where the connection is held
     /// and a statement is refused. A member that looked like a field read and
     /// cost a `SELECT version()` would be a latency trap on the request path.
     ///

@@ -17,7 +17,7 @@ try {
 // separates the rate from the spike the rate tolerates.
 try {
     var $login = Core\RateLimit::consume("login:account-1", 5, 15m, {burst: 1, cost: 1});
-    if ($login->allowed()) {
+    if ($login->isAllowed()) {
         echo "login allowed", "\n";
     } else {
         echo "login refused", "\n";

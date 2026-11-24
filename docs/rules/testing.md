@@ -281,7 +281,7 @@ so it is read through methods:
 | `class()` | the test class's name |
 | `name()` | the method's name, with `#N` for a `#[TestWith]` row ([`testing/data-rows`](testing.md#testing-data-rows)) |
 | `attempt()` | `1` for the first run, one more for each retry ([`testing/runner-is-strict`](testing.md#testing-runner-is-strict)) |
-| `passed()` | whether this attempt passed |
+| `hasPassed()` | whether this attempt passed |
 | `failures()` | the messages the report prints for this attempt, empty when it passed |
 
 `Outcome` is for deciding what to keep and what to report — the evidence of a failed test kept under
@@ -883,7 +883,7 @@ normally.
 The transaction is opened **on the test's own context, from inside its isolate**, and that is what
 makes the savepoint sentence true with no special case anywhere: a connection is memoized on the
 context it was opened on, so the test's own `connect("test")` reaches *this* connection and its own
-`transaction()` sees a non-zero nesting depth. Opened on the suite's context instead, the two would
+`runTransaction()` sees a non-zero nesting depth. Opened on the suite's context instead, the two would
 contend rather than nest.
 
 The rollback is armed around the whole retry allowance rather than around one attempt, because a

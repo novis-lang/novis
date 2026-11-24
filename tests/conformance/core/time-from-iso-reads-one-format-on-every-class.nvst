@@ -16,7 +16,7 @@ echo Core\Time\Date::fromIso("-0044-03-15")->format("uuuu-MM-dd"), "|\n";
 echo Core\Time\TimeOfDay::fromIso("09:30")->format("HH:mm:ss.SSS"), "|\n";
 echo Core\Time\TimeOfDay::fromIso("09:30:15")->format("HH:mm:ss.SSS"), "|\n";
 echo Core\Time\TimeOfDay::fromIso("09:30:15.5")->format("HH:mm:ss.SSS"), "|\n";
-echo Core\Time\TimeOfDay::fromIso("23:59:59.999999999")->nanos() as string, "|\n";
+echo Core\Time\TimeOfDay::fromIso("23:59:59.999999999")->nanoseconds() as string, "|\n";
 echo Core\Time\DateTime::fromIso("2024-03-01", $utc)->format($full), "|\n";
 echo Core\Time\DateTime::fromIso("2024-03-01T09:30", $utc)->format($full), "|\n";
 echo Core\Time\DateTime::fromIso("2024-03-01 09:30:15.25", $utc)->format($full), "|\n";

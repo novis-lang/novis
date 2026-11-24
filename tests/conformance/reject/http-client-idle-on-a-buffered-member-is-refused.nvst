@@ -1,5 +1,5 @@
 --TEST--
-`idle` and `maxDuration` are `stream`'s two keys alone, and either one on a buffered member is refused while compiling — `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`
+`idle` and `maxDuration` are `openStream`'s two keys alone, and either one on a buffered member is refused while compiling — `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`
 --FILE--
 <?nvs
 // `rule:http-server/a-streamed-reply-is-bounded-by-idle-and-a-lifetime`:
@@ -13,7 +13,7 @@ string $url = "https://example.test/events";
 // Asserted on both sides, because either half alone reads as correct: the same
 // two keys are accepted on the row whose body they bound, so a refusal that
 // came from `idle` being unspellable anywhere fails here too.
-var $streamed = Core\Http\Client::stream(Core\Http\Method::Post, $url, {idle: 5s, maxDuration: 2m});
+var $streamed = Core\Http\Client::openStream(Core\Http\Method::Post, $url, {idle: 5s, maxDuration: 2m});
 
 // And the refusal, on a row whose verb is its own name and on the one that is
 // handed a verb: `request` takes the buffered bag, and a verb chosen at run

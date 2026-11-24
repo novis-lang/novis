@@ -9,10 +9,10 @@
 // time-instant-is-an-absolute-point.nvst.
 class Epoch {
     // `$count` divided by `$perSecond`, rounded down, as the readers round.
-    // `Core\Math::intDiv` truncates toward zero, so a negative remainder moves
+    // `Core\Math::quotient` truncates toward zero, so a negative remainder moves
     // the result down by one.
     public static function floorDiv(int $count, int $perSecond): int {
-        int $q = Core\Math::intDiv($count, $perSecond);
+        int $q = Core\Math::quotient($count, $perSecond);
         if ($count - $q * $perSecond < 0) {
             return $q - 1;
         }
@@ -20,17 +20,17 @@ class Epoch {
     }
 
     // The instant a `$perSecond`-resolution epoch count names. `fromEpoch`
-    // adds its `nanos` option *after* the second and that option is a `uint`,
+    // adds its `nanoseconds` option *after* the second and that option is a `uint`,
     // so the rebuild needs the floor decomposition: the second at or below
     // the reading, and a remainder that is never negative.
     public static function rebuild(int $count, int $perSecond): Core\Time\Instant {
         int $q = Epoch::floorDiv($count, $perSecond);
         int $r = $count - $q * $perSecond;
-        return Core\Time\Instant::fromEpoch($q, {nanos: ($r * Core\Math::intDiv(1000000000, $perSecond)) as uint});
+        return Core\Time\Instant::fromEpoch($q, {nanoseconds: ($r * Core\Math::quotient(1000000000, $perSecond)) as uint});
     }
 }
 
-// Both sides of the epoch, at four subsecond offsets each. Every `nanos` here
+// Both sides of the epoch, at four subsecond offsets each. Every `nanoseconds` here
 // is a whole millisecond, so all three resolutions hold the row exactly and
 // any disagreement between them is the member's, not the table's.
 array<int> $seconds = [0, 1, 0 - 1, 1705320000, 0 - 1705320000, 86400, 0 - 86400];
@@ -42,7 +42,7 @@ int $back = 0;    // `fromEpoch` undoes all three
 int $down = 0;    // a negative second with a `nanos` reads that same second
 foreach ($seconds as int $s) {
     foreach ($nanos as int $n) {
-        var $at = Core\Time\Instant::fromEpoch($s, {nanos: $n as uint});
+        var $at = Core\Time\Instant::fromEpoch($s, {nanoseconds: $n as uint});
         int $sec = $at->toEpochSeconds();
         int $mil = $at->toEpochMillis();
         int $mic = $at->toEpochMicros();
@@ -50,7 +50,7 @@ foreach ($seconds as int $s) {
         if ($mil == Epoch::floorDiv($mic, 1000) && $sec == Epoch::floorDiv($mil, 1000)) {
             $agree = $agree + 1;
         }
-        if ($sec == $s && $mic == $s * 1000000 + Core\Math::intDiv($n, 1000) && $mil == $s * 1000 + Core\Math::intDiv($n, 1000000)) {
+        if ($sec == $s && $mic == $s * 1000000 + Core\Math::quotient($n, 1000) && $mil == $s * 1000 + Core\Math::quotient($n, 1000000)) {
             $placed = $placed + 1;
         }
         // Reading, rebuilding and reading again answers the same count at each
@@ -62,10 +62,10 @@ foreach ($seconds as int $s) {
             && Epoch::rebuild($mic, 1000000)->compareTo($at) == 0) {
             $back = $back + 1;
         }
-        // A negative second carrying a positive `nanos` reads the second it
+        // A negative second carrying a positive `nanoseconds` reads the second it
         // was written with, because the readers round down. A reader that
         // truncated toward zero would read one second higher. Nine of the 28
-        // rows are that shape: three negative seconds, three non-zero `nanos`.
+        // rows are that shape: three negative seconds, three non-zero `nanoseconds`.
         if ($s < 0 && $n > 0 && $sec == $s) {
             $down = $down + 1;
         }
@@ -76,7 +76,7 @@ echo $rows as string, "|", $agree as string, "|", $placed as string, "|", $back 
 // The row the sign story hinges on, written out once: a quarter second after
 // `-1` is three quarters of a second *before* the epoch. The seconds reading
 // rounds down to `-1`, and the finer two are exact.
-var $before = Core\Time\Instant::fromEpoch(0 - 1, {nanos: 250000000});
+var $before = Core\Time\Instant::fromEpoch(0 - 1, {nanoseconds: 250000000});
 echo $before->toEpochSeconds() as string, "|", $before->toEpochMillis() as string, "|", $before->toEpochMicros() as string, "|\n";
 echo $before->toIso(), "|\n";
 --EXPECT--

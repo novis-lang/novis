@@ -6,8 +6,8 @@
 
 // 1. Two numbers a million bits wide, one bit apart, compared 200 times in both
 //    orders. A comparison that stopped early would print 0 0 here.
-var $low = Core\BigInt::of(1)->shl(1000000);
-var $high = $low->add(Core\BigInt::of(1));
+var $low = Core\BigInt::of(1)->shiftedLeft(1000000);
+var $high = $low->plus(Core\BigInt::of(1));
 int $down = 0;
 int $up = 0;
 int $round = 0;
@@ -20,12 +20,12 @@ echo $down, ' ', $up, "\n";
 
 // 2. A number compared with itself, at the widest size a single call may
 //    produce. This prints 0.
-var $widest = Core\BigInt::of(1)->shl(1048575);
+var $widest = Core\BigInt::of(1)->shiftedLeft(1048575);
 echo $widest->compareTo($widest), "\n";
 
 // 3. The same number with the other sign. The two are the same size, so only
 //    the sign decides. This prints 1 -1.
-echo $widest->compareTo($widest->neg()), ' ', $widest->neg()->compareTo($widest), "\n";
+echo $widest->compareTo($widest->negated()), ' ', $widest->negated()->compareTo($widest), "\n";
 
 // 4. The smallest `int` there is, compared with a small number 100 000 times.
 //    Only the last answer is kept, so the memory held must not grow.

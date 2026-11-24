@@ -4,9 +4,9 @@ is a static member of the class it returns, so the class a reader looks up is th
 | Class | Static members |
 |---|---|
 | `Core\Time` | `now()`, `monotonic()`, `sleep(Duration)` |
-| `Core\Time\Instant` | `fromEpoch(int, {nanos?})`, `fromIso(text)` |
+| `Core\Time\Instant` | `fromEpoch(int, {nanoseconds?})`, `fromIso(text)` |
 | `Core\Time\Date` | `at(int, uint, uint)`, `fromIso(text)` |
-| `Core\Time\TimeOfDay` | `at(uint, uint, {second?, nanos?})`, `fromIso(text)` |
+| `Core\Time\TimeOfDay` | `at(uint, uint, {second?, nanoseconds?})`, `fromIso(text)` |
 | `Core\Time\DateTime` | `at(Date, TimeOfDay, Zone)`, `fromIso(text, Zone)`, `parse(text, pattern, Zone)` |
 
 `DateTime::at` takes its three parts in the order the readers `date()`, `timeOfDay()` and `zone()`

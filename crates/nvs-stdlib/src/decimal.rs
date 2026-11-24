@@ -8,10 +8,10 @@
 //! `rule:security/no-cross-request-state` both close. What
 //! this class adds is the questions that policy cannot answer:
 //!
-//! * **"this division must not lose anything"** — `divExact`, which throws
+//! * **"this division must not lose anything"** — `divideExact`, which throws
 //!   rather than rounding, so a quotient that repeats is a caught error at the
 //!   site that assumed it would not;
-//! * **"round it here, this way"** — `divRound`, where the scale and the mode
+//! * **"round it here, this way"** — `divideRounded`, where the scale and the mode
 //!   are both written out loud at the call, and neither is read from anywhere
 //!   else;
 //! * **"split this sum and lose none of it"** — `allocate`, where no rounding
@@ -24,7 +24,7 @@
 //!   `rule:types/conversion` refuses to round on its own, or a display at a
 //!   fixed number of places.
 //!
-//! `pow` is here for a different reason. `**` has no row for a `decimal` base
+//! `power` is here for a different reason. `**` has no row for a `decimal` base
 //! at all (`rule:types/arithmetic`), because a power that does not come out
 //! exact would have to round without having been asked to; the member answers
 //! the exact power or throws, and a negative one is written as the division it
@@ -38,19 +38,19 @@
 //! is left over, and `Decimal::checked_div_at_scale` is it stopped at a named
 //! scale, handing back the `Discard` this module turns into a mode's decision.
 //! That factoring is the point: three divisions that agree today would be the
-//! bug, and `divRound` in particular must **not** be `checked_div` rounded a
+//! bug, and `divideRounded` in particular must **not** be `checked_div` rounded a
 //! second time — a quotient rounded at scale 28 and then again at scale 2
 //! carries a tie into the second decision that the exact value never had.
 //!
 //! **The four rounding members are that same division, against `1`.** What a
 //! value truncated at a scale threw away is what `checked_div_at_scale` hands
-//! back beside it, so `round` reaches the same [`rounds_away`] `divRound` does
+//! back beside it, so `round` reaches the same [`rounds_away`] `divideRounded` does
 //! and the two agree on every mode by construction rather than by two rules
 //! kept in step. `floor` and `ceil` are the two answers no `Core\RoundMode`
 //! names: `Up` and `Down` are directions away from and towards zero, and these
 //! are directions along the line.
 //!
-//! **`divRound` refuses at a scale the answer cannot hold rather than narrowing
+//! **`divideRounded` refuses at a scale the answer cannot hold rather than narrowing
 //! to one it can.** That is the refusal `rule:types/arithmetic`'s `decimal ⊕ decimal` row
 //! already states for a product whose scale would exceed 28, and the same
 //! divergence from `System.Decimal`: silently narrowing would make a second
@@ -100,17 +100,17 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     doc: Some(&CARD),
     methods: &[
         CoreMethod {
-            name: "divExact",
+            name: "divideExact",
             names: &["value", "divisor"],
             params: &[CoreTy::Decimal, CoreTy::Decimal],
             defaults: &[],
             return_ty: CoreTy::Decimal,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_decimal_div_exact",
+            symbol: "nvs_core_decimal_divide_exact",
             doc: Some(&DIV_EXACT_DOC),
         },
         CoreMethod {
-            name: "divRound",
+            name: "divideRounded",
             names: &["value", "divisor", "scale", "mode"],
             params: &[
                 CoreTy::Decimal,
@@ -121,7 +121,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Decimal,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_decimal_div_round",
+            symbol: "nvs_core_decimal_divide_rounded",
             doc: Some(&DIV_ROUND_DOC),
         },
         CoreMethod {
@@ -135,13 +135,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&ALLOCATE_DOC),
         },
         CoreMethod {
-            name: "pow",
+            name: "power",
             names: &["base", "exponent"],
             params: &[CoreTy::Decimal, CoreTy::Uint],
             defaults: &[],
             return_ty: CoreTy::Decimal,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_decimal_pow",
+            symbol: "nvs_core_decimal_power",
             doc: Some(&POW_DOC),
         },
         CoreMethod {
@@ -194,7 +194,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
     constants: &[],
 };
 
-/// `Core\Decimal::divExact`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Decimal::divideExact`'s reference card — `rule:core-api/reference-card`.
 const DIV_EXACT_DOC: MethodDoc = MethodDoc {
     short: "Divides `$value` by `$divisor` and returns the exact result. If the result is not \
             exact, it throws an error. Use it where you expect the division to come out even.",
@@ -219,7 +219,7 @@ const DIV_EXACT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Decimal::divRound`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Decimal::divideRounded`'s reference card — `rule:core-api/reference-card`.
 const DIV_ROUND_DOC: MethodDoc = MethodDoc {
     short: "Divides `$value` by `$divisor` and rounds the result to `$scale` digits with `$mode`. \
             The `/` operator always rounds half to even. Use this method to choose the rounding.",
@@ -291,7 +291,7 @@ const ALLOCATE_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Decimal::pow`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Decimal::power`'s reference card — `rule:core-api/reference-card`.
 const POW_DOC: MethodDoc = MethodDoc {
     short: "Multiplies `$base` by itself `$exponent` times and returns the exact result. The `**` \
             operator does not accept a `decimal` base, so use this method instead.",
@@ -304,8 +304,8 @@ const POW_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "exponent",
             desc: "How many times to multiply it by itself. Zero gives `1`. A negative exponent \
-                   is not allowed. For the reciprocal, write `Core\\Decimal::divRound(1, \
-                   Core\\Decimal::pow($b, $n), $scale, $mode)`.",
+                   is not allowed. For the reciprocal, write `Core\\Decimal::divideRounded(1, \
+                   Core\\Decimal::power($b, $n), $scale, $mode)`.",
             shape: &[],
         },
     ],
@@ -412,7 +412,7 @@ const ROUND_DOC: MethodDoc = MethodDoc {
         ParamDoc {
             name: "mode",
             desc: "How a value exactly between two results is rounded. It is the same \
-                   `Core\\RoundMode` that `Core\\Decimal::divRound` and `Core\\Math::round` take. \
+                   `Core\\RoundMode` that `Core\\Decimal::divideRounded` and `Core\\Math::round` take. \
                    It is required, so it comes before the optional `$scale`.",
             shape: &[],
         },
@@ -437,10 +437,10 @@ const ROUND_DOC: MethodDoc = MethodDoc {
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
-        "nvs_core_decimal_div_exact" => (nvs_core_decimal_div_exact as *const ()).cast(),
-        "nvs_core_decimal_div_round" => (nvs_core_decimal_div_round as *const ()).cast(),
+        "nvs_core_decimal_divide_exact" => (nvs_core_decimal_divide_exact as *const ()).cast(),
+        "nvs_core_decimal_divide_rounded" => (nvs_core_decimal_divide_rounded as *const ()).cast(),
         "nvs_core_decimal_allocate" => (nvs_core_decimal_allocate as *const ()).cast(),
-        "nvs_core_decimal_pow" => (nvs_core_decimal_pow as *const ()).cast(),
+        "nvs_core_decimal_power" => (nvs_core_decimal_power as *const ()).cast(),
         "nvs_core_decimal_floor" => (nvs_core_decimal_floor as *const ()).cast(),
         "nvs_core_decimal_ceil" => (nvs_core_decimal_ceil as *const ()).cast(),
         "nvs_core_decimal_truncate" => (nvs_core_decimal_truncate as *const ()).cast(),
@@ -485,7 +485,7 @@ fn rounds_away(mode: RoundMode, discard: Discard, mantissa: u128) -> bool {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Decimal::divExact(decimal $value, decimal $divisor): decimal` —
+    /// `Core\Decimal::divideExact(decimal $value, decimal $divisor): decimal` —
     /// `rule:types/arithmetic`'s "throws unless the quotient is exact".
     ///
     /// The zero divisor is separated from the rest because it is a different
@@ -493,20 +493,20 @@ nvs_runtime::nvs_helper! {
     /// inexact quotient is a bug in the assumption the call site made. Both
     /// are `ArithmeticError`, since a `catch` that wants to tell them apart
     /// wants the sentence rather than a seventh class.
-    fn nvs_core_decimal_div_exact(_ctx, args: [2]) {
-        let value = decimal_at(args, 0, "divExact")?;
-        let divisor = decimal_at(args, 1, "divExact")?;
+    fn nvs_core_decimal_divide_exact(_ctx, args: [2]) {
+        let value = decimal_at(args, 0, "divideExact")?;
+        let divisor = decimal_at(args, 1, "divideExact")?;
         if divisor.is_zero() {
             return Err(Fault::thrown_as(
                 ThrownClass::Arithmetic,
-                "Core\\Decimal::divExact cannot divide by zero".to_owned(),
+                "Core\\Decimal::divideExact cannot divide by zero".to_owned(),
             ));
         }
         let quotient = value.checked_div_exact(divisor).ok_or_else(|| {
             Fault::thrown_as(
                 ThrownClass::Arithmetic,
                 format!(
-                    "Core\\Decimal::divExact cannot answer {value} / {divisor} exactly: the \
+                    "Core\\Decimal::divideExact cannot answer {value} / {divisor} exactly: the \
                      quotient repeats or is wider than a `decimal` holds"
                 ),
             )
@@ -516,7 +516,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Decimal::divRound(decimal $value, decimal $divisor, uint $scale,
+    /// `Core\Decimal::divideRounded(decimal $value, decimal $divisor, uint $scale,
     /// Core\RoundMode $mode): decimal` — `rule:types/arithmetic`'s "names both".
     ///
     /// Both arguments are required rather than optional, which is the one
@@ -524,15 +524,15 @@ nvs_runtime::nvs_helper! {
     /// default scale or a default mode would be exactly the ambient precision
     /// `rule:types/decimal` refuses, moved from a global into a signature. A caller who wants
     /// the language's own rule already has `/`.
-    fn nvs_core_decimal_div_round(_ctx, args: [4]) {
-        let value = decimal_at(args, 0, "divRound")?;
-        let divisor = decimal_at(args, 1, "divRound")?;
+    fn nvs_core_decimal_divide_rounded(_ctx, args: [4]) {
+        let value = decimal_at(args, 0, "divideRounded")?;
+        let divisor = decimal_at(args, 1, "divideRounded")?;
         let scale = args[2].as_uint().unwrap_or(u64::from(u8::MAX));
-        let mode = round_mode(args, 3, "Core\\Decimal::divRound")?;
+        let mode = round_mode(args, 3, "Core\\Decimal::divideRounded")?;
         if divisor.is_zero() {
             return Err(Fault::thrown_as(
                 ThrownClass::Arithmetic,
-                "Core\\Decimal::divRound cannot divide by zero".to_owned(),
+                "Core\\Decimal::divideRounded cannot divide by zero".to_owned(),
             ));
         }
         // One sentence for the scale bound and for a mantissa that will not
@@ -542,7 +542,7 @@ nvs_runtime::nvs_helper! {
             Fault::thrown_as(
                 ThrownClass::Arithmetic,
                 format!(
-                    "Core\\Decimal::divRound cannot answer {value} / {divisor} at scale \
+                    "Core\\Decimal::divideRounded cannot answer {value} / {divisor} at scale \
                      {scale}: a `decimal` holds 28 fractional digits and a 96-bit mantissa"
                 ),
             )
@@ -633,7 +633,7 @@ nvs_runtime::nvs_helper! {
         let amount = decimal_at(args, 0, "allocate")?;
         let ratios = ratios_at(args, 1)?;
         let places = amount.scale();
-        // One sentence for both overflow kinds, as `divRound` gives: either
+        // One sentence for both overflow kinds, as `divideRounded` gives: either
         // way there is no `decimal` to answer with.
         let refused = || {
             Fault::thrown_as(
@@ -736,13 +736,13 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Decimal::pow(decimal $base, uint $exponent): decimal` —
+    /// `Core\Decimal::power(decimal $base, uint $exponent): decimal` —
     /// `rule:types/arithmetic`'s row for a `decimal` base, which refuses `**`
     /// and names this instead.
     ///
     /// Exact or nothing, and the answer is what repeated multiplication
     /// gives **including its scale**, since a product's scale is its
-    /// operands' added and scale is observable: `pow($b, 3)` is `$b * $b *
+    /// operands' added and scale is observable: `power($b, 3)` is `$b * $b *
     /// $b` to the digit. A base with a scale of its own runs through the 28
     /// quickly, and reaching the end of them throws rather than narrowing to
     /// a scale that fits — the same divergence from `System.Decimal` the
@@ -750,7 +750,7 @@ nvs_runtime::nvs_helper! {
     ///
     /// The exponent is a `uint` because a negative power is a division, and
     /// a division over `decimal` either comes out exact or names its
-    /// rounding. The reciprocal is written `divRound(1, pow($b, $n), $scale,
+    /// rounding. The reciprocal is written `divideRounded(1, power($b, $n), $scale,
     /// $mode)`, which says out loud what `$b ** -3` would have settled
     /// quietly.
     ///
@@ -760,13 +760,13 @@ nvs_runtime::nvs_helper! {
     /// The answer is the walk's — each intermediate is the base to a power at
     /// or below the one asked for, so nothing overflows here that a walk
     /// would have carried through.
-    fn nvs_core_decimal_pow(_ctx, args: [2]) {
-        let base = decimal_at(args, 0, "pow")?;
+    fn nvs_core_decimal_power(_ctx, args: [2]) {
+        let base = decimal_at(args, 0, "power")?;
         // Unreachable from source: the parameter is declared `uint`, so
         // anything else is `E0401: expected `uint`, found …` at the argument.
         let exponent = args[1].as_uint().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Decimal::pow expected a `uint` exponent, got tag {}",
+                "Core\\Decimal::power expected a `uint` exponent, got tag {}",
                 args[1].tag_byte()
             ))
         })?;
@@ -774,7 +774,7 @@ nvs_runtime::nvs_helper! {
             Fault::thrown_as(
                 ThrownClass::Arithmetic,
                 format!(
-                    "Core\\Decimal::pow cannot answer {base} to the power {exponent}: a \
+                    "Core\\Decimal::power cannot answer {base} to the power {exponent}: a \
                      `decimal` holds 28 fractional digits and a 96-bit mantissa"
                 ),
             )
@@ -805,7 +805,7 @@ nvs_runtime::nvs_helper! {
 /// `CoreTy::Uint`, so anything else is `E0401: expected `uint`, found …` at the
 /// argument. A value that is somehow not one takes `u8::MAX`, which every
 /// caller below then refuses as a scale no `decimal` holds — the answer
-/// `divRound` gives it too, and not a `FATAL` outranking a throw the program
+/// `divideRounded` gives it too, and not a `FATAL` outranking a throw the program
 /// could have caught.
 fn scale_at(args: &[Value], index: usize) -> u64 {
     args[index].as_uint().unwrap_or(u64::from(u8::MAX))
@@ -815,7 +815,7 @@ fn scale_at(args: &[Value], index: usize) -> u64 {
 /// away from zero where `away` says the dropped digits call for it.
 ///
 /// The truncation is `checked_div_at_scale` against `1` — the same long
-/// division `divRound` reads, which is what makes a mode mean one thing across
+/// division `divideRounded` reads, which is what makes a mode mean one thing across
 /// both members rather than two rules kept in step. `refused` is the caller's
 /// own sentence, which every bound this can meet reaches: a scale past 28, a
 /// value with too many digits before the point to carry that many after it,
@@ -933,14 +933,14 @@ nvs_runtime::nvs_helper! {
     /// names the rule it makes it by.
     ///
     /// **The mode is written before the scale**, which is the one place this
-    /// parts from `divRound`'s `$scale, $mode` order: a default is aligned to
+    /// parts from `divideRounded`'s `$scale, $mode` order: a default is aligned to
     /// the end of the parameter list, so a required mode and an optional
-    /// scale can sit in no other order. The mode is required for `divRound`'s
+    /// scale can sit in no other order. The mode is required for `divideRounded`'s
     /// own reason — a default for it would be the ambient rounding policy
     /// `rule:types/decimal` refuses, moved from a global into a signature.
     ///
-    /// The decision is [`rounds_away`], the one `divRound` applies, over the
-    /// same division: `round($x, $mode, $s)` is `divRound($x, 1, $s, $mode)`
+    /// The decision is [`rounds_away`], the one `divideRounded` applies, over the
+    /// same division: `round($x, $mode, $s)` is `divideRounded($x, 1, $s, $mode)`
     /// to the digit, at every mode and every scale.
     fn nvs_core_decimal_round(_ctx, args: [3]) {
         let value = decimal_at(args, 0, "round")?;
@@ -986,7 +986,7 @@ mod tests {
     fn exact(ctx: &mut Ctx, value: &str, divisor: &str) -> Result<String, String> {
         answer(
             ctx,
-            nvs_core_decimal_div_exact,
+            nvs_core_decimal_divide_exact,
             &[decimal(value), decimal(divisor)],
         )
     }
@@ -1000,7 +1000,7 @@ mod tests {
     ) -> Result<String, String> {
         answer(
             ctx,
-            nvs_core_decimal_div_round,
+            nvs_core_decimal_divide_rounded,
             &[
                 decimal(value),
                 decimal(divisor),
@@ -1030,9 +1030,9 @@ mod tests {
     }
 
     /// `rule:types/arithmetic`'s two named-rounding members over the same divisions:
-    /// where `divExact` refuses, `divRound` answers under the mode it was
-    /// given, and where `divExact` answers the two agree.
-    // covers: Core\Decimal::divExact, Core\Decimal::divRound
+    /// where `divideExact` refuses, `divideRounded` answers under the mode it was
+    /// given, and where `divideExact` answers the two agree.
+    // covers: Core\Decimal::divideExact, Core\Decimal::divideRounded
     #[test]
     fn div_exact_throws_where_div_round_rounds() {
         let mut ctx = Ctx::buffered();
@@ -1069,7 +1069,7 @@ mod tests {
         }
 
         // Where the quotient is exact at the named scale, every mode agrees
-        // with `divExact` — nothing is discarded, so there is no decision to
+        // with `divideExact` — nothing is discarded, so there is no decision to
         // make and `Up` does not invent one.
         assert_eq!(exact(&mut ctx, "1.00", "4").as_deref(), Ok("0.25"));
         for mode in [HALF_UP, HALF_EVEN, UP, DOWN] {
@@ -1090,11 +1090,11 @@ mod tests {
         // name.
         assert_eq!(
             exact(&mut ctx, "1", "0").expect_err("nothing divides by zero"),
-            "Core\\Decimal::divExact cannot divide by zero"
+            "Core\\Decimal::divideExact cannot divide by zero"
         );
         assert_eq!(
             rounded(&mut ctx, "1", "0", 2, HALF_UP).expect_err("nor here"),
-            "Core\\Decimal::divRound cannot divide by zero"
+            "Core\\Decimal::divideRounded cannot divide by zero"
         );
 
         // A scale past the type's own bound is refused rather than clamped.
@@ -1105,19 +1105,19 @@ mod tests {
         );
     }
 
-    /// `Core\Decimal::pow($base, $exponent)`'s answer, or the sentence its
+    /// `Core\Decimal::power($base, $exponent)`'s answer, or the sentence its
     /// throw carried.
     fn power(ctx: &mut Ctx, base: &str, exponent: u64) -> Result<String, String> {
         answer(
             ctx,
-            nvs_core_decimal_pow,
+            nvs_core_decimal_power,
             &[decimal(base), Value::uint(exponent)],
         )
     }
 
     /// `rule:types/arithmetic`'s power for a `decimal` base: exact, at the
     /// scale repeated multiplication gives it, or a throw at either bound.
-    // covers: Core\Decimal::pow
+    // covers: Core\Decimal::power
     #[test]
     fn decimal_pow_is_exact_or_throws_at_the_mantissa_or_scale_bound() {
         let mut ctx = Ctx::buffered();
@@ -1380,7 +1380,7 @@ mod tests {
 
     /// `rule:types/conversion`'s four named cuts: each answers a `decimal` at
     /// exactly the scale it was asked for, the three directions part where a
-    /// value is negative, and `round` is `divRound` against `1`.
+    /// value is negative, and `round` is `divideRounded` against `1`.
     // covers: Core\Decimal::ceil, Core\Decimal::floor, Core\Decimal::truncate, Core\Decimal::round
     #[test]
     fn decimal_floor_ceil_truncate_and_round_answer_decimal_at_the_scale_asked() {
@@ -1446,7 +1446,7 @@ mod tests {
         );
 
         // The tie the `Half*` modes are named for, and the agreement that
-        // makes `round` one rule rather than a second copy of `divRound`'s:
+        // makes `round` one rule rather than a second copy of `divideRounded`'s:
         // dividing by `1` is what both do.
         for value in ["0.125", "-0.125", "1.005", "19.99", "0", "-0.005"] {
             for mode in [HALF_UP, HALF_DOWN, HALF_EVEN, HALF_ODD, UP, DOWN] {
@@ -1454,7 +1454,7 @@ mod tests {
                     assert_eq!(
                         cut_round(&mut ctx, value, mode, scale),
                         rounded(&mut ctx, value, "1", scale, mode),
-                        "round({value}, {mode}, {scale}) is divRound({value}, 1, {scale}, {mode})"
+                        "round({value}, {mode}, {scale}) is divideRounded({value}, 1, {scale}, {mode})"
                     );
                 }
             }

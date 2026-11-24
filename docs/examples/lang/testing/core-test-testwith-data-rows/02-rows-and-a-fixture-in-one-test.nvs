@@ -14,7 +14,7 @@ class Vat
     // The tax on an amount in cents. 19 percent of 1000 cents is 190 cents.
     public function on(int $cents): int
     {
-        return Core\Math::intDiv($cents * $this->percent, 100);
+        return Core\Math::quotient($cents * $this->percent, 100);
     }
 }
 

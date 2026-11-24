@@ -17,12 +17,12 @@ class Node
     }
 }
 
-// 1. NaN, infinity and minus infinity have no JSON form. `Core\Math::fdiv` divides by zero and
+// 1. NaN, infinity and minus infinity have no JSON form. `Core\Math::divide` divides by zero and
 // gives these three values. Each call must throw a `LogicError`.
 array<float> $floats = [
-    Core\Math::fdiv(0.0, 0.0),
-    Core\Math::fdiv(1.0, 0.0),
-    Core\Math::fdiv(-1.0, 0.0),
+    Core\Math::divide(0.0, 0.0),
+    Core\Math::divide(1.0, 0.0),
+    Core\Math::divide(-1.0, 0.0),
 ];
 foreach ($floats as float $bad) {
     try {

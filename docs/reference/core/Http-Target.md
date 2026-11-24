@@ -4,7 +4,7 @@ keywords: check a URL, user URL, webhook URL, outbound request, SSRF, private ad
 ---
 
 `Core\Http\Target` is a URL that `Core\Http::allowUrl` checked. You pass it to a
-`Core\Http\Client` method, such as `get`, `post` or `stream`, in place of the URL. You can use
+`Core\Http\Client` method, such as `get`, `post` or `openStream`, in place of the URL. You can use
 the same `Core\Http\Target` for more than one request.
 
 A URL that a user typed is `tainted`. A `Core\Http\Client` method does not accept a `tainted` URL,

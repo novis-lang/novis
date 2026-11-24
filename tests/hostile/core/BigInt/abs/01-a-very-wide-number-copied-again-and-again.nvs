@@ -6,10 +6,10 @@
 
 // 1. A number of 1 000 001 bits is copied 200 times. Only the last copy is
 //    kept, so the memory the program holds must not grow with the rounds.
-var $wide = Core\BigInt::of(1)->shl(1000000);
+var $wide = Core\BigInt::of(1)->shiftedLeft(1000000);
 int $round = 0;
 while ($round < 200) {
-    $wide = $wide->neg()->abs();
+    $wide = $wide->negated()->abs();
     $round = $round + 1;
 }
 echo $wide->sign(), "\n";
@@ -17,9 +17,9 @@ echo $wide->sign(), "\n";
 // 2. The widest number one call may produce. A wider one is not allowed, and
 //    that error is caught here so the step after this still runs.
 try {
-    var $widest = Core\BigInt::of(1)->shl(1048575);
-    echo $widest->neg()->abs()->sign(), "\n";
-    echo Core\BigInt::of(1)->shl(1048576)->abs()->sign(), "\n";
+    var $widest = Core\BigInt::of(1)->shiftedLeft(1048575);
+    echo $widest->negated()->abs()->sign(), "\n";
+    echo Core\BigInt::of(1)->shiftedLeft(1048576)->abs()->sign(), "\n";
 } catch (ArithmeticError $tooWide) {
     echo "refused\n";
 }
@@ -33,7 +33,7 @@ echo Core\BigInt::parse('-9223372036854775808')->abs(), "\n";
 var $growing = Core\BigInt::of(-1);
 int $step = 0;
 while ($step < 1000) {
-    $growing = $growing->shl(1)->neg()->abs()->neg();
+    $growing = $growing->shiftedLeft(1)->negated()->abs()->negated();
     $step = $step + 1;
 }
 echo $growing->sign(), "\n";

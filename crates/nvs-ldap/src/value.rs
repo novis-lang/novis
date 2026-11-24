@@ -369,11 +369,11 @@ pub fn flag_text(bits: i64) -> String {
     stored.to_string()
 }
 
-/// One bit a flag field names: the name of the `bool` reader for it, and the
-/// bit's value.
+/// One bit a flag field names: the flag's name, which is also its `with`
+/// option, and the bit's value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Flag {
-    /// The reader's name, such as `disabled`.
+    /// The flag's name, such as `disabled`.
     pub name: &'static str,
     /// The bit, such as `0x2`.
     pub bit: u32,
@@ -460,7 +460,7 @@ pub const ACCOUNT_FLAGS: &[Flag] = &[
         bit: 0x80_0000,
     },
     Flag {
-        name: "trustedToAuthForDelegation",
+        name: "trustedToAuthenticateForDelegation",
         bit: 0x100_0000,
     },
     Flag {

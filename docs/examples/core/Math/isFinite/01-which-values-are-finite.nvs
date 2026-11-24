@@ -20,4 +20,4 @@ Check::show('FLOAT_MAX', Core\Math::FLOAT_MAX);
 Check::show('FLOAT_MAX * 2', Core\Math::FLOAT_MAX * 2.0);
 
 // Zero divided by zero is `NaN`. This prints "0 / 0: not finite".
-Check::show('0 / 0', Core\Math::fdiv(0.0, 0.0));
+Check::show('0 / 0', Core\Math::divide(0.0, 0.0));

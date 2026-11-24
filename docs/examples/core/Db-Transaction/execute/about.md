@@ -1,7 +1,7 @@
 Runs one statement inside a transaction, and says what it did.
 
 `Core\Db\Transaction::execute` is the method for an `insert`, an `update`, a `delete` or a
-`create table` inside the work you passed to `Core\Db\Connection::transaction`. It returns a
+`create table` inside the work you passed to `Core\Db\Connection::runTransaction`. It returns a
 `Core\Db\Write`. That object says how many rows changed, and it gives the id the database made for
 a new row. The method is the same one the connection has, so a statement you already wrote does not
 change when you move it inside a transaction.

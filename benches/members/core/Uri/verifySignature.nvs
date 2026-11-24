@@ -10,9 +10,9 @@ class Bench
         array<secret bytes> $keys = [Core\Crypto::generateKey()];
         Core\Time\Instant $until = Core\Time::now()->plus(1h);
         array<Core\Uri> $links = [
-            Core\Uri::parse('https://files.example.com/download?file=report.pdf')->sign({ keys: $keys, until: $until }),
-            Core\Uri::parse('/reset?user=42')->sign({ keys: $keys, until: $until }),
-            Core\Uri::parse('https://example.com/orders/7/invoice?format=pdf&lang=en')->sign({ keys: $keys, until: null }),
+            Core\Uri::parse('https://files.example.com/download?file=report.pdf')->signed({ keys: $keys, until: $until }),
+            Core\Uri::parse('/reset?user=42')->signed({ keys: $keys, until: $until }),
+            Core\Uri::parse('https://example.com/orders/7/invoice?format=pdf&lang=en')->signed({ keys: $keys, until: null }),
         ];
         uint $total = 0;
         uint $i = 0;

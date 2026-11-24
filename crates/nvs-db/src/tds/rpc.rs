@@ -55,11 +55,11 @@ pub(super) const RESET_STATEMENT: &str = "select 1";
 /// here for an option to ask for ([`begin`]).
 pub(super) const BEGIN_TRANSACTION: &str = "BEGIN TRANSACTION";
 
-/// The outermost commit of a `transaction()`
+/// The outermost commit of a `runTransaction()`
 /// (`rule:core-classes/db-transactions`).
 pub(super) const COMMIT_TRANSACTION: &str = "COMMIT TRANSACTION";
 
-/// The outermost rollback of a `transaction()`.
+/// The outermost rollback of a `runTransaction()`.
 pub(super) const ROLLBACK_TRANSACTION: &str = "ROLLBACK TRANSACTION";
 
 /// The level a session sits at when nothing has moved it, and what [`begin`],

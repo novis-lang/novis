@@ -12,7 +12,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/a');
+            Core\Http\Stream $feed = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://feed.example.com/a');
             foreach ($feed->events() as Core\Http\Event $event) {
                 $total = $total + Core\Str::length($event->data());
             }

@@ -10,7 +10,7 @@ echo $value, "\n";
 
 // A negative number carries a leading minus sign. This prints
 // -184467440737095516150.
-echo $value->neg()->toString(), "\n";
+echo $value->negated()->toString(), "\n";
 
 // A `Core\BigInt` inside a string is replaced with the same text. This prints
 // "balance 184467440737095516150".

@@ -13,7 +13,7 @@ class Bench
             body: '',
             headers: ['content-type' => 'text/plain', 'set-cookie' => $cookies],
         });
-        Core\Http\Stream $login = Core\Http\Client::stream(Core\Http\Method::Post, 'https://shop.example.com/login');
+        Core\Http\Stream $login = Core\Http\Client::openStream(Core\Http\Method::Post, 'https://shop.example.com/login');
         array<string> $names = ['set-cookie', 'content-type', 'etag'];
         uint $total = 0;
         uint $i = 0;

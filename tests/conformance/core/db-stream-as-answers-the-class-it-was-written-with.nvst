@@ -1,8 +1,8 @@
 --TEST--
-`streamAs<T>` walks a result set a row at a time and builds each row into the class its call site wrote, through a connection and through a transaction alike — `rule:core-classes/db-streaming`, `rule:core-classes/derive-attribute`, `rule:classes/no-traits`
+`queryEachAs<T>` walks a result set a row at a time and builds each row into the class its call site wrote, through a connection and through a transaction alike — `rule:core-classes/db-streaming`, `rule:core-classes/derive-attribute`, `rule:classes/no-traits`
 --FILE--
 <?nvs
-// `stream` and `streamAs<T>` share one statement, one binding rule
+// `queryEach` and `queryEachAs<T>` share one statement, one binding rule
 // and one held connection: what differs is that the walk's element is a
 // `Core\Db\Row` on the first and the written class on the second. So this case
 // asks for the rows a member that buffered could answer just as well, and what
@@ -12,7 +12,7 @@
 // SQLite is the backend a case can reach: a `:memory:` block needs no server.
 // The four drivers with a wire assert the walk itself from
 // `crates/nvs-stdlib/tests/db_stream.rs`.
-// covers: Core\Db\Connection::streamAs
+// covers: Core\Db\Connection::queryEachAs
 use Core\Db\Derive;
 use Core\Db\Transaction;
 
@@ -36,15 +36,15 @@ $db->executeMany("insert into people (name) values (?)", [["ada"], ["grace"], ["
 
 // The `foreach` binds a `Person` and not a `Core\Db\Row`, which is the whole of
 // what the type argument bought: the class is built where the row is read.
-foreach ($db->streamAs<Person>("select id, name from people order by id", []) as Person $person) {
+foreach ($db->queryEachAs<Person>("select id, name from people order by id", []) as Person $person) {
     echo "person ", $person->id, " ", $person->name, "\n";
 }
 
 // `rule:classes/no-traits` declares the member once, on `Core\Db\Queryable`, so a
 // transaction's walk is its connection's: the same statement, the same class,
 // through the receiver the callable was handed.
-$db->transaction(fn (Transaction $tx): void => {
-    foreach ($tx->streamAs<Person>("select id, name from people order by id desc", []) as Person $each) {
+$db->runTransaction(fn (Transaction $tx): void => {
+    foreach ($tx->queryEachAs<Person>("select id, name from people order by id desc", []) as Person $each) {
         echo "in transaction ", $each->name, "\n";
     }
 });

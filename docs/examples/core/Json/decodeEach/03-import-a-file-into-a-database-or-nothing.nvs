@@ -16,7 +16,7 @@ Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Read);
 try {
     // Each customer is added as soon as it is read. The loop gets the first two
     // customers before the broken part of the file is read.
-    $db->transaction(fn(Core\Db\Transaction $tx): void => {
+    $db->runTransaction(fn(Core\Db\Transaction $tx): void => {
         foreach (Core\Json::decodeEach<{ id: int, name: string }>($file) as { id: int, name: string } $customer) {
             $tx->execute('insert into customers (id, name) values (?, ?)', [$customer->id, $customer->name]);
             echo 'added ', $customer->name, "\n";

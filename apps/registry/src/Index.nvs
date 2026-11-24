@@ -76,7 +76,7 @@ final class Index
         // whose entry this run did not add.
         int $now = Time::now()->toEpochSeconds();
         try {
-            return $this->db->transaction(fn(Transaction $tx): bool => {
+            return $this->db->runTransaction(fn(Transaction $tx): bool => {
                 // This statement writes, so the transaction has the write lock of the database
                 // from here on. Two publishes add to the log and send to the stores one after the other.
                 // Other requests that write wait until the stores have the files.
@@ -191,7 +191,7 @@ final class Index
         // One time for the log and the index files, as in `run`.
         int $now = Time::now()->toEpochSeconds();
         try {
-            bool $sent = $this->db->transaction(fn(Transaction $tx): bool => {
+            bool $sent = $this->db->runTransaction(fn(Transaction $tx): bool => {
                 // This statement writes, so the transaction has the write lock of the database,
                 // as in `catchUp`. A publish waits until the stores have the files.
                 $tx->execute('update releases set log = log where log is null', []);

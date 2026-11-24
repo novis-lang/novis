@@ -40,7 +40,7 @@
 //!
 //! # The walk, which is the other side of that bound
 //!
-//! `rule:core-classes/db-streaming`'s `stream` is the member that may not buffer, so it does the
+//! `rule:core-classes/db-streaming`'s `queryEach` is the member that may not buffer, so it does the
 //! thing the bullet above declined to do for `query`: [`SqliteCursor`] keeps a
 //! pool thread for the life of the walk, holding the statement and the cursor
 //! stepping it, and answers one owned row per [`SqliteConn::stream_next_row`].
@@ -1237,7 +1237,7 @@ impl SqliteConn {
     /// the walk is parked on this connection and the rows come off it one
     /// [`Self::stream_next_row`] at a time.
     ///
-    /// The driver half of `rule:core-classes/db-streaming`'s `stream`, and the one driver where
+    /// The driver half of `rule:core-classes/db-streaming`'s `queryEach`, and the one driver where
     /// it is a thread rather than a message boundary — [`SqliteCursor`] owns why
     /// the statement cannot be parked in a field, and what the thread costs. The
     /// answer is what the result set described, empty for a statement that
@@ -1407,7 +1407,7 @@ impl SqliteConn {
     /// A refusal stops the loop and the sets already applied stay applied, which
     /// is `rule:core-classes/db-statement-members` on every driver: `executeMany`
     /// is not a transaction, and a caller that needs one calls it inside
-    /// `transaction()`.
+    /// `runTransaction()`.
     ///
     /// # Errors
     ///
@@ -1439,7 +1439,7 @@ impl SqliteConn {
     }
 
     /// `rule:core-classes/db-transactions`'s `BEGIN`, or the
-    /// `SAVEPOINT` a nested `transaction()` is.
+    /// `SAVEPOINT` a nested `runTransaction()` is.
     ///
     /// The nesting, the names and the depth accounting are
     /// [`crate::PgConn::begin`]'s — one rule for every backend that has
@@ -1492,7 +1492,7 @@ impl SqliteConn {
                 format!(
                     "a transaction nested {open} deep asked for its own isolation level, and \
                      SQLite settles one for the whole transaction: ask for it on the outermost \
-                     `transaction()`, or give this one a `{{ shared: false }}` connection of its own"
+                     `runTransaction()`, or give this one a `{{ shared: false }}` connection of its own"
                 ),
             ));
         } else {
@@ -1522,7 +1522,7 @@ impl SqliteConn {
     /// **It is its own entry point rather than a sixth [`Isolation`] case.**
     /// That enum is the SQL standard's five levels and none of them means "take
     /// the write lock now": SQLite's isolation is serializable either way, and
-    /// what this asks is *when* the lock is acquired. So `Core\Db::transaction`
+    /// what this asks is *when* the lock is acquired. So `runTransaction`
     /// opens the transaction it always has for every caller that does not ask,
     /// and nothing on the language surface moves.
     ///
@@ -1563,7 +1563,7 @@ impl SqliteConn {
     }
 
     /// How many transaction levels are open on this connection — 0 outside one,
-    /// 1 inside an outermost `transaction()`, deeper inside a nested one.
+    /// 1 inside an outermost `runTransaction()`, deeper inside a nested one.
     ///
     /// [`crate::PgConn::depth`] owns why this is public at all: `{ retries: n }` retries an
     /// outermost transaction only, and the caller cannot tell the two apart.
@@ -3142,7 +3142,7 @@ mod tests {
             .expect("the lock went with the transaction");
     }
 
-    /// `Core\Db::transaction` opens the transaction it always has: the depth-0
+    /// `runTransaction` opens the transaction it always has: the depth-0
     /// command is still a bare `BEGIN`, which holds no lock until its first
     /// statement, so a second connection writes straight through it.
     ///

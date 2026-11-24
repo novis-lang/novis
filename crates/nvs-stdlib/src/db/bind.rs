@@ -36,7 +36,7 @@ pub(super) fn connection_of(value: Value, member: &str) -> Result<(u64, Value), 
 ///
 /// The scope check is here rather than in each member because it is the
 /// interface's rule and not any one member's: a `$tx` that escaped its
-/// `transaction()` call still names a live connection, and running its
+/// `runTransaction()` call still names a live connection, and running its
 /// statement outside the transaction — silently, on whatever the connection is
 /// doing now — is the failure that rule closes by name.
 ///
@@ -1057,7 +1057,7 @@ mod tests {
     }
 
     /// `rule:core-classes/db-transactions`'s first hazard, on the member most likely to meet
-    /// it: a `$tx` its callable carried out of the `transaction()` call still
+    /// it: a `$tx` its callable carried out of the `runTransaction()` call still
     /// names a live connection, so a write through it would run outside every
     /// transaction and on whatever that connection is doing now.
     ///
@@ -1312,7 +1312,7 @@ mod tests {
     ///
     /// **Asserted as agreement over the whole interface rather than for the one
     /// member**, because a single row is what goes missing: a member both
-    /// classes declare is written on both of them or on neither, and a `streamAs`
+    /// classes declare is written on both of them or on neither, and a `queryEachAs`
     /// added to one spelling alone fails here rather than at a call site.
     // covers: Core\Db\Transaction::queryAs
     #[test]
@@ -1348,7 +1348,7 @@ mod tests {
         );
     }
 
-    /// `rule:classes/no-traits`'s delegation is *one symbol* per shared member, and `stream` is
+    /// `rule:classes/no-traits`'s delegation is *one symbol* per shared member, and `queryEach` is
     /// where a second body would be felt first: the walk parks a portal on the
     /// connection, so `rule:core-classes/db-connection-busy-state`'s `LogicError` is thrown by the
     /// connection's own member and names it — `Core\Db\Connection::execute`,
@@ -1357,11 +1357,11 @@ mod tests {
     /// decide it.
     ///
     /// **Asserted as agreement over every shared member rather than for
-    /// `stream` alone**, because one row is what drifts: a member both classes
+    /// `queryEach` alone**, because one row is what drifts: a member both classes
     /// declare resolves to one helper or the rules underneath it are stated
     /// twice, and a row that grew a symbol of its own fails here rather than at
     /// the call site that meets the second message.
-    // covers: Core\Db\Transaction::stream
+    // covers: Core\Db\Transaction::queryEach
     #[test]
     fn every_member_both_db_handles_declare_resolves_to_the_connections_own_symbol() {
         let paired: Vec<(&str, &str, &str)> = TRANSACTION
@@ -1376,7 +1376,7 @@ mod tests {
             })
             .collect();
         assert!(
-            paired.iter().any(|(name, ..)| *name == "stream"),
+            paired.iter().any(|(name, ..)| *name == "queryEach"),
             "the two receivers share the member this case is about: {paired:?}"
         );
 
@@ -1405,20 +1405,20 @@ mod tests {
         }
     }
 
-    /// `streamAs` is where two axes cross — `queryAs`'s hydration and `stream`'s
+    /// `queryEachAs` is where two axes cross — `queryAs`'s hydration and `queryEach`'s
     /// constant memory — so what it owes is that neither axis moved the other.
     /// A `…As` member answers the container its plain twin answers, at the class
     /// the call site wrote instead of at [`ROW_NAME`]; the pair is the whole
     /// claim, and the container half is what a member cannot decide on its own.
     ///
     /// **Asserted as agreement over every such pair on both receivers rather
-    /// than for `streamAs` alone.** A member that grew a `Rows` return under a
+    /// than for `queryEachAs` alone.** A member that grew a `Rows` return under a
     /// streaming name, or a plain `Row` under an `As` name, still reads
     /// correctly on its own line and is a different member from the one its name
     /// promises; it fails here. Compared against the *twin's* container rather
     /// than against a written-down name, so adding a sixth `…As` member needs no
     /// edit and is covered the day it lands.
-    // covers: Core\Db\Transaction::streamAs
+    // covers: Core\Db\Transaction::queryEachAs
     #[test]
     fn every_as_member_answers_its_plain_twins_container_at_the_written_class() {
         let mut checked: Vec<&str> = Vec::new();
@@ -1451,7 +1451,7 @@ mod tests {
             }
         }
         assert!(
-            checked.contains(&"streamAs") && checked.contains(&"queryAs"),
+            checked.contains(&"queryEachAs") && checked.contains(&"queryAs"),
             "both hydrating members are on the sweep this case is about: {checked:?}"
         );
     }
@@ -1475,7 +1475,7 @@ mod tests {
         }
     }
 
-    /// A nested `transaction` is the same row as the outermost one, so what
+    /// A nested `runTransaction` is the same row as the outermost one, so what
     /// makes `rule:core-classes/db-transactions`'s savepoint nesting compose is
     /// that neither what the callable is handed
     /// nor what the member answers depends on the receiver: the callable is given
@@ -1491,7 +1491,7 @@ mod tests {
     /// that rule keeps off a transaction. The row is declared once and carried twice,
     /// so this is one decision, and the sweep over both receivers is what says
     /// so.
-    // covers: Core\Db\Transaction::transaction
+    // covers: Core\Db\Transaction::runTransaction
     #[test]
     fn a_nested_transaction_hands_over_a_transaction_and_answers_its_callables_own_variable() {
         let mut swept: Vec<&str> = Vec::new();
@@ -1499,29 +1499,29 @@ mod tests {
             let row = table
                 .instance
                 .iter()
-                .find(|member| member.name == "transaction")
-                .unwrap_or_else(|| panic!("`{}` declares `transaction`", table.name));
+                .find(|member| member.name == "runTransaction")
+                .unwrap_or_else(|| panic!("`{}` declares `runTransaction`", table.name));
             let (given, callable) = handed_over(&row.params[0]).unwrap_or_else(|| {
                 panic!(
-                    "`{}::transaction` takes the callable it runs first, at one written instance",
+                    "`{}::runTransaction` takes the callable it runs first, at one written instance",
                     table.name
                 )
             });
             let returned = answered(&row.return_ty).unwrap_or_else(|| {
                 panic!(
-                    "`{}::transaction` answers a type variable and not a concrete type",
+                    "`{}::runTransaction` answers a type variable and not a concrete type",
                     table.name
                 )
             });
             assert_eq!(
                 given, TRANSACTION_NAME,
-                "`{}::transaction` hands its callable `{given}`, which is a receiver `rule:core-classes/db-transactions` keeps four \
+                "`{}::runTransaction` hands its callable `{given}`, which is a receiver `rule:core-classes/db-transactions` keeps four \
                  members off",
                 table.name
             );
             assert_eq!(
                 callable, returned,
-                "`{}::transaction` answers `{returned}` where its callable answers `{callable}`, so \
+                "`{}::runTransaction` answers `{returned}` where its callable answers `{callable}`, so \
                  a nested call loses the type its call site wrote",
                 table.name
             );

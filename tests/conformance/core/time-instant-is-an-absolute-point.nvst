@@ -16,11 +16,11 @@ echo $at->toEpochMicros() as string, "|\n";
 // `Instant` has no zone of its own for the two to disagree about.
 echo Core\Time\Instant::fromIso("2024-01-15T13:00:00+01:00")->compareTo($at) as string, "|\n";
 
-// `fromEpoch`'s `nanos` option is added after the second, so it reads the way
+// `fromEpoch`'s `nanoseconds` option is added after the second, so it reads the way
 // it is written on both sides of the epoch.
-echo Core\Time\Instant::fromEpoch(1705320000, {nanos: 250000000})->toIso(), "|\n";
+echo Core\Time\Instant::fromEpoch(1705320000, {nanoseconds: 250000000})->toIso(), "|\n";
 echo Core\Time\Instant::fromEpoch(0 - 1)->toIso(), "|\n";
-echo Core\Time\Instant::fromEpoch(0, {nanos: 250000000})->toEpochMillis() as string, "|\n";
+echo Core\Time\Instant::fromEpoch(0, {nanoseconds: 250000000})->toEpochMillis() as string, "|\n";
 
 // Exact arithmetic: an `Instant` moves by a `Duration`, never by a calendar
 // step. `rule:core-api/shape-rules` R3: nothing mutates, so `plus` leaves its receiver alone.
@@ -42,7 +42,7 @@ try {
     echo Core\Str::contains($e->message, "fromIso") as string, "|\n";
 }
 try {
-    echo Core\Time\Instant::fromEpoch(0, {nanos: 1000000000})->toIso(), "|\n";
+    echo Core\Time\Instant::fromEpoch(0, {nanoseconds: 1000000000})->toIso(), "|\n";
 } catch (Throwable $e) {
     echo Core\Str::contains($e->message, "subsecond") as string, "|\n";
 }

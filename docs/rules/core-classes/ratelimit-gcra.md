@@ -10,8 +10,8 @@ rather than estimated, where a sliding-window counter can only answer "sometime 
 the answer that makes clients retry in a burst at the window edge. Both tiers run the identical
 algorithm, so moving a call between them changes the *guarantee* and not the shape of the answer.
 
-The `Decision` is readonly `allowed`, `limit`, `remaining` and `retryAfter`, the last being `?Duration`
-and `null` exactly when `allowed` is true — absence is `?T`, not a sentinel zero. Both members are
+The `Decision` is readonly `isAllowed`, `limit`, `remaining` and `retryAfter`, the last being `?Duration`
+and `null` exactly when `isAllowed` is true — absence is `?T`, not a sentinel zero. Both members are
 qualifier-neutral. The key **accepts `tainted`**, since a tenant or account id is user-derived by
 nature and the store's protocol is length-prefixed, so a key cannot reshape a command; it
 **refuses `secret`**, because using a signing key as a rate-limit key writes it into a store with a

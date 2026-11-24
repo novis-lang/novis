@@ -26,10 +26,10 @@ class Document
     {
         string $element = '{"sku":"T-1","count":2,"gift":false}';
         bytes $piece = Core\Str::repeat($element . ',', 1024) as bytes;
-        uint $count = Core\Math::intDiv($size as int, 37) as uint;
+        uint $count = Core\Math::quotient($size as int, 37) as uint;
         yield '[' as bytes;
         uint $i = 0;
-        uint $full = Core\Math::intDiv($count as int, 1024) as uint;
+        uint $full = Core\Math::quotient($count as int, 1024) as uint;
         while ($i < $full) {
             yield $piece;
             $i = $i + 1;

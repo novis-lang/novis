@@ -125,7 +125,7 @@ fn every_statement_member_passes_a_site_and_others_do_not() {
          var $db = Core\\Db::connect('main');\n\
          var $w = $db->execute('delete from t', []);\n\
          var $n = $db->executeMany('insert into t values (?)', [[1], [2]]);\n\
-         foreach ($db->stream('select 1', []) as var $row) { }\n\
+         foreach ($db->queryEach('select 1', []) as var $row) { }\n\
          var $d = $db->driver();\n",
     );
     assert_eq!(site_constants(&program), [true, true, true]);
@@ -138,7 +138,7 @@ fn every_statement_member_passes_a_site_and_others_do_not() {
         1
     );
     assert_eq!(
-        last_arguments_are_sites(&program, "nvs_core_db_connection_stream"),
+        last_arguments_are_sites(&program, "nvs_core_db_connection_query_each"),
         1
     );
 }

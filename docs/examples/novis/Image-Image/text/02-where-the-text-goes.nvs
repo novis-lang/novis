@@ -17,4 +17,4 @@ while (Core\Encoding::toHex(Core\Bytes::slice($raw->pixels, $at * 4, 1)) == 'ff'
 }
 // The letter is a little lower than `y`, because its top is below the top of the line.
 // This prints 5 and 3.
-echo $at % 20, "\n", Core\Math::intDiv($at, 20), "\n";
+echo $at % 20, "\n", Core\Math::quotient($at, 20), "\n";

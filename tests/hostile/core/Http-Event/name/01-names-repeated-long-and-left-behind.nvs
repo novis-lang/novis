@@ -8,7 +8,7 @@
 
 // 1. One event with 100000 `event` lines. Only the last line counts.
 Core\Test::answerHttp('https://feed.example.com/renamed', 200, { body: Core\Str::repeat("event: first\n", 99999) . "event: last\ndata: x\n\n" });
-var $renamed = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/renamed');
+var $renamed = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://feed.example.com/renamed');
 foreach ($renamed->events() as Core\Http\Event $event) {
     if ($event->name() != 'last') {
         throw new LogicError('an earlier event line was used');
@@ -19,7 +19,7 @@ echo 'step 1: done', "\n";
 // 2. 100000 blocks that have a name but no data, then one event with no name.
 //    A block without data is not an event, so its name must not reach the next event.
 Core\Test::answerHttp('https://feed.example.com/left-behind', 200, { body: Core\Str::repeat("event: ghost\n\n", 100000) . "data: real\n\n" });
-var $leftBehind = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/left-behind');
+var $leftBehind = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://feed.example.com/left-behind');
 uint $count = 0;
 foreach ($leftBehind->events() as Core\Http\Event $event) {
     if ($event->name() != null) {
@@ -40,7 +40,7 @@ foreach ($sent as string $name) {
     $body = $body . 'event: ' . $name . "\ndata: x\n\n";
 }
 Core\Test::answerHttp('https://feed.example.com/odd', 200, { body: $body });
-var $odd = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/odd');
+var $odd = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://feed.example.com/odd');
 uint $k = 0;
 foreach ($odd->events() as Core\Http\Event $event) {
     if ($event->name() != $sent[$k as int]) {
@@ -54,12 +54,12 @@ echo 'step 3: ', $k, "\n";
 //    may be. The first must be returned. The second must throw a `RuntimeError`.
 Core\Test::answerHttp('https://feed.example.com/fits', 200, { body: 'event: ' . Core\Str::repeat('n', 65529) . "\ndata: x\n\n" });
 Core\Test::answerHttp('https://feed.example.com/over', 200, { body: 'event: ' . Core\Str::repeat('n', 65530) . "\ndata: x\n\n" });
-var $fits = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/fits');
+var $fits = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://feed.example.com/fits');
 foreach ($fits->events() as Core\Http\Event $event) {
     echo 'step 4: ', Core\Str::length($event->name() ?? ''), "\n";
 }
 try {
-    var $over = Core\Http\Client::stream(Core\Http\Method::Get, 'https://feed.example.com/over');
+    var $over = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://feed.example.com/over');
     foreach ($over->events() as Core\Http\Event $event) {
         throw new LogicError('a name longer than a line was given');
     }

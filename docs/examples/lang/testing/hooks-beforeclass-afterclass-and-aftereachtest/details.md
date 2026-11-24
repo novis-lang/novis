@@ -18,7 +18,7 @@ What a class hook prints with `echo` is part of the report, under the class name
 
 `#[AfterEachTest]` runs after every attempt. It sees the properties the test set on the object.
 
-`Core\Test\Outcome` has `class()`, `name()`, `attempt()`, `passed()` and `failures()`, the messages
+`Core\Test\Outcome` has `class()`, `name()`, `attempt()`, `hasPassed()` and `failures()`, the messages
 of the failed assertions. `Core\Test\Summary` has `class()`, `passed()`, `failed()`, `skipped()`,
 `flaky()` and `failedTests()`, the names of the failed tests.
 

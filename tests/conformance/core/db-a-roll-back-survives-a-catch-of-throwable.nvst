@@ -2,7 +2,7 @@
 `rollBack` records its reason as well as throwing, so a `catch (Throwable)` between it and the callable's own return cannot leave the transaction committed — `rule:core-classes/db-transactions`
 --FILE--
 <?nvs
-// covers: Core\Db\Connection::transaction
+// covers: Core\Db\Connection::runTransaction
 // SQLite runs this for real, so the `BEGIN` and the `ROLLBACK` below are really
 // sent — db-a-sqlite-transaction-nests-as-a-savepoint.nvst is where that is
 // argued, and this case asks the one question it does not.
@@ -19,7 +19,7 @@ $db->execute("create table t (id integer primary key, name text not null)", []);
 // checking; this does not, because what the owning frame acts on is the reason
 // the member recorded and not the throw it can no longer see.
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->runTransaction(fn (Transaction $tx): void => {
         $tx->execute("insert into t (name) values (?)", ["ada"]);
         try {
             $tx->rollBack("the work was not good enough");
@@ -29,7 +29,7 @@ try {
     });
     echo "returned normally\n";
 } catch (Core\Db\RolledBack $abandoned) {
-    // Out of `transaction()` and not out of `rollBack()`: this is the frame
+    // Out of `runTransaction()` and not out of `rollBack()`: this is the frame
     // that owns the level, and the one `catch` that could not have been the
     // one above.
     echo "propagated ", $abandoned->reason, "\n";

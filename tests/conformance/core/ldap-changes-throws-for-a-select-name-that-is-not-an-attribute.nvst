@@ -1,5 +1,5 @@
 --TEST--
-`changes` throws `LogicError` for a `select` name RFC 4512 does not allow before anything is sent, and throws `Unsupported` for a `base` that is not the root of the domain
+`searchChanges` throws `LogicError` for a `select` name RFC 4512 does not allow before anything is sent, and throws `Unsupported` for a `base` that is not the root of the domain
 --SKIPIF--
 <?nvs
 // The case needs the `samba-ad` server from `tests/db/compose.yaml`. Where it
@@ -21,7 +21,7 @@ array<string> $bad = ["ou)(objectClass=*", "*", "1ou", ""];
 int $thrown = 0;
 foreach ($bad as var $name) {
     try {
-        $corp->changes($units, {select: ["ou", $name]});
+        $corp->searchChanges($units, {select: ["ou", $name]});
     } catch (LogicError $notAName) {
         $thrown = $thrown + 1;
     }
@@ -30,7 +30,7 @@ echo "thrown: ", $thrown, " of ", Core\Arr::count($bad), "\n";
 
 // DirSync starts only at the root of a domain.
 try {
-    $corp->changes($units, {base: "CN=Users,DC=example,DC=test"});
+    $corp->searchChanges($units, {base: "CN=Users,DC=example,DC=test"});
     echo "not the root: no error\n";
 } catch (Core\Ldap\LdapError $error) {
     var $unsupported = $error->kind == Core\Ldap\LdapError::Kind::Unsupported;

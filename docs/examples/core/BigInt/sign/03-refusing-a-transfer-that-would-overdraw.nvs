@@ -8,7 +8,7 @@ class Account
     // Returns true when $balance still covers $amount.
     public static function covers(Core\BigInt $balance, Core\BigInt $amount): bool
     {
-        return $balance->sub($amount)->sign() >= 0;
+        return $balance->minus($amount)->sign() >= 0;
     }
 }
 

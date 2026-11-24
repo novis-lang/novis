@@ -44,7 +44,7 @@ foreach ($numbers as uint $number) {
         $refused = $refused + 1;
     }
     try {
-        $june->with({ nanos: $number });
+        $june->with({ nanoseconds: $number });
     } catch (RuntimeError $f) {
         $refused = $refused + 1;
     }
@@ -96,7 +96,7 @@ echo $refused, " refused\n";
 // 4. The last moment there is gets its last nanosecond, and the same fields in UTC.
 // In UTC that moment is past the range, so the second call throws.
 var $last = Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::fixed(25h59m59s));
-echo $last->with({ nanos: 999999999 })->format('yyyy-MM-dd HH:mm:ss.SSSSSSSSS'), "\n";
+echo $last->with({ nanoseconds: 999999999 })->format('yyyy-MM-dd HH:mm:ss.SSSSSSSSS'), "\n";
 try {
     Core\Time\Instant::fromIso('9999-12-30T22:00:00Z')->in(Core\Time\Zone::UTC)->with({ day: 31, hour: 23 });
 } catch (RuntimeError $late) {

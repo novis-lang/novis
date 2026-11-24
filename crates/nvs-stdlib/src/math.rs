@@ -5,14 +5,14 @@
 //!
 //! # Two rules cover every member here, so no member restates them
 //!
-//! * **A division by zero throws `ArithmeticError`**, in `intDiv` and in `mod`
+//! * **A division by zero throws `ArithmeticError`**, in `quotient` and in `remainder`
 //!   alike, and in the `/` operator over every operand type (`rule:types/arithmetic`).
-//!   [`nvs_core_math_fdiv`] is the single
+//!   [`nvs_core_math_divide`] is the single
 //!   exception and is there to be one: with the operator throwing on a `float`
 //!   divisor too, it is the only way left to ask for IEEE's infinity, which is
 //!   why PHP has the same function for the same reason. So does an operation
 //!   whose exact answer does
-//!   not fit its result type: `intDiv(int::MIN, -1)`, `abs(int::MIN)`, an
+//!   not fit its result type: `quotient(int::MIN, -1)`, `abs(int::MIN)`, an
 //!   `lcm` past `int`, a `uint` argument past `int` — `rule:types/arithmetic`'s class for
 //!   an overflow, the same one the operators raise. A refusal that is about
 //!   the *argument* rather than the arithmetic — a base outside 2..=36, an
@@ -24,7 +24,7 @@
 //!   all; a library that threw instead would leave them with nothing to answer
 //!   about.
 //!   A *division* is not a domain error, which is what keeps the two rules
-//!   from meeting — and [`nvs_core_math_fdiv`] does not blur them either, being
+//!   from meeting — and [`nvs_core_math_divide`] does not blur them either, being
 //!   a member whose whole name is the IEEE answer rather than a division that
 //!   changed its mind.
 //!
@@ -69,22 +69,22 @@ const CARD: ClassDoc = ClassDoc {
             outside a function's range, such as `sqrt(-1.0)`, gives `NaN`.",
 };
 
-/// The symbol `Core\Math::intDiv`'s row carries.
+/// The symbol `Core\Math::quotient`'s row carries.
 ///
 /// `pub` because a direct call never reaches it: `nvs_ir::lower` recognises
 /// the symbol and emits the division inline, as `BinOp::IntDiv`, and
 /// `nvs-codegen` throws [`INT_DIV_BY_ZERO`] and [`INT_DIV_OVERFLOW`] from
-/// there. [`nvs_core_math_int_div`] is still what a callable value made from
-/// the member, `Core\Math::intDiv(...)`, calls.
-pub const INT_DIV_SYMBOL: &str = "nvs_core_math_int_div";
+/// there. [`nvs_core_math_quotient`] is still what a callable value made from
+/// the member, `Core\Math::quotient(...)`, calls.
+pub const INT_DIV_SYMBOL: &str = "nvs_core_math_quotient";
 
-/// The `ArithmeticError` message `Core\Math::intDiv` throws for a zero
-/// divisor, inline and in [`nvs_core_math_int_div`] alike.
-pub const INT_DIV_BY_ZERO: &str = "Core\\Math::intDiv was given a zero divisor";
+/// The `ArithmeticError` message `Core\Math::quotient` throws for a zero
+/// divisor, inline and in [`nvs_core_math_quotient`] alike.
+pub const INT_DIV_BY_ZERO: &str = "Core\\Math::quotient was given a zero divisor";
 
-/// The `ArithmeticError` message `Core\Math::intDiv` throws for
-/// `int::MIN / -1`, inline and in [`nvs_core_math_int_div`] alike.
-pub const INT_DIV_OVERFLOW: &str = "Core\\Math::intDiv's answer does not fit an `int`";
+/// The `ArithmeticError` message `Core\Math::quotient` throws for
+/// `int::MIN / -1`, inline and in [`nvs_core_math_quotient`] alike.
+pub const INT_DIV_OVERFLOW: &str = "Core\\Math::quotient's answer does not fit an `int`";
 
 /// `Core\Math`'s registry rows.
 ///
@@ -186,7 +186,7 @@ pub const CLASS: CoreClass = CoreClass {
             doc: Some(&ROUND_DOC),
         },
         CoreMethod {
-            name: "intDiv",
+            name: "quotient",
             names: &["a", "b"],
             params: &[CoreTy::Int, CoreTy::Int],
             defaults: &[],
@@ -196,23 +196,23 @@ pub const CLASS: CoreClass = CoreClass {
             doc: Some(&INT_DIV_DOC),
         },
         CoreMethod {
-            name: "mod",
+            name: "remainder",
             names: &["a", "b"],
             params: &[CoreTy::Float, CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_math_mod",
+            symbol: "nvs_core_math_remainder",
             doc: Some(&MOD_DOC),
         },
         CoreMethod {
-            name: "fdiv",
+            name: "divide",
             names: &["a", "b"],
             params: &[CoreTy::Float, CoreTy::Float],
             defaults: &[],
             return_ty: CoreTy::Float,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_math_fdiv",
+            symbol: "nvs_core_math_divide",
             doc: Some(&FDIV_DOC),
         },
         CoreMethod {
@@ -682,7 +682,7 @@ const ROUND_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Math::intDiv`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Math::quotient`'s reference card — `rule:core-api/reference-card`.
 const INT_DIV_DOC: MethodDoc = MethodDoc {
     short: "Divides `$a` by `$b` and removes the remainder. The result moves toward zero.",
     params: &[
@@ -697,7 +697,7 @@ const INT_DIV_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The whole part of `$a / $b`. `intDiv(7, 2)` is `3`, and `intDiv(-7, 2)` is `-3`. The \
+    ret: "The whole part of `$a / $b`. `quotient(7, 2)` is `3`, and `quotient(-7, 2)` is `-3`. The \
           `%` operator gives the remainder.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
@@ -706,7 +706,7 @@ const INT_DIV_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Math::mod`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Math::remainder`'s reference card — `rule:core-api/reference-card`.
 const MOD_DOC: MethodDoc = MethodDoc {
     short: "Returns the remainder after dividing `$a` by `$b`, for `float` values. The result has \
             the sign of `$a`. For whole numbers, use the `%` operator.",
@@ -722,15 +722,16 @@ const MOD_DOC: MethodDoc = MethodDoc {
             shape: &[],
         },
     ],
-    ret: "The remainder. `mod(7.5, 2.0)` is `1.5`, and `mod(-7.5, 2.0)` is `-1.5`. When `$a` is \
-          an infinity, the result is `NaN`. When `$b` is an infinity, the result is `$a`.",
+    ret: "The remainder. `remainder(7.5, 2.0)` is `1.5`, and `remainder(-7.5, 2.0)` is `-1.5`. \
+          When `$a` is an infinity, the result is `NaN`. When `$b` is an infinity, the result is \
+          `$a`.",
     errors: &[ErrorDoc {
         error: "ArithmeticError",
         desc: "When `$b` is zero.",
     }],
 };
 
-/// `Core\Math::fdiv`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Math::divide`'s reference card — `rule:core-api/reference-card`.
 const FDIV_DOC: MethodDoc = MethodDoc {
     short: "Divides `$a` by `$b`. When `$b` is zero, it returns `INFINITY`, `-INFINITY` or \
             `NaN`. The `/` operator throws an error there.",
@@ -1449,9 +1450,9 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_math_floor" => (nvs_core_math_floor as *const ()).cast(),
         "nvs_core_math_truncate" => (nvs_core_math_truncate as *const ()).cast(),
         "nvs_core_math_round" => (nvs_core_math_round as *const ()).cast(),
-        INT_DIV_SYMBOL => (nvs_core_math_int_div as *const ()).cast(),
-        "nvs_core_math_mod" => (nvs_core_math_mod as *const ()).cast(),
-        "nvs_core_math_fdiv" => (nvs_core_math_fdiv as *const ()).cast(),
+        INT_DIV_SYMBOL => (nvs_core_math_quotient as *const ()).cast(),
+        "nvs_core_math_remainder" => (nvs_core_math_remainder as *const ()).cast(),
+        "nvs_core_math_divide" => (nvs_core_math_divide as *const ()).cast(),
         "nvs_core_math_gcd" => (nvs_core_math_gcd as *const ()).cast(),
         "nvs_core_math_lcm" => (nvs_core_math_lcm as *const ()).cast(),
         "nvs_core_math_sqrt" => (nvs_core_math_sqrt as *const ()).cast(),
@@ -1876,7 +1877,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Math::intDiv(int $a, int $b): int` — the quotient, truncated
+    /// `Core\Math::quotient(int $a, int $b): int` — the quotient, truncated
     /// toward zero, replacing PHP's `intdiv`.
     ///
     /// A zero divisor throws [`INT_DIV_BY_ZERO`], and `int::MIN / -1`, whose
@@ -1884,9 +1885,9 @@ nvs_runtime::nvs_helper! {
     /// [`INT_DIV_OVERFLOW`]. A direct call is emitted inline and never
     /// reaches this helper (see [`INT_DIV_SYMBOL`]); a callable value made
     /// from the member does, and throws the same two errors.
-    fn nvs_core_math_int_div(_ctx, args: [2]) {
-        let a = int_at(args, 0, "intDiv")?;
-        let b = int_at(args, 1, "intDiv")?;
+    fn nvs_core_math_quotient(_ctx, args: [2]) {
+        let a = int_at(args, 0, "quotient")?;
+        let b = int_at(args, 1, "quotient")?;
         a.checked_div(b).map(Value::int).ok_or_else(|| {
             let message = if b == 0 { INT_DIV_BY_ZERO } else { INT_DIV_OVERFLOW };
             Fault::thrown_as(ThrownClass::Arithmetic, message)
@@ -1895,20 +1896,20 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Math::mod(float $a, float $b): float` — the remainder of `$a / $b`
+    /// `Core\Math::remainder(float $a, float $b): float` — the remainder of `$a / $b`
     /// with the sign of `$a`, replacing PHP's `fmod`; integer modulo is the
     /// `%` operator, which is why this member is the `float` case only.
     ///
     /// A zero divisor throws rather than answering `NaN` the way `fmod` does:
     /// it is a division by zero, which `Core\Math` makes a throw, and not one of
     /// the domain errors this module's docs keep at IEEE's answer.
-    fn nvs_core_math_mod(_ctx, args: [2]) {
-        let a = float_at(args, 0, "mod")?;
-        let b = float_at(args, 1, "mod")?;
+    fn nvs_core_math_remainder(_ctx, args: [2]) {
+        let a = float_at(args, 0, "remainder")?;
+        let b = float_at(args, 1, "remainder")?;
         if b == 0.0 {
             return Err(Fault::thrown_as(
                 ThrownClass::Arithmetic,
-                "Core\\Math::mod was given a zero divisor",
+                "Core\\Math::remainder was given a zero divisor",
             ));
         }
         Ok(Value::float(a % b))
@@ -1916,7 +1917,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Math::fdiv(float $a, float $b): float` — the IEEE quotient,
+    /// `Core\Math::divide(float $a, float $b): float` — the IEEE quotient,
     /// replacing PHP's `fdiv`, and the one division in this module that
     /// answers a zero divisor rather than throwing on it.
     ///
@@ -1927,9 +1928,9 @@ nvs_runtime::nvs_helper! {
     /// answer rather than this module's domain-error rule reaching a division:
     /// every other division here still throws, and a reader who writes `/`
     /// still gets the throw.
-    fn nvs_core_math_fdiv(_ctx, args: [2]) {
-        let a = float_at(args, 0, "fdiv")?;
-        let b = float_at(args, 1, "fdiv")?;
+    fn nvs_core_math_divide(_ctx, args: [2]) {
+        let a = float_at(args, 0, "divide")?;
+        let b = float_at(args, 1, "divide")?;
         Ok(Value::float(a / b))
     }
 }
@@ -2303,7 +2304,7 @@ fn owned(value: Value) -> Value {
 ///
 /// `pub(crate)` because `Core\RoundMode` is a `Core` enum rather than this
 /// class's own — [`ROUND_MODE`]'s own doc says why it is flat — and
-/// [`crate::decimal`]'s `divRound` is the second member to take one.
+/// [`crate::decimal`]'s `divideRounded` is the second member to take one.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RoundMode {
     /// A tie goes away from zero — PHP's `PHP_ROUND_HALF_UP`, and `round`'s
@@ -3149,15 +3150,16 @@ mod tests {
         }
     }
 
-    /// `fdiv` answers a zero divisor where `/` throws: an infinity signed by
+    /// `divide` answers a zero divisor where `/` throws: an infinity signed by
     /// both operands, zero's sign included, and `NaN` for `0 / 0` and for two
     /// infinities; it overflows and underflows the way `/` does elsewhere —
     /// never a throw.
-    // covers: Core\Math::fdiv
+    // covers: Core\Math::divide
     #[test]
     fn fdiv_answers_a_zero_divisor_with_a_signed_infinity_and_never_throws() {
-        let fdiv =
-            |a: f64, b: f64| float_result(nvs_core_math_fdiv, &[Value::float(a), Value::float(b)]);
+        let fdiv = |a: f64, b: f64| {
+            float_result(nvs_core_math_divide, &[Value::float(a), Value::float(b)])
+        };
         assert_eq!(fdiv(10.0, 4.0), 2.5);
         assert_eq!(fdiv(1.0, 0.0), f64::INFINITY);
         assert_eq!(fdiv(-1.0, 0.0), f64::NEG_INFINITY);
@@ -3269,13 +3271,13 @@ mod tests {
         assert!(hypot(f64::NAN, 1.0).is_nan());
     }
 
-    /// `intDiv` truncates toward zero for every sign pair, reaches both ends
+    /// `quotient` truncates toward zero for every sign pair, reaches both ends
     /// of `int`, and throws for a zero divisor and for `INT_MIN / -1`, with a
     /// message saying which of the two it was.
-    // covers: Core\Math::intDiv
+    // covers: Core\Math::quotient
     #[test]
     fn int_div_truncates_toward_zero_and_throws_for_a_zero_divisor_and_int_min_by_minus_one() {
-        let int_div = |a: i64, b: i64| int_pair(nvs_core_math_int_div, a, b);
+        let int_div = |a: i64, b: i64| int_pair(nvs_core_math_quotient, a, b);
         assert_eq!(int_div(7, 2), Ok(3));
         assert_eq!(int_div(-7, 2), Ok(-3));
         assert_eq!(int_div(7, -2), Ok(-3));
@@ -3294,14 +3296,15 @@ mod tests {
         assert!(message.contains("does not fit"), "{message}");
     }
 
-    /// `mod` keeps the sign of `$a` whatever the sign of `$b`, answers `NaN`
+    /// `remainder` keeps the sign of `$a` whatever the sign of `$b`, answers `NaN`
     /// for an infinite `$a` or a `NaN` on either side, answers `$a` for an
     /// infinite `$b`, and throws for a zero divisor of either sign.
-    // covers: Core\Math::mod
+    // covers: Core\Math::remainder
     #[test]
     fn mod_keeps_the_sign_of_a_and_throws_for_a_zero_divisor_of_either_sign() {
-        let modulo =
-            |a: f64, b: f64| float_result(nvs_core_math_mod, &[Value::float(a), Value::float(b)]);
+        let modulo = |a: f64, b: f64| {
+            float_result(nvs_core_math_remainder, &[Value::float(a), Value::float(b)])
+        };
         assert_eq!(modulo(7.5, 2.0), 1.5);
         assert_eq!(modulo(-7.5, 2.0), -1.5);
         assert_eq!(modulo(7.5, -2.0), 1.5);
@@ -3327,7 +3330,7 @@ mod tests {
                 let mut ctx = Ctx::buffered();
                 assert!(
                     call(
-                        nvs_core_math_mod,
+                        nvs_core_math_remainder,
                         &mut ctx,
                         &[Value::float(a), Value::float(zero)]
                     )
@@ -3335,7 +3338,7 @@ mod tests {
                 );
                 let message = ctx.take_pending().expect("the error is pending");
                 assert!(
-                    message.contains("Core\\Math::mod was given a zero divisor"),
+                    message.contains("Core\\Math::remainder was given a zero divisor"),
                     "{message}"
                 );
             }

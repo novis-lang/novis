@@ -5,7 +5,7 @@
 
 // 1. A number of about twenty thousand bits is written in all 35 bases, ten
 //    times over. Only the last text is kept, so the memory held must not grow.
-var $wide = Core\BigInt::of(2)->pow(20000)->add(Core\BigInt::of(1));
+var $wide = Core\BigInt::of(2)->raisedTo(20000)->plus(Core\BigInt::of(1));
 string $text = '';
 int $round = 0;
 while ($round < 10) {
@@ -33,7 +33,7 @@ echo $refused, "\n";
 
 // 3. Text of about fifty thousand characters is written a thousand times. Each
 //    text is dropped at once, so the memory held must not grow.
-var $bits = Core\BigInt::of(1)->shl(50000);
+var $bits = Core\BigInt::of(1)->shiftedLeft(50000);
 int $made = 0;
 while ($made < 1000) {
     $text = $bits->format({ radix: 2 });
@@ -42,4 +42,4 @@ while ($made < 1000) {
 echo Core\Str::length($text), "\n";
 
 // 4. The widest number here is written as a negative in the widest base.
-echo Core\Str::length($wide->neg()->format({ radix: 36 })), "\n";
+echo Core\Str::length($wide->negated()->format({ radix: 36 })), "\n";

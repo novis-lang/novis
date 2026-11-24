@@ -1,5 +1,5 @@
 --TEST--
-`streamAs<T>` over a class carrying no `#[Db\Derive]` is refused while compiling, on both spellings of the member — `rule:core-classes/derive-attribute`, `rule:core-classes/db-streaming`
+`queryEachAs<T>` over a class carrying no `#[Db\Derive]` is refused while compiling, on both spellings of the member — `rule:core-classes/derive-attribute`, `rule:core-classes/db-streaming`
 --FILE--
 <?nvs
 // `rule:core-classes/derive-attribute` makes hydration opt-in, and the opt-in
@@ -30,16 +30,16 @@ class Plain {
 class People {
     public static function walking(Transaction $tx): Core\Db\Stream<Plain>
     {
-        return $tx->streamAs<Plain>("select id from people", []);
+        return $tx->queryEachAs<Plain>("select id from people", []);
     }
 }
 
 var $db = Core\Db::connect("main");
-var $walk = $db->streamAs<Plain>("select id from people", []);
+var $walk = $db->queryEachAs<Plain>("select id from people", []);
 --EXPECT--
 
 --EXPECTF-ERROR--
-error[E0806]: `Plain` carries no `#[Db\Derive]` and declares no `fromRow`, so `Core\Db\Transaction::streamAs` has no mapping
+error[E0806]: `Plain` carries no `#[Db\Derive]` and declares no `fromRow`, so `Core\Db\Transaction::queryEachAs` has no mapping
 %A
 error: aborting due to 2 errors
 To read what a code means and how to fix it, run `nvs agent show <code>`.

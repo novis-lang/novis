@@ -32,7 +32,7 @@ Core\Test::answerHttp('https://prices.example.com/live', 200, {
     headers: ['content-type' => 'text/event-stream'],
 });
 
-Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, 'https://prices.example.com/live');
+Core\Http\Stream $feed = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://prices.example.com/live');
 foreach ($feed->events() as Core\Http\Event $event) {
     // The second event has no `id` line, so `id()` still returns 41.
     echo $event->name() ?? 'message', ' #', $event->id() ?? '-', ': ', $event->data(), "\n";

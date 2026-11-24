@@ -13,7 +13,7 @@ class Login
             return 'Wrong password.';
         }
         // The wait is rounded up to whole minutes.
-        int $minutes = Core\Math::intDiv($wait->toMilliseconds() + 59999, 60000);
+        int $minutes = Core\Math::quotient($wait->toMilliseconds() + 59999, 60000);
         return 'Too many attempts. Try again in ' . $minutes . ' minutes.';
     }
 }

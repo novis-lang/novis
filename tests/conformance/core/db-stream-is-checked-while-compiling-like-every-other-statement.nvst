@@ -1,20 +1,20 @@
 --TEST--
-A literal statement handed to `stream` is validated while checking, exactly as `query`'s is: the placeholders are counted against the literal parameter array before the program is ever run — `rule:core-classes/db-statement-members` and `rule:core-classes/db-compile-time-query-checking`, `rule:expressions/intrinsic-list-is-closed`
+A literal statement handed to `queryEach` is validated while checking, exactly as `query`'s is: the placeholders are counted against the literal parameter array before the program is ever run — `rule:core-classes/db-statement-members` and `rule:core-classes/db-compile-time-query-checking`, `rule:expressions/intrinsic-list-is-closed`
 --FILE--
 <?nvs
 // `rule:core-classes/db-compile-time-query-checking` validates a *literal* SQL argument during checking — the
-// placeholder count against a literal params array — and `rule:core-classes/db-statement-members` gives `stream` the
+// placeholder count against a literal params array — and `rule:core-classes/db-statement-members` gives `queryEach` the
 // same statement and the same binding rule `query` has. So the check follows the
 // rule rather than the member: a mistake that `query` finds at compile time is
-// not one `stream` finds at the first row.
+// not one `queryEach` finds at the first row.
 //
 // This is the boundary worth pinning, because a member reaches that pass only by
-// being on `nvs_types::intrinsics`' closed list. A `stream` left off it would
+// being on `nvs_types::intrinsics`' closed list. A `queryEach` left off it would
 // compile this file, run it, and report the same mistake from the wire — later,
 // on a connection it had already made busy.
 var $db = Core\Db::connect("main");
 
-var $walk = $db->stream("select id from accounts where owner = ? and status = ?", ["ada"]);
+var $walk = $db->queryEach("select id from accounts where owner = ? and status = ?", ["ada"]);
 
 // And the same question asked of the other class that declares the row.
 // `rule:classes/delegation-by-property` gives `Core\Db\Transaction` the member under the
@@ -22,8 +22,8 @@ var $walk = $db->stream("select id from accounts where owner = ? and status = ?"
 // list is nominal against the *declaring*
 // class — so a row present on one and absent on the other would be a statement
 // checked or not depending on which receiver the call site happened to hold.
-$db->transaction(fn (Core\Db\Transaction $tx): void => {
-    $tx->stream("select id from accounts where owner = ? and status = ?", ["ada"]);
+$db->runTransaction(fn (Core\Db\Transaction $tx): void => {
+    $tx->queryEach("select id from accounts where owner = ? and status = ?", ["ada"]);
 });
 --EXPECT--
 

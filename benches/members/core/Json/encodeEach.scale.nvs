@@ -24,7 +24,7 @@ class Orders
     // only when `encodeEach` needs the next one.
     public static function each(uint $size): Iterator<Order>
     {
-        uint $count = Core\Math::intDiv($size as int, 37) as uint;
+        uint $count = Core\Math::quotient($size as int, 37) as uint;
         uint $i = 0;
         while ($i < $count) {
             yield new Order('T-1', 2, false);

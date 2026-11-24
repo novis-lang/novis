@@ -18,7 +18,7 @@ class Bench
             // A body can be read only once, and a file is never replaced, so each round opens a new stream and writes a new file.
             // The reply in each round depends on the round before, so no round can be left out.
             string $path = Core\Path::join($dir, Core\Str::format('%d.csv', $i));
-            Core\Http\Stream $download = Core\Http\Client::stream(Core\Http\Method::Get, $urls[(($total + $i) % 2) as int]);
+            Core\Http\Stream $download = Core\Http\Client::openStream(Core\Http\Method::Get, $urls[(($total + $i) % 2) as int]);
             $download->saveTo($path, 1000);
             $total = $total + Core\IO::size($path);
             $i = $i + 1;

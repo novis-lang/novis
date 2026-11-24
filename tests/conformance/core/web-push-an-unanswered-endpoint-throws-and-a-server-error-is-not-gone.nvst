@@ -1,12 +1,12 @@
 --TEST--
-Under a test's answer table, `Core\WebPush::send` to an endpoint no row answers throws a `LogicError` naming `endpoint()`, a `429` and a `500` are not `gone()`, and `applicationServerKey` returns the same 87 characters for one pair and different ones for two — `rule:core-classes/web-push-sends-an-encrypted-message`, `rule:testing/an-outbound-call-is-answered-from-a-table`
+Under a test's answer table, `Core\WebPush::send` to an endpoint no row answers throws a `LogicError` naming `endpoint()`, a `429` and a `500` are not `isGone()`, and `applicationServerKey` returns the same 87 characters for one pair and different ones for two — `rule:core-classes/web-push-sends-an-encrypted-message`, `rule:testing/an-outbound-call-is-answered-from-a-table`
 --FILE--
 <?nvs
 // covers: Core\WebPush::send
 // covers: Core\WebPush::applicationServerKey
 // covers: Core\WebPush\Subscription::endpoint
 // covers: Core\WebPush\Sent::status
-// covers: Core\WebPush\Sent::gone
+// covers: Core\WebPush\Sent::isGone
 Core\Test::answerHttp("https://push.example.com/busy/*", 429, {});
 Core\Test::answerHttp("https://push.example.com/broken/*", 500, {});
 
@@ -26,7 +26,7 @@ foreach ($paths as string $path) {
     Core\WebPush\Subscription $to = Core\WebPush::subscription($json);
     try {
         Core\WebPush\Sent $sent = Core\WebPush::send($to, $payload, $vapid, "mailto:admin@example.com");
-        echo $path, " ", $sent->status(), " gone ", $sent->gone() ? "yes" : "no", "\n";
+        echo $path, " ", $sent->status(), " gone ", $sent->isGone() ? "yes" : "no", "\n";
     } catch (LogicError $e) {
         echo $path, " throws, names the endpoint ",
             Core\Str::contains($e->message, $to->endpoint() as string) ? "yes" : "no", "\n";

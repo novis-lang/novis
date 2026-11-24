@@ -115,7 +115,7 @@ const TEST_TIMEOUT_S = 900;
  * More than `nvs-db`'s own, because what a server has to answer does not all live in `nvs-db`. The queue
  * statements are `nvs_stdlib::queue`'s, and `rule:core-classes/db-crate-boundary` forbids the `use
  * nvs_stdlib::…` a `crates/nvs-db` test over them would need, so `crates/nvs-stdlib/tests/queue.rs` runs
- * them. `rule:core-classes/db-streaming`'s promises are `Core\Db\Connection::stream`'s rather than any one
+ * them. `rule:core-classes/db-streaming`'s promises are `Core\Db\Connection::queryEach`'s rather than any one
  * driver's, and `crates/nvs-stdlib/tests/db_stream.rs` asserts them on whichever driver the leg names.
  * `nvs queue work` opens its own connection, so the block a worker reads as a dialect is `crates/nvs-cli`'s
  * to answer for, and so is `nvs queue migrate`: the unit test that opens a worker's block, and

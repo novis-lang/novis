@@ -4,7 +4,7 @@ a test that throws gives its hook an `Outcome` whose failure is the error's mess
 test
 --FILE--
 <?nvs
-// covers: Core\Test\Outcome::class, Core\Test\Outcome::name, Core\Test\Outcome::attempt, Core\Test\Outcome::passed, Core\Test\Outcome::failures
+// covers: Core\Test\Outcome::class, Core\Test\Outcome::name, Core\Test\Outcome::attempt, Core\Test\Outcome::hasPassed, Core\Test\Outcome::failures
 // covers: Core\Test\Summary::class, Core\Test\Summary::passed, Core\Test\Summary::failed, Core\Test\Summary::flaky, Core\Test\Summary::skipped, Core\Test\Summary::failedTests
 use Core\Test;
 use Core\Test\AfterClass;
@@ -21,7 +21,7 @@ final class ThrowingTest {
     #[AfterEachTest]
     public function report(Outcome $outcome): void {
         echo $outcome->class(), "::", $outcome->name(), " attempt ", $outcome->attempt(),
-            " passed ", $outcome->passed() ? "yes" : "no", "\n";
+            " passed ", $outcome->hasPassed() ? "yes" : "no", "\n";
         foreach ($outcome->failures() as string $failure) {
             echo "failure: ", $failure, "\n";
         }

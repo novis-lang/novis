@@ -2043,7 +2043,7 @@ impl MySqlConn {
     /// the read state is parked on this connection and the rows come off it one
     /// [`Self::stream_next_row`] at a time.
     ///
-    /// The wire half of `rule:core-classes/db-streaming`'s `stream`, costing the round trips
+    /// The wire half of `rule:core-classes/db-streaming`'s `queryEach`, costing the round trips
     /// [`Self::query`] costs and stopping where it stops — [`MySqlCursor`] owns
     /// why the state has to be here rather than inside a borrow. The answer is
     /// what the result set described, empty for a statement that returned none,
@@ -2148,7 +2148,7 @@ impl MySqlConn {
     }
 
     /// `rule:core-classes/db-transactions`'s `START TRANSACTION`,
-    /// or the `SAVEPOINT` a nested `transaction()` is.
+    /// or the `SAVEPOINT` a nested `runTransaction()` is.
     ///
     /// The driver half of `rule:core-classes/db-transactions` and nothing more —
     /// the callable, the rollback-only flag and the retry rule are
@@ -2176,7 +2176,7 @@ impl MySqlConn {
     }
 
     /// How many transaction levels are open on this connection — 0 outside one,
-    /// 1 inside an outermost `transaction()`, deeper inside a nested one.
+    /// 1 inside an outermost `runTransaction()`, deeper inside a nested one.
     ///
     /// [`crate::PgConn::depth`] owns why this is public at all:
     /// `rule:core-classes/db-transactions` retries a
@@ -2235,7 +2235,7 @@ impl MySqlConn {
         // `COM_RESET_CONNECTION` rolls back whatever transaction was open, so
         // every level this count named is gone with it — and a connection
         // pooled at a depth it no longer has would open the next request's
-        // outermost `transaction()` as a `SAVEPOINT` against nothing.
+        // outermost `runTransaction()` as a `SAVEPOINT` against nothing.
         self.depth.set(0);
         Ok(self)
     }
@@ -2820,7 +2820,7 @@ pub(crate) fn open_result<S: Read + Write>(
 
 /// [`open_result`] with the read state lent out beside a borrow of the
 /// connection: the shape every buffered member of `rule:core-classes/db-statement-members` wants, and
-/// the one `Core\Db\Connection::stream` is the single caller that cannot use.
+/// the one `Core\Db\Connection::queryEach` is the single caller that cannot use.
 ///
 /// # Errors
 ///
@@ -2865,7 +2865,7 @@ pub(crate) fn start_statement<'a, S: Read + Write>(
 /// So the two drivers agree on what a caller observes — the writes before a
 /// failure stand, the ones after are still attempted, and the **first** error is
 /// what the batch reports. A caller who wants all-or-nothing writes
-/// `transaction(fn ($tx) => $tx->executeMany(…))`, which is that rule's answer
+/// `runTransaction(fn ($tx) => $tx->executeMany(…))`, which is that rule's answer
 /// on either driver.
 ///
 /// **This is the loop on MariaDB too, and `COM_STMT_BULK_EXECUTE` is the thing
@@ -3084,7 +3084,7 @@ fn read_set<S: Read + Write>(
 }
 
 /// `rule:core-classes/db-transactions`'s `START TRANSACTION`, or
-/// the `SAVEPOINT` a nested `transaction()` opens.
+/// the `SAVEPOINT` a nested `runTransaction()` opens.
 ///
 /// **The depth decides which**, as in [`crate::pg`]'s `begin`, and that rule's
 /// composition is the reason: a library that wraps its own writes cannot ask
@@ -3105,7 +3105,7 @@ fn read_set<S: Read + Write>(
 /// of that state for a wire that is still at a boundary. The armed
 /// characteristic belongs to the *session* and no command disarms it, so a
 /// connection returned to the pool (`rule:security/db-pool-reset-is-a-boundary`)
-/// would run some later request's unqualified `transaction()` at a level
+/// would run some later request's unqualified `runTransaction()` at a level
 /// nobody there asked for — and where the armed level is `READ UNCOMMITTED`,
 /// that request gets weaker isolation than it asked for, and nothing says so.
 /// [`State::is_poolable`] is the only lever that says "close this rather than
@@ -3138,7 +3138,7 @@ pub(crate) fn begin<S: Read + Write>(
                 format!(
                     "a transaction nested {open} deep asked for its own isolation level or \
                      read-only mode, and MySQL settles both for the whole transaction: ask for \
-                     them on the outermost `transaction()`, or give this one a `{{ shared: false }}` \
+                     them on the outermost `runTransaction()`, or give this one a `{{ shared: false }}` \
                      connection of its own"
                 ),
             ));
@@ -4262,7 +4262,7 @@ pub struct MySqlRows<'a, S: Read + Write = MyStream> {
 /// hold a borrow. The **buffered** members drain their rows inside the call that
 /// started the statement, so [`MySqlRows`] keeps this beside a borrow of the
 /// connection and the borrow checker is what refuses a second statement.
-/// **`Core\Db\Connection::stream`** hands a walk back to the program and is
+/// **`Core\Db\Connection::queryEach`** hands a walk back to the program and is
 /// advanced by a *later* call, with nothing of the connection borrowed in
 /// between; a borrow cannot span that, so its copy of this state is parked on
 /// the connection ([`MySqlConn::stream`]) and [`State::Streaming`] is what
@@ -6343,7 +6343,7 @@ mod tests {
         );
     }
 
-    /// A nested `transaction()` carrying either option is refused before a
+    /// A nested `runTransaction()` carrying either option is refused before a
     /// byte, because a savepoint cannot answer for it.
     ///
     /// MySQL settles both characteristics for the whole transaction, so

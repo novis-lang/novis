@@ -1,5 +1,5 @@
 `Core\Math::isNan` returns `true` when a `float` is `NaN`. `NaN` means "not a number". It is the
-result of a calculation that has no answer, such as zero divided by zero with `Core\Math::fdiv`,
+result of a calculation that has no answer, such as zero divided by zero with `Core\Math::divide`,
 or the square root of a negative number.
 
 You cannot find `NaN` with `==`. `NaN` is not equal to any value, and it is not equal to itself

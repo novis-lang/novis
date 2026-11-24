@@ -29,18 +29,18 @@ class Clock {
 // makes `0` reachable off the diagonal — and three pairs differ only in a
 // field coarser views drop: nanoseconds.
 array<Core\Time\TimeOfDay> $clock = [
-    Core\Time\TimeOfDay::at(12, 0, {second: 0, nanos: 500000001}),
+    Core\Time\TimeOfDay::at(12, 0, {second: 0, nanoseconds: 500000001}),
     Core\Time\TimeOfDay::at(0, 0),
     Core\Time\TimeOfDay::at(9, 5),
-    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999}),
-    Core\Time\TimeOfDay::at(12, 0, {second: 0, nanos: 500000000}),
-    Core\Time\TimeOfDay::at(0, 0, {second: 0, nanos: 1}),
+    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanoseconds: 999999999}),
+    Core\Time\TimeOfDay::at(12, 0, {second: 0, nanoseconds: 500000000}),
+    Core\Time\TimeOfDay::at(0, 0, {second: 0, nanoseconds: 1}),
     Core\Time\TimeOfDay::at(9, 5),
     Core\Time\TimeOfDay::at(6, 30),
     Core\Time\TimeOfDay::at(18, 45, {second: 59}),
     Core\Time\TimeOfDay::at(12, 0),
     Core\Time\TimeOfDay::at(23, 59, {second: 59}),
-    Core\Time\TimeOfDay::at(1, 2, {second: 3, nanos: 4}),
+    Core\Time\TimeOfDay::at(1, 2, {second: 3, nanoseconds: 4}),
 ];
 
 // Trichotomy and antisymmetry, over all 144 ordered pairs.
@@ -177,18 +177,18 @@ for (; $u < 12; $u = $u + 1) {
 // exactly, from the table as written and from its reverse alike. A comparison
 // that is not a total order sorts a permutation to somewhere else.
 array<Core\Time\TimeOfDay> $reversed = [
-    Core\Time\TimeOfDay::at(1, 2, {second: 3, nanos: 4}),
+    Core\Time\TimeOfDay::at(1, 2, {second: 3, nanoseconds: 4}),
     Core\Time\TimeOfDay::at(23, 59, {second: 59}),
     Core\Time\TimeOfDay::at(12, 0),
     Core\Time\TimeOfDay::at(18, 45, {second: 59}),
     Core\Time\TimeOfDay::at(6, 30),
     Core\Time\TimeOfDay::at(9, 5),
-    Core\Time\TimeOfDay::at(0, 0, {second: 0, nanos: 1}),
-    Core\Time\TimeOfDay::at(12, 0, {second: 0, nanos: 500000000}),
-    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999}),
+    Core\Time\TimeOfDay::at(0, 0, {second: 0, nanoseconds: 1}),
+    Core\Time\TimeOfDay::at(12, 0, {second: 0, nanoseconds: 500000000}),
+    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanoseconds: 999999999}),
     Core\Time\TimeOfDay::at(9, 5),
     Core\Time\TimeOfDay::at(0, 0),
-    Core\Time\TimeOfDay::at(12, 0, {second: 0, nanos: 500000001}),
+    Core\Time\TimeOfDay::at(12, 0, {second: 0, nanoseconds: 500000001}),
 ];
 array<Core\Time\TimeOfDay> $byMember = Core\Arr::sort($clock, {
     comparator: fn (Core\Time\TimeOfDay $p, Core\Time\TimeOfDay $q): int => $p->compareTo($q),

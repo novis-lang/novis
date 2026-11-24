@@ -7,7 +7,7 @@ class Work
     {
         // Each user may use 10 units per minute.
         var $decision = Core\RateLimit::shed('user:77', 10, 1m, { cost: $cost });
-        if ($decision->allowed()) {
+        if ($decision->isAllowed()) {
             echo $task, ': done, ', $decision->remaining(), " units left\n";
         } else {
             echo $task, ": refused\n";

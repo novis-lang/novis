@@ -14,7 +14,7 @@ to change. `format` takes the time letters of the patterns `DateTime::format` us
 a zone letter does not compile. `DateTime::withTime` puts a time onto a date. `<`, `>`, `<=`, `>=`
 and `compareTo` order two times.
 
-`hour()`, `minute()`, `second()` and `nanos()` return the four fields as numbers. Each returns a
+`hour()`, `minute()`, `second()` and `nanoseconds()` return the four fields as numbers. Each returns a
 `uint`, with the same name as the field `with` takes.
 
 ```nvs

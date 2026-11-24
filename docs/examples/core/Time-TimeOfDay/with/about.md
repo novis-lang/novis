@@ -1,6 +1,6 @@
 Returns a copy of a time of day with some of its parts changed.
 
-You name the parts to change: `hour`, `minute`, `second` and `nanos` (the nanoseconds inside the
+You name the parts to change: `hour`, `minute`, `second` and `nanoseconds` (the nanoseconds inside the
 second). The parts you leave out keep their value. With no parts at all, the result is the same
 time. The original time does not change.
 

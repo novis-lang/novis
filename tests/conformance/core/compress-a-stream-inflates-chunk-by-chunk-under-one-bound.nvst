@@ -19,7 +19,7 @@ array<int> $splits = [1, 2, 4, 8];
 int $atTheBound = 0;
 int $underIt = 0;
 foreach ($splits as int $pieces) {
-    int $each = Core\Math::intDiv($size, $pieces);
+    int $each = Core\Math::quotient($size, $pieces);
     var $exact = Core\Compress::decompressor(Core\Compress::Codec::Gzip, 16384);
     var $short = Core\Compress::decompressor(Core\Compress::Codec::Gzip, 16383);
     int $at = 0;

@@ -762,7 +762,7 @@ type the field's name in an object for that shape, or point at it.
 // A `callable` is an anonymous function or a method reference. A call through one
 // returns `mixed`, so the code says the type of the result where it is used.
 
-callable $tenPercentOff = fn(int $cents): int => $cents - Core\Math::intDiv($cents, 10);
+callable $tenPercentOff = fn(int $cents): int => $cents - Core\Math::quotient($cents, 10);
 
 class Till
 {

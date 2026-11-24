@@ -14,7 +14,7 @@
 
 try {
     var $decision = Core\RateLimit::consume('account:8412', 100, 1m);
-    echo 'allowed: ', $decision->allowed() ? 'yes' : 'no', "\n";
+    echo 'allowed: ', $decision->isAllowed() ? 'yes' : 'no', "\n";
 } catch (RuntimeError $error) {
     echo $error->message, "\n";
 }

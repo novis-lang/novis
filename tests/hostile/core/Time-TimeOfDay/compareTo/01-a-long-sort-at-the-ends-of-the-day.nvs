@@ -3,7 +3,7 @@
 // The sort should finish in order, and nothing should crash or leak.
 
 Core\Time\TimeOfDay $first = Core\Time\TimeOfDay::at(0, 0);
-Core\Time\TimeOfDay $last = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanos: 999999999 });
+Core\Time\TimeOfDay $last = Core\Time\TimeOfDay::at(23, 59, { second: 59, nanoseconds: 999999999 });
 
 // 1. The two ends of the day and their neighbours are compared, in both orders.
 echo $first->compareTo($last), ' ', $last->compareTo($first), ' ', $last->compareTo($last), "\n";

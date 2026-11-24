@@ -1,6 +1,6 @@
-`stream` and `streamAs<T>` read a result set in constant memory, and they **hold the connection until
+`queryEach` and `queryEachAs<T>` read a result set in constant memory, and they **hold the connection until
 drained**. A second statement attempted on a streaming connection throws `LogicError` naming every
-fix: read the rows first, `query` instead of `stream`, or a `{ shared: false }` connection. Every
+fix: read the rows first, `query` instead of `queryEach`, or a `{ shared: false }` connection. Every
 driver, SQLite included, says it in one sentence.
 
 There is no `{chunk?: uint}` option, and its absence is a refusal rather than an unlanded feature.

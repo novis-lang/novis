@@ -35,7 +35,7 @@ echo Core\BigInt::ofUint(18446744073709551615), "\n";
 var $growing = Core\BigInt::ofUint(18446744073709551615);
 uint $step = 0;
 while ($step < 500) {
-    $growing = $growing->mul(Core\BigInt::ofUint(18446744073709551615));
+    $growing = $growing->multipliedBy(Core\BigInt::ofUint(18446744073709551615));
     $step = $step + 1;
 }
 echo $growing->sign(), "\n";

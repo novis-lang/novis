@@ -40,7 +40,7 @@
 //!
 //! # `on` selects, `by` maps what it selected
 //!
-//! `diff` and `intersect` take `{on?: SetOn, by?: callable, comparator?:
+//! `difference` and `intersection` take `{on?: SetOn, by?: callable, comparator?:
 //! callable}`, and the twelve PHP functions they replace differ only in how
 //! those three interact. The rule: **`on`
 //! selects the part of an entry that is compared — the value, the key, or
@@ -52,7 +52,7 @@
 //! # A callback that does not want a key is never handed one
 //!
 //! [`nvs_core_arr_map()`], [`nvs_core_arr_filter()`], [`nvs_core_arr_reduce`],
-//! [`nvs_core_arr_count_by()`] and the four predicate members [`find_slot`]
+//! [`nvs_core_arr_group_counts()`] and the four predicate members [`find_slot`]
 //! serves each call back into Novis code per entry, and `Core\Arr`'s rule that every
 //! callback receives `($value, $key)` and may declare fewer parameters means the key is
 //! frequently built and then dropped by the trimming in
@@ -688,7 +688,7 @@ pub const CLASS: CoreClass = CoreClass {
             doc: Some(&APPEND_ALL_DOC),
         },
         CoreMethod {
-            name: "diff",
+            name: "difference",
             names: &["a", "b"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
@@ -698,11 +698,11 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_arr_diff",
+            symbol: "nvs_core_arr_difference",
             doc: Some(&DIFF_DOC),
         },
         CoreMethod {
-            name: "intersect",
+            name: "intersection",
             names: &["a", "b"],
             params: &[
                 CoreTy::Array(&CoreTy::Var("T")),
@@ -712,11 +712,11 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Var("T")),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_arr_intersect",
+            symbol: "nvs_core_arr_intersection",
             doc: Some(&INTERSECT_DOC),
         },
         CoreMethod {
-            name: "countBy",
+            name: "groupCounts",
             names: &["a"],
             // Marked even when a `by` is given: a `secret` subject is then
             // refused although the callback might key it by something else.
@@ -727,7 +727,7 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Array(&CoreTy::Uint),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_arr_count_by",
+            symbol: "nvs_core_arr_group_counts",
             doc: Some(&COUNT_BY_DOC),
         },
         CoreMethod {
@@ -1785,7 +1785,7 @@ const APPEND_ALL_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Arr::diff`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Arr::difference`'s reference card — `rule:core-api/reference-card`.
 const DIFF_DOC: MethodDoc = MethodDoc {
     short: "Returns the entries of `$a` that `$b` does not have. Entries are compared by strict \
             identity. The options choose what is compared, and how.",
@@ -1828,7 +1828,7 @@ const DIFF_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::intersect`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Arr::intersection`'s reference card — `rule:core-api/reference-card`.
 const INTERSECT_DOC: MethodDoc = MethodDoc {
     short: "Returns the entries of `$a` that `$b` also has. Entries are compared by strict \
             identity. The options choose what is compared, and how.",
@@ -1871,7 +1871,7 @@ const INTERSECT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Arr::countBy`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Arr::groupCounts`'s reference card — `rule:core-api/reference-card`.
 const COUNT_BY_DOC: MethodDoc = MethodDoc {
     short: "Counts how many entries have each distinct value. With `by`, it counts how many \
             entries give each result of `by`.",
@@ -2070,7 +2070,7 @@ const ORDER_DOC: EnumDoc = EnumDoc {
     ],
 };
 
-/// `Core\Arr::SetOn` — the enum [`nvs_core_arr_diff()`] and [`nvs_core_arr_intersect()`]
+/// `Core\Arr::SetOn` — the enum [`nvs_core_arr_difference()`] and [`nvs_core_arr_intersection()`]
 /// take, and the whole of what twelve PHP `array_diff*`/`array_intersect*`
 /// functions differed by.
 ///
@@ -2086,7 +2086,7 @@ pub const SET_ON: CoreEnum = CoreEnum {
 
 /// [`SET_ON`]'s reference card — `rule:core-api/reference-card`.
 const SET_ON_DOC: EnumDoc = EnumDoc {
-    short: "Which part of an entry `Core\\Arr::diff` and `intersect` compare. It is the \
+    short: "Which part of an entry `Core\\Arr::difference` and `intersection` compare. It is the \
             `{ on: … }` option, and it is `Values` when you leave it out. `by` and `comparator` \
             apply to the part it selects.",
     cases: &[
@@ -2173,8 +2173,8 @@ const RANGE_OPTIONS: &[CoreOption] = &[CoreOption {
     default: Const::Int(1),
 }];
 
-/// `Core\Arr::countBy`'s `{ by?: callable }` — the combining bag
-/// that `unique`, `diff` and `intersect` share the `by` half of.
+/// `Core\Arr::groupCounts`'s `{ by?: callable }` — the combining bag
+/// that `unique`, `difference` and `intersection` share the `by` half of.
 ///
 /// The same option [`SORT_OPTIONS`] declares and the same default: there is no
 /// "no callback" callable, so absence is [`Const::Null`] and the body decodes
@@ -2185,7 +2185,7 @@ const BY_OPTION: &[CoreOption] = &[CoreOption {
     default: Const::Null,
 }];
 
-/// [`BY_OPTION`] for `Core\Arr::countBy`, where what the callback returns
+/// [`BY_OPTION`] for `Core\Arr::groupCounts`, where what the callback returns
 /// becomes a key of the answer, so the option carries the key mark.
 const COUNT_BY_OPTION: &[CoreOption] = &[CoreOption {
     name: "by",
@@ -2367,9 +2367,9 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_arr_overlay_deep" => return Some(nvs_core_arr_overlay_deep::entry()),
         "nvs_core_arr_underlay" => return Some(nvs_core_arr_underlay::entry()),
         "nvs_core_arr_append_all" => return Some(nvs_core_arr_append_all::entry()),
-        "nvs_core_arr_diff" => return Some(nvs_core_arr_diff::entry()),
-        "nvs_core_arr_intersect" => return Some(nvs_core_arr_intersect::entry()),
-        "nvs_core_arr_count_by" => return Some(nvs_core_arr_count_by::entry()),
+        "nvs_core_arr_difference" => return Some(nvs_core_arr_difference::entry()),
+        "nvs_core_arr_intersection" => return Some(nvs_core_arr_intersection::entry()),
+        "nvs_core_arr_group_counts" => return Some(nvs_core_arr_group_counts::entry()),
         "nvs_core_arr_first" => (nvs_core_arr_first as *const ()).cast(),
         "nvs_core_arr_last" => (nvs_core_arr_last as *const ()).cast(),
         "nvs_core_arr_first_key" => (nvs_core_arr_first_key as *const ()).cast(),
@@ -2752,11 +2752,11 @@ nvs_runtime::nvs_helper! {
     /// subject partitioned into buckets its callback names, replacing the
     /// `$out[$fn($v)][] = $v` loop PHP has no function for at all.
     ///
-    /// [`nvs_core_arr_count_by`] with the entries kept instead of counted, and
+    /// [`nvs_core_arr_group_counts`] with the entries kept instead of counted, and
     /// it shares that member's two rules: the callback receives
     /// `($value, $key)`, and a bucket is named through [`key_bytes`] so `1`
     /// and `"1"` are one bucket. Buckets come out in **first-occurrence**
-    /// order, which is `countBy`'s order and the only one that does not
+    /// order, which is `groupCounts`'s order and the only one that does not
     /// impose a sort nobody asked for.
     ///
     /// **A bucket keeps each entry's own key.** Every other member that puts
@@ -2892,7 +2892,7 @@ fn integer(value: &Value, member: &str, position: &str) -> Result<i64, Fault> {
 /// reference of its own**, and the compiler cannot see that, because
 /// releasing a [`Value`] does not end its borrow. A caller that releases the
 /// value while it still needs the key copies the bytes out first, as
-/// `mapKeys`, `groupBy` and `countBy` do with a callback's result.
+/// `mapKeys`, `groupBy` and `groupCounts` do with a callback's result.
 fn key_bytes<'a>(value: &'a Value, member: &str) -> Result<KeyBytes<'a>, Fault> {
     if let Some(bytes) = value.as_str_bytes() {
         return Ok(KeyBytes::Borrowed(bytes));
@@ -3480,8 +3480,8 @@ fn kept_counter(out: &mut NvsArray, subject: &NvsArray, front_kept: bool) {
 }
 
 /// Keeps the entry at position `i` where `mask[i]` is `true`, under its own
-/// key. This is the `apply` of `filter`, `withoutNull`, `unique`, `diff` and
-/// `intersect`, whose `check` decides the mask before anything changes.
+/// key. This is the `apply` of `filter`, `withoutNull`, `unique`, `difference` and
+/// `intersection`, whose `check` decides the mask before anything changes.
 ///
 /// A sole subject keeps its entries in its own storage and releases the rest,
 /// in O(n). A shared one builds the kept entries alone. The result keeps the
@@ -4737,7 +4737,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::countBy(array<T> $a, { by?: callable }): array<uint>` — how
+    /// `Core\Arr::groupCounts(array<T> $a, { by?: callable }): array<uint>` — how
     /// many entries fall under each distinct value, replacing PHP's
     /// `array_count_values` and the userland group-and-count loop.
     ///
@@ -4753,15 +4753,15 @@ nvs_runtime::nvs_helper! {
     /// that is neither an `int` nor a `string` and has no `by` to name it is a
     /// throw rather than PHP's warn-and-skip, which is `flip`'s treatment of
     /// the identical situation.
-    fn nvs_core_arr_count_by(ctx, args: [2])-> Value, owns NvsArray {
+    fn nvs_core_arr_group_counts(ctx, args: [2])-> Value, owns NvsArray {
         let array = args[0].array_ptr().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Arr::countBy expected {:?}, got tag {}",
+                "Core\\Arr::groupCounts expected {:?}, got tag {}",
                 Tag::Array,
                 args[0].tag_byte()
             ))
         })?;
-        let by = optional_callback(&args[1], "countBy", "by")?;
+        let by = optional_callback(&args[1], "groupCounts", "by")?;
         let by_wants_key = match by {
             Some(by) => nvs_runtime::callable_arity(by)? >= 2,
             None => false,
@@ -4778,7 +4778,7 @@ nvs_runtime::nvs_helper! {
             from = slot + 1;
 
             match by {
-                None => count_into(&mut out, &key_bytes(&value, "countBy")?),
+                None => count_into(&mut out, &key_bytes(&value, "groupCounts")?),
                 Some(callback) => {
                     let named = call_with_key(ctx, callback, by_wants_key, value, || {
                         subject
@@ -4787,8 +4787,8 @@ nvs_runtime::nvs_helper! {
                     })?;
                     // Counted before the release below — [`key_bytes`]
                     // borrows.
-                    let counted =
-                        key_bytes(&named, "countBy").map(|bucket| count_into(&mut out, &bucket));
+                    let counted = key_bytes(&named, "groupCounts")
+                        .map(|bucket| count_into(&mut out, &bucket));
                     #[expect(
                         unsafe_code,
                         reason = "the bucket name is a fresh value this frame \
@@ -4809,7 +4809,7 @@ nvs_runtime::nvs_helper! {
 }
 
 /// Adds one to `bucket`'s count in `out`, the step of
-/// [`nvs_core_arr_count_by`]. A bucket already counted is overwritten in place
+/// [`nvs_core_arr_group_counts`]. A bucket already counted is overwritten in place
 /// through its borrowed bytes, so only a new bucket allocates its key.
 fn count_into(out: &mut NvsArray, bucket: &[u8]) {
     match out.get(bucket).and_then(|count| count.as_uint()) {
@@ -6353,7 +6353,7 @@ fn slot_key_bytes(key: &SlotKey) -> KeyBytes<'_> {
     }
 }
 
-/// The shared body of [`nvs_core_arr_diff`] and [`nvs_core_arr_intersect`]:
+/// The shared body of [`nvs_core_arr_difference`] and [`nvs_core_arr_intersection`]:
 /// the entries of `args[0]` whose presence in `args[1]` is `keep_when_present`.
 ///
 /// The two members ask one question and keep opposite answers, so they are one
@@ -6493,7 +6493,7 @@ fn set_member(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::diff(array<T> $a, array<T> $b, { on?: SetOn, by?: callable, comparator?: callable }): array<T>`
+    /// `Core\Arr::difference(array<T> $a, array<T> $b, { on?: SetOn, by?: callable, comparator?: callable }): array<T>`
     /// — the entries of `$a` that `$b` does not have, replacing PHP's
     /// `array_diff` and its five variants.
     ///
@@ -6507,25 +6507,25 @@ nvs_runtime::nvs_helper! {
     /// the walk, the `on`/`by`/`comparator` composition and the cost.
     ///
     /// A sole subject releases what `$b` has in place ([`keep_masked`]).
-    fn nvs_core_arr_diff(ctx, args: [5])-> Vec<bool>, owns NvsArray {
-        set_member(ctx, args, "diff", false)
+    fn nvs_core_arr_difference(ctx, args: [5])-> Vec<bool>, owns NvsArray {
+        set_member(ctx, args, "difference", false)
     } apply(mask, subject) {
         keep_masked(&mask, subject)
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Arr::intersect(array<T> $a, array<T> $b, { on?: SetOn, by?: callable, comparator?: callable }): array<T>`
+    /// `Core\Arr::intersection(array<T> $a, array<T> $b, { on?: SetOn, by?: callable, comparator?: callable }): array<T>`
     /// — the entries of `$a` that `$b` also has, replacing PHP's
     /// `array_intersect` and its five variants.
     ///
-    /// The same question [`nvs_core_arr_diff`] asks with the other answer
+    /// The same question [`nvs_core_arr_difference`] asks with the other answer
     /// kept, and the same strict-identity rule.
     ///
     /// A sole subject releases what `$b` does not have in place
     /// ([`keep_masked`]).
-    fn nvs_core_arr_intersect(ctx, args: [5])-> Vec<bool>, owns NvsArray {
-        set_member(ctx, args, "intersect", true)
+    fn nvs_core_arr_intersection(ctx, args: [5])-> Vec<bool>, owns NvsArray {
+        set_member(ctx, args, "intersection", true)
     } apply(mask, subject) {
         keep_masked(&mask, subject)
     }
@@ -8632,12 +8632,12 @@ mod tests {
         }
     }
 
-    /// `rule:types/preserve-keys`'s identity rule from Rust: `diff` keeps `$a`'s own keys
+    /// `rule:types/preserve-keys`'s identity rule from Rust: `difference` keeps `$a`'s own keys
     /// and `$a`'s order, and compares under strict identity, so the text `"3"`
     /// is not removed by the number 3. A call site fills the options it was not
     /// given, so `on` arrives as `Core\Arr::SetOn::Values`' own number and the two
     /// callbacks arrive as null.
-    // covers: Core\Arr::diff
+    // covers: Core\Arr::difference
     #[test]
     fn diff_keeps_its_own_keys_and_compares_under_identity() {
         let mut entries = NvsArray::new();
@@ -8653,7 +8653,7 @@ mod tests {
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let kept = call(
-            super::nvs_core_arr_diff,
+            super::nvs_core_arr_difference,
             &mut ctx,
             &[a, b, Value::int(0), Value::null(), Value::null()],
         )
@@ -8678,11 +8678,11 @@ mod tests {
     }
 
     /// The same question the test above asks, with the other answer kept:
-    /// `intersect` keeps the entries `diff` drops, under their own keys and in
+    /// `intersection` keeps the entries `difference` drops, under their own keys and in
     /// `$a`'s order. The subject is the one that test uses, so the two results
     /// together are the whole of `$a` — the text `"3"` is not kept by the
     /// number 3 on either side.
-    // covers: Core\Arr::intersect
+    // covers: Core\Arr::intersection
     #[test]
     fn intersect_keeps_what_diff_drops_under_the_same_identity() {
         let mut entries = NvsArray::new();
@@ -8698,7 +8698,7 @@ mod tests {
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let kept = call(
-            super::nvs_core_arr_intersect,
+            super::nvs_core_arr_intersection,
             &mut ctx,
             &[a, b, Value::int(0), Value::null(), Value::null()],
         )
@@ -8716,7 +8716,7 @@ mod tests {
         }
     }
 
-    /// `filter` with a test of `contains` and `diff` or `intersect` keep the
+    /// `filter` with a test of `contains` and `difference` or `intersection` keep the
     /// same entries of `$a`, under the same keys: the table of cheaper forms
     /// compiles the first as the second
     /// (`rule:expressions/a-cheaper-form-with-the-same-result-is-compiled-or-named`).
@@ -8829,13 +8829,13 @@ mod tests {
             }
             let options = [Value::int(0), Value::null(), Value::null()];
             let diff = call(
-                super::nvs_core_arr_diff,
+                super::nvs_core_arr_difference,
                 &mut ctx,
                 &[a, b, options[0], options[1], options[2]],
             )
             .expect("two arrays and the default options are what diff takes");
             let intersect = call(
-                super::nvs_core_arr_intersect,
+                super::nvs_core_arr_intersection,
                 &mut ctx,
                 &[a, b, options[0], options[1], options[2]],
             )
@@ -9035,7 +9035,7 @@ mod tests {
         assert_eq!(status, nvs_runtime::THROWN);
     }
 
-    /// The `(bucket, count)` pairs a `countBy` result holds, in cursor order —
+    /// The `(bucket, count)` pairs a `groupCounts` result holds, in cursor order —
     /// `entries_of`'s counterpart for the one member whose values are `uint`
     /// rather than strings.
     fn counts_of(result: Value) -> Vec<(Vec<u8>, u64)> {
@@ -9063,7 +9063,7 @@ mod tests {
     /// Verified against PHP 8.5's `array_count_values`, first-occurrence order
     /// included. The `1`/`"1"` pair is the half PHP shares with every other key
     /// position and this member reaches through `key_bytes`.
-    // covers: Core\Arr::countBy
+    // covers: Core\Arr::groupCounts
     #[test]
     fn count_by_counts_each_bucket_in_first_occurrence_order() {
         let mut array = NvsArray::new();
@@ -9075,7 +9075,7 @@ mod tests {
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let result = call(
-            super::nvs_core_arr_count_by,
+            super::nvs_core_arr_group_counts,
             &mut ctx,
             &[Value::array(array), Value::null()],
         )
@@ -9100,7 +9100,7 @@ mod tests {
 
         let mut ctx = Ctx::new(OutputSink::Sink);
         let status = call(
-            super::nvs_core_arr_count_by,
+            super::nvs_core_arr_group_counts,
             &mut ctx,
             &[Value::array(array), Value::null()],
         )
@@ -9479,7 +9479,7 @@ mod tests {
     }
 
     /// A key that is neither an `int` nor a `string` is a throw rather than
-    /// PHP's warn-and-skip — `flip`'s and `countBy`'s treatment of the
+    /// PHP's warn-and-skip — `flip`'s and `groupCounts`'s treatment of the
     /// identical situation.
     // covers: Core\Arr::fillKeys
     #[test]
@@ -11102,13 +11102,13 @@ mod tests {
         nvs_runtime::OK
     }
 
-    /// `groupBy` and `countBy` allocate per bucket, not per entry. The subject
+    /// `groupBy` and `groupCounts` allocate per bucket, not per entry. The subject
     /// is a map, so its string keys are shared with the buckets and not
     /// rendered, and every allocation left is a bucket's or the result's.
     ///
     /// Under Miri 3000 callback calls outrun the runner's five-minute limit, so
     /// it walks 300, which still puts one allocation per entry over the bound.
-    // covers: Core\Arr::groupBy, Core\Arr::countBy
+    // covers: Core\Arr::groupBy, Core\Arr::groupCounts
     #[test]
     fn a_bucket_member_allocates_per_bucket() {
         const ENTRIES: i64 = if cfg!(miri) { 300 } else { 3000 };
@@ -11128,7 +11128,7 @@ mod tests {
                 "groupBy",
                 super::nvs_core_arr_group_by as nvs_runtime::NvsFn,
             ),
-            ("countBy", super::nvs_core_arr_count_by),
+            ("groupCounts", super::nvs_core_arr_group_counts),
         ] {
             let before = nvs_runtime::budget::allocations();
             let result =

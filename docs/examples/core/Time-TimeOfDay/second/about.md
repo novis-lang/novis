@@ -1,6 +1,6 @@
 Returns the second of a time of day, as a `uint` from 0 to 59.
 
-The second is a whole number. The part of the second after it is returned by `nanos`. A time made
+The second is a whole number. The part of the second after it is returned by `nanoseconds`. A time made
 with `TimeOfDay::at` without a `second` option has second 0.
 
 The result has the same name and type as the `second` option of `with`. So

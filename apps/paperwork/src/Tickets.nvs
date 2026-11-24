@@ -92,7 +92,7 @@ final class Tickets
 `;
         }
         // The prices include VAT of 19 %. This is the VAT part of the total.
-        string $vat = Brand::money(Core\Decimal::divRound($total * ('19' as decimal), '119' as decimal, 2, Core\RoundMode::HalfUp));
+        string $vat = Brand::money(Core\Decimal::divideRounded($total * ('19' as decimal), '119' as decimal, 2, Core\RoundMode::HalfUp));
         string $sum = Brand::money($total);
         string $placed = $order->placed->format('d MMMM yyyy');
         string $title = "Order {$order->number}";

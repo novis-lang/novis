@@ -1,6 +1,6 @@
 Five members run a statement. `query` and `queryAs<T>` answer a buffered `Db\Rows`, `execute` answers
 a `Db\Write` carrying `affected`, `changed` and `lastId`, `executeMany` answers a count, and
-`stream`/`streamAs<T>` answer an `Iterable` (`rule:core-classes/db-streaming`).
+`queryEach`/`queryEachAs<T>` answer an `Iterable` (`rule:core-classes/db-streaming`).
 
 Buffering is the default because memory ranks last, and because the alternative breaks the commonest
 loop in web programming — reading rows and writing per row — on a connection-busy rule that only
@@ -47,11 +47,11 @@ never change it. WAL is the session store's mode too, set by the same line.
 - **What WAL spends:** a `-wal` and a `-shm` file beside the database. The mode stays on the file once
   set, and it does not work on a network drive, which is what `journal_mode` is for.
 - **Memory:** a buffered `query` holds its whole result for the rest of the request, counted against
-  the request's memory cap. A program that does not reach for `stream` meets the cap, not a slow path.
+  the request's memory cap. A program that does not reach for `queryEach` meets the cap, not a slow path.
 
 **Declined:**
 - **A transaction inside `executeMany`.** A hidden `BEGIN` in a member whose name does not mention
-  one would silently change lock duration on a large batch, and the caller's own `transaction()`
+  one would silently change lock duration on a large batch, and the caller's own `runTransaction()`
   already composes (`rule:core-classes/db-transactions`).
 - **MariaDB's `COM_STMT_BULK_EXECUTE`.** Taking it would spend a property of the surface on round
   trips the windowed executions already save. `MARIADB_CLIENT_BULK_UNIT_RESULTS`, which answers per set, reopens it only once a real server

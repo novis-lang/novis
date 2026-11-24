@@ -33,7 +33,7 @@ echo Core\BigInt::of(-9223372036854775807 - 1), "\n";
 var $growing = Core\BigInt::of(-9223372036854775807 - 1);
 uint $step = 0;
 while ($step < 500) {
-    $growing = $growing->mul(Core\BigInt::of(9223372036854775807));
+    $growing = $growing->multipliedBy(Core\BigInt::of(9223372036854775807));
     $step = $step + 1;
 }
 echo $growing->sign(), "\n";

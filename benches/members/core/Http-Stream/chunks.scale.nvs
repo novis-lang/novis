@@ -12,7 +12,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            Core\Http\Stream $download = Core\Http\Client::stream(Core\Http\Method::Get, 'https://files.example.com/a.bin');
+            Core\Http\Stream $download = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://files.example.com/a.bin');
             foreach ($download->chunks() as tainted bytes $piece) {
                 $total = $total + Core\Bytes::length($piece);
             }

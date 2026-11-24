@@ -13,8 +13,8 @@ Core\Uri $plain = Core\Uri::parse("http://example.com/a/b?id=7");
 Core\Uri $dressed = Core\Uri::parse("HTTP://Example.COM/a/./b?id=7");
 echo $plain->compareTo($dressed) == 0 ? "compareTo calls them one URI" : "two URIs", "\n";
 
-Core\Uri $signedPlain = $plain->sign({keys: $ring, until: null});
-Core\Uri $signedDressed = $dressed->sign({keys: $ring, until: null});
+Core\Uri $signedPlain = $plain->signed({keys: $ring, until: null});
+Core\Uri $signedDressed = $dressed->signed({keys: $ring, until: null});
 echo $signedPlain->queryParameter("_sig") == $signedDressed->queryParameter("_sig")
     ? "and so they sign identically"
     : "two signatures", "\n";
@@ -30,7 +30,7 @@ $dressed->withQueryParameter("_sig", $signedPlain->queryParameter("_sig"))
     ->verifySignature($ring);
 echo "a link signed under one spelling verifies under the other", "\n";
 
-Core\Uri $escaped = Core\Uri::parse("https://example.com/a%2fb?id=7")->sign({keys: $ring, until: null});
+Core\Uri $escaped = Core\Uri::parse("https://example.com/a%2fb?id=7")->signed({keys: $ring, until: null});
 Core\Uri::parse("https://example.com/a%2Fb?id=7")
     ->withQueryParameter("_sig", $escaped->queryParameter("_sig"))
     ->verifySignature($ring);
@@ -39,7 +39,7 @@ echo "and an escape rewritten in the other case is not a tampered URL", "\n";
 // The query is signed as its *parameters*, not as its text, so writing the
 // same pairs in another order is the same URL — the one thing a query string
 // genuinely does not carry, and the one a redirect or a form may change.
-Core\Uri $ordered = Core\Uri::parse("https://example.com/r?id=7&scope=own")->sign({keys: $ring, until: null});
+Core\Uri $ordered = Core\Uri::parse("https://example.com/r?id=7&scope=own")->signed({keys: $ring, until: null});
 Core\Uri::parse("https://example.com/r?scope=own&id=7")
     ->withQueryParameter("_sig", $ordered->queryParameter("_sig"))
     ->verifySignature($ring);

@@ -7,8 +7,8 @@ class Bench
 {
     public static function run(uint $size): uint
     {
-        var $base = Core\BigInt::of(1)->shl($size);
-        array<Core\BigInt> $amounts = [$base->add(Core\BigInt::of(1)), $base, $base->add(Core\BigInt::of(2))];
+        var $base = Core\BigInt::of(1)->shiftedLeft($size);
+        array<Core\BigInt> $amounts = [$base->plus(Core\BigInt::of(1)), $base, $base->plus(Core\BigInt::of(2))];
         uint $total = 0;
         int $pick = 0;
         uint $i = 0;

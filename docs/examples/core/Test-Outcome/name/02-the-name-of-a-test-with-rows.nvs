@@ -38,7 +38,7 @@ class PriceTest
     #[AfterEachTest]
     public function printTheTest(Outcome $outcome): void
     {
-        echo TestName::withoutRow($outcome->name()), ' ', $outcome->passed() ? 'passed' : 'failed', "\n";
+        echo TestName::withoutRow($outcome->name()), ' ', $outcome->hasPassed() ? 'passed' : 'failed', "\n";
     }
 }
 

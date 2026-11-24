@@ -22,8 +22,8 @@ foreach ($values as Core\BigInt $a) {
         int $spaceship = $a <=> $b;
         int $member = $a->compareTo($b);
         // The same order derived instead of asked for: the sign of a
-        // difference, which is a different code path through `sub` and `sign`.
-        int $bySign = $a->sub($b)->sign();
+        // difference, which is a different code path through `minus` and `sign`.
+        int $bySign = $a->minus($b)->sign();
         bool $operators = ($a < $b) == ($member < 0) && ($a > $b) == ($member > 0)
             && ($a <= $b) == ($member <= 0) && ($a >= $b) == ($member >= 0);
         if ($spaceship == $member && $member == $bySign && $operators) {
@@ -68,12 +68,12 @@ while ($at < 5) {
 }
 echo "sorted ", $sortedRising, " of 4, ends ", $sorted[0]->toString(), " ", $sorted[4]->toString(), "\n";
 
-// Magnitude and sign are separate questions, and `abs` and `neg` are where
+// Magnitude and sign are separate questions, and `abs` and `negated` are where
 // that shows: a negative value with the larger magnitude is the smaller value.
 var $small = Core\BigInt::of(-1);
 var $large = Core\BigInt::of(7);
-echo "signs ", $small->sign(), $large->sign(), $small->neg()->sign(), "\n";
-echo "abs ", $small->abs()->compareTo($large->neg()->abs()), " neg ", $large->neg()->compareTo($small), "\n";
+echo "signs ", $small->sign(), $large->sign(), $small->negated()->sign(), "\n";
+echo "abs ", $small->abs()->compareTo($large->negated()->abs()), " neg ", $large->negated()->compareTo($small), "\n";
 echo "format ", $small->format({radix: 2}), " ", $large->format({radix: 2}), " uint ", $large->toUint(), "\n";
 --EXPECT--
 agreed on 25 of 25

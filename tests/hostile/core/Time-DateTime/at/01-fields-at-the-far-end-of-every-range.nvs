@@ -50,14 +50,14 @@ try {
     $refused = $refused + 1;
 }
 try {
-    DateTime::at($newYear, TimeOfDay::at(0, 0, { nanos: 18446744073709551615 }), $utc);
+    DateTime::at($newYear, TimeOfDay::at(0, 0, { nanoseconds: 18446744073709551615 }), $utc);
 } catch (RuntimeError $nanos) {
     $refused = $refused + 1;
 }
 
 // 3. The last moment of year 9999 in the zone furthest east, and the first day of year -9999 in the zone furthest west.
 try {
-    DateTime::at(Date::at(9999, 12, 31), TimeOfDay::at(23, 59, { second: 59, nanos: 999999999 }), 'Pacific/Kiritimati');
+    DateTime::at(Date::at(9999, 12, 31), TimeOfDay::at(23, 59, { second: 59, nanoseconds: 999999999 }), 'Pacific/Kiritimati');
 } catch (RuntimeError $east) {
     $refused = $refused + 1;
 }

@@ -14,7 +14,7 @@ Core\Test::answerHttp('https://stock.example.com/changes?after=2', 200, {
 });
 
 ?tainted string $lastId = null;
-Core\Http\Stream $first = Core\Http\Client::stream(Core\Http\Method::Get, 'https://stock.example.com/changes');
+Core\Http\Stream $first = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://stock.example.com/changes');
 foreach ($first->events() as Core\Http\Event $event) {
     echo $event->data(), "\n";
     // Remember the id of the last event that arrived.
@@ -27,7 +27,7 @@ int $resumeAt = ($lastId as ?int) ?? 0;
 
 // The program connects again and asks for the events after the last id.
 // This prints "ink: 5". The server does not send events 1 and 2 again.
-Core\Http\Stream $again = Core\Http\Client::stream(Core\Http\Method::Get, 'https://stock.example.com/changes?after=' . $resumeAt);
+Core\Http\Stream $again = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://stock.example.com/changes?after=' . $resumeAt);
 foreach ($again->events() as Core\Http\Event $event) {
     echo $event->data(), "\n";
 }

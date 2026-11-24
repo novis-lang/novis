@@ -43,8 +43,8 @@ echo 'ints ', Core\Arr::count($sortedInts) as string, ' ', (Core\Arr::first($sor
 
 // Floats: NaN with both signs, `0.0` and `-0.0`, both infinities, the smallest
 // positive float and ordinary values, in random order.
-float $nan = Core\Math::fdiv(0.0, 0.0);
-float $inf = Core\Math::fdiv(1.0, 0.0);
+float $nan = Core\Math::divide(0.0, 0.0);
+float $inf = Core\Math::divide(1.0, 0.0);
 array<float> $floats = [];
 $i = 0;
 while ($i < $n) {

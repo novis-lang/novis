@@ -7,10 +7,10 @@ class Appointment
     {
         // Before half past, the next slot is at half past this hour.
         if ($now->minute() < 30) {
-            return $now->with({ minute: 30, second: 0, nanos: 0 });
+            return $now->with({ minute: 30, second: 0, nanoseconds: 0 });
         }
         // Otherwise it is at the start of the next hour.
-        return $now->with({ minute: 0, second: 0, nanos: 0 })->plus(1, Core\Unit::Hour);
+        return $now->with({ minute: 0, second: 0, nanoseconds: 0 })->plus(1, Core\Unit::Hour);
     }
 }
 

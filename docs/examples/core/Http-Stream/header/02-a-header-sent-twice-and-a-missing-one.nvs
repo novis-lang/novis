@@ -8,7 +8,7 @@ Core\Test::answerHttp('https://api.example.com/export', 200, {
     headers: ['cache-control' => $cache],
 });
 
-Core\Http\Stream $export = Core\Http\Client::stream(Core\Http\Method::Get, 'https://api.example.com/export');
+Core\Http\Stream $export = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://api.example.com/export');
 // The two values are joined. This prints "no-cache, no-store".
 echo $export->header('cache-control') ?? 'none', "\n";
 // The server did not send `etag`, so `header()` returns `null`. This prints "none".

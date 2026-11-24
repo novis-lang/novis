@@ -17,7 +17,7 @@ try {
 
 try {
     var $instant = Core\RateLimit::consume("account:1", 5, 0s);
-    if ($instant->allowed()) {
+    if ($instant->isAllowed()) {
         echo "a period of 0 admitted an arrival", "\n";
     } else {
         echo "a period of 0 was accepted and refused", "\n";

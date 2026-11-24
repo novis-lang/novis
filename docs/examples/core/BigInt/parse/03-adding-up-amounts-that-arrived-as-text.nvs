@@ -11,7 +11,7 @@ class Report
         var $total = Core\BigInt::of(0);
         foreach ($lines as string $line) {
             try {
-                $total = $total->add(Core\BigInt::parse($line));
+                $total = $total->plus(Core\BigInt::parse($line));
             } catch (ParseError $bad) {
                 echo 'skipped: ', $bad->message, "\n";
             }

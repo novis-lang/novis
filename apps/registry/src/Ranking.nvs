@@ -79,10 +79,10 @@ final class Ranking
                 Ranking::trusted($row->string('key')),
                 Ranking::trusted($row->string('name')),
                 Ranking::trusted($row->string('summary')),
-                Math::intDiv($now - ($row->int('created_at') ?? $now), 86400),
+                Math::quotient($now - ($row->int('created_at') ?? $now), 86400),
                 $row->int('months') ?? 0,
                 $releasedAt,
-                Math::intDiv($now - $releasedAt, 86400),
+                Math::quotient($now - $releasedAt, 86400),
                 $row->int('declarations') ?? 0,
                 $row->int('documented') ?? 0,
                 $row->int('fixes') ?? 0,
@@ -105,7 +105,7 @@ final class Ranking
         float $recent = 1.0 - Ranking::share($facts->daysSinceRelease - 180, 1095 - 180);
         float $age = Ranking::share($facts->ageDays, 730);
         float $api = Math::min(Math::log(1.0 + $facts->declarations, { base: 2.0 }) / Math::log(201.0, { base: 2.0 }), 1.0);
-        float $docs = $facts->declarations == 0 ? 0.0 : Math::fdiv($facts->documented, $facts->declarations);
+        float $docs = $facts->declarations == 0 ? 0.0 : Math::divide($facts->documented, $facts->declarations);
         float $fixes = Ranking::share($facts->fixedRetractions, 2);
         return Ranking::MONTHS * $months
             + Ranking::RECENT * $recent
@@ -124,7 +124,7 @@ final class Ranking
     // `$value` over `$full`, kept between 0 and 1.
     private static function share(int $value, int $full): float
     {
-        return Math::clamp(Math::fdiv($value, $full), 0.0, 1.0);
+        return Math::clamp(Math::divide($value, $full), 0.0, 1.0);
     }
 
     // A text from a row the registry wrote.

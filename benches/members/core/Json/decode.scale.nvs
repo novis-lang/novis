@@ -9,7 +9,7 @@ class Bench
     {
         // One order is 66 bytes, so the list has `$size / 66` of them.
         string $order = '{"id":7,"name":"Grüße \"Ada\"\n","price":12.5,"tags":[1,22,333]}';
-        uint $count = Core\Math::intDiv($size as int, 66) as uint;
+        uint $count = Core\Math::quotient($size as int, 66) as uint;
         string $body = '[' . Core\Str::repeat($order . ',', $count - 1) . $order . ']';
         var $decoded = Core\Json::decode($body) as array<mixed>;
         return Core\Arr::count($decoded) + Core\Budget::memoryPeak();

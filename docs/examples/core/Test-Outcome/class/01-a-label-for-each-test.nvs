@@ -39,7 +39,7 @@ class CartTest
     #[AfterEachTest]
     public function printLabel(Outcome $outcome): void
     {
-        if (!$outcome->passed()) {
+        if (!$outcome->hasPassed()) {
             echo 'failed: ', Label::of($outcome->class(), $outcome->name()), "\n";
         }
     }

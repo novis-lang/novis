@@ -10,6 +10,6 @@ if ($type != null) {
     var $changed = $type->with({ security: true });
 
     // The group stays global. This prints `security: true, global: true`.
-    echo 'security: ', $changed->security() ? 'true' : 'false';
-    echo ', global: ', $changed->global() ? 'true' : 'false', "\n";
+    echo 'security: ', $changed->isSecurityGroup() ? 'true' : 'false';
+    echo ', global: ', $changed->isGlobal() ? 'true' : 'false', "\n";
 }

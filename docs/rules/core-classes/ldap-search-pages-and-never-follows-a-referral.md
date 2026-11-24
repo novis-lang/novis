@@ -19,14 +19,14 @@ Active Directory's four extras are named options or members:
   `window` with `offset`, which need `sort`, replace paging for that search, and fill
   `Entries::total()` with the server's count. Both are checked before anything is sent.
 - **Deleted objects.** `showDeleted` includes deleted entries, and `Entry::isDeleted` says which.
-- **Incremental sync.** `changes` is DirSync: it returns the entries changed since the `cookie` the
+- **Incremental sync.** `searchChanges` is DirSync: it returns the entries changed since the `cookie` the
   program stored, and `Changes::cookie()` is the next one. On a server without DirSync it throws
   `Unsupported`.
 - **The Global Catalog** is a block whose URL uses port 3268 or 3269. It is read-only: every write but
-  `compare` throws `ReadOnly` before a byte is sent.
+  `hasValue` throws `ReadOnly` before a byte is sent.
 
 `modify` sends one Modify request, so the server applies every `Ldap\Change` in order or none of them.
-`rename` derives the new first level and, where it moved, the new parent from its second DN. `compare`
+`rename` derives the new first level and, where it moved, the new parent from its second DN. `hasValue`
 returns `bool` and throws on an error.
 
 - **Memory:** a search holds one page of up to `pageSize` entries and the current entry, per search a
@@ -42,5 +42,5 @@ returns `bool` and throws on an error.
   while every call reaches the same controller, which the URL list's failover does not promise.
 - **A client-side sort, as PHP's `ldap_sort`.** The server sorts with `sort`, so a second sort would be
   a second form of the same operation.
-- **A `compare` that returns `-1` on an error.** A third value a caller has to test for beside `true`
+- **A `hasValue` that returns `-1` on an error.** A third value a caller has to test for beside `true`
   and `false`.

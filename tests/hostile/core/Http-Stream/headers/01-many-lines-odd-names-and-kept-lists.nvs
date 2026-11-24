@@ -16,7 +16,7 @@ while ($i < 20000) {
     $i = $i + 1;
 }
 Core\Test::answerHttp('https://many.example.com/', 200, { body: '', headers: ['set-cookie' => $cookies] });
-var $many = Core\Http\Client::stream(Core\Http\Method::Get, 'https://many.example.com/');
+var $many = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://many.example.com/');
 array<tainted string> $lines = $many->headers('SET-COOKIE');
 if (Core\Arr::count($lines) != 20000) {
     throw new LogicError(Core\Str::format('%d lines were returned, not 20000', Core\Arr::count($lines)));
@@ -29,7 +29,7 @@ echo 'step 1: done', "\n";
 // 2. Names that no server can send: empty, 100000 characters, and one with a line break.
 //    Each one must return an empty list.
 Core\Test::answerHttp('https://odd.example.com/', 200, { body: '', headers: ['x-a' => 'one'] });
-var $odd = Core\Http\Client::stream(Core\Http\Method::Get, 'https://odd.example.com/');
+var $odd = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://odd.example.com/');
 array<string> $names = ['', Core\Str::repeat('x', 100000), "x-a\r\nx-b", 'x-a ', "x-a\u{0}"];
 foreach ($names as string $name) {
     if (Core\Arr::count($odd->headers($name)) != 0) {

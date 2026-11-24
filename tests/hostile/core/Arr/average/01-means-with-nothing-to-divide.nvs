@@ -35,7 +35,7 @@ try {
 
 // 4. The far ends of the float range. A float total never throws, so the mean
 // here is a NAN.
-float $inf = Core\Math::fdiv(1.0, 0.0);
+float $inf = Core\Math::divide(1.0, 0.0);
 array<float> $wild = [$inf, 0.0 - $inf, 1.5];
 echo Core\Arr::average($wild), "\n";
 

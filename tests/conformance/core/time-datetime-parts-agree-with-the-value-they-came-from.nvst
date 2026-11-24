@@ -2,7 +2,7 @@
 `Core\Time`: A `DateTime`'s field readers, component views, `dayOfYear` and `difference` all answer about the same civil time
 --FILE--
 <?nvs
-// covers: Core\Time\DateTime::date, Core\Time\DateTime::dayOfYear, Core\Time\DateTime::difference, Core\Time\DateTime::toInstant, Core\Time\DateTime::timeOfDay, Core\Time\DateTime::zone, Core\Time\DateTime::weekday, Core\Time\DateTime::isLeapYear, Core\Time\DateTime::year, Core\Time\DateTime::month, Core\Time\DateTime::day, Core\Time\DateTime::hour, Core\Time\DateTime::minute, Core\Time\DateTime::second, Core\Time\DateTime::nanos
+// covers: Core\Time\DateTime::date, Core\Time\DateTime::dayOfYear, Core\Time\DateTime::difference, Core\Time\DateTime::toInstant, Core\Time\DateTime::timeOfDay, Core\Time\DateTime::zone, Core\Time\DateTime::weekday, Core\Time\DateTime::isLeapYear, Core\Time\DateTime::year, Core\Time\DateTime::month, Core\Time\DateTime::day, Core\Time\DateTime::hour, Core\Time\DateTime::minute, Core\Time\DateTime::second, Core\Time\DateTime::nanoseconds
 // A `DateTime` is one civil time in one named zone, and half its members
 // are views of that: `date`, `timeOfDay` and `zone` each drop part of it, and
 // `dayOfYear`, `isLeapYear` and `difference` count over it. Each of those can
@@ -46,7 +46,7 @@ foreach ($rows as string $rowText) {
         string $fields = ($d->year() as string) . " " . ($d->month() as string) . " "
             . ($d->day() as string) . " " . ($d->hour() as string) . " "
             . ($d->minute() as string) . " " . ($d->second() as string);
-        if ($fields == $d->format("u M d H m s") && $d->nanos() as int == $d->format("SSSSSSSSS") as int) {
+        if ($fields == $d->format("u M d H m s") && $d->nanoseconds() as int == $d->format("SSSSSSSSS") as int) {
             $fieldsAgree = $fieldsAgree + 1;
         }
         if ($d->date()->format("yyyy-MM-dd") == $d->format("yyyy-MM-dd")) {
@@ -127,11 +127,11 @@ var $leapDay = Core\Time\Instant::fromIso("2024-02-29T12:00:00Z")->in(Core\Time\
 echo $leapDay->date()->format("yyyy-MM-dd"), "|", $leapDay->timeOfDay()->format("HH:mm:ss"), "|\n";
 echo $leapDay->dayOfYear() as string, "|", $leapDay->isLeapYear() as string, "|\n";
 echo $leapDay->zone()->offsetAt($leapDay->toInstant())->toSeconds() as string, "|\n";
-echo $leapDay->year() as string, "|", $leapDay->month() as string, "|", $leapDay->day() as string, "|", $leapDay->hour() as string, "|", $leapDay->minute() as string, "|", $leapDay->second() as string, "|", $leapDay->nanos() as string, "|\n";
+echo $leapDay->year() as string, "|", $leapDay->month() as string, "|", $leapDay->day() as string, "|", $leapDay->hour() as string, "|", $leapDay->minute() as string, "|", $leapDay->second() as string, "|", $leapDay->nanoseconds() as string, "|\n";
 // The same instant is already 1 March in Auckland, and half a second shows
 // as 500000000 nanoseconds.
 var $auckland = Core\Time\Instant::fromIso("2024-02-29T12:00:00.5Z")->in(Core\Time\Zone::of("Pacific/Auckland"));
-echo $auckland->year() as string, "|", $auckland->month() as string, "|", $auckland->day() as string, "|", $auckland->hour() as string, "|", $auckland->nanos() as string, "|\n";
+echo $auckland->year() as string, "|", $auckland->month() as string, "|", $auckland->day() as string, "|", $auckland->hour() as string, "|", $auckland->nanoseconds() as string, "|\n";
 echo $leapDay->with({year: 2023, month: 2, day: 28})->dayOfYear() as string, "|", $leapDay->with({year: 2023, month: 2, day: 28})->isLeapYear() as string, "|\n";
 
 // A fixed offset has no IANA name, so its id is the offset itself. `VV`

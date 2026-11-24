@@ -364,13 +364,13 @@ pub(crate) const DECISION: CoreClass = CoreClass {
     methods: &[],
     instance: &[
         CoreMethod {
-            name: "allowed",
+            name: "isAllowed",
             names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_ratelimit_decision_allowed",
+            symbol: "nvs_core_ratelimit_decision_is_allowed",
             doc: Some(&ALLOWED_DOC),
         },
         CoreMethod {
@@ -413,12 +413,12 @@ pub(crate) const DECISION: CoreClass = CoreClass {
 
 /// `Core\RateLimit\Decision`'s class card — `rule:core-api/reference-card`.
 const DECISION_CARD: ClassDoc = ClassDoc {
-    short: "The result of one `Core\\RateLimit::consume` or `shed` call. `allowed` says whether \
+    short: "The result of one `Core\\RateLimit::consume` or `shed` call. `isAllowed` says whether \
             the call was inside the limit. `limit`, `remaining` and `retryAfter` give the numbers \
             for `RateLimit` and `Retry-After` response headers.",
 };
 
-/// `Core\RateLimit\Decision::allowed`'s reference card — `rule:core-api/reference-card`.
+/// `Core\RateLimit\Decision::isAllowed`'s reference card — `rule:core-api/reference-card`.
 const ALLOWED_DOC: MethodDoc = MethodDoc {
     short: "Checks whether the call was inside the limit. Only an allowed call is charged.",
     params: &[],
@@ -462,8 +462,8 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
     Some(nvs_runtime::Entry::borrowed(match symbol {
         "nvs_core_ratelimit_consume" => (nvs_core_ratelimit_consume as *const ()).cast(),
         "nvs_core_ratelimit_shed" => (nvs_core_ratelimit_shed as *const ()).cast(),
-        "nvs_core_ratelimit_decision_allowed" => {
-            (nvs_core_ratelimit_decision_allowed as *const ()).cast()
+        "nvs_core_ratelimit_decision_is_allowed" => {
+            (nvs_core_ratelimit_decision_is_allowed as *const ()).cast()
         }
         "nvs_core_ratelimit_decision_limit" => {
             (nvs_core_ratelimit_decision_limit as *const ()).cast()
@@ -902,9 +902,9 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\RateLimit\Decision::allowed(): bool` — the decision's first field.
-    fn nvs_core_ratelimit_decision_allowed(_ctx, args: [1]) {
-        slot_of(args, ALLOWED_SLOT, "allowed")
+    /// `Core\RateLimit\Decision::isAllowed(): bool` — the decision's first field.
+    fn nvs_core_ratelimit_decision_is_allowed(_ctx, args: [1]) {
+        slot_of(args, ALLOWED_SLOT, "isAllowed")
     }
 }
 
@@ -940,7 +940,7 @@ mod tests {
 
     use super::{
         ALLOWED_SLOT, CLASS, CONSUME_DOC, DECISION, PREFIX, SCRIPT, SHED_DOC, Value, Window,
-        admissible, decoded, nvs_core_ratelimit_consume, nvs_core_ratelimit_decision_allowed,
+        admissible, decoded, nvs_core_ratelimit_consume, nvs_core_ratelimit_decision_is_allowed,
         nvs_core_ratelimit_decision_limit, nvs_core_ratelimit_decision_remaining,
         nvs_core_ratelimit_decision_retry_after, nvs_core_ratelimit_shed, step, window,
     };
@@ -1448,7 +1448,7 @@ mod tests {
     ///
     /// One allowed decision and one refused, since each reader's answer differs
     /// between them in a way a reader that read the wrong slot would not match.
-    // covers: Core\RateLimit\Decision::allowed, Core\RateLimit\Decision::limit
+    // covers: Core\RateLimit\Decision::isAllowed, Core\RateLimit\Decision::limit
     // covers: Core\RateLimit\Decision::remaining, Core\RateLimit\Decision::retryAfter
     #[test]
     fn the_four_readers_answer_the_decisions_own_slots() {
@@ -1462,7 +1462,7 @@ mod tests {
                 nvs_runtime::call(reader, ctx, &receiver).expect("a reader cannot fail")
             };
             assert_eq!(
-                read(nvs_core_ratelimit_decision_allowed, &mut ctx).as_bool(),
+                read(nvs_core_ratelimit_decision_is_allowed, &mut ctx).as_bool(),
                 Some(admitted)
             );
             assert_eq!(
@@ -1554,7 +1554,7 @@ mod tests {
                 .errors
                 .iter()
                 .any(|entry| entry.error == "IOError" && entry.desc.contains("never")),
-            "the card has to state that an unreachable store is never `allowed`"
+            "the card has to state that an unreachable store is never allowed"
         );
     }
 

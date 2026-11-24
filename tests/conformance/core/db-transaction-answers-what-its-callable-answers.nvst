@@ -1,8 +1,8 @@
 --TEST--
-`transaction` answers the callable's own type and not `mixed`, so wrapping an expression in a transaction retypes nothing around it — `rule:core-classes/db-transactions`
+`runTransaction` answers the callable's own type and not `mixed`, so wrapping an expression in a transaction retypes nothing around it — `rule:core-classes/db-transactions`
 --FILE--
 <?nvs
-// `rule:core-classes/db-transactions` writes the member `transaction(callable $fn): T` — the answer is
+// `rule:core-classes/db-transactions` writes the member `runTransaction(callable $fn): T` — the answer is
 // the callable's own, so a transaction is scenery around a call that computes
 // whatever it was going to compute. That is what lets an existing expression be
 // wrapped in one without retyping anything around it.
@@ -11,19 +11,19 @@ var $db = Core\Db::connect("main");
 // Three identical call sites, three different `T`s, one per answer a statement
 // has: `T` is read off the callable's declared return and off nothing at the
 // call site, which is why none of these three needs a cast or an annotation.
-var $rows = $db->transaction(fn (Core\Db\Transaction $tx): Core\Db\Rows<Core\Db\Row> =>
+var $rows = $db->runTransaction(fn (Core\Db\Transaction $tx): Core\Db\Rows<Core\Db\Row> =>
     $tx->query("select id from accounts", []));
 
-var $write = $db->transaction(fn (Core\Db\Transaction $tx): Core\Db\Write =>
+var $write = $db->runTransaction(fn (Core\Db\Transaction $tx): Core\Db\Write =>
     $tx->execute("delete from accounts where id = ?", [1]));
 
-var $written = $db->transaction(fn (Core\Db\Transaction $tx): uint =>
+var $written = $db->runTransaction(fn (Core\Db\Transaction $tx): uint =>
     $tx->executeMany("insert into accounts (id) values (?)", [[1], [2]]));
 
 // And the one that gives up answers nothing at all, because `rollBack` throws
 // rather than returning — so there is no value here for `T` to be, and
 // `rule:core-classes/db-transactions` gives the member no way to ask for one.
-$db->transaction(fn (Core\Db\Transaction $tx): void => {
+$db->runTransaction(fn (Core\Db\Transaction $tx): void => {
     $tx->rollBack("nothing worth keeping");
 });
 

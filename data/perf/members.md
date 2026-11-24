@@ -32,8 +32,8 @@ marked `~`: it is the machine, not the code.
 | `Core\Arr::column` | 4.00 | 2.00 | 2.00 | 160.0 |  |  | complexity linear, calls 2 | 7a5902a9cc19 |
 | `Core\Arr::contains` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0, calls 1 | 7a5902a9cc19 |
 | `Core\Arr::count` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 7a5902a9cc19 |
-| `Core\Arr::countBy` | 5.00 | 2.00 | 8.00 | 635.0 |  |  | complexity linear, calls 2 | 7a5902a9cc19 |
-| `Core\Arr::diff` | 5.00 | 2.00 | 13.27 | 913.1 |  |  | complexity linear, calls 2 | 7a5902a9cc19 |
+| `Core\Arr::groupCounts` | 5.00 | 2.00 | 8.00 | 635.0 |  |  | complexity linear, calls 2 | 7a5902a9cc19 |
+| `Core\Arr::difference` | 5.00 | 2.00 | 13.27 | 913.1 |  |  | complexity linear, calls 2 | 7a5902a9cc19 |
 | `Core\Arr::fill` | 4.00 | 1.00 | 2.00 | 240.0 |  |  | complexity linear, calls 1 | 7a5902a9cc19 |
 | `Core\Arr::fillKeys` | 4.00 | 1.00 | 11.00 | 871.0 |  |  | complexity linear, calls 1 | 7a5902a9cc19 |
 | `Core\Arr::filter` | 5.00 | 6.00 | 10.00 | 571.0 |  |  | complexity linear, allocations 10, calls 6 | 7a5902a9cc19 |
@@ -48,7 +48,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Arr::fromKeysAndValues` | 5.00 | 1.00 | 11.00 | 841.0 |  |  | complexity linear, calls 1 | 7a5902a9cc19 |
 | `Core\Arr::groupBy` | 5.00 | 5.00 | 27.00 | 1729.0 |  |  | complexity linear, calls 5 | 7a5902a9cc19 |
 | `Core\Arr::hasKey` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 7a5902a9cc19 |
-| `Core\Arr::intersect` | 5.00 | 2.00 | 13.75 | 809.8 |  |  | complexity linear, calls 2 | 7a5902a9cc19 |
+| `Core\Arr::intersection` | 5.00 | 2.00 | 13.75 | 809.8 |  |  | complexity linear, calls 2 | 7a5902a9cc19 |
 | `Core\Arr::isEmpty` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 7a5902a9cc19 |
 | `Core\Arr::isList` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0, calls 1 | 7a5902a9cc19 |
 | `Core\Arr::keyOf` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, allocations 0, calls 1 | 7a5902a9cc19 |
@@ -90,25 +90,25 @@ marked `~`: it is the machine, not the code.
 | `Core\Attributes::all` | 4.00 | 1.00 | 5.00 | 304.0 | -1.000 | -80.000 | complexity constant, calls 1, allocations 5 | 4fc2594c8ec2 |
 | `Core\Attributes::get` | 6.00 | 1.00 | 1.00 | 48.0 |  | -0.015 | complexity constant, calls 1, allocations 1 | 4fc2594c8ec2 |
 | `Core\BigInt::abs` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
-| `Core\BigInt::add` | 3.00 | 1.00 | 5.00 | 164.0 |  |  | complexity linear, calls 1 | 4fc2594c8ec2 |
+| `Core\BigInt::plus` | 3.00 | 1.00 | 5.00 | 164.0 |  |  | complexity linear, calls 1 | 4fc2594c8ec2 |
 | `Core\BigInt::compareTo` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity linear, calls 1 | 4fc2594c8ec2 |
-| `Core\BigInt::div` | 3.00 | 2.00 | 6.00 | 154.0 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
+| `Core\BigInt::dividedBy` | 3.00 | 2.00 | 6.00 | 154.0 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
 | `Core\BigInt::format` | 4.00 | 2.00 | 3.50 | 90.0 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
 | `Core\BigInt::gcd` | 4.00 | 2.00 | 9.00 | 208.0 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
 | `Core\BigInt::lcm` | 4.00 | 2.00 | 11.00 | 296.0 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
-| `Core\BigInt::mod` | 3.00 | 2.00 | 7.00 | 154.0 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
-| `Core\BigInt::mul` | 3.00 | 2.00 | 6.00 | 172.0 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
-| `Core\BigInt::neg` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
+| `Core\BigInt::remainder` | 3.00 | 2.00 | 7.00 | 154.0 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
+| `Core\BigInt::multipliedBy` | 3.00 | 2.00 | 6.00 | 172.0 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
+| `Core\BigInt::negated` | 3.00 | 2.00 | 1.00 | 64.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
 | `Core\BigInt::of` | 3.00 | 2.00 | 3.00 | 106.0 |  |  | complexity constant, calls 2 | 4fc2594c8ec2 |
 | `Core\BigInt::ofUint` | 3.00 | 2.00 | 3.00 | 120.0 |  |  | complexity constant, calls 2 | 4fc2594c8ec2 |
 | `Core\BigInt::parse` | 3.00 | 2.00 | 5.00 | 116.7 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
-| `Core\BigInt::pow` | 3.00 | 2.00 | 4.00 | 116.7 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
-| `Core\BigInt::powMod` | 4.00 | 2.00 | 362.00 | 9088.0 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
-| `Core\BigInt::shl` | 3.00 | 2.00 | 4.00 | 128.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
-| `Core\BigInt::shr` | 3.00 | 2.00 | 4.00 | 130.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
+| `Core\BigInt::raisedTo` | 3.00 | 2.00 | 4.00 | 116.7 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
+| `Core\BigInt::raisedToModulo` | 4.00 | 2.00 | 362.00 | 9088.0 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
+| `Core\BigInt::shiftedLeft` | 3.00 | 2.00 | 4.00 | 128.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
+| `Core\BigInt::shiftedRight` | 3.00 | 2.00 | 4.00 | 130.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
 | `Core\BigInt::sign` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1 | 4fc2594c8ec2 |
 | `Core\BigInt::sqrt` | 3.00 | 2.00 | 10.00 | 304.0 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
-| `Core\BigInt::sub` | 3.00 | 1.00 | 5.00 | 180.0 |  |  | complexity linear, calls 1 | 4fc2594c8ec2 |
+| `Core\BigInt::minus` | 3.00 | 1.00 | 5.00 | 180.0 |  |  | complexity linear, calls 1 | 4fc2594c8ec2 |
 | `Core\BigInt::toDecimal` | 5.00 | 1.00 | 1.00 | 12.0 |  |  | complexity constant, calls 1, allocations 1 | 4fc2594c8ec2 |
 | `Core\BigInt::toInt` | 5.00 | 1.00 | 1.00 | 8.0 |  |  | complexity constant, calls 1, allocations 1 | 4fc2594c8ec2 |
 | `Core\BigInt::toString` | 3.00 | 2.00 | 5.50 | 167.5 |  |  | complexity karatsuba, calls 2 | 4fc2594c8ec2 |
@@ -205,7 +205,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Db::open` | 6.00 | 2.00 | 12.00 | 274.0 | +8.000 | +134.000 | complexity constant, calls 2, allocations 12 | 76aba2ffc6f0 |
 | `Core\Db::quoteIdentifier` | 6.00 | 1.00 | 1.00 | 46.5 |  | +8.000 | complexity linear, calls 1, allocations 1 | 76aba2ffc6f0 |
 | `Core\Db\Column::name` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1 | 76aba2ffc6f0 |
-| `Core\Db\Column::nullable` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1 | 76aba2ffc6f0 |
+| `Core\Db\Column::isNullable` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1 | 76aba2ffc6f0 |
 | `Core\Db\Column::type` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1 | 76aba2ffc6f0 |
 | `Core\Db\Connection::close` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 76aba2ffc6f0 |
 | `Core\Db\Connection::driver` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 76aba2ffc6f0 |
@@ -215,9 +215,9 @@ marked `~`: it is the machine, not the code.
 | `Core\Db\Connection::query` | 4.00 | 2.00 | 92.00 | 4334.0 |  | -1889.000 | complexity linear | 76aba2ffc6f0 |
 | `Core\Db\Connection::queryAs` | 34.00 | 2.00 | 123.50 | 5840.0 | -8.500 | -1491.500 | complexity linear | 76aba2ffc6f0 |
 | `Core\Db\Connection::serverVersion` | 3.00 | 2.00 | 1.00 | 46.0 |  | +8.000 | complexity constant, calls 2, allocations 1 | 76aba2ffc6f0 |
-| `Core\Db\Connection::stream` | 18.00 | 25.50 | 91.58 | 11574.8 | +4.156 | -641.968 | complexity linear | 76aba2ffc6f0 |
-| `Core\Db\Connection::streamAs` | 33.00 | 18.00 | 122.50 | 12918.0 | +5.000 | +124.500 | complexity linear | 76aba2ffc6f0 |
-| `Core\Db\Connection::transaction` | 5.00 | 3.00 | 31.00 | 1492.0 | -0.984 | +12.750 | complexity constant, calls 3 | 76aba2ffc6f0 |
+| `Core\Db\Connection::queryEach` | 18.00 | 25.50 | 91.58 | 11574.8 | +4.156 | -641.968 | complexity linear | 76aba2ffc6f0 |
+| `Core\Db\Connection::queryEachAs` | 33.00 | 18.00 | 122.50 | 12918.0 | +5.000 | +124.500 | complexity linear | 76aba2ffc6f0 |
+| `Core\Db\Connection::runTransaction` | 5.00 | 3.00 | 31.00 | 1492.0 | -0.984 | +12.750 | complexity constant, calls 3 | 76aba2ffc6f0 |
 | `Core\Db\Plan::steps` | 3.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 76aba2ffc6f0 |
 | `Core\Db\Plan\Step::grade` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 76aba2ffc6f0 |
 | `Core\Db\Plan\Step::isRefused` | 7.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 76aba2ffc6f0 |
@@ -252,9 +252,9 @@ marked `~`: it is the machine, not the code.
 | `Core\Db\Transaction::query` | 4.00 | 2.00 | 92.00 | 4334.0 |  | -1889.000 | complexity linear | 76aba2ffc6f0 |
 | `Core\Db\Transaction::queryAs` | 34.00 | 2.00 | 123.50 | 5840.0 | -8.578 | -1493.766 | complexity linear | 76aba2ffc6f0 |
 | `Core\Db\Transaction::rollBack` | 7.00 | 4.00 | 42.00 | 2205.6 | -2.078 | -33.265 | complexity constant | 76aba2ffc6f0 |
-| `Core\Db\Transaction::stream` | 18.00 | 25.50 | 91.50 | 11572.5 | +3.922 | -648.766 | complexity linear | 76aba2ffc6f0 |
-| `Core\Db\Transaction::streamAs` | 33.00 | 18.00 | 122.50 | 12918.0 | +5.000 | +124.500 | complexity linear | 76aba2ffc6f0 |
-| `Core\Db\Transaction::transaction` | 5.00 | 5.00 | 47.00 | 2175.0 | -2.000 | +0.016 | complexity constant | 76aba2ffc6f0 |
+| `Core\Db\Transaction::queryEach` | 18.00 | 25.50 | 91.50 | 11572.5 | +3.922 | -648.766 | complexity linear | 76aba2ffc6f0 |
+| `Core\Db\Transaction::queryEachAs` | 33.00 | 18.00 | 122.50 | 12918.0 | +5.000 | +124.500 | complexity linear | 76aba2ffc6f0 |
+| `Core\Db\Transaction::runTransaction` | 5.00 | 5.00 | 47.00 | 2175.0 | -2.000 | +0.016 | complexity constant | 76aba2ffc6f0 |
 | `Core\Db\Write::affected` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 76aba2ffc6f0 |
 | `Core\Db\Write::changed` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 76aba2ffc6f0 |
 | `Core\Db\Write::lastId` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 76aba2ffc6f0 |
@@ -269,10 +269,10 @@ marked `~`: it is the machine, not the code.
 | `Core\Debug::stopTrace` | 6.00 | 3.00 | 14.00 | 8807.0 |  |  | complexity constant, calls 3 | 4fc2594c8ec2 |
 | `Core\Decimal::allocate` | 4.00 | 2.00 | 3.00 | 256.0 |  | -16.000 | complexity constant | 4fc2594c8ec2 |
 | `Core\Decimal::ceil` | 4.00 | 1.00 | 0.00 | 0.0 |  | +0.006 | complexity constant | 4fc2594c8ec2 |
-| `Core\Decimal::divExact` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4fc2594c8ec2 |
-| `Core\Decimal::divRound` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4fc2594c8ec2 |
+| `Core\Decimal::divideExact` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4fc2594c8ec2 |
+| `Core\Decimal::divideRounded` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Decimal::floor` | 4.00 | 1.00 | 0.00 | 0.0 |  | +0.006 | complexity constant | 4fc2594c8ec2 |
-| `Core\Decimal::pow` | 6.00 | 1.00 | 0.00 | 0.0 | -2.000 | -34.000 | complexity constant | 4fc2594c8ec2 |
+| `Core\Decimal::power` | 6.00 | 1.00 | 0.00 | 0.0 | -2.000 | -34.000 | complexity constant | 4fc2594c8ec2 |
 | `Core\Decimal::round` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Decimal::truncate` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Encoding::decodeText` | 3.00 | 2.00 | 3.00 | 71.0 |  |  | complexity linear, calls 2 | 4fc2594c8ec2 |
@@ -320,7 +320,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Http\Client::post` | 5.00 | 2.00 | 25.02 | 1726.2 |  | +56.000 | complexity linear, calls 2 | 3d6e1ab929ed |
 | `Core\Http\Client::put` | 5.00 | 2.00 | 26.02 | 1714.8 |  | +56.000 | complexity linear, calls 2 | 3d6e1ab929ed |
 | `Core\Http\Client::request` | 6.00 | 2.00 | 13.02 | 725.7 |  | +40.000 | complexity linear, calls 2 | 3d6e1ab929ed |
-| `Core\Http\Client::stream` | 5.00 | 2.00 | 24.03 | 1733.8 |  | +64.000 | complexity constant, calls 2 | 3d6e1ab929ed |
+| `Core\Http\Client::openStream` | 5.00 | 2.00 | 24.03 | 1733.8 |  | +64.000 | complexity constant, calls 2 | 3d6e1ab929ed |
 | `Core\Http\Event::data` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
 | `Core\Http\Event::id` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
 | `Core\Http\Event::name` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
@@ -351,7 +351,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Http\TlsInfo::issuer` | 3.00 | 2.00 | 15.50 | 2170.4 |  | +7.453 | complexity linear, calls 2 | 3d6e1ab929ed |
 | `Core\Http\TlsInfo::peerChain` | 3.00 | 2.00 | 19.00 | 5847.5 |  | +12.312 | complexity linear, calls 2 | 3d6e1ab929ed |
 | `Core\Http\TlsInfo::subject` | 3.00 | 2.00 | 15.00 | 1934.0 |  | +7.953 | complexity linear, calls 2 | 3d6e1ab929ed |
-| `Core\Http\TlsInfo::verified` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 3d6e1ab929ed |
+| `Core\Http\TlsInfo::isVerified` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 3d6e1ab929ed |
 | `Core\Http\TlsInfo::version` | 4.00 | 1.00 | 0.00 | 0.0 |  | -0.043 | complexity constant, allocations 0, calls 1 | 3d6e1ab929ed |
 | `Core\IO::append` | 5.00 | 2.00 | 25.00 | 651.0 |  |  | complexity linear, calls 2 | 3d6e1ab929ed |
 | `Core\IO::canonicalize` | 3.00 | 2.00 | 12.33 | 683.3 |  | +8.000 | complexity constant, calls 2 | 3d6e1ab929ed |
@@ -420,37 +420,37 @@ marked `~`: it is the machine, not the code.
 | `Core\Ldap\Ad::enabled` | 4.00 | 0.00 | 28.00 | 1364.4 |  |  | complexity constant, calls 0 | 85c850da7d4e |
 | `Core\Ldap\Ad::memberOf` | 4.00 | 0.00 | 12.00 | 459.9 |  |  | complexity constant, calls 0 | 85c850da7d4e |
 | `Core\Ldap\Ad\AccountFlags::bits` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 85c850da7d4e |
-| `Core\Ldap\Ad\AccountFlags::disabled` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | e502f1400319 |
-| `Core\Ldap\Ad\AccountFlags::homeDirectoryRequired` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4f7f2560d755 |
-| `Core\Ldap\Ad\AccountFlags::interdomainTrustAccount` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4f7f2560d755 |
-| `Core\Ldap\Ad\AccountFlags::lockedOut` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | e502f1400319 |
-| `Core\Ldap\Ad\AccountFlags::mnsLogonAccount` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
+| `Core\Ldap\Ad\AccountFlags::isDisabled` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | e502f1400319 |
+| `Core\Ldap\Ad\AccountFlags::isHomeDirectoryRequired` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4f7f2560d755 |
+| `Core\Ldap\Ad\AccountFlags::isInterdomainTrustAccount` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4f7f2560d755 |
+| `Core\Ldap\Ad\AccountFlags::isLockedOut` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | e502f1400319 |
+| `Core\Ldap\Ad\AccountFlags::isMnsLogonAccount` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
 | `Core\Ldap\Ad\AccountFlags::mustChangePassword` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 85c850da7d4e |
-| `Core\Ldap\Ad\AccountFlags::noPreauthRequired` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
-| `Core\Ldap\Ad\AccountFlags::normalAccount` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4f7f2560d755 |
-| `Core\Ldap\Ad\AccountFlags::notDelegated` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
-| `Core\Ldap\Ad\AccountFlags::partialSecretsAccount` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
-| `Core\Ldap\Ad\AccountFlags::passwordExpired` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | e502f1400319 |
-| `Core\Ldap\Ad\AccountFlags::passwordNeverExpires` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | e502f1400319 |
-| `Core\Ldap\Ad\AccountFlags::passwordNotRequired` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4f7f2560d755 |
-| `Core\Ldap\Ad\AccountFlags::reversibleEncryption` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4f7f2560d755 |
-| `Core\Ldap\Ad\AccountFlags::script` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4f7f2560d755 |
-| `Core\Ldap\Ad\AccountFlags::serverTrustAccount` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
-| `Core\Ldap\Ad\AccountFlags::smartcardRequired` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
-| `Core\Ldap\Ad\AccountFlags::temporaryDuplicateAccount` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4f7f2560d755 |
-| `Core\Ldap\Ad\AccountFlags::trustedForDelegation` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
-| `Core\Ldap\Ad\AccountFlags::trustedToAuthForDelegation` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
-| `Core\Ldap\Ad\AccountFlags::useDesKeyOnly` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
+| `Core\Ldap\Ad\AccountFlags::isPreauthNotRequired` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
+| `Core\Ldap\Ad\AccountFlags::isNormalAccount` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4f7f2560d755 |
+| `Core\Ldap\Ad\AccountFlags::isNotDelegated` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
+| `Core\Ldap\Ad\AccountFlags::isPartialSecretsAccount` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
+| `Core\Ldap\Ad\AccountFlags::isPasswordExpired` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | e502f1400319 |
+| `Core\Ldap\Ad\AccountFlags::hasNonExpiringPassword` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | e502f1400319 |
+| `Core\Ldap\Ad\AccountFlags::isPasswordNotRequired` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4f7f2560d755 |
+| `Core\Ldap\Ad\AccountFlags::allowsReversibleEncryption` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4f7f2560d755 |
+| `Core\Ldap\Ad\AccountFlags::hasLogonScript` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4f7f2560d755 |
+| `Core\Ldap\Ad\AccountFlags::isServerTrustAccount` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
+| `Core\Ldap\Ad\AccountFlags::isSmartcardRequired` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
+| `Core\Ldap\Ad\AccountFlags::isTemporaryDuplicateAccount` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4f7f2560d755 |
+| `Core\Ldap\Ad\AccountFlags::isTrustedForDelegation` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
+| `Core\Ldap\Ad\AccountFlags::isTrustedToAuthenticateForDelegation` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
+| `Core\Ldap\Ad\AccountFlags::usesDesKeyOnly` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
 | `Core\Ldap\Ad\AccountFlags::with` | 5.00 | 0.00 | 1.00 | 80.0 |  |  | complexity constant, calls 0 | 85c850da7d4e |
-| `Core\Ldap\Ad\AccountFlags::workstationTrustAccount` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
-| `Core\Ldap\Ad\GroupType::appBasic` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 839396deab03 |
-| `Core\Ldap\Ad\GroupType::appQuery` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 839396deab03 |
+| `Core\Ldap\Ad\AccountFlags::isWorkstationTrustAccount` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 1dd5ee54b6da |
+| `Core\Ldap\Ad\GroupType::isAppBasicGroup` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 839396deab03 |
+| `Core\Ldap\Ad\GroupType::isAppQueryGroup` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 839396deab03 |
 | `Core\Ldap\Ad\GroupType::bits` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 85c850da7d4e |
-| `Core\Ldap\Ad\GroupType::domainLocal` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 839396deab03 |
-| `Core\Ldap\Ad\GroupType::global` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 839396deab03 |
-| `Core\Ldap\Ad\GroupType::security` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4b581dea2cca |
-| `Core\Ldap\Ad\GroupType::system` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 839396deab03 |
-| `Core\Ldap\Ad\GroupType::universal` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 839396deab03 |
+| `Core\Ldap\Ad\GroupType::isDomainLocal` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 839396deab03 |
+| `Core\Ldap\Ad\GroupType::isGlobal` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 839396deab03 |
+| `Core\Ldap\Ad\GroupType::isSecurityGroup` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 4b581dea2cca |
+| `Core\Ldap\Ad\GroupType::isSystemGroup` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 839396deab03 |
+| `Core\Ldap\Ad\GroupType::isUniversal` | 5.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, calls 0 | 839396deab03 |
 | `Core\Ldap\Ad\GroupType::with` | 5.00 | 0.00 | 1.00 | 48.0 |  |  | complexity constant, calls 0 | 85c850da7d4e |
 | `Core\Ldap\Change::add` | 5.00 | 0.00 | 5.00 | 188.0 |  |  | complexity constant, calls 0 | 85c850da7d4e |
 | `Core\Ldap\Change::remove` | 5.00 | 0.00 | 5.00 | 188.0 |  |  | complexity constant, calls 0 | 85c850da7d4e |
@@ -460,8 +460,8 @@ marked `~`: it is the machine, not the code.
 | `Core\Ldap\Connection::add` | 6.00 | 0.00 | 55.00 | 1944.6 |  |  | complexity constant, calls 0 | 4404822743f4 |
 | `Core\Ldap\Connection::authenticate` | 4.00 | 0.00 | 126.00 | 40057.0 |  |  | complexity constant, calls 0 | 4404822743f4 |
 | `Core\Ldap\Connection::changePassword` | 5.00 | 0.00 | 77.00 | 2907.5 |  |  | complexity constant, calls 0 | 85c850da7d4e |
-| `Core\Ldap\Connection::changes` | 6.00 | 2.00 | 52.00 | 3668.5 |  |  | complexity constant, calls 2 | 4404822743f4 |
-| `Core\Ldap\Connection::compare` | 5.00 | 0.00 | 17.00 | 560.2 |  |  | complexity constant, calls 0 | 85c850da7d4e |
+| `Core\Ldap\Connection::searchChanges` | 6.00 | 2.00 | 52.00 | 3668.5 |  |  | complexity constant, calls 2 | 4404822743f4 |
+| `Core\Ldap\Connection::hasValue` | 5.00 | 0.00 | 17.00 | 560.2 |  |  | complexity constant, calls 0 | 85c850da7d4e |
 | `Core\Ldap\Connection::delete` | 6.00 | 0.00 | 43.00 | 1633.6 |  |  | complexity constant, calls 0 | 4404822743f4 |
 | `Core\Ldap\Connection::modify` | 4.00 | 0.00 | 37.44 | 1247.9 |  |  | complexity constant, calls 0 | 4404822743f4 |
 | `Core\Ldap\Connection::read` | 4.00 | 0.00 | 75.00 | 4046.8 |  |  | complexity constant, calls 0 | 4404822743f4 |
@@ -538,20 +538,20 @@ marked `~`: it is the machine, not the code.
 | `Core\Math::cos` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::cosh` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::exp` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
-| `Core\Math::fdiv` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
+| `Core\Math::divide` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::floor` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::format` | 5.00 | 2.00 | 5.00 | 71.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Math::fromBase` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::gcd` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::hypot` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
-| `Core\Math::intDiv` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | 4fc2594c8ec2 |
+| `Core\Math::quotient` | 3.00 | 0.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 0 | 4fc2594c8ec2 |
 | `Core\Math::isFinite` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::isNan` | 6.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::lcm` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::log` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::max` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::min` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
-| `Core\Math::mod` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
+| `Core\Math::remainder` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::round` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::sign` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
 | `Core\Math::sin` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 4fc2594c8ec2 |
@@ -596,9 +596,9 @@ marked `~`: it is the machine, not the code.
 | `Core\ObjectSet::add` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 9dce981c7a77 |
 | `Core\ObjectSet::clear` | 5.00 | 2.00 | 5.00 | 373.0 |  |  | complexity linear | 9dce981c7a77 |
 | `Core\ObjectSet::count` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9dce981c7a77 |
-| `Core\ObjectSet::diff` | 5.00 | 2.00 | 6.00 | 437.0 |  |  | complexity linear | 9dce981c7a77 |
+| `Core\ObjectSet::difference` | 5.00 | 2.00 | 6.00 | 437.0 |  |  | complexity linear | 9dce981c7a77 |
 | `Core\ObjectSet::has` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9dce981c7a77 |
-| `Core\ObjectSet::intersect` | 5.00 | 2.00 | 6.00 | 437.0 |  |  | complexity linear | 9dce981c7a77 |
+| `Core\ObjectSet::intersection` | 5.00 | 2.00 | 6.00 | 437.0 |  |  | complexity linear | 9dce981c7a77 |
 | `Core\ObjectSet::isEmpty` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 9dce981c7a77 |
 | `Core\ObjectSet::remove` | 6.00 | 3.00 | 1.00 | 65.0 |  |  | complexity constant | 9dce981c7a77 |
 | `Core\ObjectSet::union` | 5.00 | 2.00 | 10.00 | 832.0 |  |  | complexity linear | 9dce981c7a77 |
@@ -677,7 +677,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Random\Seeded::shuffle` | 4.00 | 1.00 | 5.00 | 384.0 |  |  | complexity linear | 4fc2594c8ec2 |
 | `Core\Random\Seeded::token` | 5.00 | 1.00 | 1.00 | 52.0 |  |  | complexity linear, calls 1, allocations 1 | 4fc2594c8ec2 |
 | `Core\RateLimit::shed` | 4.00 | 2.00 | 10.00 | 247.1 |  | +0.375 | complexity constant | 3d6e1ab929ed |
-| `Core\RateLimit\Decision::allowed` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
+| `Core\RateLimit\Decision::isAllowed` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
 | `Core\RateLimit\Decision::limit` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
 | `Core\RateLimit\Decision::remaining` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
 | `Core\RateLimit\Decision::retryAfter` | 6.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 3d6e1ab929ed |
@@ -968,7 +968,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Time\DateTime::minus` | 4.00 | 2.00 | 3.00 | 154.0 |  |  | complexity constant | 8919ebbf69b4 |
 | `Core\Time\DateTime::minute` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 8919ebbf69b4 |
 | `Core\Time\DateTime::month` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 8919ebbf69b4 |
-| `Core\Time\DateTime::nanos` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 8919ebbf69b4 |
+| `Core\Time\DateTime::nanoseconds` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 8919ebbf69b4 |
 | `Core\Time\DateTime::next` | 4.00 | 2.00 | 3.00 | 154.0 |  |  | complexity constant | 8919ebbf69b4 |
 | `Core\Time\DateTime::parse` | 3.00 | 3.00 | 4.00 | 218.0 |  |  | complexity linear | 8919ebbf69b4 |
 | `Core\Time\DateTime::plus` | 4.00 | 2.00 | 3.00 | 154.0 |  |  | complexity constant | 8919ebbf69b4 |
@@ -1019,7 +1019,7 @@ marked `~`: it is the machine, not the code.
 | `Core\Time\TimeOfDay::hour` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 8919ebbf69b4 |
 | `Core\Time\TimeOfDay::minus` | 6.00 | 2.00 | 2.00 | 138.0 |  |  | complexity constant | 8919ebbf69b4 |
 | `Core\Time\TimeOfDay::minute` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 8919ebbf69b4 |
-| `Core\Time\TimeOfDay::nanos` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 8919ebbf69b4 |
+| `Core\Time\TimeOfDay::nanoseconds` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 8919ebbf69b4 |
 | `Core\Time\TimeOfDay::plus` | 6.00 | 2.00 | 2.00 | 138.0 |  |  | complexity constant | 8919ebbf69b4 |
 | `Core\Time\TimeOfDay::second` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, calls 1, allocations 0 | 8919ebbf69b4 |
 | `Core\Time\TimeOfDay::with` | 6.00 | 2.00 | 1.00 | 96.0 |  |  | complexity constant | 8919ebbf69b4 |
@@ -1046,9 +1046,9 @@ marked `~`: it is the machine, not the code.
 | `Core\Uri::port` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 0e634e80c20d |
 | `Core\Uri::query` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 0e634e80c20d |
 | `Core\Uri::queryParameter` | 4.00 | 2.00 | 10.00 | 649.5 |  | +64.000 | complexity linear | 0e634e80c20d |
-| `Core\Uri::resolve` | 4.00 | 3.00 | 7.00 | 504.0 |  | +40.000 | complexity linear | 0e634e80c20d |
+| `Core\Uri::resolved` | 4.00 | 3.00 | 7.00 | 504.0 |  | +40.000 | complexity linear | 0e634e80c20d |
 | `Core\Uri::scheme` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 0e634e80c20d |
-| `Core\Uri::sign` | 4.00 | 3.00 | 83.00 | 5506.0 |  | +208.000 | complexity linear | 0e634e80c20d |
+| `Core\Uri::signed` | 4.00 | 3.00 | 83.00 | 5506.0 |  | +208.000 | complexity linear | 0e634e80c20d |
 | `Core\Uri::toString` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 0e634e80c20d |
 | `Core\Uri::tryParse` | 6.00 | 2.00 | 2.50 | 350.5 |  | +12.000 | complexity linear | 0e634e80c20d |
 | `Core\Uri::userInfo` | 4.00 | 2.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0 | 0e634e80c20d |
@@ -1071,7 +1071,7 @@ marked `~`: it is the machine, not the code.
 | `Core\WebPush::applicationServerKey` | 3.00 | 2.00 | 2.00 | 214.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\WebPush::send` | 5.00 | 1.00 | 66.00 | 5062.6 | -1.000 | -71.000 | complexity linear | 4fc2594c8ec2 |
 | `Core\WebPush::subscription` | 6.00 | 2.00 | 17.00 | 1988.5 |  |  | complexity linear | 4fc2594c8ec2 |
-| `Core\WebPush\Sent::gone` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 4fc2594c8ec2 |
+| `Core\WebPush\Sent::isGone` | 4.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 4fc2594c8ec2 |
 | `Core\WebPush\Sent::status` | 3.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant, allocations 0, calls 1 | 4fc2594c8ec2 |
 | `Core\WebPush\Subscription::endpoint` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | 4fc2594c8ec2 |
 | `Core\Xml::parse` | 6.00 | 4.00 | 63.00 | 5484.0 |  |  | complexity linear | 4fc2594c8ec2 |
@@ -1395,8 +1395,8 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Arr::chunk` | Core\Arr | 6.7x its group's median of 426.7 units |
 | `Core\Arr::column` | Core\Arr | 9.5x its group's median of 426.7 units |
 | `Core\Arr::count` | Core\Arr | 201.8 units against a `constant` ceiling of 100 |
-| `Core\Arr::countBy` | Core\Arr | 6.1x its group's median of 426.7 units |
-| `Core\Arr::diff` | Core\Arr | 8.1x its group's median of 426.7 units |
+| `Core\Arr::groupCounts` | Core\Arr | 6.1x its group's median of 426.7 units |
+| `Core\Arr::difference` | Core\Arr | 8.1x its group's median of 426.7 units |
 | `Core\Arr::fill` | Core\Arr | 6.1x its group's median of 426.7 units |
 | `Core\Arr::fillKeys` | Core\Arr | 8.1x its group's median of 426.7 units |
 | `Core\Arr::filter` | Core\Arr | 8.3x its group's median of 426.7 units |
@@ -1435,13 +1435,13 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Db::inList` | Core\Db | 4367.6 units against a `constant` ceiling of 100 |
 | `Core\Db::open` | Core\Db | 2922.0 units against a `constant` ceiling of 100 |
 | `Core\Db\Column::name` | Core\Db\Column | 849.1 units against a `constant` ceiling of 100 |
-| `Core\Db\Column::nullable` | Core\Db\Column | 1194.5 units against a `constant` ceiling of 100 |
+| `Core\Db\Column::isNullable` | Core\Db\Column | 1194.5 units against a `constant` ceiling of 100 |
 | `Core\Db\Column::type` | Core\Db\Column | 702.2 units against a `constant` ceiling of 100 |
 | `Core\Db\Connection::close` | Core\Db\Connection | 440.5 units against a `constant` ceiling of 100 |
 | `Core\Db\Connection::driver` | Core\Db\Connection | 629.7 units against a `constant` ceiling of 100 |
 | `Core\Db\Connection::isOpen` | Core\Db\Connection | 876.3 units against a `constant` ceiling of 100 |
 | `Core\Db\Connection::serverVersion` | Core\Db\Connection | 3047.2 units against a `constant` ceiling of 100 |
-| `Core\Db\Connection::transaction` | Core\Db\Connection | 15423.4 units against a `constant` ceiling of 100 |
+| `Core\Db\Connection::runTransaction` | Core\Db\Connection | 15423.4 units against a `constant` ceiling of 100 |
 | `Core\Db\Plan::steps` | Core\Db\Plan | 600.5 units against a `constant` ceiling of 100 |
 | `Core\Db\Plan\Step::grade` | Core\Db\Plan\Step | 424.3 units against a `constant` ceiling of 100 |
 | `Core\Db\Plan\Step::isRefused` | Core\Db\Plan\Step | 1194.6 units against a `constant` ceiling of 100 |
@@ -1465,7 +1465,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Db\Rows::value` | Core\Db\Rows | 737.2 units against a `constant` ceiling of 100 |
 | `Core\Db\Schema::toArray` | Core\Db\Schema | 106.5 units against a `constant` ceiling of 100 |
 | `Core\Db\Transaction::rollBack` | Core\Db\Transaction | 14757.3 units against a `constant` ceiling of 100 |
-| `Core\Db\Transaction::transaction` | Core\Db\Transaction | 15339.2 units against a `constant` ceiling of 100 |
+| `Core\Db\Transaction::runTransaction` | Core\Db\Transaction | 15339.2 units against a `constant` ceiling of 100 |
 | `Core\Db\Write::affected` | Core\Db\Write | 563.8 units against a `constant` ceiling of 100 |
 | `Core\Db\Write::changed` | Core\Db\Write | 567.4 units against a `constant` ceiling of 100 |
 | `Core\Db\Write::lastId` | Core\Db\Write | 243.8 units against a `constant` ceiling of 100 |
@@ -1490,7 +1490,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Html::toSource` | Core\Html | 2632.4 units against a `constant` ceiling of 100 |
 | `Core\Http::methodName` | Core\Http | 2056.9 units against a `constant` ceiling of 100 |
 | `Core\Http\Client::openSocket` | Core\Http\Client | 5.2x its group's median of 1318.0 units |
-| `Core\Http\Client::stream` | Core\Http\Client | 115.4 units against a `constant` ceiling of 100 |
+| `Core\Http\Client::openStream` | Core\Http\Client | 115.4 units against a `constant` ceiling of 100 |
 | `Core\Http\Event::data` | Core\Http\Event | 157.6 units against a `constant` ceiling of 100 |
 | `Core\Http\Event::id` | Core\Http\Event | 215.3 units against a `constant` ceiling of 100 |
 | `Core\Http\Part::file` | Core\Http\Part | 15230.1 units against a `constant` ceiling of 100 |
@@ -1535,44 +1535,44 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Ldap\Ad::disabled` | Core\Ldap\Ad | 164.2 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Ad::enabled` | Core\Ldap\Ad | 165.8 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Ad\AccountFlags::bits` | Core\Ldap\Ad\AccountFlags | 529.6 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::disabled` | Core\Ldap\Ad\AccountFlags | 2537.4 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::homeDirectoryRequired` | Core\Ldap\Ad\AccountFlags | 902.5 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::interdomainTrustAccount` | Core\Ldap\Ad\AccountFlags | 906.7 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::lockedOut` | Core\Ldap\Ad\AccountFlags | 2663.9 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::mnsLogonAccount` | Core\Ldap\Ad\AccountFlags | 494.6 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isDisabled` | Core\Ldap\Ad\AccountFlags | 2537.4 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isHomeDirectoryRequired` | Core\Ldap\Ad\AccountFlags | 902.5 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isInterdomainTrustAccount` | Core\Ldap\Ad\AccountFlags | 906.7 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isLockedOut` | Core\Ldap\Ad\AccountFlags | 2663.9 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isMnsLogonAccount` | Core\Ldap\Ad\AccountFlags | 494.6 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Ad\AccountFlags::mustChangePassword` | Core\Ldap\Ad\AccountFlags | 521.7 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::noPreauthRequired` | Core\Ldap\Ad\AccountFlags | 490.1 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::normalAccount` | Core\Ldap\Ad\AccountFlags | 904.7 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::notDelegated` | Core\Ldap\Ad\AccountFlags | 491.6 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::partialSecretsAccount` | Core\Ldap\Ad\AccountFlags | 492.9 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::passwordExpired` | Core\Ldap\Ad\AccountFlags | 2456.8 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::passwordNeverExpires` | Core\Ldap\Ad\AccountFlags | 2463.1 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::passwordNotRequired` | Core\Ldap\Ad\AccountFlags | 909.3 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::reversibleEncryption` | Core\Ldap\Ad\AccountFlags | 896.5 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::script` | Core\Ldap\Ad\AccountFlags | 900.8 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::serverTrustAccount` | Core\Ldap\Ad\AccountFlags | 492.2 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::smartcardRequired` | Core\Ldap\Ad\AccountFlags | 490.1 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::temporaryDuplicateAccount` | Core\Ldap\Ad\AccountFlags | 907.3 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::trustedForDelegation` | Core\Ldap\Ad\AccountFlags | 498.1 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::trustedToAuthForDelegation` | Core\Ldap\Ad\AccountFlags | 517.0 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::useDesKeyOnly` | Core\Ldap\Ad\AccountFlags | 493.4 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isPreauthNotRequired` | Core\Ldap\Ad\AccountFlags | 490.1 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isNormalAccount` | Core\Ldap\Ad\AccountFlags | 904.7 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isNotDelegated` | Core\Ldap\Ad\AccountFlags | 491.6 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isPartialSecretsAccount` | Core\Ldap\Ad\AccountFlags | 492.9 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isPasswordExpired` | Core\Ldap\Ad\AccountFlags | 2456.8 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::hasNonExpiringPassword` | Core\Ldap\Ad\AccountFlags | 2463.1 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isPasswordNotRequired` | Core\Ldap\Ad\AccountFlags | 909.3 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::allowsReversibleEncryption` | Core\Ldap\Ad\AccountFlags | 896.5 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::hasLogonScript` | Core\Ldap\Ad\AccountFlags | 900.8 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isServerTrustAccount` | Core\Ldap\Ad\AccountFlags | 492.2 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isSmartcardRequired` | Core\Ldap\Ad\AccountFlags | 490.1 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isTemporaryDuplicateAccount` | Core\Ldap\Ad\AccountFlags | 907.3 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isTrustedForDelegation` | Core\Ldap\Ad\AccountFlags | 498.1 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isTrustedToAuthenticateForDelegation` | Core\Ldap\Ad\AccountFlags | 517.0 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::usesDesKeyOnly` | Core\Ldap\Ad\AccountFlags | 493.4 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Ad\AccountFlags::with` | Core\Ldap\Ad\AccountFlags | 1334.1 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\AccountFlags::workstationTrustAccount` | Core\Ldap\Ad\AccountFlags | 491.5 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\GroupType::appBasic` | Core\Ldap\Ad\GroupType | 532.2 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\GroupType::appQuery` | Core\Ldap\Ad\GroupType | 542.4 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\AccountFlags::isWorkstationTrustAccount` | Core\Ldap\Ad\AccountFlags | 491.5 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\GroupType::isAppBasicGroup` | Core\Ldap\Ad\GroupType | 532.2 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\GroupType::isAppQueryGroup` | Core\Ldap\Ad\GroupType | 542.4 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Ad\GroupType::bits` | Core\Ldap\Ad\GroupType | 525.4 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\GroupType::domainLocal` | Core\Ldap\Ad\GroupType | 536.7 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\GroupType::global` | Core\Ldap\Ad\GroupType | 540.2 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\GroupType::security` | Core\Ldap\Ad\GroupType | 587.0 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\GroupType::system` | Core\Ldap\Ad\GroupType | 539.2 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Ad\GroupType::universal` | Core\Ldap\Ad\GroupType | 541.8 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\GroupType::isDomainLocal` | Core\Ldap\Ad\GroupType | 536.7 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\GroupType::isGlobal` | Core\Ldap\Ad\GroupType | 540.2 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\GroupType::isSecurityGroup` | Core\Ldap\Ad\GroupType | 587.0 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\GroupType::isSystemGroup` | Core\Ldap\Ad\GroupType | 539.2 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Ad\GroupType::isUniversal` | Core\Ldap\Ad\GroupType | 541.8 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Ad\GroupType::with` | Core\Ldap\Ad\GroupType | 1332.3 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Changes::cookie` | Core\Ldap\Changes | 3718.2 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Connection::add` | Core\Ldap\Connection | 23351232.5 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Connection::authenticate` | Core\Ldap\Connection | 29.8x its group's median of 17826805.8 units — 530384264.1 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Connection::changePassword` | Core\Ldap\Connection | 44336358.1 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Connection::changes` | Core\Ldap\Connection | 20462054.4 units against a `constant` ceiling of 100 |
-| `Core\Ldap\Connection::compare` | Core\Ldap\Connection | 546661.5 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Connection::searchChanges` | Core\Ldap\Connection | 20462054.4 units against a `constant` ceiling of 100 |
+| `Core\Ldap\Connection::hasValue` | Core\Ldap\Connection | 546661.5 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Connection::delete` | Core\Ldap\Connection | 24008365.9 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Connection::modify` | Core\Ldap\Connection | 10921582.2 units against a `constant` ceiling of 100 |
 | `Core\Ldap\Connection::read` | Core\Ldap\Connection | 703882.5 units against a `constant` ceiling of 100 |
@@ -1659,7 +1659,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Queue\Stats::nonTransactional` | Core\Queue\Stats | 1403.1 units against a `constant` ceiling of 100 |
 | `Core\Queue\Stats::pending` | Core\Queue\Stats | 1884.0 units against a `constant` ceiling of 100 |
 | `Core\RateLimit::shed` | Core\RateLimit | 1351.5 units against a `constant` ceiling of 100 |
-| `Core\RateLimit\Decision::allowed` | Core\RateLimit\Decision | 705.1 units against a `constant` ceiling of 100 |
+| `Core\RateLimit\Decision::isAllowed` | Core\RateLimit\Decision | 705.1 units against a `constant` ceiling of 100 |
 | `Core\RateLimit\Decision::retryAfter` | Core\RateLimit\Decision | 565.6 units against a `constant` ceiling of 100 |
 | `Core\Reflect::forClass` | Core\Reflect | 2333.6 units against a `constant` ceiling of 100 |
 | `Core\Reflect::forObject` | Core\Reflect | 966.4 units against a `constant` ceiling of 100 |
@@ -1788,7 +1788,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Time\TimeOfDay::hour` | Core\Time\TimeOfDay | 249.6 units against a `constant` ceiling of 100 |
 | `Core\Time\TimeOfDay::minus` | Core\Time\TimeOfDay | 162.7 units against a `constant` ceiling of 100 |
 | `Core\Time\TimeOfDay::minute` | Core\Time\TimeOfDay | 268.6 units against a `constant` ceiling of 100 |
-| `Core\Time\TimeOfDay::nanos` | Core\Time\TimeOfDay | 805.8 units against a `constant` ceiling of 100 |
+| `Core\Time\TimeOfDay::nanoseconds` | Core\Time\TimeOfDay | 805.8 units against a `constant` ceiling of 100 |
 | `Core\Time\TimeOfDay::plus` | Core\Time\TimeOfDay | 1049.7 units against a `constant` ceiling of 100 |
 | `Core\Time\TimeOfDay::with` | Core\Time\TimeOfDay | 1022.5 units against a `constant` ceiling of 100 |
 | `Core\Time\Zone::fixed` | Core\Time\Zone | 735.8 units against a `constant` ceiling of 100 |
@@ -1998,8 +1998,8 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Arr::column` | 14934.0 | 17494.5 | 4035.994 | +19.3% | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
 | `Core\Arr::contains` | 3587.1 | 4502.3 | 969.437 | -24.9% ~ | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
 | `Core\Arr::count` | 746.7 | 1041.3 | 201.808 | -58.4% | flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
-| `Core\Arr::countBy` | 9684.4 | 15600.4 | 2617.257 | -86.0% | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
-| `Core\Arr::diff` | 12817.6 | 20454.3 | 3464.023 | -85.3% | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
+| `Core\Arr::groupCounts` | 9684.4 | 15600.4 | 2617.257 | -86.0% | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
+| `Core\Arr::difference` | 12817.6 | 20454.3 | 3464.023 | -85.3% | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
 | `Core\Arr::fill` | 9630.5 | 14570.7 | 2602.689 | -86.3% | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
 | `Core\Arr::fillKeys` | 12736.3 | 15978.9 | 3442.065 | -30.9% | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
 | `Core\Arr::filter` | 13182.8 | 17253.5 | 3562.730 | +834.6% | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
@@ -2014,7 +2014,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Arr::fromKeysAndValues` | 2666.0 | 2760.2 | 720.506 | +364.0% | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
 | `Core\Arr::groupBy` | 3905.5 | 6814.1 | 1055.475 | -39.1% ~ | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
 | `Core\Arr::hasKey` | 67.7 | 476.8 | 18.303 | -76.6% ~ | flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
-| `Core\Arr::intersect` | 2406.2 | 5488.7 | 650.303 | +1665.0% | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
+| `Core\Arr::intersection` | 2406.2 | 5488.7 | 650.303 | +1665.0% | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
 | `Core\Arr::isEmpty` | 736.5 | 1200.1 | 199.049 | +21.3% ~ | flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
 | `Core\Arr::isList` | 835.7 | 1182.1 | 225.864 | +389.9% | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
 | `Core\Arr::keyOf` | 116.1 | 452.1 | 31.380 | -53.9% ~ | flat, flat | 7a5902a9cc19 | 9b1ebac1b3d49756cbf73a3cbfc8baeb |
@@ -2056,25 +2056,25 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Attributes::all` | 11065.6 | 13148.4 | 2854.430 |  | flat | 4fc2594c8ec2 | e1c7d660ea66b5f1cac22952739e8c85 |
 | `Core\Attributes::get` | 6943.0 | 9671.9 | 1790.971 |  | flat | 4fc2594c8ec2 | e1c7d660ea66b5f1cac22952739e8c85 |
 | `Core\BigInt::abs` | 0.0 | 3244.1 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
-| `Core\BigInt::add` | 0.0 | 2307.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
+| `Core\BigInt::plus` | 0.0 | 2307.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
 | `Core\BigInt::compareTo` | 8774.6 | 10594.9 | 3958.768 |  | unclear, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
-| `Core\BigInt::div` | 13627.0 | 17314.1 | 6147.960 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
+| `Core\BigInt::dividedBy` | 13627.0 | 17314.1 | 6147.960 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
 | `Core\BigInt::format` | 27492.2 | 39648.8 | 12403.423 |  | flat, unclear | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
 | `Core\BigInt::gcd` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
 | `Core\BigInt::lcm` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
-| `Core\BigInt::mod` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
-| `Core\BigInt::mul` | 0.0 | 0.0 | 0.000 |  | flat, unclear | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
-| `Core\BigInt::neg` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
+| `Core\BigInt::remainder` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
+| `Core\BigInt::multipliedBy` | 0.0 | 0.0 | 0.000 |  | flat, unclear | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
+| `Core\BigInt::negated` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
 | `Core\BigInt::of` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
 | `Core\BigInt::ofUint` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
 | `Core\BigInt::parse` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
-| `Core\BigInt::pow` | 0.0 | 11985.5 | 0.000 |  | flat, unclear | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
-| `Core\BigInt::powMod` | 0.0 | 0.0 | 0.000 |  | flat, unclear | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
-| `Core\BigInt::shl` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
-| `Core\BigInt::shr` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
+| `Core\BigInt::raisedTo` | 0.0 | 11985.5 | 0.000 |  | flat, unclear | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
+| `Core\BigInt::raisedToModulo` | 0.0 | 0.0 | 0.000 |  | flat, unclear | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
+| `Core\BigInt::shiftedLeft` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
+| `Core\BigInt::shiftedRight` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
 | `Core\BigInt::sign` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
 | `Core\BigInt::sqrt` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
-| `Core\BigInt::sub` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
+| `Core\BigInt::minus` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
 | `Core\BigInt::toDecimal` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
 | `Core\BigInt::toInt` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
 | `Core\BigInt::toString` | 0.0 | 0.0 | 0.000 |  | flat, unclear | 4fc2594c8ec2 | 41404c509c6a9afb5b7cdf297f279b7f |
@@ -2171,7 +2171,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Db::open` | 14681.2 | 21884.4 | 2921.991 | -96.5% | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db::quoteIdentifier` | 9246.9 | 19200.8 | 2139.638 | -92.2% ~ | flat, flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db\Column::name` | 3669.7 | 6868.1 | 849.140 | -93.4% | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
-| `Core\Db\Column::nullable` | 5162.1 | 46236.5 | 1194.451 | -92.3% ~ | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
+| `Core\Db\Column::isNullable` | 5162.1 | 46236.5 | 1194.451 | -92.3% ~ | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db\Column::type` | 3034.8 | 6975.4 | 702.216 | -97.8% ~ | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db\Connection::close` | 1903.5 | 3005.2 | 440.455 | -86.7% | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db\Connection::driver` | 2721.5 | 3281.0 | 629.725 | -42.0% | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
@@ -2181,9 +2181,9 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Db\Connection::query` | 45833.2 | 53086.7 | 10605.364 | -13.6% ~ | flat, flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db\Connection::queryAs` | 59337.1 | 62805.9 | 13730.039 | +61.1% | flat, flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db\Connection::serverVersion` | 13169.1 | 21448.0 | 3047.213 | -97.9% | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
-| `Core\Db\Connection::stream` | 158974.6 | 166334.8 | 36785.202 | +24.4% | flat, flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
-| `Core\Db\Connection::streamAs` | 177708.2 | 201859.4 | 41119.977 | +0.2% ~ | flat, flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
-| `Core\Db\Connection::transaction` | 66655.5 | 71281.6 | 15423.437 | +0.1% ~ | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
+| `Core\Db\Connection::queryEach` | 158974.6 | 166334.8 | 36785.202 | +24.4% | flat, flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
+| `Core\Db\Connection::queryEachAs` | 177708.2 | 201859.4 | 41119.977 | +0.2% ~ | flat, flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
+| `Core\Db\Connection::runTransaction` | 66655.5 | 71281.6 | 15423.437 | +0.1% ~ | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db\Plan::steps` | 2595.3 | 3562.9 | 600.530 | -86.3% | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db\Plan\Step::grade` | 1833.7 | 2633.9 | 424.310 | -57.7% | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db\Plan\Step::isRefused` | 5162.5 | 5846.4 | 1194.553 | -57.6% | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
@@ -2218,9 +2218,9 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Db\Transaction::query` | 43748.0 | 45156.2 | 10122.879 | -65.2% | flat, flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db\Transaction::queryAs` | 48772.7 | 51344.1 | 11285.526 | -62.0% | flat, flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db\Transaction::rollBack` | 63776.6 | 66865.2 | 14757.286 | -62.0% | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
-| `Core\Db\Transaction::stream` | 140392.6 | 143642.2 | 32485.498 | -54.3% | flat, flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
-| `Core\Db\Transaction::streamAs` | 145920.7 | 156456.2 | 33764.654 | -23.1% | flat, flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
-| `Core\Db\Transaction::transaction` | 66291.2 | 70632.4 | 15339.151 | +20.6% | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
+| `Core\Db\Transaction::queryEach` | 140392.6 | 143642.2 | 32485.498 | -54.3% | flat, flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
+| `Core\Db\Transaction::queryEachAs` | 145920.7 | 156456.2 | 33764.654 | -23.1% | flat, flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
+| `Core\Db\Transaction::runTransaction` | 66291.2 | 70632.4 | 15339.151 | +20.6% | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db\Write::affected` | 2436.5 | 3387.5 | 563.788 | -75.7% | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db\Write::changed` | 2452.0 | 3118.8 | 567.358 | -84.6% | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
 | `Core\Db\Write::lastId` | 1053.6 | 1439.7 | 243.785 | -77.0% | flat | 76aba2ffc6f0 | 2d826517457afd94f3805fb9e4d91909 |
@@ -2235,10 +2235,10 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Debug::stopTrace` | 218596.9 | 229926.6 | 98622.547 | +109.9% | flat | 4fc2594c8ec2 | eb264b60af76db0b6422ec3108d5351a |
 | `Core\Decimal::allocate` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | e6fd8ffcbd2dbd4edfd0e4196e5f1170 |
 | `Core\Decimal::ceil` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | e6fd8ffcbd2dbd4edfd0e4196e5f1170 |
-| `Core\Decimal::divExact` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | e6fd8ffcbd2dbd4edfd0e4196e5f1170 |
-| `Core\Decimal::divRound` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | e6fd8ffcbd2dbd4edfd0e4196e5f1170 |
+| `Core\Decimal::divideExact` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | e6fd8ffcbd2dbd4edfd0e4196e5f1170 |
+| `Core\Decimal::divideRounded` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | e6fd8ffcbd2dbd4edfd0e4196e5f1170 |
 | `Core\Decimal::floor` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | e6fd8ffcbd2dbd4edfd0e4196e5f1170 |
-| `Core\Decimal::pow` | 159.0 | 16858.6 | 71.728 |  | flat | 4fc2594c8ec2 | e6fd8ffcbd2dbd4edfd0e4196e5f1170 |
+| `Core\Decimal::power` | 159.0 | 16858.6 | 71.728 |  | flat | 4fc2594c8ec2 | e6fd8ffcbd2dbd4edfd0e4196e5f1170 |
 | `Core\Decimal::round` | 7735.3 | 8477.7 | 3489.851 |  | flat | 4fc2594c8ec2 | e6fd8ffcbd2dbd4edfd0e4196e5f1170 |
 | `Core\Decimal::truncate` | 3112.3 | 3710.5 | 1404.131 |  | flat | 4fc2594c8ec2 | e6fd8ffcbd2dbd4edfd0e4196e5f1170 |
 | `Core\Encoding::decodeText` | 0.0 | 19186.3 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 75f81bdb84ee16141a685187942e85da |
@@ -2286,7 +2286,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Http\Client::post` | 0.0 | 2500.0 | 0.000 |  | flat, flat | 3d6e1ab929ed | 07e0489582fd325eaea2e4cc1160d18d |
 | `Core\Http\Client::put` | 4601.2 | 7978.9 | 1318.010 |  | flat, flat | 3d6e1ab929ed | 07e0489582fd325eaea2e4cc1160d18d |
 | `Core\Http\Client::request` | 0.0 | 1518.0 | 0.000 |  | flat, flat | 3d6e1ab929ed | 07e0489582fd325eaea2e4cc1160d18d |
-| `Core\Http\Client::stream` | 402.7 | 3251.6 | 115.364 |  | flat | 3d6e1ab929ed | 07e0489582fd325eaea2e4cc1160d18d |
+| `Core\Http\Client::openStream` | 402.7 | 3251.6 | 115.364 |  | flat | 3d6e1ab929ed | 07e0489582fd325eaea2e4cc1160d18d |
 | `Core\Http\Event::data` | 550.2 | 1177.1 | 157.604 |  | flat | 3d6e1ab929ed | 57b549e01ae9fa34f0fb7523f5beeb17 |
 | `Core\Http\Event::id` | 751.8 | 1174.4 | 215.342 |  | flat | 3d6e1ab929ed | 57b549e01ae9fa34f0fb7523f5beeb17 |
 | `Core\Http\Event::name` | 0.0 | 1043.4 | 0.000 |  | flat | 3d6e1ab929ed | 57b549e01ae9fa34f0fb7523f5beeb17 |
@@ -2317,7 +2317,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Http\TlsInfo::issuer` | 2590.2 | 5586.3 | 741.975 |  | flat, flat | 3d6e1ab929ed | 07e0489582fd325eaea2e4cc1160d18d |
 | `Core\Http\TlsInfo::peerChain` | 5210.5 | 7231.6 | 1492.566 | -64.0% | flat, unclear | 3d6e1ab929ed | 07e0489582fd325eaea2e4cc1160d18d |
 | `Core\Http\TlsInfo::subject` | 1517.2 | 6278.1 | 434.600 | -97.9% ~ | flat, flat | 3d6e1ab929ed | 07e0489582fd325eaea2e4cc1160d18d |
-| `Core\Http\TlsInfo::verified` | 0.0 | 1997.7 | 0.000 |  | unclear | 3d6e1ab929ed | 07e0489582fd325eaea2e4cc1160d18d |
+| `Core\Http\TlsInfo::isVerified` | 0.0 | 1997.7 | 0.000 |  | unclear | 3d6e1ab929ed | 07e0489582fd325eaea2e4cc1160d18d |
 | `Core\Http\TlsInfo::version` | 1313.7 | 2131.4 | 376.303 | -86.6% | unclear | 3d6e1ab929ed | 07e0489582fd325eaea2e4cc1160d18d |
 | `Core\IO::append` | 180308.2 | 193177.3 | 51649.442 | -10.2% | flat, flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
 | `Core\IO::canonicalize` | 43055.9 | 48796.1 | 12333.388 | -71.1% | flat | 3d6e1ab929ed | 0c94a59976da8d8ad2ab43a5fa8f3c5c |
@@ -2386,37 +2386,37 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Ldap\Ad::enabled` | 636.9 | 652.9 | 165.829 | +31.1% | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
 | `Core\Ldap\Ad::memberOf` | 289.2 | 350.8 | 75.303 | +69.6% | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
 | `Core\Ldap\Ad\AccountFlags::bits` | 2083.7 | 2092.9 | 529.628 | +0.1% ~ | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
-| `Core\Ldap\Ad\AccountFlags::disabled` | 2096.9 | 2277.0 | 2537.435 |  | flat | e502f1400319 |  |
-| `Core\Ldap\Ad\AccountFlags::homeDirectoryRequired` | 2054.7 | 2068.9 | 902.487 |  | flat | 4f7f2560d755 |  |
-| `Core\Ldap\Ad\AccountFlags::interdomainTrustAccount` | 2064.3 | 2080.3 | 906.720 |  | flat | 4f7f2560d755 |  |
-| `Core\Ldap\Ad\AccountFlags::lockedOut` | 2201.4 | 2269.5 | 2663.863 |  | flat | e502f1400319 |  |
-| `Core\Ldap\Ad\AccountFlags::mnsLogonAccount` | 2070.9 | 2071.9 | 494.584 |  | flat | 1dd5ee54b6da |  |
+| `Core\Ldap\Ad\AccountFlags::isDisabled` | 2096.9 | 2277.0 | 2537.435 |  | flat | e502f1400319 |  |
+| `Core\Ldap\Ad\AccountFlags::isHomeDirectoryRequired` | 2054.7 | 2068.9 | 902.487 |  | flat | 4f7f2560d755 |  |
+| `Core\Ldap\Ad\AccountFlags::isInterdomainTrustAccount` | 2064.3 | 2080.3 | 906.720 |  | flat | 4f7f2560d755 |  |
+| `Core\Ldap\Ad\AccountFlags::isLockedOut` | 2201.4 | 2269.5 | 2663.863 |  | flat | e502f1400319 |  |
+| `Core\Ldap\Ad\AccountFlags::isMnsLogonAccount` | 2070.9 | 2071.9 | 494.584 |  | flat | 1dd5ee54b6da |  |
 | `Core\Ldap\Ad\AccountFlags::mustChangePassword` | 2052.6 | 2083.5 | 521.704 | -3.2% | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
-| `Core\Ldap\Ad\AccountFlags::noPreauthRequired` | 2051.9 | 2071.7 | 490.060 |  | flat | 1dd5ee54b6da |  |
-| `Core\Ldap\Ad\AccountFlags::normalAccount` | 2059.8 | 2083.8 | 904.733 |  | flat | 4f7f2560d755 |  |
-| `Core\Ldap\Ad\AccountFlags::notDelegated` | 2058.2 | 2065.0 | 491.553 |  | flat | 1dd5ee54b6da |  |
-| `Core\Ldap\Ad\AccountFlags::partialSecretsAccount` | 2063.6 | 2083.3 | 492.856 |  | flat | 1dd5ee54b6da |  |
-| `Core\Ldap\Ad\AccountFlags::passwordExpired` | 2030.3 | 2065.3 | 2456.808 |  | flat | e502f1400319 |  |
-| `Core\Ldap\Ad\AccountFlags::passwordNeverExpires` | 2035.5 | 2041.7 | 2463.098 |  | flat | e502f1400319 |  |
-| `Core\Ldap\Ad\AccountFlags::passwordNotRequired` | 2070.3 | 2081.8 | 909.348 |  | flat | 4f7f2560d755 |  |
-| `Core\Ldap\Ad\AccountFlags::reversibleEncryption` | 2041.1 | 2077.7 | 896.509 |  | flat | 4f7f2560d755 |  |
-| `Core\Ldap\Ad\AccountFlags::script` | 2050.8 | 2066.6 | 900.768 |  | flat | 4f7f2560d755 |  |
-| `Core\Ldap\Ad\AccountFlags::serverTrustAccount` | 2060.9 | 2072.1 | 492.213 |  | flat | 1dd5ee54b6da |  |
-| `Core\Ldap\Ad\AccountFlags::smartcardRequired` | 2052.1 | 2057.5 | 490.098 |  | flat | 1dd5ee54b6da |  |
-| `Core\Ldap\Ad\AccountFlags::temporaryDuplicateAccount` | 2065.7 | 2067.4 | 907.322 |  | flat | 4f7f2560d755 |  |
-| `Core\Ldap\Ad\AccountFlags::trustedForDelegation` | 2085.6 | 2110.3 | 498.106 |  | flat | 1dd5ee54b6da |  |
-| `Core\Ldap\Ad\AccountFlags::trustedToAuthForDelegation` | 2164.7 | 2177.1 | 516.993 |  | flat | 1dd5ee54b6da |  |
-| `Core\Ldap\Ad\AccountFlags::useDesKeyOnly` | 2066.1 | 2079.1 | 493.435 |  | flat | 1dd5ee54b6da |  |
+| `Core\Ldap\Ad\AccountFlags::isPreauthNotRequired` | 2051.9 | 2071.7 | 490.060 |  | flat | 1dd5ee54b6da |  |
+| `Core\Ldap\Ad\AccountFlags::isNormalAccount` | 2059.8 | 2083.8 | 904.733 |  | flat | 4f7f2560d755 |  |
+| `Core\Ldap\Ad\AccountFlags::isNotDelegated` | 2058.2 | 2065.0 | 491.553 |  | flat | 1dd5ee54b6da |  |
+| `Core\Ldap\Ad\AccountFlags::isPartialSecretsAccount` | 2063.6 | 2083.3 | 492.856 |  | flat | 1dd5ee54b6da |  |
+| `Core\Ldap\Ad\AccountFlags::isPasswordExpired` | 2030.3 | 2065.3 | 2456.808 |  | flat | e502f1400319 |  |
+| `Core\Ldap\Ad\AccountFlags::hasNonExpiringPassword` | 2035.5 | 2041.7 | 2463.098 |  | flat | e502f1400319 |  |
+| `Core\Ldap\Ad\AccountFlags::isPasswordNotRequired` | 2070.3 | 2081.8 | 909.348 |  | flat | 4f7f2560d755 |  |
+| `Core\Ldap\Ad\AccountFlags::allowsReversibleEncryption` | 2041.1 | 2077.7 | 896.509 |  | flat | 4f7f2560d755 |  |
+| `Core\Ldap\Ad\AccountFlags::hasLogonScript` | 2050.8 | 2066.6 | 900.768 |  | flat | 4f7f2560d755 |  |
+| `Core\Ldap\Ad\AccountFlags::isServerTrustAccount` | 2060.9 | 2072.1 | 492.213 |  | flat | 1dd5ee54b6da |  |
+| `Core\Ldap\Ad\AccountFlags::isSmartcardRequired` | 2052.1 | 2057.5 | 490.098 |  | flat | 1dd5ee54b6da |  |
+| `Core\Ldap\Ad\AccountFlags::isTemporaryDuplicateAccount` | 2065.7 | 2067.4 | 907.322 |  | flat | 4f7f2560d755 |  |
+| `Core\Ldap\Ad\AccountFlags::isTrustedForDelegation` | 2085.6 | 2110.3 | 498.106 |  | flat | 1dd5ee54b6da |  |
+| `Core\Ldap\Ad\AccountFlags::isTrustedToAuthenticateForDelegation` | 2164.7 | 2177.1 | 516.993 |  | flat | 1dd5ee54b6da |  |
+| `Core\Ldap\Ad\AccountFlags::usesDesKeyOnly` | 2066.1 | 2079.1 | 493.435 |  | flat | 1dd5ee54b6da |  |
 | `Core\Ldap\Ad\AccountFlags::with` | 5248.8 | 5281.4 | 1334.098 | -6.9% | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
-| `Core\Ldap\Ad\AccountFlags::workstationTrustAccount` | 2058.1 | 2069.5 | 491.543 |  | flat | 1dd5ee54b6da |  |
-| `Core\Ldap\Ad\GroupType::appBasic` | 2047.8 | 2078.3 | 532.183 |  | flat | 839396deab03 |  |
-| `Core\Ldap\Ad\GroupType::appQuery` | 2087.0 | 2200.6 | 542.372 |  | flat | 839396deab03 |  |
+| `Core\Ldap\Ad\AccountFlags::isWorkstationTrustAccount` | 2058.1 | 2069.5 | 491.543 |  | flat | 1dd5ee54b6da |  |
+| `Core\Ldap\Ad\GroupType::isAppBasicGroup` | 2047.8 | 2078.3 | 532.183 |  | flat | 839396deab03 |  |
+| `Core\Ldap\Ad\GroupType::isAppQueryGroup` | 2087.0 | 2200.6 | 542.372 |  | flat | 839396deab03 |  |
 | `Core\Ldap\Ad\GroupType::bits` | 2066.9 | 2076.7 | 525.356 | -0.9% | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
-| `Core\Ldap\Ad\GroupType::domainLocal` | 2065.0 | 2071.1 | 536.657 |  | flat | 839396deab03 |  |
-| `Core\Ldap\Ad\GroupType::global` | 2078.7 | 2090.3 | 540.199 |  | flat | 839396deab03 |  |
-| `Core\Ldap\Ad\GroupType::security` | 2078.3 | 2103.0 | 587.039 |  | flat | 4b581dea2cca |  |
-| `Core\Ldap\Ad\GroupType::system` | 2074.9 | 2205.0 | 539.230 |  | flat | 839396deab03 |  |
-| `Core\Ldap\Ad\GroupType::universal` | 2085.0 | 2105.4 | 541.844 |  | flat | 839396deab03 |  |
+| `Core\Ldap\Ad\GroupType::isDomainLocal` | 2065.0 | 2071.1 | 536.657 |  | flat | 839396deab03 |  |
+| `Core\Ldap\Ad\GroupType::isGlobal` | 2078.7 | 2090.3 | 540.199 |  | flat | 839396deab03 |  |
+| `Core\Ldap\Ad\GroupType::isSecurityGroup` | 2078.3 | 2103.0 | 587.039 |  | flat | 4b581dea2cca |  |
+| `Core\Ldap\Ad\GroupType::isSystemGroup` | 2074.9 | 2205.0 | 539.230 |  | flat | 839396deab03 |  |
+| `Core\Ldap\Ad\GroupType::isUniversal` | 2085.0 | 2105.4 | 541.844 |  | flat | 839396deab03 |  |
 | `Core\Ldap\Ad\GroupType::with` | 5241.7 | 5273.9 | 1332.293 | +0.7% | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
 | `Core\Ldap\Change::add` | 201.3 | 205.5 | 48.577 | -45.1% | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
 | `Core\Ldap\Change::remove` | 217.4 | 223.9 | 52.463 | -51.9% | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
@@ -2426,8 +2426,8 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Ldap\Connection::add` | 100017999.0 | 100432439.0 | 23351232.490 | +12.0% | flat | 4404822743f4 | 86eae8625ca2e82f629f101b5d37f23a |
 | `Core\Ldap\Connection::authenticate` | 2271741880.0 | 2292319300.0 | 530384264.102 | -0.6% ~ | flat | 4404822743f4 | 86eae8625ca2e82f629f101b5d37f23a |
 | `Core\Ldap\Connection::changePassword` | 125514013.0 | 127124862.5 | 44336358.113 | +15.6% | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
-| `Core\Ldap\Connection::changes` | 87643071.5 | 88008815.5 | 20462054.422 | +183.7% | flat | 4404822743f4 | 86eae8625ca2e82f629f101b5d37f23a |
-| `Core\Ldap\Connection::compare` | 1547571.4 | 1673146.5 | 546661.509 | +3.9% ~ | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
+| `Core\Ldap\Connection::searchChanges` | 87643071.5 | 88008815.5 | 20462054.422 | +183.7% | flat | 4404822743f4 | 86eae8625ca2e82f629f101b5d37f23a |
+| `Core\Ldap\Connection::hasValue` | 1547571.4 | 1673146.5 | 546661.509 | +3.9% ~ | flat | 85c850da7d4e | 86eae8625ca2e82f629f101b5d37f23a |
 | `Core\Ldap\Connection::delete` | 102832633.0 | 106474575.0 | 24008365.941 | +9.9% | flat | 4404822743f4 | 86eae8625ca2e82f629f101b5d37f23a |
 | `Core\Ldap\Connection::modify` | 46779321.0 | 49709422.0 | 10921582.228 | -14.5% | unclear | 4404822743f4 | 86eae8625ca2e82f629f101b5d37f23a |
 | `Core\Ldap\Connection::read` | 3014869.5 | 3485051.1 | 703882.483 | +35.9% | flat | 4404822743f4 | 86eae8625ca2e82f629f101b5d37f23a |
@@ -2504,20 +2504,20 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Math::cos` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::cosh` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::exp` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
-| `Core\Math::fdiv` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
+| `Core\Math::divide` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::floor` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::format` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::fromBase` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::gcd` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::hypot` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
-| `Core\Math::intDiv` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
+| `Core\Math::quotient` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::isFinite` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::isNan` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::lcm` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::log` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::max` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::min` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
-| `Core\Math::mod` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
+| `Core\Math::remainder` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::round` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::sign` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
 | `Core\Math::sin` | 0.0 | 0.0 | 0.000 |  | flat | 4fc2594c8ec2 | 2e372dc215869405e7a661cea54c1b70 |
@@ -2562,9 +2562,9 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\ObjectSet::add` | 2805.6 | 5446.9 | 576.891 | +4.5% ~ | flat | 9dce981c7a77 | c0413724e2b761e391392480a2df2c06 |
 | `Core\ObjectSet::clear` | 0.0 | 6059.0 | 0.000 | -100.0% | flat, flat | 9dce981c7a77 | c0413724e2b761e391392480a2df2c06 |
 | `Core\ObjectSet::count` | 761.5 | 947.8 | 156.592 | +32.4% | flat | 9dce981c7a77 | c0413724e2b761e391392480a2df2c06 |
-| `Core\ObjectSet::diff` | 9593.0 | 24531.2 | 1972.543 | -34.5% ~ | flat, flat | 9dce981c7a77 | c0413724e2b761e391392480a2df2c06 |
+| `Core\ObjectSet::difference` | 9593.0 | 24531.2 | 1972.543 | -34.5% ~ | flat, flat | 9dce981c7a77 | c0413724e2b761e391392480a2df2c06 |
 | `Core\ObjectSet::has` | 3913.1 | 4349.2 | 804.624 | +100.7% | flat, flat | 9dce981c7a77 | c0413724e2b761e391392480a2df2c06 |
-| `Core\ObjectSet::intersect` | 30360.5 | 34291.4 | 6242.851 | +105.3% | flat, flat | 9dce981c7a77 | c0413724e2b761e391392480a2df2c06 |
+| `Core\ObjectSet::intersection` | 30360.5 | 34291.4 | 6242.851 | +105.3% | flat, flat | 9dce981c7a77 | c0413724e2b761e391392480a2df2c06 |
 | `Core\ObjectSet::isEmpty` | 26436.8 | 146557.6 | 5436.039 | +858.0% | flat | 9dce981c7a77 | c0413724e2b761e391392480a2df2c06 |
 | `Core\ObjectSet::remove` | 20788.7 | 26209.0 | 4274.646 | +76.7% | flat | 9dce981c7a77 | c0413724e2b761e391392480a2df2c06 |
 | `Core\ObjectSet::union` | 27821.1 | 33001.2 | 5720.679 | +38.1% | flat, flat | 9dce981c7a77 | c0413724e2b761e391392480a2df2c06 |
@@ -2643,7 +2643,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Random\Seeded::shuffle` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 3be6c56b6bcc29e1e7f7d4653b40fb79 |
 | `Core\Random\Seeded::token` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 3be6c56b6bcc29e1e7f7d4653b40fb79 |
 | `Core\RateLimit::shed` | 4718.0 | 9536.3 | 1351.466 |  | flat | 3d6e1ab929ed | bee0926ebf6fef672181a3f1fa4b6b67 |
-| `Core\RateLimit\Decision::allowed` | 2461.4 | 4987.1 | 705.078 |  | flat | 3d6e1ab929ed | bee0926ebf6fef672181a3f1fa4b6b67 |
+| `Core\RateLimit\Decision::isAllowed` | 2461.4 | 4987.1 | 705.078 |  | flat | 3d6e1ab929ed | bee0926ebf6fef672181a3f1fa4b6b67 |
 | `Core\RateLimit\Decision::limit` | 0.0 | 0.0 | 0.000 |  | flat | 3d6e1ab929ed | bee0926ebf6fef672181a3f1fa4b6b67 |
 | `Core\RateLimit\Decision::remaining` | 0.0 | 715.7 | 0.000 |  | flat | 3d6e1ab929ed | bee0926ebf6fef672181a3f1fa4b6b67 |
 | `Core\RateLimit\Decision::retryAfter` | 1974.5 | 3446.5 | 565.601 |  | flat | 3d6e1ab929ed | bee0926ebf6fef672181a3f1fa4b6b67 |
@@ -2934,7 +2934,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Time\DateTime::minus` | 9215.2 | 9274.2 | 2384.463 | -36.4% | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
 | `Core\Time\DateTime::minute` | 30.7 | 1188.0 | 7.934 | -99.2% ~ | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
 | `Core\Time\DateTime::month` | 5297.3 | 6701.2 | 1370.680 | -42.9% | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
-| `Core\Time\DateTime::nanos` | 0.0 | 1905.7 | 0.000 | -100.0% | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
+| `Core\Time\DateTime::nanoseconds` | 0.0 | 1905.7 | 0.000 | -100.0% | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
 | `Core\Time\DateTime::next` | 6181.6 | 13429.7 | 1599.514 | -12.4% ~ | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
 | `Core\Time\DateTime::parse` | 816.0 | 4000.8 | 211.146 |  | flat, flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
 | `Core\Time\DateTime::plus` | 5679.3 | 11287.1 | 1469.531 | -51.7% ~ | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
@@ -2985,7 +2985,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Time\TimeOfDay::hour` | 964.6 | 3953.5 | 249.605 | -99.5% ~ | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
 | `Core\Time\TimeOfDay::minus` | 628.9 | 5622.7 | 162.731 | -99.1% ~ | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
 | `Core\Time\TimeOfDay::minute` | 1038.2 | 3224.4 | 268.632 | -87.4% ~ | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
-| `Core\Time\TimeOfDay::nanos` | 3114.1 | 3951.3 | 805.771 | +83.4% | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
+| `Core\Time\TimeOfDay::nanoseconds` | 3114.1 | 3951.3 | 805.771 | +83.4% | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
 | `Core\Time\TimeOfDay::plus` | 4056.6 | 4380.5 | 1049.665 | +74.4% | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
 | `Core\Time\TimeOfDay::second` | 0.0 | 759.6 | 0.000 | -100.0% | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
 | `Core\Time\TimeOfDay::with` | 3951.6 | 5269.1 | 1022.476 |  | flat | 8919ebbf69b4 | b812a01cf3b59926a7bf8dbea059b8f5 |
@@ -3012,9 +3012,9 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\Uri::port` | 2592.0 | 2689.9 | 723.202 |  | flat | 0e634e80c20d | a70f493f77c36b39478a0ac66bba2a66 |
 | `Core\Uri::query` | 7225.2 | 8299.8 | 2015.944 |  | flat | 0e634e80c20d | a70f493f77c36b39478a0ac66bba2a66 |
 | `Core\Uri::queryParameter` | 52250.0 | 54823.0 | 14578.480 |  | flat, flat | 0e634e80c20d | a70f493f77c36b39478a0ac66bba2a66 |
-| `Core\Uri::resolve` | 26039.8 | 34515.6 | 7265.480 |  | flat, flat | 0e634e80c20d | a70f493f77c36b39478a0ac66bba2a66 |
+| `Core\Uri::resolved` | 26039.8 | 34515.6 | 7265.480 |  | flat, flat | 0e634e80c20d | a70f493f77c36b39478a0ac66bba2a66 |
 | `Core\Uri::scheme` | 55480.5 | 60284.4 | 15479.826 |  | flat | 0e634e80c20d | a70f493f77c36b39478a0ac66bba2a66 |
-| `Core\Uri::sign` | 45901.6 | 56903.9 | 12807.177 |  | flat, flat | 0e634e80c20d | a70f493f77c36b39478a0ac66bba2a66 |
+| `Core\Uri::signed` | 45901.6 | 56903.9 | 12807.177 |  | flat, flat | 0e634e80c20d | a70f493f77c36b39478a0ac66bba2a66 |
 | `Core\Uri::toString` | 14021.9 | 16782.7 | 3912.299 |  | flat | 0e634e80c20d | a70f493f77c36b39478a0ac66bba2a66 |
 | `Core\Uri::tryParse` | 37553.1 | 41696.1 | 10477.846 |  | flat, flat | 0e634e80c20d | a70f493f77c36b39478a0ac66bba2a66 |
 | `Core\Uri::userInfo` | 1910.2 | 2444.8 | 532.967 |  | flat | 0e634e80c20d | a70f493f77c36b39478a0ac66bba2a66 |
@@ -3037,7 +3037,7 @@ a person with a profiler looks first; it is not a verdict.
 | `Core\WebPush::applicationServerKey` | 331067.2 | 335670.7 | 149364.849 | -37.6% | flat | 4fc2594c8ec2 | 99584652005c8134f07f34a23b24f23b |
 | `Core\WebPush::send` | 904368.4 | 929687.1 | 408016.404 | -24.1% | flat, flat | 4fc2594c8ec2 | 99584652005c8134f07f34a23b24f23b |
 | `Core\WebPush::subscription` | 0.0 | 0.0 | 0.000 | -100.0% | flat, flat | 4fc2594c8ec2 | 99584652005c8134f07f34a23b24f23b |
-| `Core\WebPush\Sent::gone` | 0.0 | 0.0 | 0.000 | -100.0% | unclear | 4fc2594c8ec2 | 99584652005c8134f07f34a23b24f23b |
+| `Core\WebPush\Sent::isGone` | 0.0 | 0.0 | 0.000 | -100.0% | unclear | 4fc2594c8ec2 | 99584652005c8134f07f34a23b24f23b |
 | `Core\WebPush\Sent::status` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 99584652005c8134f07f34a23b24f23b |
 | `Core\WebPush\Subscription::endpoint` | 0.0 | 0.0 | 0.000 | -100.0% | flat | 4fc2594c8ec2 | 99584652005c8134f07f34a23b24f23b |
 | `Core\Xml::parse` | 0.0 | 0.0 | 0.000 |  | flat, flat | 4fc2594c8ec2 | 824ee49b0ef9e628bfcc228598adacc7 |

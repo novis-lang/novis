@@ -415,7 +415,7 @@ on when the work stops being asked for; it is not a hard wall-clock guarantee on
 A deadline cancels every child still running, and the call waits for them
 (`crates/nvs-host/src/group.rs:60`). A `Core\Db` statement or walk whose read fails calls
 `nvs_stdlib::db::settle_interrupted` (`crates/nvs-stdlib/src/db/execute.rs`), bounded by the
-`timeout` its `connect` or `open` named, or `[db.<name>.pool] acquire`'s default; a `stream`'s
+`timeout` its `connect` or `open` named, or `[db.<name>.pool] acquire`'s default; a `queryEach`'s
 opening call does the same. PostgreSQL sends its cancel there (`crates/nvs-db/src/pg.rs`), and
 MySQL and MariaDB send `KILL QUERY` over a second connection logged in as the first
 (`crates/nvs-db/src/mysql.rs`). SQL Server sends an attention on the same socket and reads to the
@@ -2051,7 +2051,7 @@ for a row no other connection can see, finds nothing and goes back to waiting, s
 
 - a push outside a transaction is its own committed statement, and the wake follows it
   ([`concurrency/enqueue-commits-with-your-write`](concurrency.md#concurrency-enqueue-commits-with-your-write));
-- a push inside a `transaction` on the queue's own connection wakes when that transaction commits, at
+- a push inside a `runTransaction` on the queue's own connection wakes when that transaction commits, at
   the outermost commit when transactions nest, and a rollback wakes nobody;
 - a push while a transaction is open on a different connection commits on its own, so the wake follows
   the statement ([`concurrency/foreign-connection-enqueue-is-counted`](concurrency.md#concurrency-foreign-connection-enqueue-is-counted)).

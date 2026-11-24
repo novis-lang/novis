@@ -19,16 +19,16 @@ echo Core\Json::encode($byAbs), "\n";
 // `diff` keeps each word whose length no word in the second array has.
 // The second array has lengths 1 and 3, so only the words of length 2 are left.
 array<string> $other = ["x", "yyy"];
-echo Core\Json::encode(Core\Arr::diff($words, $other, {comparator: fn(string $a, string $b): int => Core\Str::length($a) <=> Core\Str::length($b)})), "\n";
+echo Core\Json::encode(Core\Arr::difference($words, $other, {comparator: fn(string $a, string $b): int => Core\Str::length($a) <=> Core\Str::length($b)})), "\n";
 
 // `intersect` keeps each word whose length a word in the second array has.
-echo Core\Json::encode(Core\Arr::intersect($words, $other, {comparator: fn(string $a, string $b): int => Core\Str::length($a) <=> Core\Str::length($b)})), "\n";
+echo Core\Json::encode(Core\Arr::intersection($words, $other, {comparator: fn(string $a, string $b): int => Core\Str::length($a) <=> Core\Str::length($b)})), "\n";
 
 // With string keys, `diff` and `intersect` keep the keys of the first array.
 array<string> $pets = ['p' => "cat", 'q' => "dog", 'r' => "horse"];
 array<string> $short = ["owl"];
-echo Core\Json::encode(Core\Arr::diff($pets, $short, {comparator: fn(string $a, string $b): int => Core\Str::length($a) <=> Core\Str::length($b)})), "\n";
-echo Core\Json::encode(Core\Arr::intersect($pets, $short, {comparator: fn(string $a, string $b): int => Core\Str::length($a) <=> Core\Str::length($b)})), "\n";
+echo Core\Json::encode(Core\Arr::difference($pets, $short, {comparator: fn(string $a, string $b): int => Core\Str::length($a) <=> Core\Str::length($b)})), "\n";
+echo Core\Json::encode(Core\Arr::intersection($pets, $short, {comparator: fn(string $a, string $b): int => Core\Str::length($a) <=> Core\Str::length($b)})), "\n";
 --EXPECT--
 a,d,bb,cc,eee
 [1,-2,2,3,-3]

@@ -6,7 +6,7 @@ normally.
 The transaction is opened **on the test's own context, from inside its isolate**, and that is what
 makes the savepoint sentence true with no special case anywhere: a connection is memoized on the
 context it was opened on, so the test's own `connect("test")` reaches *this* connection and its own
-`transaction()` sees a non-zero nesting depth. Opened on the suite's context instead, the two would
+`runTransaction()` sees a non-zero nesting depth. Opened on the suite's context instead, the two would
 contend rather than nest.
 
 The rollback is armed around the whole retry allowance rather than around one attempt, because a

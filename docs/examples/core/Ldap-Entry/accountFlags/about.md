@@ -1,5 +1,5 @@
 Returns the flags of an Active Directory account as a `Core\Ldap\Ad\AccountFlags`. Each flag is a
-function that returns a `bool`, such as `disabled()` or `passwordNeverExpires()`.
+function that returns a `bool`, such as `isDisabled()` or `hasNonExpiringPassword()`.
 
 Active Directory stores these flags as one number in `userAccountControl`. Select that attribute in
 the search. The search then also reads two more values: `msDS-User-Account-Control-Computed`, which

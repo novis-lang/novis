@@ -7,7 +7,7 @@ trying to be quick, and it is the same declaration hand-written hydration alread
 is only where a newcomer meets it first.
 
 A member that reads its own payload decides by its owner: every `Core\Request` decoder,
-`Core\Http\Response::jsonAs`, `Core\Jwt::verifyIssued`, and `queryAs` and `streamAs` on a
+`Core\Http\Response::jsonAs`, `Core\Jwt::verifyIssued`, and `queryAs` and `queryEachAs` on a
 `Core\Db\Connection` or `Core\Db\Transaction` carry `tainted` always. A row's text is input because
 an earlier request may have stored it (`rule:security/tainted-sources`), so a `#[Db\Derive]` class or
 an inline shape fills a text column only into a `tainted` field. A field no column maps is refused

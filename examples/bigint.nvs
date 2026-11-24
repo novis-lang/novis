@@ -8,34 +8,34 @@
 var $factorial = Core\BigInt::of(1);
 int $n = 2;
 while ($n <= 30) {
-    $factorial = $factorial->mul(Core\BigInt::of($n));
+    $factorial = $factorial->multipliedBy(Core\BigInt::of($n));
     $n = $n + 1;
 }
 echo '30! = ', $factorial->toString(), "\n";
 
-// `pow` takes the exponent as a `uint` and answers the whole magnitude, where
+// `raisedTo` takes the exponent as a `uint` and answers the whole magnitude, where
 // `bcpow` took two strings and a scale it did not need.
-echo '2^100 = ', Core\BigInt::of(2)->pow(100)->toString(), "\n";
+echo '2^100 = ', Core\BigInt::of(2)->raisedTo(100)->toString(), "\n";
 
-// `powMod` is the member modular exponentiation is written for: it never builds
+// `raisedToModulo` is the member modular exponentiation is written for: it never builds
 // the intermediate power, so the modulus is what bounds the work.
-var $reduced = Core\BigInt::of(4)->powMod(Core\BigInt::of(13), Core\BigInt::of(497));
+var $reduced = Core\BigInt::of(4)->raisedToModulo(Core\BigInt::of(13), Core\BigInt::of(497));
 echo '4^13 mod 497 = ', $reduced->toString(), "\n";
 
-// `div` truncates and `mod` takes the sign of the dividend, exactly as `intdiv`
+// `dividedBy` truncates and `remainder` takes the sign of the dividend, exactly as `intdiv`
 // and `%` do on `int`, so the identity holds on a negative dividend too.
 var $dividend = Core\BigInt::of(-7);
 var $divisor = Core\BigInt::of(2);
 echo $dividend->toString(), ' = ', $divisor->toString(),
-     ' * ', $dividend->div($divisor)->toString(),
-     ' + ', $dividend->mod($divisor)->toString(), "\n";
+     ' * ', $dividend->dividedBy($divisor)->toString(),
+     ' + ', $dividend->remainder($divisor)->toString(), "\n";
 
 // Narrowing names both sides of the bound: the last value `int` holds comes
 // back, and the first one it does not refuses rather than truncating.
 var $intMax = Core\BigInt::parse('9223372036854775807');
 echo 'int max = ', $intMax->toInt(), "\n";
 try {
-    $intMax->add(Core\BigInt::of(1))->toInt();
+    $intMax->plus(Core\BigInt::of(1))->toInt();
 } catch (ArithmeticError $tooWide) {
     echo "int max + 1: ArithmeticError\n";
 }

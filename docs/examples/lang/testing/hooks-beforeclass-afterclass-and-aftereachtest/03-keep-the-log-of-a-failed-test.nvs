@@ -40,7 +40,7 @@ class CheckoutTest
     #[AfterEachTest]
     public function keepTheLogIfItFailed(Outcome $outcome): void
     {
-        if ($outcome->passed()) {
+        if ($outcome->hasPassed()) {
             IO::remove($this->log);
         } else {
             string $name = Evidence::fileName($outcome->class(), $outcome->name(), $outcome->attempt());

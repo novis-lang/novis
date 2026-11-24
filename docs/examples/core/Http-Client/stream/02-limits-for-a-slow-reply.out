@@ -1,2 +1,0 @@
-Core\Http\Client::stream: `idle` must be a positive duration, and this one is 0ns
-Core\Http\Client::stream: `maxDuration` must be a positive duration, and this one is 0ns

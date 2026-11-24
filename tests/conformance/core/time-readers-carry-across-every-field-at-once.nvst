@@ -2,7 +2,7 @@
 `Core\Time`: one nanosecond added to the last nanosecond of a year carries through every field in UTC, and the readers of `DateTime`, its `Date` and its `TimeOfDay` each show it; in a zone 14 hours ahead the same instant is already the next year and only the time moves
 --FILE--
 <?nvs
-// covers: Core\Time\DateTime::year, Core\Time\DateTime::month, Core\Time\DateTime::day, Core\Time\DateTime::hour, Core\Time\DateTime::minute, Core\Time\DateTime::second, Core\Time\DateTime::nanos, Core\Time\Date::year, Core\Time\Date::month, Core\Time\Date::day, Core\Time\Date::weekday, Core\Time\DateTime::at, Core\Time\TimeOfDay::hour, Core\Time\TimeOfDay::minute, Core\Time\TimeOfDay::second, Core\Time\TimeOfDay::nanos
+// covers: Core\Time\DateTime::year, Core\Time\DateTime::month, Core\Time\DateTime::day, Core\Time\DateTime::hour, Core\Time\DateTime::minute, Core\Time\DateTime::second, Core\Time\DateTime::nanoseconds, Core\Time\Date::year, Core\Time\Date::month, Core\Time\Date::day, Core\Time\Date::weekday, Core\Time\DateTime::at, Core\Time\TimeOfDay::hour, Core\Time\TimeOfDay::minute, Core\Time\TimeOfDay::second, Core\Time\TimeOfDay::nanoseconds
 // One nanosecond moves the value across every field boundary at once.
 // A reader that keeps an old field shows the old value.
 var $last = Core\Time\Instant::fromIso("2023-12-31T23:59:59.999999999Z");
@@ -14,13 +14,13 @@ foreach ($zoneIds as string $zoneId) {
     foreach ($both as Core\Time\DateTime $d) {
         echo $zoneId, " ", $d->year() as string, "-", $d->month() as string, "-", $d->day() as string,
             " ", $d->hour() as string, ":", $d->minute() as string, ":", $d->second() as string,
-            ".", $d->nanos() as string, "|\n";
+            ".", $d->nanoseconds() as string, "|\n";
         var $date = $d->date();
         echo "  date ", $date->year() as string, "-", $date->month() as string, "-", $date->day() as string,
             " weekday ", $date->weekday() as int as string, "|\n";
         var $time = $d->timeOfDay();
         echo "  time ", $time->hour() as string, ":", $time->minute() as string, ":", $time->second() as string,
-            ".", $time->nanos() as string, "|\n";
+            ".", $time->nanoseconds() as string, "|\n";
         // The start of the same day in the same zone is the same date at midnight.
         var $start = Core\Time\DateTime::at($date, Core\Time\TimeOfDay::at(0, 0), $zone);
         echo "  start ", $start->format("yyyy-MM-dd HH:mm:ss XXX"), "|\n";

@@ -39,8 +39,8 @@ try {
 
 // 3. The far ends of the float range in one array. A NaN is below every
 // number in this order, so the result is the NaN and no comparison fails.
-float $nan = Core\Math::fdiv(0.0, 0.0);
-float $inf = Core\Math::fdiv(1.0, 0.0);
+float $nan = Core\Math::divide(0.0, 0.0);
+float $inf = Core\Math::divide(1.0, 0.0);
 array<float> $edges = [1.5, $nan, $inf, 0.0 - $inf, -0.0, 0.0];
 echo Core\Arr::min($edges) ?? 0.0, "\n";
 

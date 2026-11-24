@@ -52,18 +52,18 @@
 
 use super::*;
 
-/// `Core\Db\Connection::stream`, as its own refusals spell it — see
+/// `Core\Db\Connection::queryEach`, as its own refusals spell it — see
 /// [`crate::db::open`]'s [`QUERY`] for why both spellings of a member's name
 /// travel together, and [`QUERY_AS`] for why a call through a
 /// `Core\Db\Transaction` names the connection's member here too.
-pub(super) const STREAM_MEMBER: &str = r"Core\Db\Connection::stream";
+pub(super) const STREAM_MEMBER: &str = r"Core\Db\Connection::queryEach";
 
-/// `Core\Db\Connection::streamAs`, as its own refusals spell it —
+/// `Core\Db\Connection::queryEachAs`, as its own refusals spell it —
 /// [`STREAM_MEMBER`]'s reason, and a second name because the two members are
 /// told apart by what a row becomes rather than by the walk under it. A refusal
 /// raised *between* two rows names that walk and so spells [`STREAM_MEMBER`]
 /// whichever member opened it.
-pub(super) const STREAM_AS_MEMBER: &str = r"Core\Db\Connection::streamAs";
+pub(super) const STREAM_AS_MEMBER: &str = r"Core\Db\Connection::queryEachAs";
 
 /// `Core\Db\Stream`'s class card — `rule:core-api/reference-card`.
 const STREAM_CARD: ClassDoc = ClassDoc {
@@ -71,17 +71,17 @@ const STREAM_CARD: ClassDoc = ClassDoc {
             runs. Use it for a result too big to keep in memory.",
 };
 
-/// The `Iterable<Db\Row>` and `Iterable<T>` that `stream` and `streamAs` return, as a
+/// The `Iterable<Db\Row>` and `Iterable<T>` that `queryEach` and `queryEachAs` return, as a
 /// class a return type can name.
 ///
 /// A named class because [`CoreTy::Iterated`] is parameter position only, which
 /// is `Core\IO\Lines`' reason for existing as well; [`crate::registry`]'s
 /// `ITERABLES` is where the element is declared — this class's own `T`, since
-/// `stream` and `streamAs` are one walk at two arguments — and
+/// `queryEach` and `queryEachAs` are one walk at two arguments — and
 /// [`crate::instance`]'s dispatch roster is what gives it the three names a
 /// `foreach` reaches.
 ///
-/// What `stream` answers with — its `Iterable<Db\Row>`, a name for the
+/// What `queryEach` answers with — its `Iterable<Db\Row>`, a name for the
 /// walk with no member on it exactly as `Core\IO\Lines` is. It is the second
 /// `Iterable` in `Core` that is its own iterator rather than a snapshot, and
 /// [`crate::db::stream`] says why: a row of a streamed result set does not
@@ -137,7 +137,7 @@ fn stream_row(value: Value, member: &str) -> Result<Value, Fault> {
 /// `Core\Request\BodyStream`'s reasoning: the loop is over, so keeping it would
 /// hold one row's columns for as long as the program held the walk.
 ///
-/// **A `streamAs<T>` builds its `T` here and parks that**, where
+/// **A `queryEachAs<T>` builds its `T` here and parks that**, where
 /// [`nvs_core_db_connection_query_as`] builds one per row handed out: a walk
 /// hands out every row it reads, so there is nothing a later construction could
 /// save, and parking the class rather than the columns is what keeps the
@@ -164,7 +164,7 @@ fn park_row(
                 unsafe_code,
                 reason = "the descriptor came out of a `ClassDescConst` the compiled \
                           unit owns, written into this receiver's own slot by \
-                          `nvs_core_db_connection_stream_as`, so it outlives this call"
+                          `nvs_core_db_connection_query_each_as`, so it outlives this call"
             )]
             // The columns are read and never kept — [`hydrate`] takes its own
             // reference to each value it holds on to — so the array this step
@@ -192,7 +192,7 @@ fn park_row(
 ///
 /// [`filed_connection`]'s `LogicError` for a connection `close` has released, [`statement_failure`]'s for anything the server refused mid-walk
 /// or a wire that failed under it, [`column_value`]'s for a column with no
-/// Novis representation, and — on a `streamAs<T>` walk — [`park_row`]'s
+/// Novis representation, and — on a `queryEachAs<T>` walk — [`park_row`]'s
 /// `ParseError` for a row that does not match `T`. A [`Fault::fatal`] for a
 /// receiver whose slots hold the wrong shape, or for a connection that is not
 /// the driver [`STREAM`] was built over — both this crate's paste errors.
@@ -209,14 +209,14 @@ fn stream_step(ctx: &mut nvs_runtime::Ctx, value: Value) -> Result<Value, Fault>
             ))
         })?;
     let block = crate::instance::slot(receiver, BLOCK_AT);
-    // The class a `streamAs<T>` wrote, or `None` for the walk that answers
+    // The class a `queryEachAs<T>` wrote, or `None` for the walk that answers
     // `Core\Db\Row`s — read here rather than at the park below because the
     // borrow the driver arms take is the receiver's connection and this is the
     // receiver's own slot.
     let class = crate::instance::slot(receiver, STREAM_CLASS_AT).as_class_desc();
     // Read before the connection is borrowed, for [`QueryWatch`]'s reason: the
     // arm below holds the thing the span is filed on. The call site id is the
-    // one the `stream` call passed, which the walk keeps in its own slot.
+    // one the `queryEach` call passed, which the walk keeps in its own slot.
     let watch = QueryWatch::of(ctx, &block).at(crate::instance::slot(receiver, STREAM_SITE_AT));
     // The keys an earlier step made, or `None` before the first row.
     let mut keys = RowKeys::of_list(crate::instance::slot(receiver, STREAM_KEYS_AT));
@@ -486,7 +486,7 @@ fn sqlite_step(
 }
 
 /// Opens the walk on either of the two drivers [`Framed`] covers, for
-/// [`nvs_core_db_connection_stream`]'s arms.
+/// [`nvs_core_db_connection_query_each`]'s arms.
 ///
 /// [`mysql_step`]'s reason for existing, at the other end of the walk.
 ///
@@ -518,11 +518,11 @@ fn stream_over(
 
 /// Opens the walk both streaming members are: the portal left parked
 /// on the connection, and a [`STREAM`] over it carrying `class` — a descriptor
-/// for `streamAs<T>`, `null` for `stream`.
+/// for `queryEachAs<T>`, `null` for `queryEach`.
 ///
 /// A function over the two rather than two bodies, for [`queried_rows`]'
-/// reason: `rule:core-classes/db-statement-members` gives `stream` and
-/// `streamAs` one statement, one binding rule
+/// reason: `rule:core-classes/db-statement-members` gives `queryEach` and
+/// `queryEachAs` one statement, one binding rule
 /// and one deadline, so the only thing that can differ between them is what a
 /// row becomes, and that is one slot.
 ///
@@ -640,7 +640,7 @@ fn open_stream(
     // an otherwise-`null` value — so the slot takes it as it is, exactly as
     // [`nvs_core_db_connection_query_as`]'s does.
     // `args[4]` is the call site id `crate::registry::QUERY_SITE_MEMBERS` puts
-    // last, for both members, since `streamAs` hands over the slice past its
+    // last, for both members, since `queryEachAs` hands over the slice past its
     // three leading constants. An integer, so it carries no reference either.
     Ok(crate::instance::build(
         &STREAM,
@@ -656,7 +656,7 @@ fn open_stream(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$c->stream(string $sql, array<mixed> $params): Iterable<Db\Row>` —
+    /// `$c->queryEach(string $sql, array<mixed> $params): Iterable<Db\Row>` —
     /// `rule:core-classes/db-streaming`'s constant-memory read, and the one member that holds the
     /// connection until the walk is drained.
     ///
@@ -677,13 +677,13 @@ nvs_runtime::nvs_helper! {
     /// # Errors
     ///
     /// [`open_stream`]'s, which are this member's whole refusal set.
-    fn nvs_core_db_connection_stream(ctx, args: [5]) {
-        open_stream(ctx, args, "stream", STREAM_MEMBER, Value::null())
+    fn nvs_core_db_connection_query_each(ctx, args: [5]) {
+        open_stream(ctx, args, "queryEach", STREAM_MEMBER, Value::null())
     }
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$c->streamAs<T>(string $sql, array<mixed> $params): Iterable<T>` — the
+    /// `$c->queryEachAs<T>(string $sql, array<mixed> $params): Iterable<T>` — the
     /// walk above at the class its call site wrote, which is `queryAs`'s
     /// hydration over the one member that does not buffer.
     ///
@@ -692,7 +692,7 @@ nvs_runtime::nvs_helper! {
     /// [`nvs_core_db_connection_query_as`] owns that ABI, and this is the
     /// second instance member on
     /// [`crate::registry::WRITTEN_CLASS_MEMBERS`]. So the arity is three more
-    /// than `stream`'s, which is otherwise the same call.
+    /// than `queryEach`'s, which is otherwise the same call.
     ///
     /// **Nothing about the statement differs**, down to the deadline and the
     /// parked portal: [`open_stream`] is the whole of it, and the descriptor
@@ -708,7 +708,7 @@ nvs_runtime::nvs_helper! {
     /// [`open_stream`]'s, and a `LogicError` for an `array<...>` type argument.
     /// Per row, [`park_row`]'s `ParseError` for a row that does not match `T`
     /// and its `LogicError` for a `T` carrying no mapping at all.
-    fn nvs_core_db_connection_stream_as(ctx, args: [8]) {
+    fn nvs_core_db_connection_query_each_as(ctx, args: [8]) {
         // Unreachable from source, exactly as
         // [`nvs_core_db_connection_query_as`]'s reading of the same two slots
         // is: `nvs_ir::lower` writes the descriptor and the flag out of the
@@ -730,12 +730,12 @@ nvs_runtime::nvs_helper! {
                 ThrownClass::Logic,
                 format!(
                     "{STREAM_AS_MEMBER}: `array<...>` is not a type argument this member takes \
-                     — a walk answers one row at a time, so write `streamAs<Person>(…)` and \
+                     — a walk answers one row at a time, so write `queryEachAs<Person>(…)` and \
                      collect the rows yourself if a list is what you want"
                 ),
             ));
         }
-        open_stream(ctx, &args[3..], "streamAs", STREAM_AS_MEMBER, args[0])
+        open_stream(ctx, &args[3..], "queryEachAs", STREAM_AS_MEMBER, args[0])
     }
 }
 
@@ -825,14 +825,14 @@ mod tests {
     /// ends and this crate begins: a socket is what no `-p nvs-stdlib` test
     /// has, and `nvs_db::PgConn::stream_next_row` is where the other half of
     /// the member is pinned.
-    // covers: Core\Db\Connection::stream
+    // covers: Core\Db\Connection::queryEach
     #[test]
     fn stream_answers_rows_without_holding_the_result_set() {
         // Under Miri a hundred rows, because a thousand take minutes there.
         const ROWS: u64 = if cfg!(miri) { 100 } else { 1_000 };
 
-        // The fourth slot is the class a `streamAs<T>` would have written, and
-        // this walk is `stream`'s: the rows stay `Db\Row`s, which is what makes
+        // The fourth slot is the class a `queryEachAs<T>` would have written, and
+        // this walk is `queryEach`'s: the rows stay `Db\Row`s, which is what makes
         // the count below one about the parking and not about a constructor.
         // The fifth is the call site id, and 0 names no site. The sixth is
         // the keys, which only a driver step writes.

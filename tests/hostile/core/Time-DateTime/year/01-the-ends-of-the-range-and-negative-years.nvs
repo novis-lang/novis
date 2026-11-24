@@ -51,7 +51,7 @@ Expect::same('step 3', $changes as string, '800');
 // The result must be the same moment.
 array<int> $leapYears = [-9996, -400, -4, 0, 4];
 foreach ($leapYears as int $leap) {
-    var $d = Core\Time\DateTime::at(Core\Time\Date::at($leap, 2, 29), Core\Time\TimeOfDay::at(23, 0, { nanos: 999999999 }), 'Europe/Paris');
+    var $d = Core\Time\DateTime::at(Core\Time\Date::at($leap, 2, 29), Core\Time\TimeOfDay::at(23, 0, { nanoseconds: 999999999 }), 'Europe/Paris');
     var $same = $d->with({ year: $d->year() });
     Expect::same('step 4', $same->toInstant()->compareTo($d->toInstant()) as string, '0');
 }

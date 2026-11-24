@@ -13,7 +13,7 @@ use Core\Db\Transaction;
 var $db = Db::connect("main");
 $db->execute("create table t (id integer primary key, name text not null)", []);
 
-$db->transaction(fn (Transaction $tx): void => {
+$db->runTransaction(fn (Transaction $tx): void => {
     var $write = $tx->execute("insert into t (name) values (?)", ["ada"]);
     uint $affected = $write->affected();
     ?uint $lastId = $write->lastId();
@@ -30,7 +30,7 @@ $db->transaction(fn (Transaction $tx): void => {
 // that committed each write on its own would print the same first line and
 // fail here.
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->runTransaction(fn (Transaction $tx): void => {
         $tx->execute("insert into t (name) values (?)", ["grace"]);
         echo "before the rollback ", $tx->query("select id from t", [])->count(), "\n";
         $tx->rollBack("keep nothing");

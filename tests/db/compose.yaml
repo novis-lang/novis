@@ -374,7 +374,7 @@ services:
   # The same script sets Samba's restart back-off for a crashed LDAP worker to one second. Some LDAP
   # attacks under `tests/hostile/` crash a worker with signal 11. Samba's default waits 10 s more after
   # each crash, up to 120 s, so once every worker is down the next proof's call waits past its
-  # deadline. It ended a `changes` attack in a `Timeout` on every run. Each line has its own guard, so a
+  # deadline. It ended a `searchChanges` attack in a `Timeout` on every run. Each line has its own guard, so a
   # container that already has the TLS lines gains these on its next restart.
   #
   # The second script, `20-novis-seed`, writes one fixed directory into the provisioned domain, so a

@@ -9,5 +9,5 @@ echo Core\BigInt::of(42)->sign(), "\n";
 
 // A number far larger than an `int` holds has a sign like any other. This
 // prints 1 and -1.
-echo Core\BigInt::of(1)->shl(200)->sign(), "\n";
-echo Core\BigInt::of(-1)->shl(200)->sign(), "\n";
+echo Core\BigInt::of(1)->shiftedLeft(200)->sign(), "\n";
+echo Core\BigInt::of(-1)->shiftedLeft(200)->sign(), "\n";

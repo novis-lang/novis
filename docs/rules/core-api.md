@@ -891,7 +891,7 @@ operations only, and element access stays in the language:
 | combine two arrays | `Arr::overlay` / `underlay` / `appendAll` | `$a + $b` does not compile ([`types/array-combination`](types.md#types-array-combination)) |
 
 The same division holds elsewhere: `**` is exponentiation, so there is no `Math::pow`; `%` is integer
-modulo, so `Math::mod` exists only for `float`; `is` is an operator, so `Core\Reflect` has no `isA`.
+modulo, so `Math::remainder` exists only for `float`; `is` is an operator, so `Core\Reflect` has no `isA`.
 
 <sub>See also [`core-api/no-methods-on-scalars-or-arrays`](core-api.md#core-api-no-methods-on-scalars-or-arrays), [`core-api/no-mutable-immutable-twins`](core-api.md#core-api-no-mutable-immutable-twins), [`core-api/each-door-takes-a-different-thing`](core-api.md#core-api-each-door-takes-a-different-thing), [`classes/no-call-magic`](classes.md#classes-no-call-magic), [`expressions/pipeline-substitution`](expressions.md#expressions-pipeline-substitution).</sub>
 
@@ -1707,7 +1707,7 @@ option naming which parameters are signed, because that option is where every fr
 The fragment is never signed, since it is not sent to the server.
 
 **There are three doors onto the one construction.** `Core\Signature` signs and verifies a payload map;
-`$uri->sign`/`$uri->verifySignature` sign the form `$uri->compareTo` normalizes, reserving the `_sig`
+`$uri->signed`/`$uri->verifySignature` sign the form `$uri->compareTo` normalizes, reserving the `_sig`
 query parameter for the token; and `Core\Router`'s pair signs a route's path pattern and parameters, so a
 signature survives a remount ([`core-classes/router-signed-url`](core-classes.md#core-classes-router-signed-url)). Signing a URI that already carries
 `_sig` replaces it rather than nesting, `_sig` is left out of its own input, and a URL carrying two of

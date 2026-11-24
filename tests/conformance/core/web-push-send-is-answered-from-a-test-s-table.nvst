@@ -1,10 +1,10 @@
 --TEST--
-`Core\WebPush::send` is answered from a test's table once `Core\Test::answerHttp` registers a row, records the encrypted `POST` it would have sent, and its `WebPush\Sent` reads the row's status, with `gone()` true for a `404` and a `410` — `rule:core-classes/web-push-sends-an-encrypted-message`, `rule:testing/an-outbound-call-is-answered-from-a-table`
+`Core\WebPush::send` is answered from a test's table once `Core\Test::answerHttp` registers a row, records the encrypted `POST` it would have sent, and its `WebPush\Sent` reads the row's status, with `isGone()` true for a `404` and a `410` — `rule:core-classes/web-push-sends-an-encrypted-message`, `rule:testing/an-outbound-call-is-answered-from-a-table`
 --FILE--
 <?nvs
 // covers: Core\WebPush::send
 // covers: Core\WebPush\Sent::status
-// covers: Core\WebPush\Sent::gone
+// covers: Core\WebPush\Sent::isGone
 // Each endpoint is answered from the table, so nothing connects.
 Core\Test::answerHttp("https://push.example.com/ok/*", 201, {});
 Core\Test::answerHttp("https://push.example.com/missing/*", 404, {});
@@ -20,7 +20,7 @@ foreach ($paths as string $path) {
         . "\"auth\":\"BTBZMqHH6r4Tts7J_aSIgg\"}}";
     Core\WebPush\Subscription $to = Core\WebPush::subscription($json);
     Core\WebPush\Sent $sent = Core\WebPush::send($to, $payload, $vapid, "mailto:admin@example.com", 60);
-    echo $path, " ", $sent->status(), " gone ", $sent->gone() ? "yes" : "no", "\n";
+    echo $path, " ", $sent->status(), " gone ", $sent->isGone() ? "yes" : "no", "\n";
 }
 
 // Each message is encrypted and carries a signed VAPID token.

@@ -1,5 +1,5 @@
 --TEST--
-`rule:types/arithmetic`: `Core\Decimal::divExact` throws where the quotient repeats, and names the division it could not answer
+`rule:types/arithmetic`: `Core\Decimal::divideExact` throws where the quotient repeats, and names the division it could not answer
 --FILE--
 <?nvs
 // The refusal is the whole point of the member. The operator answers here --
@@ -8,7 +8,7 @@
 // anything.
 echo 1.00 as decimal / 3, "\n";
 try {
-    echo Core\Decimal::divExact(1.00, 3);
+    echo Core\Decimal::divideExact(1.00, 3);
 } catch (ArithmeticError $repeats) {
     echo $repeats->message, "\n";
 }
@@ -16,17 +16,17 @@ try {
 // One seventh is the other classic, and a third of a penny the money one.
 int $refusals = 0;
 try {
-    echo Core\Decimal::divExact(1.00, 7);
+    echo Core\Decimal::divideExact(1.00, 7);
 } catch (ArithmeticError $seventh) {
     $refusals = $refusals + 1;
 }
 try {
-    echo Core\Decimal::divExact(0.01, 3);
+    echo Core\Decimal::divideExact(0.01, 3);
 } catch (ArithmeticError $penny) {
     $refusals = $refusals + 1;
 }
 echo "refusals: ", $refusals, "\n";
 --EXPECT--
 0.3333333333333333333333333333
-Core\Decimal::divExact cannot answer 1.00 / 3 exactly: the quotient repeats or is wider than a `decimal` holds
+Core\Decimal::divideExact cannot answer 1.00 / 3 exactly: the quotient repeats or is wider than a `decimal` holds
 refusals: 2

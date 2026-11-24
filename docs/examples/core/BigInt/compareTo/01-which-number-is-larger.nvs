@@ -15,4 +15,4 @@ echo $smaller->compareTo(Core\BigInt::parse('99999999999999999999')), "\n";
 
 // A negative number is the smaller one however many digits it has. This
 // prints -1.
-echo $larger->neg()->compareTo(Core\BigInt::of(0)), "\n";
+echo $larger->negated()->compareTo(Core\BigInt::of(0)), "\n";

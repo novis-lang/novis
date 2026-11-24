@@ -33,7 +33,7 @@ final class Package
         if (Core\Arr::count($this->published) == 0) {
             return 0;
         }
-        return Core\Math::intDiv($now - $this->published[0], 86400);
+        return Core\Math::quotient($now - $this->published[0], 86400);
     }
 
     // Returns the number of different months with at least one publish.

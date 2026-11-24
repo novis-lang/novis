@@ -10,11 +10,11 @@ echo $largest->toDecimal(), "\n";
 // The next number up does not. `toDecimal` throws an `ArithmeticError`, and
 // the message names the method and the number it refused.
 try {
-    echo $largest->add(Core\BigInt::of(1))->toDecimal(), "\n";
+    echo $largest->plus(Core\BigInt::of(1))->toDecimal(), "\n";
 } catch (ArithmeticError $tooWide) {
     echo $tooWide->message, "\n";
 }
 
 // The `Core\BigInt` itself is unchanged and has no size limit, so `toString`
 // still prints every digit of a number `toDecimal` refuses.
-echo $largest->mul(Core\BigInt::of(1000))->toString(), "\n";
+echo $largest->multipliedBy(Core\BigInt::of(1000))->toString(), "\n";

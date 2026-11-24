@@ -1,5 +1,5 @@
 --TEST--
-`Changes::cookie()` stays the cookie `changes` was given until every entry of the server's answer is read, so a loop that stops early does not skip entries, and it is a new cookie after the loop ends
+`Changes::cookie()` stays the cookie `searchChanges` was given until every entry of the server's answer is read, so a loop that stops early does not skip entries, and it is a new cookie after the loop ends
 --SKIPIF--
 <?nvs
 // The case needs the `samba-ad` server from `tests/db/compose.yaml`. Where it
@@ -19,14 +19,14 @@ var $corp = Core\Ldap::connect("corp");
 var $units = Core\Ldap\Filter::equals("objectClass", "organizationalUnit");
 
 // Without a cookie, the result has every OU, and the cookie starts empty.
-var $early = $corp->changes($units, {select: ["ou"]});
+var $early = $corp->searchChanges($units, {select: ["ou"]});
 echo "before the loop: ", Core\Bytes::length($early->cookie()), " bytes\n";
 foreach ($early as Core\Ldap\Entry $entry) {
     break;
 }
 echo "after one entry: ", Core\Bytes::length($early->cookie()), " bytes\n";
 
-var $whole = $corp->changes($units, {select: ["ou"]});
+var $whole = $corp->searchChanges($units, {select: ["ou"]});
 foreach ($whole as Core\Ldap\Entry $entry) {
 }
 echo "after the loop: ", Core\Bytes::length($whole->cookie()) > 0 ? "a new cookie" : "empty", "\n";

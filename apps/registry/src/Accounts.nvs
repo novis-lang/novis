@@ -49,7 +49,7 @@ final class Accounts
         for (int $i = 0; $i < Accounts::RECOVERY_CODES; $i++) {
             $codes[] = Accounts::newCode();
         }
-        $this->db->transaction(fn(): void => {
+        $this->db->runTransaction(fn(): void => {
             $this->db->execute('insert into accounts (id, created_at, active_at) values (?, ?, ?)', [$account, $now, $now]);
             $this->addPasskey($account, $passkey);
             foreach ($codes as string $code) {

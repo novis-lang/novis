@@ -29,13 +29,13 @@ foreach ($dns as string $dn) {
     echo "  bits ", $type->bits(), "\n";
     echo "  account type ", $kind == Core\Ldap\Entry::AccountType::Group ? "Group" : ($kind == Core\Ldap\Entry::AccountType::Alias ? "Alias" : "other"), "\n";
     echo "  account flags ", $group->accountFlags() == null ? "null" : "not null", "\n";
-    echo "  system ", $type->system() ? "yes" : "no", "\n";
-    echo "  global ", $type->global() ? "yes" : "no", "\n";
-    echo "  domainLocal ", $type->domainLocal() ? "yes" : "no", "\n";
-    echo "  universal ", $type->universal() ? "yes" : "no", "\n";
-    echo "  appBasic ", $type->appBasic() ? "yes" : "no", "\n";
-    echo "  appQuery ", $type->appQuery() ? "yes" : "no", "\n";
-    echo "  security ", $type->security() ? "yes" : "no", "\n";
+    echo "  system ", $type->isSystemGroup() ? "yes" : "no", "\n";
+    echo "  global ", $type->isGlobal() ? "yes" : "no", "\n";
+    echo "  domainLocal ", $type->isDomainLocal() ? "yes" : "no", "\n";
+    echo "  universal ", $type->isUniversal() ? "yes" : "no", "\n";
+    echo "  appBasic ", $type->isAppBasicGroup() ? "yes" : "no", "\n";
+    echo "  appQuery ", $type->isAppQueryGroup() ? "yes" : "no", "\n";
+    echo "  security ", $type->isSecurityGroup() ? "yes" : "no", "\n";
 }
 --COPY--
 ../../db/ca.crt

@@ -19,7 +19,7 @@ class Rate {
     }
 
     public static function of(int $amount, int $rate = 20): int {
-        return Core\Math::intDiv($amount * $rate, 100);
+        return Core\Math::quotient($amount * $rate, 100);
     }
 
     public function own(int $amount, int $rate = 20): int {

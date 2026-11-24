@@ -12,4 +12,4 @@ echo $meeting, "\n";
 
 // Both periods divide that moment exactly, so the remainder is 0 for each of
 // them. This prints 0 0.
-echo $meeting->mod($firstJob), ' ', $meeting->mod($secondJob), "\n";
+echo $meeting->remainder($firstJob), ' ', $meeting->remainder($secondJob), "\n";

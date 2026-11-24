@@ -38,7 +38,7 @@ final class Totals
     // Adds one report to both tables. Both tables change, or neither does.
     public function add(Report $report): void
     {
-        $this->db->transaction(fn(Transaction $tx): void => {
+        $this->db->runTransaction(fn(Transaction $tx): void => {
             // `active_1` to `active_7` count the reports by their `days_active`. This report adds 1 to one of them.
             array<mixed> $row = [$report->week, $report->version, $report->os, $report->arch, $report->first ? 1 : 0];
             foreach (Core\Arr::range(1, 7) as int $day) {

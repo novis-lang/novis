@@ -25,8 +25,8 @@ class Ask {
         array<mixed> $two = Core\Arr::slice($pair, 1, 1);
         var $c = Core\Arr::contains($one, $pair["1"]);
         var $u = Core\Arr::count(Core\Arr::unique($pair)) as int;
-        var $d = Core\Arr::count(Core\Arr::diff($one, $two)) as int;
-        var $i = Core\Arr::count(Core\Arr::intersect($one, $two)) as int;
+        var $d = Core\Arr::count(Core\Arr::difference($one, $two)) as int;
+        var $i = Core\Arr::count(Core\Arr::intersection($one, $two)) as int;
         if ($c) {
             if ($u == 1 && $d == 0 && $i == 1) {
                 return 1;

@@ -1,5 +1,5 @@
 --TEST--
-`Core\Time\Instant`'s three epoch readings are one number at three resolutions, each rounded down — so below the epoch the coarser reading is the earlier one, and every seconds reading covers exactly one second — and `Core\Time\Instant::fromEpoch` bounds its seconds against the representable range and its `nanos` below one second, both sides of both bounds named
+`Core\Time\Instant`'s three epoch readings are one number at three resolutions, each rounded down — so below the epoch the coarser reading is the earlier one, and every seconds reading covers exactly one second — and `Core\Time\Instant::fromEpoch` bounds its seconds against the representable range and its `nanoseconds` below one second, both sides of both bounds named
 --FILE--
 <?nvs
 // covers: Core\Time\Instant::toEpochSeconds, Core\Time\Instant::toEpochMillis, Core\Time\Instant::toEpochMicros
@@ -36,7 +36,7 @@ int $microsAgree = 0;
 int $wholeAgree = 0;
 for (; $row < 10; $row = $row + 1) {
     string $index = $row as string;
-    var $instant = Core\Time\Instant::fromEpoch($secondsIn[$index], {nanos: $nanosIn[$index] as uint});
+    var $instant = Core\Time\Instant::fromEpoch($secondsIn[$index], {nanoseconds: $nanosIn[$index] as uint});
     int $seconds = $instant->toEpochSeconds();
     int $millis = $instant->toEpochMillis();
     int $micros = $instant->toEpochMicros();
@@ -64,7 +64,7 @@ string $reading = "";
 int $zeros = 0;
 for (; $step < 7; $step = $step + 1) {
     string $slot = $step as string;
-    var $point = Core\Time\Instant::fromEpoch($walkSeconds[$slot], {nanos: $walkNanos[$slot] as uint});
+    var $point = Core\Time\Instant::fromEpoch($walkSeconds[$slot], {nanoseconds: $walkNanos[$slot] as uint});
     int $whole = $point->toEpochSeconds();
     string $label = $whole as string;
     $reading = $reading . $label . " ";
@@ -75,15 +75,15 @@ for (; $step < 7; $step = $step + 1) {
 echo "walk=", $reading, "|\n";
 echo "zeros=", $zeros as string, "|\n";
 // And the ISO rendering, which keeps the fraction, tells -0.5 and 0.5 apart.
-echo "iso=", Core\Time\Instant::fromEpoch(-1, {nanos: 500000000})->toIso(),
-    " ", Core\Time\Instant::fromEpoch(0, {nanos: 500000000})->toIso(), "|\n";
+echo "iso=", Core\Time\Instant::fromEpoch(-1, {nanoseconds: 500000000})->toIso(),
+    " ", Core\Time\Instant::fromEpoch(0, {nanoseconds: 500000000})->toIso(), "|\n";
 
-// Both bounds, on both sides. `nanos` is a subsecond count, so the last value
+// Both bounds, on both sides. `nanoseconds` is a subsecond count, so the last value
 // it takes is one below a second; a negative one never reaches the member at
 // all, because the option is `uint` and that is `E0401` in the checker.
-echo "nanos-last=", Core\Time\Instant::fromEpoch(0, {nanos: 999999999})->toIso(), "|\n";
+echo "nanos-last=", Core\Time\Instant::fromEpoch(0, {nanoseconds: 999999999})->toIso(), "|\n";
 try {
-    Core\Time\Instant::fromEpoch(0, {nanos: 1000000000});
+    Core\Time\Instant::fromEpoch(0, {nanoseconds: 1000000000});
     echo "nanos-past-accepted|\n";
 } catch (RuntimeError $refused) {
     echo "nanos-past=", $refused->message, "|\n";
@@ -116,6 +116,6 @@ walk=-2 -2 -1 -1 0 0 1 |
 zeros=2|
 iso=1969-12-31T23:59:59.5Z 1970-01-01T00:00:00.5Z|
 nanos-last=1970-01-01T00:00:00.999999999Z|
-nanos-past=Core\Time\Instant::fromEpoch(): `nanos` is a subsecond count, so it is below 1000000000|
+nanos-past=Core\Time\Instant::fromEpoch(): `nanoseconds` is a subsecond count, so it is below 1000000000|
 seconds-top=9999-12-30T22:00:00Z seconds-bottom=-9999-01-02T01:59:59Z|
 seconds-past=2|

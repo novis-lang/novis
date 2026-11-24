@@ -8,8 +8,8 @@ array<secret bytes> $ring = [$key];
 // The reserved parameter excludes itself from its own input, so a link can be
 // signed again — after a key rotation, say — without one token ending up
 // nested inside the next one's payload.
-Core\Uri $once = Core\Uri::parse("https://example.com/a?id=7")->sign({keys: $ring, until: null});
-Core\Uri $twice = $once->sign({keys: $ring, until: null});
+Core\Uri $once = Core\Uri::parse("https://example.com/a?id=7")->signed({keys: $ring, until: null});
+Core\Uri $twice = $once->signed({keys: $ring, until: null});
 echo $once->queryParameter("_sig") == $twice->queryParameter("_sig")
     ? "signing twice signs the same URL"
     : "the token was nested inside the second payload", "\n";

@@ -11,7 +11,7 @@ var $rows = $db->query("select id, owner from accounts", []);
 foreach ($rows->columns() as Core\Db\Column $column) {
     string $name = $column->name();
     Core\Db\Column::Type $type = $column->type();
-    bool $nullable = $column->nullable();
+    bool $nullable = $column->isNullable();
 }
 
 foreach ($rows->all() as Core\Db\Row $row) {

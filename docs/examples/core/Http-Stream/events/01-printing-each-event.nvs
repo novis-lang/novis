@@ -8,7 +8,7 @@ Core\Test::answerHttp('https://prices.example.com/live', 200, {
     headers: ['content-type' => 'text/event-stream'],
 });
 
-Core\Http\Stream $prices = Core\Http\Client::stream(Core\Http\Method::Get, 'https://prices.example.com/live');
+Core\Http\Stream $prices = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://prices.example.com/live');
 // This prints three lines, one for each event.
 foreach ($prices->events() as Core\Http\Event $event) {
     echo $event->data(), "\n";

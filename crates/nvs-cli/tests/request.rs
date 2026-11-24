@@ -730,7 +730,7 @@ const QUERIES: &str = "<?nvs
 var $db = Core\\Db::open({ driver: Core\\Db\\Driver::Sqlite, path: ':memory:' });
 $db->execute('create table t (id integer primary key)', []);
 $db->execute('create table t2 (id integer primary key)', []);
-foreach ($db->stream('select 1 as id', []) as Core\\Db\\Row $row) {
+foreach ($db->queryEach('select 1 as id', []) as Core\\Db\\Row $row) {
     echo $row->int('id') ?? 0;
 }
 echo $db->query('select 2 as id', [])->first()?->int('id') ?? 0;

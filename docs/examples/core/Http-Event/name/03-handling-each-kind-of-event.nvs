@@ -9,7 +9,7 @@ Core\Test::answerHttp('https://ci.example.com/builds/88/events', 200, {
     headers: ['content-type' => 'text/event-stream'],
 });
 
-Core\Http\Stream $build = Core\Http\Client::stream(Core\Http\Method::Get, 'https://ci.example.com/builds/88/events');
+Core\Http\Stream $build = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://ci.example.com/builds/88/events');
 int $steps = 0;
 foreach ($build->events() as Core\Http\Event $event) {
     ?tainted string $kind = $event->name();

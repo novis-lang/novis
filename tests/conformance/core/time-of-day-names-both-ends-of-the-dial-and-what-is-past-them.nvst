@@ -28,7 +28,7 @@ class Clock {
 // there is no third spelling of either, because `at` writes all four fields
 // and `jiff` has already refused every combination that is not a time.
 Core\Time\TimeOfDay $first = Core\Time\TimeOfDay::at(0, 0);
-Core\Time\TimeOfDay $last = Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999});
+Core\Time\TimeOfDay $last = Core\Time\TimeOfDay::at(23, 59, {second: 59, nanoseconds: 999999999});
 echo "ends=", Clock::render($first), " ", Clock::render($last), "|\n";
 // Named in absolute terms as well as by rendering: the dial is exactly one day
 // of nanoseconds long, so its last reading is one short of 86,400,000,000,000.
@@ -60,7 +60,7 @@ for (; $h < 5; $h = $h + 1) {
                 var $reading = Core\Time\TimeOfDay::at(
                     $hours[$h as string],
                     $minutes[$m as string],
-                    {second: $seconds[$s as string], nanos: $nanoses[$n as string]},
+                    {second: $seconds[$s as string], nanoseconds: $nanoses[$n as string]},
                 );
                 $rows = $rows + 1;
                 if ($first->compareTo($reading) <= 0) {
@@ -178,11 +178,11 @@ echo "top-step-forward-is-smaller=", $forwardWentBack as string,
 // rather than a value silently taken modulo anything.
 //
 // The bottom end has no runtime side to assert: `at`'s parameters are `uint`,
-// so `at(-1, 0)` and a `{nanos: -1}` are `E0401: expected `uint`, found `int``
+// so `at(-1, 0)` and a `{nanoseconds: -1}` are `E0401: expected `uint`, found `int``
 // in the checker and never reach the member. That is the refusal, and a case
 // that must fail to compile is a different file — this one records where the
 // boundary is enforced rather than pretending it is here.
-echo "at-accepts=", Clock::render(Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999})),
+echo "at-accepts=", Clock::render(Core\Time\TimeOfDay::at(23, 59, {second: 59, nanoseconds: 999999999})),
     " ", Clock::render(Core\Time\TimeOfDay::at(0, 0)), "|\n";
 try {
     Core\Time\TimeOfDay::at(24, 0);
@@ -190,7 +190,7 @@ try {
     echo "at-refuses-hour-24=", $hour->message, "|\n";
 }
 try {
-    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 1000000000});
+    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanoseconds: 1000000000});
 } catch (RuntimeError $nanos) {
     echo "at-refuses-one-nanosecond-past=", $nanos->message, "|\n";
 }

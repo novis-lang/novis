@@ -11,5 +11,5 @@ foreach ($counts as string $count) {
     $root = $value->sqrt();
     // A number is a perfect square when its root multiplied by itself gives
     // that number back. This prints "square" and then "not square".
-    echo $root->mul($root)->compareTo($value) == 0 ? "square\n" : "not square\n";
+    echo $root->multipliedBy($root)->compareTo($value) == 0 ? "square\n" : "not square\n";
 }

@@ -1,14 +1,14 @@
-`$db->transaction($fn, {isolation?, readOnly?, retries?})` is the only transaction spelling. The
+`$db->runTransaction($fn, {isolation?, readOnly?, retries?})` is the only transaction spelling. The
 callable form is forced: with no destructors, an object-scoped transaction has no point at which to
 roll back. A normal return commits, a throw rolls back and propagates, and a failed commit throws
 `DbError`.
 
-`Core\Db\Queryable` declares `query`, `queryAs`, `execute`, `executeMany`, `stream` and
-`transaction`. `Connection` implements it and `Transaction implements Queryable by $connection`, so
+`Core\Db\Queryable` declares `query`, `queryAs`, `execute`, `executeMany`, `queryEach` and
+`runTransaction`. `Connection` implements it and `Transaction implements Queryable by $connection`, so
 the query surface is declared once and forwarded while the type system still expresses "this function
 must run inside a transaction" and "this one does not care".
 
-Two hazards a passable `Transaction` opens are closed explicitly. Using one after its `transaction()`
+Two hazards a passable `Transaction` opens are closed explicitly. Using one after its `runTransaction()`
 call returned throws. `$tx->rollBack($reason)` sets a rollback-only **flag** *and* throws
 `Core\Db\RolledBack`, so an intervening `catch (Throwable)` cannot leave the transaction committed —
 the owning frame acts on the flag, not on catching the signal.
@@ -21,7 +21,7 @@ waits with exponential backoff and jitter by suspending the task, never by block
 `Isolation` is `ReadUncommitted`, `ReadCommitted`, `RepeatableRead`, `Snapshot` and `Serializable`,
 and a level the driver lacks throws. `Transaction` is the first `Core` type to use `by` delegation.
 
-DDL inside `transaction()` is already committed on MySQL and MariaDB, so a later throw rolls back
+DDL inside `runTransaction()` is already committed on MySQL and MariaDB, so a later throw rolls back
 nothing there; PostgreSQL is transactional for DDL. No API shape prevents this.
 
 **Declined:**

@@ -697,13 +697,13 @@ entry = "benches/members/core/Db-Column/type.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "tests/hostile/core/Db-Column/nullable/01-descriptions-written-to-force-a-guess.nvs"
+entry = "tests/hostile/core/Db-Column/isNullable/01-descriptions-written-to-force-a-guess.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
 
 [[app]]
-entry = "benches/members/core/Db-Column/nullable.nvs"
+entry = "benches/members/core/Db-Column/isNullable.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -839,37 +839,37 @@ entry = "benches/members/core/Db-Connection/serverVersion.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "tests/hostile/core/Db-Connection/stream/01-walks-that-are-never-finished-and-a-result-with-no-end.nvs"
+entry = "tests/hostile/core/Db-Connection/queryEach/01-walks-that-are-never-finished-and-a-result-with-no-end.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
 
 [[app]]
-entry = "benches/members/core/Db-Connection/stream.nvs"
+entry = "benches/members/core/Db-Connection/queryEach.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
 
 [[app]]
-entry = "tests/hostile/core/Db-Connection/streamAs/01-ten-thousand-walks-and-a-row-that-does-not-fit.nvs"
+entry = "tests/hostile/core/Db-Connection/queryEachAs/01-ten-thousand-walks-and-a-row-that-does-not-fit.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
 
 [[app]]
-entry = "benches/members/core/Db-Connection/streamAs.nvs"
+entry = "benches/members/core/Db-Connection/queryEachAs.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
 
 [[app]]
-entry = "tests/hostile/core/Db-Connection/transaction/01-nested-until-the-stack-runs-out-and-abandoned-again-and-again.nvs"
+entry = "tests/hostile/core/Db-Connection/runTransaction/01-nested-until-the-stack-runs-out-and-abandoned-again-and-again.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
 
 [[app]]
-entry = "benches/members/core/Db-Connection/transaction.nvs"
+entry = "benches/members/core/Db-Connection/runTransaction.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1276,25 +1276,25 @@ entry = "benches/members/core/Db-Transaction/queryAs.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "tests/hostile/core/Db-Transaction/stream/01-a-walk-after-the-work-is-over-and-walks-that-are-never-finished.nvs"
+entry = "tests/hostile/core/Db-Transaction/queryEach/01-a-walk-after-the-work-is-over-and-walks-that-are-never-finished.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
 
 [[app]]
-entry = "benches/members/core/Db-Transaction/stream.nvs"
+entry = "benches/members/core/Db-Transaction/queryEach.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
 
 [[app]]
-entry = "tests/hostile/core/Db-Transaction/streamAs/01-ten-thousand-typed-walks-and-a-walk-nobody-finishes.nvs"
+entry = "tests/hostile/core/Db-Transaction/queryEachAs/01-ten-thousand-typed-walks-and-a-walk-nobody-finishes.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
 
 [[app]]
-entry = "benches/members/core/Db-Transaction/streamAs.nvs"
+entry = "benches/members/core/Db-Transaction/queryEachAs.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1312,13 +1312,13 @@ entry = "benches/members/core/Db-Transaction/rollBack.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "tests/hostile/core/Db-Transaction/transaction/01-a-step-that-outlives-its-work-and-levels-without-end.nvs"
+entry = "tests/hostile/core/Db-Transaction/runTransaction/01-a-step-that-outlives-its-work-and-levels-without-end.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
 
 [[app]]
-entry = "benches/members/core/Db-Transaction/transaction.nvs"
+entry = "benches/members/core/Db-Transaction/runTransaction.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1657,13 +1657,13 @@ entry = "benches/members/core/Db-Connection/queryAs.scale.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "benches/members/core/Db-Connection/stream.scale.nvs"
+entry = "benches/members/core/Db-Connection/queryEach.scale.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
 
 [[app]]
-entry = "benches/members/core/Db-Connection/streamAs.scale.nvs"
+entry = "benches/members/core/Db-Connection/queryEachAs.scale.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
@@ -1693,13 +1693,13 @@ entry = "benches/members/core/Db-Transaction/queryAs.scale.nvs"
 connect = ["notes"]
 
 [[app]]
-entry = "benches/members/core/Db-Transaction/stream.scale.nvs"
+entry = "benches/members/core/Db-Transaction/queryEach.scale.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]
 
 [[app]]
-entry = "benches/members/core/Db-Transaction/streamAs.scale.nvs"
+entry = "benches/members/core/Db-Transaction/queryEachAs.scale.nvs"
 
 [app.capabilities.db]
 connect = ["notes"]

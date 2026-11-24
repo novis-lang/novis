@@ -20,7 +20,7 @@ class Bench
             array<Core\Db\Column> $described = $rows->columns();
             // The column read is chosen by the total so far, so the loop cannot
             // be left out.
-            if ($described[($total % 2) as int]->nullable()) {
+            if ($described[($total % 2) as int]->isNullable()) {
                 $total = $total + 1;
             } else {
                 $total = $total + 3;

@@ -37,7 +37,7 @@ class PaymentTest
     #[AfterEachTest]
     public function keepTheLog(Outcome $outcome): void
     {
-        if ($outcome->passed()) {
+        if ($outcome->hasPassed()) {
             IO::remove($this->log);
         } else {
             IO::move($this->log, Path::fromWorkingDirectory(RunLog::fileName($outcome->name(), $outcome->attempt())));

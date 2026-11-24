@@ -59,7 +59,7 @@ final class AccountPage
         string $codes = '' . new Accounts($this->db)->recoveryCodesLeft($account);
         var $state = html`<p>This account cannot publish now. Sign in with a passkey to publish again.</p>`;
         if ($until > $this->now) {
-            int $left = Math::intDiv($until - $this->now + AccountPage::DAY - 1, AccountPage::DAY);
+            int $left = Math::quotient($until - $this->now + AccountPage::DAY - 1, AccountPage::DAY);
             string $leftText = $left == 1 ? '1 day' : $left . ' days';
             string $date = PackagePage::date($until);
             $state = html`<p>This account can publish for {$leftText} more, until {$date}.</p>`;

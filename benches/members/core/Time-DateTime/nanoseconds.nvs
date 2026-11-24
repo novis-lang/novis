@@ -1,0 +1,29 @@
+<?nvs
+// Reads the nanoseconds of a date and time, as a program does when it writes the fraction of a second into a log line.
+// bench: iterations 1024
+// bench: calls 1
+// bench: allocations 0
+// bench: complexity constant
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        var $zone = Core\Time\Zone::UTC;
+        array<Core\Time\DateTime> $times = [
+            Core\Time\DateTime::fromIso('2024-01-09 08:00:06.3', $zone),
+            Core\Time\DateTime::fromIso('2024-07-18 13:00:24.6', $zone),
+            Core\Time\DateTime::fromIso('2023-12-27 23:00:51.9', $zone),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // chained: $total picks the value read in this round, and each count is a multiple of 3
+            $total = $total + $times[(($total + $i) % 3) as int]->nanoseconds();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(1024), "\n";

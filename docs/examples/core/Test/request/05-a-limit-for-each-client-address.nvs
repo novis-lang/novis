@@ -9,7 +9,7 @@ if (Core\Env::context() == Core\Env::Context::Request) {
     // client address. The third request in one minute gets the status `429`.
     var $address = Core\Request::clientIp() ?? 'unknown';
     var $decision = Core\RateLimit::shed('search:' . $address, 2, 1m);
-    if (!$decision->allowed()) {
+    if (!$decision->isAllowed()) {
         Core\Response::setStatus(429);
     }
     echo $address;

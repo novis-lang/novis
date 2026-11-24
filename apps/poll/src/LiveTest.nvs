@@ -19,7 +19,7 @@ final class LiveTest
         array<tainted string> $seen = [];
         try {
             // `idle: 5s` stops the test if no event arrives for 5 seconds.
-            var $stream = Client::stream(Method::Get, "{$base}/polls/{$id}/events", { headers: ['accept' => 'text/event-stream'], idle: 5s });
+            var $stream = Client::openStream(Method::Get, "{$base}/polls/{$id}/events", { headers: ['accept' => 'text/event-stream'], idle: 5s });
             foreach ($stream->events() as Event $event) {
                 $seen[] = $event->data();
                 if (Core\Arr::count($seen) == 1) {

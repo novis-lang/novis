@@ -721,7 +721,7 @@ pub(crate) struct Env<'a> {
     pub dispatched_literal: bool,
     /// The value of each option of the argument list being checked that the
     /// registry marks `nvs_stdlib::registry::CoreTy::Keys`, such as
-    /// `Core\Arr::countBy`'s `by`, with its type. Pushed by
+    /// `Core\Arr::groupCounts`'s `by`, with its type. Pushed by
     /// `crate::expr::args`' options check and read once the whole list is
     /// checked, because whether a `tainted` key may enter depends on the
     /// call's answer. Each argument list takes the outer list's entries away

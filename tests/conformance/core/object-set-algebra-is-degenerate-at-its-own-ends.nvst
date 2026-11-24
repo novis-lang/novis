@@ -1,8 +1,8 @@
 --TEST--
-`Core\ObjectSet<T>`'s `union`, `intersect` and `diff` agree at their degenerate ends — the receiver itself and a disjoint set — over every shape of receiver, counted rather than read off a line — `rule:expressions/object-identity-equality`
+`Core\ObjectSet<T>`'s `union`, `intersection` and `difference` agree at their degenerate ends — the receiver itself and a disjoint set — over every shape of receiver, counted rather than read off a line — `rule:expressions/object-identity-equality`
 --FILE--
 <?nvs
-// covers: Core\ObjectSet::union, Core\ObjectSet::intersect, Core\ObjectSet::diff
+// covers: Core\ObjectSet::union, Core\ObjectSet::intersection, Core\ObjectSet::difference
 final class Tag {
     public function constructor(public readonly string $name) {}
 }
@@ -43,19 +43,19 @@ foreach ($rows as array<string> $row) {
     // Both idempotents: unioning or intersecting a set with itself is that
     // set, in members and not only in size.
     if ($s->union($s)->count() == $s->count()) { $agree = $agree + 1; }
-    if ($s->union($s)->diff($s)->count() == 0) { $agree = $agree + 1; }
-    if ($s->intersect($s)->count() == $s->count()) { $agree = $agree + 1; }
-    if ($s->intersect($s)->diff($s)->count() == 0) { $agree = $agree + 1; }
+    if ($s->union($s)->difference($s)->count() == 0) { $agree = $agree + 1; }
+    if ($s->intersection($s)->count() == $s->count()) { $agree = $agree + 1; }
+    if ($s->intersection($s)->difference($s)->count() == 0) { $agree = $agree + 1; }
 
     // The two annihilators: a set differenced from itself, and intersected
     // with a set it shares nothing with, are both empty.
-    if ($s->diff($s)->count() == 0) { $agree = $agree + 1; }
-    if ($s->intersect($far)->count() == 0) { $agree = $agree + 1; }
+    if ($s->difference($s)->count() == 0) { $agree = $agree + 1; }
+    if ($s->intersection($far)->count() == 0) { $agree = $agree + 1; }
 
-    // A disjoint operand is `diff`'s identity and adds its whole self to a
+    // A disjoint operand is `difference`'s identity and adds its whole self to a
     // `union` — the other end of the same two walks.
-    if ($s->diff($far)->count() == $s->count()) { $agree = $agree + 1; }
-    if ($s->diff($far)->diff($s)->count() == 0) { $agree = $agree + 1; }
+    if ($s->difference($far)->count() == $s->count()) { $agree = $agree + 1; }
+    if ($s->difference($far)->difference($s)->count() == 0) { $agree = $agree + 1; }
     if ($s->union($far)->count() == $s->count() + $one) { $agree = $agree + 1; }
 
     // And nothing above collapsed the receiver: it still holds one member per

@@ -13,7 +13,7 @@ Core\Config::set('memory', '64M');
 uint $code = 100;
 while ($code <= 999) {
     Core\Test::answerHttp(Core\Str::format('https://codes.example.com/%d', $code), $code, { body: '' });
-    var $reply = Core\Http\Client::stream(Core\Http\Method::Get, Core\Str::format('https://codes.example.com/%d', $code));
+    var $reply = Core\Http\Client::openStream(Core\Http\Method::Get, Core\Str::format('https://codes.example.com/%d', $code));
     if ($reply->status() != $code) {
         throw new LogicError(Core\Str::format('%d was returned as %d', $code, $reply->status()));
     }
@@ -38,7 +38,7 @@ foreach ($outside as uint $bad) {
 
 // 3. `status()` is called 1000000 times on one reply, before and after the body is read.
 Core\Test::answerHttp('https://codes.example.com/busy', 503, { body: "retry later\n" });
-var $busy = Core\Http\Client::stream(Core\Http\Method::Get, 'https://codes.example.com/busy');
+var $busy = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://codes.example.com/busy');
 int $sum = 0;
 uint $i = 0;
 while ($i < 1000000) {
@@ -61,7 +61,7 @@ Core\Test::answerHttp('https://kept.example.com/*', 200, { body: Core\Str::repea
 array<Core\Http\Stream> $kept = [];
 uint $n = 0;
 while (true) {
-    var $stream = Core\Http\Client::stream(Core\Http\Method::Get, Core\Str::format('https://kept.example.com/%d', $n));
+    var $stream = Core\Http\Client::openStream(Core\Http\Method::Get, Core\Str::format('https://kept.example.com/%d', $n));
     $sum = $sum + $stream->status();
     $kept[] = $stream;
     $n = $n + 1;

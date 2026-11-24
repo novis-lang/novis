@@ -114,7 +114,7 @@ final class Releases
     {
         int $now = Time::now()->toEpochSeconds();
         bool $waitsForStable = $this->needsStable($key, $version);
-        return $this->db->transaction(fn(Transaction $tx): bool => {
+        return $this->db->runTransaction(fn(Transaction $tx): bool => {
             bool $changed = false;
             if ($stable && $waitsForStable) {
                 $this->ensureRow($tx, $key, $version);
@@ -139,7 +139,7 @@ final class Releases
     public function unlist(string $key, string $version, bool $listed): bool
     {
         int $now = Time::now()->toEpochSeconds();
-        return $this->db->transaction(fn(Transaction $tx): bool => {
+        return $this->db->runTransaction(fn(Transaction $tx): bool => {
             $this->ensureRow($tx, $key, $version);
             var $write = $listed
                 ? $tx->execute('update release_states set unlisted_at = null where package = ? and version = ? and unlisted_at is not null', [$key, $version])
@@ -157,7 +157,7 @@ final class Releases
     // It returns `false` when a package publishes from that folder of that repository already.
     public function rebind(string $key, string $repository, string $directory): bool
     {
-        return $this->db->transaction(fn(Transaction $tx): bool => {
+        return $this->db->runTransaction(fn(Transaction $tx): bool => {
             // This statement writes, so the transaction has the write lock of the database from here on.
             // When the first statement only reads, SQLite fails the write below at once while another request writes.
             $tx->execute('update packages set repository = repository where key = ?', [$key]);
@@ -178,7 +178,7 @@ final class Releases
     // It returns `false` when the version is retracted already from that time or earlier.
     public function retract(string $key, string $version, string $reason, ?string $fixedIn, int $from): bool
     {
-        return $this->db->transaction(fn(Transaction $tx): bool => {
+        return $this->db->runTransaction(fn(Transaction $tx): bool => {
             $this->ensureRow($tx, $key, $version);
             var $write = $tx->execute(
                 'update release_states set retracted_at = ?, retract_reason = ?, fixed_in = ? '
@@ -210,7 +210,7 @@ final class Releases
     public function advise(string $key, VersionRange $range, string $summary, int $from): ?string
     {
         string $versions = $range->text();
-        return $this->db->transaction(fn(Transaction $tx): ?string => {
+        return $this->db->runTransaction(fn(Transaction $tx): ?string => {
             // This statement writes, so the transaction has the write lock of the database from here on.
             // When the first statement only reads, SQLite fails the write below at once while another request writes.
             $tx->execute('update packages set repository = repository where key = ?', [$key]);
@@ -248,7 +248,7 @@ final class Releases
     public function cancelRetraction(string $key, string $version): bool
     {
         int $now = Time::now()->toEpochSeconds();
-        return $this->db->transaction(fn(Transaction $tx): bool => {
+        return $this->db->runTransaction(fn(Transaction $tx): bool => {
             var $write = $tx->execute(
                 'delete from events where due > ? and id = (select retract_event from release_states where package = ? and version = ?)',
                 [$now, $key, $version],
@@ -272,7 +272,7 @@ final class Releases
     public function cancelAdvisory(string $key, string $id): bool
     {
         int $now = Time::now()->toEpochSeconds();
-        return $this->db->transaction(fn(Transaction $tx): bool => {
+        return $this->db->runTransaction(fn(Transaction $tx): bool => {
             var $write = $tx->execute(
                 'delete from events where due > ? and id = (select event from advisories where id = ? and package = ? and cancelled_at is null)',
                 [$now, $id, $key],
@@ -308,7 +308,7 @@ final class Releases
     // It returns `false` when the version is withheld already.
     public function withhold(string $key, string $version, string $reason): bool
     {
-        return $this->db->transaction(fn(Transaction $tx): bool => {
+        return $this->db->runTransaction(fn(Transaction $tx): bool => {
             $this->ensureRow($tx, $key, $version);
             var $write = $tx->execute(
                 'update release_states set withheld = ? where package = ? and version = ? and withheld is null',

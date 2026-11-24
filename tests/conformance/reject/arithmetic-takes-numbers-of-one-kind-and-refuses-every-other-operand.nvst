@@ -14,7 +14,7 @@ Arithmetic takes `int`, `uint`, `float` and `decimal` and refuses everything els
 // picking one side.
 //
 // The last line is the division union. `7 / 2` is `3.5`, so the result is
-// `int|float` and an `int` binding cannot take it; `Core\Math::intDiv` is
+// `int|float` and an `int` binding cannot take it; `Core\Math::quotient` is
 // the member that was meant.
 //
 // The array line reports twice. Its operand is refused and the value left

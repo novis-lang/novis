@@ -17,7 +17,7 @@ try {
         uint $i = 0;
         while ($i < 100000) {
             bool $on = $i % 2 == 0;
-            $changed = $changed->with({ script: $on, disabled: $on, homeDirectoryRequired: $on, passwordNotRequired: $on, reversibleEncryption: $on, temporaryDuplicateAccount: $on, normalAccount: $on, interdomainTrustAccount: $on, workstationTrustAccount: $on, serverTrustAccount: $on, passwordNeverExpires: $on, mnsLogonAccount: $on, smartcardRequired: $on, trustedForDelegation: $on, notDelegated: $on, useDesKeyOnly: $on, noPreauthRequired: $on, trustedToAuthForDelegation: $on, partialSecretsAccount: $on });
+            $changed = $changed->with({ script: $on, disabled: $on, homeDirectoryRequired: $on, passwordNotRequired: $on, reversibleEncryption: $on, temporaryDuplicateAccount: $on, normalAccount: $on, interdomainTrustAccount: $on, workstationTrustAccount: $on, serverTrustAccount: $on, passwordNeverExpires: $on, mnsLogonAccount: $on, smartcardRequired: $on, trustedForDelegation: $on, notDelegated: $on, useDesKeyOnly: $on, noPreauthRequired: $on, trustedToAuthenticateForDelegation: $on, partialSecretsAccount: $on });
             int $bits = $changed->bits();
             if ($i == 0 || $bits < $low) {
                 $low = $bits;
@@ -30,7 +30,7 @@ try {
         echo '1 low: ', $low, ' high: ', $high, "\n";
 
         // 2. Every flag cleared. Only the bits no flag names are left.
-        var $none = $changed->with({ script: false, disabled: false, homeDirectoryRequired: false, passwordNotRequired: false, reversibleEncryption: false, temporaryDuplicateAccount: false, normalAccount: false, interdomainTrustAccount: false, workstationTrustAccount: false, serverTrustAccount: false, passwordNeverExpires: false, mnsLogonAccount: false, smartcardRequired: false, trustedForDelegation: false, notDelegated: false, useDesKeyOnly: false, noPreauthRequired: false, trustedToAuthForDelegation: false, partialSecretsAccount: false });
+        var $none = $changed->with({ script: false, disabled: false, homeDirectoryRequired: false, passwordNotRequired: false, reversibleEncryption: false, temporaryDuplicateAccount: false, normalAccount: false, interdomainTrustAccount: false, workstationTrustAccount: false, serverTrustAccount: false, passwordNeverExpires: false, mnsLogonAccount: false, smartcardRequired: false, trustedForDelegation: false, notDelegated: false, useDesKeyOnly: false, noPreauthRequired: false, trustedToAuthenticateForDelegation: false, partialSecretsAccount: false });
         echo '2 bits: ', $none->bits(), "\n";
     }
 } catch (Throwable $error) {

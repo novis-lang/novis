@@ -67,7 +67,7 @@ for ($i = 0; $i < 24; $i = $i + 1) {
 echo "bytes ", $sized, " ", $repeats, "\n";
 
 // `pick` answers a *member of its argument*, never a value of the same type:
-// `Arr::diff` of the whole run against the subject is what says so, and it is
+// `Arr::difference` of the whole run against the subject is what says so, and it is
 // empty only if every one of 120 draws came out of the box. Every element is
 // also reached, so a member answering the first entry — or the last — fails
 // the distinct count. `rule:core-api/shape-rules` R5 makes the empty subject `null`, which is why
@@ -84,7 +84,7 @@ for ($i = 0; $i < 120; $i = $i + 1) {
 echo "pick ",
     Core\Arr::count($picks), " ",
     Core\Arr::count(Core\Arr::unique($picks)), " ",
-    Core\Arr::count(Core\Arr::diff($picks, $box)), " ",
+    Core\Arr::count(Core\Arr::difference($picks, $box)), " ",
     $nulls, "\n";
 
 // `sample` is the same claim plus distinctness, held over every draw rather
@@ -99,7 +99,7 @@ for ($i = 0; $i < 24; $i = $i + 1) {
     var $two = Core\Random::sample($box, 2);
     $exact = $exact + ((Core\Arr::count($two) == 2) ? 1 : 0);
     $distinct = $distinct + ((Core\Arr::count(Core\Arr::unique($two)) == 2) ? 1 : 0);
-    $drawnFrom = $drawnFrom + ((Core\Arr::count(Core\Arr::diff($two, $box)) == 0) ? 1 : 0);
+    $drawnFrom = $drawnFrom + ((Core\Arr::count(Core\Arr::difference($two, $box)) == 0) ? 1 : 0);
     $union = Core\Arr::appendAll($union, $two);
 }
 echo "sample ", $exact, " ", $distinct, " ", $drawnFrom, " ",

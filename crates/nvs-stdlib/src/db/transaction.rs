@@ -48,7 +48,7 @@ pub(super) fn isolation_of(
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Db\Queryable::transaction(callable $fn, {isolation?, readOnly?,
+    /// `Core\Db\Queryable::runTransaction(callable $fn, {isolation?, readOnly?,
     /// retries?}): T` — `rule:core-classes/db-transactions`'s whole shape, and the only way to open a
     /// transaction on this surface.
     ///
@@ -107,8 +107,8 @@ nvs_runtime::nvs_helper! {
     /// `ROLLBACK` was refused is one `rule:security/db-pool-reset-is-a-boundary`
     /// closes rather than pools — so replacing the program's exception with the
     /// driver's would lose the only half a caller can act on.
-    fn nvs_core_db_connection_transaction(ctx, args: [5]) {
-        let (key, block) = handle_of(args[0], "transaction")?;
+    fn nvs_core_db_connection_run_transaction(ctx, args: [5]) {
+        let (key, block) = handle_of(args[0], "runTransaction")?;
         let isolation = isolation_of(&args[ISOLATION_ARG], TRANSACTION_MEMBER)?;
         // Unreachable from source for `connect`'s reason: the option is
         // declared `bool` and defaults to one, so the slot is never anything
@@ -254,7 +254,7 @@ impl Attempts for Filed {
     }
 }
 
-/// The `transaction` call, as [`nvs_core_db_connection_transaction`] read it off its
+/// The `runTransaction` call, as [`nvs_core_db_connection_run_transaction`] read it off its
 /// arguments.
 ///
 /// One struct rather than five more parameters on [`transacted`], which takes
@@ -368,7 +368,7 @@ pub(super) fn wait_between_attempts(ctx: &mut nvs_runtime::Ctx, taken: u32) -> R
 /// The whole transaction, from the `BEGIN` to the answer, over a connection
 /// it is handed.
 ///
-/// Hoisted out of [`nvs_core_db_connection_transaction`] so that the retry rule
+/// Hoisted out of [`nvs_core_db_connection_run_transaction`] so that the retry rule
 /// — four conditions over two conflict channels, and the one part of
 /// `rule:core-classes/db-transactions` that belongs to no driver — has a caller
 /// other than a member that can only reach
@@ -449,7 +449,7 @@ pub(super) fn transacted(
         // — and closed on every path, which is why it is not inside a
         // branch. An attempt that retries gets its own scope object below,
         // for the same reason it gets its own `BEGIN`.
-        let receiver = crate::instance::receiver(scope, &TRANSACTION, "transaction")?;
+        let receiver = crate::instance::receiver(scope, &TRANSACTION, "runTransaction")?;
         crate::instance::set_slot(receiver, SCOPE_AT, Value::bool(false));
         let held = crate::instance::slot(receiver, REASON_AT);
         let abandoned = held.as_text().map(str::to_owned);
@@ -569,7 +569,7 @@ nvs_runtime::nvs_helper! {
     /// **The flag is what the owning frame acts on and the throw is what the
     /// program sees**, and neither alone is enough. A throw on its own is
     /// catchable, so a `catch (Throwable)` between here and
-    /// [`nvs_core_db_connection_transaction`] could leave the work committed;
+    /// [`nvs_core_db_connection_run_transaction`] could leave the work committed;
     /// a flag on its own is `setRollbackOnly`, which every layer has to
     /// remember to check and one of them will not. Recording the reason in the
     /// receiver's own slot is what makes the decision survive the catch.
@@ -602,7 +602,7 @@ nvs_runtime::nvs_helper! {
 
 /// Drops a reference this frame owns, for a value it is not handing back.
 ///
-/// The mirror of [`owned`], and it exists for one member: `transaction` builds
+/// The mirror of [`owned`], and it exists for one member: `runTransaction` builds
 /// the scope object and receives the callable's answer, and on the paths where
 /// the transaction did not commit neither of them reaches Novis code at all.
 pub(super) fn discard(value: Value) {
@@ -672,7 +672,7 @@ fn refusal(fault: &Fault) -> String {
 /// ([`open_named`]), so a `Core\Db::connect` the test *itself* makes under the
 /// same name reaches this very connection — and therefore this open
 /// transaction. That is the whole of the rule's savepoint sentence: the test's own
-/// `Core\Db::transaction` sees a non-zero [`nvs_db::PgConn::depth`] and opens a
+/// `runTransaction` call sees a non-zero [`nvs_db::PgConn::depth`] and opens a
 /// `SAVEPOINT` instead of a `BEGIN`, with no special case anywhere for it. The
 /// caller passes the *test's* context and not the suite's, which is why
 /// `nvs-cli`'s runner arms this from inside the isolate's own program.
@@ -702,7 +702,7 @@ pub fn begin_test_transaction(ctx: &mut nvs_runtime::Ctx, name: &str) -> Result<
 /// rolled back, so the test's writes are gone and the connection is poolable.
 ///
 /// **A loop and not one `ROLLBACK`, because the depth is not this function's to
-/// assume.** A `transaction` callable closes its own level on every path out of
+/// assume.** A `runTransaction` callable closes its own level on every path out of
 /// it, so the depth is back to the one [`begin_test_transaction`] opened for every test
 /// that returned or threw — but a test that ended by cancellation or by a
 /// contained panic is a test whose callable did not return, and a connection
@@ -747,12 +747,12 @@ mod tests {
     /// be *identical*, symbol included, since `rule:classes/no-traits`'s delegation is one
     /// body reached through either handle and a second body would agree on
     /// name and arity on the day it was written and on nothing afterwards.
-    /// `stream` and `streamAs` are owed on both and so are outside the sweep
+    /// `queryEach` and `queryEachAs` are owed on both and so are outside the sweep
     /// by construction; [`BEYOND_QUERYABLE`] is the one set that is outside it
     /// on purpose, and the sweep checks that list from both ends first.
     #[test]
     fn a_transaction_is_a_callable_and_transaction_is_a_queryable() {
-        assert_eq!(TRANSACTION_ROW.name, "transaction");
+        assert_eq!(TRANSACTION_ROW.name, "runTransaction");
         // The callable `$fn`, and R9's allowance that the callable may declare no
         // parameter at all is why the arity is not sayable in the row.
         assert_eq!(TRANSACTION_ROW.names, ["fn"]);
@@ -765,7 +765,7 @@ mod tests {
                     CoreTy::Options(TRANSACTION_OPTIONS)
                 ]
             ),
-            "`rule:core-classes/db-transactions`'s `transaction` takes the callable and R2's one trailing bag"
+            "`rule:core-classes/db-transactions`'s `runTransaction` takes the callable and R2's one trailing bag"
         );
         // The three transaction options, in their order, at their defaults —
         // asserted as the whole bag rather than one lookup each, so an option added without
@@ -869,7 +869,7 @@ mod tests {
     /// does**, and this case does exactly that between the raise and the read
     /// — [`nvs_core_db_transaction_roll_back`] records the reason in
     /// [`REASON_SLOT`] *and* throws, and
-    /// [`nvs_core_db_connection_transaction`] reads that slot rather than the
+    /// [`nvs_core_db_connection_run_transaction`] reads that slot rather than the
     /// exception it did not catch. A member that only threw would pass every
     /// assertion here but the last one.
     ///
@@ -1003,7 +1003,7 @@ mod tests {
         static ATTEMPTS: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     }
 
-    /// A `transaction` callable as a deadlock makes it behave: the first attempt
+    /// A `runTransaction` callable as a deadlock makes it behave: the first attempt
     /// throws a retryable `Core\Db\DbError`, and every one after it returns.
     ///
     /// **The throw is built by [`statement_failure`] off a real
@@ -1087,7 +1087,7 @@ mod tests {
     }
 
     /// A `callable` whose `invoke` is `invoke` and which declares one
-    /// parameter — the `$tx` a `transaction` call hands its callable.
+    /// parameter — the `$tx` a `runTransaction` call hands its callable.
     ///
     /// `nvs_runtime::call_callable` reads exactly three things off a callable
     /// value, so this is a whole one: its class's callable bit, the arity in
@@ -1163,7 +1163,7 @@ mod tests {
     /// **Both sides of the bound**, since a loop that always retried would
     /// pass the first half — the default is 0, and at 0 the same conflict
     /// reaches the caller with the callable run once.
-    // covers: Core\Db\Connection::transaction
+    // covers: Core\Db\Connection::runTransaction
     #[test]
     fn retries_recover_an_induced_deadlock() {
         let block = Value::text("main");
@@ -1259,7 +1259,7 @@ mod tests {
         static RINGS_INSIDE: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
     }
 
-    /// A `transaction` callable as a request that enqueues a job writes it: what
+    /// A `runTransaction` callable as a request that enqueues a job writes it: what
     /// `Core\Queue::push` does once its insert has run, which is
     /// [`crate::queue::announce`], inside as many nested transactions as [`ENQUEUE`] names.
     #[expect(
@@ -1298,7 +1298,7 @@ mod tests {
         }
     }
 
-    /// One `transaction` on the connection filed under `key`, running [`enqueues`].
+    /// One `runTransaction` on the connection filed under `key`, running [`enqueues`].
     fn transacted_on(ctx: &mut Ctx, key: u64) -> Result<Value, Fault> {
         let block = Value::text("main");
         let callable = callable_of(enqueues);
@@ -1322,7 +1322,7 @@ mod tests {
     /// `rule:concurrency/a-push-wakes-an-idle-worker`'s order: the bell rings once the job is
     /// committed, and a job that was rolled back rings nothing.
     ///
-    /// **A real connection and the `transaction` loop itself**, because what decides the ring is
+    /// **A real connection and the `runTransaction` loop itself**, because what decides the ring is
     /// the depth the connection reports and the level `transacted` closes. SQLite is the backend
     /// that needs no server. The enqueue is [`crate::queue::announce`], the call
     /// `Core\Queue::push` makes once its insert has run, so the statement itself is not what is

@@ -15,7 +15,7 @@ class Bench
         }
         // The reply comes from this table, so nothing is sent over a network.
         Core\Test::answerHttp('https://shop.example.com/feed', 200, { headers: ['Set-Cookie' => $cookies] });
-        Core\Http\Stream $feed = Core\Http\Client::stream(Core\Http\Method::Get, 'https://shop.example.com/feed');
+        Core\Http\Stream $feed = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://shop.example.com/feed');
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {

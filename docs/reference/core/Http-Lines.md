@@ -29,7 +29,7 @@ Core\Test::answerHttp('https://shop.example.com/export/orders.csv', 200, {
     body: "id,total\r\n1,20\r\n2,15\n3,7",
 });
 
-Core\Http\Stream $export = Core\Http\Client::stream(Core\Http\Method::Get, 'https://shop.example.com/export/orders.csv');
+Core\Http\Stream $export = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://shop.example.com/export/orders.csv');
 Core\Http\Lines $lines = $export->lines();
 
 // The first loop reads only the header line.

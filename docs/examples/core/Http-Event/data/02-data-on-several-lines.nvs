@@ -9,7 +9,7 @@ Core\Test::answerHttp('https://weather.example.com/alerts', 200, {
 
 // `data()` joins the lines of one event with a line break.
 // This prints the three lines of the first event, then "All clear".
-Core\Http\Stream $alerts = Core\Http\Client::stream(Core\Http\Method::Get, 'https://weather.example.com/alerts');
+Core\Http\Stream $alerts = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://weather.example.com/alerts');
 int $number = 1;
 foreach ($alerts->events() as Core\Http\Event $alert) {
     echo 'Alert ', $number, ":\n", $alert->data(), "\n";

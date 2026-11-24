@@ -262,7 +262,7 @@ const FROM_ROW: &str = "fromRow";
 ///
 /// The object is built here rather than borrowed from a caller because
 /// [`hydrate`]'s two callers hold the columns and not a row object — a
-/// `stream`'s row is one it has just decoded, and a `queryAs`'s is a slot of
+/// `queryEach`'s row is one it has just decoded, and a `queryAs`'s is a slot of
 /// the result array. It is this frame's own reference for the length of the
 /// call: [`nvs_runtime::call_static_on`] retains every argument it passes, so
 /// the release below is what frees it and the array it wraps.
@@ -993,11 +993,11 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$column->nullable(): bool` — whether the column may hold NULL, which
+    /// `$column->isNullable(): bool` — whether the column may hold NULL, which
     /// on this driver is always `true` and [`COLUMN_NULLABLE_DOC`] is where a
     /// program's author reads why.
-    fn nvs_core_db_column_nullable(_ctx, args: [1]) {
-        let receiver = crate::instance::receiver(args[0], &COLUMN, "nullable")?;
+    fn nvs_core_db_column_is_nullable(_ctx, args: [1]) {
+        let receiver = crate::instance::receiver(args[0], &COLUMN, "isNullable")?;
         Ok(crate::instance::slot(receiver, NULLABLE_AT))
     }
 }
@@ -1463,7 +1463,7 @@ mod tests {
         }
     }
 
-    /// **`Core\Db\Column::nullable` answers `true` for every column a real
+    /// **`Core\Db\Column::isNullable` answers `true` for every column a real
     /// statement described**, whatever that column was declared — the whole of
     /// [`COLUMN_NULLABLE_DOC`]'s sentence, and the only claim a program may
     /// make about this member today.
@@ -1481,7 +1481,7 @@ mod tests {
     /// deciding anything a second time. The count is the bound beside them —
     /// one entry per column, so a description losing a column would print an
     /// answer for every entry it kept.
-    // covers: Core\Db\Column::nullable
+    // covers: Core\Db\Column::isNullable
     #[cfg_attr(miri, ignore = "SQLite is C, which Miri cannot interpret")]
     #[test]
     fn every_described_column_may_hold_null_whatever_it_was_declared() {
@@ -1522,8 +1522,8 @@ mod tests {
             let column = described
                 .get_index(index)
                 .expect("a column this loop is walking is one the array carries");
-            let answered = nvs_runtime::call(nvs_core_db_column_nullable, &mut ctx, &[column])
-                .expect("`nullable` reads one slot and has nothing to throw");
+            let answered = nvs_runtime::call(nvs_core_db_column_is_nullable, &mut ctx, &[column])
+                .expect("`isNullable` reads one slot and has nothing to throw");
             assert_eq!(
                 answered.as_bool(),
                 Some(true),

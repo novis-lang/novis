@@ -1,5 +1,5 @@
 --TEST--
-`serverVersion()` is a field read and not a statement, and the proof is where a statement is refused: it answers between two rows of a `stream`, on the connection that walk is holding — `rule:core-classes/db-streaming` and `rule:core-classes/db-connection-busy-state`
+`serverVersion()` is a field read and not a statement, and the proof is where a statement is refused: it answers between two rows of a `queryEach`, on the connection that walk is holding — `rule:core-classes/db-streaming` and `rule:core-classes/db-connection-busy-state`
 --FILE--
 <?nvs
 // covers: Core\Db\Connection::serverVersion
@@ -13,7 +13,7 @@ $db->executeMany("insert into t (name) values (?)", [["ada"], ["grace"]]);
 
 var $kept = $db->serverVersion();
 
-foreach ($db->stream("select name from t order by id", []) as Core\Db\Row $row) {
+foreach ($db->queryEach("select name from t order by id", []) as Core\Db\Row $row) {
     echo "row ", $row->string("name") ?? "null", "\n";
 
     // The version the handshake delivered, read off the held connection: the

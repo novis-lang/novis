@@ -27,7 +27,7 @@ echo $start->minus(30m)->toIso(), "\n";
 echo $start->compareTo($end), "\n";
 
 echo $start->in('Asia/Tokyo')->format('yyyy-MM-dd HH:mm'), "\n";
-echo Core\Time\Instant::fromEpoch(1709294400, { nanos: 500000000 })->toIso(), "\n";
+echo Core\Time\Instant::fromEpoch(1709294400, { nanoseconds: 500000000 })->toIso(), "\n";
 ```
 ```output
 2024-03-01T12:00:00Z

@@ -17,7 +17,7 @@ A `DateTime` never changes: every method returns a new value. Its arithmetic fol
 daylight saving change is 23 or 25 hours. `difference` counts whole units in the zone of the value
 it is called on.
 
-`year()`, `month()`, `day()`, `hour()`, `minute()`, `second()` and `nanos()` return the fields as
+`year()`, `month()`, `day()`, `hour()`, `minute()`, `second()` and `nanoseconds()` return the fields as
 numbers. Each one reads the clock in the value's own zone. `year()` returns an `int`, and the others
 return a `uint`. These are the same names and types that `with` takes.
 

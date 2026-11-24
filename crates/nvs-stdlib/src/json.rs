@@ -491,7 +491,7 @@ pub const CLASS: CoreClass = CoreClass {
             ],
             defaults: &[Const::Str("")],
             // `Iterable<T>` at the type the call site wrote, exactly as
-            // `Core\Db\Queryable::streamAs<T>` answers its walk: one generic
+            // `Core\Db\Queryable::queryEachAs<T>` answers its walk: one generic
             // class, so the element is the receiver's own `T`.
             return_ty: CoreTy::InstanceAt(ELEMENTS_NAME, &[CoreTy::Written("T")]),
             text: TextOrigin::Unmarked,

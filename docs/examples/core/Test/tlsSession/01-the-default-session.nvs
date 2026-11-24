@@ -7,7 +7,7 @@ Core\Http\TlsInfo $session = Core\Test::tlsSession();
 echo $session->version(), ' ', $session->cipher(), "\n";
 
 // The certificate was checked. This prints `verified: yes`.
-echo 'verified: ', $session->verified() ? 'yes' : 'no', "\n";
+echo 'verified: ', $session->isVerified() ? 'yes' : 'no', "\n";
 
 // This prints `CN=example.com` and then `CN=Novis Test CA`.
 echo $session->subject(), "\n";

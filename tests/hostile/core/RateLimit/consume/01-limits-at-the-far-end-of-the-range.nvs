@@ -8,7 +8,7 @@ class Attempt
     {
         try {
             var $decision = Core\RateLimit::consume($key, $limit, $per, { burst: $burst, cost: $cost });
-            return $decision->allowed() ? 'allowed' : 'refused';
+            return $decision->isAllowed() ? 'allowed' : 'refused';
         } catch (RuntimeError $error) {
             return 'error';
         }

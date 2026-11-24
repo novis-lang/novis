@@ -51,8 +51,8 @@ Actions tab; [docs/release.md](docs/release.md) is the procedure and what it nee
 - `Core\Time\Date::fromIso` reads a date such as `2024-03-01`. `Core\Time\TimeOfDay::fromIso` reads a time such as `09:30` or `09:30:15.5`. A string literal in either method is checked when the program compiles.
 - `Core\Time\DateTime::fromIso` reads a local date and time, such as `2024-03-01 09:30`, in the zone you give. `Core\Time\DateTime::at` builds a `DateTime` from a `Date`, a `TimeOfDay` and a zone. `Core\Time\DateTime::parse` reads text in a pattern you choose.
 - `Core\Time\Date::year`, `Core\Time\Date::month` and `Core\Time\Date::day` return the parts of a date as numbers. `Core\Time\Date::weekday` returns a `Core\Time\Weekday` case, and `Core\Time\Date::dayOfYear` returns the day of the year from `1`. `Core\Time\Date::isLeapYear` checks if the year is a leap year.
-- `Core\Time\DateTime::year`, `Core\Time\DateTime::month`, `Core\Time\DateTime::day`, `Core\Time\DateTime::hour`, `Core\Time\DateTime::minute`, `Core\Time\DateTime::second` and `Core\Time\DateTime::nanos` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\Time\DateTime::year` returns an `int`, and the others return a `uint`.
-- `Core\Time\TimeOfDay::hour`, `Core\Time\TimeOfDay::minute`, `Core\Time\TimeOfDay::second` and `Core\Time\TimeOfDay::nanos` return the parts of a time as numbers. Each one returns a `uint`.
+- `Core\Time\DateTime::year`, `Core\Time\DateTime::month`, `Core\Time\DateTime::day`, `Core\Time\DateTime::hour`, `Core\Time\DateTime::minute`, `Core\Time\DateTime::second` and `Core\Time\DateTime::nanoseconds` return the parts of a date and time as numbers. Each one reads the clock in the zone of the value. `Core\Time\DateTime::year` returns an `int`, and the others return a `uint`.
+- `Core\Time\TimeOfDay::hour`, `Core\Time\TimeOfDay::minute`, `Core\Time\TimeOfDay::second` and `Core\Time\TimeOfDay::nanoseconds` return the parts of a time as numbers. Each one returns a `uint`.
 - `Core\Time\Instant::in` takes a zone written as text, such as `$instant->in('Europe/Berlin')` or `$instant->in('+05:30')`. The name is checked when the program compiles, and a wrong name does not compile. Every other method that takes a zone accepts text in the same way.
 - `Core\Time\Zone::of` with a name written in quotes is checked when the program compiles. An unknown name, or an offset such as `'+02:00'`, does not compile. A name in a variable throws a `RuntimeError` when the program runs.
 - `Core\Session::setShortLived` saves a value that is deleted when the browser closes, or after `[session] short_lived` without a request. `Core\Session::setLongLived` saves a value that stays after the browser closes, for `[session] long_lived`. Use the short lifetime for a login and the long one for a choice such as a language.
@@ -85,8 +85,8 @@ Actions tab; [docs/release.md](docs/release.md) is the procedure and what it nee
 - `Core\Time\Zone::fixed` with a written offset, such as `Core\Time\Zone::fixed(5h30m)`, is built once when the program compiles. Each use of it costs no call and no memory.
 - A request with a body of 16 KiB or less is sent in one write, together with its headers. A larger body, or a body that reads a file, is sent in two writes.
 - `Core\IO\File::readLine` reads ahead into a buffer, so reading a file line by line is faster. Each open file that has read a line uses about 8 KB more memory while it is open.
-- `Core\Arr::groupBy` and `Core\Arr::countBy` copy a group's key only when the group is new. They allocate less memory and run faster on large arrays.
-- `Core\Db\Connection::query` and `Core\Db\Connection::stream` create the column names once for each result. Every row uses the same names, so reading many rows is faster and allocates less memory.
+- `Core\Arr::groupBy` and `Core\Arr::groupCounts` copy a group's key only when the group is new. They allocate less memory and run faster on large arrays.
+- `Core\Db\Connection::query` and `Core\Db\Connection::queryEach` create the column names once for each result. Every row uses the same names, so reading many rows is faster and allocates less memory.
 - `Core\Json::decodeAs` matches each key with less work and finds each class's constructor once per call. Decoding a list of objects allocates only the objects and their strings.
 
 ### Fixes

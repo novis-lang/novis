@@ -14,9 +14,9 @@ array<Core\BigInt> $values = [
     Core\BigInt::of(-1),
     Core\BigInt::of(9223372036854775807),
     Core\BigInt::parse("-9223372036854775808"),
-    Core\BigInt::of(1)->shl(64),
-    Core\BigInt::of(-1)->shl(64),
-    Core\BigInt::of(1)->shl(1000),
+    Core\BigInt::of(1)->shiftedLeft(64),
+    Core\BigInt::of(-1)->shiftedLeft(64),
+    Core\BigInt::of(1)->shiftedLeft(1000),
     Core\BigInt::parse("-123456789012345678901234567890"),
 ];
 var $zero = Core\BigInt::of(0);
@@ -31,7 +31,7 @@ foreach ($values as Core\BigInt $value) {
     if ($reported == -1 || $reported == 0 || $reported == 1) {
         $threeWay = $threeWay + (1 as uint);
     }
-    if ($reported + $value->neg()->sign() == 0) {
+    if ($reported + $value->negated()->sign() == 0) {
         $opposite = $opposite + (1 as uint);
     }
 }

@@ -2381,7 +2381,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     ),
     (
         crate::http::CLIENT_NAME,
-        "stream",
+        "openStream",
         Some(nvs_config::Cap::NetConnect),
     ),
     (
@@ -2735,7 +2735,7 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (r"Core\Request\Part", "peek", None),
     // `saveTo` writes a response body to the path it names, as
     // `Core\Request\Part::saveTo` does. Every other member reads the response
-    // on the connection `Core\Http\Client::stream` opened under `net.connect`.
+    // on the connection `Core\Http\Client::openStream` opened under `net.connect`.
     (r"Core\Http\Stream", "status", None),
     (r"Core\Http\Stream", "header", None),
     (r"Core\Http\Stream", "headers", None),
@@ -3066,15 +3066,15 @@ pub const NEEDS_NONE: &[(&str, &str)] = &[
     (r"Core\Http\Event", "reads an event the program holds"),
     (
         r"Core\Http\Events",
-        "reads the response `Core\\Http\\Client::stream` opened",
+        "reads the response `Core\\Http\\Client::openStream` opened",
     ),
     (
         r"Core\Http\Lines",
-        "reads the response `Core\\Http\\Client::stream` opened",
+        "reads the response `Core\\Http\\Client::openStream` opened",
     ),
     (
         r"Core\Http\Chunks",
-        "reads the response `Core\\Http\\Client::stream` opened",
+        "reads the response `Core\\Http\\Client::openStream` opened",
     ),
     // The process and the server's own state.
     (r"Core\Os", "reads facts about the process and the host"),
@@ -3908,8 +3908,8 @@ pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
     (r"Core\Test\Response", "jsonAs"),
     (r"Core\Db\Connection", "queryAs"),
     (r"Core\Db\Transaction", "queryAs"),
-    (r"Core\Db\Connection", "streamAs"),
-    (r"Core\Db\Transaction", "streamAs"),
+    (r"Core\Db\Connection", "queryEachAs"),
+    (r"Core\Db\Transaction", "queryEachAs"),
     (r"Core\Test", "double"),
     (r"Core\Test", "partial"),
 ];
@@ -4203,7 +4203,7 @@ pub fn takes_path_graph(class: &str, method: &str) -> bool {
 /// table**, as their **last** argument — `rule:observability/a-query-span-names-its-call-site`.
 ///
 /// Each sends a statement its call wrote, so the site names the line a trace
-/// reader would change. `transaction` is not here: its `BEGIN` and `COMMIT` are
+/// reader would change. `runTransaction` is not here: its `BEGIN` and `COMMIT` are
 /// the library's text, and the statements inside it are sites of their own. The
 /// schema members are not here for the same reason.
 ///
@@ -4227,8 +4227,8 @@ pub const QUERY_SITE_MEMBERS: &[&str] = &[
     "queryAs",
     "execute",
     "executeMany",
-    "stream",
-    "streamAs",
+    "queryEach",
+    "queryEachAs",
 ];
 
 /// The bit of a [`QUERY_SITE_MEMBERS`] call's site word that says the call
@@ -4282,7 +4282,7 @@ pub const RECORDED_SITE_MEMBERS: &[(&str, &str)] = &[
     (crate::http::CLIENT_NAME, "delete"),
     (crate::http::CLIENT_NAME, "head"),
     (crate::http::CLIENT_NAME, "request"),
-    (crate::http::CLIENT_NAME, "stream"),
+    (crate::http::CLIENT_NAME, "openStream"),
     (crate::cache::STORE_NAME, "get"),
     (crate::cache::STORE_NAME, "getSecret"),
     (crate::cache::STORE_NAME, "put"),

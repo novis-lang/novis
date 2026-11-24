@@ -556,8 +556,8 @@ const KEY_MEMBERS: [&str; 8] = [
     "var $r = Core\\Arr::flip($s);",
     "var $r = Core\\Arr::fillKeys($s, 1);",
     "var $r = Core\\Arr::fromKeysAndValues($s, [1]);",
-    "var $r = Core\\Arr::countBy($s);",
-    "var $r = Core\\Arr::countBy([1, 2], { by: fn(int $x): {Q} => $k });",
+    "var $r = Core\\Arr::groupCounts($s);",
+    "var $r = Core\\Arr::groupCounts([1, 2], { by: fn(int $x): {Q} => $k });",
     "var $r = Core\\Arr::mapKeys([1, 2], fn(int $x, string $i): {Q} => $k);",
     "var $r = Core\\Arr::groupBy([1, 2], fn(int $x, string $i): {Q} => $k);",
     "var $r = Core\\Arr::column($rows, 0, { indexBy: 1 });",
@@ -575,7 +575,7 @@ fn a_member_that_makes_keys_from_values_refuses_qualified_values() {
             "a `secret` value became a key:\n{src}\n{diags:?}"
         );
         // Where the parameter's type takes the value, only the key mark
-        // refuses it: `countBy`'s subject, its `by` result and `column`'s rows.
+        // refuses it: `groupCounts`'s subject, its `by` result and `column`'s rows.
         if [3, 4, 7].contains(&index) {
             assert!(
                 codes.contains(&code::E_SECRET_ARRAY_KEY),
@@ -597,7 +597,7 @@ fn a_member_that_makes_keys_from_values_refuses_qualified_values() {
         );
     }
     // Where the parameter takes it, the key mark refuses a `tainted` value
-    // whose answer reads its keys back plain: `countBy` gives `array<uint>`,
+    // whose answer reads its keys back plain: `groupCounts` gives `array<uint>`,
     // and `mapKeys` and `groupBy` over `[1, 2]` give arrays of `int`.
     for call in &KEY_MEMBERS[3..7] {
         let body = call.replace("{Q}", "tainted string");
@@ -628,7 +628,7 @@ fn a_member_that_makes_keys_from_values_refuses_qualified_values() {
             "tainted string",
             "var $r = Core\\Arr::column($rows, 0, { indexBy: 1 });",
         ),
-        ("string", "var $r = Core\\Arr::countBy($s);"),
+        ("string", "var $r = Core\\Arr::groupCounts($s);"),
         ("string", "var $r = Core\\Arr::flip($s);"),
         (
             "string",
@@ -771,16 +771,16 @@ fn form_cells(position: ErasingPosition) -> [FormCell; 2] {
                 params: "array<secret string> $xs",
                 form: "array<string> $plain = Core\\Arr::map($xs, \
                        fn(secret string $s): string => Core\\Secret::reveal($s, \"reason\")); \
-                       array<uint> $c = Core\\Arr::countBy($plain); SINK",
-                sink: "array<uint> $d = Core\\Arr::countBy($xs);",
+                       array<uint> $c = Core\\Arr::groupCounts($plain); SINK",
+                sink: "array<uint> $d = Core\\Arr::groupCounts($xs);",
                 code: code::E_SECRET_ARRAY_KEY,
             },
             FormCell {
                 params: "array<tainted string> $xs",
                 form: "array<string> $plain = Core\\Arr::map($xs, \
                        fn(tainted string $s): string => Core\\Taint::assertTrusted($s, \"reason\")); \
-                       array<uint> $c = Core\\Arr::countBy($plain); SINK",
-                sink: "array<uint> $d = Core\\Arr::countBy($xs);",
+                       array<uint> $c = Core\\Arr::groupCounts($plain); SINK",
+                sink: "array<uint> $d = Core\\Arr::groupCounts($xs);",
                 code: plain,
             },
         ],

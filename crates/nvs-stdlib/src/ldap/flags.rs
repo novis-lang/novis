@@ -14,8 +14,8 @@
 //! **Lockout and an expired password are computed by AD**, not stored in
 //! `userAccountControl`. `AccountFlags` keeps
 //! `msDS-User-Account-Control-Computed` in its `computed` slot, which `search`
-//! requests whenever `userAccountControl` is selected, and `lockedOut` and
-//! `passwordExpired` read it. Where the entry did not carry it the slot is
+//! requests whenever `userAccountControl` is selected, and `isLockedOut` and
+//! `isPasswordExpired` read it. Where the entry did not carry it the slot is
 //! `null`, and the two read `bits` as every other flag does. `with` has no
 //! option for either, and a copy it returns keeps the `computed` slot.
 //!
@@ -161,36 +161,36 @@ macro_rules! flag_helpers {
 
 flag_helpers! {
     ACCOUNT_FLAGS, ACCOUNT_BITS => [
-        nvs_core_ldap_ad_account_flags_script => "script",
-        nvs_core_ldap_ad_account_flags_disabled => "disabled",
-        nvs_core_ldap_ad_account_flags_home_directory_required => "homeDirectoryRequired",
-        nvs_core_ldap_ad_account_flags_locked_out => "lockedOut",
-        nvs_core_ldap_ad_account_flags_password_not_required => "passwordNotRequired",
-        nvs_core_ldap_ad_account_flags_reversible_encryption => "reversibleEncryption",
-        nvs_core_ldap_ad_account_flags_temporary_duplicate_account => "temporaryDuplicateAccount",
-        nvs_core_ldap_ad_account_flags_normal_account => "normalAccount",
-        nvs_core_ldap_ad_account_flags_interdomain_trust_account => "interdomainTrustAccount",
-        nvs_core_ldap_ad_account_flags_workstation_trust_account => "workstationTrustAccount",
-        nvs_core_ldap_ad_account_flags_server_trust_account => "serverTrustAccount",
-        nvs_core_ldap_ad_account_flags_password_never_expires => "passwordNeverExpires",
-        nvs_core_ldap_ad_account_flags_mns_logon_account => "mnsLogonAccount",
-        nvs_core_ldap_ad_account_flags_smartcard_required => "smartcardRequired",
-        nvs_core_ldap_ad_account_flags_trusted_for_delegation => "trustedForDelegation",
-        nvs_core_ldap_ad_account_flags_not_delegated => "notDelegated",
-        nvs_core_ldap_ad_account_flags_use_des_key_only => "useDesKeyOnly",
-        nvs_core_ldap_ad_account_flags_no_preauth_required => "noPreauthRequired",
-        nvs_core_ldap_ad_account_flags_password_expired => "passwordExpired",
-        nvs_core_ldap_ad_account_flags_trusted_to_auth_for_delegation => "trustedToAuthForDelegation",
-        nvs_core_ldap_ad_account_flags_partial_secrets_account => "partialSecretsAccount",
+        nvs_core_ldap_ad_account_flags_has_logon_script => "script",
+        nvs_core_ldap_ad_account_flags_is_disabled => "disabled",
+        nvs_core_ldap_ad_account_flags_is_home_directory_required => "homeDirectoryRequired",
+        nvs_core_ldap_ad_account_flags_is_locked_out => "lockedOut",
+        nvs_core_ldap_ad_account_flags_is_password_not_required => "passwordNotRequired",
+        nvs_core_ldap_ad_account_flags_allows_reversible_encryption => "reversibleEncryption",
+        nvs_core_ldap_ad_account_flags_is_temporary_duplicate_account => "temporaryDuplicateAccount",
+        nvs_core_ldap_ad_account_flags_is_normal_account => "normalAccount",
+        nvs_core_ldap_ad_account_flags_is_interdomain_trust_account => "interdomainTrustAccount",
+        nvs_core_ldap_ad_account_flags_is_workstation_trust_account => "workstationTrustAccount",
+        nvs_core_ldap_ad_account_flags_is_server_trust_account => "serverTrustAccount",
+        nvs_core_ldap_ad_account_flags_has_non_expiring_password => "passwordNeverExpires",
+        nvs_core_ldap_ad_account_flags_is_mns_logon_account => "mnsLogonAccount",
+        nvs_core_ldap_ad_account_flags_is_smartcard_required => "smartcardRequired",
+        nvs_core_ldap_ad_account_flags_is_trusted_for_delegation => "trustedForDelegation",
+        nvs_core_ldap_ad_account_flags_is_not_delegated => "notDelegated",
+        nvs_core_ldap_ad_account_flags_uses_des_key_only => "useDesKeyOnly",
+        nvs_core_ldap_ad_account_flags_is_preauth_not_required => "noPreauthRequired",
+        nvs_core_ldap_ad_account_flags_is_password_expired => "passwordExpired",
+        nvs_core_ldap_ad_account_flags_is_trusted_to_authenticate_for_delegation => "trustedToAuthenticateForDelegation",
+        nvs_core_ldap_ad_account_flags_is_partial_secrets_account => "partialSecretsAccount",
     ];
     GROUP_TYPE, GROUP_BITS => [
-        nvs_core_ldap_ad_group_type_system => "system",
-        nvs_core_ldap_ad_group_type_global => "global",
-        nvs_core_ldap_ad_group_type_domain_local => "domainLocal",
-        nvs_core_ldap_ad_group_type_universal => "universal",
-        nvs_core_ldap_ad_group_type_app_basic => "appBasic",
-        nvs_core_ldap_ad_group_type_app_query => "appQuery",
-        nvs_core_ldap_ad_group_type_security => "security",
+        nvs_core_ldap_ad_group_type_is_system_group => "system",
+        nvs_core_ldap_ad_group_type_is_global => "global",
+        nvs_core_ldap_ad_group_type_is_domain_local => "domainLocal",
+        nvs_core_ldap_ad_group_type_is_universal => "universal",
+        nvs_core_ldap_ad_group_type_is_app_basic_group => "appBasic",
+        nvs_core_ldap_ad_group_type_is_app_query_group => "appQuery",
+        nvs_core_ldap_ad_group_type_is_security_group => "security",
     ];
 }
 
@@ -260,22 +260,22 @@ mod tests {
     /// Every member of both classes, end to end through `call`. A reader of a
     /// flag AD computes reads the computed attribute, every other reader reads
     /// `bits`, and a bit no reader names is kept by `bits` and by `with`.
-    // covers: Core\Ldap\Ad\AccountFlags::script, Core\Ldap\Ad\AccountFlags::disabled
-    // covers: Core\Ldap\Ad\AccountFlags::homeDirectoryRequired, Core\Ldap\Ad\AccountFlags::lockedOut
-    // covers: Core\Ldap\Ad\AccountFlags::passwordNotRequired, Core\Ldap\Ad\AccountFlags::reversibleEncryption
-    // covers: Core\Ldap\Ad\AccountFlags::temporaryDuplicateAccount, Core\Ldap\Ad\AccountFlags::normalAccount
-    // covers: Core\Ldap\Ad\AccountFlags::interdomainTrustAccount, Core\Ldap\Ad\AccountFlags::workstationTrustAccount
-    // covers: Core\Ldap\Ad\AccountFlags::serverTrustAccount, Core\Ldap\Ad\AccountFlags::passwordNeverExpires
-    // covers: Core\Ldap\Ad\AccountFlags::mnsLogonAccount, Core\Ldap\Ad\AccountFlags::smartcardRequired
-    // covers: Core\Ldap\Ad\AccountFlags::trustedForDelegation, Core\Ldap\Ad\AccountFlags::notDelegated
-    // covers: Core\Ldap\Ad\AccountFlags::useDesKeyOnly, Core\Ldap\Ad\AccountFlags::noPreauthRequired
-    // covers: Core\Ldap\Ad\AccountFlags::passwordExpired, Core\Ldap\Ad\AccountFlags::trustedToAuthForDelegation
-    // covers: Core\Ldap\Ad\AccountFlags::partialSecretsAccount, Core\Ldap\Ad\AccountFlags::bits
+    // covers: Core\Ldap\Ad\AccountFlags::hasLogonScript, Core\Ldap\Ad\AccountFlags::isDisabled
+    // covers: Core\Ldap\Ad\AccountFlags::isHomeDirectoryRequired, Core\Ldap\Ad\AccountFlags::isLockedOut
+    // covers: Core\Ldap\Ad\AccountFlags::isPasswordNotRequired, Core\Ldap\Ad\AccountFlags::allowsReversibleEncryption
+    // covers: Core\Ldap\Ad\AccountFlags::isTemporaryDuplicateAccount, Core\Ldap\Ad\AccountFlags::isNormalAccount
+    // covers: Core\Ldap\Ad\AccountFlags::isInterdomainTrustAccount, Core\Ldap\Ad\AccountFlags::isWorkstationTrustAccount
+    // covers: Core\Ldap\Ad\AccountFlags::isServerTrustAccount, Core\Ldap\Ad\AccountFlags::hasNonExpiringPassword
+    // covers: Core\Ldap\Ad\AccountFlags::isMnsLogonAccount, Core\Ldap\Ad\AccountFlags::isSmartcardRequired
+    // covers: Core\Ldap\Ad\AccountFlags::isTrustedForDelegation, Core\Ldap\Ad\AccountFlags::isNotDelegated
+    // covers: Core\Ldap\Ad\AccountFlags::usesDesKeyOnly, Core\Ldap\Ad\AccountFlags::isPreauthNotRequired
+    // covers: Core\Ldap\Ad\AccountFlags::isPasswordExpired, Core\Ldap\Ad\AccountFlags::isTrustedToAuthenticateForDelegation
+    // covers: Core\Ldap\Ad\AccountFlags::isPartialSecretsAccount, Core\Ldap\Ad\AccountFlags::bits
     // covers: Core\Ldap\Ad\AccountFlags::mustChangePassword, Core\Ldap\Ad\AccountFlags::with
-    // covers: Core\Ldap\Ad\GroupType::system, Core\Ldap\Ad\GroupType::global
-    // covers: Core\Ldap\Ad\GroupType::domainLocal, Core\Ldap\Ad\GroupType::universal
-    // covers: Core\Ldap\Ad\GroupType::appBasic, Core\Ldap\Ad\GroupType::appQuery
-    // covers: Core\Ldap\Ad\GroupType::security, Core\Ldap\Ad\GroupType::bits
+    // covers: Core\Ldap\Ad\GroupType::isSystemGroup, Core\Ldap\Ad\GroupType::isGlobal
+    // covers: Core\Ldap\Ad\GroupType::isDomainLocal, Core\Ldap\Ad\GroupType::isUniversal
+    // covers: Core\Ldap\Ad\GroupType::isAppBasicGroup, Core\Ldap\Ad\GroupType::isAppQueryGroup
+    // covers: Core\Ldap\Ad\GroupType::isSecurityGroup, Core\Ldap\Ad\GroupType::bits
     // covers: Core\Ldap\Ad\GroupType::with
     #[test]
     fn every_reader_reads_its_own_bit_and_with_keeps_the_rest() {
@@ -327,7 +327,7 @@ mod tests {
         assert_eq!(enabled_bits.as_int(), Some(0x240));
         let locked = read(
             &mut ctx,
-            nvs_core_ldap_ad_account_flags_locked_out,
+            nvs_core_ldap_ad_account_flags_is_locked_out,
             &[enabled],
         );
         assert_eq!(locked.as_bool(), Some(true));

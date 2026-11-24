@@ -3,7 +3,7 @@
 //!
 //! **A job is a row, and that is the whole design.** Enqueue committing with your write is the
 //! property everything else is arranged around: `push` runs on the queue's *own* connection, so an
-//! enqueue inside `Core\Db::connect("main")->transaction(…)` — where `[queue] connection = "main"`
+//! enqueue inside `Core\Db::connect("main")->runTransaction(…)` — where `[queue] connection = "main"`
 //! — commits with the write that caused it or with neither. There is no outbox and no window in
 //! which the order exists and the receipt job does not. That property is not implemented here so
 //! much as *not broken* here: [`nvs_runtime::Ctx::memoized_connection`] already answers with the
@@ -4067,7 +4067,7 @@ pub(crate) fn announce(ctx: &mut nvs_runtime::Ctx, key: u64) -> Result<(), Fault
 /// [`announce`]'s other half: transaction `level` of the connection filed under `key` has closed,
 /// and the bell rings if that made a job this request enqueued durable.
 ///
-/// Called by `Core\Db\Connection::transaction` for every level it closes, committed or not.
+/// Called by `Core\Db\Connection::runTransaction` for every level it closes, committed or not.
 /// [`nvs_runtime::Ctx::transaction_level_closed`] is where a nested level and a rollback are told
 /// apart from the outermost commit, so a rollback rings nothing.
 pub(crate) fn level_closed(ctx: &mut nvs_runtime::Ctx, key: u64, level: u32, committed: bool) {

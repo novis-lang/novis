@@ -79,11 +79,11 @@ test("a callback parameter gets a function that returns its argument", () => {
 
 test("an instance member gets a receiver from its factory", () => {
   const { probes, skips } = probePlan(META);
-  const add = probes.find((p) => p.member === "Core\\BigInt::add")!;
+  const add = probes.find((p) => p.member === "Core\\BigInt::plus")!;
   const source = probeSource(add);
   // Each step makes a fresh receiver, and a parameter of a class with a factory gets one too.
   expect(source).toContain("var $r = Core\\BigInt::of(1);");
-  expect(source).toContain("$r->add(Core\\BigInt::of(1));");
+  expect(source).toContain("$r->plus(Core\\BigInt::of(1));");
   const set = probes.find((p) => p.member === "Core\\ObjectMap::set")!;
   expect(probeSource(set)).toContain("var $r = new Core\\ObjectMap<mixed, mixed>();");
   expect(probeSource(set)).toMatch(/\$r->set\(\$p0, \$p1\);/);
@@ -91,7 +91,7 @@ test("an instance member gets a receiver from its factory", () => {
   expect(probes.some((p) => p.member === "Core\\Arr::count")).toBe(false);
   expect(skips).toContainEqual({ member: "Core\\Arr::count", reason: "no factory: `PROBE_FACTORIES` has none for this class" });
   // A factory that throws is named, and is not red.
-  const threw = judgeProbe("Core\\BigInt::add", ran("", '{"level":"error","msg":"no match","fields":{"class":"LogicError"},"nodes":[]}\n'));
+  const threw = judgeProbe("Core\\BigInt::plus", ran("", '{"level":"error","msg":"no match","fields":{"class":"LogicError"},"nodes":[]}\n'));
   expect(threw.red).toBe(false);
   expect(threw.note).toBe("its setup threw an uncaught LogicError before its first step: no match");
 });

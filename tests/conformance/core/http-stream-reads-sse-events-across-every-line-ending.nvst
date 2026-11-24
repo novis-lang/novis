@@ -25,7 +25,7 @@ array<string> $urls = ["https://sse.example.com/lf", "https://sse.example.com/cr
 foreach ($urls as string $url) {
     // The head is readable before the body is read at all, and it is the same
     // reading `Core\Http\Response` gives — one implementation behind two doors.
-    var $stream = Core\Http\Client::stream(Core\Http\Method::Get, $url);
+    var $stream = Core\Http\Client::openStream(Core\Http\Method::Get, $url);
     echo $stream->status(), " ", $stream->header("content-type") ?? "no type", " ", Core\Arr::count($stream->headers("content-type")), "\n";
 
     // Two events, not three: the leading block sets `retry` and a comment and
@@ -40,7 +40,7 @@ foreach ($urls as string $url) {
 // The one difference between the two framings, named on the side that does not
 // have it: `lines()` ends a line at `\n` alone, so the body every line of which
 // ended at `\r` is one line to it and six lines plus two events to `events()`.
-var $flat = Core\Http\Client::stream(Core\Http\Method::Get, "https://sse.example.com/cr");
+var $flat = Core\Http\Client::openStream(Core\Http\Method::Get, "https://sse.example.com/cr");
 int $lines = 0;
 foreach ($flat->lines() as tainted string $line) {
     $lines = $lines + 1;

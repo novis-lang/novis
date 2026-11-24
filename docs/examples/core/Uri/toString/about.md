@@ -2,7 +2,7 @@ Returns the address as text. For a `Uri` that `Core\Uri::parse` read, the result
 that was read, byte for byte. Nothing is changed: `HTTP://Example.COM/a%2fb` comes back as
 `HTTP://Example.COM/a%2fb`, with the same upper-case letters and the same escapes.
 
-For a `Uri` that `with`, `withQueryParameter` or `resolve` made, the result is the new address.
+For a `Uri` that `with`, `withQueryParameter` or `resolved` made, the result is the new address.
 
 `echo $uri` prints the same text as `echo $uri->toString()`. Use `toString()` when you need a
 `string`, for example to store the address or to return it from a function.

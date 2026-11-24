@@ -22,7 +22,7 @@ stages:
     context: [crates/nvs-stdlib/src/cli.rs, crates/nvs-stdlib/src/io.rs, crates/nvs-stdlib/src/path.rs]
   - id: 5
     title: "values and data are renamed: BigInt, Decimal, Math, Arr, ObjectSet, Uri, Time, Db, Http and Ldap"
-    status: open
+    status: done
     context: [crates/nvs-stdlib/src/bigint.rs, crates/nvs-stdlib/src/db/registry.rs, crates/nvs-stdlib/src/ldap/flags.rs]
   - id: 6
     title: "the first-party packages are renamed: Novis\\Image, Novis\\Pdf and Novis\\Spreadsheet"
@@ -573,21 +573,21 @@ listing every `Old` → `New` it renamed, as the standing decision says.
 **Split:** as stage 3. If the leftovers do not fit one session, the session stops after Db and Ldap
 and the handoff names the rest.
 
-- [ ] `crates/nvs-stdlib/src/bigint.rs:204` to `:314`; `decimal.rs:103`, `:113`, `:138`; `math.rs:189`,
+- [x] `crates/nvs-stdlib/src/bigint.rs:204` to `:314`; `decimal.rs:103`, `:113`, `:138`; `math.rs:189`,
   `:199`, `:209`. `BigInt->mod` is `remainder` only if its sign follows the dividend; the session reads
   the native first and records the answer in the card.
-- [ ] `crates/nvs-stdlib/src/arr.rs:691` and `Arr::intersect`, `Arr::countBy`, the `Arr::SetOn` card;
+- [x] `crates/nvs-stdlib/src/arr.rs:691` and `Arr::intersect`, `Arr::countBy`, the `Arr::SetOn` card;
   `objset.rs:130`, `:140`; `uri.rs:646`, `:666`.
-- [ ] `crates/nvs-stdlib/src/time.rs:1247`: `nanoseconds` on `DateTime` and `TimeOfDay`, and the `with`
+- [x] `crates/nvs-stdlib/src/time.rs:1247`: `nanoseconds` on `DateTime` and `TimeOfDay`, and the `with`
   option field.
-- [ ] `crates/nvs-stdlib/src/db/registry.rs:509`, `:542`, `:700`, `:1666`, and the same on
+- [x] `crates/nvs-stdlib/src/db/registry.rs:509`, `:542`, `:700`, `:1666`, and the same on
   `Db\Transaction`; `http.rs:1785`, `:2124`; `ratelimit.rs:367`; `webpush.rs:207`;
   `test/hooks.rs:76`.
-- [ ] `crates/nvs-stdlib/src/ldap/registry.rs:446`, `:536`; `ldap/flags.rs:167`, `:189`, `:290` and
+- [x] `crates/nvs-stdlib/src/ldap/registry.rs:446`, `:536`; `ldap/flags.rs:167`, `:189`, `:290` and
   `ldap/registry.rs:2456`: the flag readers and the `with` field.
-- [ ] `cargo build`, then `bun nv api-rename --goal clear-member-names`; every listed call fixed;
+- [x] `cargo build`, then `bun nv api-rename --goal clear-member-names`; every listed call fixed;
   directories moved.
-- [ ] `cargo build` and `cargo clippy --all-targets -- -D warnings` green.
+- [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` green.
 
 ### 6. the first-party packages are renamed: Novis\Image, Novis\Pdf and Novis\Spreadsheet
 
@@ -636,52 +636,57 @@ changes entries.
 
 ### State
 
-Stages 1 to 4 are done. Stage 4 renamed `Cli`, `Test`, `Xml\Writer`, `IO`, `IO\Metadata` and `Path`:
-rows, symbols, cards, the bare-string lists (`registry.rs`, `rereads.rs`, `paths.rs`, `core_lib.rs`),
-the `isDirectory` slot, the directories, feature ids, `nvs.toml` comments and every caller. Six
-`io-`/`path-` conformance cases changed an `echo` label with its `--EXPECT--` line. Build, clippy,
-`rules --check` and the filtered `api-rename --check` are green. No test ran this stage.
+Stages 1 to 5 are done. Stage 5 renamed every stage 5 row of the table: rows, symbols, cards, labels,
+directories, feature ids, callers, and the bare-string tables in `registry.rs`,
+`nvs-types/src/intrinsics.rs` and `nvs-ir/src/forms.rs`. `BigInt->remainder` takes the dividend's
+sign. The `nanos` option is `nanoseconds` on all four members, `Instant::fromEpoch` and
+`TimeOfDay::at` included; the slot stays `nanos`, and so does the intl extension's WIT field
+(`extensions/intl/nvs/DateFormat.nvs:12`). `questions.json`'s keys match stages 3 to 5. Build,
+clippy, `cargo fmt`, `rules --check` and the filtered `api-rename --check` are green; no test ran.
 
-The sweep never reads `.json`, `.toml` or `.out`: `.agent-tmp/stage4_data.py` and `stage4_ids.py`
-renamed those. `questions.json`'s page keys are the lower-case new names, which
-`bun nv site --check questions` confirms at stage 8.
-
-Expect red at stage 9 if anything was missed: `.lspt` completion cases that list renamed members by
-bare name, `nvs-test`'s `TOP_LEVEL_ONLY` cases, and the six changed conformance cases.
-`website/src/data/core.json`, `website/public/llms-full.txt` and `site.lock.json`'s stamps are stale
-until stage 8.
+Expect red at stage 9 if anything was missed: `.lspt` completion cases and `nvs-test`'s
+`TOP_LEVEL_ONLY` cases. `echo` labels such as `powMod` kept their `--EXPECT--` lines. `core.json`,
+`core-changelog.json`, `llms-full.txt` and `site.lock.json`'s stamps are stale until stage 8.
 
 Red until stage 7: `bun nv names --check`, the unfiltered `api-rename --check`, so `ci --check`, the
 floor's `ci-check` and `ci --push`. Stage 7's names outside the table: `CoreProcess::run`, `spawn`'s
-`cwd`, the `nanos` option of `Instant::fromEpoch` and `TimeOfDay::at`, `Queue::push`'s `args`,
-`NovisImageDiff`, `RateLimit::shed`, `Cli::multiSelect` and `LdapFilter::approx`.
+`cwd`, `Queue::push`'s `args`, `NovisImageDiff`, `RateLimit::shed`, `Cli::multiSelect` and
+`LdapFilter::approx`.
 
 ### Next
 
-Stage 5 from its first item, the same way as stage 4. Stage 5 is the largest, so stop after Db and
-Ldap if the leftovers do not fit:
-1. Rename the rows, symbols and cards at `crates/nvs-stdlib/src/bigint.rs:204`, `decimal.rs:103`,
-   `math.rs:189`, `arr.rs:691`, `objset.rs:130`, `uri.rs:646`, `time.rs:1247`, `db/registry.rs:509`,
-   `http.rs:1785`, `ratelimit.rs:367`, `webpush.rs:207`, `test/hooks.rs:76`, `ldap/registry.rs:446`
-   and `ldap/flags.rs:167`. A script like `.agent-tmp/stage4_symbols.py` renames the symbols with a
-   whole-word regex and the `name: "old",` rows per file. Then rename every Rust list that names a member
-   as a bare string (`git grep -nP '"(add|sub|mul|…)"' crates`), checking each hit's class.
-2. Run `bun nv api-rename --goal clear-member-names --class …` for the stage's classes into a file,
-   and fix its `->old(` list by line with `.agent-tmp/stage4_instances.py`, after excluding the
-   receivers of another class (`->add(` and `->diff(` have many).
-3. Move the directories with `.agent-tmp/stage4_move.py` (edit its map).
-4. Rename instance feature ids (`Core\BigInt::add`) with `stage4_ids.py`, and the `.json`/`.toml`
-   names with `stage4_data.py`; check `git grep` on `*.json *.toml *.out` afterwards.
-5. Give the bare mentions to writing subagents by group, as stage 4 did: one for the stdlib modules
-   with their examples, hostile, benches and conformance cases, one for `docs/rules`, `data/`, the
-   playbook and the website.
-6. Run `bun nv rules --render`, the filtered `--check`, `cargo fmt`, build and clippy.
+Stage 6, the packages, from its first item: `extensions/image/nvs/Image.nvs:212`,
+`extensions/pdf/nvs/Document.nvs:63`, `extensions/spreadsheet/nvs/Chart.nvs:84`, `Sheet.nvs:101` and
+`Workbook.nvs:1`. The members are declared in Novis, so there are no Rust symbols. Check
+`extensions/*/manifest.json` and each extension's Rust tests for bare names.
+1. Rename the declarations in the `.nvs` files. `Image->metadata({ keep: true })` becomes
+   `keepingMetadata()` with no bag.
+2. Run `bun nv api-rename --goal clear-member-names --class 'Novis\Image\Image' --class …` into
+   `.agent-tmp/`, then grep for `->old<` beside `->old(`. The sweep lists only `->old(`. Fix the list
+   by line, after excluding the receivers of another class. `->add(`, `->text(`, `->format(`,
+   `->merge(` and `->print(` have many.
+3. Move the directories under `docs/examples/novis/`, `tests/hostile/novis/` and
+   `benches/members/novis/`. Then rename the `Class::member` feature ids in every file, `.json` and
+   `.toml` included. `.agent-tmp/stage5_map.py`, `stage5_move.py` and `stage5_ids.py` do this; edit
+   their map and their `core/` prefix to `novis/`.
+4. Give the bare mentions to three writing subagents, as stage 5 did: `.rs` files; the example,
+   hostile, bench and conformance trees; and `docs/rules`, `docs/reference`, `data/` and the website.
+5. Run `bun nv rules --render`, the filtered `--check`, `cargo fmt`, build and clippy.
 
 ### Backlog
 
+- `bun nv api-rename` lists `->old(` but not `->old<T>(`. Stage 7 adds the generic form to its
+  listing and to `--check` (`tools/nv/cmd/api-rename.ts`).
+- `crates/nvs-stdlib/src/test.rs:481`: the `Test::tlsSession` option `verified` sets what
+  `TlsInfo->isVerified()` returns. Stage 7 decides whether it becomes `isVerified` by part 4.
+- Stage 3 prose left behind: `docs/examples/core/Response/startStream/01-…nvs:5` and its `about.md`
+  (lines 1, 7, 8) still say `stream`. `docs/examples/core/Sse/startStream/01-…nvs:4` and its
+  `about.md` (lines 6, 10) still say `stream()`. Stage 8 rewrites them.
+- `data/reference/core/Math.json:12` keeps `fdiv`, `intdiv` and `pow` as search keywords, because
+  they are PHP's names. Stage 8 decides whether `quotient` and `divide` join them.
 - `rule:core-classes/script-args`, the `script-args-*.nvst` cases and
   `05-give-the-child-a-value-with-args.nvs` still say `args`. Stage 8 renames them together.
-- File names and a rule id that still hold a stage 4 old word, for stage 8's one pass:
+- File names and rule ids that still hold an old word, for stage 8's one pass. From stage 4:
   `rule:core-classes/temporary-dir-sweep`; `tests/conformance/core/test-script-answers-*.nvst` (3),
   `cli-secret-originates-…`, `io-stat-agrees-…`, `io-a-stat-is-a-snapshot-…`,
   `io-is-file-and-is-dir-partition-…`, `io-make-dir-*.nvst` (3), `io-temporary-dir-is-refused-…`,
@@ -689,7 +694,11 @@ Ldap if the leftovers do not fit:
   `path-from-cwd-…`, `path-this-dir-…`, `path-this-file-and-this-dir-…`,
   `reject/path-a-tainted-path-not-from-cwd-…`; the Rust test `…_and_script_answers_write_the_ledger…`
   at `crates/nvs-stdlib/src/test.rs:8802`, and the helpers `fn basename`/`fn dirname` in
-  `crates/nvs-stdlib/src/path.rs:1318`.
+  `crates/nvs-stdlib/src/path.rs:1318`. From stage 5: the conformance cases named
+  `bigint-div-and-mod-…`, `decimal-div-round-…`, `db-stream-*`, `db-transaction-stream-*`,
+  `ldap-compare-*`, `ldap-changes-*`, `uri-sign-*`, `uri-resolve-*`, `uri-with-and-resolve`,
+  `time-from-epoch-…-its-nanos-…`, and the playbook file
+  `core-objectsets-union-intersect-and-diff-…md`.
 - `bun nv api-rename`'s `TEXT_EXTENSIONS` lacks `.json`, `.toml` and `.out`. Stage 7 adds them, so
   its `--check` sees the data files (the generated `core.json`, `llms-full.txt` and the history files
   stay excluded).

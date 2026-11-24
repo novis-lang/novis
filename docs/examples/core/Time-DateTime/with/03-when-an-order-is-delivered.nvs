@@ -7,12 +7,12 @@ class Delivery
 {
     public static function arrives(Core\Time\DateTime $ordered): Core\Time\DateTime
     {
-        var $cutoff = $ordered->with({ hour: 14, minute: 0, second: 0, nanos: 0 });
+        var $cutoff = $ordered->with({ hour: 14, minute: 0, second: 0, nanoseconds: 0 });
         int $days = 1;
         if ($ordered->difference($cutoff, Core\Unit::Second) <= 0) {
             $days = 2;
         }
-        return $ordered->plus($days, Core\Unit::Day)->with({ hour: 10, minute: 0, second: 0, nanos: 0 });
+        return $ordered->plus($days, Core\Unit::Day)->with({ hour: 10, minute: 0, second: 0, nanoseconds: 0 });
     }
 }
 

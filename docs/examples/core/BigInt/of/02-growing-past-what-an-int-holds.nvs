@@ -14,7 +14,7 @@ try {
 
 // The same number as a `Core\BigInt` doubles with no limit. This prints
 // 18446744073709551614.
-echo Core\BigInt::of($largest)->mul(Core\BigInt::of(2)), "\n";
+echo Core\BigInt::of($largest)->multipliedBy(Core\BigInt::of(2)), "\n";
 
 // It keeps going. This prints a number of 38 digits.
-echo Core\BigInt::of($largest)->mul(Core\BigInt::of($largest)), "\n";
+echo Core\BigInt::of($largest)->multipliedBy(Core\BigInt::of($largest)), "\n";

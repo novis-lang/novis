@@ -50,7 +50,7 @@ $threw = 0;
 array<string> $entries = ['CN=Nobody,OU=Company,DC=example,DC=test', 'not a name', ''];
 foreach ($entries as string $entry) {
     try {
-        $corp->compare($entry, 'department', 'Sales');
+        $corp->hasValue($entry, 'department', 'Sales');
     } catch (Throwable $error) {
         $threw = $threw + 1;
     }

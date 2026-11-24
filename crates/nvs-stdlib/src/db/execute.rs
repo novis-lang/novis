@@ -176,7 +176,7 @@ pub(super) fn settled<T>(
 /// The drivers spell a transaction differently — `nvs_db::mysql`'s `begin`
 /// owns the differences, from `START TRANSACTION` down to the release a nested
 /// rollback does not owe — but they answer the same four questions, and
-/// `transaction` asks them at five points around a callable it does not control.
+/// `runTransaction` asks them at five points around a callable it does not control.
 /// An enum here rather than a trait in `nvs-db`: which commands a backend sends
 /// is exactly what differs between drivers and stays inside each one, and what
 /// this needs is the *call sites* flattened rather than the drivers.
@@ -363,7 +363,7 @@ nvs_runtime::nvs_helper! {
     /// `Core\Db\Queryable` to land.
     ///
     /// **Every row is read before this returns**, which is that rule's default
-    /// and the whole difference between this and `stream`: the connection is at
+    /// and the whole difference between this and `queryEach`: the connection is at
     /// a message boundary again by the time the caller has its answer, so the
     /// loop that reads rows and writes per row — the commonest one in web
     /// programming — needs no second connection and cannot meet
@@ -502,7 +502,7 @@ pub(super) fn queried_rows(
 /// the crossing but reach no poll inside the loop. So without this the
 /// request held its whole result before anything stopped it. The check is
 /// two thread-local reads per row, beside the allocations each row already
-/// makes. `rule:programs/memory-priority` is the bound it keeps, and `stream`
+/// makes. `rule:programs/memory-priority` is the bound it keeps, and `queryEach`
 /// needs none of this because it returns to the program between rows.
 ///
 /// # Errors
@@ -791,7 +791,7 @@ impl Framed<'_> {
         }
     }
 
-    /// `rule:core-classes/db-streaming`'s `stream`: the same statement [`Self::query`] sends, left
+    /// `rule:core-classes/db-streaming`'s `queryEach`: the same statement [`Self::query`] sends, left
     /// open with its read state parked on the connection.
     ///
     /// The description the driver answers with is dropped here rather than
@@ -1771,7 +1771,7 @@ nvs_runtime::nvs_helper! {
     /// execution to be about — and the sum is what a caller writing the loop by
     /// hand would have accumulated anyway. The batch is also **not** a
     /// transaction: a failure part way through leaves the writes before it
-    /// standing and the sets after it still attempted, and `transaction` is the
+    /// standing and the sets after it still attempted, and `runTransaction` is the
     /// member that asks for all or nothing. The drivers reach that one
     /// observable from opposite ends of their protocols — a `Sync` per execution
     /// on PostgreSQL, a command per execution on MySQL, an `sp_execute` per set
@@ -2110,7 +2110,7 @@ mod tests {
     }
 
     /// `rule:core-classes/db-statement-members`'s buffered read, which is the
-    /// whole difference between `query` and `stream`: every row is in memory
+    /// whole difference between `query` and `queryEach`: every row is in memory
     /// before the call returns, and the connection is free from that moment.
     ///
     /// **Asserted on a real engine**, because a claim about buffering that
@@ -2188,7 +2188,7 @@ mod tests {
         );
 
         // 3. And the connection is free with the result still in hand, which is
-        //    what `stream` cannot say: its walk holds the connection until the
+        //    what `queryEach` cannot say: its walk holds the connection until the
         //    rows are gone.
         conn.query("insert into notes (text) values ('pay rent')", Vec::new())
             .expect("the connection is free the moment the read returns");

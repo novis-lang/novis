@@ -9,7 +9,7 @@ ordinary `net.connect` grant.
 | `applicationServerKey(Crypto\KeyPair $vapid): string` | the public key, base64url, that the browser's `pushManager.subscribe()` needs |
 | `send(WebPush\Subscription $to, bytes $payload, Crypto\KeyPair $vapid, string $subject, int $ttl = 86400): WebPush\Sent` | encrypts, signs and sends one message, and returns the push service's answer |
 
-`WebPush\Sent` has the push service's `status` and `gone`, which is `true` for a subscription the
+`WebPush\Sent` has the push service's `status` and `isGone`, which is `true` for a subscription the
 service no longer knows, so the application can drop it. The VAPID key is a `Core\Crypto\KeyPair` of
 kind `P256` and stays `secret`; it never appears in a message or an error. The token is signed by the
 code `Core\Jwt` already uses for ES256.

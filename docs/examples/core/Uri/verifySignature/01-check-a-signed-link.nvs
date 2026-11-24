@@ -2,7 +2,7 @@
 // Shows how to check a signed link, and what happens when somebody changes it.
 
 array<secret bytes> $keys = [Core\Crypto::generateKey()];
-Core\Uri $link = Core\Uri::parse('https://example.com/invoice?id=7')->sign({ keys: $keys, until: null });
+Core\Uri $link = Core\Uri::parse('https://example.com/invoice?id=7')->signed({ keys: $keys, until: null });
 
 // `verifySignature` returns nothing. The next line runs only when the link is valid.
 $link->verifySignature($keys);

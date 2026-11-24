@@ -377,7 +377,7 @@ impl TdsConn {
     /// There is no charset to force — TDS carries text as UCS-2 and every
     /// column type decodes from that — and no session time zone to set, which
     /// [`TdsTarget::time_zone`] owns; LOGIN7's own option flags carry the ANSI
-    /// defaults `transaction()` rests on (`rule:core-classes/db-transactions`),
+    /// defaults `runTransaction()` rests on (`rule:core-classes/db-transactions`),
     /// so the connection is usable the moment the login is acknowledged.
     ///
     /// # Errors
@@ -420,7 +420,7 @@ impl TdsConn {
             cache: StatementCache::new(target.statement_cache),
             depth: Cell::new(0),
             // LOGIN7 leaves the session at the login's own default, which is
-            // `DEFAULT_ISOLATION`, so nothing is owed until a `transaction()`
+            // `DEFAULT_ISOLATION`, so nothing is owed until a `runTransaction()`
             // asks for a level.
             isolation_moved: Cell::new(false),
             // Nothing is parked until `stream` parks it — see the field.
@@ -502,7 +502,7 @@ impl TdsConn {
         // [`reset_session`] pays rather than here. The server's own
         // transaction descriptor is cleared there too, that being where the
         // request carrying it is written. A connection pooled at a depth it no
-        // longer has would open the next request's outermost `transaction()` as
+        // longer has would open the next request's outermost `runTransaction()` as
         // a `SAVE TRANSACTION` against nothing.
         self.depth.set(0);
         Ok(self)
@@ -542,7 +542,7 @@ impl TdsConn {
     /// the read state is parked on this connection and the rows come off it one
     /// [`Self::stream_next_row`] at a time.
     ///
-    /// The wire half of `rule:core-classes/db-streaming`'s `stream`, costing the round trips
+    /// The wire half of `rule:core-classes/db-streaming`'s `queryEach`, costing the round trips
     /// [`Self::query`] costs and stopping where it stops — [`TdsCursor`] owns
     /// why the state has to be here rather than inside a borrow. The answer is
     /// what the result set described, empty for a statement that returned none,
@@ -633,7 +633,7 @@ impl TdsConn {
     }
 
     /// `rule:core-classes/db-transactions`'s `BEGIN TRANSACTION`,
-    /// or the `SAVE TRANSACTION` a nested `transaction()` is.
+    /// or the `SAVE TRANSACTION` a nested `runTransaction()` is.
     ///
     /// The driver half of a transaction and nothing more — the callable, the
     /// rollback-only flag and the retry rule are `nvs-stdlib`'s, exactly as on
@@ -660,9 +660,9 @@ impl TdsConn {
     }
 
     /// How many transaction levels are open on this connection — 0 outside one,
-    /// 1 inside an outermost `transaction()`, deeper inside a nested one.
+    /// 1 inside an outermost `runTransaction()`, deeper inside a nested one.
     ///
-    /// [`crate::PgConn::depth`] owns why this is public at all: `transaction()`
+    /// [`crate::PgConn::depth`] owns why this is public at all: `runTransaction()`
     /// retries a serialization failure only for an outermost transaction, and
     /// the caller cannot tell the two apart on its own.
     #[must_use]

@@ -7,7 +7,7 @@ Core\Test::answerHttp('https://builds.example.com/job/12', 200, {
     headers: ['content-type' => 'text/event-stream'],
 });
 
-Core\Http\Stream $build = Core\Http\Client::stream(Core\Http\Method::Get, 'https://builds.example.com/job/12');
+Core\Http\Stream $build = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://builds.example.com/job/12');
 foreach ($build->events() as Core\Http\Event $event) {
     // `name()` returns `null` for an event without an `event` line.
     tainted string $kind = $event->name() ?? 'message';

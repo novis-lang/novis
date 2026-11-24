@@ -16,7 +16,7 @@ option naming which parameters are signed, because that option is where every fr
 The fragment is never signed, since it is not sent to the server.
 
 **There are three doors onto the one construction.** `Core\Signature` signs and verifies a payload map;
-`$uri->sign`/`$uri->verifySignature` sign the form `$uri->compareTo` normalizes, reserving the `_sig`
+`$uri->signed`/`$uri->verifySignature` sign the form `$uri->compareTo` normalizes, reserving the `_sig`
 query parameter for the token; and `Core\Router`'s pair signs a route's path pattern and parameters, so a
 signature survives a remount (`rule:core-classes/router-signed-url`). Signing a URI that already carries
 `_sig` replaces it rather than nesting, `_sig` is left out of its own input, and a URL carrying two of

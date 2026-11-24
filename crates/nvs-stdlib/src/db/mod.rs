@@ -72,7 +72,7 @@
 //! # A statement's `timeout` is a deadline on the socket
 //!
 //! `rule:core-classes/db-statement-members` gives `query`, `queryAs`,
-//! `execute`, `executeMany` and `stream` a `{ timeout?: Duration }`, and says
+//! `execute`, `executeMany` and `queryEach` a `{ timeout?: Duration }`, and says
 //! nothing about what bounds it. There were two candidates and this module is
 //! where the choice is recorded, because it is a property of the implementation
 //! rather than of the surface: **it is a deadline on the connection's socket**,
@@ -117,14 +117,14 @@
 //!   connection.** It was given up on part way through a message, so the wire is
 //!   poisoned by `rule:core-classes/db-connection-busy-state`'s own rule and the connection does not rejoin the
 //!   pool. That is the honest cost of the bound and the reference cards say so.
-//! - **On `stream` the deadline bounds the walk**, not the call that opens it:
+//! - **On `queryEach` the deadline bounds the walk**, not the call that opens it:
 //!   it stays filed while the portal is open, so it covers every `advance()` up
 //!   to the last row — which is the wait a streaming caller actually takes.
 //!
 //! `rule:observability/a-slow-query-is-logged-past-a-threshold`'s `slow_query` is the neighbour that is neither of these: it
 //! *reports* a statement that took too long and never stops one.
 //!
-//! # `stream` declares no `chunk`, and the portal is why
+//! # `queryEach` declares no `chunk`, and the portal is why
 //!
 //! **That is a refusal rather than an unlanded option.** A `chunk` option is
 //! deliberately in neither of that member's registry rows, because there is no
@@ -168,7 +168,7 @@
 //! through the type map's decode, so `query`, `queryAs`, `execute` and
 //! `executeMany` answer on either driver,
 //! `rule:observability/a-query-is-a-trace-event`'s event included.
-//! `rule:core-classes/db-transactions`' `transaction` does too, over
+//! `rule:core-classes/db-transactions`' `runTransaction` does too, over
 //! [`Transacting`] — the drivers' commands differ and `nvs_db::mysql`'s `begin`
 //! owns how, but the five points this module asks them at do not. MySQL and
 //! MariaDB reach all of it through one body rather than two: [`Framed`] is that
@@ -183,7 +183,7 @@
 //! [`tds_write`] drains it for `execute`'s count, and
 //! `nvs_db::tds::execute_many` runs `executeMany`'s batch as that same send
 //! once per parameter set — one `sp_prepexec`, an `sp_execute` after it.
-//! `transaction` is [`Transacting`]'s fourth arm over `nvs_db::tds`'s own
+//! `runTransaction` is [`Transacting`]'s fourth arm over `nvs_db::tds`'s own
 //! commands, T-SQL spelling a savepoint `SAVE TRANSACTION`, having no `RELEASE`
 //! for a nested commit to send and no read-only transaction to offer at all. What
 //! [`crate::queue`]'s four members run on is narrower than this section:
@@ -194,7 +194,7 @@
 //! parameter through `nvs_db::sqlite::encode` as a storage class rather than as
 //! octets ([`Binds`] is that split), and [`sqlite_rows`], [`sqlite_write`] and
 //! `nvs_db::SqliteConn::execute_many` answer `query`, `queryAs`, `execute` and
-//! `executeMany` over it. `transaction` is [`Transacting`]'s fifth arm, over
+//! `executeMany` over it. `runTransaction` is [`Transacting`]'s fifth arm, over
 //! `nvs_db::sqlite`'s own `begin`, `commit` and `roll_back` — commands sent by
 //! a call on the blocking pool rather than over a wire, accepting every
 //! isolation level because this backend is always serializable and refusing
@@ -244,7 +244,7 @@
 //!
 //! **A row is hydrated where the call was written, and refused there too.**
 //! [`hydrate`] is the walk over [`nvs_runtime::ClassDesc::db_codec`], reached
-//! per result set on `queryAs<T>` and per step on `streamAs<T>`, and every way
+//! per result set on `queryAs<T>` and per step on `queryEachAs<T>`, and every way
 //! a call is answered *no* is a property of the call site or of the class:
 //! `nvs_types::derive`'s `check_row_sites` says all of them as `E0806` while
 //! compiling, over both members. A list type argument, whose form asks for the
@@ -274,7 +274,7 @@
 //! `constraint` beside it where a server worded the refusal — the second only
 //! where the condition names one, since most do not. `sql` is the statement as
 //! the caller spelled it, absent only where the member had no caller-written
-//! statement to name — the `BEGIN` and `COMMIT` around a `transaction`. `driverCode` is the vendor
+//! statement to name — the `BEGIN` and `COMMIT` around a `runTransaction`. `driverCode` is the vendor
 //! integer a server sends beside its `SQLSTATE` — MySQL's `1062` — and stays
 //! `null` on PostgreSQL, whose `SQLSTATE` is its only code. A failure of the
 //! *wire* rather than of the statement stays an `IOError`:
@@ -379,7 +379,7 @@ pub(crate) const TRANSACTION_NAME: &str = r"Core\Db\Transaction";
 /// `Core\Db\Queryable`'s fully-qualified name. [`QUERYABLE`] is the interface.
 pub(crate) const QUERYABLE_NAME: &str = r"Core\Db\Queryable";
 
-/// A [`TRANSACTION`]'s third slot: whether the `transaction()` call that built
+/// A [`TRANSACTION`]'s third slot: whether the `runTransaction()` call that built
 /// it is still running.
 ///
 /// `rule:core-classes/db-transactions`'s first hazard, and the reason a [`TRANSACTION`] carries state
@@ -522,7 +522,7 @@ const COLUMNS_SLOT: &str = "columns";
 const COLUMNS_AT: usize = 0;
 
 /// `Core\Db\Stream`'s fully-qualified name, as [`CoreTy::Instance`] spells it —
-/// the `Iterable<Db\Row>` `stream` returns, which needs a class name because
+/// the `Iterable<Db\Row>` `queryEach` returns, which needs a class name because
 /// [`CoreTy::Iterated`] is parameter position only.
 ///
 /// `pub(crate)` for `registry`'s handle roster and its `ITERABLES` row, for
@@ -553,7 +553,7 @@ const STREAM_ROW_AT: usize = 2;
 
 /// A [`STREAM`]'s fourth slot: the class each row is built into, or `null`
 /// where the rows stay `Core\Db\Row`s — [`ROWS_CLASS_SLOT`]'s twin, written by
-/// [`nvs_core_db_connection_stream_as`] out of what its call site named.
+/// [`nvs_core_db_connection_query_each_as`] out of what its call site named.
 ///
 /// **It is read on every step where the [`ROWS`] one is read per row handed
 /// out**, and the difference is the members': a walk hands every row it reads
@@ -566,7 +566,7 @@ const STREAM_CLASS_SLOT: &str = "class";
 /// Where [`STREAM_CLASS_SLOT`] sits. See [`HANDLE_AT`].
 const STREAM_CLASS_AT: usize = 3;
 
-/// The call site id the `stream` or `streamAs` call passed
+/// The call site id the `queryEach` or `queryEachAs` call passed
 /// (`crate::registry::QUERY_SITE_MEMBERS`), kept for the steps that file the
 /// walk's span. An integer, so this slot holds no reference.
 const STREAM_SITE_SLOT: &str = "site";
@@ -655,17 +655,19 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
             (nvs_core_db_connection_execute_many as *const ()).cast()
         }
         // One arm for both classes' rows: `Core\Db\Transaction` declares
-        // `transaction` under this symbol too, which is what `rule:classes/no-traits`'s
+        // `runTransaction` under this symbol too, which is what `rule:classes/no-traits`'s
         // delegation is here — see [`TRANSACTION`].
-        "nvs_core_db_connection_transaction" => {
-            (nvs_core_db_connection_transaction as *const ()).cast()
+        "nvs_core_db_connection_run_transaction" => {
+            (nvs_core_db_connection_run_transaction as *const ()).cast()
         }
         // One arm for both classes' rows again, for the transaction arm's
-        // reason: `stream` and `streamAs` are alike members of
+        // reason: `queryEach` and `queryEachAs` are alike members of
         // `Core\Db\Queryable`.
-        "nvs_core_db_connection_stream" => (nvs_core_db_connection_stream as *const ()).cast(),
-        "nvs_core_db_connection_stream_as" => {
-            (nvs_core_db_connection_stream_as as *const ()).cast()
+        "nvs_core_db_connection_query_each" => {
+            (nvs_core_db_connection_query_each as *const ()).cast()
+        }
+        "nvs_core_db_connection_query_each_as" => {
+            (nvs_core_db_connection_query_each_as as *const ()).cast()
         }
         STREAM_ITERATE_SYMBOL => (nvs_core_db_stream_iterate as *const ()).cast(),
         STREAM_ADVANCE_SYMBOL => (nvs_core_db_stream_advance as *const ()).cast(),
@@ -688,7 +690,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_db_rows_columns" => (nvs_core_db_rows_columns as *const ()).cast(),
         "nvs_core_db_column_name" => (nvs_core_db_column_name as *const ()).cast(),
         "nvs_core_db_column_type" => (nvs_core_db_column_type as *const ()).cast(),
-        "nvs_core_db_column_nullable" => (nvs_core_db_column_nullable as *const ()).cast(),
+        "nvs_core_db_column_is_nullable" => (nvs_core_db_column_is_nullable as *const ()).cast(),
         "nvs_core_db_row_has" => (nvs_core_db_row_has as *const ()).cast(),
         "nvs_core_db_row_get" => (nvs_core_db_row_get as *const ()).cast(),
         "nvs_core_db_row_to_array" => (nvs_core_db_row_to_array as *const ()).cast(),

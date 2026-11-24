@@ -3,7 +3,7 @@ a malformed URL given as a string literal at an outbound `Core\Http\Client` memb
 --FILE--
 <?nvs
 // The URL grammar is `Core\Uri::parse`'s, so the refusal is its sentence. Each
-// member is asked at the parameter its URL fills: `request` and `stream` at
+// member is asked at the parameter its URL fills: `request` and `openStream` at
 // argument 1, behind the method. The variable-borne twin adds no diagnostic, and the count
 // in the final line is what asserts it.
 var $badUrl = "https://exa mple.test/x";
@@ -15,7 +15,7 @@ var $e = Core\Http\Client::delete("https://exa mple.test/x");
 var $f = Core\Http\Client::head("https://exa mple.test/x");
 var $g = Core\Http\Client::request(Core\Http\Method::Get, "https://exa mple.test/x");
 var $h = Core\Http\Client::get("http://example.test:99999/x");
-var $i = Core\Http\Client::stream(Core\Http\Method::Get, "https://exa mple.test/x");
+var $i = Core\Http\Client::openStream(Core\Http\Method::Get, "https://exa mple.test/x");
 var $j = Core\Http\Client::openSocket("wss://exa mple.test/x");
 var $k = Core\Http::allowUrl("https://example.test:99999/x");
 var $runtime = Core\Http\Client::get($badUrl);

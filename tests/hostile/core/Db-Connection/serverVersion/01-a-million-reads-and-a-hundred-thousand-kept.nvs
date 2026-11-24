@@ -52,7 +52,7 @@ while ($i < 500) {
 }
 var $first = $walk->serverVersion();
 uint $same = 0;
-foreach ($walk->stream('select n from many order by n', []) as Core\Db\Row $row) {
+foreach ($walk->queryEach('select n from many order by n', []) as Core\Db\Row $row) {
     if ($walk->serverVersion() == $first) {
         $same = $same + 1;
     }

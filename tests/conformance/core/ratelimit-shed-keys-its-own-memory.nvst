@@ -22,10 +22,10 @@ foreach (Core\Arr::range(1, 4) as int $n) {
     int $leftA = $a->remaining() as int;
     int $leftB = $b->remaining() as int;
 
-    if ($a->allowed()) {
+    if ($a->isAllowed()) {
         $admitted = $admitted + 1;
     }
-    if ($b->allowed()) {
+    if ($b->isAllowed()) {
         $admitted = $admitted + 1;
     }
 
@@ -53,10 +53,10 @@ echo "each key counted its own four down ", $stepped, " of 8", "\n";
 int $shedBoth = 0;
 var $fifthA = Core\RateLimit::shed("tenant:a", 4, 1h);
 var $fifthB = Core\RateLimit::shed("tenant:b", 4, 1h);
-if (!$fifthA->allowed()) {
+if (!$fifthA->isAllowed()) {
     $shedBoth = $shedBoth + 1;
 }
-if (!$fifthB->allowed()) {
+if (!$fifthB->isAllowed()) {
     $shedBoth = $shedBoth + 1;
 }
 echo "each key spent its own budget and no more ", $shedBoth, " of 2", "\n";
@@ -65,7 +65,7 @@ echo "each key spent its own budget and no more ", $shedBoth, " of 2", "\n";
 // is an unspent budget, not a shared one.
 int $untouched = 0;
 var $third = Core\RateLimit::shed("tenant:c", 4, 1h);
-if ($third->allowed()) {
+if ($third->isAllowed()) {
     $untouched = $untouched + 1;
 }
 if (($third->remaining() as int) == 3) {

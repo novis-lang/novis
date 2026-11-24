@@ -18,7 +18,7 @@ final class DateFormat
                 hour: $value->hour() as int,
                 minute: $value->minute() as int,
                 second: $value->second() as int,
-                nanos: $value->nanos() as int,
+                nanos: $value->nanoseconds() as int,
                 offsetSeconds: $value->zone()->offsetAt($value->toInstant())->toSeconds(),
                 zone: $value->format('VV'),
             };

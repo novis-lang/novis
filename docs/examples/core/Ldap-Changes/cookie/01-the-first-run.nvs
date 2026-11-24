@@ -5,7 +5,7 @@
 var $corp = Core\Ldap::connect('corp');
 
 // There is no cookie yet, so the result has every person in Sales.
-var $sales = $corp->changes(Core\Ldap\Filter::equals('department', 'Sales'), {
+var $sales = $corp->searchChanges(Core\Ldap\Filter::equals('department', 'Sales'), {
     select: ['cn'],
 });
 

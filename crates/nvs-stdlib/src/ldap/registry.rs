@@ -368,7 +368,7 @@ const SEARCH_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `changes`' options: `base`, `select` and `cookie`, in that order. `base` and
+/// `searchChanges`' options: `base`, `select` and `cookie`, in that order. `base` and
 /// `select` are sinks, as `search`'s are. `cookie` is only sent back to the
 /// server, so a `tainted` one is accepted, and an option admits a qualifier
 /// only through its type.
@@ -376,7 +376,7 @@ const CHANGES_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "base",
         ty: CoreTy::Union(DN_OR_STRING),
-        // The block's own `base`, which `changes` reads off the connection.
+        // The block's own `base`, which `searchChanges` reads off the connection.
         default: Const::Null,
     },
     CoreOption {
@@ -443,7 +443,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             doc: Some(&SEARCH_DOC),
         },
         CoreMethod {
-            name: "changes",
+            name: "searchChanges",
             names: &["filter"],
             params: &[
                 CoreTy::Instance(FILTER_NAME),
@@ -452,7 +452,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(CHANGES_NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_ldap_connection_changes",
+            symbol: "nvs_core_ldap_connection_search_changes",
             doc: Some(&CHANGES_DOC),
         },
         CoreMethod {
@@ -533,7 +533,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             doc: Some(&CHANGE_PASSWORD_DOC),
         },
         CoreMethod {
-            name: "compare",
+            name: "hasValue",
             names: &["dn", "attribute", "value"],
             params: &[
                 CoreTy::Union(DN_OR_STRING),
@@ -543,7 +543,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Bool,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_ldap_connection_compare",
+            symbol: "nvs_core_ldap_connection_has_value",
             doc: Some(&COMPARE_DOC),
         },
     ],
@@ -695,7 +695,7 @@ const SEARCH_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Ldap\Connection::changes`' reference card — `rule:core-api/reference-card`.
+/// `Ldap\Connection::searchChanges`' reference card — `rule:core-api/reference-card`.
 const CHANGES_DOC: MethodDoc = MethodDoc {
     short: "Finds the entries that changed since the last call, with Active Directory's \
             DirSync. Store the `cookie()` of the result, and give it to the next call. That \
@@ -926,7 +926,7 @@ const CHANGE_PASSWORD_DOC: MethodDoc = MethodDoc {
     errors: PASSWORD_ERRORS,
 };
 
-/// `Ldap\Connection::compare`'s reference card — `rule:core-api/reference-card`.
+/// `Ldap\Connection::hasValue`'s reference card — `rule:core-api/reference-card`.
 const COMPARE_DOC: MethodDoc = MethodDoc {
     short: "Checks whether an entry has a value. The server compares the value by the rules of \
             the attribute, so `staff` matches `Staff` in a name.",
@@ -1117,10 +1117,10 @@ pub(crate) const ENTRIES: CoreClass = CoreClass {
 /// `Ldap\Changes`' class card — `rule:core-api/reference-card`.
 const CHANGES_CARD: ClassDoc = ClassDoc {
     short: "The entries that changed since a cookie. A `foreach` loop gets them one at a time. \
-            After the loop, `cookie()` returns the cookie for the next call to `changes`.",
+            After the loop, `cookie()` returns the cookie for the next call to `searchChanges`.",
 };
 
-/// `Ldap\Changes`: what `changes` returns, and its own
+/// `Ldap\Changes`: what `searchChanges` returns, and its own
 /// iterator, as [`ENTRIES`] is. `super::search`'s module doc says what each
 /// slot is.
 // rank: 1640
@@ -1144,7 +1144,7 @@ pub(crate) const CHANGES_SET: CoreClass = CoreClass {
 
 /// `Ldap\Changes::cookie`'s reference card — `rule:core-api/reference-card`.
 const CHANGES_COOKIE_DOC: MethodDoc = MethodDoc {
-    short: "Returns the cookie for the next call to `changes`. Store it, for example in a \
+    short: "Returns the cookie for the next call to `searchChanges`. Store it, for example in a \
             database, after the loop ends. If you stop the loop early, the cookie covers only \
             the entries you read, so the next call returns the others again.",
     params: &[],
@@ -2438,108 +2438,108 @@ pub(crate) const ACCOUNT_FLAGS: CoreClass = CoreClass {
     methods: &[],
     instance: &[
         flag_reader(
-            "script",
-            "nvs_core_ldap_ad_account_flags_script",
+            "hasLogonScript",
+            "nvs_core_ldap_ad_account_flags_has_logon_script",
             &AF_SCRIPT_DOC,
         ),
         flag_reader(
-            "disabled",
-            "nvs_core_ldap_ad_account_flags_disabled",
+            "isDisabled",
+            "nvs_core_ldap_ad_account_flags_is_disabled",
             &AF_DISABLED_DOC,
         ),
         flag_reader(
-            "homeDirectoryRequired",
-            "nvs_core_ldap_ad_account_flags_home_directory_required",
+            "isHomeDirectoryRequired",
+            "nvs_core_ldap_ad_account_flags_is_home_directory_required",
             &AF_HOME_DIRECTORY_REQUIRED_DOC,
         ),
         flag_reader(
-            "lockedOut",
-            "nvs_core_ldap_ad_account_flags_locked_out",
+            "isLockedOut",
+            "nvs_core_ldap_ad_account_flags_is_locked_out",
             &AF_LOCKED_OUT_DOC,
         ),
         flag_reader(
-            "passwordNotRequired",
-            "nvs_core_ldap_ad_account_flags_password_not_required",
+            "isPasswordNotRequired",
+            "nvs_core_ldap_ad_account_flags_is_password_not_required",
             &AF_PASSWORD_NOT_REQUIRED_DOC,
         ),
         flag_reader(
-            "reversibleEncryption",
-            "nvs_core_ldap_ad_account_flags_reversible_encryption",
+            "allowsReversibleEncryption",
+            "nvs_core_ldap_ad_account_flags_allows_reversible_encryption",
             &AF_REVERSIBLE_ENCRYPTION_DOC,
         ),
         flag_reader(
-            "temporaryDuplicateAccount",
-            "nvs_core_ldap_ad_account_flags_temporary_duplicate_account",
+            "isTemporaryDuplicateAccount",
+            "nvs_core_ldap_ad_account_flags_is_temporary_duplicate_account",
             &AF_TEMPORARY_DUPLICATE_ACCOUNT_DOC,
         ),
         flag_reader(
-            "normalAccount",
-            "nvs_core_ldap_ad_account_flags_normal_account",
+            "isNormalAccount",
+            "nvs_core_ldap_ad_account_flags_is_normal_account",
             &AF_NORMAL_ACCOUNT_DOC,
         ),
         flag_reader(
-            "interdomainTrustAccount",
-            "nvs_core_ldap_ad_account_flags_interdomain_trust_account",
+            "isInterdomainTrustAccount",
+            "nvs_core_ldap_ad_account_flags_is_interdomain_trust_account",
             &AF_INTERDOMAIN_TRUST_ACCOUNT_DOC,
         ),
         flag_reader(
-            "workstationTrustAccount",
-            "nvs_core_ldap_ad_account_flags_workstation_trust_account",
+            "isWorkstationTrustAccount",
+            "nvs_core_ldap_ad_account_flags_is_workstation_trust_account",
             &AF_WORKSTATION_TRUST_ACCOUNT_DOC,
         ),
         flag_reader(
-            "serverTrustAccount",
-            "nvs_core_ldap_ad_account_flags_server_trust_account",
+            "isServerTrustAccount",
+            "nvs_core_ldap_ad_account_flags_is_server_trust_account",
             &AF_SERVER_TRUST_ACCOUNT_DOC,
         ),
         flag_reader(
-            "passwordNeverExpires",
-            "nvs_core_ldap_ad_account_flags_password_never_expires",
+            "hasNonExpiringPassword",
+            "nvs_core_ldap_ad_account_flags_has_non_expiring_password",
             &AF_PASSWORD_NEVER_EXPIRES_DOC,
         ),
         flag_reader(
-            "mnsLogonAccount",
-            "nvs_core_ldap_ad_account_flags_mns_logon_account",
+            "isMnsLogonAccount",
+            "nvs_core_ldap_ad_account_flags_is_mns_logon_account",
             &AF_MNS_LOGON_ACCOUNT_DOC,
         ),
         flag_reader(
-            "smartcardRequired",
-            "nvs_core_ldap_ad_account_flags_smartcard_required",
+            "isSmartcardRequired",
+            "nvs_core_ldap_ad_account_flags_is_smartcard_required",
             &AF_SMARTCARD_REQUIRED_DOC,
         ),
         flag_reader(
-            "trustedForDelegation",
-            "nvs_core_ldap_ad_account_flags_trusted_for_delegation",
+            "isTrustedForDelegation",
+            "nvs_core_ldap_ad_account_flags_is_trusted_for_delegation",
             &AF_TRUSTED_FOR_DELEGATION_DOC,
         ),
         flag_reader(
-            "notDelegated",
-            "nvs_core_ldap_ad_account_flags_not_delegated",
+            "isNotDelegated",
+            "nvs_core_ldap_ad_account_flags_is_not_delegated",
             &AF_NOT_DELEGATED_DOC,
         ),
         flag_reader(
-            "useDesKeyOnly",
-            "nvs_core_ldap_ad_account_flags_use_des_key_only",
+            "usesDesKeyOnly",
+            "nvs_core_ldap_ad_account_flags_uses_des_key_only",
             &AF_USE_DES_KEY_ONLY_DOC,
         ),
         flag_reader(
-            "noPreauthRequired",
-            "nvs_core_ldap_ad_account_flags_no_preauth_required",
+            "isPreauthNotRequired",
+            "nvs_core_ldap_ad_account_flags_is_preauth_not_required",
             &AF_NO_PREAUTH_REQUIRED_DOC,
         ),
         flag_reader(
-            "passwordExpired",
-            "nvs_core_ldap_ad_account_flags_password_expired",
+            "isPasswordExpired",
+            "nvs_core_ldap_ad_account_flags_is_password_expired",
             &AF_PASSWORD_EXPIRED_DOC,
         ),
         flag_reader(
-            "trustedToAuthForDelegation",
-            "nvs_core_ldap_ad_account_flags_trusted_to_auth_for_delegation",
+            "isTrustedToAuthenticateForDelegation",
+            "nvs_core_ldap_ad_account_flags_is_trusted_to_authenticate_for_delegation",
             &AF_TRUSTED_TO_AUTH_FOR_DELEGATION_DOC,
         ),
         flag_reader(
-            "partialSecretsAccount",
-            "nvs_core_ldap_ad_account_flags_partial_secrets_account",
+            "isPartialSecretsAccount",
+            "nvs_core_ldap_ad_account_flags_is_partial_secrets_account",
             &AF_PARTIAL_SECRETS_ACCOUNT_DOC,
         ),
         CoreMethod {
@@ -2689,7 +2689,7 @@ const AF_WITH_OPTIONS: &[CoreOption] = &[
     flag_option("notDelegated"),
     flag_option("useDesKeyOnly"),
     flag_option("noPreauthRequired"),
-    flag_option("trustedToAuthForDelegation"),
+    flag_option("trustedToAuthenticateForDelegation"),
     flag_option("partialSecretsAccount"),
 ];
 
@@ -2716,7 +2716,7 @@ const AF_WITH_DOC: MethodDoc = MethodDoc {
         flag_option_doc("notDelegated"),
         flag_option_doc("useDesKeyOnly"),
         flag_option_doc("noPreauthRequired"),
-        flag_option_doc("trustedToAuthForDelegation"),
+        flag_option_doc("trustedToAuthenticateForDelegation"),
         flag_option_doc("partialSecretsAccount"),
     ],
     ret: "A new `Core\\Ldap\\Ad\\AccountFlags`. The object you call it on does not change.",
@@ -2738,38 +2738,38 @@ pub(crate) const GROUP_TYPE: CoreClass = CoreClass {
     methods: &[],
     instance: &[
         flag_reader(
-            "system",
-            "nvs_core_ldap_ad_group_type_system",
+            "isSystemGroup",
+            "nvs_core_ldap_ad_group_type_is_system_group",
             &GT_SYSTEM_DOC,
         ),
         flag_reader(
-            "global",
-            "nvs_core_ldap_ad_group_type_global",
+            "isGlobal",
+            "nvs_core_ldap_ad_group_type_is_global",
             &GT_GLOBAL_DOC,
         ),
         flag_reader(
-            "domainLocal",
-            "nvs_core_ldap_ad_group_type_domain_local",
+            "isDomainLocal",
+            "nvs_core_ldap_ad_group_type_is_domain_local",
             &GT_DOMAIN_LOCAL_DOC,
         ),
         flag_reader(
-            "universal",
-            "nvs_core_ldap_ad_group_type_universal",
+            "isUniversal",
+            "nvs_core_ldap_ad_group_type_is_universal",
             &GT_UNIVERSAL_DOC,
         ),
         flag_reader(
-            "appBasic",
-            "nvs_core_ldap_ad_group_type_app_basic",
+            "isAppBasicGroup",
+            "nvs_core_ldap_ad_group_type_is_app_basic_group",
             &GT_APP_BASIC_DOC,
         ),
         flag_reader(
-            "appQuery",
-            "nvs_core_ldap_ad_group_type_app_query",
+            "isAppQueryGroup",
+            "nvs_core_ldap_ad_group_type_is_app_query_group",
             &GT_APP_QUERY_DOC,
         ),
         flag_reader(
-            "security",
-            "nvs_core_ldap_ad_group_type_security",
+            "isSecurityGroup",
+            "nvs_core_ldap_ad_group_type_is_security_group",
             &GT_SECURITY_DOC,
         ),
         CoreMethod {

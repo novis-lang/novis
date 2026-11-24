@@ -11,7 +11,7 @@ class Api
         if ($info == null) {
             return false;
         }
-        return $info->verified();
+        return $info->isVerified();
     }
 }
 

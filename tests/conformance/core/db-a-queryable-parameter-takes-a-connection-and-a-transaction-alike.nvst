@@ -19,7 +19,7 @@ var $db = Core\Db::connect('main');
 $db->execute('create table people (id integer primary key, name text not null)', []);
 People::add($db, 'Ada');
 
-$db->transaction(fn (Core\Db\Transaction $tx): void => {
+$db->runTransaction(fn (Core\Db\Transaction $tx): void => {
     // The same method, handed the transaction: the insert is inside it, so
     // the count read on the transaction already sees it.
     People::add($tx, 'Ben');

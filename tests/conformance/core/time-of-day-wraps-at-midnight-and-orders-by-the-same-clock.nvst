@@ -81,7 +81,7 @@ for (; $w < 10; $w = $w + 1) {
         hour: $held->format("HH") as uint,
         minute: $held->format("mm") as uint,
         second: $held->format("ss") as uint,
-        nanos: $held->format("SSSSSSSSS") as uint,
+        nanoseconds: $held->format("SSSSSSSSS") as uint,
     });
     if ($rebuilt->compareTo($held) == 0) {
         $kept = $kept + 1;
@@ -127,16 +127,16 @@ echo "ordered=", $ordered as string, " antisym=", $antisym as string, "|\n";
 // the nanosecond after the last one of the day. Neither carries a date,
 // because there is none here to carry into.
 echo Core\Time\TimeOfDay::at(0, 0)->minus(1, Core\Unit::Nanosecond)->format("HH:mm:ss.SSSSSSSSS"), " ",
-    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanos: 999999999})->plus(1, Core\Unit::Nanosecond)->format("HH:mm:ss.SSSSSSSSS"), "|\n";
+    Core\Time\TimeOfDay::at(23, 59, {second: 59, nanoseconds: 999999999})->plus(1, Core\Unit::Nanosecond)->format("HH:mm:ss.SSSSSSSSS"), "|\n";
 
 // The one place the second-of-day number above is coarser than the order it
 // was checked against: two readings in the same second are still ordered, by
 // the field the number does not carry.
-var $early = Core\Time\TimeOfDay::at(9, 5, {second: 1, nanos: 1});
-var $later = Core\Time\TimeOfDay::at(9, 5, {second: 1, nanos: 2});
+var $early = Core\Time\TimeOfDay::at(9, 5, {second: 1, nanoseconds: 1});
+var $later = Core\Time\TimeOfDay::at(9, 5, {second: 1, nanoseconds: 2});
 echo $early->compareTo($later) as string, " ",
     (($early->format("ss") as int) - ($later->format("ss") as int)) as string, " ",
-    $early->with({nanos: 2})->compareTo($later) as string, "|\n";
+    $early->with({nanoseconds: 2})->compareTo($later) as string, "|\n";
 --EXPECT--
 wrap=429 mirror=429|
 full-turn=30|

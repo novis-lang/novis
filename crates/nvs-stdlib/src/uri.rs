@@ -3,7 +3,7 @@
 //! which replace PHP's `rawurlencode`/`rawurldecode` and `urlencode`/`urldecode`,
 //! plus `parseQuery` and `buildQuery`, which are those four applied to a whole
 //! query string. The **grammar half** is `parse` and the `Uri` instance it
-//! answers with, plus `$uri->with` and `$uri->resolve` on it — RFC 3986, read
+//! answers with, plus `$uri->with` and `$uri->resolved` on it — RFC 3986, read
 //! by `fluent-uri`, argued four sections below.
 //!
 //! # Two encodings, because PHP has two and the wire has two
@@ -85,7 +85,7 @@
 //! about *equivalence*, not about spelling.
 //!
 //! So the normalization is written once, on `$uri->compareTo($other)`, and
-//! `$uri->sign` reaches that same function rather than carrying one of its own
+//! `$uri->signed` reaches that same function rather than carrying one of its own
 //! — a canonical form used by nothing but a signature is a form no other test
 //! constrains, which is where every framework's signed-URL bug in this space
 //! has come from (`rule:core-api/signing-is-over-a-payload`). It is the whole
@@ -220,7 +220,7 @@
 //! So: **`parse` reports, it does not normalize.** Scheme and host keep their
 //! case, a default port stays written, dot segments stay in the path, and
 //! nothing is percent-decoded — `decodeComponent` is one call away for a
-//! caller that wants text, and dot-segment removal happens in `$uri->resolve`,
+//! caller that wants text, and dot-segment removal happens in `$uri->resolved`,
 //! which is the one place RFC 3986 § 5.2.4 asks for it.
 //!
 //! # Decision: normalization happens at the comparison, not at the parse
@@ -250,7 +250,7 @@
 //! # What `parse` takes, and what it does not ask
 //!
 //! `parse` takes a **URI reference** — RFC 3986 § 4.1's `URI / relative-ref` —
-//! because a request line carries one and `$uri->resolve` is defined over one.
+//! because a request line carries one and `$uri->resolved` is defined over one.
 //! `Uri::parse("/a?b#c")` therefore answers a `Uri` whose `scheme()` is
 //! `null`, and it throws only on text the grammar refuses: a space, a control
 //! byte, a bare `%`, a `<`, and every non-ASCII byte, which is an IRI's
@@ -352,7 +352,7 @@
 //! opposite shape: `host()`, `path()` and `query()` hand the caller's own text
 //! straight back, component for component, which is exactly what *Comparison
 //! normalizes* above is written to preserve. So text that arrives tainted
-//! leaves tainted, and `resolve`, `with` and `parseQuery` are contagious for
+//! leaves tainted, and `resolved`, `with` and `parseQuery` are contagious for
 //! the same reason — each answers something built out of its argument's bytes.
 //!
 //! **The two encoders are the class's whole point, and they are the only
@@ -643,13 +643,13 @@ pub const CLASS: CoreClass = CoreClass {
             doc: Some(&WITH_QUERY_PARAMETER_DOC),
         },
         CoreMethod {
-            name: "resolve",
+            name: "resolved",
             names: &["reference"],
             params: &[CoreTy::Text(Qual::Contagious)],
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_uri_resolve",
+            symbol: "nvs_core_uri_resolved",
             doc: Some(&RESOLVE_DOC),
         },
         CoreMethod {
@@ -663,7 +663,7 @@ pub const CLASS: CoreClass = CoreClass {
             doc: Some(&COMPARE_TO_DOC),
         },
         CoreMethod {
-            name: "sign",
+            name: "signed",
             // The shape [`crate::signature`] writes once for all three doors,
             // and nothing beside it: an options bag naming which parameters
             // are covered is where every framework's bypass has lived, so
@@ -679,13 +679,13 @@ pub const CLASS: CoreClass = CoreClass {
             defaults: &[],
             return_ty: CoreTy::Instance(NAME),
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_uri_sign",
+            symbol: "nvs_core_uri_signed",
             doc: Some(&SIGN_DOC),
         },
         CoreMethod {
             name: "verifySignature",
             // The ring alone. This member takes a *different* thing from
-            // `sign` and answers a different thing
+            // `signed` and answers a different thing
             // (`rule:core-api/each-door-takes-a-different-thing`): there is no
             // lifetime to write, because the one that counts rode inside the
             // token, and no payload, because the URL is the payload.
@@ -839,9 +839,9 @@ const PARSE_QUERY_DOC: MethodDoc = MethodDoc {
 /// `Core\Uri`'s class card — `rule:core-api/reference-card`.
 const CARD: ClassDoc = ClassDoc {
     short: "Reads, builds and encodes URIs and query strings. `parse` reads a URI into its \
-            parts, and `with` and `resolve` build a new one. The `encode` and `decode` methods \
+            parts, and `with` and `resolved` build a new one. The `encode` and `decode` methods \
             escape and unescape text, and `parseQuery` and `buildQuery` convert between a query \
-            string and an array. `sign` and `verifySignature` sign a link and check it.",
+            string and an array. `signed` and `verifySignature` sign a link and check it.",
 };
 
 /// `Core\Uri::buildQuery`'s reference card — `rule:core-api/reference-card`.
@@ -1056,7 +1056,7 @@ const WITH_QUERY_PARAMETER_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `$uri->resolve`'s reference card — `rule:core-api/reference-card`.
+/// `$uri->resolved`'s reference card — `rule:core-api/reference-card`.
 const RESOLVE_DOC: MethodDoc = MethodDoc {
     short: "Turns a link found on a page into a full address, the way a browser does. The \
             address of the page is the base. For the base `https://example.com/blog/post` and \
@@ -1098,7 +1098,7 @@ const COMPARE_TO_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `$uri->sign`'s reference card — `rule:core-api/reference-card`.
+/// `$uri->signed`'s reference card — `rule:core-api/reference-card`.
 const SIGN_DOC: MethodDoc = MethodDoc {
     short: "Returns a copy of the address with a signature in the `_sig` query parameter. The \
             signature covers the scheme, user info, host, port, path and every query parameter. \
@@ -1143,7 +1143,7 @@ const VERIFY_SIGNATURE_DOC: MethodDoc = MethodDoc {
             throws an error, so the next line runs only for a valid link.",
     params: &[ParamDoc {
         name: "keys",
-        desc: "The same list of keys that `sign` used, newest first. A link signed with any key \
+        desc: "The same list of keys that `signed` used, newest first. A link signed with any key \
                in the list is accepted. A link signed with a key you removed from the list is \
                not.",
         shape: &[],
@@ -1202,9 +1202,9 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_uri_with_query_parameter" => {
             (nvs_core_uri_with_query_parameter as *const ()).cast()
         }
-        "nvs_core_uri_resolve" => (nvs_core_uri_resolve as *const ()).cast(),
+        "nvs_core_uri_resolved" => (nvs_core_uri_resolved as *const ()).cast(),
         "nvs_core_uri_compare_to" => (nvs_core_uri_compare_to as *const ()).cast(),
-        "nvs_core_uri_sign" => (nvs_core_uri_sign as *const ()).cast(),
+        "nvs_core_uri_signed" => (nvs_core_uri_signed as *const ()).cast(),
         "nvs_core_uri_verify_signature" => (nvs_core_uri_verify_signature as *const ()).cast(),
         "nvs_core_uri_encode_component" => return Some(nvs_core_uri_encode_component::entry()),
         "nvs_core_uri_decode_component" => (nvs_core_uri_decode_component as *const ()).cast(),
@@ -1829,7 +1829,7 @@ fn unmoved(composed: &Composed<'_>, reference: &UriRef<&str>) -> Result<(), Faul
 /// `value` — or removed, where that is [`None`].
 ///
 /// [`nvs_core_uri_with_query_parameter`]'s whole body below its argument read,
-/// lifted out because [`nvs_core_uri_sign`] answers a `Uri` carrying the
+/// lifted out because [`nvs_core_uri_signed`] answers a `Uri` carrying the
 /// reserved `_sig` and has to reach the *same* edit. Two spellings of "set a
 /// parameter and read the result back" is how the query a program writes and
 /// the query a signature is checked against would come to differ.
@@ -2061,7 +2061,7 @@ struct Equivalent {
 ///
 /// Every slot read here is [`crate::instance::slot`]'s **borrow**, so nothing
 /// is retained and nothing needs releasing on either edge — the same treatment
-/// [`nvs_core_uri_resolve`] gives its own receiver.
+/// [`nvs_core_uri_resolved`] gives its own receiver.
 fn equivalent(args: &[Value], at: usize, member: &str) -> Result<Equivalent, Fault> {
     let object = crate::instance::receiver(args[at], &CLASS, member)?;
     let slots: [Value; 8] = std::array::from_fn(|index| crate::instance::slot(object, index));
@@ -2094,14 +2094,14 @@ fn equivalent(args: &[Value], at: usize, member: &str) -> Result<Equivalent, Fau
 // Signing — the same normal form, reached a second time rather than invented
 // ============================================================================
 
-/// `Core\Uri::sign`, spelled the way [`crate::keyring`]'s refusals name it.
-const SIGN: &str = r"Core\Uri::sign";
+/// `Core\Uri::signed`, spelled the way [`crate::keyring`]'s refusals name it.
+const SIGN: &str = r"Core\Uri::signed";
 
 /// `Core\Uri::verifySignature`, spelled the same way.
 const VERIFY_SIGNATURE: &str = r"Core\Uri::verifySignature";
 
 /// The one query parameter a signed URL reserves: the token
-/// [`nvs_core_uri_sign`] writes and [`nvs_core_uri_verify_signature`] reads,
+/// [`nvs_core_uri_signed`] writes and [`nvs_core_uri_verify_signature`] reads,
 /// and the one [`crate::router`]'s signing pair writes into the query it
 /// builds.
 ///
@@ -2120,7 +2120,7 @@ pub(crate) const SIG_NAME: &str = "_sig";
 /// Decoded first, and the bracket base taken, so neither `%5Fsig` nor
 /// `_sig[0]` is a way of smuggling a second signature past the count in
 /// [`without_signature`]: the base is the key [`with_parameter`] writes, so
-/// anything rooted at `_sig` is a pair `sign` would overwrite.
+/// anything rooted at `_sig` is a pair `signed` would overwrite.
 fn is_signature_name(written: &str) -> bool {
     let decoded = decode(written, Form::FormValue);
     let base = path_of(&decoded).map_or(&*decoded, |(base, _)| base);
@@ -2888,7 +2888,7 @@ nvs_runtime::nvs_helper! {
         // Unreachable from source: parameter 0 is `CoreTy::Text` in `CLASS`'s
         // `queryParameter` row above, so a non-string name is `E0401:
         // expected 'string', found 'mixed'` at the checker. This is
-        // `nvs_core_uri_resolve`'s judgement below, for its reason.
+        // `nvs_core_uri_resolved`'s judgement below, for its reason.
         let name = args[1].as_text().ok_or_else(|| {
             Fault::fatal(format!(
                 "Core\\Uri::queryParameter expected {:?}, got tag {}",
@@ -3004,7 +3004,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$uri->resolve(string $reference): Uri` — RFC 3986 § 5's reference
+    /// `$uri->resolved(string $reference): Uri` — RFC 3986 § 5's reference
     /// resolution, which PHP has no function for at all.
     ///
     /// The receiver is the **base** and must therefore be an absolute URI
@@ -3018,8 +3018,8 @@ nvs_runtime::nvs_helper! {
     /// **opaque** base, one with a rootless path and no authority
     /// (`mailto:a@b`), has no path to merge a relative reference into and
     /// throws saying so.
-    fn nvs_core_uri_resolve(_ctx, args: [2]) {
-        let receiver = crate::instance::receiver(args[0], &CLASS, "resolve")?;
+    fn nvs_core_uri_resolved(_ctx, args: [2]) {
+        let receiver = crate::instance::receiver(args[0], &CLASS, "resolved")?;
         let slots: [Value; 8] =
             std::array::from_fn(|index| crate::instance::slot(receiver, index));
         // Unreachable from source: `Core\Uri` declares no `constructor` — the
@@ -3028,29 +3028,29 @@ nvs_runtime::nvs_helper! {
         // unconditional `Value::str` of the whole reference. Slot 0 is the one
         // of the eight that is never null, which is why this is the only
         // `held` call site that unwraps.
-        let base_text = held(&slots, TEXT_SLOT, "resolve")?
-            .ok_or_else(|| Fault::fatal("Core\\Uri::resolve found a null `text` slot"))?;
+        let base_text = held(&slots, TEXT_SLOT, "resolved")?
+            .ok_or_else(|| Fault::fatal("Core\\Uri::resolved found a null `text` slot"))?;
         let base = Uri::parse(base_text).map_err(|_| {
             Fault::thrown(
-                "Core\\Uri::resolve(): the receiver is a relative reference, and \
+                "Core\\Uri::resolved(): the receiver is a relative reference, and \
                  RFC 3986 § 5.2.1 resolves against an absolute URI. Give this `Uri` a scheme first, \
                  or resolve against one that has one"
                     .to_owned(),
             )
         })?;
         // Unreachable from source: parameter 0 is `CoreTy::Str` in `CLASS`'s
-        // `resolve` row above, so a non-string reference is `E0401: expected
+        // `resolved` row above, so a non-string reference is `E0401: expected
         // 'string', found 'mixed'` at the checker. What a program can still
         // write is a *string* that is no reference, and that is `read`'s throw
         // on the next line.
         let text = args[1].as_text().ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Uri::resolve expected {:?}, got tag {}",
+                "Core\\Uri::resolved expected {:?}, got tag {}",
                 Tag::Str,
                 args[1].tag_byte()
             ))
         })?;
-        let reference = read(text, "resolve")?;
+        let reference = read(text, "resolved")?;
         let resolved = reference
             .resolve_against(&base.strip_fragment())
             .map_err(|error| {
@@ -3064,7 +3064,7 @@ nvs_runtime::nvs_helper! {
                     // is reachable from here.
                     _ => "RFC 3986 § 5.2 does not define a result for this pair",
                 };
-                Fault::thrown(format!("Core\\Uri::resolve(): {refused}"))
+                Fault::thrown(format!("Core\\Uri::resolved(): {refused}"))
             })?;
 
         // Unreachable from source, and a post-condition rather than a
@@ -3075,8 +3075,8 @@ nvs_runtime::nvs_helper! {
         // recomposition check because it concatenates components a caller
         // chose; this one does not concatenate anything.
         built(&UriRef::parse(resolved.as_str()).map_err(|_| {
-            Fault::fatal("Core\\Uri::resolve produced text `fluent-uri` will not read back")
-        })?, "resolve")
+            Fault::fatal("Core\\Uri::resolved produced text `fluent-uri` will not read back")
+        })?, "resolved")
     }
 }
 
@@ -3108,7 +3108,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$uri->sign({ keys: array<secret bytes>, until: ?Core\Time\Instant }): Uri`
+    /// `$uri->signed({ keys: array<secret bytes>, until: ?Core\Time\Instant }): Uri`
     /// — the door onto `rule:core-api/signing-is-over-a-payload` where someone
     /// holding a URL will look, replacing the `hash_hmac` over an assembled
     /// query string that every framework grows its own slightly different copy
@@ -3138,8 +3138,8 @@ nvs_runtime::nvs_helper! {
     /// wire format for all three doors, rather than a second, shorter one for
     /// the door whose payload happens to be derivable — and a token nothing
     /// outside [`crate::signature`] assembles.
-    fn nvs_core_uri_sign(_ctx, args: [3]) {
-        const MEMBER: &str = "sign";
+    fn nvs_core_uri_signed(_ctx, args: [3]) {
+        const MEMBER: &str = "signed";
 
         let ring = crate::keyring::borrow(args, 1, SIGN)?;
         let until = crate::signature::until_of(args, 2, MEMBER)?;
@@ -5095,17 +5095,17 @@ mod tests {
         );
     }
 
-    /// `Core\Uri::parse($base)->resolve($reference)->toString()` — the text
+    /// `Core\Uri::parse($base)->resolved($reference)->toString()` — the text
     /// answered, or the message the member threw.
     fn resolved(base: &str, reference: &str) -> Result<String, String> {
         let mut ctx = Ctx::new(OutputSink::Sink);
         let args = [uri_of(base), wrote(reference)];
-        let answered = call(super::nvs_core_uri_resolve, &mut ctx, &args);
+        let answered = call(super::nvs_core_uri_resolved, &mut ctx, &args);
         let refusal = ctx.take_pending().map(std::borrow::Cow::into_owned);
         #[expect(
             unsafe_code,
             reason = "this frame owns the receiver it parsed and the reference \
-                      it wrote, and `resolve` borrows rather than consumes"
+                      it wrote, and `resolved` borrows rather than consumes"
         )]
         unsafe {
             for arg in args {
@@ -5120,7 +5120,7 @@ mod tests {
     /// RFC 3986 § 5.4.1's normal examples against its own base, the base's
     /// fragment dropped before RFC 3986 § 5.3 recomposes, and the two bases
     /// RFC 3986 § 5.2.1 and § 5.2.3 leave without an answer — each a throw rather than a guess.
-    // covers: Core\Uri::resolve
+    // covers: Core\Uri::resolved
     #[test]
     fn resolve_runs_the_rfc_normal_examples_and_throws_for_a_base_with_no_answer() {
         const BASE: &str = "http://a/b/c/d;p?q";
@@ -5161,7 +5161,7 @@ mod tests {
         assert!(opaque.contains("it is opaque"), "{opaque}");
         let unread = resolved(BASE, "a b").expect_err("a space is outside the grammar");
         assert!(
-            unread.contains("Core\\Uri::resolve(): this text is not a URI reference"),
+            unread.contains("Core\\Uri::resolved(): this text is not a URI reference"),
             "{unread}"
         );
     }
@@ -5236,21 +5236,21 @@ mod tests {
         }
     }
 
-    /// `Core\Uri::parse($subject)->sign({ keys: $keys, until: null })->toString()`
+    /// `Core\Uri::parse($subject)->signed({ keys: $keys, until: null })->toString()`
     /// — the signed link, as text, which is the form every assertion below
     /// tampers with.
     fn signed_text(subject: &str, keys: Value) -> String {
         let mut ctx = Ctx::new(OutputSink::Sink);
         let uri = uri_of(subject);
         let signed = call(
-            super::nvs_core_uri_sign,
+            super::nvs_core_uri_signed,
             &mut ctx,
             &[uri, keys, Value::null()],
         )
         .expect("a ring of one 32-octet key signs");
         #[expect(
             unsafe_code,
-            reason = "this frame owns the receiver it parsed, and `sign` \
+            reason = "this frame owns the receiver it parsed, and `signed` \
                       borrows rather than consumes"
         )]
         unsafe {
@@ -5327,7 +5327,7 @@ mod tests {
     /// This is the bypass every framework in this space has shipped — an
     /// option naming which parameters are signed — asserted as absent rather
     /// than described (`rule:core-api/signing-is-over-a-payload`).
-    // covers: Core\Uri::sign, Core\Uri::verifySignature
+    // covers: Core\Uri::signed, Core\Uri::verifySignature
     #[test]
     fn a_signed_uri_round_trips_and_one_appended_query_parameter_invalidates_it() {
         let keys = ring();
@@ -5455,7 +5455,7 @@ mod tests {
     ///
     /// The shape that catches the failure this whole design is written against
     /// — a normalization written for the signature alone, which no other test
-    /// constrains. A `sign` that folded one case less would still round-trip
+    /// constrains. A `signed` that folded one case less would still round-trip
     /// against itself and pass every other assertion here.
     #[test]
     fn signing_calls_the_same_equivalent_that_compare_to_calls_and_not_a_second_one() {

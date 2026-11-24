@@ -35,7 +35,7 @@ mixed $g = $xs / $xs;
 mixed $h = $mode * $mode;
 // `%` is the one refusal both operands are numbers for: PHP converts to an
 // integer and answers one, `rule:types/arithmetic`'s float row would answer a `float`, and the
-// `Core\Math::mod` is the floating-point remainder.
+// `Core\Math::remainder` is the floating-point remainder.
 mixed $j = $f % $f;
 mixed $k = $f % $i;
 --EXPECT--

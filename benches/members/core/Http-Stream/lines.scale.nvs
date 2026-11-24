@@ -12,7 +12,7 @@ class Bench
         uint $total = 0;
         uint $i = 0;
         while ($i < 64) {
-            Core\Http\Stream $log = Core\Http\Client::stream(Core\Http\Method::Get, 'https://logs.example.com/a');
+            Core\Http\Stream $log = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://logs.example.com/a');
             foreach ($log->lines() as tainted string $line) {
                 $total = $total + Core\Str::length($line);
             }

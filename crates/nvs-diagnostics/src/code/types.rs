@@ -480,7 +480,7 @@ codes! {
     pub const E_DECIMAL_FLOAT_ARITHMETIC: Code = Code::new("E0455").card(
         "A `decimal` and a `float` cannot be used together in arithmetic. Convert one side with \
          `as decimal` or `as float`. `**` does not accept a `decimal`, so use \
-         `Core\\Decimal::pow` instead.",
+         `Core\\Decimal::power` instead.",
     );
     /// A numeric literal placed at `decimal` whose mantissa exceeds 96 bits or
     /// whose scale exceeds 28 — `rule:types/decimal`'s layout. `Core\BigInt` is the

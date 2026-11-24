@@ -324,7 +324,7 @@ const INTRINSICS: &[Intrinsic] = &[
     },
     Intrinsic {
         owner: r"Core\Http\Client",
-        member: "stream",
+        member: "openStream",
         at: 1,
         field: None,
         restriction: None,
@@ -446,14 +446,14 @@ const INTRINSICS: &[Intrinsic] = &[
         restriction: None,
         grammar: Grammar::Sql,
     },
-    // `stream` binds the same one statement `query` does —
+    // `queryEach` binds the same one statement `query` does —
     // `rule:core-classes/db-statement-members` gives them one signature and one
     // binding rule, and where the rows are when the member
-    // answers is nothing this pass can see. `streamAs` is that member at a
+    // answers is nothing this pass can see. `queryEachAs` is that member at a
     // written type, and what a row becomes is not a binding either.
     Intrinsic {
         owner: r"Core\Db\Connection",
-        member: "stream",
+        member: "queryEach",
         at: 0,
         field: None,
         restriction: None,
@@ -461,7 +461,7 @@ const INTRINSICS: &[Intrinsic] = &[
     },
     Intrinsic {
         owner: r"Core\Db\Connection",
-        member: "streamAs",
+        member: "queryEachAs",
         at: 0,
         field: None,
         restriction: None,
@@ -493,7 +493,7 @@ const INTRINSICS: &[Intrinsic] = &[
     },
     Intrinsic {
         owner: r"Core\Db\Transaction",
-        member: "stream",
+        member: "queryEach",
         at: 0,
         field: None,
         restriction: None,
@@ -501,7 +501,7 @@ const INTRINSICS: &[Intrinsic] = &[
     },
     Intrinsic {
         owner: r"Core\Db\Transaction",
-        member: "streamAs",
+        member: "queryEachAs",
         at: 0,
         field: None,
         restriction: None,

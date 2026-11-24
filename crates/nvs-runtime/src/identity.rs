@@ -2,7 +2,7 @@
 //!
 //! One comparison, defined once, because `Core\Arr`'s members and every
 //! `ObjectSet`/`ObjectMap` operation ask the same question —
-//! `Core\Arr`'s `contains`, `keyOf`, `unique`, `diff` and `intersect`
+//! `Core\Arr`'s `contains`, `keyOf`, `unique`, `difference` and `intersection`
 //! compare by **strict identity**, and a second
 //! answer living in `nvs-stdlib` would be a second set of PHP-divergence
 //! decisions nothing keeps in step. It is also what `==` means:
@@ -92,7 +92,7 @@
 //!
 //! # The hash is a second answer to the same question
 //!
-//! [`value_hash`] exists so `unique`/`diff`/`intersect` can index a set
+//! [`value_hash`] exists so `unique`/`difference`/`intersection` can index a set
 //! instead of scanning it — a linear scan makes each of those quadratic, and
 //! a quadratic member over request-shaped input is a denial of service, not a
 //! slow path. Its one obligation is the standard one: **identical values hash

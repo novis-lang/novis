@@ -14,7 +14,7 @@ class Bench
         array<uint> $parts = [1000, 934, 872, 814, 760, 709, 662, 618, 577, 539, 503, 470, 439, 410, 382, 357];
         uint $unit = ($size / 1000) as uint;
         foreach ($parts as uint $part) {
-            var $wide = $one->shl($unit * $part)->sub($one);
+            var $wide = $one->shiftedLeft($unit * $part)->minus($one);
             $digits = $digits + Core\Str::length($wide->format({ radix: 36 }));
         }
         return $digits;

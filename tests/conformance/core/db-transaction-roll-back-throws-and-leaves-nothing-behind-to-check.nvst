@@ -16,7 +16,7 @@ $db->execute("insert into t (name) values (?)", ["ada"]);
 // member filling only one of them reads correctly wherever the other is not
 // used.
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->runTransaction(fn (Transaction $tx): void => {
         $tx->execute("insert into t (name) values (?)", ["grace"]);
         $tx->rollBack("the second name was already taken");
         echo "the line after the give-up ran\n";
@@ -33,7 +33,7 @@ echo "kept ", $db->query("select id from t", [])->count(), "\n";
 // transaction is given up anyway. A `setRollbackOnly` that nobody read would
 // commit here.
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->runTransaction(fn (Transaction $tx): void => {
         $tx->execute("insert into t (name) values (?)", ["katherine"]);
         try {
             $tx->rollBack("caught inside the work");
@@ -53,21 +53,21 @@ echo "kept ", $db->query("select id from t", [])->count(), "\n";
 // names it exactly.
 array<string> $caught = [];
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->runTransaction(fn (Transaction $tx): void => {
         $tx->rollBack("under RolledBack");
     });
 } catch (RolledBack $named) {
     $caught[] = "RolledBack";
 }
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->runTransaction(fn (Transaction $tx): void => {
         $tx->rollBack("under RuntimeError");
     });
 } catch (RuntimeError $runtime) {
     $caught[] = "RuntimeError";
 }
 try {
-    $db->transaction(fn (Transaction $tx): void => {
+    $db->runTransaction(fn (Transaction $tx): void => {
         $tx->rollBack("under Throwable");
     });
 } catch (Throwable $any) {

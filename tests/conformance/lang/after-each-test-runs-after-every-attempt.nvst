@@ -41,7 +41,7 @@ final class UploadTest {
     #[AfterEachTest]
     public function removeFile(Outcome $outcome): void {
         echo "remove ", $this->file, ": ", $outcome->class(), "::", $outcome->name(),
-            " attempt ", $outcome->attempt(), ", passed ", $outcome->passed() ? "yes" : "no",
+            " attempt ", $outcome->attempt(), ", passed ", $outcome->hasPassed() ? "yes" : "no",
             ", failures ", Core\Arr::count($outcome->failures()), "\n";
     }
 }

@@ -1,7 +1,7 @@
 Returns a new date and time with some of its parts replaced.
 
 You name only the parts you want to change: `year`, `month`, `day`, `hour`, `minute`, `second` or
-`nanos`. The other parts and the time zone stay as they are. The value you call `with` on does not
+`nanoseconds`. The other parts and the time zone stay as they are. The value you call `with` on does not
 change.
 
 The new parts must make a date that exists. 14 June with the day changed to 31 is not in the

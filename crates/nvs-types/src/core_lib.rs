@@ -2009,7 +2009,7 @@ mod tests {
     /// certificate is bytes the other end wrote, and a session that verified the
     /// chain settled which host answered rather than what is written inside it,
     /// so the chain and the two names in its leaf carry the mark. Their siblings
-    /// `version()`, `cipher()` and `verified()` are the deliberate absences, and
+    /// `version()`, `cipher()` and `isVerified()` are the deliberate absences, and
     /// they are two readings rather than one: the first two are cases of a closed
     /// set this end offered, and the third is this process reading back its own
     /// policy.

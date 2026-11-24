@@ -29,7 +29,7 @@ final class Brand
     // Divides two whole numbers and rounds the result to `$digits` decimals, such as `12.4`.
     public static function divide(int $part, int $whole, uint $digits): decimal
     {
-        return Core\Decimal::divRound($part as decimal, $whole as decimal, $digits, Core\RoundMode::HalfUp);
+        return Core\Decimal::divideRounded($part as decimal, $whole as decimal, $digits, Core\RoundMode::HalfUp);
     }
 
     // The colours and fonts as CSS variables. Each document adds its own rules after these.

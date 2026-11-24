@@ -755,7 +755,7 @@ fn probe(key: &str) -> Option<Probe> {
 
 /// Streams the peer's pausing body, and prints `stream-done` once all of it arrived.
 const STREAM_PAUSE: &str = "    try {\n\
-        Core\\Http\\Stream $feed = Core\\Http\\Client::stream(Core\\Http\\Method::Get, 'http://{peer}/pause');\n\
+        Core\\Http\\Stream $feed = Core\\Http\\Client::openStream(Core\\Http\\Method::Get, 'http://{peer}/pause');\n\
         foreach ($feed->chunks() as tainted bytes $piece) {\n\
             echo '';\n\
         }\n\
@@ -766,7 +766,7 @@ const STREAM_PAUSE: &str = "    try {\n\
 
 /// [`STREAM_PAUSE`] over the peer's dripping body.
 const STREAM_DRIP: &str = "    try {\n\
-        Core\\Http\\Stream $feed = Core\\Http\\Client::stream(Core\\Http\\Method::Get, 'http://{peer}/drip');\n\
+        Core\\Http\\Stream $feed = Core\\Http\\Client::openStream(Core\\Http\\Method::Get, 'http://{peer}/drip');\n\
         foreach ($feed->chunks() as tainted bytes $piece) {\n\
             echo '';\n\
         }\n\

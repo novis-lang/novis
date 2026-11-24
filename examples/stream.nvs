@@ -1,6 +1,6 @@
 <?nvs
-// `stream` is the one method that does not buffer,
-// over the PostgreSQL `tests/db/compose.yaml` brings up. `Core\Db\Connection::stream`
+// `queryEach` is the one method that does not buffer,
+// over the PostgreSQL `tests/db/compose.yaml` brings up. `Core\Db\Connection::queryEach`
 // returns an `Iterable<Db\Row>`: the rows stay
 // on the connection as a portal the server is still holding open, so walking ten
 // thousand of them costs one row's memory rather than ten thousand.
@@ -15,10 +15,10 @@ use Core\Db\Row;
 
 var $db = Db::connect('main');
 
-// Ten thousand rows the server generates, walked to the end. `stream` never
+// Ten thousand rows the server generates, walked to the end. `queryEach` never
 // answers a `Rows`, so there is no `count()` to read and the tally below is the
 // walk's own evidence that it reached the last row.
-var $stream = $db->stream('select generate_series(1, 10000) as n', []);
+var $stream = $db->queryEach('select generate_series(1, 10000) as n', []);
 
 var $seen = 0;
 var $peak = 0;

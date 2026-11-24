@@ -7,7 +7,7 @@ use std::path::Path;
 const FOLDERS: [&str; 2] = ["apps/registry/src", "apps/registry/jobs"];
 
 /// The statements that only read the database.
-const READS: [&str; 4] = ["->query(", "->queryAs(", "->stream(", "->streamAs("];
+const READS: [&str; 4] = ["->query(", "->queryAs(", "->queryEach(", "->queryEachAs("];
 
 /// The statements that write to the database.
 const WRITES: [&str; 2] = ["->execute(", "->executeMany("];
@@ -63,10 +63,10 @@ fn is_source(path: &Path) -> bool {
     name.ends_with(".nvs") && !name.ends_with("Test.nvs")
 }
 
-/// Each `transaction(` call in `text`, with its line and the body of the function it is given.
+/// Each `runTransaction(` call in `text`, with its line and the body of the function it is given.
 fn transactions(text: &str) -> Vec<(usize, &str)> {
     let mut out = Vec::new();
-    for (at, _) in text.match_indices("->transaction(") {
+    for (at, _) in text.match_indices("->runTransaction(") {
         let line = text[..at].matches('\n').count() + 1;
         let rest = &text[at..];
         let Some(open) = rest.find("=> {") else {

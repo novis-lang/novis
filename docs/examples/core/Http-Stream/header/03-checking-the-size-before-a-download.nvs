@@ -8,7 +8,7 @@ Core\Test::answerHttp('https://files.example.com/backup.zip', 200, {
 });
 
 uint $limit = 1000000;
-Core\Http\Stream $download = Core\Http\Client::stream(Core\Http\Method::Get, 'https://files.example.com/backup.zip');
+Core\Http\Stream $download = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://files.example.com/backup.zip');
 // The header is `tainted`. `as ?int` converts it to a whole number.
 // If that is not possible, the result is `null`.
 ?int $size = ($download->header('content-length') ?? '') as ?int;

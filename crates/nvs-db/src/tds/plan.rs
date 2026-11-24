@@ -275,14 +275,14 @@ pub(super) fn execute_one<S: Read + Write>(
 }
 
 /// `rule:core-classes/db-transactions`'s `BEGIN TRANSACTION`, or
-/// the `SAVE TRANSACTION` a nested `transaction()` is.
+/// the `SAVE TRANSACTION` a nested `runTransaction()` is.
 ///
 /// [`crate::mysql::begin`]'s shape and its depth accounting, with T-SQL's
 /// spellings and the facts that are this backend's alone.
 ///
 /// **SQL Server has no read-only transaction at all**, so `read_only` is
 /// refused at any depth rather than dropped. Every other backend that
-/// `transaction()` reaches enforces the option, and a driver that accepted it here and opened an
+/// `runTransaction()` reaches enforces the option, and a driver that accepted it here and opened an
 /// ordinary writable transaction would hand a program the word without the
 /// guarantee — the one failure mode a `readOnly` exists to prevent.
 ///
@@ -296,7 +296,7 @@ pub(super) fn execute_one<S: Read + Write>(
 /// first. The second is not redundant — a `COMMIT TRANSACTION` the server
 /// refused ends the transaction with the restore still owed — and the pool's
 /// `sp_reset_connection` (`rule:security/db-pool-reset-is-a-boundary`) covers
-/// only the *pool*, not a second `transaction()`
+/// only the *pool*, not a second `runTransaction()`
 /// in the same request.
 ///
 /// The flag is set **before** the `SET` is written rather than after it lands:
@@ -337,7 +337,7 @@ pub(crate) fn begin<S: Read + Write>(
                 format!(
                     "a transaction nested {open} deep asked for its own isolation level, and SQL \
                      Server settles one for the whole session: ask for it on the outermost \
-                     `transaction()`, or give this one a `{{ shared: false }}` connection of its own"
+                     `runTransaction()`, or give this one a `{{ shared: false }}` connection of its own"
                 ),
             ));
         }
@@ -432,7 +432,7 @@ pub(super) fn restore_isolation<S: Read + Write>(
 /// [`simple_command`]. **The count follows the connection where the server took
 /// it**, [`crate::mysql::commit`]'s rule and its reasoning in full: an outermost
 /// commit the server refused has already rolled the transaction back, so the
-/// depth goes to 0 and `transaction()`'s `{ retries: n }` opens the next
+/// depth goes to 0 and `runTransaction()`'s `{ retries: n }` opens the next
 /// attempt with a
 /// `BEGIN TRANSACTION` rather than a `SAVE TRANSACTION` against nothing. That
 /// path leaves the isolation restore owed rather than sending it, so the error
@@ -584,7 +584,7 @@ pub(super) fn batch_command<S: Read + Write>(
 /// **The isolation level is put back by this driver, because the procedure does
 /// not put it back.** That is measured rather than assumed: the pool-reset case
 /// in `crates/nvs-db/tests/handshake.rs` reads `sys.dm_exec_sessions` after a
-/// reset and finds the level the last `transaction()` asked for still in force.
+/// reset and finds the level the last `runTransaction()` asked for still in force.
 /// The rule states the reset as a *property* — after it, no session state the next
 /// request could observe — and names `sp_reset_connection` as the means; where
 /// the means falls short of the property, the property is what has to hold. The
@@ -629,7 +629,7 @@ pub fn reset_session<S: Read + Write>(
     // the server is what says so: `crates/nvs-db/tests/handshake.rs`'s
     // `a_mssql_reset_from_inside_a_transaction_leaves_none_and_the_logins_level`
     // reads `sys.dm_exec_sessions` after a reset and finds the level the last
-    // `transaction()` asked for still in force. The pool-reset rule states the
+    // `runTransaction()` asked for still in force. The pool-reset rule states the
     // reset as a *property* rather than as a command list for exactly this reason — a
     // pooled connection whose level one request moved would silently run the
     // next request's statements at it — so the restore this driver already owes
@@ -747,7 +747,7 @@ mod tests {
         );
         assert_eq!(cache.len(), 1);
 
-        // No `transaction()` moved the level here, so the reset owes no restore
+        // No `runTransaction()` moved the level here, so the reset owes no restore
         // and sends the one message this case is counting.
         let moved = Cell::new(false);
         reset_session(&mut wire, &state, &mut cache, &moved)
@@ -1307,7 +1307,7 @@ mod tests {
         assert!(sent[0].1.contains(Status::RESET_CONNECTION));
     }
 
-    /// `transaction()`'s `{isolation}` on the one backend where it is a
+    /// `runTransaction()`'s `{isolation}` on the one backend where it is a
     /// **session** setting:
     /// it is put back when the outermost transaction ends, and a transaction
     /// that asked for nothing pays for none of it.
@@ -1315,7 +1315,7 @@ mod tests {
     /// The restore is what the other drivers do not need and what
     /// `sp_reset_connection` does not cover — the pool resets a connection on
     /// its way back (`rule:security/db-pool-reset-is-a-boundary`), and a second
-    /// `transaction()` in the *same request* never goes near it. Without the restore here, that second transaction would
+    /// `runTransaction()` in the *same request* never goes near it. Without the restore here, that second transaction would
     /// silently run `SERIALIZABLE`.
     #[test]
     fn a_session_isolation_level_is_put_back_when_the_outermost_transaction_ends() {
@@ -1364,7 +1364,7 @@ mod tests {
     /// backend, none of which touches the wire.
     ///
     /// **`readOnly` is refused rather than dropped**: SQL Server has no
-    /// read-only transaction, and every other backend that `transaction()`
+    /// read-only transaction, and every other backend that `runTransaction()`
     /// reaches enforces the option — a driver that accepted it and opened an ordinary writable
     /// transaction would give a program the word without the guarantee. The
     /// nested one is [`crate::mysql::begin`]'s, for a reason this backend states
@@ -1409,7 +1409,7 @@ mod tests {
     /// refused ends the transaction with the level still moved.
     ///
     /// The depth follows the connection where the server took it —
-    /// [`crate::mysql::commit`]'s rule — so `transaction()`'s `{ retries: n }`
+    /// [`crate::mysql::commit`]'s rule — so `runTransaction()`'s `{ retries: n }`
     /// opens the next
     /// attempt with a `BEGIN TRANSACTION`. What this pins is that the restore
     /// rides that begin instead of the commit that could not carry it: the error

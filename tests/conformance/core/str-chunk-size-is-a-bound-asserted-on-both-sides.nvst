@@ -46,7 +46,7 @@ for ($size = 1; $size <= 7; $size = $size + 1) {
     if (Core\Str::join($pieces, "") == $s) {
         $rejoins = $rejoins + 1;
     }
-    if ($k == Core\Math::intDiv($n + $size - 1, $size)) {
+    if ($k == Core\Math::quotient($n + $size - 1, $size)) {
         $counts = $counts + 1;
     }
     int $seen = 0;

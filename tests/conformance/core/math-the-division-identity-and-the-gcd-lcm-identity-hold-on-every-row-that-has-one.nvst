@@ -1,5 +1,5 @@
 --TEST--
-Core\Math::intDiv and mod satisfy the division identity on every row of a two-signed sweep, and Core\Math::gcd and lcm satisfy theirs, each pair naming the rows where one member has no answer
+Core\Math::quotient and mod satisfy the division identity on every row of a two-signed sweep, and Core\Math::gcd and lcm satisfy theirs, each pair naming the rows where one member has no answer
 --FILE--
 <?nvs
 // Two members of a pair can each look right on a chosen row and still not be
@@ -10,8 +10,8 @@ Core\Math::intDiv and mod satisfy the division identity on every row of a two-si
 // that makes them one operation. Counted over a swept table, so a member that
 // grew a `floor` somewhere agrees on the positive rows and fails here.
 
-// 1. `intDiv($a, $b) * $b + mod($a, $b) == $a`, over every combination of both
-//    signs. `mod` is declared over `float` — `Core\Math` leaves integer modulo to
+// 1. `quotient($a, $b) * $b + remainder($a, $b) == $a`, over every combination of both
+//    signs. `remainder` is declared over `float` — `Core\Math` leaves integer modulo to
 //    the `%` operator — so the identity is asserted in `float`, and the table is
 //    bounded by that: `int as float` is exact-or-throw, so ±2^53 is the widest
 //    dividend the float leg can be asked about at all (part 3 pins that bound).
@@ -31,8 +31,8 @@ foreach ($dividends as int $a) {
     foreach ($divisors as int $b) {
         $rows = $rows + 1;
         float $bf = $b as float;
-        int $q = Core\Math::intDiv($a, $b);
-        float $r = Core\Math::mod($af, $bf);
+        int $q = Core\Math::quotient($a, $b);
+        float $r = Core\Math::remainder($af, $bf);
         // The identity itself.
         if (($q * $b) as float + $r == $af) {
             $reconstructs = $reconstructs + 1;
@@ -64,12 +64,12 @@ echo "identity ", $reconstructs, "/", $rows, ", |r| < |b| ", $bounded, "/", $row
 //    are pinned by the two neighbouring cases.
 int $zeroRefusals = 0;
 try {
-    echo Core\Math::intDiv(1, 0);
+    echo Core\Math::quotient(1, 0);
 } catch (Throwable $noQuotient) {
     $zeroRefusals = $zeroRefusals + 1;
 }
 try {
-    echo Core\Math::mod(1.0, 0.0);
+    echo Core\Math::remainder(1.0, 0.0);
 } catch (Throwable $noRemainder) {
     $zeroRefusals = $zeroRefusals + 1;
 }
@@ -78,15 +78,15 @@ echo "zero divisor: ", $zeroRefusals, " of 2 refused\n";
 // The one row where the pair parts: `int`'s smallest over -1 has a remainder
 // but no quotient, so the identity has a right-hand term and nothing to add it
 // to. The remainder is a zero carrying the dividend's sign, which is the answer
-// `mod`'s own rule owes and not a stand-in for the missing quotient.
+// `remainder`'s own rule owes and not a stand-in for the missing quotient.
 int $quotientRefused = 0;
 try {
-    echo Core\Math::intDiv(Core\Math::INT_MIN, -1);
+    echo Core\Math::quotient(Core\Math::INT_MIN, -1);
 } catch (Throwable $noRoom) {
     $quotientRefused = 1;
 }
 echo "int min over -1: quotient refused ", $quotientRefused,
-     ", remainder ", Core\Math::mod(0.0 - 9223372036854775808.0, -1.0), "\n";
+     ", remainder ", Core\Math::remainder(0.0 - 9223372036854775808.0, -1.0), "\n";
 
 // 3. Why the table above stops where it does, named on both sides: `int as
 //    float` is one of `rule:types/conversion`'s checked conversions and it admits exactly

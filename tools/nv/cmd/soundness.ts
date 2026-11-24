@@ -954,8 +954,8 @@ export const QUALIFIER_ROWS: QualRow[] = [
     title: "a member that makes keys from values",
     rule: "rule:security/taint-propagation",
     cells: [
-      { qual: "secret", params: "array<secret string> $xs", body: ["array<uint> $c = Core\\Arr::countBy($xs);"], at: 0, code: SECRET_KEY },
-      { qual: "tainted", params: "array<tainted string> $xs", body: ["array<uint> $c = Core\\Arr::countBy($xs);"], at: 0, code: MISMATCH },
+      { qual: "secret", params: "array<secret string> $xs", body: ["array<uint> $c = Core\\Arr::groupCounts($xs);"], at: 0, code: SECRET_KEY },
+      { qual: "tainted", params: "array<tainted string> $xs", body: ["array<uint> $c = Core\\Arr::groupCounts($xs);"], at: 0, code: MISMATCH },
     ],
   },
   {

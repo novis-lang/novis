@@ -802,9 +802,9 @@ final class Workbook
             int $seconds = $value->duration->toSeconds();
             string $sign = $seconds < 0 ? '-' : '';
             int $left = $seconds < 0 ? 0 - $seconds : $seconds;
-            string $minutes = Core\Str::padStart((Core\Math::intDiv($left, 60) % 60) as string, 2, '0');
+            string $minutes = Core\Str::padStart((Core\Math::quotient($left, 60) % 60) as string, 2, '0');
             string $rest = Core\Str::padStart(($left % 60) as string, 2, '0');
-            return $sign . (Core\Math::intDiv($left, 3600) as string) . ':' . $minutes . ':' . $rest;
+            return $sign . (Core\Math::quotient($left, 3600) as string) . ':' . $minutes . ':' . $rest;
         }
         if ($value is { day: Core\Time\Date, clock: Core\Time\TimeOfDay }) {
             return $value->day->format('yyyy-MM-dd') . ' ' . $value->clock->format('HH:mm:ss');
@@ -830,7 +830,7 @@ final class Workbook
         while ($left > 0) {
             int $rest = ($left - 1) % 26;
             $letters = Core\Str::fromCodePoint((65 + $rest) as uint) . $letters;
-            $left = Core\Math::intDiv($left - 1, 26);
+            $left = Core\Math::quotient($left - 1, 26);
         }
         return $letters;
     }

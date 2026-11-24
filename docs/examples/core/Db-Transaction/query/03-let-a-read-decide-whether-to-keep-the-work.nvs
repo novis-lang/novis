@@ -8,7 +8,7 @@ $db->execute('insert into stock (item, left) values (?, ?)', ['lamp', 2]);
 
 var $order = fn(string $item, int $count): string => {
     try {
-        $db->transaction(fn(Core\Db\Transaction $tx): void => {
+        $db->runTransaction(fn(Core\Db\Transaction $tx): void => {
             $tx->execute('update stock set left = left - ? where item = ?', [$count, $item]);
 
             // The update is part of this transaction, so this read sees the new

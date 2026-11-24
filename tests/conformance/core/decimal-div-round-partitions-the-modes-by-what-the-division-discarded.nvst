@@ -1,5 +1,5 @@
 --TEST--
-`rule:types/arithmetic`: `Core\Decimal::divRound`'s six modes partition by what the truncation discarded, counted, and the same way on either sign
+`rule:types/arithmetic`: `Core\Decimal::divideRounded`'s six modes partition by what the truncation discarded, counted, and the same way on either sign
 --FILE--
 <?nvs
 // A mode decides what to do with what the truncation threw away, so the whole
@@ -44,10 +44,10 @@ while ($i < Core\Arr::count($values)) {
     array<decimal> $numerators = [$value, 0 - $value];
     echo $discards[$i], ":";
     foreach ($numerators as decimal $numerator) {
-        $truncated = Core\Decimal::divRound($numerator, $divisor, 2, Core\RoundMode::Down);
+        $truncated = Core\Decimal::divideRounded($numerator, $divisor, 2, Core\RoundMode::Down);
         $away = 0;
         foreach ($modes as Core\RoundMode $mode) {
-            if (Core\Decimal::divRound($numerator, $divisor, 2, $mode) != $truncated) {
+            if (Core\Decimal::divideRounded($numerator, $divisor, 2, $mode) != $truncated) {
                 $away = $away + 1;
             }
         }

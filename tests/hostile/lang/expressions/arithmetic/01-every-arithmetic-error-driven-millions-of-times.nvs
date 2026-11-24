@@ -152,7 +152,7 @@ while ($slow < 200000) {
         $threw = $threw + 1;
     }
 
-    $infinite = Core\Math::fdiv(1.0, 0.0);
+    $infinite = Core\Math::divide(1.0, 0.0);
     $slow = $slow + 1;
 }
 

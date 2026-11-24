@@ -121,10 +121,10 @@ final class Backup
     // so the copy shows the database at one moment.
     public static function dump(Connection $db): string
     {
-        return $db->transaction(fn(Transaction $tx): string => {
+        return $db->runTransaction(fn(Transaction $tx): string => {
             string $text = '';
             foreach (Backup::tables($tx) as string $table) {
-                foreach ($tx->stream('select * from ' . Db::quoteIdentifier($table) . ' order by rowid', []) as Row $row) {
+                foreach ($tx->queryEach('select * from ' . Db::quoteIdentifier($table) . ' order by rowid', []) as Row $row) {
                     $text .= Backup::trusted(Json::encode({ table: $table, row: $row->toArray() })) . "\n";
                 }
             }

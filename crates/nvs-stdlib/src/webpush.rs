@@ -30,7 +30,7 @@
 //! application's `P256` pair, the code `Core\Jwt` signs with. The key never reaches a message or
 //! an error. `send` posts through [`crate::http::push_send`], so the endpoint's host is pinned
 //! under `net.connect` and the address policy as any `Core\Http\Client` call's is, and no
-//! redirect carries the token to a host it does not name. A `404` or a `410` is `gone()`.
+//! redirect carries the token to a host it does not name. A `404` or a `410` is `isGone()`.
 //!
 //! **Memory:** a subscription is its endpoint plus 81 octets, and a message is the payload plus
 //! [`OVERHEAD`] octets, built inside the call and charged to the request. Nothing is held between
@@ -204,13 +204,13 @@ pub(crate) const SENT: CoreClass = CoreClass {
             doc: Some(&STATUS_DOC),
         },
         CoreMethod {
-            name: "gone",
+            name: "isGone",
             names: &[],
             params: &[],
             defaults: &[],
             return_ty: CoreTy::Bool,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_webpush_sent_gone",
+            symbol: "nvs_core_webpush_sent_is_gone",
             doc: Some(&GONE_DOC),
         },
     ],
@@ -290,7 +290,7 @@ const ENDPOINT_DOC: MethodDoc = MethodDoc {
 /// `Core\WebPush\Sent`'s class card — `rule:core-api/reference-card`.
 const SENT_CARD: ClassDoc = ClassDoc {
     short: "The answer of the browser's push service to one message that \
-            `Core\\WebPush::send` sent. Check `gone()` to know when to delete a subscription.",
+            `Core\\WebPush::send` sent. Check `isGone()` to know when to delete a subscription.",
 };
 
 /// The `$vapid` parameter, which `applicationServerKey` and `send` share.
@@ -373,7 +373,7 @@ const STATUS_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\WebPush\Sent::gone`'s reference card — `rule:core-api/reference-card`.
+/// `Core\WebPush\Sent::isGone`'s reference card — `rule:core-api/reference-card`.
 const GONE_DOC: MethodDoc = MethodDoc {
     short: "Returns `true` when the push service no longer knows the subscription. The status is \
             then `404` or `410`. Delete the subscription, because every later message fails too.",
@@ -395,7 +395,7 @@ pub(crate) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         }
         "nvs_core_webpush_send" => (nvs_core_webpush_send as *const ()).cast(),
         "nvs_core_webpush_sent_status" => (nvs_core_webpush_sent_status as *const ()).cast(),
-        "nvs_core_webpush_sent_gone" => (nvs_core_webpush_sent_gone as *const ()).cast(),
+        "nvs_core_webpush_sent_is_gone" => (nvs_core_webpush_sent_is_gone as *const ()).cast(),
         _ => return None,
     }))
 }
@@ -782,9 +782,9 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$sent->gone(): bool`.
-    fn nvs_core_webpush_sent_gone(_ctx, args: [1]) {
-        crate::instance::read_slot(args, &SENT, GONE_SLOT, "gone")
+    /// `$sent->isGone(): bool`.
+    fn nvs_core_webpush_sent_is_gone(_ctx, args: [1]) {
+        crate::instance::read_slot(args, &SENT, GONE_SLOT, "isGone")
     }
 }
 
@@ -1097,7 +1097,7 @@ mod tests {
         miri,
         ignore = "`ring` runs C and assembly, which Miri cannot interpret"
     )]
-    // covers: Core\WebPush::send, Core\WebPush\Sent::status, Core\WebPush\Sent::gone
+    // covers: Core\WebPush::send, Core\WebPush\Sent::status, Core\WebPush\Sent::isGone
     #[test]
     fn a_push_service_decrypts_what_send_posts_and_checks_its_vapid_token() {
         let (sent, pushed, port, mut ctx) = sent_to(201, b"New message from Shop");
@@ -1135,7 +1135,7 @@ mod tests {
 
         let status = nvs_runtime::call(nvs_core_webpush_sent_status, &mut ctx, &[sent]);
         assert_eq!(status.expect("a status").as_int(), Some(201));
-        let gone = nvs_runtime::call(nvs_core_webpush_sent_gone, &mut ctx, &[sent]);
+        let gone = nvs_runtime::call(nvs_core_webpush_sent_is_gone, &mut ctx, &[sent]);
         assert_eq!(gone.expect("an answer").as_bool(), Some(false));
     }
 
@@ -1143,13 +1143,13 @@ mod tests {
         miri,
         ignore = "`ring` runs C and assembly, which Miri cannot interpret"
     )]
-    // covers: Core\WebPush\Sent::status, Core\WebPush\Sent::gone
+    // covers: Core\WebPush\Sent::status, Core\WebPush\Sent::isGone
     #[test]
     fn a_410_answer_is_a_subscription_that_is_gone() {
         let (sent, _, _, mut ctx) = sent_to(410, b"hello");
         let status = nvs_runtime::call(nvs_core_webpush_sent_status, &mut ctx, &[sent]);
         assert_eq!(status.expect("a status").as_int(), Some(410));
-        let gone = nvs_runtime::call(nvs_core_webpush_sent_gone, &mut ctx, &[sent]);
+        let gone = nvs_runtime::call(nvs_core_webpush_sent_is_gone, &mut ctx, &[sent]);
         assert_eq!(gone.expect("an answer").as_bool(), Some(true));
     }
 
@@ -1157,7 +1157,7 @@ mod tests {
         miri,
         ignore = "`ring` runs C and assembly, which Miri cannot interpret"
     )]
-    // covers: Core\WebPush::send, Core\WebPush\Sent::status, Core\WebPush\Sent::gone
+    // covers: Core\WebPush::send, Core\WebPush\Sent::status, Core\WebPush\Sent::isGone
     #[test]
     fn a_test_s_answer_table_answers_send_and_records_the_message() {
         let mut ctx = nvs_runtime::Ctx::buffered();
@@ -1191,7 +1191,7 @@ mod tests {
         let sent = send(&mut ctx, to).expect("the table answers");
         let status = nvs_runtime::call(nvs_core_webpush_sent_status, &mut ctx, &[sent]);
         assert_eq!(status.expect("a status").as_int(), Some(404));
-        let gone = nvs_runtime::call(nvs_core_webpush_sent_gone, &mut ctx, &[sent]);
+        let gone = nvs_runtime::call(nvs_core_webpush_sent_is_gone, &mut ctx, &[sent]);
         assert_eq!(gone.expect("an answer").as_bool(), Some(true));
 
         let recorded = ctx.faked_http().sent();

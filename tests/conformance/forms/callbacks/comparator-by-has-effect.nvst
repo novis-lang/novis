@@ -22,11 +22,11 @@ array<string> $sorted = Core\Arr::sort($words, {comparator: fn(string $a, string
 echo Core\Str::join($sorted, ","), " ", Tally::$calls > 0 ? "ran" : "did not run", "\n";
 
 Tally::$calls = 0;
-array<string> $left = Core\Arr::diff($words, $other, {comparator: fn(string $a, string $b): int => Tally::length($a) <=> Tally::length($b)});
+array<string> $left = Core\Arr::difference($words, $other, {comparator: fn(string $a, string $b): int => Tally::length($a) <=> Tally::length($b)});
 echo Core\Json::encode($left), " ", Tally::$calls > 0 ? "ran" : "did not run", "\n";
 
 Tally::$calls = 0;
-array<string> $both = Core\Arr::intersect($words, $other, {comparator: fn(string $a, string $b): int => Tally::length($a) <=> Tally::length($b)});
+array<string> $both = Core\Arr::intersection($words, $other, {comparator: fn(string $a, string $b): int => Tally::length($a) <=> Tally::length($b)});
 echo Core\Json::encode($both), " ", Tally::$calls > 0 ? "ran" : "did not run", "\n";
 --EXPECT--
 a,d,bb,cc,eee ran

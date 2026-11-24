@@ -25,7 +25,7 @@ echo $plain->status(), " ", $plain->tls() != null ? "session" : "no session", "\
 var $info = $secure->tls();
 if ($info != null) {
     echo $info->version(), " ", $info->cipher(), "\n";
-    echo $info->verified() ? "verified" : "relaxed", "\n";
+    echo $info->isVerified() ? "verified" : "relaxed", "\n";
     echo Core\Arr::count($info->peerChain()), "\n";
     echo $info->subject(), " ", $info->issuer(), "\n";
     echo $info->expiry()->toIso(), "\n";

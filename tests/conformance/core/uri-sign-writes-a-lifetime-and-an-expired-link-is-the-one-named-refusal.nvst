@@ -2,19 +2,19 @@
 $uri->sign takes a written lifetime with `null` as the forever spelling, the lifetime rides inside the signed bytes, and an expired link is the one refusal $uri->verifySignature names apart from the others — `rule:core-api/a-lifetime-is-written`, `rule:core-api/one-refusal-except-expiry`
 --FILE--
 <?nvs
-// covers: Core\Uri::sign, Core\Uri::verifySignature
+// covers: Core\Uri::signed, Core\Uri::verifySignature
 // A permanent signed URL is a permanent bearer credential — it ends up in
 // browser history, `Referer` headers, proxy logs and chat unfurls — so
 // "forever" is a thing a person types rather than a key they leave out.
 secret bytes $key = Core\Crypto::generateKey();
 array<secret bytes> $ring = [$key];
 
-Core\Uri $forever = Core\Uri::parse("https://example.com/a?id=7")->sign({keys: $ring, until: null});
+Core\Uri $forever = Core\Uri::parse("https://example.com/a?id=7")->signed({keys: $ring, until: null});
 $forever->verifySignature($ring);
 echo "a link written as forever verifies", "\n";
 
 Core\Time\Instant $hence = Core\Time::now()->plus(1h);
-Core\Uri $live = Core\Uri::parse("https://example.com/a?id=7")->sign({keys: $ring, until: $hence});
+Core\Uri $live = Core\Uri::parse("https://example.com/a?id=7")->signed({keys: $ring, until: $hence});
 $live->verifySignature($ring);
 echo "and one that runs out in an hour verifies", "\n";
 
@@ -27,7 +27,7 @@ echo $forever->queryParameter("_sig") == $live->queryParameter("_sig")
 // One hour ago, so the link was already past its lifetime when it was minted —
 // the state a signed URL reaches by sitting in a chat unfurl for a day.
 Core\Time\Instant $ago = Core\Time::now()->minus(1h);
-Core\Uri $stale = Core\Uri::parse("https://example.com/a?id=7")->sign({keys: $ring, until: $ago});
+Core\Uri $stale = Core\Uri::parse("https://example.com/a?id=7")->signed({keys: $ring, until: $ago});
 
 // Both refusals are caught as the same class, so what tells them apart is the
 // sentence and not a type a program has to catch. Expiry is safe to name

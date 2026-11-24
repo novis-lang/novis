@@ -289,8 +289,8 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// it was opened by, which is what a refusal can name without reaching for the
 /// connection it is refusing about.
 ///
-/// **`query`, `queryAs`, `execute`, `executeMany`, `stream`, `streamAs` and
-/// `transaction` are `Core\Db\Queryable`'s members, and every one is declared
+/// **`query`, `queryAs`, `execute`, `executeMany`, `queryEach`, `queryEachAs` and
+/// `runTransaction` are `Core\Db\Queryable`'s members, and every one is declared
 /// here.** Beyond the interface, four rows of its own land here too: `close`,
 /// `driver`, `serverVersion` and `isOpen`. The last three answer without a
 /// round trip: `nvs_db::Connection::server_version` reads a string the
@@ -298,7 +298,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 ///
 /// **`close` is the only one of these on this class alone.** A
 /// [`TRANSACTION`] delegates `Core\Db\Queryable` to its connection and nothing
-/// else, and closing the connection out from under the `transaction()` call
+/// else, and closing the connection out from under the `runTransaction()` call
 /// that is still running is not something Novis gives a syntax for.
 /// `rule:classes/no-traits` makes `Transaction` delegate the interface to its connection, so
 /// every one of them is declared once — here — and [`TRANSACTION`] is where the
@@ -307,16 +307,16 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 /// carries.
 ///
 /// One constant rather than ten copies of it: that rule gives `query`, `queryAs`,
-/// `execute`, `executeMany` and `stream` the same bag, and [`TRANSACTION`]
+/// `execute`, `executeMany` and `queryEach` the same bag, and [`TRANSACTION`]
 /// declares all five a second time — ten spellings of one option are ten places
 /// for a default to drift apart. What the instant reaches is
 /// `nvs_db::Connection::set_deadline` — the socket on the four drivers with a
 /// wire, and the lock wait on SQLite — so the option means one thing across the
 /// roster rather than one thing per backend.
 ///
-/// **`chunk` is deliberately not here.** A `chunk` option on `stream` would have
+/// **`chunk` is deliberately not here.** A `chunk` option on `queryEach` would have
 /// to reach the `Execute` that asks for a row count, and this driver's walk asks for
-/// one row; [`crate::db`] § *`stream` declares no `chunk`, and the portal is
+/// one row; [`crate::db`] § *`queryEach` declares no `chunk`, and the portal is
 /// why* is where that stays recorded.
 const STATEMENT_OPTIONS: &[CoreOption] = &[CoreOption {
     name: "timeout",
@@ -401,7 +401,7 @@ pub(crate) const CONNECTION: CoreClass = CoreClass {
 // `rule:classes/no-traits`' delegation: one body reached through either handle,
 // read the same way by [`handle_of`]. Each class lists the row itself, because
 // `crate::registry::WRITTEN_CLASS_MEMBERS` is keyed by the *declaring* class,
-// so a `$tx->streamAs<Person>(…)` needs the row on `Transaction` to keep the
+// so a `$tx->queryEachAs<Person>(…)` needs the row on `Transaction` to keep the
 // class its call site wrote. `bun nv gaps` follows the name in each list here.
 
 /// `query`'s row.
@@ -502,11 +502,11 @@ const EXECUTE_MANY_ROW: CoreMethod = CoreMethod {
     doc: Some(&EXECUTE_MANY_DOC),
 };
 
-/// `stream`'s row. Inside a transaction the walk holds the very connection
+/// `queryEach`'s row. Inside a transaction the walk holds the very connection
 /// the `COMMIT` goes out on, so the `LogicError` a second statement meets is
 /// the same from either receiver (`rule:core-classes/db-connection-busy-state`).
 const STREAM_ROW: CoreMethod = CoreMethod {
-    name: "stream",
+    name: "queryEach",
     names: &["sql", "params"],
     // `query`'s two exactly: this member runs the same statement under
     // the same binding rule, and the only difference is where the
@@ -514,7 +514,7 @@ const STREAM_ROW: CoreMethod = CoreMethod {
     // alone: on this member the deadline stays
     // filed while the portal is open, so it bounds every `advance()` up
     // to the last row rather than the call that opens the walk.
-    // [`crate::db`] § *`stream` declares no `chunk`, and the portal is
+    // [`crate::db`] § *`queryEach` declares no `chunk`, and the portal is
     // why* keeps that decision — a size that reached no read would be
     // an option that parsed and did nothing.
     params: &[
@@ -529,19 +529,19 @@ const STREAM_ROW: CoreMethod = CoreMethod {
     // rides as that class's own type argument, exactly as it does on
     // the [`ROWS`] the member above answers: `Core\Db\Stream` is one
     // generic walk at two arguments, `Db\Row` here and the call site's
-    // own `T` on `streamAs` below, because a second class would be a
+    // own `T` on `queryEachAs` below, because a second class would be a
     // second iteration protocol saying the same thing.
     return_ty: CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Instance(ROW_NAME)]),
     text: TextOrigin::Unmarked,
-    symbol: "nvs_core_db_connection_stream",
+    symbol: "nvs_core_db_connection_query_each",
     doc: Some(&STREAM_DOC),
 };
 
-/// `streamAs`'s row.
+/// `queryEachAs`'s row.
 const STREAM_AS_ROW: CoreMethod = CoreMethod {
-    name: "streamAs",
+    name: "queryEachAs",
     names: &["sql", "params"],
-    // `stream`'s parameters exactly, for the reason `queryAs` takes
+    // `queryEach`'s parameters exactly, for the reason `queryAs` takes
     // `query`'s: this is the same statement over the same
     // portal, bound the same way and bounded by the same `timeout`,
     // and the only difference is what each row becomes.
@@ -558,7 +558,7 @@ const STREAM_AS_ROW: CoreMethod = CoreMethod {
     // is `E0442`.
     return_ty: CoreTy::InstanceAt(STREAM_NAME, &[CoreTy::Written("T")]),
     text: TextOrigin::Unmarked,
-    symbol: "nvs_core_db_connection_stream_as",
+    symbol: "nvs_core_db_connection_query_each_as",
     doc: Some(&STREAM_AS_DOC),
 };
 
@@ -575,7 +575,7 @@ const STREAM_AS_ROW: CoreMethod = CoreMethod {
 /// ends — every name on it is a row [`CONNECTION`] has and [`TRANSACTION`] does
 /// not. A row that stops being either fails there rather than going stale.
 ///
-/// `stream` and `streamAs` will not join it: both are `Queryable` members, so
+/// `queryEach` and `queryEachAs` will not join it: both are `Queryable` members, so
 /// each lands on both classes.
 ///
 /// [`QUERYABLE`] reads its members off the same list: every [`CONNECTION`]
@@ -626,7 +626,7 @@ const SERVER_VERSION_DOC: MethodDoc = MethodDoc {
             is PostgreSQL's `server_version`, the greeting banner of MySQL and MariaDB, \
             `major.minor.build` from the SQL Server login reply, or SQLite's library version. \
             The server sent it when the connection opened, so reading it runs no statement. \
-            You can call it while a `stream` is using the connection.",
+            You can call it while a `queryEach` loop is using the connection.",
     params: &[],
     ret: "The version, as a `tainted string`, because the server sent it. It is never empty and \
           never changed. A suffix that a distribution adds \
@@ -683,7 +683,7 @@ pub(super) const TRANSACTION_OPTIONS: &[CoreOption] = &[
     },
 ];
 
-/// `rule:core-classes/db-transactions`'s `transaction`, written once because it is declared once: the
+/// `rule:core-classes/db-transactions`'s `runTransaction`, written once because it is declared once: the
 /// row is `Core\Db\Queryable`'s and both [`CONNECTION`] and [`TRANSACTION`]
 /// carry it, a nested call on the second being the savepoint that rule asks for.
 ///
@@ -697,7 +697,7 @@ pub(super) const TRANSACTION_OPTIONS: &[CoreOption] = &[
 /// [`wait_between_attempts`] gives the core back for it; the declared default
 /// of 0 is what every call that does not ask gets.
 pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
-    name: "transaction",
+    name: "runTransaction",
     names: &["fn"],
     // Written, as `rule:types/callable-signature` has every callback spell what
     // it receives: what this one is handed is a [`TRANSACTION`], and a callable
@@ -717,7 +717,7 @@ pub(super) const TRANSACTION_ROW: CoreMethod = CoreMethod {
     // transaction can wrap an existing expression without retyping it.
     return_ty: CoreTy::Var("T"),
     text: TextOrigin::Unmarked,
-    symbol: "nvs_core_db_connection_transaction",
+    symbol: "nvs_core_db_connection_run_transaction",
     doc: Some(&TRANSACTION_DOC),
 };
 
@@ -946,7 +946,7 @@ pub(crate) const ISOLATION: CoreEnum = CoreEnum {
 /// [`ISOLATION`]'s reference card — `rule:core-api/reference-card`.
 pub(super) const ISOLATION_DOC: EnumDoc = EnumDoc {
     short: "How much a transaction can see of other transactions running at the same time. \
-            This is the `isolation` option of `transaction`. Without it, the connection's own \
+            This is the `isolation` option of `runTransaction`. Without it, the connection's own \
             level is used. A driver that cannot offer the requested level throws an error. It \
             does not run `$fn` at a weaker level.",
     cases: &[
@@ -1248,7 +1248,7 @@ pub(super) const COLUMN_TYPE_DOC: EnumDoc = EnumDoc {
 /// `query` returns. That rule chose it over the alternative because
 /// `rule:programs/memory-priority` ranks memory
 /// last and because a cursor breaks the commonest loop in web programming on a
-/// connection-busy rule; `stream` is the member for a result set that does not
+/// connection-busy rule; `queryEach` is the member for a result set that does not
 /// fit, and it is the one that holds the connection.
 ///
 /// What `query` answers with — `rule:core-classes/db-statement-members`'s buffered result set, and all
@@ -1663,7 +1663,7 @@ pub(crate) const COLUMN: CoreClass = CoreClass {
             doc: Some(&COLUMN_DECLARED_DOC),
         },
         CoreMethod {
-            name: "nullable",
+            name: "isNullable",
             names: &[],
             params: &[],
             defaults: &[],
@@ -1673,7 +1673,7 @@ pub(crate) const COLUMN: CoreClass = CoreClass {
             // one answer this driver can give means.
             return_ty: CoreTy::Bool,
             text: TextOrigin::Unmarked,
-            symbol: "nvs_core_db_column_nullable",
+            symbol: "nvs_core_db_column_is_nullable",
             doc: Some(&COLUMN_NULLABLE_DOC),
         },
     ],
@@ -2094,7 +2094,7 @@ pub(super) const CONNECT_DOC: MethodDoc = MethodDoc {
             desc: "Whether this call may return the connection that an earlier call opened. \
                    `false` opens a separate connection. You need one for a write that must stay \
                    after a rollback, for a session lock, or for a second statement during a \
-                   `stream`.",
+                   `queryEach` loop.",
             shape: &[],
         },
         ParamDoc {
@@ -2287,7 +2287,7 @@ pub(super) const QUOTE_IDENTIFIER_DOC: MethodDoc = MethodDoc {
 pub(super) const QUERY_DOC: MethodDoc = MethodDoc {
     short: "Runs one statement with its values bound, and reads every row it returns into memory. \
             Every statement is prepared, so there is no separate prepare step. The connection is \
-            free again as soon as this returns. `stream` keeps the connection while you read.",
+            free again as soon as this returns. `queryEach` keeps the connection while you read.",
     params: &[
         ParamDoc {
             name: "sql",
@@ -2336,7 +2336,7 @@ pub(super) const QUERY_DOC: MethodDoc = MethodDoc {
 ///
 /// One constant for the same reason [`STATEMENT_OPTIONS`] is one: the option is
 /// one option, and a card per member repeating it in its own words is four
-/// descriptions free to drift. `stream` writes its own because the bound means
+/// descriptions free to drift. `queryEach` writes its own because the bound means
 /// something different there — it covers the walk rather than the call.
 const TIMEOUT_PARAM_DOC: ParamDoc = ParamDoc {
     name: "timeout",
@@ -2473,7 +2473,7 @@ pub(super) const EXECUTE_MANY_DOC: MethodDoc = MethodDoc {
             error: "Core\\Db\\DbError",
             desc: "The server rejected one run, for example for a syntax error, a constraint or \
                    a permission. Each run is its own transaction, so the writes before the \
-                   failed run stay. Use `transaction` to save all or nothing.",
+                   failed run stay. Use `runTransaction` to save all or nothing.",
         },
         ErrorDoc {
             error: "IOError",
@@ -2483,7 +2483,7 @@ pub(super) const EXECUTE_MANY_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Db\Queryable::stream`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Db\Queryable::queryEach`'s reference card — `rule:core-api/reference-card`.
 pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
     short: "Runs one statement and gives its rows one at a time to a `foreach` loop. The connection \
             stays open until the loop ends. The memory used stays the same however many rows \
@@ -2538,9 +2538,9 @@ pub(super) const STREAM_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Db\Queryable::streamAs`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Db\Queryable::queryEachAs`'s reference card — `rule:core-api/reference-card`.
 pub(super) const STREAM_AS_DOC: MethodDoc = MethodDoc {
-    short: "Reads a result one row at a time as `stream` does, and builds each row into an object \
+    short: "Reads a result one row at a time as `queryEach` does, and builds each row into an object \
             of the class written at the call site, as `queryAs` does. The memory used stays the \
             same however many rows there are.",
     params: &[
@@ -2559,7 +2559,7 @@ pub(super) const STREAM_AS_DOC: MethodDoc = MethodDoc {
         },
         ParamDoc {
             name: "timeout",
-            desc: "How long reading all the rows may take, with the same rule as `stream`. The \
+            desc: "How long reading all the rows may take, with the same rule as `queryEach`. The \
                    limit applies while the rows are being read, so it covers every row and not \
                    only the first call. Without it, the loop waits as long as the server takes.",
             shape: &[],
@@ -2567,7 +2567,7 @@ pub(super) const STREAM_AS_DOC: MethodDoc = MethodDoc {
     ],
     ret: "The statement's rows for a `foreach` loop, each one created as a `T`, in the server's \
           order. No row has been read yet when this returns. The connection is busy, as with \
-          `stream`. Only one `T` exists at a time. That is the only difference from `queryAs`.",
+          `queryEach`. Only one `T` exists at a time. That is the only difference from `queryAs`.",
     errors: &[
         ErrorDoc {
             error: "LogicError",
@@ -2600,7 +2600,7 @@ pub(super) const STREAM_AS_DOC: MethodDoc = MethodDoc {
     ],
 };
 
-/// `Core\Db\Queryable::transaction`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Db\Queryable::runTransaction`'s reference card — `rule:core-api/reference-card`.
 pub(super) const TRANSACTION_DOC: MethodDoc = MethodDoc {
     short: "Runs `$fn` inside a transaction and returns what `$fn` returns. If `$fn` returns, the \
             transaction is committed. If `$fn` throws, the transaction is rolled back and the error \
@@ -2650,7 +2650,7 @@ pub(super) const TRANSACTION_DOC: MethodDoc = MethodDoc {
         ErrorDoc {
             error: "LogicError",
             desc: "A statement inside `$fn` was not allowed because of the way it was written. It \
-                   is also thrown when the transaction is used after its `transaction()` call \
+                   is also thrown when the transaction is used after its `runTransaction()` call \
                    returned, or when a nested call sets its own `isolation` or `readOnly`.",
         },
         ErrorDoc {
@@ -2682,13 +2682,13 @@ pub(super) const ROLL_BACK_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "Core\\Db\\RolledBack",
-            desc: "Always. The `transaction()` call throws it even if code between here and \
+            desc: "Always. The `runTransaction()` call throws it even if code between here and \
                    there catches it, because that call checks the recorded reason, not the \
                    thrown error.",
         },
         ErrorDoc {
             error: "LogicError",
-            desc: "The transaction is used after its `transaction()` call returned, so there is \
+            desc: "The transaction is used after its `runTransaction()` call returned, so there is \
                    nothing left to roll back.",
         },
     ],
@@ -2784,7 +2784,7 @@ pub(super) const COLUMN_DECLARED_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// `Core\Db\Column::nullable`'s reference card — `rule:core-api/reference-card`.
+/// `Core\Db\Column::isNullable`'s reference card — `rule:core-api/reference-card`.
 pub(super) const COLUMN_NULLABLE_DOC: MethodDoc = MethodDoc {
     short: "Checks whether the column can contain NULL. On PostgreSQL this is always `true`. The \
             server does not send a NOT NULL flag with the result. Only an extra catalog query \

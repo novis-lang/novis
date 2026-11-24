@@ -15,14 +15,14 @@ Core\Test::answerHttp('https://files.example.com/small/*', 200, { body: 'a small
 Core\Test::answerHttp('https://big.example.com/*', 200, { body: Core\Str::repeat('k', 60000) });
 
 // 1. An empty body. The loop must not run at all.
-var $empty = Core\Http\Client::stream(Core\Http\Method::Get, 'https://files.example.com/empty');
+var $empty = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://files.example.com/empty');
 foreach ($empty->chunks() as tainted bytes $piece) {
     throw new LogicError('an empty body gave a piece');
 }
 echo 'step 1: done', "\n";
 
 // 2. A body of 8000000 bytes. The pieces together must have exactly that size.
-var $large = Core\Http\Client::stream(Core\Http\Method::Get, 'https://files.example.com/large');
+var $large = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://files.example.com/large');
 uint $size = 0;
 foreach ($large->chunks() as tainted bytes $piece) {
     $size = $size + Core\Bytes::length($piece);
@@ -34,7 +34,7 @@ echo 'step 2: done', "\n";
 
 // 3. The same walk is used in two loops. The second loop must not run,
 //    because the first loop already read the whole body.
-var $once = Core\Http\Client::stream(Core\Http\Method::Get, 'https://files.example.com/small/once');
+var $once = Core\Http\Client::openStream(Core\Http\Method::Get, 'https://files.example.com/small/once');
 Core\Http\Chunks $walk = $once->chunks();
 foreach ($walk as tainted bytes $piece) {
 }
@@ -47,7 +47,7 @@ echo 'step 3: done', "\n";
 //    or never starts the loop at all.
 uint $n = 0;
 while ($n < 20000) {
-    var $stream = Core\Http\Client::stream(Core\Http\Method::Get, Core\Str::format('https://files.example.com/small/%d', $n));
+    var $stream = Core\Http\Client::openStream(Core\Http\Method::Get, Core\Str::format('https://files.example.com/small/%d', $n));
     if ($n % 2 == 0) {
         foreach ($stream->chunks() as tainted bytes $piece) {
             break;
@@ -65,7 +65,7 @@ echo "step 5\n";
 array<tainted bytes> $kept = [];
 uint $m = 0;
 while (true) {
-    var $big = Core\Http\Client::stream(Core\Http\Method::Get, Core\Str::format('https://big.example.com/%d', $m));
+    var $big = Core\Http\Client::openStream(Core\Http\Method::Get, Core\Str::format('https://big.example.com/%d', $m));
     foreach ($big->chunks() as tainted bytes $piece) {
         $kept[] = $piece;
     }

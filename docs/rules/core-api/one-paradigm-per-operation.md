@@ -32,4 +32,4 @@ operations only, and element access stays in the language:
 | combine two arrays | `Arr::overlay` / `underlay` / `appendAll` | `$a + $b` does not compile (`rule:types/array-combination`) |
 
 The same division holds elsewhere: `**` is exponentiation, so there is no `Math::pow`; `%` is integer
-modulo, so `Math::mod` exists only for `float`; `is` is an operator, so `Core\Reflect` has no `isA`.
+modulo, so `Math::remainder` exists only for `float`; `is` is an operator, so `Core\Reflect` has no `isA`.

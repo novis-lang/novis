@@ -34,8 +34,8 @@ try {
 
 // 2. A transaction on the `shop` database opens a transaction on the `jobs` database, and the push is inside both.
 try {
-    $shop->transaction(fn(Transaction $outer): void => {
-        $db->transaction(fn(Transaction $inner): void => {
+    $shop->runTransaction(fn(Transaction $outer): void => {
+        $db->runTransaction(fn(Transaction $inner): void => {
             Queue::push('jobs/a.nvs', { queue: 'q' });
         });
     });
@@ -46,8 +46,8 @@ try {
 
 // 3. A transaction on the `jobs` database opens a transaction on the `shop` database, and the push is inside both.
 try {
-    $db->transaction(fn(Transaction $outer): void => {
-        $shop->transaction(fn(Transaction $inner): void => {
+    $db->runTransaction(fn(Transaction $outer): void => {
+        $shop->runTransaction(fn(Transaction $inner): void => {
             Queue::push('jobs/a.nvs', { queue: 'q' });
         });
     });
@@ -58,7 +58,7 @@ try {
 
 // 4. The push is inside a transaction of `shop`, and the program throws to roll it back.
 try {
-    $shop->transaction(fn(Transaction $tx): void => {
+    $shop->runTransaction(fn(Transaction $tx): void => {
         Queue::push('jobs/a.nvs', { queue: 'q' });
         throw new LogicError('stop');
     });
@@ -88,7 +88,7 @@ try {
 
 // 7. One transaction of `shop` pushes 10000 jobs.
 try {
-    $shop->transaction(fn(Transaction $tx): void => {
+    $shop->runTransaction(fn(Transaction $tx): void => {
         int $i = 0;
         while ($i < 10000) {
             Queue::push('jobs/a.nvs', { queue: 'many' });

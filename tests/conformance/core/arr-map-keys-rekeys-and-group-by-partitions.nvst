@@ -21,7 +21,7 @@ echo Core\Json::encode($byLength), "\n";
 array<string> $tied = ["red", "tan", "blue"];
 echo Core\Json::encode(Core\Arr::mapKeys($tied, fn (string $w): int => Core\Str::length($w) as int)), "\n";
 
-// `groupBy` is `countBy` with the entries kept instead of counted: buckets in
+// `groupBy` is `groupCounts` with the entries kept instead of counted: buckets in
 // first-occurrence order, named through the same normalization.
 array<string> $people = ["ada" => "engineer", "bo" => "designer", "cy" => "engineer"];
 var $byRole = Core\Arr::groupBy($people, fn (string $role): string => $role);

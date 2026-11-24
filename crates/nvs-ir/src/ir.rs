@@ -702,8 +702,8 @@ pub struct Function {
 }
 
 /// One callback form of `crate::forms` the lowering recorded: `first`,
-/// `firstKey` or `isEmpty` of a `Core\Arr::filter` call, or a `sort`, `diff`
-/// or `intersect` call whose comparator compares one expression of each side.
+/// `firstKey` or `isEmpty` of a `Core\Arr::filter` call, or a `sort`, `difference`
+/// or `intersection` call whose comparator compares one expression of each side.
 #[derive(Clone, Debug)]
 pub struct FormCandidate {
     /// The written form's span.
@@ -3885,11 +3885,11 @@ pub enum BinOp {
     /// It is also the one arithmetic operator that carries [`Inst::on_error`]
     /// over a **float**: the rule refuses the zero divisor before the operand types
     /// are consulted, so `1.0 / 0` throws exactly where `1 / 0` does and
-    /// `Core\Math::fdiv` is the member that answers IEEE's infinity instead.
+    /// `Core\Math::divide` is the member that answers IEEE's infinity instead.
     Div,
     /// `%`
     Mod,
-    /// `Core\Math::intDiv($a, $b)`, emitted inline: the quotient of two
+    /// `Core\Math::quotient($a, $b)`, emitted inline: the quotient of two
     /// `int`s, truncated toward zero, as an `int`. It carries
     /// [`Inst::on_error`] and throws `ArithmeticError` for a zero divisor and
     /// for `int::MIN / -1`, with the messages `nvs_stdlib::math`'s

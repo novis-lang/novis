@@ -122,10 +122,10 @@ if ($nanIsNan && ($nanEqualsItself == false) && $rootOfNegative) {
 
 // INT_MAX and INT_MIN are where the integer members stop, and each is read
 // from both sides: the last argument that answers, then the first that
-// refuses. `intDiv(INT_MIN, -1)` and `gcd(INT_MIN, 0)` both have INT_MAX + 1
+// refuses. `quotient(INT_MIN, -1)` and `gcd(INT_MIN, 0)` both have INT_MAX + 1
 // as their exact answer, and `abs` has the same one.
 bool $gcdReaches = Core\Math::gcd(Core\Math::INT_MAX, 0) == Core\Math::INT_MAX;
-bool $intDivReaches = Core\Math::intDiv(Core\Math::INT_MAX, -1) == Core\Math::INT_MIN + 1;
+bool $intDivReaches = Core\Math::quotient(Core\Math::INT_MAX, -1) == Core\Math::INT_MIN + 1;
 bool $absReaches = Core\Math::abs(Core\Math::INT_MIN + 1) == Core\Math::INT_MAX;
 bool $extremesSum = Core\Math::INT_MIN + Core\Math::INT_MAX == -1;
 echo "INT_MAX: gcd=", $gcdReaches ? "y" : "n",
@@ -138,7 +138,7 @@ if ($gcdReaches && $intDivReaches && $absReaches && $extremesSum) {
 
 int $refusals = 0;
 try {
-    echo Core\Math::intDiv(Core\Math::INT_MIN, -1), "\n";
+    echo Core\Math::quotient(Core\Math::INT_MIN, -1), "\n";
 } catch (Throwable $div) {
     $refusals = $refusals + 1;
 }

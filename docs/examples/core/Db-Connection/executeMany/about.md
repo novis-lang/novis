@@ -11,7 +11,7 @@ need a statement of a different length are two calls. There is no id for a new r
 come back: a batch has no single run for either to belong to.
 
 A batch is not a transaction. Each run stands on its own, so a failure in the middle leaves the
-earlier writes in place. Wrap the call in `Core\Db\Connection::transaction` when you need all of it
+earlier writes in place. Wrap the call in `Core\Db\Connection::runTransaction` when you need all of it
 or none of it.
 
 The examples write three rows, give each row its own new value, and import a list of records.

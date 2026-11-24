@@ -3,7 +3,7 @@
 
 secret bytes $old = Core\Crypto::generateKey();
 secret bytes $new = Core\Crypto::generateKey();
-Core\Uri $link = Core\Uri::parse('/download?file=a.pdf')->sign({ keys: [$old], until: null });
+Core\Uri $link = Core\Uri::parse('/download?file=a.pdf')->signed({ keys: [$old], until: null });
 
 // The new key is first, so it signs new links. The old key is still in the list,
 // so this link is accepted. This prints "accepted".

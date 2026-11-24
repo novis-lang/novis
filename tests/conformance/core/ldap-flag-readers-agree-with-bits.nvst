@@ -24,30 +24,30 @@ foreach ($corp->search(Core\Ldap\Filter::present("objectClass"), {base: "CN=User
     ?Core\Ldap\Ad\AccountFlags $flags = $entry->accountFlags();
     if ($flags != null) {
         $users = $users + 1;
-        $disabled = $disabled + ($flags->disabled() ? 1 : 0);
+        $disabled = $disabled + ($flags->isDisabled() ? 1 : 0);
         // The sum of the bits each reader names. It must be the same as
         // `bits()` with only the named bits kept.
-        int $sum = ($flags->script() ? 1 : 0) + ($flags->disabled() ? 2 : 0)
-            + ($flags->homeDirectoryRequired() ? 8 : 0) + ($flags->lockedOut() ? 16 : 0)
-            + ($flags->passwordNotRequired() ? 32 : 0) + ($flags->reversibleEncryption() ? 128 : 0)
-            + ($flags->temporaryDuplicateAccount() ? 256 : 0) + ($flags->normalAccount() ? 512 : 0)
-            + ($flags->interdomainTrustAccount() ? 2048 : 0) + ($flags->workstationTrustAccount() ? 4096 : 0)
-            + ($flags->serverTrustAccount() ? 8192 : 0) + ($flags->passwordNeverExpires() ? 65536 : 0)
-            + ($flags->mnsLogonAccount() ? 131072 : 0) + ($flags->smartcardRequired() ? 262144 : 0)
-            + ($flags->trustedForDelegation() ? 524288 : 0) + ($flags->notDelegated() ? 1048576 : 0)
-            + ($flags->useDesKeyOnly() ? 2097152 : 0) + ($flags->noPreauthRequired() ? 4194304 : 0)
-            + ($flags->passwordExpired() ? 8388608 : 0) + ($flags->trustedToAuthForDelegation() ? 16777216 : 0)
-            + ($flags->partialSecretsAccount() ? 67108864 : 0);
+        int $sum = ($flags->hasLogonScript() ? 1 : 0) + ($flags->isDisabled() ? 2 : 0)
+            + ($flags->isHomeDirectoryRequired() ? 8 : 0) + ($flags->isLockedOut() ? 16 : 0)
+            + ($flags->isPasswordNotRequired() ? 32 : 0) + ($flags->allowsReversibleEncryption() ? 128 : 0)
+            + ($flags->isTemporaryDuplicateAccount() ? 256 : 0) + ($flags->isNormalAccount() ? 512 : 0)
+            + ($flags->isInterdomainTrustAccount() ? 2048 : 0) + ($flags->isWorkstationTrustAccount() ? 4096 : 0)
+            + ($flags->isServerTrustAccount() ? 8192 : 0) + ($flags->hasNonExpiringPassword() ? 65536 : 0)
+            + ($flags->isMnsLogonAccount() ? 131072 : 0) + ($flags->isSmartcardRequired() ? 262144 : 0)
+            + ($flags->isTrustedForDelegation() ? 524288 : 0) + ($flags->isNotDelegated() ? 1048576 : 0)
+            + ($flags->usesDesKeyOnly() ? 2097152 : 0) + ($flags->isPreauthNotRequired() ? 4194304 : 0)
+            + ($flags->isPasswordExpired() ? 8388608 : 0) + ($flags->isTrustedToAuthenticateForDelegation() ? 16777216 : 0)
+            + ($flags->isPartialSecretsAccount() ? 67108864 : 0);
         $agree = $agree && $sum == ($flags->bits() & 100614075);
         $agree = $agree && $entry->groupType() == null;
     }
     ?Core\Ldap\Ad\GroupType $type = $entry->groupType();
     if ($type != null) {
         $groups = $groups + 1;
-        int $groupSum = ($type->system() ? 1 : 0) + ($type->global() ? 2 : 0)
-            + ($type->domainLocal() ? 4 : 0) + ($type->universal() ? 8 : 0)
-            + ($type->appBasic() ? 16 : 0) + ($type->appQuery() ? 32 : 0)
-            + ($type->security() ? 2147483648 : 0);
+        int $groupSum = ($type->isSystemGroup() ? 1 : 0) + ($type->isGlobal() ? 2 : 0)
+            + ($type->isDomainLocal() ? 4 : 0) + ($type->isUniversal() ? 8 : 0)
+            + ($type->isAppBasicGroup() ? 16 : 0) + ($type->isAppQueryGroup() ? 32 : 0)
+            + ($type->isSecurityGroup() ? 2147483648 : 0);
         $agree = $agree && $groupSum == ($type->bits() & 2147483711);
         $agree = $agree && $entry->accountFlags() == null;
     }
@@ -58,24 +58,24 @@ echo "readers agree with bits: ", $agree ? "yes" : "no", "\n";
 echo "disabled by flag: ", $disabled, "\n";
 int $found = 0;
 foreach ($corp->search(Core\Ldap\Filter::all(Core\Ldap\Filter::equals("objectClass", "user"), Core\Ldap\Ad::disabled()), {base: "CN=Users,DC=example,DC=test", select: ["userAccountControl"]}) as var $user) {
-    $found = $found + (($user->accountFlags()?->disabled() ?? false) ? 1 : 0);
+    $found = $found + (($user->accountFlags()?->isDisabled() ?? false) ? 1 : 0);
 }
 echo "disabled by filter: ", $found, "\n";
-// covers: Core\Ldap\Ad\AccountFlags::script, Core\Ldap\Ad\AccountFlags::disabled
-// covers: Core\Ldap\Ad\AccountFlags::homeDirectoryRequired, Core\Ldap\Ad\AccountFlags::lockedOut
-// covers: Core\Ldap\Ad\AccountFlags::passwordNotRequired, Core\Ldap\Ad\AccountFlags::reversibleEncryption
-// covers: Core\Ldap\Ad\AccountFlags::temporaryDuplicateAccount, Core\Ldap\Ad\AccountFlags::normalAccount
-// covers: Core\Ldap\Ad\AccountFlags::interdomainTrustAccount, Core\Ldap\Ad\AccountFlags::workstationTrustAccount
-// covers: Core\Ldap\Ad\AccountFlags::serverTrustAccount, Core\Ldap\Ad\AccountFlags::passwordNeverExpires
-// covers: Core\Ldap\Ad\AccountFlags::mnsLogonAccount, Core\Ldap\Ad\AccountFlags::smartcardRequired
-// covers: Core\Ldap\Ad\AccountFlags::trustedForDelegation, Core\Ldap\Ad\AccountFlags::notDelegated
-// covers: Core\Ldap\Ad\AccountFlags::useDesKeyOnly, Core\Ldap\Ad\AccountFlags::noPreauthRequired
-// covers: Core\Ldap\Ad\AccountFlags::passwordExpired, Core\Ldap\Ad\AccountFlags::trustedToAuthForDelegation
-// covers: Core\Ldap\Ad\AccountFlags::partialSecretsAccount, Core\Ldap\Ad\AccountFlags::bits
-// covers: Core\Ldap\Ad\GroupType::system, Core\Ldap\Ad\GroupType::global
-// covers: Core\Ldap\Ad\GroupType::domainLocal, Core\Ldap\Ad\GroupType::universal
-// covers: Core\Ldap\Ad\GroupType::appBasic, Core\Ldap\Ad\GroupType::appQuery
-// covers: Core\Ldap\Ad\GroupType::security, Core\Ldap\Ad\GroupType::bits
+// covers: Core\Ldap\Ad\AccountFlags::hasLogonScript, Core\Ldap\Ad\AccountFlags::isDisabled
+// covers: Core\Ldap\Ad\AccountFlags::isHomeDirectoryRequired, Core\Ldap\Ad\AccountFlags::isLockedOut
+// covers: Core\Ldap\Ad\AccountFlags::isPasswordNotRequired, Core\Ldap\Ad\AccountFlags::allowsReversibleEncryption
+// covers: Core\Ldap\Ad\AccountFlags::isTemporaryDuplicateAccount, Core\Ldap\Ad\AccountFlags::isNormalAccount
+// covers: Core\Ldap\Ad\AccountFlags::isInterdomainTrustAccount, Core\Ldap\Ad\AccountFlags::isWorkstationTrustAccount
+// covers: Core\Ldap\Ad\AccountFlags::isServerTrustAccount, Core\Ldap\Ad\AccountFlags::hasNonExpiringPassword
+// covers: Core\Ldap\Ad\AccountFlags::isMnsLogonAccount, Core\Ldap\Ad\AccountFlags::isSmartcardRequired
+// covers: Core\Ldap\Ad\AccountFlags::isTrustedForDelegation, Core\Ldap\Ad\AccountFlags::isNotDelegated
+// covers: Core\Ldap\Ad\AccountFlags::usesDesKeyOnly, Core\Ldap\Ad\AccountFlags::isPreauthNotRequired
+// covers: Core\Ldap\Ad\AccountFlags::isPasswordExpired, Core\Ldap\Ad\AccountFlags::isTrustedToAuthenticateForDelegation
+// covers: Core\Ldap\Ad\AccountFlags::isPartialSecretsAccount, Core\Ldap\Ad\AccountFlags::bits
+// covers: Core\Ldap\Ad\GroupType::isSystemGroup, Core\Ldap\Ad\GroupType::isGlobal
+// covers: Core\Ldap\Ad\GroupType::isDomainLocal, Core\Ldap\Ad\GroupType::isUniversal
+// covers: Core\Ldap\Ad\GroupType::isAppBasicGroup, Core\Ldap\Ad\GroupType::isAppQueryGroup
+// covers: Core\Ldap\Ad\GroupType::isSecurityGroup, Core\Ldap\Ad\GroupType::bits
 --COPY--
 ../../db/ca.crt
 --FILE nvs.toml--

@@ -39,7 +39,7 @@ var $account = 'account:' . Core\Random::token(6);
 
 // One request per two seconds, for this key. The first is inside the limit.
 var $first = Core\RateLimit::consume($account, 1, 2s);
-if ($first->allowed()) {
+if ($first->isAllowed()) {
     echo 'allowed=true', "\n";
 } else {
     echo 'allowed=false', "\n";
@@ -48,7 +48,7 @@ if ($first->allowed()) {
 // The second is not, and the decision carries the wait rather than leaving
 // the caller to invent one.
 var $second = Core\RateLimit::consume($account, 1, 2s);
-if ($second->allowed()) {
+if ($second->isAllowed()) {
     echo 'allowed=true unexpectedly', "\n";
 } else {
     // The wait is rounded up to whole seconds. A client that waits less

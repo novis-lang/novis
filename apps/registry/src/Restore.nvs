@@ -47,7 +47,7 @@ final class Restore
     // Memory: the copy and every entry of the log, once each.
     public function into(Connection $db): bool
     {
-        return $db->transaction(fn(Transaction $tx): bool => {
+        return $db->runTransaction(fn(Transaction $tx): bool => {
             Schema::setUp($tx);
             // This statement writes, so this transaction has the write lock of the database from here on.
             var $first = $tx->execute('insert into backups (id, digest, checked_at) values (1, ?, 0) on conflict (id) do nothing', ['']);

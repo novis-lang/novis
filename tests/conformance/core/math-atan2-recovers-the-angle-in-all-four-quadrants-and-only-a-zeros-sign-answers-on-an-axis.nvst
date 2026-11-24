@@ -141,9 +141,9 @@ echo "axis pairs=", $pairs, " equal=", $equal, "\n";
 echo "axes: ", $axis["0"], "|", $axis["2"], "|", $axis["4"], "|", $axis["6"], "\n";
 // The one pair `==` cannot tell apart is still two answers, and the reciprocal
 // is what reads them — the same instrument the parity case uses, spelled
-// `Core\Math::fdiv` because `rule:types/arithmetic` makes `/` throw on this very divisor.
-echo "invisible sign: ", Core\Math::fdiv(1.0, $axis["0"]), "|",
-     Core\Math::fdiv(1.0, $axis["1"]), "\n";
+// `Core\Math::divide` because `rule:types/arithmetic` makes `/` throw on this very divisor.
+echo "invisible sign: ", Core\Math::divide(1.0, $axis["0"]), "|",
+     Core\Math::divide(1.0, $axis["1"]), "\n";
 --EXPECT--
 rows=33 recovered=17 wrapped=16 inRange=33
 quadrants=9/8/8/8 zeroLeg=1

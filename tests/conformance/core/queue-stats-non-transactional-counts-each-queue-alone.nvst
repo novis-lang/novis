@@ -21,8 +21,8 @@ var $shop = Core\Db::connect("shop");
 
 // Two pushes to `mail` and one to `sms`, all inside a nested level of a
 // `shop` transaction.
-$shop->transaction(fn(Transaction $outer): void => {
-    $outer->transaction(fn(Transaction $inner): void => {
+$shop->runTransaction(fn(Transaction $outer): void => {
+    $outer->runTransaction(fn(Transaction $inner): void => {
         Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
         Queue::push("jobs/send-receipt.nvs", {queue: "mail"});
         Queue::push("jobs/send-text.nvs", {queue: "sms"});

@@ -23,9 +23,9 @@ var $users = Core\Ldap\Dn::parse("CN=Users,DC=example,DC=test");
 ?Core\Ldap\Ad\AccountFlags $flags = $admin?->accountFlags();
 if ($flags != null) {
     var $disabled = $flags->with({disabled: true});
-    echo "disabled: ", $disabled->bits(), " ", $disabled->disabled() ? "yes" : "no", "\n";
+    echo "disabled: ", $disabled->bits(), " ", $disabled->isDisabled() ? "yes" : "no", "\n";
     var $changed = $disabled->with({disabled: false, passwordNeverExpires: true});
-    echo "enabled again: ", $changed->bits(), " ", $changed->disabled() ? "yes" : "no", " ", $changed->passwordNeverExpires() ? "yes" : "no", "\n";
+    echo "enabled again: ", $changed->bits(), " ", $changed->isDisabled() ? "yes" : "no", " ", $changed->hasNonExpiringPassword() ? "yes" : "no", "\n";
     echo "original: ", $flags->bits(), "\n";
 }
 
@@ -41,10 +41,10 @@ if ($guestFlags != null) {
 ?Core\Ldap\Ad\GroupType $type = $group?->groupType();
 if ($type != null) {
     var $distribution = $type->with({security: false});
-    echo "distribution: ", $distribution->bits(), " ", $distribution->security() ? "yes" : "no", "\n";
+    echo "distribution: ", $distribution->bits(), " ", $distribution->isSecurityGroup() ? "yes" : "no", "\n";
     echo "security again: ", $distribution->with({security: true})->bits(), "\n";
     var $universal = $type->with({global: false, universal: true});
-    echo "universal: ", $universal->bits(), " ", $universal->global() ? "yes" : "no", " ", $universal->universal() ? "yes" : "no", "\n";
+    echo "universal: ", $universal->bits(), " ", $universal->isGlobal() ? "yes" : "no", " ", $universal->isUniversal() ? "yes" : "no", "\n";
     echo "original: ", $type->bits(), "\n";
 }
 // covers: Core\Ldap\Ad\AccountFlags::with, Core\Ldap\Ad\GroupType::with

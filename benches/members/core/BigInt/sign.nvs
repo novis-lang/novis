@@ -13,7 +13,7 @@ class Bench
         // long magnitude are measured.
         array<Core\BigInt> $values = [
             Core\BigInt::of(-7),
-            Core\BigInt::of(1)->shl(200),
+            Core\BigInt::of(1)->shiftedLeft(200),
         ];
         uint $total = 0;
         uint $i = 0;

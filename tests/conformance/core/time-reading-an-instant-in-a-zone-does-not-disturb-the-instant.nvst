@@ -15,7 +15,7 @@
 // like this one rather than in a value one. The suite's other two cases about
 // it own the reader and the round trip.
 
-var $i = Core\Time\Instant::fromEpoch(1700000000, {nanos: 123456789});
+var $i = Core\Time\Instant::fromEpoch(1700000000, {nanoseconds: 123456789});
 int $seconds = $i->toEpochSeconds();
 int $millis = $i->toEpochMillis();
 int $micros = $i->toEpochMicros();
@@ -34,8 +34,8 @@ echo "steady=", $steady as string, "/3\n";
 // coarser two are the finer one divided — asserted here at the microsecond
 // end, which is the reading the other epoch case does not reach.
 int $fromMicros = 0;
-if (Core\Math::intDiv($micros, 1000) == $millis) { $fromMicros = $fromMicros + 1; }
-if (Core\Math::intDiv($micros, 1000000) == $seconds) { $fromMicros = $fromMicros + 1; }
+if (Core\Math::quotient($micros, 1000) == $millis) { $fromMicros = $fromMicros + 1; }
+if (Core\Math::quotient($micros, 1000000) == $seconds) { $fromMicros = $fromMicros + 1; }
 echo "scaled=", $fromMicros as string, "/2\n";
 
 // Both sides of the epoch, because rounding down and truncating toward zero
@@ -43,17 +43,17 @@ echo "scaled=", $fromMicros as string, "/2\n";
 // seconds before the epoch, and the three readings round down: the second
 // reading is -2, the second the instant falls inside, not the -1 a truncation
 // would give. The coarse reading is the fine one divided and rounded down, so
-// the check uses `Scale::floorDiv`. `Core\Math::intDiv` truncates toward zero.
+// the check uses `Scale::floorDiv`. `Core\Math::quotient` truncates toward zero.
 class Scale {
     public static function floorDiv(int $count, int $by): int {
-        int $q = Core\Math::intDiv($count, $by);
+        int $q = Core\Math::quotient($count, $by);
         if ($count - $q * $by < 0) {
             return $q - 1;
         }
         return $q;
     }
 }
-var $before = Core\Time\Instant::fromEpoch(-2, {nanos: 500000000});
+var $before = Core\Time\Instant::fromEpoch(-2, {nanoseconds: 500000000});
 echo $before->toEpochSeconds() as string, " ",
      $before->toEpochMillis() as string, " ",
      $before->toEpochMicros() as string, "\n";

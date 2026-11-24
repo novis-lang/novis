@@ -36,7 +36,7 @@
 //! selected. An empty `select` already returns it.
 //!
 //! **`Ldap\Changes` is a search with a cookie in place of references and a
-//! total.** `changes` parks a DirSync cursor the way `search` parks a paged
+//! total.** `searchChanges` parks a DirSync cursor the way `search` parks a paged
 //! one, and its first three slots are `Ldap\Entries`' first three, so one
 //! `advance` serves both. Its fourth is the cookie, written when the walk
 //! ends; until then `cookie()` reads the parked cursor, which returns the
@@ -509,12 +509,12 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$connection->changes(Filter $filter, {base?, select?, cookie?}):
+    /// `$connection->searchChanges(Filter $filter, {base?, select?, cookie?}):
     /// Changes` — [`super::changes`], with the sync parked on the connection
     /// for the `Ldap\Changes` it returns.
-    fn nvs_core_ldap_connection_changes(ctx, args: [5]) {
-        let key = key_in(args[0], &CONNECTION, CONNECTION_HANDLE_AT, "changes")?;
-        let filter = nvs_ldap::Filter::Encoded(ber_of(args[1], "changes")?);
+    fn nvs_core_ldap_connection_search_changes(ctx, args: [5]) {
+        let key = key_in(args[0], &CONNECTION, CONNECTION_HANDLE_AT, "searchChanges")?;
+        let filter = nvs_ldap::Filter::Encoded(ber_of(args[1], "searchChanges")?);
         let base = base_arg(ctx, key, args[2], CHANGES)?;
         let select = selected(&args[3], CHANGES)?;
         let attributes: Vec<&str> = select.iter().map(String::as_str).collect();
@@ -620,7 +620,7 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `$changes->cookie(): bytes` — the cookie the next `changes` starts
+    /// `$changes->cookie(): bytes` — the cookie the next `searchChanges` starts
     /// from: the parked sync's, which covers every entry read so far, or the
     /// one the last `advance()` kept when the sync ended.
     fn nvs_core_ldap_changes_cookie(ctx, args: [1]) {
@@ -1024,8 +1024,8 @@ pub(super) fn address(symbol: &str) -> Option<nvs_runtime::Entry> {
         "nvs_core_ldap_connection_whoami" => (nvs_core_ldap_connection_whoami as *const ()).cast(),
         "nvs_core_ldap_connection_search" => (nvs_core_ldap_connection_search as *const ()).cast(),
         "nvs_core_ldap_connection_read" => (nvs_core_ldap_connection_read as *const ()).cast(),
-        "nvs_core_ldap_connection_changes" => {
-            (nvs_core_ldap_connection_changes as *const ()).cast()
+        "nvs_core_ldap_connection_search_changes" => {
+            (nvs_core_ldap_connection_search_changes as *const ()).cast()
         }
         CHANGES_ITERATE_SYMBOL => (nvs_core_ldap_changes_iterate as *const ()).cast(),
         CHANGES_ADVANCE_SYMBOL => (nvs_core_ldap_changes_advance as *const ()).cast(),
