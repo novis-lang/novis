@@ -1,6 +1,47 @@
 {
   "entries": [
     {
+      "kind": "new",
+      "features": [
+        "Core\\Reflect\\PropertyInfo::isLateInit",
+        "Core\\Reflect\\PropertyInfo::isReadonly"
+      ],
+      "text": "`Core\\Reflect\\PropertyInfo::isLateInit` returns `true` for a property declared `lateinit`. `Core\\Reflect\\PropertyInfo::isReadonly` returns `true` for a property declared `readonly`. Both also work for a property that the class inherits."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "Core\\Reflect::forClass",
+        "Core\\Reflect::forObject",
+        "Core\\Reflect::steps",
+        "Core\\Reflect\\EnumInfo::of",
+        "Core\\Reflect\\ClassInfo::name",
+        "Core\\Reflect\\ClassInfo::parent",
+        "Core\\Reflect\\ClassInfo::properties",
+        "Core\\Reflect\\ClassInfo::methods",
+        "Core\\Reflect\\ClassInfo::constants",
+        "Core\\Reflect\\ClassInfo::constant",
+        "Core\\Reflect\\ClassInfo::attributes",
+        "Core\\Reflect\\ClassInfo::call",
+        "Core\\Reflect\\ClassInfo::construct",
+        "Core\\Reflect\\PropertyInfo::type",
+        "Core\\Reflect\\ConstantInfo::name",
+        "Core\\Reflect\\AttributeInfo::name",
+        "Core\\Reflect\\AttributeInfo::target",
+        "Core\\Reflect\\AttributeInfo::parameter",
+        "Core\\Reflect\\AttributeInfo::fields",
+        "Core\\Reflect\\AttributeInfo::field"
+      ],
+      "text": "`Core\\Reflect::forClass`, `Core\\Reflect::forObject` and `Core\\Reflect\\EnumInfo::of` allocate no memory, because each class is described once, when the server loads your program. Two calls for the same class return the same object, so `forClass('Order') === forClass('Order')` is `true`. A list such as `properties()` or `methods()` is built once per request."
+    },
+    {
+      "kind": "changed",
+      "features": [
+        "tools:cli/nvs-meta-json"
+      ],
+      "text": "`nvs meta --json` writes `readonly` and `lateinit` in the signature of a property, before the type. An example is `lateinit ?Customer $buyer`."
+    },
+    {
       "kind": "changed",
       "features": [
         "lang:programs/doc-comments"
@@ -2196,10 +2237,6 @@
     },
     "tools:cli/nvs-debug-to-test": {
       "hash": "2902814bd3043be2",
-      "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
-    },
-    "tools:cli/nvs-meta-json": {
-      "hash": "73cf4226fe2af578",
       "why": "A test now calls the renamed members of this release. What this feature does is unchanged."
     },
     "tools:php-differences/porting-a-program": {
