@@ -1165,8 +1165,11 @@ pub(crate) fn check_assign(
                         code::E_UNDEFINED_VARIABLE,
                         format!("`${name}` is assigned to but was never declared"),
                     )
-                    .with_primary(target.span, "no `LocalDecl` for this name")
-                    .with_help("declare it first: `T $name = ...;`"),
+                    .with_primary(target.span, "this variable has no declaration")
+                    .with_help(format!(
+                        "declare `${name}` with its type or with `var` the first time you \
+                         assign it, such as `var ${name} = ...;`"
+                    )),
                 );
                 value_ty
             }
