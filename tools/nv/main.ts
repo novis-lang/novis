@@ -56,6 +56,7 @@ const COMMANDS: Record<string, () => Promise<Command>> = {
   lints: () => import("./cmd/lints.ts"),
   "lsp-start": () => import("./cmd/lsp-start.ts"),
   machine: () => import("./cmd/machine.ts"),
+  names: () => import("./cmd/names.ts"),
   "nvs-fmt": () => import("./cmd/nvs-fmt.ts"),
   origin: () => import("./cmd/origin.ts"),
   owners: () => import("./cmd/owners.ts"),

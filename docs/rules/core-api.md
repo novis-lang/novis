@@ -315,9 +315,9 @@ surface of ~450 members is only learnable if the eleventh member is predictable 
 | R2 | Then required arguments in dataflow order, then at most one trailing optional anonymous object ([`core-api/options-bag`](core-api.md#core-api-options-bag)), every parameter callable by name ([`core-api/parameters-are-callable-by-name`](core-api.md#core-api-parameters-are-callable-by-name)) |
 | R3 | Nothing mutates and nothing takes a reference ([`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates)) |
 | R4 | Failure throws; absence is `?T` ([`core-api/failure-throws`](core-api.md#core-api-failure-throws)) |
-| R5 | A fixed verb lexicon, and a closed ban list ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)) |
+| R5 | A member with an effect starts with a verb, a changed copy says it is a copy, a `bool` read starts with a predicate, and a closed ban list ([`core-api/verb-lexicon`](core-api.md#core-api-verb-lexicon)) |
 | R6 | Symmetric operations get symmetric names ([`core-api/symmetric-names`](core-api.md#core-api-symmetric-names)) |
-| R7 | Members are full words ([`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words)) |
+| R7 | Names are full words, and every short word is on a closed list ([`core-api/members-are-full-words`](core-api.md#core-api-members-are-full-words)) |
 | R8 | One range convention, `(offset, ?length)` ([`core-api/one-range-convention`](core-api.md#core-api-one-range-convention)) |
 | R9 | Callbacks receive `($value, $key)` ([`core-api/callback-receives-value-and-key`](core-api.md#core-api-callback-receives-value-and-key)) |
 | R10 | Haystack before needle, subject before pattern — R1's corollary |
@@ -366,25 +366,83 @@ is that a ported program's argument order changes at nearly every built-in call.
 
 <a id="core-api-verb-lexicon"></a>
 
-## A member's verb predicts its return type, and `…OrNull`, `…Safe`, `…Ex` and every `try…` but `tryParse` are banned
+## A member with an effect starts with a verb, a changed copy says it is a copy, a `bool` read starts with a predicate, and `…OrNull`, `…Safe`, `…Ex` and every `try…` but `tryParse` are banned
 
 `rule:core-api/verb-lexicon`
 
-One verb means one thing, so a member's name predicts its return type. `is…`, `has…`, `contains` and
-`startsWith` answer `bool`; `find…` answers `?T`; `indexOf` and `keyOf` answer `?uint` or `?K`; `count…`
-answers `uint`; `to…` and `from…` convert and construct. Two constructor spellings join them: the unit or
-component a value is built from (`Duration::seconds`, `TimeOfDay::at`), and `of` for a canonical identifier
-(`Zone::of`, `Hash::of`). A **stateful** object — a response, a session, a config overlay — may use `set…`
-and `add…`, which is not a mutation of a value and so not a question for
-[`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates).
+A member's name says whether it reads, changes or copies, and its first word predicts its return type. The
+rule holds for `Core` and for every first-party package (`extensions/*/nvs/`, `packages/rest/`), in four
+parts:
+
+1. **A member with an effect starts with a verb.** An effect is anything beyond returning a value: it
+   changes its own object, sends or writes output, changes the request, the response, the session, a
+   file, the network or the clock, or prompts the user. `add…` adds to a collection, `set…` replaces one
+   value, and `send…`, `write…`, `start…`, `open…`, `run…`, `show…`, `ask…` and `create…` say what they
+   do. `on…` registers a handler.
+2. **A noun or an adjective names what a member returns, and such a member has no effect.** It reads a
+   property (`Request::path()`), reads by key (`$row->int('id')`), computes a value (`Str::length($s)`,
+   `$a->gcd($b)`), or builds a new value (`Duration::seconds(5)`, `Zone::of(…)`).
+3. **An instance member that returns a changed copy says it is a copy.** It is named `with…`,
+   `without…`, `plus`, `minus`, `keeping…`, or a past participle (`negated`, `multipliedBy`, `resized`,
+   `signed`). The plain imperative (`add`, `resize`, `sign`) is kept for a change in place. So
+   `$set->add($x)` changes the set, and `$image->blurred(2)` returns a new image, and a call whose result
+   is thrown away reads wrong at a glance. A static member is not held to this: it takes its subject as
+   an argument, and [`core-api/nothing-mutates`](core-api.md#core-api-nothing-mutates) already says it changes nothing, so `Str::trim($s)`
+   keeps its name.
+4. **A `bool` read starts with a predicate:** `is…`, `has…`, `can…`, `must…`, `needs…`, `allows…`,
+   `uses…`, `contains`, `startsWith`, `endsWith`, `equals`, `matches`, `exists`, `any` or `all`. A member
+   with an effect that also returns `bool` keeps its effect verb (`Config::set`, `Queue::cancel`), and so
+   does a check that throws when it fails (`verify…`, `assert…`).
+
+The rest of the lexicon fixes what a verb returns: `find…` returns `?T`; `indexOf` and `keyOf` return
+`?uint` or `?K`; `count…` returns `uint`; `to…` and `from…` convert and construct. Two constructor forms
+join them: the unit or component a value is built from (`Duration::seconds`, `TimeOfDay::at`), and `of`
+for a canonical identifier (`Zone::of`, `Hash::of`).
+
+**One word keeps one meaning across `Core`.** A word used as a verb with an effect is not also a noun read
+in another class. `Db\Connection->query` runs a statement and `Http\Client::post` sends a request, so the
+request's parameters are read with `Request::queryParameter` and `Request::formField`, not `query` and
+`post`.
 
 `…OrNull`, `…Safe` and `…Ex` are banned, and so is `try…` on every verb but one. The exception is
 `tryParse` ([`expressions/try-parse`](expressions.md#expressions-try-parse)), for a class whose `parse` takes exactly one `string` and can
 fail: a malformed string is a *failure*, not the absence `?T` means, and `as ?T` never targets a class, so
-without it `Core\Uri` and `Core\Uuid` would have no non-throwing spelling at all. The `…Safe` half of the
-ban reads the suffix as a claim about failure; a suffix that is an ordinary adjective of the subject is
+without it `Core\Uri` and `Core\Uuid` would have no non-throwing form at all. The `…Safe` half of the ban
+reads the suffix as a claim about failure; a suffix that is an ordinary adjective of the subject is
 untouched, which is how `Core\Db\Schema::applySafe` is admitted — it is named for the grade of the steps it
 will run and is the more refusing of the two, not the quiet one.
+
+**Who checks it.** The ban list is `crates/nvs-stdlib/src/registry.rs`'s. `bun nv names --check`
+(`tools/nv/cmd/names.ts`) judges the four parts from each member's return type, with its word lists in
+`tools/data/api-names.json`:
+
+- a member returning `void` starts with an effect verb (part 1);
+- a member returning `bool` starts with a predicate or an effect verb (part 4);
+- an instance member returning its own class is in a class listed as `value`, and is named as a copy, or
+  in a class listed as `changing`, and starts with an effect verb (part 3). A class on neither list
+  fails, so the author of every new builder classifies it once;
+- a member that takes an argument besides its subject and starts with no verb is on the `reads` list
+  (part 2). This closes the one shape the types cannot show: a noun with an effect that returns another
+  type, such as a `Workbook->sheet($name)` that adds a sheet. The list is every such member that
+  exists, and a new one fails until its author adds it.
+
+A past participle is a first word ending in `ed` (outside `notParticiples`), or one of
+`irregularParticiples`; a participle ending in `en` is only ever listed, since `flatten` and `open` end so
+too. `bun nv ci --check` runs the command after the build, so CI and `bun nv close` run it.
+
+What it costs: chains get a few characters longer, and every call says whether it reads, changes or
+copies. Nothing on the request path, since a name is resolved at compile time.
+
+**Declined:**
+- **Holding parameter names to it** (`$a`, `$s`, `$fn`). A reader meets them at the declaration and in
+  the reference, not at the call site this rule is about. `spawn`'s `arguments:` is the exception, since
+  it is the same value as `Script::arguments()`.
+- **A per-member effect flag in the registry.** Most of the rule follows from the types, and the `reads`
+  list fails on every new member of the one shape the types cannot judge.
+- **Copy names for statics** (`Str::trimmed`). A static changes nothing in place, so there is nothing to
+  confuse it with.
+- **A naming check on a user's own program.** The rule is for `Core` and the first-party packages. A
+  program names its own methods.
 
 <sub>See also [`core-api/failure-throws`](core-api.md#core-api-failure-throws), [`core-api/symmetric-names`](core-api.md#core-api-symmetric-names), [`expressions/try-parse`](expressions.md#expressions-try-parse).</sub>
 
@@ -426,19 +484,36 @@ things, that is not a second spelling ([`core-api/each-door-takes-a-different-th
 
 <a id="core-api-members-are-full-words"></a>
 
-## A member name is a full word; only a class name may abbreviate, and only from a closed list
+## A name is a full word; only a `Core` class name may abbreviate, and every short word comes from a closed list
 
 `rule:core-api/members-are-full-words`
 
-A member name is a full word. Class names may abbreviate, but only from a closed list — `Str`, `Arr`, `Fs`,
-`Io`, `Uri`, `Db`, `Id` — and members may not, except the conventional mathematical spellings `abs`, `min`,
-`max` and `sqrt`. So `Core\Str::length`, never `Core\Str::len`. An enum case is held to the same rule:
-`Weekday::Monday`, `Month::January`, `Unit::Millisecond`.
+A name is a full word, so `Core\Str::length`, never `Core\Str::len`. The rule holds for every member
+name, every option field name and every class name of a first-party package (`extensions/*/nvs/`,
+`packages/rest/`), as well as `Core`. An enum case is held to it too: `Weekday::Monday`, `Month::January`,
+`Unit::Millisecond`. A `Core` class name may abbreviate, but only from a closed list: `Str`, `Arr`, `Fs`,
+`Io`, `Uri`, `Db`, `Id`.
+
+Three closed lists in `tools/data/api-names.json` settle every short word, and `bun nv names --check`
+(`tools/nv/cmd/names.ts`) reads them from there:
+
+- **`mathNames`**, the conventional mathematical names (`abs`, `min`, `max`, `sqrt`, `gcd`, `atan2` and
+  the rest), are allowed as a whole member name and nowhere else, so `Math::max` but never `maxLength`.
+  `mathWordsAlsoEnglish` lists the ones that are also English words (`log`, `floor`), which may stand
+  anywhere.
+- **`acronyms`** are a standard's own name and count as one word: `json`, `uri`, `uuid`, `sql`, `hmac`,
+  `dn`, `v4` and the rest.
+- **`truncations`** are banned, and the check's message names the full word for each: `dir` is
+  `directory`, `args` is `arguments`, `nanos` is `nanoseconds`, `cwd` is `workingDirectory`, `diff` is
+  `difference`, `pow` is `power`.
+
+A word on neither list is judged by the person who adds it, against a dictionary. `info`, `stats` and
+`app` are dictionary words, so `Reflect\ClassInfo` and `Queue\Stats` keep their names. A word that is both
+a truncation and an allowed short word is an error in the tables, and the command stops on it.
 
 Abbreviation is where a naming convention stops being mechanical: decided one member at a time, it
-produces `len` beside `wordCount` in the same class. A closed list at the class level and no discretion
-at the member level removes the judgement call entirely, at the cost of a few extra characters at every
-call site.
+produces `len` beside `wordCount` in the same class. Closed lists remove the judgement call, at the cost
+of a few extra characters at every call site.
 
 <sub>See also [`core-api/identifier-casing`](core-api.md#core-api-identifier-casing), [`core-api/a-domain-class-is-a-singular-noun`](core-api.md#core-api-a-domain-class-is-a-singular-noun).</sub>
 

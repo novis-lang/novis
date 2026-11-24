@@ -1,5 +1,5 @@
 {
-  "title": "A member's verb predicts its return type, and `…OrNull`, `…Safe`, `…Ex` and every `try…` but `tryParse` are banned",
+  "title": "A member with an effect starts with a verb, a changed copy says it is a copy, a `bool` read starts with a predicate, and `…OrNull`, `…Safe`, `…Ex` and every `try…` but `tryParse` are banned",
   "status": "shipped",
   "seeAlso": [
     "core-api/failure-throws",
@@ -7,6 +7,7 @@
     "expressions/try-parse"
   ],
   "guardedBy": [
-    "crates/nvs-stdlib/src/registry.rs"
+    "crates/nvs-stdlib/src/registry.rs",
+    "tools/nv/cmd/names.ts"
   ]
 }

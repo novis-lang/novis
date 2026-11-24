@@ -351,6 +351,8 @@ export const PRE_PUSH: PrePush[] = [
   ...workspaceClippy(),
   // Not skipped by verify's `build`: that one builds `target/covws`, and the checks below read this one.
   { name: "build", argv: ["cargo", "build"] },
+  // The naming rules over `Core` and the first-party packages, read from the binary just built.
+  { name: "api names", argv: ["bun", "nv", "names", "--check"], env: { NVS_BIN: DEBUG_NVS } },
   // `nv reference` runs each example in a folder of its own, so the binary's path is absolute.
   { name: "chapter examples", argv: ["bun", "nv", "reference"], env: { NVS_BIN: join(ROOT, DEBUG_NVS) } },
   { name: "feature proofs", argv: ["bun", "nv", "proofs", "--gate", "--limit", "0", "--nvs", DEBUG_NVS] },

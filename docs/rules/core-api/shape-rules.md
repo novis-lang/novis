@@ -8,9 +8,9 @@ surface of ~450 members is only learnable if the eleventh member is predictable 
 | R2 | Then required arguments in dataflow order, then at most one trailing optional anonymous object (`rule:core-api/options-bag`), every parameter callable by name (`rule:core-api/parameters-are-callable-by-name`) |
 | R3 | Nothing mutates and nothing takes a reference (`rule:core-api/nothing-mutates`) |
 | R4 | Failure throws; absence is `?T` (`rule:core-api/failure-throws`) |
-| R5 | A fixed verb lexicon, and a closed ban list (`rule:core-api/verb-lexicon`) |
+| R5 | A member with an effect starts with a verb, a changed copy says it is a copy, a `bool` read starts with a predicate, and a closed ban list (`rule:core-api/verb-lexicon`) |
 | R6 | Symmetric operations get symmetric names (`rule:core-api/symmetric-names`) |
-| R7 | Members are full words (`rule:core-api/members-are-full-words`) |
+| R7 | Names are full words, and every short word is on a closed list (`rule:core-api/members-are-full-words`) |
 | R8 | One range convention, `(offset, ?length)` (`rule:core-api/one-range-convention`) |
 | R9 | Callbacks receive `($value, $key)` (`rule:core-api/callback-receives-value-and-key`) |
 | R10 | Haystack before needle, subject before pattern — R1's corollary |
