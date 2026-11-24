@@ -1,0 +1,13 @@
+<?nvs
+use Novis\Image\Color;
+use Novis\Image\Format;
+// Shows that without `withFormat`, the output has the format of the file you opened.
+use Novis\Image\Image;
+
+// These JPEG bytes replace a photo that a user uploaded.
+tainted bytes $upload = Image::create(400, 300, Color::hex('#336699'))->withFormat(Format::Jpeg)->encode();
+
+// The pipeline makes a smaller copy and does not call `withFormat`. This prints jpg 200x150.
+tainted bytes $small = Image::open($upload)->resized({ width: 200 })->encode();
+var $info = Image::info($small);
+echo Image::extension($info->format), ' ', $info->width, 'x', $info->height, "\n";

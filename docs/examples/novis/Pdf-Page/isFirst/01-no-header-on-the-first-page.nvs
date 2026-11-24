@@ -11,7 +11,7 @@ var $header = fn(Page $page): Core\Html\Markup => $page->isFirst() ? html`` : ht
 
 // `Reader` reads the text of each page back from the PDF file.
 // The PDF file stores the header after the body, so the header text comes last.
-var $pdf = Document::fromHtml($html)->header($header)->render()->bytes;
+var $pdf = Document::fromHtml($html)->withHeader($header)->render()->bytes;
 var $reader = Reader::open($pdf);
 echo 'page 1: ', Core\Str::replace($reader->text(1), "\n", ' / '), "\n";
 echo 'page 2: ', Core\Str::replace($reader->text(2), "\n", ' / '), "\n";

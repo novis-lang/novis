@@ -12,12 +12,12 @@ Image $photo = Image::fromRaw({
             . 'f0f0f0ff707070ff101010ffc0c0c0ff'
             . '404040ffb0b0b0ff808080ff000000ff',
     ),
-})->resize({ width: 64, height: 64 });
+})->resized({ width: 64, height: 64 });
 
 // The copy is the same image at 40 by 40 pixels. The other image is the photo mirrored.
 tainted bytes $original = $photo->encode();
-tainted bytes $copy = $photo->resize({ width: 40, height: 40 })->encode();
-tainted bytes $other = $photo->flip(Image::Axis::Horizontal)->encode();
+tainted bytes $copy = $photo->resized({ width: 40, height: 40 })->encode();
+tainted bytes $other = $photo->flipped(Image::Axis::Horizontal)->encode();
 
 array<Image::HashKind> $kinds = [Image::HashKind::Perceptual, Image::HashKind::Difference, Image::HashKind::Average];
 

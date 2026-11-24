@@ -5,7 +5,7 @@ use Novis\Spreadsheet\Workbook;
 
 // This makes the upload. In a real program the bytes come from the request.
 var $book = Workbook::createInMemory();
-$book->sheet('Prices')->addAll([
+$book->addSheet('Prices')->addRows([
     ['Item', 'Price'],
     ['Widget', 2.5],
     ['Gadget', 'free'],

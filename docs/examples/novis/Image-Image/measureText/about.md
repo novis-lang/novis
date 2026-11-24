@@ -1,7 +1,7 @@
 Returns the size in pixels that a text needs, without drawing it.
 
-`Image::measureText` takes the text, a `Font` and the options `size`, `maxWidth` and `align`. `text`
-takes the same options. The result has a `width` and a `height` in pixels. `text` draws the same text
+`Image::measureText` takes the text, a `Font` and the options `size`, `maxWidth` and `align`. `withText`
+takes the same options. The result has a `width` and a `height` in pixels. `withText` draws the same text
 in a box of exactly this size.
 
 `size` is the font size in pixels. A line feed starts a new line. With `maxWidth`, lines also break at

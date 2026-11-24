@@ -16,7 +16,7 @@ echo Core\Bytes::slice($clean->bytes, 0, 5) as string, " ", $clean->pageCount, "
 string $terms = Core\Str::repeat("Shop sells to customers in the whole country. ", 20);
 var $footer = fn(Page $page): Core\Html\Markup => html`<p>{$terms}</p>`;
 var $flawed = Document::fromHtml("<style>h1 { text-shadow: 1px 1px gray }</style><h1>Shop</h1><p>Robot \u{1F916}</p>")
-    ->footer($footer, {height: "1cm"})->render();
+    ->withFooter($footer, {height: "1cm"})->render();
 foreach ($flawed->dropped as var $css) {
     echo "dropped ", $css->property, ": ", $css->value, " in ", $css->selector, " at ", $css->line, ":", $css->column, "\n";
 }

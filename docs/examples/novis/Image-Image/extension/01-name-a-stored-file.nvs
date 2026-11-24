@@ -5,7 +5,7 @@ use Novis\Image\Format;
 use Novis\Image\Image;
 
 // The user named this file "avatar.png", but the bytes are a JPEG file.
-tainted bytes $upload = Image::create(48, 48, Color::hex('#336699'))->format(Format::Jpeg)->encode();
+tainted bytes $upload = Image::create(48, 48, Color::hex('#336699'))->withFormat(Format::Jpeg)->encode();
 
 // The extension comes from the bytes. This prints avatar-42.jpg.
 string $name = 'avatar-42.' . Image::extension(Image::info($upload)->format);

@@ -201,8 +201,8 @@ fn shop_page() -> String {
 /// 2026-01-01 at midnight, UTC.
 const NEW_YEAR: i64 = 1_767_225_600;
 
-// covers: Novis\Pdf\Document::standard
-// covers: Novis\Pdf\Document::created
+// covers: Novis\Pdf\Document::withStandard
+// covers: Novis\Pdf\Document::withCreationTime
 #[test]
 fn pdf_a_2b_and_3b_validate() {
     let html = shop_page();
@@ -296,7 +296,7 @@ fn assert_xref_points_at_objects(file: &[u8]) {
     }
 }
 
-// covers: Novis\Pdf\Document::invoiceXml
+// covers: Novis\Pdf\Document::withInvoiceXml
 #[test]
 fn factur_x_embeds_one_xml_under_pdf_a_3b() {
     let html = shop_page();
@@ -356,7 +356,7 @@ fn an_invoice_xml_outside_pdf_a_3b_throws() {
     }
 }
 
-// covers: Novis\Pdf\Document::password
+// covers: Novis\Pdf\Document::withPassword
 #[test]
 fn a_password_encrypts_with_aes_256_and_stays_byte_equal() {
     let html = shop_page();
@@ -423,7 +423,7 @@ fn shop_page_locked() -> Vec<u8> {
     render_locked(&shop_page(), None, Some(NEW_YEAR), None, Some(PASSWORD)).expect("it renders")
 }
 
-// covers: Novis\Pdf\Document::password
+// covers: Novis\Pdf\Document::withPassword
 #[test]
 fn a_second_reader_opens_the_encrypted_file_with_the_user_password() {
     let data = shop_page_locked();
@@ -465,7 +465,7 @@ fn a_second_reader_opens_the_encrypted_file_with_the_user_password() {
     assert_eq!(title, "Shop");
 }
 
-// covers: Novis\Pdf\Document::password
+// covers: Novis\Pdf\Document::withPassword
 #[test]
 fn a_second_reader_checks_the_perms_entry() {
     use aes::cipher::{BlockCipherDecrypt as _, KeyInit as _};

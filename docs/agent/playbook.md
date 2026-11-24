@@ -27,6 +27,13 @@ session the bullets it ranks highest for the live goal, and names how many more 
 
 ## Tooling
 
+- **A rename of a common member name finds its calls with `nvs check`, not with a grep, and the
+  unknown-method error's span covers the receiver, not the name.** `api-rename` listed 4,234
+  `->add(`/`->format(` calls for stage 6, most on other classes. Renaming the declaration and then
+  fixing each `E0405 \`<Class>\` has no method named \`<old>\`` found every real call, including those
+  hidden behind an earlier error. A script that compared the span's text with the old name fixed
+  nothing, because the span is `$book`. Match `->old` right after the span's end instead. See
+  `nvs check --json`'s `labels[].span` and `tools/nv/cmd/api-rename.ts`.
 - **An example app's ignored files grow across local runs, and `site --check apps` once read them.**
   `apps/registry/registry.sqlite` reached 113 MB, so the backup tests' dump passed the memory
   ceiling and `close` went red where CI was green. `inApp` now moves every untracked file under the

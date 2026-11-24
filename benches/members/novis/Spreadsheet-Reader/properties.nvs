@@ -10,7 +10,7 @@ class Bench
     public static function run(uint $rounds): uint
     {
         var $book = Workbook::createInMemory({ properties: { title: 'Prices', author: 'Shop', created: Core\Time\Instant::fromEpoch(1704067200) } });
-        $book->sheet('Prices')->add(['Item', 'Price']);
+        $book->addSheet('Prices')->addRow(['Item', 'Price']);
         Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
         uint $total = 0;
         uint $i = 0;

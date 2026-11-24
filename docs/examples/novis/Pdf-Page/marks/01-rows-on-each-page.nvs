@@ -17,4 +17,4 @@ var $footer = fn(Page $page): Core\Html\Markup => {
     return html`<p>{$count} orders on this page</p>`;
 };
 
-Document::fromHtml($html)->footer($footer)->render();
+Document::fromHtml($html)->withFooter($footer)->render();

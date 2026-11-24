@@ -1,7 +1,7 @@
 The writer emits no macros, no embedded executables and no launch-shaped content; hyperlinks exist
 only where the program wrote them.
 
-**A reference the program writes stays in the workbook.** `Workbook::define` and a chart's series
+**A reference the program writes stays in the workbook.** `Workbook::defineName` and a chart's series
 range go through one reference parser (`extensions/spreadsheet/src/reference.rs`): an optional sheet
 name, quoted as Excel quotes one, then `!`, then a cell, a range, whole columns (`$A:$C`) or whole
 rows (`$1:$3`), each with or without `$`. A series range takes no whole columns or rows. The sheet

@@ -5,7 +5,7 @@ use Novis\Spreadsheet\Template;
 use Novis\Spreadsheet\Workbook;
 
 var $design = Workbook::createInMemory();
-$design->sheet('Letter')->addAll([['Dear {{name}}', '{{balance}}']]);
+$design->addSheet('Letter')->addRows([['Dear {{name}}', '{{balance}}']]);
 bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // You can call `fill` once on each template. So this loop opens the template bytes again for each customer.

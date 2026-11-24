@@ -17,4 +17,4 @@ var $header = fn(Page $page): Core\Html\Markup => {
     return html`<p>Shop, invoice for {$customer}</p>`;
 };
 
-Document::fromHtml($html)->header($header)->render();
+Document::fromHtml($html)->withHeader($header)->render();

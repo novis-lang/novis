@@ -26,7 +26,7 @@ Image $pair = Image::fromRaw({
 
 // Both lines show the red value of the 4 new pixels.
 // `Nearest` gives only 0 and 255. `Bilinear` also gives values in between.
-Image $sharp = $pair->resize({ width: 4, height: 1, fit: Image::Fit::Fill, upscale: true, filter: Image::Filter::Nearest });
-Image $smooth = $pair->resize({ width: 4, height: 1, fit: Image::Fit::Fill, upscale: true, filter: Image::Filter::Bilinear });
+Image $sharp = $pair->resized({ width: 4, height: 1, fit: Image::Fit::Fill, upscale: true, filter: Image::Filter::Nearest });
+Image $smooth = $pair->resized({ width: 4, height: 1, fit: Image::Fit::Fill, upscale: true, filter: Image::Filter::Bilinear });
 echo 'Nearest:  ', Row::reds($sharp), "\n";
 echo 'Bilinear: ', Row::reds($smooth), "\n";

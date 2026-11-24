@@ -4,8 +4,8 @@ use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-$book->sheet('North')->addAll([['Shop', 'Sales'], ['North 1', 120], ['North 2', 80]]);
-$book->sheet('South')->addAll([['Shop', 'Sales'], ['South 1', 200]]);
+$book->addSheet('North')->addRows([['Shop', 'Sales'], ['North 1', 120], ['North 2', 80]]);
+$book->addSheet('South')->addRows([['Shop', 'Sales'], ['South 1', 200]]);
 var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 
 // `rows` takes the position of the sheet, so the loop does not need to know the names.

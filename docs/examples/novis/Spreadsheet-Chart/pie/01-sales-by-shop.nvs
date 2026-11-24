@@ -4,8 +4,8 @@ use Novis\Spreadsheet\Chart;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Shops');
-$sheet->addAll([
+var $sheet = $book->addSheet('Shops');
+$sheet->addRows([
     ['shop' => 'North', 'sales' => 340],
     ['shop' => 'South', 'sales' => 210],
     ['shop' => 'East', 'sales' => 95],
@@ -13,8 +13,8 @@ $sheet->addAll([
 
 // Each value is one slice. The shop names are the names of the slices in the legend.
 var $chart = Chart::pie({ title: 'Sales by shop' })
-    ->series($sheet->column('sales'), { categories: $sheet->column('shop') });
-$sheet->chart('D2', $chart);
+    ->withSeries($sheet->column('sales'), { categories: $sheet->column('shop') });
+$sheet->addChart('D2', $chart);
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // `Core\Zip::read` returns the XML of the chart. These lines check what it contains.

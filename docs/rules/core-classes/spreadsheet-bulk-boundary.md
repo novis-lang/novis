@@ -13,7 +13,7 @@ the Basic Multilingual Plane, such as an emoji, counts two (`cells::units`).
 first or last, and is not `History` in any case. **Two sheet names are the same name when their
 Unicode upper-case folds are equal**, as Excel compares them (`writer::fold`), and so are two table
 names, two defined names and two table column names. One function checks a sheet name (`check_sheet_name` in
-`extensions/spreadsheet/src/writer.rs`), for `Workbook::sheet`, a defined name's reference and a
+`extensions/spreadsheet/src/writer.rs`), for `Workbook::addSheet`, a defined name's reference and a
 chart's series range. **A defined name** in A1 or R1C1 form (`C3`, `R1C1`, `R`, `RC2`) throws. A merged range past the grid throws, and so does a record whose declared
 length is past the bytes left. Every other bound is the request's: its memory and CPU caps hold the
 guest (`rule:packaging/a-guest-runs-under-the-requests-budget`), and the decompression bound holds

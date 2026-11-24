@@ -42,9 +42,9 @@ fn run(case: &str, body: &str) -> String {
     String::from_utf8(out.stdout).expect("the output is UTF-8")
 }
 
-/// The sheet `Workbook::sheet` makes adds keyed rows in order, `cell` and `column` address them,
+/// The sheet `Workbook::addSheet` makes adds keyed rows in order, `cell` and `column` address them,
 /// and a merged range, a link, a note, a table and an image added after the rows read back.
-// covers: Novis\Spreadsheet\Sheet::constructor, Novis\Spreadsheet\Sheet::add, Novis\Spreadsheet\Sheet::addAll, Novis\Spreadsheet\Sheet::cell, Novis\Spreadsheet\Sheet::column, Novis\Spreadsheet\Sheet::merge, Novis\Spreadsheet\Sheet::link, Novis\Spreadsheet\Sheet::note, Novis\Spreadsheet\Sheet::table, Novis\Spreadsheet\Sheet::image
+// covers: Novis\Spreadsheet\Sheet::constructor, Novis\Spreadsheet\Sheet::addRow, Novis\Spreadsheet\Sheet::addRows, Novis\Spreadsheet\Sheet::cell, Novis\Spreadsheet\Sheet::column, Novis\Spreadsheet\Sheet::mergeCells, Novis\Spreadsheet\Sheet::addLink, Novis\Spreadsheet\Sheet::addNote, Novis\Spreadsheet\Sheet::addTable, Novis\Spreadsheet\Sheet::addImage
 #[test]
 fn rows_are_added_in_order_and_the_parts_read_back() {
     let out = run(
@@ -52,14 +52,14 @@ fn rows_are_added_in_order_and_the_parts_read_back() {
         r##"
 bytes $png = Core\Encoding::fromBase64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet("Shop");
-$sheet->add(["item" => "Pen", "qty" => 3], {height: 20.0})->addAll([["item" => "Ink", "qty" => 5], ["item" => "Pad", "qty" => 7]]);
+var $sheet = $book->addSheet("Shop");
+$sheet->addRow(["item" => "Pen", "qty" => 3], {height: 20.0})->addRows([["item" => "Ink", "qty" => 5], ["item" => "Pad", "qty" => 7]]);
 echo $sheet->cell("qty", 4), " ", $sheet->column("qty"), "\n";
-$sheet->table("A1:B4", {name: "Stock"})
-    ->merge("D1:E1")
-    ->link("A2", "https://example.com/pen", {text: "Pen"})
-    ->note("B3", "Low.", {author: "Ann"})
-    ->image("F1", $png);
+$sheet->addTable("A1:B4", {name: "Stock"})
+    ->mergeCells("D1:E1")
+    ->addLink("A2", "https://example.com/pen", {text: "Pen"})
+    ->addNote("B3", "Low.", {author: "Ann"})
+    ->addImage("F1", $png);
 var $written = $book->finish();
 var $reader = Reader::open($written->bytes ?? Core\Bytes::fill(0, 0));
 echo "rows ", $written->rows["Shop"], "\n";
@@ -81,7 +81,7 @@ foreach ($reader->images("Shop") as var $image) { echo "image ", $image->at, " "
 
 /// Once the workbook starts the next sheet, every method of the sheet before it that writes or
 /// reads its rows throws `LogicError`, and the next sheet is written in full.
-// covers: Novis\Spreadsheet\Sheet::constructor, Novis\Spreadsheet\Sheet::add, Novis\Spreadsheet\Sheet::addAll, Novis\Spreadsheet\Sheet::column, Novis\Spreadsheet\Sheet::merge, Novis\Spreadsheet\Sheet::link, Novis\Spreadsheet\Sheet::note, Novis\Spreadsheet\Sheet::validate, Novis\Spreadsheet\Sheet::group, Novis\Spreadsheet\Sheet::table, Novis\Spreadsheet\Sheet::conditional, Novis\Spreadsheet\Sheet::image, Novis\Spreadsheet\Sheet::chart, Novis\Spreadsheet\Sheet::print, Novis\Spreadsheet\Sheet::protect
+// covers: Novis\Spreadsheet\Sheet::constructor, Novis\Spreadsheet\Sheet::addRow, Novis\Spreadsheet\Sheet::addRows, Novis\Spreadsheet\Sheet::column, Novis\Spreadsheet\Sheet::mergeCells, Novis\Spreadsheet\Sheet::addLink, Novis\Spreadsheet\Sheet::addNote, Novis\Spreadsheet\Sheet::addValidation, Novis\Spreadsheet\Sheet::addOutlineGroup, Novis\Spreadsheet\Sheet::addTable, Novis\Spreadsheet\Sheet::addConditionalFormat, Novis\Spreadsheet\Sheet::addImage, Novis\Spreadsheet\Sheet::addChart, Novis\Spreadsheet\Sheet::setPrintOptions, Novis\Spreadsheet\Sheet::protect
 #[test]
 fn a_finished_sheet_throws_for_every_method() {
     let out = run(
@@ -89,23 +89,23 @@ fn a_finished_sheet_throws_for_every_method() {
         r##"
 bytes $png = Core\Encoding::fromBase64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 var $book = Workbook::createInMemory();
-var $first = $book->sheet("Shop");
-$first->add(["item" => "Pen", "qty" => 3]);
-$book->sheet("Blog")->add(["post" => 1]);
+var $first = $book->addSheet("Shop");
+$first->addRow(["item" => "Pen", "qty" => 3]);
+$book->addSheet("Blog")->addRow(["post" => 1]);
 array<callable(): mixed> $calls = [
-    fn(): mixed => $first->add(["item" => "Ink"]),
-    fn(): mixed => $first->addAll([["item" => "Ink"]]),
+    fn(): mixed => $first->addRow(["item" => "Ink"]),
+    fn(): mixed => $first->addRows([["item" => "Ink"]]),
     fn(): mixed => $first->column("qty"),
-    fn(): mixed => $first->merge("A5:B5"),
-    fn(): mixed => $first->link("A2", "https://example.com"),
-    fn(): mixed => $first->note("A2", "Late."),
-    fn(): mixed => $first->validate("B2:B9", {list: ["a"]}),
-    fn(): mixed => $first->group("8:9"),
-    fn(): mixed => $first->table("A1:B2"),
-    fn(): mixed => $first->conditional("B2:B9", {kind: "colorScale", colors: ["#FF0000", "#00FF00"]}),
-    fn(): mixed => $first->image("D1", $png),
-    fn(): mixed => $first->chart("D1", Chart::column()->series("B2:B2")),
-    fn(): mixed => $first->print({orientation: "landscape"}),
+    fn(): mixed => $first->mergeCells("A5:B5"),
+    fn(): mixed => $first->addLink("A2", "https://example.com"),
+    fn(): mixed => $first->addNote("A2", "Late."),
+    fn(): mixed => $first->addValidation("B2:B9", {list: ["a"]}),
+    fn(): mixed => $first->addOutlineGroup("8:9"),
+    fn(): mixed => $first->addTable("A1:B2"),
+    fn(): mixed => $first->addConditionalFormat("B2:B9", {kind: "colorScale", colors: ["#FF0000", "#00FF00"]}),
+    fn(): mixed => $first->addImage("D1", $png),
+    fn(): mixed => $first->addChart("D1", Chart::column()->withSeries("B2:B2")),
+    fn(): mixed => $first->setPrintOptions({orientation: "landscape"}),
     fn(): mixed => $first->protect(),
 ];
 uint $thrown = 0;
@@ -125,26 +125,26 @@ echo Core\Json::encode($book->finish()->rows), "\n";
 
 /// A validation rule writes its kind, its limits and its messages, a rule with two kinds throws,
 /// and a conditional format writes its operator, its value and its colours in the order added.
-// covers: Novis\Spreadsheet\Sheet::validate, Novis\Spreadsheet\Sheet::conditional
+// covers: Novis\Spreadsheet\Sheet::addValidation, Novis\Spreadsheet\Sheet::addConditionalFormat
 #[test]
 fn validation_and_conditional_formats_are_written_as_given() {
     let out = run(
         "rules",
         r##"
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet("Orders");
-$sheet->addAll([["status" => "open", "qty" => 3], ["status" => "paid", "qty" => 12]]);
-$sheet->validate("A2:A9", {list: ["open", "paid"]})
-    ->validate("B2:B9", {decimal: {max: 99.5}, error: "Too many."})
-    ->conditional("B2:B9", {kind: "cell", operator: "between", values: ["1", "5"], style: Style::of({bold: true})})
-    ->conditional("B2:B9", {kind: "colorScale", colors: ["#F8696B", "#63BE7B"]});
+var $sheet = $book->addSheet("Orders");
+$sheet->addRows([["status" => "open", "qty" => 3], ["status" => "paid", "qty" => 12]]);
+$sheet->addValidation("A2:A9", {list: ["open", "paid"]})
+    ->addValidation("B2:B9", {decimal: {max: 99.5}, error: "Too many."})
+    ->addConditionalFormat("B2:B9", {kind: "cell", operator: "between", values: ["1", "5"], style: Style::of({bold: true})})
+    ->addConditionalFormat("B2:B9", {kind: "colorScale", colors: ["#F8696B", "#63BE7B"]});
 try {
-    $sheet->validate("C2:C9", {list: ["a"], length: {max: 3}});
+    $sheet->addValidation("C2:C9", {list: ["a"], length: {max: 3}});
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }
 try {
-    $sheet->conditional("C2:C9", {kind: "dataBar", colors: ["#638EC6"], style: Style::of({bold: true})});
+    $sheet->addConditionalFormat("C2:C9", {kind: "dataBar", colors: ["#638EC6"], style: Style::of({bold: true})});
 } catch (LogicError $e) {
     echo "a data bar with a style throws\n";
 }
@@ -165,20 +165,20 @@ echo Core\Str::contains($xml, "<cfRule type=\"colorScale\" priority=\"2\">") ? "
 /// A group of columns before the first row hides them when collapsed, a group of rows before its
 /// rows sets their level and one after them throws, the page setup and print titles are written,
 /// and protection keeps a hash of the password and unlocks what `allow` names.
-// covers: Novis\Spreadsheet\Sheet::group, Novis\Spreadsheet\Sheet::print, Novis\Spreadsheet\Sheet::protect
+// covers: Novis\Spreadsheet\Sheet::addOutlineGroup, Novis\Spreadsheet\Sheet::setPrintOptions, Novis\Spreadsheet\Sheet::protect
 #[test]
 fn groups_page_setup_and_protection_are_written() {
     let out = run(
         "layout",
         r##"
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet("Sales");
-$sheet->print({orientation: "portrait", fitToPage: {width: 1, height: 2}, repeatRows: "1:1"})
-    ->group("C:D", {collapsed: true})
-    ->group("3:4");
-$sheet->addAll([["shop" => "North", "a" => 1, "b" => 2], ["shop" => "South", "a" => 3, "b" => 4], ["shop" => "East", "a" => 5, "b" => 6]]);
+var $sheet = $book->addSheet("Sales");
+$sheet->setPrintOptions({orientation: "portrait", fitToPage: {width: 1, height: 2}, repeatRows: "1:1"})
+    ->addOutlineGroup("C:D", {collapsed: true})
+    ->addOutlineGroup("3:4");
+$sheet->addRows([["shop" => "North", "a" => 1, "b" => 2], ["shop" => "South", "a" => 3, "b" => 4], ["shop" => "East", "a" => 5, "b" => 6]]);
 try {
-    $sheet->group("2:3");
+    $sheet->addOutlineGroup("2:3");
 } catch (LogicError $e) {
     echo "a late group throws\n";
 }
@@ -202,24 +202,24 @@ echo Core\Str::contains($xml, "sort=\"0\"") ? "sort allowed" : "sort locked", "\
     );
 }
 
-/// A CSV file writes the rows `add` and `addAll` give, and each part a sheet adds after its rows
+/// A CSV file writes the rows `addRow` and `addRows` give, and each part a sheet adds after its rows
 /// writes nothing to it. `column` still gives the data rows' range, counted under the header row.
-// covers: Novis\Spreadsheet\Sheet::add, Novis\Spreadsheet\Sheet::addAll, Novis\Spreadsheet\Sheet::column, Novis\Spreadsheet\Sheet::merge, Novis\Spreadsheet\Sheet::link, Novis\Spreadsheet\Sheet::note, Novis\Spreadsheet\Sheet::validate, Novis\Spreadsheet\Sheet::group, Novis\Spreadsheet\Sheet::conditional, Novis\Spreadsheet\Sheet::chart, Novis\Spreadsheet\Sheet::print, Novis\Spreadsheet\Sheet::protect
+// covers: Novis\Spreadsheet\Sheet::addRow, Novis\Spreadsheet\Sheet::addRows, Novis\Spreadsheet\Sheet::column, Novis\Spreadsheet\Sheet::mergeCells, Novis\Spreadsheet\Sheet::addLink, Novis\Spreadsheet\Sheet::addNote, Novis\Spreadsheet\Sheet::addValidation, Novis\Spreadsheet\Sheet::addOutlineGroup, Novis\Spreadsheet\Sheet::addConditionalFormat, Novis\Spreadsheet\Sheet::addChart, Novis\Spreadsheet\Sheet::setPrintOptions, Novis\Spreadsheet\Sheet::protect
 #[test]
 fn a_csv_file_writes_the_rows_and_none_of_the_parts() {
     let out = run(
         "csv",
         r##"
 var $book = Workbook::createInMemory({format: "csv"});
-var $sheet = $book->sheet("Shop");
-$sheet->print({orientation: "landscape"})->group("3:3");
-$sheet->add(["item" => "Pen", "qty" => 3])->addAll([["item" => "Ink", "qty" => 5]]);
-$sheet->merge("A1:B1")
-    ->link("A2", "https://example.com")
-    ->note("A2", "Low.")
-    ->validate("B2:B9", {whole: {min: 1}})
-    ->conditional("B2:B9", {kind: "unique", style: Style::of({bold: true})})
-    ->chart("D2", Chart::column()->series($sheet->column("qty")))
+var $sheet = $book->addSheet("Shop");
+$sheet->setPrintOptions({orientation: "landscape"})->addOutlineGroup("3:3");
+$sheet->addRow(["item" => "Pen", "qty" => 3])->addRows([["item" => "Ink", "qty" => 5]]);
+$sheet->mergeCells("A1:B1")
+    ->addLink("A2", "https://example.com")
+    ->addNote("A2", "Low.")
+    ->addValidation("B2:B9", {whole: {min: 1}})
+    ->addConditionalFormat("B2:B9", {kind: "unique", style: Style::of({bold: true})})
+    ->addChart("D2", Chart::column()->withSeries($sheet->column("qty")))
     ->protect({password: "secret"});
 string $range = $sheet->column("qty");
 echo "{$range}\n";

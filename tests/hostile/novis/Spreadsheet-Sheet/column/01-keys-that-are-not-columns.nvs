@@ -18,9 +18,9 @@ class Attack
 }
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Shop');
+var $sheet = $book->addSheet('Shop');
 for (int $n = 1; $n <= 3000; $n++) {
-    $sheet->add(['order' => $n, 'total' => $n * 1.5]);
+    $sheet->addRow(['order' => $n, 'total' => $n * 1.5]);
 }
 
 // 1. A key, the last column of a sheet, the column after it, and a key of 1,000 letters.
@@ -40,7 +40,7 @@ for (int $call = 0; $call < 10000; $call++) {
     $last = $sheet->column('total');
 }
 echo 'step 3 returned ', $last, "\n";
-var $blog = $book->sheet('Blog');
+var $blog = $book->addSheet('Blog');
 Attack::attempt(3, $sheet, 'total');
 
 // 4. A column of a sheet that has no row yet.

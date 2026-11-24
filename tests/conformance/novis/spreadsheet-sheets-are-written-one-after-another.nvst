@@ -1,9 +1,9 @@
 --TEST--
-A second `sheet` finishes the first, so adding a row to the first throws naming it; a bad sheet name throws in `sheet` and the open sheet goes on; `position` sets the tab order; a row's `style` is a `Style` the workbook writes once; and `finish` counts the rows of each sheet: rule:core-classes/spreadsheet-writes-as-a-stream
+A second `addSheet` finishes the first, so adding a row to the first throws naming it; a bad sheet name throws in `addSheet` and the open sheet goes on; `position` sets the tab order; a row's `style` is a `Style` the workbook writes once; and `finish` counts the rows of each sheet: rule:core-classes/spreadsheet-writes-as-a-stream
 --FILE--
 <?nvs
-// covers: Novis\Spreadsheet\Workbook::sheet
-// covers: Novis\Spreadsheet\Sheet::add
+// covers: Novis\Spreadsheet\Workbook::addSheet
+// covers: Novis\Spreadsheet\Sheet::addRow
 // covers: Novis\Spreadsheet\Style::of
 // covers: Novis\Spreadsheet\Style::constructor
 use Novis\Spreadsheet\Style;
@@ -11,15 +11,15 @@ use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
 var $bold = Style::of({bold: true, border: "thin", align: "center"});
-var $orders = $book->sheet("Orders");
-$orders->add(["Widget", 3], {style: $bold});
-$orders->add(["Gadget", 4], {style: $bold});
+var $orders = $book->addSheet("Orders");
+$orders->addRow(["Widget", 3], {style: $bold});
+$orders->addRow(["Gadget", 4], {style: $bold});
 
 // `Totals` comes first in the tabs, and starting it finishes `Orders`.
-var $totals = $book->sheet("Totals", {position: 0});
-$totals->add(["Sum", 7]);
+var $totals = $book->addSheet("Totals", {position: 0});
+$totals->addRow(["Sum", 7]);
 try {
-    $orders->add(["Gizmo", 5]);
+    $orders->addRow(["Gizmo", 5]);
     echo "not reached\n";
 } catch (LogicError $e) {
     echo $e->message, "\n";
@@ -27,12 +27,12 @@ try {
 
 // A sheet name cannot have `/`. `Totals` is still open after the error.
 try {
-    $book->sheet("Shop/Orders");
+    $book->addSheet("Shop/Orders");
     echo "not reached\n";
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }
-$totals->add(["Count", 2]);
+$totals->addRow(["Count", 2]);
 
 // A style with a value that does not exist throws when you make it.
 try {

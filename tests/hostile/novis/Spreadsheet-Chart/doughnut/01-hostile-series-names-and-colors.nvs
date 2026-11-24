@@ -11,9 +11,9 @@ class Attack
     {
         try {
             var $book = Workbook::createInMemory();
-            var $sheet = $book->sheet('Tickets');
-            $sheet->addAll([['state' => 'Open', 'count' => 12], ['state' => 'Closed', 'count' => 40]]);
-            $sheet->chart('D2', Chart::doughnut({ labels: true })->series('B2:B3', $options));
+            var $sheet = $book->addSheet('Tickets');
+            $sheet->addRows([['state' => 'Open', 'count' => 12], ['state' => 'Closed', 'count' => 40]]);
+            $sheet->addChart('D2', Chart::doughnut({ labels: true })->withSeries('B2:B3', $options));
             bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
             echo 'step ', $step, ' wrote ', Core\Bytes::length($file) > 0 ? 'a file' : 'nothing', "\n";
         } catch (Throwable $e) {

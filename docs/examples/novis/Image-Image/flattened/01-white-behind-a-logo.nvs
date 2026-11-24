@@ -1,0 +1,17 @@
+<?nvs
+use Novis\Image\Color;
+use Novis\Image\Format;
+// Shows how to put a transparent image on a white background before you save it as JPEG.
+use Novis\Image\Image;
+
+// A canvas without a fill colour is transparent.
+Image $logo = Image::create(100, 100);
+
+var $raw = $logo->flattened(Color::hex('#ffffff'))->raw();
+array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($raw->pixels, 0, 4), 'C4');
+
+// This prints 255 255 255 255: a white pixel that is not transparent.
+echo $pixel[0], ' ', $pixel[1], ' ', $pixel[2], ' ', $pixel[3], "\n";
+
+tainted bytes $jpeg = $logo->flattened(Color::hex('#ffffff'))->withFormat(Format::Jpeg)->encode();
+echo Image::mime(Image::info($jpeg)->format), "\n";

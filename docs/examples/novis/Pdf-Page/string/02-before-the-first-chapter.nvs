@@ -15,4 +15,4 @@ var $header = fn(Page $page): Core\Html\Markup => {
     return html`<p>{$title ?? 'Shop handbook'}</p>`;
 };
 
-Document::fromHtml($html)->header($header)->render();
+Document::fromHtml($html)->withHeader($header)->render();

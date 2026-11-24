@@ -1,5 +1,5 @@
 --TEST--
-Each `Chart` start method gives its `Chart::Kind`, `combine` keeps the first chart's kind, the option `legend` gives its `Legend` case with `Right` when it is left out, and the chart part writes the kind and the legend's place: rule:core-classes/spreadsheet-sheet-end-parts
+Each `Chart` start method gives its `Chart::Kind`, `combinedWith` keeps the first chart's kind, the option `legend` gives its `Legend` case with `Right` when it is left out, and the chart part writes the kind and the legend's place: rule:core-classes/spreadsheet-sheet-end-parts
 --FILE--
 <?nvs
 // covers: Novis\Spreadsheet\Chart::Kind, Novis\Spreadsheet\Chart::Legend
@@ -22,7 +22,7 @@ foreach ($starts as var $start) {
     }
 }
 echo $matching, " of 7 kinds match\n";
-var $both = Chart::area()->series("B2:B3")->combine(Chart::line()->series("C2:C3"));
+var $both = Chart::area()->withSeries("B2:B3")->combinedWith(Chart::line()->withSeries("C2:C3"));
 echo $both->kind == Chart::Kind::Area ? "combine keeps area" : "combine changes the kind", "\n";
 
 echo Chart::column()->legend == Chart::Legend::Right ? "default right" : "default wrong", "\n";
@@ -38,10 +38,10 @@ foreach ($places as var $place) {
 }
 
 var $book = Workbook::createInMemory();
-var $sales = $book->sheet("Sales");
-$sales->add(["month" => "Jan", "sales" => 120]);
-$sales->chart("D2", Chart::doughnut({legend: "top"})->series($sales->column("sales")));
-$sales->chart("D20", Chart::bar({legend: "hidden"})->series($sales->column("sales")));
+var $sales = $book->addSheet("Sales");
+$sales->addRow(["month" => "Jan", "sales" => 120]);
+$sales->addChart("D2", Chart::doughnut({legend: "top"})->withSeries($sales->column("sales")));
+$sales->addChart("D20", Chart::bar({legend: "hidden"})->withSeries($sales->column("sales")));
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 var $first = Core\Zip::read($file, "xl/charts/chart1.xml") as string;
 var $second = Core\Zip::read($file, "xl/charts/chart2.xml") as string;

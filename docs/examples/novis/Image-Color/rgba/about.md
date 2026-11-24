@@ -9,7 +9,7 @@ channel above 255 throws a `LogicError`. An alpha below `0.0`, above `1.0` or `N
 `LogicError`.
 
 You give a `Color` to the image methods that need one: `Image::create` fills a new image with it,
-`flatten` puts it behind transparent pixels, and `tint` colours an image with it.
+`flattened` puts it behind transparent pixels, and `tinted` colours an image with it.
 
 **Good to know:** `Color::hex` makes the same colour from text such as `"#ff8800"`. Use it when the
 colour comes from a setting or a style sheet.

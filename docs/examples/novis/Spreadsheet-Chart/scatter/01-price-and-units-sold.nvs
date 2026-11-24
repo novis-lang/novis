@@ -4,8 +4,8 @@ use Novis\Spreadsheet\Chart;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Products');
-$sheet->addAll([
+var $sheet = $book->addSheet('Products');
+$sheet->addRows([
     ['price' => 4.5, 'sold' => 120],
     ['price' => 9.0, 'sold' => 75],
     ['price' => 15.0, 'sold' => 30],
@@ -13,8 +13,8 @@ $sheet->addAll([
 
 // Each row is one point. `categories` are the x values and the series values are the y values.
 var $chart = Chart::scatter({ xTitle: 'Price', yTitle: 'Units sold', legend: 'hidden' })
-    ->series($sheet->column('sold'), { categories: $sheet->column('price') });
-$sheet->chart('D2', $chart);
+    ->withSeries($sheet->column('sold'), { categories: $sheet->column('price') });
+$sheet->addChart('D2', $chart);
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // `Core\Zip::read` returns the XML of the chart. These lines check what it contains.

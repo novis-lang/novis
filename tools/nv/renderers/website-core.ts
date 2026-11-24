@@ -17,7 +17,7 @@
 // of an enum named under a namespace (`Core\Charset`).
 //
 // Each member carries `examples`, its feature path in the proofs roster (`core/Time-Date/at`, and
-// `novis/Pdf-Document/standard` for a built-in component), and nothing else from `docs/examples/`: the
+// `novis/Pdf-Document/withStandard` for a built-in component), and nothing else from `docs/examples/`: the
 // route reads the member's `about.md` and examples in place under `docs/examples/<examples>/`
 // (`rule:testing/examples-live-in-the-repository`).
 //

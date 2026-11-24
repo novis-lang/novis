@@ -1,0 +1,14 @@
+<?nvs
+// Shows the error for a link to a local file, such as one from a form a user filled in.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->addSheet('Shops');
+$sheet->addRow(['North', 'Website']);
+
+// A `file:` address is not allowed, so `addLink` throws a `LogicError`.
+try {
+    $sheet->addLink('B1', 'file:///C:/Windows/notepad.exe');
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

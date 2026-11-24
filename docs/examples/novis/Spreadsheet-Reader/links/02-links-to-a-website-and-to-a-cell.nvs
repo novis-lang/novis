@@ -4,10 +4,10 @@ use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Blog');
-$sheet->link('A1', 'https://example.com/blog')->link('A2', 'Totals!A1');
-$sheet->addAll([['Read the blog'], ['See the totals']]);
-$book->sheet('Totals')->add([42]);
+var $sheet = $book->addSheet('Blog');
+$sheet->addLink('A1', 'https://example.com/blog')->addLink('A2', 'Totals!A1');
+$sheet->addRows([['Read the blog'], ['See the totals']]);
+$book->addSheet('Totals')->addRow([42]);
 var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 
 // `external` is `true` for a URL. It is `false` for a cell such as `Totals!A1`.

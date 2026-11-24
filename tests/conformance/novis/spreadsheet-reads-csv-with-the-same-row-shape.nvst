@@ -59,7 +59,7 @@ Show::rows($reader->rows("Sheet1", {from: 2, limit: 2, emptyRows: "keep"}));
 
 // The same rows written to an xlsx read back with the same keys.
 var $book = Workbook::createInMemory();
-$book->sheet("Sheet1", {header: false})->addAll([["Item", "Price", "Count"], ["Widget", "2.5", "3"], [null], ["Gadget", null, "4"], ["Gizmo", "1.25"], ["Bolt", "0.5", "9", "extra"]]);
+$book->addSheet("Sheet1", {header: false})->addRows([["Item", "Price", "Count"], ["Widget", "2.5", "3"], [null], ["Gadget", null, "4"], ["Gizmo", "1.25"], ["Bolt", "0.5", "9", "extra"]]);
 Show::rows(Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0))->rows("Sheet1", {header: true}));
 
 // A header that is used twice gets ` (2)`. An empty header gets its column letter.

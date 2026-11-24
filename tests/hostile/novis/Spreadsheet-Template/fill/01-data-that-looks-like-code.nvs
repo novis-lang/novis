@@ -11,7 +11,7 @@ class Attack
     public static function template(): bytes
     {
         var $design = Workbook::createInMemory();
-        $design->sheet('Shop')->addAll([
+        $design->addSheet('Shop')->addRows([
             ['{{note}}', '{{customer.name}}'],
             ['{{items.name}}', '{{items.qty}}'],
             ['Sum', Formula::of('SUM(B2:B2)')],

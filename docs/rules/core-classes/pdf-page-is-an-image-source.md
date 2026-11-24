@@ -54,7 +54,7 @@ edges of its glyphs, and the image page's byte for byte (`crates/nvs-ext/tests/i
 
 **Declined:**
 - **A `rasterize` member in `Novis\Pdf`.** Every raster would recross the boundary as bytes to reach
-  `resize`.
+  `resized`.
 - **pdfium or MuPDF compiled to wasm, as the interpreter or as a fallback.** pdfium in wasm needs
   Emscripten and has no WASI build, and MuPDF is AGPL and outside `deny.toml`, while a pure-Rust
   interpreter exists.

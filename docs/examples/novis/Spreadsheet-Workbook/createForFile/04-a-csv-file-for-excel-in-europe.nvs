@@ -7,7 +7,7 @@ string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'prices.csv'
 
 // `csv` sets the separator and the charset that the file is written in.
 var $book = Workbook::createForFile($path, { csv: { separator: ';', charset: Core\Charset::Windows1252 } });
-$book->sheet('Prices')->addAll([
+$book->addSheet('Prices')->addRows([
     ['Item' => 'Müsli', 'Price' => '3,50 €'],
     ['Item' => 'Käse', 'Price' => '4,20 €'],
 ]);

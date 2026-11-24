@@ -16,4 +16,4 @@ var $header = fn(Page $page): Core\Html\Markup => {
 };
 
 // `height` makes the top margin tall enough for the address.
-Document::fromHtml($letter)->header($header, { height: '3cm' })->render();
+Document::fromHtml($letter)->withHeader($header, { height: '3cm' })->render();

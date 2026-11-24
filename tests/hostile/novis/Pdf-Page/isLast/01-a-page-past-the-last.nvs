@@ -23,7 +23,7 @@ try {
 try {
     string $tall = Core\Str::repeat('Shop terms. ', 20000);
     var $footer = fn(Page $page): Core\Html\Markup => $page->isLast() ? html`<p>{$tall}</p>` : html``;
-    var $rendered = Document::fromHtml('<p>Invoice</p>')->footer($footer, { height: '1mm' })->render();
+    var $rendered = Document::fromHtml('<p>Invoice</p>')->withFooter($footer, { height: '1mm' })->render();
     echo 'step 3 ran ', Core\Arr::count($rendered->overflows), "\n";
 } catch (Throwable $e) {
     echo "step 3 stopped\n";
@@ -32,13 +32,13 @@ try {
 // 4. A footer with a negative and a huge height, for the last page only.
 try {
     var $sign = fn(Page $page): Core\Html\Markup => $page->isLast() ? html`<p>Signature</p>` : html``;
-    echo 'step 4a ran ', Document::fromHtml('<p>Contract</p>')->footer($sign, { height: '-5cm' })->render()->pageCount, "\n";
+    echo 'step 4a ran ', Document::fromHtml('<p>Contract</p>')->withFooter($sign, { height: '-5cm' })->render()->pageCount, "\n";
 } catch (Throwable $e) {
     echo "step 4a stopped\n";
 }
 try {
     var $huge = fn(Page $page): Core\Html\Markup => $page->isLast() ? html`<p>Signature</p>` : html``;
-    echo 'step 4b ran ', Document::fromHtml('<p>Contract</p>')->footer($huge, { height: '99999999km' })->render()->pageCount, "\n";
+    echo 'step 4b ran ', Document::fromHtml('<p>Contract</p>')->withFooter($huge, { height: '99999999km' })->render()->pageCount, "\n";
 } catch (Throwable $e) {
     echo "step 4b stopped\n";
 }

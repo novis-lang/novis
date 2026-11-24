@@ -328,7 +328,7 @@ fn a_file_or_http_reference_throws_naming_it() {
     });
 }
 
-// covers: Novis\Pdf\Document::asset
+// covers: Novis\Pdf\Document::withAsset
 #[test]
 fn a_name_missing_from_the_asset_map_throws() {
     run(|request, extension| {
@@ -528,7 +528,7 @@ fn a_first_pass_inside_another_keeps_its_own_body() {
     });
 }
 
-// covers: Novis\Pdf\Document::header
+// covers: Novis\Pdf\Document::withHeader
 #[test]
 fn a_header_never_moves_the_body() {
     run(|request, extension| {
@@ -592,7 +592,7 @@ fn a_header_taller_than_its_margin_is_reported() {
     });
 }
 
-// covers: Novis\Pdf\Document::footer
+// covers: Novis\Pdf\Document::withFooter
 #[test]
 fn a_function_header_wins_over_a_margin_box() {
     run(|request, extension| {
@@ -644,7 +644,7 @@ fn slotted(fills: &[(&str, &str)]) -> Value {
     shape(vec![("pages", Value::Array(vec![(Key::Int(0), page)]))])
 }
 
-// covers: Novis\Pdf\Document::slots
+// covers: Novis\Pdf\Document::withSlots
 #[test]
 fn a_slot_fill_is_drawn_in_its_cell_and_a_tall_one_is_reported() {
     run(|request, extension| {

@@ -18,12 +18,12 @@ final class Orders
 
 // Each sheet has one list row. The total on `Summary` uses the sum on `Orders`.
 var $design = Workbook::createInMemory();
-$design->sheet('Orders')->addAll([
+$design->addSheet('Orders')->addRows([
     ['Order', 'Total'],
     ['{{orders.number}}', '{{orders.total}}'],
     ['Sum', Formula::of('SUM(B2:B2)')],
 ]);
-$design->sheet('Summary')->addAll([
+$design->addSheet('Summary')->addRows([
     ['Cost', 'Amount'],
     ['{{costs.name}}', '{{costs.amount}}'],
     ['Profit', Formula::of('Orders!B3-SUM(B2:B2)')],

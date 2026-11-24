@@ -908,7 +908,7 @@ fn a_formula_that_is_empty_or_past_8192_characters_throws() {
 fn a_header_with_autofilter_writes_the_filter_name() {
     let mut writer = writer();
     // The sheet starts with no rows, and its header row comes in the first batch, as
-    // `Workbook::sheet` sends them.
+    // `Workbook::addSheet` sends them.
     let mut out = writer.sheet(SheetOptions::named("Orders"), &[]).unwrap();
     out.extend(
         writer

@@ -3,7 +3,7 @@ namespace Novis\Image;
 
 use ParseError;
 
-/// A TrueType or OpenType font file that `Image::text` and `Image::measureText` draw with.
+/// A TrueType or OpenType font file that `Image::withText` and `Image::measureText` draw with.
 /// Your program reads the file itself. There are no system fonts.
 final class Font
 {

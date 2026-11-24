@@ -10,7 +10,7 @@ class Attack
     {
         try {
             var $book = Workbook::createForDownload($name, { format: 'csv' });
-            $book->sheet('Shop')->add(['order' => $step]);
+            $book->addSheet('Shop')->addRow(['order' => $step]);
             $book->finish();
             echo "\nstep ", $step, " ran\n";
         } catch (Throwable $e) {

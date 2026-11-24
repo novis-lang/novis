@@ -48,7 +48,7 @@ fn run(case: &str, toml: Option<&str>, body: &str) -> String {
 /// The template every case fills: a heading row, an item row and a sum below it.
 const DESIGN: &str = r#"
 var $design = Workbook::createInMemory();
-$design->sheet("Invoice")->addAll([
+$design->addSheet("Invoice")->addRows([
     ["Invoice {{number}}", "{{customer.name}}"],
     ["{{items.name}}", "{{items.qty}}", Formula::of("B2*2")],
     ["Sum", Formula::of("SUM(B2:B2)")],
@@ -133,7 +133,7 @@ fn a_file_and_its_bytes_fill_the_same_and_text_is_not_a_template() {
             r#"{DESIGN}
 array<mixed> $data = ["number" => 7, "customer" => ["name" => "Shop"], "items" => [["name" => "Pen", "qty" => 2]]];
 var $saved = Workbook::createForFile("template.xlsx");
-$saved->sheet("Invoice")->addAll([
+$saved->addSheet("Invoice")->addRows([
     ["Invoice {{{{number}}}}", "{{{{customer.name}}}}"],
     ["{{{{items.name}}}}", "{{{{items.qty}}}}", Formula::of("B2*2")],
     ["Sum", Formula::of("SUM(B2:B2)")],

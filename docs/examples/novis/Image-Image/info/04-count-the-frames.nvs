@@ -10,9 +10,9 @@ bytes $gif = Core\Encoding::fromHex('47494638396101000100800000ff00000000ff21f90
 echo Image::info($gif)->frames, "\n";
 
 // When the output is a GIF, every frame is written. This prints 2 again.
-tainted bytes $copy = Image::open($gif)->format(Format::Gif)->encode();
+tainted bytes $copy = Image::open($gif)->withFormat(Format::Gif)->encode();
 echo Image::info($copy)->frames, "\n";
 
 // A PNG output has only the first frame. This prints 1.
-tainted bytes $still = Image::open($gif)->format(Format::Png)->encode();
+tainted bytes $still = Image::open($gif)->withFormat(Format::Png)->encode();
 echo Image::info($still)->frames, "\n";

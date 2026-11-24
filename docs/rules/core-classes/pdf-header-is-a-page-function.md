@@ -37,7 +37,7 @@ and `chapter` are two strings (`tests/conformance/novis/pdf-page-string-matches-
 `first` and `second` in `extensions/pdf/src/lib.rs`, with the guest's `Body` as the resource, called by `Document::render` in
 `extensions/pdf/nvs/Document.nvs`. A function's `height` is an `@page` rule after the document's
 own, so a `:first`, `:left`, `:right`, `:blank` or named-page rule's margin on that side still wins
-over it. `Document::slots` fills each `<slot name>` through the same second pass, in its cell's
+over it. `Document::withSlots` fills each `<slot name>` through the same second pass, in its cell's
 content box.
 
 **Declined:**

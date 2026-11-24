@@ -3,8 +3,8 @@
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-$book->sheet('Orders')->addAll([['order' => 1042], ['order' => 1043], ['order' => 1044]]);
-$book->sheet('Returns')->add(['order' => 1040]);
+$book->addSheet('Orders')->addRows([['order' => 1042], ['order' => 1043], ['order' => 1044]]);
+$book->addSheet('Returns')->addRow(['order' => 1040]);
 
 // `rows` has the number of rows of each sheet, by sheet name. The header row is not counted.
 var $written = $book->finish();

@@ -10,7 +10,7 @@ var $html = "<style>h1 { text-shadow: 1px 1px gray }</style><h1>Shop</h1><p>Our 
 string $terms = Core\Str::repeat('Shop sells to customers in the whole country. ', 20);
 var $footer = fn(Page $page): Core\Html\Markup => html`<p>{$terms}</p>`;
 
-var $rendered = Document::fromHtml($html)->footer($footer, { height: '1cm' })->render();
+var $rendered = Document::fromHtml($html)->withFooter($footer, { height: '1cm' })->render();
 foreach ($rendered->dropped as var $css) {
     echo 'dropped: ', $css->property, ' in ', $css->selector, ', line ', $css->line, "\n";
 }

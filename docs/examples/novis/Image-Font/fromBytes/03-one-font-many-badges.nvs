@@ -13,7 +13,7 @@ array<string> $labels = ['Sale', 'New', 'Shop'];
 foreach ($labels as string $label) {
     uint $width = Image::measureText($label, $font, { size: 10.0 })->width + 8;
     tainted bytes $png = Image::create($width, 18, Color::hex('#2e7d32'))
-        ->text($label, $font, { size: 10.0, color: Color::hex('#ffffff') })
+        ->withText($label, $font, { size: 10.0, color: Color::hex('#ffffff') })
         ->encode();
     echo Image::info($png)->width, "\n";
 }

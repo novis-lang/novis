@@ -8,11 +8,11 @@ use Novis\Spreadsheet\Workbook;
 var $totals = Style::of({ bold: true, border: { top: 'thin' }, fill: '#EEEEEE' });
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Orders');
-$sheet->addAll([['item' => 'Pen', 'total' => 3.0], ['item' => 'Ink', 'total' => 4.25]]);
+var $sheet = $book->addSheet('Orders');
+$sheet->addRows([['item' => 'Pen', 'total' => 3.0], ['item' => 'Ink', 'total' => 4.25]]);
 
-// The `style` option of `add` gives the style to every cell of the row.
-$sheet->add(['item' => 'Total', 'total' => 7.25], { style: $totals });
+// The `style` option of `addRow` gives the style to every cell of the row.
+$sheet->addRow(['item' => 'Total', 'total' => 7.25], { style: $totals });
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 foreach (Reader::open($file)->rows('Orders', { header: true }) as var $row) {

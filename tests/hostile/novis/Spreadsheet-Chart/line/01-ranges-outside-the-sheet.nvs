@@ -11,9 +11,9 @@ class Attack
     {
         try {
             var $book = Workbook::createInMemory();
-            var $sheet = $book->sheet('Blog');
-            $sheet->addAll([['day' => 'Monday', 'visitors' => 420], ['day' => 'Tuesday', 'visitors' => 515]]);
-            $sheet->chart('D2', Chart::line()->series($values));
+            var $sheet = $book->addSheet('Blog');
+            $sheet->addRows([['day' => 'Monday', 'visitors' => 420], ['day' => 'Tuesday', 'visitors' => 515]]);
+            $sheet->addChart('D2', Chart::line()->withSeries($values));
             bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
             echo 'step ', $step, ' wrote ', Core\Bytes::length($file) > 0 ? 'a file' : 'nothing', "\n";
         } catch (Throwable $e) {

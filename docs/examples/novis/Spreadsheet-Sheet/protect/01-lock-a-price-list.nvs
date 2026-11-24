@@ -3,8 +3,8 @@
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Prices');
-$sheet->addAll([['item' => 'Widget', 'price' => 2.5], ['item' => 'Gadget', 'price' => 4.0]]);
+var $sheet = $book->addSheet('Prices');
+$sheet->addRows([['item' => 'Widget', 'price' => 2.5], ['item' => 'Gadget', 'price' => 4.0]]);
 
 // A person types this password in Excel to unlock the sheet.
 $sheet->protect({ password: 'shop-prices' });

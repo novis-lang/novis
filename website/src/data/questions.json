@@ -9081,24 +9081,14 @@
       "Process a user photo before saving it"
     ]
   },
-  "/reference/core/novis-image-image/blur/": {
-    "feature": "Novis\\Image\\Image::blur",
+  "/reference/core/novis-image-image/blurred/": {
+    "feature": "Novis\\Image\\Image::blurred",
     "hash": "6abefc94da3adf7c",
     "questions": [
       "How do I make an image blurry?",
       "Blur a background behind text",
       "Hide details in a preview picture",
       "Soften the edges of a photo"
-    ]
-  },
-  "/reference/core/novis-image-image/brightness/": {
-    "feature": "Novis\\Image\\Image::brightness",
-    "hash": "eb660e2eed36f3e5",
-    "questions": [
-      "How do I make a photo brighter?",
-      "Darken an image by half",
-      "Make a picture 20% lighter",
-      "Change how light or dark an image is"
     ]
   },
   "/reference/core/novis-image-image/compare/": {
@@ -9113,27 +9103,6 @@
       "Compare an uploaded image with a file on disk"
     ]
   },
-  "/reference/core/novis-image-image/composite/": {
-    "feature": "Novis\\Image\\Image::composite",
-    "hash": "bd2add08a4c2cd10",
-    "questions": [
-      "How do I put a watermark on a photo?",
-      "Draw a logo in the bottom-right corner of an image",
-      "Place one image on top of another",
-      "Add a semi-transparent overlay to a picture",
-      "Combine two images with multiply or screen mode"
-    ]
-  },
-  "/reference/core/novis-image-image/contrast/": {
-    "feature": "Novis\\Image\\Image::contrast",
-    "hash": "06394ba159233e36",
-    "questions": [
-      "How do I increase the contrast of a photo?",
-      "Make dark parts darker and light parts lighter",
-      "Reduce contrast so a picture looks softer",
-      "Fix a flat, gray-looking image"
-    ]
-  },
   "/reference/core/novis-image-image/create/": {
     "feature": "Novis\\Image\\Image::create",
     "hash": "80eae342025e876c",
@@ -9145,8 +9114,8 @@
       "Generate a test image in code"
     ]
   },
-  "/reference/core/novis-image-image/crop/": {
-    "feature": "Novis\\Image\\Image::crop",
+  "/reference/core/novis-image-image/cropped/": {
+    "feature": "Novis\\Image\\Image::cropped",
     "hash": "67b50b9d83bbbc7e",
     "questions": [
       "How do I cut out part of an image?",
@@ -9166,6 +9135,16 @@
       "Why is an encoded image tainted bytes?"
     ]
   },
+  "/reference/core/novis-image-image/encodevariants/": {
+    "feature": "Novis\\Image\\Image::encodeVariants",
+    "hash": "8bfb23aa9cba8bc0",
+    "questions": [
+      "How do I make several sizes of one image at once?",
+      "Create images for responsive srcset widths",
+      "Save one upload as WebP and JPEG together",
+      "Generate small, medium and large thumbnails fast"
+    ]
+  },
   "/reference/core/novis-image-image/extension/": {
     "feature": "Novis\\Image\\Image::extension",
     "hash": "aaed90eb4bd307e7",
@@ -9176,8 +9155,8 @@
       "Find the right extension from the image bytes"
     ]
   },
-  "/reference/core/novis-image-image/flatten/": {
-    "feature": "Novis\\Image\\Image::flatten",
+  "/reference/core/novis-image-image/flattened/": {
+    "feature": "Novis\\Image\\Image::flattened",
     "hash": "dd389284c4ec3c56",
     "questions": [
       "How do I remove transparency from a PNG?",
@@ -9186,25 +9165,14 @@
       "Fill see-through pixels with one colour"
     ]
   },
-  "/reference/core/novis-image-image/flip/": {
-    "feature": "Novis\\Image\\Image::flip",
+  "/reference/core/novis-image-image/flipped/": {
+    "feature": "Novis\\Image\\Image::flipped",
     "hash": "958d9c38637e61b2",
     "questions": [
       "How do I mirror an image?",
       "Flip a picture upside down",
       "Swap left and right in a photo",
       "Make a mirror copy of a selfie"
-    ]
-  },
-  "/reference/core/novis-image-image/format/": {
-    "feature": "Novis\\Image\\Image::format",
-    "hash": "e13675bcf2eabc52",
-    "questions": [
-      "How do I convert a PNG to WebP?",
-      "Set the JPEG quality of an output image",
-      "Save an image as lossless WebP",
-      "Change the output file type to AVIF",
-      "Make image files smaller with lower quality"
     ]
   },
   "/reference/core/novis-image-image/fromraw/": {
@@ -9217,18 +9185,8 @@
       "Create a picture from width, height and pixels"
     ]
   },
-  "/reference/core/novis-image-image/gamma/": {
-    "feature": "Novis\\Image\\Image::gamma",
-    "hash": "d377a5707faf0d37",
-    "questions": [
-      "How do I lighten the shadows of a dark photo?",
-      "Change the middle tones but keep black and white",
-      "Gamma correction for an image",
-      "Brighten a photo without making the sky white"
-    ]
-  },
-  "/reference/core/novis-image-image/grayscale/": {
-    "feature": "Novis\\Image\\Image::grayscale",
+  "/reference/core/novis-image-image/grayscaled/": {
+    "feature": "Novis\\Image\\Image::grayscaled",
     "hash": "5eef14810f5bbe08",
     "questions": [
       "How do I make an image black and white?",
@@ -9271,6 +9229,16 @@
       "Find out if an image has transparency"
     ]
   },
+  "/reference/core/novis-image-image/keepingmetadata/": {
+    "feature": "Novis\\Image\\Image::keepingMetadata",
+    "hash": "6895c7a0cb97ba72",
+    "questions": [
+      "How do I keep EXIF data in a photo?",
+      "Remove GPS location from uploaded photos",
+      "Does saving an image delete camera information?",
+      "Keep the date and camera model in a resized photo"
+    ]
+  },
   "/reference/core/novis-image-image/measuretext/": {
     "feature": "Novis\\Image\\Image::measureText",
     "hash": "6eaf1130ecd541b6",
@@ -9280,16 +9248,6 @@
       "Find the biggest font size that fits a banner",
       "Count the lines of wrapped text",
       "Make an image exactly the size of its label"
-    ]
-  },
-  "/reference/core/novis-image-image/metadata/": {
-    "feature": "Novis\\Image\\Image::metadata",
-    "hash": "6895c7a0cb97ba72",
-    "questions": [
-      "How do I keep EXIF data in a photo?",
-      "Remove GPS location from uploaded photos",
-      "Does saving an image delete camera information?",
-      "Keep the date and camera model in a resized photo"
     ]
   },
   "/reference/core/novis-image-image/mime/": {
@@ -9344,8 +9302,8 @@
       "Access raw pixel bytes after editing"
     ]
   },
-  "/reference/core/novis-image-image/resize/": {
-    "feature": "Novis\\Image\\Image::resize",
+  "/reference/core/novis-image-image/resized/": {
+    "feature": "Novis\\Image\\Image::resized",
     "hash": "450ed622d60428a9",
     "questions": [
       "How do I resize an image to fit a thumbnail?",
@@ -9355,8 +9313,8 @@
       "Enlarge a small image"
     ]
   },
-  "/reference/core/novis-image-image/rotate/": {
-    "feature": "Novis\\Image\\Image::rotate",
+  "/reference/core/novis-image-image/rotated/": {
+    "feature": "Novis\\Image\\Image::rotated",
     "hash": "877b77895d177158",
     "questions": [
       "How do I rotate an image 90 degrees?",
@@ -9365,8 +9323,8 @@
       "Fill the empty corners after rotating an image"
     ]
   },
-  "/reference/core/novis-image-image/sharpen/": {
-    "feature": "Novis\\Image\\Image::sharpen",
+  "/reference/core/novis-image-image/sharpened/": {
+    "feature": "Novis\\Image\\Image::sharpened",
     "hash": "e3bf784c7d99267b",
     "questions": [
       "How do I make a blurry image sharper?",
@@ -9375,20 +9333,8 @@
       "Improve details of a soft picture"
     ]
   },
-  "/reference/core/novis-image-image/text/": {
-    "feature": "Novis\\Image\\Image::text",
-    "hash": "0af9049173abc89a",
-    "questions": [
-      "How do I write text on an image?",
-      "Add a caption at the bottom of a photo",
-      "Draw a label with a custom font",
-      "Put wrapped, centered text on a banner",
-      "Make a social media card with a title",
-      "Draw Arabic or Hebrew text on a picture"
-    ]
-  },
-  "/reference/core/novis-image-image/tint/": {
-    "feature": "Novis\\Image\\Image::tint",
+  "/reference/core/novis-image-image/tinted/": {
+    "feature": "Novis\\Image\\Image::tinted",
     "hash": "1f7a20110efa5304",
     "questions": [
       "How do I colour an image with one colour?",
@@ -9397,8 +9343,8 @@
       "Give a gray icon a brand colour"
     ]
   },
-  "/reference/core/novis-image-image/trim/": {
-    "feature": "Novis\\Image\\Image::trim",
+  "/reference/core/novis-image-image/trimmed/": {
+    "feature": "Novis\\Image\\Image::trimmed",
     "hash": "7a818fcfed57c30a",
     "questions": [
       "How do I remove white borders from an image?",
@@ -9407,14 +9353,68 @@
       "Remove a solid colour frame from a photo"
     ]
   },
-  "/reference/core/novis-image-image/variants/": {
-    "feature": "Novis\\Image\\Image::variants",
-    "hash": "8bfb23aa9cba8bc0",
+  "/reference/core/novis-image-image/withbrightness/": {
+    "feature": "Novis\\Image\\Image::withBrightness",
+    "hash": "eb660e2eed36f3e5",
     "questions": [
-      "How do I make several sizes of one image at once?",
-      "Create images for responsive srcset widths",
-      "Save one upload as WebP and JPEG together",
-      "Generate small, medium and large thumbnails fast"
+      "How do I make a photo brighter?",
+      "Darken an image by half",
+      "Make a picture 20% lighter",
+      "Change how light or dark an image is"
+    ]
+  },
+  "/reference/core/novis-image-image/withcontrast/": {
+    "feature": "Novis\\Image\\Image::withContrast",
+    "hash": "06394ba159233e36",
+    "questions": [
+      "How do I increase the contrast of a photo?",
+      "Make dark parts darker and light parts lighter",
+      "Reduce contrast so a picture looks softer",
+      "Fix a flat, gray-looking image"
+    ]
+  },
+  "/reference/core/novis-image-image/withformat/": {
+    "feature": "Novis\\Image\\Image::withFormat",
+    "hash": "e13675bcf2eabc52",
+    "questions": [
+      "How do I convert a PNG to WebP?",
+      "Set the JPEG quality of an output image",
+      "Save an image as lossless WebP",
+      "Change the output file type to AVIF",
+      "Make image files smaller with lower quality"
+    ]
+  },
+  "/reference/core/novis-image-image/withgamma/": {
+    "feature": "Novis\\Image\\Image::withGamma",
+    "hash": "d377a5707faf0d37",
+    "questions": [
+      "How do I lighten the shadows of a dark photo?",
+      "Change the middle tones but keep black and white",
+      "Gamma correction for an image",
+      "Brighten a photo without making the sky white"
+    ]
+  },
+  "/reference/core/novis-image-image/withoverlay/": {
+    "feature": "Novis\\Image\\Image::withOverlay",
+    "hash": "bd2add08a4c2cd10",
+    "questions": [
+      "How do I put a watermark on a photo?",
+      "Draw a logo in the bottom-right corner of an image",
+      "Place one image on top of another",
+      "Add a semi-transparent overlay to a picture",
+      "Combine two images with multiply or screen mode"
+    ]
+  },
+  "/reference/core/novis-image-image/withtext/": {
+    "feature": "Novis\\Image\\Image::withText",
+    "hash": "0af9049173abc89a",
+    "questions": [
+      "How do I write text on an image?",
+      "Add a caption at the bottom of a photo",
+      "Draw a label with a custom font",
+      "Put wrapped, centered text on a banner",
+      "Make a social media card with a title",
+      "Draw Arabic or Hebrew text on a picture"
     ]
   },
   "/reference/core/novis-image-qrcode/": {
@@ -9733,38 +9733,6 @@
       "Which steps build a PDF document?"
     ]
   },
-  "/reference/core/novis-pdf-document/asset/": {
-    "feature": "Novis\\Pdf\\Document::asset",
-    "hash": "422db5f3fc2dbcfe",
-    "questions": [
-      "Add a logo image to a PDF",
-      "Why does my PDF render fail for an image file?",
-      "Use a stylesheet or font file in a PDF",
-      "Print a document on a letterhead PDF",
-      "Load images from another server into a PDF"
-    ]
-  },
-  "/reference/core/novis-pdf-document/created/": {
-    "feature": "Novis\\Pdf\\Document::created",
-    "hash": "b7e2a030b9f778b2",
-    "questions": [
-      "Set the creation date of a PDF",
-      "Why does PDF/A need a creation time?",
-      "Make the same PDF bytes every time",
-      "Show the invoice date in the PDF properties"
-    ]
-  },
-  "/reference/core/novis-pdf-document/footer/": {
-    "feature": "Novis\\Pdf\\Document::footer",
-    "hash": "080b4586834f6487",
-    "questions": [
-      "Add a footer to every PDF page",
-      "Show a running total at the bottom of each page",
-      "Different footer on the first page of a PDF",
-      "Set the bottom margin for a PDF footer",
-      "My PDF footer is cut off"
-    ]
-  },
   "/reference/core/novis-pdf-document/fromhtml/": {
     "feature": "Novis\\Pdf\\Document::fromHtml",
     "hash": "209a035324fc07cb",
@@ -9775,39 +9743,6 @@
       "Start a new page in a PDF with CSS",
       "Make a receipt PDF from HTML",
       "Why is the image missing from my PDF?"
-    ]
-  },
-  "/reference/core/novis-pdf-document/header/": {
-    "feature": "Novis\\Pdf\\Document::header",
-    "hash": "0e01bfdc3b46f548",
-    "questions": [
-      "Add a header to every PDF page",
-      "Number the pages of a PDF report",
-      "Show the chapter title at the top of each page",
-      "Make room for a taller PDF header",
-      "Page number in the top-right corner with CSS"
-    ]
-  },
-  "/reference/core/novis-pdf-document/invoicexml/": {
-    "feature": "Novis\\Pdf\\Document::invoiceXml",
-    "hash": "baa284e64b66694a",
-    "questions": [
-      "Create a ZUGFeRD or Factur-X invoice PDF",
-      "Attach invoice XML to a PDF",
-      "Electronic invoice that people and accounting software can read",
-      "What happens to invoice XML without PDF/A-3b?",
-      "Which error does invoice XML that is not well-formed throw?",
-      "Does the PDF render check the fields of my invoice XML?"
-    ]
-  },
-  "/reference/core/novis-pdf-document/password/": {
-    "feature": "Novis\\Pdf\\Document::password",
-    "hash": "cc06188bcb2cefb2",
-    "questions": [
-      "Protect a PDF with a password",
-      "Encrypt a bank statement before sending it by email",
-      "Give each customer their own PDF password",
-      "Why can a PDF/A file not have a password?"
     ]
   },
   "/reference/core/novis-pdf-document/render/": {
@@ -9822,8 +9757,73 @@
       "How deeply can tables be nested in a PDF?"
     ]
   },
-  "/reference/core/novis-pdf-document/slots/": {
-    "feature": "Novis\\Pdf\\Document::slots",
+  "/reference/core/novis-pdf-document/withasset/": {
+    "feature": "Novis\\Pdf\\Document::withAsset",
+    "hash": "422db5f3fc2dbcfe",
+    "questions": [
+      "Add a logo image to a PDF",
+      "Why does my PDF render fail for an image file?",
+      "Use a stylesheet or font file in a PDF",
+      "Print a document on a letterhead PDF",
+      "Load images from another server into a PDF"
+    ]
+  },
+  "/reference/core/novis-pdf-document/withcreationtime/": {
+    "feature": "Novis\\Pdf\\Document::withCreationTime",
+    "hash": "b7e2a030b9f778b2",
+    "questions": [
+      "Set the creation date of a PDF",
+      "Why does PDF/A need a creation time?",
+      "Make the same PDF bytes every time",
+      "Show the invoice date in the PDF properties"
+    ]
+  },
+  "/reference/core/novis-pdf-document/withfooter/": {
+    "feature": "Novis\\Pdf\\Document::withFooter",
+    "hash": "080b4586834f6487",
+    "questions": [
+      "Add a footer to every PDF page",
+      "Show a running total at the bottom of each page",
+      "Different footer on the first page of a PDF",
+      "Set the bottom margin for a PDF footer",
+      "My PDF footer is cut off"
+    ]
+  },
+  "/reference/core/novis-pdf-document/withheader/": {
+    "feature": "Novis\\Pdf\\Document::withHeader",
+    "hash": "0e01bfdc3b46f548",
+    "questions": [
+      "Add a header to every PDF page",
+      "Number the pages of a PDF report",
+      "Show the chapter title at the top of each page",
+      "Make room for a taller PDF header",
+      "Page number in the top-right corner with CSS"
+    ]
+  },
+  "/reference/core/novis-pdf-document/withinvoicexml/": {
+    "feature": "Novis\\Pdf\\Document::withInvoiceXml",
+    "hash": "baa284e64b66694a",
+    "questions": [
+      "Create a ZUGFeRD or Factur-X invoice PDF",
+      "Attach invoice XML to a PDF",
+      "Electronic invoice that people and accounting software can read",
+      "What happens to invoice XML without PDF/A-3b?",
+      "Which error does invoice XML that is not well-formed throw?",
+      "Does the PDF render check the fields of my invoice XML?"
+    ]
+  },
+  "/reference/core/novis-pdf-document/withpassword/": {
+    "feature": "Novis\\Pdf\\Document::withPassword",
+    "hash": "cc06188bcb2cefb2",
+    "questions": [
+      "Protect a PDF with a password",
+      "Encrypt a bank statement before sending it by email",
+      "Give each customer their own PDF password",
+      "Why can a PDF/A file not have a password?"
+    ]
+  },
+  "/reference/core/novis-pdf-document/withslots/": {
+    "feature": "Novis\\Pdf\\Document::withSlots",
     "hash": "91b8a8f84c793d87",
     "questions": [
       "Carry a total forward in a table that spans pages",
@@ -9834,8 +9834,8 @@
       "Show a different value in a table footer on each PDF page"
     ]
   },
-  "/reference/core/novis-pdf-document/standard/": {
-    "feature": "Novis\\Pdf\\Document::standard",
+  "/reference/core/novis-pdf-document/withstandard/": {
+    "feature": "Novis\\Pdf\\Document::withStandard",
     "hash": "b3455cc9b416d101",
     "questions": [
       "Make a PDF/A file for long-term archiving",
@@ -10115,8 +10115,8 @@
       "Vertical bar chart in a spreadsheet"
     ]
   },
-  "/reference/core/novis-spreadsheet-chart/combine/": {
-    "feature": "Novis\\Spreadsheet\\Chart::combine",
+  "/reference/core/novis-spreadsheet-chart/combinedwith/": {
+    "feature": "Novis\\Spreadsheet\\Chart::combinedWith",
     "hash": "e8b7642283beadfe",
     "questions": [
       "Columns of sales with a line of costs",
@@ -10177,8 +10177,8 @@
       "Set the x values of a scatter chart"
     ]
   },
-  "/reference/core/novis-spreadsheet-chart/series/": {
-    "feature": "Novis\\Spreadsheet\\Chart::series",
+  "/reference/core/novis-spreadsheet-chart/withseries/": {
+    "feature": "Novis\\Spreadsheet\\Chart::withSeries",
     "hash": "5b9cb71f76e3fe23",
     "questions": [
       "Add data to an Excel chart",
@@ -10461,8 +10461,73 @@
       "Can I change a row after adding it?"
     ]
   },
-  "/reference/core/novis-spreadsheet-sheet/add/": {
-    "feature": "Novis\\Spreadsheet\\Sheet::add",
+  "/reference/core/novis-spreadsheet-sheet/addchart/": {
+    "feature": "Novis\\Spreadsheet\\Sheet::addChart",
+    "hash": "c240d08dbd7b0373",
+    "questions": [
+      "Place a chart at a cell in a sheet",
+      "Set the size of a chart in pixels",
+      "Report with a total row and a chart",
+      "Does a chart added early show every row?",
+      "Which cell ranges can a chart series use?",
+      "How long can a chart title be?"
+    ]
+  },
+  "/reference/core/novis-spreadsheet-sheet/addconditionalformat/": {
+    "feature": "Novis\\Spreadsheet\\Sheet::addConditionalFormat",
+    "hash": "8f8b6934121fa331",
+    "questions": [
+      "Mark low stock in red",
+      "Conditional formatting in an Excel export",
+      "Color scale or data bar for sales",
+      "Highlight duplicate values in a column",
+      "Why do text values need quotes in a rule?"
+    ]
+  },
+  "/reference/core/novis-spreadsheet-sheet/addimage/": {
+    "feature": "Novis\\Spreadsheet\\Sheet::addImage",
+    "hash": "ec07c47175f1c146",
+    "questions": [
+      "Put a logo at the top of an Excel report",
+      "Add a picture for each product",
+      "Which image formats can a sheet contain?",
+      "Move an image inside a cell with an offset",
+      "What happens when an uploaded file is not an image?",
+      "Does the same image added twice make the file bigger?"
+    ]
+  },
+  "/reference/core/novis-spreadsheet-sheet/addlink/": {
+    "feature": "Novis\\Spreadsheet\\Sheet::addLink",
+    "hash": "98cb6c3f3dfc134c",
+    "questions": [
+      "Add a hyperlink to a cell",
+      "Link to a cell on another sheet",
+      "Make a mailto link in Excel",
+      "Why is a file or javascript link not allowed?"
+    ]
+  },
+  "/reference/core/novis-spreadsheet-sheet/addnote/": {
+    "feature": "Novis\\Spreadsheet\\Sheet::addNote",
+    "hash": "2bc0ed0f1807fe20",
+    "questions": [
+      "Add a comment to an Excel cell",
+      "Note with an author name",
+      "Flag rows that need checking with a note",
+      "Is note text from users safe?"
+    ]
+  },
+  "/reference/core/novis-spreadsheet-sheet/addoutlinegroup/": {
+    "feature": "Novis\\Spreadsheet\\Sheet::addOutlineGroup",
+    "hash": "dbabc010a7377df0",
+    "questions": [
+      "Group rows so they can be collapsed",
+      "Hide a group of columns",
+      "Outline order lines under each order",
+      "Why does a group added after its rows fail?"
+    ]
+  },
+  "/reference/core/novis-spreadsheet-sheet/addrow/": {
+    "feature": "Novis\\Spreadsheet\\Sheet::addRow",
     "hash": "abd489d5dab5a934",
     "questions": [
       "Add one row to an Excel sheet",
@@ -10473,14 +10538,36 @@
       "Why does add throw a LogicError after the next sheet starts?"
     ]
   },
-  "/reference/core/novis-spreadsheet-sheet/addall/": {
-    "feature": "Novis\\Spreadsheet\\Sheet::addAll",
+  "/reference/core/novis-spreadsheet-sheet/addrows/": {
+    "feature": "Novis\\Spreadsheet\\Sheet::addRows",
     "hash": "f0008225a2b13e31",
     "questions": [
       "Add many rows to a sheet at once",
       "Write rows from a generator",
       "Export a long list without keeping it in memory",
       "Add a styled header row before the data"
+    ]
+  },
+  "/reference/core/novis-spreadsheet-sheet/addtable/": {
+    "feature": "Novis\\Spreadsheet\\Sheet::addTable",
+    "hash": "4276e4ffff3587dd",
+    "questions": [
+      "Make an Excel table with filter buttons",
+      "Add a totals row with sum or average",
+      "Banded rows in an Excel export",
+      "Choose an Excel table style"
+    ]
+  },
+  "/reference/core/novis-spreadsheet-sheet/addvalidation/": {
+    "feature": "Novis\\Spreadsheet\\Sheet::addValidation",
+    "hash": "c37915d383c47167",
+    "questions": [
+      "Limit a whole column to a list of choices",
+      "Allow only whole numbers between two limits",
+      "Show a message when a cell is selected",
+      "Data validation in an Excel export",
+      "Error message for a wrong value in Excel",
+      "Can a choice in a dropdown list contain a comma?"
     ]
   },
   "/reference/core/novis-spreadsheet-sheet/cell/": {
@@ -10494,18 +10581,6 @@
       "Why does row 0 throw an error?"
     ]
   },
-  "/reference/core/novis-spreadsheet-sheet/chart/": {
-    "feature": "Novis\\Spreadsheet\\Sheet::chart",
-    "hash": "c240d08dbd7b0373",
-    "questions": [
-      "Place a chart at a cell in a sheet",
-      "Set the size of a chart in pixels",
-      "Report with a total row and a chart",
-      "Does a chart added early show every row?",
-      "Which cell ranges can a chart series use?",
-      "How long can a chart title be?"
-    ]
-  },
   "/reference/core/novis-spreadsheet-sheet/column/": {
     "feature": "Novis\\Spreadsheet\\Sheet::column",
     "hash": "613f078354c52e42",
@@ -10515,17 +10590,6 @@
       "Range of a column for a chart",
       "Why does the column range miss rows?",
       "Why does column throw before the first data row?"
-    ]
-  },
-  "/reference/core/novis-spreadsheet-sheet/conditional/": {
-    "feature": "Novis\\Spreadsheet\\Sheet::conditional",
-    "hash": "8f8b6934121fa331",
-    "questions": [
-      "Mark low stock in red",
-      "Conditional formatting in an Excel export",
-      "Color scale or data bar for sales",
-      "Highlight duplicate values in a column",
-      "Why do text values need quotes in a rule?"
     ]
   },
   "/reference/core/novis-spreadsheet-sheet/constructor/": {
@@ -10538,67 +10602,14 @@
       "Why does adding a row throw a LogicError later?"
     ]
   },
-  "/reference/core/novis-spreadsheet-sheet/group/": {
-    "feature": "Novis\\Spreadsheet\\Sheet::group",
-    "hash": "dbabc010a7377df0",
-    "questions": [
-      "Group rows so they can be collapsed",
-      "Hide a group of columns",
-      "Outline order lines under each order",
-      "Why does a group added after its rows fail?"
-    ]
-  },
-  "/reference/core/novis-spreadsheet-sheet/image/": {
-    "feature": "Novis\\Spreadsheet\\Sheet::image",
-    "hash": "ec07c47175f1c146",
-    "questions": [
-      "Put a logo at the top of an Excel report",
-      "Add a picture for each product",
-      "Which image formats can a sheet contain?",
-      "Move an image inside a cell with an offset",
-      "What happens when an uploaded file is not an image?",
-      "Does the same image added twice make the file bigger?"
-    ]
-  },
-  "/reference/core/novis-spreadsheet-sheet/link/": {
-    "feature": "Novis\\Spreadsheet\\Sheet::link",
-    "hash": "98cb6c3f3dfc134c",
-    "questions": [
-      "Add a hyperlink to a cell",
-      "Link to a cell on another sheet",
-      "Make a mailto link in Excel",
-      "Why is a file or javascript link not allowed?"
-    ]
-  },
-  "/reference/core/novis-spreadsheet-sheet/merge/": {
-    "feature": "Novis\\Spreadsheet\\Sheet::merge",
+  "/reference/core/novis-spreadsheet-sheet/mergecells/": {
+    "feature": "Novis\\Spreadsheet\\Sheet::mergeCells",
     "hash": "8765e36449d24d33",
     "questions": [
       "Merge cells for a title over three columns",
       "Join cells A1 to C1",
       "Why do overlapping merged ranges fail?",
       "Merge cells of rows already added"
-    ]
-  },
-  "/reference/core/novis-spreadsheet-sheet/note/": {
-    "feature": "Novis\\Spreadsheet\\Sheet::note",
-    "hash": "2bc0ed0f1807fe20",
-    "questions": [
-      "Add a comment to an Excel cell",
-      "Note with an author name",
-      "Flag rows that need checking with a note",
-      "Is note text from users safe?"
-    ]
-  },
-  "/reference/core/novis-spreadsheet-sheet/print/": {
-    "feature": "Novis\\Spreadsheet\\Sheet::print",
-    "hash": "2f8be4db5ab34452",
-    "questions": [
-      "Print a wide report on one page",
-      "Repeat the header row on every printed page",
-      "Landscape page setup for a sheet",
-      "Set print area and margins",
-      "Why does fitToPage throw after the first row?"
     ]
   },
   "/reference/core/novis-spreadsheet-sheet/protect/": {
@@ -10611,26 +10622,15 @@
       "Password protect an Excel sheet"
     ]
   },
-  "/reference/core/novis-spreadsheet-sheet/table/": {
-    "feature": "Novis\\Spreadsheet\\Sheet::table",
-    "hash": "4276e4ffff3587dd",
+  "/reference/core/novis-spreadsheet-sheet/setprintoptions/": {
+    "feature": "Novis\\Spreadsheet\\Sheet::setPrintOptions",
+    "hash": "2f8be4db5ab34452",
     "questions": [
-      "Make an Excel table with filter buttons",
-      "Add a totals row with sum or average",
-      "Banded rows in an Excel export",
-      "Choose an Excel table style"
-    ]
-  },
-  "/reference/core/novis-spreadsheet-sheet/validate/": {
-    "feature": "Novis\\Spreadsheet\\Sheet::validate",
-    "hash": "c37915d383c47167",
-    "questions": [
-      "Limit a whole column to a list of choices",
-      "Allow only whole numbers between two limits",
-      "Show a message when a cell is selected",
-      "Data validation in an Excel export",
-      "Error message for a wrong value in Excel",
-      "Can a choice in a dropdown list contain a comma?"
+      "Print a wide report on one page",
+      "Repeat the header row on every printed page",
+      "Landscape page setup for a sheet",
+      "Set print area and margins",
+      "Why does fitToPage throw after the first row?"
     ]
   },
   "/reference/core/novis-spreadsheet-style/": {
@@ -10718,6 +10718,18 @@
       "Write an OpenDocument spreadsheet for LibreOffice"
     ]
   },
+  "/reference/core/novis-spreadsheet-workbook/addsheet/": {
+    "feature": "Novis\\Spreadsheet\\Workbook::addSheet",
+    "hash": "6b304f7ffc3ad1d3",
+    "questions": [
+      "Add a second sheet to a workbook",
+      "Rules for sheet names",
+      "Freeze the header row",
+      "Set column width and header text",
+      "Make the summary the first tab",
+      "Why does a CSV export throw on a second sheet?"
+    ]
+  },
   "/reference/core/novis-spreadsheet-workbook/createfordownload/": {
     "feature": "Novis\\Spreadsheet\\Workbook::createForDownload",
     "hash": "ec2799cbd967cded",
@@ -10761,8 +10773,8 @@
       "Set the title and author of a workbook"
     ]
   },
-  "/reference/core/novis-spreadsheet-workbook/define/": {
-    "feature": "Novis\\Spreadsheet\\Workbook::define",
+  "/reference/core/novis-spreadsheet-workbook/definename/": {
+    "feature": "Novis\\Spreadsheet\\Workbook::defineName",
     "hash": "d2279e996b92ba26",
     "questions": [
       "Give a range a name for formulas",
@@ -10793,18 +10805,6 @@
       "Spreadsheet from a generator of rows",
       "Export rows to an ods file in one call",
       "Set the CSV separator and charset of an export"
-    ]
-  },
-  "/reference/core/novis-spreadsheet-workbook/sheet/": {
-    "feature": "Novis\\Spreadsheet\\Workbook::sheet",
-    "hash": "6b304f7ffc3ad1d3",
-    "questions": [
-      "Add a second sheet to a workbook",
-      "Rules for sheet names",
-      "Freeze the header row",
-      "Set column width and header text",
-      "Make the summary the first tab",
-      "Why does a CSV export throw on a second sheet?"
     ]
   },
   "/reference/core/novis-spreadsheet-written/": {

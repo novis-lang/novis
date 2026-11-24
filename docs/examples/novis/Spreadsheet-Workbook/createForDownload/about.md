@@ -5,7 +5,7 @@ name makes an Excel file (xlsx). `format: "csv"` or `format: "xlsx"` sets the fo
 name is. The response headers are sent at once. After that, each part of the file is sent as soon as
 it is ready, so a large export does not have to fit in memory.
 
-Add a sheet with `sheet`, add rows to it, and call `finish` at the end.
+Add a sheet with `addSheet`, add rows to it, and call `finish` at the end.
 
 **Good to know:** set any other response header before you call `createForDownload`, because it sends
 the headers. In a CSV file, a value that starts with `=`, `+`, `-` or `@` gets a `'` in front. A

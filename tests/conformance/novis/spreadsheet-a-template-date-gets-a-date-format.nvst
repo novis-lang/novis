@@ -9,7 +9,7 @@ use Novis\Spreadsheet\Template;
 use Novis\Spreadsheet\Workbook;
 
 var $design = Workbook::createInMemory();
-$design->sheet("Invoice")->add(["{{due}}", "{{count}}"]);
+$design->addSheet("Invoice")->addRow(["{{due}}", "{{count}}"]);
 bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // The cell A1 has no date format. The filled file gives it the format `yyyy-mm-dd`.

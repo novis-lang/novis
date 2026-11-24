@@ -5,7 +5,7 @@
  *
  * A feature's directory is its `examples` field in core.json or
  * reference.json, which is its feature path in the proofs roster
- * (`core/Time-Date/at`, `novis/Pdf-Document/standard`, `types/Arr-Order`,
+ * (`core/Time-Date/at`, `novis/Pdf-Document/withStandard`, `types/Arr-Order`,
  * `config/limits-hard`, `lang/statements/return`), so no page splits an id
  * into a path by hand.
  *

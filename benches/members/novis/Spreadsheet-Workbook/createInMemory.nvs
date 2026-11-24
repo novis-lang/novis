@@ -18,7 +18,7 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             var $book = Workbook::createInMemory();
-            $book->sheet('Orders')->addAll($orders);
+            $book->addSheet('Orders')->addRows($orders);
             uint $size = $book->finish()->size as uint;
             uint $step = $size > 0 ? 1 : 3;
             $total = $total + $step;

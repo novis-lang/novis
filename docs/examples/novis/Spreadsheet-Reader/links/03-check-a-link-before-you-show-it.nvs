@@ -4,10 +4,10 @@ use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Products');
-$sheet->link('A2', 'https://example.com/widget', { text: 'Widget', tooltip: 'Open the product page' });
-$sheet->link('A3', 'http://example.com/gadget');
-$sheet->addAll([['Product'], ['Widget'], ['Gadget']]);
+var $sheet = $book->addSheet('Products');
+$sheet->addLink('A2', 'https://example.com/widget', { text: 'Widget', tooltip: 'Open the product page' });
+$sheet->addLink('A3', 'http://example.com/gadget');
+$sheet->addRows([['Product'], ['Widget'], ['Gadget']]);
 var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 
 // The target is `tainted`. This program accepts only `https:` links.

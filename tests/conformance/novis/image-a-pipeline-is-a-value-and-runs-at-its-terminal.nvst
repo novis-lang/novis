@@ -2,7 +2,7 @@
 A `Novis\Image\Image` is a value: each step returns a new image and leaves the old one as it was, and nothing is decoded until a terminal runs — rule:core-classes/image-pipeline
 --FILE--
 <?nvs
-// covers: Novis\Image\Image::format, Novis\Image\Image::grayscale
+// covers: Novis\Image\Image::withFormat, Novis\Image\Image::grayscaled
 use Novis\Image\Image;
 use Novis\Image\Format;
 
@@ -13,8 +13,8 @@ bytes $png = Core\Encoding::fromHex(
 );
 
 Image $base = Image::open($png);
-Image $wide = $base->resize({width: 6, upscale: true});
-Image $jpeg = $wide->format(Format::Jpeg, {quality: 80});
+Image $wide = $base->resized({width: 6, upscale: true});
+Image $jpeg = $wide->withFormat(Format::Jpeg, {quality: 80});
 
 // Each image encodes its own steps. `$base` is still 3 by 2.
 array<Image> $images = [$base, $wide, $jpeg];
@@ -24,7 +24,7 @@ foreach ($images as Image $image) {
 }
 
 // `open` decodes nothing, so bytes that are not an image fail only at `encode`.
-Image $broken = Image::open("not an image" as bytes)->grayscale();
+Image $broken = Image::open("not an image" as bytes)->grayscaled();
 echo "opened\n";
 try {
     $broken->encode();

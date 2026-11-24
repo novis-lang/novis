@@ -4,7 +4,7 @@ use Novis\Spreadsheet\Template;
 use Novis\Spreadsheet\Workbook;
 
 var $design = Workbook::createInMemory();
-$design->sheet('Invoice')->addAll([
+$design->addSheet('Invoice')->addRows([
     ['Invoice {{number}}', '{{customer.name}}'],
 ]);
 bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);

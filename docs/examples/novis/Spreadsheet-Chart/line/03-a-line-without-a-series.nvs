@@ -4,12 +4,12 @@ use Novis\Spreadsheet\Chart;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Blog');
-$sheet->add(['day' => 'Monday', 'visitors' => 420]);
+var $sheet = $book->addSheet('Blog');
+$sheet->addRow(['day' => 'Monday', 'visitors' => 420]);
 
-// A chart needs at least one series, so `Sheet::chart` throws a `LogicError`.
+// A chart needs at least one series, so `Sheet::addChart` throws a `LogicError`.
 try {
-    $sheet->chart('D2', Chart::line({ title: 'Visitors' }));
+    $sheet->addChart('D2', Chart::line({ title: 'Visitors' }));
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }

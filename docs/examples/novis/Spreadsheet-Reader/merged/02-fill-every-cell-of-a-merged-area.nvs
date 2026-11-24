@@ -5,9 +5,9 @@ use Novis\Spreadsheet\Workbook;
 
 // The shop name `South` is in A3, and A3:A4 is merged. So in Excel it is next to both months.
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Sales');
-$sheet->merge('A3:A4');
-$sheet->addAll([['Shop', 'Month'], ['North', 'May'], ['South', 'May'], [null, 'June']]);
+var $sheet = $book->addSheet('Sales');
+$sheet->mergeCells('A3:A4');
+$sheet->addRows([['Shop', 'Month'], ['North', 'May'], ['South', 'May'], [null, 'June']]);
 var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 
 // By default, only the top-left cell has the value. The shop of row 4 is `null`.

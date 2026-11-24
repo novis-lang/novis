@@ -7,7 +7,7 @@ use Novis\Image\Format;
 use Novis\Image\Image;
 
 // `Jpeg` is the first case of `Format`, so its number is `0`.
-tainted bytes $jpeg = Image::create(1, 1)->format(Format::Jpeg)->encode();
+tainted bytes $jpeg = Image::create(1, 1)->withFormat(Format::Jpeg)->encode();
 tainted bytes $png = Image::create(1, 1)->encode();
 array<Format> $formats = [Image::info($jpeg)->format, Image::info($png)->format];
 

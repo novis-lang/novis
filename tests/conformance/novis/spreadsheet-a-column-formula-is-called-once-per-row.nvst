@@ -2,7 +2,7 @@
 A column's `formula` is called once per row with that row's number, a table added before its rows writes its totals row after its last row and the numbers skip it, and `Cell::of` styles one cell: rule:core-classes/spreadsheet-formula-is-a-value
 --FILE--
 <?nvs
-// covers: Novis\Spreadsheet\Workbook::sheet
+// covers: Novis\Spreadsheet\Workbook::addSheet
 // covers: Novis\Spreadsheet\Cell::of
 // covers: Novis\Spreadsheet\Formula::of
 use Novis\Spreadsheet\Cell;
@@ -17,7 +17,7 @@ final class Tally
 
 var $tally = new Tally();
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet("Shop", {columns: [
+var $sheet = $book->addSheet("Shop", {columns: [
     "qty" => {header: "Qty"},
     "price" => {header: "Price"},
     "total" => {header: "Total", formula: fn (int $row): Formula => {
@@ -27,10 +27,10 @@ var $sheet = $book->sheet("Shop", {columns: [
 ]});
 
 // The table covers rows 1 to 3, so its totals row is row 4 and the third row is row 5.
-$sheet->table("A1:C3", {name: "Lines", totals: ["Total" => "sum"]});
-$sheet->add(["qty" => 2, "price" => 1.5]);
-$sheet->add(["qty" => 3, "price" => 2.0]);
-$sheet->add(["qty" => Cell::of(4, Style::of({bold: true})), "price" => 0.5]);
+$sheet->addTable("A1:C3", {name: "Lines", totals: ["Total" => "sum"]});
+$sheet->addRow(["qty" => 2, "price" => 1.5]);
+$sheet->addRow(["qty" => 3, "price" => 2.0]);
+$sheet->addRow(["qty" => Cell::of(4, Style::of({bold: true})), "price" => 0.5]);
 
 var $written = $book->finish();
 foreach ($tally->rows as int $row) {

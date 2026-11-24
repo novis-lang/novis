@@ -25,7 +25,7 @@ try {
 try {
     var $footer = fn(Page $page): Core\Html\Markup => html`<p><?= Core\Arr::count($page->marksUpTo('amount')) ?></p>`;
     var $html = Core\Str::repeat('<p style="break-after: page" data-mark="amount:1;amount:2;amount:3">Row</p>', 1000);
-    echo 'step 3 ran ', Document::fromHtml($html)->footer($footer)->render()->pageCount, "\n";
+    echo 'step 3 ran ', Document::fromHtml($html)->withFooter($footer)->render()->pageCount, "\n";
 } catch (Throwable $e) {
     echo "step 3 stopped\n";
 }
@@ -40,7 +40,7 @@ try {
         return html`<p>{$sum}</p>`;
     };
     var $text = '<p data-mark="amount:NaN;amount:1e999999;amount:-0;amount:99999999999999999999999999999999999999">a</p>';
-    echo 'step 4 ran ', Document::fromHtml($text)->footer($total)->render()->pageCount, "\n";
+    echo 'step 4 ran ', Document::fromHtml($text)->withFooter($total)->render()->pageCount, "\n";
 } catch (Throwable $e) {
     echo "step 4 stopped\n";
 }

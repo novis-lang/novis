@@ -30,7 +30,7 @@ try {
 
 // 4. An alpha that is negative zero, used to tint an image.
 try {
-    Image::create(2, 2, Color::rgba(10, 20, 30))->tint(Color::rgba(255, 0, 0, -0.0))->raw();
+    Image::create(2, 2, Color::rgba(10, 20, 30))->tinted(Color::rgba(255, 0, 0, -0.0))->raw();
     echo "step 4 ran\n";
 } catch (Throwable $e4) {
     echo "step 4 stopped\n";

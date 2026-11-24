@@ -7,12 +7,12 @@
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $orders = $book->sheet("Orders");
-$orders->add(["order" => 1042, "qty" => 3]);
+var $orders = $book->addSheet("Orders");
+$orders->addRow(["order" => 1042, "qty" => 3]);
 echo $orders->cell("qty", 2), "\n";
 
 // Starting the next sheet finishes this one.
-var $returns = $book->sheet("Returns");
+var $returns = $book->addSheet("Returns");
 try {
     $orders->cell("qty", 2);
     echo "not reached\n";
@@ -26,7 +26,7 @@ try {
     echo $e->message, "\n";
 }
 
-$returns->add(["order" => 1042]);
+$returns->addRow(["order" => 1042]);
 $book->finish();
 try {
     $returns->cell("order", 2);

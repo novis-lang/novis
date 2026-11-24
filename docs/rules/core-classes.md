@@ -4208,12 +4208,12 @@ An `Image` is an **immutable value**: the source bytes plus a plan. `open` keeps
 nothing, so bytes that are not an image throw at the terminal, and a pipeline costs one host-to-guest
 call however it was built; every operation returns a new value that shares the bytes and extends the plan, so
 branching a pipeline costs an array rather than a frame; and nothing decodes until a terminal —
-`encode`, `variants`, `raw` — runs it. The plan executes in the order written, and steps may be fused
+`encode`, `encodeVariants`, `raw` — runs it. The plan executes in the order written, and steps may be fused
 only where the result differs by resampling rounding alone.
 
 That retires gd's mutable resource and every ambient mode flag with it: alpha always composites and
-always saves, the resampling filter is an option on `resize`, and progressive encoding is an option
-on `format`.
+always saves, the resampling filter is an option on `resized`, and progressive encoding is an option
+on `withFormat`.
 
 **The component's entry points are few, coarse and closed**, each one host-to-guest call carrying its
 whole input and returning its whole output. There is no per-pixel, per-row or per-frame member, and
@@ -4273,7 +4273,7 @@ options before anything is decoded; what each pixel step does beyond this rule, 
 pixel cap every frame a step makes is held to, are `extensions/image/src/ops.rs`'s module doc. A
 `composite` step names only an earlier row, and one plan draws a bounded number of overlays counting
 every level, so a few rows that each draw the one before twice cannot double the work per level
-(`extensions/image/src/lib.rs` module doc). The builder's `composite` appends the overlay's own
+(`extensions/image/src/lib.rs` module doc). The builder's `withOverlay` appends the overlay's own
 rows and then the overlay to the table, renumbering the overlay's steps by the rows already there. `variants` decodes once and costs one host-to-guest call, counted by
 `nvs_ext::call::Request::crossings` (`crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image`
 builder is Novis source in `extensions/image/nvs/`, packed into the component's `nvs.source`:
@@ -4338,11 +4338,11 @@ What a gd program becomes, one row per concept:
 | gd / exif | Novis |
 |---|---|
 | `imagecreatefrom*`, `imagecreatefromstring` | `Image::open`, the format detected from the bytes |
-| `imagejpeg`, `imagepng`, `imagegif`, `imagewebp`, `imageavif` | `format(...)` then `encode()`; a path is written by the program from the result |
-| `imagecopyresampled`, `imagecopyresized`, `imagescale`, `imagecrop`, `imagecropauto`, `imagerotate`, `imageflip`, `imagecopy`, `imagecopymerge` | `resize`, `crop`, `trim`, `rotate`, `flip`, `composite` |
-| `imagefilter`, `imageconvolution`, `imagegammacorrect` | `sharpen`, `blur`, `grayscale`, `brightness`, `contrast`, `gamma`, `tint` |
-| `imagettftext`, `imagefttext`, `imagettfbbox`, `imageftbbox` | `text`, `measureText` |
-| `getimagesize*`, `imagesx`, `imagesy`, `exif_read_data`, `exif_imagetype`, `exif_thumbnail` | `Image::info`; a thumbnail is `resize` |
+| `imagejpeg`, `imagepng`, `imagegif`, `imagewebp`, `imageavif` | `withFormat(...)` then `encode()`; a path is written by the program from the result |
+| `imagecopyresampled`, `imagecopyresized`, `imagescale`, `imagecrop`, `imagecropauto`, `imagerotate`, `imageflip`, `imagecopy`, `imagecopymerge` | `resized`, `cropped`, `trimmed`, `rotated`, `flipped`, `withOverlay` |
+| `imagefilter`, `imageconvolution`, `imagegammacorrect` | `sharpened`, `blurred`, `grayscaled`, `withBrightness`, `withContrast`, `withGamma`, `tinted` |
+| `imagettftext`, `imagefttext`, `imagettfbbox`, `imageftbbox` | `withText`, `measureText` |
+| `getimagesize*`, `imagesx`, `imagesy`, `exif_read_data`, `exif_imagetype`, `exif_thumbnail` | `Image::info`; a thumbnail is `resized` |
 | `imagesetpixel`, `imagecolorat` | `raw()` and `fromRaw()`, once, the whole buffer |
 | palettes, mode flags, drawing primitives, affine matrices, screen capture, gd's own formats | dropped, with the replacement above where one exists |
 
@@ -4519,7 +4519,7 @@ says how `size`, `margin` and the level make the image and what each default is,
 `QrCode::render` and `QrCode::Level`; the host checks read each code back with `rqrr`. Text is
 the `text` step and the `text` source, shaped by `harfrust` and drawn by `ab_glyph`, whose
 module doc `extensions/image/src/text.rs` says how a size, a line, shaping, `maxWidth` and `align` set the
-text and what the box is, and `Image::text`, `Image::measureText` and `Font::fromBytes`, which
+text and what the box is, and `Image::withText`, `Image::measureText` and `Font::fromBytes`, which
 checks only the file's first four bytes and calls no export. SVG decodes through `resvg` with an
 image resolver that reads only `data:` URIs (`extensions/image/src/svg.rs`), and
 `crates/nvs-ext/tests/image_decode.rs` and
@@ -4927,14 +4927,14 @@ methods are the WIT exports (`wit/pdf.wit`), the way `Novis\Image\Codec` is the 
 | Member | What it does |
 |---|---|
 | `Document::fromHtml(Core\Html\Markup\|string $html): Document` | the document to render |
-| `->asset(string $name, bytes $data): Document` | adds one named asset ([`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io)) |
-| `->header(callable $fn, ?{height?: string} $options = null): Document` | a function from `Page` to `Core\Html\Markup`, drawn in the top margin of each page ([`core-classes/pdf-header-is-a-page-function`](core-classes.md#core-classes-pdf-header-is-a-page-function)) |
-| `->footer(callable $fn, ?{height?: string} $options = null): Document` | the same, in the bottom margin |
-| `->slots(callable $fn): Document` | a function from `Page` to an `array<Core\Html\Markup>` keyed by slot name, filling each `<slot name>` in a repeated table row ([`core-classes/pdf-tables-across-pages`](core-classes.md#core-classes-pdf-tables-across-pages)) |
-| `->standard(Document::Standard $standard): Document` | `PdfA2b`, `PdfA3b` or `PdfUa1` ([`core-classes/pdf-standards-and-passwords`](core-classes.md#core-classes-pdf-standards-and-passwords)) |
-| `->invoiceXml(string $xml): Document` | the Factur-X XML ([`core-classes/pdf-factur-x-is-the-one-attachment`](core-classes.md#core-classes-pdf-factur-x-is-the-one-attachment)) |
-| `->password(string $password): Document` | encrypts the output with AES-256 |
-| `->created(Core\Time\Instant $at): Document` | the creation time in the metadata; absent, the file has none |
+| `->withAsset(string $name, bytes $data): Document` | adds one named asset ([`core-classes/pdf-render-has-no-io`](core-classes.md#core-classes-pdf-render-has-no-io)) |
+| `->withHeader(callable $fn, ?{height?: string} $options = null): Document` | a function from `Page` to `Core\Html\Markup`, drawn in the top margin of each page ([`core-classes/pdf-header-is-a-page-function`](core-classes.md#core-classes-pdf-header-is-a-page-function)) |
+| `->withFooter(callable $fn, ?{height?: string} $options = null): Document` | the same, in the bottom margin |
+| `->withSlots(callable $fn): Document` | a function from `Page` to an `array<Core\Html\Markup>` keyed by slot name, filling each `<slot name>` in a repeated table row ([`core-classes/pdf-tables-across-pages`](core-classes.md#core-classes-pdf-tables-across-pages)) |
+| `->withStandard(Document::Standard $standard): Document` | `PdfA2b`, `PdfA3b` or `PdfUa1` ([`core-classes/pdf-standards-and-passwords`](core-classes.md#core-classes-pdf-standards-and-passwords)) |
+| `->withInvoiceXml(string $xml): Document` | the Factur-X XML ([`core-classes/pdf-factur-x-is-the-one-attachment`](core-classes.md#core-classes-pdf-factur-x-is-the-one-attachment)) |
+| `->withPassword(string $password): Document` | encrypts the output with AES-256 |
+| `->withCreationTime(Core\Time\Instant $at): Document` | the creation time in the metadata; absent, the file has none |
 | `->render(): Rendered` | one render: one call, two with a header, footer or slot function |
 | `Page->number`, `->count`, `->isFirst()`, `->isLast()`, `->name` | the page's number from 1, the document's page count, and its named page or `null` |
 | `Page->string(string $name): ?string` | the page's `string-set` value |
@@ -5207,7 +5207,7 @@ A table that runs over several pages follows **eight rules, each a default with 
    rows when they do not. A `rowspan` group taller than a page splits between lines, as a tall row
    does.
 7. **The caption shows on the first page only**, and `:nth-child` striping follows source order.
-8. **A `<slot name="…">` in a repeated row** is filled per page by `Document::slots`
+8. **A `<slot name="…">` in a repeated row** is filled per page by `Document::withSlots`
    ([`core-classes/pdf-header-is-a-page-function`](core-classes.md#core-classes-pdf-header-is-a-page-function)). The slot keeps its row's height, so filling it
    never moves anything, and text that does not fit is listed in `Rendered::overflows`.
 
@@ -5306,7 +5306,7 @@ and `chapter` are two strings (`tests/conformance/novis/pdf-page-string-matches-
 `first` and `second` in `extensions/pdf/src/lib.rs`, with the guest's `Body` as the resource, called by `Document::render` in
 `extensions/pdf/nvs/Document.nvs`. A function's `height` is an `@page` rule after the document's
 own, so a `:first`, `:left`, `:right`, `:blank` or named-page rule's margin on that side still wins
-over it. `Document::slots` fills each `<slot name>` through the same second pass, in its cell's
+over it. `Document::withSlots` fills each `<slot name>` through the same second pass, in its cell's
 content box.
 
 **Declined:**
@@ -5370,16 +5370,16 @@ Factur-X file to its one attachment and two encrypted renders to byte equality.
 
 **Every render is a tagged PDF**: headings, paragraphs, lists, tables with their header cells, figures
 with their `alt` text and the document's language come from the HTML, with no option to turn it off.
-`Document::standard` adds one of **PDF/A-2b, PDF/A-3b or PDF/UA-1**, and a document that breaks the
+`Document::withStandard` adds one of **PDF/A-2b, PDF/A-3b or PDF/UA-1**, and a document that breaks the
 standard it chose throws `LogicError` naming what broke — an image with no `alt` under PDF/UA-1, a
 font that cannot be embedded under PDF/A — through `krilla`'s own validation. One standard per
-document, because `krilla` validates against one. PDF/A needs `Document::created`, because the
+document, because `krilla` validates against one. PDF/A needs `Document::withCreationTime`, because the
 component reads no clock, and PDF/UA-1 needs a `<title>`. A missing glyph, reported and never thrown
 otherwise, throws under any of the three, because each forbids the empty box drawn for it. Every
 heading has an outline entry on the page it is drawn on, a heading inside a table cell, an
 inline-block, a float or a flex item included.
 
-**`Document::password`** encrypts with **AES-256, revision 6**, and nothing weaker. Its salts and its
+**`Document::withPassword`** encrypts with **AES-256, revision 6**, and nothing weaker. Its salts and its
 file key are derived from a hash of the document and the password, so equal input stays byte-equal
 ([`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert)). A password beside a PDF/A standard throws `LogicError`,
 because PDF/A forbids encryption.
@@ -5394,7 +5394,7 @@ it and the weaker revisions are broken.
 - **Performance:** a password adds four runs of the standard's password hash, each 64 or more rounds
   of AES and SHA-2, and one AES pass over the file.
 
-**On disk.** `Document::standard` and `Document::password` are in
+**On disk.** `Document::withStandard` and `Document::withPassword` are in
 `extensions/pdf/nvs/Document.nvs`, and a password beside a PDF/A standard is refused before anything
 is laid out (`extensions/pdf/src/lib.rs`'s `first`). Tagging and the three standards are
 `extensions/pdf/src/write.rs`, and the encryption is `extensions/pdf/src/encrypt.rs`, over the file
@@ -5427,7 +5427,7 @@ program is skipped.
 
 `rule:core-classes/pdf-factur-x-is-the-one-attachment`
 
-`Document::invoiceXml` embeds **exactly one Factur-X (ZUGFeRD) XML file**, under PDF/A-3b only, and it
+`Document::withInvoiceXml` embeds **exactly one Factur-X (ZUGFeRD) XML file**, under PDF/A-3b only, and it
 is the only attachment the writer ever emits ([`core-classes/pdf-output-is-inert`](core-classes.md#core-classes-pdf-output-is-inert)). The file name,
 the `AFRelationship` and the XMP fields are the ones the standard fixes, so the program passes the XML
 and nothing else. The XML is checked well-formed, inside the request's memory cap and with no entity
@@ -5450,7 +5450,7 @@ delivery channel `pdf-output-is-inert` closes.
 
 - **Memory:** the XML once, inside the request's cap, and the bytes it adds to the output.
 
-**On disk.** `Document::invoiceXml` is in `extensions/pdf/nvs/Document.nvs`. An invoice XML without
+**On disk.** `Document::withInvoiceXml` is in `extensions/pdf/nvs/Document.nvs`. An invoice XML without
 PDF/A-3b, and one that is not well-formed, is refused before anything is laid out
 (`extensions/pdf/src/lib.rs`'s `first`). `extensions/pdf/src/factur_x.rs` checks, embeds and writes
 the XMP fields, and its module doc says how.
@@ -5631,7 +5631,7 @@ edges of its glyphs, and the image page's byte for byte (`crates/nvs-ext/tests/i
 
 **Declined:**
 - **A `rasterize` member in `Novis\Pdf`.** Every raster would recross the boundary as bytes to reach
-  `resize`.
+  `resized`.
 - **pdfium or MuPDF compiled to wasm, as the interpreter or as a fallback.** pdfium in wasm needs
   Emscripten and has no WASI build, and MuPDF is AGPL and outside `deny.toml`, while a pure-Rust
   interpreter exists.
@@ -5835,8 +5835,8 @@ methods are `wit/spreadsheet.wit`'s exports and which no program calls directly:
 
 | Class | What it is | Its members |
 |---|---|---|
-| `Workbook` | A workbook being written to one target | `createForDownload(string $name, {…})`, `createForFile(string $path, {…})`, `createForStream(Core\IO\File $file, {…})`, `createInMemory({…})`, `fromRows(iterable $rows, {…}): Export`; `sheet(string $name, {…}): Sheet`, `define(string $name, string $reference): Workbook`, `finish(): Written` |
-| `Sheet` | One sheet of a `Workbook`, written row by row | `add(array $row, {…}): Sheet`, `addAll(iterable $rows): Sheet`, `cell(string\|int $column, int $row): string`, `column(string\|int $column): string`, and the sheet-end parts `merge`, `link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `chart`, `print`, `protect` |
+| `Workbook` | A workbook being written to one target | `createForDownload(string $name, {…})`, `createForFile(string $path, {…})`, `createForStream(Core\IO\File $file, {…})`, `createInMemory({…})`, `fromRows(iterable $rows, {…}): Export`; `addSheet(string $name, {…}): Sheet`, `defineName(string $name, string $reference): Workbook`, `finish(): Written` |
+| `Sheet` | One sheet of a `Workbook`, written row by row | `addRow(array $row, {…}): Sheet`, `addRows(iterable $rows): Sheet`, `cell(string\|int $column, int $row): string`, `column(string\|int $column): string`, and the sheet-end parts `mergeCells`, `addLink`, `addNote`, `addValidation`, `addOutlineGroup`, `addTable`, `addConditionalFormat`, `addImage`, `addChart`, `setPrintOptions`, `protect` |
 | `Written` | What `finish()` returns | `rows: array<int>` by sheet name, `size: int`, `bytes: ?bytes` |
 | `Export` | A whole workbook from one call, written where its last call says | `download(string $name): void`, `save(string $path): Written`, `to(Core\IO\File $file): Written`, `bytes(): bytes` |
 | `Reader` | A workbook or CSV being read | `open(Core\IO\File\|bytes $source, {csv?: {…}}): Reader`, `sheets(): array<{…}>` with a `null` size for a sheet whose part the file lacks, `rows(string\|int $sheet, {…}): Iterator<Row>`, `evaluate(): array<{…}>`, and the extras `merged`, `links`, `notes`, `names`, `tables`, `images`, `properties`, `macros` |
@@ -5845,7 +5845,7 @@ methods are `wit/spreadsheet.wit`'s exports and which no program calls directly:
 | `Style` | A set of style fields | `of({…}): Style` |
 | `Cell` | One value with its own style, or rich text | `of(mixed $value, Style $style): Cell`, `rich(array<{text: string, style?: Style}> $runs): Cell` |
 | `Formula` | A formula cell's text and its cached result | `of(string $text, {cached?: mixed}): Formula`, `text: string`, `cached: mixed` |
-| `Chart` | One chart of the subset | `column`, `bar`, `line`, `area`, `pie`, `doughnut`, `scatter` (each `({…}): Chart`), `series(string $values, {…}): Chart`, `combine(Chart $other): Chart` |
+| `Chart` | One chart of the subset | `column`, `bar`, `line`, `area`, `pie`, `doughnut`, `scatter` (each `({…}): Chart`), `withSeries(string $values, {…}): Chart`, `combinedWith(Chart $other): Chart` |
 | `Engine` | The manifest class | one static method per export |
 
 The enum is `CellError`, the cell error values `#NULL!`, `#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`,
@@ -5942,15 +5942,15 @@ returns an `Export`, whose `download`, `save`, `to` and `bytes` name the target 
 an `Iterable` of rows writes every time. An `Iterator`, a generator included, is read once, so a second
 write of its `Export` throws `LogicError` saying so.
 
-**Rows go in batches, and compressed bytes come back.** `$sheet->add($row)` queues a row in the Novis
+**Rows go in batches, and compressed bytes come back.** `$sheet->addRow($row)` queues a row in the Novis
 half, and a full batch crosses in one guest call, which returns the deflated bytes ready to leave; the
-Novis half sends them on before it takes the next row. `addAll` takes any `iterable`, a generator or a
+Novis half sends them on before it takes the next row. `addRows` takes any `iterable`, a generator or a
 query result included, and batches it the same way. The guest writes sheet XML as plain text, deflates
 it as it goes and frames each zip entry with a data descriptor, so it never knows an entry's size in
 advance and never seeks. **Strings are written inline** (`t="inlineStr"`), so no shared-string table
 grows with the sheet.
 
-**Sheets are written one after another.** `$book->sheet('B')` finishes sheet A; writing to a finished
+**Sheets are written one after another.** `$book->addSheet('B')` finishes sheet A; writing to a finished
 sheet throws naming it. `{position: n}` sets the tab order, which `workbook.xml` records at
 `finish()`. A sheet name follows Excel's rules — at most 31 characters, none of `: \ / ? * [ ]`, not
 empty, no leading or trailing apostrophe, unique in the workbook — and a bad one throws naming the
@@ -5962,7 +5962,7 @@ conditional formats, images, charts, page setup and protection
 ([`core-classes/spreadsheet-sheet-end-parts`](core-classes.md#core-classes-spreadsheet-sheet-end-parts)). Each may point at any row already written. **What is
 fixed before the first row** is what xlsx writes before the rows: frozen panes, column widths and
 column styles, which is why they are sheet options and not calls. Row heights, hidden rows and outline
-levels are options of `add`, because they are written with the row.
+levels are options of `addRow`, because they are written with the row.
 
 The sheet options are `columns` ([`core-classes/spreadsheet-styles-and-defaults`](core-classes.md#core-classes-spreadsheet-styles-and-defaults)), `header`,
 `freeze`, `autofilter`, `headerStyle`, `position`, `hidden` (`true` or `'very'`), `tabColor`, `zoom`,
@@ -5985,7 +5985,7 @@ finished is not reported.
 **A file is never left half written.** `createForFile` writes to its temporary name and `finish()`
 renames it to the path, so a reader of the path sees the old file or the whole new one. A failed write
 or a failed `finish()` deletes the temporary file, and every later call on the workbook throws
-`LogicError`. An input error in `add`, such as a NaN, leaves the workbook usable, so the temporary
+`LogicError`. An input error in `addRow`, such as a NaN, leaves the workbook usable, so the temporary
 file stays until `finish()`. `Export::save` writes through `createForFile`, and a filled template's
 `save` writes the same way. The folder needs `fs.write`, not only the file. Cost: one rename per
 file, and the temporary name's bytes per writing request. A program that stops before `finish()`
@@ -6018,10 +6018,10 @@ paragraphs, written down once.
   that exports more rows than the cap holds writes xlsx or CSV.
 
 **On disk.** The streaming writer (`extensions/spreadsheet/src/writer.rs`), the four targets,
-`sheet`, `finish`, `Written`, `Sheet`'s `add` and `addAll` in batches of 1,000 rows, `fromRows` and
+`addSheet`, `finish`, `Written`, `Sheet`'s `addRow` and `addRows` in batches of 1,000 rows, `fromRows` and
 `Export` (`extensions/spreadsheet/nvs/Workbook.nvs`, `Sheet.nvs`, `Export.nvs`), with every sheet
 option above, the sheet-name rules, the row options `height`, `hidden`, `level` and `style`,
-`define`, CSV and ods (`extensions/spreadsheet/src/ods/`, `extensions/spreadsheet/src/book.rs`), and
+`defineName`, CSV and ods (`extensions/spreadsheet/src/ods/`, `extensions/spreadsheet/src/book.rs`), and
 the cut-off and logged download that was never finished
 (`Core\Response::startStream`'s `$mustEnd` and `Core\Response\Stream::end`,
 `crates/nvs-stdlib/src/response.rs`).
@@ -6241,7 +6241,7 @@ row is styled by default: a bold header with a bottom border, frozen, filtered, 
 is.
 
 **Layering.** A cell's style is each field from the most specific layer that sets it: the cell's own
-(`Cell::of`), then the row's (`add`'s `style`), then the column's. A field no layer sets is Excel's
+(`Cell::of`), then the row's (`addRow`'s `style`), then the column's. A field no layer sets is Excel's
 default. Every distinct combination becomes one entry of `styles.xml` at `finish()`, so equal
 combinations share one entry, and Excel's limit of 65,490 cell formats throws naming it.
 
@@ -6252,7 +6252,7 @@ or `'auto'`), `format`, `style`, `hidden` and `formula`
 named ones in the order of the first row; a column a row lacks is an empty cell. Rows that are lists
 of plain lists have no keys, so they have no header and no defaults.
 
-**The defaults, whenever a sheet has a header row**, in `fromRows` and `sheet()` alike: the header row
+**The defaults, whenever a sheet has a header row**, in `fromRows` and `addSheet()` alike: the header row
 bold with a thin bottom border (`headerStyle`), frozen below it (`freeze`), with an autofilter over the
 header and its `_xlnm._FilterDatabase` name, as Excel writes one (`autofilter`), and every column `width: 'auto'`. Each turns off on its own:
 `{freeze: false, autofilter: false, headerStyle: false}`, or a column's own `width`. `headerStyle` is
@@ -6306,26 +6306,26 @@ protection.
 
 | Call | What it writes |
 |---|---|
-| `merge(string $range)` | a merged range |
-| `link(string $cell, string $target, {text?, tooltip?})` | a hyperlink to a URL, a `mailto:` address or `'Sheet!A1'` |
-| `note(string $cell, string $text, {author?})` | a note |
-| `validate(string $range, {...})` | data validation: `list`, `whole`, `decimal`, `date` or `length` with `between`, `min` or `max`, or `formula`; `input` and `error` messages; `allowEmpty`. `$range` is a range, whole columns (`A:A`) or several ranges separated by spaces or commas, written as Excel's space-separated list; a `"` in a list value is doubled, and a `,` in one throws `LogicError`, because Excel's list cannot contain one |
-| `group(string $rows, {collapsed?})` | an outline group over `'5:9'` or `'B:D'` |
-| `table(string $range, {name?, style?, banded?, filter?, totals?})` | an Excel table; `totals` maps a column to `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`, and the table's own formulas may use structured references such as `[@qty]` |
-| `conditional(string $range, {...})` | one conditional format: `cell` with an operator and values, `formula`, `colorScale`, `dataBar`, `iconSet`, `top` or `bottom` N, `duplicates` or `unique`, each with a `style` of font, fill, border and format |
-| `image(string $cell, bytes $data, {width?, height?, offsetX?, offsetY?})` | a PNG, JPEG or GIF, read from its bytes; any other format, a PNG cut before its `IEND` chunk, and an image that ends past column `XFD` or row 1,048,576 throw `LogicError` |
-| `chart(string $cell, Chart $chart, {width?, height?})` | a chart of the subset below; one that ends past the grid throws `LogicError` |
-| `print({...})` | page setup: `orientation`, `fitToPage`, `margins`, `header`, `footer`, `repeatRows`, `area`, in one call; a second `print` on the sheet throws `LogicError` |
+| `mergeCells(string $range)` | a merged range |
+| `addLink(string $cell, string $target, {text?, tooltip?})` | a hyperlink to a URL, a `mailto:` address or `'Sheet!A1'` |
+| `addNote(string $cell, string $text, {author?})` | a note |
+| `addValidation(string $range, {...})` | data validation: `list`, `whole`, `decimal`, `date` or `length` with `between`, `min` or `max`, or `formula`; `input` and `error` messages; `allowEmpty`. `$range` is a range, whole columns (`A:A`) or several ranges separated by spaces or commas, written as Excel's space-separated list; a `"` in a list value is doubled, and a `,` in one throws `LogicError`, because Excel's list cannot contain one |
+| `addOutlineGroup(string $rows, {collapsed?})` | an outline group over `'5:9'` or `'B:D'` |
+| `addTable(string $range, {name?, style?, banded?, filter?, totals?})` | an Excel table; `totals` maps a column to `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`, and the table's own formulas may use structured references such as `[@qty]` |
+| `addConditionalFormat(string $range, {...})` | one conditional format: `cell` with an operator and values, `formula`, `colorScale`, `dataBar`, `iconSet`, `top` or `bottom` N, `duplicates` or `unique`, each with a `style` of font, fill, border and format |
+| `addImage(string $cell, bytes $data, {width?, height?, offsetX?, offsetY?})` | a PNG, JPEG or GIF, read from its bytes; any other format, a PNG cut before its `IEND` chunk, and an image that ends past column `XFD` or row 1,048,576 throw `LogicError` |
+| `addChart(string $cell, Chart $chart, {width?, height?})` | a chart of the subset below; one that ends past the grid throws `LogicError` |
+| `setPrintOptions({...})` | page setup: `orientation`, `fitToPage`, `margins`, `header`, `footer`, `repeatRows`, `area`, in one call; a second `setPrintOptions` on the sheet throws `LogicError` |
 | `protect({password?, allow?})` | sheet protection |
 
-Row heights, hidden rows and outline levels are `add`'s options, and hidden columns a column's
+Row heights, hidden rows and outline levels are `addRow`'s options, and hidden columns a column's
 ([`core-classes/spreadsheet-styles-and-defaults`](core-classes.md#core-classes-spreadsheet-styles-and-defaults)), because xlsx writes them with the row or before
-it. For the same reason a `group` over rows is added before those rows, a `group` over columns and
-`print`'s `fitToPage` before the sheet's first row, and each throws `LogicError` saying so when it
+it. For the same reason an `addOutlineGroup` over rows comes before those rows, one over columns and
+`setPrintOptions`'s `fitToPage` before the sheet's first row, and each throws `LogicError` saying so when it
 comes later. **A link goes to `http:`, `https:`, `mailto:` or a cell of the workbook**, and any
 other target, such as `file:` or `javascript:`, throws `LogicError`, so a link built from user data
 opens no local file and runs nothing. A cell target's sheet name that is not in quotes is quoted
-where Excel quotes it, so `Shop Data!A1` is written `'Shop Data'!A1`. `Workbook::define` writes a defined name, and the workbook's
+where Excel quotes it, so `Shop Data!A1` is written `'Shop Data'!A1`. `Workbook::defineName` writes a defined name, and the workbook's
 `properties` the document properties.
 Rich text in one cell is `Cell::rich`. **Sheet protection locks the layout and is not security**: the
 password is a hash any tool removes, which the reference card says.
@@ -6361,7 +6361,7 @@ A series names its ranges with `$sheet->column($key)`, so a chart over a stream 
 sheet ends with: the chart is written when the sheet ends, and a range on its own sheet that ends at
 the row `column` gives when the chart is added ends at the sheet's last row. Any other range is
 written as given, and the chart holds no values. A series range is read by the reference parser
-`Workbook::define` uses, without whole columns or rows ([`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert)),
+`Workbook::defineName` uses, without whole columns or rows ([`core-classes/spreadsheet-output-is-inert`](core-classes.md#core-classes-spreadsheet-output-is-inert)),
 so a range into another workbook, a URL, an unclosed quote or a second sheet name throws
 `LogicError` naming the range. A title or an axis title past 255 characters throws. **A series' categories are a number reference**
 when they are a column of the chart's own sheet whose every value below its header is a number or a date, which the
@@ -6791,7 +6791,7 @@ the Basic Multilingual Plane, such as an emoji, counts two (`cells::units`).
 first or last, and is not `History` in any case. **Two sheet names are the same name when their
 Unicode upper-case folds are equal**, as Excel compares them (`writer::fold`), and so are two table
 names, two defined names and two table column names. One function checks a sheet name (`check_sheet_name` in
-`extensions/spreadsheet/src/writer.rs`), for `Workbook::sheet`, a defined name's reference and a
+`extensions/spreadsheet/src/writer.rs`), for `Workbook::addSheet`, a defined name's reference and a
 chart's series range. **A defined name** in A1 or R1C1 form (`C3`, `R1C1`, `R`, `RC2`) throws. A merged range past the grid throws, and so does a record whose declared
 length is past the bytes left. Every other bound is the request's: its memory and CPU caps hold the
 guest ([`packaging/a-guest-runs-under-the-requests-budget`](packaging.md#packaging-a-guest-runs-under-the-requests-budget)), and the decompression bound holds
@@ -6943,7 +6943,7 @@ match Excel is listed for that cell, and never computed differently.
 The writer emits no macros, no embedded executables and no launch-shaped content; hyperlinks exist
 only where the program wrote them.
 
-**A reference the program writes stays in the workbook.** `Workbook::define` and a chart's series
+**A reference the program writes stays in the workbook.** `Workbook::defineName` and a chart's series
 range go through one reference parser (`extensions/spreadsheet/src/reference.rs`): an optional sheet
 name, quoted as Excel quotes one, then `!`, then a cell, a range, whole columns (`$A:$C`) or whole
 rows (`$1:$3`), each with or without `$`. A series range takes no whole columns or rows. The sheet

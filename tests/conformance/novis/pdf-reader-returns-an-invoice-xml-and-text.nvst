@@ -17,9 +17,9 @@ string $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
     . "</rsm:CrossIndustryInvoice>";
 var $invoice = Document::fromHtml("<html lang=\"en\"><head><title>Invoice Shop-7</title></head>"
     . "<body><p>Invoice Shop-7</p></body></html>")
-    ->standard(Document::Standard::PdfA3b)
-    ->created(Core\Time\Instant::fromIso("2026-01-01T00:00:00Z"))
-    ->invoiceXml($xml)
+    ->withStandard(Document::Standard::PdfA3b)
+    ->withCreationTime(Core\Time\Instant::fromIso("2026-01-01T00:00:00Z"))
+    ->withInvoiceXml($xml)
     ->render()->bytes;
 
 var $reader = Reader::open($invoice);
@@ -39,7 +39,7 @@ try {
 }
 
 // An encrypted file throws a `ParseError`. Only the person who has the password can open it.
-var $locked = Document::fromHtml("<p>Private</p>")->password("secret")->render()->bytes;
+var $locked = Document::fromHtml("<p>Private</p>")->withPassword("secret")->render()->bytes;
 try {
     Reader::open($locked);
 } catch (ParseError $encrypted) {

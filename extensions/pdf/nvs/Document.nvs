@@ -25,7 +25,7 @@ final class Document
     {}
 
     /// `Document::fromHtml` starts a document from its HTML.
-    /// The HTML may name assets, such as `<img src="logo.png">`. Add each one with `asset`.
+    /// The HTML may name assets, such as `<img src="logo.png">`. Add each one with `withAsset`.
     public static function fromHtml(Core\Html\Markup|string $html): Document
     {
         if ($html is Core\Html\Markup) {
@@ -34,59 +34,59 @@ final class Document
         return new Document($html as string, [], null, null, null, null, null, null, null);
     }
 
-    /// `asset` adds a file the HTML names, such as an image or a stylesheet.
+    /// `withAsset` adds a file the HTML names, such as an image or a stylesheet.
     /// A render reads only these files and `data:` URIs. Any other name throws a `LogicError`.
-    public function asset(string $name, bytes $data): Document
+    public function withAsset(string $name, bytes $data): Document
     {
         array<Asset> $assets = $this->assets;
         $assets[] = { name: $name, data: $data };
         return new Document($this->html, $assets, $this->standard, $this->invoiceXml, $this->password, $this->created, $this->header, $this->footer, $this->slots);
     }
 
-    /// `standard` sets the PDF standard the file follows.
-    public function standard(Standard $standard): Document
+    /// `withStandard` sets the PDF standard the file follows.
+    public function withStandard(Standard $standard): Document
     {
         return new Document($this->html, $this->assets, $standard, $this->invoiceXml, $this->password, $this->created, $this->header, $this->footer, $this->slots);
     }
 
-    /// `invoiceXml` attaches the XML of an electronic invoice to the file.
+    /// `withInvoiceXml` attaches the XML of an electronic invoice to the file.
     /// It needs the standard `Document::Standard::PdfA3b`. With any other standard, `render` throws a `LogicError`.
-    public function invoiceXml(string $xml): Document
+    public function withInvoiceXml(string $xml): Document
     {
         return new Document($this->html, $this->assets, $this->standard, $xml, $this->password, $this->created, $this->header, $this->footer, $this->slots);
     }
 
-    /// `password` encrypts the file. A reader needs the password to open it.
+    /// `withPassword` encrypts the file. A reader needs the password to open it.
     /// A PDF/A standard does not allow a password, so `render` then throws a `LogicError`.
-    public function password(string $password): Document
+    public function withPassword(string $password): Document
     {
         return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $password, $this->created, $this->header, $this->footer, $this->slots);
     }
 
-    /// `created` sets the creation time in the file. Without it, the file has no creation time.
-    public function created(Core\Time\Instant $at): Document
+    /// `withCreationTime` sets the creation time in the file. Without it, the file has no creation time.
+    public function withCreationTime(Core\Time\Instant $at): Document
     {
         return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $this->password, $at, $this->header, $this->footer, $this->slots);
     }
 
-    /// `header` sets a function that returns the header of each page. `render` calls it once for each page.
+    /// `withHeader` sets a function that returns the header of each page. `render` calls it once for each page.
     /// The header is drawn in the top margin. `height` sets that margin, such as `"2cm"`. Without it, the margin is the one `@page` gives.
-    public function header(callable(Page): Core\Html\Markup $fn, ?{ height?: string } $options = null): Document
+    public function withHeader(callable(Page): Core\Html\Markup $fn, ?{ height?: string } $options = null): Document
     {
         Margin $header = { fn: $fn, height: $options?->height };
         return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $this->password, $this->created, $header, $this->footer, $this->slots);
     }
 
-    /// `footer` sets a function that returns the footer of each page. It works like `header`, in the bottom margin.
-    public function footer(callable(Page): Core\Html\Markup $fn, ?{ height?: string } $options = null): Document
+    /// `withFooter` sets a function that returns the footer of each page. It works like `withHeader`, in the bottom margin.
+    public function withFooter(callable(Page): Core\Html\Markup $fn, ?{ height?: string } $options = null): Document
     {
         Margin $footer = { fn: $fn, height: $options?->height };
         return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $this->password, $this->created, $this->header, $footer, $this->slots);
     }
 
-    /// `slots` sets a function that fills each `<slot name="...">` in a table row. `render` calls it once for each page.
+    /// `withSlots` sets a function that fills each `<slot name="...">` in a table row. `render` calls it once for each page.
     /// It returns the HTML for each slot name. Nothing on the page moves, and HTML too tall for its cell is listed in `Rendered::overflows`.
-    public function slots(callable(Page): array<Core\Html\Markup> $fn): Document
+    public function withSlots(callable(Page): array<Core\Html\Markup> $fn): Document
     {
         Fill $slots = { fn: $fn };
         return new Document($this->html, $this->assets, $this->standard, $this->invoiceXml, $this->password, $this->created, $this->header, $this->footer, $slots);

@@ -11,11 +11,11 @@ A `Workbook` download the program never finishes is an error on standard error t
 use Novis\Spreadsheet\Workbook;
 
 var $done = Workbook::createForDownload("people.csv");
-$done->sheet("People")->add(["name" => "Ada"]);
+$done->addSheet("People")->addRow(["name" => "Ada"]);
 $done->finish();
 
 var $left = Workbook::createForDownload("orders.csv");
-$left->sheet("Orders")->add(["id" => 1]);
+$left->addSheet("Orders")->addRow(["id" => 1]);
 --EXPECT--
 ﻿name
 Ada

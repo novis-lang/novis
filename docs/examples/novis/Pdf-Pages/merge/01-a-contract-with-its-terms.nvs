@@ -16,7 +16,7 @@ var $contract = Document::fromHtml(
     '<style>@page { background-image: url(letterhead.pdf) }</style>'
         . '<h1>Contract</h1><p>Ada Lovelace rents a bike for one week.</p>',
 )
-    ->asset('letterhead.pdf', $letterhead)
+    ->withAsset('letterhead.pdf', $letterhead)
     ->render()
     ->bytes;
 

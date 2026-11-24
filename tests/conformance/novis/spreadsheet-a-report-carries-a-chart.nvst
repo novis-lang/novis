@@ -2,30 +2,30 @@
 A streamed report carries a column chart combined with a line, its ranges from `column` cover every row the sheet ends with, and a combination outside column, line and area throws: rule:core-classes/spreadsheet-sheet-end-parts
 --FILE--
 <?nvs
-// covers: Novis\Spreadsheet\Sheet::chart
+// covers: Novis\Spreadsheet\Sheet::addChart
 // covers: Novis\Spreadsheet\Chart::column
 // covers: Novis\Spreadsheet\Chart::line
 // covers: Novis\Spreadsheet\Chart::pie
-// covers: Novis\Spreadsheet\Chart::series
-// covers: Novis\Spreadsheet\Chart::combine
+// covers: Novis\Spreadsheet\Chart::withSeries
+// covers: Novis\Spreadsheet\Chart::combinedWith
 use Novis\Spreadsheet\Chart;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sales = $book->sheet("Sales");
-$sales->add(["month" => "Jan", "sales" => 120, "costs" => 80]);
-$sales->add(["month" => "Feb", "sales" => 150, "costs" => 90]);
+var $sales = $book->addSheet("Sales");
+$sales->addRow(["month" => "Jan", "sales" => 120, "costs" => 80]);
+$sales->addRow(["month" => "Feb", "sales" => 150, "costs" => 90]);
 
 // The chart is added after two rows, and its ranges still grow to the last row.
 var $chart = Chart::column({title: "Sales by month", legend: "bottom"})
-    ->series($sales->column("sales"), {categories: $sales->column("month"), name: "Sales", color: "#1F77B4"})
-    ->combine(Chart::line()->series($sales->column("costs"), {categories: $sales->column("month"), name: "Costs"}));
-$sales->chart("E2", $chart, {width: 600});
-$sales->add(["month" => "Mar", "sales" => 170, "costs" => 95]);
-$sales->add(["month" => "Apr", "sales" => 160, "costs" => 99]);
+    ->withSeries($sales->column("sales"), {categories: $sales->column("month"), name: "Sales", color: "#1F77B4"})
+    ->combinedWith(Chart::line()->withSeries($sales->column("costs"), {categories: $sales->column("month"), name: "Costs"}));
+$sales->addChart("E2", $chart, {width: 600});
+$sales->addRow(["month" => "Mar", "sales" => 170, "costs" => 95]);
+$sales->addRow(["month" => "Apr", "sales" => 160, "costs" => 99]);
 
 try {
-    $sales->chart("E20", Chart::pie()->series("B2:B5")->combine(Chart::line()->series("C2:C5")));
+    $sales->addChart("E20", Chart::pie()->withSeries("B2:B5")->combinedWith(Chart::line()->withSeries("C2:C5")));
     echo "not reached\n";
 } catch (LogicError $e) {
     echo $e->message, "\n";

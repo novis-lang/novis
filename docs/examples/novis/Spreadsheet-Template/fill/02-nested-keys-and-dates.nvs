@@ -8,7 +8,7 @@ use Novis\Spreadsheet\Workbook;
 
 // The date cell of the template has a date format. `fill` keeps the format of each cell.
 var $design = Workbook::createInMemory();
-$design->sheet('Invoice')->addAll([
+$design->addSheet('Invoice')->addRows([
     ['Customer', '{{customer.name}}'],
     ['City', '{{customer.address.city}}'],
     ['Date', Cell::of('{{date}}', Style::of({ format: 'yyyy-mm-dd' }))],

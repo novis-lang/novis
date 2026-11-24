@@ -810,7 +810,7 @@ impl Tail {
         }
         if self.print.is_some() {
             return Err(Error::Invalid(format!(
-                "The sheet `{sheet}` has its page setup already. Set every `print` option in one call."
+                "The sheet `{sheet}` has its page setup already. Set every print option in one `setPrintOptions` call."
             )));
         }
         self.print = Some(print);

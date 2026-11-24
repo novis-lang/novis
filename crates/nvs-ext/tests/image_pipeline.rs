@@ -546,7 +546,7 @@ fn cmyk_with_profile() -> Vec<u8> {
     with_icc(&fixture("cmyk.jpg"), &cmyk_profile())
 }
 
-// covers: Novis\Image\Image::resize
+// covers: Novis\Image\Image::resized
 #[test]
 fn a_cmyk_jpeg_with_a_profile_resizes_to_the_reference_colours_not_inverted() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
@@ -603,7 +603,7 @@ fn to_srgb_false_keeps_the_raw_channels() {
     block_on(request.end()).expect("the request ends");
 }
 
-// covers: Novis\Image\Image::rotate, Novis\Image\Image::crop
+// covers: Novis\Image\Image::rotated, Novis\Image\Image::cropped
 #[test]
 fn pixel_steps_run_in_the_order_written() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
@@ -664,7 +664,7 @@ fn a_jpeg_with_gps_tags_re_encodes_without_them() {
     )
     .expect("the tagged JPEG re-encodes");
     assert_eq!(exif_in(&out), None);
-    // `metadata({ keep: false })` is the same as no `metadata` step.
+    // A `metadata` step with `keep` false is the same as no `metadata` step.
     let out = run(
         &request,
         &extension,
@@ -684,7 +684,7 @@ fn a_jpeg_with_gps_tags_re_encodes_without_them() {
     block_on(request.end()).expect("the request ends");
 }
 
-// covers: Novis\Image\Image::metadata, Novis\Image\Image::info, Novis\Image\Codec::info
+// covers: Novis\Image\Image::keepingMetadata, Novis\Image\Image::info, Novis\Image\Codec::info
 #[test]
 fn metadata_keep_true_keeps_them() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
@@ -723,7 +723,7 @@ fn metadata_keep_true_keeps_them() {
     block_on(request.end()).expect("the request ends");
 }
 
-// covers: Novis\Image\Image::format
+// covers: Novis\Image\Image::withFormat
 #[test]
 fn every_encoder_writes_its_format_and_the_result_reopens() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
@@ -830,7 +830,7 @@ fn lossy_webp_is_encoded_by_libwebp() {
     block_on(request.end()).expect("the request ends");
 }
 
-// covers: Novis\Image\Image::variants, Novis\Image\Codec::variants
+// covers: Novis\Image\Image::encodeVariants, Novis\Image\Codec::variants
 #[test]
 fn variants_with_three_entries_costs_one_crossing() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
@@ -872,7 +872,7 @@ fn variants_with_three_entries_costs_one_crossing() {
     block_on(request.end()).expect("the request ends");
 }
 
-// covers: Novis\Image\Image::resize, Novis\Image\Codec::run
+// covers: Novis\Image\Image::resized, Novis\Image\Codec::run
 #[test]
 fn a_resized_animation_keeps_every_frame_in_a_gif_and_its_first_in_a_png() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
@@ -1010,7 +1010,7 @@ fn after(
 /// Each pixel step of a plan, run alone on a source whose pixels the test knows, changes the
 /// pixel it should by what `extensions/image/src/ops.rs`'s module doc says, and a canvas and a
 /// pixel source are both a frame the steps run on.
-// covers: Novis\Image\Image::create, Novis\Image\Image::fromRaw, Novis\Image\Image::trim, Novis\Image\Image::flip, Novis\Image\Image::flatten, Novis\Image\Image::sharpen, Novis\Image\Image::blur, Novis\Image\Image::grayscale, Novis\Image\Image::brightness, Novis\Image\Image::contrast, Novis\Image\Image::gamma, Novis\Image\Image::tint
+// covers: Novis\Image\Image::create, Novis\Image\Image::fromRaw, Novis\Image\Image::trimmed, Novis\Image\Image::flipped, Novis\Image\Image::flattened, Novis\Image\Image::sharpened, Novis\Image\Image::blurred, Novis\Image\Image::grayscaled, Novis\Image\Image::withBrightness, Novis\Image\Image::withContrast, Novis\Image\Image::withGamma, Novis\Image\Image::tinted
 #[test]
 fn each_pixel_step_changes_a_known_pixel_as_documented() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");
@@ -1124,7 +1124,7 @@ fn composite(row: u64, options: Vec<(&str, Value)>) -> Value {
 /// with `opacity` and `blend` as `extensions/image/src/ops.rs`'s module doc says; the row runs
 /// its own steps first; and a row that is not before the step, or an opacity over 1, throws
 /// before anything is decoded.
-// covers: Novis\Image\Image::composite
+// covers: Novis\Image\Image::withOverlay
 #[test]
 fn composite_draws_its_overlay_row_where_and_how_the_step_says() {
     let host = Host::new(4, |_| Ok(())).expect("the host starts");

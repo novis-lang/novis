@@ -1,4 +1,4 @@
-`Document::invoiceXml` embeds **exactly one Factur-X (ZUGFeRD) XML file**, under PDF/A-3b only, and it
+`Document::withInvoiceXml` embeds **exactly one Factur-X (ZUGFeRD) XML file**, under PDF/A-3b only, and it
 is the only attachment the writer ever emits (`rule:core-classes/pdf-output-is-inert`). The file name,
 the `AFRelationship` and the XMP fields are the ones the standard fixes, so the program passes the XML
 and nothing else. The XML is checked well-formed, inside the request's memory cap and with no entity
@@ -21,7 +21,7 @@ delivery channel `pdf-output-is-inert` closes.
 
 - **Memory:** the XML once, inside the request's cap, and the bytes it adds to the output.
 
-**On disk.** `Document::invoiceXml` is in `extensions/pdf/nvs/Document.nvs`. An invoice XML without
+**On disk.** `Document::withInvoiceXml` is in `extensions/pdf/nvs/Document.nvs`. An invoice XML without
 PDF/A-3b, and one that is not well-formed, is refused before anything is laid out
 (`extensions/pdf/src/lib.rs`'s `first`). `extensions/pdf/src/factur_x.rs` checks, embeds and writes
 the XMP fields, and its module doc says how.

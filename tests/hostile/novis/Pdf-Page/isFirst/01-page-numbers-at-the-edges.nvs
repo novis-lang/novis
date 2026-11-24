@@ -22,7 +22,7 @@ try {
 try {
     var $throwing = fn(Page $page): Core\Html\Markup => $page->isFirst() ? html`<p>Shop</p>` : throw new LogicError('not the first page');
     var $short = Core\Str::repeat('<p style="break-after: page">Page</p>', 50);
-    echo 'step 3 ran ', Document::fromHtml($short)->header($throwing)->render()->pageCount, "\n";
+    echo 'step 3 ran ', Document::fromHtml($short)->withHeader($throwing)->render()->pageCount, "\n";
 } catch (Throwable $e) {
     echo "step 3 stopped\n";
 }
@@ -31,7 +31,7 @@ try {
 try {
     var $header = fn(Page $page): Core\Html\Markup => $page->isFirst() ? html`<p>Shop</p>` : html``;
     var $long = Core\Str::repeat('<p style="break-after: page">Page</p>', 2000);
-    echo 'step 4 ran ', Document::fromHtml($long)->header($header)->render()->pageCount, "\n";
+    echo 'step 4 ran ', Document::fromHtml($long)->withHeader($header)->render()->pageCount, "\n";
 } catch (Throwable $e) {
     echo "step 4 stopped\n";
 }

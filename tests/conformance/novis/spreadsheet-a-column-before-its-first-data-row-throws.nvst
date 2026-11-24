@@ -6,7 +6,7 @@
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $orders = $book->sheet("Orders", {columns: ["order" => {header: "Order"}, "total" => {header: "Total"}]});
+var $orders = $book->addSheet("Orders", {columns: ["order" => {header: "Order"}, "total" => {header: "Total"}]});
 try {
     echo $orders->column("total"), "\n";
 } catch (LogicError $e) {
@@ -20,9 +20,9 @@ try {
     echo $e->message, "\n";
 }
 
-$orders->add(["order" => 1042, "total" => 19.5]);
+$orders->addRow(["order" => 1042, "total" => 19.5]);
 echo $orders->column("total"), "\n";
-$orders->add(["order" => 1043, "total" => 5.0]);
+$orders->addRow(["order" => 1043, "total" => 5.0]);
 echo $orders->column("B"), "\n";
 $book->finish();
 --EXPECT--

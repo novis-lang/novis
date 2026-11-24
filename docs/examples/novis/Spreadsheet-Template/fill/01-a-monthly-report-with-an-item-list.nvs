@@ -8,7 +8,7 @@ use Novis\Spreadsheet\Workbook;
 // This workbook is the template. In a real program it is a file made in Excel.
 // Row 3 is the item row, and row 4 adds up the totals.
 var $design = Workbook::createInMemory();
-$design->sheet('Report')->addAll([
+$design->addSheet('Report')->addRows([
     ['Sales for {{month}}', '{{shop}}'],
     ['Product', 'Sold', 'Price', 'Total'],
     ['{{items.product}}', '{{items.sold}}', '{{items.price}}', Formula::of('B3*C3')],

@@ -58,9 +58,9 @@ string $external = '<?xml version="1.0"?><!DOCTYPE x [<!ENTITY secret SYSTEM "fi
 // 1. Renders an invoice with the billion laughs as its XML.
 try {
     var $rendered = Document::fromHtml('<html lang="en"><head><title>Shop</title></head><body><p>Invoice</p></body></html>')
-        ->standard(Document::Standard::PdfA3b)
-        ->created(Core\Time\Instant::fromIso('2026-01-01T00:00:00Z'))
-        ->invoiceXml($laughs)
+        ->withStandard(Document::Standard::PdfA3b)
+        ->withCreationTime(Core\Time\Instant::fromIso('2026-01-01T00:00:00Z'))
+        ->withInvoiceXml($laughs)
         ->render()
         ->bytes;
     echo 'step 1 ran ', Core\Bytes::length($rendered), "\n";
@@ -71,9 +71,9 @@ try {
 // 2. Renders an invoice whose XML reads a file on the server.
 try {
     var $withFile = Document::fromHtml('<html lang="en"><head><title>Shop</title></head><body><p>Invoice</p></body></html>')
-        ->standard(Document::Standard::PdfA3b)
-        ->created(Core\Time\Instant::fromIso('2026-01-01T00:00:00Z'))
-        ->invoiceXml($external)
+        ->withStandard(Document::Standard::PdfA3b)
+        ->withCreationTime(Core\Time\Instant::fromIso('2026-01-01T00:00:00Z'))
+        ->withInvoiceXml($external)
         ->render()
         ->bytes;
     echo 'step 2 ran ', Core\Bytes::length($withFile), "\n";

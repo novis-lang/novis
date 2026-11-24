@@ -1,10 +1,10 @@
 --TEST--
-An image opened from an upload gives `tainted bytes` at every terminal: `encode`, the pixels of `raw` and each file of `variants` go only where `tainted bytes` may, and a plain `bytes` variable does not compile. `Font::fromBytes` takes an uploaded font: rule:security/extension-contagion
+An image opened from an upload gives `tainted bytes` at every terminal: `encode`, the pixels of `raw` and each file of `encodeVariants` go only where `tainted bytes` may, and a plain `bytes` variable does not compile. `Font::fromBytes` takes an uploaded font: rule:security/extension-contagion
 --FILE--
 <?nvs
 // covers: Novis\Image\Image::encode
 // covers: Novis\Image\Image::raw
-// covers: Novis\Image\Image::variants
+// covers: Novis\Image\Image::encodeVariants
 // covers: Novis\Image\Font::fromBytes
 use Novis\Image\Font;
 use Novis\Image\Image;
@@ -17,7 +17,7 @@ final class Upload
         tainted bytes $kept = $image->encode();
         bytes $file = $image->encode();
         bytes $pixels = $image->raw()->pixels;
-        array<bytes> $sizes = $image->variants([{ width: 64 }]);
+        array<bytes> $sizes = $image->encodeVariants([{ width: 64 }]);
         Font $font = Font::fromBytes($fontFile);
     }
 }

@@ -5,7 +5,7 @@ use Novis\Spreadsheet\Workbook;
 
 var $made = Core\Time\DateTime::parse('2024-03-01 09:30', 'yyyy-MM-dd HH:mm', 'UTC')->toInstant();
 var $book = Workbook::createInMemory({ properties: { created: $made } });
-$book->sheet('Orders')->add(['Order']);
+$book->addSheet('Orders')->addRow(['Order']);
 var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 
 // `created` is an `Instant`, one moment with no time zone. `in` gives the local time of a zone.

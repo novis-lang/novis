@@ -5,7 +5,7 @@ use Novis\Spreadsheet\Workbook;
 
 bytes $logo = Core\Encoding::fromBase64('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7');
 var $book = Workbook::createInMemory();
-$book->sheet('Cover')->image('A1', $logo)->add(['Shop price list']);
+$book->addSheet('Cover')->addImage('A1', $logo)->addRow(['Shop price list']);
 var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 
 // The bytes are `tainted`, because they come from the file. Check them before you save or show them.

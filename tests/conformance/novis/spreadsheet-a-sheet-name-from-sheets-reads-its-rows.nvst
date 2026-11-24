@@ -10,13 +10,13 @@ use Novis\Spreadsheet\Row;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $shop = $book->sheet("Shop");
-$shop->add(["item", "price"]);
-$shop->add(["tea", 3]);
-$shop->add(["cake", 4]);
-var $blog = $book->sheet("Blog");
-$blog->add(["title"]);
-$blog->add(["Hello"]);
+var $shop = $book->addSheet("Shop");
+$shop->addRow(["item", "price"]);
+$shop->addRow(["tea", 3]);
+$shop->addRow(["cake", 4]);
+var $blog = $book->addSheet("Blog");
+$blog->addRow(["title"]);
+$blog->addRow(["Hello"]);
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 var $reader = Reader::open($file);
 

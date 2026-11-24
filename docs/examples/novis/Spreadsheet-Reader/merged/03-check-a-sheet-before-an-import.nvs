@@ -4,8 +4,8 @@ use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-$book->sheet('Plain')->addAll([['Item', 'Price'], ['Widget', 2.5]]);
-$book->sheet('Layout')->merge('A1:B1')->addAll([['Price list'], ['Widget', 2.5]]);
+$book->addSheet('Plain')->addRows([['Item', 'Price'], ['Widget', 2.5]]);
+$book->addSheet('Layout')->mergeCells('A1:B1')->addRows([['Price list'], ['Widget', 2.5]]);
 var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 
 // `merged` takes the position of the sheet. An empty list means the sheet has no merged cells.

@@ -34,7 +34,7 @@ says how `size`, `margin` and the level make the image and what each default is,
 `QrCode::render` and `QrCode::Level`; the host checks read each code back with `rqrr`. Text is
 the `text` step and the `text` source, shaped by `harfrust` and drawn by `ab_glyph`, whose
 module doc `extensions/image/src/text.rs` says how a size, a line, shaping, `maxWidth` and `align` set the
-text and what the box is, and `Image::text`, `Image::measureText` and `Font::fromBytes`, which
+text and what the box is, and `Image::withText`, `Image::measureText` and `Font::fromBytes`, which
 checks only the file's first four bytes and calls no export. SVG decodes through `resvg` with an
 image resolver that reads only `data:` URIs (`extensions/image/src/svg.rs`), and
 `crates/nvs-ext/tests/image_decode.rs` and

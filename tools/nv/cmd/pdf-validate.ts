@@ -51,9 +51,9 @@ export interface Fixture {
   source: string;
 }
 
-const CREATED = "->created(Core\\Time\\Instant::fromIso('2026-03-01T09:00:00Z'))";
+const CREATED = "->withCreationTime(Core\\Time\\Instant::fromIso('2026-03-01T09:00:00Z'))";
 
-/** A program that renders `html` under `standard`, with `calls` after `standard(...)`, and writes `<name>.pdf`. */
+/** A program that renders `html` under `standard`, with `calls` after `withStandard(...)`, and writes `<name>.pdf`. */
 function program(name: string, standard: string, html: string, calls: string[], before: string[] = []): string {
   return [
     "<?nvs",
@@ -61,7 +61,7 @@ function program(name: string, standard: string, html: string, calls: string[], 
     ...before,
     `string $html = ${html};`,
     "var $rendered = Document::fromHtml($html)",
-    `    ->standard(Document::Standard::${standard})`,
+    `    ->withStandard(Document::Standard::${standard})`,
     ...calls.map((c) => `    ${c}`),
     "    ->render();",
     `Core\\IO::writeStream("${name}.pdf", [$rendered->bytes], {});`,
@@ -99,7 +99,7 @@ export const FIXTURES: Fixture[] = [
       "PdfA3b",
       `"<html lang=\\"en\\"><head><title>Invoice Shop-1042</title></head>"
     . '<body><h1>Invoice Shop-1042</h1><p>Total: 5.70 EUR</p></body></html>'`,
-      [CREATED, "->invoiceXml($xml)"],
+      [CREATED, "->withInvoiceXml($xml)"],
       [`string $xml = ${INVOICE_XML};`],
     ),
   },

@@ -20,8 +20,8 @@ final class Shop {
 
     // This function writes the same two sheets to any workbook.
     public static function fill(Workbook $book): Novis\Spreadsheet\Written {
-        $book->sheet("Orders")->addAll(Shop::orders());
-        $book->sheet("Notes", {position: 0, tabColor: "#336699"})->add(["Shipped"]);
+        $book->addSheet("Orders")->addRows(Shop::orders());
+        $book->addSheet("Notes", {position: 0, tabColor: "#336699"})->addRow(["Shipped"]);
         return $book->finish();
     }
 }

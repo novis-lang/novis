@@ -1,8 +1,8 @@
 --TEST--
-`Novis\Image\Font::fromBytes` throws a `ParseError` for bytes that do not start like a TrueType or OpenType file, with no call to the component, and a font whose header is right but whose tables are missing throws a `ParseError` when `Image::measureText` or `Image::text` runs it — rule:core-classes/image-one-entry-point-per-job
+`Novis\Image\Font::fromBytes` throws a `ParseError` for bytes that do not start like a TrueType or OpenType file, with no call to the component, and a font whose header is right but whose tables are missing throws a `ParseError` when `Image::measureText` or `Image::withText` runs it — rule:core-classes/image-one-entry-point-per-job
 --FILE--
 <?nvs
-// covers: Novis\Image\Font::fromBytes, Novis\Image\Image::measureText, Novis\Image\Image::text
+// covers: Novis\Image\Font::fromBytes, Novis\Image\Image::measureText, Novis\Image\Image::withText
 use Novis\Image\Color;
 use Novis\Image\Font;
 use Novis\Image\Image;
@@ -31,7 +31,7 @@ try {
 }
 
 try {
-    Image::create(40, 20)->text("Blog", $empty, {size: 16.0, color: Color::rgba(0, 0, 0)})->encode();
+    Image::create(40, 20)->withText("Blog", $empty, {size: 16.0, color: Color::rgba(0, 0, 0)})->encode();
 } catch (ParseError $e) {
     echo "text: ParseError\n";
 }

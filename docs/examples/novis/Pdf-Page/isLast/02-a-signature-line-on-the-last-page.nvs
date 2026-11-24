@@ -11,6 +11,6 @@ var $footer = fn(Page $page): Core\Html\Markup => $page->isLast() ? html`<p>Sign
 
 // This reads the text of each page back from the PDF file.
 // The PDF file stores the footer after the body, so the footer text comes last.
-var $reader = Reader::open(Document::fromHtml($html)->footer($footer)->render()->bytes);
+var $reader = Reader::open(Document::fromHtml($html)->withFooter($footer)->render()->bytes);
 echo 'page 1: ', Core\Str::replace($reader->text(1), "\n", ' / '), "\n";
 echo 'page 2: ', Core\Str::replace($reader->text(2), "\n", ' / '), "\n";

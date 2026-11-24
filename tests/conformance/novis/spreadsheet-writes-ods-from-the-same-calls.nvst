@@ -54,10 +54,10 @@ final class Show
 
 // `format: 'ods'` writes an ods. The calls are the same as for xlsx.
 var $book = Workbook::createInMemory({format: "ods"});
-var $sheet = $book->sheet("Orders", {columns: ["item" => {header: "Item", width: 30}]});
-$sheet->add(["item" => "Widget", "count" => 3, "price" => 2.5, "paid" => true, "day" => Core\Time\Date::at(2024, 1, 15)]);
-$sheet->add(["item" => "Gadget", "count" => 1, "price" => 10.0, "paid" => false, "day" => null], {style: Style::of({bold: true})});
-$sheet->add(["item" => "Total", "count" => Formula::of("SUM(B2:B3)", {cached: 4}), "price" => null, "paid" => null, "day" => null]);
+var $sheet = $book->addSheet("Orders", {columns: ["item" => {header: "Item", width: 30}]});
+$sheet->addRow(["item" => "Widget", "count" => 3, "price" => 2.5, "paid" => true, "day" => Core\Time\Date::at(2024, 1, 15)]);
+$sheet->addRow(["item" => "Gadget", "count" => 1, "price" => 10.0, "paid" => false, "day" => null], {style: Style::of({bold: true})});
+$sheet->addRow(["item" => "Total", "count" => Formula::of("SUM(B2:B3)", {cached: 4}), "price" => null, "paid" => null, "day" => null]);
 var $written = $book->finish();
 echo $written->rows["Orders"], " rows\n";
 bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);
@@ -72,7 +72,7 @@ Show::rows(Reader::open($file), true);
 
 // A name that ends in `.ods` writes an ods, and `fromRows` writes it the same way.
 var $named = Workbook::createForFile("orders.ods");
-$named->sheet("Orders")->add(["name" => "Ada", "city" => "London"]);
+$named->addSheet("Orders")->addRow(["name" => "Ada", "city" => "London"]);
 $named->finish();
 Show::rows(Reader::open(Core\IO::open("orders.ods", Core\IO::FileMode::Read)));
 Workbook::fromRows([["name" => "Ada", "city" => "London"]])->save("people.ods");

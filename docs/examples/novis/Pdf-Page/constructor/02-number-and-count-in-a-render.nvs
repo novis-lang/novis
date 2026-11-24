@@ -13,5 +13,5 @@ var $header = fn(Page $page): Core\Html\Markup => {
     return html`<p>Shop catalogue, page {$page->number} of {$page->count}</p>`;
 };
 
-var $rendered = Document::fromHtml($html)->header($header)->render();
+var $rendered = Document::fromHtml($html)->withHeader($header)->render();
 echo $rendered->pageCount, " pages\n";

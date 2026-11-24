@@ -2,7 +2,7 @@
 The steps of a `Novis\Image\Image` run in the order they are written, so a crop before a resize gives a different size than a crop after it — rule:core-classes/image-pipeline
 --FILE--
 <?nvs
-// covers: Novis\Image\Image::resize, Novis\Image\Image::crop, Novis\Image\Image::rotate, Novis\Image\Image::encode
+// covers: Novis\Image\Image::resized, Novis\Image\Image::cropped, Novis\Image\Image::rotated, Novis\Image\Image::encode
 use Novis\Image\Image;
 
 // A PNG of 3 by 2 pixels with an alpha channel, written as hex.
@@ -14,18 +14,18 @@ Image $image = Image::open($png);
 
 // Resize to 6 by 4, then crop 2 by 2: the result is 2 by 2.
 var $first = Image::info(
-    $image->resize({width: 6, upscale: true})->crop({x: 0, y: 0, width: 2, height: 2})->encode()
+    $image->resized({width: 6, upscale: true})->cropped({x: 0, y: 0, width: 2, height: 2})->encode()
 );
 echo $first->width, "x", $first->height, "\n";
 
 // Crop 2 by 2, then resize to a width of 6: the result is 6 by 6.
 var $second = Image::info(
-    $image->crop({x: 0, y: 0, width: 2, height: 2})->resize({width: 6, upscale: true})->encode()
+    $image->cropped({x: 0, y: 0, width: 2, height: 2})->resized({width: 6, upscale: true})->encode()
 );
 echo $second->width, "x", $second->height, "\n";
 
 // Rotate by 90 degrees, then crop 2 by 3: this works only because the image is 2 by 3 after the rotation.
-var $third = Image::info($image->rotate(90.0)->crop({x: 0, y: 0, width: 2, height: 3})->encode());
+var $third = Image::info($image->rotated(90.0)->cropped({x: 0, y: 0, width: 2, height: 3})->encode());
 echo $third->width, "x", $third->height, "\n";
 --EXPECT--
 2x2

@@ -12,9 +12,9 @@ var $invoice = Document::fromHtml(
     "<html lang=\"en\"><head><title>Invoice Shop-9</title></head>"
         . '<body><p>Invoice Shop-9</p></body></html>',
 )
-    ->standard(Document::Standard::PdfA3b)
-    ->created(Core\Time\Instant::fromIso('2026-01-01T00:00:00Z'))
-    ->invoiceXml($xml)
+    ->withStandard(Document::Standard::PdfA3b)
+    ->withCreationTime(Core\Time\Instant::fromIso('2026-01-01T00:00:00Z'))
+    ->withInvoiceXml($xml)
     ->render()
     ->bytes;
 var $scan = Document::fromHtml('<p>Scanned delivery note</p>')->render()->bytes;

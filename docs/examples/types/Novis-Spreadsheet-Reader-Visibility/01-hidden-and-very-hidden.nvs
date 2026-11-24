@@ -16,9 +16,9 @@ class Visibilities
 }
 
 var $book = Workbook::createInMemory();
-$book->sheet('Prices')->add(['Tea', 2.5]);
-$book->sheet('Rates', { hidden: true })->add(['EUR', 1.0]);
-$book->sheet('Codes', { hidden: 'very' })->add(['A1', 'Shop']);
+$book->addSheet('Prices')->addRow(['Tea', 2.5]);
+$book->addSheet('Rates', { hidden: true })->addRow(['EUR', 1.0]);
+$book->addSheet('Codes', { hidden: 'very' })->addRow(['A1', 'Shop']);
 var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 
 // This prints "Prices: Visible", "Rates: Hidden" and "Codes: VeryHidden".

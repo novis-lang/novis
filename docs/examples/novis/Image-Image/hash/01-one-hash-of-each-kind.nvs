@@ -12,7 +12,7 @@ tainted bytes $photo = Image::fromRaw({
             . 'f0f0f0ff707070ff101010ffc0c0c0ff'
             . '404040ffb0b0b0ff808080ff000000ff',
     ),
-})->resize({ width: 64, height: 64 })->encode();
+})->resized({ width: 64, height: 64 })->encode();
 
 // This prints 8, 16 and 32 bytes.
 array<Image::HashKind> $kinds = [Image::HashKind::Perceptual, Image::HashKind::Difference, Image::HashKind::Average];

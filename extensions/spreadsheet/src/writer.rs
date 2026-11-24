@@ -635,7 +635,7 @@ impl Writer {
         self.writing()?;
         let Some(open) = self.open.as_mut() else {
             return Err(Error::Invalid(
-                "No sheet is open. Call `sheet()` before you add to it.".to_owned(),
+                "No sheet is open. Call `addSheet()` before you add to it.".to_owned(),
             ));
         };
         let sheet = open.options.name.as_str();
@@ -797,7 +797,7 @@ impl Writer {
     pub fn column(&self, column: u64) -> Result<String, Error> {
         let Some(open) = &self.open else {
             return Err(Error::Invalid(
-                "No sheet is open. Call `sheet()` before you ask for a column.".to_owned(),
+                "No sheet is open. Call `addSheet()` before you ask for a column.".to_owned(),
             ));
         };
         data_range(&open.options.name, open.header.is_some(), open.next, column)
@@ -831,7 +831,7 @@ impl Writer {
     fn append(&mut self, rows: &[Row]) -> Result<(), Error> {
         let Some(open) = &self.open else {
             return Err(Error::Invalid(
-                "No sheet is open. Call `sheet()` before you add rows.".to_owned(),
+                "No sheet is open. Call `addSheet()` before you add rows.".to_owned(),
             ));
         };
         // A table's totals row goes right after its last row.
@@ -1281,7 +1281,8 @@ impl Writer {
         self.writing()?;
         if self.sheets.is_empty() {
             return Err(Error::Invalid(
-                "A workbook needs at least one sheet. Call `sheet()` before `finish()`.".to_owned(),
+                "A workbook needs at least one sheet. Call `addSheet()` before `finish()`."
+                    .to_owned(),
             ));
         }
         let order = self.tab_order();

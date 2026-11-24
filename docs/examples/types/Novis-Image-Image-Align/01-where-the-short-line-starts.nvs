@@ -12,7 +12,7 @@ class Line
     public static function start(Image::Align $align): int
     {
         var $raw = Image::create(24, 20, Color::hex('#ffffff'))
-            ->text('Shop Hi', BoxFont::load(), {
+            ->withText('Shop Hi', BoxFont::load(), {
                 size: 10.0,
                 color: Color::hex('#000000'),
                 x: 0,

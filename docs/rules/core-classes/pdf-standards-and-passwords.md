@@ -1,15 +1,15 @@
 **Every render is a tagged PDF**: headings, paragraphs, lists, tables with their header cells, figures
 with their `alt` text and the document's language come from the HTML, with no option to turn it off.
-`Document::standard` adds one of **PDF/A-2b, PDF/A-3b or PDF/UA-1**, and a document that breaks the
+`Document::withStandard` adds one of **PDF/A-2b, PDF/A-3b or PDF/UA-1**, and a document that breaks the
 standard it chose throws `LogicError` naming what broke — an image with no `alt` under PDF/UA-1, a
 font that cannot be embedded under PDF/A — through `krilla`'s own validation. One standard per
-document, because `krilla` validates against one. PDF/A needs `Document::created`, because the
+document, because `krilla` validates against one. PDF/A needs `Document::withCreationTime`, because the
 component reads no clock, and PDF/UA-1 needs a `<title>`. A missing glyph, reported and never thrown
 otherwise, throws under any of the three, because each forbids the empty box drawn for it. Every
 heading has an outline entry on the page it is drawn on, a heading inside a table cell, an
 inline-block, a float or a flex item included.
 
-**`Document::password`** encrypts with **AES-256, revision 6**, and nothing weaker. Its salts and its
+**`Document::withPassword`** encrypts with **AES-256, revision 6**, and nothing weaker. Its salts and its
 file key are derived from a hash of the document and the password, so equal input stays byte-equal
 (`rule:core-classes/pdf-output-is-inert`). A password beside a PDF/A standard throws `LogicError`,
 because PDF/A forbids encryption.
@@ -24,7 +24,7 @@ it and the weaker revisions are broken.
 - **Performance:** a password adds four runs of the standard's password hash, each 64 or more rounds
   of AES and SHA-2, and one AES pass over the file.
 
-**On disk.** `Document::standard` and `Document::password` are in
+**On disk.** `Document::withStandard` and `Document::withPassword` are in
 `extensions/pdf/nvs/Document.nvs`, and a password beside a PDF/A standard is refused before anything
 is laid out (`extensions/pdf/src/lib.rs`'s `first`). Tagging and the three standards are
 `extensions/pdf/src/write.rs`, and the encryption is `extensions/pdf/src/encrypt.rs`, over the file

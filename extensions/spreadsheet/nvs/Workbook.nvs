@@ -8,7 +8,7 @@ use RuntimeError;
 use Throwable;
 
 /// An Excel file (xlsx), an OpenDocument file (ods) or a CSV file that your program writes row by row. A name that ends in `.ods` or `.csv`, or `format: 'ods'` or `format: 'csv'`, sets the format.
-/// Each `create` method sets where the file goes. Add a sheet with `sheet`, add its rows, and call `finish` at the end.
+/// Each `create` method sets where the file goes. Add a sheet with `addSheet`, add its rows, and call `finish` at the end.
 final class Workbook
 {
     type Options = ?{ zone?: string, format?: string, properties?: { title?: string, subject?: string, author?: string, company?: string, keywords?: string, created?: Core\Time\Instant }, csv?: { separator?: string, quote?: string, charset?: Core\Charset } };
@@ -114,18 +114,18 @@ final class Workbook
     {
         bool $once = !($rows is array<array<mixed>>) && !($rows is Iterable<array<mixed>>);
         return new Export(fn(Workbook $book): void => {
-            var $sheet = $book->sheet($options?->sheet ?? 'Sheet1', $options);
+            var $sheet = $book->addSheet($options?->sheet ?? 'Sheet1', $options);
             // All rows of an array go to the engine in one call, so the width of each column fits every row.
             if ($rows is array<array<mixed>>) {
                 $book->whole = true;
             }
-            $sheet->addAll($rows);
+            $sheet->addRows($rows);
         }, $options, null, $once);
     }
 
-    /// `sheet` starts a new sheet named `$name` and returns it. The sheet before it is finished, and you cannot add rows to it after this.
+    /// `addSheet` starts a new sheet named `$name` and returns it. The sheet before it is finished, and you cannot add rows to it after this.
     /// When the rows have keys, the first row shows them in bold, with a filter, and stays at the top. `header`, `headerStyle`, `freeze` and `autofilter` change this.
-    public function sheet(string $name, SheetOptions $options = null): Sheet
+    public function addSheet(string $name, SheetOptions $options = null): Sheet
     {
         $this->checkOpen();
         if ($this->csv && $this->sheets > 0) {
@@ -209,7 +209,7 @@ final class Workbook
             },
             newSheetOnOverflow: $overflow == 'newSheet',
         };
-        // The engine checks the name and the options here, so a bad one throws in `sheet`.
+        // The engine checks the name and the options here, so a bad one throws in `addSheet`.
         // The sheet before stays open until the engine starts this one.
         $this->send(Engine::writerSheet($this->writer, $layout, []));
         $this->open = true;
@@ -228,9 +228,9 @@ final class Workbook
         return new Sheet($this->sheets, $this->writer, $this->queue(...), $this->ready(...), $this->send(...), $this->position(...), $this->columnRange(...));
     }
 
-    /// `define` gives the cells at `$reference`, such as `'Orders!$C$2:$C$9'`, the name `$name`. A formula can then use the name.
+    /// `defineName` gives the cells at `$reference`, such as `'Orders!$C$2:$C$9'`, the name `$name`. A formula can then use the name.
     /// `$reference` must be a cell or a range of this workbook. Another file, a web address or a formula throws a `LogicError`.
-    public function define(string $name, string $reference): Workbook
+    public function defineName(string $name, string $reference): Workbook
     {
         $this->checkOpen();
         Engine::writerDefine($this->writer, $name, $reference);

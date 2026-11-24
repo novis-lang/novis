@@ -77,7 +77,8 @@ pub struct Encoding {
     pub format: Option<Format>,
     pub quality: Option<u64>,
     pub lossless: Option<bool>,
-    /// Set by `metadata({keep: true})`. Without it, the output carries no metadata.
+    /// Set by a `metadata` step with `keep`, which `keepingMetadata()` adds. Without it, the
+    /// output carries no metadata.
     pub keep_metadata: bool,
 }
 

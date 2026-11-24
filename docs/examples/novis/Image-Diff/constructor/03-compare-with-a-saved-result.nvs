@@ -21,7 +21,7 @@ Diff $saved = new Diff(false, 64, 3, 0.99, null);
 
 // Today one corner square of 16 by 16 pixels is a different colour.
 Image $before = Image::create(32, 32, Color::hex('#2563eb'));
-Image $after = $before->composite(Image::create(16, 16, Color::hex('#2865ee')), { x: 0, y: 0 });
+Image $after = $before->withOverlay(Image::create(16, 16, Color::hex('#2865ee')), { x: 0, y: 0 });
 
 // This prints `worse: 256 pixels differ, saved 64`.
 echo Baseline::check($saved, Image::compare($before, $after)), "\n";

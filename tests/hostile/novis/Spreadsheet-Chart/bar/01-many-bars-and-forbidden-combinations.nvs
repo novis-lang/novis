@@ -11,11 +11,11 @@ class Attack
     {
         try {
             var $book = Workbook::createInMemory();
-            var $sheet = $book->sheet('Shop');
+            var $sheet = $book->addSheet('Shop');
             for (int $n = 1; $n <= $rows; $n++) {
-                $sheet->add(['shop' => "Shop {$n}", 'sales' => $n]);
+                $sheet->addRow(['shop' => "Shop {$n}", 'sales' => $n]);
             }
-            $sheet->chart('E2', $chart);
+            $sheet->addChart('E2', $chart);
             bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
             echo 'step ', $step, ' wrote ', Core\Bytes::length($file) > 0 ? 'a file' : 'nothing', "\n";
         } catch (Throwable $e) {
@@ -27,14 +27,14 @@ class Attack
 // 1. A bar chart with 2,000 series of the same range.
 var $many = Chart::bar();
 for (int $n = 0; $n < 2000; $n++) {
-    $many = $many->series('B2:B3', { name: "Bar {$n}" });
+    $many = $many->withSeries('B2:B3', { name: "Bar {$n}" });
 }
 Attack::attempt(1, $many, 2);
 
 // 2. A bar chart over 20,000 rows, with a range that covers every row of the sheet.
-Attack::attempt(2, Chart::bar()->series('B1:B1048576', { categories: 'A1:A1048576' }), 20000);
+Attack::attempt(2, Chart::bar()->withSeries('B1:B1048576', { categories: 'A1:A1048576' }), 20000);
 
 // 3. Bars combined with columns, with a line, and with a column chart that is combined with bars.
-Attack::attempt(3, Chart::bar()->series('B2:B3')->combine(Chart::column()->series('B2:B3')), 2);
-Attack::attempt(3, Chart::bar()->series('B2:B3')->combine(Chart::line()->series('B2:B3')), 2);
-Attack::attempt(3, Chart::column()->series('B2:B3')->combine(Chart::bar()->series('B2:B3')), 2);
+Attack::attempt(3, Chart::bar()->withSeries('B2:B3')->combinedWith(Chart::column()->withSeries('B2:B3')), 2);
+Attack::attempt(3, Chart::bar()->withSeries('B2:B3')->combinedWith(Chart::line()->withSeries('B2:B3')), 2);
+Attack::attempt(3, Chart::column()->withSeries('B2:B3')->combinedWith(Chart::bar()->withSeries('B2:B3')), 2);

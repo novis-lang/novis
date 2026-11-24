@@ -5,7 +5,7 @@ use Novis\Image\Format;
 use Novis\Image\Image;
 
 // A 2400 by 1600 JPEG replaces a photo that a user uploaded.
-tainted bytes $upload = Image::create(2400, 1600, Color::hex('#336699'))->format(Format::Jpeg)->encode();
+tainted bytes $upload = Image::create(2400, 1600, Color::hex('#336699'))->withFormat(Format::Jpeg)->encode();
 
 // `info` reads only the start of the file. This prints "too wide: 2400".
 var $info = Image::info($upload);

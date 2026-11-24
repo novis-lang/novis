@@ -8,7 +8,7 @@ var $good = Document::fromHtml('<p>Shop</p>')->render()->bytes;
 
 // 1. A file with an empty password, between two good files.
 try {
-    var $empty = Document::fromHtml('<p>Locked</p>')->password('')->render()->bytes;
+    var $empty = Document::fromHtml('<p>Locked</p>')->withPassword('')->render()->bytes;
     echo 'step 1 ran ', Core\Bytes::length(Pages::merge([Pages::of($good), Pages::of($empty), Pages::of($good)])), "\n";
 } catch (Throwable $e) {
     echo "step 1 stopped\n";
@@ -41,7 +41,7 @@ try {
 
 // 4. One encrypted file, chosen two hundred times.
 try {
-    var $locked = Document::fromHtml('<p>Locked</p>')->password('example-password')->render()->bytes;
+    var $locked = Document::fromHtml('<p>Locked</p>')->withPassword('example-password')->render()->bytes;
     array<Pages> $parts = [];
     for (int $n = 0; $n < 200; $n++) {
         $parts[] = Pages::of($locked);

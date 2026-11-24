@@ -33,7 +33,7 @@ class Attack
 // 1. A workbook with 500 sheets, some of them hidden.
 var $book = Workbook::createInMemory();
 for (int $n = 0; $n < 500; $n++) {
-    $book->sheet("Shop {$n}", { hidden: $n % 3 == 0 })->add([$n]);
+    $book->addSheet("Shop {$n}", { hidden: $n % 3 == 0 })->addRow([$n]);
 }
 bytes $many = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 Attack::attempt(1, $many);

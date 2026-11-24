@@ -2,12 +2,12 @@ An `Image` is an **immutable value**: the source bytes plus a plan. `open` keeps
 nothing, so bytes that are not an image throw at the terminal, and a pipeline costs one host-to-guest
 call however it was built; every operation returns a new value that shares the bytes and extends the plan, so
 branching a pipeline costs an array rather than a frame; and nothing decodes until a terminal —
-`encode`, `variants`, `raw` — runs it. The plan executes in the order written, and steps may be fused
+`encode`, `encodeVariants`, `raw` — runs it. The plan executes in the order written, and steps may be fused
 only where the result differs by resampling rounding alone.
 
 That retires gd's mutable resource and every ambient mode flag with it: alpha always composites and
-always saves, the resampling filter is an option on `resize`, and progressive encoding is an option
-on `format`.
+always saves, the resampling filter is an option on `resized`, and progressive encoding is an option
+on `withFormat`.
 
 **The component's entry points are few, coarse and closed**, each one host-to-guest call carrying its
 whole input and returning its whole output. There is no per-pixel, per-row or per-frame member, and
@@ -67,7 +67,7 @@ options before anything is decoded; what each pixel step does beyond this rule, 
 pixel cap every frame a step makes is held to, are `extensions/image/src/ops.rs`'s module doc. A
 `composite` step names only an earlier row, and one plan draws a bounded number of overlays counting
 every level, so a few rows that each draw the one before twice cannot double the work per level
-(`extensions/image/src/lib.rs` module doc). The builder's `composite` appends the overlay's own
+(`extensions/image/src/lib.rs` module doc). The builder's `withOverlay` appends the overlay's own
 rows and then the overlay to the table, renumbering the overlay's steps by the rows already there. `variants` decodes once and costs one host-to-guest call, counted by
 `nvs_ext::call::Request::crossings` (`crates/nvs-ext/tests/image_pipeline.rs`). The `Novis\Image`
 builder is Novis source in `extensions/image/nvs/`, packed into the component's `nvs.source`:

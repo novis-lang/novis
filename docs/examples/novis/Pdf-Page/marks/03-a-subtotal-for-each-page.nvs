@@ -19,4 +19,4 @@ var $footer = fn(Page $page): Core\Html\Markup => {
     return html`<p>Subtotal of this page: {$subtotal} EUR</p>`;
 };
 
-Document::fromHtml($html)->footer($footer)->render();
+Document::fromHtml($html)->withFooter($footer)->render();

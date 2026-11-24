@@ -1107,38 +1107,38 @@ marked `~`: it is the machine, not the code.
 | `Novis\Image\Color::hex` | 12.00 | 2.00 | 6.00 | 206.0 |  |  | complexity constant | b7b6c28c94c7 |
 | `Novis\Image\Color::rgba` | 7.00 | 2.00 | 1.00 | 96.0 |  |  | complexity constant | b7b6c28c94c7 |
 | `Novis\Image\Font::fromBytes` | 19.00 | 2.00 | 1.00 | 48.0 |  |  | complexity constant | 7b874d488560 |
-| `Novis\Image\Image::blur` | 12.00 | 4.00 | 535.31 | 59855.5 |  |  | complexity constant | b981beeae3e5 |
-| `Novis\Image\Image::brightness` | 12.00 | 4.00 | 535.31 | 59867.5 |  |  | complexity constant | b981beeae3e5 |
+| `Novis\Image\Image::blurred` | 12.00 | 4.00 | 535.31 | 59855.5 |  |  | complexity constant | b981beeae3e5 |
+| `Novis\Image\Image::withBrightness` | 12.00 | 4.00 | 535.31 | 59867.5 |  |  | complexity constant | b981beeae3e5 |
 | `Novis\Image\Image::compare` | 12.00 | 4.00 | 75.05 | 22985.4 |  |  | complexity constant | 1048013af0f4 |
-| `Novis\Image\Image::composite` | 17.00 | 4.00 | 597.00 | 102245.0 |  |  | complexity constant | 899e9f213116 |
-| `Novis\Image\Image::contrast` | 12.00 | 4.00 | 532.59 | 58687.2 |  |  | complexity constant | b981beeae3e5 |
+| `Novis\Image\Image::withOverlay` | 17.00 | 4.00 | 597.00 | 102245.0 |  |  | complexity constant | 899e9f213116 |
+| `Novis\Image\Image::withContrast` | 12.00 | 4.00 | 532.59 | 58687.2 |  |  | complexity constant | b981beeae3e5 |
 | `Novis\Image\Image::create` | 10.00 | 4.00 | 507.00 | 53091.0 |  |  | complexity constant | bcab53e9bffb |
-| `Novis\Image\Image::crop` | 11.00 | 4.00 | 546.31 | 52921.5 |  |  | complexity constant | b981beeae3e5 |
+| `Novis\Image\Image::cropped` | 11.00 | 4.00 | 546.31 | 52921.5 |  |  | complexity constant | b981beeae3e5 |
 | `Novis\Image\Image::encode` | 15.00 | 6.00 | 529.31 | 78114.5 |  |  | complexity constant | bcab53e9bffb |
 | `Novis\Image\Image::extension` | 4.00 | 1.00 | 2.00 | 34.0 |  |  | complexity constant | db76fa840cd9 |
-| `Novis\Image\Image::flatten` | 15.00 | 7.00 | 549.31 | 60840.5 |  |  | complexity constant | b981beeae3e5 |
-| `Novis\Image\Image::flip` | 11.00 | 4.00 | 534.27 | 53530.2 |  |  | complexity constant | b981beeae3e5 |
-| `Novis\Image\Image::format` | 9.00 | 4.00 | 554.00 | 149456.0 |  |  | complexity constant | bcab53e9bffb |
+| `Novis\Image\Image::flattened` | 15.00 | 7.00 | 549.31 | 60840.5 |  |  | complexity constant | b981beeae3e5 |
+| `Novis\Image\Image::flipped` | 11.00 | 4.00 | 534.27 | 53530.2 |  |  | complexity constant | b981beeae3e5 |
+| `Novis\Image\Image::withFormat` | 9.00 | 4.00 | 554.00 | 149456.0 |  |  | complexity constant | bcab53e9bffb |
 | `Novis\Image\Image::fromRaw` | 10.00 | 3.00 | 499.00 | 60182.0 |  |  | complexity constant | bcab53e9bffb |
-| `Novis\Image\Image::gamma` | 12.00 | 4.00 | 535.00 | 59802.0 |  |  | complexity constant | b981beeae3e5 |
-| `Novis\Image\Image::grayscale` | 18.00 | 9.00 | 540.31 | 60265.5 |  |  | complexity constant | b981beeae3e5 |
+| `Novis\Image\Image::withGamma` | 12.00 | 4.00 | 535.00 | 59802.0 |  |  | complexity constant | b981beeae3e5 |
+| `Novis\Image\Image::grayscaled` | 18.00 | 9.00 | 540.31 | 60265.5 |  |  | complexity constant | b981beeae3e5 |
 | `Novis\Image\Image::hash` | 5.00 | 1.00 | 27.31 | 11435.0 |  |  | complexity constant | 1048013af0f4 |
 | `Novis\Image\Image::hashDistance` | 42.00 | 1.00 | 4.00 | 68.0 |  |  | complexity constant | 0e76cefb9368 |
 | `Novis\Image\Image::info` | 4.00 | 1.00 | 100.00 | 12950.0 | +2.406 | +1120.750 | complexity constant | bcab53e9bffb |
 | `Novis\Image\Image::measureText` | 8.00 | 1.00 | 511.00 | 63641.0 |  |  | complexity constant | 7b874d488560 |
-| `Novis\Image\Image::metadata` | 10.00 | 5.00 | 634.69 | 217616.5 |  |  | complexity constant | bcab53e9bffb |
+| `Novis\Image\Image::keepingMetadata` | 10.00 | 5.00 | 634.69 | 217616.5 |  |  | complexity constant | bcab53e9bffb |
 | `Novis\Image\Image::mime` | 4.00 | 1.00 | 2.00 | 34.0 |  |  | complexity constant | db76fa840cd9 |
 | `Novis\Image\Image::open` | 11.00 | 3.00 | 501.59 | 62738.2 |  |  | complexity constant | bcab53e9bffb |
 | `Novis\Image\Image::palette` | 12.00 | 3.00 | 54.00 | 11952.0 |  |  | complexity constant | 1048013af0f4 |
 | `Novis\Image\Image::placeholder` | 5.00 | 1.00 | 21.00 | 9239.0 |  |  | complexity constant | 1048013af0f4 |
 | `Novis\Image\Image::raw` | 8.00 | 1.00 | 506.59 | 56726.2 |  |  | complexity constant | bcab53e9bffb |
-| `Novis\Image\Image::resize` | 10.00 | 4.00 | 545.05 | 52810.4 |  |  | complexity constant | 081ab53046d2 |
-| `Novis\Image\Image::rotate` | 12.00 | 4.00 | 542.31 | 54167.5 |  |  | complexity constant | b981beeae3e5 |
-| `Novis\Image\Image::sharpen` | 14.00 | 4.00 | 544.31 | 60432.5 |  |  | complexity constant | b981beeae3e5 |
-| `Novis\Image\Image::text` | 10.00 | 5.00 | 589.00 | 93443.1 |  |  | complexity constant | 7b874d488560 |
-| `Novis\Image\Image::tint` | 16.00 | 7.00 | 551.41 | 61899.8 |  |  | complexity constant | b981beeae3e5 |
-| `Novis\Image\Image::trim` | 13.00 | 4.00 | 544.27 | 60436.2 |  |  | complexity constant | b981beeae3e5 |
-| `Novis\Image\Image::variants` | 34.00 | 3.00 | 615.00 | 90197.0 |  |  | complexity constant | bcab53e9bffb |
+| `Novis\Image\Image::resized` | 10.00 | 4.00 | 545.05 | 52810.4 |  |  | complexity constant | 081ab53046d2 |
+| `Novis\Image\Image::rotated` | 12.00 | 4.00 | 542.31 | 54167.5 |  |  | complexity constant | b981beeae3e5 |
+| `Novis\Image\Image::sharpened` | 14.00 | 4.00 | 544.31 | 60432.5 |  |  | complexity constant | b981beeae3e5 |
+| `Novis\Image\Image::withText` | 10.00 | 5.00 | 589.00 | 93443.1 |  |  | complexity constant | 7b874d488560 |
+| `Novis\Image\Image::tinted` | 16.00 | 7.00 | 551.41 | 61899.8 |  |  | complexity constant | b981beeae3e5 |
+| `Novis\Image\Image::trimmed` | 13.00 | 4.00 | 544.27 | 60436.2 |  |  | complexity constant | b981beeae3e5 |
+| `Novis\Image\Image::encodeVariants` | 34.00 | 3.00 | 615.00 | 90197.0 |  |  | complexity constant | bcab53e9bffb |
 | `Novis\Image\QrCode::giroCode` | 128.00 | 2.00 | 50.00 | 3371.0 |  |  | complexity constant | c283504a5d22 |
 | `Novis\Image\QrCode::render` | 9.00 | 1.00 | 74.31 | 204352.8 |  |  | complexity constant | e17429930f35 |
 | `Novis\Image\QrCode::svg` | 8.00 | 1.00 | 79.00 | 411286.8 |  |  | complexity constant | c283504a5d22 |
@@ -1159,16 +1159,16 @@ marked `~`: it is the machine, not the code.
 | `Novis\Intl\RelativeTime::format` | 5.00 | 1.00 | 85.31 | 5203.1 |  |  | complexity constant | 34fb1e1c6e6d |
 | `Novis\Intl\Segmenter::sentences` | 5.00 | 1.00 | 42.31 | 3522.5 |  |  | complexity constant | 45a1a9f7cacd |
 | `Novis\Intl\Segmenter::words` | 5.00 | 1.00 | 303.27 | 19525.7 |  |  | complexity constant | 45a1a9f7cacd |
-| `Novis\Pdf\Document::asset` | 7.00 | 2.00 | 4.03 | 480.0 |  |  | complexity constant | 240d120d1eff |
-| `Novis\Pdf\Document::created` | 5.00 | 2.00 | 1.03 | 240.0 |  |  | complexity constant | 240d120d1eff |
-| `Novis\Pdf\Document::footer` | 6.00 | 2.00 | 3.03 | 352.0 |  |  | complexity constant | 240d120d1eff |
+| `Novis\Pdf\Document::withAsset` | 7.00 | 2.00 | 4.03 | 480.0 |  |  | complexity constant | 240d120d1eff |
+| `Novis\Pdf\Document::withCreationTime` | 5.00 | 2.00 | 1.03 | 240.0 |  |  | complexity constant | 240d120d1eff |
+| `Novis\Pdf\Document::withFooter` | 6.00 | 2.00 | 3.03 | 352.0 |  |  | complexity constant | 240d120d1eff |
 | `Novis\Pdf\Document::fromHtml` | 7.00 | 2.00 | 1.03 | 240.0 |  |  | complexity constant | 240d120d1eff |
-| `Novis\Pdf\Document::header` | 6.00 | 2.00 | 3.03 | 352.0 |  |  | complexity constant | 240d120d1eff |
-| `Novis\Pdf\Document::invoiceXml` | 5.00 | 2.00 | 1.03 | 240.0 |  |  | complexity constant | 240d120d1eff |
-| `Novis\Pdf\Document::password` | 5.00 | 2.00 | 1.03 | 240.0 |  |  | complexity constant | 240d120d1eff |
+| `Novis\Pdf\Document::withHeader` | 6.00 | 2.00 | 3.03 | 352.0 |  |  | complexity constant | 240d120d1eff |
+| `Novis\Pdf\Document::withInvoiceXml` | 5.00 | 2.00 | 1.03 | 240.0 |  |  | complexity constant | 240d120d1eff |
+| `Novis\Pdf\Document::withPassword` | 5.00 | 2.00 | 1.03 | 240.0 |  |  | complexity constant | 240d120d1eff |
 | `Novis\Pdf\Document::render` | 12.00 | 4.00 | 287.00 | 3255020.5 |  |  | complexity linear | ca8fd9af2e85 |
-| `Novis\Pdf\Document::slots` | 6.00 | 2.00 | 2.03 | 288.0 |  |  | complexity constant | 240d120d1eff |
-| `Novis\Pdf\Document::standard` | 5.00 | 2.00 | 1.03 | 240.0 |  |  | complexity constant | 240d120d1eff |
+| `Novis\Pdf\Document::withSlots` | 6.00 | 2.00 | 2.03 | 288.0 |  |  | complexity constant | 240d120d1eff |
+| `Novis\Pdf\Document::withStandard` | 5.00 | 2.00 | 1.03 | 240.0 |  |  | complexity constant | 240d120d1eff |
 | `Novis\Pdf\Page::constructor` | 4.00 | 1.00 | 1.00 | 112.0 |  |  | complexity constant | cab1388b299b |
 | `Novis\Pdf\Page::isFirst` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | cab1388b299b |
 | `Novis\Pdf\Page::isLast` | 5.00 | 1.00 | 0.00 | 0.0 |  |  | complexity constant | cab1388b299b |
@@ -1194,12 +1194,12 @@ marked `~`: it is the machine, not the code.
 | `Novis\Spreadsheet\Chart::area` | 10.00 | 4.00 | 2.00 | 224.0 |  |  | complexity constant | 4b52e22be6cf |
 | `Novis\Spreadsheet\Chart::bar` | 13.00 | 4.00 | 2.00 | 224.0 |  |  | complexity constant | 4b52e22be6cf |
 | `Novis\Spreadsheet\Chart::column` | 11.00 | 4.00 | 2.00 | 240.0 |  |  | complexity constant | 4b52e22be6cf |
-| `Novis\Spreadsheet\Chart::combine` | 8.00 | 2.00 | 5.00 | 464.1 |  |  | complexity constant | 4b52e22be6cf |
+| `Novis\Spreadsheet\Chart::combinedWith` | 8.00 | 2.00 | 5.00 | 464.1 |  |  | complexity constant | 4b52e22be6cf |
 | `Novis\Spreadsheet\Chart::doughnut` | 12.00 | 4.00 | 2.00 | 224.1 |  |  | complexity constant | 4b52e22be6cf |
 | `Novis\Spreadsheet\Chart::line` | 9.00 | 4.00 | 2.00 | 240.1 |  |  | complexity constant | 4b52e22be6cf |
 | `Novis\Spreadsheet\Chart::pie` | 9.00 | 4.00 | 2.00 | 224.0 |  |  | complexity constant | 4b52e22be6cf |
 | `Novis\Spreadsheet\Chart::scatter` | 13.00 | 4.00 | 2.00 | 240.0 |  |  | complexity constant | 4b52e22be6cf |
-| `Novis\Spreadsheet\Chart::series` | 7.00 | 2.00 | 6.00 | 576.1 |  |  | complexity constant | 4b52e22be6cf |
+| `Novis\Spreadsheet\Chart::withSeries` | 7.00 | 2.00 | 6.00 | 576.1 |  |  | complexity constant | 4b52e22be6cf |
 | `Novis\Spreadsheet\Export::bytes` | 237.00 | 37.00 | 833.38 | 491392.9 |  |  | complexity constant | 7406ad6fa134 |
 | `Novis\Spreadsheet\Export::download` | 339.00 | 40.00 | 612.38 | 456656.6 |  |  | complexity constant | 7406ad6fa134 |
 | `Novis\Spreadsheet\Export::save` | 233.00 | 37.00 | 850.50 | 485410.4 |  |  | complexity constant | 7406ad6fa134 |
@@ -1217,21 +1217,21 @@ marked `~`: it is the machine, not the code.
 | `Novis\Spreadsheet\Reader::rows` | 9150.00 | 1518.00 | 20724.00 | 1173184.1 |  |  | complexity linear | 00fb51fccdd9 |
 | `Novis\Spreadsheet\Reader::sheets` | 8.00 | 2.00 | 214.00 | 14817.0 |  |  | complexity constant | 5ef2acedaa73 |
 | `Novis\Spreadsheet\Reader::tables` | 13.00 | 3.00 | 88.00 | 5921.1 |  |  | complexity constant | 5ef2acedaa73 |
-| `Novis\Spreadsheet\Sheet::add` | 84.00 | 12.00 | 92.25 | 6975.2 |  |  | complexity constant | 28d895d1fa68 |
-| `Novis\Spreadsheet\Sheet::addAll` | 810.00 | 111.00 | 880.25 | 65831.1 |  |  | complexity constant | 28d895d1fa68 |
+| `Novis\Spreadsheet\Sheet::addRow` | 84.00 | 12.00 | 92.25 | 6975.2 |  |  | complexity constant | 28d895d1fa68 |
+| `Novis\Spreadsheet\Sheet::addRows` | 810.00 | 111.00 | 880.25 | 65831.1 |  |  | complexity constant | 28d895d1fa68 |
 | `Novis\Spreadsheet\Sheet::cell` | 16.00 | 4.00 | 28.00 | 983.0 |  |  | complexity constant | 28d895d1fa68 |
-| `Novis\Spreadsheet\Sheet::chart` | 4620.00 | 685.00 | 6612.38 | 1343974.1 |  |  | complexity constant | 00fb51fccdd9 |
+| `Novis\Spreadsheet\Sheet::addChart` | 4620.00 | 685.00 | 6612.38 | 1343974.1 |  |  | complexity constant | 00fb51fccdd9 |
 | `Novis\Spreadsheet\Sheet::column` | 29.00 | 8.00 | 29.00 | 991.0 |  |  | complexity constant | 28d895d1fa68 |
-| `Novis\Spreadsheet\Sheet::conditional` | 417.00 | 72.00 | 2415.38 | 629882.1 |  |  | complexity constant | 28d895d1fa68 |
-| `Novis\Spreadsheet\Sheet::group` | 590.00 | 96.00 | 2529.38 | 632640.1 |  |  | complexity constant | 28d895d1fa68 |
-| `Novis\Spreadsheet\Sheet::image` | 314.00 | 51.00 | 1604.38 | 989616.1 |  |  | complexity constant | 28d895d1fa68 |
-| `Novis\Spreadsheet\Sheet::link` | 330.00 | 60.00 | 2263.38 | 612682.1 |  |  | complexity constant | 28d895d1fa68 |
-| `Novis\Spreadsheet\Sheet::merge` | 375.00 | 63.00 | 1818.38 | 576574.1 |  |  | complexity constant | 28d895d1fa68 |
-| `Novis\Spreadsheet\Sheet::note` | 395.00 | 69.00 | 2328.38 | 1022029.1 |  |  | complexity constant | 28d895d1fa68 |
-| `Novis\Spreadsheet\Sheet::print` | 317.00 | 51.00 | 1596.38 | 556072.1 |  |  | complexity constant | 28d895d1fa68 |
+| `Novis\Spreadsheet\Sheet::addConditionalFormat` | 417.00 | 72.00 | 2415.38 | 629882.1 |  |  | complexity constant | 28d895d1fa68 |
+| `Novis\Spreadsheet\Sheet::addOutlineGroup` | 590.00 | 96.00 | 2529.38 | 632640.1 |  |  | complexity constant | 28d895d1fa68 |
+| `Novis\Spreadsheet\Sheet::addImage` | 314.00 | 51.00 | 1604.38 | 989616.1 |  |  | complexity constant | 28d895d1fa68 |
+| `Novis\Spreadsheet\Sheet::addLink` | 330.00 | 60.00 | 2263.38 | 612682.1 |  |  | complexity constant | 28d895d1fa68 |
+| `Novis\Spreadsheet\Sheet::mergeCells` | 375.00 | 63.00 | 1818.38 | 576574.1 |  |  | complexity constant | 28d895d1fa68 |
+| `Novis\Spreadsheet\Sheet::addNote` | 395.00 | 69.00 | 2328.38 | 1022029.1 |  |  | complexity constant | 28d895d1fa68 |
+| `Novis\Spreadsheet\Sheet::setPrintOptions` | 317.00 | 51.00 | 1596.38 | 556072.1 |  |  | complexity constant | 28d895d1fa68 |
 | `Novis\Spreadsheet\Sheet::protect` | 314.00 | 51.00 | 1581.38 | 554298.1 |  |  | complexity constant | 28d895d1fa68 |
-| `Novis\Spreadsheet\Sheet::table` | 411.00 | 61.00 | 1685.38 | 965949.1 |  |  | complexity constant | 28d895d1fa68 |
-| `Novis\Spreadsheet\Sheet::validate` | 428.00 | 65.00 | 2370.38 | 622907.1 |  |  | complexity constant | 28d895d1fa68 |
+| `Novis\Spreadsheet\Sheet::addTable` | 411.00 | 61.00 | 1685.38 | 965949.1 |  |  | complexity constant | 28d895d1fa68 |
+| `Novis\Spreadsheet\Sheet::addValidation` | 428.00 | 65.00 | 2370.38 | 622907.1 |  |  | complexity constant | 28d895d1fa68 |
 | `Novis\Spreadsheet\Style::of` | 31.00 | 6.00 | 11.00 | 1079.3 |  |  | complexity constant | cc3ff70078c8 |
 | `Novis\Spreadsheet\Template::fill` | 4892.00 | 514.00 | 8305.75 | 1362894.5 |  |  | complexity linear | 00fb51fccdd9 |
 | `Novis\Spreadsheet\Template::open` | 9.00 | 2.00 | 113.38 | 12483.1 |  |  | complexity constant | fec887e4344a |
@@ -1240,10 +1240,10 @@ marked `~`: it is the machine, not the code.
 | `Novis\Spreadsheet\Workbook::createForFile` | 219.00 | 33.00 | 845.50 | 485013.0 |  |  | complexity constant | ae24fcfb94a2 |
 | `Novis\Spreadsheet\Workbook::createForStream` | 272.00 | 34.00 | 576.38 | 454597.1 |  |  | complexity constant | ae24fcfb94a2 |
 | `Novis\Spreadsheet\Workbook::createInMemory` | 812.00 | 114.00 | 1402.38 | 536178.1 |  |  | complexity constant | ae24fcfb94a2 |
-| `Novis\Spreadsheet\Workbook::define` | 8.00 | 2.00 | 26.00 | 886.4 |  |  | complexity constant | ae24fcfb94a2 |
+| `Novis\Spreadsheet\Workbook::defineName` | 8.00 | 2.00 | 26.00 | 886.4 |  |  | complexity constant | ae24fcfb94a2 |
 | `Novis\Spreadsheet\Workbook::finish` | 534.00 | 76.00 | 2055.38 | 726188.6 |  |  | complexity constant | ae24fcfb94a2 |
 | `Novis\Spreadsheet\Workbook::fromRows` | 7802.00 | 934.00 | 12007.38 | 1694989.1 |  |  | complexity linear | 00fb51fccdd9 |
-| `Novis\Spreadsheet\Workbook::sheet` | 148.00 | 20.00 | 594.38 | 141492.1 |  |  | complexity constant | ae24fcfb94a2 |
+| `Novis\Spreadsheet\Workbook::addSheet` | 148.00 | 20.00 | 594.38 | 141492.1 |  |  | complexity constant | ae24fcfb94a2 |
 | `lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration` | 10.00 | 2.00 | 2.00 | 128.0 |  |  | complexity constant, allocations 2, calls 2 | 2c26e6f4df83 |
 | `lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used` | 10.00 | 2.00 | 2.00 | 128.0 |  |  | complexity constant, allocations 2, calls 2 | 6304c4317f5a |
 | `lang:attributes/core-command-and-core-option-the-command-table` | 10.00 | 2.00 | 2.00 | 128.0 |  |  | complexity constant, allocations 2, calls 2 | 6304c4317f5a |
@@ -1812,36 +1812,36 @@ a person with a profiler looks first; it is not a verdict.
 | `Novis\Image\Codec::info` | Novis\Image\Codec | 38301.3 units against a `constant` ceiling of 100 |
 | `Novis\Image\Codec::run` | Novis\Image\Codec | 184957.4 units against a `constant` ceiling of 100 |
 | `Novis\Image\Codec::variants` | Novis\Image\Codec | 342642.0 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::blur` | Novis\Image\Image | 32877.2 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::brightness` | Novis\Image\Image | 99577.2 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::blurred` | Novis\Image\Image | 32877.2 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::withBrightness` | Novis\Image\Image | 99577.2 units against a `constant` ceiling of 100 |
 | `Novis\Image\Image::compare` | Novis\Image\Image | 196799.3 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::composite` | Novis\Image\Image | 7.8x its group's median of 59013.3 units — 461130.9 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::contrast` | Novis\Image\Image | 45725.9 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::withOverlay` | Novis\Image\Image | 7.8x its group's median of 59013.3 units — 461130.9 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::withContrast` | Novis\Image\Image | 45725.9 units against a `constant` ceiling of 100 |
 | `Novis\Image\Image::create` | Novis\Image\Image | 8691.7 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::crop` | Novis\Image\Image | 70930.8 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::cropped` | Novis\Image\Image | 70930.8 units against a `constant` ceiling of 100 |
 | `Novis\Image\Image::encode` | Novis\Image\Image | 8257.5 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::flatten` | Novis\Image\Image | 70150.2 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::flip` | Novis\Image\Image | 162763.6 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::format` | Novis\Image\Image | 6656.5 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::flattened` | Novis\Image\Image | 70150.2 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::flipped` | Novis\Image\Image | 162763.6 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::withFormat` | Novis\Image\Image | 6656.5 units against a `constant` ceiling of 100 |
 | `Novis\Image\Image::fromRaw` | Novis\Image\Image | 1673.8 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::gamma` | Novis\Image\Image | 73775.9 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::grayscale` | Novis\Image\Image | 35011.8 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::withGamma` | Novis\Image\Image | 73775.9 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::grayscaled` | Novis\Image\Image | 35011.8 units against a `constant` ceiling of 100 |
 | `Novis\Image\Image::hash` | Novis\Image\Image | 59926.0 units against a `constant` ceiling of 100 |
 | `Novis\Image\Image::hashDistance` | Novis\Image\Image | 862.0 units against a `constant` ceiling of 100 |
 | `Novis\Image\Image::info` | Novis\Image\Image | 7655.9 units against a `constant` ceiling of 100 |
 | `Novis\Image\Image::measureText` | Novis\Image\Image | 199156.2 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::metadata` | Novis\Image\Image | 10760.8 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::keepingMetadata` | Novis\Image\Image | 10760.8 units against a `constant` ceiling of 100 |
 | `Novis\Image\Image::open` | Novis\Image\Image | 18400.8 units against a `constant` ceiling of 100 |
 | `Novis\Image\Image::palette` | Novis\Image\Image | 198926.2 units against a `constant` ceiling of 100 |
 | `Novis\Image\Image::placeholder` | Novis\Image\Image | 146797.6 units against a `constant` ceiling of 100 |
 | `Novis\Image\Image::raw` | Novis\Image\Image | 7943.5 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::resize` | Novis\Image\Image | 59013.3 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::rotate` | Novis\Image\Image | 91563.0 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::sharpen` | Novis\Image\Image | 95451.9 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::text` | Novis\Image\Image | 127096.8 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::tint` | Novis\Image\Image | 25001.2 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::trim` | Novis\Image\Image | 71736.8 units against a `constant` ceiling of 100 |
-| `Novis\Image\Image::variants` | Novis\Image\Image | 17852.5 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::resized` | Novis\Image\Image | 59013.3 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::rotated` | Novis\Image\Image | 91563.0 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::sharpened` | Novis\Image\Image | 95451.9 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::withText` | Novis\Image\Image | 127096.8 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::tinted` | Novis\Image\Image | 25001.2 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::trimmed` | Novis\Image\Image | 71736.8 units against a `constant` ceiling of 100 |
+| `Novis\Image\Image::encodeVariants` | Novis\Image\Image | 17852.5 units against a `constant` ceiling of 100 |
 | `Novis\Image\QrCode::giroCode` | Novis\Image\QrCode | 1438.0 units against a `constant` ceiling of 100 |
 | `Novis\Image\QrCode::render` | Novis\Image\QrCode | 482078.6 units against a `constant` ceiling of 100 |
 | `Novis\Image\QrCode::svg` | Novis\Image\QrCode | 5.4x its group's median of 482078.6 units — 2599679.3 units against a `constant` ceiling of 100 |
@@ -1880,21 +1880,21 @@ a person with a profiler looks first; it is not a verdict.
 | `Novis\Spreadsheet\Reader::properties` | Novis\Spreadsheet\Reader | 324270.0 units against a `constant` ceiling of 100 |
 | `Novis\Spreadsheet\Reader::sheets` | Novis\Spreadsheet\Reader | 276902.4 units against a `constant` ceiling of 100 |
 | `Novis\Spreadsheet\Reader::tables` | Novis\Spreadsheet\Reader | 227678.7 units against a `constant` ceiling of 100 |
-| `Novis\Spreadsheet\Sheet::add` | Novis\Spreadsheet\Sheet | 83414.0 units against a `constant` ceiling of 100 |
-| `Novis\Spreadsheet\Sheet::addAll` | Novis\Spreadsheet\Sheet | 109013.0 units against a `constant` ceiling of 100 |
+| `Novis\Spreadsheet\Sheet::addRow` | Novis\Spreadsheet\Sheet | 83414.0 units against a `constant` ceiling of 100 |
+| `Novis\Spreadsheet\Sheet::addRows` | Novis\Spreadsheet\Sheet | 109013.0 units against a `constant` ceiling of 100 |
 | `Novis\Spreadsheet\Sheet::cell` | Novis\Spreadsheet\Sheet | 72219.6 units against a `constant` ceiling of 100 |
-| `Novis\Spreadsheet\Sheet::chart` | Novis\Spreadsheet\Sheet | 586942.7 units against a `constant` ceiling of 100 |
+| `Novis\Spreadsheet\Sheet::addChart` | Novis\Spreadsheet\Sheet | 586942.7 units against a `constant` ceiling of 100 |
 | `Novis\Spreadsheet\Sheet::column` | Novis\Spreadsheet\Sheet | 107599.1 units against a `constant` ceiling of 100 |
-| `Novis\Spreadsheet\Sheet::conditional` | Novis\Spreadsheet\Sheet | 1217364.4 units against a `constant` ceiling of 100 |
-| `Novis\Spreadsheet\Sheet::group` | Novis\Spreadsheet\Sheet | 620470.5 units against a `constant` ceiling of 100 |
-| `Novis\Spreadsheet\Sheet::image` | Novis\Spreadsheet\Sheet | 849632.7 units against a `constant` ceiling of 100 |
-| `Novis\Spreadsheet\Sheet::link` | Novis\Spreadsheet\Sheet | 497540.5 units against a `constant` ceiling of 100 |
-| `Novis\Spreadsheet\Sheet::merge` | Novis\Spreadsheet\Sheet | 420281.3 units against a `constant` ceiling of 100 |
-| `Novis\Spreadsheet\Sheet::note` | Novis\Spreadsheet\Sheet | 740138.7 units against a `constant` ceiling of 100 |
-| `Novis\Spreadsheet\Sheet::print` | Novis\Spreadsheet\Sheet | 401745.0 units against a `constant` ceiling of 100 |
+| `Novis\Spreadsheet\Sheet::addConditionalFormat` | Novis\Spreadsheet\Sheet | 1217364.4 units against a `constant` ceiling of 100 |
+| `Novis\Spreadsheet\Sheet::addOutlineGroup` | Novis\Spreadsheet\Sheet | 620470.5 units against a `constant` ceiling of 100 |
+| `Novis\Spreadsheet\Sheet::addImage` | Novis\Spreadsheet\Sheet | 849632.7 units against a `constant` ceiling of 100 |
+| `Novis\Spreadsheet\Sheet::addLink` | Novis\Spreadsheet\Sheet | 497540.5 units against a `constant` ceiling of 100 |
+| `Novis\Spreadsheet\Sheet::mergeCells` | Novis\Spreadsheet\Sheet | 420281.3 units against a `constant` ceiling of 100 |
+| `Novis\Spreadsheet\Sheet::addNote` | Novis\Spreadsheet\Sheet | 740138.7 units against a `constant` ceiling of 100 |
+| `Novis\Spreadsheet\Sheet::setPrintOptions` | Novis\Spreadsheet\Sheet | 401745.0 units against a `constant` ceiling of 100 |
 | `Novis\Spreadsheet\Sheet::protect` | Novis\Spreadsheet\Sheet | 368557.5 units against a `constant` ceiling of 100 |
-| `Novis\Spreadsheet\Sheet::table` | Novis\Spreadsheet\Sheet | 658726.2 units against a `constant` ceiling of 100 |
-| `Novis\Spreadsheet\Sheet::validate` | Novis\Spreadsheet\Sheet | 360227.5 units against a `constant` ceiling of 100 |
+| `Novis\Spreadsheet\Sheet::addTable` | Novis\Spreadsheet\Sheet | 658726.2 units against a `constant` ceiling of 100 |
+| `Novis\Spreadsheet\Sheet::addValidation` | Novis\Spreadsheet\Sheet | 360227.5 units against a `constant` ceiling of 100 |
 | `Novis\Spreadsheet\Style::of` | Novis\Spreadsheet\Style | 21531.6 units against a `constant` ceiling of 100 |
 | `Novis\Spreadsheet\Template::open` | Novis\Spreadsheet\Template | 643877.1 units against a `constant` ceiling of 100 |
 | `Novis\Spreadsheet\Template::set` | Novis\Spreadsheet\Template | 323944.1 units against a `constant` ceiling of 100 |
@@ -3073,38 +3073,38 @@ a person with a profiler looks first; it is not a verdict.
 | `Novis\Image\Color::hex` | 264.1 | 400.5 | 75.768 |  | flat | b7b6c28c94c7 |  |
 | `Novis\Image\Color::rgba` | 57.9 | 98.3 | 16.607 |  | flat | b7b6c28c94c7 |  |
 | `Novis\Image\Font::fromBytes` | 74.7 | 76.9 | 9.249 |  | flat | 7b874d488560 |  |
-| `Novis\Image\Image::blur` | 331617.2 | 1017275.4 | 32877.167 |  | unclear | b981beeae3e5 |  |
-| `Novis\Image\Image::brightness` | 1004390.6 | 1180855.5 | 99577.222 |  | flat | b981beeae3e5 |  |
+| `Novis\Image\Image::blurred` | 331617.2 | 1017275.4 | 32877.167 |  | unclear | b981beeae3e5 |  |
+| `Novis\Image\Image::withBrightness` | 1004390.6 | 1180855.5 | 99577.222 |  | flat | b981beeae3e5 |  |
 | `Novis\Image\Image::compare` | 972503.5 | 1343642.2 | 196799.319 |  | unclear | 1048013af0f4 |  |
-| `Novis\Image\Image::composite` | 1423441.8 | 2041677.0 | 461130.861 |  | flat | 899e9f213116 |  |
-| `Novis\Image\Image::contrast` | 461216.4 | 1263155.1 | 45725.883 |  | unclear | b981beeae3e5 |  |
+| `Novis\Image\Image::withOverlay` | 1423441.8 | 2041677.0 | 461130.861 |  | flat | 899e9f213116 |  |
+| `Novis\Image\Image::withContrast` | 461216.4 | 1263155.1 | 45725.883 |  | unclear | b981beeae3e5 |  |
 | `Novis\Image\Image::create` | 346383.6 | 1095786.3 | 8691.684 |  | unclear | bcab53e9bffb |  |
-| `Novis\Image\Image::crop` | 231138.7 | 576905.5 | 70930.806 |  | unclear | b981beeae3e5 |  |
+| `Novis\Image\Image::cropped` | 231138.7 | 576905.5 | 70930.806 |  | unclear | b981beeae3e5 |  |
 | `Novis\Image\Image::encode` | 329080.9 | 717304.7 | 8257.512 |  | flat | bcab53e9bffb |  |
 | `Novis\Image\Image::extension` | 87.8 | 105.6 | 59.312 |  | flat | db76fa840cd9 |  |
-| `Novis\Image\Image::flatten` | 228594.9 | 430131.6 | 70150.192 |  | flat | b981beeae3e5 |  |
-| `Novis\Image\Image::flip` | 530389.5 | 704422.7 | 162763.553 |  | flat | b981beeae3e5 |  |
-| `Novis\Image\Image::format` | 265276.6 | 1176959.4 | 6656.493 |  | flat | bcab53e9bffb |  |
+| `Novis\Image\Image::flattened` | 228594.9 | 430131.6 | 70150.192 |  | flat | b981beeae3e5 |  |
+| `Novis\Image\Image::flipped` | 530389.5 | 704422.7 | 162763.553 |  | flat | b981beeae3e5 |  |
+| `Novis\Image\Image::withFormat` | 265276.6 | 1176959.4 | 6656.493 |  | flat | bcab53e9bffb |  |
 | `Novis\Image\Image::fromRaw` | 66704.7 | 305619.9 | 1673.798 |  | flat | bcab53e9bffb |  |
-| `Novis\Image\Image::gamma` | 744144.5 | 932322.7 | 73775.923 |  | flat | b981beeae3e5 |  |
-| `Novis\Image\Image::grayscale` | 353148.0 | 489818.0 | 35011.778 |  | flat | b981beeae3e5 |  |
+| `Novis\Image\Image::withGamma` | 744144.5 | 932322.7 | 73775.923 |  | flat | b981beeae3e5 |  |
+| `Novis\Image\Image::grayscaled` | 353148.0 | 489818.0 | 35011.778 |  | flat | b981beeae3e5 |  |
 | `Novis\Image\Image::hash` | 296130.5 | 861515.2 | 59926.030 |  | unclear | 1048013af0f4 |  |
 | `Novis\Image\Image::hashDistance` | 1991.7 | 2394.1 | 861.972 |  | flat | 0e76cefb9368 |  |
 | `Novis\Image\Image::info` | 147910.4 | 189777.1 | 7655.914 |  | flat | bcab53e9bffb |  |
 | `Novis\Image\Image::measureText` | 645136.7 | 734980.9 | 199156.226 |  | unclear | 7b874d488560 |  |
-| `Novis\Image\Image::metadata` | 428844.1 | 1729916.0 | 10760.838 |  | unclear | bcab53e9bffb |  |
+| `Novis\Image\Image::keepingMetadata` | 428844.1 | 1729916.0 | 10760.838 |  | unclear | bcab53e9bffb |  |
 | `Novis\Image\Image::mime` | 100.7 | 104.9 | 65.477 |  | flat | db76fa840cd9 |  |
 | `Novis\Image\Image::open` | 733314.8 | 1270024.2 | 18400.816 |  | unclear | bcab53e9bffb |  |
 | `Novis\Image\Image::palette` | 983013.7 | 1211837.5 | 198926.192 |  | unclear | 1048013af0f4 |  |
 | `Novis\Image\Image::placeholder` | 725415.2 | 1297400.8 | 146797.643 |  | unclear | 1048013af0f4 |  |
 | `Novis\Image\Image::raw` | 316565.6 | 746346.9 | 7943.472 |  | unclear | bcab53e9bffb |  |
-| `Novis\Image\Image::resize` | 607621.1 | 853472.7 | 59013.252 |  | unclear | 081ab53046d2 |  |
-| `Novis\Image\Image::rotate` | 298371.9 | 705527.0 | 91563.032 |  | unclear | b981beeae3e5 |  |
-| `Novis\Image\Image::sharpen` | 962780.5 | 1224175.0 | 95451.911 |  | flat | b981beeae3e5 |  |
-| `Novis\Image\Image::text` | 1025925.0 | 1236350.8 | 127096.754 |  | flat | 7b874d488560 |  |
-| `Novis\Image\Image::tint` | 252176.2 | 406846.5 | 25001.232 |  | unclear | b981beeae3e5 |  |
-| `Novis\Image\Image::trim` | 233765.2 | 646279.7 | 71736.834 |  | flat | b981beeae3e5 |  |
-| `Novis\Image\Image::variants` | 711463.7 | 1109273.4 | 17852.512 |  | unclear | bcab53e9bffb |  |
+| `Novis\Image\Image::resized` | 607621.1 | 853472.7 | 59013.252 |  | unclear | 081ab53046d2 |  |
+| `Novis\Image\Image::rotated` | 298371.9 | 705527.0 | 91563.032 |  | unclear | b981beeae3e5 |  |
+| `Novis\Image\Image::sharpened` | 962780.5 | 1224175.0 | 95451.911 |  | flat | b981beeae3e5 |  |
+| `Novis\Image\Image::withText` | 1025925.0 | 1236350.8 | 127096.754 |  | flat | 7b874d488560 |  |
+| `Novis\Image\Image::tinted` | 252176.2 | 406846.5 | 25001.232 |  | unclear | b981beeae3e5 |  |
+| `Novis\Image\Image::trimmed` | 233765.2 | 646279.7 | 71736.834 |  | flat | b981beeae3e5 |  |
+| `Novis\Image\Image::encodeVariants` | 711463.7 | 1109273.4 | 17852.512 |  | unclear | bcab53e9bffb |  |
 | `Novis\Image\QrCode::giroCode` | 4447.3 | 13008.2 | 1438.011 |  | flat | c283504a5d22 |  |
 | `Novis\Image\QrCode::render` | 2699712.5 | 15206967.6 | 482078.605 |  | unclear | e17429930f35 |  |
 | `Novis\Image\QrCode::svg` | 8039898.0 | 8083133.2 | 2599679.255 |  | flat | c283504a5d22 |  |
@@ -3125,16 +3125,16 @@ a person with a profiler looks first; it is not a verdict.
 | `Novis\Intl\RelativeTime::format` | 401930.5 | 410614.2 | 46907.097 |  | flat | 34fb1e1c6e6d |  |
 | `Novis\Intl\Segmenter::sentences` | 229983.3 | 311909.6 | 272475.920 |  | flat | 45a1a9f7cacd |  |
 | `Novis\Intl\Segmenter::words` | 616440.7 | 687160.6 | 730336.710 |  | flat | 45a1a9f7cacd |  |
-| `Novis\Pdf\Document::asset` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
-| `Novis\Pdf\Document::created` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
-| `Novis\Pdf\Document::footer` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
+| `Novis\Pdf\Document::withAsset` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
+| `Novis\Pdf\Document::withCreationTime` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
+| `Novis\Pdf\Document::withFooter` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
 | `Novis\Pdf\Document::fromHtml` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
-| `Novis\Pdf\Document::header` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
-| `Novis\Pdf\Document::invoiceXml` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
-| `Novis\Pdf\Document::password` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
+| `Novis\Pdf\Document::withHeader` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
+| `Novis\Pdf\Document::withInvoiceXml` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
+| `Novis\Pdf\Document::withPassword` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
 | `Novis\Pdf\Document::render` | 66772259.4 | 68254493.8 | 43559435.955 |  | unclear, flat | ca8fd9af2e85 |  |
-| `Novis\Pdf\Document::slots` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
-| `Novis\Pdf\Document::standard` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
+| `Novis\Pdf\Document::withSlots` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
+| `Novis\Pdf\Document::withStandard` | 0.0 | 0.0 | 0.000 |  | flat | 240d120d1eff |  |
 | `Novis\Pdf\Page::constructor` | 32.1 | 509.8 | 10.742 |  | flat | cab1388b299b |  |
 | `Novis\Pdf\Page::isFirst` | 373.7 | 907.0 | 125.056 |  | flat | cab1388b299b |  |
 | `Novis\Pdf\Page::isLast` | 472.2 | 645.9 | 158.011 |  | flat | cab1388b299b |  |
@@ -3160,12 +3160,12 @@ a person with a profiler looks first; it is not a verdict.
 | `Novis\Spreadsheet\Chart::area` | 0.0 | 507234.4 | 0.000 |  | flat | 4b52e22be6cf |  |
 | `Novis\Spreadsheet\Chart::bar` | 0.0 | 35231.2 | 0.000 |  | flat | 4b52e22be6cf |  |
 | `Novis\Spreadsheet\Chart::column` | 182162.5 | 293334.4 | 64009.874 |  | flat | 4b52e22be6cf |  |
-| `Novis\Spreadsheet\Chart::combine` | 0.0 | 0.0 | 0.000 |  | flat | 4b52e22be6cf |  |
+| `Novis\Spreadsheet\Chart::combinedWith` | 0.0 | 0.0 | 0.000 |  | flat | 4b52e22be6cf |  |
 | `Novis\Spreadsheet\Chart::doughnut` | 0.0 | 0.0 | 0.000 |  | flat | 4b52e22be6cf |  |
 | `Novis\Spreadsheet\Chart::line` | 0.0 | 90625.0 | 0.000 |  | flat | 4b52e22be6cf |  |
 | `Novis\Spreadsheet\Chart::pie` | 0.0 | 0.0 | 0.000 |  | flat | 4b52e22be6cf |  |
 | `Novis\Spreadsheet\Chart::scatter` | 0.0 | 0.0 | 0.000 |  | flat | 4b52e22be6cf |  |
-| `Novis\Spreadsheet\Chart::series` | 0.0 | 0.0 | 0.000 |  | flat | 4b52e22be6cf |  |
+| `Novis\Spreadsheet\Chart::withSeries` | 0.0 | 0.0 | 0.000 |  | flat | 4b52e22be6cf |  |
 | `Novis\Spreadsheet\Export::bytes` | 0.0 | 1855012.5 | 0.000 |  | flat | 7406ad6fa134 |  |
 | `Novis\Spreadsheet\Export::download` | 0.0 | 0.0 | 0.000 |  | flat | 7406ad6fa134 |  |
 | `Novis\Spreadsheet\Export::save` | 0.0 | 0.0 | 0.000 |  | flat | 7406ad6fa134 |  |
@@ -3183,21 +3183,21 @@ a person with a profiler looks first; it is not a verdict.
 | `Novis\Spreadsheet\Reader::rows` | 2222271.9 | 2652681.2 | 1438224.040 |  | flat, flat | 00fb51fccdd9 |  |
 | `Novis\Spreadsheet\Reader::sheets` | 710046.9 | 1151684.4 | 276902.359 |  | flat | 5ef2acedaa73 |  |
 | `Novis\Spreadsheet\Reader::tables` | 583825.0 | 4211053.1 | 227678.658 |  | flat | 5ef2acedaa73 |  |
-| `Novis\Spreadsheet\Sheet::add` | 542762.5 | 1190703.1 | 83414.018 |  | flat | 28d895d1fa68 |  |
-| `Novis\Spreadsheet\Sheet::addAll` | 709331.2 | 1386615.6 | 109013.002 |  | unclear | 28d895d1fa68 |  |
+| `Novis\Spreadsheet\Sheet::addRow` | 542762.5 | 1190703.1 | 83414.018 |  | flat | 28d895d1fa68 |  |
+| `Novis\Spreadsheet\Sheet::addRows` | 709331.2 | 1386615.6 | 109013.002 |  | unclear | 28d895d1fa68 |  |
 | `Novis\Spreadsheet\Sheet::cell` | 469921.9 | 1149631.2 | 72219.565 |  | flat | 28d895d1fa68 |  |
-| `Novis\Spreadsheet\Sheet::chart` | 2151115.6 | 2739371.9 | 586942.694 |  | flat | 00fb51fccdd9 |  |
+| `Novis\Spreadsheet\Sheet::addChart` | 2151115.6 | 2739371.9 | 586942.694 |  | flat | 00fb51fccdd9 |  |
 | `Novis\Spreadsheet\Sheet::column` | 700131.2 | 1701134.4 | 107599.107 |  | flat | 28d895d1fa68 |  |
-| `Novis\Spreadsheet\Sheet::conditional` | 3418359.4 | 3825596.9 | 1217364.450 |  | flat | 28d895d1fa68 |  |
-| `Novis\Spreadsheet\Sheet::group` | 1742281.2 | 1919312.5 | 620470.531 |  | flat | 28d895d1fa68 |  |
-| `Novis\Spreadsheet\Sheet::image` | 2385768.8 | 2627134.4 | 849632.746 |  | flat | 28d895d1fa68 |  |
-| `Novis\Spreadsheet\Sheet::link` | 1397093.8 | 1824271.9 | 497540.509 |  | flat | 28d895d1fa68 |  |
-| `Novis\Spreadsheet\Sheet::merge` | 1180150.0 | 1835225.0 | 420281.339 |  | flat | 28d895d1fa68 |  |
-| `Novis\Spreadsheet\Sheet::note` | 2078309.4 | 3614950.0 | 740138.666 |  | flat | 28d895d1fa68 |  |
-| `Novis\Spreadsheet\Sheet::print` | 1128100.0 | 1725890.6 | 401745.014 |  | flat | 28d895d1fa68 |  |
+| `Novis\Spreadsheet\Sheet::addConditionalFormat` | 3418359.4 | 3825596.9 | 1217364.450 |  | flat | 28d895d1fa68 |  |
+| `Novis\Spreadsheet\Sheet::addOutlineGroup` | 1742281.2 | 1919312.5 | 620470.531 |  | flat | 28d895d1fa68 |  |
+| `Novis\Spreadsheet\Sheet::addImage` | 2385768.8 | 2627134.4 | 849632.746 |  | flat | 28d895d1fa68 |  |
+| `Novis\Spreadsheet\Sheet::addLink` | 1397093.8 | 1824271.9 | 497540.509 |  | flat | 28d895d1fa68 |  |
+| `Novis\Spreadsheet\Sheet::mergeCells` | 1180150.0 | 1835225.0 | 420281.339 |  | flat | 28d895d1fa68 |  |
+| `Novis\Spreadsheet\Sheet::addNote` | 2078309.4 | 3614950.0 | 740138.666 |  | flat | 28d895d1fa68 |  |
+| `Novis\Spreadsheet\Sheet::setPrintOptions` | 1128100.0 | 1725890.6 | 401745.014 |  | flat | 28d895d1fa68 |  |
 | `Novis\Spreadsheet\Sheet::protect` | 1034909.4 | 1520284.4 | 368557.470 |  | flat | 28d895d1fa68 |  |
-| `Novis\Spreadsheet\Sheet::table` | 1849703.1 | 1915421.9 | 658726.184 |  | flat | 28d895d1fa68 |  |
-| `Novis\Spreadsheet\Sheet::validate` | 1011518.8 | 1062381.2 | 360227.475 |  | flat | 28d895d1fa68 |  |
+| `Novis\Spreadsheet\Sheet::addTable` | 1849703.1 | 1915421.9 | 658726.184 |  | flat | 28d895d1fa68 |  |
+| `Novis\Spreadsheet\Sheet::addValidation` | 1011518.8 | 1062381.2 | 360227.475 |  | flat | 28d895d1fa68 |  |
 | `Novis\Spreadsheet\Style::of` | 153185.2 | 254775.4 | 21531.553 |  | flat | cc3ff70078c8 |  |
 | `Novis\Spreadsheet\Template::fill` | 2695675.0 | 4217037.5 | 735528.452 |  | flat, flat | 00fb51fccdd9 |  |
 | `Novis\Spreadsheet\Template::open` | 2606028.1 | 6883653.1 | 643877.088 |  | flat | fec887e4344a |  |
@@ -3206,10 +3206,10 @@ a person with a profiler looks first; it is not a verdict.
 | `Novis\Spreadsheet\Workbook::createForFile` | 0.0 | 380196.9 | 0.000 |  | flat | ae24fcfb94a2 |  |
 | `Novis\Spreadsheet\Workbook::createForStream` | 5085781.2 | 6418943.8 | 920611.701 |  | flat | ae24fcfb94a2 |  |
 | `Novis\Spreadsheet\Workbook::createInMemory` | 0.0 | 0.0 | 0.000 |  | flat | ae24fcfb94a2 |  |
-| `Novis\Spreadsheet\Workbook::define` | 0.0 | 0.0 | 0.000 |  | flat | ae24fcfb94a2 |  |
+| `Novis\Spreadsheet\Workbook::defineName` | 0.0 | 0.0 | 0.000 |  | flat | ae24fcfb94a2 |  |
 | `Novis\Spreadsheet\Workbook::finish` | 0.0 | 19931.2 | 0.000 |  | flat | ae24fcfb94a2 |  |
 | `Novis\Spreadsheet\Workbook::fromRows` | 2679340.6 | 2767650.0 | 731071.536 |  | flat, flat | 00fb51fccdd9 |  |
-| `Novis\Spreadsheet\Workbook::sheet` | 0.0 | 0.0 | 0.000 |  | unclear | ae24fcfb94a2 |  |
+| `Novis\Spreadsheet\Workbook::addSheet` | 0.0 | 0.0 | 0.000 |  | unclear | ae24fcfb94a2 |  |
 | `lang:attributes/an-attribute-is-an-anonymous-object-attached-to-a-declaration` | 27469.9 | 62266.0 | 3178.819 | +860.7% | flat | 2c26e6f4df83 | 2a675d2d211d3f5ac494da900ce9804b |
 | `lang:attributes/an-attribute-is-declared-with-the-places-it-may-be-used` | 11813.7 | 16468.4 | 3263.310 | -21.2% ~ | flat | 6304c4317f5a | 293b58dee604f5b0d71889b867fd8448 |
 | `lang:attributes/core-command-and-core-option-the-command-table` | 19844.1 | 26463.3 | 5481.580 | -84.6% | flat | 6304c4317f5a | 293b58dee604f5b0d71889b867fd8448 |

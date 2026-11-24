@@ -27,7 +27,7 @@ row is styled by default: a bold header with a bottom border, frozen, filtered, 
 is.
 
 **Layering.** A cell's style is each field from the most specific layer that sets it: the cell's own
-(`Cell::of`), then the row's (`add`'s `style`), then the column's. A field no layer sets is Excel's
+(`Cell::of`), then the row's (`addRow`'s `style`), then the column's. A field no layer sets is Excel's
 default. Every distinct combination becomes one entry of `styles.xml` at `finish()`, so equal
 combinations share one entry, and Excel's limit of 65,490 cell formats throws naming it.
 
@@ -38,7 +38,7 @@ or `'auto'`), `format`, `style`, `hidden` and `formula`
 named ones in the order of the first row; a column a row lacks is an empty cell. Rows that are lists
 of plain lists have no keys, so they have no header and no defaults.
 
-**The defaults, whenever a sheet has a header row**, in `fromRows` and `sheet()` alike: the header row
+**The defaults, whenever a sheet has a header row**, in `fromRows` and `addSheet()` alike: the header row
 bold with a thin bottom border (`headerStyle`), frozen below it (`freeze`), with an autofilter over the
 header and its `_xlnm._FilterDatabase` name, as Excel writes one (`autofilter`), and every column `width: 'auto'`. Each turns off on its own:
 `{freeze: false, autofilter: false, headerStyle: false}`, or a column's own `width`. `headerStyle` is

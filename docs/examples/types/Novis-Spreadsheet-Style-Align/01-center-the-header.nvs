@@ -9,7 +9,7 @@ var $header = Style::of({ bold: true, align: 'center' });
 echo $header->fields->align == Style::Align::Center ? 'center' : 'not center', "\n";
 
 var $book = Workbook::createInMemory();
-$book->sheet('Prices', { headerStyle: $header })->add(['item' => 'Tea', 'price' => 2.5]);
+$book->addSheet('Prices', { headerStyle: $header })->addRow(['item' => 'Tea', 'price' => 2.5]);
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // The file tells Excel where the text goes. This prints `true`.

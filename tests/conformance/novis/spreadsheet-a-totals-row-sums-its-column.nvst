@@ -2,7 +2,7 @@
 A table added after its rows writes its totals row at once, a formula row after it sums the range `column` gave, a string beginning `=` stays text, and a total that is not a function throws: rule:core-classes/spreadsheet-sheet-end-parts
 --FILE--
 <?nvs
-// covers: Novis\Spreadsheet\Sheet::table
+// covers: Novis\Spreadsheet\Sheet::addTable
 // covers: Novis\Spreadsheet\Sheet::column
 // covers: Novis\Spreadsheet\Sheet::cell
 // covers: Novis\Spreadsheet\Formula::of
@@ -10,25 +10,25 @@ use Novis\Spreadsheet\Formula;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $orders = $book->sheet("Orders");
-$orders->add(["item" => "Tea", "qty" => 3]);
-$orders->add(["item" => "Cake", "qty" => 4]);
-$orders->add(["item" => "=1+1", "qty" => 5]);
+var $orders = $book->addSheet("Orders");
+$orders->addRow(["item" => "Tea", "qty" => 3]);
+$orders->addRow(["item" => "Cake", "qty" => 4]);
+$orders->addRow(["item" => "=1+1", "qty" => 5]);
 
 // The header is row 1, so the data is in rows 2 to 4.
 string $range = $orders->column("qty");
 echo $range, " ", $orders->cell("qty", 7), "\n";
 
 try {
-    $orders->table("A1:B4", {totals: ["qty" => "median"]});
+    $orders->addTable("A1:B4", {totals: ["qty" => "median"]});
     echo "not reached\n";
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }
 
 // The totals row is row 5, so the next row is row 6.
-$orders->table("A1:B4", {name: "Orders", totals: ["qty" => "sum"]});
-$orders->add(["item" => "Check", "qty" => Formula::of("=SUM({$range})", {cached: 12})]);
+$orders->addTable("A1:B4", {name: "Orders", totals: ["qty" => "sum"]});
+$orders->addRow(["item" => "Check", "qty" => Formula::of("=SUM({$range})", {cached: 12})]);
 
 var $written = $book->finish();
 bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);

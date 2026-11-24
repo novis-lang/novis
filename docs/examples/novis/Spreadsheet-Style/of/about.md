@@ -6,7 +6,7 @@ colors such as `"#FF0000"`. `border` is a line such as `"thin"`, for every side 
 on its own. `format` is a number format, such as `"0.00"`, or a short name such as `"money"`,
 `"percent"` or `"date"`.
 
-Give a style to a cell with `Cell::of`, to a row with the `style` option of `add`, or to a column
+Give a style to a cell with `Cell::of`, to a row with the `style` option of `addRow`, or to a column
 with `columns`. Two styles with the same fields are one style in the file.
 
 **Good to know:** a value that is not allowed, such as `border: "wavy"`, throws a `LogicError` with

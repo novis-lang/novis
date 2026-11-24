@@ -1,14 +1,14 @@
 --TEST--
-`Workbook::define` throws `LogicError` for a reference that is not a range of this workbook: a DDE call, another workbook, a URL, a function, an R1C1 reference, two sheet names and an unclosed quote. A name of 256 characters, a name in R1C1 form and a sheet name with a control character or `History` throw too, and a name whose sheet the workbook never adds throws at `finish`: rule:core-classes/spreadsheet-output-is-inert
+`Workbook::defineName` throws `LogicError` for a reference that is not a range of this workbook: a DDE call, another workbook, a URL, a function, an R1C1 reference, two sheet names and an unclosed quote. A name of 256 characters, a name in R1C1 form and a sheet name with a control character or `History` throw too, and a name whose sheet the workbook never adds throws at `finish`: rule:core-classes/spreadsheet-output-is-inert
 --FILE--
 <?nvs
-// covers: Novis\Spreadsheet\Workbook::define
-// covers: Novis\Spreadsheet\Workbook::sheet
+// covers: Novis\Spreadsheet\Workbook::defineName
+// covers: Novis\Spreadsheet\Workbook::addSheet
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-$book->sheet("Shop")->addAll([["qty" => 1], ["qty" => 2]]);
-$book->define("Whole", "Shop!\$A:\$A")->define("Rows", "'Shop'!\$1:\$2");
+$book->addSheet("Shop")->addRows([["qty" => 1], ["qty" => 2]]);
+$book->defineName("Whole", "Shop!\$A:\$A")->defineName("Rows", "'Shop'!\$1:\$2");
 echo "whole columns and rows are defined\n";
 
 array<array<string>> $refused = [
@@ -26,7 +26,7 @@ array<array<string>> $refused = [
 ];
 foreach ($refused as array<string> $pair) {
     try {
-        $book->define($pair[0], $pair[1]);
+        $book->defineName($pair[0], $pair[1]);
         echo Core\Str::slice($pair[0], 0, 8), ": defined\n";
     } catch (LogicError $e) {
         echo Core\Str::slice($pair[0], 0, 8), ": LogicError\n";
@@ -34,15 +34,15 @@ foreach ($refused as array<string> $pair) {
 }
 
 try {
-    $book->sheet("History");
+    $book->addSheet("History");
     echo "History: added\n";
 } catch (LogicError $e) {
     echo "History: LogicError\n";
 }
 
 var $later = Workbook::createInMemory();
-$later->sheet("Shop")->addAll([["qty" => 1]]);
-$later->define("Missing", "Shops!\$A\$1");
+$later->addSheet("Shop")->addRows([["qty" => 1]]);
+$later->defineName("Missing", "Shops!\$A\$1");
 try {
     $later->finish();
     echo "finish: written\n";

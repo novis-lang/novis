@@ -79,8 +79,8 @@ class Shop {
 }
 var $export = new Export(fn (Workbook $book): void => {
     Shop::$runs = Shop::$runs + 1;
-    $book->sheet("Orders")->addAll([["order" => 1042, "total" => 19.5], ["order" => 1043, "total" => 5.0]]);
-    $book->sheet("Returns")->add(["order" => 1042]);
+    $book->addSheet("Orders")->addRows([["order" => 1042, "total" => 19.5], ["order" => 1043, "total" => 5.0]]);
+    $book->addSheet("Returns")->addRow(["order" => 1042]);
 }, null);
 Core\IO\File $memory = Core\IO::open("memory.xlsx", Core\IO::FileMode::Write);
 $memory->write($export->bytes());
@@ -117,7 +117,7 @@ Workbook::fromRows([["order" => 1]], {format: "csv"})->to($log);
 $log->write("# end\n");
 $log->close();
 var $design = Workbook::createInMemory();
-$design->sheet("Invoice")->add(["Invoice for {{shop}}"]);
+$design->addSheet("Invoice")->addRow(["Invoice for {{shop}}"]);
 bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
 var $written = Template::open($template)->fill(["shop" => "Shop"])->save("invoice.xlsx");
 echo $written->rows["Invoice"], " ", $written->bytes == null ? "no bytes" : "bytes", "\n";
@@ -164,7 +164,7 @@ Workbook::fromRows([["order" => 1042, "note" => "=1+2"]])->download("orders.csv"
         &["--request", "request.nvsr"],
         r#"
 var $design = Workbook::createInMemory();
-$design->sheet("Invoice")->add(["{{shop}}"]);
+$design->addSheet("Invoice")->addRow(["{{shop}}"]);
 bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
 Core\Response::sendBytes(Template::open($template)->fill(["shop" => "Shop"])->bytes(), "application/octet-stream");
 Template::open($template)->fill(["shop" => "Shop"])->download("Rechnung März \"1\".xlsx");
@@ -185,9 +185,9 @@ fn a_style_lands_in_the_styles_part_once() {
         r##"
 var $total = Style::of({bold: true, border: "thin", format: "money", align: "right", fill: "#FFFF00"});
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet("Shop", {header: false});
-$sheet->add(["Pen", 1.5], {style: $total});
-$sheet->add(["Ink", 4.25], {style: Style::of({bold: true, border: "thin", format: "money", align: "right", fill: "#FFFF00"})});
+var $sheet = $book->addSheet("Shop", {header: false});
+$sheet->addRow(["Pen", 1.5], {style: $total});
+$sheet->addRow(["Ink", 4.25], {style: Style::of({bold: true, border: "thin", format: "money", align: "right", fill: "#FFFF00"})});
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 var $styles = Core\Zip::read($file, "xl/styles.xml") as string;
 array<string> $parts = ["<b/>", "<left style=\"thin\">", "<fgColor rgb=\"FFFFFF00\"/>", "numFmtId=\"4\"", "<alignment horizontal=\"right\"/>", "<cellXfs count=\"2\">"];
@@ -220,7 +220,7 @@ fn a_cell_style_wins_over_its_row_field_by_field() {
         "cell",
         r#"
 var $book = Workbook::createInMemory();
-$book->sheet("Sales", {header: false})->add(["Pens", 1249.5, Cell::of(0.25, Style::of({format: "percent"}))], {style: Style::of({format: "money", bold: true})});
+$book->addSheet("Sales", {header: false})->addRow(["Pens", 1249.5, Cell::of(0.25, Style::of({format: "percent"}))], {style: Style::of({format: "money", bold: true})});
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 foreach (Reader::open($file)->rows("Sales", {text: true}) as var $row) {
     echo Core\Json::encode($row->values), "\n";
@@ -248,7 +248,7 @@ fn a_rich_cell_writes_each_run_with_its_own_font() {
         r##"
 var $cell = Cell::rich([{text: "Due "}, {text: "today", style: Style::of({bold: true, underline: true})}]);
 var $book = Workbook::createInMemory();
-$book->sheet("Tasks", {header: false})->add([$cell], {style: Style::of({fill: "#FFFF00"})});
+$book->addSheet("Tasks", {header: false})->addRow([$cell], {style: Style::of({fill: "#FFFF00"})});
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 var $sheet = Core\Zip::read($file, "xl/worksheets/sheet1.xml") as string;
 echo Core\Str::contains($sheet, "<r><rPr><b/><u/></rPr><t>today</t></r>") ? "bold run" : $sheet, "\n";

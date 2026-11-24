@@ -20,5 +20,5 @@ Image $banner = Image::fromRaw({
 
 // A thumbnail of 1 by 1 pixel can keep only one of them.
 // `West` keeps the red pixel and prints 255 0 0. `East` keeps the blue one and prints 0 0 255.
-echo FirstPixel::of($banner->resize({ width: 1, height: 1, fit: Image::Fit::Cover, gravity: Image::Gravity::West })), "\n";
-echo FirstPixel::of($banner->resize({ width: 1, height: 1, fit: Image::Fit::Cover, gravity: Image::Gravity::East })), "\n";
+echo FirstPixel::of($banner->resized({ width: 1, height: 1, fit: Image::Fit::Cover, gravity: Image::Gravity::West })), "\n";
+echo FirstPixel::of($banner->resized({ width: 1, height: 1, fit: Image::Fit::Cover, gravity: Image::Gravity::East })), "\n";

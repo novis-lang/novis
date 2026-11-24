@@ -7,7 +7,7 @@ use Novis\Spreadsheet\Template;
 use Novis\Spreadsheet\Workbook;
 
 var $design = Workbook::createInMemory();
-$design->sheet("Invoice")->add(["{{customer.name}}"]);
+$design->addSheet("Invoice")->addRow(["{{customer.name}}"]);
 bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // Both keys give the placeholder `{{customer.name}}`, so `fill` throws an error.

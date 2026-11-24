@@ -10,7 +10,7 @@ string $orderPath = Core\Path::join($folder, 'order-1042.xlsx');
 
 // This saves the template file. In a real program it is a file made in Excel.
 var $design = Workbook::createForFile($templatePath);
-$design->sheet('Order')->addAll([['Order', '{{order}}'], ['Customer', '{{customer}}']]);
+$design->addSheet('Order')->addRows([['Order', '{{order}}'], ['Customer', '{{customer}}']]);
 $design->finish();
 
 // `Template::open` reads the open file. `save` writes the filled order to a new file.

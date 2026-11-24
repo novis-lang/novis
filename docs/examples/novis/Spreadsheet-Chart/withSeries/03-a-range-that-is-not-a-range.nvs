@@ -1,0 +1,20 @@
+<?nvs
+// Shows the errors for a series whose range or color is not correct.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->addSheet('Sales');
+$sheet->addRows([['month' => 'January', 'sales' => 1200], ['month' => 'February', 'sales' => 1450]]);
+
+// `withSeries` only stores the text. `Sheet::addChart` checks it and throws an error.
+try {
+    $sheet->addChart('D2', Chart::column()->withSeries('sales'));
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+try {
+    $sheet->addChart('D2', Chart::column()->withSeries($sheet->column('sales'), { color: 'blue' }));
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

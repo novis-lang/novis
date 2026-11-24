@@ -5,26 +5,26 @@ protection.
 
 | Call | What it writes |
 |---|---|
-| `merge(string $range)` | a merged range |
-| `link(string $cell, string $target, {text?, tooltip?})` | a hyperlink to a URL, a `mailto:` address or `'Sheet!A1'` |
-| `note(string $cell, string $text, {author?})` | a note |
-| `validate(string $range, {...})` | data validation: `list`, `whole`, `decimal`, `date` or `length` with `between`, `min` or `max`, or `formula`; `input` and `error` messages; `allowEmpty`. `$range` is a range, whole columns (`A:A`) or several ranges separated by spaces or commas, written as Excel's space-separated list; a `"` in a list value is doubled, and a `,` in one throws `LogicError`, because Excel's list cannot contain one |
-| `group(string $rows, {collapsed?})` | an outline group over `'5:9'` or `'B:D'` |
-| `table(string $range, {name?, style?, banded?, filter?, totals?})` | an Excel table; `totals` maps a column to `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`, and the table's own formulas may use structured references such as `[@qty]` |
-| `conditional(string $range, {...})` | one conditional format: `cell` with an operator and values, `formula`, `colorScale`, `dataBar`, `iconSet`, `top` or `bottom` N, `duplicates` or `unique`, each with a `style` of font, fill, border and format |
-| `image(string $cell, bytes $data, {width?, height?, offsetX?, offsetY?})` | a PNG, JPEG or GIF, read from its bytes; any other format, a PNG cut before its `IEND` chunk, and an image that ends past column `XFD` or row 1,048,576 throw `LogicError` |
-| `chart(string $cell, Chart $chart, {width?, height?})` | a chart of the subset below; one that ends past the grid throws `LogicError` |
-| `print({...})` | page setup: `orientation`, `fitToPage`, `margins`, `header`, `footer`, `repeatRows`, `area`, in one call; a second `print` on the sheet throws `LogicError` |
+| `mergeCells(string $range)` | a merged range |
+| `addLink(string $cell, string $target, {text?, tooltip?})` | a hyperlink to a URL, a `mailto:` address or `'Sheet!A1'` |
+| `addNote(string $cell, string $text, {author?})` | a note |
+| `addValidation(string $range, {...})` | data validation: `list`, `whole`, `decimal`, `date` or `length` with `between`, `min` or `max`, or `formula`; `input` and `error` messages; `allowEmpty`. `$range` is a range, whole columns (`A:A`) or several ranges separated by spaces or commas, written as Excel's space-separated list; a `"` in a list value is doubled, and a `,` in one throws `LogicError`, because Excel's list cannot contain one |
+| `addOutlineGroup(string $rows, {collapsed?})` | an outline group over `'5:9'` or `'B:D'` |
+| `addTable(string $range, {name?, style?, banded?, filter?, totals?})` | an Excel table; `totals` maps a column to `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`, and the table's own formulas may use structured references such as `[@qty]` |
+| `addConditionalFormat(string $range, {...})` | one conditional format: `cell` with an operator and values, `formula`, `colorScale`, `dataBar`, `iconSet`, `top` or `bottom` N, `duplicates` or `unique`, each with a `style` of font, fill, border and format |
+| `addImage(string $cell, bytes $data, {width?, height?, offsetX?, offsetY?})` | a PNG, JPEG or GIF, read from its bytes; any other format, a PNG cut before its `IEND` chunk, and an image that ends past column `XFD` or row 1,048,576 throw `LogicError` |
+| `addChart(string $cell, Chart $chart, {width?, height?})` | a chart of the subset below; one that ends past the grid throws `LogicError` |
+| `setPrintOptions({...})` | page setup: `orientation`, `fitToPage`, `margins`, `header`, `footer`, `repeatRows`, `area`, in one call; a second `setPrintOptions` on the sheet throws `LogicError` |
 | `protect({password?, allow?})` | sheet protection |
 
-Row heights, hidden rows and outline levels are `add`'s options, and hidden columns a column's
+Row heights, hidden rows and outline levels are `addRow`'s options, and hidden columns a column's
 (`rule:core-classes/spreadsheet-styles-and-defaults`), because xlsx writes them with the row or before
-it. For the same reason a `group` over rows is added before those rows, a `group` over columns and
-`print`'s `fitToPage` before the sheet's first row, and each throws `LogicError` saying so when it
+it. For the same reason an `addOutlineGroup` over rows comes before those rows, one over columns and
+`setPrintOptions`'s `fitToPage` before the sheet's first row, and each throws `LogicError` saying so when it
 comes later. **A link goes to `http:`, `https:`, `mailto:` or a cell of the workbook**, and any
 other target, such as `file:` or `javascript:`, throws `LogicError`, so a link built from user data
 opens no local file and runs nothing. A cell target's sheet name that is not in quotes is quoted
-where Excel quotes it, so `Shop Data!A1` is written `'Shop Data'!A1`. `Workbook::define` writes a defined name, and the workbook's
+where Excel quotes it, so `Shop Data!A1` is written `'Shop Data'!A1`. `Workbook::defineName` writes a defined name, and the workbook's
 `properties` the document properties.
 Rich text in one cell is `Cell::rich`. **Sheet protection locks the layout and is not security**: the
 password is a hash any tool removes, which the reference card says.
@@ -60,7 +60,7 @@ A series names its ranges with `$sheet->column($key)`, so a chart over a stream 
 sheet ends with: the chart is written when the sheet ends, and a range on its own sheet that ends at
 the row `column` gives when the chart is added ends at the sheet's last row. Any other range is
 written as given, and the chart holds no values. A series range is read by the reference parser
-`Workbook::define` uses, without whole columns or rows (`rule:core-classes/spreadsheet-output-is-inert`),
+`Workbook::defineName` uses, without whole columns or rows (`rule:core-classes/spreadsheet-output-is-inert`),
 so a range into another workbook, a URL, an unclosed quote or a second sheet name throws
 `LogicError` naming the range. A title or an axis title past 255 characters throws. **A series' categories are a number reference**
 when they are a column of the chart's own sheet whose every value below its header is a number or a date, which the

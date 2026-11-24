@@ -18,8 +18,8 @@ class Attack
 }
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Shop');
-$sheet->add(['order' => 1042, 'total' => 19.9]);
+var $sheet = $book->addSheet('Shop');
+$sheet->addRow(['order' => 1042, 'total' => 19.9]);
 
 // 1. Row 0, a negative row, the last row of a sheet and the row after it.
 Attack::attempt(1, $sheet, 'total', 0);
@@ -39,6 +39,6 @@ Attack::attempt(3, $sheet, "Blog'!A1", 1);
 Attack::attempt(3, $sheet, '', 1);
 
 // 4. A key on a new sheet before its first row, and a column letter in lower case.
-var $empty = $book->sheet('Blog');
+var $empty = $book->addSheet('Blog');
 Attack::attempt(4, $empty, 'total', 2);
 Attack::attempt(4, $empty, 'xfd', 2);

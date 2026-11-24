@@ -10,7 +10,7 @@ use Novis\Spreadsheet\Workbook;
 
 // This workbook is the template. Row 2 is the item row.
 var $design = Workbook::createInMemory();
-$design->sheet("Invoice")->addAll([
+$design->addSheet("Invoice")->addRows([
     ["Invoice {{number}}", "{{customer.name}}"],
     ["{{items.name}}", "{{items.qty}}"],
 ]);

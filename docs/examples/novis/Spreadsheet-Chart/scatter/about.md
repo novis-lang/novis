@@ -1,6 +1,6 @@
 Starts a scatter chart, a chart of points, and returns it. Each row is one point. The `categories`
 of a series are the x values of its points, and the series values are the y values. Add each
-series with `series`, then put the chart on a sheet with `Sheet::chart`.
+series with `withSeries`, then put the chart on a sheet with `Sheet::addChart`.
 
 It takes the same options as `Chart::column`: `title`, `xTitle`, `yTitle`, `legend` and `labels`.
 The `color` of a series is the color of its points.

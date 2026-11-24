@@ -5,7 +5,7 @@ use Iterable;
 use Iterator;
 use LogicError;
 
-/// One sheet of a `Workbook`. Add its rows in order with `add` or `addAll`, and a row cannot be changed after that.
+/// One sheet of a `Workbook`. Add its rows in order with `addRow` or `addRows`, and a row cannot be changed after that.
 /// The other methods add merged cells, links, notes, tables and more. They can use any row you already added.
 final class Sheet
 {
@@ -27,7 +27,7 @@ final class Sheet
         |{ password: ?string, allow: array<string> };
     type PrintOptions = { orientation?: string, fitToPage?: { width?: uint, height?: uint }, margins?: { top: float, right: float, bottom: float, left: float }, header?: string, footer?: string, repeatRows?: string, area?: string };
 
-    /// `new Sheet` makes a sheet of a workbook. `Workbook::sheet` makes one for you.
+    /// `new Sheet` makes a sheet of a workbook. `Workbook::addSheet` makes one for you.
     /// `$add` adds a row. `$ready` sends the rows that wait, checks that the sheet is open, and with `true` last checks for a data row. `$position` returns the column of a key.
     public function constructor(
         private readonly uint $index,
@@ -40,18 +40,18 @@ final class Sheet
     )
     {}
 
-    /// `add` adds one row to the end of the sheet. A value goes to the column of its key, or by position from column `A`.
+    /// `addRow` adds one row to the end of the sheet. A value goes to the column of its key, or by position from column `A`.
     /// `height` is the row height in points. `hidden` hides the row. `level` puts it in an outline group. `style` is its `Style`.
-    public function add(array<mixed> $row, RowOptions $options = null): Sheet
+    public function addRow(array<mixed> $row, RowOptions $options = null): Sheet
     {
         callable(uint, array<mixed>, RowOptions): void $add = $this->add;
         $add($this->index, $row, $options);
         return $this;
     }
 
-    /// `addAll` adds each row of `$rows` in order, as `add` does.
+    /// `addRows` adds each row of `$rows` in order, as `addRow` does.
     /// `$rows` can be an array or a generator, so a long list of rows does not have to be in memory.
-    public function addAll(array<array<mixed>>|Iterable<array<mixed>>|Iterator<array<mixed>> $rows): Sheet
+    public function addRows(array<array<mixed>>|Iterable<array<mixed>>|Iterator<array<mixed>> $rows): Sheet
     {
         callable(uint, array<mixed>, RowOptions): void $add = $this->add;
         if ($rows is Iterable<array<mixed>>) {
@@ -88,28 +88,28 @@ final class Sheet
         return $columnRange($this->index, $this->at($key));
     }
 
-    /// `merge` joins the cells of `$range`, such as `'A1:C1'`, into one cell.
-    public function merge(string $range): Sheet
+    /// `mergeCells` joins the cells of `$range`, such as `'A1:C1'`, into one cell.
+    public function mergeCells(string $range): Sheet
     {
         return $this->part({ merge: $range });
     }
 
-    /// `link` makes the cell `$cell` a link to `$target`. The target is an `http:` or `https:` address, a `mailto:` address, or a cell such as `'Totals!A1'`.
+    /// `addLink` makes the cell `$cell` a link to `$target`. The target is an `http:` or `https:` address, a `mailto:` address, or a cell such as `'Totals!A1'`.
     /// `text` is the text the cell shows. `tooltip` is the text a person sees over the link.
-    public function link(string $cell, string $target, ?{ text?: string, tooltip?: string } $options = null): Sheet
+    public function addLink(string $cell, string $target, ?{ text?: string, tooltip?: string } $options = null): Sheet
     {
         return $this->part({ anchor: $cell, target: $target, text: $options?->text ?? null, tooltip: $options?->tooltip ?? null });
     }
 
-    /// `note` adds the note `$text` to the cell `$cell`. `author` is the name the note shows.
-    public function note(string $cell, string $text, ?{ author?: string } $options = null): Sheet
+    /// `addNote` adds the note `$text` to the cell `$cell`. `author` is the name the note shows.
+    public function addNote(string $cell, string $text, ?{ author?: string } $options = null): Sheet
     {
         return $this->part({ noted: $cell, note: $text, author: $options?->author ?? null });
     }
 
-    /// `validate` checks what a person types into `$range` in Excel. Give one of `list`, `whole`, `decimal`, `date`, `length` or `formula`.
+    /// `addValidation` checks what a person types into `$range` in Excel. Give one of `list`, `whole`, `decimal`, `date`, `length` or `formula`.
     /// `min` and `max` are the limits of a number, a date or a length. `input` is a message Excel shows, and `error` the message for a wrong value.
-    public function validate(string $range, Validation $rule): Sheet
+    public function addValidation(string $range, Validation $rule): Sheet
     {
         RuleKind $kind = RuleKind::List;
         array<string> $values = [];
@@ -183,16 +183,16 @@ final class Sheet
         });
     }
 
-    /// `group` puts the rows `$rows`, such as `'5:9'`, or the columns, such as `'B:D'`, in an outline group.
+    /// `addOutlineGroup` puts the rows `$rows`, such as `'5:9'`, or the columns, such as `'B:D'`, in an outline group.
     /// Add a group of rows before its rows, and a group of columns before the first row. `collapsed` hides the group.
-    public function group(string $rows, ?{ collapsed?: bool } $options = null): Sheet
+    public function addOutlineGroup(string $rows, ?{ collapsed?: bool } $options = null): Sheet
     {
         return $this->part({ grouped: $rows, collapsed: $options?->collapsed ?? false });
     }
 
-    /// `table` makes the cells of `$range`, such as `'A1:C9'`, an Excel table. Its first row is the header row.
+    /// `addTable` makes the cells of `$range`, such as `'A1:C9'`, an Excel table. Its first row is the header row.
     /// `totals` adds a row after the table. It maps a header to `'sum'`, `'average'`, `'count'`, `'min'`, `'max'` or a `Formula`.
-    public function table(string $range, TableOptions $options = null): Sheet
+    public function addTable(string $range, TableOptions $options = null): Sheet
     {
         array<{ column: string, function: ?TotalFunction, formula: ?string }> $totals = [];
         array<string|Formula> $asked = $options?->totals ?? [];
@@ -219,9 +219,9 @@ final class Sheet
         });
     }
 
-    /// `conditional` adds one conditional format to `$range`. `kind` is `'cell'`, `'formula'`, `'colorScale'`, `'dataBar'`, `'iconSet'`, `'top'`, `'bottom'`, `'duplicates'` or `'unique'`.
+    /// `addConditionalFormat` adds one conditional format to `$range`. `kind` is `'cell'`, `'formula'`, `'colorScale'`, `'dataBar'`, `'iconSet'`, `'top'`, `'bottom'`, `'duplicates'` or `'unique'`.
     /// `values` are Excel formula text, so a text value has quotes, such as `'"open"'`. `style` is the `Style` of the cells the rule matches.
-    public function conditional(string $range, Conditional $rule): Sheet
+    public function addConditionalFormat(string $range, Conditional $rule): Sheet
     {
         ?string $operator = $rule->operator ?? null;
         ?Style $style = $rule->style ?? null;
@@ -238,9 +238,9 @@ final class Sheet
         });
     }
 
-    /// `image` puts the PNG, JPEG or GIF image `$data` at the cell `$cell`. Any other format, or a file that is cut short, throws a `LogicError`.
+    /// `addImage` puts the PNG, JPEG or GIF image `$data` at the cell `$cell`. Any other format, or a file that is cut short, throws a `LogicError`.
     /// `width` and `height` are in pixels. `offsetX` and `offsetY` move the image from the corner of the cell. An image that ends after column `XFD` or row 1,048,576 throws.
-    public function image(string $cell, bytes $data, ?{ width?: float, height?: float, offsetX?: float, offsetY?: float } $options = null): Sheet
+    public function addImage(string $cell, bytes $data, ?{ width?: float, height?: float, offsetX?: float, offsetY?: float } $options = null): Sheet
     {
         return $this->part({
             at: $cell,
@@ -252,9 +252,9 @@ final class Sheet
         });
     }
 
-    /// `chart` puts `$chart` at the cell `$cell`. `width` and `height` are in pixels. The chart is 480 by 288 pixels if you do not set them.
+    /// `addChart` puts `$chart` at the cell `$cell`. `width` and `height` are in pixels. The chart is 480 by 288 pixels if you do not set them.
     /// A series range from `column` grows with the sheet, so a chart you add before the last row still shows every row.
-    public function chart(string $cell, Chart $chart, ?{ width?: float, height?: float } $options = null): Sheet
+    public function addChart(string $cell, Chart $chart, ?{ width?: float, height?: float } $options = null): Sheet
     {
         array<{ kind: Chart::Kind, series: array<{ values: string, categories: ?string, name: ?string, color: ?string }> }> $layers = [{ kind: $chart->kind, series: $chart->series }];
         foreach ($chart->combined as var $layer) {
@@ -273,9 +273,9 @@ final class Sheet
         });
     }
 
-    /// `print` sets how the sheet is printed. `orientation` is `'portrait'` or `'landscape'`. `fitToPage` sets the number of pages wide and tall.
-    /// `repeatRows`, such as `'1:1'`, prints those rows on every page. `area` is the range to print. Set `fitToPage` before the first row. A second `print` throws a `LogicError`.
-    public function print(PrintOptions $options): Sheet
+    /// `setPrintOptions` sets how the sheet is printed. `orientation` is `'portrait'` or `'landscape'`. `fitToPage` sets the number of pages wide and tall.
+    /// `repeatRows`, such as `'1:1'`, prints those rows on every page. `area` is the range to print. Set `fitToPage` before the first row. A second `setPrintOptions` throws a `LogicError`.
+    public function setPrintOptions(PrintOptions $options): Sheet
     {
         ?Orientation $orientation = null;
         ?string $named = $options->orientation ?? null;

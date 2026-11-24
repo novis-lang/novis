@@ -22,7 +22,7 @@ class Look {
 Image $wide = Image::create(40, 20, Color::hex("#000"));
 array<Image::Fit> $fits = [Image::Fit::Cover, Image::Fit::Contain, Image::Fit::Fill, Image::Fit::Inside, Image::Fit::Outside];
 foreach ($fits as Image::Fit $fit) {
-    echo Look::size($wide->resize({ width: 10, height: 10, fit: $fit, upscale: true })), "\n";
+    echo Look::size($wide->resized({ width: 10, height: 10, fit: $fit, upscale: true })), "\n";
 }
 
 // A row of red then blue pixels: which half a crop keeps depends on the gravity.
@@ -33,24 +33,24 @@ Image $row = Image::fromRaw({
 });
 array<Image::Gravity> $sides = [Image::Gravity::West, Image::Gravity::East];
 foreach ($sides as Image::Gravity $gravity) {
-    echo Look::first($row->resize({ width: 1, height: 1, fit: Image::Fit::Cover, gravity: $gravity, filter: Image::Filter::Nearest })), "\n";
+    echo Look::first($row->resized({ width: 1, height: 1, fit: Image::Fit::Cover, gravity: $gravity, filter: Image::Filter::Nearest })), "\n";
 }
 array<Image::Gravity> $others = [Image::Gravity::Center, Image::Gravity::North, Image::Gravity::NorthEast, Image::Gravity::SouthEast, Image::Gravity::South, Image::Gravity::SouthWest, Image::Gravity::NorthWest];
 array<string> $cropped = [];
 foreach ($others as Image::Gravity $g) {
-    $cropped[] = Look::size($row->resize({ width: 2, height: 1, fit: Image::Fit::Cover, gravity: $g }));
+    $cropped[] = Look::size($row->resized({ width: 2, height: 1, fit: Image::Fit::Cover, gravity: $g }));
 }
 echo Core\Str::join($cropped, " "), "\n";
 
 array<Image::Filter> $filters = [Image::Filter::Nearest, Image::Filter::Bilinear, Image::Filter::CatmullRom, Image::Filter::Mitchell, Image::Filter::Lanczos3];
 array<string> $grown = [];
 foreach ($filters as Image::Filter $filter) {
-    $grown[] = Look::size($row->resize({ width: 8, height: 2, fit: Image::Fit::Fill, filter: $filter, upscale: true }));
+    $grown[] = Look::size($row->resized({ width: 8, height: 2, fit: Image::Fit::Fill, filter: $filter, upscale: true }));
 }
 echo Core\Str::join($grown, " "), "\n";
 
-echo Look::first($row->flip(Image::Axis::Horizontal)), "\n";
-echo Look::first($row->flip(Image::Axis::Vertical)), "\n";
+echo Look::first($row->flipped(Image::Axis::Horizontal)), "\n";
+echo Look::first($row->flipped(Image::Axis::Vertical)), "\n";
 
 array<Format> $formats = [Format::Jpeg, Format::Png, Format::Webp, Format::Gif, Format::Avif, Format::Jxl, Format::Svg, Format::Pdf];
 foreach ($formats as Format $format) {

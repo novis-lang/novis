@@ -758,7 +758,7 @@ fn broken(error: &ValidationError) -> String {
         ValidationError::NoDocumentTitle => "the document has no `<title>`".to_owned(),
         ValidationError::NoDocumentLanguage => "the `<html>` element has no `lang`".to_owned(),
         ValidationError::MissingDocumentDate => {
-            "the document has no creation time. Set `created` in the options".to_owned()
+            "the document has no creation time. Set it with `withCreationTime()`".to_owned()
         }
         ValidationError::MissingHeadingTitle => "a heading has no text".to_owned(),
         ValidationError::MissingDocumentOutline => "the document has no outline".to_owned(),

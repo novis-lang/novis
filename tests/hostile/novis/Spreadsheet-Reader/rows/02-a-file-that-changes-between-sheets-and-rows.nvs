@@ -43,15 +43,15 @@ class Attack
 
 // Two workbooks. The first has 1,000 rows on one sheet. The second has 3 sheets with one row each.
 var $long = Workbook::createInMemory();
-var $sheet = $long->sheet('Shop');
+var $sheet = $long->addSheet('Shop');
 for (int $n = 0; $n < 1000; $n++) {
-    $sheet->add([$n, "item {$n}"]);
+    $sheet->addRow([$n, "item {$n}"]);
 }
 bytes $first = $long->finish()->bytes ?? Core\Bytes::fill(0, 0);
 var $short = Workbook::createInMemory();
-$short->sheet('Blog')->add(['one']);
-$short->sheet('News')->add(['two']);
-$short->sheet('Shop')->add(['three']);
+$short->addSheet('Blog')->addRow(['one']);
+$short->addSheet('News')->addRow(['two']);
+$short->addSheet('Shop')->addRow(['three']);
 bytes $second = $short->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 string $dir = Core\Path::join(Core\IO::createTemporaryDirectory(), 'attack-sheet-changes');

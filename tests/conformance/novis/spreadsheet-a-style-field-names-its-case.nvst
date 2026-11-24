@@ -21,7 +21,7 @@ echo $all->align == Style::Align::Fill && $all->valign == Style::Valign::Bottom 
 echo Style::of({underline: false})->fields->underline == null ? "no underline" : "underline", "\n";
 
 var $book = Workbook::createInMemory();
-$book->sheet("Shop")->add(["Tea", 3], {style: $style});
+$book->addSheet("Shop")->addRow(["Tea", 3], {style: $style});
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 var $styles = Core\Zip::read($file, "xl/styles.xml") as string;
 echo Core\Str::contains($styles, "<top style=\"thin\">") ? "thin is written" : "thin is missing", "\n";

@@ -35,7 +35,7 @@ $start->close();
 // 1. A file that is open for reading only.
 Attack::attempt(1, fn(): void => {
     var $book = Workbook::createForStream(Core\IO::open($path, Core\IO::FileMode::Read));
-    $book->sheet('Shop')->addAll(Attack::rows());
+    $book->addSheet('Shop')->addRows(Attack::rows());
     $book->finish();
 });
 
@@ -43,10 +43,10 @@ Attack::attempt(1, fn(): void => {
 Attack::attempt(2, fn(): void => {
     Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
     var $book = Workbook::createForStream($file);
-    var $sheet = $book->sheet('Shop');
-    $sheet->add(['order' => 1]);
+    var $sheet = $book->addSheet('Shop');
+    $sheet->addRow(['order' => 1]);
     $file->close();
-    $sheet->addAll(Attack::rows());
+    $sheet->addRows(Attack::rows());
     $book->finish();
 });
 
@@ -55,11 +55,11 @@ Attack::attempt(3, fn(): void => {
     Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
     var $first = Workbook::createForStream($file);
     var $second = Workbook::createForStream($file, { format: 'csv' });
-    var $a = $first->sheet('Shop');
-    var $b = $second->sheet('Blog');
+    var $a = $first->addSheet('Shop');
+    var $b = $second->addSheet('Blog');
     foreach (Attack::rows() as var $row) {
-        $a->add($row);
-        $b->add($row);
+        $a->addRow($row);
+        $b->addRow($row);
     }
     $first->finish();
     $second->finish();
@@ -71,6 +71,6 @@ Attack::attempt(4, fn(): void => {
     Core\IO\File $file = Core\IO::open($path, Core\IO::FileMode::Write);
     $file->close();
     var $book = Workbook::createForStream($file);
-    $book->sheet('Shop')->add(['order' => 1]);
+    $book->addSheet('Shop')->addRow(['order' => 1]);
     $book->finish();
 });

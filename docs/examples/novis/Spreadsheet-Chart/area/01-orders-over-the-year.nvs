@@ -4,8 +4,8 @@ use Novis\Spreadsheet\Chart;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Orders');
-$sheet->addAll([
+var $sheet = $book->addSheet('Orders');
+$sheet->addRows([
     ['quarter' => 'Q1', 'orders' => 310],
     ['quarter' => 'Q2', 'orders' => 290],
     ['quarter' => 'Q3', 'orders' => 405],
@@ -14,8 +14,8 @@ $sheet->addAll([
 
 // An area chart is a line chart with the space under the line filled.
 var $chart = Chart::area({ title: 'Orders per quarter', legend: 'hidden' })
-    ->series($sheet->column('orders'), { categories: $sheet->column('quarter'), color: '#2CA02C' });
-$sheet->chart('D2', $chart);
+    ->withSeries($sheet->column('orders'), { categories: $sheet->column('quarter'), color: '#2CA02C' });
+$sheet->addChart('D2', $chart);
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // `Core\Zip::read` returns the XML of the chart. These lines check what it contains.

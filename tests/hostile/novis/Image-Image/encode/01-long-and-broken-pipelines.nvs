@@ -12,7 +12,7 @@ try {
     Image $image = $small;
     uint $i = 0;
     while ($i < 10000) {
-        $image = $image->flip($i % 2 == 0 ? Image::Axis::Horizontal : Image::Axis::Vertical);
+        $image = $image->flipped($i % 2 == 0 ? Image::Axis::Horizontal : Image::Axis::Vertical);
         $i = $i + 1;
     }
     $image->encode();
@@ -23,7 +23,7 @@ try {
 
 // 2. A step that cannot run, with valid steps before and after it.
 try {
-    $small->blur(1.0)->crop({ x: 100, y: 100, width: 4, height: 4 })->grayscale()->encode();
+    $small->blurred(1.0)->cropped({ x: 100, y: 100, width: 4, height: 4 })->grayscaled()->encode();
     echo "step 2 ran\n";
 } catch (Throwable $e) {
     echo "step 2 stopped\n";
@@ -31,7 +31,7 @@ try {
 
 // 3. Resizes that grow the image past the pixel limit.
 try {
-    $small->resize({ width: 100000, height: 100000, upscale: true })->encode();
+    $small->resized({ width: 100000, height: 100000, upscale: true })->encode();
     echo "step 3 ran\n";
 } catch (Throwable $e) {
     echo "step 3 stopped\n";
@@ -42,10 +42,10 @@ try {
     Image $turned = $small;
     uint $turns = 0;
     while ($turns < 40) {
-        $turned = $turned->rotate(45.0);
+        $turned = $turned->rotated(45.0);
         $turns = $turns + 1;
     }
-    $turned->format(Format::Png)->encode();
+    $turned->withFormat(Format::Png)->encode();
     echo "step 4 ran\n";
 } catch (Throwable $e) {
     echo "step 4 stopped\n";
@@ -53,7 +53,7 @@ try {
 
 // 5. The same pipeline encoded many times. Each call starts again from the input.
 try {
-    Image $pipeline = $small->resize({ width: 8 })->format(Format::Jpeg);
+    Image $pipeline = $small->resized({ width: 8 })->withFormat(Format::Jpeg);
     uint $round = 0;
     uint $length = 0;
     while ($round < 200) {

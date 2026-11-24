@@ -13,10 +13,10 @@ Image $photo = Image::fromRaw({
             . 'f0f0f0ff707070ff101010ffc0c0c0ff'
             . '404040ffb0b0b0ff808080ff000000ff',
     ),
-})->resize({ width: 64, height: 64 });
+})->resized({ width: 64, height: 64 });
 
 // JPEG changes some pixels a little, so the images are not identical.
-tainted bytes $jpeg = $photo->format(Format::Jpeg, { quality: 90 })->encode();
+tainted bytes $jpeg = $photo->withFormat(Format::Jpeg, { quality: 90 })->encode();
 var $diff = Image::compare($photo, $jpeg);
 
 echo 'identical: ', $diff->identical ? 'yes' : 'no', "\n";

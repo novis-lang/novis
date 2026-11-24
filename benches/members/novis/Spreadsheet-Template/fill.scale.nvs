@@ -11,7 +11,7 @@ class Bench
     public static function run(uint $size): uint
     {
         var $design = Workbook::createInMemory();
-        $design->sheet('Invoice')->addAll([
+        $design->addSheet('Invoice')->addRows([
             ['Invoice {{number}}', '{{customer}}'],
             ['Item', 'Qty', 'Price', 'Total'],
             ['{{items.name}}', '{{items.qty}}', '{{items.price}}', Formula::of('B3*C3')],

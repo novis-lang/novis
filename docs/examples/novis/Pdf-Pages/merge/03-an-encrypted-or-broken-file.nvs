@@ -4,7 +4,7 @@ use Novis\Pdf\Document;
 use Novis\Pdf\Pages;
 
 var $invoice = Document::fromHtml('<p>Invoice 1042</p>')->render()->bytes;
-var $locked = Document::fromHtml('<p>Salary list</p>')->password('example-password')->render()->bytes;
+var $locked = Document::fromHtml('<p>Salary list</p>')->withPassword('example-password')->render()->bytes;
 
 // A file with a password throws a `ParseError`.
 try {

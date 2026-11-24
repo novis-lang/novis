@@ -7,7 +7,7 @@ use Novis\Spreadsheet\Template;
 use Novis\Spreadsheet\Workbook;
 
 var $design = Workbook::createInMemory();
-$design->sheet('Log')->addAll([['Shipped', Cell::of('{{shipped}}', Style::of({ format: 'yyyy-mm-dd hh:mm' }))]]);
+$design->addSheet('Log')->addRows([['Shipped', Cell::of('{{shipped}}', Style::of({ format: 'yyyy-mm-dd hh:mm' }))]]);
 bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // An `Instant` is one moment, with no time zone. 12:00 in UTC is 14:00 in Berlin in summer.

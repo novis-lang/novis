@@ -15,11 +15,11 @@ use Novis\Spreadsheet\Workbook;
 
 // `format: 'csv'` writes CSV. A style, a width and a merge are ignored.
 var $book = Workbook::createInMemory({format: "csv"});
-var $sheet = $book->sheet("Orders", {columns: ["item" => {header: "Item", width: 30}]});
-$sheet->add(["item" => "Widget, large", "count" => 3, "price" => 2.5, "paid" => true]);
-$sheet->add(["item" => Cell::of("Gadget", Style::of({bold: true})), "count" => null, "price" => 10.0, "paid" => false], {height: 30.0});
-$sheet->add(["item" => "=1+1", "count" => -4, "price" => Formula::of("SUM(C2:C3)"), "paid" => null]);
-$sheet->merge("A1:B1");
+var $sheet = $book->addSheet("Orders", {columns: ["item" => {header: "Item", width: 30}]});
+$sheet->addRow(["item" => "Widget, large", "count" => 3, "price" => 2.5, "paid" => true]);
+$sheet->addRow(["item" => Cell::of("Gadget", Style::of({bold: true})), "count" => null, "price" => 10.0, "paid" => false], {height: 30.0});
+$sheet->addRow(["item" => "=1+1", "count" => -4, "price" => Formula::of("SUM(C2:C3)"), "paid" => null]);
+$sheet->mergeCells("A1:B1");
 var $written = $book->finish();
 echo $written->rows["Orders"], " rows\n";
 bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);
@@ -29,7 +29,7 @@ echo Core\Str::replaceAll($file as string, ["\u{FEFF}" => "", "\r\n" => "\n", "\
 
 // A date, a time, a duration and an `Instant` in the workbook's `zone` are written as text.
 var $times = Workbook::createInMemory({format: "csv", zone: "Europe/Berlin"});
-$times->sheet("Times", {header: false})->add([Core\Time\Date::at(2024, 1, 15), Core\Time\TimeOfDay::at(9, 30), Core\Time\Duration::minutes(150), Core\Time\DateTime::fromIso("2024-01-15 09:30", "UTC")->toInstant()]);
+$times->addSheet("Times", {header: false})->addRow([Core\Time\Date::at(2024, 1, 15), Core\Time\TimeOfDay::at(9, 30), Core\Time\Duration::minutes(150), Core\Time\DateTime::fromIso("2024-01-15 09:30", "UTC")->toInstant()]);
 bytes $timesFile = $times->finish()->bytes ?? Core\Bytes::fill(0, 0);
 echo Core\Str::replaceAll($timesFile as string, ["\u{FEFF}" => "", "\r\n" => "\n", "\r" => ""]);
 

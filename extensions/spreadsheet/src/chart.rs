@@ -9,7 +9,7 @@
 //! is not a dependency.
 //!
 //! **A series points at its rows by reference, and the chart keeps no value.** [`check`] reads
-//! each range when the chart is added, through the reference parser `Workbook::define` uses
+//! each range when the chart is added, through the reference parser `Workbook::defineName` uses
 //! (`reference`'s module doc), so a range stays in the workbook. A range with no sheet name is on the sheet the chart is
 //! added to. **A range that ends at the row `Writer::column` gives at that moment grows with the
 //! sheet**: the chart is written when the sheet ends, and such a range ends at the sheet's last row
@@ -291,7 +291,7 @@ pub fn check(chart: &Chart, sheet: &str, reach: u32) -> Result<Planned, Error> {
     for layer in &chart.layers {
         if layer.series.is_empty() {
             return Err(Error::Invalid(format!(
-                "The {} chart at `{cell}` has no series. Add one with `series()`.",
+                "The {} chart at `{cell}` has no series. Add one with `withSeries()`.",
                 layer.kind.name()
             )));
         }

@@ -51,7 +51,7 @@ will run and is the more refusing of the two, not the quiet one.
   fails, so the author of every new builder classifies it once;
 - a member that takes an argument besides its subject and starts with no verb is on the `reads` list
   (part 2). This closes the one shape the types cannot show: a noun with an effect that returns another
-  type, such as a `Workbook->sheet($name)` that adds a sheet. The list is every such member that
+  type, such as a `Shop\Cart->item($name)` that adds an item. The list is every such member that
   exists, and a new one fails until its author adds it.
 
 A past participle is a first word ending in `ed` (outside `notParticiples`), or one of

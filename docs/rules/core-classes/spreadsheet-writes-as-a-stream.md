@@ -20,15 +20,15 @@ returns an `Export`, whose `download`, `save`, `to` and `bytes` name the target 
 an `Iterable` of rows writes every time. An `Iterator`, a generator included, is read once, so a second
 write of its `Export` throws `LogicError` saying so.
 
-**Rows go in batches, and compressed bytes come back.** `$sheet->add($row)` queues a row in the Novis
+**Rows go in batches, and compressed bytes come back.** `$sheet->addRow($row)` queues a row in the Novis
 half, and a full batch crosses in one guest call, which returns the deflated bytes ready to leave; the
-Novis half sends them on before it takes the next row. `addAll` takes any `iterable`, a generator or a
+Novis half sends them on before it takes the next row. `addRows` takes any `iterable`, a generator or a
 query result included, and batches it the same way. The guest writes sheet XML as plain text, deflates
 it as it goes and frames each zip entry with a data descriptor, so it never knows an entry's size in
 advance and never seeks. **Strings are written inline** (`t="inlineStr"`), so no shared-string table
 grows with the sheet.
 
-**Sheets are written one after another.** `$book->sheet('B')` finishes sheet A; writing to a finished
+**Sheets are written one after another.** `$book->addSheet('B')` finishes sheet A; writing to a finished
 sheet throws naming it. `{position: n}` sets the tab order, which `workbook.xml` records at
 `finish()`. A sheet name follows Excel's rules — at most 31 characters, none of `: \ / ? * [ ]`, not
 empty, no leading or trailing apostrophe, unique in the workbook — and a bad one throws naming the
@@ -40,7 +40,7 @@ conditional formats, images, charts, page setup and protection
 (`rule:core-classes/spreadsheet-sheet-end-parts`). Each may point at any row already written. **What is
 fixed before the first row** is what xlsx writes before the rows: frozen panes, column widths and
 column styles, which is why they are sheet options and not calls. Row heights, hidden rows and outline
-levels are options of `add`, because they are written with the row.
+levels are options of `addRow`, because they are written with the row.
 
 The sheet options are `columns` (`rule:core-classes/spreadsheet-styles-and-defaults`), `header`,
 `freeze`, `autofilter`, `headerStyle`, `position`, `hidden` (`true` or `'very'`), `tabColor`, `zoom`,
@@ -63,7 +63,7 @@ finished is not reported.
 **A file is never left half written.** `createForFile` writes to its temporary name and `finish()`
 renames it to the path, so a reader of the path sees the old file or the whole new one. A failed write
 or a failed `finish()` deletes the temporary file, and every later call on the workbook throws
-`LogicError`. An input error in `add`, such as a NaN, leaves the workbook usable, so the temporary
+`LogicError`. An input error in `addRow`, such as a NaN, leaves the workbook usable, so the temporary
 file stays until `finish()`. `Export::save` writes through `createForFile`, and a filled template's
 `save` writes the same way. The folder needs `fs.write`, not only the file. Cost: one rename per
 file, and the temporary name's bytes per writing request. A program that stops before `finish()`
@@ -96,10 +96,10 @@ paragraphs, written down once.
   that exports more rows than the cap holds writes xlsx or CSV.
 
 **On disk.** The streaming writer (`extensions/spreadsheet/src/writer.rs`), the four targets,
-`sheet`, `finish`, `Written`, `Sheet`'s `add` and `addAll` in batches of 1,000 rows, `fromRows` and
+`addSheet`, `finish`, `Written`, `Sheet`'s `addRow` and `addRows` in batches of 1,000 rows, `fromRows` and
 `Export` (`extensions/spreadsheet/nvs/Workbook.nvs`, `Sheet.nvs`, `Export.nvs`), with every sheet
 option above, the sheet-name rules, the row options `height`, `hidden`, `level` and `style`,
-`define`, CSV and ods (`extensions/spreadsheet/src/ods/`, `extensions/spreadsheet/src/book.rs`), and
+`defineName`, CSV and ods (`extensions/spreadsheet/src/ods/`, `extensions/spreadsheet/src/book.rs`), and
 the cut-off and logged download that was never finished
 (`Core\Response::startStream`'s `$mustEnd` and `Core\Response\Stream::end`,
 `crates/nvs-stdlib/src/response.rs`).

@@ -10,7 +10,7 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        tainted bytes $png = Image::create(4, 4, Color::hex('#336699'))->format(Format::Png)->encode();
+        tainted bytes $png = Image::create(4, 4, Color::hex('#336699'))->withFormat(Format::Png)->encode();
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

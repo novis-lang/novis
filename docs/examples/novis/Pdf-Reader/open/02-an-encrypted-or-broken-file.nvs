@@ -3,7 +3,7 @@
 use Novis\Pdf\Document;
 use Novis\Pdf\Reader;
 
-var $locked = Document::fromHtml('<p>Salary list</p>')->password('example-password')->render()->bytes;
+var $locked = Document::fromHtml('<p>Salary list</p>')->withPassword('example-password')->render()->bytes;
 
 // A file with a password throws a `ParseError`.
 try {

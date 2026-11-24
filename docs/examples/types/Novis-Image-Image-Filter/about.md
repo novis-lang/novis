@@ -1,8 +1,8 @@
-The filter `resize` uses to calculate the pixels of the new image.
+The filter `resized` uses to calculate the pixels of the new image.
 
 `Image::Filter` is declared in the class `Novis\Image\Image`.
 
-You pass an `Image::Filter` to `resize` as `filter`. The default is `Lanczos3`, which gives the sharpest
+You pass an `Image::Filter` to `resized` as `filter`. The default is `Lanczos3`, which gives the sharpest
 result for photos and is the right choice in most programs.
 
 - `Nearest` copies the closest pixel. It is the fastest, and it keeps hard edges, so use it for pixel

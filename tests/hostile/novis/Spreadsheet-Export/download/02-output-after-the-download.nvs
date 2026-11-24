@@ -18,7 +18,7 @@ class Attack
 }
 
 var $book = Workbook::createForDownload('orders.csv', { format: 'csv' });
-$book->sheet('Orders')->add(['item' => 'Tea', 'qty' => 2]);
+$book->addSheet('Orders')->addRow(['item' => 'Tea', 'qty' => 2]);
 $book->finish();
 
 // 1. Text after the end of the download.
@@ -33,7 +33,7 @@ Attack::step(2, fn(): void => {
 
 // 3. A row after `finish`.
 Attack::step(3, fn(): void => {
-    $book->sheet('Orders')->add(['item' => 'Cake', 'qty' => 3]);
+    $book->addSheet('Orders')->addRow(['item' => 'Cake', 'qty' => 3]);
 });
 
 // 4. A second `finish`.

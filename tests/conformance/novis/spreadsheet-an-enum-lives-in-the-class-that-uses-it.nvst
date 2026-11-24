@@ -22,8 +22,8 @@ array<Novis\Spreadsheet\Sheet::Orientation> $sides = [Novis\Spreadsheet\Sheet::O
 echo Core\Arr::count($sides), " orientations\n";
 
 var $book = Workbook::createInMemory();
-$book->sheet('Prices')->addAll([['item' => 'Tea', 'price' => 2.5], ['item' => 'Cake', 'price' => 4]]);
-$book->sheet('Codes', { hidden: true })->add(['code' => 'T']);
+$book->addSheet('Prices')->addRows([['item' => 'Tea', 'price' => 2.5], ['item' => 'Cake', 'price' => 4]]);
+$book->addSheet('Codes', { hidden: true })->addRow(['code' => 'T']);
 var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 foreach ($reader->sheets() as var $info) {
     string $shown = $info->visibility == Reader::Visibility::Visible ? "visible" : "hidden";

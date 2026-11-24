@@ -219,7 +219,8 @@ pub fn color(r: u64, g: u64, b: u64, alpha: f64) -> Result<[u8; 4], Error> {
     Ok([channel(r)?, channel(g)?, channel(b)?, alpha])
 }
 
-/// `Invalid` unless `value` is finite and at least `min`, or above it when `open` is set.
+/// `Invalid` unless `value` is finite and at least `min`, or above it when `open` is set. `step`
+/// is the name of the `Image` method that adds the step, as the message names it.
 fn bounded(step: &str, value: f64, min: f64, open: bool) -> Result<(), Error> {
     let fits = value.is_finite() && if open { value > min } else { value >= min };
     if fits {
@@ -237,34 +238,34 @@ pub fn check(op: &Op) -> Result<(), Error> {
     match *op {
         Op::Resize(resize) => match (resize.width, resize.height) {
             (None, None) => Err(Error::Invalid(
-                "`resize` needs a `width`, a `height` or both".to_owned(),
+                "`resized` needs a `width`, a `height` or both".to_owned(),
             )),
             (Some(0), _) | (_, Some(0)) => Err(Error::Invalid(
-                "`resize` needs a `width` and a `height` above 0".to_owned(),
+                "`resized` needs a `width` and a `height` above 0".to_owned(),
             )),
             _ => Ok(()),
         },
         Op::Crop { width, height, .. } if width == 0 || height == 0 => Err(Error::Invalid(
-            "`crop` needs a `width` and a `height` above 0".to_owned(),
+            "`cropped` needs a `width` and a `height` above 0".to_owned(),
         )),
         Op::Crop { .. } | Op::Flip(_) | Op::Flatten(_) | Op::Grayscale | Op::Tint(_) => Ok(()),
         Op::Trim { threshold } if !(0.0..=255.0).contains(&threshold) => Err(Error::Invalid(
-            format!("`trim` needs a threshold of 0 to 255, and was given {threshold}"),
+            format!("`trimmed` needs a threshold of 0 to 255, and was given {threshold}"),
         )),
         Op::Trim { .. } => Ok(()),
         Op::Composite(composite) if !(0.0..=1.0).contains(&composite.opacity) => {
             Err(Error::Invalid(format!(
-                "`composite` needs an opacity of 0 to 1, and was given {}",
+                "`withOverlay` needs an opacity of 0 to 1, and was given {}",
                 composite.opacity
             )))
         }
         Op::Composite(_) => Ok(()),
-        Op::Rotate { degrees, .. } => bounded("rotate", degrees, f64::MIN, false),
-        Op::Sharpen { sigma } => bounded("sharpen", sigma, 0.0, true),
-        Op::Blur { sigma } => bounded("blur", sigma, 0.0, true),
-        Op::Brightness(value) => bounded("brightness", value, 0.0, false),
-        Op::Contrast(value) => bounded("contrast", value, 0.0, false),
-        Op::Gamma(value) => bounded("gamma", value, 0.0, true),
+        Op::Rotate { degrees, .. } => bounded("rotated", degrees, f64::MIN, false),
+        Op::Sharpen { sigma } => bounded("sharpened", sigma, 0.0, true),
+        Op::Blur { sigma } => bounded("blurred", sigma, 0.0, true),
+        Op::Brightness(value) => bounded("withBrightness", value, 0.0, false),
+        Op::Contrast(value) => bounded("withContrast", value, 0.0, false),
+        Op::Gamma(value) => bounded("withGamma", value, 0.0, true),
         Op::Text(text) => crate::text::check(&text.layout),
     }
 }
@@ -283,7 +284,7 @@ pub fn apply(pixels: &mut Pixels, op: Op, cap: u64, frames: u64) -> Result<(), E
         } => {
             if !inside((x, y, width, height), pixels.width, pixels.height) {
                 return Err(Error::Invalid(format!(
-                    "`crop` of {width}x{height} at {x}, {y} does not lie inside the {}x{} image",
+                    "`cropped` of {width}x{height} at {x}, {y} does not lie inside the {}x{} image",
                     pixels.width, pixels.height
                 )));
             }

@@ -3944,26 +3944,26 @@
   "docs/examples/novis/Image-Font/fromBytes/about.md": {
     "Novis\\Image\\Font::fromBytes": "605cc69a143396c7"
   },
-  "docs/examples/novis/Image-Image/blur/about.md": {
-    "Novis\\Image\\Image::blur": "3db6b854b2de5872"
+  "docs/examples/novis/Image-Image/blurred/about.md": {
+    "Novis\\Image\\Image::blurred": "3db6b854b2de5872"
   },
-  "docs/examples/novis/Image-Image/brightness/about.md": {
-    "Novis\\Image\\Image::brightness": "935b4d87fc1d22da"
+  "docs/examples/novis/Image-Image/withBrightness/about.md": {
+    "Novis\\Image\\Image::withBrightness": "935b4d87fc1d22da"
   },
   "docs/examples/novis/Image-Image/compare/about.md": {
     "Novis\\Image\\Image::compare": "1792637d0fbb6dae"
   },
-  "docs/examples/novis/Image-Image/composite/about.md": {
-    "Novis\\Image\\Image::composite": "fc21f011adb246dd"
+  "docs/examples/novis/Image-Image/withOverlay/about.md": {
+    "Novis\\Image\\Image::withOverlay": "fc21f011adb246dd"
   },
-  "docs/examples/novis/Image-Image/contrast/about.md": {
-    "Novis\\Image\\Image::contrast": "79c3df81f71923b0"
+  "docs/examples/novis/Image-Image/withContrast/about.md": {
+    "Novis\\Image\\Image::withContrast": "79c3df81f71923b0"
   },
   "docs/examples/novis/Image-Image/create/about.md": {
     "Novis\\Image\\Image::create": "40a62a0c017727d6"
   },
-  "docs/examples/novis/Image-Image/crop/about.md": {
-    "Novis\\Image\\Image::crop": "739f553632d1f969"
+  "docs/examples/novis/Image-Image/cropped/about.md": {
+    "Novis\\Image\\Image::cropped": "739f553632d1f969"
   },
   "docs/examples/novis/Image-Image/encode/about.md": {
     "Novis\\Image\\Image::encode": "3b38926da5f9dd55"
@@ -3971,23 +3971,23 @@
   "docs/examples/novis/Image-Image/extension/about.md": {
     "Novis\\Image\\Image::extension": "2b87ed10d6b2f45a"
   },
-  "docs/examples/novis/Image-Image/flatten/about.md": {
-    "Novis\\Image\\Image::flatten": "656af41afc50052b"
+  "docs/examples/novis/Image-Image/flattened/about.md": {
+    "Novis\\Image\\Image::flattened": "656af41afc50052b"
   },
-  "docs/examples/novis/Image-Image/flip/about.md": {
-    "Novis\\Image\\Image::flip": "8a7669052baefd45"
+  "docs/examples/novis/Image-Image/flipped/about.md": {
+    "Novis\\Image\\Image::flipped": "8a7669052baefd45"
   },
-  "docs/examples/novis/Image-Image/format/about.md": {
-    "Novis\\Image\\Image::format": "8d442f6990208b0d"
+  "docs/examples/novis/Image-Image/withFormat/about.md": {
+    "Novis\\Image\\Image::withFormat": "8d442f6990208b0d"
   },
   "docs/examples/novis/Image-Image/fromRaw/about.md": {
     "Novis\\Image\\Image::fromRaw": "bb6b9bef7246aef1"
   },
-  "docs/examples/novis/Image-Image/gamma/about.md": {
-    "Novis\\Image\\Image::gamma": "7f063c84fbd4b436"
+  "docs/examples/novis/Image-Image/withGamma/about.md": {
+    "Novis\\Image\\Image::withGamma": "7f063c84fbd4b436"
   },
-  "docs/examples/novis/Image-Image/grayscale/about.md": {
-    "Novis\\Image\\Image::grayscale": "dedd712f11088cb3"
+  "docs/examples/novis/Image-Image/grayscaled/about.md": {
+    "Novis\\Image\\Image::grayscaled": "dedd712f11088cb3"
   },
   "docs/examples/novis/Image-Image/hash/about.md": {
     "Novis\\Image\\Image::hash": "9a0606382a6237e3"
@@ -4001,8 +4001,8 @@
   "docs/examples/novis/Image-Image/measureText/about.md": {
     "Novis\\Image\\Image::measureText": "c0896b0f874c6094"
   },
-  "docs/examples/novis/Image-Image/metadata/about.md": {
-    "Novis\\Image\\Image::metadata": "2b616bae08a0e140"
+  "docs/examples/novis/Image-Image/keepingMetadata/about.md": {
+    "Novis\\Image\\Image::keepingMetadata": "2b616bae08a0e140"
   },
   "docs/examples/novis/Image-Image/mime/about.md": {
     "Novis\\Image\\Image::mime": "b2dd876d25eb3290"
@@ -4019,26 +4019,26 @@
   "docs/examples/novis/Image-Image/raw/about.md": {
     "Novis\\Image\\Image::raw": "7816bd0204d5b90a"
   },
-  "docs/examples/novis/Image-Image/resize/about.md": {
-    "Novis\\Image\\Image::resize": "bdd9b62863b323df"
+  "docs/examples/novis/Image-Image/resized/about.md": {
+    "Novis\\Image\\Image::resized": "bdd9b62863b323df"
   },
-  "docs/examples/novis/Image-Image/rotate/about.md": {
-    "Novis\\Image\\Image::rotate": "28c3a99fbc1793e5"
+  "docs/examples/novis/Image-Image/rotated/about.md": {
+    "Novis\\Image\\Image::rotated": "28c3a99fbc1793e5"
   },
-  "docs/examples/novis/Image-Image/sharpen/about.md": {
-    "Novis\\Image\\Image::sharpen": "58bef57489b6da32"
+  "docs/examples/novis/Image-Image/sharpened/about.md": {
+    "Novis\\Image\\Image::sharpened": "58bef57489b6da32"
   },
-  "docs/examples/novis/Image-Image/text/about.md": {
-    "Novis\\Image\\Image::text": "d5b537624624d65d"
+  "docs/examples/novis/Image-Image/withText/about.md": {
+    "Novis\\Image\\Image::withText": "d5b537624624d65d"
   },
-  "docs/examples/novis/Image-Image/tint/about.md": {
-    "Novis\\Image\\Image::tint": "ecc8150c9b8b9949"
+  "docs/examples/novis/Image-Image/tinted/about.md": {
+    "Novis\\Image\\Image::tinted": "ecc8150c9b8b9949"
   },
-  "docs/examples/novis/Image-Image/trim/about.md": {
-    "Novis\\Image\\Image::trim": "4aba023e69261c06"
+  "docs/examples/novis/Image-Image/trimmed/about.md": {
+    "Novis\\Image\\Image::trimmed": "4aba023e69261c06"
   },
-  "docs/examples/novis/Image-Image/variants/about.md": {
-    "Novis\\Image\\Image::variants": "033705d0dfc0b510"
+  "docs/examples/novis/Image-Image/encodeVariants/about.md": {
+    "Novis\\Image\\Image::encodeVariants": "033705d0dfc0b510"
   },
   "docs/examples/novis/Image-QrCode/giroCode/about.md": {
     "Novis\\Image\\QrCode::giroCode": "5c7076bc2b335497"
@@ -4100,35 +4100,35 @@
   "docs/examples/novis/Intl-Segmenter/words/about.md": {
     "Novis\\Intl\\Segmenter::words": "65b88134f5dd9ea7"
   },
-  "docs/examples/novis/Pdf-Document/asset/about.md": {
-    "Novis\\Pdf\\Document::asset": "c23590ca70c5c15f"
+  "docs/examples/novis/Pdf-Document/withAsset/about.md": {
+    "Novis\\Pdf\\Document::withAsset": "c23590ca70c5c15f"
   },
-  "docs/examples/novis/Pdf-Document/created/about.md": {
-    "Novis\\Pdf\\Document::created": "ebca92a06d8e4917"
+  "docs/examples/novis/Pdf-Document/withCreationTime/about.md": {
+    "Novis\\Pdf\\Document::withCreationTime": "ebca92a06d8e4917"
   },
-  "docs/examples/novis/Pdf-Document/footer/about.md": {
-    "Novis\\Pdf\\Document::footer": "3c9803a83aa8be56"
+  "docs/examples/novis/Pdf-Document/withFooter/about.md": {
+    "Novis\\Pdf\\Document::withFooter": "3c9803a83aa8be56"
   },
   "docs/examples/novis/Pdf-Document/fromHtml/about.md": {
     "Novis\\Pdf\\Document::fromHtml": "ae5e2e5c2fbd5fc6"
   },
-  "docs/examples/novis/Pdf-Document/header/about.md": {
-    "Novis\\Pdf\\Document::header": "0b59d964fa9b88e1"
+  "docs/examples/novis/Pdf-Document/withHeader/about.md": {
+    "Novis\\Pdf\\Document::withHeader": "0b59d964fa9b88e1"
   },
-  "docs/examples/novis/Pdf-Document/invoiceXml/about.md": {
-    "Novis\\Pdf\\Document::invoiceXml": "cd5ec6df2db11ac8"
+  "docs/examples/novis/Pdf-Document/withInvoiceXml/about.md": {
+    "Novis\\Pdf\\Document::withInvoiceXml": "cd5ec6df2db11ac8"
   },
-  "docs/examples/novis/Pdf-Document/password/about.md": {
-    "Novis\\Pdf\\Document::password": "f7c338030b1f2c09"
+  "docs/examples/novis/Pdf-Document/withPassword/about.md": {
+    "Novis\\Pdf\\Document::withPassword": "f7c338030b1f2c09"
   },
   "docs/examples/novis/Pdf-Document/render/about.md": {
     "Novis\\Pdf\\Document::render": "5d853f7681783cb0"
   },
-  "docs/examples/novis/Pdf-Document/slots/about.md": {
-    "Novis\\Pdf\\Document::slots": "b2de1466a63836b2"
+  "docs/examples/novis/Pdf-Document/withSlots/about.md": {
+    "Novis\\Pdf\\Document::withSlots": "b2de1466a63836b2"
   },
-  "docs/examples/novis/Pdf-Document/standard/about.md": {
-    "Novis\\Pdf\\Document::standard": "fa58dc9b3d5ba6dd"
+  "docs/examples/novis/Pdf-Document/withStandard/about.md": {
+    "Novis\\Pdf\\Document::withStandard": "fa58dc9b3d5ba6dd"
   },
   "docs/examples/novis/Pdf-Page/constructor/about.md": {
     "Novis\\Pdf\\Page::constructor": "6a838d538da75036"
@@ -4187,8 +4187,8 @@
   "docs/examples/novis/Spreadsheet-Chart/column/about.md": {
     "Novis\\Spreadsheet\\Chart::column": "ecbad3974c6cf31b"
   },
-  "docs/examples/novis/Spreadsheet-Chart/combine/about.md": {
-    "Novis\\Spreadsheet\\Chart::combine": "81773632295d659a"
+  "docs/examples/novis/Spreadsheet-Chart/combinedWith/about.md": {
+    "Novis\\Spreadsheet\\Chart::combinedWith": "81773632295d659a"
   },
   "docs/examples/novis/Spreadsheet-Chart/constructor/about.md": {
     "Novis\\Spreadsheet\\Chart::constructor": "3542a1f5beffee77"
@@ -4205,8 +4205,8 @@
   "docs/examples/novis/Spreadsheet-Chart/scatter/about.md": {
     "Novis\\Spreadsheet\\Chart::scatter": "14200c5117147eec"
   },
-  "docs/examples/novis/Spreadsheet-Chart/series/about.md": {
-    "Novis\\Spreadsheet\\Chart::series": "f3129e4d957ecb32"
+  "docs/examples/novis/Spreadsheet-Chart/withSeries/about.md": {
+    "Novis\\Spreadsheet\\Chart::withSeries": "f3129e4d957ecb32"
   },
   "docs/examples/novis/Spreadsheet-Export/bytes/about.md": {
     "Novis\\Spreadsheet\\Export::bytes": "e838a14e5c4e38a0"
@@ -4268,53 +4268,53 @@
   "docs/examples/novis/Spreadsheet-Row/constructor/about.md": {
     "Novis\\Spreadsheet\\Row::constructor": "792452c43ac77150"
   },
-  "docs/examples/novis/Spreadsheet-Sheet/add/about.md": {
-    "Novis\\Spreadsheet\\Sheet::add": "7028d7f781b0e78f"
+  "docs/examples/novis/Spreadsheet-Sheet/addRow/about.md": {
+    "Novis\\Spreadsheet\\Sheet::addRow": "7028d7f781b0e78f"
   },
-  "docs/examples/novis/Spreadsheet-Sheet/addAll/about.md": {
-    "Novis\\Spreadsheet\\Sheet::addAll": "e4ca9045d1e94b06"
+  "docs/examples/novis/Spreadsheet-Sheet/addRows/about.md": {
+    "Novis\\Spreadsheet\\Sheet::addRows": "e4ca9045d1e94b06"
   },
   "docs/examples/novis/Spreadsheet-Sheet/cell/about.md": {
     "Novis\\Spreadsheet\\Sheet::cell": "8ceac09268394e04"
   },
-  "docs/examples/novis/Spreadsheet-Sheet/chart/about.md": {
-    "Novis\\Spreadsheet\\Sheet::chart": "c2d21f402230188a"
+  "docs/examples/novis/Spreadsheet-Sheet/addChart/about.md": {
+    "Novis\\Spreadsheet\\Sheet::addChart": "c2d21f402230188a"
   },
   "docs/examples/novis/Spreadsheet-Sheet/column/about.md": {
     "Novis\\Spreadsheet\\Sheet::column": "ffe74a65b39614cd"
   },
-  "docs/examples/novis/Spreadsheet-Sheet/conditional/about.md": {
-    "Novis\\Spreadsheet\\Sheet::conditional": "5da7132a80caa767"
+  "docs/examples/novis/Spreadsheet-Sheet/addConditionalFormat/about.md": {
+    "Novis\\Spreadsheet\\Sheet::addConditionalFormat": "5da7132a80caa767"
   },
   "docs/examples/novis/Spreadsheet-Sheet/constructor/about.md": {
     "Novis\\Spreadsheet\\Sheet::constructor": "b4333303b7eefc90"
   },
-  "docs/examples/novis/Spreadsheet-Sheet/group/about.md": {
-    "Novis\\Spreadsheet\\Sheet::group": "86ba8f4d90abbd64"
+  "docs/examples/novis/Spreadsheet-Sheet/addOutlineGroup/about.md": {
+    "Novis\\Spreadsheet\\Sheet::addOutlineGroup": "86ba8f4d90abbd64"
   },
-  "docs/examples/novis/Spreadsheet-Sheet/image/about.md": {
-    "Novis\\Spreadsheet\\Sheet::image": "214d9edf5bf23b81"
+  "docs/examples/novis/Spreadsheet-Sheet/addImage/about.md": {
+    "Novis\\Spreadsheet\\Sheet::addImage": "214d9edf5bf23b81"
   },
-  "docs/examples/novis/Spreadsheet-Sheet/link/about.md": {
-    "Novis\\Spreadsheet\\Sheet::link": "10c8943b7d555b4e"
+  "docs/examples/novis/Spreadsheet-Sheet/addLink/about.md": {
+    "Novis\\Spreadsheet\\Sheet::addLink": "10c8943b7d555b4e"
   },
-  "docs/examples/novis/Spreadsheet-Sheet/merge/about.md": {
-    "Novis\\Spreadsheet\\Sheet::merge": "e939b6f42023d54c"
+  "docs/examples/novis/Spreadsheet-Sheet/mergeCells/about.md": {
+    "Novis\\Spreadsheet\\Sheet::mergeCells": "e939b6f42023d54c"
   },
-  "docs/examples/novis/Spreadsheet-Sheet/note/about.md": {
-    "Novis\\Spreadsheet\\Sheet::note": "912bc817249e7645"
+  "docs/examples/novis/Spreadsheet-Sheet/addNote/about.md": {
+    "Novis\\Spreadsheet\\Sheet::addNote": "912bc817249e7645"
   },
-  "docs/examples/novis/Spreadsheet-Sheet/print/about.md": {
-    "Novis\\Spreadsheet\\Sheet::print": "a82507c8324fc988"
+  "docs/examples/novis/Spreadsheet-Sheet/setPrintOptions/about.md": {
+    "Novis\\Spreadsheet\\Sheet::setPrintOptions": "a82507c8324fc988"
   },
   "docs/examples/novis/Spreadsheet-Sheet/protect/about.md": {
     "Novis\\Spreadsheet\\Sheet::protect": "a85d123cf32b854b"
   },
-  "docs/examples/novis/Spreadsheet-Sheet/table/about.md": {
-    "Novis\\Spreadsheet\\Sheet::table": "757b63a5e0ab3414"
+  "docs/examples/novis/Spreadsheet-Sheet/addTable/about.md": {
+    "Novis\\Spreadsheet\\Sheet::addTable": "757b63a5e0ab3414"
   },
-  "docs/examples/novis/Spreadsheet-Sheet/validate/about.md": {
-    "Novis\\Spreadsheet\\Sheet::validate": "6a5fbfe4aa0481aa"
+  "docs/examples/novis/Spreadsheet-Sheet/addValidation/about.md": {
+    "Novis\\Spreadsheet\\Sheet::addValidation": "6a5fbfe4aa0481aa"
   },
   "docs/examples/novis/Spreadsheet-Style/constructor/about.md": {
     "Novis\\Spreadsheet\\Style::constructor": "5e7a0a422abe5219"
@@ -4343,8 +4343,8 @@
   "docs/examples/novis/Spreadsheet-Workbook/createInMemory/about.md": {
     "Novis\\Spreadsheet\\Workbook::createInMemory": "a878ec6a4b5877c0"
   },
-  "docs/examples/novis/Spreadsheet-Workbook/define/about.md": {
-    "Novis\\Spreadsheet\\Workbook::define": "41658b819224e4c2"
+  "docs/examples/novis/Spreadsheet-Workbook/defineName/about.md": {
+    "Novis\\Spreadsheet\\Workbook::defineName": "41658b819224e4c2"
   },
   "docs/examples/novis/Spreadsheet-Workbook/finish/about.md": {
     "Novis\\Spreadsheet\\Workbook::finish": "e364d07d4833657b"
@@ -4352,8 +4352,8 @@
   "docs/examples/novis/Spreadsheet-Workbook/fromRows/about.md": {
     "Novis\\Spreadsheet\\Workbook::fromRows": "365e30756546e828"
   },
-  "docs/examples/novis/Spreadsheet-Workbook/sheet/about.md": {
-    "Novis\\Spreadsheet\\Workbook::sheet": "7070fb94a7c2ccd8"
+  "docs/examples/novis/Spreadsheet-Workbook/addSheet/about.md": {
+    "Novis\\Spreadsheet\\Workbook::addSheet": "7070fb94a7c2ccd8"
   },
   "docs/examples/novis/Spreadsheet-Written/constructor/about.md": {
     "Novis\\Spreadsheet\\Written::constructor": "dbb528a1c1d540c2"
@@ -8693,26 +8693,26 @@
   "help:Novis\\Image\\Image::Blend": {
     "Novis\\Image\\Image::Blend": "4e4e8850b6f98530"
   },
-  "help:Novis\\Image\\Image::blur": {
-    "Novis\\Image\\Image::blur": "375e864e563fef22"
+  "help:Novis\\Image\\Image::blurred": {
+    "Novis\\Image\\Image::blurred": "375e864e563fef22"
   },
-  "help:Novis\\Image\\Image::brightness": {
-    "Novis\\Image\\Image::brightness": "9120f7b08d786c55"
+  "help:Novis\\Image\\Image::withBrightness": {
+    "Novis\\Image\\Image::withBrightness": "9120f7b08d786c55"
   },
   "help:Novis\\Image\\Image::compare": {
     "Novis\\Image\\Image::compare": "990c95f33e84dad4"
   },
-  "help:Novis\\Image\\Image::composite": {
-    "Novis\\Image\\Image::composite": "b443657378d79c72"
+  "help:Novis\\Image\\Image::withOverlay": {
+    "Novis\\Image\\Image::withOverlay": "b443657378d79c72"
   },
-  "help:Novis\\Image\\Image::contrast": {
-    "Novis\\Image\\Image::contrast": "17a9f5cdf5452501"
+  "help:Novis\\Image\\Image::withContrast": {
+    "Novis\\Image\\Image::withContrast": "17a9f5cdf5452501"
   },
   "help:Novis\\Image\\Image::create": {
     "Novis\\Image\\Image::create": "46fb194472ab7c3f"
   },
-  "help:Novis\\Image\\Image::crop": {
-    "Novis\\Image\\Image::crop": "b359eb2830b1caab"
+  "help:Novis\\Image\\Image::cropped": {
+    "Novis\\Image\\Image::cropped": "b359eb2830b1caab"
   },
   "help:Novis\\Image\\Image::encode": {
     "Novis\\Image\\Image::encode": "49e9b35be29f7988"
@@ -8726,26 +8726,26 @@
   "help:Novis\\Image\\Image::Fit": {
     "Novis\\Image\\Image::Fit": "11b415c39ed02588"
   },
-  "help:Novis\\Image\\Image::flatten": {
-    "Novis\\Image\\Image::flatten": "0d8e815569ce1caa"
+  "help:Novis\\Image\\Image::flattened": {
+    "Novis\\Image\\Image::flattened": "0d8e815569ce1caa"
   },
-  "help:Novis\\Image\\Image::flip": {
-    "Novis\\Image\\Image::flip": "adc19603c82ea5f0"
+  "help:Novis\\Image\\Image::flipped": {
+    "Novis\\Image\\Image::flipped": "adc19603c82ea5f0"
   },
-  "help:Novis\\Image\\Image::format": {
-    "Novis\\Image\\Image::format": "20a390884097249f"
+  "help:Novis\\Image\\Image::withFormat": {
+    "Novis\\Image\\Image::withFormat": "20a390884097249f"
   },
   "help:Novis\\Image\\Image::fromRaw": {
     "Novis\\Image\\Image::fromRaw": "0160d679b4c88fc0"
   },
-  "help:Novis\\Image\\Image::gamma": {
-    "Novis\\Image\\Image::gamma": "8f6cff7607fa25de"
+  "help:Novis\\Image\\Image::withGamma": {
+    "Novis\\Image\\Image::withGamma": "8f6cff7607fa25de"
   },
   "help:Novis\\Image\\Image::Gravity": {
     "Novis\\Image\\Image::Gravity": "981658c7485f61b0"
   },
-  "help:Novis\\Image\\Image::grayscale": {
-    "Novis\\Image\\Image::grayscale": "168ece223810af23"
+  "help:Novis\\Image\\Image::grayscaled": {
+    "Novis\\Image\\Image::grayscaled": "168ece223810af23"
   },
   "help:Novis\\Image\\Image::hash": {
     "Novis\\Image\\Image::hash": "db1febd3b3c005e9"
@@ -8762,8 +8762,8 @@
   "help:Novis\\Image\\Image::measureText": {
     "Novis\\Image\\Image::measureText": "d1cac679bb5d24c9"
   },
-  "help:Novis\\Image\\Image::metadata": {
-    "Novis\\Image\\Image::metadata": "e03b924d9d773fd0"
+  "help:Novis\\Image\\Image::keepingMetadata": {
+    "Novis\\Image\\Image::keepingMetadata": "e03b924d9d773fd0"
   },
   "help:Novis\\Image\\Image::mime": {
     "Novis\\Image\\Image::mime": "a9593f6a90d44075"
@@ -8783,26 +8783,26 @@
   "help:Novis\\Image\\Image::raw": {
     "Novis\\Image\\Image::raw": "5b6c77b0435a62f2"
   },
-  "help:Novis\\Image\\Image::resize": {
-    "Novis\\Image\\Image::resize": "46ffbaaa421e3dfc"
+  "help:Novis\\Image\\Image::resized": {
+    "Novis\\Image\\Image::resized": "46ffbaaa421e3dfc"
   },
-  "help:Novis\\Image\\Image::rotate": {
-    "Novis\\Image\\Image::rotate": "92e499261a4e52dd"
+  "help:Novis\\Image\\Image::rotated": {
+    "Novis\\Image\\Image::rotated": "92e499261a4e52dd"
   },
-  "help:Novis\\Image\\Image::sharpen": {
-    "Novis\\Image\\Image::sharpen": "2f373a5e1e275d43"
+  "help:Novis\\Image\\Image::sharpened": {
+    "Novis\\Image\\Image::sharpened": "2f373a5e1e275d43"
   },
-  "help:Novis\\Image\\Image::text": {
-    "Novis\\Image\\Image::text": "2ba67f58608f12ad"
+  "help:Novis\\Image\\Image::withText": {
+    "Novis\\Image\\Image::withText": "2ba67f58608f12ad"
   },
-  "help:Novis\\Image\\Image::tint": {
-    "Novis\\Image\\Image::tint": "044a1a4321ad8f0c"
+  "help:Novis\\Image\\Image::tinted": {
+    "Novis\\Image\\Image::tinted": "044a1a4321ad8f0c"
   },
-  "help:Novis\\Image\\Image::trim": {
-    "Novis\\Image\\Image::trim": "c146b9229d7ed3d2"
+  "help:Novis\\Image\\Image::trimmed": {
+    "Novis\\Image\\Image::trimmed": "c146b9229d7ed3d2"
   },
-  "help:Novis\\Image\\Image::variants": {
-    "Novis\\Image\\Image::variants": "d73664b813d8ea4d"
+  "help:Novis\\Image\\Image::encodeVariants": {
+    "Novis\\Image\\Image::encodeVariants": "d73664b813d8ea4d"
   },
   "help:Novis\\Image\\QrCode::giroCode": {
     "Novis\\Image\\QrCode::giroCode": "5003662883935133"
@@ -8900,35 +8900,35 @@
   "help:Novis\\Intl\\Width": {
     "Novis\\Intl\\Width": "c0ab5a69411467c9"
   },
-  "help:Novis\\Pdf\\Document::asset": {
-    "Novis\\Pdf\\Document::asset": "97c55f3f06d3c843"
+  "help:Novis\\Pdf\\Document::withAsset": {
+    "Novis\\Pdf\\Document::withAsset": "97c55f3f06d3c843"
   },
-  "help:Novis\\Pdf\\Document::created": {
-    "Novis\\Pdf\\Document::created": "4ad152a316eb1b0f"
+  "help:Novis\\Pdf\\Document::withCreationTime": {
+    "Novis\\Pdf\\Document::withCreationTime": "4ad152a316eb1b0f"
   },
-  "help:Novis\\Pdf\\Document::footer": {
-    "Novis\\Pdf\\Document::footer": "9eb4dfd7bbac563f"
+  "help:Novis\\Pdf\\Document::withFooter": {
+    "Novis\\Pdf\\Document::withFooter": "9eb4dfd7bbac563f"
   },
   "help:Novis\\Pdf\\Document::fromHtml": {
     "Novis\\Pdf\\Document::fromHtml": "cac850951efaeba7"
   },
-  "help:Novis\\Pdf\\Document::header": {
-    "Novis\\Pdf\\Document::header": "b8aae58f47bd0543"
+  "help:Novis\\Pdf\\Document::withHeader": {
+    "Novis\\Pdf\\Document::withHeader": "b8aae58f47bd0543"
   },
-  "help:Novis\\Pdf\\Document::invoiceXml": {
-    "Novis\\Pdf\\Document::invoiceXml": "5a8f96eb4806eb6d"
+  "help:Novis\\Pdf\\Document::withInvoiceXml": {
+    "Novis\\Pdf\\Document::withInvoiceXml": "5a8f96eb4806eb6d"
   },
-  "help:Novis\\Pdf\\Document::password": {
-    "Novis\\Pdf\\Document::password": "8441cf3f8771a6b2"
+  "help:Novis\\Pdf\\Document::withPassword": {
+    "Novis\\Pdf\\Document::withPassword": "8441cf3f8771a6b2"
   },
   "help:Novis\\Pdf\\Document::render": {
     "Novis\\Pdf\\Document::render": "b9d3f467efd0822d"
   },
-  "help:Novis\\Pdf\\Document::slots": {
-    "Novis\\Pdf\\Document::slots": "f766f6a76ec957cb"
+  "help:Novis\\Pdf\\Document::withSlots": {
+    "Novis\\Pdf\\Document::withSlots": "f766f6a76ec957cb"
   },
-  "help:Novis\\Pdf\\Document::standard": {
-    "Novis\\Pdf\\Document::standard": "03a253ff535215ae"
+  "help:Novis\\Pdf\\Document::withStandard": {
+    "Novis\\Pdf\\Document::withStandard": "03a253ff535215ae"
   },
   "help:Novis\\Pdf\\Document::Standard": {
     "Novis\\Pdf\\Document::Standard": "aa32b2c278faecba"
@@ -9011,8 +9011,8 @@
   "help:Novis\\Spreadsheet\\Chart::column": {
     "Novis\\Spreadsheet\\Chart::column": "4e1946dd6e7c0aee"
   },
-  "help:Novis\\Spreadsheet\\Chart::combine": {
-    "Novis\\Spreadsheet\\Chart::combine": "381fcb824a62fb5a"
+  "help:Novis\\Spreadsheet\\Chart::combinedWith": {
+    "Novis\\Spreadsheet\\Chart::combinedWith": "381fcb824a62fb5a"
   },
   "help:Novis\\Spreadsheet\\Chart::constructor": {
     "Novis\\Spreadsheet\\Chart::constructor": "4b6a979346b702c1"
@@ -9035,8 +9035,8 @@
   "help:Novis\\Spreadsheet\\Chart::scatter": {
     "Novis\\Spreadsheet\\Chart::scatter": "de2c3df888b56fcb"
   },
-  "help:Novis\\Spreadsheet\\Chart::series": {
-    "Novis\\Spreadsheet\\Chart::series": "9d06768c8dcd397b"
+  "help:Novis\\Spreadsheet\\Chart::withSeries": {
+    "Novis\\Spreadsheet\\Chart::withSeries": "9d06768c8dcd397b"
   },
   "help:Novis\\Spreadsheet\\Export::bytes": {
     "Novis\\Spreadsheet\\Export::bytes": "1bfb36a707923d77"
@@ -9104,53 +9104,53 @@
   "help:Novis\\Spreadsheet\\Row::constructor": {
     "Novis\\Spreadsheet\\Row::constructor": "19bdbe7d57bfecab"
   },
-  "help:Novis\\Spreadsheet\\Sheet::add": {
-    "Novis\\Spreadsheet\\Sheet::add": "a77aa7ea3e7bad9f"
+  "help:Novis\\Spreadsheet\\Sheet::addRow": {
+    "Novis\\Spreadsheet\\Sheet::addRow": "a77aa7ea3e7bad9f"
   },
-  "help:Novis\\Spreadsheet\\Sheet::addAll": {
-    "Novis\\Spreadsheet\\Sheet::addAll": "34dad2c5bcb12b0b"
+  "help:Novis\\Spreadsheet\\Sheet::addRows": {
+    "Novis\\Spreadsheet\\Sheet::addRows": "34dad2c5bcb12b0b"
   },
   "help:Novis\\Spreadsheet\\Sheet::cell": {
     "Novis\\Spreadsheet\\Sheet::cell": "c842934a1b326d71"
   },
-  "help:Novis\\Spreadsheet\\Sheet::chart": {
-    "Novis\\Spreadsheet\\Sheet::chart": "5179a7bc00152b81"
+  "help:Novis\\Spreadsheet\\Sheet::addChart": {
+    "Novis\\Spreadsheet\\Sheet::addChart": "5179a7bc00152b81"
   },
   "help:Novis\\Spreadsheet\\Sheet::column": {
     "Novis\\Spreadsheet\\Sheet::column": "f0e76c7697d6d07c"
   },
-  "help:Novis\\Spreadsheet\\Sheet::conditional": {
-    "Novis\\Spreadsheet\\Sheet::conditional": "d69c03eae645c625"
+  "help:Novis\\Spreadsheet\\Sheet::addConditionalFormat": {
+    "Novis\\Spreadsheet\\Sheet::addConditionalFormat": "d69c03eae645c625"
   },
   "help:Novis\\Spreadsheet\\Sheet::constructor": {
     "Novis\\Spreadsheet\\Sheet::constructor": "172457eb2c9b0360"
   },
-  "help:Novis\\Spreadsheet\\Sheet::group": {
-    "Novis\\Spreadsheet\\Sheet::group": "c0eae3f82fc71ae5"
+  "help:Novis\\Spreadsheet\\Sheet::addOutlineGroup": {
+    "Novis\\Spreadsheet\\Sheet::addOutlineGroup": "c0eae3f82fc71ae5"
   },
-  "help:Novis\\Spreadsheet\\Sheet::image": {
-    "Novis\\Spreadsheet\\Sheet::image": "cedf4b01fb9bc0cd"
+  "help:Novis\\Spreadsheet\\Sheet::addImage": {
+    "Novis\\Spreadsheet\\Sheet::addImage": "cedf4b01fb9bc0cd"
   },
-  "help:Novis\\Spreadsheet\\Sheet::link": {
-    "Novis\\Spreadsheet\\Sheet::link": "b5317af67e15cbb1"
+  "help:Novis\\Spreadsheet\\Sheet::addLink": {
+    "Novis\\Spreadsheet\\Sheet::addLink": "b5317af67e15cbb1"
   },
-  "help:Novis\\Spreadsheet\\Sheet::merge": {
-    "Novis\\Spreadsheet\\Sheet::merge": "e71d2fa08981b00d"
+  "help:Novis\\Spreadsheet\\Sheet::mergeCells": {
+    "Novis\\Spreadsheet\\Sheet::mergeCells": "e71d2fa08981b00d"
   },
-  "help:Novis\\Spreadsheet\\Sheet::note": {
-    "Novis\\Spreadsheet\\Sheet::note": "728f73d07b133aec"
+  "help:Novis\\Spreadsheet\\Sheet::addNote": {
+    "Novis\\Spreadsheet\\Sheet::addNote": "728f73d07b133aec"
   },
-  "help:Novis\\Spreadsheet\\Sheet::print": {
-    "Novis\\Spreadsheet\\Sheet::print": "8cf8a63e0e093b73"
+  "help:Novis\\Spreadsheet\\Sheet::setPrintOptions": {
+    "Novis\\Spreadsheet\\Sheet::setPrintOptions": "8cf8a63e0e093b73"
   },
   "help:Novis\\Spreadsheet\\Sheet::protect": {
     "Novis\\Spreadsheet\\Sheet::protect": "060a4a3cb48a3ec6"
   },
-  "help:Novis\\Spreadsheet\\Sheet::table": {
-    "Novis\\Spreadsheet\\Sheet::table": "0232683de5ccdba5"
+  "help:Novis\\Spreadsheet\\Sheet::addTable": {
+    "Novis\\Spreadsheet\\Sheet::addTable": "0232683de5ccdba5"
   },
-  "help:Novis\\Spreadsheet\\Sheet::validate": {
-    "Novis\\Spreadsheet\\Sheet::validate": "9edfdfcc3fe0589b"
+  "help:Novis\\Spreadsheet\\Sheet::addValidation": {
+    "Novis\\Spreadsheet\\Sheet::addValidation": "9edfdfcc3fe0589b"
   },
   "help:Novis\\Spreadsheet\\Style::Align": {
     "Novis\\Spreadsheet\\Style::Align": "2ed6cf27cd01f129"
@@ -9191,8 +9191,8 @@
   "help:Novis\\Spreadsheet\\Workbook::createInMemory": {
     "Novis\\Spreadsheet\\Workbook::createInMemory": "b512ff54910c5cac"
   },
-  "help:Novis\\Spreadsheet\\Workbook::define": {
-    "Novis\\Spreadsheet\\Workbook::define": "4663ae4005b409dc"
+  "help:Novis\\Spreadsheet\\Workbook::defineName": {
+    "Novis\\Spreadsheet\\Workbook::defineName": "4663ae4005b409dc"
   },
   "help:Novis\\Spreadsheet\\Workbook::finish": {
     "Novis\\Spreadsheet\\Workbook::finish": "cb176d3175667d55"
@@ -9200,8 +9200,8 @@
   "help:Novis\\Spreadsheet\\Workbook::fromRows": {
     "Novis\\Spreadsheet\\Workbook::fromRows": "eff62193dff6de2e"
   },
-  "help:Novis\\Spreadsheet\\Workbook::sheet": {
-    "Novis\\Spreadsheet\\Workbook::sheet": "7c50486c5fd0943f"
+  "help:Novis\\Spreadsheet\\Workbook::addSheet": {
+    "Novis\\Spreadsheet\\Workbook::addSheet": "7c50486c5fd0943f"
   },
   "help:Novis\\Spreadsheet\\Written::constructor": {
     "Novis\\Spreadsheet\\Written::constructor": "af627e5684f3fbd9"

@@ -58,17 +58,17 @@ fn run_beside(case: &str, toml: Option<&str>, files: &[(&str, &[u8])], body: &st
 const BOOK: &str = r#"
 bytes $png = Core\Encoding::fromBase64("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
 var $book = Workbook::createInMemory({properties: {title: "Prices", author: "Shop", created: Core\Time\Instant::fromEpoch(1704067200)}});
-var $sheet = $book->sheet("Shop");
-$sheet->table("A1:C3", {name: "Prices"});
-$sheet->addAll([["Item", "Price", "Qty"], ["Widget", 2.5, 3], ["Gadget", 4.0, 1]]);
-$sheet->merge("A5:C5")
-    ->link("A2", "https://example.com/widget", {text: "Widget", tooltip: "Open"})
-    ->link("B2", "Totals!A1")
-    ->note("A3", "Check this price.", {author: "Ann"})
-    ->note("B3", "No author.")
-    ->image("E2", $png);
-$book->sheet("Totals", {hidden: true})->add(["Sum", 6.5]);
-$book->define("Rate", "Shop!\$B\$2");
+var $sheet = $book->addSheet("Shop");
+$sheet->addTable("A1:C3", {name: "Prices"});
+$sheet->addRows([["Item", "Price", "Qty"], ["Widget", 2.5, 3], ["Gadget", 4.0, 1]]);
+$sheet->mergeCells("A5:C5")
+    ->addLink("A2", "https://example.com/widget", {text: "Widget", tooltip: "Open"})
+    ->addLink("B2", "Totals!A1")
+    ->addNote("A3", "Check this price.", {author: "Ann"})
+    ->addNote("B3", "No author.")
+    ->addImage("E2", $png);
+$book->addSheet("Totals", {hidden: true})->addRow(["Sum", 6.5]);
+$book->defineName("Rate", "Shop!\$B\$2");
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 "#;
 
@@ -277,9 +277,9 @@ fn evaluate_computes_saved_formulas_and_lists_what_it_cannot() {
     let body = r#"
 use Novis\Spreadsheet\Formula;
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet("Shop");
-$sheet->add(["qty" => 3, "price" => 2.5, "total" => Formula::of("=A2*B2")]);
-$sheet->add(["qty" => Formula::of("=TODAY()", {cached: 7}), "price" => 4, "total" => Formula::of("=SUM(C2,B3)")]);
+var $sheet = $book->addSheet("Shop");
+$sheet->addRow(["qty" => 3, "price" => 2.5, "total" => Formula::of("=A2*B2")]);
+$sheet->addRow(["qty" => Formula::of("=TODAY()", {cached: 7}), "price" => 4, "total" => Formula::of("=SUM(C2,B3)")]);
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 var $reader = Reader::open($file);
 foreach ($reader->evaluate() as var $missed) {

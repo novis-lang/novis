@@ -20,5 +20,5 @@ class Upload
 Image $photo = Image::create(16, 16, Color::hex('#cc6633'));
 
 // This prints true for the WebP file and false for the GIF file.
-echo Upload::accepted($photo->format(Format::Webp)->encode()) ? 'true' : 'false', "\n";
-echo Upload::accepted($photo->format(Format::Gif)->encode()) ? 'true' : 'false', "\n";
+echo Upload::accepted($photo->withFormat(Format::Webp)->encode()) ? 'true' : 'false', "\n";
+echo Upload::accepted($photo->withFormat(Format::Gif)->encode()) ? 'true' : 'false', "\n";

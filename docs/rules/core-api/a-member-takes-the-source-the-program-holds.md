@@ -37,7 +37,7 @@ A file opened write-only throws a `LogicError` naming its mode.
 `Core\Image` write `Core\Bytes::Source` in their manifest where the WIT has `list<u8>`, and the host reads
 the source through the byte source's range read, under `[limits] memory`, and passes the bytes. A third
 party's export cannot declare it, because the host lends a third party's `bytes` by ranges instead.
-`Pages::of` and `Image::open` keep the source and the host reads it at `merge`, `encode`, `variants` or
+`Pages::of` and `Image::open` keep the source and the host reads it at `merge`, `encode`, `encodeVariants` or
 `raw`, so a file is read at that call from its start, and a part must still be the walk's current part.
 Reading it at `open` would need a `Core` member that turns a source into whole `bytes`, which is the slow
 path `rule:core-api/the-first-call-is-the-best-one` keeps out. Text read from the file, such as a PDF's

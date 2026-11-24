@@ -5,7 +5,7 @@ use Novis\Image\Color;
 use Novis\Image\Format;
 use Novis\Image\Image;
 
-tainted bytes $png = Image::create(64, 64, Color::hex('#ff0000'))->format(Format::Png)->encode();
+tainted bytes $png = Image::create(64, 64, Color::hex('#ff0000'))->withFormat(Format::Png)->encode();
 
 // 1. An empty upload.
 try {
@@ -33,7 +33,7 @@ try {
 
 // 4. A JPEG with an EXIF block whose list of tags ends before it should.
 try {
-    tainted bytes $jpeg = Image::create(8, 8, Color::hex('#ff0000'))->format(Format::Jpeg)->encode();
+    tainted bytes $jpeg = Image::create(8, 8, Color::hex('#ff0000'))->withFormat(Format::Jpeg)->encode();
     bytes $exif = Core\Encoding::fromHex('ffe1002245786966000049492a00ffffff7f010012010300010000000600000000000000');
     array<tainted bytes> $parts = [Core\Bytes::slice($jpeg, 0, 2), $exif, Core\Bytes::slice($jpeg, 2)];
     Image::open(Core\Bytes::join($parts))->raw();

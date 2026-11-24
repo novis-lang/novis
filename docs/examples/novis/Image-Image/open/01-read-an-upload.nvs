@@ -5,7 +5,7 @@ use Novis\Image\Format;
 use Novis\Image\Image;
 
 // These PNG bytes replace a file that a user uploaded.
-tainted bytes $upload = Image::create(300, 200, Color::hex('#336699'))->format(Format::Png)->encode();
+tainted bytes $upload = Image::create(300, 200, Color::hex('#336699'))->withFormat(Format::Png)->encode();
 
 // `open` keeps the bytes. `raw` decodes them. This prints 300x200.
 var $pixels = Image::open($upload)->raw();

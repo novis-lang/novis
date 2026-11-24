@@ -7,8 +7,8 @@ use Novis\Image\Image;
 // `raw` decodes a 64 by 48 image into pixels.
 var $pixels = Image::create(64, 48, Color::hex('#336699'))->raw();
 
-// `fromRaw` starts a new image from those pixels. `format` and `encode` write a WebP file.
-tainted bytes $file = Image::fromRaw($pixels)->format(Format::Webp)->encode();
+// `fromRaw` starts a new image from those pixels. `withFormat` and `encode` write a WebP file.
+tainted bytes $file = Image::fromRaw($pixels)->withFormat(Format::Webp)->encode();
 
 // This prints image/webp 64x48.
 var $info = Image::info($file);

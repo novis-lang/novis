@@ -42,7 +42,7 @@ test("output with no validation report is an error, not a pass", () => {
 test("the programs cover PDF/A-2b, PDF/A-3b and PDF/UA-1, each writing its own file", () => {
   expect(FIXTURES.map((f) => f.flavour)).toEqual(["2b", "3b", "ua1"]);
   for (const f of FIXTURES) expect(f.source).toContain(`Core\\IO::writeStream("${f.name}.pdf"`);
-  expect(FIXTURES.find((f) => f.flavour === "3b")!.source).toContain("->invoiceXml($xml)");
+  expect(FIXTURES.find((f) => f.flavour === "3b")!.source).toContain("->withInvoiceXml($xml)");
 });
 
 test("the image is pinned by digest", () => {

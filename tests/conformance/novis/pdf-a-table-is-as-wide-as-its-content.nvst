@@ -3,7 +3,7 @@ A table without a `width` is as wide as its content, so a slot's column is as wi
 --FILE--
 <?nvs
 // covers: Novis\Pdf\Document::fromHtml
-// covers: Novis\Pdf\Document::slots
+// covers: Novis\Pdf\Document::withSlots
 use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
@@ -18,7 +18,7 @@ var $slots = fn(Page $page): array<Core\Html\Markup> =>
     ["total" => html`<style>body { font-size: 10pt }</style>1,234,567.89 EUR`];
 
 var $overflows = fn(string $style): uint =>
-    Core\Arr::count(Document::fromHtml($html($style))->slots($slots)->render()->overflows);
+    Core\Arr::count(Document::fromHtml($html($style))->withSlots($slots)->render()->overflows);
 
 echo "no width: ", $overflows(""), " overflows\n";
 echo "width: 100%: ", $overflows("width: 100%"), " overflows\n";

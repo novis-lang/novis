@@ -6,10 +6,10 @@ use Novis\Spreadsheet\Workbook;
 
 var $red = Style::of({ color: '#C00000', bold: true });
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Stock', { header: false });
+var $sheet = $book->addSheet('Stock', { header: false });
 
 // The whole row has a yellow fill. The number in the first cell is red and bold.
-$sheet->add([Cell::rich([{ text: 'Only ' }, { text: '3', style: $red }, { text: ' left' }]), 'Pens'], {
+$sheet->addRow([Cell::rich([{ text: 'Only ' }, { text: '3', style: $red }, { text: ' left' }]), 'Pens'], {
     style: Style::of({ fill: '#FFF2CC' }),
 });
 

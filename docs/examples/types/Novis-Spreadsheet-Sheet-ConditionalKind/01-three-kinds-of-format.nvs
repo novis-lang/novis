@@ -4,15 +4,15 @@ use Novis\Spreadsheet\Style;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sales = $book->sheet('Sales');
-$sales->add(['shop' => 'North', 'sales' => 120]);
-$sales->add(['shop' => 'South', 'sales' => 200]);
+var $sales = $book->addSheet('Sales');
+$sales->addRow(['shop' => 'North', 'sales' => 120]);
+$sales->addRow(['shop' => 'South', 'sales' => 200]);
 
 // `dataBar` draws a bar in each cell. `top` colors the highest values.
 // `duplicates` colors the values that are in the range more than once.
-$sales->conditional('B2:B99', { kind: 'dataBar', colors: ['#638EC6'] });
-$sales->conditional('B2:B99', { kind: 'top', rank: 1, style: Style::of({ bold: true }) });
-$sales->conditional('A2:A99', { kind: 'duplicates', style: Style::of({ fill: '#FFC7CE' }) });
+$sales->addConditionalFormat('B2:B99', { kind: 'dataBar', colors: ['#638EC6'] });
+$sales->addConditionalFormat('B2:B99', { kind: 'top', rank: 1, style: Style::of({ bold: true }) });
+$sales->addConditionalFormat('A2:A99', { kind: 'duplicates', style: Style::of({ fill: '#FFC7CE' }) });
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // Excel reads the kind from the `type` of each rule in the file.

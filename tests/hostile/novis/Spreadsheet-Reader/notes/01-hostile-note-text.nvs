@@ -11,7 +11,7 @@ class Attack
     {
         try {
             var $book = Workbook::createInMemory();
-            $book->sheet('Shop')->note('A1', $text, { author: $author })->add(['Widget']);
+            $book->addSheet('Shop')->addNote('A1', $text, { author: $author })->addRow(['Widget']);
             bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
             foreach (Reader::open($file)->notes(0) as var $note) {
                 bool $same = $note->note == $text && $note->author == $author;
@@ -37,11 +37,11 @@ Attack::attempt(3, Core\Str::repeat('x', 100000), 'Ann');
 
 // 4. 5,000 notes on one sheet, and a sheet that does not exist.
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Shop');
+var $sheet = $book->addSheet('Shop');
 for (int $n = 1; $n <= 5000; $n++) {
-    $sheet->note("A{$n}", "Note {$n}");
+    $sheet->addNote("A{$n}", "Note {$n}");
 }
-$sheet->add(['Widget']);
+$sheet->addRow(['Widget']);
 Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 echo 'step 4 read ', Core\Arr::count($reader->notes('Shop')), " notes\n";
 try {

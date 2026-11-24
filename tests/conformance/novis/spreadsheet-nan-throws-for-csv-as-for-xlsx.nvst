@@ -3,7 +3,7 @@ NaN and the infinities throw for a CSV file as for an xlsx file, naming the cell
 --FILE--
 <?nvs
 // covers: Novis\Spreadsheet\Workbook::fromRows
-// covers: Novis\Spreadsheet\Sheet::add
+// covers: Novis\Spreadsheet\Sheet::addRow
 use Novis\Spreadsheet\Workbook;
 
 array<float> $numbers = [Core\Math::NAN, Core\Math::INFINITY, -Core\Math::INFINITY];

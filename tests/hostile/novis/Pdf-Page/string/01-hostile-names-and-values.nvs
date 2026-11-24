@@ -38,4 +38,4 @@ echo "step 4\n";
 string $title = Core\Str::repeat('<b>&amp;</b>', 20000);
 var $html = "<style>h2 { string-set: chapter content() }</style><h2>{$title}</h2>";
 var $header = fn(Page $page): Core\Html\Markup => html`<p>{$page->string('chapter') ?? ''}</p>`;
-echo 'step 4 ran ', Document::fromHtml($html)->header($header)->render()->pageCount, "\n";
+echo 'step 4 ran ', Document::fromHtml($html)->withHeader($header)->render()->pageCount, "\n";

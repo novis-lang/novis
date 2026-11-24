@@ -2,7 +2,7 @@ How the lines of a text are placed next to each other.
 
 `Image::Align` is declared in the class `Novis\Image\Image`.
 
-You pass an `Image::Align` to `Image::text` or `Image::measureText` as `align`. It matters when a text has
+You pass an `Image::Align` to `Image::withText` or `Image::measureText` as `align`. It matters when a text has
 more than one line, for example when `maxWidth` wraps it. Each line is placed inside a box as wide as
 the longest line.
 

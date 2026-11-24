@@ -4,8 +4,8 @@ use Novis\Spreadsheet\Chart;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Stock');
-$sheet->addAll([
+var $sheet = $book->addSheet('Stock');
+$sheet->addRows([
     ['item' => 'Pens', 'qty' => 40],
     ['item' => 'Pads', 'qty' => 25],
     ['item' => 'Ink', 'qty' => 12],
@@ -13,8 +13,8 @@ $sheet->addAll([
 
 // `xTitle` is under the bars and `yTitle` is beside them. `labels: true` shows each value.
 var $chart = Chart::column({ xTitle: 'Item', yTitle: 'In stock', labels: true })
-    ->series($sheet->column('qty'), { categories: $sheet->column('item') });
-$sheet->chart('D2', $chart);
+    ->withSeries($sheet->column('qty'), { categories: $sheet->column('item') });
+$sheet->addChart('D2', $chart);
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;

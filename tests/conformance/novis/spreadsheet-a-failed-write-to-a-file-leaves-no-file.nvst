@@ -20,11 +20,11 @@ Core\IO::write("out/shop.xlsx", "old report");
 
 // Before `finish`, the rows are in a temporary file. The old file is unchanged.
 var $book = Workbook::createForFile("out/shop.xlsx");
-$book->sheet("Orders")->add(["Tea", 2]);
+$book->addSheet("Orders")->addRow(["Tea", 2]);
 echo "while writing: ", Core\IO::readText("out/shop.xlsx"), ", ", Core\Arr::count(Core\IO::list("out")), " files\n";
 
 // The name points at a sheet the workbook does not have, so `finish` throws.
-$book->define("Totals", "'Missing'!A1:A2");
+$book->defineName("Totals", "'Missing'!A1:A2");
 try {
     $book->finish();
 } catch (LogicError $e) {
@@ -35,14 +35,14 @@ echo "out/shop.xlsx: ", Core\IO::readText("out/shop.xlsx"), "\n";
 
 // Every later call throws.
 try {
-    $book->sheet("More");
+    $book->addSheet("More");
 } catch (LogicError $e) {
     echo $e->message, "\n";
 }
 
 // A workbook that finishes replaces the old file, and no other file is left.
 var $good = Workbook::createForFile("out/shop.xlsx");
-$good->sheet("Orders")->add(["Tea", 2]);
+$good->addSheet("Orders")->addRow(["Tea", 2]);
 $good->finish();
 Folder::show("after a good finish");
 echo "a new report: ", Core\IO::size("out/shop.xlsx") > 10 ? "yes" : "no", "\n";

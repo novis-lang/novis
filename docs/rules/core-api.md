@@ -423,7 +423,7 @@ will run and is the more refusing of the two, not the quiet one.
   fails, so the author of every new builder classifies it once;
 - a member that takes an argument besides its subject and starts with no verb is on the `reads` list
   (part 2). This closes the one shape the types cannot show: a noun with an effect that returns another
-  type, such as a `Workbook->sheet($name)` that adds a sheet. The list is every such member that
+  type, such as a `Shop\Cart->item($name)` that adds an item. The list is every such member that
   exists, and a new one fails until its author adds it.
 
 A past participle is a first word ending in `ed` (outside `notParticiples`), or one of
@@ -1130,7 +1130,7 @@ A file opened write-only throws a `LogicError` naming its mode.
 `Core\Image` write `Core\Bytes::Source` in their manifest where the WIT has `list<u8>`, and the host reads
 the source through the byte source's range read, under `[limits] memory`, and passes the bytes. A third
 party's export cannot declare it, because the host lends a third party's `bytes` by ranges instead.
-`Pages::of` and `Image::open` keep the source and the host reads it at `merge`, `encode`, `variants` or
+`Pages::of` and `Image::open` keep the source and the host reads it at `merge`, `encode`, `encodeVariants` or
 `raw`, so a file is read at that call from its start, and a part must still be the walk's current part.
 Reading it at `open` would need a `Core` member that turns a source into whole `bytes`, which is the slow
 path [`core-api/the-first-call-is-the-best-one`](core-api.md#core-api-the-first-call-is-the-best-one) keeps out. Text read from the file, such as a PDF's

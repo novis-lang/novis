@@ -21,5 +21,5 @@ Image $tiles = Image::fromRaw({
 // The top-left pixel is red at the start, so the first line prints 255 0 0.
 // After `Horizontal` it is green (0 255 0). After `Vertical` it is blue (0 0 255).
 echo Corner::topLeft($tiles), "\n";
-echo Corner::topLeft($tiles->flip(Image::Axis::Horizontal)), "\n";
-echo Corner::topLeft($tiles->flip(Image::Axis::Vertical)), "\n";
+echo Corner::topLeft($tiles->flipped(Image::Axis::Horizontal)), "\n";
+echo Corner::topLeft($tiles->flipped(Image::Axis::Vertical)), "\n";

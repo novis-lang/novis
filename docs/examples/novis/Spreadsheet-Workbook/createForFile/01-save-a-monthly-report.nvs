@@ -7,7 +7,7 @@ string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'sales-2024-
 
 // The file at `$path` is created, or replaced if it exists.
 var $book = Workbook::createForFile($path);
-$book->sheet('Sales')->addAll([
+$book->addSheet('Sales')->addRows([
     ['day' => Core\Time\Date::at(2024, 5, 1), 'sales' => 1200],
     ['day' => Core\Time\Date::at(2024, 5, 2), 'sales' => 950],
 ]);

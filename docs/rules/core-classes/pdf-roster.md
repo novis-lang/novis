@@ -5,14 +5,14 @@ methods are the WIT exports (`wit/pdf.wit`), the way `Novis\Image\Codec` is the 
 | Member | What it does |
 |---|---|
 | `Document::fromHtml(Core\Html\Markup\|string $html): Document` | the document to render |
-| `->asset(string $name, bytes $data): Document` | adds one named asset (`rule:core-classes/pdf-render-has-no-io`) |
-| `->header(callable $fn, ?{height?: string} $options = null): Document` | a function from `Page` to `Core\Html\Markup`, drawn in the top margin of each page (`rule:core-classes/pdf-header-is-a-page-function`) |
-| `->footer(callable $fn, ?{height?: string} $options = null): Document` | the same, in the bottom margin |
-| `->slots(callable $fn): Document` | a function from `Page` to an `array<Core\Html\Markup>` keyed by slot name, filling each `<slot name>` in a repeated table row (`rule:core-classes/pdf-tables-across-pages`) |
-| `->standard(Document::Standard $standard): Document` | `PdfA2b`, `PdfA3b` or `PdfUa1` (`rule:core-classes/pdf-standards-and-passwords`) |
-| `->invoiceXml(string $xml): Document` | the Factur-X XML (`rule:core-classes/pdf-factur-x-is-the-one-attachment`) |
-| `->password(string $password): Document` | encrypts the output with AES-256 |
-| `->created(Core\Time\Instant $at): Document` | the creation time in the metadata; absent, the file has none |
+| `->withAsset(string $name, bytes $data): Document` | adds one named asset (`rule:core-classes/pdf-render-has-no-io`) |
+| `->withHeader(callable $fn, ?{height?: string} $options = null): Document` | a function from `Page` to `Core\Html\Markup`, drawn in the top margin of each page (`rule:core-classes/pdf-header-is-a-page-function`) |
+| `->withFooter(callable $fn, ?{height?: string} $options = null): Document` | the same, in the bottom margin |
+| `->withSlots(callable $fn): Document` | a function from `Page` to an `array<Core\Html\Markup>` keyed by slot name, filling each `<slot name>` in a repeated table row (`rule:core-classes/pdf-tables-across-pages`) |
+| `->withStandard(Document::Standard $standard): Document` | `PdfA2b`, `PdfA3b` or `PdfUa1` (`rule:core-classes/pdf-standards-and-passwords`) |
+| `->withInvoiceXml(string $xml): Document` | the Factur-X XML (`rule:core-classes/pdf-factur-x-is-the-one-attachment`) |
+| `->withPassword(string $password): Document` | encrypts the output with AES-256 |
+| `->withCreationTime(Core\Time\Instant $at): Document` | the creation time in the metadata; absent, the file has none |
 | `->render(): Rendered` | one render: one call, two with a header, footer or slot function |
 | `Page->number`, `->count`, `->isFirst()`, `->isLast()`, `->name` | the page's number from 1, the document's page count, and its named page or `null` |
 | `Page->string(string $name): ?string` | the page's `string-set` value |

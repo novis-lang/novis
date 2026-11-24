@@ -9,8 +9,8 @@ class Bench
     public static function run(uint $rounds): uint
     {
         var $book = Workbook::createInMemory();
-        var $sheet = $book->sheet('Sales');
-        $sheet->addAll([['shop' => 'North', 'sales' => 120], ['shop' => 'South', 'sales' => 80]]);
+        var $sheet = $book->addSheet('Sales');
+        $sheet->addRows([['shop' => 'North', 'sales' => 120], ['shop' => 'South', 'sales' => 80]]);
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {

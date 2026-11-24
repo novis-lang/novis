@@ -8,10 +8,10 @@ use Novis\Image\Color;
 
 // A white picture with a blue block in the top left corner.
 var $block = Image::create(100, 60, Color::hex("#2050c0"));
-var $picture = Image::create(240, 180, Color::hex("#ffffff"))->composite($block, {gravity: Image::Gravity::NorthWest});
+var $picture = Image::create(240, 180, Color::hex("#ffffff"))->withOverlay($block, {gravity: Image::Gravity::NorthWest});
 var $source = $picture->encode();
-var $copy = $picture->resize({width: 120})->encode();
-var $mirror = $picture->flip(Image::Axis::Horizontal)->encode();
+var $copy = $picture->resized({width: 120})->encode();
+var $mirror = $picture->flipped(Image::Axis::Horizontal)->encode();
 
 array<Image::HashKind> $kinds = [Image::HashKind::Perceptual, Image::HashKind::Difference, Image::HashKind::Average];
 foreach ($kinds as Image::HashKind $kind) {

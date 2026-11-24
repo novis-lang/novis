@@ -1,0 +1,22 @@
+<?nvs
+// Shows the error for a chart that combines three types.
+use Novis\Spreadsheet\Chart;
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->addSheet('Sales');
+$sheet->addRows([
+    ['month' => 'January', 'sales' => 1200, 'costs' => 800, 'target' => 1300],
+    ['month' => 'February', 'sales' => 1450, 'costs' => 900, 'target' => 1400],
+]);
+
+// A chart combines two types, so `Sheet::addChart` throws a `LogicError`.
+var $chart = Chart::column()
+    ->withSeries($sheet->column('sales'))
+    ->combinedWith(Chart::line()->withSeries($sheet->column('costs')))
+    ->combinedWith(Chart::area()->withSeries($sheet->column('target')));
+try {
+    $sheet->addChart('E2', $chart);
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}

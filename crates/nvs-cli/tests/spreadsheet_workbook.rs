@@ -1,6 +1,6 @@
 //! `Novis\Spreadsheet\Workbook` and `Written`, the Novis-source half of the built-in spreadsheet
 //! writer, run through the built binary: each target writes the same file for the same rows,
-//! `finish` counts the rows of each sheet, and `define` writes a name, as
+//! `finish` counts the rows of each sheet, and `defineName` writes a name, as
 //! `rule:core-classes/spreadsheet-writes-as-a-stream` and
 //! `rule:core-classes/spreadsheet-sheet-end-parts` place them.
 
@@ -50,15 +50,15 @@ fn run(case: &str, body: &str) -> String {
 
 /// A workbook in memory has one row count per sheet, a size equal to its bytes, and bytes that
 /// read back as the rows it was given, with the header row from the keys.
-// covers: Novis\Spreadsheet\Workbook::createInMemory, Novis\Spreadsheet\Workbook::sheet, Novis\Spreadsheet\Workbook::finish
+// covers: Novis\Spreadsheet\Workbook::createInMemory, Novis\Spreadsheet\Workbook::addSheet, Novis\Spreadsheet\Workbook::finish
 #[test]
 fn a_workbook_in_memory_counts_its_rows_and_reads_back() {
     let out = run(
         "in-memory",
         r#"
 var $book = Workbook::createInMemory();
-$book->sheet("Orders")->addAll([["order" => 1042, "total" => 19.5], ["order" => 1043, "total" => 5.0]]);
-$book->sheet("Notes", {position: 0})->add(["Shipped"]);
+$book->addSheet("Orders")->addRows([["order" => 1042, "total" => 19.5], ["order" => 1043, "total" => 5.0]]);
+$book->addSheet("Notes", {position: 0})->addRow(["Shipped"]);
 var $written = $book->finish();
 echo $written->rows["Orders"], " ", $written->rows["Notes"], "\n";
 bytes $file = $written->bytes ?? Core\Bytes::fill(0, 0);
@@ -80,7 +80,7 @@ foreach ($reader->rows("Orders") as var $row) {
 
 /// A sheet name used twice in another case, a second CSV sheet, a row on a finished sheet and a
 /// second `finish` each throw a `LogicError`.
-// covers: Novis\Spreadsheet\Workbook::sheet, Novis\Spreadsheet\Workbook::finish
+// covers: Novis\Spreadsheet\Workbook::addSheet, Novis\Spreadsheet\Workbook::finish
 #[test]
 fn a_sheet_or_a_finish_out_of_order_throws_a_logic_error() {
     let out = run(
@@ -96,10 +96,10 @@ class Check {
         }
     }
 }
-echo Check::attempt(fn (): void => { var $b = Workbook::createInMemory(); $b->sheet("Shop"); $b->sheet("SHOP"); }), "\n";
-echo Check::attempt(fn (): void => { var $b = Workbook::createInMemory({format: "csv"}); $b->sheet("Shop"); $b->sheet("Blog"); }), "\n";
-echo Check::attempt(fn (): void => { var $b = Workbook::createInMemory(); var $s = $b->sheet("Shop"); $b->sheet("Blog"); $s->add([1]); }), "\n";
-echo Check::attempt(fn (): void => { var $b = Workbook::createInMemory(); $b->sheet("Shop"); $b->finish(); $b->finish(); }), "\n";
+echo Check::attempt(fn (): void => { var $b = Workbook::createInMemory(); $b->addSheet("Shop"); $b->addSheet("SHOP"); }), "\n";
+echo Check::attempt(fn (): void => { var $b = Workbook::createInMemory({format: "csv"}); $b->addSheet("Shop"); $b->addSheet("Blog"); }), "\n";
+echo Check::attempt(fn (): void => { var $b = Workbook::createInMemory(); var $s = $b->addSheet("Shop"); $b->addSheet("Blog"); $s->addRow([1]); }), "\n";
+echo Check::attempt(fn (): void => { var $b = Workbook::createInMemory(); $b->addSheet("Shop"); $b->finish(); $b->finish(); }), "\n";
 echo Check::attempt(fn (): void => { Workbook::createInMemory()->finish(); }), "\n";
 "#,
     );
@@ -126,7 +126,7 @@ fn a_file_and_an_open_file_get_the_bytes_memory_keeps() {
         r#"
 class Shop {
     public static function fill(Workbook $book): Written {
-        $book->sheet("Orders")->addAll([["order" => 1, "total" => 2.5], ["order" => 2, "total" => 4.0]]);
+        $book->addSheet("Orders")->addRows([["order" => 1, "total" => 2.5], ["order" => 2, "total" => 4.0]]);
         return $book->finish();
     }
 }
@@ -164,7 +164,7 @@ fn a_csv_path_writes_csv_and_no_grant_writes_nothing() {
         &[],
         r#"
 var $book = Workbook::createForFile("out/orders.csv");
-$book->sheet("Orders")->add(["order" => 1, "customer" => "Example, Ltd"]);
+$book->addSheet("Orders")->addRow(["order" => 1, "customer" => "Example, Ltd"]);
 $book->finish();
 try {
     Workbook::createForFile("elsewhere.xlsx");
@@ -200,7 +200,7 @@ fn a_download_sends_the_file_as_the_body() {
         &["--request", "request.nvsr"],
         r#"
 var $book = Workbook::createForDownload("orders.csv");
-$book->sheet("Orders")->addAll([["order" => 1042, "note" => "=1+2"], ["order" => 1043, "note" => "a \"b\""]]);
+$book->addSheet("Orders")->addRows([["order" => 1042, "note" => "=1+2"], ["order" => 1043, "note" => "a \"b\""]]);
 $book->finish();
 "#,
     );
@@ -227,19 +227,19 @@ echo Workbook::fromRows([["item" => "Pen", "price" => 1.5]], {format: "csv"})->b
     assert_eq!(out, "Prices\n\u{feff}item,price␍\nPen,1.5␍\n");
 }
 
-/// `define` writes the name into `xl/workbook.xml` with its reference escaped, here the `&` of
+/// `defineName` writes the name into `xl/workbook.xml` with its reference escaped, here the `&` of
 /// the sheet's name, and a name that is a cell address throws a `LogicError`.
-// covers: Novis\Spreadsheet\Workbook::define
+// covers: Novis\Spreadsheet\Workbook::defineName
 #[test]
 fn define_writes_a_defined_name() {
     let out = run(
         "define",
         r#"
 var $book = Workbook::createInMemory();
-$book->sheet("Shop & Co")->add(["qty" => 1]);
-$book->define("Total", "'Shop & Co'!\$A\$2");
+$book->addSheet("Shop & Co")->addRow(["qty" => 1]);
+$book->defineName("Total", "'Shop & Co'!\$A\$2");
 try {
-    $book->define("B2", "'Shop & Co'!\$A\$2");
+    $book->defineName("B2", "'Shop & Co'!\$A\$2");
 } catch (LogicError $e) {
     echo "B2 is refused\n";
 }

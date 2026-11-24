@@ -1,5 +1,5 @@
 --TEST--
-`Novis\Image\Image::Align` places each wrapped line of `Image::text` at the left, middle or right of a box as wide as the longest line, and `Image::measureText` returns the same box for every case — rule:core-classes/image-one-entry-point-per-job
+`Novis\Image\Image::Align` places each wrapped line of `Image::withText` at the left, middle or right of a box as wide as the longest line, and `Image::measureText` returns the same box for every case — rule:core-classes/image-one-entry-point-per-job
 --FILE--
 <?nvs
 // covers: Novis\Image\Image::Align
@@ -26,7 +26,7 @@ class Row {
     // One character per pixel of row 15, the second line: `#` dark, `.` white.
     public static function draw(Font $font, Image::Align $align): string {
         var $raw = Image::create(24, 20, Color::hex("#ffffff"))
-            ->text("Shop Hi", $font, {size: 10.0, color: Color::hex("#000000"), x: 0, y: 0, maxWidth: 24, align: $align})
+            ->withText("Shop Hi", $font, {size: 10.0, color: Color::hex("#000000"), x: 0, y: 0, maxWidth: 24, align: $align})
             ->raw();
         string $out = "";
         int $x = 0;

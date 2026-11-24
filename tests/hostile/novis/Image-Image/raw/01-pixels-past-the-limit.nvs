@@ -9,7 +9,7 @@ Image $small = Image::create(16, 16, Color::hex('#ff0000'));
 
 // 1. A resize to just over the pixel limit.
 try {
-    $small->resize({ width: 5000, height: 5034, upscale: true })->raw();
+    $small->resized({ width: 5000, height: 5034, upscale: true })->raw();
     echo "step 1 ran\n";
 } catch (Throwable $e) {
     echo "step 1 stopped\n";
@@ -17,7 +17,7 @@ try {
 
 // 2. A crop to an empty box.
 try {
-    $small->crop({ x: 0, y: 0, width: 0, height: 16 })->raw();
+    $small->cropped({ x: 0, y: 0, width: 0, height: 16 })->raw();
     echo "step 2 ran\n";
 } catch (Throwable $e) {
     echo "step 2 stopped\n";
@@ -25,7 +25,7 @@ try {
 
 // 3. The pixels of a PNG file that is cut off after 40 bytes.
 try {
-    tainted bytes $png = $small->format(Format::Png)->encode();
+    tainted bytes $png = $small->withFormat(Format::Png)->encode();
     Image::open(Core\Bytes::slice($png, 0, 40))->raw();
     echo "step 3 ran\n";
 } catch (Throwable $e) {

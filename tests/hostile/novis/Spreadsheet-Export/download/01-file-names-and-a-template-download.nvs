@@ -31,7 +31,7 @@ class Attack
 
 // The template has one placeholder.
 var $design = Workbook::createInMemory();
-$design->sheet('Invoice')->add(['{{shop}}']);
+$design->addSheet('Invoice')->addRow(['{{shop}}']);
 bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // 1. A line break and a second header in the name.

@@ -4,18 +4,18 @@ use Novis\Spreadsheet\Chart;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Shops');
-$sheet->addAll([
+var $sheet = $book->addSheet('Shops');
+$sheet->addRows([
     ['shop' => 'North', 'now' => 340, 'before' => 300],
     ['shop' => 'South', 'now' => 210, 'before' => 260],
 ]);
 
 // Each series has a name for the legend and its own color.
 var $chart = Chart::bar({ legend: 'bottom' })
-    ->series($sheet->column('now'), { categories: $sheet->column('shop'), name: 'This year', color: '#1F77B4' })
-    ->series($sheet->column('before'), { categories: $sheet->column('shop'), name: 'Last year', color: '#AEC7E8' });
+    ->withSeries($sheet->column('now'), { categories: $sheet->column('shop'), name: 'This year', color: '#1F77B4' })
+    ->withSeries($sheet->column('before'), { categories: $sheet->column('shop'), name: 'Last year', color: '#AEC7E8' });
 echo Core\Arr::count($chart->series), " series\n";
-$sheet->chart('E2', $chart);
+$sheet->addChart('E2', $chart);
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;

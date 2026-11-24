@@ -1,7 +1,7 @@
 Starts an image from an encoded file, such as a JPEG, PNG, WebP, GIF, AVIF or JPEG XL upload.
 
 You can pass `bytes`, an open `Core\IO\File` or an uploaded `Core\Request\Part`. `Image::open` only
-keeps it and does not read it. The file is read and decoded each time `encode`, `variants` or `raw`
+keeps it and does not read it. The file is read and decoded each time `encode`, `encodeVariants` or `raw`
 runs, so call them while the file is still open. If it is not an image, that call throws an error.
 
 By default, the image is turned upright. A camera writes an orientation into the file when a photo is

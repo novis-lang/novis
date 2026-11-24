@@ -15,7 +15,7 @@ A table that runs over several pages follows **eight rules, each a default with 
    rows when they do not. A `rowspan` group taller than a page splits between lines, as a tall row
    does.
 7. **The caption shows on the first page only**, and `:nth-child` striping follows source order.
-8. **A `<slot name="…">` in a repeated row** is filled per page by `Document::slots`
+8. **A `<slot name="…">` in a repeated row** is filled per page by `Document::withSlots`
    (`rule:core-classes/pdf-header-is-a-page-function`). The slot keeps its row's height, so filling it
    never moves anything, and text that does not fit is listed in `Rendered::overflows`.
 

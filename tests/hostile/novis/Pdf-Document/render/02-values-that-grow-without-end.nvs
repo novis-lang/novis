@@ -11,7 +11,7 @@ class Attack
     public static function attempt(int $step, string $html, bytes $png): void
     {
         try {
-            var $rendered = Document::fromHtml($html)->asset('big.png', $png)->render();
+            var $rendered = Document::fromHtml($html)->withAsset('big.png', $png)->render();
             echo 'step ', $step, ' ran ', $rendered->pageCount, ' ', Core\Arr::count($rendered->dropped), "\n";
         } catch (Throwable $e) {
             echo 'step ', $step, ' stopped ', $e::class, "\n";

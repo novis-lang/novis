@@ -4,8 +4,8 @@ use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Salaries');
-$sheet->addAll([['name' => 'Ann', 'salary' => 52000], ['name' => 'Ben', 'salary' => 48000]]);
+var $sheet = $book->addSheet('Salaries');
+$sheet->addRows([['name' => 'Ann', 'salary' => 52000], ['name' => 'Ben', 'salary' => 48000]]);
 $sheet->protect({ password: 'do-not-open' });
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 

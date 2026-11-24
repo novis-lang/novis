@@ -1,6 +1,6 @@
 Whether a printed page of a sheet is tall or wide.
 
-You set it with the option `orientation` of `Sheet::print`:
+You set it with the option `orientation` of `Sheet::setPrintOptions`:
 
 - `'portrait'` is `Portrait`. The page is taller than it is wide.
 - `'landscape'` is `Landscape`. The page is wider than it is tall. It suits a sheet with many columns.

@@ -753,7 +753,7 @@ fn ink_box(rgba: &[u8], width: u64, inked: impl Fn(&[u8]) -> bool) -> Option<(u6
     found
 }
 
-// covers: Novis\Image\Image::text
+// covers: Novis\Image\Image::withText
 #[test]
 fn text_renders_latin_with_the_font_given_as_bytes() {
     let (host, extension) = setup();
@@ -945,7 +945,7 @@ fn assert_right_to_left(
     );
 }
 
-// covers: Novis\Image\Image::text
+// covers: Novis\Image\Image::withText
 #[test]
 fn text_shapes_arabic_right_to_left_with_joined_letters() {
     let (host, extension) = setup();

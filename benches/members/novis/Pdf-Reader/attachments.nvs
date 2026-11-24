@@ -13,9 +13,9 @@ class Bench
             . "<rsm:CrossIndustryInvoice xmlns:rsm=\"urn:un:unece:uncefact:data:standard:CrossIndustryInvoice:100\">"
             . '</rsm:CrossIndustryInvoice>';
         bytes $invoice = Document::fromHtml("<html lang=\"en\"><head><title>Invoice</title></head><body><p>Invoice</p></body></html>")
-            ->standard(Document::Standard::PdfA3b)
-            ->created(Core\Time\Instant::fromIso('2026-01-01T00:00:00Z'))
-            ->invoiceXml($xml)
+            ->withStandard(Document::Standard::PdfA3b)
+            ->withCreationTime(Core\Time\Instant::fromIso('2026-01-01T00:00:00Z'))
+            ->withInvoiceXml($xml)
             ->render()
             ->bytes;
         array<Reader> $readers = [Reader::open($invoice), Reader::open(Document::fromHtml('<p>Letter</p>')->render()->bytes)];

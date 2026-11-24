@@ -3,8 +3,8 @@
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Orders');
-$sheet->add(['order' => 1042, 'customer' => 'Ann', 'qty' => 3]);
+var $sheet = $book->addSheet('Orders');
+$sheet->addRow(['order' => 1042, 'customer' => 'Ann', 'qty' => 3]);
 
 // `qty` is the third key, so its column is `C`. This prints `C7`.
 echo $sheet->cell('qty', 7), "\n";

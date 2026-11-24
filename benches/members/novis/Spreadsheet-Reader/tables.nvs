@@ -10,7 +10,7 @@ class Bench
     public static function run(uint $rounds): uint
     {
         var $book = Workbook::createInMemory();
-        $book->sheet('Shop')->table('A1:B3', { name: 'Prices' })->addAll([['Item', 'Price'], ['Widget', 2.5], ['Gadget', 4.0]]);
+        $book->addSheet('Shop')->addTable('A1:B3', { name: 'Prices' })->addRows([['Item', 'Price'], ['Widget', 2.5], ['Gadget', 4.0]]);
         Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
         uint $total = 0;
         uint $i = 0;

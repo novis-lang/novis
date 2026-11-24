@@ -39,7 +39,7 @@ var $bomb = Forge::pdf([
     Core\Bytes::join(["<< /Length {$length} /Filter /FlateDecode >>\nstream\n" as bytes, $packed, "\nendstream" as bytes]),
 ]);
 try {
-    var $rendered = Document::fromHtml('<img src="page.pdf">')->asset('page.pdf', $bomb)->render();
+    var $rendered = Document::fromHtml('<img src="page.pdf">')->withAsset('page.pdf', $bomb)->render();
     echo 'step 1 ran ', $rendered->pageCount, "\n";
 } catch (Throwable $e) {
     echo 'step 1 stopped ', $e::class, "\n";
@@ -48,8 +48,8 @@ try {
 // 2. The same page in the header of each page. A render with a header throws the same error.
 try {
     var $framed = Document::fromHtml('<p>Shop</p>')
-        ->asset('page.pdf', $bomb)
-        ->header(fn(Novis\Pdf\Page $page): Core\Html\Markup => html`<img src="page.pdf" style="height: 1cm">`)
+        ->withAsset('page.pdf', $bomb)
+        ->withHeader(fn(Novis\Pdf\Page $page): Core\Html\Markup => html`<img src="page.pdf" style="height: 1cm">`)
         ->render();
     echo 'step 2 ran ', $framed->pageCount, "\n";
 } catch (Throwable $e) {

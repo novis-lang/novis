@@ -4,8 +4,8 @@ use Novis\Spreadsheet\Chart;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Blog');
-$sheet->addAll([
+var $sheet = $book->addSheet('Blog');
+$sheet->addRows([
     ['day' => 'Monday', 'visitors' => 420],
     ['day' => 'Tuesday', 'visitors' => 515],
     ['day' => 'Wednesday', 'visitors' => 480],
@@ -13,8 +13,8 @@ $sheet->addAll([
 
 // A line joins the values of the series in the order of the rows.
 var $chart = Chart::line({ title: 'Visitors', yTitle: 'Visitors per day' })
-    ->series($sheet->column('visitors'), { categories: $sheet->column('day') });
-$sheet->chart('D2', $chart);
+    ->withSeries($sheet->column('visitors'), { categories: $sheet->column('day') });
+$sheet->addChart('D2', $chart);
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // `Core\Zip::read` returns the XML of the chart. These lines check what it contains.

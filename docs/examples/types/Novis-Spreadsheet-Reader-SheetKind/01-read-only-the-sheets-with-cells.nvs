@@ -4,8 +4,8 @@ use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-$book->sheet('North')->addAll([['Shop', 'Sales'], ['North 1', 120]]);
-$book->sheet('South')->addAll([['Shop', 'Sales'], ['South 1', 200]]);
+$book->addSheet('North')->addRows([['Shop', 'Sales'], ['North 1', 120]]);
+$book->addSheet('South')->addRows([['Shop', 'Sales'], ['South 1', 200]]);
 var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 
 // A `Chartsheet` has no rows to read. A file from Excel can have one.

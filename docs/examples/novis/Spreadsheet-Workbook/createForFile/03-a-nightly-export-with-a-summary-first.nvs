@@ -8,10 +8,10 @@ var $book = Workbook::createForFile($path, { properties: { title: 'Nightly order
 
 // The rows of a sheet are written first, and its totals are known at the end.
 array<array<mixed>> $orders = [['order' => 1042, 'total' => 19.9], ['order' => 1043, 'total' => 5.0]];
-$book->sheet('Orders')->addAll($orders);
+$book->addSheet('Orders')->addRows($orders);
 
 // `position: 0` puts this sheet first in the file, but it is written second.
-$book->sheet('Summary', { position: 0 })->add(['orders' => 2, 'total' => 24.9]);
+$book->addSheet('Summary', { position: 0 })->addRow(['orders' => 2, 'total' => 24.9]);
 $book->finish();
 
 // This prints the sheets in the order a person sees their tabs.

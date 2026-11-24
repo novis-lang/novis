@@ -10,12 +10,12 @@ class Bench
 {
     public static function run(uint $rounds): uint
     {
-        tainted bytes $png = Image::create(4, 4, Color::hex('#336699'))->format(Format::Png)->encode();
+        tainted bytes $png = Image::create(4, 4, Color::hex('#336699'))->withFormat(Format::Png)->encode();
         uint $total = 0;
         uint $i = 0;
         while ($i < $rounds) {
             Image::Axis $axis = ($total + $i) % 2 == 0 ? Image::Axis::Horizontal : Image::Axis::Vertical;
-            $total = $total + Core\Bytes::length(Image::open($png)->flip($axis)->encode()) % 5;
+            $total = $total + Core\Bytes::length(Image::open($png)->flipped($axis)->encode()) % 5;
             $i = $i + 1;
         }
         return $total;

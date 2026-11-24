@@ -18,4 +18,4 @@ var $footer = fn(Page $page): Core\Html\Markup => {
     return html`<p>Annual report, page {$page->number}</p>`;
 };
 
-echo Document::fromHtml($html)->footer($footer)->render()->pageCount, " pages\n";
+echo Document::fromHtml($html)->withFooter($footer)->render()->pageCount, " pages\n";

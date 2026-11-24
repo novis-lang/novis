@@ -54,9 +54,9 @@ final class Show
 // One row has a value of each type. The workbook's zone is Europe/Berlin.
 var $zone = Core\Time\Zone::of("Europe/Berlin");
 var $book = Workbook::createInMemory({zone: "Europe/Berlin"});
-var $sheet = $book->sheet("Shop", {header: true});
-$sheet->add(["Text", "Whole", "Number", "Yes", "Day", "Time", "Took", "Local", "Moment", "Long", "Sum"]);
-$sheet->add([
+var $sheet = $book->addSheet("Shop", {header: true});
+$sheet->addRow(["Text", "Whole", "Number", "Yes", "Day", "Time", "Took", "Local", "Moment", "Long", "Sum"]);
+$sheet->addRow([
     "Widget",
     -42,
     2.75,
@@ -86,11 +86,11 @@ foreach ($reader->rows("Shop", {header: true, columns: ["K"], formulas: true}) a
 
 // A sheet of 2,500 rows is read in batches. Every row comes back once, in order.
 var $long = Workbook::createInMemory();
-var $orders = $long->sheet("Orders", {header: true});
-$orders->add(["Order"]);
+var $orders = $long->addSheet("Orders", {header: true});
+$orders->addRow(["Order"]);
 int $n = 1;
 while ($n <= 2500) {
-    $orders->add([$n]);
+    $orders->addRow([$n]);
     $n = $n + 1;
 }
 var $many = Reader::open($long->finish()->bytes ?? Core\Bytes::fill(0, 0));

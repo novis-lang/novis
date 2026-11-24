@@ -23,7 +23,7 @@ final class Orders
 }
 
 var $design = Workbook::createInMemory();
-$design->sheet("Orders")->addAll([
+$design->addSheet("Orders")->addRows([
     ["Order", "Qty"],
     ["{{orders.number}}", "{{orders.qty}}"],
     ["Sum", Formula::of("SUM(B2:B2)")],

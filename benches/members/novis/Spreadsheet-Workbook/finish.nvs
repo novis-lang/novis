@@ -12,9 +12,9 @@ class Bench
         uint $i = 0;
         while ($i < $rounds) {
             var $book = Workbook::createInMemory();
-            $book->sheet('Orders')->add(['order' => $i, 'total' => 2.5]);
-            $book->sheet('Returns')->add(['order' => $i, 'reason' => 'damaged']);
-            $book->sheet('Summary', { position: 0 })->add(['orders' => 1]);
+            $book->addSheet('Orders')->addRow(['order' => $i, 'total' => 2.5]);
+            $book->addSheet('Returns')->addRow(['order' => $i, 'reason' => 'damaged']);
+            $book->addSheet('Summary', { position: 0 })->addRow(['orders' => 1]);
             var $written = $book->finish();
             uint $step = $written->rows['Orders'] == 1 ? 1 : 3;
             $total = $total + $step;

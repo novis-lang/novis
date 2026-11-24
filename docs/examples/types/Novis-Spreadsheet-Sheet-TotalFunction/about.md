@@ -1,7 +1,7 @@
 The function that the totals row of a table uses for one column.
 
-You set it with the option `totals` of `Sheet::table`. It maps a header to a string, and
-`Sheet::table` turns the string into a `Sheet::TotalFunction` case:
+You set it with the option `totals` of `Sheet::addTable`. It maps a header to a string, and
+`Sheet::addTable` turns the string into a `Sheet::TotalFunction` case:
 
 - `'sum'` is `Sum`, the sum of the column.
 - `'average'` is `Average`, the average of the column.

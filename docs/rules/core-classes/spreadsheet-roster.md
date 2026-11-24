@@ -3,8 +3,8 @@ methods are `wit/spreadsheet.wit`'s exports and which no program calls directly:
 
 | Class | What it is | Its members |
 |---|---|---|
-| `Workbook` | A workbook being written to one target | `createForDownload(string $name, {…})`, `createForFile(string $path, {…})`, `createForStream(Core\IO\File $file, {…})`, `createInMemory({…})`, `fromRows(iterable $rows, {…}): Export`; `sheet(string $name, {…}): Sheet`, `define(string $name, string $reference): Workbook`, `finish(): Written` |
-| `Sheet` | One sheet of a `Workbook`, written row by row | `add(array $row, {…}): Sheet`, `addAll(iterable $rows): Sheet`, `cell(string\|int $column, int $row): string`, `column(string\|int $column): string`, and the sheet-end parts `merge`, `link`, `note`, `validate`, `group`, `table`, `conditional`, `image`, `chart`, `print`, `protect` |
+| `Workbook` | A workbook being written to one target | `createForDownload(string $name, {…})`, `createForFile(string $path, {…})`, `createForStream(Core\IO\File $file, {…})`, `createInMemory({…})`, `fromRows(iterable $rows, {…}): Export`; `addSheet(string $name, {…}): Sheet`, `defineName(string $name, string $reference): Workbook`, `finish(): Written` |
+| `Sheet` | One sheet of a `Workbook`, written row by row | `addRow(array $row, {…}): Sheet`, `addRows(iterable $rows): Sheet`, `cell(string\|int $column, int $row): string`, `column(string\|int $column): string`, and the sheet-end parts `mergeCells`, `addLink`, `addNote`, `addValidation`, `addOutlineGroup`, `addTable`, `addConditionalFormat`, `addImage`, `addChart`, `setPrintOptions`, `protect` |
 | `Written` | What `finish()` returns | `rows: array<int>` by sheet name, `size: int`, `bytes: ?bytes` |
 | `Export` | A whole workbook from one call, written where its last call says | `download(string $name): void`, `save(string $path): Written`, `to(Core\IO\File $file): Written`, `bytes(): bytes` |
 | `Reader` | A workbook or CSV being read | `open(Core\IO\File\|bytes $source, {csv?: {…}}): Reader`, `sheets(): array<{…}>` with a `null` size for a sheet whose part the file lacks, `rows(string\|int $sheet, {…}): Iterator<Row>`, `evaluate(): array<{…}>`, and the extras `merged`, `links`, `notes`, `names`, `tables`, `images`, `properties`, `macros` |
@@ -13,7 +13,7 @@ methods are `wit/spreadsheet.wit`'s exports and which no program calls directly:
 | `Style` | A set of style fields | `of({…}): Style` |
 | `Cell` | One value with its own style, or rich text | `of(mixed $value, Style $style): Cell`, `rich(array<{text: string, style?: Style}> $runs): Cell` |
 | `Formula` | A formula cell's text and its cached result | `of(string $text, {cached?: mixed}): Formula`, `text: string`, `cached: mixed` |
-| `Chart` | One chart of the subset | `column`, `bar`, `line`, `area`, `pie`, `doughnut`, `scatter` (each `({…}): Chart`), `series(string $values, {…}): Chart`, `combine(Chart $other): Chart` |
+| `Chart` | One chart of the subset | `column`, `bar`, `line`, `area`, `pie`, `doughnut`, `scatter` (each `({…}): Chart`), `withSeries(string $values, {…}): Chart`, `combinedWith(Chart $other): Chart` |
 | `Engine` | The manifest class | one static method per export |
 
 The enum is `CellError`, the cell error values `#NULL!`, `#DIV/0!`, `#VALUE!`, `#REF!`, `#NAME?`,

@@ -10,7 +10,7 @@ class Bench
     public static function run(uint $rounds): uint
     {
         var $design = Workbook::createInMemory();
-        $design->sheet('Invoice')->addAll([
+        $design->addSheet('Invoice')->addRows([
             ['Invoice {{number}}', '{{customer}}'],
             ['Item', 'Qty'],
             ['{{items.name}}', '{{items.qty}}'],

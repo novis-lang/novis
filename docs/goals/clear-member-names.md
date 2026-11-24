@@ -26,7 +26,7 @@ stages:
     context: [crates/nvs-stdlib/src/bigint.rs, crates/nvs-stdlib/src/db/registry.rs, crates/nvs-stdlib/src/ldap/flags.rs]
   - id: 6
     title: "the first-party packages are renamed: Novis\\Image, Novis\\Pdf and Novis\\Spreadsheet"
-    status: open
+    status: done
     context: [extensions/image/nvs/Image.nvs, extensions/pdf/nvs/Document.nvs, extensions/spreadsheet/nvs/Sheet.nvs]
   - id: 7
     title: "every further name the check lists is fixed, and no old name is left in the tree"
@@ -594,14 +594,14 @@ and the handoff names the rest.
 **Split:** one writing subagent per package for its `.nvs` source and tests, side by side; then the
 session runs the sweep and hands the leftovers out as stage 3 does.
 
-- [ ] `extensions/image/nvs/Image.nvs:212` and the rest of the `Image` table rows, `keepingMetadata`
+- [x] `extensions/image/nvs/Image.nvs:212` and the rest of the `Image` table rows, `keepingMetadata`
   without a bag, and the image classification in `tools/data/api-names.json` (`value`).
-- [ ] `extensions/pdf/nvs/Document.nvs:63` and the rest of the `Document` rows (`value`).
-- [ ] `extensions/spreadsheet/nvs/Chart.nvs:84` (`value`), `Sheet.nvs:101` and `Workbook.nvs:1`
+- [x] `extensions/pdf/nvs/Document.nvs:63` and the rest of the `Document` rows (`value`).
+- [x] `extensions/spreadsheet/nvs/Chart.nvs:84` (`value`), `Sheet.nvs:101` and `Workbook.nvs:1`
   (`changing`), and `Template` (`changing`).
-- [ ] `cargo build`, then `bun nv api-rename --goal clear-member-names`; every listed call fixed;
+- [x] `cargo build`, then `bun nv api-rename --goal clear-member-names`; every listed call fixed;
   directories moved.
-- [ ] `cargo build` and `cargo clippy --all-targets -- -D warnings` green.
+- [x] `cargo build` and `cargo clippy --all-targets -- -D warnings` green.
 
 ### 7. every further name the check lists is fixed, and no old name is left in the tree
 
@@ -636,17 +636,23 @@ changes entries.
 
 ### State
 
-Stages 1 to 5 are done. Stage 5 renamed every stage 5 row of the table: rows, symbols, cards, labels,
-directories, feature ids, callers, and the bare-string tables in `registry.rs`,
-`nvs-types/src/intrinsics.rs` and `nvs-ir/src/forms.rs`. `BigInt->remainder` takes the dividend's
-sign. The `nanos` option is `nanoseconds` on all four members, `Instant::fromEpoch` and
-`TimeOfDay::at` included; the slot stays `nanos`, and so does the intl extension's WIT field
-(`extensions/intl/nvs/DateFormat.nvs:12`). `questions.json`'s keys match stages 3 to 5. Build,
-clippy, `cargo fmt`, `rules --check` and the filtered `api-rename --check` are green; no test ran.
+Stages 1 to 6 are done. Stage 6 renamed every `Image`, `Document`, `Chart`, `Sheet` and `Workbook`
+row: the declarations, their doc comments, every code call (found by `nvs check`, not by the
+sweep's list), the example, hostile and bench directories, the feature ids, the runtime messages
+that named a member (`extensions/image/src/ops.rs`, `pdf/src/write.rs:761`, `spreadsheet/src/chart.rs`,
+`writer.rs`, `ods/mod.rs`, `tail.rs:813`) and the `.out` files that print them, `meta.rs`'s and
+`ext_world.rs`'s name lists, and the prose. `keepingMetadata()` takes no argument; the plan step
+keeps its `metadata: { keep: true }` shape, and every `Step` key and WIT name keeps its old word.
+`questions.json`'s keys match stages 3 to 6. Build, clippy, `cargo fmt`, `rules --check`, the
+filtered `api-rename --check` are green, and `names --check` names no package member but
+`Novis\Image\Diff`. No test ran.
 
 Expect red at stage 9 if anything was missed: `.lspt` completion cases and `nvs-test`'s
-`TOP_LEVEL_ONLY` cases. `echo` labels such as `powMod` kept their `--EXPECT--` lines. `core.json`,
-`core-changelog.json`, `llms-full.txt` and `site.lock.json`'s stamps are stale until stage 8.
+`TOP_LEVEL_ONLY` cases. `echo` labels such as `powMod`, `trim ` and `flatten ` kept their
+`--EXPECT--` lines. The `crates/nvs-cli/tests/meta.rs` name lists and
+`crates/nvs-stdlib/tests/ext_world.rs` `IMAGE_MEMBERS` were edited by hand and have not run.
+`core.json`, `core-changelog.json`, `llms-full.txt` and `site.lock.json`'s stamps are stale until
+stage 8, and `questions.json`'s hashes of the moved pages may be stale.
 
 Red until stage 7: `bun nv names --check`, the unfiltered `api-rename --check`, so `ci --check`, the
 floor's `ci-check` and `ci --push`. Stage 7's names outside the table: `CoreProcess::run`, `spawn`'s
@@ -655,23 +661,20 @@ floor's `ci-check` and `ci --push`. Stage 7's names outside the table: `CoreProc
 
 ### Next
 
-Stage 6, the packages, from its first item: `extensions/image/nvs/Image.nvs:212`,
-`extensions/pdf/nvs/Document.nvs:63`, `extensions/spreadsheet/nvs/Chart.nvs:84`, `Sheet.nvs:101` and
-`Workbook.nvs:1`. The members are declared in Novis, so there are no Rust symbols. Check
-`extensions/*/manifest.json` and each extension's Rust tests for bare names.
-1. Rename the declarations in the `.nvs` files. `Image->metadata({ keep: true })` becomes
-   `keepingMetadata()` with no bag.
-2. Run `bun nv api-rename --goal clear-member-names --class 'Novis\Image\Image' --class …` into
-   `.agent-tmp/`, then grep for `->old<` beside `->old(`. The sweep lists only `->old(`. Fix the list
-   by line, after excluding the receivers of another class. `->add(`, `->text(`, `->format(`,
-   `->merge(` and `->print(` have many.
-3. Move the directories under `docs/examples/novis/`, `tests/hostile/novis/` and
-   `benches/members/novis/`. Then rename the `Class::member` feature ids in every file, `.json` and
-   `.toml` included. `.agent-tmp/stage5_map.py`, `stage5_move.py` and `stage5_ids.py` do this; edit
-   their map and their `core/` prefix to `novis/`.
-4. Give the bare mentions to three writing subagents, as stage 5 did: `.rs` files; the example,
-   hostile, bench and conformance trees; and `docs/rules`, `docs/reference`, `data/` and the website.
-5. Run `bun nv rules --render`, the filtered `--check`, `cargo fmt`, build and clippy.
+Stage 7, from its first item: run `bun nv names --check` into `.agent-tmp/` and rename each name it
+lists by the four parts. The known ones: `CoreProcess::run`, `spawn`'s `cwd`, `Queue::push`'s `args`,
+`NovisImageDiff` (`extensions/image/nvs/Diff.nvs:1`), `RateLimit::shed`, `Cli::multiSelect` and
+`LdapFilter::approx`. Add each to the renames table and the `renames` block, then:
+1. Decide each name, record it in the table, and rename its declaration (registry row and symbol for
+   `Core`, the `.nvs` for a package).
+2. Find the code calls with `nvs check` over every `.nvs` that uses the class, as stage 6 did:
+   `.agent-tmp/stage6_fix.py` (`.nvs`) and `stage6_nvst.py` (the `--FILE--` part of a `.nvst`) rename
+   each unknown-member error at its call; edit their map `M`. Rust strings and `.md` code take
+   `stage6_lines.py` over the sweep's list.
+3. Do the backlog's two `api-rename` items (`->old<T>(`, and `.json`/`.toml`/`.out` in
+   `TEXT_EXTENSIONS`), then run the unfiltered `bun nv api-rename --check --goal clear-member-names`
+   and fix what it names.
+4. Run `bun nv rules --render`, `cargo fmt`, build and clippy.
 
 ### Backlog
 
@@ -706,3 +709,11 @@ Stage 6, the packages, from its first item: `extensions/image/nvs/Image.nvs:212`
   comment. Rewrite it when the file is next open.
 - `docs/rules/config/an-entry-runs-on-a-server-event.md:79` says "the args map". Check whether it means
   `Queue::push`'s `args`, which stage 7 renames.
+- From stage 6, for stage 8's file-name pass: example and hostile files under the moved
+  `novis/Image-Image/`, `Pdf-Document/` and `Spreadsheet-*/` directories that keep an old word
+  (`01-resize-…`), and the conformance cases `image-composite-draws-…`, `pdf-a-header-…`,
+  `pdf-a-footer-…`, `pdf-a-password-…`, `pdf-a-missing-asset-…`, `spreadsheet-define-*`.
+- `website/src/content/docs/syntax/functions/calls.mdx:18` shows a made-up `resize(width: 80)` call.
+  It is not the `Image` method; stage 8 decides whether it reads as one.
+- `extensions/image/src/text.rs:212,218`: one message serves `withText` and `measureText`, so it
+  names neither. Stage 8 rereads it.

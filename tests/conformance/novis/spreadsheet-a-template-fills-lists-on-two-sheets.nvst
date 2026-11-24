@@ -43,12 +43,12 @@ final class Show
 
 // Each sheet has one item row. The sum on `Summary` also adds the sum on `Invoice`.
 var $design = Workbook::createInMemory();
-$design->sheet("Invoice")->addAll([
+$design->addSheet("Invoice")->addRows([
     ["Item", "Qty"],
     ["{{items.name}}", "{{items.qty}}"],
     ["Sum", Formula::of("SUM(B2:B2)")],
 ]);
-$design->sheet("Summary")->addAll([
+$design->addSheet("Summary")->addRows([
     ["Line", "Amount"],
     ["{{lines.label}}", "{{lines.amount}}"],
     ["Sum", Formula::of("SUM(B2:B2)+Invoice!B3")],

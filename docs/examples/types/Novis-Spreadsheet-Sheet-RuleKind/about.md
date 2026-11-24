@@ -1,6 +1,6 @@
 What a data validation checks when a person types into a cell in Excel.
 
-You add a validation with `Sheet::validate`. Its rule has exactly one of these options, and the
+You add a validation with `Sheet::addValidation`. Its rule has exactly one of these options, and the
 option gives the `Sheet::RuleKind` case:
 
 - `list` is `List`. The value must be one of the strings in the list.

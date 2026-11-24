@@ -19,16 +19,16 @@ final class Report
     public static function render(?string $password): Rendered
     {
         var $document = Document::fromHtml(Report::html())
-            ->asset('logo.svg', Brand::logo())
-            ->asset('revenue.svg', Chart::bars(Sample::quarters(), 6000, 1000) as bytes)
-            ->asset('orders.svg', Chart::lines(Sample::weeks(), 2000, 3600, 400) as bytes)
-            ->header(fn(Page $page): Markup => Report::header($page), { height: '22mm' })
-            ->footer(fn(Page $page): Markup => Report::footer($page), { height: '20mm' })
+            ->withAsset('logo.svg', Brand::logo())
+            ->withAsset('revenue.svg', Chart::bars(Sample::quarters(), 6000, 1000) as bytes)
+            ->withAsset('orders.svg', Chart::lines(Sample::weeks(), 2000, 3600, 400) as bytes)
+            ->withHeader(fn(Page $page): Markup => Report::header($page), { height: '22mm' })
+            ->withFooter(fn(Page $page): Markup => Report::footer($page), { height: '20mm' })
             // PDF/UA is the standard for accessible files. A screen reader can read this report aloud.
-            ->standard(Document::Standard::PdfUa1)
-            ->created(Core\Time\Instant::fromIso(Sample::reportDate()->format('yyyy-MM-dd') . 'T16:00:00Z'));
+            ->withStandard(Document::Standard::PdfUa1)
+            ->withCreationTime(Core\Time\Instant::fromIso(Sample::reportDate()->format('yyyy-MM-dd') . 'T16:00:00Z'));
         if ($password != null) {
-            $document = $document->password($password);
+            $document = $document->withPassword($password);
         }
         return $document->render();
     }

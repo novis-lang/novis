@@ -159,7 +159,7 @@ status code first, so the gate only shows the page.
 template, which escapes every value. `Document::fromHtml` reads that HTML. Each method call after it
 adds one thing to the document, and `render()` returns the finished file.
 
-Each document sets its creation time with `created()`. The same data then always gives the same file,
+Each document sets its creation time with `withCreationTime()`. The same data then always gives the same file,
 byte for byte. The test `twoRendersGiveTheSameFile` checks this.
 
 `Sample.nvs` has the data of the three documents. A real app reads it from its database.
@@ -170,28 +170,28 @@ The invoice:
 
 - [`Document::fromHtml`](/reference/core/novis-pdf-document/fromhtml/) reads the HTML and the CSS of
   the invoice.
-- [`asset`](/reference/core/novis-pdf-document/asset/) adds the logo and the QR code as SVG images.
+- [`withAsset`](/reference/core/novis-pdf-document/withasset/) adds the logo and the QR code as SVG images.
   The HTML shows them with `<img src="logo.svg">`.
-- [`header`](/reference/core/novis-pdf-document/header/) and
-  [`footer`](/reference/core/novis-pdf-document/footer/) build the top and the bottom of each page.
+- [`withHeader`](/reference/core/novis-pdf-document/withheader/) and
+  [`withFooter`](/reference/core/novis-pdf-document/withfooter/) build the top and the bottom of each page.
   Each gets a [`Page`](/reference/core/novis-pdf-page/), which has the page number and the number of
   pages.
-- [`slots`](/reference/core/novis-pdf-document/slots/) fills the rows "Carried forward" and "Brought
+- [`withSlots`](/reference/core/novis-pdf-document/withslots/) fills the rows "Carried forward" and "Brought
   forward" on each page. Each row of items has a `data-mark` attribute with its amount.
 - [`Page::marks`](/reference/core/novis-pdf-page/marks/) returns the amounts on one page.
   [`Page::marksUpTo`](/reference/core/novis-pdf-page/marksupto/) returns the amounts on this page and
   on every page before it.
-- [`standard`](/reference/core/novis-pdf-document/standard/) with `Document::Standard::PdfA3b` makes a
+- [`withStandard`](/reference/core/novis-pdf-document/withstandard/) with `Document::Standard::PdfA3b` makes a
   file for an archive.
-- [`invoiceXml`](/reference/core/novis-pdf-document/invoicexml/) puts the Factur-X XML into the file.
-- [`created`](/reference/core/novis-pdf-document/created/) sets the creation time.
+- [`withInvoiceXml`](/reference/core/novis-pdf-document/withinvoicexml/) puts the Factur-X XML into the file.
+- [`withCreationTime`](/reference/core/novis-pdf-document/withcreationtime/) sets the creation time.
 - [`QrCode::giroCode`](/reference/core/novis-image-qrcode/girocode/) writes the text of a SEPA bank
   transfer. [`QrCode::svg`](/reference/core/novis-image-qrcode/svg/) draws that text as a QR code.
 
 The report:
 
-- [`password`](/reference/core/novis-pdf-document/password/) encrypts the file with a password.
-- [`standard`](/reference/core/novis-pdf-document/standard/) with `Document::Standard::PdfUa1` makes
+- [`withPassword`](/reference/core/novis-pdf-document/withpassword/) encrypts the file with a password.
+- [`withStandard`](/reference/core/novis-pdf-document/withstandard/) with `Document::Standard::PdfUa1` makes
   an accessible file. Each chart has an `alt` text, which a screen reader reads.
 - [`Page::string`](/reference/core/novis-pdf-page/string/) returns the name of the chapter for the
   header. Each chapter heading saves its text with the CSS property `string-set`.
@@ -199,7 +199,7 @@ The report:
   `$page->name`, and the cover gets no header.
 - The table of contents uses the CSS function `target-counter()`. It gives the page number of each
   chapter.
-- `asset` adds the two charts. `Chart.nvs` draws each chart as SVG, so the PDF file has it as a
+- `withAsset` adds the two charts. `Chart.nvs` draws each chart as SVG, so the PDF file has it as a
   vector drawing.
 
 The tickets:

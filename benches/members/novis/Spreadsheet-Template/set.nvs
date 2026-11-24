@@ -10,7 +10,7 @@ class Bench
     public static function run(uint $rounds): uint
     {
         var $design = Workbook::createInMemory();
-        $design->sheet('Report')->addAll([['Report', null], ['Sales', '{{sales}}']]);
+        $design->addSheet('Report')->addRows([['Report', null], ['Sales', '{{sales}}']]);
         bytes $source = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
         var $template = Template::open($source);
         uint $total = 0;

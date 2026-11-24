@@ -2,10 +2,10 @@
 An invoice renders as PDF/A-3b with its Factur-X XML attached as `factur-x.xml` and named in the metadata, two renders are byte-equal, an XML that is not well-formed throws `ParseError`, and an invoice XML without PDF/A-3b throws `LogicError`: rule:core-classes/pdf-factur-x-is-the-one-attachment
 --FILE--
 <?nvs
-// covers: Novis\Pdf\Document::invoiceXml
-// covers: Novis\Pdf\Document::standard
+// covers: Novis\Pdf\Document::withInvoiceXml
+// covers: Novis\Pdf\Document::withStandard
 // covers: Novis\Pdf\Document::Standard
-// covers: Novis\Pdf\Document::created
+// covers: Novis\Pdf\Document::withCreationTime
 use Novis\Pdf\Document;
 
 // The XML of the invoice. Your invoicing code builds it, and the PDF carries it unchanged.
@@ -21,9 +21,9 @@ string $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
 // PDF/A needs a creation time, so the document sets one.
 var $invoice = Document::fromHtml("<html lang=\"en\"><head><title>Invoice Shop-1</title></head>"
     . "<body><h1>Invoice Shop-1</h1><p>Tea: 1.50</p></body></html>")
-    ->standard(Document::Standard::PdfA3b)
-    ->created(Core\Time\Instant::fromIso("2026-01-01T00:00:00Z"))
-    ->invoiceXml($xml);
+    ->withStandard(Document::Standard::PdfA3b)
+    ->withCreationTime(Core\Time\Instant::fromIso("2026-01-01T00:00:00Z"))
+    ->withInvoiceXml($xml);
 var $rendered = $invoice->render();
 echo Core\Bytes::startsWith($rendered->bytes, "%PDF-" as bytes) ? "a PDF file" : "not a PDF file", "\n";
 echo Core\Bytes::contains($rendered->bytes, "(factur-x.xml)" as bytes) ? "factur-x.xml is attached" : "no attachment", "\n";
@@ -32,14 +32,14 @@ echo $invoice->render()->bytes == $rendered->bytes ? "same bytes" : "different b
 
 // An XML that is not well-formed throws a `ParseError`.
 try {
-    $invoice->invoiceXml("<rsm:CrossIndustryInvoice>")->render();
+    $invoice->withInvoiceXml("<rsm:CrossIndustryInvoice>")->render();
 } catch (ParseError $malformed) {
     echo "ParseError\n";
 }
 
 // Factur-X needs PDF/A-3b. With another standard, `render` throws a `LogicError`.
 try {
-    $invoice->standard(Document::Standard::PdfA2b)->render();
+    $invoice->withStandard(Document::Standard::PdfA2b)->render();
 } catch (LogicError $wrong) {
     echo "LogicError: ", $wrong->message, "\n";
 }

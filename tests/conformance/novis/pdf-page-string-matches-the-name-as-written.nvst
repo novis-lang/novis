@@ -18,7 +18,7 @@ var $header = fn(Page $page): Core\Html\Markup => {
         $page->string("CHAPTER") ?? "null", "\n";
     return html`<p>Shop</p>`;
 };
-Document::fromHtml($html)->header($header)->render();
+Document::fromHtml($html)->withHeader($header)->render();
 
 // Without a header function, the margin box reads the same names.
 var $page = Reader::open(Document::fromHtml($html)->render()->bytes)->text(1);

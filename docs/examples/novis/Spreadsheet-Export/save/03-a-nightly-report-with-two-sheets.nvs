@@ -7,8 +7,8 @@ string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'nightly.xls
 
 // The function adds the sheets. It runs when `save` is called.
 var $report = new Export(fn(Workbook $book): void => {
-    $book->sheet('Orders')->addAll([['order' => 1042, 'total' => 19.9], ['order' => 1043, 'total' => 5.0]]);
-    $book->sheet('Returns')->add(['order' => 1042, 'reason' => 'damaged']);
+    $book->addSheet('Orders')->addRows([['order' => 1042, 'total' => 19.9], ['order' => 1043, 'total' => 5.0]]);
+    $book->addSheet('Returns')->addRow(['order' => 1042, 'reason' => 'damaged']);
 }, null);
 
 var $written = $report->save($path);

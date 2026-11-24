@@ -1,8 +1,8 @@
-How `resize` fits an image into the width and height you give it.
+How `resized` fits an image into the width and height you give it.
 
 `Image::Fit` is declared in the class `Novis\Image\Image`.
 
-You pass an `Image::Fit` to `resize` as `fit`. It decides what happens when the image and the box you give
+You pass an `Image::Fit` to `resized` as `fit`. It decides what happens when the image and the box you give
 have a different shape:
 
 - `Cover` fills the whole box and cuts off what does not fit. This is the default.

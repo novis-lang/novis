@@ -5,8 +5,8 @@ use Novis\Spreadsheet\Template;
 use Novis\Spreadsheet\Workbook;
 
 var $design = Workbook::createInMemory();
-$design->sheet('Summary')->addAll([['Orders', null], ['Customer', null]]);
-$design->sheet('Orders')->addAll([['Order', 'Total'], ['{{orders.id}}', '{{orders.total}}']]);
+$design->addSheet('Summary')->addRows([['Orders', null], ['Customer', null]]);
+$design->addSheet('Orders')->addRows([['Order', 'Total'], ['{{orders.id}}', '{{orders.total}}']]);
 bytes $source = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // The address names the sheet, then `!`, then the cell.

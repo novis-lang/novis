@@ -2,7 +2,7 @@
 A header function's `Page` carries its number, the count, whether it is first or last and its `string-set` values, and a page made by hand keeps its values: rule:core-classes/pdf-header-is-a-page-function
 --FILE--
 <?nvs
-// covers: Novis\Pdf\Document::header
+// covers: Novis\Pdf\Document::withHeader
 // covers: Novis\Pdf\Page::constructor
 // covers: Novis\Pdf\Page::isFirst
 // covers: Novis\Pdf\Page::isLast
@@ -20,7 +20,7 @@ var $header = fn(Page $page): Core\Html\Markup => {
         ", last ", $page->isLast() ? "yes" : "no", ", chapter ", $page->string("chapter") ?? "null", "\n";
     return html`<p>Shop</p>`;
 };
-echo Document::fromHtml($html)->header($header)->render()->pageCount, " pages\n";
+echo Document::fromHtml($html)->withHeader($header)->render()->pageCount, " pages\n";
 
 // A page made by hand keeps its values. `string` returns the first value with the name.
 var $made = new Page(1, 1, "cover", [{name: "chapter", value: "Books"}, {name: "chapter", value: "Toys"}], []);

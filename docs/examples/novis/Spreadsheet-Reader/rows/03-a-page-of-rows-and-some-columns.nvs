@@ -4,10 +4,10 @@ use Novis\Spreadsheet\Reader;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Orders');
-$sheet->add(['Order', 'Customer', 'Note', 'Total']);
+var $sheet = $book->addSheet('Orders');
+$sheet->addRow(['Order', 'Customer', 'Note', 'Total']);
 for (int $n = 1; $n <= 50; $n++) {
-    $sheet->add([1000 + $n, "Customer {$n}", 'none', $n * 10]);
+    $sheet->addRow([1000 + $n, "Customer {$n}", 'none', $n * 10]);
 }
 var $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 

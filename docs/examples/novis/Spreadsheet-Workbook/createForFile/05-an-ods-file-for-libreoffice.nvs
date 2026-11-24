@@ -8,7 +8,7 @@ string $path = Core\Path::join(Core\IO::createTemporaryDirectory(), 'stock.ods')
 
 // A path that ends in `.ods` makes an ods file. The calls are the same as for an xlsx file.
 var $book = Workbook::createForFile($path);
-$book->sheet('Stock')->addAll([
+$book->addSheet('Stock')->addRows([
     ['Item' => 'Widget', 'Count' => 12],
     ['Item' => 'Gadget', 'Count' => 5],
     ['Item' => 'Total', 'Count' => Formula::of('SUM(B2:B3)', { cached: 17 })],

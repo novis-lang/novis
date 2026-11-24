@@ -6,7 +6,7 @@ use Novis\Spreadsheet\Template;
 use Novis\Spreadsheet\Workbook;
 
 var $design = Workbook::createInMemory();
-$design->sheet('Values')->addAll([['Text'], ['Number'], ['Boolean'], ['Formula'], ['Text with =']]);
+$design->addSheet('Values')->addRows([['Text'], ['Number'], ['Boolean'], ['Formula'], ['Text with =']]);
 bytes $source = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // A string that starts with `=` is written as text. Use `Formula::of` to write a formula.

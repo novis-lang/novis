@@ -4,17 +4,17 @@ use Novis\Spreadsheet\Chart;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Blog');
-$sheet->addAll([
+var $sheet = $book->addSheet('Blog');
+$sheet->addRows([
     ['day' => 'Monday', 'visitors' => 420, 'comments' => 31],
     ['day' => 'Tuesday', 'visitors' => 515, 'comments' => 44],
 ]);
 
 // Each series is one line. The `name` of each line is in the legend.
 var $chart = Chart::line({ legend: 'bottom' })
-    ->series($sheet->column('visitors'), { categories: $sheet->column('day'), name: 'Visitors' })
-    ->series($sheet->column('comments'), { categories: $sheet->column('day'), name: 'Comments', color: '#C00000' });
-$sheet->chart('E2', $chart);
+    ->withSeries($sheet->column('visitors'), { categories: $sheet->column('day'), name: 'Visitors' })
+    ->withSeries($sheet->column('comments'), { categories: $sheet->column('day'), name: 'Comments', color: '#C00000' });
+$sheet->addChart('E2', $chart);
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;

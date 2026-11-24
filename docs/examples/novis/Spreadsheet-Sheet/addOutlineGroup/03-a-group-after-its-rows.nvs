@@ -1,0 +1,18 @@
+<?nvs
+// Shows the error for a group of rows that are already added.
+use Novis\Spreadsheet\Workbook;
+
+var $book = Workbook::createInMemory();
+var $sheet = $book->addSheet('Orders');
+$sheet->addRows([['order' => 1042], ['order' => 1043], ['order' => 1044]]);
+
+// Rows 2 and 3 are already in the file, so `addOutlineGroup` throws a `LogicError`.
+try {
+    $sheet->addOutlineGroup('2:3');
+} catch (LogicError $e) {
+    echo $e->message, "\n";
+}
+
+// The `level` option of `addRow` puts a new row in a group.
+$sheet->addRow(['order' => 1045], { level: 1 });
+echo "row 5 is in a group\n";

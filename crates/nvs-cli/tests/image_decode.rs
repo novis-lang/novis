@@ -53,7 +53,7 @@ fn png(dir: &Path) -> Vec<u8> {
     run(
         dir,
         &[],
-        "Core\\IO::write('a.png', Image::create(30, 20, Color::hex('#336699'))->format(Format::Png)->encode());",
+        "Core\\IO::write('a.png', Image::create(30, 20, Color::hex('#336699'))->withFormat(Format::Png)->encode());",
     );
     fs::read(dir.join("a.png")).expect("the program wrote the PNG")
 }

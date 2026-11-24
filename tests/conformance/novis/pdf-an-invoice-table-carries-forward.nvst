@@ -2,7 +2,7 @@
 An invoice table over three pages repeats its header, fills a carried-forward slot on each page where the table goes on, and shows its total on the last page: rule:core-classes/pdf-tables-across-pages
 --FILE--
 <?nvs
-// covers: Novis\Pdf\Document::slots
+// covers: Novis\Pdf\Document::withSlots
 use Novis\Pdf\Document;
 use Novis\Pdf\Page;
 
@@ -31,7 +31,7 @@ var $slots = fn(Page $page): array<Core\Html\Markup> => {
     return ["carried" => html`{$size}{$total}`, "total" => html`{$size}<b>{$total}</b>`];
 };
 
-var $rendered = Document::fromHtml($html)->slots($slots)->render();
+var $rendered = Document::fromHtml($html)->withSlots($slots)->render();
 echo $rendered->pageCount, " pages, ", Core\Arr::count($rendered->overflows), " overflows\n";
 --EXPECT--
 page 1 of 3: 22 rows, total 33.00

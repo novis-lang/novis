@@ -34,7 +34,7 @@ class Attack
 string $folder = Core\IO::createTemporaryDirectory();
 string $path = Core\Path::join($folder, 'attack-export-to.xlsx');
 var $design = Workbook::createInMemory();
-$design->sheet('Invoice')->add(['{{shop}}']);
+$design->addSheet('Invoice')->addRow(['{{shop}}']);
 bytes $template = $design->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // 1. A file that is already closed, for an export and for a template.

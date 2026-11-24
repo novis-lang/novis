@@ -3,10 +3,10 @@
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Orders');
-$sheet->add(['order' => 1042, 'total' => 19.9]);
-$sheet->add(['order' => 1043, 'total' => 5.5]);
-$sheet->add(['order' => 1044, 'total' => 12.0]);
+var $sheet = $book->addSheet('Orders');
+$sheet->addRow(['order' => 1042, 'total' => 19.9]);
+$sheet->addRow(['order' => 1043, 'total' => 5.5]);
+$sheet->addRow(['order' => 1044, 'total' => 12.0]);
 
 // Row 1 is the header row, so the data is in rows 2 to 4. This prints `B2:B4`.
 echo $sheet->column('total'), "\n";

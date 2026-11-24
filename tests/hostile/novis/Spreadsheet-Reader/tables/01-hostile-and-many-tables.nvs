@@ -11,13 +11,13 @@ class Attack
     {
         try {
             var $book = Workbook::createInMemory();
-            var $sheet = $book->sheet('Shop');
+            var $sheet = $book->addSheet('Shop');
             int $n = 0;
             foreach ($ranges as string $range) {
                 $n++;
-                $sheet->table($range, { name: "{$name}{$n}" });
+                $sheet->addTable($range, { name: "{$name}{$n}" });
             }
-            $sheet->add(['Item', 'Price']);
+            $sheet->addRow(['Item', 'Price']);
             bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
             echo 'step ', $step, ' read ', Core\Arr::count(Reader::open($file)->tables(0)), " tables\n";
         } catch (Throwable $e) {
@@ -41,10 +41,10 @@ Attack::attempt(3, ['A1:B2'], 'C');
 
 // 4. 1,000 tables on one sheet, one below the other, read 20 times.
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Shop');
+var $sheet = $book->addSheet('Shop');
 for (int $n = 1; $n <= 1000; $n++) {
-    $sheet->table('A' . (2 * $n - 1) . ':B' . (2 * $n), { name: "Prices{$n}" });
-    $sheet->addAll([['Item', 'Price'], ['Widget', $n]]);
+    $sheet->addTable('A' . (2 * $n - 1) . ':B' . (2 * $n), { name: "Prices{$n}" });
+    $sheet->addRows([['Item', 'Price'], ['Widget', $n]]);
 }
 Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 uint $count = 0;

@@ -11,7 +11,7 @@ class Attack
     {
         try {
             var $book = Workbook::createInMemory();
-            $book->sheet('Shop')->link('A1', $target)->add(['Open']);
+            $book->addSheet('Shop')->addLink('A1', $target)->addRow(['Open']);
             bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
             foreach (Reader::open($file)->links(0) as var $link) {
                 echo 'step ', $step, ' read a target of ', Core\Str::length($link->target), " characters\n";
@@ -37,11 +37,11 @@ Attack::attempt(3, 'https://example.com/' . Core\Str::repeat('a', 100000));
 
 // 4. 5,000 links on one sheet, and a sheet that does not exist.
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Shop');
+var $sheet = $book->addSheet('Shop');
 for (int $n = 1; $n <= 5000; $n++) {
-    $sheet->link("A{$n}", "https://example.com/{$n}");
+    $sheet->addLink("A{$n}", "https://example.com/{$n}");
 }
-$sheet->add(['Open']);
+$sheet->addRow(['Open']);
 Reader $reader = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0));
 echo 'step 4 read ', Core\Arr::count($reader->links('Shop')), " links\n";
 try {

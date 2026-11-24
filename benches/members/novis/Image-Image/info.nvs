@@ -11,9 +11,9 @@ class Bench
     public static function run(uint $rounds): uint
     {
         array<tainted bytes> $files = [
-            Image::create(4, 4, Color::hex('#336699'))->format(Format::Png)->encode(),
-            Image::create(5, 4, Color::hex('#336699'))->format(Format::Png)->encode(),
-            Image::create(6, 4, Color::hex('#336699'))->format(Format::Png)->encode(),
+            Image::create(4, 4, Color::hex('#336699'))->withFormat(Format::Png)->encode(),
+            Image::create(5, 4, Color::hex('#336699'))->withFormat(Format::Png)->encode(),
+            Image::create(6, 4, Color::hex('#336699'))->withFormat(Format::Png)->encode(),
         ];
         uint $total = 0;
         uint $i = 0;

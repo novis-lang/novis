@@ -3,8 +3,8 @@ use Novis\Image\Color;
 // Shows how to check the result of a step in a test, by reading a pixel.
 use Novis\Image\Image;
 
-// After `grayscale`, red, green and blue of every pixel are the same number.
-var $gray = Image::create(4, 4, Color::hex('#336699'))->grayscale()->raw();
+// After `grayscaled`, red, green and blue of every pixel are the same number.
+var $gray = Image::create(4, 4, Color::hex('#336699'))->grayscaled()->raw();
 array<mixed> $pixel = Core\Bytes::unpack(Core\Bytes::slice($gray->pixels, 0, 4), 'C4');
 
 // This prints true.

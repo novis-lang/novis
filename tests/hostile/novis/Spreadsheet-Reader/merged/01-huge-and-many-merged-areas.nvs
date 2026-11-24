@@ -11,11 +11,11 @@ class Attack
     {
         try {
             var $book = Workbook::createInMemory();
-            var $sheet = $book->sheet('Shop');
+            var $sheet = $book->addSheet('Shop');
             foreach ($ranges as string $range) {
-                $sheet->merge($range);
+                $sheet->mergeCells($range);
             }
-            $sheet->add(['Widget']);
+            $sheet->addRow(['Widget']);
             return $book->finish()->bytes;
         } catch (Throwable $e) {
             return null;

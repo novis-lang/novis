@@ -15,8 +15,8 @@ class Orders
     }
 }
 
-// `addAll` takes the rows from the generator. Each part of the file is sent when it is ready.
+// `addRows` takes the rows from the generator. Each part of the file is sent when it is ready.
 // Add `format: "csv"` when the name does not end in `.csv`.
 var $book = Workbook::createForDownload('export', { format: 'csv' });
-$book->sheet('Orders')->addAll(Orders::all(5));
+$book->addSheet('Orders')->addRows(Orders::all(5));
 $book->finish();

@@ -1,6 +1,6 @@
 The kind of a conditional format, a rule that changes how Excel shows the cells of a range.
 
-You set it with the option `kind` of `Sheet::conditional`. The method turns the string into a
+You set it with the option `kind` of `Sheet::addConditionalFormat`. The method turns the string into a
 `Sheet::ConditionalKind` case:
 
 - `'cell'` is `Cell`. It compares each cell with `values`, using `operator`.

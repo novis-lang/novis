@@ -254,7 +254,13 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
     };
     let image = names(r"Novis\Image\Image");
     for public in [
-        "open", "create", "fromRaw", "resize", "encode", "variants", "raw",
+        "open",
+        "create",
+        "fromRaw",
+        "resized",
+        "encode",
+        "encodeVariants",
+        "raw",
     ] {
         assert!(
             image.contains(&public.to_owned()),
@@ -299,7 +305,7 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
         "{signature}"
     );
     assert_eq!(
-        member(&document, r"Novis\Image\Image", "resize")["kind"],
+        member(&document, r"Novis\Image\Image", "resized")["kind"],
         "instance"
     );
     let fit = core_enum(&document, r"Novis\Image\Image::Fit");
@@ -384,8 +390,8 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
             "createForStream",
             "createInMemory",
             "fromRows",
-            "sheet",
-            "define",
+            "addSheet",
+            "defineName",
             "finish"
         ]
     );
@@ -393,20 +399,20 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
         names(r"Novis\Spreadsheet\Sheet"),
         [
             "constructor",
-            "add",
-            "addAll",
+            "addRow",
+            "addRows",
             "cell",
             "column",
-            "merge",
-            "link",
-            "note",
-            "validate",
-            "group",
-            "table",
-            "conditional",
-            "image",
-            "chart",
-            "print",
+            "mergeCells",
+            "addLink",
+            "addNote",
+            "addValidation",
+            "addOutlineGroup",
+            "addTable",
+            "addConditionalFormat",
+            "addImage",
+            "addChart",
+            "setPrintOptions",
             "protect"
         ]
     );
@@ -429,8 +435,8 @@ fn meta_lists_the_built_in_components_classes_and_enums() {
             "pie",
             "doughnut",
             "scatter",
-            "series",
-            "combine"
+            "withSeries",
+            "combinedWith"
         ]
     );
     assert_eq!(

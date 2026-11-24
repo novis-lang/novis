@@ -12,13 +12,13 @@ Image $photo = Image::fromRaw({
             . 'f0f0f0ff707070ff101010ffc0c0c0ff'
             . '404040ffb0b0b0ff808080ff000000ff',
     ),
-})->resize({ width: 64, height: 64 });
+})->resized({ width: 64, height: 64 });
 bytes $saved = Image::hash($photo->encode(), Image::HashKind::Perceptual);
 
 // The first upload is the same photo at a smaller size. The second is a grey image.
 array<tainted bytes> $uploads = [
-    $photo->resize({ width: 32, height: 32 })->encode(),
-    Image::create(64, 64)->grayscale()->encode(),
+    $photo->resized({ width: 32, height: 32 })->encode(),
+    Image::create(64, 64)->grayscaled()->encode(),
 ];
 
 // A distance of 10 or less out of 64 bits counts as the same photo.

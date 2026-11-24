@@ -4,8 +4,8 @@ use Novis\Spreadsheet\Chart;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $sheet = $book->sheet('Visits');
-$sheet->addAll([
+var $sheet = $book->addSheet('Visits');
+$sheet->addRows([
     ['minutes' => 2, 'shop' => 1, 'web' => 0],
     ['minutes' => 5, 'shop' => 3, 'web' => 1],
     ['minutes' => 9, 'shop' => 4, 'web' => 3],
@@ -14,9 +14,9 @@ $sheet->addAll([
 // Both series use the minutes as x values. The `color` of a series is the color of its points.
 string $minutes = $sheet->column('minutes');
 var $chart = Chart::scatter({ xTitle: 'Minutes on the page', yTitle: 'Orders' })
-    ->series($sheet->column('shop'), { categories: $minutes, name: 'Shop', color: '#1F77B4' })
-    ->series($sheet->column('web'), { categories: $minutes, name: 'Web', color: '#FF7F0E' });
-$sheet->chart('E2', $chart);
+    ->withSeries($sheet->column('shop'), { categories: $minutes, name: 'Shop', color: '#1F77B4' })
+    ->withSeries($sheet->column('web'), { categories: $minutes, name: 'Web', color: '#FF7F0E' });
+$sheet->addChart('E2', $chart);
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 var $xml = Core\Zip::read($file, 'xl/charts/chart1.xml') as string;

@@ -4,11 +4,11 @@ keywords: image, picture, thumbnail, resize, scale, crop, rotate, convert, image
 ---
 
 `Novis\Image\Image` is an image and a list of steps to run on it. Each step method, such as
-`resize`, `crop` or `format`, returns a new `Image` and does not change the old one. No pixel is
-decoded until `encode`, `variants` or `raw` runs the steps, so bytes that are not an image throw a
+`resized`, `cropped` or `withFormat`, returns a new `Image` and does not change the old one. No pixel is
+decoded until `encode`, `encodeVariants` or `raw` runs the steps, so bytes that are not an image throw a
 `ParseError` only then. `open`, `info`, `hash`, `placeholder`, `palette` and `compare` read an
 encoded image from `bytes`, an open `Core\IO\File` or an uploaded `Core\Request\Part`. `encode` removes all metadata, such as the place a photo was taken, unless
-`metadata({ keep: true })` is a step.
+`keepingMetadata` is a step.
 
 ```nvs
 <?nvs
@@ -23,7 +23,7 @@ bytes $png = Core\Encoding::fromHex(
 
 Image $photo = Image::open($png);
 // `encode` returns `tainted bytes`, because an image can come from an upload.
-tainted bytes $thumb = $photo->resize({ width: 6, upscale: true })->format(Format::Jpeg, { quality: 80 })->encode();
+tainted bytes $thumb = $photo->resized({ width: 6, upscale: true })->withFormat(Format::Jpeg, { quality: 80 })->encode();
 
 var $info = Image::info($thumb);
 echo Image::mime($info->format), ' ', $info->width, 'x', $info->height, "\n";

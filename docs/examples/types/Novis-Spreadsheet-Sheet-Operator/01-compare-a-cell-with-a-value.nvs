@@ -4,15 +4,15 @@ use Novis\Spreadsheet\Style;
 use Novis\Spreadsheet\Workbook;
 
 var $book = Workbook::createInMemory();
-var $stock = $book->sheet('Stock');
-$stock->add(['item' => 'Tea', 'qty' => 3]);
+var $stock = $book->addSheet('Stock');
+$stock->addRow(['item' => 'Tea', 'qty' => 3]);
 
 // Each rule colors the `qty` cells that match it.
 // `between` and `notBetween` need two values. The other operators need one.
 var $red = Style::of({ fill: '#FFC7CE' });
-$stock->conditional('B2:B99', { kind: 'cell', operator: 'less', values: ['5'], style: $red });
-$stock->conditional('B2:B99', { kind: 'cell', operator: 'notBetween', values: ['1', '500'], style: $red });
-$stock->conditional('B2:B99', { kind: 'cell', operator: 'equal', values: ['0'], style: $red });
+$stock->addConditionalFormat('B2:B99', { kind: 'cell', operator: 'less', values: ['5'], style: $red });
+$stock->addConditionalFormat('B2:B99', { kind: 'cell', operator: 'notBetween', values: ['1', '500'], style: $red });
+$stock->addConditionalFormat('B2:B99', { kind: 'cell', operator: 'equal', values: ['0'], style: $red });
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 
 // Excel reads the operator from the file.

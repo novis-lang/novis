@@ -11,7 +11,7 @@ class Attack
     {
         try {
             var $book = Workbook::createInMemory({ properties: { title: $text, author: $text } });
-            $book->sheet('Shop')->add(['Widget']);
+            $book->addSheet('Shop')->addRow(['Widget']);
             var $read = Reader::open($book->finish()->bytes ?? Core\Bytes::fill(0, 0))->properties();
             bool $same = $read->title == $text && $read->author == $text;
             echo 'step ', $step, ' read the text ', $same ? 'unchanged' : 'changed', "\n";
@@ -35,7 +35,7 @@ Attack::attempt(3, Core\Str::repeat('x', 100000));
 
 // 4. A workbook without its last byte, and properties read 1,000 times on one reader.
 var $book = Workbook::createInMemory({ properties: { title: 'Prices' } });
-$book->sheet('Shop')->add(['Widget']);
+$book->addSheet('Shop')->addRow(['Widget']);
 bytes $file = $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
 try {
     Reader::open(Core\Bytes::slice($file, 0, (Core\Bytes::length($file) as int) - 1))->properties();

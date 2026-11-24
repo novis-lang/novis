@@ -8,7 +8,7 @@ class Report
     public static function sales(array<array<mixed>> $rows): bytes
     {
         var $book = Workbook::createInMemory({ properties: { title: 'Sales', author: 'Shop' } });
-        $book->sheet('Sales')->addAll($rows);
+        $book->addSheet('Sales')->addRows($rows);
         return $book->finish()->bytes ?? Core\Bytes::fill(0, 0);
     }
 }

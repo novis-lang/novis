@@ -2,7 +2,7 @@
 A footer function runs once for each page and prints a carried-forward total from the `data-mark` amounts of every page so far: rule:core-classes/pdf-header-is-a-page-function
 --FILE--
 <?nvs
-// covers: Novis\Pdf\Document::footer
+// covers: Novis\Pdf\Document::withFooter
 // covers: Novis\Pdf\Page::marks
 // covers: Novis\Pdf\Page::marksUpTo
 use Novis\Pdf\Document;
@@ -25,7 +25,7 @@ var $footer = fn(Page $page): Core\Html\Markup => {
     return html`<p>Carried forward: {$total}</p>`;
 };
 
-var $rendered = Document::fromHtml($html)->footer($footer)->render();
+var $rendered = Document::fromHtml($html)->withFooter($footer)->render();
 echo $rendered->pageCount, " pages, ", Core\Arr::count($rendered->overflows), " overflows\n";
 --EXPECT--
 page 1 of 3: 2 rows, total 15.70

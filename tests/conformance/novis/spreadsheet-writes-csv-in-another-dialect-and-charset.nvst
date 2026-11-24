@@ -34,7 +34,7 @@ Show::rows(Reader::open($latin, { csv: { separator: ';', charset: Core\Charset::
 
 // UTF-16 starts with a byte order mark, so the reader needs no option.
 var $book = Workbook::createInMemory({ format: 'csv', csv: { charset: Core\Charset::Utf16Le } });
-$book->sheet('Sheet1')->addAll($rows);
+$book->addSheet('Sheet1')->addRows($rows);
 var $written = $book->finish();
 bytes $utf16 = $written->bytes ?? Core\Bytes::fill(0, 0);
 echo Core\Encoding::toHex(Core\Bytes::slice($utf16, 0, 6)), "\n";
@@ -43,7 +43,7 @@ Show::rows(Reader::open($utf16)->rows(0, { header: true }));
 
 // A file, written in Windows-1252 and read back.
 var $file = Workbook::createForFile('names.csv', { csv: { charset: Core\Charset::Windows1252 } });
-$file->sheet('Sheet1')->addAll([['Price' => '5 €']]);
+$file->addSheet('Sheet1')->addRows([['Price' => '5 €']]);
 $file->finish();
 Core\IO\File $back = Core\IO::open('names.csv', Core\IO::FileMode::Read);
 Show::rows(Reader::open($back, { csv: { charset: Core\Charset::Windows1252 } })->rows(0, { header: true }));

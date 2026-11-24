@@ -21,11 +21,11 @@ What a gd program becomes, one row per concept:
 | gd / exif | Novis |
 |---|---|
 | `imagecreatefrom*`, `imagecreatefromstring` | `Image::open`, the format detected from the bytes |
-| `imagejpeg`, `imagepng`, `imagegif`, `imagewebp`, `imageavif` | `format(...)` then `encode()`; a path is written by the program from the result |
-| `imagecopyresampled`, `imagecopyresized`, `imagescale`, `imagecrop`, `imagecropauto`, `imagerotate`, `imageflip`, `imagecopy`, `imagecopymerge` | `resize`, `crop`, `trim`, `rotate`, `flip`, `composite` |
-| `imagefilter`, `imageconvolution`, `imagegammacorrect` | `sharpen`, `blur`, `grayscale`, `brightness`, `contrast`, `gamma`, `tint` |
-| `imagettftext`, `imagefttext`, `imagettfbbox`, `imageftbbox` | `text`, `measureText` |
-| `getimagesize*`, `imagesx`, `imagesy`, `exif_read_data`, `exif_imagetype`, `exif_thumbnail` | `Image::info`; a thumbnail is `resize` |
+| `imagejpeg`, `imagepng`, `imagegif`, `imagewebp`, `imageavif` | `withFormat(...)` then `encode()`; a path is written by the program from the result |
+| `imagecopyresampled`, `imagecopyresized`, `imagescale`, `imagecrop`, `imagecropauto`, `imagerotate`, `imageflip`, `imagecopy`, `imagecopymerge` | `resized`, `cropped`, `trimmed`, `rotated`, `flipped`, `withOverlay` |
+| `imagefilter`, `imageconvolution`, `imagegammacorrect` | `sharpened`, `blurred`, `grayscaled`, `withBrightness`, `withContrast`, `withGamma`, `tinted` |
+| `imagettftext`, `imagefttext`, `imagettfbbox`, `imageftbbox` | `withText`, `measureText` |
+| `getimagesize*`, `imagesx`, `imagesy`, `exif_read_data`, `exif_imagetype`, `exif_thumbnail` | `Image::info`; a thumbnail is `resized` |
 | `imagesetpixel`, `imagecolorat` | `raw()` and `fromRaw()`, once, the whole buffer |
 | palettes, mode flags, drawing primitives, affine matrices, screen capture, gd's own formats | dropped, with the replacement above where one exists |
 
