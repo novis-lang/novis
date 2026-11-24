@@ -2187,46 +2187,46 @@
     "Core\\RateLimit\\Decision::retryAfter": "383b667849b4c660"
   },
   "docs/examples/core/Reflect/forClass/about.md": {
-    "Core\\Reflect::forClass": "eea10560be0b230d"
+    "Core\\Reflect::forClass": "ce4b473fb0dea587"
   },
   "docs/examples/core/Reflect/forObject/about.md": {
-    "Core\\Reflect::forObject": "b912d6beaec3e35b"
+    "Core\\Reflect::forObject": "ad9e3a8a80772c11"
   },
   "docs/examples/core/Reflect/steps/about.md": {
-    "Core\\Reflect::steps": "1bb422c5456745a3"
+    "Core\\Reflect::steps": "40b05fb0764015c4"
   },
   "docs/examples/core/Reflect/typeOf/about.md": {
     "Core\\Reflect::typeOf": "86546b29fcc1e5b3"
   },
   "docs/examples/core/Reflect-AttributeInfo/field/about.md": {
-    "Core\\Reflect\\AttributeInfo::field": "2f72aaaab474d7f3"
+    "Core\\Reflect\\AttributeInfo::field": "e48d262a17f54a24"
   },
   "docs/examples/core/Reflect-AttributeInfo/fields/about.md": {
-    "Core\\Reflect\\AttributeInfo::fields": "02f8e3d3ad215c00"
+    "Core\\Reflect\\AttributeInfo::fields": "7d4f06bf57e0c7c1"
   },
   "docs/examples/core/Reflect-AttributeInfo/name/about.md": {
-    "Core\\Reflect\\AttributeInfo::name": "4e1badaca66c8a5d"
+    "Core\\Reflect\\AttributeInfo::name": "3893b6fff9c76900"
   },
   "docs/examples/core/Reflect-AttributeInfo/parameter/about.md": {
-    "Core\\Reflect\\AttributeInfo::parameter": "a1013cd4a38ec556"
+    "Core\\Reflect\\AttributeInfo::parameter": "219fe46afbec0cb9"
   },
   "docs/examples/core/Reflect-AttributeInfo/target/about.md": {
-    "Core\\Reflect\\AttributeInfo::target": "82313c744a1e5bd4"
+    "Core\\Reflect\\AttributeInfo::target": "ec2e6d46227d27cb"
   },
   "docs/examples/core/Reflect-ClassInfo/attributes/about.md": {
-    "Core\\Reflect\\ClassInfo::attributes": "808b806cda2a8f7f"
+    "Core\\Reflect\\ClassInfo::attributes": "420e7c80c6d5aba1"
   },
   "docs/examples/core/Reflect-ClassInfo/call/about.md": {
-    "Core\\Reflect\\ClassInfo::call": "14702a61e288b6d1"
+    "Core\\Reflect\\ClassInfo::call": "fca2374aee8a9e9e"
   },
   "docs/examples/core/Reflect-ClassInfo/constant/about.md": {
-    "Core\\Reflect\\ClassInfo::constant": "6d4c77e2b17826e3"
+    "Core\\Reflect\\ClassInfo::constant": "76579c675645f319"
   },
   "docs/examples/core/Reflect-ClassInfo/constants/about.md": {
-    "Core\\Reflect\\ClassInfo::constants": "ff9629e4122d4e0d"
+    "Core\\Reflect\\ClassInfo::constants": "8affe46650e6ed8b"
   },
   "docs/examples/core/Reflect-ClassInfo/construct/about.md": {
-    "Core\\Reflect\\ClassInfo::construct": "3c952713d3662331"
+    "Core\\Reflect\\ClassInfo::construct": "4d9d9c8417c1e7f3"
   },
   "docs/examples/core/Reflect-ClassInfo/get/about.md": {
     "Core\\Reflect\\ClassInfo::get": "26a328023b35992a"
@@ -2238,16 +2238,16 @@
     "Core\\Reflect\\ClassInfo::hasProperty": "e7d574ccc7703ff9"
   },
   "docs/examples/core/Reflect-ClassInfo/methods/about.md": {
-    "Core\\Reflect\\ClassInfo::methods": "6adba153dd38762d"
+    "Core\\Reflect\\ClassInfo::methods": "da1edac74766e1e9"
   },
   "docs/examples/core/Reflect-ClassInfo/name/about.md": {
-    "Core\\Reflect\\ClassInfo::name": "edc3dff6f0963b53"
+    "Core\\Reflect\\ClassInfo::name": "ae0ef7956f503050"
   },
   "docs/examples/core/Reflect-ClassInfo/parent/about.md": {
-    "Core\\Reflect\\ClassInfo::parent": "ac63c6cd8fc6b029"
+    "Core\\Reflect\\ClassInfo::parent": "6bde079b81bbbca4"
   },
   "docs/examples/core/Reflect-ClassInfo/properties/about.md": {
-    "Core\\Reflect\\ClassInfo::properties": "125eacc0a5b82336"
+    "Core\\Reflect\\ClassInfo::properties": "b956d7ed5ad2e9fe"
   },
   "docs/examples/core/Reflect-ClassInfo/readableProperties/about.md": {
     "Core\\Reflect\\ClassInfo::readableProperties": "7bde1ebc296320ae"
@@ -2262,7 +2262,7 @@
     "Core\\Reflect\\ConstantInfo::isPublic": "ca27b1359f3c4afd"
   },
   "docs/examples/core/Reflect-ConstantInfo/name/about.md": {
-    "Core\\Reflect\\ConstantInfo::name": "d4f669d2fae73582"
+    "Core\\Reflect\\ConstantInfo::name": "698ddf4395e774a2"
   },
   "docs/examples/core/Reflect-EnumInfo/cases/about.md": {
     "Core\\Reflect\\EnumInfo::cases": "8633e4fc307ed1e7"
@@ -2274,7 +2274,7 @@
     "Core\\Reflect\\EnumInfo::name": "12070ec615e8903d"
   },
   "docs/examples/core/Reflect-EnumInfo/of/about.md": {
-    "Core\\Reflect\\EnumInfo::of": "8ec040ff0689b39b"
+    "Core\\Reflect\\EnumInfo::of": "0172f0420051b0a3"
   },
   "docs/examples/core/Reflect-EnumInfo/valueOf/about.md": {
     "Core\\Reflect\\EnumInfo::valueOf": "7b8104fe651be8d7"
@@ -2297,14 +2297,20 @@
   "docs/examples/core/Reflect-ParameterInfo/type/about.md": {
     "Core\\Reflect\\ParameterInfo::type": "716405becae6637f"
   },
+  "docs/examples/core/Reflect-PropertyInfo/isLateInit/about.md": {
+    "Core\\Reflect\\PropertyInfo::isLateInit": "f17b29f62fa3f199"
+  },
   "docs/examples/core/Reflect-PropertyInfo/isPublic/about.md": {
     "Core\\Reflect\\PropertyInfo::isPublic": "1528948aab64c852"
+  },
+  "docs/examples/core/Reflect-PropertyInfo/isReadonly/about.md": {
+    "Core\\Reflect\\PropertyInfo::isReadonly": "c0e8ce76a8347772"
   },
   "docs/examples/core/Reflect-PropertyInfo/name/about.md": {
     "Core\\Reflect\\PropertyInfo::name": "9050ea7d13d009b9"
   },
   "docs/examples/core/Reflect-PropertyInfo/type/about.md": {
-    "Core\\Reflect\\PropertyInfo::type": "8467f6a1d3470984"
+    "Core\\Reflect\\PropertyInfo::type": "3f8a73c72088ca74"
   },
   "docs/examples/core/Regex/compile/about.md": {
     "Core\\Regex::compile": "30bf5970deec19e8"
@@ -3780,7 +3786,7 @@
     "lang:programs/comments": "3de243587c58b114"
   },
   "docs/examples/lang/programs/doc-comments/about.md": {
-    "lang:programs/doc-comments": "6b9f8617968b47be"
+    "lang:programs/doc-comments": "1a57ec2219b78f44"
   },
   "docs/examples/lang/programs/ending-a-program/about.md": {
     "lang:programs/ending-a-program": "da557f190da41531"
@@ -4446,7 +4452,7 @@
     "tools:cli/nvs-info": "9a26f3d521379af1"
   },
   "docs/examples/tools/cli/nvs-meta-json/about.md": {
-    "tools:cli/nvs-meta-json": "817e1e13cc9c0d80"
+    "tools:cli/nvs-meta-json": "756174bf52fac36c"
   },
   "docs/examples/tools/cli/nvs-run/about.md": {
     "tools:cli/nvs-run": "a6a4de813e919512"
@@ -7074,13 +7080,13 @@
     "Core\\RateLimit\\Decision::retryAfter": "412d45bce36ef0bf"
   },
   "help:Core\\Reflect::forClass": {
-    "Core\\Reflect::forClass": "d5454cb3cc587a5e"
+    "Core\\Reflect::forClass": "2866fc584661b5d9"
   },
   "help:Core\\Reflect::forObject": {
-    "Core\\Reflect::forObject": "529d6b4de1c36be3"
+    "Core\\Reflect::forObject": "5ed6ec25c4e05988"
   },
   "help:Core\\Reflect::steps": {
-    "Core\\Reflect::steps": "4ecc60fe2c089bb6"
+    "Core\\Reflect::steps": "29a69066b7b5d88d"
   },
   "help:Core\\Reflect::TypeKind": {
     "Core\\Reflect::TypeKind": "44b70653fd6ad534"
@@ -7089,34 +7095,34 @@
     "Core\\Reflect::typeOf": "c698b615a9591254"
   },
   "help:Core\\Reflect\\AttributeInfo::field": {
-    "Core\\Reflect\\AttributeInfo::field": "59df1334c449efbb"
+    "Core\\Reflect\\AttributeInfo::field": "ac0106045b68798d"
   },
   "help:Core\\Reflect\\AttributeInfo::fields": {
-    "Core\\Reflect\\AttributeInfo::fields": "7679f63a45918c05"
+    "Core\\Reflect\\AttributeInfo::fields": "4b5218954c466bb2"
   },
   "help:Core\\Reflect\\AttributeInfo::name": {
-    "Core\\Reflect\\AttributeInfo::name": "1c8b3ad90b87cea9"
+    "Core\\Reflect\\AttributeInfo::name": "c89aca0e36d2ba56"
   },
   "help:Core\\Reflect\\AttributeInfo::parameter": {
-    "Core\\Reflect\\AttributeInfo::parameter": "3f9105117a5a0e78"
+    "Core\\Reflect\\AttributeInfo::parameter": "eafebe823e79e7df"
   },
   "help:Core\\Reflect\\AttributeInfo::target": {
-    "Core\\Reflect\\AttributeInfo::target": "ae1c231d6df0bb61"
+    "Core\\Reflect\\AttributeInfo::target": "95556c787f22590c"
   },
   "help:Core\\Reflect\\ClassInfo::attributes": {
-    "Core\\Reflect\\ClassInfo::attributes": "743f61701bd3af41"
+    "Core\\Reflect\\ClassInfo::attributes": "fa0cdda0c23544df"
   },
   "help:Core\\Reflect\\ClassInfo::call": {
-    "Core\\Reflect\\ClassInfo::call": "ce1292734fd88a98"
+    "Core\\Reflect\\ClassInfo::call": "5bddde441a733efa"
   },
   "help:Core\\Reflect\\ClassInfo::constant": {
-    "Core\\Reflect\\ClassInfo::constant": "57f3325680af377c"
+    "Core\\Reflect\\ClassInfo::constant": "f3f047bd9ca4ea45"
   },
   "help:Core\\Reflect\\ClassInfo::constants": {
-    "Core\\Reflect\\ClassInfo::constants": "bcfa5d8dfdbbc345"
+    "Core\\Reflect\\ClassInfo::constants": "19fbb52e8eda66cd"
   },
   "help:Core\\Reflect\\ClassInfo::construct": {
-    "Core\\Reflect\\ClassInfo::construct": "4be67af153486eb9"
+    "Core\\Reflect\\ClassInfo::construct": "2ee797d05b6ac676"
   },
   "help:Core\\Reflect\\ClassInfo::get": {
     "Core\\Reflect\\ClassInfo::get": "5a1f4c3672a27933"
@@ -7128,16 +7134,16 @@
     "Core\\Reflect\\ClassInfo::hasProperty": "7ba0f2963634f238"
   },
   "help:Core\\Reflect\\ClassInfo::methods": {
-    "Core\\Reflect\\ClassInfo::methods": "d5c379f481d55e3a"
+    "Core\\Reflect\\ClassInfo::methods": "f3efdd6be2f03eef"
   },
   "help:Core\\Reflect\\ClassInfo::name": {
-    "Core\\Reflect\\ClassInfo::name": "54bbbd7c43e07e50"
+    "Core\\Reflect\\ClassInfo::name": "dd758d259f9a1226"
   },
   "help:Core\\Reflect\\ClassInfo::parent": {
-    "Core\\Reflect\\ClassInfo::parent": "9e98061ddbfb80d1"
+    "Core\\Reflect\\ClassInfo::parent": "0a4a3a940e91e874"
   },
   "help:Core\\Reflect\\ClassInfo::properties": {
-    "Core\\Reflect\\ClassInfo::properties": "1b0ddd7b8744ae21"
+    "Core\\Reflect\\ClassInfo::properties": "735c6b7bbbe0db97"
   },
   "help:Core\\Reflect\\ClassInfo::readableProperties": {
     "Core\\Reflect\\ClassInfo::readableProperties": "5b99a748fbccd5df"
@@ -7152,7 +7158,7 @@
     "Core\\Reflect\\ConstantInfo::isPublic": "da2f513561380f8c"
   },
   "help:Core\\Reflect\\ConstantInfo::name": {
-    "Core\\Reflect\\ConstantInfo::name": "00b6a40c9365ad38"
+    "Core\\Reflect\\ConstantInfo::name": "988eca253dafea59"
   },
   "help:Core\\Reflect\\EnumInfo::cases": {
     "Core\\Reflect\\EnumInfo::cases": "5eed77a325bda70b"
@@ -7164,7 +7170,7 @@
     "Core\\Reflect\\EnumInfo::name": "8890bd631e340988"
   },
   "help:Core\\Reflect\\EnumInfo::of": {
-    "Core\\Reflect\\EnumInfo::of": "04066f9a37a9aa1f"
+    "Core\\Reflect\\EnumInfo::of": "7a5ee58cffbedca7"
   },
   "help:Core\\Reflect\\EnumInfo::valueOf": {
     "Core\\Reflect\\EnumInfo::valueOf": "3925192de376cc35"
@@ -7187,14 +7193,20 @@
   "help:Core\\Reflect\\ParameterInfo::type": {
     "Core\\Reflect\\ParameterInfo::type": "fff8d2425289662c"
   },
+  "help:Core\\Reflect\\PropertyInfo::isLateInit": {
+    "Core\\Reflect\\PropertyInfo::isLateInit": "d0308c850323157f"
+  },
   "help:Core\\Reflect\\PropertyInfo::isPublic": {
     "Core\\Reflect\\PropertyInfo::isPublic": "fa4612504902e76a"
+  },
+  "help:Core\\Reflect\\PropertyInfo::isReadonly": {
+    "Core\\Reflect\\PropertyInfo::isReadonly": "813500423ac0c73f"
   },
   "help:Core\\Reflect\\PropertyInfo::name": {
     "Core\\Reflect\\PropertyInfo::name": "640a5ac57cc980ac"
   },
   "help:Core\\Reflect\\PropertyInfo::type": {
-    "Core\\Reflect\\PropertyInfo::type": "4faff6af11203bbe"
+    "Core\\Reflect\\PropertyInfo::type": "f3adba4fca834f59"
   },
   "help:Core\\Regex::compile": {
     "Core\\Regex::compile": "288561ef6e22a853"
@@ -9306,7 +9318,7 @@
     "tools:cli/nvs-info": "e836ca7c16350246"
   },
   "help:tools:cli/nvs-meta-json": {
-    "tools:cli/nvs-meta-json": "487739bce4ec5081"
+    "tools:cli/nvs-meta-json": "7616ac29cf1aa499"
   },
   "help:tools:cli/nvs-run": {
     "tools:cli/nvs-run": "5a8f3516af77b75c"
@@ -9524,7 +9536,7 @@
   },
   "syntax/basics/comments.mdx": {
     "lang:programs/comments": "09bf404ca5c6d9e7",
-    "lang:programs/doc-comments": "0333caaec670eaf6"
+    "lang:programs/doc-comments": "bfee10c68b393d93"
   },
   "syntax/basics/constants.mdx": {
     "lang:classes/constants-and-class": "798d0b87e518cc14"
