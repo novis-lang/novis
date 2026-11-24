@@ -130,7 +130,7 @@
 //!
 //! **The allocator itself is what bounds the rest.** A request whose ceiling
 //! is armed carries it here as an absolute balance — [`armed_ceiling`] — and
-//! [`add`] compares every *growing* allocation against it. A crossing raises
+//! [`add_to`] compares every *growing* allocation against it. A crossing raises
 //! [`SafepointFlags::MEMORY_LIMIT`](crate::SafepointFlags) — and beside it
 //! [`SafepointFlags::COLLECT`](crate::SafepointFlags), which is where the
 //! in-flight cycle collector runs and the only place it does ([`publish`]) —
@@ -159,7 +159,7 @@
 //! every count-shaped `Core` argument is checked at. So a request cannot ask
 //! for its whole ceiling twice over in a single operation and hold the bytes
 //! until its next poll — the ask is refused in front of the allocation, where
-//! [`add`]'s compare could only have caught the *second* such operation.
+//! [`add_to`]'s compare could only have caught the *second* such operation.
 //!
 //! # Whose bytes they are
 //!
@@ -196,8 +196,12 @@
 //! [`Ctx`](crate::Ctx) for the mark it displaced, which
 //! `rule:observability/a-memory-peak-is-recorded-not-asked-for` states. The
 //! cells an allocation touches are one `const`-initialized struct,
-//! [`Counters`], so an allocation and a free each look the thread's storage up
-//! once, and every cell they read sits in its first 64 bytes. On the
+//! [`Counters`], at the start of [`PerThread`], every cell they read in its
+//! first 64 bytes. `crate::alloc`'s block cache is the rest of that storage,
+//! so [`Accounting`]'s `alloc`, `alloc_zeroed`, `dealloc` and `realloc` each
+//! make **one** thread-local lookup and serve both the cache and the
+//! counters from it. A `realloc` charges its new size and gives back its old
+//! one through that same lookup. On the
 //! allocation path it is a read-modify-write of the live balance per
 //! `dealloc`, and of each memory counter per `alloc` — the high-water mark a
 //! compare that stores only when it moves. Each is a load, an add and a store
@@ -205,9 +209,19 @@
 //! allocation and its release reads from 0.67x to 1.15x of a platform heap
 //! round trip, depending on the CPU, and
 //! `the_memory_mark_stays_small_beside_the_allocation_it_fronts` in
-//! `benches/abi-probe/tests/perf_guards.rs` holds it under twice that. It
-//! is bought deliberately: AGENTS.md's priority ordering puts request
-//! isolation above latency, and a cap nothing counts against is not a cap.
+//! `benches/abi-probe/tests/perf_guards.rs` holds it under twice that.
+//! `crate::alloc`'s ignored probe times the whole counted round trip, cache
+//! and counters together: about 7.5 ns on a Linux machine whose platform heap
+//! round trip took 5.2 ns.
+//!
+//! Per request, the cost is that update once for each allocation and once
+//! for each free. `nvs-cli`'s `serve` tests record how many allocations one
+//! served request makes in a debug build: 25 for `hello`, 163 for the
+//! `json-api` compare case and 664 for `html-page`. At the 1.15x bound above,
+//! about 6 ns per allocation and its free, that is roughly 0.15 µs, 1 µs and
+//! 4 µs of a request. It is bought deliberately: AGENTS.md's priority
+//! ordering puts request isolation above latency, and a cap nothing counts
+//! against is not a cap.
 //!
 //! The ceiling above it is three more cells of the same set — the threshold,
 //! the address a crossing publishes into, and the bit a refusal is remembered
@@ -451,7 +465,7 @@ thread_local! {
 /// cannot afford — it is over its ceiling, which is the entire reason there is
 /// a report — so a pre-check applied to the runtime building one is a tier that
 /// says nothing, for the same reason a handler that cannot allocate is. What
-/// still bounds it is the counting ceiling: [`add`] compares the widened
+/// still bounds it is the counting ceiling: [`add_to`] compares the widened
 /// threshold behind every allocation, and the poll that follows stops a report
 /// that overran the slice it was lent.
 ///
@@ -1073,7 +1087,7 @@ fn settle_idle(tree: &crate::TreeState, balance: isize) {
 /// request stops. `crate::object::collect` owns what that walk costs and
 /// `Ctx::collect_if_asked` is the door it goes through.
 ///
-/// Out of line from [`add`], because it is reached only by an allocation that
+/// Out of line from [`add_to`], because it is reached only by an allocation that
 /// has already crossed the ceiling. It allocates nothing and takes no lock,
 /// which is what lets the global allocator be the caller.
 fn publish() {
@@ -1457,7 +1471,7 @@ pub(crate) fn wrote(bytes: usize) {
 /// The [`live_bytes`] balance the running request may not pass, or `0` for one
 /// under no ceiling.
 ///
-/// The absolute threshold [`add`] compares a growing allocation against, which
+/// The absolute threshold [`add_to`] compares a growing allocation against, which
 /// is [`Ctx::memory_limit`](crate::Ctx::memory_limit) plus the balance the
 /// request started from. The `0` is not a small ceiling but the sentinel the
 /// allocator short-circuits on, and reading it is how a case asks whether a
@@ -1484,8 +1498,8 @@ pub fn armed_ceiling() -> isize {
 /// first.
 ///
 /// Asked *in front of* the allocation, which is the only position from which
-/// one operation is bounded rather than a loop of them — [`add`] compares after
-/// `Backing` has already handed the block over. It lives here rather than at
+/// one operation is bounded rather than a loop of them — [`add_to`] compares after
+/// the backing allocator has already handed the block over. It lives here rather than at
 /// the call site for [`crate::affordable`]'s reason: a guard written per call
 /// site is a guard the next call site forgets.
 ///
@@ -1542,7 +1556,7 @@ pub fn headroom() -> Option<usize> {
 ///
 /// For a loop that builds one value out of many allocations and reaches no
 /// poll on the way, such as a buffered database read appending its rows.
-/// [`add`] has already raised the poll flag at the crossing, and this is how
+/// [`add_to`] has already raised the poll flag at the crossing, and this is how
 /// the loop learns of it before its next row. The `FATAL` is
 /// [`Ctx::memory_breach`](crate::Ctx::memory_breach)'s to write.
 #[must_use]
@@ -1925,7 +1939,7 @@ impl std::io::Write for ChunkWriter {
 /// The counters that say an allocation was made, whoever ends up holding the
 /// bytes.
 ///
-/// Out of line from [`add`] because both of its balances move them: which
+/// Out of line from [`add_to`] because both of its balances move them: which
 /// balance a delta lands on is a question of attribution, and whether the
 /// thread allocated is not.
 #[inline]
@@ -1990,7 +2004,7 @@ pub(crate) fn add(bytes: isize) {
 /// negative for a release.
 ///
 /// [`Accounting`] calls it with the counters from the lookup that also gave
-/// it the block cache, and [`add`] in a test build. A positive delta is one
+/// it the block cache, and `add` in a test build. A positive delta is one
 /// allocation *request*, which is why the memory counters move together here
 /// rather than at each allocating call site — the high-water mark among them,
 /// so the mark is exact for every allocation rather than approximate between
@@ -2085,7 +2099,7 @@ fn charge(bytes: usize) -> isize {
     isize::try_from(bytes).unwrap_or(isize::MAX)
 }
 
-/// `Backing`, plus the per-thread byte count above — the global allocator every
+/// [`backing`], plus the per-thread byte count above — the global allocator every
 /// build that is not a test build registers.
 ///
 /// A test build compiles it too and registers `counting_alloc` instead, so

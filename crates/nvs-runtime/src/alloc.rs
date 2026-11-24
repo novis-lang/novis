@@ -28,10 +28,15 @@
 //! [`crate::budget::release_pooled_blocks`]. A pool that starts threads again
 //! and again calls it, or the blocks of every thread it ever ran add up.
 //!
+//! The cache's free-list heads are 256 bytes of `budget`'s per-thread
+//! storage, beside the memory counters, and add no lookup of their own: the
+//! registered allocator looks that storage up once per allocation, free or
+//! resize, and takes the cache and the counters from the same lookup.
+//!
 //! # The one trap
 //!
-//! The `thread_local!` below **must** be `const`-initialized and hold no `Drop`
-//! type. A lazily-initialized thread local allocates its own state, and one
+//! The `thread_local!` that holds the cache (`budget`'s `THREAD`) **must** be
+//! `const`-initialized and hold no `Drop` type. A lazily-initialized thread local allocates its own state, and one
 //! with a destructor registers that destructor — both from inside the
 //! allocator, which is the recursion [`counting_alloc`](crate::counting_alloc)'s
 //! own header describes. `Cell<*mut u8>` and `Cell<u32>` are neither.

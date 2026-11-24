@@ -506,7 +506,7 @@ impl std::fmt::Display for Quoted<'_> {
 /// `rule:errors/escalation-ladder` gives it.
 ///
 /// Asking *in front of* the allocation is what bounds **one** operation rather
-/// than a loop of them — [`crate::budget::add`] compares once the block is
+/// than a loop of them — [`crate::budget::Accounting`] compares once the block is
 /// already held, so an input-sized ask that reaches the allocator first is a
 /// request holding twice its ceiling before anything polls it.
 /// `rule:programs/memory-priority` settles that a per-request ceiling is

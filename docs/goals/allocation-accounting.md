@@ -10,7 +10,7 @@ stages:
     context: [crates/nvs-cli/src/serve.rs, benches/compare/cases/json-api/main.nvs, benches/compare/cases/html-page/main.nvs]
   - id: 2
     title: the cache and the counters share one thread-local, looked up once per allocation
-    status: open
+    status: done
     context: [crates/nvs-runtime/src/budget.rs, crates/nvs-runtime/src/counting_alloc.rs, benches/abi-probe/tests/perf_guards.rs]
   - id: 3
     title: "the goal is verified once, and every failure is fixed"
@@ -66,7 +66,7 @@ AGENTS.md's priority ordering puts above latency. Only how many lookups it costs
 `rule:programs/less-work-is-taken`).** The merge is kept once it lands, whatever size of gain the
 timing shows: a gain under the noise is still a lookup less. Stage 2 times the counted round trip
 before and after, five WSL runs each (`bun nv linux-test --release -p nvs-runtime --lib <name>
---ignored -- --nocapture`), only to catch a merge that made it slower, such as a worse layout of
+-- --ignored --nocapture`; `--ignored` is the test binary's flag, so it follows `--`), only to catch a merge that made it slower, such as a worse layout of
 the merged cells or a lost inline. If the median after is slower than the slowest run before, the
 cause is found and fixed in the one attempt. If it cannot be, the change is reverted and the figures
 recorded in the handoff.
@@ -129,17 +129,21 @@ needs stage 1's counts, so it is taken after stage 1 ends.
 
 **Split:** none, one session.
 
-- [ ] Before any edit: add the `#[ignore]`d timing probe in `crates/nvs-runtime/src/alloc.rs:376`'s
+- [x] Before any edit: add the `#[ignore]`d timing probe in `crates/nvs-runtime/src/alloc.rs:376`'s
   test module, and record five WSL runs of it in the handoff.
-- [ ] `crates/nvs-runtime/src/alloc.rs:99` and `crates/nvs-runtime/src/budget.rs:355`: one merged
+  - [x] `Accounting` compiles in a test build, on the pooled backing, so the probe times it.
+  - [x] Five runs recorded.
+- [x] `crates/nvs-runtime/src/alloc.rs:99` and `crates/nvs-runtime/src/budget.rs:355`: one merged
   `thread_local!`, its doc carrying § *The one trap* and why the cache and the counters share it.
-- [ ] `crates/nvs-runtime/src/budget.rs:2048`: `alloc`, `alloc_zeroed`, `dealloc` and `realloc` each
+  - [x] `alloc::Cache` owns the free lists and implements `GlobalAlloc`; `Pooled` forwards to it.
+  - [x] `budget::PerThread` holds `Counters` then `Cache`, in `THREAD`.
+- [x] `crates/nvs-runtime/src/budget.rs:2048`: `alloc`, `alloc_zeroed`, `dealloc` and `realloc` each
   take the merged storage once.
-- [ ] Five WSL runs after the change, recorded beside the five before. Keep it unless the median after
+- [x] Five WSL runs after the change, recorded beside the five before. Keep it unless the median after
   is slower than the slowest run before.
-- [ ] Build, clippy, and `cargo test --lib` over `nvs-runtime`'s budget and alloc tests by name, which
+- [x] Build, clippy, and `cargo test --lib` over `nvs-runtime`'s budget and alloc tests by name, which
   the merge touches.
-- [ ] After stage 1: `crates/nvs-runtime/src/alloc.rs:17` and `crates/nvs-runtime/src/budget.rs:191`
+- [x] After stage 1: `crates/nvs-runtime/src/alloc.rs:17` and `crates/nvs-runtime/src/budget.rs:191`
   § *What it spends* rewritten for one lookup, `budget.rs`'s with the accounting's cost per allocation
   and per request for `hello`, `json-api` and `html-page`.
 
@@ -152,19 +156,30 @@ needs stage 1's counts, so it is taken after stage 1 ends.
 
 ### State
 
-Stage 1 is done. `a_served_compare_case_allocates_its_recorded_count` (`crates/nvs-cli/src/serve.rs:6218`,
-cases at `:6183`) is green on Windows in a debug build: one served `json-api` request makes **163**
-allocations and one `html-page` request **664**, both dividing evenly over 200 counted requests.
-`Way` (`serve.rs:5906`) now carries the request's path and `Content-Type`, so `json-api` is a `POST
-/orders` of `application/json` and `html-page` a `GET /products?q=` with the bench's search term.
-Stage 2 is not started: nothing in `alloc.rs` or `budget.rs` has changed.
+Stages 1 and 2 are done. `budget.rs`'s `THREAD` (a `PerThread`: `Counters` first, then
+`alloc::Cache`) is the one thread-local the allocation path reads, and `Accounting`'s four methods
+each take it once (`budget.rs` `impl GlobalAlloc for Accounting`). `Pooled` and `alloc`'s helpers
+reach the cache through `budget::with_cache`; `add` is now `cfg(test)`, for `counting_alloc`, and
+`add_to` is what `Accounting` calls. Both § *What it spends* sections state the one lookup, and
+`budget.rs`'s states the cost per request for `hello` (25), `json-api` (163) and `html-page` (664).
+
+The probe `the_counted_round_trip_is_timed_beside_the_platform_heap` (`alloc.rs` tests), five WSL
+release runs each, in ns:
+
+| | counted round trip | counted grow | platform round trip |
+|---|---|---|---|
+| before | 9.37, 9.79, 10.26, 10.26, 8.57 (median 9.79) | 12.01, 10.15, 10.93, 9.37, 9.21 | 6.24, 6.44, 6.03, 7.11, 7.28 |
+| after | 7.76, 7.46, 7.63, 7.42, 7.43 (median 7.46) | 7.57, 6.83, 6.97, 6.89, 6.87 | 5.27, 5.22, 5.30, 5.20, 5.25 |
+
+A first after-set ran on a loaded machine (platform 7.3 to 19.6 ns) and was discarded. The ratio to
+the platform heap moved from a median of 1.50 to 1.43, so the merge is not slower; it is kept.
+Green by name: the alloc, budget and counting_alloc unit tests, and every `a_served_` test in the
+`nvs` binary, at their recorded counts.
 
 ### Next
 
-Stage 2 from its first item: the `#[ignore]`d timing probe in `crates/nvs-runtime/src/alloc.rs:376`'s
-test module and five WSL runs before any edit, then the merged `thread_local!`
-(`alloc.rs:99`, `budget.rs:355`). Its last item writes the counts above, and `hello`'s
-`HELLO_ALLOCATIONS`, into `budget.rs:191`'s § *What it spends*. No test is expected to go red; the
-merge must keep both served-count tests at their recorded numbers.
+Stage 3: close the goal with a build, clippy, the tests this goal wrote by name
+(`a_served_compare_case_allocates_its_recorded_count`, and the probe compiles), then `bun nv close
+--goal allocation-accounting`. This goal is not the chain's full gate. No test is expected to go red.
 
 ### Backlog

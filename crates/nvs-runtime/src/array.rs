@@ -1994,7 +1994,7 @@ impl NvsArray {
     /// storage takes where it is full.
     ///
     /// `rule:errors/on-limit`'s memory ceiling asked in front of the write
-    /// rather than behind it: [`crate::budget::add`] compares once the block is
+    /// rather than behind it: [`crate::budget::Accounting`] compares once the block is
     /// already held, which bounds a *loop* of writes and cannot bound one of
     /// them. A `false` has already recorded the breach and asked for the poll
     /// that reports it, so what the caller owes is an operation that allocates

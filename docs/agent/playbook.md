@@ -282,6 +282,10 @@ session the bullets it ranks highest for the live goal, and names how many more 
   See `benches/members/README.md` and `benches/members/core/Session/get.scale.nvs`.
 
 ## Running things
+- **`--ignored` and `--nocapture` go after `--` in `bun nv linux-test`, or cargo stops at
+  "unexpected argument".** A goal wrote `linux-test --release -p <crate> --lib <name> --ignored --
+  --nocapture`, and the first probe run failed before it built. Write `--lib <name> -- --ignored
+  --nocapture`: both are the test binary's flags. See `tools/nv/cmd/linux-test.ts` `testLine`.
 - **`nvs check <directory>` of loose example scripts reports none of a new warning that `nvs check
   <file>` reports in each one.** A sweep for a new `W1xxx` over `docs/examples/` or `tests/hostile/`
   checks each file on its own; only an app with an entry (`apps/registry/public/index.nvs`) is checked
