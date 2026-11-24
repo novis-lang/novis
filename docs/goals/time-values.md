@@ -218,6 +218,15 @@ Many programs do each of these many times. The user agreed to the design below o
   `Quarter` and `Year` and counts whole units as `DateTime::difference` does. A unit below a day does
   not compile on a `Date`.
 
+**Calls the stage 2 session made (2026-11-24).**
+
+- An offset with seconds, which only a zone's local mean time before about 1900 has, is written
+  `+HH:MM:SS` in `DateTime::toIso`'s text, as `render_offset` already writes it for a fixed zone's
+  id. `+HH:MM` would name another moment, and `fromIso` would then throw on the text `toIso` wrote.
+  So `fromIso` reads `+HH:MM` and `+HH:MM:SS` before `[Zone]`.
+- A fixed-offset zone's name in the brackets is its id, `+05:30`, as `DateTime::zone()` returns it:
+  `2026-01-05T14:00:00+05:30[+05:30]`. RFC 9557 allows an offset in the brackets.
+
 **Declined, each written into a rule's Declined list in stage 6.**
 
 | Proposal | Reason | Rule |
@@ -314,9 +323,14 @@ the first edit, as `file.rs:NN` and one line each.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-stdlib/src/time.rs:2898` (`Date`), `:3335` (`TimeOfDay`) and `:2078` (`DateTime`):
+- [x] `crates/nvs-stdlib/src/time.rs:2898` (`Date`), `:3335` (`TimeOfDay`) and `:2078` (`DateTime`):
   `toIso(): string`, each writing the text its `fromIso` reads, beside `Instant::toIso`
   (`time.rs:4852`). `DateTime`'s writes the offset and `[Zone]`, as § *Standing decisions* says.
+  - [x] `Date::toIso` and `TimeOfDay::toIso` (`date_iso_text`, `clock_iso_text`), with
+    `to_iso_date_round_trips_through_from_iso` and `to_iso_time_of_day_round_trips_through_from_iso`.
+  - [x] `DateTime::toIso` (`zoned_iso_text`), with `to_iso_datetime_writes_its_offset_and_zone`.
+  - [ ] `to_iso_round_trips_at_both_ends_of_the_range`, once `DateTime::fromIso` reads the zoned
+    text (the next item).
 - [ ] `crates/nvs-stdlib/src/time.rs:4019` (`iso_datetime`) and `:3831` (`validate_iso`): the
   `DateTime` grammar reads an optional offset and one `[Zone]`, and checks the offset against the
   zone at that local time. `crates/nvs-stdlib/src/time.rs:1807`: `DateTime::fromIso`'s `$zone`
@@ -424,19 +438,32 @@ one for `docs/examples/core/Time-Date/`, one for `Time-DateTime/`, `Time-TimeOfD
 
 ### State
 
-Stage 1's code is committed (`ccae85161d`): the runtime, the checker's mark, the lowering, the map
-keying, `DateTime::compareTo`, the four rewritten `compareTo` cards and the moved reject case. The
-checks `value-equality`, `datetime-order` and `map-by-value` ran once by name and are green (15
-tests). Build and clippy are green.
+Stage 1 is done (`322968e6a2`): the `ObjectMap` and `ObjectSet` cards and module docs, the
+`identity_store` keying table, the serialize reason and the four rules say `==` finds a `Core\Time`
+value by value. `objmap.rs`'s `same` stays identity on purpose, and its doc says why.
+
+Stage 2's first item is in: `Date::toIso`, `TimeOfDay::toIso` and `DateTime::toIso`
+(`crates/nvs-stdlib/src/time.rs` `date_iso_text`, `clock_iso_text`, `zoned_iso_text`, beside
+`nvs_core_time_instant_to_iso`). Their three tests ran once by name and are green. Build and clippy
+are green.
 
 ### Next
 
-Stage 1's last two items, docs only: the checkpoints under the `ObjectMap` item (`identity_store.rs`,
-`objmap.rs`, `objset.rs`, `instance.rs:247`) and under the rules item. Then mark stage 1 done in the
-front matter and take stage 2 (`time.rs`'s `toIso` members, `intrinsics.rs:397`'s `DateTime` row).
+Stage 2's second item: `DateTime::fromIso` reads the zoned text.
+
+- `crates/nvs-stdlib/src/time.rs` `iso_datetime` (grep `fn iso_datetime`) and `validate_iso`: an
+  optional `+HH:MM` or `+HH:MM:SS` offset, then one `[Zone]`, the offset checked against the zone at
+  that local time. `nvs_core_time_datetime_from_iso` (grep) takes `?Zone $zone = null`; its row is
+  near `time.rs:1806` and its card is `DATETIME_FROM_ISO_DOC`.
+- `crates/nvs-types/src/intrinsics.rs:397`: the `DateTime` literal row checks the zone name and the
+  offset, and a literal with neither `[Zone]` nor a second argument does not compile.
+- Then the tests of check `iso-zone`, and `to_iso_round_trips_at_both_ends_of_the_range` for `iso-text`.
+- Then E0710's help (`operators.rs:3172`), the week-year warning, and the rule paragraph.
 
 Tests that may go red in the gate: a conformance case or example that prints `==` on two equal
 `Core\Time` values and expected `false`. Grep `tests/conformance` and `docs/examples` for
-`compareTo($` with `== 0` and for `Duration`/`Date` pairs under `==` when the gate names one.
+`compareTo($` with `== 0` and for `Duration`/`Date` pairs under `==` when the gate names one. The
+`ObjectMap`/`ObjectSet` card texts changed, so `site --check stale` and `questions` will name their
+pages in stage 7, and `nvs meta`'s snapshot, if a test pins it, gains three `toIso` rows.
 
 ### Backlog
