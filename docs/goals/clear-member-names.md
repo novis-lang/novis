@@ -10,7 +10,7 @@ stages:
     context: [docs/rules/core-api/shape-rules.md, docs/rules/core-api/symmetric-names.md, crates/nvs-stdlib/src/registry.rs, tools/nv/cmd/ci.ts, tools/nv/renderers/website-core.ts]
   - id: 2
     title: "the moved-name tables are empty until pre-alpha ends, and bun nv api-rename sweeps the tree from this goal's renames block"
-    status: open
+    status: done
     context: [docs/rules/core-api/a-moved-name-says-where-it-went.md, crates/nvs-stdlib/src/moved.rs, crates/nvs-types/src/moved.rs, crates/nvs-types/src/attributes.rs, crates/nvs-syntax/src/parser/expr.rs]
   - id: 3
     title: "the request path is renamed: Response, Request, Sse, Task, Metrics, Router\\Match and Script"
@@ -190,9 +190,11 @@ line or fix names what replaced it. Stage 2:
   has no users to protect.
 
 **The changelog entry is the rename's record.** Every commit that renames a member is
-`feat(<scope>)!:` with a `BREAKING CHANGE:` body that lists each `Old` → `New`, so
+`feat(<scope>):` with a `BREAKING CHANGE:` body that lists each `Old` → `New`, so
 [changelog-summary.md](../agent/changelog-summary.md) § *Breaking changes* picks it up with its
-`Before:` example. Stage 8 writes the matching `website/src/data/changes.json` entries.
+`Before:` example (its `git log --grep='BREAKING'` finds the body). The subject carries no `!`:
+the synced `commit-msg` hook (`tools/looper/src/gates/commit-msg.ts:45`) refuses it, and the body is
+what the changelog procedure reads. Stage 8 writes the matching `website/src/data/changes.json` entries.
 
 **The sweep: `bun nv api-rename --goal <slug>`.** A command, because the same rewrite runs in four
 stages. Its map is the `renames` block of this goal file (stage 2 writes it from the table below, one
@@ -498,17 +500,17 @@ stage the sweep's leftovers go to writing subagents by directory.
 
 **Split:** none, one session.
 
-- [ ] `crates/nvs-stdlib/src/moved.rs:70` and `crates/nvs-types/src/attributes.rs:1292`: `MOVES` and
+- [x] `crates/nvs-stdlib/src/moved.rs:70` and `crates/nvs-types/src/attributes.rs:1292`: `MOVES` and
   `REMOVED_OPTIONS` empty; a `cfg(test)` table of made-up rows keeps the pass and the help branch
   tested; the tests pinning real moves deleted, as the standing decision lists them.
-- [ ] `docs/rules/core-api/a-moved-name-says-where-it-went.md:1` and
+- [x] `docs/rules/core-api/a-moved-name-says-where-it-went.md:1` and
   `docs/rules/core-api/no-deprecation-window-before-a-release.md:1` rewritten as the standing decision
   says; every citation of a real pre-alpha move rewritten; `bun nv rules --check` green.
-- [ ] `crates/nvs-syntax/src/parser/expr.rs:2687` and `crates/nvs-types/src/expr/quals.rs:2249`: spawn's
+- [x] `crates/nvs-syntax/src/parser/expr.rs:2687` and `crates/nvs-types/src/expr/quals.rs:2249`: spawn's
   `arguments:` key replaces `args:`, which is an unknown key.
-- [ ] The `renames` block under § *Standing decisions*, written from the renames table: one fully
+- [x] The `renames` block under § *Standing decisions*, written from the renames table: one fully
   qualified `Old New` pair per line.
-- [ ] `tools/nv/cmd/api-rename.ts:1`: the sweep and `--check`, both taking `--goal <slug>`, registered in
+- [x] `tools/nv/cmd/api-rename.ts:1`: the sweep and `--check`, both taking `--goal <slug>`, registered in
   `tools/nv/main.ts`; `tools/nv/test/api-rename.test.ts:1` with the five tests the check
   `api-rename-tool` names, run once.
 
@@ -517,7 +519,7 @@ stage the sweep's leftovers go to writing subagents by directory.
 **Split:** the session renames the registry rows, symbols and cards, then runs
 `bun nv api-rename --goal clear-member-names`. Its list of instance calls goes to writing subagents by
 directory: `docs/examples/`, `tests/`, `website/` and `crates/*/tests/`. They run side by side, and the
-session builds once they end. Each stage commits as `feat(<scope>)!:` with a `BREAKING CHANGE:` body
+session builds once they end. Each stage commits as `feat(<scope>):` with a `BREAKING CHANGE:` body
 listing every `Old` → `New` it renamed, as the standing decision says.
 
 - [ ] `crates/nvs-stdlib/src/response.rs:376`, `:428`, `:474`: `sendJson`, `sendHtml`, `sendText`,
@@ -525,6 +527,14 @@ listing every `Old` → `New` it renamed, as the standing decision says.
 - [ ] `crates/nvs-stdlib/src/request.rs:259`, `:379`: the six query and form reads.
 - [ ] `crates/nvs-stdlib/src/sse.rs:181`, `:251`; `metrics.rs:190`; `task.rs:175`; `router.rs:441`,
   `:797`; `script.rs:165`.
+- [ ] `Core\Socket::upgrade` and `Core\Sse::upgrade`: the `$args` parameter becomes `$arguments`, with
+  every `args:` named argument (`apps/chat/src/App.nvs:87`, `apps/poll/src/App.nvs:98`, the upgrade
+  benches, examples, hostile tests and conformance cases). Then every prose `args:` that means spawn's
+  or upgrade's option says `arguments:`: `docs/reference/lang/80-concurrency.md:1026`, the
+  `isolates-spawn-script-and-await` example and its `details.md`, `rule:security/isolate-shares-nothing`,
+  the Rust doc comments `grep -rn '\`args:\`' crates` lists, and `crates/nvs-stdlib/src/socket.rs:832`,
+  `:1029` and `sse.rs:620`'s messages. Spawn's key and the runtime's mismatch message already say
+  `arguments:`.
 - [ ] `cargo build`, then `bun nv api-rename --goal clear-member-names`; every listed call fixed; example
   and bench directories moved.
 - [ ] `cargo build` and `cargo clippy --all-targets -- -D warnings` green.
@@ -610,27 +620,33 @@ changes entries.
 
 ### State
 
-Stage 1 is done (commit `feat(nv): bun nv names checks every Core and package name`). The rules
-`verb-lexicon` and `members-are-full-words` are rewritten, R5 and R7 name the new parts, and
-`bun nv names [--check]` (`tools/nv/cmd/names.ts`, tables `tools/data/api-names.json`) runs in
-`ci --check` as `api names` after the build. `bun test tools/nv/test/names.test.ts`: 8 pass.
+Stages 1 and 2 are done. `MOVES` and `REMOVED_OPTIONS` are empty. The pass runs over made-up rows in
+`crates/nvs-types/tests/moved.rs`, which has 3 tests, and `attributes::unknown_option_help` has a unit test.
+The tests that pinned real moves are deleted. Both rules are rewritten, and `bun nv rules --check` is green.
+Spawn's key is `arguments:`, and every `with(args:` caller and the spawn messages are rewritten.
+`upgrade`'s `$args` is still `args`; it is stage 3's new item. The `renames` block has 148 pairs,
+each checked against `nvs meta --json`. `bun nv api-rename` and its 5 tests are in place, and
+`looper check --name api-rename-tool` is green. The commit hook refuses `!`, so the decision now says
+`feat(<scope>):` with a `BREAKING CHANGE:` body.
 
-`bun nv names --check` lists 181 findings: full words 44, part 1: 15, part 2: 41, part 3: 48,
-part 4: 33. All but these are in the renames table, and these are stage 7's:
-`CoreProcess::run` and `spawn` option `cwd`; `CoreTimeInstant::fromEpoch` and
-`CoreTimeTimeOfDay::at` option `nanos`; `CoreQueue::push` option `args`; the class
-`NovisImageDiff`; `CoreRateLimit::shed` (it charges, an effect); `CoreCli::multiSelect` (it
-prompts); `CoreLdapFilter::approx`.
-
-Expected red until stage 7: `ci --check`'s `api names`, so `ci --check`, the floor's `ci-check` and
-`ci --push` are red until then. No push is due before this goal's close.
+Red until stage 7: `bun nv names --check` (181 findings), `bun nv api-rename --check` (about 3,800 old
+names), and so `ci --check`, the floor's `ci-check` and `ci --push`. Stage 7's names outside the table
+are `CoreProcess::run` and `spawn`'s `cwd`, the `nanos` option of `Instant::fromEpoch` and
+`TimeOfDay::at`, `Queue::push`'s `args`, `NovisImageDiff`, `RateLimit::shed`, `Cli::multiSelect`
+and `LdapFilter::approx`. No conformance run was made this stage.
 
 ### Next
 
-Stage 2 from its first item: `crates/nvs-stdlib/src/moved.rs:70` and
-`crates/nvs-types/src/attributes.rs:1292` emptied, the two rules rewritten, then the `renames` block and
-`tools/nv/cmd/api-rename.ts` with `tools/nv/test/api-rename.test.ts`. Another interactive session had
-uncommitted Rust edits in `crates/nvs-runtime/`, `crates/nvs-lsp/` and `crates/nvs-cli/src/reload_endpoint.rs`
-when stage 1 ended; run `looper claims` before touching those.
+Stage 3 from its first item: rename the rows in `crates/nvs-stdlib/src/response.rs:376`, `request.rs:259`,
+`sse.rs:181`, `metrics.rs:190`, `task.rs:175`, `router.rs:441`, `script.rs:165`, their natives' symbols
+and cards; `cargo build`; then `bun nv api-rename --goal clear-member-names`. It rewrites every renamed
+name across the tree, not only stage 3's, so run it with the block cut down to stage 3's pairs, or
+rewrite only the files stage 3's pairs reach: the sweep reads the whole block. First add a
+`--class <Old\Class>` filter (repeatable) to `tools/nv/cmd/api-rename.ts:200` that keeps only those
+pairs, with a test, and the `--check` of stage 7 stays unfiltered. Its `->old(` list goes to writing subagents by
+directory. The upgrade `$args` item is new in stage 3.
 
 ### Backlog
+
+- `data/perf/members.md` is a ledger keyed by member, and the sweep rewrites its names too. Decide in
+  stage 3 whether a ledger row is renamed or keeps its old name as history.
